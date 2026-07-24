@@ -7,7 +7,12 @@ import {
   NOTE_STATUS_BADGE_TONE_CLASS,
   NoteStatusBadge,
 } from "@cashsouk/ui";
-import type { EligibleNoteInvoice, NoteListItem } from "@cashsouk/types";
+import type { EligibleNoteInvoice, NoteListItem, NoteSettlementPoolSummary } from "@cashsouk/types";
+import {
+  formatProspectusListBadge,
+  hasSettlementTrusteeMovementFromPoolSummary,
+  isSettlementWrappingUpFromSummary,
+} from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -53,9 +58,53 @@ function getFundingProgressClass(note: NoteListItem) {
   return "[&>div]:bg-primary";
 }
 
+function getSettlementRegistryLabel(
+  summary: NoteSettlementPoolSummary
+): { label: string; toneClass: string } | null {
+  if (isSettlementWrappingUpFromSummary(summary)) {
+    return null;
+  }
+  return {
+    label: "Settled",
+    toneClass: NOTE_STATUS_BADGE_TONE_CLASS.success,
+  };
+}
+
+function SettlementRegistryCell({ note }: { note: NoteListItem }) {
+  const summary = note.settlementSummary;
+  if (!summary) {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  const registryLabel = getSettlementRegistryLabel(summary);
+  return (
+    <div className="min-w-0">
+      {registryLabel ? (
+        <Badge variant="outline" className={cn("max-w-full truncate", registryLabel.toneClass)}>
+          {registryLabel.label}
+        </Badge>
+      ) : null}
+      <div className="mt-1 truncate text-xs text-muted-foreground">
+        Repayment {formatCurrency(summary.grossReceiptAmount)}
+      </div>
+      <div className="truncate text-xs text-muted-foreground">
+        Investor {formatCurrency(summary.investorPoolAmount)}
+      </div>
+      <div className="truncate text-xs text-muted-foreground">
+        Ops {formatCurrency(summary.operatingAccountAmount)} · Ta&apos;widh{" "}
+        {formatCurrency(summary.tawidhAccountAmount)} · Gharamah{" "}
+        {formatCurrency(summary.gharamahAccountAmount)}
+      </div>
+    </div>
+  );
+}
+
 function ServiceFeeTrusteeRegistryCell({ note }: { note: NoteListItem }) {
   const summary = note.settlementSummary;
-  if (!summary || summary.status !== "POSTED" || summary.operatingAccountAmount <= 0.005) {
+  if (
+    !summary ||
+    summary.status !== "POSTED" ||
+    !hasSettlementTrusteeMovementFromPoolSummary(summary)
+  ) {
     return <span className="text-muted-foreground">—</span>;
   }
   const st = summary.serviceFeeTrusteeStatus;
@@ -108,6 +157,15 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
               Featured
             </Badge>
           ) : null}
+          {note.prospectus?.displayStatus ? (
+            <Badge
+              variant="outline"
+              className="shrink-0 text-[10px] font-normal"
+              title={formatProspectusListBadge(note.prospectus.displayStatus)}
+            >
+              {formatProspectusListBadge(note.prospectus.displayStatus)}
+            </Badge>
+          ) : null}
         </div>
         <div className="truncate text-xs text-muted-foreground" title={note.issuerName ?? "Unknown issuer"}>
           {note.issuerName ?? "Unknown issuer"}
@@ -132,26 +190,7 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
         <NoteStatusBadge note={note} />
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
-        {note.settlementSummary ? (
-          <div className="min-w-0">
-            <Badge variant="outline" className={NOTE_STATUS_BADGE_TONE_CLASS.success}>
-              Settled
-            </Badge>
-            <div className="mt-1 truncate text-xs text-muted-foreground">
-              Repayment {formatCurrency(note.settlementSummary.grossReceiptAmount)}
-            </div>
-            <div className="truncate text-xs text-muted-foreground">
-              Investor {formatCurrency(note.settlementSummary.investorPoolAmount)}
-            </div>
-            <div className="truncate text-xs text-muted-foreground">
-              Ops {formatCurrency(note.settlementSummary.operatingAccountAmount)} · Ta&apos;widh{" "}
-              {formatCurrency(note.settlementSummary.tawidhAccountAmount)} · Gharamah{" "}
-              {formatCurrency(note.settlementSummary.gharamahAccountAmount)}
-            </div>
-          </div>
-        ) : (
-          <span className="text-muted-foreground">-</span>
-        )}
+        <SettlementRegistryCell note={note} />
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <ServiceFeeTrusteeRegistryCell note={note} />

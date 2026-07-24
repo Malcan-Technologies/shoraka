@@ -778,6 +778,8 @@ model Note {
   title                           String
   note_reference                  String                @unique
   product_snapshot                Json?
+  purpose_snapshot                Json?
+  prospectus_snapshot             Json?
   issuer_snapshot                 Json
   paymaster_snapshot              Json?
   contract_snapshot               Json?
@@ -818,6 +820,8 @@ model Note {
   ledger_entries                  NoteLedgerEntry[]
   events                          NoteEvent[]
   admin_actions                   NoteAdminAction[]
+  prospectus_review               NoteProspectusReview?
+  prospectus_publications         NoteProspectusPublication[]
 
   @@index([source_application_id])
   @@index([source_contract_id])
@@ -830,6 +834,56 @@ model Note {
   @@index([featured_from, featured_until])
   @@index([maturity_date])
   @@map("notes")
+}
+
+/// Pre-marketplace officer review of prospectus publication content (1:1 with Note).
+/// Never stores Application/CTOS source data or rendered HTML/PDF.
+model NoteProspectusReview {
+  id                       String                      @id @default(cuid())
+  note_id                  String                      @unique
+  status                   ProspectusReviewStatus      @default(DRAFT)
+  content_version          Int                         @default(1)
+  option_catalogue_version String
+  draft_content            Json                        @default("{}")
+  approved_content         Json?
+  /// Complete frozen prospectus built at Approve (source of publish copy).
+  approved_snapshot        Json?
+  approved_publication_id  String?                     @unique
+  render_fingerprint       String?
+  created_by_user_id       String
+  updated_by_user_id       String
+  approved_by_user_id      String?
+  approved_at              DateTime?
+  created_at               DateTime                    @default(now())
+  updated_at               DateTime                    @updatedAt
+  note                     Note                        @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  publications             NoteProspectusPublication[]
+
+  @@index([status])
+  @@index([updated_at])
+  @@map("note_prospectus_reviews")
+}
+
+/// Immutable Prospectus freeze created at Approve; published_at set in publish transaction.
+model NoteProspectusPublication {
+  id                   String               @id @default(cuid())
+  note_id              String
+  prospectus_review_id String
+  content_version      Int
+  snapshot             Json
+  render_fingerprint   String
+  approved_by_user_id  String
+  approved_at          DateTime
+  published_at         DateTime?
+  created_at           DateTime             @default(now())
+  note                 Note                 @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  prospectus_review    NoteProspectusReview @relation(fields: [prospectus_review_id], references: [id], onDelete: Cascade)
+  investments          NoteInvestment[]
+
+  @@index([note_id])
+  @@index([prospectus_review_id])
+  @@index([published_at])
+  @@map("note_prospectus_publications")
 }
 
 model NoteListing {
@@ -854,25 +908,33 @@ model NoteListing {
 }
 
 model NoteInvestment {
-  id                       String               @id @default(cuid())
-  note_id                  String
-  investor_organization_id String
-  investor_user_id         String
-  status                   NoteInvestmentStatus @default(COMMITTED)
-  amount                   Decimal              @db.Decimal(18, 6)
-  allocation_percent       Decimal              @default(0) @db.Decimal(9, 6)
-  committed_at             DateTime             @default(now())
-  confirmed_at             DateTime?
-  released_at              DateTime?
-  metadata                 Json?
-  created_at               DateTime             @default(now())
-  updated_at               DateTime             @updatedAt
-  note                     Note                 @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  id                         String                     @id @default(cuid())
+  note_id                    String
+  investor_organization_id   String
+  investor_user_id           String
+  status                     NoteInvestmentStatus       @default(COMMITTED)
+  amount                     Decimal                    @db.Decimal(18, 6)
+  allocation_percent         Decimal                    @default(0) @db.Decimal(9, 6)
+  committed_at               DateTime                   @default(now())
+  confirmed_at               DateTime?
+  released_at                DateTime?
+  metadata                   Json?
+  /// Exact published Prospectus freeze for this investment (not version-alone).
+  prospectus_publication_id  String?
+  prospectus_content_version Int?
+  prospectus_acknowledged_at DateTime?
+  product_terms_ref          String?
+  risk_disclosure_ref        String?
+  created_at                 DateTime                   @default(now())
+  updated_at                 DateTime                   @updatedAt
+  note                       Note                       @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  prospectus_publication     NoteProspectusPublication? @relation(fields: [prospectus_publication_id], references: [id], onDelete: Restrict)
 
   @@index([note_id])
   @@index([investor_organization_id])
   @@index([investor_user_id])
   @@index([status])
+  @@index([prospectus_publication_id])
   @@map("note_investments")
 }
 
@@ -940,7 +1002,7 @@ model NotePayment {
   receipt_amount             Decimal           @db.Decimal(18, 6)
   receipt_date               DateTime
   received_into_account_code String            @default("REPAYMENT_POOL")
-  evidence_s3_key            String?
+  evidence_files             Json?
   reference                  String?
   recorded_by_user_id        String?
   reconciled_by_user_id      String?
@@ -986,6 +1048,8 @@ model NoteSettlement {
   posted_at                        DateTime?
   idempotency_key                  String?                             @unique
   service_fee_trustee_status       ServiceFeeTrusteeInstructionStatus?
+  service_fee_trustee_created_at   DateTime?
+  service_fee_trustee_letter_generated_at DateTime?
   service_fee_trustee_submitted_at DateTime?
   service_fee_trustee_completed_at DateTime?
   created_at                       DateTime                            @default(now())
@@ -1120,14 +1184,15 @@ model GatewayPayment {
   id                       String                  @id @default(cuid())
   purpose                  GatewayPaymentPurpose
   organization_type        GatewayOrganizationType
+  gatewayAccount           CurlecGatewayAccount    @map("gateway_account")
   investor_organization_id String?
   issuer_organization_id   String?
   application_id           String?
   amount                   Decimal                 @db.Decimal(18, 6)
   currency                 String                  @default("MYR")
   status                   GatewayPaymentStatus    @default(CREATED)
-  curlec_order_id          String                  @unique
-  curlec_payment_id        String?                 @unique
+  curlec_order_id          String
+  curlec_payment_id        String?
   method                   String?
   bank_code                String?
   payer_name               String?
@@ -1156,7 +1221,38 @@ model GatewayPayment {
   @@index([investor_organization_id])
   @@index([issuer_organization_id])
   @@index([application_id])
+  @@index([gatewayAccount])
+  @@index([curlec_order_id])
+  @@index([curlec_payment_id])
+  @@index([gatewayAccount, settlement_id])
+  @@unique([gatewayAccount, curlec_order_id])
+  @@unique([gatewayAccount, curlec_payment_id])
   @@map("gateway_payments")
+}
+
+/// Durable checkpoint for a Curlec order-create attempt. Written before the
+/// remote Curlec call and updated with the remote order id immediately after
+/// success, so a failed local GatewayPayment insert can recover the same order
+/// on retry instead of creating another remote order.
+model GatewayOrderAttempt {
+  id               String                       @id @default(cuid())
+  gatewayAccount   CurlecGatewayAccount         @map("gateway_account")
+  purpose          GatewayPaymentPurpose
+  scope_key        String
+  idempotency_key  String?
+  receipt          String
+  curlec_order_id  String?
+  amount           Decimal                      @db.Decimal(18, 6)
+  currency         String                       @default("MYR")
+  status           GatewayOrderAttemptStatus     @default(PENDING)
+  last_error_code  String?
+  created_at       DateTime                     @default(now())
+  updated_at       DateTime                     @updatedAt
+
+  @@unique([gatewayAccount, purpose, scope_key])
+  @@index([gatewayAccount, curlec_order_id])
+  @@index([status, created_at])
+  @@map("gateway_order_attempts")
 }
 
 /// Admin audit trail for gateway payment status and resolution actions.
@@ -1179,14 +1275,18 @@ model GatewayPaymentEvent {
 /// Raw Curlec webhook events for dedup and audit (processed in later milestones).
 model GatewayWebhookEvent {
   id              String    @id @default(cuid())
-  event_id        String    @unique
+  event_id        String
   event_type      String
+  gatewayAccount  CurlecGatewayAccount @map("gateway_account")
   payload         Json
   signature_valid Boolean
   processed_at    DateTime?
   error           String?
   created_at      DateTime  @default(now())
 
+  @@unique([gatewayAccount, event_id])
+  @@index([event_id])
+  @@index([gatewayAccount])
   @@map("gateway_webhook_events")
 }
 
@@ -1194,6 +1294,7 @@ model GatewayWebhookEvent {
 model GatewayReconRun {
   id                  String                  @id @default(cuid())
   run_date            DateTime                @db.Date
+  gatewayAccount      CurlecGatewayAccount    @map("gateway_account")
   status              GatewayReconRunStatus   @default(RUNNING)
   triggered_by        String
   settlements_scanned Int                     @default(0)
@@ -1206,7 +1307,8 @@ model GatewayReconRun {
   created_at          DateTime                @default(now())
   exceptions          GatewayReconException[]
 
-  @@unique([run_date])
+  @@unique([run_date, gatewayAccount])
+  @@index([gatewayAccount])
   @@map("gateway_recon_runs")
 }
 
@@ -1727,6 +1829,14 @@ enum NoteStatus {
   CANCELLED
 }
 
+enum ProspectusReviewStatus {
+  DRAFT
+  READY_FOR_REVIEW
+  APPROVED
+  SUPERSEDED
+  PUBLISHED
+}
+
 enum NoteListingStatus {
   NOT_LISTED
   DRAFT
@@ -1798,6 +1908,11 @@ enum GatewayPaymentStatus {
   EXPIRED
 }
 
+enum CurlecGatewayAccount {
+  OPERATING
+  INVESTOR_POOL
+}
+
 enum NameCheckResult {
   PASS
   REVIEW
@@ -1815,6 +1930,15 @@ enum GatewayPaymentEventType {
   REFUND_INITIATED
   REFUNDED
   EXPIRED
+  CAPTURE_MISMATCH
+  REFUND_WALLET_REVERSAL_FAILED
+}
+
+enum GatewayOrderAttemptStatus {
+  PENDING
+  REMOTE_CREATED
+  RESOLVED
+  FAILED
 }
 
 enum GatewayReconRunStatus {
@@ -1923,6 +2047,7 @@ enum SiteDocumentType {
   TERMS_AND_CONDITIONS
   PRIVACY_POLICY
   RISK_DISCLOSURE
+  PRODUCT_TERMS
   PLATFORM_AGREEMENT
   INVESTOR_GUIDE
   ISSUER_GUIDE

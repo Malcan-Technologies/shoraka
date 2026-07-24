@@ -16,7 +16,7 @@ import {
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useAuthToken } from "@cashsouk/config";
-import { useCreateIssuerOrganizationCtosSubjectReport } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
+import { useCreateApplicationCtosSubjectReport } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReviewSectionCard } from "../review-section-card";
@@ -64,6 +64,7 @@ import {
 } from "@/lib/kyc-aml-screening-badge-classes";
 import { cn } from "@/lib/utils";
 import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
+import { usePermissions } from "@/hooks/use-permissions";
 import { regtankNationalityDisplayLabel } from "@cashsouk/types";
 import {
   GUARANTOR_COMPANY_RELATIONSHIP_LABELS,
@@ -1088,6 +1089,7 @@ function GuarantorCtosToolbar({
   align = "end",
   showLastFetch = true,
   compactLabels = false,
+  canManageGuarantorCtos = true,
 }: {
   applicationId?: string;
   guarantor?: GuarantorReviewRow;
@@ -1103,6 +1105,7 @@ function GuarantorCtosToolbar({
   showLastFetch?: boolean;
   /** Shorter button text for one-row comparison headers; full phrase kept in `title`. */
   compactLabels?: boolean;
+  canManageGuarantorCtos?: boolean;
 }) {
   const snap = guarantor ? lookupSubjectReportSnapForGuarantor(subjectReportByRef, guarantor) : undefined;
   const subjectRef = guarantor ? ctosSubjectReportLookupKeyFromGuarantor(guarantor) : null;
@@ -1116,7 +1119,12 @@ function GuarantorCtosToolbar({
     ctosSubjectLoading ||
     !snap?.id;
   const getDisabled =
-    noRow || !applicationId || !subjectRef || createSubjectPending || ctosSubjectLoading;
+    noRow ||
+    !applicationId ||
+    !subjectRef ||
+    createSubjectPending ||
+    ctosSubjectLoading ||
+    !canManageGuarantorCtos;
   const viewTitle = viewDisabled
     ? noRow
       ? missingGuarantorReason ?? "No guarantor on this side."
@@ -1127,7 +1135,9 @@ function GuarantorCtosToolbar({
           : undefined
     : undefined;
   const getTitle = getDisabled
-    ? noRow
+    ? !canManageGuarantorCtos
+      ? "You do not have permission to perform this action."
+      : noRow
       ? missingGuarantorReason ?? "No guarantor on this side."
       : !subjectRef
         ? "IC number or SSM number is required to fetch CTOS."
@@ -1236,6 +1246,7 @@ function AdminGuarantorSingleList({
   onViewDocument,
   onDownloadDocument,
   viewDocumentPending = false,
+  canManageGuarantorCtos = true,
 }: {
   guarantors: GuarantorReviewRow[];
   amlByKey: Map<string, GuarantorAmlEntry>;
@@ -1249,6 +1260,7 @@ function AdminGuarantorSingleList({
   onViewDocument: (s3Key: string) => void;
   onDownloadDocument: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
+  canManageGuarantorCtos?: boolean;
 }) {
   const [panelOpen, setPanelOpen] = React.useState<Record<number, boolean>>({});
   const count = guarantors.length;
@@ -1320,6 +1332,7 @@ function AdminGuarantorSingleList({
                       createSubjectPending={createSubjectPending}
                       onOpenSubjectHtml={onOpenSubjectHtml}
                       onRequestGetReport={onRequestGuarantorCtos}
+                      canManageGuarantorCtos={canManageGuarantorCtos}
                     />
                   </div>
                 </div>
@@ -1420,6 +1433,7 @@ function AdminGuarantorComparisonList({
   onViewDocument,
   onDownloadDocument,
   viewDocumentPending = false,
+  canManageGuarantorCtos = true,
 }: {
   b: BusinessDetailsView;
   a: BusinessDetailsView;
@@ -1434,6 +1448,7 @@ function AdminGuarantorComparisonList({
   onViewDocument: (s3Key: string) => void;
   onDownloadDocument: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
+  canManageGuarantorCtos?: boolean;
 }) {
   const count = Math.max(b.guarantors.length, a.guarantors.length);
   const [panelOpen, setPanelOpen] = React.useState<Record<number, boolean>>({});
@@ -1522,6 +1537,7 @@ function AdminGuarantorComparisonList({
                       align="start"
                       showLastFetch={false}
                       compactLabels
+                      canManageGuarantorCtos={canManageGuarantorCtos}
                     />
                     <span className="h-4 w-px shrink-0 bg-border" aria-hidden />
                     <span className="shrink-0 text-xs text-muted-foreground">After</span>
@@ -1538,6 +1554,7 @@ function AdminGuarantorComparisonList({
                       align="start"
                       showLastFetch={false}
                       compactLabels
+                      canManageGuarantorCtos={canManageGuarantorCtos}
                     />
                   </div>
                 </div>
@@ -1715,11 +1732,10 @@ export function BusinessSection({
   const ctosAppId = applicationId.trim() || undefined;
   const issuerOrgId = issuerOrganizationId?.trim() || undefined;
   const { getAccessToken } = useAuthToken();
+  const { can } = usePermissions();
+  const canManageGuarantorCtos = can("applications.business_guarantor.manage");
   const ctosSubjectLoading = false;
-  const createSubjectCtos = useCreateIssuerOrganizationCtosSubjectReport(
-    issuerOrgId,
-    ctosAppId
-  );
+  const createSubjectCtos = useCreateApplicationCtosSubjectReport(ctosAppId);
 
   const subjectReportByRef = React.useMemo(() => {
     const m = new Map<string, { id: string; has_report_html: boolean; fetched_at: string }>();
@@ -1739,13 +1755,13 @@ export function BusinessSection({
 
   const openSubjectHtmlReport = React.useCallback(
     async (reportId: string) => {
-      if (!issuerOrgId) return;
+      if (!ctosAppId) return;
       const token = await getAccessToken();
       if (!token) {
         toast.error("Not signed in");
         return;
       }
-      const url = `${API_URL}/v1/admin/organizations/issuer/${encodeURIComponent(issuerOrgId)}/ctos-reports/${reportId}/html`;
+      const url = `${API_URL}/v1/admin/applications/${encodeURIComponent(ctosAppId)}/ctos-reports/${reportId}/html`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
         toast.error("Could not load report");
@@ -1758,12 +1774,12 @@ export function BusinessSection({
         w.document.close();
       }
     },
-    [issuerOrgId, getAccessToken]
+    [ctosAppId, getAccessToken]
   );
 
   const onCreateGuarantorSubjectCtos = React.useCallback(
     (g: GuarantorReviewRow) => {
-      if (!issuerOrgId) return;
+      if (!ctosAppId) return;
       const subjectRef = ctosSubjectReportLookupKeyFromGuarantor(g);
       if (!subjectRef) return;
       const subjectKind = g.kind === "individual" ? "INDIVIDUAL" : "CORPORATE";
@@ -2016,7 +2032,7 @@ export function BusinessSection({
               a={a}
               amlByKey={guarantorAmlByKey}
               isPathChanged={isPathChanged}
-              applicationId={issuerOrgId ?? ""}
+              applicationId={ctosAppId ?? ""}
               subjectReportByRef={subjectReportByRef}
               ctosSubjectLoading={ctosSubjectLoading}
               createSubjectPending={createSubjectCtos.isPending}
@@ -2025,6 +2041,7 @@ export function BusinessSection({
               onViewDocument={onViewDocument}
               onDownloadDocument={onDownloadDocument}
               viewDocumentPending={viewDocumentPending}
+              canManageGuarantorCtos={canManageGuarantorCtos}
             />
           </ReviewFieldBlock>
         )}
@@ -2230,7 +2247,7 @@ export function BusinessSection({
                 guarantors={view.guarantors}
                 amlByKey={guarantorAmlByKey}
                 onTriggerGuarantorAml={onTriggerGuarantorAml}
-                applicationId={issuerOrgId ?? ""}
+                applicationId={ctosAppId ?? ""}
                 subjectReportByRef={subjectReportByRef}
                 ctosSubjectLoading={ctosSubjectLoading}
                 createSubjectPending={createSubjectCtos.isPending}
@@ -2239,6 +2256,7 @@ export function BusinessSection({
                 onViewDocument={onViewDocument}
                 onDownloadDocument={onDownloadDocument}
                 viewDocumentPending={viewDocumentPending}
+                canManageGuarantorCtos={canManageGuarantorCtos}
               />
             </ReviewFieldBlock>
           )}

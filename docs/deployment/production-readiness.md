@@ -250,7 +250,14 @@ This document outlines all steps required to prepare the CashSouk platform for p
 - `AWS_REGION`
 - `S3_BUCKET`
 - `SMTP_HOST`, `SMTP_USER`, `SMTP_PASSWORD`
-- `CURLEC_KEY_ID`, `CURLEC_KEY_SECRET`, `CURLEC_WEBHOOK_SECRET` (Curlec FPX payment gateway — see `docs/integrations/payment-gateway-curlec-ops-runbook.md`)
+- `CURLEC_OPERATING_KEY_ID`, `CURLEC_OPERATING_KEY_SECRET`, `CURLEC_OPERATING_WEBHOOK_SECRET`
+- `CURLEC_INVESTOR_POOL_KEY_ID`, `CURLEC_INVESTOR_POOL_KEY_SECRET`, `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET`
+
+### Curlec Webhook Endpoints (must be configured per merchant account)
+- Operating merchant: `POST /v1/webhooks/curlec/operating` with `CURLEC_OPERATING_WEBHOOK_SECRET`
+- Investor Pool merchant: `POST /v1/webhooks/curlec/investor-pool` with `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET`
+- Enable only handled events: `payment.captured`, `order.paid`, `payment.failed`, `refund.processed`, `refund.failed`
+- Keep legacy webhook active until historical legacy flow retirement criteria are met.
 
 ### Frontend Services (`apps/*/.env.prod`)
 - `NEXT_PUBLIC_API_URL` (production API URL)

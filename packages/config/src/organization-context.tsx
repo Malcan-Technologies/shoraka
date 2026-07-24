@@ -101,6 +101,10 @@ export interface Organization {
   directorShareholderSubmitBlockedMessage?: string;
   /** CTOS-backed party rows with AML screening (issuer company orgs). */
   people?: ApplicationPersonRow[];
+  /** How `people` was built: onboarding data, CTOS, or CTOS report with no usable rows. */
+  directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource;
+  /** Set when `directorShareholderListSource` is `CTOS_EMPTY`. */
+  ctosDirectorShareholderWarning?: string | null;
   // Corporate director KYC status (only for COMPANY type)
   directorKycStatus?: {
     corpIndvDirectorCount: number;
@@ -153,6 +157,13 @@ export interface Organization {
   ctosPartySupplements?: ReadonlyArray<{ partyKey: string; onboardingJson?: unknown }>;
 }
 
+export interface AmlRefreshResult {
+  organization: Organization;
+  onboardingStatus: string;
+  amlApproved: boolean;
+  advanced: boolean;
+}
+
 interface OrganizationContextType {
   activeOrganization: Organization | null;
   organizations: Organization[];
@@ -199,7 +210,7 @@ interface OrganizationContextType {
     organizationId: string,
     input: UpdateOrganizationProfileInput
   ) => Promise<{ success: boolean }>;
-  refreshAmlStatus: (organizationId: string) => Promise<Organization>;
+  refreshAmlStatus: (organizationId: string) => Promise<AmlRefreshResult>;
   isOnboarded: boolean;
   isPendingApproval: boolean;
   portalType: PortalType;
@@ -676,9 +687,12 @@ export function OrganizationProvider({ children, portalType, apiUrl }: Organizat
    * Refresh AML status for an organization
    */
   const refreshAmlStatus = useCallback(
-    async (organizationId: string): Promise<Organization> => {
+    async (organizationId: string): Promise<AmlRefreshResult> => {
       const apiClient = createApiClient(apiUrl, getAccessToken);
       const result = await apiClient.post<{
+        onboardingStatus: string;
+        amlApproved: boolean;
+        advanced: boolean;
         directorAmlStatus: {
           directors: Array<{
             kycId: string;
@@ -741,7 +755,12 @@ export function OrganizationProvider({ children, portalType, apiUrl }: Organizat
         throw new Error("Organization not found");
       }
 
-      return updatedOrg;
+      return {
+        organization: updatedOrg,
+        onboardingStatus: result.data.onboardingStatus,
+        amlApproved: result.data.amlApproved,
+        advanced: result.data.advanced,
+      };
     },
     [apiUrl, getAccessToken, portalType]
   );

@@ -9,7 +9,7 @@ For production operations, see the Curlec ops runbook: `docs/integrations/paymen
 | Decision | Choice |
 |---|---|
 | Payment method | **FPX only** at launch (bank-to-bank, no chargebacks, supports payer identification) |
-| Settlement | **Single Curlec settlement account**. Our internal ledger attributes funds to buckets (`INVESTOR_POOL`, `OPERATING_ACCOUNT`); physical movement between bank accounts happens later via RHB API / manual fund-out instructed through the trustee |
+| Settlement | **Per Curlec merchant account** (Operating vs Investor Pool). Reconciliation is account-scoped. Internal ledger attributes funds to buckets (`INVESTOR_POOL`, `OPERATING_ACCOUNT`); physical movement between bank accounts happens later via RHB API / manual fund-out instructed through the trustee |
 | AML name check (investors only) | Payer bank account name must match investor account name. On mismatch: **never credit the wallet**; deposit is held, admin refunds manually via Curlec dashboard, then marks refunded in our system |
 | Issuers | No name check |
 | Fee amounts | Admin-configurable via `PlatformFinanceSetting`: issuer onboarding fee (default RM150), application processing fee (default RM50), minimum investor deposit (default RM100) |
@@ -83,7 +83,10 @@ Same flow for both; the first successful deposit also sets `deposit_received = t
 Follow the standard module layout (controller / service / schemas), plus:
 
 - `curlec-client.ts` — thin Curlec REST client (create order, fetch order/payment, fetch settlements). Server-side only, basic auth with key id/secret. Use the official `razorpay` Node SDK if it works against Curlec endpoints; otherwise plain fetch.
-- `webhook-controller.ts` — public route `POST /v1/webhooks/curlec`. Requirements:
+- `webhook-controller.ts` — account-specific public routes:
+  - `POST /v1/webhooks/curlec/operating`
+  - `POST /v1/webhooks/curlec/investor-pool`
+  Requirements:
   - Mounted with **raw body** (signature is HMAC-SHA256 of the raw payload with the webhook secret; do not run through JSON middleware first).
   - Verify `X-Razorpay-Signature`; dedupe via `x-razorpay-event-id` (persist every event in `GatewayWebhookEvent`).
   - Handle out-of-order delivery (`payment.authorized` / `payment.captured` / `payment.failed` can arrive in any order) — process by reading current payment state, not by assuming sequence. All handlers idempotent.
@@ -141,7 +144,8 @@ Supporting changes:
 | `GET /v1/investor/deposits/:id` | INVESTOR + ownership | Poll status after checkout redirect |
 | `POST /v1/issuer/onboarding-fee` | ISSUER | Create onboarding fee order |
 | `POST /v1/applications/:id/processing-fee` | ISSUER + ownership | Create processing fee order |
-| `POST /v1/webhooks/curlec` | signature | Webhook ingress |
+| `POST /v1/webhooks/curlec/operating` | signature | Operating merchant webhook ingress |
+| `POST /v1/webhooks/curlec/investor-pool` | signature | Investor Pool merchant webhook ingress |
 | `GET /v1/admin/gateway-payments` | ADMIN | List/filter (purpose, status, org) |
 | `GET /v1/admin/gateway-payments/:id` | ADMIN | Detail incl. events + name check |
 | `POST /v1/admin/gateway-payments/:id/name-check` | ADMIN | Manual verify: approve (credit) or fail (hold) for `NAME_CHECK_PENDING` |
@@ -181,10 +185,14 @@ All UI uses shared `packages/ui` components, brand tokens, Hero Icons; checkout 
 
 ## 7. Config & Secrets
 
-- Extend `apps/api/src/config/env.ts` zod schema: `CURLEC_KEY_ID`, `CURLEC_KEY_SECRET`, `CURLEC_WEBHOOK_SECRET` (replaces the documented-but-unwired `PAYMENT_GATEWAY_*` placeholders).
-- Frontends need only the public key id (`NEXT_PUBLIC_CURLEC_KEY_ID`) — prefer returning it from the order-create response instead to avoid build-time env coupling.
+- Extend `apps/api/src/config/env.ts` zod schema with the full Curlec credential set: Operating (`CURLEC_OPERATING_KEY_ID`, `CURLEC_OPERATING_KEY_SECRET`, `CURLEC_OPERATING_WEBHOOK_SECRET`), Investor Pool (`CURLEC_INVESTOR_POOL_KEY_ID`, `CURLEC_INVESTOR_POOL_KEY_SECRET`, `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET`), and `CURLEC_API_BASE_URL`.
+- Frontends need only the public key id returned from the order-create response (no build-time `NEXT_PUBLIC_CURLEC_*`).
 - Add to `env-templates/api.env.*` and SSM under `/cashsouk/prod/secrets/`; update `docs/guides/environment-variables.md`.
-- Curlec dashboard: enable FPX, auto-capture, webhook URL `https://api.<domain>/v1/webhooks/curlec` with secret; test mode keys for staging.
+- Curlec dashboard:
+  - Operating merchant: `https://api.<domain>/v1/webhooks/curlec/operating` with `CURLEC_OPERATING_WEBHOOK_SECRET`
+  - Investor Pool merchant: `https://api.<domain>/v1/webhooks/curlec/investor-pool` with `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET`
+  - Enable only: `payment.captured`, `order.paid`, `payment.failed`, `refund.processed`, `refund.failed`
+- Account routing: issuer fees → `OPERATING`; investor deposits/refunds → `INVESTOR_POOL`; historical payments migrated to `OPERATING` (same Operating merchant).
 
 ## 8. Delivery Phases
 
@@ -211,6 +219,6 @@ Phases 3 and 4 are independent of 2 and can run in parallel after Phase 1.
 1. **FPX payer name availability (blocking for Phase 2 design detail)** — standard Curlec payment fetch exposes only the bank code; Smart Collect/TPV is not offered in Malaysia. Confirm with Curlec which API field/report carries the FPX buyer name. The `NAME_CHECK_PENDING` manual-verify path is the fallback if it's dashboard/report-only.
 2. **FPX transaction limits** — FPX B2C caps (typically RM30k per transaction retail; B2B model higher) may matter for large investor top-ups; confirm limits on the Curlec account and surface a max in the deposit UI.
 3. **Settlement timing** — funds are credited to the investor wallet at `payment.captured`, before Curlec settles to our bank (T+1/T+2). This float is accepted (gateway guarantees captured FPX funds); recon (Phase 5) verifies settlement.
-4. **Single settlement account vs buckets** — physical cash sits in one account until RHB fund-out exists; the ledger is the source of truth for bucket attribution. Trustee-instructed movements remain manual in the interim.
+4. **Per-account Curlec settlement vs ledger buckets** — each merchant account (Operating, Investor Pool, Legacy) settles separately and is reconciled by `gatewayAccount`. The ledger remains the source of truth for bucket attribution. Trustee-instructed bank movements remain manual in the interim.
 5. **MDR accounting** — gateway fees are tracked per payment in recon but not posted to the note ledger yet; finance to decide treatment when RHB/accounting integration lands.
 6. **Queue infrastructure** — webhooks are processed inline + node-cron recon, consistent with the current codebase. If webhook volume or retry complexity grows, graduate to BullMQ/SQS per backend rules.

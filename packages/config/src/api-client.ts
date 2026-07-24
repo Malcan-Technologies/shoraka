@@ -94,6 +94,7 @@ import type {
   InvestorDepositResponse,
   CreateIssuerOnboardingFeeInput,
   IssuerOnboardingFeeResponse,
+  IssuerOnboardingFeeStatusResponse,
   ApplicationProcessingFeeResponse,
   EligibleNoteInvoicesResponse,
   GetAdminNotesParams,
@@ -120,19 +121,27 @@ import type {
   PlatformFinanceSetting,
   TrusteeSignatureUploadUrlRequest,
   TrusteeSignatureUploadUrlResponse,
+  IssuerPaymentEvidenceUploadUrlRequest,
+  IssuerPaymentEvidenceUploadUrlResponse,
   RecordNotePaymentInput,
   SettlementPreviewInput,
   UpdateNoteFeaturedInput,
   UpdateNoteDraftInput,
+  ProspectusReviewGetResponse,
+  ProspectusReviewDetail,
+  ProspectusReviewPreviewResponse,
+  SaveProspectusReviewDraftInput,
   WithdrawalInstruction,
   ShorakaWithdrawalState,
   ShorakaSubmitOrderStateResponse,
   GatewayPaymentDetailDto,
   GatewayPaymentListResponse,
   GatewayPaymentPendingCountResponse,
+  CurlecGatewayAccount,
   GatewayReconExceptionDto,
   GatewayReconExceptionListResponse,
   GatewayReconPendingCountResponse,
+  GatewayReconRunStatus,
   GatewayReconRunDetailDto,
   GatewayReconRunListResponse,
 } from "@cashsouk/types";
@@ -599,6 +608,76 @@ export class ApiClient {
     return this.post<NoteDetail>(`/v1/admin/notes/${id}/publish`, {});
   }
 
+  async getAdminProspectusReview(
+    id: string
+  ): Promise<ApiResponse<ProspectusReviewGetResponse> | ApiError> {
+    return this.get<ProspectusReviewGetResponse>(`/v1/admin/notes/${id}/prospectus-review`);
+  }
+
+  async saveAdminProspectusReviewDraft(
+    id: string,
+    data: SaveProspectusReviewDraftInput
+  ): Promise<ApiResponse<ProspectusReviewDetail> | ApiError> {
+    return this.put<ProspectusReviewDetail>(`/v1/admin/notes/${id}/prospectus-review`, data);
+  }
+
+  async approveAdminProspectusReview(
+    id: string,
+    data?: SaveProspectusReviewDraftInput
+  ): Promise<ApiResponse<ProspectusReviewDetail> | ApiError> {
+    return this.post<ProspectusReviewDetail>(
+      `/v1/admin/notes/${id}/prospectus-review/approve`,
+      data ?? {}
+    );
+  }
+
+  async getMarketplaceNoteProspectus(
+    noteId: string
+  ): Promise<
+    | ApiResponse<{
+        publicationId: string;
+        contentVersion: number;
+        html: { page1: string; page2: string; page3: string };
+        documentHtml: string;
+      }>
+    | ApiError
+  > {
+    return this.get(`/v1/marketplace/notes/${noteId}/prospectus`);
+  }
+
+  async getInvestorInvestmentProspectus(
+    investmentId: string
+  ): Promise<
+    | ApiResponse<{
+        noteId: string;
+        publicationId: string;
+        contentVersion: number;
+        html: { page1: string; page2: string; page3: string };
+        documentHtml: string;
+      }>
+    | ApiError
+  > {
+    return this.get(`/v1/investor/investments/${investmentId}/prospectus`);
+  }
+
+  async getAdminProspectusReviewPreview(
+    id: string
+  ): Promise<ApiResponse<ProspectusReviewPreviewResponse> | ApiError> {
+    return this.get<ProspectusReviewPreviewResponse>(
+      `/v1/admin/notes/${id}/prospectus-review/preview`
+    );
+  }
+
+  async postAdminProspectusReviewPreview(
+    id: string,
+    data: SaveProspectusReviewDraftInput
+  ): Promise<ApiResponse<ProspectusReviewPreviewResponse> | ApiError> {
+    return this.post<ProspectusReviewPreviewResponse>(
+      `/v1/admin/notes/${id}/prospectus-review/preview`,
+      data
+    );
+  }
+
   async unpublishAdminNote(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.post<NoteDetail>(`/v1/admin/notes/${id}/unpublish`, {});
   }
@@ -855,6 +934,7 @@ export class ApiClient {
   async listAdminGatewayPayments(params?: {
     page?: number;
     pageSize?: number;
+    gatewayAccount?: CurlecGatewayAccount;
     status?: string;
     purpose?: string;
     organizationType?: string;
@@ -864,6 +944,7 @@ export class ApiClient {
     const search = new URLSearchParams();
     if (params?.page) search.set("page", String(params.page));
     if (params?.pageSize) search.set("pageSize", String(params.pageSize));
+    if (params?.gatewayAccount) search.set("gatewayAccount", params.gatewayAccount);
     if (params?.status) search.set("status", params.status);
     if (params?.purpose) search.set("purpose", params.purpose);
     if (params?.organizationType) search.set("organizationType", params.organizationType);
@@ -927,10 +1008,16 @@ export class ApiClient {
   async listAdminGatewayReconRuns(params?: {
     page?: number;
     pageSize?: number;
+    gatewayAccount?: CurlecGatewayAccount;
+    status?: GatewayReconRunStatus;
+    runDate?: string;
   }): Promise<ApiResponse<GatewayReconRunListResponse> | ApiError> {
     const search = new URLSearchParams();
     if (params?.page) search.set("page", String(params.page));
     if (params?.pageSize) search.set("pageSize", String(params.pageSize));
+    if (params?.gatewayAccount) search.set("gatewayAccount", params.gatewayAccount);
+    if (params?.status) search.set("status", params.status);
+    if (params?.runDate) search.set("runDate", params.runDate);
     const qs = search.toString();
     return this.get<GatewayReconRunListResponse>(
       `/v1/admin/gateway-recon/runs${qs ? `?${qs}` : ""}`
@@ -946,6 +1033,7 @@ export class ApiClient {
     pageSize?: number;
     resolved?: boolean;
     runId?: string;
+    gatewayAccount?: CurlecGatewayAccount;
     type?: string;
   }): Promise<ApiResponse<GatewayReconExceptionListResponse> | ApiError> {
     const search = new URLSearchParams();
@@ -953,6 +1041,7 @@ export class ApiClient {
     if (params?.pageSize) search.set("pageSize", String(params.pageSize));
     if (params?.resolved !== undefined) search.set("resolved", String(params.resolved));
     if (params?.runId) search.set("runId", params.runId);
+    if (params?.gatewayAccount) search.set("gatewayAccount", params.gatewayAccount);
     if (params?.type) search.set("type", params.type);
     const qs = search.toString();
     return this.get<GatewayReconExceptionListResponse>(
@@ -970,6 +1059,7 @@ export class ApiClient {
 
   async triggerAdminGatewayReconRun(input?: {
     runDate?: string;
+    gatewayAccount?: CurlecGatewayAccount;
   }): Promise<ApiResponse<GatewayReconRunDetailDto> | ApiError> {
     return this.post<GatewayReconRunDetailDto>("/v1/admin/gateway-recon/run", input ?? {});
   }
@@ -1079,6 +1169,51 @@ export class ApiClient {
   ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
     return this.post<AdminCtosReportListItem>(
       `/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-subject-reports`,
+      body
+    );
+  }
+
+  async listAdminOnboardingCtosReports(
+    onboardingId: string
+  ): Promise<ApiResponse<AdminCtosReportListItem[]> | ApiError> {
+    return this.get<AdminCtosReportListItem[]>(
+      `/v1/admin/onboarding-applications/${encodeURIComponent(onboardingId)}/ctos-reports`
+    );
+  }
+
+  async createAdminOnboardingCtosReport(
+    onboardingId: string,
+    options?: { skipDirectorShareholderNotifications?: boolean }
+  ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
+    const body: Record<string, boolean> = {};
+    if (options?.skipDirectorShareholderNotifications) {
+      body.skipDirectorShareholderNotifications = true;
+    }
+    return this.post<AdminCtosReportListItem>(
+      `/v1/admin/onboarding-applications/${encodeURIComponent(onboardingId)}/ctos-reports`,
+      body
+    );
+  }
+
+  async createAdminApplicationCtosReport(
+    applicationId: string
+  ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
+    return this.post<AdminCtosReportListItem>(
+      `/v1/admin/applications/${encodeURIComponent(applicationId)}/ctos-reports`,
+      {}
+    );
+  }
+
+  async createAdminApplicationCtosSubjectReport(
+    applicationId: string,
+    body: {
+      subjectRef: string;
+      subjectKind: "INDIVIDUAL" | "CORPORATE";
+      enquiryOverride?: { displayName: string; idNumber: string };
+    }
+  ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
+    return this.post<AdminCtosReportListItem>(
+      `/v1/admin/applications/${encodeURIComponent(applicationId)}/ctos-subject-reports`,
       body
     );
   }
@@ -1453,6 +1588,9 @@ export class ApiClient {
         success: boolean;
         message: string;
         directorsUpdated: number;
+        onboardingStatus: string;
+        amlApproved: boolean;
+        advanced: boolean;
       }>
     | ApiError
   > {
@@ -1460,7 +1598,50 @@ export class ApiClient {
       success: boolean;
       message: string;
       directorsUpdated: number;
+      onboardingStatus: string;
+      amlApproved: boolean;
+      advanced: boolean;
     }>(`/v1/admin/onboarding-applications/${onboardingId}/refresh-aml-status`, {});
+  }
+
+  // Refresh onboarding + AML status from RegTank (personal or company)
+  async refreshOnboardingStatus(onboardingId: string): Promise<
+    | ApiResponse<{
+        success: boolean;
+        message: string;
+        organizationId: string;
+        onboardingStatus: string;
+        onboardingApproved: boolean;
+        ssmApproved: boolean;
+        amlApproved: boolean;
+        advanced: boolean;
+        onboardingProviderStatus: string | null;
+        amlProviderStatus: string | null;
+        lastSyncedAt: string | null;
+        directorsUpdated: number;
+        refreshedSources: string[];
+        warnings: string[];
+        partialFailures: string[];
+      }>
+    | ApiError
+  > {
+    return this.post<{
+      success: boolean;
+      message: string;
+      organizationId: string;
+      onboardingStatus: string;
+      onboardingApproved: boolean;
+      ssmApproved: boolean;
+      amlApproved: boolean;
+      advanced: boolean;
+      onboardingProviderStatus: string | null;
+      amlProviderStatus: string | null;
+      lastSyncedAt: string | null;
+      directorsUpdated: number;
+      refreshedSources: string[];
+      warnings: string[];
+      partialFailures: string[];
+    }>(`/v1/admin/onboarding-applications/${onboardingId}/refresh-status`, {});
   }
 
   async getUser(id: string): Promise<ApiResponse<{ user: UserDetailResponse }> | ApiError> {
@@ -2904,6 +3085,14 @@ export class ApiClient {
     return this.get<IssuerOnboardingFeeResponse>(`/v1/issuer/onboarding-fee/${id}`);
   }
 
+  async getIssuerOnboardingFeeStatus(
+    issuerOrganizationId: string
+  ): Promise<ApiResponse<IssuerOnboardingFeeStatusResponse> | ApiError> {
+    return this.get<IssuerOnboardingFeeStatusResponse>(
+      `/v1/issuer/onboarding-fee/status/${encodeURIComponent(issuerOrganizationId)}`
+    );
+  }
+
   async createApplicationProcessingFee(
     applicationId: string
   ): Promise<ApiResponse<ApplicationProcessingFeeResponse> | ApiError> {
@@ -2961,6 +3150,16 @@ export class ApiClient {
     data: RecordNotePaymentInput
   ): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.post<NoteDetail>(`/v1/issuer/notes/${id}/payments/on-behalf-of-paymaster`, data);
+  }
+
+  async requestIssuerPaymentEvidenceUploadUrl(
+    id: string,
+    data: IssuerPaymentEvidenceUploadUrlRequest
+  ): Promise<ApiResponse<IssuerPaymentEvidenceUploadUrlResponse> | ApiError> {
+    return this.post<IssuerPaymentEvidenceUploadUrlResponse>(
+      `/v1/issuer/notes/${id}/payments/evidence/upload-url`,
+      data
+    );
   }
 
   async createWithdrawalInstruction(

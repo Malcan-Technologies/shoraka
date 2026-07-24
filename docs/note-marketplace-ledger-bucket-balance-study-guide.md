@@ -80,7 +80,7 @@ Below are the **main models used by this lifecycle** (fields are the important o
 | `NoteListing` | Marketplace visibility row for a Note | Admin + investor reads | Investor marketplace list + admin publish/unpublish | `id`, `note_id` (unique), `status`, `opens_at`, `closes_at`, `published_at`, `unpublished_at`, `visibility` |
 | `NoteInvestment` | One investor’s commitment to a Note | Investor (create), Admin (confirm/release/settle) | Investor investment list, admin settlement | `id`, `note_id`, `investor_organization_id`, `investor_user_id`, `status`, `amount`, `allocation_percent`, `committed_at`, `confirmed_at`, `released_at` |
 | `NotePaymentSchedule` | Expected repayment schedule | Admin | Admin note detail | `id`, `note_id`, `status`, `sequence`, `due_date`, `expected_principal`, `expected_profit`, `expected_total`, `paid_principal`, `paid_profit`, `paid_total` |
-| `NotePayment` | Actual repayment receipts | Admin | Admin settlement panel | `id`, `note_id`, `schedule_id`, `source`, `status`, `receipt_amount`, `receipt_date`, `received_into_account_code`, `evidence_s3_key`, `reference`, `recorded_by_user_id`, `reconciled_by_user_id`, `reconciled_at`, `metadata` |
+| `NotePayment` | Actual repayment receipts | Admin | Admin settlement panel | `id`, `note_id`, `schedule_id`, `source`, `status`, `receipt_amount`, `receipt_date`, `received_into_account_code`, `evidence_files`, `reference`, `recorded_by_user_id`, `reconciled_by_user_id`, `reconciled_at`, `metadata` |
 | `NoteSettlement` | Settlement batch + saved preview snapshot | Admin | Admin settlement panel | `id`, `note_id`, `payment_id`, `status`, `settlement_type`, `gross_receipt_amount`, `investor_principal`, `investor_profit_gross`, `service_fee_amount`, `investor_profit_net`, `tawidh_amount`, `gharamah_amount`, `issuer_residual_amount`, `preview_snapshot`, `approved_by_user_id`, `approved_at`, `posted_at`, `idempotency_key` |
 | `NoteLedgerAccount` | Ledger “bucket” definition | Ledger code | Admin bucket balances | `id`, `code` (unique), `name`, `type`, `currency`, `is_system` |
 | `NoteLedgerEntry` | Immutable ledger postings | Ledger code + admin reads | Admin ledger panel + bucket balances | `id`, `note_id`, `account_id`, `settlement_id`, `payment_id`, `direction`, `amount`, `description`, `idempotency_key` (unique), `posted_at`, `metadata` |
@@ -1295,20 +1295,33 @@ This is how the UI surfaces connect to the database tables.
 - `apps/admin/src/app/notes/[id]/page.tsx`
 
 **What you see**
-- Publish/unpublish
-- Close funding / fail funding
-- Activate
-- Settlement panel (record payments + settlement waterfall actions)
-- Ledger panel (ledger entries)
-- Timeline panels
+- Header: title, featured toggle, `NoteStatusBadge`
+- `NoteLifecycleCard` (six-stage stepper + workflow sub-strips)
+- **Tab bar:** Disbursement | Servicing & Settlement | Late Payment | Ledger | Investors
+- Right sidebar: Source Application, **Workflow Status** card, Activity Timeline
+- Lifecycle actions: publish, unpublish, close funding, fail funding (confirm dialogs)
+
+**Tabs**
+| Tab | Purpose |
+|-----|---------|
+| Disbursement | Issuer Disbursement card (Tawarruq, certificate, trustee payout). Lifecycle **Certificate** step completes only after **Fetch Tawarruq Certificate**; callbacks update order status but do not store the certificate PDF. |
+| Servicing & Settlement | Repayment receipts (`evidence_files`), settlement preview/approve/post, settlement trustee instruction |
+| Late Payment | Ta'widh/Gharamah, arrears/default letters, mark default |
+| Ledger | Read-only ledger entries + export |
+| Investors | Read-only investor allocations |
+
+**Status labels (admin)**
+- Trustee pending after post: **Active · servicing** (badge) / **Currently Active** (lifecycle)
+- Trustee complete: **Settled** / note fully repaid
+- Defaulted with settlement work pending: **Defaulted** + settlement trustee strip may still show
 
 **Tables**
 | Page section | Table/model | Field(s) | Simple explanation |
 |---|---|---|---|
 | Publish button state | `notes` + `note_listings` | `status`, `funding_status`, `listing_status` | Enables “Publish” only for publishable notes |
 | Funding buttons | `notes` + `note_investments` | `funded_amount`, `minimum_funding_percent` | Determines close/fail eligibility |
-| Settlement panel | `note_payments`, `note_settlements` | payment and settlement statuses | Drives preview/approve/post |
-| Ledger panel | `note_ledger_entries` | direction, account codes | Immutable postings |
+| Servicing & Settlement tab | `note_payments`, `note_settlements` | payment `evidence_files`, settlement statuses, `service_fee_trustee_status` | Drives receipts, preview/approve/post, trustee instruction |
+| Ledger tab | `note_ledger_entries` | direction, account codes | Immutable postings |
 
 ### 6.4 Investor Marketplace
 

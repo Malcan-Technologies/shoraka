@@ -6,6 +6,7 @@ export type GatewayPaymentPurpose =
   | "APPLICATION_PROCESSING_FEE";
 
 export type GatewayOrganizationType = "INVESTOR" | "ISSUER";
+export type CurlecGatewayAccount = "OPERATING" | "INVESTOR_POOL";
 
 export type GatewayPaymentEventType =
   | "NAME_CHECK"
@@ -16,7 +17,9 @@ export type GatewayPaymentEventType =
   | "OVERRIDE_REJECTED"
   | "REFUND_INITIATED"
   | "REFUNDED"
-  | "EXPIRED";
+  | "EXPIRED"
+  | "CAPTURE_MISMATCH"
+  | "REFUND_WALLET_REVERSAL_FAILED";
 
 export interface GatewayPaymentEventDto {
   id: string;
@@ -30,6 +33,7 @@ export interface GatewayPaymentEventDto {
 
 export interface GatewayPaymentListItemDto {
   id: string;
+  gatewayAccount: CurlecGatewayAccount;
   purpose: GatewayPaymentPurpose;
   organizationType: GatewayOrganizationType;
   status: GatewayPaymentStatus;
@@ -40,12 +44,13 @@ export interface GatewayPaymentListItemDto {
   investorOrganizationId: string | null;
   investorOrganizationName: string | null;
   curlecOrderId: string;
+  curlecPaymentId: string | null;
+  settlementId: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface GatewayPaymentDetailDto extends GatewayPaymentListItemDto {
-  curlecPaymentId: string | null;
   method: string | null;
   bankCode: string | null;
   expectedPayerName: string | null;
@@ -57,6 +62,7 @@ export interface GatewayPaymentDetailDto extends GatewayPaymentListItemDto {
   refundNotes: string | null;
   openOverrideProposedBy: string | null;
   openOverrideReason: string | null;
+  metadata: Record<string, unknown> | null;
   events: GatewayPaymentEventDto[];
 }
 

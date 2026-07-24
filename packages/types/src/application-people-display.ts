@@ -16,6 +16,31 @@ import {
 import { getCtosPartySupplementFlatRead } from "./ctos-party-supplement-json";
 import { normalizeRawStatus } from "./status-normalization";
 import { isReadyOnboardingStatus } from "./onboarding-readiness";
+
+/** How issuer/investor director-shareholder `people[]` was built (org list + detail APIs). */
+export type DirectorShareholderListSource = "ONBOARDING" | "CTOS" | "CTOS_EMPTY";
+
+export const CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING =
+  "CTOS returned no director/shareholder data." as const;
+
+export function resolveDirectorShareholderCtosEmptyWarning(input: {
+  directorShareholderListSource?: DirectorShareholderListSource | null;
+  ctosDirectorShareholderWarning?: string | null;
+}): string | null {
+  const explicit =
+    typeof input.ctosDirectorShareholderWarning === "string"
+      ? input.ctosDirectorShareholderWarning.trim()
+      : "";
+  if (explicit) return explicit;
+  if (input.directorShareholderListSource === "CTOS_EMPTY") {
+    return CTOS_DIRECTOR_SHAREHOLDER_DATA_EMPTY_WARNING;
+  }
+  return null;
+}
+
+/** Display-only identity issue on API `people[]` rows (never persisted to DB JSON). */
+export type ApplicationPersonIdentityWarning = "MISSING_GOVERNMENT_ID";
+
 export type ApplicationPersonRow = {
   /**
    * SOURCE OF TRUTH (CRITICAL)
@@ -24,6 +49,11 @@ export type ApplicationPersonRow = {
    * - Backend chooses **supplement-only** vs **issuer-only** per `matchKey` (`build-people-list.ts`); the UI must not merge raw JSON or issuer blobs into these fields.
    */
   matchKey: string;
+  /**
+   * When set, this row is display-only unresolved identity (no trusted government ID).
+   * `matchKey` is empty and must not be used for merge/match.
+   */
+  identityWarning?: ApplicationPersonIdentityWarning;
   name: string | null;
   entityType: "INDIVIDUAL" | "CORPORATE";
   roles: string[];
@@ -178,6 +208,26 @@ export function filterVisiblePeopleRows<T extends PeopleRolesRowInput>(peopleRow
       return { ...p, roles: nextRoles };
     })
     .filter((p): p is NonNullable<typeof p> => p !== null);
+}
+
+export function isMissingGovernmentIdPerson(
+  p: Pick<ApplicationPersonRow, "identityWarning"> | null | undefined
+): boolean {
+  return p?.identityWarning === "MISSING_GOVERNMENT_ID";
+}
+
+/** Split trusted (government-ID) people from display-only unresolved identity rows. */
+export function partitionPeopleByIdentityResolution(
+  people?: ReadonlyArray<ApplicationPersonRow | null | undefined> | null
+): { verified: ApplicationPersonRow[]; unresolved: ApplicationPersonRow[] } {
+  const verified: ApplicationPersonRow[] = [];
+  const unresolved: ApplicationPersonRow[] = [];
+  for (const p of people ?? []) {
+    if (!p) continue;
+    if (isMissingGovernmentIdPerson(p)) unresolved.push(p);
+    else verified.push(p);
+  }
+  return { verified, unresolved };
 }
 
 /**
@@ -423,23 +473,26 @@ export function buildDirectorShareholderDisplayRowForEmailEligibility(
   const draftEligible =
     p.entityType === "INDIVIDUAL" && (isDirector || (isShareholder && (sharePct ?? 0) >= 5));
   return {
-    id: p.matchKey,
+    id: isMissingGovernmentIdPerson(p)
+      ? `unresolved:${String(p.requestId ?? "").trim() || "unknown"}:${rolesU.sort().join("+") || "party"}`
+      : p.matchKey,
     name: p.name ?? "",
     role: formatPeopleRolesLine(p),
     type: p.entityType === "CORPORATE" ? "COMPANY" : "INDIVIDUAL",
-    idNumber: p.entityType === "INDIVIDUAL" ? p.matchKey : null,
+    idNumber: p.entityType === "INDIVIDUAL" && !isMissingGovernmentIdPerson(p) ? p.matchKey : null,
     registrationNumber: p.entityType === "CORPORATE" ? p.matchKey : null,
     ownershipDisplay,
     email,
     status,
-    canEnterEmail: true,
-    canSendOnboarding: true,
-    enquiryId: null,
+    canEnterEmail: !isMissingGovernmentIdPerson(p),
+    canSendOnboarding: !isMissingGovernmentIdPerson(p),
+    enquiryId: isMissingGovernmentIdPerson(p) ? String(p.requestId ?? "").trim() || null : null,
     subjectKind: p.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
-    ctosIndividualKycEligible: draftEligible,
+    ctosIndividualKycEligible: isMissingGovernmentIdPerson(p) ? false : draftEligible,
     isDirector,
     isShareholder,
     sharePercentage: sharePct,
+    identityWarning: isMissingGovernmentIdPerson(p) ? "MISSING_GOVERNMENT_ID" : undefined,
   };
 }
 

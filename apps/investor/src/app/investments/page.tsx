@@ -41,6 +41,7 @@ import {
   useCommitInvestment,
   useInvestorPortfolio,
   useMarketplaceNotes,
+  useOpenMarketplaceProspectus,
 } from "@/investments/hooks/use-marketplace-notes";
 import { ONBOARDING_INDUSTRY_OPTIONS } from "@/investments/industry-filter-options";
 import {
@@ -113,6 +114,7 @@ export function MarketplacePage() {
   const { activeOrganization } = useOrganization();
   const { data: portfolio } = useInvestorPortfolio(activeOrganization?.id);
   const commitInvestment = useCommitInvestment();
+  const openMarketplaceProspectus = useOpenMarketplaceProspectus();
   const availableBalance = Number(portfolio?.availableBalance ?? 0);
 
   const initialSearch = searchParams.get("q") ?? "";
@@ -150,7 +152,7 @@ export function MarketplacePage() {
 
   const [activeNote, setActiveNote] = useState<MarketplaceNote | null>(null);
   const [investmentAmount, setInvestmentAmount] = useState("10,000");
-  const [agreedToTerms, setAgreedToTerms] = useState(true);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [reloadSpin, setReloadSpin] = useState(false);
@@ -644,7 +646,16 @@ export function MarketplacePage() {
             </div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 md:items-stretch">
               {featuredPreviewNotes.map((note) => (
-                <MarketplaceMockNoteCard key={note.id} note={note} onInvest={openInvestDialog} />
+                <MarketplaceMockNoteCard
+                  key={note.id}
+                  note={note}
+                  onInvest={openInvestDialog}
+                  onViewProspectus={(n) => {
+                    void openMarketplaceProspectus(n.id).catch((err) =>
+                      toast.error(err instanceof Error ? err.message : "Prospectus unavailable")
+                    );
+                  }}
+                />
               ))}
             </div>
           </section>
@@ -654,7 +665,16 @@ export function MarketplacePage() {
         <section className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 md:items-stretch">
             {visibleNotes.map((note) => (
-              <MarketplaceMockNoteCard key={note.id} note={note} onInvest={openInvestDialog} />
+              <MarketplaceMockNoteCard
+                  key={note.id}
+                  note={note}
+                  onInvest={openInvestDialog}
+                  onViewProspectus={(n) => {
+                    void openMarketplaceProspectus(n.id).catch((err) =>
+                      toast.error(err instanceof Error ? err.message : "Prospectus unavailable")
+                    );
+                  }}
+                />
             ))}
           </div>
 
@@ -746,6 +766,23 @@ export function MarketplacePage() {
               ) : null}
             </div>
 
+            {activeNote ? (
+              <div className="pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 w-full rounded-lg text-xs"
+                  onClick={() => {
+                    void openMarketplaceProspectus(activeNote.id).catch((err) =>
+                      toast.error(err instanceof Error ? err.message : "Prospectus unavailable")
+                    );
+                  }}
+                >
+                  View Prospectus
+                </Button>
+              </div>
+            ) : null}
+
             <div className="flex items-start gap-2 pt-1">
               <Checkbox
                 id="terms"
@@ -754,10 +791,38 @@ export function MarketplacePage() {
                 className="mt-0.5 border-slate-300 data-[state=checked]:border-slate-950 data-[state=checked]:bg-slate-950 data-[state=checked]:text-white"
               />
               <Label htmlFor="terms" className="text-xs font-normal text-slate-500">
-                I agree to the{" "}
-                <button type="button" className="text-slate-900 underline-offset-2 hover:underline">
-                  Terms and Conditions
+                I confirm that I have reviewed the{" "}
+                <button
+                  type="button"
+                  className="text-slate-900 underline-offset-2 hover:underline"
+                  onClick={() => {
+                    if (!activeNote) return;
+                    void openMarketplaceProspectus(activeNote.id).catch((err) =>
+                      toast.error(err instanceof Error ? err.message : "Prospectus unavailable")
+                    );
+                  }}
+                >
+                  Prospectus
                 </button>
+                ,{" "}
+                <a
+                  href="/profile?tab=documents"
+                  className="text-slate-900 underline-offset-2 hover:underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Product Terms
+                </a>
+                , and{" "}
+                <a
+                  href="/profile?tab=documents"
+                  className="text-slate-900 underline-offset-2 hover:underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Risk Disclosure Statement
+                </a>
+                .
               </Label>
             </div>
 

@@ -811,16 +811,16 @@ Notes before next feature:
 
 
 ################################################################################
-FEATURE 8 — Shoraka STP
+FEATURE 8 — Tawarruq transaction (issuer disbursement)
 ################################################################################
 
 What this feature means:
-- Shoraka STP is proof that the Islamic financing went through commodity trade.
+- Tawarruq transaction is proof that the Islamic financing went through commodity trade.
 - It is not the payout.
 
 Why this feature exists:
-- Issuer disbursement requires Shariah commodity trade proof before Mark Disbursed.
-- Shoraka uses gross funded amount.
+- Issuer disbursement requires Shariah commodity trade proof before Mark Disbursed when gating applies.
+- Tawarruq order uses gross funded amount.
 
 Who is involved:
 [ ] Admin
@@ -829,24 +829,24 @@ Who is involved:
 
 Where to check:
 Admin:
-[ ] Admin portal → Note detail → Issuer Disbursement card → Shoraka STP box
+[ ] Admin portal → Note detail → **Disbursement** tab → Issuer Disbursement card → Tawarruq transaction / certificate
 [ ] Note timeline/activity if visible
 
 Issuer:
-[ ] Issuer generally does not operate Shoraka
+[ ] Issuer generally does not operate Tawarruq
 
 Investor:
-[ ] Investor generally does not see Shoraka controls
+[ ] Investor generally does not see Tawarruq controls
 
 What should be shown before action:
-[ ] Status: No Shoraka order, or current Shoraka status
+[ ] Status: No Tawarruq order, or current order status
 [ ] Amount: RM100,000 order_amount / murabaha_amount if shown
-[ ] Button: Submit Shoraka Order outside cutoff
+[ ] Button: Submit Tawarruq Order outside cutoff
 [ ] Warning/helper text: cutoff warning between 11:30 PM and 12:30 AM MYT
-[ ] Card/section: Shoraka STP box inside Issuer Disbursement card
+[ ] Card/section: Tawarruq block inside Issuer Disbursement card on Disbursement tab
 
 What to click:
-[ ] Submit Shoraka Order
+[ ] Submit Tawarruq Order
 [ ] Query Status
 [ ] Fetch Certificate when Completed
 [ ] View Certificate after fetch
@@ -855,27 +855,27 @@ What should be shown after action:
 [ ] New status: Active, Pending Sell, Completed, Cancelled, Take Delivery, Unknown, or certificate fetched state
 [ ] New button: Query Status, Fetch Certificate, View Certificate depending on status
 [ ] New card: certificate link after fetch
-[ ] New amount: Shoraka amount stays RM100,000
+[ ] New amount: Tawarruq amount stays RM100,000
 [ ] Success toast/message: order submitted/status queried/certificate fetched
-[ ] Timeline/activity event if visible: Shoraka order/status/certificate event
+[ ] Timeline/activity event if visible: Tawarruq order/status/certificate event
 
 Manual calculation:
 Formula:
-- Shoraka amount = gross funded amount.
+- Tawarruq amount = gross funded amount.
 Example:
 - Gross funded amount = RM100,000.
 - Net issuer payout = RM96,000.
 Expected:
-- Shoraka order amount and murabaha amount use RM100,000, not RM96,000.
+- Tawarruq order amount and murabaha amount use RM100,000, not RM96,000.
 
 Bucket movement:
-- No bucket movement from Shoraka.
-- Shoraka is proof/audit only.
+- No bucket movement from Tawarruq.
+- Tawarruq is proof/audit only.
 - No fee deduction happens here.
 
 Ledger/activity/frontend history check:
-[ ] Finance → Buckets activity if visible: no movement caused by Shoraka
-[ ] Note timeline if visible: Shoraka status/certificate event if supported
+[ ] Finance → Buckets activity if visible: no movement caused by Tawarruq
+[ ] Note timeline if visible: Tawarruq status/certificate event if supported
 [ ] Wallet/transaction history if visible: no investor movement
 [ ] Finance queue if visible: issuer payout remains pending until Mark Disbursed
 
@@ -886,20 +886,21 @@ Status meaning:
 - Cancelled: manual review; no disbursement.
 - Take Delivery: special/manual state; no automatic disbursement.
 - Unknown: unsafe/manual review.
-- Callback Completed: may update status, but must not auto-disburse.
+- Callback Completed: may update status, but must not auto-fetch certificate, auto-disburse, or complete the disbursement lifecycle Certificate step until **Fetch Tawarruq Certificate** stores the PDF (open page may need Query Status, fetch, or reload).
 
 What should NOT happen:
 [ ] Wrong button: Fetch Certificate should not appear before Completed
-[ ] Wrong amount: Shoraka should not use RM96,000
+[ ] Wrong amount: Tawarruq should not use RM96,000
 [ ] Wrong status: callback should not mark issuer disbursed
 [ ] Wrong bucket movement: no bucket changes from submit/query/fetch
-[ ] Wrong ledger/activity: no payout completed event from Shoraka alone
+[ ] Wrong ledger/activity: no payout completed event from Tawarruq alone
 
 STOP AND INVESTIGATE if:
 [ ] Submit is enabled during 11:30 PM–12:30 AM MYT cutoff.
 [ ] Shoraka uses net amount RM96,000.
 [ ] Mark Disbursed is enabled before certificate exists.
 [ ] Callback auto-marks issuer disbursed.
+[ ] Callback auto-completes lifecycle Certificate step before certificate fetch.
 [ ] Cancelled/Take Delivery/Unknown allows payout without manual review.
 
 Notes:
@@ -1588,15 +1589,15 @@ Notes before next feature:
 
 
 ################################################################################
-FEATURE 15 — Issuer residual return
+FEATURE 15 — Issuer refund allocation (settlement trustee instruction)
 ################################################################################
 
 What this feature means:
-- Residual is leftover repayment money owed back to issuer after settlement.
-- It is not new financing.
+- Issuer refund allocation is leftover repayment owed to issuer after settlement waterfall.
+- It is part of the **settlement trustee instruction**, not a separate Note Detail lifecycle card.
 
 Why this feature exists:
-- If repayment is more than investor principal, investor net profit, service fee, and late charges, leftover belongs to issuer.
+- If repayment exceeds investor principal, investor net profit, service fee, and late charges, leftover belongs to issuer and is paid via settlement trustee completion.
 
 Who is involved:
 [ ] Admin
@@ -1605,69 +1606,69 @@ Who is involved:
 
 Where to check:
 Admin:
-[ ] Note detail → Settlement panel → Issuer Residual Refund card
-[ ] Finance → Issuer Payouts
+[ ] Note detail → **Servicing & Settlement** tab → posted waterfall → Trustee submission
+[ ] Lifecycle card → settlement strip: **Trustee instruction** current (**Active · servicing** until complete)
+[ ] Finance → Service Fee queue
 [ ] Finance → Buckets
 [ ] Note timeline/activity if visible
 
 Issuer:
-[ ] Issuer portal → residual/refund status if visible
+[ ] Issuer portal → notes list settlement summary / status
 
 Investor:
-[ ] Investor return should not include issuer residual
+[ ] Investor sees **Settlement processing** until trustee complete, then **Settled**
 
 What should be shown before action:
-[ ] Status: settlement Posted with residual
-[ ] Amount: RM2,000 residual in RM112,000 scenario
-[ ] Button: Generate residual letter
-[ ] Warning/helper text: no Shoraka needed
-[ ] Card/section: Issuer Residual Refund card
+[ ] Status: settlement Posted, badge **Active · servicing**, lifecycle **Currently Active**
+[ ] Amount: RM2,000 issuer refund in RM112,000 scenario (waterfall line)
+[ ] Button: Generate settlement trustee instruction letter
+[ ] Warning/helper text: no Tawarruq on Servicing & Settlement for issuer refund
+[ ] No separate Issuer Residual Refund card on Note Detail
 
 What to click:
-[ ] Generate residual letter
-[ ] View Letter
-[ ] Mark Submitted
-[ ] Mark Disbursed
+[ ] Generate settlement trustee instruction PDF
+[ ] Mark submitted to trustee
+[ ] Mark instruction completed
 
 What should be shown after action:
-[ ] New status: residual Draft → Letter Generated → Submitted → Disbursed/Completed
-[ ] New button: next residual workflow button
-[ ] New card: residual completed or queue cleared
-[ ] New amount: RM2,000 residual cleared from Issuer Payable after disbursed
-[ ] Success toast/message: residual instruction updated
-[ ] Timeline/activity event if visible: residual letter/submitted/disbursed
+[ ] New status: **Active · servicing** → **Settled** / note fully repaid
+[ ] Lifecycle settlement trustee sub-stepper completes
+[ ] Registry settlement column: Settled
+[ ] New amount: RM2,000 issuer refund cleared from Issuer Payable after instruction completed
+[ ] Success toast/message: trustee instruction updated
+[ ] Timeline/activity event if visible: settlement trustee events
 
 Manual calculation:
 Formula:
-- Residual = repayment - principal - net investor profit - service fee - Ta'widh - Gharamah.
+- Issuer refund = repayment - principal - net investor profit - service fee - Ta'widh - Gharamah.
 Example:
-- Residual = 112,000 - 100,000 - 8,500 - 1,500 = RM2,000.
+- Issuer refund = 112,000 - 100,000 - 8,500 - 1,500 = RM2,000.
 Expected:
-- Residual card and Finance → Issuer Payouts show RM2,000.
+- Waterfall Issuer Refund line and trustee instruction include RM2,000.
 
 Bucket movement:
 - Settlement post credits Issuer Payable RM2,000.
-- Residual Mark Disbursed clears Issuer Payable RM2,000.
-- No Shoraka.
+- Trustee instruction completed clears Issuer Payable RM2,000.
+- No Tawarruq on settlement tab.
 
 Ledger/activity/frontend history check:
 [ ] Finance → Buckets activity if visible: Issuer Payable credited/cleared RM2,000
-[ ] Note timeline if visible: residual workflow events
-[ ] Wallet/transaction history if visible: no investor change from residual
-[ ] Finance queue if visible: Issuer Payouts residual item appears and clears/completes
+[ ] Note timeline if visible: settlement trustee workflow events
+[ ] Wallet/transaction history if visible: no investor change from issuer refund alone
+[ ] Finance queue if visible: Service Fee / settlement trustee queue clears on completion
 
 What should NOT happen:
-[ ] Wrong button: Shoraka should not appear
-[ ] Wrong amount: residual should not use full repayment
-[ ] Wrong status: note should not be fully settled before residual completion if residual is pending
-[ ] Wrong bucket movement: investor should not receive residual
-[ ] Wrong ledger/activity: no Shoraka/certificate event for residual
+[ ] Wrong UI: separate Issuer Residual Refund lifecycle strip on Note Detail
+[ ] Wrong status: **Settled** before trustee instruction completed
+[ ] Wrong amount: issuer refund should not use full repayment
+[ ] Wrong bucket movement: investor should not receive issuer refund
+[ ] Wrong label: **Awaiting residual refund** or **Pending Refund**
 
 STOP AND INVESTIGATE if:
-[ ] Residual asks for Shoraka certificate.
-[ ] Residual is paid to investor.
-[ ] Issuer Payable does not clear after Mark Disbursed.
-[ ] Residual calculation does not match RM2,000 example.
+[ ] Issuer refund asks for Tawarruq certificate on Servicing & Settlement tab.
+[ ] Issuer refund is paid to investor.
+[ ] Issuer Payable does not clear after instruction completed.
+[ ] Issuer refund calculation does not match RM2,000 example.
 
 Notes:
 - ________________________________________________________________
@@ -1825,9 +1826,9 @@ Who is involved:
 
 Where to check:
 Admin:
-[ ] Note detail
+[ ] Note detail → **Disbursement** tab
 [ ] Issuer Disbursement card
-[ ] Shoraka STP box
+[ ] Tawarruq transaction / certificate (when required)
 [ ] Finance → Buckets
 
 Issuer:
@@ -2189,28 +2190,28 @@ Stop conditions:
 
 ADMIN — Note detail
 What this page is for:
-- Operate one note end to end.
+- Operate one note end to end via tabs.
 What should show:
-[ ] Lifecycle stepper
-[ ] Funding progress
-[ ] Issuer Disbursement card
-[ ] Shoraka box
-[ ] Trustee letter buttons
-[ ] Payment list
-[ ] Settlement panel
-[ ] Residual card
-[ ] Service fee instruction
-[ ] Arrears/default documents
+[ ] Six-stage lifecycle stepper (Draft → Published → Funded → Disbursement → Active → Repaid)
+[ ] Workflow Status sidebar (Disbursement / Servicing & Settlement / Late Payment dots)
+[ ] Header NoteStatusBadge (e.g. Active · servicing, Settled, Defaulted)
+[ ] **Disbursement** tab: Issuer Disbursement card, Tawarruq transaction/certificate when required
+[ ] **Servicing & Settlement** tab: repayment receipts (evidence_files), settlement waterfall, trustee submission
+[ ] **Late Payment** tab: late fees, arrears/default documents
+[ ] **Ledger** and **Investors** tabs (read-only)
+[ ] Settlement trustee sub-stepper on lifecycle card when posted and trustee pending
 [ ] Activity timeline
 Why it should show:
-- Every money-control step needs visible proof and next action.
+- Every money-control step needs visible proof and next action in the correct tab.
 What action should be available:
-[ ] Only the current stage action
+- Only the current stage/tab action
 What should be blocked:
-[ ] Future dangerous actions
+- Future dangerous actions (e.g. Mark Disbursed before certificate when gated)
 Stop conditions:
-[ ] Mark Disbursed before certificate
+[ ] Mark Disbursed before certificate when Tawarruq gating applies
 [ ] Post before approval
+[ ] Settled shown before settlement trustee instruction completed
+[ ] Separate Issuer Residual Refund card on Note Detail (obsolete layout)
 
 ADMIN — Finance pages
 What this page is for:

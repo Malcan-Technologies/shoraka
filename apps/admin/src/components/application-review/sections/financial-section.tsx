@@ -23,11 +23,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
-import { useCreateIssuerOrganizationCtosReport } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
+import { useCreateApplicationCtosReport } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
 import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
 import { cn } from "@/lib/utils";
 import { applicationsKeys } from "@/applications/query-keys";
 import { useQueryClient } from "@tanstack/react-query";
+import { usePermissions } from "@/hooks/use-permissions";
 import {
   shouldNotifyIssuerDirectorShareholderAfterOrgCtosFromResolvedPeopleSnapshots,
 } from "@cashsouk/types";
@@ -38,6 +39,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export type FinancialSectionAppSlice = {
   people?: ApplicationPersonRow[];
+  directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource;
+  ctosDirectorShareholderWarning?: string | null;
   issuer_organization?: {
     id?: string;
     corporate_entities?: unknown;
@@ -99,10 +102,9 @@ function FinancialCtosHeaderControls({
   const issuerOrgId = issuerOrganizationId?.trim() ?? "";
   const queryClient = useQueryClient();
   const { getAccessToken } = useAuthToken();
-  const createOrgCtos = useCreateIssuerOrganizationCtosReport(
-    issuerOrgId || undefined,
-    applicationId
-  );
+  const { can } = usePermissions();
+  const canManageFinancialCtos = can("applications.financial.manage");
+  const createOrgCtos = useCreateApplicationCtosReport(applicationId || undefined);
   const [orgCtosConfirmOpen, setOrgCtosConfirmOpen] = React.useState(false);
 
   const lastFetchedAtIso = app.issuer_organization?.latest_organization_ctos_fetched_at ?? null;
@@ -117,7 +119,7 @@ function FinancialCtosHeaderControls({
       return;
     }
 
-    const url = `${API_URL}/v1/admin/organizations/issuer/${encodeURIComponent(issuerOrgId)}/ctos-reports/${reportId}/html`;
+    const url = `${API_URL}/v1/admin/applications/${encodeURIComponent(applicationId)}/ctos-reports/${reportId}/html`;
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) {
       toast.error("Could not load full report");
@@ -130,11 +132,11 @@ function FinancialCtosHeaderControls({
       w.document.write(html);
       w.document.close();
     }
-  }, [API_URL, app.issuer_organization?.latest_organization_ctos_report_id, getAccessToken, issuerOrgId]);
+  }, [API_URL, app.issuer_organization?.latest_organization_ctos_report_id, applicationId, getAccessToken, issuerOrgId]);
 
   const onGetCtos = React.useCallback(() => {
-    if (!issuerOrgId) {
-      toast.error("Issuer organization is missing.");
+    if (!applicationId) {
+      toast.error("Application is missing.");
       return;
     }
     const t = toast.loading("Fetching CTOS report…");
@@ -172,7 +174,11 @@ function FinancialCtosHeaderControls({
         toast.error(e.message || "CTOS request failed");
       },
     });
-  }, [ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT, applicationId, app.issuer_organization, app.people, createOrgCtos, issuerOrgId, queryClient]);
+  }, [ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT, applicationId, app.issuer_organization, app.people, createOrgCtos, queryClient]);
+
+  const ctosDisabledReason = !canManageFinancialCtos
+    ? "You do not have permission to perform this action."
+    : undefined;
 
   return (
     <>
@@ -182,7 +188,8 @@ function FinancialCtosHeaderControls({
             variant="secondary"
             size="sm"
             className={cn(CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, "h-9")}
-            disabled={createOrgCtos.isPending || !issuerOrgId}
+            disabled={createOrgCtos.isPending || !applicationId || !canManageFinancialCtos}
+            title={ctosDisabledReason}
             onClick={() => setOrgCtosConfirmOpen(true)}
           >
             {createOrgCtos.isPending ? CTOS_UI.fetching : "Fetch organization report"}

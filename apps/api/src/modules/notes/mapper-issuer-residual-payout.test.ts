@@ -48,16 +48,35 @@ describe("resolveIssuerResidualPayoutListStatus", () => {
     expect(resolveIssuerResidualPayoutListStatus(note, [])).toBeUndefined();
   });
 
-  it("derives awaiting after settlement is POSTED with positive residual and no withdrawal", () => {
+  it("derives pending when settlement is POSTED with trustee movement in progress", () => {
     const note = minimalNote([
       {
         ...settlementBase,
         id: "set-1",
         status: NoteSettlementStatus.POSTED,
         posted_at: new Date(),
+        service_fee_amount: d("10"),
+        service_fee_trustee_status: null,
       },
     ]);
-    expect(resolveIssuerResidualPayoutListStatus(note, [])).toEqual({ kind: "awaiting" });
+    expect(resolveIssuerResidualPayoutListStatus(note, [])).toEqual({
+      kind: "pending",
+      withTrustee: false,
+    });
+  });
+
+  it("derives paid when settlement trustee instruction is completed (unified flow)", () => {
+    const note = minimalNote([
+      {
+        ...settlementBase,
+        id: "set-1",
+        status: NoteSettlementStatus.POSTED,
+        posted_at: new Date(),
+        service_fee_amount: d("10"),
+        service_fee_trustee_status: "COMPLETED" as const,
+      },
+    ]);
+    expect(resolveIssuerResidualPayoutListStatus(note, [])).toEqual({ kind: "paid" });
   });
 
   it("matches withdrawal to POSTED settlement id", () => {

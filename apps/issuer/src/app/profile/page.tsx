@@ -34,14 +34,13 @@ import { useOrganizationInvitations } from "../../hooks/use-organization-invitat
 import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { DirectorShareholderAlertCard } from "../../components/director-shareholder-alert-card";
 import { CorporateInfoCard } from "../../components/corporate-info-card";
-import { DirectorShareholdersUnifiedSection } from "../../components/director-shareholders-unified-section";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { TransferOwnershipDialog } from "../../components/transfer-ownership-dialog";
 import { toast } from "sonner";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
-import { useHeader } from "@cashsouk/ui";
+import { useHeader, DirectorShareholdersUnifiedSection } from "@cashsouk/ui";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
 import {
@@ -568,6 +567,8 @@ export default function ProfilePage() {
           corporateShareholders?: Array<Record<string, unknown>>;
         };
         people?: import("@cashsouk/types").ApplicationPersonRow[];
+        directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource;
+        ctosDirectorShareholderWarning?: string | null;
       }>(`/v1/organizations/issuer/${activeOrganization.id}`);
       if (!result.success) {
         throw new Error(result.error.message);
@@ -1345,12 +1346,23 @@ export default function ProfilePage() {
               {!isPersonal && activeOrganization?.id && orgData && (
                 <div ref={directorsSectionRef} className="scroll-mt-24">
                   <DirectorShareholdersUnifiedSection
+                    portal="issuer"
                     organizationId={activeOrganization.id}
                     organizationOnboardingStatus={orgData.onboardingStatus}
                     people={orgData.people ?? []}
+                    directorShareholderListSource={orgData.directorShareholderListSource ?? null}
+                    ctosDirectorShareholderWarning={orgData.ctosDirectorShareholderWarning ?? null}
                     highlightActionRequiredRows
                     autoFocusFirstEmptyEmail={focusDirectors}
                     focusedMatchKey={focusedPersonKey}
+                    onPartyOnboardingSent={async () => {
+                      await queryClient.invalidateQueries({
+                        queryKey: ["corporate-entities", activeOrganization.id],
+                      });
+                      await queryClient.invalidateQueries({
+                        queryKey: ["organization-detail", activeOrganization.id],
+                      });
+                    }}
                   />
                 </div>
               )}

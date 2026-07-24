@@ -48,7 +48,7 @@ import {
   normalizeDirectorShareholderIdKey,
   parseCtosPartySupplement,
 } from "@cashsouk/types";
-import { buildAdminPeopleList } from "../admin/build-people-list";
+import { buildDirectorShareholderPeopleList } from "../admin/build-people-list";
 import { RegTankAPIClient } from "../regtank/api-client";
 import { ensureRegTankFormId } from "../regtank/form-id";
 import type { RegTankIndividualOnboardingRequest } from "../regtank/types";
@@ -223,7 +223,7 @@ export class OrganizationService {
       throw new AppError(400, "NAME_REQUIRED", "Company name is required for company accounts.");
     }
 
-    // Check if a corporate organization with the same name already exists
+    // Soft duplicate warning only: keep allowing creation on name match.
     if (orgType === OrganizationType.COMPANY && input.name) {
       const nameExists =
         portalType === "investor"
@@ -231,10 +231,14 @@ export class OrganizationService {
           : await this.repository.issuerOrganizationNameExists(input.name);
 
       if (nameExists) {
-        throw new AppError(
-          400,
-          "ORGANIZATION_NAME_EXISTS",
-          "An organization with this name already exists. Please use a different name."
+        logger.warn(
+          {
+            userId,
+            portalType,
+            orgType,
+            name: input.name,
+          },
+          "Company name matches an existing organization; continuing as soft warning"
         );
       }
     }
@@ -1991,7 +1995,7 @@ export class OrganizationService {
       directorAmlStatus,
     };
     const extras = await this.getIssuerPartyListExtras(organizationId);
-    const people = buildAdminPeopleList({
+    const partyBuild = buildDirectorShareholderPeopleList({
       ctos: extras.latestOrganizationCtosCompanyJson ?? null,
       issuerDirectorKycStatus: organization?.director_kyc_status ?? null,
       issuerDirectorAmlStatus: organization?.director_aml_status ?? null,
@@ -2000,7 +2004,9 @@ export class OrganizationService {
     });
     return {
       ...base,
-      people,
+      people: partyBuild.people,
+      directorShareholderListSource: partyBuild.listSource,
+      ctosDirectorShareholderWarning: partyBuild.ctosDirectorShareholderWarning,
       latestOrganizationCtosCompanyJson: extras.latestOrganizationCtosCompanyJson,
       latestOrganizationCtosFinancialsJson: extras.latestOrganizationCtosFinancialsJson,
       latestOrganizationCtosReportId: extras.latestOrganizationCtosReportId,
@@ -2034,6 +2040,8 @@ export class OrganizationService {
     }>;
     ctosPartySupplements?: { partyKey: string; onboardingJson: unknown }[];
     directorAmlStatus?: Record<string, unknown> | null;
+    directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource;
+    ctosDirectorShareholderWarning?: string | null;
   }> {
     // Verify access
     await this.getOrganization(userId, organizationId, portalType);
@@ -2075,7 +2083,7 @@ export class OrganizationService {
     };
     if (portalType === "issuer") {
       const extras = await this.getIssuerPartyListExtras(organizationId);
-      const people = buildAdminPeopleList({
+      const partyBuild = buildDirectorShareholderPeopleList({
         ctos: extras.latestOrganizationCtosCompanyJson ?? null,
         issuerDirectorKycStatus: organization?.director_kyc_status ?? null,
         issuerDirectorAmlStatus: organization?.director_aml_status ?? null,
@@ -2084,7 +2092,9 @@ export class OrganizationService {
       });
       return {
         ...base,
-        people,
+        people: partyBuild.people,
+        directorShareholderListSource: partyBuild.listSource,
+        ctosDirectorShareholderWarning: partyBuild.ctosDirectorShareholderWarning,
         latestOrganizationCtosCompanyJson: extras.latestOrganizationCtosCompanyJson,
         latestOrganizationCtosFinancialsJson: extras.latestOrganizationCtosFinancialsJson,
         latestOrganizationCtosReportId: extras.latestOrganizationCtosReportId,
@@ -2096,7 +2106,7 @@ export class OrganizationService {
     }
     if (portalType === "investor") {
       const extras = await this.getInvestorPartyListExtras(organizationId);
-      const people = buildAdminPeopleList({
+      const partyBuild = buildDirectorShareholderPeopleList({
         ctos: extras.latestOrganizationCtosCompanyJson ?? null,
         issuerDirectorKycStatus: organization?.director_kyc_status ?? null,
         issuerDirectorAmlStatus: organization?.director_aml_status ?? null,
@@ -2105,7 +2115,9 @@ export class OrganizationService {
       });
       return {
         ...base,
-        people,
+        people: partyBuild.people,
+        directorShareholderListSource: partyBuild.listSource,
+        ctosDirectorShareholderWarning: partyBuild.ctosDirectorShareholderWarning,
         latestOrganizationCtosCompanyJson: extras.latestOrganizationCtosCompanyJson,
         latestOrganizationCtosFinancialsJson: extras.latestOrganizationCtosFinancialsJson,
         latestOrganizationCtosReportId: extras.latestOrganizationCtosReportId,

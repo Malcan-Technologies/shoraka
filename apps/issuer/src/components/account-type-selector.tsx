@@ -40,13 +40,23 @@ type Step = "select-type" | "completing";
 export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
   const router = useRouter();
   const { getAccessToken } = useAuthToken();
-  const { createOrganization, switchOrganization } = useOrganization();
+  const { createOrganization, switchOrganization, organizations } = useOrganization();
   const [step, setStep] = React.useState<Step>("select-type");
   const [error, setError] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [showCompanyDialog, setShowCompanyDialog] = React.useState(false);
   const [companyName, setCompanyName] = React.useState("");
   const [formErrors, setFormErrors] = React.useState<{ companyName?: string }>({});
+  const normalizedCompanyName = companyName.trim().toLowerCase();
+  const duplicateCompanyNameWarning = React.useMemo(() => {
+    if (!normalizedCompanyName) return null;
+    const exists = organizations.some(
+      (org) => org.type === "COMPANY" && (org.name ?? "").trim().toLowerCase() === normalizedCompanyName
+    );
+    return exists
+      ? "A company with this name already exists in your list. You can still continue and start onboarding."
+      : null;
+  }, [normalizedCompanyName, organizations]);
 
   const handleConfirmCompany = async (companyNameValue: string) => {
     setShowCompanyDialog(false);
@@ -148,6 +158,9 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
               />
               {formErrors.companyName ? (
                 <p className="text-sm text-destructive">{formErrors.companyName}</p>
+              ) : null}
+              {!formErrors.companyName && duplicateCompanyNameWarning ? (
+                <p className="text-sm text-orange-700">{duplicateCompanyNameWarning}</p>
               ) : null}
             </div>
           </div>

@@ -153,6 +153,8 @@ export interface NoteSettlementPoolSummary {
   postedAt: string | null;
   /** Posted settlement with platform service fee: trustee instruction workflow (pools). */
   serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus | null;
+  serviceFeeTrusteeCreatedAt: string | null;
+  serviceFeeTrusteeLetterGeneratedAt: string | null;
   serviceFeeTrusteeSubmittedAt: string | null;
   serviceFeeTrusteeCompletedAt: string | null;
 }
@@ -193,6 +195,18 @@ export interface NoteInvestorRepaymentSummary {
   receivedSettlementEvents: NoteInvestorSettlementEvent[];
 }
 
+/** Prospectus workflow summary on admin Note list/detail. */
+export type NoteProspectusSummary = {
+  /** Normalized workflow status: DRAFT | APPROVED | PUBLISHED. */
+  status: "DRAFT" | "APPROVED" | "PUBLISHED";
+  /** User-facing: Draft | Approved | Published. */
+  displayStatus: "Draft" | "Approved" | "Published";
+  contentVersion: number | null;
+  lastSavedAt: string | null;
+  approvedAt: string | null;
+  publishedAt: string | null;
+};
+
 export interface NoteListItem extends NoteMoneySummary {
   id: string;
   noteReference: string;
@@ -226,12 +240,23 @@ export interface NoteListItem extends NoteMoneySummary {
   /** Issuer portal list: residual trustee payout vs `settlementSummary` (omitted elsewhere). */
   issuerResidualPayout?: IssuerResidualPayoutListStatus;
   investorRepaymentSummary?: NoteInvestorRepaymentSummary | null;
+  /** Admin list/detail: Prospectus workflow status for badges and publish checklist. */
+  prospectus?: NoteProspectusSummary | null;
+  /**
+   * Investor investments list only: primary investment id for this Note + org
+   * (used by investment-scoped View Prospectus).
+   */
+  investorInvestmentId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface NoteDetail extends NoteListItem {
   productSnapshot: Record<string, unknown> | null;
+  /** Frozen at Note create: `{ financing_for }` from Application business_details. */
+  purposeSnapshot: Record<string, unknown> | null;
+  /** Frozen at publish: Page 1 Stage 7/8 track-record snapshot. */
+  prospectusSnapshot: Record<string, unknown> | null;
   issuerSnapshot: Record<string, unknown>;
   paymasterSnapshot: Record<string, unknown> | null;
   contractSnapshot: Record<string, unknown> | null;
@@ -317,12 +342,20 @@ export interface NotePayment {
   receiptAmount: number;
   receiptDate: string;
   receivedIntoAccountCode: string;
-  evidenceS3Key: string | null;
+  evidenceFiles?: PaymentEvidenceFile[] | null;
   reference: string | null;
   recordedByUserId: string | null;
   reconciledByUserId: string | null;
   reconciledAt: string | null;
   metadata: Record<string, unknown> | null;
+}
+
+export interface PaymentEvidenceFile {
+  s3Key: string;
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+  uploadedAt: string;
 }
 
 export interface NoteSettlement {
@@ -351,6 +384,8 @@ export interface NoteSettlement {
   approvedAt: string | null;
   postedAt: string | null;
   serviceFeeTrusteeStatus: ServiceFeeTrusteeInstructionStatus | null;
+  serviceFeeTrusteeCreatedAt: string | null;
+  serviceFeeTrusteeLetterGeneratedAt: string | null;
   serviceFeeTrusteeSubmittedAt: string | null;
   serviceFeeTrusteeCompletedAt: string | null;
 }
@@ -523,6 +558,7 @@ export interface PendingRepaymentItem {
   actionNeeded: PendingRepaymentAction;
   issuerOrganizationId: string | null;
   issuerOrganizationName: string | null;
+  evidenceFiles?: PaymentEvidenceFile[] | null;
   createdAt: string;
 }
 
@@ -638,6 +674,18 @@ export interface TrusteeSignatureUploadUrlRequest {
 }
 
 export interface TrusteeSignatureUploadUrlResponse {
+  uploadUrl: string;
+  s3Key: string;
+  expiresIn: number;
+}
+
+export interface IssuerPaymentEvidenceUploadUrlRequest {
+  fileName: string;
+  contentType: "application/pdf" | "image/jpeg" | "image/png";
+  fileSize: number;
+}
+
+export interface IssuerPaymentEvidenceUploadUrlResponse {
   uploadUrl: string;
   s3Key: string;
   expiresIn: number;
@@ -922,6 +970,8 @@ export interface UpdateNoteFeaturedInput {
 }
 
 export interface CreateNoteInvestmentInput {
+  /** Must be true — server rejects investments without Prospectus acknowledgement. */
+  prospectusAcknowledged: true;
   amount: number;
   investorOrganizationId: string;
 }
@@ -947,12 +997,14 @@ export interface InvestorDepositLimits {
 export interface CreateInvestorDepositInput {
   investorOrganizationId: string;
   amount: number;
+  depositIntentId: string;
 }
 
 export interface InvestorDepositResponse {
   id: string;
   status: GatewayPaymentStatus;
   purpose: string;
+  gatewayAccount: "OPERATING" | "INVESTOR_POOL";
   amount: number;
   currency: string;
   curlecOrderId: string;
@@ -972,6 +1024,7 @@ export interface IssuerOnboardingFeeResponse {
   id: string;
   status: GatewayPaymentStatus;
   purpose: string;
+  gatewayAccount: "OPERATING" | "INVESTOR_POOL";
   amount: number;
   currency: string;
   curlecOrderId: string;
@@ -982,6 +1035,13 @@ export interface IssuerOnboardingFeeResponse {
   payerName: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface IssuerOnboardingFeeStatusResponse {
+  amount: number;
+  latestPayment: IssuerOnboardingFeeResponse | null;
+  isPaid: boolean;
+  isUnderReview: boolean;
 }
 
 export interface CreateApplicationProcessingFeeInput {
@@ -995,7 +1055,7 @@ export interface RecordNotePaymentInput {
   receiptAmount: number;
   receiptDate: string;
   reference?: string | null;
-  evidenceS3Key?: string | null;
+  evidenceFiles?: PaymentEvidenceFile[] | null;
   scheduleId?: string | null;
   metadata?: Record<string, unknown> | null;
 }
@@ -1022,6 +1082,8 @@ export function mapNoteSettlementToPoolSummary(
     | "postedAt"
     | "serviceFeeAmount"
     | "serviceFeeTrusteeStatus"
+    | "serviceFeeTrusteeCreatedAt"
+    | "serviceFeeTrusteeLetterGeneratedAt"
     | "serviceFeeTrusteeSubmittedAt"
     | "serviceFeeTrusteeCompletedAt"
   >
@@ -1048,6 +1110,8 @@ export function mapNoteSettlementToPoolSummary(
     annualProfitRatePercent: settlement.annualProfitRatePercent,
     postedAt: settlement.postedAt,
     serviceFeeTrusteeStatus: settlement.serviceFeeTrusteeStatus,
+    serviceFeeTrusteeCreatedAt: settlement.serviceFeeTrusteeCreatedAt,
+    serviceFeeTrusteeLetterGeneratedAt: settlement.serviceFeeTrusteeLetterGeneratedAt,
     serviceFeeTrusteeSubmittedAt: settlement.serviceFeeTrusteeSubmittedAt,
     serviceFeeTrusteeCompletedAt: settlement.serviceFeeTrusteeCompletedAt,
   };
@@ -1089,3 +1153,4 @@ export interface OverdueLateChargeResult {
 
 export * from "./note-expected-return";
 export * from "./note-money";
+export * from "./note-settlement-trustee";

@@ -1,17 +1,42 @@
-import { isSoukscoreRiskRating, roundNoteMoney, type IssuerResidualPayoutListStatus } from "@cashsouk/types";
+import {
+  formatProspectusListBadge,
+  getProspectusDisplayStatus,
+  hasSettlementTrusteeMovementFromPoolSummary,
+  isSoukscoreRiskRating,
+  normalizeProspectusWorkflowStatus,
+  roundNoteMoney,
+  type IssuerResidualPayoutListStatus,
+  type NoteProspectusSummary,
+} from "@cashsouk/types";
 import { NoteSettlementStatus, Prisma, WithdrawalStatus, WithdrawalType } from "@prisma/client";
 import { sortAdminNoteEvents } from "./admin-note-events-sorting";
+import { noteInclude } from "./repository";
 
 type NoteWithRelations = Prisma.NoteGetPayload<{
-  include: {
-    listing: true;
-    investments: true;
-    payment_schedules: true;
-    payments: true;
-    settlements: true;
-    events: { orderBy: { created_at: "desc" } };
-  };
+  include: typeof noteInclude;
 }>;
+
+function mapProspectusSummary(note: NoteWithRelations): NoteProspectusSummary {
+  const review = note.prospectus_review;
+  const notePublished = note.status === "PUBLISHED" || Boolean(note.published_at);
+  const displayStatus = getProspectusDisplayStatus({
+    reviewStatus: review?.status ?? "DRAFT",
+    notePublished,
+  });
+  return {
+    status: normalizeProspectusWorkflowStatus(review?.status),
+    displayStatus,
+    contentVersion: review?.content_version ?? null,
+    lastSavedAt: review?.updated_at?.toISOString() ?? null,
+    approvedAt: review?.approved_at?.toISOString() ?? null,
+    publishedAt: note.published_at?.toISOString() ?? null,
+  };
+}
+
+/** List badge label: "Prospectus Draft" | "Prospectus Approved" | "Prospectus Published". */
+export function mapProspectusListBadgeLabel(note: NoteWithRelations): string {
+  return formatProspectusListBadge(mapProspectusSummary(note).displayStatus);
+}
 
 type WithdrawalRecord =
   Prisma.WithdrawalInstructionGetPayload<Prisma.WithdrawalInstructionDefaultArgs>;
@@ -136,6 +161,30 @@ function asRecord(value: Prisma.JsonValue | null | undefined): Record<string, un
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function asPaymentEvidenceFiles(value: Prisma.JsonValue | null | undefined) {
+  if (!Array.isArray(value)) return null;
+  const files = value
+    .map((item) => {
+      const entry = asRecord(item as Prisma.JsonValue);
+      if (!entry) return null;
+      const s3Key = typeof entry.s3Key === "string" ? entry.s3Key : "";
+      const fileName = typeof entry.fileName === "string" ? entry.fileName : "";
+      const contentType = typeof entry.contentType === "string" ? entry.contentType : "";
+      const fileSize = numberFromUnknownOrUndefined(entry.fileSize);
+      const uploadedAt = typeof entry.uploadedAt === "string" ? entry.uploadedAt : "";
+      if (!s3Key || !fileName || !contentType || !fileSize || !uploadedAt) return null;
+      return { s3Key, fileName, contentType, fileSize, uploadedAt };
+    })
+    .filter((item): item is {
+      s3Key: string;
+      fileName: string;
+      contentType: string;
+      fileSize: number;
+      uploadedAt: string;
+    } => item !== null);
+  return files.length > 0 ? files : null;
 }
 
 function numberFromUnknown(value: unknown): number {
@@ -283,6 +332,12 @@ function resolveSettlementSummary(note: NoteWithRelations) {
     serviceFeeTrusteeStatus: hasSettlementTrusteeMovement
       ? (settlement.service_fee_trustee_status ?? null)
       : null,
+    serviceFeeTrusteeCreatedAt: hasSettlementTrusteeMovement
+      ? iso(settlement.service_fee_trustee_created_at)
+      : null,
+    serviceFeeTrusteeLetterGeneratedAt: hasSettlementTrusteeMovement
+      ? iso(settlement.service_fee_trustee_letter_generated_at)
+      : null,
     serviceFeeTrusteeSubmittedAt: hasSettlementTrusteeMovement
       ? iso(settlement.service_fee_trustee_submitted_at)
       : null,
@@ -305,6 +360,17 @@ export function resolveIssuerResidualPayoutListStatus(
   const { settlementId, issuerResidualAmount: residualAmount } = settlementSummary;
   if (residualAmount <= ISSUER_RESIDUAL_AMOUNT_TOLERANCE) {
     return { kind: "none" };
+  }
+
+  if (settlementSummary.serviceFeeTrusteeStatus === "COMPLETED") {
+    return { kind: "paid" };
+  }
+
+  if (hasSettlementTrusteeMovementFromPoolSummary(settlementSummary)) {
+    return {
+      kind: "pending",
+      withTrustee: settlementSummary.serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE",
+    };
   }
 
   const strictRows = withdrawals.filter(
@@ -396,6 +462,7 @@ export function mapNoteListItem(note: NoteWithRelations) {
     activatedAt: iso(note.activated_at),
     publishedAt: iso(note.published_at),
     settlementSummary: resolveSettlementSummary(note),
+    prospectus: mapProspectusSummary(note),
     createdAt: note.created_at.toISOString(),
     updatedAt: note.updated_at.toISOString(),
   };
@@ -423,6 +490,8 @@ export function mapNoteDetail(
     ...mapNoteListItem(note),
     issuerResidualPayout: resolveIssuerResidualPayoutListStatus(note, withdrawals),
     productSnapshot: asRecord(note.product_snapshot),
+    purposeSnapshot: asRecord(note.purpose_snapshot),
+    prospectusSnapshot: asRecord(note.prospectus_snapshot),
     issuerSnapshot: asRecord(note.issuer_snapshot) ?? {},
     paymasterSnapshot: asRecord(note.paymaster_snapshot),
     contractSnapshot: asRecord(note.contract_snapshot),
@@ -482,7 +551,7 @@ export function mapNoteDetail(
       receiptAmount: moneyToNumber(payment.receipt_amount),
       receiptDate: payment.receipt_date.toISOString(),
       receivedIntoAccountCode: payment.received_into_account_code,
-      evidenceS3Key: payment.evidence_s3_key,
+      evidenceFiles: asPaymentEvidenceFiles(payment.evidence_files),
       reference: payment.reference,
       recordedByUserId: payment.recorded_by_user_id,
       reconciledByUserId: payment.reconciled_by_user_id,
@@ -515,6 +584,8 @@ export function mapNoteDetail(
       approvedAt: iso(settlement.approved_at),
       postedAt: iso(settlement.posted_at),
       serviceFeeTrusteeStatus: settlement.service_fee_trustee_status ?? null,
+      serviceFeeTrusteeCreatedAt: iso(settlement.service_fee_trustee_created_at),
+      serviceFeeTrusteeLetterGeneratedAt: iso(settlement.service_fee_trustee_letter_generated_at),
       serviceFeeTrusteeSubmittedAt: iso(settlement.service_fee_trustee_submitted_at),
       serviceFeeTrusteeCompletedAt: iso(settlement.service_fee_trustee_completed_at),
     })),

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Skeleton } from "../../components/ui/skeleton";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -27,6 +27,7 @@ import {
   type UpdateOrganizationProfileInput,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
+import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -34,14 +35,13 @@ import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
 import { CorporateInfoCard } from "../../components/corporate-info-card";
-import { DirectorsShareholdersCard } from "../../components/directors-shareholders-card";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { TransferOwnershipDialog } from "../../components/transfer-ownership-dialog";
 import { toast } from "sonner";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
-import { useHeader } from "@cashsouk/ui";
+import { useHeader, DirectorShareholderAlertCard, INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY, DirectorShareholdersUnifiedSection } from "@cashsouk/ui";
 import {
   UserIcon,
   BuildingOffice2Icon,
@@ -385,6 +385,12 @@ export default function ProfilePage() {
     organizations,
     updateOrganizationProfile,
   } = useOrganization();
+
+  const visiblePeopleForDsAlert = React.useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
+  );
+
   const queryClient = useQueryClient();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
@@ -553,6 +559,8 @@ export default function ProfilePage() {
           corporateShareholders?: Array<Record<string, unknown>>;
         };
         people?: ApplicationPersonRow[];
+        directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource;
+        ctosDirectorShareholderWarning?: string | null;
       }>(`/v1/organizations/investor/${activeOrganization.id}`);
       if (!result.success) {
         throw new Error(result.error.message);
@@ -562,6 +570,28 @@ export default function ProfilePage() {
     enabled: !!activeOrganization?.id,
     staleTime: 1000 * 60 * 5,
   });
+
+  const searchParams = useSearchParams();
+  const focusDirectors = searchParams.get("focus") === "directors";
+  const focusedPersonKey = searchParams.get("person");
+  const directorsSectionRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!focusDirectors) return;
+    const el = directorsSectionRef.current;
+    if (!el) return;
+    const t = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [focusDirectors, orgData, activeOrganization?.id]);
+
+  const handlePartyOnboardingSent = React.useCallback(async () => {
+    if (!activeOrganization?.id) return;
+    await queryClient.invalidateQueries({ queryKey: ["corporate-entities", activeOrganization.id] });
+    await queryClient.invalidateQueries({ queryKey: ["organization-detail", activeOrganization.id] });
+    await refreshOrganizations();
+  }, [activeOrganization?.id, queryClient, refreshOrganizations]);
 
   // Initialize form values when orgData loads
   React.useEffect(() => {
@@ -819,6 +849,14 @@ export default function ProfilePage() {
               Refresh
             </Button>
           </div>
+
+          {!isPersonal ? (
+            <DirectorShareholderAlertCard
+              visiblePeople={visiblePeopleForDsAlert}
+              enabled={activeOrganization?.onboardingStatus === "COMPLETED"}
+              copy={INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY}
+            />
+          ) : null}
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -1409,9 +1447,20 @@ export default function ProfilePage() {
 
               {/* 4. Directors/Shareholders Section - Only for COMPANY accounts */}
               {!isPersonal && activeOrganization?.id && orgData?.type === "COMPANY" && (
-                <DirectorsShareholdersCard
-                  people={orgData.people ?? []}
-                />
+                <div ref={directorsSectionRef} className="scroll-mt-24">
+                  <DirectorShareholdersUnifiedSection
+                    portal="investor"
+                    organizationId={activeOrganization.id}
+                    organizationOnboardingStatus={orgData.onboardingStatus}
+                    people={orgData.people ?? []}
+                    directorShareholderListSource={orgData.directorShareholderListSource ?? null}
+                    ctosDirectorShareholderWarning={orgData.ctosDirectorShareholderWarning ?? null}
+                    highlightActionRequiredRows
+                    autoFocusFirstEmptyEmail={focusDirectors}
+                    focusedMatchKey={focusedPersonKey}
+                    onPartyOnboardingSent={handlePartyOnboardingSent}
+                  />
+                </div>
               )}
 
               {/* 5. Members Section */}

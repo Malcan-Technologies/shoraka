@@ -90,6 +90,26 @@ export {
 export type { ChartConfig } from "./components/chart";
 export { cn } from "./lib/utils";
 export {
+  DirectorShareholderCtosEmptyAlert,
+  type DirectorShareholderCtosEmptyAlertProps,
+} from "./director-shareholder-ctos-empty-alert";
+export {
+  DirectorShareholderUnresolvedIdentityCard,
+  DirectorShareholderUnresolvedIdentitySection,
+  type DirectorShareholderUnresolvedIdentityCardProps,
+  type DirectorShareholderUnresolvedIdentitySectionProps,
+  type UnresolvedIdentityPersonInput,
+} from "./director-shareholder-unresolved-identity-card";
+export {
+  DirectorShareholderAlertCard,
+  type DirectorShareholderAlertCardProps,
+} from "./director-shareholder-alert-card";
+export {
+  ISSUER_DIRECTOR_SHAREHOLDER_ALERT_COPY,
+  INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
+  type DirectorShareholderAlertCopy,
+} from "./director-shareholder-alert-copy";
+export {
   fieldTooltipContentClassName,
   fieldTooltipTriggerClassName,
   fieldTooltipTriggerInputClassName,
@@ -176,5 +196,15 @@ export {
   TermsAcceptanceCard,
   IdentityVerifyStep,
   OnboardingLayout,
+  OnboardingStatusCard,
+  getOnboardingSteps,
 } from "./onboarding";
-export type { OnboardingStepperStep } from "./onboarding";
+export type { OnboardingStepperStep, OnboardingStatusCardProps, OnboardingStep } from "./onboarding";
+export {
+  DirectorShareholdersUnifiedSection,
+  directorShareholderOrgApiBase,
+} from "./director-shareholders-unified-section";
+export type {
+  DirectorShareholdersUnifiedSectionProps,
+  DirectorShareholderPortal,
+} from "./director-shareholders-unified-section";

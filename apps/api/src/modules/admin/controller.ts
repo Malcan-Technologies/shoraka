@@ -146,6 +146,38 @@ function ctosRowPublicSummary(row: {
   };
 }
 
+async function resolveOnboardingCtosOrgContext(onboardingId: string): Promise<{
+  portal: "investor" | "issuer";
+  organizationId: string;
+}> {
+  const record = await prisma.regTankOnboarding.findUnique({
+    where: { id: onboardingId },
+    select: {
+      portal_type: true,
+      investor_organization_id: true,
+      issuer_organization_id: true,
+      organization_type: true,
+    },
+  });
+  if (!record) {
+    throw new AppError(404, "NOT_FOUND", "Onboarding record not found");
+  }
+  if (record.organization_type !== "COMPANY") {
+    throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for company onboarding");
+  }
+  const isInvestor = record.portal_type === "investor";
+  const organizationId = isInvestor
+    ? record.investor_organization_id
+    : record.issuer_organization_id;
+  if (!organizationId) {
+    throw new AppError(404, "NOT_FOUND", "Organization not found");
+  }
+  return {
+    portal: isInvestor ? "investor" : "issuer",
+    organizationId,
+  };
+}
+
 
 router.get(
   "/roles",
@@ -1934,6 +1966,74 @@ router.post(
   }
 );
 
+router.get(
+  "/onboarding-applications/:id/ctos-reports/:reportId/html",
+  requirePermission("onboarding.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id: onboardingId, reportId } = req.params;
+      const { portal, organizationId } = await resolveOnboardingCtosOrgContext(onboardingId);
+      const row = await getCtosReportByAdminOrg(portal, organizationId, reportId);
+      if (!row?.report_html) {
+        throw new AppError(404, "NOT_FOUND", "CTOS report not available");
+      }
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(row.report_html);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/onboarding-applications/:id/ctos-reports",
+  requirePermission("onboarding.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id: onboardingId } = req.params;
+      const { portal, organizationId } = await resolveOnboardingCtosOrgContext(onboardingId);
+      const data = await listCtosReportsForAdminOrg(portal, organizationId);
+      res.json({
+        success: true,
+        data,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/onboarding-applications/:id/ctos-reports",
+  requirePermission("onboarding.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id: onboardingId } = req.params;
+      const { portal, organizationId } = await resolveOnboardingCtosOrgContext(onboardingId);
+      const body = (req.body && typeof req.body === "object" && !Array.isArray(req.body)
+        ? (req.body as Record<string, unknown>)
+        : {}) as { skipDirectorShareholderNotifications?: unknown };
+      const skipDirectorShareholderNotifications =
+        body.skipDirectorShareholderNotifications === true ||
+        body.skipDirectorShareholderNotifications === "true";
+      const row = await fetchAndInsertCtosReportForAdminOrg(
+        portal,
+        organizationId,
+        res.locals.correlationId,
+        { skipDirectorShareholderNotifications }
+      );
+      res.status(201).json({
+        success: true,
+        data: ctosRowPublicSummary(row),
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 /**
  * POST /admin/onboarding-applications/:id/approve-ssm
  * Approve SSM verification for a company organization
@@ -2052,6 +2152,45 @@ router.post(
       }
 
       const result = await adminService.refreshCorporateAmlStatus(req, id, req.user.user_id);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * POST /admin/onboarding-applications/:id/refresh-status:
+ *   post:
+ *     summary: Refresh onboarding + AML status from RegTank (personal or company)
+ *     description: >
+ *       Queries RegTank live for the applicable onboarding/AML records (individual
+ *       onboarding + KYC for personal orgs; COD/EOD + KYB/related-party AML for
+ *       company orgs), updates existing stored fields/JSON, and runs the existing
+ *       shared milestone/advancement helpers. Never sets ssm_approved/ssm_checked.
+ */
+router.post(
+  "/onboarding-applications/:id/refresh-status",
+  requirePermission("onboarding.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      if (!id) {
+        throw new AppError(400, "VALIDATION_ERROR", "Onboarding ID is required");
+      }
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const result = await adminService.refreshOnboardingStatus(req, id, req.user.user_id);
 
       res.json({
         success: true,
@@ -2559,7 +2698,7 @@ router.get(
 
 router.post(
   "/applications/:id/ctos-reports",
-  requirePermission("applications.manage"),
+  requirePermission("applications.financial.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id: applicationId } = req.params;
@@ -2609,7 +2748,7 @@ router.get(
 
 router.post(
   "/applications/:id/ctos-subject-reports",
-  requirePermission("applications.manage"),
+  requirePermission("applications.business_guarantor.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id: applicationId } = req.params;

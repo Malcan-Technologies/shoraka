@@ -1,0 +1,89 @@
+{
+  "outDir": "/home/max/projects/shoraka/tmp/prospectus-a4-audit",
+  "viewportChecks": [
+    {
+      "width": 1920,
+      "metrics": {
+        "pageCount": 3,
+        "pageWidth": "793.688px",
+        "pageHeight": "1122.52px",
+        "pageMinWidth": "793.701px",
+        "pageMinHeight": "1122.52px",
+        "pageBackground": "rgb(255, 255, 255)",
+        "htmlBackground": "rgb(236, 236, 236)",
+        "heroGridColumns": "314.156px 232.703px 190.828px",
+        "bodyScrollWidth": 1920,
+        "viewportInnerWidth": 1920
+      },
+      "screenshot": "/home/max/projects/shoraka/tmp/prospectus-a4-audit/preview-1920px.png"
+    },
+    {
+      "width": 1366,
+      "metrics": {
+        "pageCount": 3,
+        "pageWidth": "793.688px",
+        "pageHeight": "1122.52px",
+        "pageMinWidth": "793.701px",
+        "pageMinHeight": "1122.52px",
+        "pageBackground": "rgb(255, 255, 255)",
+        "htmlBackground": "rgb(236, 236, 236)",
+        "heroGridColumns": "314.156px 232.703px 190.828px",
+        "bodyScrollWidth": 1366,
+        "viewportInnerWidth": 1366
+      },
+      "screenshot": "/home/max/projects/shoraka/tmp/prospectus-a4-audit/preview-1366px.png"
+    },
+    {
+      "width": 1024,
+      "metrics": {
+        "pageCount": 3,
+        "pageWidth": "793.688px",
+        "pageHeight": "1122.52px",
+        "pageMinWidth": "793.701px",
+        "pageMinHeight": "1122.52px",
+        "pageBackground": "rgb(255, 255, 255)",
+        "htmlBackground": "rgb(236, 236, 236)",
+        "heroGridColumns": "314.156px 232.703px 190.828px",
+        "bodyScrollWidth": 1024,
+        "viewportInnerWidth": 1024
+      },
+      "screenshot": "/home/max/projects/shoraka/tmp/prospectus-a4-audit/preview-1024px.png"
+    },
+    {
+      "width": 768,
+      "metrics": {
+        "pageCount": 3,
+        "pageWidth": "793.688px",
+        "pageHeight": "1122.52px",
+        "pageMinWidth": "793.701px",
+        "pageMinHeight": "1122.52px",
+        "pageBackground": "rgb(255, 255, 255)",
+        "htmlBackground": "rgb(236, 236, 236)",
+        "heroGridColumns": "314.156px 232.703px 190.828px",
+        "bodyScrollWidth": 794,
+        "viewportInnerWidth": 768
+      },
+      "screenshot": "/home/max/projects/shoraka/tmp/prospectus-a4-audit/preview-768px.png"
+    }
+  ],
+  "pdf": {
+    "path": "/home/max/projects/shoraka/tmp/prospectus-a4-audit/prospectus-3-pages.pdf",
+    "bytes": 146737,
+    "pageCount": 3,
+    "renderer": {
+      "format": "A4",
+      "printBackground": true,
+      "preferCSSPageSize": true,
+      "margin": 0,
+      "method": "page.pdf (Chromium print of HTML .page nodes, not viewport screenshot)"
+    },
+    "greyPreviewColorEmbedded": false
+  },
+  "printEmulated": {
+    "htmlBackground": "rgb(255, 255, 255)",
+    "bodyBackground": "rgb(255, 255, 255)",
+    "pageBackground": "rgb(255, 255, 255)",
+    "pageBoxShadow": "none",
+    "documentPadding": "0px"
+  }
+}

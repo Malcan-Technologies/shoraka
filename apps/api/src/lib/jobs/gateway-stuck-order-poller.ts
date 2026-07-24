@@ -33,6 +33,8 @@ export async function processStaleGatewayPayment(
     logger.info(
       {
         gatewayPaymentId: payment.id,
+        gatewayAccount: payment.gatewayAccount,
+        curlecOrderId: payment.curlec_order_id,
         fromStatus: beforeStatus,
         toStatus: synced.status,
         correlationId: CRON_CORRELATION_ID,
@@ -66,7 +68,12 @@ export async function processStaleGatewayPayment(
 
   if (expired) {
     logger.info(
-      { gatewayPaymentId: payment.id, correlationId: CRON_CORRELATION_ID },
+      {
+        gatewayPaymentId: payment.id,
+        gatewayAccount: payment.gatewayAccount,
+        curlecOrderId: payment.curlec_order_id,
+        correlationId: CRON_CORRELATION_ID,
+      },
       "Stuck-order poller expired abandoned gateway payment"
     );
     return "expired";
@@ -110,7 +117,13 @@ export async function runGatewayStuckOrderPollerJob(
       const message = error instanceof Error ? error.message : String(error);
       result.errors.push({ gatewayPaymentId: payment.id, error: message });
       logger.error(
-        { gatewayPaymentId: payment.id, error: message, correlationId: CRON_CORRELATION_ID },
+        {
+          gatewayPaymentId: payment.id,
+          gatewayAccount: payment.gatewayAccount,
+          curlecOrderId: payment.curlec_order_id,
+          error: message,
+          correlationId: CRON_CORRELATION_ID,
+        },
         "Stuck-order poller failed for gateway payment"
       );
     }

@@ -143,6 +143,9 @@ async function main() {
     prisma,
     fetchReconItems
   );
+  if (!result) {
+    throw new Error("Reconciliation lock not acquired for simulator run");
+  }
 
   const detail = await getReconRunDetail(result.runId, prisma);
 

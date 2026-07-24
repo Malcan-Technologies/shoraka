@@ -37,6 +37,8 @@ export function useCorporateEntities(organizationId: string | undefined) {
         people?: import("@cashsouk/types").ApplicationPersonRow[];
         directorKycStatus?: DirectorKycStatus | null;
         directorAmlStatus?: Record<string, unknown> | null;
+        directorShareholderListSource?: import("@cashsouk/types").DirectorShareholderListSource;
+        ctosDirectorShareholderWarning?: string | null;
         latestOrganizationCtosCompanyJson?: unknown | null;
         ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
       }>(`/v1/organizations/issuer/${organizationId}/corporate-entities`);

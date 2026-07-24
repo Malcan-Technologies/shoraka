@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient } from "@cashsouk/config";
 import type {
+  CurlecGatewayAccount,
   GatewayPaymentDetailDto,
   GatewayPaymentListResponse,
   GatewayPaymentPendingCountResponse,
@@ -44,6 +45,7 @@ export function useGatewayPaymentsExceptionCount({ enabled = true }: { enabled?:
 export function useGatewayPayments(params?: {
   page?: number;
   pageSize?: number;
+  gatewayAccount?: CurlecGatewayAccount;
   status?: string;
   purpose?: string;
   filter?: "needs_attention" | "review" | "refunding" | "refunded" | "completed";

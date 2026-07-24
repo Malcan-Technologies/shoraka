@@ -257,6 +257,19 @@ Application comments (both view and add) use `applications.view` only. Do not ga
 | Backend | `apps/api/src/modules/admin/controller.ts` |
 | Frontend pages | `apps/admin/src/app/organizations/page.tsx`, `apps/admin/src/app/organizations/[portal]/[id]/page.tsx` |
 
+### CTOS / SSM (context-scoped routes)
+
+Shared CTOS services are reused internally, but admin API routes enforce permissions by **surface context**:
+
+| Context | List / view HTML | Fetch / generate |
+|---|---|---|
+| Onboarding SSM Verification | `onboarding.view` — `/v1/admin/onboarding-applications/:id/ctos-reports` | `onboarding.manage` |
+| Organization detail | `organizations.view` — `/v1/admin/organizations/:portal/:id/ctos-reports` | `organizations.manage` |
+| Application financial review | `applications.view` — `/v1/admin/applications/:id/ctos-reports` | `applications.financial.manage` |
+| Application guarantor CTOS | `applications.view` — `/v1/admin/applications/:id/ctos-subject-reports` | `applications.business_guarantor.manage` |
+
+Do not call organization CTOS routes from onboarding or application review UIs.
+
 ### Roles
 
 | | |

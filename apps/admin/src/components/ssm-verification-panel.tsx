@@ -31,13 +31,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { comparisonSurfaceChangedAfterClass } from "@/components/application-review/review-section-styles";
 import { formatApiErrorMessage } from "@/lib/format-api-error-message";
 import {
   CTOS_ACTION_BUTTON_COMPACT_CLASSNAME,
   CTOS_FETCH_BUTTON_CLASSNAME,
   CTOS_UI,
 } from "@/lib/ctos-ui-labels";
-import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -48,12 +48,12 @@ import {
   BuildingOffice2Icon,
   DocumentTextIcon,
   CheckCircleIcon,
-  XCircleIcon,
   ExclamationTriangleIcon,
   PencilSquareIcon,
   InboxIcon,
   InformationCircleIcon,
   UserGroupIcon,
+  UserIcon,
 } from "@heroicons/react/24/outline";
 import type {
   AdminCtosReportListItem,
@@ -76,6 +76,7 @@ import {
   type OnboardingCtosOrgFetchState,
   type OnboardingPeopleBuckets,
 } from "@/lib/onboarding-ctos-compare";
+import { usePermissions } from "@/hooks/use-permissions";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -284,29 +285,109 @@ const compareTdMutedRight = "px-3 py-2.5 text-sm text-muted-foreground text-righ
 const comparePairTitleClass = "text-base font-semibold text-foreground";
 const compareSectionHeadingClass = "text-sm font-semibold text-foreground";
 
+const compareSectionIconWrap =
+  "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300";
+
+/** Amber warning shell — matches DirectorShareholderCtosEmptyAlert / admin onboarding warnings. */
+const adminWarningAlertClass =
+  "flex gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100";
+
 /** One card: Onboarding on top, SSM-side extract below — vertical only. */
 function ComparePairSection({
   onboarding,
   ctos,
+  onboardingIcon: OnboardingIcon,
+  ctosIcon: CtosIcon,
+  footer,
 }: {
   onboarding: React.ReactNode;
   ctos: React.ReactNode;
+  onboardingIcon?: React.ComponentType<{ className?: string }>;
+  ctosIcon?: React.ComponentType<{ className?: string }>;
+  footer?: React.ReactNode;
 }) {
   return (
     <Card className="overflow-hidden rounded-xl border border-blue-500/30 bg-blue-50/50 shadow-sm dark:border-blue-500/25 dark:bg-blue-950/20">
       <CardContent className="p-0">
         <div className="flex flex-col divide-y divide-border">
           <div className="space-y-3 p-4 md:p-5">
-            <CardTitle className={comparePairTitleClass}>Onboarding</CardTitle>
+            <div className="flex items-center gap-2">
+              {OnboardingIcon ? (
+                <div className={compareSectionIconWrap}>
+                  <OnboardingIcon className="h-4 w-4" aria-hidden />
+                </div>
+              ) : null}
+              <CardTitle className={comparePairTitleClass}>Onboarding</CardTitle>
+            </div>
             {onboarding}
           </div>
           <div className="space-y-3 bg-muted/20 p-4 md:p-5 dark:bg-muted/10">
-            <CardTitle className={comparePairTitleClass}>SSM</CardTitle>
+            <div className="flex items-center gap-2">
+              {CtosIcon ? (
+                <div className={compareSectionIconWrap}>
+                  <CtosIcon className="h-4 w-4" aria-hidden />
+                </div>
+              ) : null}
+              <CardTitle className={comparePairTitleClass}>SSM</CardTitle>
+            </div>
             {ctos}
           </div>
+          {footer ? <div className="p-4 md:p-5">{footer}</div> : null}
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function CompanyDetailsFieldTable({
+  companyName,
+  registrationNo,
+  highlightCompanyName,
+}: {
+  companyName: string;
+  registrationNo: string;
+  highlightCompanyName: boolean;
+}) {
+  return (
+    <div className={compareTableWrap}>
+      <Table className={tableBase}>
+        <TableHeader>
+          <TableRow className={compareTableHeaderRow}>
+            <TableHead className={cn(compareTh, "w-[40%]")}>Field</TableHead>
+            <TableHead className={compareTh}>Value</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          <TableRow
+            className={cn(
+              compareTableBodyRow,
+              highlightCompanyName && comparisonSurfaceChangedAfterClass
+            )}
+          >
+            <TableCell className={compareTdLabel}>Company name</TableCell>
+            <TableCell className={compareTdValue}>{companyName}</TableCell>
+          </TableRow>
+          <TableRow className={compareTableBodyRow}>
+            <TableCell className={compareTdLabel}>SSM registration no.</TableCell>
+            <TableCell className={compareTdValueNums}>{registrationNo}</TableCell>
+          </TableRow>
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function CompanyNameMismatchWarning() {
+  return (
+    <div role="alert" className={adminWarningAlertClass}>
+      <ExclamationTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+      <div className="min-w-0 space-y-1">
+        <p className="text-sm font-semibold text-foreground">Company name mismatch</p>
+        <p className="text-[13px] leading-relaxed text-muted-foreground">
+          The submitted name differs from the SSM record. This does not block approval.
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -350,6 +431,7 @@ function orderedCompareRows(buckets: OnboardingPeopleBuckets): {
 interface SSMVerificationPanelProps {
   application: OnboardingApplicationResponse;
   onApprove: () => void;
+  /** Locks approve / amend / attestation (onboarding.manage from parent). CTOS uses onboarding permissions internally. */
   disabled?: boolean;
   amendmentInProgress?: boolean;
 }
@@ -620,11 +702,14 @@ export function SSMVerificationPanel({
   const [confirmed, setConfirmed] = React.useState(false);
   const [getLatestConfirmOpen, setGetLatestConfirmOpen] = React.useState(false);
   const { getAccessToken } = useAuthToken();
+  const { can } = usePermissions();
+  const canViewOnboardingCtos = can("onboarding.view");
+  const canManageOnboardingCtos = can("onboarding.manage");
   const apiClient = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const queryClient = useQueryClient();
 
   const useOrgCtosFlow = application.portal === "issuer" || application.portal === "investor";
-  const orgId = application.organizationId;
+  const onboardingId = application.id;
 
   const applicationForCompare = React.useMemo(() => {
     if (!useMockOnboardingCtos || !useOrgCtosFlow) return application;
@@ -637,20 +722,20 @@ export function SSMVerificationPanel({
   }, [application, useOrgCtosFlow]);
 
   const ctosQuery = useQuery({
-    queryKey: ["admin", "organization-ctos-reports", application.portal, orgId],
+    queryKey: ["admin", "onboarding-ctos-reports", onboardingId],
     queryFn: async () => {
-      const res = await apiClient.listAdminOrganizationCtosReports(application.portal, orgId);
+      const res = await apiClient.listAdminOnboardingCtosReports(onboardingId);
       if (!res.success) {
         throw new Error(formatApiErrorMessage(res.error));
       }
       return res.data;
     },
-    enabled: useOrgCtosFlow && Boolean(orgId) && !useMockOnboardingCtos,
+    enabled: useOrgCtosFlow && Boolean(onboardingId) && !useMockOnboardingCtos && canViewOnboardingCtos,
   });
 
   const fetchCtosMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiClient.createAdminOrganizationCtosReport(application.portal, orgId, {
+      const res = await apiClient.createAdminOnboardingCtosReport(onboardingId, {
         skipDirectorShareholderNotifications: true,
       });
       if (!res.success) {
@@ -660,7 +745,7 @@ export function SSMVerificationPanel({
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({
-        queryKey: ["admin", "organization-ctos-reports", application.portal, orgId],
+        queryKey: ["admin", "onboarding-ctos-reports", onboardingId],
       });
       toast.success("SSM report saved.");
     },
@@ -735,7 +820,7 @@ export function SSMVerificationPanel({
         toast.error("Not signed in");
         return;
       }
-      const url = `${API_URL}/v1/admin/organizations/${application.portal}/${encodeURIComponent(orgId)}/ctos-reports/${reportId}/html`;
+      const url = `${API_URL}/v1/admin/onboarding-applications/${encodeURIComponent(onboardingId)}/ctos-reports/${reportId}/html`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
         toast.error("Could not load full report");
@@ -748,7 +833,7 @@ export function SSMVerificationPanel({
         w.document.close();
       }
     },
-    [getAccessToken, orgId, application.portal]
+    [getAccessToken, onboardingId]
   );
 
   const openLatestOrgReportHtml = React.useCallback(async () => {
@@ -798,7 +883,6 @@ export function SSMVerificationPanel({
     );
   }
 
-  const isAlreadyVerified = application.ssmApproved;
   const { company } = comparison;
   const companyNameCheck = compareCompanyNamesForStrictDisplayExact({
     submittedName: company.applicationName,
@@ -850,12 +934,6 @@ export function SSMVerificationPanel({
               )}
             >
               <div className="flex flex-wrap items-end justify-end gap-2">
-                {isAlreadyVerified ? (
-                  <Badge variant="secondary" className="gap-1 border border-primary/20 bg-primary/5 text-primary">
-                    <CheckCircleIcon className="h-3.5 w-3.5" aria-hidden />
-                    Verified
-                  </Badge>
-                ) : null}
                 {useOrgCtosFlow ? (
                   <div className="flex flex-col items-end gap-2">
                     <Button
@@ -864,10 +942,15 @@ export function SSMVerificationPanel({
                       size="sm"
                       className={cn(CTOS_FETCH_BUTTON_CLASSNAME, ctosHeaderReportButtonClassName)}
                       disabled={
-                        disabled ||
+                        !canManageOnboardingCtos ||
                         useMockOnboardingCtos ||
                         fetchCtosMutation.isPending ||
                         ctosListLoading
+                      }
+                      title={
+                        !canManageOnboardingCtos
+                          ? "You do not have permission to perform this action."
+                          : undefined
                       }
                       onClick={() => setGetLatestConfirmOpen(true)}
                     >
@@ -883,10 +966,15 @@ export function SSMVerificationPanel({
                         ctosHeaderReportButtonClassName
                       )}
                       disabled={
-                        disabled ||
+                        !canViewOnboardingCtos ||
                         useMockOnboardingCtos ||
                         !latestOrgCtos?.has_report_html ||
                         ctosListLoading
+                      }
+                      title={
+                        !canViewOnboardingCtos
+                          ? "You do not have permission to perform this action."
+                          : undefined
                       }
                       onClick={() => void openLatestOrgReportHtml()}
                     >
@@ -937,7 +1025,13 @@ export function SSMVerificationPanel({
             </div>
           ) : null}
 
-          {useOrgCtosFlow && !useMockOnboardingCtos && ctosQuery.isError ? (
+          {useOrgCtosFlow && !useMockOnboardingCtos && !canViewOnboardingCtos ? (
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+              You do not have permission to view SSM reports.
+            </div>
+          ) : null}
+
+          {useOrgCtosFlow && !useMockOnboardingCtos && canViewOnboardingCtos && ctosQuery.isError ? (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
               {(ctosQuery.error as Error)?.message ?? "Could not load SSM data."}
             </div>
@@ -947,27 +1041,15 @@ export function SSMVerificationPanel({
             <h4 className={compareSectionHeadingClass}>Company Details</h4>
 
             <ComparePairSection
+              onboardingIcon={UserIcon}
+              ctosIcon={BuildingOffice2Icon}
+              footer={companyNameCheck.status === "difference" ? <CompanyNameMismatchWarning /> : null}
               onboarding={
-                <div className={compareTableWrap}>
-                  <Table className={tableBase}>
-                    <TableHeader>
-                      <TableRow className={compareTableHeaderRow}>
-                        <TableHead className={cn(compareTh, "w-[40%]")}>Field</TableHead>
-                        <TableHead className={compareTh}>Value</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow className={compareTableBodyRow}>
-                        <TableCell className={compareTdLabel}>Company name</TableCell>
-                        <TableCell className={compareTdValue}>{company.applicationName}</TableCell>
-                      </TableRow>
-                      <TableRow className={compareTableBodyRow}>
-                        <TableCell className={compareTdLabel}>SSM registration no.</TableCell>
-                        <TableCell className={compareTdValueNums}>{company.applicationReg}</TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
+                <CompanyDetailsFieldTable
+                  companyName={company.applicationName}
+                  registrationNo={company.applicationReg}
+                  highlightCompanyName={companyNameCheck.status === "difference"}
+                />
               }
               ctos={
                 useOrgCtosFlow && orgFetchState === "not_pulled" ? (
@@ -983,86 +1065,14 @@ export function SSMVerificationPanel({
                     description="Try fetching again or open the report to check the details."
                   />
                 ) : (
-                  <div className={compareTableWrap}>
-                    <Table className={tableBase}>
-                      <TableHeader>
-                        <TableRow className={compareTableHeaderRow}>
-                          <TableHead className={cn(compareTh, "w-[40%]")}>Field</TableHead>
-                          <TableHead className={compareTh}>Value</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        <TableRow className={compareTableBodyRow}>
-                          <TableCell className={compareTdLabel}>Company name</TableCell>
-                          <TableCell className={compareTdValue}>
-                            {ctosCompanyCell(company.ctosName, orgFetchState, useOrgCtosFlow)}
-                          </TableCell>
-                        </TableRow>
-                        <TableRow className={compareTableBodyRow}>
-                          <TableCell className={compareTdLabel}>SSM registration no.</TableCell>
-                          <TableCell className={compareTdValueNums}>
-                            {ctosCompanyCell(company.ctosReg, orgFetchState, useOrgCtosFlow)}
-                          </TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </div>
+                  <CompanyDetailsFieldTable
+                    companyName={ctosCompanyCell(company.ctosName, orgFetchState, useOrgCtosFlow)}
+                    registrationNo={ctosCompanyCell(company.ctosReg, orgFetchState, useOrgCtosFlow)}
+                    highlightCompanyName={companyNameCheck.status === "difference"}
+                  />
                 )
               }
             />
-
-            <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  {companyNameCheck.status === "match" ? (
-                    <CheckCircleIcon className="h-4 w-4 text-emerald-600" aria-hidden />
-                  ) : companyNameCheck.status === "difference" ? (
-                    <XCircleIcon className="h-4 w-4 text-red-600" aria-hidden />
-                  ) : (
-                    <ExclamationTriangleIcon className="h-4 w-4 text-slate-500" aria-hidden />
-                  )}
-                  <span className="font-medium text-foreground">Company name check</span>
-                </div>
-                {companyNameCheck.status === "match" ? (
-                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
-                    Match
-                  </span>
-                ) : companyNameCheck.status === "difference" ? (
-                  <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700">
-                    Difference found
-                  </span>
-                ) : (
-                  <span className="rounded-full border border-border bg-background px-2 py-1 text-xs font-semibold text-muted-foreground">
-                    Not available
-                  </span>
-                )}
-              </div>
-
-              <div className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                {companyNameCheck.status === "match" ? (
-                  "The submitted company name matches the record."
-                ) : companyNameCheck.status === "difference" ? (
-                  "The submitted company name is different from the record. This does not block approval. Please review manually."
-                ) : (
-                  "Company name check is unavailable because one side is missing."
-                )}
-              </div>
-
-              <div className="mt-3 space-y-2 text-[13px]">
-                <div className="flex items-start justify-between gap-3">
-                  <span className="text-muted-foreground">Submitted name</span>
-                  <span className="max-w-[62%] break-words text-right text-foreground">
-                    {companyNameCheck.submittedName ?? "—"}
-                  </span>
-                </div>
-                <div className="flex items-start justify-between gap-3">
-                  <span className="text-muted-foreground">SSM/CTOS name</span>
-                  <span className="max-w-[62%] break-words text-right text-foreground">
-                    {companyNameCheck.extractedName ?? "—"}
-                  </span>
-                </div>
-              </div>
-            </div>
           </div>
 
           <DirectorBucketsBlock title="Directors" buckets={comparison.directors} ctosOrgState={orgFetchState} />
@@ -1074,86 +1084,59 @@ export function SSMVerificationPanel({
             appSharePctById={appSharePctById}
           />
 
-          {!isAlreadyVerified ? (
-            <div className="space-y-5">
-              <div className="flex items-center gap-3">
-                <Switch
-                  id="ctos-confirmed"
-                  checked={confirmed}
-                  onCheckedChange={setConfirmed}
-                  disabled={disabled}
-                />
-                <Label
-                  htmlFor="ctos-confirmed"
-                  className="text-sm font-normal text-foreground leading-snug cursor-pointer"
-                >
-                  I have verified this company against SSM records.
-                </Label>
-              </div>
-
-              <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="lg"
-                      className="w-full rounded-full gap-2 sm:w-auto"
-                      disabled={disabled}
-                      aria-label="Amend / Reject. Opens RegTank to choose updates or rejection."
-                      onClick={onTriggerAmendment}
-                    >
-                      <PencilSquareIcon className="h-5 w-5 shrink-0" aria-hidden />
-                      Amend / Reject
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" sideOffset={6} className={fieldTooltipContentClassName}>
-                    {disabled && !amendmentInProgress
-                      ? "You do not have permission to perform this action."
-                      : "Open RegTank to request an amendment or reject the corporate onboarding."}
-                  </TooltipContent>
-                </Tooltip>
-                <Button
-                  type="button"
-                  variant="action"
-                  size="lg"
-                  onClick={onApprove}
-                  disabled={approveDisabled}
-                  className="w-full rounded-full gap-2 sm:w-auto sm:justify-end"
-                >
-                  <CheckCircleIcon className="h-5 w-5 shrink-0" aria-hidden />
-                  Approve
-                </Button>
-              </div>
+          <div className="space-y-5">
+            <div className="flex items-center gap-3">
+              <Switch
+                id="ctos-confirmed"
+                checked={confirmed}
+                onCheckedChange={setConfirmed}
+                disabled={disabled}
+              />
+              <Label
+                htmlFor="ctos-confirmed"
+                className="text-sm font-normal text-foreground leading-snug cursor-pointer"
+              >
+                I have verified this company against SSM records.
+              </Label>
             </div>
-          ) : null}
+
+            <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="lg"
+                    className="w-full rounded-full gap-2 sm:w-auto"
+                    disabled={disabled}
+                    aria-label="Amend / Reject. Opens RegTank to choose updates or rejection."
+                    onClick={onTriggerAmendment}
+                  >
+                    <PencilSquareIcon className="h-5 w-5 shrink-0" aria-hidden />
+                    Amend / Reject
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={6} className={fieldTooltipContentClassName}>
+                  {disabled && !amendmentInProgress
+                    ? "You do not have permission to perform this action."
+                    : "Open RegTank to request an amendment or reject the corporate onboarding."}
+                </TooltipContent>
+              </Tooltip>
+              <Button
+                type="button"
+                variant="action"
+                size="lg"
+                onClick={onApprove}
+                disabled={approveDisabled}
+                className="w-full rounded-full gap-2 sm:w-auto sm:justify-end"
+              >
+                <CheckCircleIcon className="h-5 w-5 shrink-0" aria-hidden />
+                Approve
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
-
-      {isAlreadyVerified ? (
-        <Card className="border-primary/20 bg-muted/30">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              <CheckCircleIcon className="h-5 w-5 text-primary mt-0.5 shrink-0" aria-hidden />
-              <div>
-                <p className="font-semibold text-foreground">Already verified</p>
-                {application.ssmVerifiedAt && application.ssmVerifiedBy ? (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Verified by {application.ssmVerifiedBy} on{" "}
-                    {new Date(application.ssmVerifiedAt).toLocaleDateString("en-MY", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                ) : null}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ) : null}
 
       {useOrgCtosFlow ? (
         <AlertDialog open={getLatestConfirmOpen} onOpenChange={setGetLatestConfirmOpen}>

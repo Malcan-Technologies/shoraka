@@ -728,6 +728,8 @@ export interface OrganizationDetailResponse {
 
   /** Unified CTOS-backed people list (COMPANY only); same shape as onboarding application `people`. */
   people?: import("./application-people-display").ApplicationPersonRow[];
+  directorShareholderListSource?: import("./application-people-display").DirectorShareholderListSource;
+  ctosDirectorShareholderWarning?: string | null;
 
   // Director KYC screening status — COMPANY only
   directorKycStatus?: Record<string, unknown> | null;
@@ -858,6 +860,8 @@ export interface OnboardingApplicationResponse {
   latestOrganizationCtosCompanyJson?: unknown | null;
   ctosPartySupplements?: OnboardingApplicationCtosPartySupplement[] | null;
   people?: import("./application-people-display").ApplicationPersonRow[];
+  directorShareholderListSource?: import("./application-people-display").DirectorShareholderListSource;
+  ctosDirectorShareholderWarning?: string | null;
   /**
    * Derived from unified `people` via `computeHasPendingDirectorShareholder` (onboarding + AML complete for visible parties). Name retained for API compatibility; not the same as issuer `hasActionableDirectorShareholder` / resend banner.
    */
@@ -881,6 +885,7 @@ export type SiteDocumentType =
   | "TERMS_AND_CONDITIONS"
   | "PRIVACY_POLICY"
   | "RISK_DISCLOSURE"
+  | "PRODUCT_TERMS"
   | "PLATFORM_AGREEMENT"
   | "INVESTOR_GUIDE"
   | "ISSUER_GUIDE"

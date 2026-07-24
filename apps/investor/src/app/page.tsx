@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, startTransition } from "react";
+import { Suspense, startTransition, useMemo } from "react";
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -10,6 +10,7 @@ import {
   getOnboardingStep,
   getOnboardingStepRoute,
 } from "@cashsouk/config";
+import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { checkAndRedirectForPendingInvitation } from "../lib/invitation-redirect";
 import { Button } from "../components/ui/button";
 import { PlusIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
@@ -18,7 +19,11 @@ import { DepositCard } from "../components/deposit-card";
 import { AccountOverviewCard } from "../components/account-overview-card";
 import { PortfolioOverviewCard } from "../components/portfolio-overview-card";
 import { DashboardInvestmentsSection } from "../components/dashboard-investments-section";
-import { useHeader } from "@cashsouk/ui";
+import {
+  DirectorShareholderAlertCard,
+  INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
+  useHeader,
+} from "@cashsouk/ui";
 
 function InvestorDashboardContent() {
   const { setTitle } = useHeader();
@@ -102,6 +107,11 @@ function InvestorDashboardContent() {
     router,
   ]);
 
+  const visiblePeopleForDsAlert = useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
+  );
+
   if (isAuthenticated === null || checkingOnboarding || isOrgLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -168,6 +178,13 @@ function InvestorDashboardContent() {
           </div>
         )}
         <div className="space-y-8 p-2 md:p-4">
+          {activeOrganization?.type === "COMPANY" ? (
+            <DirectorShareholderAlertCard
+              visiblePeople={visiblePeopleForDsAlert}
+              enabled={activeOrganization.onboardingStatus === "COMPLETED"}
+              copy={INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY}
+            />
+          ) : null}
           {activeOrganization && !allStepsComplete && (
             <section className="space-y-6">
               <OnboardingStatusCard

@@ -20,7 +20,7 @@ Phases 1–5 are **shipped**. Phase 6 (live smoke, prod env wiring, dev-tool rem
 | Investor deposit API + UI | `deposit-*`, `apps/investor/` Curlec checkout | Done |
 | Issuer onboarding fee | `onboarding-fee-*`, `apps/issuer/src/app/onboarding/fee/` | Done |
 | Application processing fee | `processing-fee-*`, application submit step | Done |
-| Webhooks | `POST /v1/webhooks/curlec` (raw body + HMAC) | Done |
+| Webhooks | `POST /v1/webhooks/curlec/operating`, `POST /v1/webhooks/curlec/investor-pool` | Done |
 | Auto-refund | `refund-service.ts` via Curlec Refund API | Done |
 | Stuck-order poller | Every 15 min, `gateway-stuck-order-poller.ts` | Done |
 | Settlement recon | Daily 02:00 MYT, `gateway-settlement-recon.ts` | Done |
@@ -35,7 +35,7 @@ Phases 1–5 are **shipped**. Phase 6 (live smoke, prod env wiring, dev-tool rem
 | Decision | Choice |
 |---|---|
 | Payment method | **FPX only** at launch (bank-to-bank, no chargebacks, supports payer identification) |
-| Settlement | **Single Curlec settlement account**. Our internal ledger attributes funds to buckets (`INVESTOR_POOL`, `OPERATING_ACCOUNT`); physical movement between bank accounts happens later via RHB API / manual fund-out instructed through the trustee |
+| Settlement | **Per Curlec merchant account.** Operating and Investor Pool each have their own Curlec settlements. Reconciliation runs separately per `gatewayAccount`. Internal ledger still attributes funds to buckets (`INVESTOR_POOL`, `OPERATING_ACCOUNT`); physical bank movement between buckets remains via RHB / trustee as before |
 | AML name check (investors only) | Payer bank account name must match investor account name. On clear mismatch or amount mismatch: **never credit**; auto-refund via Curlec API. On unavailable/ambiguous name: `NAME_CHECK_PENDING` for admin approve/reject |
 | Issuers | No name check |
 | Fee amounts | Admin-configurable via `PlatformFinanceSetting`: issuer onboarding fee (default RM150), application processing fee (default RM50), minimum investor deposit (default RM100), maximum investor deposit (default RM30,000) |
@@ -111,7 +111,10 @@ Same flow for both; the first successful deposit also sets `deposit_received = t
 Follow the standard module layout (controller / service / schemas), plus:
 
 - `curlec-client.ts` — thin Curlec REST client (create order, fetch order/payment, fetch settlements). Server-side only, basic auth with key id/secret. Use the official `razorpay` Node SDK if it works against Curlec endpoints; otherwise plain fetch.
-- `webhook-controller.ts` — public route `POST /v1/webhooks/curlec`. Requirements:
+- `webhook-controller.ts` — account-specific routes:
+  - `POST /v1/webhooks/curlec/operating`
+  - `POST /v1/webhooks/curlec/investor-pool`
+  Requirements:
   - Mounted with **raw body** (signature is HMAC-SHA256 of the raw payload with the webhook secret; do not run through JSON middleware first).
   - Verify `X-Razorpay-Signature`; dedupe via `x-razorpay-event-id` (persist every event in `GatewayWebhookEvent`).
   - Handle out-of-order delivery (`payment.authorized` / `payment.captured` / `payment.failed` can arrive in any order) — process by reading current payment state, not by assuming sequence. All handlers idempotent.
@@ -170,7 +173,8 @@ Supporting changes:
 | `GET /v1/investor/deposits/:id` | INVESTOR + ownership | Poll status after checkout redirect |
 | `POST /v1/issuer/onboarding-fee` | ISSUER | Create onboarding fee order |
 | `POST /v1/applications/:id/processing-fee` | ISSUER + ownership | Create processing fee order |
-| `POST /v1/webhooks/curlec` | signature | Webhook ingress |
+| `POST /v1/webhooks/curlec/operating` | signature | Operating merchant webhook ingress |
+| `POST /v1/webhooks/curlec/investor-pool` | signature | Investor Pool merchant webhook ingress |
 | `GET /v1/admin/gateway-payments` | ADMIN | List/filter (purpose, status, org) |
 | `GET /v1/admin/gateway-payments/:id` | ADMIN | Detail incl. events + name check |
 | `GET /v1/admin/gateway-payments/exceptions/pending-count` | ADMIN | Count of HELD + NAME_CHECK_PENDING |
@@ -219,16 +223,32 @@ Curlec credentials are loaded lazily from env in `apps/api/src/config/curlec.ts`
 
 | Variable | Description | Notes |
 |---|---|---|
-| `CURLEC_KEY_ID` | API key ID (`rzp_test_*` or `rzp_live_*`) | Server-only |
-| `CURLEC_KEY_SECRET` | API secret | Server-only; Secrets Manager in prod |
-| `CURLEC_WEBHOOK_SECRET` | Webhook HMAC secret | Must match Curlec dashboard |
+| `CURLEC_OPERATING_KEY_ID` | Operating merchant API key ID | Issuer fee orders/refunds/recon |
+| `CURLEC_OPERATING_KEY_SECRET` | Operating merchant API secret | Secrets Manager in prod |
+| `CURLEC_OPERATING_WEBHOOK_SECRET` | Operating webhook HMAC secret | Must match Operating merchant dashboard route |
+| `CURLEC_INVESTOR_POOL_KEY_ID` | Investor Pool merchant API key ID | Deposit orders/refunds/recon |
+| `CURLEC_INVESTOR_POOL_KEY_SECRET` | Investor Pool merchant API secret | Secrets Manager in prod |
+| `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET` | Investor Pool webhook HMAC secret | Must match Investor Pool merchant dashboard route |
 | `CURLEC_API_BASE_URL` | API base URL | Default `https://api.razorpay.com`; confirm Malaysia prod URL with Curlec |
 
 The public key id is returned from order-create responses — frontends do not need a build-time env var.
 
 Add to `env-templates/api.env.*`, SSM under `/cashsouk/prod/secrets/`, and `docs/guides/environment-variables.md`.
 
-Curlec dashboard: enable FPX, auto-capture, webhook URL `https://api.<domain>/v1/webhooks/curlec`; enable `refund.processed` and `refund.failed` events.
+Curlec dashboard webhook configuration (enable on each merchant account):
+
+- Operating merchant → `https://api.<domain>/v1/webhooks/curlec/operating` using `CURLEC_OPERATING_WEBHOOK_SECRET`
+- Investor Pool merchant → `https://api.<domain>/v1/webhooks/curlec/investor-pool` using `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET`
+
+Enable only these handled events on each route:
+
+- `payment.captured`
+- `order.paid`
+- `payment.failed`
+- `refund.processed`
+- `refund.failed`
+
+Historical payments created before account separation were migrated to `OPERATING` and are handled on the Operating webhook route.
 
 ## 8. Delivery Phases
 

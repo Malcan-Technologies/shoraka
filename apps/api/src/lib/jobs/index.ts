@@ -6,7 +6,7 @@ import { runNoteListingExpiryJob } from "./note-listing-expiry";
 import { runSigningEnvelopeExpiryJob } from "./signing-envelope-expiry";
 import { runAcceptanceSigningExpiryJob } from "./acceptance-signing-expiry";
 import { runGatewayStuckOrderPollerJob } from "./gateway-stuck-order-poller";
-import { runGatewaySettlementReconJob } from "./gateway-settlement-recon";
+import { runGatewaySettlementReconForConfiguredAccounts } from "./gateway-settlement-recon";
 import { JOB_LOCK_KEYS, withAdvisoryLock } from "./with-advisory-lock";
 
 const notificationService = new NotificationService();
@@ -119,13 +119,11 @@ export function initJobs() {
 
   // Daily Curlec settlement recon at 02:00 MYT (18:00 UTC).
   cron.schedule("0 18 * * *", async () => {
-    await withAdvisoryLock(JOB_LOCK_KEYS.GATEWAY_SETTLEMENT_RECON, async () => {
-      try {
-        await runGatewaySettlementReconJob();
-      } catch (error) {
-        logger.error({ error }, "Failed to run gateway settlement recon job");
-      }
-    });
+    try {
+      await runGatewaySettlementReconForConfiguredAccounts();
+    } catch (error) {
+      logger.error({ error }, "Failed to run gateway settlement recon job");
+    }
   });
 
   logger.info("Background jobs initialized");

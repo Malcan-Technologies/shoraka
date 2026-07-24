@@ -11,6 +11,12 @@ import type { PortalType } from "../types";
 import { OrganizationRepository } from "../../organization/repository";
 import { getRegTankAPIClient } from "../api-client";
 import { mapRegTankKycScreeningStatusToAmlStatus } from "../helpers/regtank-kyc-screening-to-aml-status";
+import {
+  isCancelledOnboardingRow,
+  logCancelledOnboardingSkip,
+  isEodParentFamilyMatch,
+  logWebhookFamilyTypeMismatch,
+} from "./onboarding-webhook-guards";
 
 type DirectorKycJsonRow = {
   eodRequestId: string;
@@ -220,9 +226,30 @@ export class EODWebhookHandler extends BaseWebhookHandler {
       return;
     }
 
+    // Type-family check runs before persistence: a confirmed mismatch must not be
+    // appended to the wrong-type parent record at all.
+    if (!isEodParentFamilyMatch(onboarding)) {
+      logWebhookFamilyTypeMismatch({
+        webhookFamily: "eodliveness",
+        webhookRequestId: eodRequestId,
+        onboarding,
+        expected: "parent onboarding_type CORPORATE",
+      });
+      return;
+    }
+
     // Append to history using the COD requestId (the parent onboarding record's request_id)
     // This ensures EOD webhooks are stored with the correct COD onboarding record
     await this.repository.appendWebhookPayload(onboarding.request_id, payload as Prisma.InputJsonValue);
+
+    if (isCancelledOnboardingRow(onboarding)) {
+      logCancelledOnboardingSkip({
+        webhookFamily: "eodliveness",
+        webhookRequestId: eodRequestId,
+        onboarding,
+      });
+      return;
+    }
 
     // Note: We don't update the COD onboarding record status with EOD status
     // EOD status represents individual entities (directors/shareholders), not the company

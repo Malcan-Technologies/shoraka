@@ -446,7 +446,7 @@ The current implementation adds these Prisma models in `apps/api/prisma/schema.p
   - Paid amounts: `paid_principal`, `paid_profit`, `paid_total`.
 - `NotePayment`
   - `note_id`, `schedule_id`, `source`, `status`, `receipt_amount`, `receipt_date`.
-  - Reconciliation fields: `received_into_account_code`, `evidence_s3_key`, `reference`, `recorded_by_user_id`, `reconciled_by_user_id`, `reconciled_at`, `metadata`.
+  - Reconciliation fields: `received_into_account_code`, `evidence_files`, `reference`, `recorded_by_user_id`, `reconciled_by_user_id`, `reconciled_at`, `metadata`.
 - `NoteSettlement`
   - `note_id`, `payment_id`, `status`, `settlement_type`, `gross_receipt_amount`.
   - Waterfall amounts: `investor_principal`, `investor_profit_gross`, `service_fee_amount`, `investor_profit_net`, `tawidh_amount`, `gharamah_amount`, `issuer_residual_amount`, `unapplied_amount`.

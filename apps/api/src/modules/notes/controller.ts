@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction, Router } from "express";
 import { UserRole, WithdrawalType } from "@prisma/client";
+import { z } from "zod";
 import {
   requirePermission,
   requireAnyPermission,
@@ -27,6 +28,7 @@ import {
   overdueLateChargeSchema,
   paymentReviewSchema,
   recordPaymentSchema,
+  issuerPaymentAdviceSchema,
   settlementActionSchema,
   settlementPreviewSchema,
   investorBalanceActivityQuerySchema,
@@ -42,6 +44,7 @@ import {
   createInvestorWithdrawalSchema,
   getInvestorWithdrawalsQuerySchema,
   requestTrusteeSignatureUploadUrlSchema,
+  requestIssuerPaymentEvidenceUploadUrlSchema,
 } from "./schemas";
 
 function getActor(req: Request, res: Response, portal: string) {
@@ -237,6 +240,84 @@ adminNotesRouter.patch(
   } catch (error) {
     next(error);
   }
+  }
+);
+
+adminNotesRouter.get(
+  "/:id/prospectus-review",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { prospectusReviewService } = await import("./prospectus-review/prospectus-review.service");
+      send(res, await prospectusReviewService.getOrCreateReview(id, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.put(
+  "/:id/prospectus-review",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { prospectusReviewService } = await import("./prospectus-review/prospectus-review.service");
+      send(res, await prospectusReviewService.saveDraft(id, req.body, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/prospectus-review/approve",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { prospectusReviewService } = await import("./prospectus-review/prospectus-review.service");
+      // Optional draftContent in body is saved before approve when present.
+      const draftPayload =
+        req.body?.draftContent != null
+          ? { draftContent: req.body.draftContent, expectedUpdatedAt: req.body.expectedUpdatedAt }
+          : undefined;
+      send(
+        res,
+        await prospectusReviewService.approve(id, getActor(req, res, "ADMIN"), draftPayload)
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.get(
+  "/:id/prospectus-review/preview",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { prospectusReviewService } = await import("./prospectus-review/prospectus-review.service");
+      send(res, await prospectusReviewService.preview(id, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/prospectus-review/preview",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { prospectusReviewService } = await import("./prospectus-review/prospectus-review.service");
+      send(res, await prospectusReviewService.previewUnsaved(id, req.body, getActor(req, res, "ADMIN")));
+    } catch (error) {
+      next(error);
+    }
   }
 );
 
@@ -597,6 +678,27 @@ marketplaceRouter.post("/notes/:id/investments", async (req: Request, res: Respo
   }
 });
 
+marketplaceRouter.get(
+  "/notes/:id/prospectus",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { getMarketplacePublishedProspectus } = await import(
+        "./prospectus-review/prospectus-investor-access"
+      );
+      const doc = await getMarketplacePublishedProspectus(id);
+      send(res, {
+        publicationId: doc.publicationId,
+        contentVersion: doc.contentVersion,
+        html: doc.html,
+        documentHtml: doc.documentHtml,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 publicMarketplaceRouter.get("/notes", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const params = getNotesQuerySchema.parse(req.query);
@@ -637,6 +739,28 @@ investorNotesRouter.get("/portfolio", async (req: Request, res: Response, next: 
     next(error);
   }
 });
+
+investorNotesRouter.get(
+  "/investments/:investmentId/prospectus",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const investmentId = z.string().min(1).parse(req.params.investmentId);
+      const { getInvestmentPublishedProspectus } = await import(
+        "./prospectus-review/prospectus-investor-access"
+      );
+      const doc = await getInvestmentPublishedProspectus(investmentId, getActor(req, res, "INVESTOR"));
+      send(res, {
+        noteId: doc.noteId,
+        publicationId: doc.publicationId,
+        contentVersion: doc.contentVersion,
+        html: doc.html,
+        documentHtml: doc.documentHtml,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 investorNotesRouter.get("/portfolio/history", async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -751,9 +875,22 @@ issuerNotesRouter.post("/notes/:id/shoraka-certificate/view-url", async (req: Re
 issuerNotesRouter.post("/notes/:id/payments/on-behalf-of-paymaster", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
-    await noteService.getIssuerNote(id, getActor(req, res, "ISSUER").userId);
-    const input = recordPaymentSchema.parse({ ...req.body, source: "ISSUER_ON_BEHALF" });
-    send(res, await noteService.recordPayment(id, input, getActor(req, res, "ISSUER")), 201);
+    const actor = getActor(req, res, "ISSUER");
+    await noteService.getIssuerNote(id, actor.userId);
+    const input = issuerPaymentAdviceSchema.parse(req.body);
+    send(res, await noteService.recordPayment(id, input, actor), 201);
+  } catch (error) {
+    next(error);
+  }
+});
+
+issuerNotesRouter.post("/notes/:id/payments/evidence/upload-url", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    const actor = getActor(req, res, "ISSUER");
+    await noteService.getIssuerNote(id, actor.userId);
+    const input = requestIssuerPaymentEvidenceUploadUrlSchema.parse(req.body);
+    send(res, await noteService.requestIssuerPaymentEvidenceUploadUrl(id, input, actor.userId));
   } catch (error) {
     next(error);
   }

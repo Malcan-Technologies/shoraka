@@ -1,7 +1,7 @@
 /**
- * SECTION: Issuer director/shareholder “new person after CTOS” diff
+ * SECTION: Director/shareholder “new person after CTOS” diff (issuer + investor company)
  * WHY: Same rules for in-app toast (admin) and notification send (API) after org CTOS refresh
- * INPUT: Visible individual rows before/after + issuer KYC/AML JSON + CTOS party supplements
+ * INPUT: Visible individual rows before/after + org KYC/AML JSON + CTOS party supplements
  * OUTPUT: New individuals needing onboarding attention, or boolean gate for notify/toast
  * WHERE USED: apps/api notification hook; apps/admin Financial CTOS success toast
  */

@@ -14,6 +14,7 @@ export type TransactionContext =
 export interface Transaction {
   id: string;
   type: TransactionType;
+  direction: "IN" | "OUT";
   amount: number;
   context: TransactionContext;
   balance: number;

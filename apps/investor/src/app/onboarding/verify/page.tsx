@@ -11,7 +11,6 @@ export default function OnboardingVerifyPage() {
     activeOrganization,
     startIndividualOnboarding,
     startCorporateOnboarding,
-    startRegTankOnboarding,
     refreshOrganizations,
   } = useOrganization();
   const [isLoading, setIsLoading] = useState(false);
@@ -22,6 +21,10 @@ export default function OnboardingVerifyPage() {
   }
 
   const isCompany = activeOrganization.type === "COMPANY";
+  const isExpiredPersonal =
+    !isCompany && String(activeOrganization.regtankOnboardingStatus ?? "").toUpperCase() === "EXPIRED";
+  const isExpiredCompany =
+    isCompany && String(activeOrganization.regtankOnboardingStatus ?? "").toUpperCase() === "EXPIRED";
 
   const handleContinue = async () => {
     setIsLoading(true);
@@ -30,12 +33,8 @@ export default function OnboardingVerifyPage() {
     try {
       const org = activeOrganization;
       const { verifyLink } = isCompany
-        ? startCorporateOnboarding
-          ? await startCorporateOnboarding(org.id, org.name ?? "")
-          : await startRegTankOnboarding(org.id)
-        : startIndividualOnboarding
-          ? await startIndividualOnboarding(org.id)
-          : await startRegTankOnboarding(org.id);
+        ? await startCorporateOnboarding(org.id, org.name ?? "")
+        : await startIndividualOnboarding(org.id);
 
       await refreshOrganizations();
       window.location.assign(verifyLink);
@@ -68,12 +67,25 @@ export default function OnboardingVerifyPage() {
         onContinue={handleContinue}
         isLoading={isLoading}
         error={error}
-        title={isCompany ? "Company verification (eKYB)" : "Personal verification (eKYC)"}
-        description={
-          isCompany
-            ? "You will be redirected to our verification partner to complete company checks (eKYB)."
-            : "You will be redirected to our verification partner to complete personal checks (eKYC)."
+        title={
+          isExpiredCompany
+            ? "Company onboarding expired"
+            : isExpiredPersonal
+              ? "Personal onboarding expired"
+            : isCompany
+              ? "Company verification (eKYB)"
+              : "Personal verification (eKYC)"
         }
+        description={
+          isExpiredCompany
+            ? "Your previous company onboarding session expired. Start again to create a fresh verification session."
+            : isExpiredPersonal
+              ? "Your previous verification link has expired. Restart onboarding to generate a new verification link and continue."
+            : isCompany
+              ? "You will be redirected to our verification partner to complete company checks (eKYB)."
+              : "You will be redirected to our verification partner to complete personal checks (eKYC)."
+        }
+        continueLabel={isExpiredCompany || isExpiredPersonal ? "Restart onboarding" : undefined}
       />
     </OnboardingLayout>
   );

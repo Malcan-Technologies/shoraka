@@ -14,6 +14,8 @@ export default function OnboardingVerifyPage() {
   if (!activeOrganization) {
     return null;
   }
+  const isExpiredCompany =
+    String(activeOrganization.regtankOnboardingStatus ?? "").toUpperCase() === "EXPIRED";
 
   const handleContinue = async () => {
     setIsLoading(true);
@@ -54,8 +56,13 @@ export default function OnboardingVerifyPage() {
         onContinue={handleContinue}
         isLoading={isLoading}
         error={error}
-        title="Company verification (eKYB)"
-        description="You will be redirected to our verification partner to complete company checks (eKYB)."
+        title={isExpiredCompany ? "Company onboarding expired" : "Company verification (eKYB)"}
+        description={
+          isExpiredCompany
+            ? "Your previous company onboarding session expired. Start again to create a fresh verification session."
+            : "You will be redirected to our verification partner to complete company checks (eKYB)."
+        }
+        continueLabel={isExpiredCompany ? "Restart onboarding" : undefined}
       />
     </OnboardingLayout>
   );

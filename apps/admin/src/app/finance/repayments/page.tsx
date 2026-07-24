@@ -12,6 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
+import { usePendingRepayments } from "@/notes/hooks/use-notes";
+import { RequirePermission } from "@/components/require-permission";
 import {
   Table,
   TableBody,
@@ -20,8 +22,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { usePendingRepayments } from "@/notes/hooks/use-notes";
-import { RequirePermission } from "@/components/require-permission";
 
 const SOURCE_LABEL: Record<string, string> = {
   PAYMASTER: "Paymaster",
@@ -162,6 +162,7 @@ export default function PendingRepaymentsPage() {
                       <TableHead>Issuer</TableHead>
                       <TableHead>Source</TableHead>
                       <TableHead>Reference</TableHead>
+                      <TableHead>Proof</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       <TableHead>Received</TableHead>
                       <TableHead>Age</TableHead>
@@ -174,7 +175,7 @@ export default function PendingRepaymentsPage() {
                     {isLoading
                       ? Array.from({ length: 4 }).map((_, idx) => (
                           <TableRow key={idx}>
-                            {Array.from({ length: 10 }).map((__, jdx) => (
+                            {Array.from({ length: 11 }).map((__, jdx) => (
                               <TableCell key={jdx}>
                                 <Skeleton className="h-5 w-full" />
                               </TableCell>
@@ -184,7 +185,7 @@ export default function PendingRepaymentsPage() {
                       : items.length === 0
                         ? (
                             <TableRow>
-                              <TableCell colSpan={10} className="py-10 text-center text-sm text-muted-foreground">
+                              <TableCell colSpan={11} className="py-10 text-center text-sm text-muted-foreground">
                                 No pending repayments. New receipts will appear here as they are recorded.
                               </TableCell>
                             </TableRow>
@@ -200,6 +201,13 @@ export default function PendingRepaymentsPage() {
                               </TableCell>
                               <TableCell className="text-muted-foreground">
                                 {item.reference ?? "—"}
+                              </TableCell>
+                              <TableCell>
+                                {item.evidenceFiles?.length ? (
+                                  <span className="text-sm text-foreground">Proof received</span>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
                               </TableCell>
                               <TableCell className="text-right tabular-nums">
                                 {formatCurrency(item.amount)}

@@ -17,6 +17,16 @@ export const noteInclude = {
   payments: { orderBy: { receipt_date: "desc" as const } },
   settlements: { orderBy: { created_at: "desc" as const } },
   events: { orderBy: { created_at: "desc" as const }, take: 50 },
+  prospectus_review: {
+    select: {
+      id: true,
+      status: true,
+      content_version: true,
+      updated_at: true,
+      approved_at: true,
+      approved_publication_id: true,
+    },
+  },
 };
 
 export class NoteRepository {

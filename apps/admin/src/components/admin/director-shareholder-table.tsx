@@ -27,16 +27,22 @@ import {
 import {
   filterVisiblePeopleRows,
   formatSharePercentageCell,
+  formatPeopleRolesLine,
   formatPeopleRolesLineWithoutShare,
-} from "@/lib/onboarding-people-display";
-import {
+  isMissingGovernmentIdPerson,
   getFinalStatusBadgeClassName,
   getFinalStatusLabel,
   getRegtankLink,
   normalizeDirectorShareholderIdKey,
+  resolveDirectorShareholderCtosEmptyWarning,
   type ApplicationPersonRow,
+  type DirectorShareholderListSource,
 } from "@cashsouk/types";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
+import {
+  DirectorShareholderCtosEmptyAlert,
+  DirectorShareholderUnresolvedIdentitySection,
+} from "@cashsouk/ui";
 import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -64,14 +70,20 @@ type PendingCtosSubjectFetch = {
  */
 export function DirectorShareholderTable({
   people,
+  directorShareholderListSource = null,
+  ctosDirectorShareholderWarning = null,
   portal,
   organizationId,
   ctosFetchPendingKey,
   ctosFetchPending,
   subjectCtosReports,
   onFetchSubjectCtos,
+  canManageCtos = true,
+  ctosViewReportApplicationId,
 }: {
   people: ApplicationPersonRow[];
+  directorShareholderListSource?: DirectorShareholderListSource | null;
+  ctosDirectorShareholderWarning?: string | null;
   portal: "issuer" | "investor";
   organizationId: string;
   ctosFetchPendingKey?: string | null;
@@ -79,10 +91,29 @@ export function DirectorShareholderTable({
   /** Latest CTOS report per party (matches `subject_ref` from API to IC/SSM). */
   subjectCtosReports?: CtosSubjectReportListItem[] | null;
   onFetchSubjectCtos?: (person: ApplicationPersonRow) => void;
+  canManageCtos?: boolean;
+  /** When set, View report uses application-scoped CTOS HTML route (financial review). */
+  ctosViewReportApplicationId?: string;
 }) {
   const { getAccessToken } = useAuthToken();
   const [pendingCtosSubjectFetch, setPendingCtosSubjectFetch] = React.useState<PendingCtosSubjectFetch | null>(null);
   const rows = React.useMemo(() => mergePeopleRowsByMatchKey(filterVisiblePeopleRows(people ?? [])), [people]);
+  const verifiedRows = React.useMemo(
+    () => rows.filter((p) => !isMissingGovernmentIdPerson(p)),
+    [rows]
+  );
+  const unresolvedRows = React.useMemo(
+    () => rows.filter((p) => isMissingGovernmentIdPerson(p)),
+    [rows]
+  );
+  const resolvedCtosEmptyWarning = React.useMemo(
+    () =>
+      resolveDirectorShareholderCtosEmptyWarning({
+        directorShareholderListSource,
+        ctosDirectorShareholderWarning,
+      }),
+    [directorShareholderListSource, ctosDirectorShareholderWarning]
+  );
 
   /** Same flow as {@link OrganizationIssuerCtosReportsCard}: fetch HTML first, then `window.open("", "_blank")` (no `noopener`) + `document.write`. */
   const openSubjectReportHtml = React.useCallback(
@@ -92,7 +123,9 @@ export function DirectorShareholderTable({
         toast.error("Not signed in");
         return;
       }
-      const url = `${API_URL}/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports/${reportId}/html`;
+      const url = ctosViewReportApplicationId
+        ? `${API_URL}/v1/admin/applications/${encodeURIComponent(ctosViewReportApplicationId)}/ctos-reports/${reportId}/html`
+        : `${API_URL}/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports/${reportId}/html`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
         toast.error("Could not load report");
@@ -111,15 +144,27 @@ export function DirectorShareholderTable({
       w.document.write(html);
       w.document.close();
     },
-    [getAccessToken, organizationId, portal]
+    [getAccessToken, organizationId, portal, ctosViewReportApplicationId]
   );
 
-  if (rows.length === 0) {
-    return <p className="text-sm text-muted-foreground py-4 text-center">No director or shareholder data.</p>;
+  if (verifiedRows.length === 0 && unresolvedRows.length === 0) {
+    return (
+      <div className="space-y-3">
+        {resolvedCtosEmptyWarning ? (
+          <DirectorShareholderCtosEmptyAlert message={resolvedCtosEmptyWarning} />
+        ) : null}
+        <p className="text-sm text-muted-foreground py-4 text-center">
+          {resolvedCtosEmptyWarning
+            ? "No director or shareholder data is available from CTOS."
+            : "No director or shareholder data."}
+        </p>
+      </div>
+    );
   }
 
   return (
     <>
+      {verifiedRows.length > 0 ? (
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -133,7 +178,7 @@ export function DirectorShareholderTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((p) => {
+            {verifiedRows.map((p) => {
               const finalStatus = getFinalStatusLabel({
                 screening: p.screening,
                 onboarding: p.onboarding,
@@ -212,8 +257,15 @@ export function DirectorShareholderTable({
                           });
                         }}
                         disabled={
-                          ctosFetchPending === true &&
-                          ctosFetchPendingKey === normalizeDirectorShareholderIdKey(p.matchKey)
+                          !canManageCtos ||
+                          !onFetchSubjectCtos ||
+                          (ctosFetchPending === true &&
+                          ctosFetchPendingKey === normalizeDirectorShareholderIdKey(p.matchKey))
+                        }
+                        title={
+                          !canManageCtos
+                            ? "You do not have permission to perform this action."
+                            : undefined
                         }
                       >
                         {ctosFetchPending === true && ctosFetchPendingKey === normalizeDirectorShareholderIdKey(p.matchKey)
@@ -260,6 +312,22 @@ export function DirectorShareholderTable({
           </TableBody>
         </Table>
       </div>
+      ) : null}
+      {unresolvedRows.length > 0 ? (
+        <div className={verifiedRows.length > 0 ? "mt-4" : undefined}>
+          <DirectorShareholderUnresolvedIdentitySection
+            people={unresolvedRows.map((p) => ({
+              name: p.name,
+              role: formatPeopleRolesLine(p),
+              sharePercentage: p.sharePercentage,
+              eodRequestId: p.requestId,
+              onboardingStatus: p.onboarding?.status ?? null,
+              amlStatus: p.screening?.status ?? null,
+              kycId: p.onboarding?.id ?? null,
+            }))}
+          />
+        </div>
+      ) : null}
 
       <AlertDialog
         open={pendingCtosSubjectFetch !== null}
@@ -300,7 +368,12 @@ export function DirectorShareholderTable({
 
 function mergePeopleRowsByMatchKey(rows: ApplicationPersonRow[]): ApplicationPersonRow[] {
   const map = new Map<string, ApplicationPersonRow>();
+  const unresolved: ApplicationPersonRow[] = [];
   for (const row of rows) {
+    if (isMissingGovernmentIdPerson(row)) {
+      unresolved.push(row);
+      continue;
+    }
     const key = normalizeDirectorShareholderIdKey(row.matchKey);
     if (!key) continue;
     const prev = map.get(key);
@@ -325,7 +398,7 @@ function mergePeopleRowsByMatchKey(rows: ApplicationPersonRow[]): ApplicationPer
       email: prev.email ?? row.email ?? "",
     });
   }
-  return Array.from(map.values());
+  return [...Array.from(map.values()), ...unresolved];
 }
 
 /**

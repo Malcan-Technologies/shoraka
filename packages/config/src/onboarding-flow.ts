@@ -1,5 +1,14 @@
 import type { OnboardingStatus, Organization, PortalType } from "./organization-context";
 
+/**
+ * Shared onboarding action labels. Keep button/loading text identical across the admin,
+ * investor, and issuer portals so the same action reads the same way everywhere.
+ */
+export const ONBOARDING_REFRESH_LABEL = "Refresh status";
+export const ONBOARDING_REFRESH_LOADING_LABEL = "Refreshing…";
+export const ONBOARDING_OPEN_REGTANK_REVIEW_LABEL = "Open RegTank Review";
+export const ONBOARDING_RESTART_LABEL = "Restart Onboarding";
+
 /** High-level onboarding destination used for routing and guards. */
 export type OnboardingFlowStep =
   | "account"
@@ -36,6 +45,11 @@ const ORG_SWITCHER_ADMIN_WAIT_STATUSES: OnboardingStatus[] = [
 ];
 
 const POST_REGTANK_STATUSES: OnboardingStatus[] = [...ADMIN_PENDING_STATUSES, "COMPLETED"];
+const APPLICANT_ACCOUNT_ACCESS_STATUSES: OnboardingStatus[] = [
+  "PENDING_AML",
+  "PENDING_FINAL_APPROVAL",
+  "COMPLETED",
+];
 
 function isAdminPending(status: OnboardingStatus): boolean {
   return ADMIN_PENDING_STATUSES.includes(status);
@@ -43,6 +57,17 @@ function isAdminPending(status: OnboardingStatus): boolean {
 
 export function isOrganizationAdminWaitStatus(status: OnboardingStatus): boolean {
   return ORG_SWITCHER_ADMIN_WAIT_STATUSES.includes(status);
+}
+
+/**
+ * Account/Profile access for applicant portals should be driven by organization onboarding status.
+ * RegTank transport status is not the source of truth for this gate.
+ */
+export function canAccessApplicantAccount(
+  status: OnboardingStatus | null | undefined
+): boolean {
+  if (!status) return false;
+  return APPLICANT_ACCOUNT_ACCESS_STATUSES.includes(status);
 }
 
 /** Ready or awaiting admin review — not user-action onboarding steps. */
@@ -85,6 +110,15 @@ export function getOnboardingStep(
     return "rejected";
   }
 
+  // Required gates use their own fields — never skip them because status is COMPLETED.
+  if (!org.tncAccepted) {
+    return "terms";
+  }
+
+  if (portalType === "issuer" && org.type === "COMPANY" && !org.onboardingFeePaidAt) {
+    return "fee";
+  }
+
   if (portalType === "investor") {
     if (org.onboardingStatus === "COMPLETED") {
       return org.depositReceived ? "completed" : "deposit";
@@ -95,14 +129,6 @@ export function getOnboardingStep(
 
   if (isAdminPending(org.onboardingStatus)) {
     return "approval";
-  }
-
-  if (!org.tncAccepted) {
-    return "terms";
-  }
-
-  if (portalType === "issuer" && org.type === "COMPANY" && !org.onboardingFeePaidAt) {
-    return "fee";
   }
 
   if (!isPostRegTank(org.onboardingStatus)) {
@@ -158,77 +184,82 @@ export function isAddingNewOrganizationRoute(pathname: string): boolean {
   return pathname === "/onboarding/account";
 }
 
+type StepperPipelineStep = {
+  id: string;
+  label: string;
+};
+
+function getStepperPipeline(organization: Organization, portalType: PortalType): StepperPipelineStep[] {
+  const pipeline: StepperPipelineStep[] = [{ id: "tnc", label: "User Agreement" }];
+
+  if (portalType === "issuer" && organization.type === "COMPANY") {
+    pipeline.push({ id: "fee", label: "Onboarding Fee" });
+  }
+
+  pipeline.push({ id: "verify", label: "Onboarding" }, { id: "approval", label: "Approval" });
+
+  if (portalType === "investor") {
+    pipeline.push({ id: "deposit", label: "Deposit" });
+  }
+
+  return pipeline;
+}
+
+function isStepCompletedFromDb(stepId: string, organization: Organization): boolean {
+  switch (stepId) {
+    case "tnc":
+      return organization.tncAccepted === true;
+    case "fee":
+      return Boolean(organization.onboardingFeePaidAt);
+    case "verify":
+      // Post-RegTank admin-wait / completed statuses mean verification was submitted.
+      return isPostRegTank(organization.onboardingStatus);
+    case "approval":
+      // Existing app rule: final admin approval is represented by COMPLETED.
+      return organization.onboardingStatus === "COMPLETED";
+    case "deposit":
+      return organization.depositReceived === true;
+    default:
+      return false;
+  }
+}
+
+function isStepRejectedFromDb(stepId: string, organization: Organization): boolean {
+  return stepId === "verify" && organization.onboardingStatus === "REJECTED";
+}
+
 /** Stepper labels for onboarding route pages and dashboard status cards. */
 export function getOnboardingStepperSteps(
   organization: Organization,
   portalType: PortalType,
-  currentRouteStep?: OnboardingFlowStep | null
+  _currentRouteStep?: OnboardingFlowStep | null
 ): OnboardingStepperStep[] {
-  const isRejected = organization.onboardingStatus === "REJECTED";
-  const isCompany = organization.type === "COMPANY";
+  const pipeline = getStepperPipeline(organization, portalType);
+  const isOrgRejected = organization.onboardingStatus === "REJECTED";
 
-  const tncComplete = !isRejected && organization.tncAccepted === true;
-  const feeComplete =
-    !isRejected &&
-    (portalType !== "issuer" || !isCompany || Boolean(organization.onboardingFeePaidAt));
-  const verifyComplete = !isRejected && isPostRegTank(organization.onboardingStatus);
-  const accountApprovalComplete = organization.onboardingStatus === "COMPLETED";
-  const depositComplete = organization.depositReceived === true;
+  const steps = pipeline.map((step) => {
+    const isRejected = isStepRejectedFromDb(step.id, organization);
+    const isCompleted = !isRejected && isStepCompletedFromDb(step.id, organization);
 
-  const flowStep = getOnboardingStep(organization, portalType);
-  const currentStepId = (() => {
-    if (isRejected) return "";
-    if (currentRouteStep && ["account", "terms", "fee", "verify"].includes(currentRouteStep)) {
-      return currentRouteStep;
-    }
-    if (flowStep === "terms") return "tnc";
-    if (flowStep === "fee") return "fee";
-    if (flowStep === "verify") return "verify";
-    if (flowStep === "approval") return "approval";
-    if (flowStep === "deposit") return "deposit";
-    return "";
-  })();
+    return {
+      id: step.id,
+      label: step.label,
+      isCompleted,
+      isCurrent: false,
+      isRejected,
+    };
+  });
 
-  const steps: OnboardingStepperStep[] = [
-    {
-      id: "tnc",
-      label: "User Agreement",
-      isCompleted: tncComplete,
-      isCurrent: currentStepId === "tnc" || currentStepId === "terms",
-    },
-  ];
-
-  if (portalType === "issuer" && isCompany) {
-    steps.push({
-      id: "fee",
-      label: "Onboarding Fee",
-      isCompleted: feeComplete,
-      isCurrent: currentStepId === "fee",
-    });
+  // Rejected orgs keep origin/main routing (dashboard). Do not mark an earlier
+  // incomplete step as current — only show accurate completed/rejected flags.
+  if (isOrgRejected) {
+    return steps;
   }
 
-  steps.push({
-    id: "verify",
-    label: "Onboarding",
-    isCompleted: verifyComplete,
-    isCurrent: currentStepId === "verify",
-    isRejected,
-  });
-
-  steps.push({
-    id: "approval",
-    label: "Approval",
-    isCompleted: accountApprovalComplete,
-    isCurrent: currentStepId === "approval",
-  });
-
-  if (portalType === "investor") {
-    steps.push({
-      id: "deposit",
-      label: "Deposit",
-      isCompleted: depositComplete,
-      isCurrent: currentStepId === "deposit",
-    });
+  // Non-rejected: current = first required step whose own DB fields say incomplete.
+  const currentIndex = steps.findIndex((step) => !step.isCompleted);
+  if (currentIndex >= 0) {
+    steps[currentIndex].isCurrent = true;
   }
 
   return steps;

@@ -19,7 +19,7 @@ import {
 import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { AMLSyncService } from "../regtank/aml-sync-service";
-import { buildAdminPeopleList } from "../admin/build-people-list";
+import { buildDirectorShareholderPeopleList, buildAdminPeopleList } from "../admin/build-people-list";
 import { filterVisiblePeopleRows, isReadyOnboardingStatus } from "@cashsouk/types";
 
 const organizationService = new OrganizationService();
@@ -65,6 +65,8 @@ async function listOrganizations(
       string,
       {
         people: ReturnType<typeof buildAdminPeopleList>;
+        directorShareholderListSource: import("@cashsouk/types").DirectorShareholderListSource;
+        ctosDirectorShareholderWarning: string | null;
         latestOrganizationCtosCompanyJson: unknown | null;
         ctosPartySupplements: { partyKey: string; onboardingJson: unknown }[];
       }
@@ -77,7 +79,7 @@ async function listOrganizations(
             portalType === "investor"
               ? await organizationService.getInvestorPartyListExtras(org.id)
               : await organizationService.getIssuerPartyListExtras(org.id);
-          const people = buildAdminPeopleList({
+          const partyBuild = buildDirectorShareholderPeopleList({
             ctos: extras.latestOrganizationCtosCompanyJson ?? null,
             issuerDirectorKycStatus: (org as { director_kyc_status?: unknown }).director_kyc_status ?? null,
             issuerDirectorAmlStatus: (org as { director_aml_status?: unknown }).director_aml_status ?? null,
@@ -85,7 +87,9 @@ async function listOrganizations(
             corporateEntities: (org as { corporate_entities?: unknown }).corporate_entities ?? null,
           });
           companyPartyById.set(org.id, {
-            people,
+            people: partyBuild.people,
+            directorShareholderListSource: partyBuild.listSource,
+            ctosDirectorShareholderWarning: partyBuild.ctosDirectorShareholderWarning,
             latestOrganizationCtosCompanyJson: extras.latestOrganizationCtosCompanyJson,
             ctosPartySupplements: extras.ctosPartySupplements,
           });
@@ -326,18 +330,35 @@ async function getOrganization(
 
     const peopleForSubmit =
       portalType === "issuer" && organization.type === "COMPANY" && issuerPartyExtras
-        ? buildAdminPeopleList({
+        ? buildDirectorShareholderPeopleList({
             ctos: issuerPartyExtras.latestOrganizationCtosCompanyJson ?? null,
             issuerDirectorKycStatus: org.director_kyc_status ?? null,
             issuerDirectorAmlStatus: org.director_aml_status ?? null,
             ctosPartySupplements: issuerPartyExtras.ctosPartySupplements,
             corporateEntities: org.corporate_entities ?? null,
           })
-        : [];
+        : null;
     const issuerDsPending =
       portalType === "issuer" && organization.type === "COMPANY"
-        ? issuerDirectorShareholderOnboardingPending(peopleForSubmit)
+        ? issuerDirectorShareholderOnboardingPending(peopleForSubmit?.people ?? [])
         : false;
+
+    const companyPartyBuild =
+      organization.type === "COMPANY"
+        ? buildDirectorShareholderPeopleList({
+            ctos:
+              portalType === "issuer"
+                ? (issuerPartyExtras?.latestOrganizationCtosCompanyJson ?? null)
+                : (investorPartyExtras?.latestOrganizationCtosCompanyJson ?? null),
+            issuerDirectorKycStatus: org.director_kyc_status ?? null,
+            issuerDirectorAmlStatus: org.director_aml_status ?? null,
+            ctosPartySupplements:
+              portalType === "issuer"
+                ? (issuerPartyExtras?.ctosPartySupplements ?? null)
+                : (investorPartyExtras?.ctosPartySupplements ?? null),
+            corporateEntities: org.corporate_entities ?? null,
+          })
+        : null;
 
     res.json({
       success: true,
@@ -528,19 +549,9 @@ async function getOrganization(
                 corporateShareholders?: Array<Record<string, unknown>>;
               })
             : undefined,
-          people: buildAdminPeopleList({
-            ctos:
-              portalType === "issuer"
-                ? (issuerPartyExtras?.latestOrganizationCtosCompanyJson ?? null)
-                : (investorPartyExtras?.latestOrganizationCtosCompanyJson ?? null),
-            issuerDirectorKycStatus: org.director_kyc_status ?? null,
-            issuerDirectorAmlStatus: org.director_aml_status ?? null,
-            ctosPartySupplements:
-              portalType === "issuer"
-                ? (issuerPartyExtras?.ctosPartySupplements ?? null)
-                : (investorPartyExtras?.ctosPartySupplements ?? null),
-            corporateEntities: org.corporate_entities ?? null,
-          }),
+          people: companyPartyBuild?.people ?? [],
+          directorShareholderListSource: companyPartyBuild?.listSource,
+          ctosDirectorShareholderWarning: companyPartyBuild?.ctosDirectorShareholderWarning ?? null,
         }),
       },
     });
@@ -1035,14 +1046,18 @@ async function refreshOrganizationAML(
 
     // Sync AML status (handles both existing and missing entities)
     const amlSyncService = new AMLSyncService();
-    const amlStatus = await amlSyncService.syncOrganizationAMLStatus(id, portalType);
+    const result = await amlSyncService.syncOrganizationAMLStatus(id, portalType, userId);
 
-    // Return updated organization with fresh AML data
+    // Return updated organization with fresh AML data plus the actual milestone outcome
+    // so the frontend can distinguish "still pending" from "onboarding advanced".
     res.json({
       success: true,
       data: {
-        directorAmlStatus: amlStatus,
+        directorAmlStatus: result.directorAmlStatus,
         lastSyncedAt: new Date().toISOString(),
+        onboardingStatus: result.onboardingStatus,
+        amlApproved: result.amlApproved,
+        advanced: result.advanced,
       },
       correlationId: res.locals.correlationId,
     });

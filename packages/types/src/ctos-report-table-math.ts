@@ -8,17 +8,31 @@
 
 import type { FinancialStatementsInput } from "./financial-calculator";
 
-/**
- * Total assets: use reported total if present; otherwise sum the four asset lines.
- */
-export function computeTotalAssets(input: {
+export type TotalAssetsInput = {
   total_assets: number | null;
   fixed_assets: number | null;
   other_assets: number | null;
   current_assets: number | null;
   non_current_assets: number | null;
-}): number {
-  if (input.total_assets != null && Number.isFinite(input.total_assets)) {
+};
+
+export type TotalLiabilitiesInput = {
+  total_liabilities: number | null;
+  current_liabilities: number | null;
+  long_term_liabilities: number | null;
+  non_current_liabilities: number | null;
+};
+
+function isFiniteNumber(value: number | null | undefined): value is number {
+  return value != null && Number.isFinite(value);
+}
+
+/**
+ * Total assets: use reported total if present; otherwise sum the four asset lines.
+ * Missing components default to 0 (Admin CTOS / Application Financial Summary).
+ */
+export function computeTotalAssets(input: TotalAssetsInput): number {
+  if (isFiniteNumber(input.total_assets)) {
     return input.total_assets;
   }
   return (
@@ -30,15 +44,31 @@ export function computeTotalAssets(input: {
 }
 
 /**
- * Total liabilities: use reported total if present; else sum liability lines.
+ * Application Financial Summary Total Assets resolution (shared with Prospectus).
+ * Prefer flat CTOS `totass` when present; otherwise component sum with zero-default.
  */
-export function computeTotalLiabilities(input: {
-  total_liabilities: number | null;
-  current_liabilities: number | null;
-  long_term_liabilities: number | null;
-  non_current_liabilities: number | null;
+export function resolveApplicationFinancialTotalAssets(input: {
+  totass: number | null;
+  bsfatot: number | null;
+  othass: number | null;
+  bscatot: number | null;
+  bsclbank: number | null;
 }): number {
-  if (input.total_liabilities != null && Number.isFinite(input.total_liabilities)) {
+  return computeTotalAssets({
+    total_assets: input.totass,
+    fixed_assets: input.bsfatot,
+    other_assets: input.othass,
+    current_assets: input.bscatot,
+    non_current_assets: input.bsclbank,
+  });
+}
+
+/**
+ * Total liabilities: use reported total if present; else sum liability lines.
+ * Missing components default to 0 (Admin CTOS / Application Financial Summary).
+ */
+export function computeTotalLiabilities(input: TotalLiabilitiesInput): number {
+  if (isFiniteNumber(input.total_liabilities)) {
     return input.total_liabilities;
   }
   return (
@@ -46,6 +76,24 @@ export function computeTotalLiabilities(input: {
     (input.long_term_liabilities ?? 0) +
     (input.non_current_liabilities ?? 0)
   );
+}
+
+/**
+ * Application Financial Summary Total Liabilities resolution (shared with Prospectus).
+ * Prefer flat CTOS `totlib` when present; otherwise component sum with zero-default.
+ */
+export function resolveApplicationFinancialTotalLiabilities(input: {
+  totlib: number | null;
+  curlib: number | null;
+  bsslltd: number | null;
+  bsclstd: number | null;
+}): number {
+  return computeTotalLiabilities({
+    total_liabilities: input.totlib,
+    current_liabilities: input.curlib,
+    long_term_liabilities: input.bsslltd,
+    non_current_liabilities: input.bsclstd,
+  });
 }
 
 /**
@@ -74,6 +122,56 @@ export function computeCurrentRatio(currentAssets: number | null, currentLiabili
   if (!Number.isFinite(currentAssets) || !Number.isFinite(currentLiabilities)) return null;
   if (currentLiabilities === 0) return null;
   return currentAssets / currentLiabilities;
+}
+
+function isFinitePresent(v: number | null | undefined): v is number {
+  return v != null && Number.isFinite(v);
+}
+
+/**
+ * Application Financial Summary profit margin as a decimal ratio (for Prospectus % formatters).
+ * Prefer CTOS flat `profit_margin` (already percent points, e.g. 12.6 → ratio 0.126).
+ * Else recompute with Application missing→0 coercion (CTOS column metrics path).
+ */
+export function resolveApplicationFinancialProfitMarginRatio(input: {
+  profit_margin: number | null;
+  plnpat: number | null;
+  turnover: number | null;
+}): number | null {
+  if (isFinitePresent(input.profit_margin)) {
+    return input.profit_margin / 100;
+  }
+  return computeProfitMargin(input.plnpat ?? 0, input.turnover ?? 0);
+}
+
+/**
+ * Application Financial Summary ROE as a decimal ratio.
+ * Prefer CTOS flat `return_on_equity` (percent points) → ratio; else recompute with missing→0.
+ */
+export function resolveApplicationFinancialReturnOnEquityRatio(input: {
+  return_on_equity: number | null;
+  plnpat: number | null;
+  bsqpuc: number | null;
+}): number | null {
+  if (isFinitePresent(input.return_on_equity)) {
+    return input.return_on_equity / 100;
+  }
+  return computeReturnOnEquity(input.plnpat ?? 0, input.bsqpuc ?? 0);
+}
+
+/**
+ * Application Financial Summary current ratio.
+ * Prefer CTOS flat `currat` when present; else recompute with missing→0.
+ */
+export function resolveApplicationFinancialCurrentRatio(input: {
+  currat: number | null;
+  bscatot: number | null;
+  curlib: number | null;
+}): number | null {
+  if (isFinitePresent(input.currat)) {
+    return input.currat;
+  }
+  return computeCurrentRatio(input.bscatot ?? 0, input.curlib ?? 0);
 }
 
 /**

@@ -11,16 +11,11 @@ import {
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
 import { OrganizationRepository } from "../organization/repository";
-
-function decimalToNumber(value: unknown): number {
-  if (value instanceof Prisma.Decimal) return value.toNumber();
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number(value.replace(/,/g, ""));
-    return Number.isFinite(parsed) ? parsed : 0;
-  }
-  return 0;
-}
+import {
+  computeOnTimePaymentRate,
+  decimalToNumber,
+  sixMonthsAgoFrom,
+} from "./track-record-aggregates";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -528,11 +523,9 @@ export class IssuerDashboardService {
       }
     }
 
-    // Repayment Performance: based only on repayment schedules and real received payments
-    // for the issuer organization. We ignore ledger/settlement for this first version.
+    // Repayment Performance: shared schedule-level on-time helper (also used by prospectus Stage 7).
     const now = new Date();
-    const sixMonthsAgo = new Date(now);
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const sixMonthsAgo = sixMonthsAgoFrom(now);
 
     const schedulesInWindow = await prisma.notePaymentSchedule.findMany({
       where: {
@@ -542,7 +535,7 @@ export class IssuerDashboardService {
         },
         note: { issuer_organization_id: organizationId },
       },
-      select: { id: true, due_date: true, expected_total: true },
+      select: { id: true, note_id: true, due_date: true, expected_total: true },
     });
 
     const scheduleIds = schedulesInWindow.map((s) => s.id);
@@ -557,62 +550,15 @@ export class IssuerDashboardService {
         })
       : [];
 
-    let onTimePercent: number | null = null;
-    let pastDueCount: number | null = null;
-    let lateRepaymentsLastSixMonthsCount: number | null = null;
-
-    if (schedulesInWindow.length > 0) {
-      let onTimeCount = 0;
-      let pastDue = 0;
-      let lateCount = 0;
-
-      // Group received payments by schedule_id, and then sort by receipt_date.
-      const paymentsByScheduleId = new Map<
-        string,
-        Array<{ receipt_date: Date; receipt_amount: Prisma.Decimal }>
-      >();
-      for (const p of paymentsForWindow) {
-        const sid = p.schedule_id;
-        if (!sid) continue; // first version ignores payments without schedule_id
-        const list = paymentsByScheduleId.get(sid) ?? [];
-        list.push({ receipt_date: p.receipt_date, receipt_amount: p.receipt_amount });
-        paymentsByScheduleId.set(sid, list);
-      }
-      for (const list of paymentsByScheduleId.values()) {
-        list.sort((a, b) => a.receipt_date.getTime() - b.receipt_date.getTime());
-      }
-
-      for (const s of schedulesInWindow) {
-        const due = s.due_date;
-        const expectedTotal = decimalToNumber(s.expected_total);
-        const payments = paymentsByScheduleId.get(s.id) ?? [];
-
-        // Find the first receipt date where cumulative RECEIVED amount reaches expected_total.
-        let cumulative = 0;
-        let fullyPaidDate: Date | null = null;
-        for (const p of payments) {
-          cumulative += decimalToNumber(p.receipt_amount);
-          // Use >= so that exact matches count as paid.
-          if (cumulative + 1e-9 >= expectedTotal) {
-            fullyPaidDate = p.receipt_date;
-            break;
-          }
-        }
-
-        if (!fullyPaidDate) {
-          // Not fully paid; only counts as past due if due date is already passed.
-          if (due < now) pastDue += 1;
-          continue;
-        }
-
-        if (fullyPaidDate <= due) onTimeCount += 1;
-        else lateCount += 1;
-      }
-
-      onTimePercent = Math.round((onTimeCount / schedulesInWindow.length) * 100);
-      pastDueCount = pastDue;
-      lateRepaymentsLastSixMonthsCount = lateCount;
-    }
+    const onTimeResult = computeOnTimePaymentRate({
+      schedules: schedulesInWindow,
+      payments: paymentsForWindow,
+      now,
+      windowStart: sixMonthsAgo,
+    });
+    const onTimePercent = onTimeResult.onTimePercent;
+    const pastDueCount = onTimeResult.pastDueCount;
+    const lateRepaymentsLastSixMonthsCount = onTimeResult.lateRepaymentsCount;
 
     return {
       user: { displayName },

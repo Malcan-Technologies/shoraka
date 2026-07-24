@@ -1390,12 +1390,16 @@ export default function OrganizationDetailPage() {
                     <CardContent>
                       <DirectorShareholderTable
                         people={org.people ?? []}
+                        directorShareholderListSource={org.directorShareholderListSource ?? null}
+                        ctosDirectorShareholderWarning={org.ctosDirectorShareholderWarning ?? null}
                         portal={portal === "investor" ? "investor" : "issuer"}
                         organizationId={organizationId}
                         subjectCtosReports={org.latestOrganizationCtosSubjectReports ?? null}
                         ctosFetchPendingKey={ctosFetchSubjectKey}
                         ctosFetchPending={fetchSubjectCtosMutation.isPending}
+                        canManageCtos={canManage}
                         onFetchSubjectCtos={(person) => {
+                          if (!canManage) return;
                           const idKey = normalizeDirectorShareholderIdKey(person.matchKey);
                           if (!idKey) {
                             toast.error("Missing IC / SSM. Cannot fetch CTOS report.");
