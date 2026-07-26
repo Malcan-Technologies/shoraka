@@ -134,7 +134,7 @@ ${PROSPECTUS_DOCUMENT_CSS}
           textColor: s3.riskGradeTextColor,
         })}
         <strong>${escapeHtml(s3.riskLabel)}</strong>
-        <p>${escapeHtml(s3.riskExplanation)}</p>
+        <p class="prospectus-risk-description">${escapeHtml(s3.riskExplanation)}</p>
         <a class="scale-link" href="#risk-scale">${escapeHtml(s3.ratingScaleReference)}</a>
       </div>
     </div>

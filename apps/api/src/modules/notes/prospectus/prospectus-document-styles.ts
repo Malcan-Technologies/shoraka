@@ -197,7 +197,9 @@ h2{
 .risk-shield-asset{width:100%;height:100%;object-fit:contain;display:block}
 .risk-shield-grade{position:absolute;inset:0;display:grid;place-items:center;font-size:22px;font-weight:800;line-height:1;pointer-events:none;color:#fff}
 .risk-shield-fallback{border-radius:8px}
-.risk-panel strong{display:block;text-align:center;font-size:14px;font-weight:800;line-height:1.25;margin-top:4px}.risk-panel p{font-size:9px;margin:8px 0 10px;line-height:1.35;color:var(--prospectus-text)}.risk-panel .scale-link{font-size:8px;font-weight:800;color:var(--prospectus-burgundy);text-decoration:none}
+.risk-panel strong{display:block;text-align:center;font-size:14px;font-weight:800;line-height:1.25;margin-top:4px}
+.risk-panel .prospectus-risk-description,.prospectus-risk-description{font-size:10px;line-height:1.35;font-weight:400;margin:8px 0 10px;color:var(--prospectus-text)}
+.risk-panel .scale-link{font-size:8px;font-weight:800;color:var(--prospectus-burgundy);text-decoration:none}
 .card{border:var(--prospectus-border-width) solid var(--prospectus-border);border-radius:var(--prospectus-radius-card);overflow:hidden}
 /* Vertically stacked compound sections — one outer silhouette, no mid-seam radius */
 .connected-card-top{
@@ -300,8 +302,6 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
 .soukscore-scale .grade,.grade{width:33px;height:33px;color:#fff;border-radius:6px;display:grid;place-items:center;font-size:12px;margin:0 auto 4px;background:#79cf54;font-weight:800;box-sizing:border-box}
 .soukscore-scale .grade-label{display:block;font-size:7px;font-weight:700;line-height:1.25;margin:0 0 3px}
 .soukscore-scale .grade-desc{display:block;font-size:6px;line-height:1.3;color:#555;font-weight:400}
-.soukscore-scale .grade-item.is-selected,.soukscore-scale .grade-item[data-selected="true"]{background:#f7f7f7;box-shadow:inset 0 0 0 2px #111}
-.soukscore-scale .grade-item.is-selected .grade,.soukscore-scale .grade-item[data-selected="true"] .grade{outline:2px solid #111;outline-offset:2px}
 .soukscore-missing{margin:8px 0 0;font-size:8px}
 .issuer-profile .issuer-meta-line{font-size:10px;font-weight:700;margin-bottom:6px}
 .plain th .fy-label,.report-box th .fy-label{display:block;font-weight:700}

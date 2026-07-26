@@ -5,6 +5,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { CASHSCOUK_RISK_GRADE_LETTER_COLOR } from "@cashsouk/types";
 import { escapeHtml, escapeHtmlAttribute } from "./prospectus-html";
 
 /** Source fill in prospectus-risk-shield.svg — replaced per selected grade. */
@@ -55,7 +56,7 @@ export type ProspectusRiskShieldHtmlInput = {
 };
 
 /** Grade letter on the Page 1 shield is always white (Canva presentation). */
-export const PROSPECTUS_RISK_SHIELD_GRADE_TEXT_COLOR = "#FFFFFF";
+export const PROSPECTUS_RISK_SHIELD_GRADE_TEXT_COLOR = CASHSCOUK_RISK_GRADE_LETTER_COLOR;
 
 /**
  * Page 1 risk shield: coloured SVG + centred grade letter.

@@ -56,6 +56,8 @@ describe("prospectus SoukScore cross-page and freeze", () => {
     ).toContain(`fill="${presentation.color}"`);
     expect(html).toContain(presentation.label);
     expect(html).toContain(presentation.explanation);
+    expect(html).toContain('class="prospectus-risk-description"');
+    expect(html).toContain("font-size:10px");
     expect(html).toContain("See rating scale on page 2");
     expect(html).not.toContain("Data not available");
     expect(html).toContain("Lower Risk");

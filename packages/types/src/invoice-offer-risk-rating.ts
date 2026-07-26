@@ -30,6 +30,12 @@ export const isSoukscoreRiskRating = isCashsoukRiskGrade;
 /** Shared unavailable copy when grade is missing or invalid (Prospectus + Admin). */
 export const SOUKSCORE_RISK_RATING_UNAVAILABLE = "—";
 
+/**
+ * Grade letter colour for Prospectus / Admin rating-scale badges and Page 1 shield.
+ * Always white — do not use catalogue textColor / contrast helpers for these UIs.
+ */
+export const CASHSCOUK_RISK_GRADE_LETTER_COLOR = "#FFFFFF" as const;
+
 export type CashsoukRiskRatingCatalogueEntry = {
   grade: CashsoukRiskGrade;
   label: string;

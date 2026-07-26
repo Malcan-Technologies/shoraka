@@ -107,9 +107,14 @@ describe("Cashsouk risk rating catalogue", () => {
     for (const grade of CASHSCOUK_RISK_GRADES) {
       expect(html).toContain(`data-grade="${grade}"`);
       expect(html).toContain(CASHSCOUK_RISK_RATING_CATALOGUE[grade].color);
+      expect(html).toContain(
+        `background:${CASHSCOUK_RISK_RATING_CATALOGUE[grade].color};color:#FFFFFF`
+      );
     }
-    expect(html).toContain('data-grade="C" data-selected="true"');
-    expect(html).toContain("is-selected");
+    expect(html).toContain('data-grade="C"');
+    expect(html).not.toContain("is-selected");
+    expect(html).not.toContain("data-selected");
+    expect(html).not.toContain("color:#111111");
     expect(html).not.toContain('data-grade="AAA"');
     expect(html).not.toContain('data-grade="BBB"');
     expect((html.match(/risk-scale-note/g) ?? []).length).toBe(1);
