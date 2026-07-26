@@ -41,13 +41,35 @@ describe("Cashsouk risk rating catalogue", () => {
     );
   });
 
-  it("uses colour-reference hex values for A–F", () => {
-    expect(CASHSCOUK_RISK_RATING_CATALOGUE.A.color).toBe("#1EB93F");
-    expect(CASHSCOUK_RISK_RATING_CATALOGUE.B.color).toBe("#79CF54");
-    expect(CASHSCOUK_RISK_RATING_CATALOGUE.C.color).toBe("#FFCF45");
-    expect(CASHSCOUK_RISK_RATING_CATALOGUE.D.color).toBe("#FF8647");
-    expect(CASHSCOUK_RISK_RATING_CATALOGUE.E.color).toBe("#CE201D");
-    expect(CASHSCOUK_RISK_RATING_CATALOGUE.F.color).toBe("#B10810");
+  it("uses colour-reference hex values and exact text colours for A–F", () => {
+    expect(CASHSCOUK_RISK_RATING_CATALOGUE.A).toMatchObject({
+      color: "#1EB93F",
+      textColor: "#FFFFFF",
+    });
+    expect(CASHSCOUK_RISK_RATING_CATALOGUE.B).toMatchObject({
+      color: "#79CF54",
+      textColor: "#111111",
+    });
+    expect(CASHSCOUK_RISK_RATING_CATALOGUE.C).toMatchObject({
+      color: "#FFCF45",
+      textColor: "#111111",
+    });
+    expect(CASHSCOUK_RISK_RATING_CATALOGUE.D).toMatchObject({
+      color: "#FF8647",
+      textColor: "#FFFFFF",
+    });
+    expect(CASHSCOUK_RISK_RATING_CATALOGUE.E).toMatchObject({
+      color: "#CE201D",
+      textColor: "#FFFFFF",
+    });
+    expect(CASHSCOUK_RISK_RATING_CATALOGUE.F).toMatchObject({
+      color: "#B10810",
+      textColor: "#FFFFFF",
+    });
+    for (const grade of CASHSCOUK_RISK_GRADES) {
+      const entry = CASHSCOUK_RISK_RATING_CATALOGUE[grade];
+      expect(getReadableTextColor(entry.color)).toBe(entry.textColor);
+    }
   });
 
   it("omits numerical scores, weights, and pricing from the catalogue", () => {

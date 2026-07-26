@@ -20,7 +20,6 @@ import {
   PROSPECTUS_PAYMASTER_RATING_VALUES,
   SOUKSCORE_RISK_RATING_CATALOGUE,
   SOUKSCORE_RISK_RATING_GRADES,
-  getReadableTextColor,
   normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
@@ -516,7 +515,7 @@ export function WorkingAreaPageTwo({
                               className="inline-flex h-8 w-8 items-center justify-center rounded-md text-xs font-extrabold"
                               style={{
                                 backgroundColor: entry.color,
-                                color: getReadableTextColor(entry.color),
+                                color: entry.textColor,
                               }}
                               data-grade-color={entry.color}
                             >

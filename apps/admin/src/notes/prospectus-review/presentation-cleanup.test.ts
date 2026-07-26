@@ -70,12 +70,16 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageTwo).toContain("data-prospectus-risk-rating-scale");
     expect(pageTwo).toContain("SOUKSCORE_RISK_RATING_GRADES");
     expect(pageTwo).toContain("SOUKSCORE_RISK_RATING_CATALOGUE");
-    expect(pageTwo).toContain("Risk Information");
+    expect(pageTwo).toContain("Cashsouk Risk Rating");
     expect(pageTwo).toContain("Risk Level");
-    expect(pageTwo).toContain("Explanation");
+    expect(pageTwo).toContain("Description");
+    expect(pageTwo).toContain("entry.textColor");
+    expect(pageTwo).toContain("data-grade-color");
     expect(pageTwo).not.toContain("Scale Version");
     expect(pageTwo).not.toContain("soukscore-scale.v1");
     expect(pageTwo).not.toContain("From Invoice Offer");
+    expect(pageTwo).not.toContain("Very Low Risk");
+    expect(pageTwo).not.toContain("Moderately Low Risk");
     expect(pageTwo).toContain("Disabled in Prospectus");
     expect(pageTwo).toContain("Invest with Confidence");
     expect(pageTwo).not.toMatch(/data-prospectus-investment-cta[\s\S]{0,400}<button/);

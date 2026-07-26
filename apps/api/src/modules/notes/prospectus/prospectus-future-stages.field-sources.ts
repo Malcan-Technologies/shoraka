@@ -15,7 +15,7 @@
  * - Maturity Date → notes.maturity_date
  * - Expected Return (p.a.) → resolveNetExpectedReturnRatePercent (portal net annual)
  * - Confirmed Page 2/3 financial rows from Application freeze (no live published fallback)
- * - SoukScore grade scale AAA | AA | A | BBB | BB | B (marketplace-consistent; Canva A- rejected)
+ * - Cashsouk Risk Rating grade scale A | B | C | D | E | F (presentation catalogue; no scores/weights)
  *
  * FIXED TEMPLATE (product/template; not free text)
  * - Payment Basis / Shariah Principle — typed fixed_template placeholders until approved copy
@@ -279,7 +279,7 @@
  * Legal/compliance approval required before any non-DNA implementation.
  *
  * =============================================================================
- * PAGE 2 — STAGE 7 SOUKSCORE RATING SCALE (structural AAA–B; no DNA labels)
+ * PAGE 2 — STAGE 7 CASHSCOUK RISK RATING SCALE (structural A–F; no DNA labels)
  * =============================================================================
  *
  * Module: prospectus-soukscore-rating-scale.*
@@ -287,20 +287,19 @@
  * Output: apps/api/tmp/prospectus/prospectus-soukscore-rating-scale-preview.html
  * Scale version: PROSPECTUS_SOUKSCORE_SCALE_VERSION (page_2.config_versions.soukscore_scale)
  *
- * Page 2 scale uses SoukScore (not Canva A–E).
- * Canonical grades (SOUKSCORE_RISK_RATING_GRADES): AAA, AA, A, BBB, BB, B
+ * Page 2 scale uses Cashsouk Risk Rating A–F.
+ * Canonical grades (CASHSCOUK_RISK_GRADES / SOUKSCORE_RISK_RATING_GRADES): A, B, C, D, E, F
  * Selected grade source: notes.invoice_snapshot.offer_details.risk_rating
- * Validator reused: isSoukscoreRiskRating
- * Canva A–E scale rejected; no A–E mapping; no numeric score or threshold ranges
- * No Assessment Note / Risk Label / Definition lines (removed)
+ * Validator: isCashsoukRiskGrade (alias isSoukscoreRiskRating)
+ * No numeric score, weight, threshold, or pricing ranges
  * CTOS / CCRIS / RegTank / AML / KYC / Credit Insights not mixed
  * Selected grade highlighted (isSelected / data-selected); horizontal scale
  * Not Prospectus-editable; Admin shows read-only frozen Note grade
  * Missing/invalid grade → scale with no selection + "—"
  *
- * Page 1 relationship (Page 1 not modified here):
+ * Page 1 relationship:
  * - Page 1 links with "See rating scale on page 2"
- * - Page 2 has the AAA–B structural scale with selection highlight
+ * - Page 2 has the A–F structural scale with selection highlight
  *
  * =============================================================================
  * PAGE 2 — STAGE 8 CTA AND SHARED HEADER
@@ -529,14 +528,11 @@
  * - Repayment Date = notes.repaid_at; empty state: "No notes are available yet."
  * - Frozen at publish into notes.prospectus_snapshot.page_1.historical_notes
  *
- * Stage 3 risk (prospectus-risk-assessment.*) — correction notes:
- * - Current platform risk scale (SoukScore): AAA | AA | A | BBB | BB | B
- * - Canva design shows A- and an A–E presentation on page 2 — mismatch unresolved
- * - No approved SoukScore-to-label mapping (e.g. Low Risk)
- * - No numerical SoukScore on Note
- * - No Note-level risk explanation
- * - Page 2 scale must be corrected or approved before final publication
- * - Rating scale link text remains "See rating scale on page 2" with scaleStatus pending_scale_decision
+ * Stage 3 risk (prospectus-risk-assessment.*) — current notes:
+ * - Current platform risk scale (Cashsouk Risk Rating): A | B | C | D | E | F
+ * - Labels/descriptions/colours from CASHSCOUK_RISK_RATING_CATALOGUE
+ * - No numerical score on Note
+ * - Rating scale link text remains "See rating scale on page 2"
  *
  * Stage 4A main financial terms (prospectus-main-financial-terms.*) — correction notes:
  * - Financing amount = notes.target_amount

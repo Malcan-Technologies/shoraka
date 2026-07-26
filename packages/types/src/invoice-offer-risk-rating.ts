@@ -36,6 +36,8 @@ export type CashsoukRiskRatingCatalogueEntry = {
   description: string;
   /** CSS hex background from grade-matrix / prospectus colour reference. */
   color: string;
+  /** Readable foreground for badges/shields on this grade colour. */
+  textColor: "#FFFFFF" | "#111111";
 };
 
 /** @deprecated Prefer CashsoukRiskRatingCatalogueEntry. */
@@ -82,6 +84,7 @@ export const CASHSCOUK_RISK_RATING_CATALOGUE: Record<
     description:
       "The note demonstrates strong paymaster quality, sound transaction structure, stable issuer profile, and minimal adverse indicators. While not risk-free, it reflects relatively lower expected credit and operational risk compared to other notes on the platform.",
     color: "#1EB93F",
+    textColor: "#FFFFFF",
   },
   B: {
     grade: "B",
@@ -89,6 +92,7 @@ export const CASHSCOUK_RISK_RATING_CATALOGUE: Record<
     description:
       "The note presents generally favourable risk characteristics with minor sensitivities. Some moderate risk factors may be present, but overall structural and credit indicators remain sound.",
     color: "#79CF54",
+    textColor: "#111111",
   },
   C: {
     grade: "C",
@@ -96,6 +100,7 @@ export const CASHSCOUK_RISK_RATING_CATALOGUE: Record<
     description:
       "The note reflects typical SME and transaction-level risks. Certain risk factors such as shorter operating history, moderate leverage, or first-time commercial relationships may be present. Suitable for investors comfortable with standard SME credit exposure.",
     color: "#FFCF45",
+    textColor: "#111111",
   },
   D: {
     grade: "D",
@@ -103,6 +108,7 @@ export const CASHSCOUK_RISK_RATING_CATALOGUE: Record<
     description:
       "The note contains elevated risk characteristics, such as higher leverage, limited payment history, structural limitations, or weaker financial indicators. Investors should expect greater variability in payment timing and outcomes.",
     color: "#FF8647",
+    textColor: "#FFFFFF",
   },
   E: {
     grade: "E",
@@ -110,6 +116,7 @@ export const CASHSCOUK_RISK_RATING_CATALOGUE: Record<
     description:
       "The note demonstrates multiple risk sensitivities, including financial, structural, or behavioural concerns. Suitable only for investors with higher risk tolerance and understanding of potential delay or recovery scenarios.",
     color: "#CE201D",
+    textColor: "#FFFFFF",
   },
   F: {
     grade: "F",
@@ -117,6 +124,7 @@ export const CASHSCOUK_RISK_RATING_CATALOGUE: Record<
     description:
       "The note does not meet the Platform’s minimum listing standards due to legal, structural, integrity, or material credit concerns. It will not be made available for investment.",
     color: "#B10810",
+    textColor: "#FFFFFF",
   },
 };
 
@@ -165,7 +173,7 @@ export function resolveSoukscoreRiskRatingPresentation(
     explanation: entry.description,
     description: entry.description,
     color: entry.color,
-    textColor: getReadableTextColor(entry.color),
+    textColor: entry.textColor,
     isAvailable: true,
   };
 }

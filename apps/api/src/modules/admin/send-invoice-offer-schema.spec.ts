@@ -13,26 +13,23 @@ describe("sendInvoiceOfferSchema", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("fails when risk_rating is outside allowed grades", () => {
-    const parsed = sendInvoiceOfferSchema.safeParse({ ...base, risk_rating: "C" });
-    expect(parsed.success).toBe(false);
-  });
-
-  it("passes with risk_rating A", () => {
-    const parsed = sendInvoiceOfferSchema.safeParse({ ...base, risk_rating: "A" });
-    expect(parsed.success).toBe(true);
-    if (parsed.success) {
-      expect(parsed.data.risk_rating).toBe("A");
+  it("fails when risk_rating is a legacy AAA–BB grade or otherwise outside A–F", () => {
+    for (const risk_rating of ["AAA", "AA", "BBB", "BB", "A-", "G", "Low Risk"]) {
+      const parsed = sendInvoiceOfferSchema.safeParse({ ...base, risk_rating });
+      expect(parsed.success).toBe(false);
     }
   });
 
-  it("passes with risk_rating B", () => {
-    const parsed = sendInvoiceOfferSchema.safeParse({ ...base, risk_rating: "B" });
-    expect(parsed.success).toBe(true);
-    if (parsed.success) {
-      expect(parsed.data.risk_rating).toBe("B");
+  it.each(["A", "B", "C", "D", "E", "F"] as const)(
+    "passes with risk_rating %s",
+    (risk_rating) => {
+      const parsed = sendInvoiceOfferSchema.safeParse({ ...base, risk_rating });
+      expect(parsed.success).toBe(true);
+      if (parsed.success) {
+        expect(parsed.data.risk_rating).toBe(risk_rating);
+      }
     }
-  });
+  );
 
   it("allows platformFeeRatePercent above the default cap for service-level validation", () => {
     const parsed = sendInvoiceOfferSchema.safeParse({
