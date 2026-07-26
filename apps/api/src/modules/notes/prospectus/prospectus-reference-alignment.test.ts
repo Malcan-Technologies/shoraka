@@ -80,12 +80,15 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
     const strip = html.slice(stripStart, stripEnd);
     const iconCount = (strip.match(/class="icon"/g) ?? []).length;
     expect(iconCount).toBe(5);
-    // Not five identical calendar-only marks: building / shield / landmark paths differ
+    // Not five identical calendar-only marks: Heroicon keys differ per metadata field
     expect(strip).toContain('data-meta-key="sector"');
     expect(strip).toContain('data-meta-key="riskRating"');
     expect(strip).toContain('data-meta-key="paymaster"');
     expect(strip).toContain('data-meta-key="paymasterGrading"');
     expect(strip).toContain('data-meta-key="confidenceGrading"');
+    expect(strip).toContain('data-prospectus-icon="sector"');
+    expect(strip).toContain('data-prospectus-icon="risk-rating"');
+    expect(strip).toContain('data-prospectus-icon="paymaster"');
     const sectorChunk = strip.slice(
       strip.indexOf('data-meta-key="sector"'),
       strip.indexOf('data-meta-key="riskRating"')

@@ -7,7 +7,7 @@ import { PROSPECTUS_DOCUMENT_CSS } from "./prospectus-document-styles";
 import { buildProspectusFooterHtml } from "./prospectus-footer.html";
 import { buildProspectusHeaderHtml } from "./prospectus-header.html";
 import { escapeHtml } from "./prospectus-html";
-import { prospectusIcon } from "./prospectus-icons";
+import { renderProspectusHeroicon } from "./prospectus-icons";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 import type { ProspectusPageThreeCoverageEfficiencyRowKey } from "./prospectus-page-three-coverage-efficiency.types";
 import { PROSPECTUS_PAGE_THREE_METADATA_LABELS } from "./prospectus-page-three-metadata.types";
@@ -82,36 +82,36 @@ function renderTrendCell(item: ProspectusPageThreeTrendItem | undefined): string
 function takeawayIcon(key: string): string {
   switch (key) {
     case "revenue_profitability":
-      return prospectusIcon.chart("icon");
+      return renderProspectusHeroicon("revenue-profitability", { className: "icon" });
     case "liquidity":
-      return prospectusIcon.droplets("icon");
+      return renderProspectusHeroicon("liquidity", { className: "icon" });
     case "leverage":
-      return prospectusIcon.shieldCheck("icon");
+      return renderProspectusHeroicon("leverage", { className: "icon" });
     case "debt_servicing_capacity":
-      return prospectusIcon.percent("icon");
+      return renderProspectusHeroicon("debt-servicing", { className: "icon" });
     case "receivables_collection":
-      return prospectusIcon.calendarDays("icon");
+      return renderProspectusHeroicon("receivables", { className: "icon" });
     case "overall_financial_profile":
-      return prospectusIcon.target("icon");
+      return renderProspectusHeroicon("overall-profile", { className: "icon" });
     default:
-      return prospectusIcon.fileText("icon");
+      return renderProspectusHeroicon("work-performed", { className: "icon" });
   }
 }
 
 function metaIcon(labelKey: keyof typeof PROSPECTUS_PAGE_THREE_METADATA_LABELS): string {
   switch (labelKey) {
     case "sector":
-      return prospectusIcon.building("icon");
+      return renderProspectusHeroicon("sector", { className: "icon" });
     case "riskRating":
-      return prospectusIcon.shieldCheck("icon");
+      return renderProspectusHeroicon("risk-rating", { className: "icon" });
     case "paymaster":
-      return prospectusIcon.landmark("icon");
+      return renderProspectusHeroicon("paymaster", { className: "icon" });
     case "paymasterGrading":
-      return prospectusIcon.clipboardCheck("icon");
+      return renderProspectusHeroicon("rating", { className: "icon" });
     case "confidenceGrading":
-      return prospectusIcon.badgeCheck("icon");
+      return renderProspectusHeroicon("confidence", { className: "icon" });
     default:
-      return prospectusIcon.calendarDays("icon");
+      return renderProspectusHeroicon("listing-date", { className: "icon" });
   }
 }
 

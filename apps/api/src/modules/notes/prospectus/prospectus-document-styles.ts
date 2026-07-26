@@ -117,11 +117,25 @@ export const PROSPECTUS_DOCUMENT_CSS = `
   --prospectus-border-width:${PROSPECTUS_BORDER_WIDTH_PX}px;
   /* Spacing scale */
   --space-1:4px;--space-2:6px;--space-3:8px;--space-4:10px;--space-5:14px;--space-6:18px;
-  /* Icon sizes */
-  --prospectus-icon-field:30px;
-  --prospectus-icon-stat:34px;
-  --prospectus-icon-meta:32px;
-  --prospectus-icon-takeaway:34px;
+  /* Icon system — Heroicons 24/outline */
+  --prospectus-icon-stroke-width:1.5;
+  --prospectus-icon-color:var(--prospectus-icon-stroke);
+  --prospectus-icon-background:var(--prospectus-icon-bg);
+  --prospectus-icon-large-circle:58px;
+  --prospectus-icon-large-size:30px;
+  --prospectus-icon-field-circle:30px;
+  --prospectus-icon-field-size:17px;
+  --prospectus-icon-stat-circle:34px;
+  --prospectus-icon-stat-size:18px;
+  --prospectus-icon-meta-circle:30px;
+  --prospectus-icon-meta-size:16px;
+  --prospectus-icon-takeaway-circle:34px;
+  --prospectus-icon-takeaway-size:18px;
+  /* Legacy aliases used by existing selectors */
+  --prospectus-icon-field:var(--prospectus-icon-field-circle);
+  --prospectus-icon-stat:var(--prospectus-icon-stat-circle);
+  --prospectus-icon-meta:var(--prospectus-icon-meta-circle);
+  --prospectus-icon-takeaway:var(--prospectus-icon-takeaway-circle);
   --prospectus-icon-work:25px;
 }
 *{box-sizing:border-box}
@@ -189,7 +203,7 @@ h2{
 .eyebrow{text-transform:uppercase;font-weight:800;color:var(--prospectus-burgundy);font-size:var(--prospectus-section-title-font-size);line-height:1.25;margin-bottom:6px}
 .hero-copy h1{font-size:32px;letter-spacing:-1.2px;margin:0 0 4px}.product-pill{display:inline-block;background:#e7bbbb;color:#a32424;font-weight:800;text-transform:uppercase;border-radius:4px;padding:6px 8px;margin-bottom:14px}
 .hero-copy p{font-size:11px;max-width:280px;margin:0}
-.meta-row{display:flex;gap:12px;margin-bottom:18px;align-items:flex-start}.meta-row .icon{width:22px;height:22px;color:#bf2a30;flex:none}.meta-row b,.meta-row span{display:block}.meta-row b{font-size:10px}.meta-row span{font-size:9px;margin-top:2px}
+.meta-row{display:flex;gap:12px;margin-bottom:18px;align-items:flex-start}.meta-row .icon{width:22px;height:22px;color:var(--prospectus-icon-color);flex:none;stroke-width:var(--prospectus-icon-stroke-width)}.meta-row b,.meta-row span{display:block}.meta-row b{font-size:10px}.meta-row span{font-size:9px;margin-top:2px}
 /* Four timeline rows in the middle hero column — slightly tighter than generic meta-row */
 .key-dates .meta-row{margin-bottom:12px}.key-dates .meta-row:last-child{margin-bottom:0}
 .risk-panel{text-align:left}.risk-panel>b{font-size:10px}
@@ -221,7 +235,7 @@ h2{
 .split-card{display:grid;grid-template-columns:1fr 1.05fr;margin-top:var(--space-3)}.split-card.connected-card-top,.split-card.connected-card-middle,.split-card.connected-card-bottom{margin-top:0}.split-card>div{padding:15px}.split-card>div+div{border-left:1px solid var(--line)}
 .summary-list{margin:0}.summary-list div{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #d4d1d1;padding:5px 0}.summary-list div:last-child{border-bottom:0}
 .summary-list dt{font-weight:700;padding-left:28px;position:relative}.summary-list dt:before{content:"";width:18px;height:18px;background:#e3bfc0;border-radius:3px;position:absolute;left:0;top:-2px}.summary-list dd{margin:0;text-align:right}
-.tick-item{display:flex;gap:11px;margin-bottom:13px}.tick-item>span{width:19px;height:19px;border-radius:50%;background:var(--prospectus-positive);color:#fff;font-size:15px;font-weight:800;display:grid;place-items:center;flex:none}.tick-item p{font-size:9px;margin:0}.tick-item b{display:block;font-size:10px;margin-bottom:3px}
+.tick-item{display:flex;gap:11px;margin-bottom:13px;align-items:flex-start}.tick-item .tick-icon{width:19px;height:19px;border-radius:50%;background:var(--prospectus-positive);color:#fff;padding:2px;box-sizing:border-box;flex:none;stroke-width:var(--prospectus-icon-stroke-width)}.tick-item p{font-size:9px;margin:0}.tick-item b{display:block;font-size:10px;margin-bottom:3px}
 .strip{border:var(--prospectus-border-width) solid var(--prospectus-border);padding:15px 15px 10px}.strip h2,.track h2{margin-bottom:var(--prospectus-section-title-margin-bottom)}
 .stats{display:grid;gap:var(--space-3)}.stats.five{grid-template-columns:repeat(5,1fr)}.stats.four{grid-template-columns:repeat(4,1fr)}
 .stat{display:grid;grid-template-columns:var(--prospectus-icon-stat) 1fr;grid-template-rows:auto auto;column-gap:7px;align-items:center}.stat .icon{grid-row:1/3;background:var(--prospectus-icon-bg);color:var(--prospectus-icon-stroke);border-radius:50%;padding:7px;width:var(--prospectus-icon-stat);height:var(--prospectus-icon-stat);box-sizing:border-box}.stat small{font-size:7px}.stat b{font-size:11px}
@@ -242,7 +256,7 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
   flex-shrink:0;
   margin-bottom:8px; /* gap before financial compound card */
 }
-.issuer-profile{display:flex;gap:18px;align-items:center;margin:20px 0}.round-icon{width:76px;height:76px;border-radius:50%;background:var(--prospectus-icon-bg);display:grid;place-items:center;color:var(--prospectus-icon-stroke)}.round-icon .icon{width:44px;height:44px}.issuer-profile span,.issuer-profile b{display:block;margin-bottom:8px}.issuer-grid p{font-size:9px;margin:0;line-height:1.35}
+.issuer-profile{display:flex;gap:18px;align-items:center;margin:20px 0}.round-icon,.prospectus-issuer-icon-circle{width:var(--prospectus-icon-large-circle);height:var(--prospectus-icon-large-circle);border-radius:999px;background:var(--prospectus-icon-background);display:grid;place-items:center;color:var(--prospectus-icon-color)}.round-icon .icon,.prospectus-issuer-icon{width:var(--prospectus-icon-large-size);height:var(--prospectus-icon-large-size);stroke-width:var(--prospectus-icon-stroke-width)}.issuer-profile span,.issuer-profile b{display:block;margin-bottom:8px}.issuer-grid p{font-size:9px;margin:0;line-height:1.35}
 .invoice-info dl{margin:0}.invoice-info dl div{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:13px}.invoice-info dt{display:flex;align-items:center;gap:10px;font-weight:700;min-width:0}.invoice-info dt .icon,.work-list .icon{width:var(--prospectus-icon-field);height:var(--prospectus-icon-field);padding:6px;background:var(--prospectus-icon-bg);border-radius:50%;color:var(--prospectus-icon-stroke);box-sizing:border-box;flex:none}.invoice-info dd{margin:0;text-align:right;max-width:52%;line-height:1.25;overflow-wrap:anywhere;word-break:break-word}
 .page-two-invoice-list{display:flex;flex-direction:column;row-gap:5px;margin:0}
 .page-two-invoice-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;min-height:0;margin:0;padding-block:1px}
@@ -281,8 +295,8 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
 .prospectus-page-two .issuer-profile{margin:4px 0;gap:10px}
 .prospectus-page-two .issuer-profile span,.prospectus-page-two .issuer-profile b{margin-bottom:2px}
 .prospectus-page-two .issuer-meta-line{margin-bottom:2px}
-.prospectus-page-two .round-icon{width:54px;height:54px}
-.prospectus-page-two .round-icon .icon{width:30px;height:30px}
+.prospectus-page-two .round-icon,.prospectus-page-two .prospectus-issuer-icon-circle{width:var(--prospectus-icon-large-circle);height:var(--prospectus-icon-large-circle)}
+.prospectus-page-two .round-icon .icon,.prospectus-page-two .prospectus-issuer-icon{width:var(--prospectus-icon-large-size);height:var(--prospectus-icon-large-size)}
 .prospectus-page-two .issuer-grid p{line-height:1.25}
 .prospectus-page-two .invoice-info h2{margin-bottom:5px}
 .prospectus-page-two .page-two-invoice-list .page-two-invoice-row,
