@@ -12,9 +12,9 @@ export const PROSPECTUS_A4_HEIGHT_MM = 297;
  * Top is tighter so space can sit below the red header divider instead.
  * Do not override per-page unless a temporary fit emergency is approved.
  */
-export const PROSPECTUS_PAGE_PADDING_TOP_PX = 28;
+export const PROSPECTUS_PAGE_PADDING_TOP_PX = 26;
 export const PROSPECTUS_PAGE_PADDING_X_PX = 28;
-export const PROSPECTUS_PAGE_PADDING_BOTTOM_PX = 28;
+export const PROSPECTUS_PAGE_PADDING_BOTTOM_PX = 24;
 export const PROSPECTUS_PAGE_PADDING_CSS = `${PROSPECTUS_PAGE_PADDING_TOP_PX}px ${PROSPECTUS_PAGE_PADDING_X_PX}px ${PROSPECTUS_PAGE_PADDING_BOTTOM_PX}px`;
 
 /**
@@ -35,8 +35,11 @@ export const PROSPECTUS_LOGO_MAX_WIDTH_PX = PROSPECTUS_LOGO_DISPLAY_WIDTH_PX;
  * Header row hugs the logo (52px) with minimal unused band above/below.
  */
 export const PROSPECTUS_HEADER_HEIGHT_PX = 56;
-/** Gap between red header divider and first page content (shared Pages 1–3). */
-export const PROSPECTUS_HEADER_CONTENT_GAP_PX = 10;
+/**
+ * Gap between red header divider and first page content (shared Pages 1–3).
+ * Keep intentional — content must not sit against the divider.
+ */
+export const PROSPECTUS_HEADER_CONTENT_GAP_PX = 12;
 export const PROSPECTUS_TAGLINE_FONT_SIZE_PX = 8.5;
 export const PROSPECTUS_BRAND_GAP_PX = 12;
 
@@ -95,6 +98,8 @@ export const PROSPECTUS_DOCUMENT_CSS = `
   --prospectus-logo-height:${PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX}px;
   --prospectus-tagline-font-size:${PROSPECTUS_TAGLINE_FONT_SIZE_PX}px;
   --prospectus-brand-gap:${PROSPECTUS_BRAND_GAP_PX}px;
+  --prospectus-shariah-badge-size:34px;
+  --prospectus-risk-shield-size:72px;
   --prospectus-section-title-font-size:${PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX}px;
   --prospectus-section-title-margin-bottom:${PROSPECTUS_SECTION_TITLE_MARGIN_BOTTOM_PX}px;
   --prospectus-page-title-font-size:${PROSPECTUS_PAGE_TITLE_FONT_SIZE_PX}px;
@@ -157,7 +162,9 @@ body{
 .brand-logo{width:var(--prospectus-logo-width);height:var(--prospectus-logo-height);object-fit:contain;object-position:left center;flex:none;display:block}
 .brand-mark-placeholder{width:48px;height:var(--prospectus-logo-height);border:2px solid var(--red);background:var(--red);border-radius:3px;flex:none}
 .tagline{font-size:var(--prospectus-tagline-font-size);margin:0;color:var(--prospectus-muted);line-height:1.3;white-space:nowrap}
-.shariah{border:1.5px solid var(--red);border-radius:7px;padding:7px 11px;font-size:8px;display:flex;align-items:center;gap:6px;white-space:nowrap;flex:none}.shariah-mark{font-size:14px;color:var(--red);line-height:1}
+.shariah{display:flex;align-items:center;gap:7px;flex:none;min-width:0}
+.shariah-badge{width:var(--prospectus-shariah-badge-size);height:var(--prospectus-shariah-badge-size);object-fit:contain;flex:none;display:block}
+.shariah-label{font-size:8px;font-weight:700;color:var(--prospectus-burgundy);line-height:1.2;white-space:nowrap}
 h1,h2,p{margin-top:0}
 /* Shared section titles (Pages 1–3) — do not shrink per page */
 h2{
@@ -177,7 +184,11 @@ h2{
 .meta-row{display:flex;gap:12px;margin-bottom:18px;align-items:flex-start}.meta-row .icon{width:22px;height:22px;color:#bf2a30;flex:none}.meta-row b,.meta-row span{display:block}.meta-row b{font-size:10px}.meta-row span{font-size:9px;margin-top:2px}
 /* Four timeline rows in the middle hero column — slightly tighter than generic meta-row */
 .key-dates .meta-row{margin-bottom:12px}.key-dates .meta-row:last-child{margin-bottom:0}
-.risk-panel{text-align:left}.risk-panel>b{font-size:10px}.shield{width:67px;height:73px;background:var(--green);color:#fff;font-size:22px;font-weight:800;display:grid;place-items:center;margin:8px auto 2px;clip-path:polygon(50% 0,92% 18%,84% 72%,50% 100%,16% 72%,8% 18%)}
+.risk-panel{text-align:left}.risk-panel>b{font-size:10px}
+.risk-shield{position:relative;width:var(--prospectus-risk-shield-size);height:var(--prospectus-risk-shield-size);margin:8px auto 2px;display:grid;place-items:center}
+.risk-shield-asset{width:100%;height:100%;object-fit:contain;display:block}
+.risk-shield-grade{position:absolute;inset:0;display:grid;place-items:center;font-size:22px;font-weight:800;line-height:1;pointer-events:none}
+.risk-shield-fallback{border-radius:8px}
 .risk-panel strong{display:block;text-align:center;font-size:12px}.risk-panel p{font-size:9px;margin:10px 0}.risk-panel .scale-link{font-size:8px;font-weight:800;color:var(--prospectus-burgundy);text-decoration:none}
 .card{border:var(--prospectus-border-width) solid var(--prospectus-border);border-radius:var(--prospectus-radius-card);overflow:hidden}
 /* Vertically stacked compound sections — one outer silhouette, no mid-seam radius */
@@ -208,8 +219,8 @@ h2{
 table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--prospectus-table-red);color:#fff;padding:7px 5px;font-weight:600}td{border:1px solid #e1dddd;padding:5px;text-align:center}td:first-child,th:first-child{text-align:left}
 .table-wrap{overflow-x:auto}.track em,.financial-card em,.card em,.source{display:block;font-size:7px;margin-top:8px;font-style:italic}
 /* Shared disclaimer footer — pinned to A4 bottom; content source lines stay with their sections */
-.prospectus-footer,footer.prospectus-footer{margin-top:auto;display:flex;align-items:center;gap:8px;padding-top:14px;font-size:7px;color:var(--muted);flex-shrink:0}
-.prospectus-footer .icon{color:#b3131b;width:24px;height:24px;flex:none}
+.prospectus-footer,footer.prospectus-footer{margin-top:auto;display:flex;align-items:center;gap:8px;padding-top:10px;font-size:7px;color:var(--muted);flex-shrink:0}
+.prospectus-footer .icon{color:#b3131b;width:22px;height:22px;flex:none}
 .financial-source{display:block;margin-top:var(--space-3);margin-left:12px;font-size:7px;font-style:italic}
 /* Page 2 top: plain two columns + vertical divider only (not a card) */
 .issuer-grid{display:grid;grid-template-columns:.9fr 1.1fr;margin-bottom:var(--space-3)}.issuer-grid>section{padding:20px 14px}.issuer-grid>section+section{border-left:1px solid var(--line)}
@@ -253,25 +264,29 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
 .work-list p{display:flex;align-items:flex-start;gap:10px;font-size:9px;margin-bottom:9px}.work-list .icon{flex:none;width:var(--prospectus-icon-work);height:var(--prospectus-icon-work);padding:4px;box-sizing:border-box}
 .risk-cta{display:grid;grid-template-columns:2fr 1fr;gap:9px;margin-top:var(--space-3);align-items:stretch}.risk-cta>.card,.risk-cta>.cta{padding:10px;min-height:100%}
 
-/* Page 2 only — recover A4 height from the top issuer/invoice block (logo size unchanged) */
-.prospectus-page-two .page-two-issuer-grid>section{padding:6px 12px 4px}
-.prospectus-page-two .page-two-issuer-grid>section h2{margin-bottom:6px}
-.prospectus-page-two .issuer-profile{margin:6px 0;gap:12px}
-.prospectus-page-two .issuer-profile span,.prospectus-page-two .issuer-profile b{margin-bottom:3px}
-.prospectus-page-two .issuer-meta-line{margin-bottom:3px}
-.prospectus-page-two .round-icon{width:58px;height:58px}
-.prospectus-page-two .round-icon .icon{width:32px;height:32px}
-.prospectus-page-two .issuer-grid p{line-height:1.3}
-.prospectus-page-two .invoice-info h2{margin-bottom:6px}
+/* Page 2 only — recover A4 height from the top issuer/invoice block (header gap unchanged) */
+.prospectus-page-two .page-two-issuer-grid{margin-top:0}
+.prospectus-page-two .page-two-issuer-grid>section{padding:5px 12px 3px}
+.prospectus-page-two .page-two-issuer-grid>section h2{margin-bottom:5px}
+.prospectus-page-two .issuer-profile{margin:4px 0;gap:10px}
+.prospectus-page-two .issuer-profile span,.prospectus-page-two .issuer-profile b{margin-bottom:2px}
+.prospectus-page-two .issuer-meta-line{margin-bottom:2px}
+.prospectus-page-two .round-icon{width:54px;height:54px}
+.prospectus-page-two .round-icon .icon{width:30px;height:30px}
+.prospectus-page-two .issuer-grid p{line-height:1.25}
+.prospectus-page-two .invoice-info h2{margin-bottom:5px}
 .prospectus-page-two .page-two-invoice-list .page-two-invoice-row,
-.prospectus-page-two .invoice-info .page-two-invoice-row{margin-bottom:0}
+.prospectus-page-two .invoice-info .page-two-invoice-row{margin-bottom:0;padding-block:0}
 .prospectus-page-two .page-two-invoice-row .icon,
-.prospectus-page-two .page-two-invoice-icon{width:26px;height:26px;padding:4px}
-.prospectus-page-two .ratings div{margin:4px 0}
-.prospectus-page-two .work-list p{margin-bottom:7px}
-.prospectus-page-two .risk-cta{margin-top:7px}
-.prospectus-page-two .invest-confidence-description{margin:0 0 7px;line-height:1.3}
-.prospectus-page-two .soukscore-scale .grade-item{padding:5px 3px}
+.prospectus-page-two .page-two-invoice-icon{width:24px;height:24px;padding:3px}
+.prospectus-page-two .ratings div{margin:3px 0}
+.prospectus-page-two .work-list p{margin-bottom:6px}
+.prospectus-page-two .page-two-financial-card,.prospectus-page-two .page-two-insights-card{padding-top:0}
+.prospectus-page-two .risk-cta{margin-top:5px}
+.prospectus-page-two .invest-confidence-description{margin:0 0 6px;line-height:1.25}
+.prospectus-page-two .soukscore-scale .grade-item{padding:4px 3px}
+.prospectus-page-two .risk-scale-note{margin:4px 0 0;font-size:7px;line-height:1.2}
+.prospectus-page-two .prospectus-footer{padding-top:8px}
 .soukscore-scale,.risk-scale{display:grid;grid-template-columns:repeat(6,1fr);list-style:none;margin:0;padding:0;align-items:start}
 .soukscore-scale .grade-item,.risk-scale>div{padding:6px 4px;border-right:1px solid #c9c5c5;text-align:center}.soukscore-scale .grade-item:last-child,.risk-scale>div:last-child{border:0}
 .soukscore-scale .grade,.grade{width:33px;height:33px;color:#fff;border-radius:6px;display:grid;place-items:center;font-size:12px;margin:0 auto 4px;background:#79cf54;font-weight:800;box-sizing:border-box}
@@ -284,7 +299,7 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
 .plain th .fy-label,.report-box th .fy-label{display:block;font-weight:700}
 .plain th .fy-end,.report-box th .fy-end{display:block;font-size:7px;font-weight:400;margin-top:2px;color:#666}
 .cta{border:var(--prospectus-border-width) solid var(--prospectus-border-soft);border-radius:var(--prospectus-radius-card);background:var(--prospectus-cta-bg);padding:11px}.cta p{font-size:9px}.cta-button{display:block;width:100%;border:0;border-radius:5px;background:var(--prospectus-cta-button);color:#fff;text-transform:uppercase;font-weight:800;padding:8px;font-size:11px;text-align:center;text-decoration:none}.cta-button[disabled],.cta-button[aria-disabled="true"]{opacity:.85;cursor:default;pointer-events:none}.cta-minimum{text-align:center;display:block;margin-top:7px;font-size:8px}
-.risk-scale-note{margin:6px 0 0;font-size:7.5px;line-height:1.25;font-style:italic;color:var(--prospectus-muted)}
+.risk-scale-note{margin:5px 0 0;font-size:7.5px;line-height:1.25;font-style:italic;color:var(--prospectus-muted)}
 .invest-confidence-description{margin:0 0 8px;font-size:9px;line-height:1.3}
 /* Shared page-level title block (Page 3 today; same tokens if reused elsewhere) */
 .page-title{padding:var(--prospectus-page-title-padding)}

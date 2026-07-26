@@ -7,8 +7,9 @@ import { PROSPECTUS_DOCUMENT_CSS } from "./prospectus-document-styles";
 import { buildProspectusFooterHtml } from "./prospectus-footer.html";
 import { buildProspectusHeaderHtml } from "./prospectus-header.html";
 import { buildProspectusHeader } from "./prospectus-header";
-import { escapeHtml, escapeHtmlAttribute } from "./prospectus-html";
+import { escapeHtml } from "./prospectus-html";
 import { prospectusIcon } from "./prospectus-icons";
+import { buildProspectusRiskShieldHtml } from "./prospectus-risk-shield";
 import { PROSPECTUS_HISTORICAL_NOTE_TABLE_HEADERS } from "./prospectus-historical-note-table.types";
 import type { ProspectusPageOne } from "./prospectus-page-one.types";
 import {
@@ -127,13 +128,11 @@ ${PROSPECTUS_DOCUMENT_CSS}
       </div>
       <div class="risk-panel" data-stage="3">
         <b>Risk Rating</b>
-        <div
-          class="shield"
-          data-grade="${escapeHtmlAttribute(s3.riskGrade)}"
-          style="background:${escapeHtmlAttribute(
-            s3.riskGradeColor
-          )};color:${escapeHtmlAttribute(s3.riskGradeTextColor)}"
-        >${escapeHtml(s3.riskGrade)}</div>
+        ${buildProspectusRiskShieldHtml({
+          grade: s3.riskGrade,
+          color: s3.riskGradeColor,
+          textColor: s3.riskGradeTextColor,
+        })}
         <strong>${escapeHtml(s3.riskLabel)}</strong>
         <p>${escapeHtml(s3.riskExplanation)}</p>
         <a class="scale-link" href="#risk-scale">${escapeHtml(s3.ratingScaleReference)}</a>

@@ -40,8 +40,16 @@ describe("prospectus SoukScore cross-page and freeze", () => {
     const presentation = resolveSoukscoreRiskRatingPresentation("A");
     const html = buildProspectusPageOneHtml(SAMPLE_PROSPECTUS_PAGE_ONE);
     expect(html).toContain(`data-grade="${presentation.grade}"`);
-    expect(html).toContain(`background:${presentation.color}`);
-    expect(html).toContain(`>${presentation.grade}</div>`);
+    expect(html).toContain('class="risk-shield-asset"');
+    expect(html).toContain(`color:${presentation.textColor}`);
+    expect(html).toContain(`>${presentation.grade}</span>`);
+    // Grade colour is injected into the shield SVG fill (base64 data URI).
+    expect(
+      Buffer.from(
+        html.match(/risk-shield-asset[^>]+src="data:image\/svg\+xml;base64,([^"]+)"/)?.[1] ?? "",
+        "base64"
+      ).toString("utf8")
+    ).toContain(`fill="${presentation.color}"`);
     expect(html).toContain(presentation.label);
     expect(html).toContain(presentation.explanation);
     expect(html).toContain("See rating scale on page 2");

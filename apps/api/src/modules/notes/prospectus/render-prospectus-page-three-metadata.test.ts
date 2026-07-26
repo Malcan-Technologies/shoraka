@@ -83,8 +83,11 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     expect(withSource({ selectedRiskRating: grade }).metadata.riskRating).toBe(grade);
   });
 
-  it("rejects invalid C risk rating", () => {
-    expect(withSource({ selectedRiskRating: "C" }).metadata.riskRating).toBe(
+  it("rejects legacy AAA/AA risk ratings", () => {
+    expect(withSource({ selectedRiskRating: "AAA" }).metadata.riskRating).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
+    expect(withSource({ selectedRiskRating: "AA" }).metadata.riskRating).toBe(
       PROSPECTUS_DATA_NOT_AVAILABLE
     );
   });
@@ -177,11 +180,11 @@ describe("prospectus Page 3 metadata (DATA STAGE 1)", () => {
     }
   });
 
-  it("does not map Canva A–E grades", () => {
+  it("does not map legacy AAA or Canva-modifier grades", () => {
     expect(PROSPECTUS_PAGE_THREE_METADATA_AUDIT.riskRating.canvaAtoEMappingAllowed).toBe(
       false
     );
-    for (const grade of ["C", "D", "E", "A-", "AA+"]) {
+    for (const grade of ["AAA", "AA", "BBB", "A-", "AA+"]) {
       expect(withSource({ selectedRiskRating: grade }).metadata.riskRating).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
       );
