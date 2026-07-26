@@ -213,7 +213,7 @@ body{
 /* Bordered pill: small SVG mark + label — shared Pages 1–3 */
 .shariah{display:flex;align-items:center;gap:6px;flex:none;min-width:0;border:1.5px solid var(--red);border-radius:7px;padding:5px 10px}
 .shariah-badge{width:var(--prospectus-shariah-badge-size);height:var(--prospectus-shariah-badge-size);object-fit:contain;flex:none;display:block}
-.shariah-label{font-size:8px;font-weight:700;color:#000000;line-height:1.2;white-space:nowrap}
+.shariah-label{font-size:8px;font-weight:400;color:#000000;line-height:1.2;white-space:nowrap}
 h1,h2,p{margin-top:0}
 /* Shared section titles (Pages 1–3) — do not shrink per page */
 h2{

@@ -171,10 +171,10 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
         ".shariah{display:flex;align-items:center;gap:6px;flex:none;min-width:0;border:1.5px solid var(--red)"
       );
       expect(html).toContain(
-        ".shariah-label{font-size:8px;font-weight:700;color:#000000;"
+        ".shariah-label{font-size:8px;font-weight:400;color:#000000;"
       );
       expect(html).not.toContain(
-        ".shariah-label{font-size:8px;font-weight:700;color:var(--prospectus-burgundy)"
+        ".shariah-label{font-size:8px;font-weight:700;"
       );
       expect(html).toContain(`width="${PROSPECTUS_LOGO_DISPLAY_WIDTH_PX}"`);
       expect(html).toContain(`height="${PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX}"`);
