@@ -71,6 +71,7 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageTwo).toContain("SOUKSCORE_RISK_RATING_GRADES");
     expect(pageTwo).toContain("SOUKSCORE_RISK_RATING_CATALOGUE");
     expect(pageTwo).toContain("Risk Rating Scale");
+    expect(pageTwo).not.toContain("Full A–F Cashsouk scale for reference.");
     expect(pageTwo).not.toContain('title="Cashsouk Risk Rating"');
     expect(pageTwo).not.toContain("Cashsouk Risk Rating");
     expect(pageTwo).toContain("Risk Level");

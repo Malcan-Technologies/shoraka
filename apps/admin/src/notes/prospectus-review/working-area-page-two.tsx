@@ -484,9 +484,6 @@ export function WorkingAreaPageTwo({
         <div className="space-y-6" role="tabpanel">
           <ProspectusSectionShell title="Risk Rating Scale" icon={ShieldCheckIcon}>
             <div className="space-y-3" data-prospectus-risk-rating-scale>
-              <p className="text-sm text-muted-foreground">
-                Full A–F Cashsouk scale for reference.
-              </p>
               <div className="overflow-x-auto rounded-xl border">
                 <table className="w-full min-w-[48rem] text-left text-sm">
                   <thead>
