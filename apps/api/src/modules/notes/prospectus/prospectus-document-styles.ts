@@ -154,26 +154,37 @@ export const PROSPECTUS_DOCUMENT_CSS = `
   --prospectus-icon-takeaway:var(--prospectus-icon-takeaway-circle);
   --prospectus-icon-work:25px;
 }
-*{box-sizing:border-box}
+*,*::before,*::after{box-sizing:border-box}
 html{
   background:#ececec; /* preview-only grey canvas */
+  width:100%;
+  min-width:0;
+  max-width:none;
   -webkit-print-color-adjust:exact;
   print-color-adjust:exact;
 }
 body{
   margin:0;
+  width:100%;
+  min-width:0;
+  max-width:none;
   font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;
   color:var(--ink);
   font-size:10px;
   line-height:1.35;
   -webkit-print-color-adjust:exact;
   print-color-adjust:exact;
-  overflow-x:auto; /* allow horizontal scroll when viewport < A4; do not reflow */
+  overflow-x:auto; /* Open in New Tab: scroll when viewport < A4; Admin iframe locks this */
 }
+/* Stack/centre pages — do not force 210mm on the document shell (avoids 210mm + padding overflow) */
 .document{
-  padding:24px 0; /* preview-only outer padding */
-  min-width:var(--prospectus-a4-width);
+  width:100%;
+  min-width:0;
+  max-width:none;
+  margin:0 auto;
+  padding:24px 0; /* preview-only vertical gap above/below pages; no horizontal padding */
 }
+/* Only .page owns the fixed A4 width */
 .page{
   width:var(--prospectus-a4-width);
   height:var(--prospectus-a4-height);
