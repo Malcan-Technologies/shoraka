@@ -18,6 +18,7 @@ import {
   PROSPECTUS_DOCUMENT_CSS,
   PROSPECTUS_HEADER_CONTENT_GAP_PX,
   PROSPECTUS_HEADER_HEIGHT_PX,
+  PROSPECTUS_HEADER_PADDING_BOTTOM_PX,
   PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX,
   PROSPECTUS_LOGO_DISPLAY_WIDTH_PX,
   PROSPECTUS_LOGO_HEIGHT_PX,
@@ -28,6 +29,7 @@ import {
   PROSPECTUS_PAGE_PADDING_X_PX,
   PROSPECTUS_PAGE_TITLE_FONT_SIZE_PX,
   PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX,
+  PROSPECTUS_SHARIAH_BADGE_SIZE_PX,
   PROSPECTUS_TAGLINE_FONT_SIZE_PX,
 } from "./prospectus-document-styles";
 import {
@@ -149,6 +151,8 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
       expect(html).toContain('class="shariah-badge"');
       expect(html).toContain("Shariah Compliant");
       expect(html).not.toContain('class="shariah-mark"');
+      expect(html).toContain('width="14"');
+      expect(html).toContain('height="14"');
       expect(html).toContain(`width="${PROSPECTUS_LOGO_DISPLAY_WIDTH_PX}"`);
       expect(html).toContain(`height="${PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX}"`);
       expect(html).toContain(`height="${PROSPECTUS_LOGO_HEIGHT_PX}"`);
@@ -182,8 +186,16 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
   });
 
   it("uses shared header/logo/title/colour/icon tokens with no per-page shrink overrides", () => {
-    expect(PROSPECTUS_HEADER_HEIGHT_PX).toBe(56);
+    expect(PROSPECTUS_HEADER_HEIGHT_PX).toBe(64);
+    expect(PROSPECTUS_HEADER_PADDING_BOTTOM_PX).toBe(10);
+    expect(PROSPECTUS_SHARIAH_BADGE_SIZE_PX).toBe(14);
     expect(PROSPECTUS_HEADER_CONTENT_GAP_PX).toBe(12);
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(
+      "padding-bottom:var(--prospectus-header-padding-bottom)"
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(
+      "--prospectus-shariah-badge-size:14px"
+    );
     expect(PROSPECTUS_LOGO_DISPLAY_WIDTH_PX).toBe(270);
     expect(PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX).toBe(52);
     expect(PROSPECTUS_LOGO_HEIGHT_PX).toBe(52);
@@ -268,8 +280,8 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
   });
 
   it("Pages 1–3 use the same shared outer page padding token", () => {
-    expect(PROSPECTUS_PAGE_PADDING_CSS).toBe("26px 28px 24px");
-    expect(PROSPECTUS_PAGE_PADDING_TOP_PX).toBe(26);
+    expect(PROSPECTUS_PAGE_PADDING_CSS).toBe("20px 28px 24px");
+    expect(PROSPECTUS_PAGE_PADDING_TOP_PX).toBe(20);
     expect(PROSPECTUS_PAGE_PADDING_X_PX).toBe(28);
     expect(PROSPECTUS_PAGE_PADDING_BOTTOM_PX).toBe(24);
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(

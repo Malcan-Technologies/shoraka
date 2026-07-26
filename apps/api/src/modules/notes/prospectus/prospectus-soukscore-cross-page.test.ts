@@ -41,8 +41,12 @@ describe("prospectus SoukScore cross-page and freeze", () => {
     const html = buildProspectusPageOneHtml(SAMPLE_PROSPECTUS_PAGE_ONE);
     expect(html).toContain(`data-grade="${presentation.grade}"`);
     expect(html).toContain('class="risk-shield-asset"');
-    expect(html).toContain(`color:${presentation.textColor}`);
+    // Page 1 shield grade letter is always white (Canva); catalogue textColor unchanged for scale chips.
+    expect(html).toContain("color:#FFFFFF");
     expect(html).toContain(`>${presentation.grade}</span>`);
+    expect(html).toContain("risk-shield-grade");
+    expect(html).toContain("font-size:14px");
+    expect(html).toContain("border:1.5px solid var(--red)");
     // Grade colour is injected into the shield SVG fill (base64 data URI).
     expect(
       Buffer.from(

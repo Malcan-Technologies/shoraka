@@ -54,16 +54,20 @@ export type ProspectusRiskShieldHtmlInput = {
   textColor: string;
 };
 
+/** Grade letter on the Page 1 shield is always white (Canva presentation). */
+export const PROSPECTUS_RISK_SHIELD_GRADE_TEXT_COLOR = "#FFFFFF";
+
 /**
  * Page 1 risk shield: coloured SVG + centred grade letter.
  * Falls back to a coloured square when the asset is missing.
+ * Shield fill stays dynamic A–F; grade letter is always white for contrast.
  */
 export function buildProspectusRiskShieldHtml(
   input: ProspectusRiskShieldHtmlInput
 ): string {
   const grade = input.grade.trim() || "—";
   const color = input.color.trim() || PROSPECTUS_RISK_SHIELD_SOURCE_FILL;
-  const textColor = input.textColor.trim() || "#FFFFFF";
+  const gradeTextColor = PROSPECTUS_RISK_SHIELD_GRADE_TEXT_COLOR;
   const w = PROSPECTUS_RISK_SHIELD_DISPLAY_WIDTH_PX;
   const h = PROSPECTUS_RISK_SHIELD_DISPLAY_HEIGHT_PX;
   const source = getProspectusRiskShieldSvgXml();
@@ -73,7 +77,7 @@ export function buildProspectusRiskShieldHtml(
     const dataUri = `data:image/svg+xml;base64,${Buffer.from(coloured, "utf8").toString("base64")}`;
     return `<div class="risk-shield" data-grade="${escapeHtmlAttribute(
       grade
-    )}" style="color:${escapeHtmlAttribute(textColor)}">
+    )}" style="color:${escapeHtmlAttribute(gradeTextColor)}">
   <img class="risk-shield-asset" src="${dataUri}" alt="" width="${w}" height="${h}" />
   <span class="risk-shield-grade">${escapeHtml(grade)}</span>
 </div>`;
@@ -82,7 +86,7 @@ export function buildProspectusRiskShieldHtml(
   return `<div class="risk-shield risk-shield-fallback" data-grade="${escapeHtmlAttribute(
     grade
   )}" style="background:${escapeHtmlAttribute(color)};color:${escapeHtmlAttribute(
-    textColor
+    gradeTextColor
   )}">
   <span class="risk-shield-grade">${escapeHtml(grade)}</span>
 </div>`;

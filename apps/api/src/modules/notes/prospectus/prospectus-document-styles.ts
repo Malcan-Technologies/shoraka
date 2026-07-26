@@ -3,16 +3,18 @@
  * WHY: Fixed A4 pages for screen + print; preview chrome only; no mobile reflow
  */
 
+import { PROSPECTUS_SHARIAH_BADGE_DISPLAY_SIZE_PX } from "./prospectus-shariah-badge";
+
 /** Fixed A4 geometry — never shrink with viewport. */
 export const PROSPECTUS_A4_WIDTH_MM = 210;
 export const PROSPECTUS_A4_HEIGHT_MM = 297;
 
 /**
  * Shared outer page canvas padding for Pages 1–3 (top / horizontal / bottom).
- * Top is tighter so space can sit below the red header divider instead.
+ * Top is slightly tighter so space can sit inside the header above the red divider.
  * Do not override per-page unless a temporary fit emergency is approved.
  */
-export const PROSPECTUS_PAGE_PADDING_TOP_PX = 26;
+export const PROSPECTUS_PAGE_PADDING_TOP_PX = 20;
 export const PROSPECTUS_PAGE_PADDING_X_PX = 28;
 export const PROSPECTUS_PAGE_PADDING_BOTTOM_PX = 24;
 export const PROSPECTUS_PAGE_PADDING_CSS = `${PROSPECTUS_PAGE_PADDING_TOP_PX}px ${PROSPECTUS_PAGE_PADDING_X_PX}px ${PROSPECTUS_PAGE_PADDING_BOTTOM_PX}px`;
@@ -32,9 +34,11 @@ export const PROSPECTUS_LOGO_MAX_WIDTH_PX = PROSPECTUS_LOGO_DISPLAY_WIDTH_PX;
 
 /**
  * Shared header sizing — identical on Pages 1–3.
- * Header row hugs the logo (52px) with minimal unused band above/below.
+ * Extra bottom padding creates breathing room between the logo row and the red divider.
  */
-export const PROSPECTUS_HEADER_HEIGHT_PX = 56;
+export const PROSPECTUS_HEADER_HEIGHT_PX = 64;
+/** Space inside the header between content and the red border-bottom divider. */
+export const PROSPECTUS_HEADER_PADDING_BOTTOM_PX = 10;
 /**
  * Gap between red header divider and first page content (shared Pages 1–3).
  * Keep intentional — content must not sit against the divider.
@@ -42,6 +46,8 @@ export const PROSPECTUS_HEADER_HEIGHT_PX = 56;
 export const PROSPECTUS_HEADER_CONTENT_GAP_PX = 12;
 export const PROSPECTUS_TAGLINE_FONT_SIZE_PX = 8.5;
 export const PROSPECTUS_BRAND_GAP_PX = 12;
+/** Compact Shariah icon inside the bordered pill badge. */
+export const PROSPECTUS_SHARIAH_BADGE_SIZE_PX = PROSPECTUS_SHARIAH_BADGE_DISPLAY_SIZE_PX;
 
 /** Shared section heading (card/section h2) — identical scale on Pages 1–3. */
 export const PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX = 12;
@@ -93,12 +99,13 @@ export const PROSPECTUS_DOCUMENT_CSS = `
   --prospectus-page-padding-bottom:${PROSPECTUS_PAGE_PADDING_BOTTOM_PX}px;
   --prospectus-page-padding:var(--prospectus-page-padding-top) var(--prospectus-page-padding-x) var(--prospectus-page-padding-bottom);
   --prospectus-header-height:${PROSPECTUS_HEADER_HEIGHT_PX}px;
+  --prospectus-header-padding-bottom:${PROSPECTUS_HEADER_PADDING_BOTTOM_PX}px;
   --prospectus-header-content-gap:${PROSPECTUS_HEADER_CONTENT_GAP_PX}px;
   --prospectus-logo-width:${PROSPECTUS_LOGO_DISPLAY_WIDTH_PX}px;
   --prospectus-logo-height:${PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX}px;
   --prospectus-tagline-font-size:${PROSPECTUS_TAGLINE_FONT_SIZE_PX}px;
   --prospectus-brand-gap:${PROSPECTUS_BRAND_GAP_PX}px;
-  --prospectus-shariah-badge-size:34px;
+  --prospectus-shariah-badge-size:${PROSPECTUS_SHARIAH_BADGE_SIZE_PX}px;
   --prospectus-risk-shield-size:72px;
   --prospectus-section-title-font-size:${PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX}px;
   --prospectus-section-title-margin-bottom:${PROSPECTUS_SECTION_TITLE_MARGIN_BOTTOM_PX}px;
@@ -157,12 +164,13 @@ body{
 .page:last-child{
   margin-bottom:0;
 }
-.page-header{height:var(--prospectus-header-height);border-bottom:2px solid var(--prospectus-header-divider);display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--prospectus-header-content-gap);flex:none}
+.page-header{height:var(--prospectus-header-height);padding-bottom:var(--prospectus-header-padding-bottom);border-bottom:2px solid var(--prospectus-header-divider);display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--prospectus-header-content-gap);flex:none}
 .brand{display:flex;align-items:center;gap:var(--prospectus-brand-gap);position:relative;min-width:0}
 .brand-logo{width:var(--prospectus-logo-width);height:var(--prospectus-logo-height);object-fit:contain;object-position:left center;flex:none;display:block}
 .brand-mark-placeholder{width:48px;height:var(--prospectus-logo-height);border:2px solid var(--red);background:var(--red);border-radius:3px;flex:none}
 .tagline{font-size:var(--prospectus-tagline-font-size);margin:0;color:var(--prospectus-muted);line-height:1.3;white-space:nowrap}
-.shariah{display:flex;align-items:center;gap:7px;flex:none;min-width:0}
+/* Bordered pill: small SVG mark + label — shared Pages 1–3 */
+.shariah{display:flex;align-items:center;gap:6px;flex:none;min-width:0;border:1.5px solid var(--red);border-radius:7px;padding:5px 10px}
 .shariah-badge{width:var(--prospectus-shariah-badge-size);height:var(--prospectus-shariah-badge-size);object-fit:contain;flex:none;display:block}
 .shariah-label{font-size:8px;font-weight:700;color:var(--prospectus-burgundy);line-height:1.2;white-space:nowrap}
 h1,h2,p{margin-top:0}
@@ -187,9 +195,9 @@ h2{
 .risk-panel{text-align:left}.risk-panel>b{font-size:10px}
 .risk-shield{position:relative;width:var(--prospectus-risk-shield-size);height:var(--prospectus-risk-shield-size);margin:8px auto 2px;display:grid;place-items:center}
 .risk-shield-asset{width:100%;height:100%;object-fit:contain;display:block}
-.risk-shield-grade{position:absolute;inset:0;display:grid;place-items:center;font-size:22px;font-weight:800;line-height:1;pointer-events:none}
+.risk-shield-grade{position:absolute;inset:0;display:grid;place-items:center;font-size:22px;font-weight:800;line-height:1;pointer-events:none;color:#fff}
 .risk-shield-fallback{border-radius:8px}
-.risk-panel strong{display:block;text-align:center;font-size:12px}.risk-panel p{font-size:9px;margin:10px 0}.risk-panel .scale-link{font-size:8px;font-weight:800;color:var(--prospectus-burgundy);text-decoration:none}
+.risk-panel strong{display:block;text-align:center;font-size:14px;font-weight:800;line-height:1.25;margin-top:4px}.risk-panel p{font-size:9px;margin:8px 0 10px;line-height:1.35;color:var(--prospectus-text)}.risk-panel .scale-link{font-size:8px;font-weight:800;color:var(--prospectus-burgundy);text-decoration:none}
 .card{border:var(--prospectus-border-width) solid var(--prospectus-border);border-radius:var(--prospectus-radius-card);overflow:hidden}
 /* Vertically stacked compound sections — one outer silhouette, no mid-seam radius */
 .connected-card-top{

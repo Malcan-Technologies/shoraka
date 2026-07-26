@@ -7,8 +7,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { escapeHtml, escapeHtmlAttribute } from "./prospectus-html";
 
-/** Display size balanced with the 52px header logo row. */
-export const PROSPECTUS_SHARIAH_BADGE_DISPLAY_SIZE_PX = 34;
+/** Compact icon size — small mark beside label (Canva-style pill badge). */
+export const PROSPECTUS_SHARIAH_BADGE_DISPLAY_SIZE_PX = 14;
 
 export const PROSPECTUS_SHARIAH_BADGE_LABEL = "Shariah Compliant";
 
