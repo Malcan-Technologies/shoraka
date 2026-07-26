@@ -4,6 +4,7 @@
  */
 
 import { PROSPECTUS_SHARIAH_BADGE_DISPLAY_SIZE_PX } from "./prospectus-shariah-badge";
+import { PROSPECTUS_RISK_SHIELD_GRADE_FONT_SIZE_PX } from "./prospectus-risk-shield";
 
 /** Fixed A4 geometry — never shrink with viewport. */
 export const PROSPECTUS_A4_WIDTH_MM = 210;
@@ -121,6 +122,7 @@ export const PROSPECTUS_DOCUMENT_CSS = `
   --prospectus-footer-icon-gap:6px;
   --prospectus-shariah-badge-size:${PROSPECTUS_SHARIAH_BADGE_SIZE_PX}px;
   --prospectus-risk-shield-size:72px;
+  --prospectus-risk-shield-grade-font-size:${PROSPECTUS_RISK_SHIELD_GRADE_FONT_SIZE_PX}px;
   --prospectus-section-title-font-size:${PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX}px;
   --prospectus-section-title-margin-bottom:${PROSPECTUS_SECTION_TITLE_MARGIN_BOTTOM_PX}px;
   --prospectus-page-title-font-size:${PROSPECTUS_PAGE_TITLE_FONT_SIZE_PX}px;
@@ -223,9 +225,11 @@ h2{
 .risk-panel{text-align:left}.risk-panel>b{font-size:10px}
 .risk-shield{position:relative;width:var(--prospectus-risk-shield-size);height:var(--prospectus-risk-shield-size);margin:8px auto 2px;display:grid;place-items:center}
 .risk-shield-asset{width:100%;height:100%;object-fit:contain;display:block}
-.risk-shield-grade{position:absolute;inset:0;display:grid;place-items:center;font-size:22px;font-weight:800;line-height:1;pointer-events:none;color:#fff}
+/* Grade letter size from Canva reference (.shield font-size:30px); centred via absolute inset + grid */
+.risk-shield-grade{position:absolute;inset:0;display:grid;place-items:center;font-size:var(--prospectus-risk-shield-grade-font-size);font-weight:800;line-height:1;pointer-events:none;color:#fff}
 .risk-shield-fallback{border-radius:8px}
-.risk-panel strong{display:block;text-align:center;font-size:14px;font-weight:800;line-height:1.25;margin-top:4px}
+/* Risk label under shield — restore origin/main / Canva size (not the enlarged 14px treatment) */
+.risk-panel strong{display:block;text-align:center;font-size:12px}
 .risk-panel .prospectus-risk-description,.prospectus-risk-description{font-size:10px;line-height:1.35;font-weight:400;margin:8px 0 10px;color:var(--prospectus-text)}
 .risk-panel .scale-link{font-size:8px;font-weight:800;color:var(--prospectus-burgundy);text-decoration:none}
 .card{border:var(--prospectus-border-width) solid var(--prospectus-border);border-radius:var(--prospectus-radius-card);overflow:hidden}

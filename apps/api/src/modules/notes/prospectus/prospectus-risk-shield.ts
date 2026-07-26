@@ -13,6 +13,8 @@ export const PROSPECTUS_RISK_SHIELD_SOURCE_FILL = "#21b524";
 
 export const PROSPECTUS_RISK_SHIELD_DISPLAY_WIDTH_PX = 72;
 export const PROSPECTUS_RISK_SHIELD_DISPLAY_HEIGHT_PX = 72;
+/** Overlay grade letter — Canva reference `.shield` uses 30px. */
+export const PROSPECTUS_RISK_SHIELD_GRADE_FONT_SIZE_PX = 30;
 
 let cachedSvgXml: string | null | undefined;
 
