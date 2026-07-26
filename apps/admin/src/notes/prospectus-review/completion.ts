@@ -15,16 +15,6 @@ export const PROSPECTUS_STEP_STATUS_LABEL: Record<ProspectusStepStatus, string> 
   optional: "Optional",
 };
 
-/** Checklist rows → top-level page step (0–3). */
-export const CHECKLIST_ITEM_STEP: Record<string, ProspectusWorkflowStepId> = {
-  core: 0,
-  highlights: 0,
-  paymaster: 1,
-  credit: 1,
-  financials: 2,
-  takeaways: 2,
-};
-
 function hasOption(value: string | null | undefined): boolean {
   return typeof value === "string" && value.trim().length > 0;
 }
