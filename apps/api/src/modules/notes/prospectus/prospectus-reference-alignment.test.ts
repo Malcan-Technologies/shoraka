@@ -161,10 +161,21 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
       expect((html.match(new RegExp(PROSPECTUS_HEADER_TAGLINE, "g")) ?? []).length).toBe(1);
       expect(html).toContain('class="brand-logo"');
       expect(html).toContain('class="shariah-badge"');
+      expect(html).toContain('class="shariah-label"');
       expect(html).toContain("Shariah Compliant");
       expect(html).not.toContain('class="shariah-mark"');
       expect(html).toContain('width="14"');
       expect(html).toContain('height="14"');
+      // Shared badge chrome: red border + black label text (icon SVG fill stays red)
+      expect(html).toContain(
+        ".shariah{display:flex;align-items:center;gap:6px;flex:none;min-width:0;border:1.5px solid var(--red)"
+      );
+      expect(html).toContain(
+        ".shariah-label{font-size:8px;font-weight:700;color:#000000;"
+      );
+      expect(html).not.toContain(
+        ".shariah-label{font-size:8px;font-weight:700;color:var(--prospectus-burgundy)"
+      );
       expect(html).toContain(`width="${PROSPECTUS_LOGO_DISPLAY_WIDTH_PX}"`);
       expect(html).toContain(`height="${PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX}"`);
       expect(html).toContain(`height="${PROSPECTUS_LOGO_HEIGHT_PX}"`);
