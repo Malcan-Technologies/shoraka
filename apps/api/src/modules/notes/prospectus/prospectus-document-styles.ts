@@ -44,8 +44,16 @@ export const PROSPECTUS_HEADER_PADDING_BOTTOM_PX = 10;
  * Keep intentional — content must not sit against the divider.
  */
 export const PROSPECTUS_HEADER_CONTENT_GAP_PX = 12;
-export const PROSPECTUS_TAGLINE_FONT_SIZE_PX = 8.5;
-export const PROSPECTUS_BRAND_GAP_PX = 12;
+/** Shared supporting copy (header tagline + footer disclaimer). */
+export const PROSPECTUS_SUPPORTING_FONT_SIZE_PX = 9.5;
+export const PROSPECTUS_SUPPORTING_LINE_HEIGHT = 1.3;
+export const PROSPECTUS_SUPPORTING_TEXT_COLOR = "#4a4a4a";
+/** @deprecated Prefer PROSPECTUS_SUPPORTING_FONT_SIZE_PX */
+export const PROSPECTUS_TAGLINE_FONT_SIZE_PX = PROSPECTUS_SUPPORTING_FONT_SIZE_PX;
+/** Horizontal gap between logo and tagline (tighter, Canva-aligned). */
+export const PROSPECTUS_BRAND_GAP_PX = 8;
+/** Nudge tagline up from absolute flex-end so it sits on the wordmark baseline. */
+export const PROSPECTUS_TAGLINE_BASELINE_OFFSET_PX = 6;
 /** Compact Shariah icon inside the bordered pill badge. */
 export const PROSPECTUS_SHARIAH_BADGE_SIZE_PX = PROSPECTUS_SHARIAH_BADGE_DISPLAY_SIZE_PX;
 
@@ -83,7 +91,11 @@ export const PROSPECTUS_DOCUMENT_CSS = `
   --prospectus-divider:#c9c5c5;
   --prospectus-text:#171717;
   --prospectus-muted:#5c5c5c;
+  --prospectus-supporting-font-size:${PROSPECTUS_SUPPORTING_FONT_SIZE_PX}px;
+  --prospectus-supporting-line-height:${PROSPECTUS_SUPPORTING_LINE_HEIGHT};
+  --prospectus-supporting-text:${PROSPECTUS_SUPPORTING_TEXT_COLOR};
   --prospectus-positive:#22b83f;
+  --prospectus-positive-green:var(--prospectus-positive);
   --prospectus-cta-bg:#f7eaea;
   --prospectus-cta-button:#a60000;
   --prospectus-soft:#f8eded;
@@ -103,8 +115,10 @@ export const PROSPECTUS_DOCUMENT_CSS = `
   --prospectus-header-content-gap:${PROSPECTUS_HEADER_CONTENT_GAP_PX}px;
   --prospectus-logo-width:${PROSPECTUS_LOGO_DISPLAY_WIDTH_PX}px;
   --prospectus-logo-height:${PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX}px;
-  --prospectus-tagline-font-size:${PROSPECTUS_TAGLINE_FONT_SIZE_PX}px;
+  --prospectus-tagline-font-size:var(--prospectus-supporting-font-size);
   --prospectus-brand-gap:${PROSPECTUS_BRAND_GAP_PX}px;
+  --prospectus-tagline-baseline-offset:${PROSPECTUS_TAGLINE_BASELINE_OFFSET_PX}px;
+  --prospectus-footer-icon-gap:6px;
   --prospectus-shariah-badge-size:${PROSPECTUS_SHARIAH_BADGE_SIZE_PX}px;
   --prospectus-risk-shield-size:72px;
   --prospectus-section-title-font-size:${PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX}px;
@@ -179,10 +193,10 @@ body{
   margin-bottom:0;
 }
 .page-header{height:var(--prospectus-header-height);padding-bottom:var(--prospectus-header-padding-bottom);border-bottom:2px solid var(--prospectus-header-divider);display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--prospectus-header-content-gap);flex:none}
-.brand{display:flex;align-items:center;gap:var(--prospectus-brand-gap);position:relative;min-width:0}
+.brand,.prospectus-brand{display:flex;align-items:flex-end;gap:var(--prospectus-brand-gap);position:relative;min-width:0}
 .brand-logo{width:var(--prospectus-logo-width);height:var(--prospectus-logo-height);object-fit:contain;object-position:left center;flex:none;display:block}
 .brand-mark-placeholder{width:48px;height:var(--prospectus-logo-height);border:2px solid var(--red);background:var(--red);border-radius:3px;flex:none}
-.tagline{font-size:var(--prospectus-tagline-font-size);margin:0;color:var(--prospectus-muted);line-height:1.3;white-space:nowrap}
+.tagline,.prospectus-tagline{font-size:var(--prospectus-supporting-font-size);margin:0 0 var(--prospectus-tagline-baseline-offset);color:var(--prospectus-supporting-text);line-height:var(--prospectus-supporting-line-height);white-space:nowrap}
 /* Bordered pill: small SVG mark + label — shared Pages 1–3 */
 .shariah{display:flex;align-items:center;gap:6px;flex:none;min-width:0;border:1.5px solid var(--red);border-radius:7px;padding:5px 10px}
 .shariah-badge{width:var(--prospectus-shariah-badge-size);height:var(--prospectus-shariah-badge-size);object-fit:contain;flex:none;display:block}
@@ -235,7 +249,10 @@ h2{
 .split-card{display:grid;grid-template-columns:1fr 1.05fr;margin-top:var(--space-3)}.split-card.connected-card-top,.split-card.connected-card-middle,.split-card.connected-card-bottom{margin-top:0}.split-card>div{padding:15px}.split-card>div+div{border-left:1px solid var(--line)}
 .summary-list{margin:0}.summary-list div{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #d4d1d1;padding:5px 0}.summary-list div:last-child{border-bottom:0}
 .summary-list dt{font-weight:700;padding-left:28px;position:relative}.summary-list dt:before{content:"";width:18px;height:18px;background:#e3bfc0;border-radius:3px;position:absolute;left:0;top:-2px}.summary-list dd{margin:0;text-align:right}
-.tick-item{display:flex;gap:11px;margin-bottom:13px;align-items:flex-start}.tick-item .tick-icon{width:19px;height:19px;border-radius:50%;background:var(--prospectus-positive);color:#fff;padding:2px;box-sizing:border-box;flex:none;stroke-width:var(--prospectus-icon-stroke-width)}.tick-item p{font-size:9px;margin:0}.tick-item b{display:block;font-size:10px;margin-bottom:3px}
+.tick-item{display:flex;gap:10px;margin-bottom:13px;align-items:flex-start}
+.investor-highlight-check{width:22px;height:22px;border-radius:999px;background:var(--prospectus-positive-green);display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+.investor-highlight-check svg,.investor-highlight-check .icon{width:15px;height:15px;color:#fff;stroke-width:2.2;display:block}
+.tick-item p{font-size:9px;margin:0}.tick-item b{display:block;font-size:10px;margin-bottom:3px}
 .strip{border:var(--prospectus-border-width) solid var(--prospectus-border);padding:15px 15px 10px}.strip h2,.track h2{margin-bottom:var(--prospectus-section-title-margin-bottom)}
 .stats{display:grid;gap:var(--space-3)}.stats.five{grid-template-columns:repeat(5,1fr)}.stats.four{grid-template-columns:repeat(4,1fr)}
 .stat{display:grid;grid-template-columns:var(--prospectus-icon-stat) 1fr;grid-template-rows:auto auto;column-gap:7px;align-items:center}.stat .icon{grid-row:1/3;background:var(--prospectus-icon-bg);color:var(--prospectus-icon-stroke);border-radius:50%;padding:7px;width:var(--prospectus-icon-stat);height:var(--prospectus-icon-stat);box-sizing:border-box}.stat small{font-size:7px}.stat b{font-size:11px}
@@ -243,8 +260,9 @@ h2{
 table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--prospectus-table-red);color:#fff;padding:7px 5px;font-weight:600}td{border:1px solid #e1dddd;padding:5px;text-align:center}td:first-child,th:first-child{text-align:left}
 .table-wrap{overflow-x:auto}.track em,.financial-card em,.card em,.source{display:block;font-size:7px;margin-top:8px;font-style:italic}
 /* Shared disclaimer footer — pinned to A4 bottom; content source lines stay with their sections */
-.prospectus-footer,footer.prospectus-footer{margin-top:auto;display:flex;align-items:center;gap:8px;padding-top:10px;font-size:7px;color:var(--muted);flex-shrink:0}
-.prospectus-footer .icon{color:#b3131b;width:22px;height:22px;flex:none}
+.prospectus-footer,footer.prospectus-footer{margin-top:auto;display:flex;align-items:flex-start;gap:var(--prospectus-footer-icon-gap);padding-top:10px;flex-shrink:0}
+.prospectus-footer .icon{color:#b3131b;width:22px;height:22px;flex:none;margin-top:1px}
+.prospectus-footer-copy{font-size:var(--prospectus-supporting-font-size);line-height:var(--prospectus-supporting-line-height);color:var(--prospectus-supporting-text)}
 .financial-source{display:block;margin-top:var(--space-3);margin-left:12px;font-size:7px;font-style:italic}
 /* Page 2 top: plain two columns + vertical divider only (not a card) */
 .issuer-grid{display:grid;grid-template-columns:.9fr 1.1fr;margin-bottom:var(--space-3)}.issuer-grid>section{padding:20px 14px}.issuer-grid>section+section{border-left:1px solid var(--line)}

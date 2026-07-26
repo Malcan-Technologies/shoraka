@@ -62,10 +62,10 @@ function summaryRow(label: string, value: string, stage?: string): string {
 }
 
 function highlightItem(title: string, explanation: string, stage: string): string {
-  return `<div class="tick-item" data-stage="${stage}">${renderProspectusHeroicon(
+  return `<div class="tick-item" data-stage="${stage}"><span class="investor-highlight-check">${renderProspectusHeroicon(
     "highlight-check",
-    { className: "icon tick-icon" }
-  )}<p><b>${escapeHtml(title)}</b>${escapeHtml(explanation)}</p></div>`;
+    { className: "icon" }
+  )}</span><p><b>${escapeHtml(title)}</b>${escapeHtml(explanation)}</p></div>`;
 }
 
 /**

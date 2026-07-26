@@ -17,6 +17,6 @@ export const PROSPECTUS_FOOTER_DISCLAIMER_LINE2 =
 export function buildProspectusFooterHtml(): string {
   return `<footer class="prospectus-footer" data-stage="footer">
   ${renderProspectusHeroicon("disclaimer", { className: "icon" })}
-  <span>${PROSPECTUS_FOOTER_DISCLAIMER_LINE1}<br />${PROSPECTUS_FOOTER_DISCLAIMER_LINE2}</span>
+  <span class="prospectus-footer-copy">${PROSPECTUS_FOOTER_DISCLAIMER_LINE1}<br />${PROSPECTUS_FOOTER_DISCLAIMER_LINE2}</span>
 </footer>`;
 }

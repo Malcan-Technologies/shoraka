@@ -28,9 +28,9 @@ export function buildProspectusHeaderHtml(data: ProspectusHeader): string {
       ? data.tagline
       : PROSPECTUS_HEADER_TAGLINE;
   return `<header class="page-header" data-stage="header">
-  <div class="brand">
+  <div class="brand prospectus-brand">
     ${buildProspectusBrandMarkHtml()}
-    <div class="tagline">${escapeHtml(tagline)}</div>
+    <div class="tagline prospectus-tagline">${escapeHtml(tagline)}</div>
   </div>
   ${buildProspectusShariahBadgeHtml()}
 </header>`;

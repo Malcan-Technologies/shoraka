@@ -2,7 +2,7 @@
  * SECTION: Prospectus Heroicons — official map + About the Issuer building icon
  */
 
-import { BuildingOffice2Icon } from "@heroicons/react/24/outline";
+import { BuildingOffice2Icon, CheckIcon } from "@heroicons/react/24/outline";
 import { buildProspectusPageOneHtml } from "./prospectus-page-one.html";
 import { SAMPLE_PROSPECTUS_PAGE_ONE } from "./prospectus-page-one.sample-data";
 import { buildProspectusPageThreeHtml } from "./prospectus-page-three.html";
@@ -11,6 +11,7 @@ import { buildProspectusPageTwoHtml } from "./prospectus-page-two.html";
 import { SAMPLE_PROSPECTUS_PAGE_TWO } from "./prospectus-page-two.sample-data";
 import {
   PROSPECTUS_BUILDING_OFFICE_2_PATH_MARKER,
+  PROSPECTUS_CHECK_ICON_PATH_MARKER,
   PROSPECTUS_HEROICON_MAP,
   PROSPECTUS_LEGACY_BUILDING_PATH_MARKER,
   renderProspectusHeroicon,
@@ -124,5 +125,12 @@ describe("prospectus Heroicons", () => {
     const insights = html.slice(insightsStart, workStart);
     expect(insights).toContain('class="ratings"');
     expect(insights).not.toContain('data-prospectus-icon="credit-score"');
+  });
+
+  it("maps highlight-check to official CheckIcon", () => {
+    expect(PROSPECTUS_HEROICON_MAP["highlight-check"]).toBe(CheckIcon);
+    const svg = renderProspectusHeroicon("highlight-check");
+    expect(svg).toContain(PROSPECTUS_CHECK_ICON_PATH_MARKER);
+    expect(svg).toContain('data-prospectus-icon="highlight-check"');
   });
 });

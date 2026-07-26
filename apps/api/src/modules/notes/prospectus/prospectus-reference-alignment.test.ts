@@ -30,6 +30,10 @@ import {
   PROSPECTUS_PAGE_TITLE_FONT_SIZE_PX,
   PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX,
   PROSPECTUS_SHARIAH_BADGE_SIZE_PX,
+  PROSPECTUS_BRAND_GAP_PX,
+  PROSPECTUS_SUPPORTING_FONT_SIZE_PX,
+  PROSPECTUS_SUPPORTING_TEXT_COLOR,
+  PROSPECTUS_TAGLINE_BASELINE_OFFSET_PX,
   PROSPECTUS_TAGLINE_FONT_SIZE_PX,
 } from "./prospectus-document-styles";
 import {
@@ -132,12 +136,14 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
     expect(header.tagline).toBe(PROSPECTUS_HEADER_TAGLINE);
     const html = buildProspectusHeaderHtml(header);
     expect(html).toContain('class="brand-logo"');
+    expect(html).toContain("prospectus-brand");
+    expect(html).toContain("prospectus-tagline");
     expect(html).toContain(PROSPECTUS_HEADER_TAGLINE);
     expect(html).toContain("data:image/svg+xml;base64,");
     expect(html).not.toContain('class="brand-name"');
     expect(html).not.toContain("Cash<span>Souk</span>");
     expect(html).toMatch(
-      /class="brand-logo"[\s\S]*?class="tagline"/
+      /class="brand-logo"[\s\S]*?class="tagline prospectus-tagline"/
     );
   });
 
@@ -148,6 +154,9 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
     for (const html of [h1, h2, h3]) {
       expect(html).toContain('data-stage="header"');
       expect(html).toContain("page-header");
+      expect(html).toContain("prospectus-brand");
+      expect(html).toContain("prospectus-tagline");
+      expect(html).toContain("prospectus-footer-copy");
       expect(html).toContain(PROSPECTUS_HEADER_TAGLINE);
       expect((html.match(new RegExp(PROSPECTUS_HEADER_TAGLINE, "g")) ?? []).length).toBe(1);
       expect(html).toContain('class="brand-logo"');
@@ -161,7 +170,23 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
       expect(html).toContain(`height="${PROSPECTUS_LOGO_HEIGHT_PX}"`);
       expect(html).not.toContain('class="brand-name"');
       expect(html).not.toContain("Cash<span>Souk</span>");
+      expect(html).toContain(PROSPECTUS_FOOTER_DISCLAIMER_LINE1);
+      expect(html).toContain(PROSPECTUS_FOOTER_DISCLAIMER_LINE2);
     }
+  });
+
+  it("Page 1 Investor Highlights use official CheckIcon in green circles", () => {
+    const html = buildProspectusPageOneHtml(SAMPLE_PROSPECTUS_PAGE_ONE);
+    expect((html.match(/class="investor-highlight-check"/g) ?? []).length).toBe(4);
+    expect((html.match(/data-prospectus-icon="highlight-check"/g) ?? []).length).toBe(4);
+    expect(
+      (html.match(/investor-highlight-check[\s\S]*?m4\.5 12\.75 6 6 9-13\.5/g) ?? []).length
+    ).toBe(4);
+    expect(html).not.toContain("✓");
+    expect(html).not.toContain('data-prospectus-icon="highlight-check"></svg>✓');
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(".investor-highlight-check");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("stroke-width:2.2");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("var(--prospectus-positive-green)");
   });
 
   it("Page 1 uses the uploaded risk shield SVG with dynamic grade colour", () => {
@@ -202,7 +227,17 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
     expect(PROSPECTUS_LOGO_DISPLAY_WIDTH_PX).toBe(270);
     expect(PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX).toBe(52);
     expect(PROSPECTUS_LOGO_HEIGHT_PX).toBe(52);
-    expect(PROSPECTUS_TAGLINE_FONT_SIZE_PX).toBe(8.5);
+    expect(PROSPECTUS_SUPPORTING_FONT_SIZE_PX).toBe(9.5);
+    expect(PROSPECTUS_TAGLINE_FONT_SIZE_PX).toBe(9.5);
+    expect(PROSPECTUS_SUPPORTING_TEXT_COLOR).toBe("#4a4a4a");
+    expect(PROSPECTUS_BRAND_GAP_PX).toBe(8);
+    expect(PROSPECTUS_TAGLINE_BASELINE_OFFSET_PX).toBe(6);
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("--prospectus-supporting-font-size:9.5px");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("--prospectus-supporting-text:#4a4a4a");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("align-items:flex-end");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("--prospectus-brand-gap:8px");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("--prospectus-footer-icon-gap:6px");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(".prospectus-footer-copy");
     expect(PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX).toBe(12);
     expect(PROSPECTUS_PAGE_TITLE_FONT_SIZE_PX).toBe(22);
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(

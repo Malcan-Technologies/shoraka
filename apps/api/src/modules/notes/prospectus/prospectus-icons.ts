@@ -16,7 +16,7 @@ import {
   ChartBarIcon,
   ChartPieIcon,
   CheckBadgeIcon,
-  CheckCircleIcon,
+  CheckIcon,
   ClipboardDocumentCheckIcon,
   ClockIcon,
   CurrencyDollarIcon,
@@ -114,12 +114,15 @@ export const PROSPECTUS_HEROICON_MAP: Record<ProspectusIconName, HeroiconCompone
   "debt-servicing": CalculatorIcon,
   receivables: CalendarDaysIcon,
   "overall-profile": ChartPieIcon,
-  "highlight-check": CheckCircleIcon,
+  "highlight-check": CheckIcon,
   disclaimer: ShieldCheckIcon,
 };
 
 /** Distinctive path fragment from BuildingOffice2Icon — used in tests. */
 export const PROSPECTUS_BUILDING_OFFICE_2_PATH_MARKER = "M2.25 21h19.5m-18-18v18";
+
+/** Distinctive path fragment from CheckIcon — Investor Highlights. */
+export const PROSPECTUS_CHECK_ICON_PATH_MARKER = "m4.5 12.75 6 6 9-13.5";
 
 /** Old bespoke “ladder/server” building path — must not appear in Prospectus HTML. */
 export const PROSPECTUS_LEGACY_BUILDING_PATH_MARKER =
