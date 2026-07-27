@@ -165,6 +165,9 @@ export function buildProspectusPageThree(
     incomeStatement,
     balanceSheet,
     coverageEfficiency,
+    financialSource,
+    prospectusFinancialInputs: financialInputs,
+    page2FinancialOverrides,
   });
   const investorTakeaways = buildProspectusPageThreeInvestorTakeaways({
     metadata,

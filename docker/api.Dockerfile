@@ -22,6 +22,7 @@ RUN pnpm install --frozen-lockfile
 COPY apps/api ./apps/api
 COPY packages/types ./packages/types
 COPY packages/config ./packages/config
+# Prospectus HTML/PDF embeds logo + badge SVGs from apps/api/assets (not investor portal).
 
 RUN cd apps/api && pnpm prisma generate
 RUN pnpm --filter @cashsouk/types build
@@ -55,11 +56,12 @@ COPY --from=builder /app/.npmrc ./.npmrc
 # Copy all node_modules from builder (already contains all dependencies + Prisma client)
 COPY --from=builder /app/node_modules ./node_modules
 
-# Copy built API code
+# Copy built API code + Prospectus static SVG assets for HTML/PDF data-URI embedding
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=builder /app/apps/api/assets ./apps/api/assets
 
 # Copy workspace packages (for TypeScript resolution)
 COPY --from=builder /app/packages ./packages

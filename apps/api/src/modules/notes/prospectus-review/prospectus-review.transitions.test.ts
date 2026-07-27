@@ -167,6 +167,20 @@ jest.mock("../prospectus/prospectus-page-three.html", () => ({
 jest.mock("../prospectus/prospectus-issuer-track-record", () => ({
   toAdminIssuerTrackRecordRows: jest.fn(() => []),
 }));
+jest.mock("../prospectus/prospectus-pdf", () => ({
+  PROSPECTUS_PDF_STATUS_READY: "READY",
+  generateAndStoreProspectusPdf: jest.fn(async () => ({
+    storageBucket: "test-bucket",
+    storageKey: "prospectuses/test/note-1/pub-1/fp-1.pdf",
+    contentType: "application/pdf",
+    sizeBytes: 1234,
+    sha256: "a".repeat(64),
+    generatedAt: new Date("2026-07-19T10:00:00.000Z"),
+    generationStatus: "READY",
+    snapshotHash: "fp-1",
+    pageCount: 3,
+  })),
+}));
 
 const actor = {
   userId: "admin-1",

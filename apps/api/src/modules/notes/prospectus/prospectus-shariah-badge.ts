@@ -3,8 +3,8 @@
  * WHY: Self-contained data URI — PDF setContent cannot resolve public asset paths
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { resolveProspectusAssetAbsolutePath } from "./prospectus-asset-paths";
 import { escapeHtml, escapeHtmlAttribute } from "./prospectus-html";
 
 /** Compact icon size — small mark beside label (Canva-style pill badge). */
@@ -15,11 +15,7 @@ export const PROSPECTUS_SHARIAH_BADGE_LABEL = "Shariah Compliant";
 let cachedDataUri: string | null | undefined;
 
 export function resolveProspectusShariahBadgeAbsolutePath(): string | null {
-  const absolute = join(
-    __dirname,
-    "../../../../../investor/public/prospectus-shariah-badge.svg"
-  );
-  return existsSync(absolute) ? absolute : null;
+  return resolveProspectusAssetAbsolutePath("prospectus-shariah-badge.svg");
 }
 
 function prepareProspectusShariahBadgeSvg(svgXml: string): string {

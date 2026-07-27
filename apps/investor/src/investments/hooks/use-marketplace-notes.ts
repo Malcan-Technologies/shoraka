@@ -33,29 +33,31 @@ function useMarketplaceApiClient() {
   return createApiClient(API_URL, getAccessToken);
 }
 
-/** Open frozen published Prospectus HTML in a new tab (marketplace Note). */
+/** Open frozen published Prospectus PDF in a new tab (marketplace Note). */
 export function useOpenMarketplaceProspectus() {
   const apiClient = useMarketplaceApiClient();
   return async (noteId: string) => {
     const res = await apiClient.getMarketplaceNoteProspectus(noteId);
     if (!res.success) throw new Error(res.error.message);
-    const w = window.open("", "_blank");
+    if (!res.data.pdfViewUrl) {
+      throw new Error("Prospectus PDF is not available");
+    }
+    const w = window.open(res.data.pdfViewUrl, "_blank");
     if (!w) throw new Error("Pop-up blocked");
-    w.document.write(res.data.documentHtml);
-    w.document.close();
   };
 }
 
-/** Open Prospectus via investment.prospectus_publication_id only. */
+/** Open Prospectus PDF via investment.prospectus_publication_id only. */
 export function useOpenInvestmentProspectus() {
   const apiClient = useMarketplaceApiClient();
   return async (investmentId: string) => {
     const res = await apiClient.getInvestorInvestmentProspectus(investmentId);
     if (!res.success) throw new Error(res.error.message);
-    const w = window.open("", "_blank");
+    if (!res.data.pdfViewUrl) {
+      throw new Error("Prospectus PDF is not available");
+    }
+    const w = window.open(res.data.pdfViewUrl, "_blank");
     if (!w) throw new Error("Pop-up blocked");
-    w.document.write(res.data.documentHtml);
-    w.document.close();
   };
 }
 
