@@ -8,6 +8,7 @@
  */
 import * as React from "react";
 import { useApplication } from "@/hooks/use-applications";
+import { useInvoicesByApplication } from "@/hooks/use-invoices";
 import { useApprovedContracts } from "@/hooks/use-contracts";
 import {
   Select,
@@ -63,11 +64,11 @@ export function FinancingStructureStep({
    *       `selectedContractId` is a contract id string when `existing_contract`.
    */
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
+  const { data: invoices = [], isLoading: isLoadingInvoices } = useInvoicesByApplication(applicationId);
   const { data: approvedContracts = [] } = useApprovedContracts(
     application?.issuer_organization_id || ""
   );
   const hasApprovedContracts = approvedContracts.length > 0;
-
 
   /** Local state
    *
@@ -78,6 +79,12 @@ export function FinancingStructureStep({
   const [selectedStructure, setSelectedStructure] = React.useState<FinancingStructureType>(
     "new_contract"
   );
+
+  /** Invoice-only allows one invoice; block Save when switching with extras still on the application. */
+  const invoiceOnlyBlockedByMultipleInvoices =
+    selectedStructure === "invoice_only" && invoices.length > 1;
+  const invoiceOnlyBlockMessage =
+    "Invoice-only financing allows only one invoice. Remove the extra invoices first, then switch.";
 
   /** Local state
    *
@@ -166,9 +173,10 @@ export function FinancingStructureStep({
       }
     }
 
-    // isValid: only invalid when existing_contract selected but no contract chosen
+    // isValid: existing_contract needs a contract; invoice_only cannot keep multiple invoices
     const isValid =
-      selectedStructure !== "existing_contract" || selectedContractId !== "";
+      (selectedStructure !== "existing_contract" || selectedContractId !== "") &&
+      !invoiceOnlyBlockedByMultipleInvoices;
 
     // Normalize missing DB values to the UI defaults so initial-load
     // equality checks are correct and we don't mark the step as dirty
@@ -195,9 +203,18 @@ export function FinancingStructureStep({
       hasPendingChanges,
       structureChanged,
       hasBeenSavedBefore,
+      validationError: invoiceOnlyBlockedByMultipleInvoices ? invoiceOnlyBlockMessage : undefined,
     });
 
-  }, [selectedStructure, selectedContractId, approvedContracts, isInitialized, application]);
+  }, [
+    selectedStructure,
+    selectedContractId,
+    approvedContracts,
+    isInitialized,
+    application,
+    invoiceOnlyBlockedByMultipleInvoices,
+    invoiceOnlyBlockMessage,
+  ]);
 
   /**
    * Handle structure type selection
@@ -205,10 +222,12 @@ export function FinancingStructureStep({
   const handleStructureSelect = (type: FinancingStructureType) => {
     setSelectedStructure(type);
 
-    sessionStorage.setItem(
-      "cashsouk:financing_structure_override",
-      type
-    );
+    // Avoid UI/DB desync: do not stash invoice_only while multiple invoices still exist.
+    if (type === "invoice_only" && invoices.length > 1) {
+      sessionStorage.removeItem("cashsouk:financing_structure_override");
+    } else {
+      sessionStorage.setItem("cashsouk:financing_structure_override", type);
+    }
     window.dispatchEvent(new Event("storage"));
 
     if (type !== "existing_contract") {
@@ -236,7 +255,7 @@ export function FinancingStructureStep({
 
 
   // Loading state
-  if (isLoadingApp || devTools?.showSkeletonDebug) {
+  if (isLoadingApp || isLoadingInvoices || devTools?.showSkeletonDebug) {
     return <FinancingStructureSkeleton />;
   }
 
@@ -314,6 +333,11 @@ export function FinancingStructureStep({
           disabled={readOnly}
         />
       </div>
+      {invoiceOnlyBlockedByMultipleInvoices ? (
+        <p className="mt-3 text-sm text-destructive" role="alert">
+          {invoiceOnlyBlockMessage}
+        </p>
+      ) : null}
     </div>
     </>
   );

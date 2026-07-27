@@ -20,6 +20,7 @@ import {
 } from "@cashsouk/types";
 import { cn } from "@/lib/utils";
 import { ItemActionDropdown } from "@/components/application-review/item-action-dropdown";
+import { OfferAcceptanceDeadlineConfirmRows } from "@/components/application-review/offer-acceptance-deadline-confirm-rows";
 import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
 import { REVIEW_EMPTY_LABEL } from "@/components/application-review/review-section-styles";
 import { Button } from "@/components/ui/button";
@@ -1143,14 +1144,11 @@ export function InvoiceList({
                   </span>
                 </div>
                 {acceptanceDeadlinePreview ? (
-                  <div className="flex justify-between items-baseline gap-4">
-                    <span className="text-sm font-medium text-muted-foreground">
-                      Acceptance deadline
-                    </span>
-                    <span className="text-right text-[15px] font-medium">
-                      {acceptanceDeadlinePreview.summary}
-                    </span>
-                  </div>
+                  <OfferAcceptanceDeadlineConfirmRows
+                    preview={acceptanceDeadlinePreview}
+                    labelClassName="text-sm font-medium text-muted-foreground"
+                    valueClassName="text-[15px] font-medium"
+                  />
                 ) : null}
               </div>
               <DialogFooter className="gap-2 sm:gap-0">

@@ -18,10 +18,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useContractDetail } from "@/contracts/hooks/use-contract-detail";
-import { useAuthToken } from "@cashsouk/config";
-import { toast } from "sonner";
+import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import {
   ArrowTopRightOnSquareIcon,
+  ArrowDownTrayIcon,
   CheckCircleIcon,
   ClockIcon,
   IdentificationIcon,
@@ -220,8 +220,8 @@ function ContractDetailSkeleton() {
 
 export function ContractDetailView({ contractId }: ContractDetailViewProps) {
   const { data, isLoading, error } = useContractDetail(contractId);
-  const { getAccessToken } = useAuthToken();
-  const [isOpeningDocument, setIsOpeningDocument] = React.useState(false);
+  const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
+    useAdminS3DocumentViewDownload();
   const contractDetails = (data?.contractDetails ?? null) as Record<string, unknown> | null;
   const customerDetails = (data?.customerDetails ?? null) as Record<string, unknown> | null;
 
@@ -239,40 +239,6 @@ export function ContractDetailView({ contractId }: ContractDetailViewProps) {
     facilityFeeCap != null
       ? `${formatCurrency(facilityFeePaidAmount)} / ${formatCurrency(facilityFeeCap)} cap`
       : null;
-
-  const openDocument = React.useCallback(
-    async (s3Key: string) => {
-      try {
-        setIsOpeningDocument(true);
-        const token = await getAccessToken();
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-        const response = await fetch(`${apiUrl}/v1/s3/view-url`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ s3Key }),
-        });
-
-        const result = await response.json();
-        if (!result.success) {
-          throw new Error(result.error?.message || "Failed to open document");
-        }
-
-        const viewUrl = result.data?.viewUrl as string | undefined;
-        if (!viewUrl) {
-          throw new Error("No view URL was returned");
-        }
-        window.open(viewUrl, "_blank", "noopener,noreferrer");
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to open document");
-      } finally {
-        setIsOpeningDocument(false);
-      }
-    },
-    [getAccessToken]
-  );
 
   return (
     <div className="space-y-6">
@@ -479,46 +445,44 @@ export function ContractDetailView({ contractId }: ContractDetailViewProps) {
                     <CardContent className="space-y-3">
                       {(() => {
                         const contractDoc = (contractDetails?.document ?? undefined) as FileDoc | undefined;
-                        const customerDoc = (customerDetails?.document ?? undefined) as FileDoc | undefined;
                         return (
-                          <>
-                            <div className="flex items-center justify-between rounded-xl border bg-background px-4 py-3">
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium">Contract Document</p>
-                                <p className="text-xs text-muted-foreground truncate">{renderFileLabel(contractDoc)}</p>
-                              </div>
-                              {contractDoc?.s3_key && (
+                          <div className="flex items-center justify-between rounded-xl border bg-background px-4 py-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium">Contract Document</p>
+                              <p className="text-xs text-muted-foreground truncate">{renderFileLabel(contractDoc)}</p>
+                            </div>
+                            {contractDoc?.s3_key ? (
+                              <div className="flex flex-wrap items-center gap-2 shrink-0">
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   className="gap-1"
-                                  onClick={() => openDocument(contractDoc.s3_key as string)}
-                                  disabled={isOpeningDocument}
+                                  onClick={() =>
+                                    void handleViewDocument(contractDoc.s3_key as string)
+                                  }
+                                  disabled={viewDocumentPending}
                                 >
                                   <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                                   View
                                 </Button>
-                              )}
-                            </div>
-                            <div className="flex items-center justify-between rounded-xl border bg-background px-4 py-3">
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium">Customer Consent</p>
-                                <p className="text-xs text-muted-foreground truncate">{renderFileLabel(customerDoc)}</p>
-                              </div>
-                              {customerDoc?.s3_key && (
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   className="gap-1"
-                                  onClick={() => openDocument(customerDoc.s3_key as string)}
-                                  disabled={isOpeningDocument}
+                                  onClick={() =>
+                                    void handleDownloadDocument(
+                                      contractDoc.s3_key as string,
+                                      contractDoc.file_name
+                                    )
+                                  }
+                                  disabled={viewDocumentPending}
                                 >
-                                  <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                                  View
+                                  <ArrowDownTrayIcon className="h-4 w-4" />
+                                  Download
                                 </Button>
-                              )}
-                            </div>
-                          </>
+                              </div>
+                            ) : null}
+                          </div>
                         );
                       })()}
                     </CardContent>

@@ -42,6 +42,11 @@ export type AcceptanceDeadlinePreview = {
   absolute: string;
   /** e.g. "Issuer has 7 days · Accept by 29 Jul 2026, 2:36 PM" */
   summary: string;
+  /** Stacked confirm-dialog copy (avoids wrapping the one-liner at narrow widths). */
+  confirmDialogLines: {
+    duration: string;
+    acceptBy: string;
+  };
 };
 
 export function phaseDeadlineLabel(status: OfferAcceptanceStatus | string | null | undefined): string {
@@ -129,10 +134,15 @@ export function previewAcceptanceDeadlineFromWorkflow(
   const acceptByIso = addDaysIso(sentAt, deadline.days);
   const absolute = format(new Date(acceptByIso), "dd MMM yyyy, h:mm a");
   const dayLabel = deadline.days === 1 ? "1 day" : `${deadline.days} days`;
+  const duration = `Issuer has ${dayLabel}`;
   return {
     days: deadline.days,
     acceptByIso,
     absolute,
-    summary: `Issuer has ${dayLabel} · Accept by ${absolute}`,
+    summary: `${duration} · Accept by ${absolute}`,
+    confirmDialogLines: {
+      duration,
+      acceptBy: `Accept by ${absolute}`,
+    },
   };
 }

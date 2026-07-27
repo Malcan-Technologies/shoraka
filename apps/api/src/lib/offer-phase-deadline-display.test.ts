@@ -97,6 +97,10 @@ describe("previewAcceptanceDeadlineFromWorkflow", () => {
     expect(preview?.acceptByIso).toBe("2026-07-29T00:00:00.000Z");
     expect(preview?.summary).toContain("Issuer has 7 days");
     expect(preview?.summary).toContain("Accept by");
+    expect(preview?.confirmDialogLines).toEqual({
+      duration: "Issuer has 7 days",
+      acceptBy: expect.stringContaining("Accept by"),
+    });
   });
 });
 

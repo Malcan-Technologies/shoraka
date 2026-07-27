@@ -83,7 +83,7 @@ export function useUpdateApplicationStep() {
     mutationFn: async ({ id, stepData }: { id: string; stepData: UpdateApplicationStepInput }) => {
       const response = await apiClient.updateApplicationStep(id, stepData);
       if (!response.success) {
-        throw new Error(response.error.message);
+        throw new ApiMutationError(response.error.message, response.error.code);
       }
       return response.data;
     },
@@ -93,6 +93,10 @@ export function useUpdateApplicationStep() {
       queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
     },
     onError: (error: Error) => {
+      // Caller maps structured codes (e.g. MAX_INVOICES_REACHED) to specific copy.
+      if (error instanceof ApiMutationError && error.code === "MAX_INVOICES_REACHED") {
+        return;
+      }
       toast.error("Failed to save progress", {
         description: error.message,
       });

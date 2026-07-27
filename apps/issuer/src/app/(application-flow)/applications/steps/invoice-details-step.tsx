@@ -290,6 +290,8 @@ interface InvoiceDetailsStepProps {
   flaggedSections?: Set<string>;
   flaggedItems?: Map<string, Set<string>>;
   remarks?: InvoiceRemarkItem[];
+  /** Session/DB effective structure; preferred over stale DB when user changed Financing Structure without saving. */
+  effectiveStructureType?: "new_contract" | "existing_contract" | "invoice_only" | null;
 }
 
 export default function InvoiceDetailsStep({
@@ -299,6 +301,7 @@ export default function InvoiceDetailsStep({
   isAmendmentMode = false,
   flaggedSections,
   remarks = [],
+  effectiveStructureType = null,
 }: InvoiceDetailsStepProps) {
   const devTools = useDevTools();
 
@@ -694,7 +697,8 @@ export default function InvoiceDetailsStep({
   const storedAvailableFacility =
     typeof cd?.available_facility === "number" ? cd.available_facility : null;
 
-  const structureType = application?.financing_structure?.structure_type;
+  const structureType =
+    effectiveStructureType ?? application?.financing_structure?.structure_type;
   const hasApprovedFacility = approvedFacility > 0;
 
   let facilityLimit = 0;
@@ -715,8 +719,8 @@ export default function InvoiceDetailsStep({
     !isLoadingInvoices &&
     !isLoadingApplication;
 
-  const isInvoiceOnly = application?.financing_structure?.structure_type === "invoice_only";
-  const isExistingContract = application?.financing_structure?.structure_type === "existing_contract";
+  const isInvoiceOnly = structureType === "invoice_only";
+  const isExistingContract = structureType === "existing_contract";
 
   /** Invoice-only applications allow only one invoice; existing rows are never removed automatically. */
   const maxInvoicesReached = isInvoiceOnly && invoices.length >= 1;

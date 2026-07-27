@@ -1118,6 +1118,7 @@ function EditApplicationPageBody() {
           flaggedSections={flaggedSections}
           flaggedItems={flaggedItems}
           remarks={amendmentContext?.remarks ?? []}
+          effectiveStructureType={effectiveStructureType}
         />
       );
     }
@@ -1686,6 +1687,16 @@ function EditApplicationPageBody() {
     } catch (err) {
       if (err instanceof Error && err.message.startsWith("VALIDATION_")) {
         return;
+      }
+      if (currentStepKey === "financing_structure") {
+        sessionStorage.removeItem("cashsouk:financing_structure_override");
+        setSessionStructureType(null);
+        if (getApiMutationErrorCode(err) === "MAX_INVOICES_REACHED") {
+          toast.error(
+            "Cannot switch to invoice-only with more than one invoice. Remove the extra invoices first."
+          );
+          return;
+        }
       }
       toast.error("Something went wrong. Please try again.");
     } finally {

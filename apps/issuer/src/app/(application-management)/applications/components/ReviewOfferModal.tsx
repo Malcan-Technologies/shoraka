@@ -106,6 +106,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { OfferAcceptanceSubmittedSuccessView } from "@/components/onboarding-fee-return-views";
 
 const PLATFORM_FEE_TOOLTIP =
   "Deducted from disbursement when funding closes, applied as a percentage of the funded amount.";
@@ -1288,9 +1289,8 @@ export function ReviewOfferModal({
         toast.error(err.message);
         return;
       }
-      toast.success("Offer acceptance submitted");
-      // Await the unified refresh before clearing the viewed step so the next smart-land
-      // computation (D-05) reads the post-submit phase, not the pre-submit snapshot.
+      // Await refresh so phase becomes PENDING_ADMIN_REVIEW and we swap to the
+      // completion dialog instead of the full "Under review" Review Offer UI.
       await invalidateOfferAcceptanceQueries();
       setViewedStepId(null);
     } catch (error) {
@@ -2311,26 +2311,8 @@ export function ReviewOfferModal({
 
     switch (stepId) {
       case "awaiting_review":
-        return (
-          <Card className="border-primary/20 bg-primary/5">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <DocumentTextIcon className="h-5 w-5 text-primary" />
-                Under review
-              </CardTitle>
-              <CardDescription>
-                CashSouk is reviewing your acceptance documents. You will be able to configure
-                signers once they are approved.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                No further action is required from you right now. Close this dialog and check back
-                later, or keep this page open — it refreshes automatically.
-              </p>
-            </CardContent>
-          </Card>
-        );
+        // Replaced by OfferAcceptanceSubmittedSuccessView at the modal root.
+        return null;
       case "rejected":
       case "declined": {
         // Terminal — never the "Under review" copy or the auto-refresh reassurance (nothing
@@ -2756,6 +2738,22 @@ export function ReviewOfferModal({
       </Card>
     );
   };
+
+  // After Step 1 submit (or if reopened while PENDING_ADMIN_REVIEW): simple completion
+  // dialog — same pattern as application processing-fee success — not the full Review Offer UI.
+  if (displaySigningStepId === "awaiting_review") {
+    return (
+      <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent
+          className="max-w-md border-0 bg-transparent p-0 shadow-none"
+          aria-describedby={undefined}
+        >
+          <DialogTitle className="sr-only">Documents submitted</DialogTitle>
+          <OfferAcceptanceSubmittedSuccessView onContinue={onClose} />
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={true} onOpenChange={(open) => !open && requestClose()}>

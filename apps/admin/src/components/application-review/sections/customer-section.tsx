@@ -2,8 +2,7 @@
 
 import * as React from "react";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { DocumentTextIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
+import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import { ReviewSectionCard } from "../review-section-card";
 import { ReviewFieldBlock } from "../review-field-block";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
@@ -14,20 +13,9 @@ import {
   reviewEmptyStateClass,
   REVIEW_EMPTY_LABEL,
   formatReviewValue,
-  formatFileSize,
 } from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
 import { ComparisonFieldRow, ComparisonYesNoRadioRow, unknownToTriBool } from "../comparison-field-row";
-import {
-  ComparisonDocumentTitleRow,
-  fileDocToComparisonChips,
-} from "../comparison-document-pair";
-
-interface FileDoc {
-  s3_key?: string;
-  file_name?: string;
-  file_size?: number;
-}
 
 export interface CustomerSectionProps {
   customerDetails?: unknown;
@@ -41,6 +29,7 @@ export interface CustomerSectionProps {
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
+  /** Kept for call-site compatibility; Customer Consent evidence is no longer shown. */
   onViewDocument?: (s3Key: string) => void;
   onDownloadDocument?: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
@@ -66,9 +55,6 @@ export function CustomerSection({
   onApprove,
   onReject,
   onRequestAmendment,
-  onViewDocument,
-  onDownloadDocument,
-  viewDocumentPending,
   comments,
   onAddComment,
   sectionComparison,
@@ -78,8 +64,6 @@ export function CustomerSection({
     const { beforeCustomer, afterCustomer, isPathChanged } = sectionComparison;
     const b = beforeCustomer as Record<string, unknown> | null | undefined;
     const a = afterCustomer as Record<string, unknown> | null | undefined;
-    const bDoc = b?.document as FileDoc | undefined;
-    const aDoc = a?.document as FileDoc | undefined;
     return (
       <ReviewSectionCard title="Customer" icon={DocumentTextIcon} section={section} isReviewable={false}>
         <ReviewFieldBlock title="Customer Details">
@@ -116,17 +100,6 @@ export function CustomerSection({
             />
           </div>
         </ReviewFieldBlock>
-        <ReviewFieldBlock title="Evidence">
-          <ComparisonDocumentTitleRow
-            title="Customer Consent"
-            beforeFiles={fileDocToComparisonChips(bDoc)}
-            afterFiles={fileDocToComparisonChips(aDoc)}
-            markChanged={isPathChanged("contract")}
-            onViewDocument={onViewDocument}
-            onDownloadDocument={onDownloadDocument}
-            viewDocumentPending={viewDocumentPending}
-          />
-        </ReviewFieldBlock>
         {!hideSectionComments ? (
           <SectionComments comments={comments} onSubmitComment={onAddComment} />
         ) : null}
@@ -135,7 +108,6 @@ export function CustomerSection({
   }
 
   const cust = customerDetails as Record<string, unknown> | null | undefined;
-  const customerDoc = cust?.document as FileDoc | undefined;
   const hasData = !!cust;
 
   return (
@@ -155,62 +127,26 @@ export function CustomerSection({
       showApprove={true}
     >
       {hasData ? (
-        <>
-          <ReviewFieldBlock title="Customer Details">
-            <div className={reviewRowGridClass}>
-              <Label className={reviewLabelClass}>Customer Name</Label>
-              <div className={reviewValueClass}>{formatReviewValue(cust.name)}</div>
-              <Label className={reviewLabelClass}>Customer Entity Type</Label>
-              <div className={reviewValueClass}>{formatReviewValue(cust.entity_type)}</div>
-              <Label className={reviewLabelClass}>Customer SSM Number</Label>
-              <div className={reviewValueClass}>{formatReviewValue(cust.ssm_number)}</div>
-              <Label className={reviewLabelClass}>Customer Country</Label>
-              <div className={reviewValueClass}>{formatReviewValue(cust.country)}</div>
-              <Label className={reviewLabelClass}>Is Customer Related to Issuer?</Label>
-              <div className={reviewValueClass}>
-                {cust.is_related_party === true
-                  ? "Yes"
-                  : cust.is_related_party === false
-                    ? "No"
-                    : REVIEW_EMPTY_LABEL}
-              </div>
+        <ReviewFieldBlock title="Customer Details">
+          <div className={reviewRowGridClass}>
+            <Label className={reviewLabelClass}>Customer Name</Label>
+            <div className={reviewValueClass}>{formatReviewValue(cust.name)}</div>
+            <Label className={reviewLabelClass}>Customer Entity Type</Label>
+            <div className={reviewValueClass}>{formatReviewValue(cust.entity_type)}</div>
+            <Label className={reviewLabelClass}>Customer SSM Number</Label>
+            <div className={reviewValueClass}>{formatReviewValue(cust.ssm_number)}</div>
+            <Label className={reviewLabelClass}>Customer Country</Label>
+            <div className={reviewValueClass}>{formatReviewValue(cust.country)}</div>
+            <Label className={reviewLabelClass}>Is Customer Related to Issuer?</Label>
+            <div className={reviewValueClass}>
+              {cust.is_related_party === true
+                ? "Yes"
+                : cust.is_related_party === false
+                  ? "No"
+                  : REVIEW_EMPTY_LABEL}
             </div>
-          </ReviewFieldBlock>
-
-          <ReviewFieldBlock title="Evidence">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between rounded-xl border border-input bg-background px-4 py-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground">Customer Consent</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {customerDoc?.file_name
-                        ? `${customerDoc.file_name}${
-                            customerDoc.file_size
-                              ? ` (${formatFileSize(customerDoc.file_size)})`
-                              : ""
-                          }`
-                        : REVIEW_EMPTY_LABEL}
-                    </div>
-                  </div>
-                </div>
-                {customerDoc?.s3_key && onViewDocument && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-lg h-9 gap-1 shrink-0"
-                    onClick={() => onViewDocument(customerDoc.s3_key!)}
-                    disabled={viewDocumentPending}
-                  >
-                    <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                    View
-                  </Button>
-                )}
-              </div>
-            </div>
-          </ReviewFieldBlock>
-        </>
+          </div>
+        </ReviewFieldBlock>
       ) : (
         <p className={reviewEmptyStateClass}>No customer details submitted.</p>
       )}
