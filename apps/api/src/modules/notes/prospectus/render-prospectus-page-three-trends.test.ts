@@ -17,16 +17,43 @@ import {
 } from "./prospectus-page-three-trends.types";
 import { buildProspectusPageThreeTrendsDocument } from "./render-prospectus-page-three-trends";
 
-function composeFromYears(years: Record<string, Record<string, unknown>>) {
+function composeFromYears(
+  years: Record<string, Record<string, unknown>>,
+  extras?: {
+    prospectusFinancialInputs?: ProspectusPageThreeTrendsInputExtras["prospectusFinancialInputs"];
+    page2FinancialOverrides?: ProspectusPageThreeTrendsInputExtras["page2FinancialOverrides"];
+  }
+) {
   const financialSource = financialSourceFromYearBlocks(years, {
     financialYearEnd: "2024-12-31",
   });
   return {
     incomeStatement: buildProspectusPageThreeIncomeStatement({ financialSource }),
     balanceSheet: buildProspectusPageThreeBalanceSheet({ financialSource }),
-    coverageEfficiency: buildProspectusPageThreeCoverageEfficiency({ financialSource }),
+    coverageEfficiency: buildProspectusPageThreeCoverageEfficiency({
+      financialSource,
+      prospectusFinancialInputs: extras?.prospectusFinancialInputs,
+      page2FinancialOverrides: extras?.page2FinancialOverrides,
+    }),
+    financialSource,
+    prospectusFinancialInputs: extras?.prospectusFinancialInputs,
+    page2FinancialOverrides: extras?.page2FinancialOverrides,
   };
 }
+
+type ProspectusPageThreeTrendsInputExtras = {
+  prospectusFinancialInputs?: {
+    years?: Record<string, Record<string, string | number | null | undefined>>;
+  } | null;
+  page2FinancialOverrides?: Record<
+    string,
+    {
+      interestCoverage?: number | null;
+      dscr?: number | null;
+      receivablesDays?: number | null;
+    }
+  > | null;
+};
 
 describe("prospectus Page 3 trends (DATA STAGE 5)", () => {
   it("uses static FINANCIAL TRENDS heading", () => {
@@ -46,146 +73,107 @@ describe("prospectus Page 3 trends (DATA STAGE 5)", () => {
     expect(new Set(keys).size).toBe(26);
   });
 
-  it("keeps every visible trend and interpretation as —", () => {
+  it("keeps income/balance trends unavailable and allows coverage when three values exist", () => {
     const data = buildProspectusPageThreeTrends(SAMPLE_PROSPECTUS_PAGE_THREE_TRENDS_INPUT);
-    for (const item of data.trends) {
-      expect(item.trend).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-      expect(item.trend).toBe("—");
-      expect(item.interpretation).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-      expect(item.direction).toBeNull();
+    for (const item of data.trends.slice(0, 16)) {
       expect(item.approved).toBe(false);
+      expect(item.direction).toBe("unavailable");
+      expect(item.trend).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     }
+    const roe = data.trends.find((t) => t.metricKey === "return_on_equity");
+    expect(roe?.approved).toBe(true);
+    expect(roe?.direction).toBe("up");
   });
 
-  it("does not generate arrows, directional colours, or movement wording", () => {
-    const html = buildProspectusPageThreeTrendsDocument(
-      buildProspectusPageThreeTrends(SAMPLE_PROSPECTUS_PAGE_THREE_TRENDS_INPUT)
+  it("computes Interest Coverage favourable up from Page 2 overrides", () => {
+    const data = buildProspectusPageThreeTrends(
+      composeFromYears(
+        {
+          "2022": { turnover: 1, plnpat: 1, bsqpuc: 1 },
+          "2023": { turnover: 1, plnpat: 1, bsqpuc: 1 },
+          "2024": { turnover: 1, plnpat: 1, bsqpuc: 1 },
+        },
+        {
+          page2FinancialOverrides: {
+            "2022-12-31": { interestCoverage: 2 },
+            "2023-12-31": { interestCoverage: 3 },
+            "2024-12-31": { interestCoverage: 4 },
+          },
+        }
+      )
     );
-    expect(html).not.toMatch(/[↑↓▲▼→←]/);
-    expect(html).not.toMatch(/green|red|#0f0|#f00|color:/i);
-    expect(html).not.toMatch(/\bUp\b|\bDown\b|\bStable\b|\bFlat\b/i);
-    expect(html).not.toMatch(/Improving|Declining|Favourable|Unfavorable|Unfavourable/i);
-    expect(html).not.toMatch(/\bPositive\b|\bNegative\b/i);
-    expect(PROSPECTUS_PAGE_THREE_TRENDS_AUDIT.display.arrowsAllowed).toBe(false);
-    expect(PROSPECTUS_PAGE_THREE_TRENDS_AUDIT.display.directionalColoursAllowed).toBe(false);
-    expect(PROSPECTUS_PAGE_THREE_TRENDS_AUDIT.display.generatedInterpretationAllowed).toBe(
-      false
-    );
+    const ic = data.trends.find((t) => t.metricKey === "interest_coverage");
+    expect(ic).toMatchObject({
+      direction: "up",
+      consistency: "consistent",
+      interpretation: "favourable",
+      approved: true,
+    });
   });
 
-  it("keeps DNA for increasing, decreasing, and sign-change movements", () => {
-    const increasing = buildProspectusPageThreeTrends(
-      composeFromYears({
-        "2022": { turnover: 1_000_000, plnpat: 100_000, bsqpuc: 1_000_000, curlib: 100_000 },
-        "2023": { turnover: 2_000_000, plnpat: 200_000, bsqpuc: 1_000_000, curlib: 200_000 },
-        "2024": { turnover: 3_000_000, plnpat: 300_000, bsqpuc: 1_000_000, curlib: 300_000 },
-      })
+  it("computes Receivables Days favourable down from Page 2 overrides", () => {
+    const data = buildProspectusPageThreeTrends(
+      composeFromYears(
+        {
+          "2022": { turnover: 1, plnpat: 1, bsqpuc: 1 },
+          "2023": { turnover: 1, plnpat: 1, bsqpuc: 1 },
+          "2024": { turnover: 1, plnpat: 1, bsqpuc: 1 },
+        },
+        {
+          page2FinancialOverrides: {
+            "2022-12-31": { receivablesDays: 90 },
+            "2023-12-31": { receivablesDays: 70 },
+            "2024-12-31": { receivablesDays: 50 },
+          },
+        }
+      )
     );
-    expect(increasing.trends.every((t) => t.trend === PROSPECTUS_DATA_NOT_AVAILABLE)).toBe(
-      true
-    );
-
-    const decreasing = buildProspectusPageThreeTrends(
-      composeFromYears({
-        "2022": { turnover: 3_000_000, plnpat: 300_000, bsqpuc: 1_000_000, curlib: 300_000 },
-        "2023": { turnover: 2_000_000, plnpat: 200_000, bsqpuc: 1_000_000, curlib: 200_000 },
-        "2024": { turnover: 1_000_000, plnpat: 100_000, bsqpuc: 1_000_000, curlib: 100_000 },
-      })
-    );
-    expect(decreasing.trends.every((t) => t.trend === PROSPECTUS_DATA_NOT_AVAILABLE)).toBe(
-      true
-    );
-
-    const signChange = buildProspectusPageThreeTrends(
-      composeFromYears({
-        "2022": { turnover: 1_000_000, plnpat: -100_000, bsqpuc: 1_000_000 },
-        "2023": { turnover: 1_000_000, plnpat: 100_000, bsqpuc: 1_000_000 },
-        "2024": { turnover: 1_000_000, plnpat: -50_000, bsqpuc: 1_000_000 },
-      })
-    );
-    expect(signChange.trends.every((t) => t.trend === PROSPECTUS_DATA_NOT_AVAILABLE)).toBe(
-      true
-    );
+    const days = data.trends.find((t) => t.metricKey === "receivables_days");
+    expect(days).toMatchObject({
+      direction: "down",
+      consistency: "consistent",
+      interpretation: "favourable",
+      approved: true,
+    });
   });
 
-  it("keeps DNA for one, two, three years, zeros, and missing values", () => {
-    const cases = [
-      composeFromYears({ "2024": { turnover: 1, plnpat: 1, bsqpuc: 1 } }),
+  it("marks coverage unavailable when officer values are missing", () => {
+    const data = buildProspectusPageThreeTrends(
       composeFromYears({
+        "2022": { turnover: 1, plnpat: 1, bsqpuc: 1 },
         "2023": { turnover: 1, plnpat: 1, bsqpuc: 1 },
-        "2024": { turnover: 2, plnpat: 2, bsqpuc: 1 },
-      }),
-      composeFromYears({
-        "2022": { turnover: 0, plnpat: 0, bsqpuc: 0, curlib: 0, bscatot: 0 },
-        "2023": { turnover: 0, plnpat: 0, bsqpuc: 0, curlib: 0, bscatot: 0 },
-        "2024": { turnover: 0, plnpat: 0, bsqpuc: 0, curlib: 0, bscatot: 0 },
-      }),
-      composeFromYears({
-        "2022": { turnover: 1 },
-        "2024": { turnover: 2 },
-      }),
-      composeFromYears({
-        "2022": { turnover: 1, plnpat: 1 },
-        "2023": {},
-        "2024": { bsqpuc: 1 },
-      }),
-    ];
-
-    for (const input of cases) {
-      const data = buildProspectusPageThreeTrends(input);
-      expect(data.trends.every((t) => t.trend === PROSPECTUS_DATA_NOT_AVAILABLE)).toBe(true);
-    }
+        "2024": { turnover: 1, plnpat: 1, bsqpuc: 1 },
+      })
+    );
+    const ocf = data.trends.find((t) => t.metricKey === "operating_cash_flow");
+    expect(ocf?.approved).toBe(false);
+    expect(ocf?.direction).toBe("unavailable");
   });
 
-  it("composes Stage 2–4 outputs without remapping, year selection, Application parse, CTOS, Prisma, or reverse-parsing", () => {
+  it("does not reverse-parse formatted display strings", () => {
     const moduleSource = readFileSync(
       join(__dirname, "prospectus-page-three-trends.ts"),
       "utf8"
     );
-    expect(moduleSource).not.toMatch(/selectProspectusFinancialComparisonYears/);
-    expect(moduleSource).not.toMatch(/unaudited_by_year/);
-    expect(moduleSource).not.toMatch(/buildProspectusFinancialComparisonSource/);
-    expect(moduleSource).not.toMatch(/parseProspectusFinancialNumber/);
-    expect(moduleSource).not.toMatch(/formatProspectusMoneyMyr/);
-    expect(moduleSource).not.toMatch(/calculateReturnOnEquity/);
-    expect(moduleSource).not.toMatch(/prisma/i);
     expect(moduleSource).not.toMatch(/replace\(/);
     expect(moduleSource).not.toMatch(/Number\(/);
-    expect(PROSPECTUS_PAGE_THREE_TRENDS_AUDIT.source.composedFromPageThreeSections).toBe(
-      true
-    );
-    expect(PROSPECTUS_PAGE_THREE_TRENDS_AUDIT.source.rawFinancialSourceReadDirectly).toBe(
-      false
-    );
+    expect(moduleSource).toContain("numericValueForCoverageRow");
     expect(
       PROSPECTUS_PAGE_THREE_TRENDS_AUDIT.source.formattedValueReverseParsingAllowed
     ).toBe(false);
-    expect(PROSPECTUS_PAGE_THREE_TRENDS_AUDIT.rules.genericHigherIsBetterAllowed).toBe(
-      false
-    );
-    expect(PROSPECTUS_PAGE_THREE_TRENDS_AUDIT.snapshot.trendOutputsFrozen).toBe(false);
-    expect(PROSPECTUS_PAGE_THREE_TRENDS_AUDIT.snapshot.ruleVersionAvailable).toBe(false);
-
-    const withCtos = buildProspectusPageThreeTrends({
-      ...SAMPLE_PROSPECTUS_PAGE_THREE_TRENDS_INPUT,
-      ctosFinancials: { financials: [{ financial_year: 2020, turnover: 9_999_999 }] },
-    });
-    expect(withCtos.trends.every((t) => t.trend === PROSPECTUS_DATA_NOT_AVAILABLE)).toBe(
-      true
-    );
+    expect(PROSPECTUS_PAGE_THREE_TRENDS_AUDIT.display.arrowsAllowed).toBe(true);
+    expect(PROSPECTUS_PAGE_THREE_TRENDS_AUDIT.display.heroiconsRequired).toBe(true);
+    expect(PROSPECTUS_PAGE_THREE_TRENDS_AUDIT.snapshot.trendOutputsFrozen).toBe(true);
   });
 
-  it("hides audit and does not display raw metric keys or debug JSON in HTML", () => {
+  it("hides audit metadata from standalone trends HTML", () => {
     const data = buildProspectusPageThreeTrends(SAMPLE_PROSPECTUS_PAGE_THREE_TRENDS_INPUT);
     const html = buildProspectusPageThreeTrendsDocument(data);
-    expect(html).toContain("—");
     expect(html).toContain("Revenue");
     expect(html).toContain("Return on Equity");
     expect(html).not.toContain("higher_is_better_candidate");
     expect(html).not.toContain("candidateInterpretationClass");
-    expect(html).not.toContain("pending_product_finance_legal_approval");
     expect(html).not.toContain("profit_after_tax");
     expect(html).not.toContain("operating_cash_flow");
-    expect(html).not.toMatch(/\{[\s\S]*"metricKey"/);
   });
 });

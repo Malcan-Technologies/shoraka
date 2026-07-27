@@ -371,8 +371,12 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
 .identity-strip,.meta-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:var(--space-6)}.identity-strip>div,.meta-strip-item{display:flex;gap:9px;padding:12px 9px;border-right:1px solid #c8c4c4;align-items:flex-start}.identity-strip>div:last-child,.meta-strip-item:last-child{border-right:0}.identity-strip .icon,.meta-strip-item .icon{width:var(--prospectus-icon-meta);height:var(--prospectus-icon-meta);padding:7px;background:var(--prospectus-icon-bg);border-radius:50%;color:var(--prospectus-icon-stroke);flex:none;box-sizing:border-box}.meta-strip-label,.identity-strip small{font-weight:800;font-size:7px;display:block}.meta-strip-value,.identity-strip b{font-size:8px;margin-top:5px;display:block}
 .comparison-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-4)}.report-box{padding:9px}.report-box h2{font-size:11px;color:var(--prospectus-burgundy)}.report-box table{font-size:7.5px}.report-box th{font-size:7px}.report-box td{height:24px}
 .insight{background:var(--light-green);border-radius:7px;padding:9px;display:flex;align-items:center;gap:8px;margin-top:8px;font-size:8px}.insight .icon{width:30px;height:30px;background:#1dbb3d;color:#fff;border-radius:50%;padding:5px;box-sizing:border-box}
-.trend-cell{text-align:center;vertical-align:middle}
-.trend-cell.up,.up{color:#28ad46;font-size:28px;font-weight:800;line-height:15px}.trend-cell.down,.down{color:#ce201d;font-size:28px;font-weight:800;line-height:15px}
+.trend-cell{text-align:center;vertical-align:middle;line-height:1}
+.trend-cell .trend-icon{width:15px;height:15px;display:inline-block;vertical-align:middle}
+.trend-cell.trend-favourable{color:var(--prospectus-positive)}
+.trend-cell.trend-unfavourable{color:var(--prospectus-table-red)}
+.trend-cell.trend-muted{color:var(--prospectus-muted)}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .takeaways p,.takeaway-item{display:flex;gap:10px;align-items:center;font-size:8.5px;margin:0 0 12px}.takeaways .icon,.takeaway-item .icon{flex:none;width:var(--prospectus-icon-takeaway);height:var(--prospectus-icon-takeaway);background:var(--prospectus-icon-bg);color:var(--prospectus-icon-stroke);border-radius:50%;padding:7px;box-sizing:border-box}.source{margin-left:12px}
 
 /* Page 3 — source stays with content; disclaimer alone uses margin-top:auto */

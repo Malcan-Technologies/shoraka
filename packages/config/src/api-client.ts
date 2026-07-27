@@ -666,8 +666,12 @@ export class ApiClient {
     | ApiResponse<{
         publicationId: string;
         contentVersion: number;
-        html: { page1: string; page2: string; page3: string };
-        documentHtml: string;
+        pdfViewUrl: string;
+        pdfExpiresIn: number;
+        pdfContentType: "application/pdf";
+        pdfFileName: string;
+        pdfSha256: string | null;
+        pdfSnapshotHash: string | null;
       }>
     | ApiError
   > {
@@ -681,8 +685,12 @@ export class ApiClient {
         noteId: string;
         publicationId: string;
         contentVersion: number;
-        html: { page1: string; page2: string; page3: string };
-        documentHtml: string;
+        pdfViewUrl: string;
+        pdfExpiresIn: number;
+        pdfContentType: "application/pdf";
+        pdfFileName: string;
+        pdfSha256: string | null;
+        pdfSnapshotHash: string | null;
       }>
     | ApiError
   > {

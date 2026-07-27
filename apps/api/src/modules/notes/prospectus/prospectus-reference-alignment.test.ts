@@ -125,9 +125,10 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
   it("Trend column keeps — when no approved direction exists", () => {
     const html = buildProspectusPageThreeHtml(SAMPLE_PROSPECTUS_PAGE_THREE);
     expect(html).toContain("Trend (3-Yr)");
-    expect((html.match(/class="trend-cell"/g) ?? []).length).toBe(10);
-    expect(html).not.toMatch(/trend-cell up|trend-cell down/);
+    expect((html.match(/class="trend-cell/g) ?? []).length).toBe(10);
     expect(html).not.toMatch(/[↑↓]/);
+    // Heroicons when approved; DNA — when three values unavailable
+    expect(html).toMatch(/data-prospectus-icon="trend-|—/);
   });
 
   it("shared header uses official logo asset path and static tagline", () => {

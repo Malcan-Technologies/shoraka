@@ -420,12 +420,14 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(row(page.incomeStatement.rows, "net_profit_margin")).toEqual(page2Npm);
     });
 
-    it("keeps trends DNA; sample preview uses officer-selected takeaways", () => {
+    it("keeps income/balance trends unavailable; sample preview uses officer-selected takeaways", () => {
       const page = SAMPLE_PROSPECTUS_PAGE_THREE;
       expect(page.trends.trends).toHaveLength(26);
-      expect(page.trends.trends.every((t) => t.trend === PROSPECTUS_DATA_NOT_AVAILABLE)).toBe(
-        true
-      );
+      expect(page.trends.trends.slice(0, 16).every((t) => t.approved === false)).toBe(true);
+      // Officer-only coverage rows stay unavailable without manuals; ROE may approve from raw years
+      expect(
+        page.trends.trends.find((t) => t.metricKey === "operating_cash_flow")?.approved
+      ).toBe(false);
       expect(page.investorTakeaways.items).toHaveLength(6);
       expect(page.investorTakeaways.items[0]?.takeaway).toContain(
         "steady year-on-year growth"
@@ -569,7 +571,8 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).toContain('data-page-subtitle="true"');
       expect(html).toContain("Trend (3-Yr)");
       expect(html).not.toContain("FINANCIAL TRENDS");
-      expect((html.match(/class="trend-cell"/g) ?? []).length).toBe(10);
+      expect((html.match(/class="trend-cell/g) ?? []).length).toBe(10);
+      expect(html).not.toMatch(/[↑↓]/);
       expect(html).toContain("comparison-grid");
       expect(html).not.toContain("comparison-row-top");
       expect(html).not.toContain("comparison-row-bottom");

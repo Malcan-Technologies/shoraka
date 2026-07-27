@@ -58,25 +58,47 @@ function metricBodyRows(
     .join("\n");
 }
 
-type ApprovedTrendDirection = {
-  approved: boolean;
-  direction: "up" | "down" | "neutral" | null;
-};
-
 /**
- * Trend cell: arrows only when an approved direction exists.
- * Today builders set approved:false and direction:null — always —.
- * Do not invent year-over-year formulas here.
+ * Trend cell: Heroicons when an approved direction exists.
+ * Colour encodes favourable / unfavourable / context-dependent — never reverse the arrow.
  */
 function renderTrendCell(item: ProspectusPageThreeTrendItem | undefined): string {
-  const trend = item as ApprovedTrendDirection | undefined;
-  if (trend?.approved === true && trend.direction === "up") {
-    return `<td class="trend-cell up">↑</td>`;
+  if (!item?.approved) {
+    return `<td class="trend-cell">${escapeHtml(PROSPECTUS_DATA_NOT_AVAILABLE)}</td>`;
   }
-  if (trend?.approved === true && trend.direction === "down") {
-    return `<td class="trend-cell down">↓</td>`;
+
+  const iconName =
+    item.direction === "up"
+      ? "trend-up"
+      : item.direction === "down"
+        ? "trend-down"
+        : item.direction === "neutral"
+          ? "trend-neutral"
+          : null;
+  if (!iconName) {
+    return `<td class="trend-cell">${escapeHtml(PROSPECTUS_DATA_NOT_AVAILABLE)}</td>`;
   }
-  return `<td class="trend-cell">${escapeHtml(PROSPECTUS_DATA_NOT_AVAILABLE)}</td>`;
+
+  const toneClass =
+    item.interpretation === "favourable"
+      ? "trend-favourable"
+      : item.interpretation === "unfavourable"
+        ? "trend-unfavourable"
+        : "trend-muted";
+
+  const icon = renderProspectusHeroicon(iconName, {
+    className: "trend-icon",
+    title: item.accessibleLabel,
+  });
+
+  return `<td class="trend-cell ${toneClass}" data-trend-direction="${escapeHtml(
+    item.direction
+  )}" data-trend-consistency="${escapeHtml(
+    item.consistency
+  )}" data-trend-interpretation="${escapeHtml(item.interpretation)}">
+  ${icon}
+  <span class="sr-only">${escapeHtml(item.accessibleLabel)}</span>
+</td>`;
 }
 
 function takeawayIcon(key: string): string {

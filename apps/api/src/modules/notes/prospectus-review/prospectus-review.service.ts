@@ -26,6 +26,10 @@ import { toAdminInvoicePaymasterRows } from "../prospectus/prospectus-invoice-pa
 import { toAdminPaymasterTrackRecordRows } from "../prospectus/prospectus-paymaster-track-record";
 import { toAdminFinancialComparisonTable, toAdminFrozenFinancialYears } from "../prospectus/prospectus-financial-comparison-metrics";
 import { combineProspectusPagesHtml } from "../prospectus/combine-prospectus-pages-html";
+import {
+  generateAndStoreProspectusPdf,
+  PROSPECTUS_PDF_STATUS_READY,
+} from "../prospectus/prospectus-pdf";
 import { buildProspectusPageOneHtml } from "../prospectus/prospectus-page-one.html";
 import {
   buildProspectusPageOne,
@@ -300,6 +304,24 @@ export class ProspectusReviewService {
     const snapshot = parseApprovedSnapshot(review.approved_snapshot);
     if (!snapshot || !review.approved_publication_id) {
       throw new AppError(409, "PROSPECTUS_REVIEW_REQUIRED", PUBLISH_BLOCKED);
+    }
+    const publication = await prisma.noteProspectusPublication.findUnique({
+      where: { id: review.approved_publication_id },
+      select: {
+        pdf_generation_status: true,
+        pdf_storage_key: true,
+      },
+    });
+    if (
+      !publication ||
+      publication.pdf_generation_status !== PROSPECTUS_PDF_STATUS_READY ||
+      !publication.pdf_storage_key
+    ) {
+      throw new AppError(
+        409,
+        "PROSPECTUS_PDF_REQUIRED",
+        "Approved Prospectus PDF is missing; re-approve to generate the PDF before publish"
+      );
     }
     return {
       snapshot,
@@ -699,6 +721,14 @@ export class ProspectusReviewService {
       page3: buildProspectusPageThreeHtml(page3),
     });
 
+    // PDF from exact frozen HTML — before APPROVED status; publish never regenerates.
+    const pdfArtifact = await generateAndStoreProspectusPdf({
+      noteId,
+      publicationId,
+      snapshotHash: approvedSnapshot.render_fingerprint,
+      html: approvedSnapshot.html,
+    });
+
     const before = mapReview(current);
     const updated = await prisma.$transaction(async (tx) => {
       await tx.noteProspectusPublication.create({
@@ -711,6 +741,16 @@ export class ProspectusReviewService {
           render_fingerprint: approvedSnapshot.render_fingerprint,
           approved_by_user_id: actor.userId,
           approved_at: now,
+          pdf_storage_bucket: pdfArtifact.storageBucket,
+          pdf_storage_key: pdfArtifact.storageKey,
+          pdf_content_type: pdfArtifact.contentType,
+          pdf_size_bytes: pdfArtifact.sizeBytes,
+          pdf_sha256: pdfArtifact.sha256,
+          pdf_generated_at: pdfArtifact.generatedAt,
+          pdf_generation_status: pdfArtifact.generationStatus,
+          pdf_generation_error: null,
+          pdf_snapshot_hash: pdfArtifact.snapshotHash,
+          pdf_page_count: pdfArtifact.pageCount,
         },
       });
 

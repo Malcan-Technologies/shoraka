@@ -29,6 +29,7 @@ function composeFromYears(years: Record<string, Record<string, unknown>>) {
     incomeStatement,
     balanceSheet,
     coverageEfficiency,
+    financialSource,
   });
   return buildProspectusPageThreeInvestorTakeaways({
     metadata: SAMPLE_PROSPECTUS_PAGE_THREE_METADATA,
@@ -212,10 +213,9 @@ describe("prospectus Page 3 investor takeaways (DATA STAGE 6)", () => {
     const data = buildProspectusPageThreeInvestorTakeaways(
       SAMPLE_PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_INPUT
     );
+    // Trends may be approved for coverage metrics; takeaways must still ignore them.
     expect(
-      SAMPLE_PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_INPUT.trends.trends.every(
-        (t) => t.trend === PROSPECTUS_DATA_NOT_AVAILABLE
-      )
+      SAMPLE_PROSPECTUS_PAGE_THREE_INVESTOR_TAKEAWAYS_INPUT.trends.trends.some((t) => t.approved)
     ).toBe(true);
     expect(data.items.every((i) => i.takeaway === PROSPECTUS_DATA_NOT_AVAILABLE)).toBe(
       true

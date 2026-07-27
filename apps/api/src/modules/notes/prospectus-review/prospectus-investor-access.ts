@@ -1,23 +1,78 @@
 /**
- * SECTION: Investor published Prospectus access (frozen snapshot only)
+ * SECTION: Investor published Prospectus access (frozen PDF via private S3)
  */
 
 import { NoteStatus } from "@prisma/client";
 import { AppError } from "../../../lib/http/error-handler";
 import { prisma } from "../../../lib/prisma";
-import { combineProspectusPagesHtml } from "../prospectus/combine-prospectus-pages-html";
+import {
+  generateProspectusPdfViewUrl,
+  PROSPECTUS_PDF_STATUS_READY,
+  prospectusPdfFileName,
+} from "../prospectus/prospectus-pdf";
 import { parseApprovedSnapshot } from "./prospectus-approved-snapshot";
 
-export type InvestorProspectusHtml = {
+export type InvestorProspectusPdf = {
   publicationId: string;
   contentVersion: number;
-  html: { page1: string; page2: string; page3: string };
+  pdfViewUrl: string;
+  pdfExpiresIn: number;
+  pdfContentType: "application/pdf";
+  pdfFileName: string;
+  pdfSha256: string | null;
+  pdfSnapshotHash: string | null;
 };
 
-/** Marketplace: published Note only — render frozen snapshot HTML. */
+async function resolveReadyPublicationPdf(publication: {
+  id: string;
+  content_version: number;
+  published_at: Date | null;
+  pdf_generation_status: string | null;
+  pdf_storage_key: string | null;
+  pdf_sha256: string | null;
+  pdf_snapshot_hash: string | null;
+  note_id: string;
+}): Promise<InvestorProspectusPdf> {
+  if (!publication.published_at) {
+    throw new AppError(404, "PROSPECTUS_NOT_FOUND", "Published Prospectus not found");
+  }
+  if (
+    publication.pdf_generation_status !== PROSPECTUS_PDF_STATUS_READY ||
+    !publication.pdf_storage_key
+  ) {
+    throw new AppError(
+      404,
+      "PROSPECTUS_PDF_UNAVAILABLE",
+      "Published Prospectus PDF is not available"
+    );
+  }
+
+  const note = await prisma.note.findUnique({
+    where: { id: publication.note_id },
+    select: { note_reference: true },
+  });
+  const fileName = prospectusPdfFileName(note?.note_reference);
+  const { viewUrl, expiresIn } = await generateProspectusPdfViewUrl({
+    storageKey: publication.pdf_storage_key,
+    fileName,
+  });
+
+  return {
+    publicationId: publication.id,
+    contentVersion: publication.content_version,
+    pdfViewUrl: viewUrl,
+    pdfExpiresIn: expiresIn,
+    pdfContentType: "application/pdf",
+    pdfFileName: fileName,
+    pdfSha256: publication.pdf_sha256,
+    pdfSnapshotHash: publication.pdf_snapshot_hash,
+  };
+}
+
+/** Marketplace: published Note only — signed URL to frozen approved PDF. */
 export async function getMarketplacePublishedProspectus(
   noteId: string
-): Promise<InvestorProspectusHtml & { documentHtml: string }> {
+): Promise<InvestorProspectusPdf> {
   const note = await prisma.note.findUnique({
     where: { id: noteId },
     select: {
@@ -46,17 +101,13 @@ export async function getMarketplacePublishedProspectus(
     throw new AppError(404, "PROSPECTUS_NOT_FOUND", "Published Prospectus not found");
   }
 
+  // Ensure frozen HTML still exists (audit source) even though investor receives PDF.
   const snapshot = parseApprovedSnapshot(publication.snapshot);
   if (!snapshot?.html?.page1) {
     throw new AppError(404, "PROSPECTUS_NOT_FOUND", "Published Prospectus not found");
   }
 
-  return {
-    publicationId: publication.id,
-    contentVersion: publication.content_version,
-    html: snapshot.html,
-    documentHtml: combineProspectusPagesHtml(snapshot.html),
-  };
+  return resolveReadyPublicationPdf(publication);
 }
 
 /**
@@ -66,7 +117,7 @@ export async function getMarketplacePublishedProspectus(
 export async function getInvestmentPublishedProspectus(
   investmentId: string,
   actor: { userId: string }
-): Promise<InvestorProspectusHtml & { documentHtml: string; noteId: string }> {
+): Promise<InvestorProspectusPdf & { noteId: string }> {
   const investment = await prisma.noteInvestment.findUnique({
     where: { id: investmentId },
     select: {
@@ -114,11 +165,9 @@ export async function getInvestmentPublishedProspectus(
     throw new AppError(404, "PROSPECTUS_NOT_FOUND", "Stored Prospectus publication not found");
   }
 
+  const pdf = await resolveReadyPublicationPdf(publication);
   return {
     noteId: investment.note_id,
-    publicationId: publication.id,
-    contentVersion: publication.content_version,
-    html: snapshot.html,
-    documentHtml: combineProspectusPagesHtml(snapshot.html),
+    ...pdf,
   };
 }

@@ -7,6 +7,7 @@ import { createElement, type ComponentType, type SVGProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   ArrowTrendingDownIcon,
+  ArrowTrendingUpIcon,
   BanknotesIcon,
   BeakerIcon,
   BuildingLibraryIcon,
@@ -23,6 +24,7 @@ import {
   DocumentArrowDownIcon,
   DocumentCheckIcon,
   DocumentTextIcon,
+  MinusIcon,
   ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
 
@@ -69,7 +71,10 @@ export type ProspectusIconName =
   | "overall-profile"
   | "revenue-profitability"
   | "highlight-check"
-  | "disclaimer";
+  | "disclaimer"
+  | "trend-up"
+  | "trend-down"
+  | "trend-neutral";
 
 /**
  * Official Heroicon component map. Do not add custom SVG paths here.
@@ -116,6 +121,9 @@ export const PROSPECTUS_HEROICON_MAP: Record<ProspectusIconName, HeroiconCompone
   "overall-profile": ChartPieIcon,
   "highlight-check": CheckIcon,
   disclaimer: ShieldCheckIcon,
+  "trend-up": ArrowTrendingUpIcon,
+  "trend-down": ArrowTrendingDownIcon,
+  "trend-neutral": MinusIcon,
 };
 
 /** Distinctive path fragment from BuildingOffice2Icon — used in tests. */

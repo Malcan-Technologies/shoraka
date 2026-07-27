@@ -711,8 +711,12 @@ marketplaceRouter.get(
       send(res, {
         publicationId: doc.publicationId,
         contentVersion: doc.contentVersion,
-        html: doc.html,
-        documentHtml: doc.documentHtml,
+        pdfViewUrl: doc.pdfViewUrl,
+        pdfExpiresIn: doc.pdfExpiresIn,
+        pdfContentType: doc.pdfContentType,
+        pdfFileName: doc.pdfFileName,
+        pdfSha256: doc.pdfSha256,
+        pdfSnapshotHash: doc.pdfSnapshotHash,
       });
     } catch (error) {
       next(error);
@@ -774,8 +778,12 @@ investorNotesRouter.get(
         noteId: doc.noteId,
         publicationId: doc.publicationId,
         contentVersion: doc.contentVersion,
-        html: doc.html,
-        documentHtml: doc.documentHtml,
+        pdfViewUrl: doc.pdfViewUrl,
+        pdfExpiresIn: doc.pdfExpiresIn,
+        pdfContentType: doc.pdfContentType,
+        pdfFileName: doc.pdfFileName,
+        pdfSha256: doc.pdfSha256,
+        pdfSnapshotHash: doc.pdfSnapshotHash,
       });
     } catch (error) {
       next(error);
