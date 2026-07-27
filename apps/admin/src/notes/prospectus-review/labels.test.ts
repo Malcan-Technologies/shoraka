@@ -8,7 +8,6 @@ import {
   INVOICE_WORK_FIELD_LABELS,
 } from "./labels";
 import {
-  CHECKLIST_ITEM_STEP,
   PROSPECTUS_STEP_STATUS_LABEL,
   buildProspectusCompletionChecklist,
   buildProspectusMissingRequiredFields,
@@ -77,7 +76,7 @@ describe("prospectus review admin labels", () => {
   });
 });
 
-describe("prospectus review completion checklist", () => {
+describe("prospectus review completion readiness", () => {
   function emptyDraft(): ProspectusReviewStoredContent {
     return {
       page1: {
@@ -198,24 +197,15 @@ describe("prospectus review completion checklist", () => {
     expect(withIncome[2]).toBe("required");
   });
 
-  it("maps checklist rows to workflow steps for navigation", () => {
-    expect(CHECKLIST_ITEM_STEP).toEqual({
-      core: 0,
-      highlights: 0,
-      paymaster: 1,
-      credit: 1,
-      financials: 2,
-      takeaways: 2,
-    });
-
+  it("keeps shared completion categories for approval readiness only", () => {
     const checklist = buildProspectusCompletionChecklist(emptyDraft());
-    expect(checklist.map((i) => i.label)).toEqual([
-      "Note & Investment Details",
-      "Investor Highlights",
-      "Paymaster Track Record",
-      "Issuer, Credit & Invoice",
-      "Financial Review",
-      "Investor Takeaways",
+    expect(checklist.map((i) => i.id)).toEqual([
+      "core",
+      "highlights",
+      "paymaster",
+      "credit",
+      "financials",
+      "takeaways",
     ]);
     expect(statusForCompletionItem(checklist[0]!)).toBe("complete");
     expect(statusForCompletionItem(checklist[1]!)).toBe("required");
@@ -230,6 +220,17 @@ describe("prospectus review completion checklist", () => {
     expect(missing.some((m) => m.field === "Company Size")).toBe(true);
     expect(missing.some((m) => m.section === "Financial Comparison")).toBe(true);
     expect(missing.some((m) => m.year === "FY2024")).toBe(true);
+    expect(missing.every((m) => m.pageStep === 0 || m.pageStep === 1 || m.pageStep === 2)).toBe(
+      true
+    );
+  });
+
+  it("does not let optional paymaster fields affect missing counts", () => {
+    const draft = completeOfficerDraft();
+    draft.page2.paymasterTrackRecord = undefined;
+    const missing = buildProspectusMissingRequiredFields(draft);
+    expect(missing).toHaveLength(0);
+    expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
   });
 });
 

@@ -1,6 +1,8 @@
 import {
   PREVIEW_DOCUMENT_FRAME_CLASS,
+  PREVIEW_DOCUMENT_INNER_CLASS,
   PREVIEW_IFRAME_CLASS,
+  PREVIEW_IFRAME_STYLE,
   PREVIEW_SHEET_BODY_CLASS,
   PREVIEW_SHEET_CONTENT_CLASS,
   cleanProspectusPreviewHtml,
@@ -31,12 +33,23 @@ describe("prospectus preview sheet utils", () => {
     expect(PREVIEW_DOCUMENT_FRAME_CLASS).toContain("overflow-x-auto");
     expect(PREVIEW_DOCUMENT_FRAME_CLASS).toContain("overflow-y-hidden");
     expect(PREVIEW_DOCUMENT_FRAME_CLASS).toContain("overscroll-contain");
-    expect(PREVIEW_DOCUMENT_FRAME_CLASS).toContain("max-w-[210mm]");
+    // Frame must NOT be capped at 210mm — that caused persistent H-scroll with border + iframe min-width
+    expect(PREVIEW_DOCUMENT_FRAME_CLASS).not.toContain("max-w-[210mm]");
+    expect(PREVIEW_DOCUMENT_INNER_CLASS).toContain("w-max");
+    expect(PREVIEW_DOCUMENT_INNER_CLASS).toContain("mx-auto");
     expect(PREVIEW_SHEET_BODY_CLASS).toContain("bg-muted/40");
     expect(PREVIEW_IFRAME_CLASS).toContain("h-full");
     expect(PREVIEW_IFRAME_CLASS).toContain("min-h-0");
+    expect(PREVIEW_IFRAME_CLASS).toContain("w-[210mm]");
     expect(PREVIEW_IFRAME_CLASS).toContain("min-w-[210mm]");
+    expect(PREVIEW_IFRAME_CLASS).toContain("max-w-[210mm]");
+    expect(PREVIEW_IFRAME_CLASS).not.toContain("w-full");
     expect(PREVIEW_IFRAME_CLASS).toContain("block");
+    expect(PREVIEW_IFRAME_STYLE).toEqual({
+      width: "210mm",
+      minWidth: "210mm",
+      maxWidth: "210mm",
+    });
   });
 
   it("locks iframe document horizontal overflow for Admin preview only", () => {
@@ -45,6 +58,8 @@ describe("prospectus preview sheet utils", () => {
     const locked = withAdminPreviewScrollLock(withHead);
     expect(locked).toContain("data-admin-preview-scroll-lock");
     expect(locked).toContain("overflow-x:hidden!important");
+    expect(locked).toContain("html,body{overflow-x:hidden!important;width:100%!important;min-width:0!important");
+    expect(locked).toContain(".document{width:100%!important;min-width:0!important");
     expect(locked).toContain("</head>");
     expect(locked.indexOf("data-admin-preview-scroll-lock")).toBeLessThan(
       locked.indexOf("</head>")
@@ -52,6 +67,15 @@ describe("prospectus preview sheet utils", () => {
     expect(withAdminPreviewScrollLock("<body>x</body>")).toMatch(
       /^<style data-admin-preview-scroll-lock>/
     );
+  });
+
+  it("applies the same scroll-lock to All Pages combined HTML", () => {
+    const allPages =
+      '<!DOCTYPE html><html><head></head><body><main class="document"><section class="page">1</section><section class="page">2</section></main></body></html>';
+    const locked = withAdminPreviewScrollLock(allPages);
+    expect(locked).toContain("data-admin-preview-scroll-lock");
+    expect(locked).toContain("overflow-x:hidden!important");
+    expect(locked).toContain(".document{width:100%!important;min-width:0!important");
   });
 
   it("strips the preview banner once and keeps page HTML stable for the same payload", () => {

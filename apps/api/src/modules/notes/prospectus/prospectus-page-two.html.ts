@@ -7,7 +7,7 @@ import { PROSPECTUS_DOCUMENT_CSS } from "./prospectus-document-styles";
 import { buildProspectusFooterHtml } from "./prospectus-footer.html";
 import { buildProspectusHeaderHtml } from "./prospectus-header.html";
 import { escapeHtml } from "./prospectus-html";
-import { prospectusIcon } from "./prospectus-icons";
+import { renderProspectusHeroicon } from "./prospectus-icons";
 import { buildProspectusInvestmentCtaHtml } from "./prospectus-investment-cta.html";
 import { PROSPECTUS_CREDIT_INSIGHTS_DESCRIPTION } from "./prospectus-credit-insights.types";
 import { formatProspectusIndustryAndCompanySize } from "./prospectus-industry-company-size";
@@ -90,10 +90,22 @@ export function buildProspectusPageTwoHtml(page: ProspectusPageTwo): string {
   const s6 = page.invoiceWorkNarrative;
 
   const workItems = [
-    workItem(prospectusIcon.fileText("icon"), s6.workUnderContractStatement),
-    workItem(prospectusIcon.badgeCheck("icon"), s6.certificationAcceptanceStatement),
-    workItem(prospectusIcon.fileText("icon"), s6.paymasterTrustAccountStatement),
-    workItem(prospectusIcon.fileCheck("icon"), s6.deedOfAssignmentStatement),
+    workItem(
+      renderProspectusHeroicon("work-performed", { className: "icon" }),
+      s6.workUnderContractStatement
+    ),
+    workItem(
+      renderProspectusHeroicon("work-certification", { className: "icon" }),
+      s6.certificationAcceptanceStatement
+    ),
+    workItem(
+      renderProspectusHeroicon("work-trust-account", { className: "icon" }),
+      s6.paymasterTrustAccountStatement
+    ),
+    workItem(
+      renderProspectusHeroicon("work-assignment", { className: "icon" }),
+      s6.deedOfAssignmentStatement
+    ),
   ]
     .filter(Boolean)
     .join("\n");
@@ -122,7 +134,10 @@ ${PROSPECTUS_DOCUMENT_CSS}
       <section data-stage="1" data-issuer-profile>
         <h2>${escapeHtml(s1.sectionHeading)}</h2>
         <div class="issuer-profile">
-          <div class="round-icon">${prospectusIcon.building("icon")}</div>
+          <div class="round-icon prospectus-issuer-icon-circle">${renderProspectusHeroicon(
+            "issuer",
+            { className: "icon prospectus-issuer-icon" }
+          )}</div>
           <div>
             <b class="issuer-meta-line">${escapeHtml(
               formatProspectusIndustryAndCompanySize(s1.industry, s1.companySize)
@@ -135,13 +150,13 @@ ${PROSPECTUS_DOCUMENT_CSS}
       <section class="invoice-info" data-stage="2">
         <h2>${escapeHtml(s2.sectionHeading)}</h2>
         <dl class="page-two-invoice-list">
-          <div class="page-two-invoice-row"><dt>${prospectusIcon.badgeDollar("icon page-two-invoice-icon")}Invoice Amount</dt><dd>${escapeHtml(s2.invoiceAmount)}</dd></div>
-          <div class="page-two-invoice-row"><dt>${prospectusIcon.calendarDays("icon page-two-invoice-icon")}Invoice Due Date</dt><dd>${escapeHtml(s2.invoiceDueDate)}</dd></div>
-          <div class="page-two-invoice-row"><dt>${prospectusIcon.badgeCheck("icon page-two-invoice-icon")}Paymaster</dt><dd>${escapeHtml(s2.paymasterName)}</dd></div>
-          <div class="page-two-invoice-row"><dt>${prospectusIcon.landmark("icon page-two-invoice-icon")}Nature of Paymaster</dt><dd>${escapeHtml(s2.paymasterNature)}</dd></div>
-          <div class="page-two-invoice-row"><dt>${prospectusIcon.fileCheck("icon page-two-invoice-icon")}Deed of Assignment (DOA)</dt><dd>${escapeHtml(s2.deedOfAssignment)}</dd></div>
-          <div class="page-two-invoice-row"><dt>${prospectusIcon.clipboardCheck("icon page-two-invoice-icon")}Paymaster Rating</dt><dd>${escapeHtml(s2.paymasterRating)}</dd></div>
-          <div class="page-two-invoice-row"><dt>${prospectusIcon.clipboardCheck("icon page-two-invoice-icon")}Confidence Grading</dt><dd>${escapeHtml(s2.confidenceGrading)}</dd></div>
+          <div class="page-two-invoice-row"><dt>${renderProspectusHeroicon("invoice-amount", { className: "icon page-two-invoice-icon" })}Invoice Amount</dt><dd>${escapeHtml(s2.invoiceAmount)}</dd></div>
+          <div class="page-two-invoice-row"><dt>${renderProspectusHeroicon("invoice-date", { className: "icon page-two-invoice-icon" })}Invoice Due Date</dt><dd>${escapeHtml(s2.invoiceDueDate)}</dd></div>
+          <div class="page-two-invoice-row"><dt>${renderProspectusHeroicon("paymaster-name", { className: "icon page-two-invoice-icon" })}Paymaster</dt><dd>${escapeHtml(s2.paymasterName)}</dd></div>
+          <div class="page-two-invoice-row"><dt>${renderProspectusHeroicon("paymaster-type", { className: "icon page-two-invoice-icon" })}Nature of Paymaster</dt><dd>${escapeHtml(s2.paymasterNature)}</dd></div>
+          <div class="page-two-invoice-row"><dt>${renderProspectusHeroicon("assignment", { className: "icon page-two-invoice-icon" })}Deed of Assignment (DOA)</dt><dd>${escapeHtml(s2.deedOfAssignment)}</dd></div>
+          <div class="page-two-invoice-row"><dt>${renderProspectusHeroicon("rating", { className: "icon page-two-invoice-icon" })}Paymaster Rating</dt><dd>${escapeHtml(s2.paymasterRating)}</dd></div>
+          <div class="page-two-invoice-row"><dt>${renderProspectusHeroicon("confidence", { className: "icon page-two-invoice-icon" })}Confidence Grading</dt><dd>${escapeHtml(s2.confidenceGrading)}</dd></div>
         </dl>
       </section>
     </div>

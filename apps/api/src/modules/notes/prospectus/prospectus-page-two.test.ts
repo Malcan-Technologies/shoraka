@@ -648,7 +648,11 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(stage7Start).toBeGreaterThan(-1);
       expect(stage8Start).toBeGreaterThan(stage7Start);
       const stage7 = html.slice(stage7Start, stage8Start);
-      expect(stage7).toContain('data-grade="C" data-selected="true"');
+      expect(stage7).toContain('data-grade="C"');
+      expect(stage7).not.toContain("data-selected");
+      expect(stage7).not.toContain("is-selected");
+      expect(stage7).toContain("Risk Rating Scale");
+      expect(stage7).not.toContain("Cashsouk Risk Rating");
       expect(stage7).not.toContain("Assessment Note");
       expect(stage7).not.toContain("Risk Label");
       expect(stage7).not.toContain("Definition:");

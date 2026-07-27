@@ -41,13 +41,35 @@ describe("Cashsouk risk rating catalogue", () => {
     );
   });
 
-  it("uses colour-reference hex values for A–F", () => {
-    expect(CASHSCOUK_RISK_RATING_CATALOGUE.A.color).toBe("#1EB93F");
-    expect(CASHSCOUK_RISK_RATING_CATALOGUE.B.color).toBe("#79CF54");
-    expect(CASHSCOUK_RISK_RATING_CATALOGUE.C.color).toBe("#FFCF45");
-    expect(CASHSCOUK_RISK_RATING_CATALOGUE.D.color).toBe("#FF8647");
-    expect(CASHSCOUK_RISK_RATING_CATALOGUE.E.color).toBe("#CE201D");
-    expect(CASHSCOUK_RISK_RATING_CATALOGUE.F.color).toBe("#B10810");
+  it("uses colour-reference hex values and exact text colours for A–F", () => {
+    expect(CASHSCOUK_RISK_RATING_CATALOGUE.A).toMatchObject({
+      color: "#1EB93F",
+      textColor: "#FFFFFF",
+    });
+    expect(CASHSCOUK_RISK_RATING_CATALOGUE.B).toMatchObject({
+      color: "#79CF54",
+      textColor: "#111111",
+    });
+    expect(CASHSCOUK_RISK_RATING_CATALOGUE.C).toMatchObject({
+      color: "#FFCF45",
+      textColor: "#111111",
+    });
+    expect(CASHSCOUK_RISK_RATING_CATALOGUE.D).toMatchObject({
+      color: "#FF8647",
+      textColor: "#FFFFFF",
+    });
+    expect(CASHSCOUK_RISK_RATING_CATALOGUE.E).toMatchObject({
+      color: "#CE201D",
+      textColor: "#FFFFFF",
+    });
+    expect(CASHSCOUK_RISK_RATING_CATALOGUE.F).toMatchObject({
+      color: "#B10810",
+      textColor: "#FFFFFF",
+    });
+    for (const grade of CASHSCOUK_RISK_GRADES) {
+      const entry = CASHSCOUK_RISK_RATING_CATALOGUE[grade];
+      expect(getReadableTextColor(entry.color)).toBe(entry.textColor);
+    }
   });
 
   it("omits numerical scores, weights, and pricing from the catalogue", () => {
@@ -85,9 +107,14 @@ describe("Cashsouk risk rating catalogue", () => {
     for (const grade of CASHSCOUK_RISK_GRADES) {
       expect(html).toContain(`data-grade="${grade}"`);
       expect(html).toContain(CASHSCOUK_RISK_RATING_CATALOGUE[grade].color);
+      expect(html).toContain(
+        `background:${CASHSCOUK_RISK_RATING_CATALOGUE[grade].color};color:#FFFFFF`
+      );
     }
-    expect(html).toContain('data-grade="C" data-selected="true"');
-    expect(html).toContain("is-selected");
+    expect(html).toContain('data-grade="C"');
+    expect(html).not.toContain("is-selected");
+    expect(html).not.toContain("data-selected");
+    expect(html).not.toContain("color:#111111");
     expect(html).not.toContain('data-grade="AAA"');
     expect(html).not.toContain('data-grade="BBB"');
     expect((html.match(/risk-scale-note/g) ?? []).length).toBe(1);

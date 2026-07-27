@@ -7,8 +7,9 @@ import { PROSPECTUS_DOCUMENT_CSS } from "./prospectus-document-styles";
 import { buildProspectusFooterHtml } from "./prospectus-footer.html";
 import { buildProspectusHeaderHtml } from "./prospectus-header.html";
 import { buildProspectusHeader } from "./prospectus-header";
-import { escapeHtml, escapeHtmlAttribute } from "./prospectus-html";
-import { prospectusIcon } from "./prospectus-icons";
+import { escapeHtml } from "./prospectus-html";
+import { renderProspectusHeroicon } from "./prospectus-icons";
+import { buildProspectusRiskShieldHtml } from "./prospectus-risk-shield";
 import { PROSPECTUS_HISTORICAL_NOTE_TABLE_HEADERS } from "./prospectus-historical-note-table.types";
 import type { ProspectusPageOne } from "./prospectus-page-one.types";
 import {
@@ -61,9 +62,10 @@ function summaryRow(label: string, value: string, stage?: string): string {
 }
 
 function highlightItem(title: string, explanation: string, stage: string): string {
-  return `<div class="tick-item" data-stage="${stage}"><span>✓</span><p><b>${escapeHtml(
-    title
-  )}</b>${escapeHtml(explanation)}</p></div>`;
+  return `<div class="tick-item" data-stage="${stage}"><span class="investor-highlight-check">${renderProspectusHeroicon(
+    "highlight-check",
+    { className: "icon" }
+  )}</span><p><b>${escapeHtml(title)}</b>${escapeHtml(explanation)}</p></div>`;
 }
 
 /**
@@ -112,30 +114,30 @@ ${PROSPECTUS_DOCUMENT_CSS}
         <p>${escapeHtml(s1.description)}</p>
       </div>
       <div class="key-dates" data-stage="2">
-        <div class="meta-row">${prospectusIcon.calendarDays("icon")}<div><b>Listing Date</b><span>${escapeHtml(
-          s2.listingDate
-        )}</span></div></div>
-        <div class="meta-row">${prospectusIcon.calendarClock("icon")}<div><b>Closing Date</b><span>${escapeHtml(
-          s2.closingDate
-        )}</span></div></div>
-        <div class="meta-row">${prospectusIcon.calendarClock("icon")}<div><b>Maturity Date</b><span>${escapeHtml(
+        <div class="meta-row">${renderProspectusHeroicon("listing-date", {
+          className: "icon",
+        })}<div><b>Listing Date</b><span>${escapeHtml(s2.listingDate)}</span></div></div>
+        <div class="meta-row">${renderProspectusHeroicon("closing-date", {
+          className: "icon",
+        })}<div><b>Closing Date</b><span>${escapeHtml(s2.closingDate)}</span></div></div>
+        <div class="meta-row">${renderProspectusHeroicon("maturity-date", {
+          className: "icon",
+        })}<div><b>Maturity Date</b><span>${escapeHtml(
           s2.maturityDateWithTenure
         )}</span></div></div>
-        <div class="meta-row">${prospectusIcon.landmark("icon")}<div><b>Paymaster</b><span>${escapeHtml(
-          s2.paymasterDisplay
-        )}</span></div></div>
+        <div class="meta-row">${renderProspectusHeroicon("paymaster", {
+          className: "icon",
+        })}<div><b>Paymaster</b><span>${escapeHtml(s2.paymasterDisplay)}</span></div></div>
       </div>
       <div class="risk-panel" data-stage="3">
         <b>Risk Rating</b>
-        <div
-          class="shield"
-          data-grade="${escapeHtmlAttribute(s3.riskGrade)}"
-          style="background:${escapeHtmlAttribute(
-            s3.riskGradeColor
-          )};color:${escapeHtmlAttribute(s3.riskGradeTextColor)}"
-        >${escapeHtml(s3.riskGrade)}</div>
+        ${buildProspectusRiskShieldHtml({
+          grade: s3.riskGrade,
+          color: s3.riskGradeColor,
+          textColor: s3.riskGradeTextColor,
+        })}
         <strong>${escapeHtml(s3.riskLabel)}</strong>
-        <p>${escapeHtml(s3.riskExplanation)}</p>
+        <p class="prospectus-risk-description">${escapeHtml(s3.riskExplanation)}</p>
         <a class="scale-link" href="#risk-scale">${escapeHtml(s3.ratingScaleReference)}</a>
       </div>
     </div>
@@ -167,21 +169,21 @@ ${PROSPECTUS_DOCUMENT_CSS}
     <section class="strip connected-card-middle" data-stage="6">
       <h2>At a Glance</h2>
       <div class="stats five">
-        <div class="stat">${prospectusIcon.badgeDollar("icon")}<small>Financing Amount</small><b>${escapeHtml(
-          s6.financingAmount
-        )}</b></div>
-        <div class="stat">${prospectusIcon.chart("icon")}<small>Profit Rate for Investors</small><b>${escapeHtml(
-          s6.profitRate
-        )}</b></div>
-        <div class="stat">${prospectusIcon.handCoins("icon")}<small>Expected Return (p.a.)</small><b>${escapeHtml(
-          s6.expectedReturn
-        )}</b></div>
-        <div class="stat">${prospectusIcon.calendarClock("icon")}<small>Tenure</small><b>${escapeHtml(
-          s6.tenure
-        )}</b></div>
-        <div class="stat">${prospectusIcon.handCoins("icon")}<small>Minimum Investment</small><b>${escapeHtml(
-          s6.minimumInvestment
-        )}</b></div>
+        <div class="stat">${renderProspectusHeroicon("financing", {
+          className: "icon",
+        })}<small>Financing Amount</small><b>${escapeHtml(s6.financingAmount)}</b></div>
+        <div class="stat">${renderProspectusHeroicon("profit-rate", {
+          className: "icon",
+        })}<small>Profit Rate for Investors</small><b>${escapeHtml(s6.profitRate)}</b></div>
+        <div class="stat">${renderProspectusHeroicon("expected-return", {
+          className: "icon",
+        })}<small>Expected Return (p.a.)</small><b>${escapeHtml(s6.expectedReturn)}</b></div>
+        <div class="stat">${renderProspectusHeroicon("tenure", {
+          className: "icon",
+        })}<small>Tenure</small><b>${escapeHtml(s6.tenure)}</b></div>
+        <div class="stat">${renderProspectusHeroicon("minimum-investment", {
+          className: "icon",
+        })}<small>Minimum Investment</small><b>${escapeHtml(s6.minimumInvestment)}</b></div>
       </div>
     </section>
 
@@ -189,18 +191,26 @@ ${PROSPECTUS_DOCUMENT_CSS}
       <div data-stage="7">
         <h2>${escapeHtml(s7.sectionHeading)}</h2>
         <div class="stats four">
-          <div class="stat">${prospectusIcon.notebook("icon")}<small>Total Notes Funded — All Time</small><b>${escapeHtml(
+          <div class="stat">${renderProspectusHeroicon("notes-funded", {
+            className: "icon",
+          })}<small>Total Notes Funded — All Time</small><b>${escapeHtml(
             s7.totalNotesFunded
           )}</b></div>
-          <div class="stat">${prospectusIcon.badgeDollar("icon")}<small>Total Amount Funded — All Time</small><b>${escapeHtml(
+          <div class="stat">${renderProspectusHeroicon("amount-funded", {
+            className: "icon",
+          })}<small>Total Amount Funded — All Time</small><b>${escapeHtml(
             s7.totalAmountFunded
           )}</b></div>
-          <div class="stat">${prospectusIcon.badgeCheck("icon")}<small>Successful Repayment — All Time</small><b>${escapeHtml(
+          <div class="stat">${renderProspectusHeroicon("repayment", {
+            className: "icon",
+          })}<small>Successful Repayment — All Time</small><b>${escapeHtml(
             s7.successfulRepayment
           )}</b></div>
-          <div class="stat">${prospectusIcon.clock("icon")}<small>${escapeHtml(
-            s7.onTimePaymentRateLabel
-          )}</small><b>${escapeHtml(s7.onTimePaymentRate)}</b></div>
+          <div class="stat">${renderProspectusHeroicon("on-time-payment", {
+            className: "icon",
+          })}<small>${escapeHtml(s7.onTimePaymentRateLabel)}</small><b>${escapeHtml(
+            s7.onTimePaymentRate
+          )}</b></div>
         </div>
       </div>
       <div data-stage="8">

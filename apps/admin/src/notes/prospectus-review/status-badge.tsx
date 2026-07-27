@@ -13,7 +13,7 @@ import {
 
 export { PROSPECTUS_STATUS_BADGE_COMPACT_CLASS } from "./status-badge-styles";
 
-/** Compact status badge for step nav and final checklist. */
+/** Compact status badge for workflow step navigation. */
 export function ProspectusStatusBadge({
   status,
   className,

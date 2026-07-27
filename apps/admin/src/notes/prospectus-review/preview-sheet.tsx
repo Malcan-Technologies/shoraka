@@ -12,7 +12,9 @@ import {
 } from "@/components/ui/sheet";
 import {
   PREVIEW_DOCUMENT_FRAME_CLASS,
+  PREVIEW_DOCUMENT_INNER_CLASS,
   PREVIEW_IFRAME_CLASS,
+  PREVIEW_IFRAME_STYLE,
   PREVIEW_SHEET_BODY_CLASS,
   PREVIEW_SHEET_CONTENT_CLASS,
   cleanProspectusPreviewHtml,
@@ -116,11 +118,14 @@ function ProspectusPreviewSheetComponent(props: ProspectusPreviewSheetProps) {
           ) : null}
           {html ? (
             <div className={PREVIEW_DOCUMENT_FRAME_CLASS}>
-              <iframe
-                title={prospectusPreviewIframeTitle(tab)}
-                className={PREVIEW_IFRAME_CLASS}
-                srcDoc={withAdminPreviewScrollLock(html)}
-              />
+              <div className={PREVIEW_DOCUMENT_INNER_CLASS}>
+                <iframe
+                  title={prospectusPreviewIframeTitle(tab)}
+                  className={PREVIEW_IFRAME_CLASS}
+                  style={PREVIEW_IFRAME_STYLE}
+                  srcDoc={withAdminPreviewScrollLock(html)}
+                />
+              </div>
             </div>
           ) : null}
           {showRefreshHint ? (

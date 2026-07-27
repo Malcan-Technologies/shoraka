@@ -1,15 +1,16 @@
 /**
  * SECTION: Shared prospectus header (Pages 1–3)
- * WHY: Official logo + tagline to the right; dimensional Shariah placeholder
+ * WHY: Official logo + tagline; shared Shariah badge SVG on all pages
  */
 
 import { buildProspectusBrandMarkHtml } from "./prospectus-header-logo";
+import { buildProspectusShariahBadgeHtml } from "./prospectus-shariah-badge";
 import type { ProspectusHeader } from "./prospectus-header.types";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
 import { escapeHtml } from "./prospectus-html";
 import { PROSPECTUS_HEADER_TAGLINE } from "./prospectus-static-copy";
 
-/** Visible presentation placeholder — not a final compliance asset. */
+/** @deprecated Prefer buildProspectusShariahBadgeHtml — kept for older tests. */
 export const PROSPECTUS_HEADER_SHARIAH_PLACEHOLDER = "Shariah Compliant";
 
 /** @deprecated Prefer PROSPECTUS_HEADER_TAGLINE from prospectus-static-copy. */
@@ -17,7 +18,7 @@ export const PROSPECTUS_HEADER_TAGLINE_PLACEHOLDER = PROSPECTUS_HEADER_TAGLINE;
 
 /**
  * Shared header for all investor Prospectus pages.
- * Left: logo + tagline (inline). Right: Shariah badge.
+ * Left: logo + tagline (inline). Right: Shariah badge SVG.
  * No duplicate text brand name beside the logo asset.
  */
 export function buildProspectusHeaderHtml(data: ProspectusHeader): string {
@@ -27,10 +28,10 @@ export function buildProspectusHeaderHtml(data: ProspectusHeader): string {
       ? data.tagline
       : PROSPECTUS_HEADER_TAGLINE;
   return `<header class="page-header" data-stage="header">
-  <div class="brand">
+  <div class="brand prospectus-brand">
     ${buildProspectusBrandMarkHtml()}
-    <div class="tagline">${escapeHtml(tagline)}</div>
+    <div class="tagline prospectus-tagline">${escapeHtml(tagline)}</div>
   </div>
-  <div class="shariah"><span class="shariah-mark" aria-hidden="true">◆</span> ${PROSPECTUS_HEADER_SHARIAH_PLACEHOLDER}</div>
+  ${buildProspectusShariahBadgeHtml()}
 </header>`;
 }

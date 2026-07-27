@@ -18,6 +18,7 @@ import {
   PROSPECTUS_DOCUMENT_CSS,
   PROSPECTUS_HEADER_CONTENT_GAP_PX,
   PROSPECTUS_HEADER_HEIGHT_PX,
+  PROSPECTUS_HEADER_PADDING_BOTTOM_PX,
   PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX,
   PROSPECTUS_LOGO_DISPLAY_WIDTH_PX,
   PROSPECTUS_LOGO_HEIGHT_PX,
@@ -28,6 +29,11 @@ import {
   PROSPECTUS_PAGE_PADDING_X_PX,
   PROSPECTUS_PAGE_TITLE_FONT_SIZE_PX,
   PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX,
+  PROSPECTUS_SHARIAH_BADGE_SIZE_PX,
+  PROSPECTUS_BRAND_GAP_PX,
+  PROSPECTUS_SUPPORTING_FONT_SIZE_PX,
+  PROSPECTUS_SUPPORTING_TEXT_COLOR,
+  PROSPECTUS_TAGLINE_BASELINE_OFFSET_PX,
   PROSPECTUS_TAGLINE_FONT_SIZE_PX,
 } from "./prospectus-document-styles";
 import {
@@ -78,12 +84,15 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
     const strip = html.slice(stripStart, stripEnd);
     const iconCount = (strip.match(/class="icon"/g) ?? []).length;
     expect(iconCount).toBe(5);
-    // Not five identical calendar-only marks: building / shield / landmark paths differ
+    // Not five identical calendar-only marks: Heroicon keys differ per metadata field
     expect(strip).toContain('data-meta-key="sector"');
     expect(strip).toContain('data-meta-key="riskRating"');
     expect(strip).toContain('data-meta-key="paymaster"');
     expect(strip).toContain('data-meta-key="paymasterGrading"');
     expect(strip).toContain('data-meta-key="confidenceGrading"');
+    expect(strip).toContain('data-prospectus-icon="sector"');
+    expect(strip).toContain('data-prospectus-icon="risk-rating"');
+    expect(strip).toContain('data-prospectus-icon="paymaster"');
     const sectorChunk = strip.slice(
       strip.indexOf('data-meta-key="sector"'),
       strip.indexOf('data-meta-key="riskRating"')
@@ -127,12 +136,14 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
     expect(header.tagline).toBe(PROSPECTUS_HEADER_TAGLINE);
     const html = buildProspectusHeaderHtml(header);
     expect(html).toContain('class="brand-logo"');
+    expect(html).toContain("prospectus-brand");
+    expect(html).toContain("prospectus-tagline");
     expect(html).toContain(PROSPECTUS_HEADER_TAGLINE);
     expect(html).toContain("data:image/svg+xml;base64,");
     expect(html).not.toContain('class="brand-name"');
     expect(html).not.toContain("Cash<span>Souk</span>");
     expect(html).toMatch(
-      /class="brand-logo"[\s\S]*?class="tagline"/
+      /class="brand-logo"[\s\S]*?class="tagline prospectus-tagline"/
     );
   });
 
@@ -143,15 +154,59 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
     for (const html of [h1, h2, h3]) {
       expect(html).toContain('data-stage="header"');
       expect(html).toContain("page-header");
+      expect(html).toContain("prospectus-brand");
+      expect(html).toContain("prospectus-tagline");
+      expect(html).toContain("prospectus-footer-copy");
       expect(html).toContain(PROSPECTUS_HEADER_TAGLINE);
       expect((html.match(new RegExp(PROSPECTUS_HEADER_TAGLINE, "g")) ?? []).length).toBe(1);
       expect(html).toContain('class="brand-logo"');
+      expect(html).toContain('class="shariah-badge"');
+      expect(html).toContain('class="shariah-label"');
+      expect(html).toContain("Shariah Compliant");
+      expect(html).not.toContain('class="shariah-mark"');
+      expect(html).toContain('width="14"');
+      expect(html).toContain('height="14"');
+      // Shared badge chrome: red border + black label text (icon SVG fill stays red)
+      expect(html).toContain(
+        ".shariah{display:flex;align-items:center;gap:6px;flex:none;min-width:0;border:1.5px solid var(--red)"
+      );
+      expect(html).toContain(
+        ".shariah-label{font-size:8px;font-weight:400;color:#000000;"
+      );
+      expect(html).not.toContain(
+        ".shariah-label{font-size:8px;font-weight:700;"
+      );
       expect(html).toContain(`width="${PROSPECTUS_LOGO_DISPLAY_WIDTH_PX}"`);
       expect(html).toContain(`height="${PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX}"`);
       expect(html).toContain(`height="${PROSPECTUS_LOGO_HEIGHT_PX}"`);
       expect(html).not.toContain('class="brand-name"');
       expect(html).not.toContain("Cash<span>Souk</span>");
+      expect(html).toContain(PROSPECTUS_FOOTER_DISCLAIMER_LINE1);
+      expect(html).toContain(PROSPECTUS_FOOTER_DISCLAIMER_LINE2);
     }
+  });
+
+  it("Page 1 Investor Highlights use official CheckIcon in green circles", () => {
+    const html = buildProspectusPageOneHtml(SAMPLE_PROSPECTUS_PAGE_ONE);
+    expect((html.match(/class="investor-highlight-check"/g) ?? []).length).toBe(4);
+    expect((html.match(/data-prospectus-icon="highlight-check"/g) ?? []).length).toBe(4);
+    expect(
+      (html.match(/investor-highlight-check[\s\S]*?m4\.5 12\.75 6 6 9-13\.5/g) ?? []).length
+    ).toBe(4);
+    expect(html).not.toContain("✓");
+    expect(html).not.toContain('data-prospectus-icon="highlight-check"></svg>✓');
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(".investor-highlight-check");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("stroke-width:2.2");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("var(--prospectus-positive-green)");
+  });
+
+  it("Page 1 uses the uploaded risk shield SVG with dynamic grade colour", () => {
+    const html = buildProspectusPageOneHtml(SAMPLE_PROSPECTUS_PAGE_ONE);
+    expect(html).toContain('class="risk-shield"');
+    expect(html).toContain('class="risk-shield-asset"');
+    expect(html).toContain('class="risk-shield-grade"');
+    expect(html).not.toContain('class="shield"');
+    expect(html).not.toContain("clip-path:polygon");
   });
 
   it("crops logo SVG viewBox so CSS size maps to visible artwork", () => {
@@ -170,16 +225,34 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
   });
 
   it("uses shared header/logo/title/colour/icon tokens with no per-page shrink overrides", () => {
-    expect(PROSPECTUS_HEADER_HEIGHT_PX).toBe(56);
-    expect(PROSPECTUS_HEADER_CONTENT_GAP_PX).toBe(10);
+    expect(PROSPECTUS_HEADER_HEIGHT_PX).toBe(64);
+    expect(PROSPECTUS_HEADER_PADDING_BOTTOM_PX).toBe(10);
+    expect(PROSPECTUS_SHARIAH_BADGE_SIZE_PX).toBe(14);
+    expect(PROSPECTUS_HEADER_CONTENT_GAP_PX).toBe(12);
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(
+      "padding-bottom:var(--prospectus-header-padding-bottom)"
+    );
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(
+      "--prospectus-shariah-badge-size:14px"
+    );
     expect(PROSPECTUS_LOGO_DISPLAY_WIDTH_PX).toBe(270);
     expect(PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX).toBe(52);
     expect(PROSPECTUS_LOGO_HEIGHT_PX).toBe(52);
-    expect(PROSPECTUS_TAGLINE_FONT_SIZE_PX).toBe(8.5);
+    expect(PROSPECTUS_SUPPORTING_FONT_SIZE_PX).toBe(9.5);
+    expect(PROSPECTUS_TAGLINE_FONT_SIZE_PX).toBe(9.5);
+    expect(PROSPECTUS_SUPPORTING_TEXT_COLOR).toBe("#4a4a4a");
+    expect(PROSPECTUS_BRAND_GAP_PX).toBe(8);
+    expect(PROSPECTUS_TAGLINE_BASELINE_OFFSET_PX).toBe(6);
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("--prospectus-supporting-font-size:9.5px");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("--prospectus-supporting-text:#4a4a4a");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("align-items:flex-end");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("--prospectus-brand-gap:8px");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("--prospectus-footer-icon-gap:6px");
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain(".prospectus-footer-copy");
     expect(PROSPECTUS_SECTION_TITLE_FONT_SIZE_PX).toBe(12);
     expect(PROSPECTUS_PAGE_TITLE_FONT_SIZE_PX).toBe(22);
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(
-      "--prospectus-header-content-gap:10px"
+      "--prospectus-header-content-gap:12px"
     );
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(
       "margin-bottom:var(--prospectus-header-content-gap)"
@@ -256,10 +329,10 @@ describe("prospectus reference alignment (Pages 1–3)", () => {
   });
 
   it("Pages 1–3 use the same shared outer page padding token", () => {
-    expect(PROSPECTUS_PAGE_PADDING_CSS).toBe("28px 28px 28px");
-    expect(PROSPECTUS_PAGE_PADDING_TOP_PX).toBe(28);
+    expect(PROSPECTUS_PAGE_PADDING_CSS).toBe("20px 28px 24px");
+    expect(PROSPECTUS_PAGE_PADDING_TOP_PX).toBe(20);
     expect(PROSPECTUS_PAGE_PADDING_X_PX).toBe(28);
-    expect(PROSPECTUS_PAGE_PADDING_BOTTOM_PX).toBe(28);
+    expect(PROSPECTUS_PAGE_PADDING_BOTTOM_PX).toBe(24);
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(
       "padding:var(--prospectus-page-padding)"
     );

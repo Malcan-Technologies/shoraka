@@ -10,7 +10,7 @@ export { SOUKSCORE_RISK_RATING_GRADES };
 export type { SoukscoreRiskRating };
 
 /** Static Canva section title — not a database field. */
-export const PROSPECTUS_SOUKSCORE_RATING_SCALE_SECTION_HEADING = "CASHSCOUK RISK RATING";
+export const PROSPECTUS_SOUKSCORE_RATING_SCALE_SECTION_HEADING = "Risk Rating Scale";
 
 /** Canonical grade order — reuse shared constant; do not invent a second order. */
 export const PROSPECTUS_SOUKSCORE_GRADE_ORDER = SOUKSCORE_RISK_RATING_GRADES;
@@ -153,7 +153,7 @@ export const PROSPECTUS_SOUKSCORE_RATING_SCALE_FIELD_SOURCES: Record<
     availability: "static",
     surface: "canva",
     possibleAlternatives: "none",
-    notes: "CASHSCOUK RISK RATING",
+    notes: "Risk Rating Scale",
   },
   grades: {
     label: "SoukScore grade cells",
@@ -162,7 +162,7 @@ export const PROSPECTUS_SOUKSCORE_RATING_SCALE_FIELD_SOURCES: Record<
     surface: "canva",
     possibleAlternatives: "Canva A–E — rejected; no A–E mapping",
     notes:
-      "Order A–F. Full scale shows grade + catalogue label + description + colour; selected grade highlighted.",
+      "Order A–F. Full scale shows grade + catalogue label + description + colour; reference only (no selected highlight).",
   },
   riskLabel: {
     label: "Risk Label",
