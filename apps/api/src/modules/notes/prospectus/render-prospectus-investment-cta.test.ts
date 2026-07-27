@@ -38,7 +38,7 @@ describe("prospectus Page 2 CTA and shared header (DATA STAGE 8)", () => {
 
       const absoluteLogo = path.resolve(
         __dirname,
-        "../../../../../investor/public/logo.svg"
+        "../../../../assets/prospectus/logo.svg"
       );
       expect(readFileSync(absoluteLogo, "utf8")).toContain("<svg");
     });

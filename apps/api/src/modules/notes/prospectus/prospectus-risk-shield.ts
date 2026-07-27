@@ -3,9 +3,9 @@
  * WHY: Official shield artwork with dynamic A–F grade colour + letter overlay
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { CASHSCOUK_RISK_GRADE_LETTER_COLOR } from "@cashsouk/types";
+import { resolveProspectusAssetAbsolutePath } from "./prospectus-asset-paths";
 import { escapeHtml, escapeHtmlAttribute } from "./prospectus-html";
 
 /** Source fill in prospectus-risk-shield.svg — replaced per selected grade. */
@@ -19,11 +19,7 @@ export const PROSPECTUS_RISK_SHIELD_GRADE_FONT_SIZE_PX = 30;
 let cachedSvgXml: string | null | undefined;
 
 export function resolveProspectusRiskShieldAbsolutePath(): string | null {
-  const absolute = join(
-    __dirname,
-    "../../../../../investor/public/prospectus-risk-shield.svg"
-  );
-  return existsSync(absolute) ? absolute : null;
+  return resolveProspectusAssetAbsolutePath("prospectus-risk-shield.svg");
 }
 
 function prepareProspectusRiskShieldSvg(svgXml: string, fillColor: string): string {
