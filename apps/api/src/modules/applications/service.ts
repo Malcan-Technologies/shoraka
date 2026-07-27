@@ -185,6 +185,112 @@ export class ApplicationService {
     this.notificationService = new NotificationService();
   }
 
+  /**
+   * Financing structure is the branch point. When the branch changes, clear
+   * path-specific draft invoices / draft holder contracts (and their S3 objects).
+   * Shared approved contracts are only unlinked, never deleted.
+   */
+  private async resetFinancingStructureBranchData(
+    application: Application & {
+      invoices?: Array<{ id: string; status: string; details: unknown }>;
+      status?: string;
+      contract_id?: string | null;
+    }
+  ): Promise<void> {
+    const invoices = application.invoices ?? [];
+    const nonDraftInvoices = invoices.filter((invoice) => invoice.status !== "DRAFT");
+    if (nonDraftInvoices.length > 0) {
+      throw new AppError(
+        400,
+        "STRUCTURE_CHANGE_BLOCKED",
+        "Cannot change financing structure after invoices have progressed beyond draft."
+      );
+    }
+
+    const preserveS3 = shouldPreserveApplicationDocumentsInS3(application.status);
+    const extractDocS3Key = (details: unknown): string | null => {
+      if (!details || typeof details !== "object") return null;
+      const document = (details as { document?: { s3_key?: unknown } }).document;
+      const key = document?.s3_key;
+      return typeof key === "string" && key.trim() ? key.trim() : null;
+    };
+
+    for (const invoice of invoices) {
+      const s3Key = extractDocS3Key(invoice.details);
+      await prisma.invoice.delete({ where: { id: invoice.id } });
+      if (s3Key && !preserveS3) {
+        try {
+          await deleteS3Object(s3Key);
+        } catch (err) {
+          logger.error(
+            { applicationId: application.id, invoiceId: invoice.id, s3Key, err },
+            "Failed to delete invoice S3 object during financing structure reset"
+          );
+        }
+      } else if (s3Key && preserveS3) {
+        logger.info(
+          { applicationId: application.id, invoiceId: invoice.id, s3Key },
+          "Skipped invoice S3 delete during structure reset: AMENDMENT_REQUESTED preserve"
+        );
+      }
+    }
+
+    if (!application.contract_id) return;
+
+    const contract = await this.contractRepository.findById(application.contract_id);
+    await prisma.application.update({
+      where: { id: application.id },
+      data: { contract_id: null },
+    });
+
+    // Approved (existing-contract) links are only disconnected. Draft holder contracts
+    // created in the new_contract / invoice-only path are deleted with their documents.
+    if (!contract || contract.status !== "DRAFT") return;
+
+    const linkedApps =
+      (
+        contract as {
+          applications?: Array<{ id: string }>;
+        }
+      ).applications ?? [];
+    const otherLinkedApps = linkedApps.filter((app) => app.id !== application.id);
+    if (otherLinkedApps.length > 0) {
+      logger.warn(
+        { applicationId: application.id, contractId: contract.id, otherLinkedApps },
+        "Skipped draft contract delete during structure reset: still linked to other applications"
+      );
+      return;
+    }
+
+    const s3Keys = [
+      extractDocS3Key(contract.contract_details),
+      extractDocS3Key(contract.customer_details),
+    ].filter((key): key is string => Boolean(key));
+
+    await this.contractRepository.delete(contract.id);
+
+    if (preserveS3) {
+      for (const s3Key of s3Keys) {
+        logger.info(
+          { applicationId: application.id, contractId: contract.id, s3Key },
+          "Skipped contract S3 delete during structure reset: AMENDMENT_REQUESTED preserve"
+        );
+      }
+      return;
+    }
+
+    for (const s3Key of s3Keys) {
+      try {
+        await deleteS3Object(s3Key);
+      } catch (err) {
+        logger.error(
+          { applicationId: application.id, contractId: contract.id, s3Key, err },
+          "Failed to delete contract S3 object during financing structure reset"
+        );
+      }
+    }
+  }
+
   private async sendIssuerNotification(
     applicationId: string,
     typeId: (typeof NotificationTypeIds)[keyof typeof NotificationTypeIds],
@@ -926,11 +1032,30 @@ export class ApplicationService {
       }
     }
 
-    // Special handling for financing_structure: link existing contract if selected
+    // Special handling for financing_structure: branch reset + link/unlink contract
     if (fieldName === "financing_structure") {
-      const structureData = input.data as any;
+      const structureData = input.data as {
+        structure_type?: string;
+        existing_contract_id?: string | null;
+      };
+      const prevStructure = application.financing_structure as {
+        structure_type?: string;
+        existing_contract_id?: string | null;
+      } | null;
+      const nextType = structureData?.structure_type;
+      const prevType = prevStructure?.structure_type;
+      const structureBranchChanged =
+        Boolean(nextType) &&
+        (prevType !== nextType ||
+          (nextType === "existing_contract" &&
+            (prevStructure?.existing_contract_id ?? null) !==
+              (structureData?.existing_contract_id ?? null)));
+
+      if (structureBranchChanged) {
+        await this.resetFinancingStructureBranchData(application);
+      }
+
       if (structureData?.structure_type === "existing_contract" && structureData?.existing_contract_id) {
-        // Validate the contract before linking
         const contract = await this.contractRepository.findById(structureData.existing_contract_id);
 
         if (!contract) {
@@ -945,38 +1070,14 @@ export class ApplicationService {
           throw new AppError(400, "INVALID_CONTRACT_STATUS", "Only approved contracts can be linked to applications.");
         }
 
-        // Link the existing contract to this application
         updateData.contract = { connect: { id: structureData.existing_contract_id } };
-      } else if (structureData?.structure_type === "invoice_only" || structureData?.structure_type === "new_contract") {
-        // invoice_only allows at most one invoice; block the switch instead of auto-deleting existing invoices
-        if (structureData?.structure_type === "invoice_only") {
-          const existingInvoices =
-            (application as { invoices?: { id: string }[] }).invoices ?? [];
-          if (existingInvoices.length > 1) {
-            throw new AppError(
-              400,
-              "MAX_INVOICES_REACHED",
-              "Cannot switch to invoice-only: this application already has more than one invoice. Remove the extra invoices first."
-            );
-          }
-        }
-
-        // Unlink any contract if invoice-only OR new_contract is selected
-        // This ensures switching from existing_contract → new_contract properly disconnects the FK
+      } else if (
+        structureData?.structure_type === "invoice_only" ||
+        structureData?.structure_type === "new_contract"
+      ) {
+        // Branch reset already removed a draft holder contract; disconnect covers approved links.
         if (application.contract_id) {
           updateData.contract = { disconnect: true };
-        }
-
-        // invoice_only: clear contract_id on draft invoices to prevent inconsistent state
-        if (structureData?.structure_type === "invoice_only") {
-          await prisma.invoice.updateMany({
-            where: {
-              application_id: id,
-              status: "DRAFT",
-              contract_id: { not: null },
-            },
-            data: { contract_id: null },
-          });
         }
       }
     }

@@ -40,6 +40,12 @@ export class ContractRepository {
     });
   }
 
+  async delete(id: string): Promise<void> {
+    await prisma.contract.delete({
+      where: { id },
+    });
+  }
+
   async unlinkFromApplication(applicationId: string): Promise<void> {
     // Also clear contract_id from all invoices associated with this application
     await prisma.invoice.updateMany({

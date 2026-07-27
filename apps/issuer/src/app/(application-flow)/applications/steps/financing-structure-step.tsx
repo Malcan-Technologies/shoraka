@@ -7,9 +7,11 @@
  * Data: Uses application data + approved contracts list; emits `{ structure_type, existing_contract_id }` to parent.
  */
 import * as React from "react";
+import type { Contract } from "@cashsouk/types";
 import { useApplication } from "@/hooks/use-applications";
 import { useInvoicesByApplication } from "@/hooks/use-invoices";
 import { useApprovedContracts } from "@/hooks/use-contracts";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   Select,
   SelectContent,
@@ -23,7 +25,6 @@ import {
   formSelectTriggerClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { cn } from "@/lib/utils";
-import type { Contract } from "@cashsouk/types";
 import { SelectionCard } from "@/app/(application-flow)/applications/components/selection-card";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { FinancingStructureSkeleton } from "@/app/(application-flow)/applications/components/financing-structure-skeleton";
@@ -36,9 +37,7 @@ import { FinancingStructureSkeleton } from "@/app/(application-flow)/application
  * 2. Use an existing contract - Select from previously approved contracts
  * 3. Invoice-only financing - Finance invoices without a contract
  *
- * Props:
- * - applicationId: ID of the current application
- * - onDataChange: callback to pass selected structure to parent
+ * Changing structure is a branch reset: invoices / draft contract data are cleared on save.
  */
 
 type FinancingStructureType = "new_contract" | "existing_contract" | "invoice_only";
@@ -56,13 +55,6 @@ export function FinancingStructureStep({
 }: FinancingStructureStepProps) {
   const devTools = useDevTools();
 
-  /** Local state
-   *
-   * What: Tracks user selection and initialization from DB.
-   * Why: Parent saves only on Save and Continue; we still need immediate UI updates.
-   * Data: `selectedStructure` is `"new_contract" | "existing_contract" | "invoice_only" | null`.
-   *       `selectedContractId` is a contract id string when `existing_contract`.
-   */
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const { data: invoices = [], isLoading: isLoadingInvoices } = useInvoicesByApplication(applicationId);
   const { data: approvedContracts = [] } = useApprovedContracts(
@@ -70,52 +62,19 @@ export function FinancingStructureStep({
   );
   const hasApprovedContracts = approvedContracts.length > 0;
 
-  /** Local state
-   *
-   * What: Selected structure type.
-   * Why: Drives selected card styling and validation.
-   * Data: `FinancingStructureType | null`.
-   */
   const [selectedStructure, setSelectedStructure] = React.useState<FinancingStructureType>(
     "new_contract"
   );
-
-  /** Invoice-only allows one invoice; block Save when switching with extras still on the application. */
-  const invoiceOnlyBlockedByMultipleInvoices =
-    selectedStructure === "invoice_only" && invoices.length > 1;
-  const invoiceOnlyBlockMessage =
-    "Invoice-only financing allows only one invoice. Remove the extra invoices first, then switch.";
-
-  /** Local state
-   *
-   * What: Selected contract id for existing contract path.
-   * Why: Required for validity when `structure_type === "existing_contract"`.
-   * Data: string id.
-   */
   const [selectedContractId, setSelectedContractId] = React.useState<string>("");
-
-  /** Local state
-   *
-   * What: One-time initialization flag.
-   * Why: Prevent overwriting user changes on data refresh.
-   * Data: boolean.
-   */
   const [isInitialized, setIsInitialized] = React.useState(false);
+  const [branchResetConfirmOpen, setBranchResetConfirmOpen] = React.useState(false);
+  const branchResetResolveRef = React.useRef<((confirmed: boolean) => void) | null>(null);
 
-  /** Refs
-   *
-   * What: Stable callback ref for `onDataChange`.
-   * Why: Avoid effect re-runs when parent passes a new function identity.
-   * Data: `onDataChange?: (data: Record<string, unknown>) => void`.
-   */
   const onDataChangeRef = React.useRef(onDataChange);
   React.useEffect(() => {
     onDataChangeRef.current = onDataChange;
   }, [onDataChange]);
 
-  /**
-   * LOAD SAVED DATA FROM DATABASE
-   */
   React.useEffect(() => {
     if (!application || isInitialized) return;
 
@@ -133,7 +92,6 @@ export function FinancingStructureStep({
     setIsInitialized(true);
   }, [application, isInitialized]);
 
-  /** Apply dev-tools Fill Entire Application (autoFillDataMap). */
   React.useEffect(() => {
     const data = devTools?.autoFillDataMap?.["financing_structure"] as
       | { structure_type?: string; existing_contract_id?: string | null }
@@ -147,11 +105,7 @@ export function FinancingStructureStep({
     devTools?.clearAutoFillForStep("financing_structure");
   }, [devTools]);
 
-  /**
-   * NOTIFY PARENT WHEN DATA CHANGES
-   */
   React.useEffect(() => {
-
     if (!onDataChangeRef.current || !isInitialized) return;
 
     const dataToSave = {
@@ -159,7 +113,6 @@ export function FinancingStructureStep({
       existing_contract_id: selectedStructure === "existing_contract" ? selectedContractId : null,
     };
 
-    // If existing contract is selected, provide the details for autofill
     let additionalData: Record<string, unknown> = {};
     if (selectedStructure === "existing_contract" && selectedContractId) {
       const contract = approvedContracts.find((c: Contract) => c.id === selectedContractId);
@@ -173,14 +126,9 @@ export function FinancingStructureStep({
       }
     }
 
-    // isValid: existing_contract needs a contract; invoice_only cannot keep multiple invoices
     const isValid =
-      (selectedStructure !== "existing_contract" || selectedContractId !== "") &&
-      !invoiceOnlyBlockedByMultipleInvoices;
+      selectedStructure !== "existing_contract" || selectedContractId !== "";
 
-    // Normalize missing DB values to the UI defaults so initial-load
-    // equality checks are correct and we don't mark the step as dirty
-    // when the DB has no financing_structure record yet.
     const savedStructure = application?.financing_structure as Record<string, unknown> | null | undefined;
     const savedType = (savedStructure?.structure_type as FinancingStructureType | undefined) ?? "new_contract";
     const savedContractId = (savedStructure?.existing_contract_id as string | undefined) ?? "";
@@ -195,6 +143,22 @@ export function FinancingStructureStep({
     // First-time saves must go through even if structureChanged=false,
     // so the step gets marked as completed in the DB.
     const hasBeenSavedBefore = Boolean(savedStructure);
+    const linkedContractId = (
+      application as { contract_id?: string | null } | null | undefined
+    )?.contract_id;
+    const hasBranchDataToClear = invoices.length > 0 || Boolean(linkedContractId);
+    const needsBranchResetConfirm = structureChanged && hasBranchDataToClear;
+
+    const confirmBranchReset = async () => {
+      if (!needsBranchResetConfirm) return;
+      const confirmed = await new Promise<boolean>((resolve) => {
+        branchResetResolveRef.current = resolve;
+        setBranchResetConfirmOpen(true);
+      });
+      if (!confirmed) {
+        throw new Error("VALIDATION_CANCELLED");
+      }
+    };
 
     onDataChangeRef.current({
       ...dataToSave,
@@ -203,31 +167,20 @@ export function FinancingStructureStep({
       hasPendingChanges,
       structureChanged,
       hasBeenSavedBefore,
-      validationError: invoiceOnlyBlockedByMultipleInvoices ? invoiceOnlyBlockMessage : undefined,
+      ...(needsBranchResetConfirm ? { saveFunction: confirmBranchReset } : {}),
     });
-
   }, [
     selectedStructure,
     selectedContractId,
     approvedContracts,
     isInitialized,
     application,
-    invoiceOnlyBlockedByMultipleInvoices,
-    invoiceOnlyBlockMessage,
+    invoices.length,
   ]);
 
-  /**
-   * Handle structure type selection
-   */
   const handleStructureSelect = (type: FinancingStructureType) => {
     setSelectedStructure(type);
-
-    // Avoid UI/DB desync: do not stash invoice_only while multiple invoices still exist.
-    if (type === "invoice_only" && invoices.length > 1) {
-      sessionStorage.removeItem("cashsouk:financing_structure_override");
-    } else {
-      sessionStorage.setItem("cashsouk:financing_structure_override", type);
-    }
+    sessionStorage.setItem("cashsouk:financing_structure_override", type);
     window.dispatchEvent(new Event("storage"));
 
     if (type !== "existing_contract") {
@@ -235,10 +188,6 @@ export function FinancingStructureStep({
     }
   };
 
-
-  /**
-   * Handle existing contract selection
-   */
   const handleContractSelect = (contractId: string) => {
     setSelectedContractId(contractId);
 
@@ -253,93 +202,98 @@ export function FinancingStructureStep({
     window.dispatchEvent(new Event("storage"));
   };
 
+  const handleBranchResetConfirmOpenChange = (open: boolean) => {
+    setBranchResetConfirmOpen(open);
+    if (!open && branchResetResolveRef.current) {
+      branchResetResolveRef.current(false);
+      branchResetResolveRef.current = null;
+    }
+  };
 
-  // Loading state
   if (isLoadingApp || isLoadingInvoices || devTools?.showSkeletonDebug) {
     return <FinancingStructureSkeleton />;
   }
 
-  /** Render blocks
-   *
-   * What: Three selectable cards.
-   * Why: Matches Financing Type card layout while keeping a radio-style indicator.
-   * Data: Selected value is kept in local state; parent receives validity + saveFunction via effect.
-   */
   return (
     <>
-    <div className={applicationFlowStepHorizontalClassName}>
-      <div className="space-y-3">
-        {/* Option 1: Submit a new contract */}
-        <SelectionCard
-          title="Submit a new contract"
-          description="My invoice is under a contract that hasn't been approved by Cashsouk"
-          isSelected={selectedStructure === "new_contract"}
-          onClick={readOnly ? () => {} : () => handleStructureSelect("new_contract")}
-          disabled={readOnly}
-        />
+      <div className={applicationFlowStepHorizontalClassName}>
+        <div className="space-y-3">
+          <SelectionCard
+            title="Submit a new contract"
+            description="My invoice is under a contract that hasn't been approved by Cashsouk"
+            isSelected={selectedStructure === "new_contract"}
+            onClick={readOnly ? () => {} : () => handleStructureSelect("new_contract")}
+            disabled={readOnly}
+          />
 
-        {/* Option 2: Use an existing contract */}
-        <SelectionCard
-          title="Use an existing contract"
-          description="My invoice is under a contract already approved by Cashsouk"
-          isSelected={selectedStructure === "existing_contract"}
-          onClick={readOnly ? () => {} : () => handleStructureSelect("existing_contract")}
-          disabled={readOnly}
-          trailing={
-            hasApprovedContracts ? (
-              <Select value={selectedContractId} onValueChange={handleContractSelect} disabled={readOnly}>
-                <SelectTrigger
-                  className={cn(
-                    formSelectTriggerClassName,
-                    "w-[280px]",
-                    readOnly && formInputDisabledClassName
-                  )}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (selectedStructure !== "existing_contract") {
-                      handleStructureSelect("existing_contract");
-                    }
-                  }}
+          <SelectionCard
+            title="Use an existing contract"
+            description="My invoice is under a contract already approved by Cashsouk"
+            isSelected={selectedStructure === "existing_contract"}
+            onClick={readOnly ? () => {} : () => handleStructureSelect("existing_contract")}
+            disabled={readOnly}
+            trailing={
+              hasApprovedContracts ? (
+                <Select value={selectedContractId} onValueChange={handleContractSelect} disabled={readOnly}>
+                  <SelectTrigger
+                    className={cn(
+                      formSelectTriggerClassName,
+                      "w-[280px]",
+                      readOnly && formInputDisabledClassName
+                    )}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (selectedStructure !== "existing_contract") {
+                        handleStructureSelect("existing_contract");
+                      }
+                    }}
+                  >
+                    <SelectValue placeholder="Select an existing contract" />
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    {approvedContracts.map((contract: Contract) => (
+                      <SelectItem key={contract.id} value={contract.id}>
+                        {contract.contract_details?.title ?? "Untitled Contract"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div
+                  className="w-[280px] rounded-md border border-dashed border-input bg-muted px-3 py-2 text-sm text-muted-foreground"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <SelectValue placeholder="Select an existing contract" />
-                </SelectTrigger>
+                  No existing contracts
+                </div>
+              )
+            }
+          />
 
-                <SelectContent>
-                  {approvedContracts.map((contract: Contract) => (
-                    <SelectItem key={contract.id} value={contract.id}>
-                      {contract.contract_details?.title ?? "Untitled Contract"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <div
-                className="w-[280px] rounded-md border border-dashed border-input bg-muted px-3 py-2 text-sm text-muted-foreground"
-                onClick={(e) => e.stopPropagation()}
-              >
-                No existing contracts
-              </div>
-            )
-          }
-
-        />
-
-        {/* Option 3: Invoice-only financing */}
-        <SelectionCard
-          title="Invoice-only financing"
-          description="I want to finance my invoice(s) without a contract"
-          isSelected={selectedStructure === "invoice_only"}
-          onClick={readOnly ? () => {} : () => handleStructureSelect("invoice_only")}
-          disabled={readOnly}
-        />
+          <SelectionCard
+            title="Invoice-only financing"
+            description="I want to finance my invoice(s) without a contract"
+            isSelected={selectedStructure === "invoice_only"}
+            onClick={readOnly ? () => {} : () => handleStructureSelect("invoice_only")}
+            disabled={readOnly}
+          />
+        </div>
       </div>
-      {invoiceOnlyBlockedByMultipleInvoices ? (
-        <p className="mt-3 text-sm text-destructive" role="alert">
-          {invoiceOnlyBlockMessage}
-        </p>
-      ) : null}
-    </div>
+
+      <ConfirmDialog
+        open={branchResetConfirmOpen}
+        onOpenChange={handleBranchResetConfirmOpenChange}
+        title="Change financing structure?"
+        description="This will remove invoices and contract details entered for the current structure, including uploaded files. Other application steps are kept. This can't be undone."
+        confirmText="Change structure"
+        cancelText="Cancel"
+        variant="destructive"
+        onConfirm={async () => {
+          branchResetResolveRef.current?.(true);
+          branchResetResolveRef.current = null;
+          setBranchResetConfirmOpen(false);
+        }}
+      />
     </>
   );
 }
-

@@ -93,8 +93,11 @@ export function useUpdateApplicationStep() {
       queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
     },
     onError: (error: Error) => {
-      // Caller maps structured codes (e.g. MAX_INVOICES_REACHED) to specific copy.
-      if (error instanceof ApiMutationError && error.code === "MAX_INVOICES_REACHED") {
+      // Caller maps structured financing-structure codes to specific copy.
+      if (
+        error instanceof ApiMutationError &&
+        (error.code === "STRUCTURE_CHANGE_BLOCKED" || error.code === "MAX_INVOICES_REACHED")
+      ) {
         return;
       }
       toast.error("Failed to save progress", {

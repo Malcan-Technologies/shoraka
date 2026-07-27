@@ -1691,9 +1691,11 @@ function EditApplicationPageBody() {
       if (currentStepKey === "financing_structure") {
         sessionStorage.removeItem("cashsouk:financing_structure_override");
         setSessionStructureType(null);
-        if (getApiMutationErrorCode(err) === "MAX_INVOICES_REACHED") {
+        if (getApiMutationErrorCode(err) === "STRUCTURE_CHANGE_BLOCKED") {
           toast.error(
-            "Cannot switch to invoice-only with more than one invoice. Remove the extra invoices first."
+            err instanceof Error
+              ? err.message
+              : "Cannot change financing structure for this application."
           );
           return;
         }
