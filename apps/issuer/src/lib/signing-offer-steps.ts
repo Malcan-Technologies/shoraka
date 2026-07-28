@@ -1,7 +1,6 @@
 /**
  * Offer-acceptance phase helpers for the Review Offer modal stepper.
- * Extends the legacy signing stepper with Step 1 acknowledgements + upload.
- * Each acknowledgement document is its own stepper step (`acknowledge:<key>`).
+ * Step 1 is upload-only via product acceptance_documents.
  */
 
 import type { SigningOfferStep } from "@/components/signing/signing-progress-stepper";
@@ -13,19 +12,14 @@ import {
   offerAcceptanceAllowsSigning,
   offerAcceptanceIsAwaitingAdmin,
   offerAcceptanceIsStep1Editable,
-  resolveOfferAcknowledgementsFromWorkflow,
   resolveAcceptanceDocumentsFromWorkflow,
   workflowHasAcceptanceDocuments,
   workflowUsesOfferAcceptanceFlow,
   type OfferAcceptanceStatus,
-  type OfferAcknowledgementDocument,
   type SigningPackageOfferKind,
 } from "@cashsouk/types";
 
-const ACK_STEP_PREFIX = "acknowledge:";
-
 export type SigningOfferStepId =
-  | `acknowledge:${string}`
   | "documents"
   | "awaiting_review"
   | "rejected"
@@ -33,20 +27,6 @@ export type SigningOfferStepId =
   | "signers"
   | "signing"
   | "complete";
-
-export function acknowledgementStepId(documentKey: string): SigningOfferStepId {
-  return `${ACK_STEP_PREFIX}${documentKey}`;
-}
-
-export function parseAcknowledgementStepKey(stepId: string): string | null {
-  if (!stepId.startsWith(ACK_STEP_PREFIX)) return null;
-  const key = stepId.slice(ACK_STEP_PREFIX.length);
-  return key.length > 0 ? key : null;
-}
-
-export function isAcknowledgementStepId(stepId: string): stepId is `acknowledge:${string}` {
-  return parseAcknowledgementStepKey(stepId) != null;
-}
 
 /** UI mode for ReviewOfferModal: full signing stepper vs Accept/Decline-only. */
 export type ReviewOfferModalMode =
@@ -106,12 +86,6 @@ export function hasCompletedContractEnvelope(
 
 type StepShell = Omit<SigningOfferStep, "status">;
 
-export type AcknowledgementStepShellInput = {
-  key: string;
-  name: string;
-  required?: boolean;
-};
-
 /** Synthetic supporting-documents-style config for the Review Offer upload UI. */
 export function buildAcceptanceDocumentsStepConfig(
   workflow: unknown
@@ -135,10 +109,6 @@ export function hasAcceptanceDocuments(workflow: unknown): boolean {
   return workflowHasAcceptanceDocuments(workflow);
 }
 
-export function getOfferAcknowledgements(workflow: unknown): OfferAcknowledgementDocument[] {
-  return resolveOfferAcknowledgementsFromWorkflow(workflow);
-}
-
 export function resolveOfferAcceptanceStatus(offerDetails: unknown): OfferAcceptanceStatus | null {
   return getOfferAcceptanceFromOfferDetails(offerDetails)?.status ?? null;
 }
@@ -146,7 +116,6 @@ export function resolveOfferAcceptanceStatus(offerDetails: unknown): OfferAccept
 export type SigningOfferStepShellInput = {
   usesAcceptanceFlow: boolean;
   hasPostDocs: boolean;
-  acknowledgements: AcknowledgementStepShellInput[];
   acceptanceStatus: OfferAcceptanceStatus | null;
 };
 
@@ -155,13 +124,6 @@ function stepShells(input: SigningOfferStepShellInput): StepShell[] {
 
   if (input.usesAcceptanceFlow) {
     if (offerAcceptanceIsStep1Editable(input.acceptanceStatus)) {
-      for (const doc of input.acknowledgements) {
-        shells.push({
-          id: acknowledgementStepId(doc.key),
-          label: doc.name || "Acknowledgement",
-          description: "Review and accept this document",
-        });
-      }
       if (input.hasPostDocs) {
         shells.push({
           id: "documents",
@@ -202,8 +164,6 @@ function stepShells(input: SigningOfferStepShellInput): StepShell[] {
       return shells;
     }
 
-    // Terminal states get their own shell with distinct copy — never fall through to
-    // "Under review" (inaccurate once the offer is closed) or to legacy Configure signers.
     if (input.acceptanceStatus === "REJECTED") {
       const presentation = getOfferAcceptanceStatusPresentation("REJECTED");
       shells.push({
@@ -223,7 +183,6 @@ function stepShells(input: SigningOfferStepShellInput): StepShell[] {
       return shells;
     }
 
-    // Unknown status — defensive fallback, should not normally occur.
     shells.push({
       id: "awaiting_review",
       label: "Under review",
@@ -260,28 +219,7 @@ function stepShells(input: SigningOfferStepShellInput): StepShell[] {
   return shells;
 }
 
-function isAckChecked(
-  doc: AcknowledgementStepShellInput,
-  checkedKeys: ReadonlySet<string>
-): boolean {
-  if (doc.required === false) return true;
-  return checkedKeys.has(doc.key);
-}
-
-function firstIncompleteAcknowledgementStepId(
-  acknowledgements: AcknowledgementStepShellInput[],
-  checkedKeys: ReadonlySet<string>
-): SigningOfferStepId | null {
-  for (const doc of acknowledgements) {
-    if (!isAckChecked(doc, checkedKeys)) {
-      return acknowledgementStepId(doc.key);
-    }
-  }
-  return null;
-}
-
 export type SigningOfferStepCursorInput = SigningOfferStepShellInput & {
-  checkedAcknowledgementKeys: ReadonlySet<string>;
   postDocsReady: boolean;
   signersLocked: boolean;
   allDocsSigned: boolean;
@@ -293,27 +231,7 @@ export function getCurrentSigningOfferStepId(
 ): SigningOfferStepId {
   if (input.usesAcceptanceFlow) {
     if (offerAcceptanceIsStep1Editable(input.acceptanceStatus)) {
-      // CHANGES_REQUESTED reopens on the Upload sub-step directly: acknowledgements were
-      // already recorded in a prior submission and are not re-checked here, so landing must
-      // not depend on (possibly not-yet-hydrated) checked-acknowledgement state.
-      if (input.acceptanceStatus === "CHANGES_REQUESTED") {
-        if (input.hasPostDocs) return "documents";
-        if (input.acknowledgements.length > 0) {
-          const last = input.acknowledgements[input.acknowledgements.length - 1];
-          return acknowledgementStepId(last.key);
-        }
-        return "documents";
-      }
-      const incompleteAck = firstIncompleteAcknowledgementStepId(
-        input.acknowledgements,
-        input.checkedAcknowledgementKeys
-      );
-      if (incompleteAck) return incompleteAck;
       if (input.hasPostDocs) return "documents";
-      if (input.acknowledgements.length > 0) {
-        const last = input.acknowledgements[input.acknowledgements.length - 1];
-        return acknowledgementStepId(last.key);
-      }
       return "documents";
     }
     if (offerAcceptanceIsAwaitingAdmin(input.acceptanceStatus)) {
@@ -329,7 +247,6 @@ export function getCurrentSigningOfferStepId(
     }
     if (input.acceptanceStatus === "REJECTED") return "rejected";
     if (input.acceptanceStatus === "DECLINED") return "declined";
-    // Unknown status — defensive fallback; never legacy Configure signers.
     return "awaiting_review";
   }
 
@@ -349,17 +266,7 @@ export function getSigningOfferSteps(input: SigningOfferStepCursorInput): Signin
 
   return shells.map((shell, idx) => {
     let status: SigningOfferStep["status"];
-    const ackKey = parseAcknowledgementStepKey(shell.id);
-    if (ackKey) {
-      const checked = input.checkedAcknowledgementKeys.has(ackKey);
-      if (checked || (idx < currentIdx && currentIdx >= 0)) {
-        status = "completed";
-      } else if (idx === currentIdx) {
-        status = "current";
-      } else {
-        status = "pending";
-      }
-    } else if (idx < currentIdx) {
+    if (idx < currentIdx) {
       status = "completed";
     } else if (idx === currentIdx) {
       status = "current";
@@ -406,17 +313,6 @@ export function isSigningOfferStepReachable(
   const currentIdx = getSigningOfferStepIndex(currentDomainStepId, input);
   if (stepIdx < 0 || currentIdx < 0) return false;
   return stepIdx <= currentIdx;
-}
-
-/** Next step after the given acknowledgement key within Step 1 shells. */
-export function getNextStepAfterAcknowledgement(
-  documentKey: string,
-  input: SigningOfferStepShellInput
-): SigningOfferStepId | null {
-  const shells = stepShells(input);
-  const idx = shells.findIndex((s) => s.id === acknowledgementStepId(documentKey));
-  if (idx < 0 || idx >= shells.length - 1) return null;
-  return shells[idx + 1].id as SigningOfferStepId;
 }
 
 export { workflowUsesOfferAcceptanceFlow };

@@ -56,7 +56,7 @@ function getExistingTemplateKeyFromWorkflow(
     const key = (row?.template?.s3_key ?? legacy?.s3_key)?.trim();
     return key && key.startsWith(PRODUCT_S3_KEY_PREFIX) ? key : undefined;
   }
-  if (categoryKey === "acceptance_documents" || categoryKey === "offer_acknowledgements") {
+  if (categoryKey === "acceptance_documents") {
     const financing = workflow.find((s) => getStepId(s).startsWith("financing_type"));
     if (!financing) return undefined;
     const config = getConfig(financing);

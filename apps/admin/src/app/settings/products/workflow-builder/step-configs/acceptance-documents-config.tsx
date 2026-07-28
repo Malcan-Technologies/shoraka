@@ -13,10 +13,15 @@ import {
 } from "./workflow-document-row-editor";
 import {
   ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY,
+  DEFAULT_ACCEPTANCE_DEADLINE,
   parseAcceptanceDocumentsConfig,
+  parseAcceptanceDeadlineConfig,
   writeAcceptanceDocumentsConfig,
+  writeAcceptanceDeadlineConfig,
   type AcceptanceDocumentRow,
+  type PhaseDeadlineConfig,
 } from "@cashsouk/types";
+import { PhaseDeadlineConfigEditor } from "./phase-deadline-config-editor";
 
 function toRowShape(row: AcceptanceDocumentRow): WorkflowDocumentRowShape {
   return parseWorkflowDocumentRowFromUnknown(row);
@@ -41,16 +46,33 @@ export function AcceptanceDocumentsConfig({
     parseAcceptanceDocumentsConfig(config).map(toRowShape)
   );
   const [pendingFiles, setPendingFiles] = React.useState<Record<number, File>>({});
+  const [deadline, setDeadline] = React.useState<PhaseDeadlineConfig>(
+    () => parseAcceptanceDeadlineConfig(config) ?? DEFAULT_ACCEPTANCE_DEADLINE
+  );
 
   React.useEffect(() => {
     setItems(parseAcceptanceDocumentsConfig(config).map(toRowShape));
+    setDeadline(parseAcceptanceDeadlineConfig(config) ?? DEFAULT_ACCEPTANCE_DEADLINE);
   }, [config]);
 
   const persist = React.useCallback(
-    (nextItems: WorkflowDocumentRowShape[]) => {
-      onChange(writeAcceptanceDocumentsConfig(base, nextItems));
+    (nextItems: WorkflowDocumentRowShape[], nextDeadline: PhaseDeadlineConfig = deadline) => {
+      onChange(
+        writeAcceptanceDeadlineConfig(
+          writeAcceptanceDocumentsConfig(base, nextItems),
+          nextDeadline
+        )
+      );
     },
-    [base, onChange]
+    [base, deadline, onChange]
+  );
+
+  const persistDeadline = React.useCallback(
+    (nextDeadline: PhaseDeadlineConfig) => {
+      setDeadline(nextDeadline);
+      persist(items, nextDeadline);
+    },
+    [items, persist]
   );
 
   const addDoc = () => {
@@ -116,6 +138,13 @@ export function AcceptanceDocumentsConfig({
           signing envelope.
         </p>
       </div>
+
+      <PhaseDeadlineConfigEditor
+        title="Acceptance deadline"
+        description="Clock starts when admin sends the offer. Issuer must upload acceptance documents before it lapses."
+        value={deadline}
+        onChange={persistDeadline}
+      />
 
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="outline" size="sm" onClick={addDoc} className="gap-1.5">

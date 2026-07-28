@@ -23,7 +23,7 @@ export enum ApplicationLogEventType {
   ITEM_REVIEWED_AMENDMENT_REQUESTED = "ITEM_REVIEWED_AMENDMENT_REQUESTED",
   ITEM_REVIEWED_PENDING = "ITEM_REVIEWED_PENDING",
   CONTRACT_OFFER_SENT = "CONTRACT_OFFER_SENT",
-  /** Issuer submitted Step 1 acknowledgements and acceptance documents. */
+  /** Issuer submitted Step 1 acceptance documents. */
   CONTRACT_OFFER_ACCEPTANCE_SUBMITTED = "CONTRACT_OFFER_ACCEPTANCE_SUBMITTED",
   /** Admin approved acceptance docs; signing package unlocked. */
   CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING = "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING",
@@ -36,7 +36,7 @@ export enum ApplicationLogEventType {
   CONTRACT_SIGNING_DEADLINE_EXTENDED = "CONTRACT_SIGNING_DEADLINE_EXTENDED",
   CONTRACT_WITHDRAWN = "CONTRACT_WITHDRAWN",
   INVOICE_OFFER_SENT = "INVOICE_OFFER_SENT",
-  /** Issuer submitted Step 1 acknowledgements and acceptance documents. */
+  /** Issuer submitted Step 1 acceptance documents. */
   INVOICE_OFFER_ACCEPTANCE_SUBMITTED = "INVOICE_OFFER_ACCEPTANCE_SUBMITTED",
   /** Admin approved acceptance docs; signing package unlocked. */
   INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING = "INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING",

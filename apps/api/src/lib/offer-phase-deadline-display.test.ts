@@ -1,7 +1,7 @@
 import {
   getOfferPhaseDeadlineDisplay,
   previewAcceptanceDeadlineFromWorkflow,
-  OFFER_ACKNOWLEDGEMENTS_WORKFLOW_KEY,
+  ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY,
   ACCEPTANCE_DEADLINE_WORKFLOW_KEY,
 } from "@cashsouk/types";
 import { ApplicationLogEventType } from "../modules/applications/logs/types";
@@ -11,12 +11,8 @@ function workflowWithAcceptance(days = 7) {
     {
       id: "financing_type",
       config: {
-        [OFFER_ACKNOWLEDGEMENTS_WORKFLOW_KEY]: [
-          {
-            key: "letter_of_offer",
-            name: "Letter of Offer",
-            content_source: "generated_offer_letter",
-          },
+        [ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY]: [
+          { name: "Board Resolution", required: true },
         ],
         [ACCEPTANCE_DEADLINE_WORKFLOW_KEY]: {
           days,

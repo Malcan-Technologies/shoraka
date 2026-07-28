@@ -2529,12 +2529,11 @@ export class ApiClient {
   }
 
   async submitContractOfferAcceptance(
-    applicationId: string,
-    body: { acknowledgement_keys: string[] }
+    applicationId: string
   ): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(
       `/v1/applications/${applicationId}/offers/contracts/acceptance`,
-      body
+      {}
     );
   }
 
@@ -2564,12 +2563,11 @@ export class ApiClient {
 
   async submitInvoiceOfferAcceptance(
     applicationId: string,
-    invoiceId: string,
-    body: { acknowledgement_keys: string[] }
+    invoiceId: string
   ): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(
       `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/acceptance`,
-      body
+      {}
     );
   }
 

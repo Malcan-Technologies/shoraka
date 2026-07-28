@@ -39,14 +39,11 @@ import {
   workflowHasAcceptanceDocuments,
   getOfferAcceptanceFromOfferDetails,
   offerAcceptanceIsStep1Editable,
-  requiredOfferAcknowledgementKeys,
-  resolveOfferAcknowledgementsFromWorkflow,
   resolveStatusAfterOfferAcceptanceSubmit,
   workflowUsesOfferAcceptanceFlow,
   buildAcknowledgedTermsSnapshot,
 } from "@cashsouk/types";
 import {
-  mergeAcknowledgementRecords,
   patchOfferAcceptance,
 } from "./offer-acceptance";
 import {
@@ -1751,13 +1748,12 @@ export class ApplicationService {
   }
 
   /**
-   * Step 1 of offer acceptance: record acknowledgements + require acceptance uploads,
+   * Step 1 of offer acceptance: require acceptance uploads,
    * then move to PENDING_ADMIN_REVIEW (or APPROVED_FOR_SIGNING when no acceptance docs).
    */
   async submitContractOfferAcceptance(
     applicationId: string,
-    userId: string,
-    acknowledgementKeys: string[]
+    userId: string
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
     const application = await this.repository.findById(applicationId);
@@ -1776,17 +1772,6 @@ export class ApplicationService {
       );
     }
     const contractId = application.contract_id;
-    const requiredKeys = requiredOfferAcknowledgementKeys(workflow);
-    const checked = new Set(acknowledgementKeys);
-    for (const key of requiredKeys) {
-      if (!checked.has(key)) {
-        throw new AppError(
-          400,
-          "VALIDATION_ERROR",
-          "All required acknowledgements must be accepted before submitting."
-        );
-      }
-    }
     assertRequiredAcceptanceDocumentsPresent(
       workflow,
       (application as { acceptance_documents?: unknown }).acceptance_documents
@@ -1794,9 +1779,6 @@ export class ApplicationService {
 
     const now = new Date().toISOString();
     const nextStatus = resolveStatusAfterOfferAcceptanceSubmit(workflow);
-    const allowedAcknowledgementKeys = resolveOfferAcknowledgementsFromWorkflow(workflow).map(
-      (doc) => doc.key
-    );
 
     await prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<
@@ -1819,18 +1801,10 @@ export class ApplicationService {
         );
       }
       assertAcceptanceDeadlineOpen(acceptance);
-      const acknowledgements = mergeAcknowledgementRecords({
-        existing: acceptance?.acknowledgements,
-        documentKeys: [...checked],
-        allowedKeys: allowedAcknowledgementKeys,
-        userId,
-        acceptedAt: now,
-      });
       const productVersion =
         (application as { product_version?: number | null }).product_version ?? null;
       const updatedOffer = patchOfferAcceptance(offer, {
         status: nextStatus,
-        acknowledgements,
         acknowledged_terms: buildAcknowledgedTermsSnapshot({
           offerDetails: offer,
           productVersion,
@@ -1906,8 +1880,7 @@ export class ApplicationService {
   async submitInvoiceOfferAcceptance(
     applicationId: string,
     invoiceId: string,
-    userId: string,
-    acknowledgementKeys: string[]
+    userId: string
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
     const application = await this.repository.findById(applicationId);
@@ -1934,17 +1907,6 @@ export class ApplicationService {
         "Contract-linked invoice offers do not use the offer acceptance flow."
       );
     }
-    const requiredKeys = requiredOfferAcknowledgementKeys(workflow);
-    const checked = new Set(acknowledgementKeys);
-    for (const key of requiredKeys) {
-      if (!checked.has(key)) {
-        throw new AppError(
-          400,
-          "VALIDATION_ERROR",
-          "All required acknowledgements must be accepted before submitting."
-        );
-      }
-    }
     assertRequiredAcceptanceDocumentsPresent(
       workflow,
       (application as { acceptance_documents?: unknown }).acceptance_documents
@@ -1952,9 +1914,6 @@ export class ApplicationService {
 
     const now = new Date().toISOString();
     const nextStatus = resolveStatusAfterOfferAcceptanceSubmit(workflow);
-    const allowedAcknowledgementKeys = resolveOfferAcknowledgementsFromWorkflow(workflow).map(
-      (doc) => doc.key
-    );
 
     await prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<
@@ -1977,18 +1936,10 @@ export class ApplicationService {
         );
       }
       assertAcceptanceDeadlineOpen(acceptance);
-      const acknowledgements = mergeAcknowledgementRecords({
-        existing: acceptance?.acknowledgements,
-        documentKeys: [...checked],
-        allowedKeys: allowedAcknowledgementKeys,
-        userId,
-        acceptedAt: now,
-      });
       const productVersion =
         (application as { product_version?: number | null }).product_version ?? null;
       const updatedOffer = patchOfferAcceptance(offer, {
         status: nextStatus,
-        acknowledgements,
         acknowledged_terms: buildAcknowledgedTermsSnapshot({
           offerDetails: offer,
           productVersion,

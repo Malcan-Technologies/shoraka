@@ -62,6 +62,7 @@ import {
   computeSigningEnvelopeProgress,
   getOfferAcceptanceStatusPresentation,
   offerAcceptanceAllowsSigning,
+  offerAcceptanceIsStep1Editable,
   offerAcceptanceIsTerminal,
   type Application,
 } from "@cashsouk/types";
@@ -75,26 +76,17 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SigningProgressMatrix } from "@/components/signing/signing-progress-matrix";
 import { SigningProgressStepper, type SigningOfferStep } from "@/components/signing/signing-progress-stepper";
 import {
-  acknowledgementStepId,
   getCurrentSigningOfferStepId,
   buildAcceptanceDocumentsStepConfig,
-  getNextStepAfterAcknowledgement,
-  getOfferAcknowledgements,
   getSigningOfferSteps,
   hasCompletedContractEnvelope,
   hasAcceptanceDocuments,
-  isAcknowledgementStepId,
   isSigningOfferStepReachable,
-  parseAcknowledgementStepKey,
   resolveOfferAcceptanceStatus,
   resolveReviewOfferModalMode,
   workflowUsesOfferAcceptanceFlow,
   type SigningOfferStepId,
 } from "@/lib/signing-offer-steps";
-import {
-  OfferAcknowledgementStep,
-  areRequiredAcknowledgementsChecked,
-} from "./OfferAcknowledgementStep";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
@@ -668,19 +660,10 @@ export function ReviewOfferModal({
     () => hasAcceptanceDocuments(frozenProductWorkflow?.workflow),
     [frozenProductWorkflow]
   );
-  const acknowledgementDocs = React.useMemo(
-    () => getOfferAcknowledgements(frozenProductWorkflow?.workflow),
-    [frozenProductWorkflow]
-  );
   const usesAcceptanceFlow = React.useMemo(
     () => workflowUsesOfferAcceptanceFlow(frozenProductWorkflow?.workflow),
     [frozenProductWorkflow]
   );
-  const [acknowledgementCheckedKeys, setAcknowledgementCheckedKeys] = React.useState<Set<string>>(
-    () => new Set()
-  );
-  const [offerLetterPreviewUrl, setOfferLetterPreviewUrl] = React.useState<string | null>(null);
-  const [templatePreviewUrls, setTemplatePreviewUrls] = React.useState<Record<string, string>>({});
   const [isSubmittingAcceptance, setIsSubmittingAcceptance] = React.useState(false);
   const invoiceContractId =
     type === "invoice" ? (invoice?.contractId ?? contractId ?? null) : null;
@@ -802,39 +785,13 @@ export function ReviewOfferModal({
   /** Past clock or durable OFFER_EXPIRED — read-only until admin resends. */
   const isPhaseDeadlinePast =
     phaseDeadline?.isPast === true || entityOfferStatus === "OFFER_EXPIRED";
-  const recordedAcknowledgementKeys = React.useMemo(() => {
-    const acceptance = offerDetails?.offer_acceptance as
-      | { acknowledgements?: Array<{ document_key?: string }> }
-      | undefined;
-    const keys = new Set<string>();
-    for (const row of acceptance?.acknowledgements ?? []) {
-      if (typeof row.document_key === "string" && row.document_key) keys.add(row.document_key);
-    }
-    return keys;
-  }, [offerDetails]);
-  React.useEffect(() => {
-    if (recordedAcknowledgementKeys.size === 0) return;
-    setAcknowledgementCheckedKeys((prev) => {
-      if (prev.size > 0) return prev;
-      return new Set(recordedAcknowledgementKeys);
-    });
-  }, [recordedAcknowledgementKeys]);
-  const acknowledgementsReady = areRequiredAcknowledgementsChecked(
-    acknowledgementDocs,
-    acknowledgementCheckedKeys
-  );
   const stepShellInput = React.useMemo(
     () => ({
       usesAcceptanceFlow,
       hasPostDocs,
-      acknowledgements: acknowledgementDocs.map((doc) => ({
-        key: doc.key,
-        name: doc.name,
-        required: doc.required,
-      })),
       acceptanceStatus,
     }),
-    [usesAcceptanceFlow, hasPostDocs, acknowledgementDocs, acceptanceStatus]
+    [usesAcceptanceFlow, hasPostDocs, acceptanceStatus]
   );
 
   const isLoading = shouldLoadContract ? isLoadingContract : false;
@@ -1194,6 +1151,10 @@ export function ReviewOfferModal({
     useSigningStepper,
   ]);
 
+  /** Step 1 editable: keep acceptance uploads local until Submit (do not PATCH early). */
+  const deferAcceptanceDocsUntilSubmit =
+    usesAcceptanceFlow && offerAcceptanceIsStep1Editable(acceptanceStatus);
+
   const ensurePostApplicationDocumentsSaved = React.useCallback(async (): Promise<boolean> => {
     if (signersLocked) return true;
     // Step 3: acceptance docs were uploaded + approved in Step 1/2 — no in-modal upload to save.
@@ -1260,26 +1221,17 @@ export function ReviewOfferModal({
       toast.error("This offer has expired.");
       return;
     }
-    if (!acknowledgementsReady) {
-      toast.error("Accept all required acknowledgements before submitting.");
-      return;
-    }
     if (hasPostDocs) {
       const saved = await ensurePostApplicationDocumentsSaved();
       if (!saved) return;
     }
     setIsSubmittingAcceptance(true);
     try {
-      const keys = [...acknowledgementCheckedKeys];
       const response =
         type === "contract"
-          ? await apiClient.submitContractOfferAcceptance(applicationId, {
-              acknowledgement_keys: keys,
-            })
+          ? await apiClient.submitContractOfferAcceptance(applicationId)
           : invoice?.id
-            ? await apiClient.submitInvoiceOfferAcceptance(applicationId, invoice.id, {
-                acknowledgement_keys: keys,
-              })
+            ? await apiClient.submitInvoiceOfferAcceptance(applicationId, invoice.id)
             : null;
       if (!response?.success) {
         const err = getApiErrorDetails(
@@ -1289,8 +1241,6 @@ export function ReviewOfferModal({
         toast.error(err.message);
         return;
       }
-      // Await refresh so phase becomes PENDING_ADMIN_REVIEW and we swap to the
-      // completion dialog instead of the full "Under review" Review Offer UI.
       await invalidateOfferAcceptanceQueries();
       setViewedStepId(null);
     } catch (error) {
@@ -1299,8 +1249,6 @@ export function ReviewOfferModal({
       setIsSubmittingAcceptance(false);
     }
   }, [
-    acknowledgementsReady,
-    acknowledgementCheckedKeys,
     apiClient,
     applicationId,
     ensurePostApplicationDocumentsSaved,
@@ -1617,7 +1565,6 @@ export function ReviewOfferModal({
   const envelopeCompleted = activeSigningEnvelope?.status === "COMPLETED";
   const currentSigningStepId = getCurrentSigningOfferStepId({
     ...stepShellInput,
-    checkedAcknowledgementKeys: acknowledgementCheckedKeys,
     postDocsReady,
     signersLocked,
     allDocsSigned,
@@ -1625,7 +1572,6 @@ export function ReviewOfferModal({
   });
   const signingSteps = getSigningOfferSteps({
     ...stepShellInput,
-    checkedAcknowledgementKeys: acknowledgementCheckedKeys,
     postDocsReady,
     signersLocked,
     allDocsSigned,
@@ -1637,76 +1583,7 @@ export function ReviewOfferModal({
     setViewedStepId(null);
     postDocsSaveRef.current = undefined;
     setPostDocsState({ areAllFilesUploaded: false, hasPendingChanges: false });
-    setAcknowledgementCheckedKeys(new Set());
   }, [applicationId]);
-
-  // Load in-modal offer letter preview when any acknowledgement uses generated_offer_letter.
-  React.useEffect(() => {
-    const needsLetter = acknowledgementDocs.some(
-      (doc) => doc.content_source === "generated_offer_letter"
-    );
-    if (!needsLetter || !applicationId) {
-      setOfferLetterPreviewUrl(null);
-      return;
-    }
-    let objectUrl: string | null = null;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const blob =
-          type === "contract"
-            ? await apiClient.getContractOfferLetterBlob(applicationId)
-            : invoice?.id
-              ? await apiClient.getInvoiceOfferLetterBlob(applicationId, invoice.id)
-              : null;
-        if (!blob || cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        setOfferLetterPreviewUrl(objectUrl);
-      } catch {
-        if (!cancelled) setOfferLetterPreviewUrl(null);
-      }
-    })();
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [acknowledgementDocs, applicationId, apiClient, type, invoice?.id]);
-
-  // Load in-modal preview URLs for template_pdf acknowledgements via the existing generic S3
-  // presign endpoint — no new storage path or preview infrastructure.
-  React.useEffect(() => {
-    const templateDocs = acknowledgementDocs.filter(
-      (doc) => doc.content_source === "template_pdf" && doc.template?.s3_key
-    );
-    if (templateDocs.length === 0) {
-      setTemplatePreviewUrls({});
-      return;
-    }
-    let cancelled = false;
-    void (async () => {
-      const entries = await Promise.all(
-        templateDocs.map(async (doc) => {
-          try {
-            const response = await apiClient.getS3DownloadUrl(doc.template!.s3_key);
-            return response.success && response.data?.downloadUrl
-              ? ([doc.key, response.data.downloadUrl] as const)
-              : null;
-          } catch {
-            return null;
-          }
-        })
-      );
-      if (cancelled) return;
-      const next: Record<string, string> = {};
-      for (const entry of entries) {
-        if (entry) next[entry[0]] = entry[1];
-      }
-      setTemplatePreviewUrls(next);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [acknowledgementDocs, apiClient]);
 
   // D-05 smart land once workflow settles; do not re-sync when postDocsReady flips (D-07).
   React.useEffect(() => {
@@ -1714,7 +1591,6 @@ export function ReviewOfferModal({
     setViewedStepId(
       getCurrentSigningOfferStepId({
         ...stepShellInput,
-        checkedAcknowledgementKeys: acknowledgementCheckedKeys,
         postDocsReady,
         signersLocked,
         allDocsSigned,
@@ -1725,7 +1601,6 @@ export function ReviewOfferModal({
     isLoadingFrozenProductWorkflow,
     viewedStepId,
     stepShellInput,
-    acknowledgementCheckedKeys,
     postDocsReady,
     signersLocked,
     allDocsSigned,
@@ -1740,23 +1615,33 @@ export function ReviewOfferModal({
     }
   }, [viewedStepId, currentSigningStepId, stepShellInput]);
 
-  // While frozen workflow loads, force first ack / documents shell + skeleton.
+  // While frozen workflow loads, force documents shell + skeleton.
   const displaySigningStepId: SigningOfferStepId = isLoadingFrozenProductWorkflow
-    ? usesAcceptanceFlow && acknowledgementDocs.length > 0
-      ? acknowledgementStepId(acknowledgementDocs[0].key)
-      : "documents"
+    ? "documents"
     : (viewedStepId ?? currentSigningStepId);
+
+  // Keep Upload mounted (hidden) during Step 1 so local draft survives sidebar nav before Submit.
+  const keepAcceptanceDocsDraftMounted =
+    deferAcceptanceDocsUntilSubmit && hasPostDocs && !signersLocked;
 
   // Close without auto-save; discard confirm when Upload has pending changes (D-11).
   const requestClose = React.useCallback(() => {
-    if (displaySigningStepId === "documents" && postDocsState.hasPendingChanges) {
+    if (
+      postDocsState.hasPendingChanges &&
+      (displaySigningStepId === "documents" || keepAcceptanceDocsDraftMounted)
+    ) {
       setDiscardConfirmOpen(true);
       return;
     }
     onClose();
-  }, [displaySigningStepId, onClose, postDocsState.hasPendingChanges]);
+  }, [
+    displaySigningStepId,
+    keepAcceptanceDocsDraftMounted,
+    onClose,
+    postDocsState.hasPendingChanges,
+  ]);
 
-  // D-09/D-10: persist pending post-app uploads before leaving Upload; block nav on save failure.
+  // Legacy (non-phased) Upload: persist before leaving. Acceptance Step 1: local draft until Submit.
   const navigateFromUploadDocuments = React.useCallback(
     async (targetStepId: SigningOfferStepId) => {
       if (targetStepId === displaySigningStepId) return;
@@ -1764,11 +1649,20 @@ export function ReviewOfferModal({
         setViewedStepId(targetStepId);
         return;
       }
+      if (deferAcceptanceDocsUntilSubmit) {
+        setViewedStepId(targetStepId);
+        return;
+      }
       const saved = await ensurePostApplicationDocumentsSaved();
       if (!saved) return;
       setViewedStepId(targetStepId);
     },
-    [displaySigningStepId, ensurePostApplicationDocumentsSaved, signersLocked]
+    [
+      deferAcceptanceDocsUntilSubmit,
+      displaySigningStepId,
+      ensurePostApplicationDocumentsSaved,
+      signersLocked,
+    ]
   );
 
   // Free-nav within domain cursor (D-01–D-04); leave-Upload persists via navigateFromUploadDocuments (D-09/D-10).
@@ -2238,77 +2132,6 @@ export function ReviewOfferModal({
       );
     }
 
-    const acknowledgementKey = parseAcknowledgementStepKey(stepId);
-    if (acknowledgementKey) {
-      const doc = acknowledgementDocs.find((item) => item.key === acknowledgementKey);
-      if (!doc) {
-        return (
-          <p className="text-sm text-muted-foreground">Acknowledgement document not found.</p>
-        );
-      }
-      const thisChecked =
-        doc.required === false || acknowledgementCheckedKeys.has(doc.key);
-      const nextStep = getNextStepAfterAcknowledgement(doc.key, stepShellInput);
-      const isLastAckBeforeSubmit = nextStep == null && !hasPostDocs;
-      const continueLabel =
-        nextStep === "documents"
-          ? "Continue to Upload documents"
-          : nextStep && isAcknowledgementStepId(nextStep)
-            ? "Continue"
-            : isLastAckBeforeSubmit
-              ? "Submit for review"
-              : "Continue";
-
-      return (
-        <Card className="border-primary/20 bg-primary/5">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <DocumentTextIcon className="h-5 w-5 text-primary" />
-              {doc.name}
-            </CardTitle>
-            <CardDescription>
-              Review this document and tick the checkbox to confirm. This is not an electronic
-              signature.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <OfferAcknowledgementStep
-              applicationId={applicationId}
-              offerType={type}
-              invoiceId={invoice?.id}
-              documents={[doc]}
-              checkedKeys={acknowledgementCheckedKeys}
-              onCheckedChange={(key, checked) => {
-                setAcknowledgementCheckedKeys((prev) => {
-                  const next = new Set(prev);
-                  if (checked) next.add(key);
-                  else next.delete(key);
-                  return next;
-                });
-              }}
-              offerLetterPreviewUrl={offerLetterPreviewUrl}
-              getTemplatePreviewUrl={(d) => templatePreviewUrls[d.key]}
-            />
-            <Button
-              className="h-11 w-full rounded-xl"
-              disabled={!thisChecked || (isLastAckBeforeSubmit && isSubmittingAcceptance)}
-              onClick={() => {
-                if (isLastAckBeforeSubmit) {
-                  void submitOfferAcceptance();
-                  return;
-                }
-                if (nextStep) {
-                  void navigateFromUploadDocuments(nextStep);
-                }
-              }}
-            >
-              {continueLabel}
-            </Button>
-          </CardContent>
-        </Card>
-      );
-    }
-
     switch (stepId) {
       case "awaiting_review":
         // Replaced by OfferAcceptanceSubmittedSuccessView at the modal root.
@@ -2379,7 +2202,7 @@ export function ReviewOfferModal({
                 usesAcceptanceFlow ? (
                   <Button
                     className="h-11 w-full rounded-xl"
-                    disabled={!acknowledgementsReady || isSubmittingAcceptance}
+                    disabled={isSubmittingAcceptance}
                     onClick={() => {
                       void submitOfferAcceptance();
                     }}
@@ -2882,7 +2705,19 @@ export function ReviewOfferModal({
                     </CardContent>
                   </Card>
                 ) : useSigningStepper ? (
-                  renderSigningStepContent(displaySigningStepId)
+                  <>
+                    {keepAcceptanceDocsDraftMounted ? (
+                      <div
+                        className={cn(displaySigningStepId !== "documents" && "hidden")}
+                        aria-hidden={displaySigningStepId !== "documents"}
+                      >
+                        {renderSigningStepContent("documents")}
+                      </div>
+                    ) : null}
+                    {displaySigningStepId !== "documents" || !keepAcceptanceDocsDraftMounted
+                      ? renderSigningStepContent(displaySigningStepId)
+                      : null}
+                  </>
                 ) : (
                   renderAcceptDeclineContent()
                 )}

@@ -27,7 +27,7 @@
 
 import * as React from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
-import { formatCurrency, useAuthToken, useOrganization } from "@cashsouk/config";
+import { createApiClient, formatCurrency, useAuthToken, useOrganization } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -38,7 +38,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   useApplication,
   getApiMutationErrorCode,
@@ -273,6 +273,27 @@ function EditApplicationPageBody() {
   */
   const { getAccessToken } = useAuthToken();
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+  // Frozen product.workflow for application.product_version — amendments skip the live version guard.
+  const applicationProductVersion = (application as { product_version?: number | null } | undefined)
+    ?.product_version;
+  const apiClient = React.useMemo(
+    () => createApiClient(API_URL, getAccessToken),
+    [API_URL, getAccessToken]
+  );
+  const { data: frozenProductWorkflowData } = useQuery({
+    queryKey: ["signing-product-workflow", applicationId],
+    queryFn: async () => {
+      const response = await apiClient.getIssuerApplicationSigningProductWorkflow(applicationId);
+      if (!response.success) {
+        throw new Error(response.error?.message ?? "Failed to load product workflow");
+      }
+      return response.data;
+    },
+    enabled: Boolean(applicationId && typeof applicationProductVersion === "number"),
+  });
+  const frozenProductWorkflow = frozenProductWorkflowData?.workflow;
+
   const [amendmentContext, setAmendmentContext] = React.useState<{
     review_cycle: number;
     remarks: Array<{ scope: string; scope_key: string; remark: string }>;
@@ -485,10 +506,13 @@ function EditApplicationPageBody() {
   }, [stepFromUrl, selectedProductId, application]);
 
   const productWorkflow = React.useMemo(() => {
+    if (Array.isArray(frozenProductWorkflow) && frozenProductWorkflow.length > 0) {
+      return frozenProductWorkflow as Record<string, unknown>[];
+    }
     if (!effectiveProductId || !productsData?.products) return [];
     const product = (productsData.products as Product[]).find((p) => p.id === effectiveProductId);
     return (product?.workflow as Record<string, unknown>[] | undefined) || [];
-  }, [effectiveProductId, productsData]);
+  }, [effectiveProductId, productsData, frozenProductWorkflow]);
 
   /** Filters product workflow using session override when user picks structure before saving. UI-only; does not persist. */
   const effectiveWorkflow = React.useMemo(() => {
@@ -1119,6 +1143,11 @@ function EditApplicationPageBody() {
           flaggedItems={flaggedItems}
           remarks={amendmentContext?.remarks ?? []}
           effectiveStructureType={effectiveStructureType}
+          frozenProductWorkflow={
+            Array.isArray(frozenProductWorkflow) && frozenProductWorkflow.length > 0
+              ? frozenProductWorkflow
+              : null
+          }
         />
       );
     }

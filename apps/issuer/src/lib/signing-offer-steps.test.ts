@@ -11,9 +11,7 @@ import {
 
 const unlockedBase = {
   usesAcceptanceFlow: false,
-  acknowledgements: [] as Array<{ key: string; name: string; required?: boolean }>,
   acceptanceStatus: null,
-  checkedAcknowledgementKeys: new Set<string>(),
   signersLocked: false,
   allDocsSigned: false,
   envelopeCompleted: false,
@@ -22,7 +20,6 @@ const unlockedBase = {
 const legacyShellInput = {
   usesAcceptanceFlow: false,
   hasPostDocs: false,
-  acknowledgements: [] as Array<{ key: string; name: string; required?: boolean }>,
   acceptanceStatus: null,
 } as const;
 
@@ -183,60 +180,29 @@ describe("getCurrentSigningOfferStepId locked package", () => {
   });
 });
 
-describe("per-acknowledgement steps", () => {
+describe("acceptance flow upload-only stepper", () => {
   const acceptanceShell = {
     usesAcceptanceFlow: true,
     hasPostDocs: true,
-    acknowledgements: [
-      { key: "letter_of_offer", name: "Letter of Offer", required: true },
-      { key: "guarantee_acknowledgement", name: "Guarantee Acknowledgement", required: true },
-    ],
     acceptanceStatus: "PENDING_ISSUER" as const,
   };
 
-  it("creates one shell per acknowledgement then upload", () => {
+  it("starts at upload when acceptance documents are configured", () => {
     const steps = getSigningOfferSteps({
       ...acceptanceShell,
-      checkedAcknowledgementKeys: new Set(),
       postDocsReady: false,
       signersLocked: false,
       allDocsSigned: false,
       envelopeCompleted: false,
     });
-    expect(steps.map((s) => s.id)).toEqual([
-      "acknowledge:letter_of_offer",
-      "acknowledge:guarantee_acknowledgement",
-      "documents",
-    ]);
-  });
-
-  it("advances domain cursor to the first unchecked acknowledgement", () => {
-    expect(
-      getCurrentSigningOfferStepId({
-        ...acceptanceShell,
-        checkedAcknowledgementKeys: new Set(["letter_of_offer"]),
-        postDocsReady: false,
-        signersLocked: false,
-        allDocsSigned: false,
-        envelopeCompleted: false,
-      })
-    ).toBe("acknowledge:guarantee_acknowledgement");
-  });
-
-  it("moves to documents when all required acknowledgements are checked", () => {
-    expect(
-      getCurrentSigningOfferStepId({
-        ...acceptanceShell,
-        checkedAcknowledgementKeys: new Set([
-          "letter_of_offer",
-          "guarantee_acknowledgement",
-        ]),
-        postDocsReady: false,
-        signersLocked: false,
-        allDocsSigned: false,
-        envelopeCompleted: false,
-      })
-    ).toBe("documents");
+    expect(steps.map((s) => s.id)).toEqual(["documents"]);
+    expect(getCurrentSigningOfferStepId({
+      ...acceptanceShell,
+      postDocsReady: false,
+      signersLocked: false,
+      allDocsSigned: false,
+      envelopeCompleted: false,
+    })).toBe("documents");
   });
 });
 
@@ -317,8 +283,6 @@ describe("acceptance flow never falls through to Configure signers", () => {
   const acceptanceBase = {
     usesAcceptanceFlow: true,
     hasPostDocs: true,
-    acknowledgements: [{ key: "letter_of_offer", name: "Letter of Offer", required: true }],
-    checkedAcknowledgementKeys: new Set<string>(),
     postDocsReady: true,
     signersLocked: false,
     allDocsSigned: false,

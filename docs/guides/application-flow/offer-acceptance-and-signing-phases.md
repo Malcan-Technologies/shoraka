@@ -10,7 +10,7 @@ Configurable on the financing-type step (product builder):
 
 | Clock | Config key | UI tab | Starts when | Default |
 |-------|------------|--------|-------------|---------|
-| **Acceptance** | `acceptance_deadline` | Acknowledgements | Admin Send Offer; **restamped** on admin `CHANGES_REQUESTED` | 7 days |
+| **Acceptance** | `acceptance_deadline` | Acceptance (product builder) | Admin Send Offer; **restamped** on admin `CHANGES_REQUESTED` | 7 days |
 | **Signing** | `signing_deadline` | Signing packages | Admin BR approve → `APPROVED_FOR_SIGNING` | 14 days |
 
 Each deadline has `days` plus optional `reminders: [{ days_before_expiry }]`. Runtime stamps:
@@ -34,7 +34,7 @@ Manual test: `pnpm seed-expired-acceptance-deadline-for-test` then `pnpm run-acc
 
 | Phase | Actor | UI | Outcome |
 |-------|--------|-----|---------|
-| **Step 1 — Accept offer** | Issuer | Shared Review Offer modal | Per-doc in-modal preview + one checkbox each; then upload acceptance docs (e.g. Board Resolution). Submit. |
+| **Step 1 — Accept offer** | Issuer | Shared Review Offer modal | Upload acceptance documents configured on the product (e.g. Board Resolution). **Submit** writes `acceptance_documents` and advances the phase. |
 | **Step 2 — Review acceptance** | Admin | Acceptance Documents review tab | Approve / request changes / reject. No SigningCloud yet. |
 | **Step 3 — Execution pack** | Issuer | Same modal, signing steps only | Configure signers → send → track. No upload step (done in Step 1). |
 
@@ -47,7 +47,7 @@ Contract/invoice stay `OFFER_SENT` until the envelope completes (→ `APPROVED`)
 ```ts
 type OfferAcceptanceStatus =
   | "PENDING_ISSUER"           // offer sent; Step 1 not submitted
-  | "PENDING_ADMIN_REVIEW"     // acknowledgements + uploads submitted
+  | "PENDING_ADMIN_REVIEW"     // acceptance uploads submitted
   | "CHANGES_REQUESTED"        // admin amendment on acceptance docs
   | "REJECTED"                 // admin rejected acceptance → offer withdrawn as OFFER_REJECTED
   | "APPROVED_FOR_SIGNING"     // Step 3 unlocked
@@ -56,11 +56,8 @@ type OfferAcceptanceStatus =
 
 type OfferAcceptanceDetails = {
   status: OfferAcceptanceStatus;
-  acknowledgements?: Array<{
-    document_key: string;
-    accepted_at: string;
-    accepted_by_user_id: string;
-  }>;
+  /** Frozen commercial terms at Step 1 submit (audit). */
+  acknowledged_terms?: OfferAcknowledgedTermsSnapshot;
   submitted_at?: string | null;
   reviewed_at?: string | null;
   reviewed_by_user_id?: string | null;
@@ -74,46 +71,19 @@ Defaults when admin sends offer: `offer_acceptance.status = "PENDING_ISSUER"` an
 
 ### Reject / changes (locked)
 
-- **Request changes** — existing acceptance-doc amendment path; set `CHANGES_REQUESTED`; restamp `acceptance_expires_at` (fresh product acceptance window); issuer reopens Step 1 on the upload sub-step (acknowledgements stay recorded unless product forces re-ack).
+- **Request changes** — existing acceptance-doc amendment path; set `CHANGES_REQUESTED`; restamp `acceptance_expires_at` (fresh product acceptance window); issuer reopens Step 1 upload.
 - **Reject (admin)** — withdraw offer (`WITHDRAWN` + `OFFER_REJECTED`); set `offer_acceptance.status = "REJECTED"`. No silent “try again” without a new offer.
 - **Decline (issuer)** — existing reject offer path; phase ends.
 
-## Acknowledgement documents (product config)
+## Acceptance documents (product config)
 
-Configured next to `acceptance_documents` / signing packages on the financing-type step:
+Configured on the financing-type step **Acceptance** tab in product builder (`acceptance_documents` flat list). Each row: name, required, allow_multiple, allowed_types, optional template PDF.
 
-```ts
-type OfferAcknowledgementDocument = {
-  key: string;           // stable id, e.g. "letter_of_offer"
-  name: string;          // UI label
-  required: boolean;     // default true
-  /** How in-modal preview content is produced */
-  content_source: "generated_offer_letter" | "template_pdf" | "static_text";
-  /** Required when content_source === "static_text" */
-  static_text?: string;
-  /** Required when content_source === "template_pdf" */
-  template?: { s3_key: string; file_name: string; file_size?: number };
-};
-```
+**Re-send policy:** Once `offer_acceptance` is past `PENDING_ISSUER`, or `submitted_at` exists, admin cannot re-send over the same offer — retract first, then send revised terms. Step 1 submit also freezes `acknowledged_terms` (facility/amount, rates, expiry, offer/product version) under `offer_acceptance` for audit.
 
-Workflow key: `offer_acknowledgements` (flat list on financing_type config).
+**Acceptance documents (issuer):** Navigating away from Upload (or closing the modal) does **not** write `Application.acceptance_documents`. Submit flushes uploads then calls `POST .../acceptance`. Admin Acceptance documents list requires `submitted_at` or a post-submit phase (`isOfferAcceptanceDocumentsVisibleToAdmin`) — draft uploads while `PENDING_ISSUER` stay hidden.
 
-### Content source (what the issuer sees)
-
-| Source | Meaning | Best for |
-|--------|---------|----------|
-| **`generated_offer_letter`** | In-modal PDF preview of the system offer letter (actual offer amounts). | **Default for Letter of Offer** |
-| **`template_pdf`** | In-modal PDF preview of a product-uploaded template. | Fixed forms / guarantee packs |
-| **`static_text`** | Admin-authored plain text (required non-empty on product save). | **Default for Guarantee Acknowledgement** until legal PDF exists |
-| **`html_template`** | Built-in `template_key` HTML. **Blocked on product save** — only engineering placeholders exist today. | Deferred until legal merge-field copy |
-
-Default pair: use **Add LO + Guarantee Acknowledgement** in product settings (`DEFAULT_OFFER_ACKNOWLEDGEMENTS`: LOO → `generated_offer_letter`; Guarantee → `static_text` that admin must fill or switch to `template_pdf`).
-
-**HTML-from-template with merge fields** is deferred; do not re-enable `html_template` until legal supplies production copy. Keep `template_key` stable when that lands.
-
-**Re-send policy:** Once `offer_acceptance` is past `PENDING_ISSUER`, or acknowledgements/`submitted_at` exist, admin cannot re-send over the same offer — retract first, then send revised terms. Step 1 submit also freezes `acknowledged_terms` (facility/amount, rates, expiry, offer/product version) under `offer_acceptance` for audit.
-
-    Prefer **one stepper step per acknowledgement document** (sidebar labels use the document name), then upload.
+Stale `offer_acknowledgements` keys on saved products are stripped on product save and ignored at runtime.
 
 **While `PENDING_ADMIN_REVIEW`:** modal shows waiting state (no signing). The issuer **Review Offer** CTA is hidden; the applications card badge uses **Under Review**. Acceptance clock is paused (no “Accept by” on the card). CTA returns on `CHANGES_REQUESTED` or `APPROVED_FOR_SIGNING`. Resetting Acceptance review items/section from Approved rolls `offer_acceptance` back to `PENDING_ADMIN_REVIEW` (CTA hidden again). Admin Acceptance visibility and phase sync both use the application’s **frozen** `product_version` (not the live catalog row). Admin Acceptance status badges use distinct colors for `PENDING_ADMIN_REVIEW` (sky), `CHANGES_REQUESTED` (amber), and `SIGNING_IN_PROGRESS` (indigo).
 
@@ -129,12 +99,12 @@ Default pair: use **Add LO + Guarantee Acknowledgement** in product settings (`D
 ## Admin
 
 - Acceptance tab is the **primary-offer hub** (single outer card). Layout:
-  1. **Offer acceptance** — financing-offer status + acknowledgement progress
+  1. **Offer acceptance** — financing-offer status + acceptance deadline
   2. **Acceptance documents** — nested under offer acceptance when active (`PENDING_ADMIN_REVIEW`+ or uploads exist); Download all beside the documents heading
   3. **Signing package** — remind / void / history; signed PDF **View / Download** inline on each package document row when `signed_s3_key` is set (including the offer letter when keyed)
 - Actions on acceptance docs drive `CHANGES_REQUESTED` / `APPROVED_FOR_SIGNING` / reject-withdraw.
 - Signing package create/send messaging stays issuer-side; admin panel disables until `APPROVED_FOR_SIGNING`.
-- Tab visibility: show Acceptance when `workflowUsesOfferAcceptanceFlow` (acknowledgements and/or acceptance documents).
+- Tab visibility: show Acceptance when `workflowUsesOfferAcceptanceFlow` (product has `acceptance_documents`).
 - **Structure-aware tab order** (`getReviewSectionOrder`):
   - Contract / default: `… → Contract → Acceptance → Invoice`
   - Invoice-only: `… → Customer → Invoice → Acceptance`
@@ -149,15 +119,15 @@ Default pair: use **Add LO + Guarantee Acknowledgement** in product settings (`D
 
 | Action | Requires |
 |--------|----------|
-| Submit Step 1 | All required acks checked + required acceptance files present |
+| Submit Step 1 | Required acceptance files present |
 | Create / send envelope | `offer_acceptance.status` ∈ `APPROVED_FOR_SIGNING` \| `SIGNING_IN_PROGRESS` **and** acceptance review keys approved (same note-publish style keys) |
 | Auto-accept on envelope COMPLETED | Existing behaviour; set `offer_acceptance.status = COMPLETED`; Contract + Acceptance review sections → `APPROVED` |
 
-Presence-only gate for send is **replaced** by admin-approved for this flow when acknowledgements and/or acceptance docs are configured. If a frozen product has neither, keep legacy behaviour (direct signing stepper / accept as today).
+Presence-only gate for send is **replaced** by admin-approved for this flow when acceptance documents are configured. If a frozen product has none, keep legacy behaviour (direct signing stepper / accept as today).
 
 ## Slices
 
-1. **Done — Config + types + Step 1 UI + submit API** — `offer_acknowledgements`, `offer_acceptance` on `offer_details`, issuer Step 1, remove upload from Step 3 when acceptance phase applies.
+1. **Done — Config + types + Step 1 UI + submit API** — `acceptance_documents`, `offer_acceptance` on `offer_details`, issuer upload-only Step 1, remove upload from Step 3 when acceptance phase applies.
 2. **Done — Admin gate** — block create/send until approved; wire review outcomes to `offer_acceptance.status`; admin panel copy.
 3. **Done — Admin review linearity (Slice A)** — structure-aware tab order + Acceptance prerequisites + tab visibility via `workflowUsesOfferAcceptanceFlow`.
 4. **Done — Acceptance hub (Slice B)** — Signing package + offer-acceptance summary in the Acceptance tab (status → docs → signing); no page-level signing panel.

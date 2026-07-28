@@ -61,9 +61,7 @@ describe("phase deadline stamps and gates", () => {
     {
       id: "financing_type",
       config: {
-        offer_acknowledgements: [
-          { key: "letter_of_offer", name: "LO", content_source: "generated_offer_letter" },
-        ],
+        acceptance_documents: [{ name: "Board Resolution", required: true }],
         acceptance_deadline: { days: 7, reminders: [{ days_before_expiry: 1 }] },
         signing_deadline: { days: 14, reminders: [{ days_before_expiry: 3 }] },
         signing_packages: { enabled: true, roles: [], documents: [{ key: "a", name: "A", source: "TEMPLATE", required: true, order: 0, signer_role_keys: [] }] },

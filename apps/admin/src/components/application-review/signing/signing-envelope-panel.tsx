@@ -4,7 +4,7 @@
  * Remind actions on the progress matrix (no separate Nudge footer).
  *
  * When embedded in the Acceptance tab, set `showOfferAcceptanceSummary={false}` —
- * phase status + acknowledgements live in AcceptanceSection above this panel.
+ * phase status lives in AcceptanceSection above this panel.
  * Signing-clock deadline (Complete signing by / Expired) renders here.
  */
 "use client";
@@ -24,7 +24,6 @@ import {
   getOfferAcceptanceFromOfferDetails,
   getOfferAcceptanceStatusPresentation,
   getOfferPhaseDeadlineDisplay,
-  resolveOfferAcknowledgementsFromWorkflow,
   resolveSigningDeadlineFromWorkflow,
   DEFAULT_SIGNING_DEADLINE,
   addDaysIso,
@@ -129,7 +128,7 @@ export function resolveAcceptanceOfferDetails(args: {
 
 export interface SigningEnvelopePanelProps {
   applicationId: string;
-  /** Product.workflow JSON — used to resolve offer acknowledgement document names. */
+  /** Product.workflow JSON — signing deadline config. */
   workflow: unknown;
   people: ApplicationPersonRow[];
   guarantors: unknown;
@@ -143,7 +142,7 @@ export interface SigningEnvelopePanelProps {
   /** Standalone invoices (invoice_only structure) — each carries its own offer_details. */
   invoices?: { id: string; offer_details?: unknown }[];
   /**
-   * When false, hide the offer-acceptance status/acknowledgements block
+   * When false, hide the offer-acceptance status block
    * (Acceptance tab renders that above this panel).
    */
   showOfferAcceptanceSummary?: boolean;
@@ -193,13 +192,6 @@ export function SigningEnvelopePanel({
   const acceptancePresentation = acceptance
     ? getOfferAcceptanceStatusPresentation(acceptance.status)
     : null;
-  const acknowledgementNameByKey = React.useMemo(() => {
-    const map = new Map<string, string>();
-    for (const doc of resolveOfferAcknowledgementsFromWorkflow(workflow)) {
-      map.set(doc.key, doc.name);
-    }
-    return map;
-  }, [workflow]);
   const signingBlocked =
     acceptance != null &&
     acceptance.status !== "APPROVED_FOR_SIGNING" &&
@@ -334,23 +326,6 @@ export function SigningEnvelopePanel({
             <Badge variant="secondary">{acceptancePresentation.label}</Badge>
           </div>
           <p className="text-sm text-muted-foreground">{acceptancePresentation.hint}</p>
-          {acceptance?.acknowledgements?.length ? (
-            <ul className="mt-1 space-y-1 border-t border-border/60 pt-2">
-              {acceptance.acknowledgements.map((ack) => (
-                <li
-                  key={ack.document_key}
-                  className="flex flex-wrap items-center justify-between gap-2 text-sm"
-                >
-                  <span className="text-foreground">
-                    {acknowledgementNameByKey.get(ack.document_key) ?? ack.document_key}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    Acknowledged {format(new Date(ack.accepted_at), "d MMM yyyy, h:mm a")}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
         </div>
       ) : null}
 

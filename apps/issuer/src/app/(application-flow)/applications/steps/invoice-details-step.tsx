@@ -145,9 +145,7 @@ function isApiSuccess<T>(r: ApiResponse<T> | ApiError): r is ApiResponse<T> {
   return r.success === true;
 }
 
-function pickInvoiceWorkflowConfig(product: Product | null): Record<string, unknown> | null {
-  if (!product) return null;
-  const workflow = Array.isArray(product.workflow) ? product.workflow : [];
+function pickInvoiceConfigFromWorkflow(workflow: unknown[]): Record<string, unknown> | null {
   const invoiceStep = workflow.find((step) => {
     if (!step || typeof step !== "object") return false;
     const s = step as { id?: unknown; name?: unknown; config?: unknown };
@@ -180,25 +178,37 @@ function pickInvoiceWorkflowConfig(product: Product | null): Record<string, unkn
   return raw as Record<string, unknown>;
 }
 
+function pickInvoiceWorkflowConfig(product: Product | null): Record<string, unknown> | null {
+  if (!product) return null;
+  const workflow = Array.isArray(product.workflow) ? product.workflow : [];
+  return pickInvoiceConfigFromWorkflow(workflow);
+}
+
 /**
  * Resolve invoice config from product.
- * Product is obtained by:
+ * Prefer frozenWorkflow (application.product_version) when provided; otherwise:
  * 1) looking up application.financing_type.product_id in the provided products array
  * 2) falling back to application.product if present
  */
 function getProductInvoiceConfig(
   application: ApplicationHydrated | null,
-  products: Product[] = []
+  products: Product[] = [],
+  frozenWorkflow?: unknown[] | null
 ): InvoiceConfig | null {
   try {
-    const ft = application?.financing_type as { product_id?: string } | undefined;
-    const productId = ft?.product_id;
-    let product: Product | null = null;
-    if (productId) {
-      product = products.find((p) => p.id === productId) ?? null;
+    let config: Record<string, unknown> | null = null;
+    if (Array.isArray(frozenWorkflow) && frozenWorkflow.length > 0) {
+      config = pickInvoiceConfigFromWorkflow(frozenWorkflow);
+    } else {
+      const ft = application?.financing_type as { product_id?: string } | undefined;
+      const productId = ft?.product_id;
+      let product: Product | null = null;
+      if (productId) {
+        product = products.find((p) => p.id === productId) ?? null;
+      }
+      if (!product && application?.product) product = application.product;
+      config = pickInvoiceWorkflowConfig(product);
     }
-    if (!product && application?.product) product = application.product;
-    const config = pickInvoiceWorkflowConfig(product);
     if (config == null || Object.keys(config).length === 0) return null;
     const minRatio = config.min_financing_ratio_percent;
     const maxRatio = config.max_financing_ratio_percent;
@@ -292,6 +302,8 @@ interface InvoiceDetailsStepProps {
   remarks?: InvoiceRemarkItem[];
   /** Session/DB effective structure; preferred over stale DB when user changed Financing Structure without saving. */
   effectiveStructureType?: "new_contract" | "existing_contract" | "invoice_only" | null;
+  /** Frozen application.product_version workflow — prefer over live catalog for ratio/maturity limits. */
+  frozenProductWorkflow?: unknown[] | null;
 }
 
 export default function InvoiceDetailsStep({
@@ -302,6 +314,7 @@ export default function InvoiceDetailsStep({
   flaggedSections,
   remarks = [],
   effectiveStructureType = null,
+  frozenProductWorkflow = null,
 }: InvoiceDetailsStepProps) {
   const devTools = useDevTools();
 
@@ -727,7 +740,11 @@ export default function InvoiceDetailsStep({
 
   let productConfig: InvoiceConfig | null = null;
   try {
-    productConfig = getProductInvoiceConfig(application, productsData?.products || []);
+    productConfig = getProductInvoiceConfig(
+      application,
+      productsData?.products || [],
+      frozenProductWorkflow
+    );
   } catch (error: unknown) {
     validationError = error instanceof Error ? error.message : "Product configuration error";
   }

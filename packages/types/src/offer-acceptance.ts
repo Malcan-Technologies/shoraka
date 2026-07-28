@@ -1,6 +1,6 @@
 /**
  * Offer-acceptance phase (Option A): status lives on offer_details.offer_acceptance.
- * Acknowledgements are product-config docs the issuer previews + checkboxes in Step 1.
+ * Step 1 is upload-only via product acceptance_documents.
  * See docs/guides/application-flow/offer-acceptance-and-signing-phases.md
  */
 
@@ -20,7 +20,6 @@ import {
   type PhaseDeadlineConfig,
 } from "./deadline-config";
 
-export const OFFER_ACKNOWLEDGEMENTS_WORKFLOW_KEY = "offer_acknowledgements";
 export {
   ACCEPTANCE_DEADLINE_WORKFLOW_KEY,
   SIGNING_DEADLINE_WORKFLOW_KEY,
@@ -50,118 +49,9 @@ export const OFFER_ACCEPTANCE_STATUSES: readonly OfferAcceptanceStatus[] = [
   "COMPLETED",
 ] as const;
 
-export type OfferAcknowledgementContentSource =
-  | "html_template"
-  | "generated_offer_letter"
-  | "template_pdf"
-  | "static_text";
-
-/** Stable keys for built-in HTML placeholders (swap bodies later without changing product keys). */
-export type OfferAcknowledgementTemplateKey = "letter_of_offer" | "guarantee_acknowledgement";
-
-export const OFFER_ACKNOWLEDGEMENT_TEMPLATE_KEYS: readonly OfferAcknowledgementTemplateKey[] = [
-  "letter_of_offer",
-  "guarantee_acknowledgement",
-] as const;
-
-/**
- * Hardcoded HTML placeholders for this pass. Replace with real templated HTML (merge fields)
- * when legal copy is ready — keep template_key stable.
- */
-export const OFFER_ACKNOWLEDGEMENT_HTML_PLACEHOLDERS: Record<
-  OfferAcknowledgementTemplateKey,
-  string
-> = {
-  letter_of_offer: `
-<h2>Letter of Offer</h2>
-<p><strong>Placeholder content</strong> — this text will be replaced with the formal Letter of Offer HTML template later.</p>
-<p>By continuing, you acknowledge that you have read and understood the terms of this financing offer, including the facility amount, fees, and conditions set out in the Letter of Offer.</p>
-<p>This acknowledgement is not an electronic signature of the execution pack. Signing of the Facility Agreement and related documents happens in a later step after CashSouk reviews your acceptance documents.</p>
-`.trim(),
-  guarantee_acknowledgement: `
-<h2>Guarantee Acknowledgement</h2>
-<p><strong>Placeholder content</strong> — this text will be replaced with the formal Guarantee Acknowledgement HTML template later.</p>
-<p>By continuing, you acknowledge that you understand the guarantee obligations associated with this facility, including that guarantors may be required to execute a Joint and Several Guarantee (JSG) as part of the signing package.</p>
-<p>This acknowledgement is not the signed guarantee itself.</p>
-`.trim(),
-};
-
-export type OfferAcknowledgementDocument = {
-  key: string;
-  name: string;
-  /** Omitted or true → required */
-  required?: boolean;
-  content_source: OfferAcknowledgementContentSource;
-  /** When content_source === "html_template" — picks a built-in HTML placeholder body */
-  template_key?: OfferAcknowledgementTemplateKey;
-  /** When content_source === "static_text" */
-  static_text?: string;
-  /** When content_source === "template_pdf" */
-  template?: { s3_key: string; file_name: string; file_size?: number };
-};
-
-/**
- * Default pair for facility flow: Letter of Offer + Guarantee Acknowledgement.
- * LOO binds to the system offer-letter PDF. Guarantee requires admin-supplied
- * static text or an uploaded PDF — placeholder HTML is not production-ready.
- */
-export const DEFAULT_OFFER_ACKNOWLEDGEMENTS: readonly OfferAcknowledgementDocument[] = [
-  {
-    key: "letter_of_offer",
-    name: "Letter of Offer",
-    required: true,
-    content_source: "generated_offer_letter",
-  },
-  {
-    key: "guarantee_acknowledgement",
-    name: "Guarantee Acknowledgement",
-    required: true,
-    content_source: "static_text",
-  },
-] as const;
-
-/**
- * Built-in HTML template keys that still only ship engineering placeholders.
- * Product save must reject these until legal supplies production-ready templates.
- */
-export const OFFER_ACKNOWLEDGEMENT_PLACEHOLDER_TEMPLATE_KEYS: readonly OfferAcknowledgementTemplateKey[] =
-  OFFER_ACKNOWLEDGEMENT_TEMPLATE_KEYS;
-
-export function isOfferAcknowledgementTemplateKey(
-  value: unknown
-): value is OfferAcknowledgementTemplateKey {
-  return (
-    typeof value === "string" &&
-    OFFER_ACKNOWLEDGEMENT_TEMPLATE_KEYS.includes(value as OfferAcknowledgementTemplateKey)
-  );
-}
-
-/** Resolve HTML body for an acknowledgement row (placeholder for now). */
-export function resolveOfferAcknowledgementHtml(
-  doc: Pick<OfferAcknowledgementDocument, "content_source" | "template_key" | "key" | "static_text">
-): string | null {
-  if (doc.content_source === "static_text") {
-    return doc.static_text?.trim() ? doc.static_text : null;
-  }
-  if (doc.content_source !== "html_template") return null;
-  const key = isOfferAcknowledgementTemplateKey(doc.template_key)
-    ? doc.template_key
-    : isOfferAcknowledgementTemplateKey(doc.key)
-      ? doc.key
-      : null;
-  if (!key) return null;
-  return OFFER_ACKNOWLEDGEMENT_HTML_PLACEHOLDERS[key];
-}
-
-export type OfferAcknowledgementRecord = {
-  document_key: string;
-  accepted_at: string;
-  accepted_by_user_id: string;
-};
-
 /**
  * Frozen commercial terms at Step 1 submit — audit/display only; not used for pricing.
- * Shape is a union of contract + invoice fields present on the offer at acknowledgement time.
+ * Shape is a union of contract + invoice fields present on the offer at submit time.
  */
 export type OfferAcknowledgedTermsSnapshot = {
   offer_version: number;
@@ -179,7 +69,6 @@ export type OfferAcknowledgedTermsSnapshot = {
 
 export type OfferAcceptanceDetails = {
   status: OfferAcceptanceStatus;
-  acknowledgements?: OfferAcknowledgementRecord[];
   /** Set on Step 1 submit; proves which commercial numbers were acknowledged. */
   acknowledged_terms?: OfferAcknowledgedTermsSnapshot;
   submitted_at?: string | null;
@@ -207,21 +96,6 @@ export function parseOfferAcceptanceDetails(value: unknown): OfferAcceptanceDeta
   const root = asRecord(value);
   if (!root) return null;
   if (!isOfferAcceptanceStatus(root.status)) return null;
-  const acknowledgements: OfferAcknowledgementRecord[] = [];
-  if (Array.isArray(root.acknowledgements)) {
-    for (const row of root.acknowledgements) {
-      const r = asRecord(row);
-      if (!r) continue;
-      if (typeof r.document_key !== "string" || !r.document_key) continue;
-      if (typeof r.accepted_at !== "string" || !r.accepted_at) continue;
-      if (typeof r.accepted_by_user_id !== "string" || !r.accepted_by_user_id) continue;
-      acknowledgements.push({
-        document_key: r.document_key,
-        accepted_at: r.accepted_at,
-        accepted_by_user_id: r.accepted_by_user_id,
-      });
-    }
-  }
   const acknowledgedTerms = parseAcknowledgedTermsSnapshot(root.acknowledged_terms);
   const remindersSent = asRecord(root.deadline_reminders_sent);
   const deadlineRemindersSent: Record<string, string> | undefined = remindersSent
@@ -233,7 +107,6 @@ export function parseOfferAcceptanceDetails(value: unknown): OfferAcceptanceDeta
     : undefined;
   return {
     status: root.status,
-    ...(acknowledgements.length > 0 ? { acknowledgements } : {}),
     ...(acknowledgedTerms ? { acknowledged_terms: acknowledgedTerms } : {}),
     submitted_at: typeof root.submitted_at === "string" ? root.submitted_at : root.submitted_at === null ? null : undefined,
     reviewed_at: typeof root.reviewed_at === "string" ? root.reviewed_at : root.reviewed_at === null ? null : undefined,
@@ -362,29 +235,42 @@ export function buildAcknowledgedTermsSnapshot(params: {
 
 /**
  * True when admin must retract before sending a new offer version.
- * Absent acceptance (legacy) or PENDING_ISSUER with no acks / submitted_at → re-send allowed.
+ * Absent acceptance (legacy) or PENDING_ISSUER with no submitted_at → re-send allowed.
  */
 export function isOfferAcceptanceResendBlocked(
   acceptance: OfferAcceptanceDetails | null | undefined
 ): boolean {
   if (!acceptance) return false;
   if (acceptance.status !== "PENDING_ISSUER") return true;
-  if ((acceptance.acknowledgements?.length ?? 0) > 0) return true;
   if (typeof acceptance.submitted_at === "string" && acceptance.submitted_at.length > 0) {
     return true;
   }
   return false;
 }
 
-export function isOfferAcknowledgementPlaceholderTemplateKey(
-  value: unknown
-): value is OfferAcknowledgementTemplateKey {
-  return (
-    typeof value === "string" &&
-    OFFER_ACKNOWLEDGEMENT_PLACEHOLDER_TEMPLATE_KEYS.includes(
-      value as OfferAcknowledgementTemplateKey
-    )
-  );
+/**
+ * Admin Acceptance documents list: only after issuer Submit (not draft uploads while PENDING_ISSUER).
+ * Uses submitted_at when present; otherwise any post-submit / terminal phase status.
+ */
+export function isOfferAcceptanceDocumentsVisibleToAdmin(
+  acceptance: OfferAcceptanceDetails | null | undefined
+): boolean {
+  if (!acceptance) return false;
+  if (typeof acceptance.submitted_at === "string" && acceptance.submitted_at.length > 0) {
+    return true;
+  }
+  switch (acceptance.status) {
+    case "PENDING_ADMIN_REVIEW":
+    case "CHANGES_REQUESTED":
+    case "APPROVED_FOR_SIGNING":
+    case "SIGNING_IN_PROGRESS":
+    case "COMPLETED":
+    case "REJECTED":
+    case "DECLINED":
+      return true;
+    default:
+      return false;
+  }
 }
 
 /** Read offer_acceptance from a contract/invoice offer_details blob. */
@@ -462,71 +348,6 @@ export function offerAcceptanceAllowsIssuerReviewCta(
   );
 }
 
-const CONTENT_SOURCES: readonly OfferAcknowledgementContentSource[] = [
-  "html_template",
-  "generated_offer_letter",
-  "template_pdf",
-  "static_text",
-];
-
-function slugifyKey(name: string, index: number): string {
-  const base = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_|_$/g, "");
-  return base || `acknowledgement_${index}`;
-}
-
-function parseAcknowledgementRow(raw: unknown, index: number): OfferAcknowledgementDocument | null {
-  const row = asRecord(raw);
-  if (!row) return null;
-  const name = typeof row.name === "string" ? row.name.trim() : "";
-  if (!name) return null;
-  const key =
-    typeof row.key === "string" && row.key.trim() ? row.key.trim() : slugifyKey(name, index);
-  const contentSource = CONTENT_SOURCES.includes(row.content_source as OfferAcknowledgementContentSource)
-    ? (row.content_source as OfferAcknowledgementContentSource)
-    : key === "letter_of_offer"
-      ? "generated_offer_letter"
-      : "static_text";
-  const template = asRecord(row.template);
-  const out: OfferAcknowledgementDocument = {
-    key,
-    name,
-    required: row.required === false ? false : true,
-    content_source: contentSource,
-  };
-  if (contentSource === "html_template") {
-    if (isOfferAcknowledgementTemplateKey(row.template_key)) {
-      out.template_key = row.template_key;
-    } else if (isOfferAcknowledgementTemplateKey(key)) {
-      out.template_key = key;
-    } else {
-      out.template_key = "letter_of_offer";
-    }
-  }
-  if (contentSource === "static_text" && typeof row.static_text === "string") {
-    out.static_text = row.static_text;
-  }
-  if (
-    contentSource === "template_pdf" &&
-    template &&
-    typeof template.s3_key === "string" &&
-    template.s3_key
-  ) {
-    out.template = {
-      s3_key: template.s3_key,
-      file_name:
-        (typeof template.file_name === "string" && template.file_name) ||
-        (typeof template.filename === "string" && template.filename) ||
-        "template.pdf",
-      ...(typeof template.file_size === "number" ? { file_size: template.file_size } : {}),
-    };
-  }
-  return out;
-}
-
 function findFinancingTypeConfig(workflow: unknown): Record<string, unknown> | null {
   if (!Array.isArray(workflow)) return null;
   for (const step of workflow) {
@@ -535,47 +356,6 @@ function findFinancingTypeConfig(workflow: unknown): Record<string, unknown> | n
     return asRecord((step as { config?: unknown }).config);
   }
   return null;
-}
-
-export function parseOfferAcknowledgementsConfig(financingConfig: unknown): OfferAcknowledgementDocument[] {
-  const config = asRecord(financingConfig) ?? {};
-  const list = config[OFFER_ACKNOWLEDGEMENTS_WORKFLOW_KEY];
-  if (!Array.isArray(list)) return [];
-  const parsed: OfferAcknowledgementDocument[] = [];
-  const seenKeys = new Set<string>();
-  list.forEach((row, index) => {
-    const doc = parseAcknowledgementRow(row, index);
-    if (!doc) return;
-    let key = doc.key;
-    if (seenKeys.has(key)) key = `${key}_${index}`;
-    seenKeys.add(key);
-    parsed.push({ ...doc, key });
-  });
-  return parsed;
-}
-
-export function writeOfferAcknowledgementsConfig(
-  financingConfig: Record<string, unknown>,
-  rows: OfferAcknowledgementDocument[]
-): Record<string, unknown> {
-  return {
-    ...financingConfig,
-    [OFFER_ACKNOWLEDGEMENTS_WORKFLOW_KEY]: rows.map((row) => ({
-      key: row.key,
-      name: row.name,
-      required: row.required !== false,
-      content_source: row.content_source,
-      ...(row.content_source === "html_template" && row.template_key
-        ? { template_key: row.template_key }
-        : {}),
-      ...(row.content_source === "static_text" && row.static_text != null
-        ? { static_text: row.static_text }
-        : {}),
-      ...(row.content_source === "template_pdf" && row.template
-        ? { template: row.template }
-        : {}),
-    })),
-  };
 }
 
 export function parseAcceptanceDeadlineConfig(financingConfig: unknown): PhaseDeadlineConfig | null {
@@ -636,36 +416,17 @@ export function resolveActiveOfferDeadlineIso(
   return null;
 }
 
-export function resolveOfferAcknowledgementsFromWorkflow(
-  workflow: unknown
-): OfferAcknowledgementDocument[] {
-  return parseOfferAcknowledgementsConfig(findFinancingTypeConfig(workflow));
-}
-
-export function workflowHasOfferAcknowledgements(workflow: unknown): boolean {
-  return resolveOfferAcknowledgementsFromWorkflow(workflow).length > 0;
-}
-
 /**
  * True when the product uses the phased accept → admin review → signing flow.
- * Legacy products with neither acknowledgements nor acceptance docs keep the old path.
- * Runtime: only enforce the phase gate when offer_details.offer_acceptance is present
- * (new offers). Older offers without the field keep presence-only create/send.
+ * Requires acceptance_documents on the financing-type step.
  */
 export function workflowUsesOfferAcceptanceFlow(workflow: unknown): boolean {
-  return workflowHasOfferAcknowledgements(workflow) || workflowHasAcceptanceDocuments(workflow);
-}
-
-/** Required acknowledgement keys that must be present on submit. */
-export function requiredOfferAcknowledgementKeys(workflow: unknown): string[] {
-  return resolveOfferAcknowledgementsFromWorkflow(workflow)
-    .filter((doc) => doc.required !== false)
-    .map((doc) => doc.key);
+  return workflowHasAcceptanceDocuments(workflow);
 }
 
 /**
  * After Step 1 submit: if there are acceptance docs to review, wait for admin;
- * otherwise unlock signing immediately (acknowledgements-only products).
+ * otherwise unlock signing immediately.
  */
 export function resolveStatusAfterOfferAcceptanceSubmit(workflow: unknown): OfferAcceptanceStatus {
   return resolveAcceptanceDocumentsFromWorkflow(workflow).length > 0
@@ -684,7 +445,7 @@ export function getOfferAcceptanceStatusPresentation(
 ): OfferAcceptanceStatusPresentation {
   switch (status) {
     case "PENDING_ISSUER":
-      return { label: "Pending issuer", hint: "Issuer must acknowledge documents and upload acceptance files." };
+      return { label: "Pending issuer", hint: "Issuer must upload acceptance documents." };
     case "PENDING_ADMIN_REVIEW":
       return { label: "Pending admin review", hint: "Review acceptance documents before signing can start." };
     case "CHANGES_REQUESTED":

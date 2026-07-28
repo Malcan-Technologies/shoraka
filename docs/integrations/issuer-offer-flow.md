@@ -2,9 +2,9 @@
 
 Admin sends offers for Contract and Invoice. The issuer receives them, can accept or reject, and may see offers retracted.
 
-For products configured with **offer acknowledgements** and/or **acceptance documents**, the issuer follows a phased flow (see [Offer acceptance & signing phases](../guides/application-flow/offer-acceptance-and-signing-phases.md)):
+For products configured with **acceptance documents**, the issuer follows a phased flow (see [Offer acceptance & signing phases](../guides/application-flow/offer-acceptance-and-signing-phases.md)):
 
-1. **Step 1** — Preview + checkbox per acknowledgement, upload acceptance docs, submit.
+1. **Step 1** — Upload acceptance docs configured on the product, submit.
 2. **Step 2** — Admin reviews on the **Acceptance** tab (offer status, acceptance docs, signing package progress; approve / request changes / reject).
 3. **Step 3** — Signing package (configure signers → send → track). No upload step.
 

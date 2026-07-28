@@ -40,7 +40,11 @@ export class InvoiceService {
     const app = await this.applicationRepository.findById(applicationId);
     const productId = (app?.financing_type as { product_id?: string } | null)?.product_id;
     if (!productId) return null;
-    const product = await this.productRepository.findById(productId);
+    const productVersion = (app as { product_version?: number | null } | null)?.product_version;
+    const product =
+      productVersion != null
+        ? await this.productRepository.findByBaseAndVersion(productId, productVersion)
+        : await this.productRepository.findById(productId);
     return product?.workflow ?? null;
   }
 

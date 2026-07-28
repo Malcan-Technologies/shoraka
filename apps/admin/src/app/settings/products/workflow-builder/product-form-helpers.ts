@@ -11,7 +11,6 @@ import {
   parseSigningPackagesConfig,
   writeSigningPackagesConfig,
   ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY,
-  parseOfferAcknowledgementsConfig,
   validateSigningTemplateConfig,
 } from "@cashsouk/types";
 import { isDeclarationHtmlEmpty } from "@cashsouk/ui/declaration-rich-text";
@@ -152,6 +151,9 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
 
     const configForApi = { ...config } as Record<string, unknown>;
     delete configForApi._pendingImage;
+    if (stepKey === FIRST_STEP_KEY) {
+      delete configForApi.offer_acknowledgements;
+    }
     return { ...step, config: configForApi };
   });
 }
@@ -517,8 +519,7 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
       const signing = parseSigningPackagesConfig(config);
       const acceptanceDocs = config[ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY];
       const usesOfferAcceptance =
-        parseOfferAcknowledgementsConfig(config).length > 0 ||
-        (Array.isArray(acceptanceDocs) && acceptanceDocs.length > 0);
+        Array.isArray(acceptanceDocs) && acceptanceDocs.length > 0;
       const hasSigningContent = signing.roles.length > 0 || signing.documents.length > 0;
       if (usesOfferAcceptance || hasSigningContent) {
         for (const msg of validateSigningTemplateConfig(signing)) {

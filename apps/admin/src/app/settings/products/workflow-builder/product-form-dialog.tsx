@@ -65,7 +65,6 @@ import { WorkflowStepCard } from "./workflow-step-card";
 import { StepConfigEditor } from "./step-configs/step-config-editor";
 import { SigningPackageConfig } from "./step-configs/signing-package-config";
 import { AcceptanceDocumentsConfig } from "./step-configs/acceptance-documents-config";
-import { OfferAcknowledgementsConfig } from "./step-configs/offer-acknowledgements-config";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -283,15 +282,6 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     );
   }, []);
 
-  const handleOfferAcknowledgementsConfigChange = useCallback((nextConfig: Record<string, unknown>) => {
-    setSteps((prev) =>
-      prev.map((s) => {
-        if (getStepKeyFromStepId(getStepId(s)) !== FIRST_STEP_KEY) return s;
-        return { ...(s as Record<string, unknown>), config: nextConfig };
-      })
-    );
-  }, []);
-
   /** Upload pending image to S3 and write s3Key into the financing type step. Mutates nextSteps. Returns s3Key if uploaded. */
   const uploadImageAndMerge = async (
     productId: string,
@@ -386,7 +376,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         }
         continue;
       }
-      if (categoryKey === "acceptance_documents" || categoryKey === "offer_acknowledgements") {
+      if (categoryKey === "acceptance_documents") {
         const firstIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY);
         if (firstIdx >= 0) {
           const step = nextSteps[firstIdx] as Record<string, unknown>;
@@ -647,15 +637,14 @@ const hasChanges = !isEdit
     const pendingSigningTemplates = Object.keys(pendingSupportingDocTemplates).filter((k) =>
       k.startsWith("signing_template_document_")
     );
-    const pendingAcceptanceTemplates = Object.keys(pendingSupportingDocTemplates).filter(
-      (k) => k.startsWith("acceptance_documents_") || k.startsWith("offer_acknowledgements_")
+    const pendingAcceptanceTemplates = Object.keys(pendingSupportingDocTemplates).filter((k) =>
+      k.startsWith("acceptance_documents_")
     );
     const pendingSupportingOnly = Object.keys(pendingSupportingDocTemplates).filter(
       (k) =>
         !k.startsWith("guarantor_agreement_") &&
         !k.startsWith("signing_template_document_") &&
-        !k.startsWith("acceptance_documents_") &&
-        !k.startsWith("offer_acknowledgements_")
+        !k.startsWith("acceptance_documents_")
     );
     const pendingGuarantorAgreementOnly = Object.keys(pendingSupportingDocTemplates).filter((k) =>
       k.startsWith("guarantor_agreement_")
@@ -781,10 +770,10 @@ const hasChanges = !isEdit
                   Signing packages
                 </TabsTrigger>
                 <TabsTrigger
-                  value="acknowledgements"
+                  value="acceptance"
                   className="h-auto whitespace-normal px-1.5 py-2 text-center text-[11px] leading-snug sm:px-2 sm:text-sm"
                 >
-                  Acknowledgements
+                  Acceptance
                 </TabsTrigger>
                 <TabsTrigger
                   value="fees"
@@ -926,17 +915,9 @@ const hasChanges = !isEdit
                 </TabsContent>
 
                 <TabsContent
-                  value="acknowledgements"
+                  value="acceptance"
                   className="mt-0 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 sm:space-y-4 focus-visible:ring-0 data-[state=inactive]:hidden"
                 >
-                  <OfferAcknowledgementsConfig
-                    config={getSigningPackagesStepConfig()}
-                    onChange={handleOfferAcknowledgementsConfigChange}
-                    onPendingTemplateChange={(index, file) =>
-                      handlePendingSupportingDocTemplate("offer_acknowledgements", index, file)
-                    }
-                  />
-
                   <AcceptanceDocumentsConfig
                     config={getSigningPackagesStepConfig()}
                     onChange={handleAcceptanceDocumentsConfigChange}

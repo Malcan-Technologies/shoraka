@@ -9,7 +9,6 @@ import {
   withOfferAcceptance,
   type OfferAcceptanceDetails,
   type OfferAcceptanceStatus,
-  type OfferAcknowledgementRecord,
 } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 
@@ -82,59 +81,4 @@ export function patchOfferAcceptanceUnchecked(
   const current =
     parseOfferAcceptanceDetails(offerDetails.offer_acceptance) ?? createInitialOfferAcceptanceDetails();
   return withOfferAcceptance(offerDetails, { ...current, ...patch });
-}
-
-export function buildAcknowledgementRecords(input: {
-  documentKeys: string[];
-  userId: string;
-  acceptedAt: string;
-}): OfferAcknowledgementRecord[] {
-  return input.documentKeys.map((document_key) => ({
-    document_key,
-    accepted_at: input.acceptedAt,
-    accepted_by_user_id: input.userId,
-  }));
-}
-
-/**
- * Merge acknowledgement keys on Step 1 / resubmit.
- * - Rejects keys not in `allowedKeys`
- * - Preserves original accepted_at / accepted_by for keys already recorded
- * - Stamps new keys with the current user/time
- */
-export function mergeAcknowledgementRecords(input: {
-  existing: OfferAcknowledgementRecord[] | undefined;
-  documentKeys: string[];
-  allowedKeys: string[];
-  userId: string;
-  acceptedAt: string;
-}): OfferAcknowledgementRecord[] {
-  const allowed = new Set(input.allowedKeys);
-  for (const key of input.documentKeys) {
-    if (!allowed.has(key)) {
-      throw new AppError(
-        400,
-        "VALIDATION_ERROR",
-        `Unknown acknowledgement key: ${key}`
-      );
-    }
-  }
-  const previousByKey = new Map(
-    (input.existing ?? []).map((row) => [row.document_key, row] as const)
-  );
-  return input.documentKeys.map((document_key) => {
-    const prior = previousByKey.get(document_key);
-    if (prior) {
-      return {
-        document_key,
-        accepted_at: prior.accepted_at,
-        accepted_by_user_id: prior.accepted_by_user_id,
-      };
-    }
-    return {
-      document_key,
-      accepted_at: input.acceptedAt,
-      accepted_by_user_id: input.userId,
-    };
-  });
 }

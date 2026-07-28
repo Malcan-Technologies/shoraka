@@ -1,12 +1,10 @@
 import {
-  DEFAULT_OFFER_ACKNOWLEDGEMENTS,
   buildAcknowledgedTermsSnapshot,
+  isOfferAcceptanceDocumentsVisibleToAdmin,
   isOfferAcceptanceResendBlocked,
   resolveStatusAfterOfferAcceptanceSubmit,
   workflowUsesOfferAcceptanceFlow,
 } from "@cashsouk/types";
-import { validateOfferAcknowledgementsConfig } from "../modules/products/validate-financial-config";
-import { AppError } from "./http/error-handler";
 
 /** Minimal financing_type step — same shape admin/issuer resolve from frozen product_version. */
 function financingWorkflow(config: Record<string, unknown>) {
@@ -14,7 +12,7 @@ function financingWorkflow(config: Record<string, unknown>) {
 }
 
 describe("workflowUsesOfferAcceptanceFlow", () => {
-  it("is false for missing, empty, or legacy workflow without acks/docs", () => {
+  it("is false for missing, empty, or legacy workflow without acceptance docs", () => {
     expect(workflowUsesOfferAcceptanceFlow(undefined)).toBe(false);
     expect(workflowUsesOfferAcceptanceFlow(null)).toBe(false);
     expect(workflowUsesOfferAcceptanceFlow([])).toBe(false);
@@ -27,16 +25,6 @@ describe("workflowUsesOfferAcceptanceFlow", () => {
     ).toBe(false);
   });
 
-  it("is true when offer_acknowledgements are configured", () => {
-    expect(
-      workflowUsesOfferAcceptanceFlow(
-        financingWorkflow({
-          offer_acknowledgements: [...DEFAULT_OFFER_ACKNOWLEDGEMENTS],
-        })
-      )
-    ).toBe(true);
-  });
-
   it("is true when acceptance_documents are configured", () => {
     expect(
       workflowUsesOfferAcceptanceFlow(
@@ -47,23 +35,23 @@ describe("workflowUsesOfferAcceptanceFlow", () => {
     ).toBe(true);
   });
 
-  it("is true when both acknowledgements and acceptance documents are configured", () => {
+  it("ignores empty acceptance_documents list", () => {
     expect(
       workflowUsesOfferAcceptanceFlow(
         financingWorkflow({
-          offer_acknowledgements: [...DEFAULT_OFFER_ACKNOWLEDGEMENTS],
-          acceptance_documents: [{ name: "Board Resolution", required: true }],
+          acceptance_documents: [],
         })
       )
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it("ignores empty acknowledgement / acceptance lists", () => {
+  it("ignores stale offer_acknowledgements without acceptance_documents", () => {
     expect(
       workflowUsesOfferAcceptanceFlow(
         financingWorkflow({
-          offer_acknowledgements: [],
-          acceptance_documents: [],
+          offer_acknowledgements: [
+            { key: "letter_of_offer", name: "Letter of Offer", content_source: "generated_offer_letter" },
+          ],
         })
       )
     ).toBe(false);
@@ -75,37 +63,21 @@ describe("resolveStatusAfterOfferAcceptanceSubmit", () => {
     expect(
       resolveStatusAfterOfferAcceptanceSubmit(
         financingWorkflow({
-          offer_acknowledgements: [...DEFAULT_OFFER_ACKNOWLEDGEMENTS],
           acceptance_documents: [{ name: "Board Resolution", required: true }],
         })
       )
     ).toBe("PENDING_ADMIN_REVIEW");
   });
 
-  it("unlocks signing immediately for acknowledgements-only products", () => {
-    expect(
-      resolveStatusAfterOfferAcceptanceSubmit(
-        financingWorkflow({
-          offer_acknowledgements: [...DEFAULT_OFFER_ACKNOWLEDGEMENTS],
-        })
-      )
-    ).toBe("APPROVED_FOR_SIGNING");
-  });
-});
-
-describe("DEFAULT_OFFER_ACKNOWLEDGEMENTS", () => {
-  it("uses generated offer letter for LOO and static text for guarantee", () => {
-    const loo = DEFAULT_OFFER_ACKNOWLEDGEMENTS.find((d) => d.key === "letter_of_offer");
-    const guarantee = DEFAULT_OFFER_ACKNOWLEDGEMENTS.find(
-      (d) => d.key === "guarantee_acknowledgement"
+  it("unlocks signing immediately when no acceptance documents configured", () => {
+    expect(resolveStatusAfterOfferAcceptanceSubmit(financingWorkflow({}))).toBe(
+      "APPROVED_FOR_SIGNING"
     );
-    expect(loo?.content_source).toBe("generated_offer_letter");
-    expect(guarantee?.content_source).toBe("static_text");
   });
 });
 
 describe("isOfferAcceptanceResendBlocked", () => {
-  it("allows resend when acceptance is absent or pending without acks", () => {
+  it("allows resend when acceptance is absent or pending without submitted_at", () => {
     expect(isOfferAcceptanceResendBlocked(null)).toBe(false);
     expect(isOfferAcceptanceResendBlocked(undefined)).toBe(false);
     expect(isOfferAcceptanceResendBlocked({ status: "PENDING_ISSUER" })).toBe(false);
@@ -117,25 +89,32 @@ describe("isOfferAcceptanceResendBlocked", () => {
     expect(isOfferAcceptanceResendBlocked({ status: "COMPLETED" })).toBe(true);
   });
 
-  it("blocks when acknowledgements or submitted_at exist while still PENDING_ISSUER", () => {
-    expect(
-      isOfferAcceptanceResendBlocked({
-        status: "PENDING_ISSUER",
-        acknowledgements: [
-          {
-            document_key: "letter_of_offer",
-            accepted_at: "2026-07-21T00:00:00.000Z",
-            accepted_by_user_id: "user-1",
-          },
-        ],
-      })
-    ).toBe(true);
+  it("blocks when submitted_at exists while still PENDING_ISSUER", () => {
     expect(
       isOfferAcceptanceResendBlocked({
         status: "PENDING_ISSUER",
         submitted_at: "2026-07-21T00:00:00.000Z",
       })
     ).toBe(true);
+  });
+});
+
+describe("isOfferAcceptanceDocumentsVisibleToAdmin", () => {
+  it("hides docs while PENDING_ISSUER even if uploads exist elsewhere", () => {
+    expect(isOfferAcceptanceDocumentsVisibleToAdmin(null)).toBe(false);
+    expect(isOfferAcceptanceDocumentsVisibleToAdmin({ status: "PENDING_ISSUER" })).toBe(false);
+  });
+
+  it("shows docs after submitted_at or post-submit phases", () => {
+    expect(
+      isOfferAcceptanceDocumentsVisibleToAdmin({
+        status: "PENDING_ISSUER",
+        submitted_at: "2026-07-21T00:00:00.000Z",
+      })
+    ).toBe(true);
+    expect(isOfferAcceptanceDocumentsVisibleToAdmin({ status: "PENDING_ADMIN_REVIEW" })).toBe(true);
+    expect(isOfferAcceptanceDocumentsVisibleToAdmin({ status: "CHANGES_REQUESTED" })).toBe(true);
+    expect(isOfferAcceptanceDocumentsVisibleToAdmin({ status: "APPROVED_FOR_SIGNING" })).toBe(true);
   });
 });
 
@@ -187,82 +166,5 @@ describe("buildAcknowledgedTermsSnapshot", () => {
       platform_fee_rate_percent: 1,
       risk_rating: "B",
     });
-  });
-});
-
-describe("validateOfferAcknowledgementsConfig", () => {
-  it("rejects html_template placeholder sources on product save", () => {
-    expect(() =>
-      validateOfferAcknowledgementsConfig(
-        financingWorkflow({
-          offer_acknowledgements: [
-            {
-              key: "letter_of_offer",
-              name: "Letter of Offer",
-              content_source: "html_template",
-              template_key: "letter_of_offer",
-            },
-          ],
-        })
-      )
-    ).toThrow(AppError);
-
-    try {
-      validateOfferAcknowledgementsConfig(
-        financingWorkflow({
-          offer_acknowledgements: [
-            {
-              key: "letter_of_offer",
-              name: "Letter of Offer",
-              content_source: "html_template",
-              template_key: "letter_of_offer",
-            },
-          ],
-        })
-      );
-      throw new Error("expected validateOfferAcknowledgementsConfig to throw");
-    } catch (err) {
-      expect(err).toBeInstanceOf(AppError);
-      expect((err as AppError).message).toMatch(/not production-ready/i);
-    }
-  });
-
-  it("accepts generated offer letter and filled static text", () => {
-    expect(() =>
-      validateOfferAcknowledgementsConfig(
-        financingWorkflow({
-          offer_acknowledgements: [
-            {
-              key: "letter_of_offer",
-              name: "Letter of Offer",
-              content_source: "generated_offer_letter",
-            },
-            {
-              key: "guarantee_acknowledgement",
-              name: "Guarantee Acknowledgement",
-              content_source: "static_text",
-              static_text: "I acknowledge the guarantee obligations.",
-            },
-          ],
-        })
-      )
-    ).not.toThrow();
-  });
-
-  it("rejects empty static text", () => {
-    expect(() =>
-      validateOfferAcknowledgementsConfig(
-        financingWorkflow({
-          offer_acknowledgements: [
-            {
-              key: "guarantee_acknowledgement",
-              name: "Guarantee Acknowledgement",
-              content_source: "static_text",
-              static_text: "   ",
-            },
-          ],
-        })
-      )
-    ).toThrow(AppError);
   });
 });

@@ -186,34 +186,9 @@ export default function DynamicApplicationDetailPage() {
     : undefined;
   const currentProductName = currentProduct ? productName(currentProduct) : "Applications";
 
-  const invoiceRatioLimits = React.useMemo(() => {
-    const workflow =
-      (currentProduct as { workflow?: { id?: string; config?: Record<string, unknown> }[] })
-        ?.workflow ?? [];
-    const invoiceStep = workflow.find(
-      (s: { id?: string; name?: string }) =>
-        s.id?.includes?.("invoice_details") || s.name?.toLowerCase?.().includes?.("invoice")
-    );
-    const config = invoiceStep?.config ?? {};
-    const min =
-      typeof config.min_financing_ratio_percent === "number"
-        ? config.min_financing_ratio_percent
-        : 60;
-    const max =
-      typeof config.max_financing_ratio_percent === "number"
-        ? config.max_financing_ratio_percent
-        : 80;
-    return { min: Math.min(min, max), max: Math.max(min, max) };
-  }, [currentProduct]);
-
   const productDefaultFacilityFeeRatePercent =
     (currentProduct as { default_facility_fee_rate_percent?: number | null })
       ?.default_facility_fee_rate_percent ?? null;
-
-  const minMonthsReviewToMaturityForOffer = React.useMemo(() => {
-    const workflow = (currentProduct as { workflow?: unknown[] })?.workflow ?? [];
-    return readInvoiceMaturityMonthsFromWorkflow(workflow).minMonthsReviewToMaturity;
-  }, [currentProduct]);
 
   const [rejectApplicationDialogOpen, setRejectApplicationDialogOpen] = React.useState(false);
 
@@ -420,6 +395,31 @@ export default function DynamicApplicationDetailPage() {
     const live = (currentProduct as { workflow?: unknown } | undefined)?.workflow;
     return Array.isArray(live) ? live : undefined;
   }, [app, currentProduct]);
+
+  const invoiceRatioLimits = React.useMemo(() => {
+    const workflow = (reviewProductWorkflow ?? []) as {
+      id?: string;
+      name?: string;
+      config?: Record<string, unknown>;
+    }[];
+    const invoiceStep = workflow.find(
+      (s) => s.id?.includes?.("invoice_details") || s.name?.toLowerCase?.().includes?.("invoice")
+    );
+    const config = invoiceStep?.config ?? {};
+    const min =
+      typeof config.min_financing_ratio_percent === "number"
+        ? config.min_financing_ratio_percent
+        : 60;
+    const max =
+      typeof config.max_financing_ratio_percent === "number"
+        ? config.max_financing_ratio_percent
+        : 80;
+    return { min: Math.min(min, max), max: Math.max(min, max) };
+  }, [reviewProductWorkflow]);
+
+  const minMonthsReviewToMaturityForOffer = React.useMemo(() => {
+    return readInvoiceMaturityMonthsFromWorkflow(reviewProductWorkflow ?? []).minMonthsReviewToMaturity;
+  }, [reviewProductWorkflow]);
 
   const effectiveTabDescriptors = React.useMemo(
     () => getEffectiveReviewTabDescriptors(reviewProductWorkflow, app ?? null),

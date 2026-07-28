@@ -5,15 +5,12 @@
 "use client";
 
 import * as React from "react";
-import { format } from "date-fns";
-import { ArrowDownTrayIcon, ClockIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
-import { CheckIcon } from "@heroicons/react/24/solid";
-import { Progress } from "@cashsouk/ui";
+import { ArrowDownTrayIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import {
   getOfferAcceptanceFromOfferDetails,
   getOfferAcceptanceStatusPresentation,
   getOfferPhaseDeadlineDisplay,
-  resolveOfferAcknowledgementsFromWorkflow,
+  isOfferAcceptanceDocumentsVisibleToAdmin,
   type ApplicationPersonRow,
   type OfferAcceptanceStatus,
 } from "@cashsouk/types";
@@ -110,38 +107,19 @@ function collectAcceptanceDownloadFiles(
   return files;
 }
 
-function hasAcceptanceDocumentUploads(supportingDocuments: unknown): boolean {
-  return collectAcceptanceDownloadFiles(supportingDocuments).length > 0;
-}
-
-/** Show Acceptance documents once the issuer has submitted (or uploads already exist). */
-function isAcceptanceDocumentsSectionActive(
-  offerDetails: unknown,
-  supportingDocuments: unknown
-): boolean {
-  if (hasAcceptanceDocumentUploads(supportingDocuments)) return true;
-  const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
-  if (!acceptance) return false;
-  switch (acceptance.status) {
-    case "PENDING_ADMIN_REVIEW":
-    case "CHANGES_REQUESTED":
-    case "APPROVED_FOR_SIGNING":
-    case "SIGNING_IN_PROGRESS":
-    case "COMPLETED":
-      return true;
-    default:
-      return false;
-  }
+/** Show Acceptance documents only after issuer Submit — not draft uploads while PENDING_ISSUER. */
+function isAcceptanceDocumentsSectionActive(offerDetails: unknown): boolean {
+  return isOfferAcceptanceDocumentsVisibleToAdmin(
+    getOfferAcceptanceFromOfferDetails(offerDetails)
+  );
 }
 
 function OfferAcceptanceBlock({
-  workflow,
   offerDetails,
   structureType,
   documentsSlot,
   documentsHeaderRight,
 }: {
-  workflow: unknown;
   offerDetails: unknown;
   structureType?: string | null;
   /** Acceptance documents list rendered inside this same package card. */
@@ -153,42 +131,10 @@ function OfferAcceptanceBlock({
   const presentation = acceptance
     ? getOfferAcceptanceStatusPresentation(acceptance.status)
     : null;
-  const configuredAcks = React.useMemo(
-    () => resolveOfferAcknowledgementsFromWorkflow(workflow),
-    [workflow]
-  );
-  const acknowledgedByKey = React.useMemo(() => {
-    const map = new Map<string, { accepted_at: string }>();
-    for (const ack of acceptance?.acknowledgements ?? []) {
-      map.set(ack.document_key, { accepted_at: ack.accepted_at });
-    }
-    return map;
-  }, [acceptance?.acknowledgements]);
-
   const isInvoiceOnly = structureType === "invoice_only";
   const emptyHint = isInvoiceOnly
     ? "Send an offer from Invoice to start acceptance."
     : "Send an offer from Contract to start acceptance.";
-
-  const rows =
-    acceptance == null
-      ? []
-      : configuredAcks.length > 0
-        ? configuredAcks.map((doc) => ({
-            key: doc.key,
-            name: doc.name,
-            recorded: acknowledgedByKey.get(doc.key) ?? null,
-          }))
-        : (acceptance.acknowledgements ?? []).map((ack) => ({
-            key: ack.document_key,
-            name: ack.document_key,
-            recorded: { accepted_at: ack.accepted_at },
-          }));
-
-  const acknowledgedCount = rows.filter((row) => row.recorded != null).length;
-  const totalCount = rows.length;
-  const percent =
-    totalCount > 0 ? Math.round((acknowledgedCount / totalCount) * 100) : 0;
   const deadlineDisplay = getOfferPhaseDeadlineDisplay(offerDetails);
 
   return (
@@ -217,63 +163,6 @@ function OfferAcceptanceBlock({
             >
               {deadlineDisplay.summary}
             </p>
-          ) : null}
-
-          {totalCount > 0 ? (
-            <>
-              <div className="flex items-center gap-3">
-                <Progress value={percent} className="h-2 flex-1" />
-                <span className="shrink-0 text-sm font-medium tabular-nums text-foreground">
-                  {acknowledgedCount}/{totalCount} acknowledged ({percent}%)
-                </span>
-              </div>
-
-              <div className="overflow-hidden rounded-xl border border-border bg-background">
-                <ul className="divide-y divide-border">
-                  {rows.map((row) => {
-                    const done = row.recorded != null;
-                    return (
-                      <li
-                        key={row.key}
-                        className="flex items-start gap-3 px-3 py-2 sm:items-center"
-                      >
-                        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center sm:mt-0">
-                          {done ? (
-                            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary">
-                              <CheckIcon className="h-4 w-4 text-primary-foreground" />
-                            </div>
-                          ) : (
-                            <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-border bg-background">
-                              <ClockIcon className="h-4 w-4 text-muted-foreground" />
-                            </div>
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground">{row.name}</p>
-                          {done && row.recorded ? (
-                            <p className="text-xs text-muted-foreground">
-                              {format(new Date(row.recorded.accepted_at), "d MMM yyyy, h:mm a")}
-                            </p>
-                          ) : (
-                            <p className="text-xs text-muted-foreground">Waiting for issuer</p>
-                          )}
-                        </div>
-                        <Badge
-                          className={cn(
-                            "shrink-0 font-normal",
-                            done
-                              ? "border-transparent bg-status-success-bg text-status-success-text"
-                              : "border-transparent bg-status-neutral-bg text-status-neutral-text"
-                          )}
-                        >
-                          {done ? "Acknowledged" : "Pending"}
-                        </Badge>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            </>
           ) : null}
         </div>
       ) : (
@@ -344,10 +233,7 @@ export function AcceptanceSection({
     [supportingDocuments]
   );
 
-  const showAcceptanceDocuments = isAcceptanceDocumentsSectionActive(
-    acceptanceOfferDetails,
-    supportingDocuments
-  );
+  const showAcceptanceDocuments = isAcceptanceDocumentsSectionActive(acceptanceOfferDetails);
 
   const downloadAllButton = (
     <Button
@@ -402,7 +288,6 @@ export function AcceptanceSection({
             return (
               <ReviewFieldBlock title="Offer acceptance">
                 <OfferAcceptanceBlock
-                  workflow={workflow}
                   offerDetails={acceptanceOfferDetails}
                   structureType={structureType}
                   documentsSlot={showAcceptanceDocuments ? documentsList : undefined}

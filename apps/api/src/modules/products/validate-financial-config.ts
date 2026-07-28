@@ -8,7 +8,6 @@
 import { addMonths, isBefore, parseISO, startOfDay, isValid } from "date-fns";
 import {
   ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY,
-  OFFER_ACKNOWLEDGEMENTS_WORKFLOW_KEY,
   ACCEPTANCE_DEADLINE_WORKFLOW_KEY,
   SIGNING_DEADLINE_WORKFLOW_KEY,
   assertPhaseDeadlineConfigValid,
@@ -261,79 +260,6 @@ export function validateAcceptanceDocumentsConfig(workflow: unknown[]): void {
   }
 }
 
-export function validateOfferAcknowledgementsConfig(workflow: unknown[]): void {
-  if (!Array.isArray(workflow) || workflow.length === 0) return;
-  for (const step of workflow) {
-    const sid = (step as { id?: string })?.id ?? "";
-    if (getStepKeyFromStepId(sid) !== "financing_type") continue;
-    const config = (step as { config?: Record<string, unknown> }).config;
-    if (!config || typeof config !== "object") return;
-    const list = config[OFFER_ACKNOWLEDGEMENTS_WORKFLOW_KEY];
-    if (list === undefined) return;
-    if (!Array.isArray(list)) {
-      throw new AppError(400, "VALIDATION_ERROR", "Offer acknowledgements must be an array.");
-    }
-    const sources = new Set([
-      "html_template",
-      "generated_offer_letter",
-      "template_pdf",
-      "static_text",
-    ]);
-    for (let i = 0; i < list.length; i++) {
-      const row = list[i];
-      const record = row && typeof row === "object" ? (row as Record<string, unknown>) : null;
-      const name = typeof record?.name === "string" ? record.name.trim() : "";
-      if (!name) {
-        throw new AppError(
-          400,
-          "VALIDATION_ERROR",
-          `Offer acknowledgements (row ${i + 1}): every document must have a name.`
-        );
-      }
-      const source = record?.content_source;
-      if (typeof source !== "string" || !sources.has(source)) {
-        throw new AppError(
-          400,
-          "VALIDATION_ERROR",
-          `Offer acknowledgements (row ${i + 1}): choose a preview source.`
-        );
-      }
-      if (source === "html_template") {
-        // Built-in keys still only ship engineering placeholders — block until legal templates land.
-        throw new AppError(
-          400,
-          "VALIDATION_ERROR",
-          `Offer acknowledgements (row ${i + 1}): HTML templates are not production-ready. Use Generated offer letter (PDF), Uploaded template (PDF), or Static text.`
-        );
-      }
-      if (source === "static_text") {
-        const text = typeof record?.static_text === "string" ? record.static_text.trim() : "";
-        if (!text) {
-          throw new AppError(
-            400,
-            "VALIDATION_ERROR",
-            `Offer acknowledgements (row ${i + 1}): static text is required.`
-          );
-        }
-      }
-      if (source === "template_pdf") {
-        const template =
-          record?.template && typeof record.template === "object"
-            ? (record.template as Record<string, unknown>)
-            : null;
-        if (typeof template?.s3_key !== "string" || !template.s3_key) {
-          throw new AppError(
-            400,
-            "VALIDATION_ERROR",
-            `Offer acknowledgements (row ${i + 1}): upload a template PDF.`
-          );
-        }
-      }
-    }
-    return;
-  }
-}
-
 function findFinancingTypeConfig(workflow: unknown[]): Record<string, unknown> | null {
   for (const step of workflow) {
     const sid = (step as { id?: string })?.id ?? "";
@@ -426,7 +352,6 @@ export function validateFinancialConfig(params: {
     validateWorkflowFinancialConfig(params.workflow);
     validateSupportingDocumentsConfig(params.workflow);
     validateAcceptanceDocumentsConfig(params.workflow);
-    validateOfferAcknowledgementsConfig(params.workflow);
     validatePhaseDeadlineConfigs(params.workflow);
     validateBusinessDetailsGuarantorAgreement(params.workflow);
   }

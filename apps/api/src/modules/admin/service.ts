@@ -7834,14 +7834,9 @@ export class AdminService {
     const stampOfferAcceptance =
       workflowUsesOfferAcceptanceFlow(workflow) && !invoiceForSend?.contract_id;
 
+    // Use frozen application.product_version workflow (same as load above) — not live catalog.
     const invoiceDetailsForMaturity = (invoice.details as Record<string, unknown> | null) ?? {};
-    const productIdForMaturity = (application.financing_type as { product_id?: string } | null)?.product_id;
-    if (productIdForMaturity) {
-      const productForMaturity = await this.productRepository.findById(productIdForMaturity);
-      if (productForMaturity?.workflow) {
-        assertMaturityForSendInvoiceOffer(productForMaturity.workflow, invoiceDetailsForMaturity);
-      }
-    }
+    assertMaturityForSendInvoiceOffer(workflow, invoiceDetailsForMaturity);
 
     const invoiceOfferMeta = await prisma.$transaction(async (tx) => {
       const lockedApplications = await tx.$queryRaw<{ status: string }[]>`
