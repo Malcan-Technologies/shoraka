@@ -40,6 +40,19 @@ Manual test: `pnpm seed-expired-acceptance-deadline-for-test` then `pnpm run-acc
 
 Envelope create/send is blocked until acceptance docs are **admin-approved**.
 
+## Application status overlay (phased products)
+
+`application.status` mirrors offer phase for admin filters. Entity contract/invoice stays `OFFER_SENT` until envelope completes.
+
+| `offer_acceptance.status` | Contract path | Invoice-only |
+|---------------------------|---------------|--------------|
+| `PENDING_ISSUER` | `CONTRACT_SENT` | `INVOICES_SENT` |
+| `PENDING_ADMIN_REVIEW` / `CHANGES_REQUESTED` | `CONTRACT_ACCEPTED` | `INVOICE_ACCEPTED` |
+| `APPROVED_FOR_SIGNING` / `SIGNING_IN_PROGRESS` | `SIGNING_PENDING` | `SIGNING_PENDING` |
+| `COMPLETED` + entity `APPROVED` | `CONTRACT_SIGNED` → invoice stages | `INVOICE_SIGNED` → `COMPLETED` |
+
+Helper: `apps/api/src/modules/applications/offer-application-status.ts`. Backfill: `pnpm --filter api backfill-offer-application-statuses -- --dry-run`.
+
 ## Status (Option A)
 
 Contract/invoice stay `OFFER_SENT` until the envelope completes (→ `APPROVED`), the offer is declined/withdrawn, or the phase clock expires (→ `OFFER_EXPIRED`). Phase lives on `offer_details.offer_acceptance`:

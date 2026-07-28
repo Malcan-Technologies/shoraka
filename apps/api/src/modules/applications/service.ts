@@ -88,6 +88,10 @@ import {
   hasActionableDirectorShareholder,
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
+import {
+  resolveApplicationStatusAfterCommercialAccept,
+  resolveApplicationStatusAfterOfferAcceptanceSubmit,
+} from "./offer-application-status";
 import { getS3ObjectBuffer } from "../../lib/s3/client";
 import { NotificationService } from "../notification/service";
 import { NotificationTypeIds } from "../notification/registry";
@@ -484,6 +488,10 @@ export class ApplicationService {
       status === ApplicationStatus.INVOICES_SENT ||
       status === ApplicationStatus.OFFER_EXPIRED ||
       status === ApplicationStatus.CONTRACT_ACCEPTED ||
+      status === ApplicationStatus.INVOICE_ACCEPTED ||
+      status === ApplicationStatus.SIGNING_PENDING ||
+      status === ApplicationStatus.CONTRACT_SIGNED ||
+      status === ApplicationStatus.INVOICE_SIGNED ||
       status === ApplicationStatus.APPROVED
     ) {
       return true;
@@ -1874,6 +1882,18 @@ export class ApplicationService {
       });
     }
 
+    const isInvoiceOnly =
+      (application as { financing_structure?: { structure_type?: string } }).financing_structure
+        ?.structure_type === "invoice_only";
+    const appStatus = resolveApplicationStatusAfterOfferAcceptanceSubmit(
+      isInvoiceOnly,
+      nextStatus
+    );
+    await prisma.application.update({
+      where: { id: applicationId },
+      data: { status: appStatus as DbApplicationStatus },
+    });
+
     return this.repository.findById(applicationId) as Promise<Application>;
   }
 
@@ -2002,6 +2022,18 @@ export class ApplicationService {
       });
     }
 
+    const isInvoiceOnly =
+      (application as { financing_structure?: { structure_type?: string } }).financing_structure
+        ?.structure_type === "invoice_only";
+    const appStatus = resolveApplicationStatusAfterOfferAcceptanceSubmit(
+      isInvoiceOnly,
+      nextStatus
+    );
+    await prisma.application.update({
+      where: { id: applicationId },
+      data: { status: appStatus as DbApplicationStatus },
+    });
+
     return this.repository.findById(applicationId) as Promise<Application>;
   }
 
@@ -2083,8 +2115,9 @@ export class ApplicationService {
           status: string;
           offer_details: Prisma.JsonValue | null;
           contract_details: Prisma.JsonValue | null;
+          originating_application_id: string | null;
         }[]
-      >`SELECT status, offer_details, contract_details FROM contracts WHERE id = ${contractId} FOR UPDATE`;
+      >`SELECT status, offer_details, contract_details, originating_application_id FROM contracts WHERE id = ${contractId} FOR UPDATE`;
 
       const contract = lockedContractRows[0];
       if (!contract) {
@@ -2156,6 +2189,9 @@ export class ApplicationService {
           offer_details: updatedOffer as Prisma.InputJsonValue,
           contract_details: mergedDetails as Prisma.InputJsonValue,
           ...(action === "reject" && { withdraw_reason: WithdrawReason.OFFER_REJECTED }),
+          ...(action === "accept" && contract.originating_application_id == null
+            ? { originating_application_id: applicationId }
+            : {}),
         },
       });
 
@@ -2208,13 +2244,20 @@ export class ApplicationService {
       const updatedContract = await tx.contract.findUnique({
         where: { id: contractId },
       });
-      const nextReviewStatusBase =
-        action === "accept"
-          ? ApplicationStatus.CONTRACT_ACCEPTED
-          : (application.status as ApplicationStatus);
       const isInvoiceOnly =
         (application as { financing_structure?: { structure_type?: string } }).financing_structure
           ?.structure_type === "invoice_only";
+      const hasOfferAcceptance = !!getOfferAcceptanceFromOfferDetails(offer);
+      const phasedAcceptStatus = resolveApplicationStatusAfterCommercialAccept({
+        isInvoiceOnly,
+        hasOfferAcceptance,
+        action,
+        isContractPath: true,
+      });
+      const nextReviewStatusBase =
+        action === "accept"
+          ? (phasedAcceptStatus ?? ApplicationStatus.CONTRACT_ACCEPTED)
+          : (application.status as ApplicationStatus);
       const appStatus = computeApplicationStatus(
         updatedContract as { status: ContractStatus } | null,
         updatedInvoices.map((i) => ({ status: i.status as InvoiceStatus })),
@@ -2577,12 +2620,22 @@ export class ApplicationService {
             InvoiceStatus.REJECTED,
           ].includes(status)
         );
-      const nextReviewStatusBase = allInvoicesOfferedOrResolved
-        ? ApplicationStatus.INVOICES_SENT
-        : ApplicationStatus.INVOICE_PENDING;
       const isInvoiceOnly =
         (application as { financing_structure?: { structure_type?: string } }).financing_structure
           ?.structure_type === "invoice_only";
+      const hasOfferAcceptance = !!getOfferAcceptanceFromOfferDetails(offer);
+      const phasedAcceptStatus = resolveApplicationStatusAfterCommercialAccept({
+        isInvoiceOnly,
+        hasOfferAcceptance,
+        action,
+        isContractPath: false,
+      });
+      const nextReviewStatusBase =
+        action === "accept" && phasedAcceptStatus
+          ? phasedAcceptStatus
+          : allInvoicesOfferedOrResolved
+            ? ApplicationStatus.INVOICES_SENT
+            : ApplicationStatus.INVOICE_PENDING;
       const appStatus = computeApplicationStatus(
         updatedContract as { status: ContractStatus } | null,
         invoiceStatuses.map((status) => ({ status })),

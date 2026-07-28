@@ -371,12 +371,22 @@ export function getCardStatus(input: {
     app === "CONTRACT_PENDING" ||
     app === "CONTRACT_SENT" ||
     app === "CONTRACT_ACCEPTED" ||
+    app === "INVOICE_ACCEPTED" ||
+    app === "SIGNING_PENDING" ||
     app === "INVOICE_PENDING" ||
     app === "INVOICES_SENT"
   ) {
     return {
       badgeKey: "under_review",
       displayLabel: "Under Review",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    };
+  }
+  if (app === "CONTRACT_SIGNED" || app === "INVOICE_SIGNED") {
+    return {
+      badgeKey: "accepted",
+      displayLabel: "Approved",
       showReviewOffer: false,
       showMakeAmendments: false,
     };

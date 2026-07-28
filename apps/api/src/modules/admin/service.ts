@@ -77,6 +77,7 @@ import {
   getOfferAcceptanceFromOfferDetails,
   isOfferAcceptanceResendBlocked,
   workflowUsesOfferAcceptanceFlow,
+  shouldShowAcceptanceDocumentsReviewSection,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
   canManageDirectorShareholder,
@@ -84,6 +85,7 @@ import {
   filterVisiblePeopleRows,
   WithdrawReason,
   type SoukscoreRiskRating,
+  type OfferAcceptanceStatus,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import { OrganizationRepository } from "../organization/repository";
@@ -129,6 +131,14 @@ import {
   signingDeadlinePatchOnExtend,
   SIGNING_ACTIVE,
 } from "../../lib/phase-deadlines";
+import {
+  CONTRACT_OFFER_CEREMONY_APPLICATION_STATUSES,
+  extractPrimaryOfferAcceptanceStatus,
+  isExistingContractFinancing,
+  resolveApplicationStatusFromOfferAcceptancePhase,
+  resolveInvoiceCentricApplicationStatus,
+} from "../applications/offer-application-status";
+import { loadInheritedAcceptanceForExistingContract } from "../../lib/contract-originating-application";
 
 const APPLICATION_ACTION_REQUIRED_STATUSES = [
   ApplicationStatus.SUBMITTED,
@@ -136,6 +146,8 @@ const APPLICATION_ACTION_REQUIRED_STATUSES = [
   ApplicationStatus.RESUBMITTED,
   ApplicationStatus.CONTRACT_PENDING,
   ApplicationStatus.CONTRACT_ACCEPTED,
+  ApplicationStatus.INVOICE_ACCEPTED,
+  ApplicationStatus.SIGNING_PENDING,
   ApplicationStatus.INVOICE_PENDING,
 ] as const;
 const RESERVED_ADMIN_ROLE_KEYS = new Set<string>(SYSTEM_ADMIN_ROLE_KEYS);
@@ -818,8 +830,12 @@ export class AdminService {
     }
 
     const visibleSections = new Set(requiredSections);
-    // Acks-only products still need the Acceptance tab (signing hub / phase UI).
-    if (workflowUsesOfferAcceptanceFlow(workflow)) {
+    if (
+      shouldShowAcceptanceDocumentsReviewSection(
+        structureType,
+        workflowUsesOfferAcceptanceFlow(workflow)
+      )
+    ) {
       visibleSections.add("acceptance_documents");
     }
     return {
@@ -6127,6 +6143,13 @@ export class AdminService {
             | string
             | undefined)
         : undefined;
+    if (structureType === "existing_contract") {
+      await this.ensureExistingContractAcceptanceReviewApproved(
+        repository,
+        id,
+        application
+      );
+    }
     const sectionOrder = getReviewSectionOrder(structureType);
     const orderedRequiredSections = sectionOrder.filter((section) =>
       sectionPolicy.requiredSections.has(section)
@@ -6148,6 +6171,23 @@ export class AdminService {
         : null,
       corporateEntities: issuerOrgForPeople?.corporate_entities ?? null,
     });
+
+    let inheritedAcceptance: Awaited<
+      ReturnType<typeof loadInheritedAcceptanceForExistingContract>
+    > = null;
+    if (
+      structureType === "existing_contract" &&
+      application.contract_id &&
+      application.contract?.status === "APPROVED"
+    ) {
+      inheritedAcceptance = await loadInheritedAcceptanceForExistingContract(prisma, {
+        contractId: application.contract_id,
+        originatingApplicationId:
+          (application.contract as { originating_application_id?: string | null })
+            .originating_application_id ?? null,
+      });
+    }
+
     return {
       ...applicationWithIssuerExtras,
       processingFeePaid,
@@ -6174,6 +6214,7 @@ export class AdminService {
       review_section_prerequisites: sectionPolicy.prerequisitesBySection,
       // Frozen at application.product_version — Acceptance/signing UI must not use live catalog.
       product_workflow: sectionPolicy.productWorkflow,
+      inherited_acceptance: inheritedAcceptance,
     };
   }
 
@@ -6479,6 +6520,10 @@ export class AdminService {
     ApplicationStatus.CONTRACT_PENDING,
     ApplicationStatus.CONTRACT_SENT,
     ApplicationStatus.CONTRACT_ACCEPTED,
+    ApplicationStatus.INVOICE_ACCEPTED,
+    ApplicationStatus.SIGNING_PENDING,
+    ApplicationStatus.CONTRACT_SIGNED,
+    ApplicationStatus.INVOICE_SIGNED,
     ApplicationStatus.INVOICE_PENDING,
     ApplicationStatus.INVOICES_SENT,
     ApplicationStatus.OFFER_EXPIRED,
@@ -6575,6 +6620,8 @@ export class AdminService {
     isContractTabUnlocked?: boolean;
     isInvoiceTabUnlocked?: boolean;
     isInvoiceOnly?: boolean;
+    isExistingContract?: boolean;
+    offerAcceptanceStatus?: OfferAcceptanceStatus | null;
   }): ApplicationStatus {
     const {
       contractId,
@@ -6583,13 +6630,30 @@ export class AdminService {
       isContractTabUnlocked,
       isInvoiceTabUnlocked,
       isInvoiceOnly,
+      isExistingContract,
+      offerAcceptanceStatus,
     } = input;
+
+    if (contractId && !isInvoiceOnly && isExistingContract) {
+      return resolveInvoiceCentricApplicationStatus({
+        invoiceStatuses,
+        isInvoiceTabUnlocked: isInvoiceTabUnlocked ?? false,
+        isInvoiceOnly: false,
+      });
+    }
 
     if (contractId && !isInvoiceOnly) {
       if (contractStatus === "OFFER_EXPIRED") {
         return ApplicationStatus.OFFER_EXPIRED;
       }
       if (contractStatus === "OFFER_SENT") {
+        const phaseStatus = resolveApplicationStatusFromOfferAcceptancePhase(
+          false,
+          offerAcceptanceStatus ?? null
+        );
+        if (phaseStatus && phaseStatus !== ApplicationStatus.CONTRACT_SENT) {
+          return phaseStatus;
+        }
         return ApplicationStatus.CONTRACT_SENT;
       }
       if (contractStatus === "APPROVED") {
@@ -6603,24 +6667,20 @@ export class AdminService {
           }
           return ApplicationStatus.INVOICES_SENT;
         }
-        if (!isInvoiceTabUnlocked) return ApplicationStatus.CONTRACT_ACCEPTED;
+        if (!isInvoiceTabUnlocked) return ApplicationStatus.CONTRACT_SIGNED;
         return ApplicationStatus.INVOICE_PENDING;
       }
       if (isContractTabUnlocked) return ApplicationStatus.CONTRACT_PENDING;
       return ApplicationStatus.UNDER_REVIEW;
     }
 
-    if (this.allInvoicesOfferableOrResolved(invoiceStatuses)) {
-      if (
-        invoiceStatuses.some((status) => status === "OFFER_EXPIRED") &&
-        !invoiceStatuses.some((status) => status === "OFFER_SENT")
-      ) {
-        return ApplicationStatus.OFFER_EXPIRED;
-      }
-      return ApplicationStatus.INVOICES_SENT;
-    }
-    if (!isInvoiceTabUnlocked) return ApplicationStatus.UNDER_REVIEW;
-    return ApplicationStatus.INVOICE_PENDING;
+    return resolveInvoiceCentricApplicationStatus({
+      invoiceStatuses,
+      isInvoiceTabUnlocked: isInvoiceTabUnlocked ?? false,
+      isInvoiceOnly: isInvoiceOnly ?? false,
+      offerAcceptanceStatus,
+      entityApproved: invoiceStatuses.some((status) => status === "APPROVED"),
+    });
   }
 
   private async ensureUnderReview(
@@ -6629,15 +6689,31 @@ export class AdminService {
     appStatus: ApplicationStatus,
     application: {
       contract_id?: string | null;
-      contract?: { status?: string } | null;
-      invoices?: { status?: string }[];
+      contract?: { status?: string; offer_details?: unknown } | null;
+      invoices?: Array<{ status?: string; contract_id?: string | null; offer_details?: unknown }>;
       application_reviews?: { section: string; status: string }[];
       financing_type?: unknown;
       financing_structure?: unknown;
     }
   ) {
-    if (appStatus === ApplicationStatus.SUBMITTED || appStatus === ApplicationStatus.RESUBMITTED) {
-      const structure = application.financing_structure as { structure_type?: string } | null | undefined;
+    const structure = application.financing_structure as { structure_type?: string } | null | undefined;
+    const isExistingContract = isExistingContractFinancing(structure);
+    const stuckInContractOfferStatus =
+      isExistingContract &&
+      (CONTRACT_OFFER_CEREMONY_APPLICATION_STATUSES as ApplicationStatus[]).includes(appStatus);
+
+    if (
+      appStatus === ApplicationStatus.SUBMITTED ||
+      appStatus === ApplicationStatus.RESUBMITTED ||
+      stuckInContractOfferStatus
+    ) {
+      if (isExistingContract) {
+        await this.ensureExistingContractAcceptanceReviewApproved(
+          repository,
+          applicationId,
+          application
+        );
+      }
       const isInvoiceOnly = structure?.structure_type === "invoice_only";
       const sectionPolicy = await this.getReviewSectionPolicy(application);
       const isContractTabUnlocked =
@@ -6645,6 +6721,11 @@ export class AdminService {
           ? this.isContractTabUnlocked(application, sectionPolicy)
           : false;
       const isInvoiceTabUnlocked = this.isInvoiceTabUnlocked(application, sectionPolicy);
+      const offerAcceptanceStatus = extractPrimaryOfferAcceptanceStatus({
+        financing_structure: structure ?? undefined,
+        contract: application.contract ?? undefined,
+        invoices: application.invoices,
+      });
       const targetStatus = this.resolveAdminStageStatus({
         contractId: application.contract_id,
         contractStatus: application.contract?.status ?? null,
@@ -6652,9 +6733,48 @@ export class AdminService {
         isContractTabUnlocked,
         isInvoiceTabUnlocked,
         isInvoiceOnly,
+        isExistingContract,
+        offerAcceptanceStatus,
       });
       await repository.updateApplicationStatus(applicationId, targetStatus);
     }
+  }
+
+  /**
+   * Existing-contract apps inherit contract acceptance from the prior application.
+   * Mark acceptance_documents APPROVED when a stale PENDING row exists from older flows.
+   */
+  private async ensureExistingContractAcceptanceReviewApproved(
+    repository: AdminRepository,
+    applicationId: string,
+    application: {
+      contract?: { status?: string } | null;
+      application_reviews?: { section: string; status: string }[];
+    }
+  ): Promise<void> {
+    if (application.contract?.status !== "APPROVED") {
+      return;
+    }
+    const existing = application.application_reviews?.find(
+      (review) => review.section === "acceptance_documents"
+    );
+    if (existing?.status === "APPROVED") {
+      return;
+    }
+    await repository.ensureApplicationReviewSection(applicationId, "acceptance_documents");
+    await prisma.applicationReview.update({
+      where: {
+        application_id_section: {
+          application_id: applicationId,
+          section: "acceptance_documents",
+        },
+      },
+      data: {
+        status: ReviewStepStatus.APPROVED,
+        reviewer_user_id: null,
+        reviewed_at: new Date(),
+      },
+    });
   }
 
   /**
@@ -7168,6 +7288,50 @@ export class AdminService {
         });
       }
     }
+
+    await this.persistApplicationStatusFromOfferPhase(applicationId);
+  }
+
+  private async persistApplicationStatusFromOfferPhase(applicationId: string): Promise<void> {
+    const refreshed = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: {
+        financing_structure: true,
+        contract: { select: { status: true, offer_details: true } },
+        invoices: {
+          select: { status: true, contract_id: true, offer_details: true },
+        },
+      },
+    });
+    if (!refreshed) return;
+
+    const structure = refreshed.financing_structure as
+      | { structure_type?: string }
+      | null
+      | undefined;
+    const isInvoiceOnly = structure?.structure_type === "invoice_only";
+    const offerAcceptanceStatus = extractPrimaryOfferAcceptanceStatus({
+      financing_structure: structure ?? undefined,
+      contract: refreshed.contract ?? undefined,
+      invoices: refreshed.invoices,
+    });
+    const entityApproved =
+      (!isInvoiceOnly && refreshed.contract?.status === "APPROVED") ||
+      (isInvoiceOnly &&
+        refreshed.invoices.some(
+          (inv) => !inv.contract_id && inv.status === "APPROVED"
+        ));
+    const resolved = resolveApplicationStatusFromOfferAcceptancePhase(
+      isInvoiceOnly,
+      offerAcceptanceStatus,
+      { entityApproved }
+    );
+    if (resolved) {
+      await prisma.application.update({
+        where: { id: applicationId },
+        data: { status: resolved },
+      });
+    }
   }
 
   private collectInvoiceScopeKeys(application: {
@@ -7265,6 +7429,19 @@ export class AdminService {
       userAgent: logContext?.userAgent ?? undefined,
       deviceInfo: logContext?.deviceInfo ?? undefined,
     });
+  }
+
+  private assertAcceptanceReviewNotInherited(application: {
+    financing_structure?: unknown;
+  }): void {
+    const structure = application.financing_structure as { structure_type?: string } | null;
+    if (structure?.structure_type === "existing_contract") {
+      throw new AppError(
+        400,
+        "INVALID_ACTION",
+        "Acceptance was completed in the originating application and cannot be modified on a drawdown application"
+      );
+    }
   }
 
   /**
@@ -8390,6 +8567,9 @@ export class AdminService {
     if (section === "invoice_details") {
       await this.ensureInvoiceSectionActionAllowed(applicationId);
     }
+    if (section === "acceptance_documents") {
+      this.assertAcceptanceReviewNotInherited(application);
+    }
 
     if (section === "supporting_documents") {
       const docKeys = [...this.collectDocumentKeys(application.supporting_documents)];
@@ -9179,6 +9359,9 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
+    if (itemType === "document" && itemId.startsWith("acceptance_documents:")) {
+      this.assertAcceptanceReviewNotInherited(application);
+    }
     await this.ensureUnderReview(
       repository,
       applicationId,

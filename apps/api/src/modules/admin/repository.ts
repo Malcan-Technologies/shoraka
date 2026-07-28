@@ -2037,6 +2037,8 @@ export class AdminRepository {
       ApplicationStatus.RESUBMITTED,
       ApplicationStatus.CONTRACT_PENDING,
       ApplicationStatus.CONTRACT_ACCEPTED,
+      ApplicationStatus.INVOICE_ACCEPTED,
+      ApplicationStatus.SIGNING_PENDING,
       ApplicationStatus.INVOICE_PENDING,
     ];
     const CONTRACT_OR_AMENDMENT: ApplicationStatus[] = [

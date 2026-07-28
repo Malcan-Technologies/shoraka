@@ -5,6 +5,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { ArrowDownTrayIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import {
   getOfferAcceptanceFromOfferDetails,
@@ -71,6 +72,8 @@ export type AcceptanceSectionProps = {
   contractOfferDetails?: unknown;
   invoices?: { id: string; offer_details?: unknown }[];
   structureType?: string | null;
+  acceptanceReviewMode?: "live" | "inherited";
+  inheritedSourceApplication?: { id: string; productId: string | null };
 };
 
 function collectAcceptanceDownloadFiles(
@@ -211,13 +214,16 @@ export function AcceptanceSection({
   contractOfferDetails,
   invoices = [],
   structureType,
+  acceptanceReviewMode = "live",
+  inheritedSourceApplication,
 }: AcceptanceSectionProps) {
+  const isInheritedAcceptance = acceptanceReviewMode === "inherited";
   const showSigningHub = typeof applicationId === "string" && applicationId.length > 0;
   const {
     signedDocumentPending,
     handleViewSignedDocument,
     handleDownloadSignedDocument,
-  } = useAdminSignedSigningDocument(applicationId);
+  } = useAdminSignedSigningDocument(applicationId ?? "");
 
   const acceptanceOfferDetails = React.useMemo(
     () =>
@@ -233,7 +239,14 @@ export function AcceptanceSection({
     [supportingDocuments]
   );
 
-  const showAcceptanceDocuments = isAcceptanceDocumentsSectionActive(acceptanceOfferDetails);
+  const showAcceptanceDocuments =
+    isInheritedAcceptance ||
+    isAcceptanceDocumentsSectionActive(acceptanceOfferDetails);
+
+  const inheritedSourceHref =
+    inheritedSourceApplication?.productId && inheritedSourceApplication.id
+      ? `/applications/${encodeURIComponent(inheritedSourceApplication.productId)}/${encodeURIComponent(inheritedSourceApplication.id)}`
+      : null;
 
   const downloadAllButton = (
     <Button
@@ -258,6 +271,26 @@ export function AcceptanceSection({
         </div>
       </CardHeader>
       <CardContent className="space-y-10">
+        {isInheritedAcceptance ? (
+          <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+            Acceptance and signing were completed when this contract was approved
+            {inheritedSourceHref ? (
+              <>
+                {" "}
+                in{" "}
+                <Link
+                  href={inheritedSourceHref}
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  the originating application
+                </Link>
+              </>
+            ) : (
+              " in the originating application"
+            )}
+            . This view is read-only.
+          </div>
+        ) : null}
         {(() => {
           const documentsList = (
             <DocumentsSection

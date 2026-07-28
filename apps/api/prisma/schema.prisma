@@ -457,6 +457,7 @@ model Application {
   financial_statements                Json?
   contract_id                         String?
   submitted_at                        DateTime?
+  contract_originated                 Contract[]                @relation("ContractOriginatingApplication")
   application_revisions               ApplicationRevision[]
   application_review_events           ApplicationReviewEvent[]
   application_review_items            ApplicationReviewItem[]
@@ -599,11 +600,14 @@ model Contract {
   issuer_organization_id String
   status                 ContractStatus     @default(DRAFT)
   withdraw_reason        WithdrawReason?
+  originating_application_id String?
+  originating_application  Application?     @relation("ContractOriginatingApplication", fields: [originating_application_id], references: [id], onDelete: SetNull)
   applications           Application[]
   issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   invoices               Invoice[]
   signing_envelopes      SigningEnvelope[]
 
+  @@index([originating_application_id])
   @@map("contracts")
 }
 
@@ -2061,6 +2065,10 @@ enum ApplicationStatus {
   CONTRACT_PENDING
   CONTRACT_SENT
   CONTRACT_ACCEPTED
+  INVOICE_ACCEPTED
+  SIGNING_PENDING
+  CONTRACT_SIGNED
+  INVOICE_SIGNED
   INVOICE_PENDING
   INVOICES_SENT
   OFFER_EXPIRED

@@ -52,6 +52,33 @@ export function getReviewSectionOrder(
   return REVIEW_SECTION_ORDER;
 }
 
+/**
+ * Primary offer acceptance (upload → admin review → signing) applies to:
+ * - new_contract: live ceremony on this application
+ * - invoice_only: tied to the standalone invoice offer (not this helper)
+ * Existing contract shows inherited acceptance from the originating new_contract app.
+ */
+export function applicationPrimaryOfferUsesContractAcceptance(
+  structureType?: string | null
+): boolean {
+  return structureType === "new_contract";
+}
+
+/** Existing-contract drawdown apps display acceptance from the originating application. */
+export function isInheritedContractAcceptanceReview(
+  structureType?: string | null | undefined
+): boolean {
+  return structureType === "existing_contract";
+}
+
+/** Admin Acceptance tab visibility (live ceremony or inherited read-only mirror). */
+export function shouldShowAcceptanceDocumentsReviewSection(
+  _structureType: string | null | undefined,
+  usesOfferAcceptanceFlow: boolean
+): boolean {
+  return usesOfferAcceptanceFlow;
+}
+
 /** Underwriting sections that unlock Contract / Customer. */
 const UNDERWRITING_BEFORE_CONTRACT: ReviewSection[] = [
   "financial",

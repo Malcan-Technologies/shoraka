@@ -32,6 +32,8 @@
     "prospectus-review:http-smoke": "tsx scripts/prospectus-review-http-smoke.ts",
     "seed-late-payment": "tsx scripts/seed-late-payment.ts",
     "run-acceptance-signing-expiry": "tsx scripts/run-acceptance-signing-expiry.ts",
+    "backfill-offer-application-statuses": "tsx scripts/backfill-offer-application-statuses.ts",
+    "backfill-contract-originating-application": "tsx scripts/backfill-contract-originating-application.ts",
     "dev-simulate-gateway-settlement": "tsx scripts/dev-simulate-gateway-settlement.ts",
     "run-note-listing-expiry": "tsx scripts/run-note-listing-expiry.ts",
     "seed-expired-acceptance-deadline-for-test": "tsx scripts/seed-expired-acceptance-deadline-for-test.ts",

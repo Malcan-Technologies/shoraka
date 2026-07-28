@@ -226,6 +226,10 @@ export default function DynamicApplicationDetailPage() {
     "CONTRACT_PENDING",
     "CONTRACT_SENT",
     "CONTRACT_ACCEPTED",
+    "INVOICE_ACCEPTED",
+    "SIGNING_PENDING",
+    "CONTRACT_SIGNED",
+    "INVOICE_SIGNED",
     "INVOICE_PENDING",
     "INVOICES_SENT",
     "RESUBMITTED",
@@ -480,6 +484,9 @@ export default function DynamicApplicationDetailPage() {
     const baseSections = orderedSections.map((section) => {
       let status = reviewSectionStatusMap.get(section) ?? "PENDING";
       if (section === "contract_details" && isExistingContract) {
+        status = "APPROVED";
+      }
+      if (section === "acceptance_documents" && isExistingContract) {
         status = "APPROVED";
       }
       return { section, status };
@@ -1056,6 +1063,8 @@ export default function DynamicApplicationDetailPage() {
                       const applicationWithdrawn = app?.status === "WITHDRAWN";
                       const isContractExistingContract =
                         descriptor.reviewSection === "contract_details" && isExistingContract;
+                      const isAcceptanceExistingContract =
+                        descriptor.reviewSection === "acceptance_documents" && isExistingContract;
                       const sectionPermission = SECTION_PERMISSION_MAP[descriptor.reviewSection];
                       const canManageSection = sectionPermission ? can(sectionPermission) : true;
                       const tabUnlocked = isTabUnlocked(
@@ -1068,6 +1077,7 @@ export default function DynamicApplicationDetailPage() {
                       const actionLocked =
                         applicationWithdrawn ||
                         isContractExistingContract ||
+                        isAcceptanceExistingContract ||
                         !tabUnlocked ||
                         !canManageSection;
                       const actionLockTooltip = actionLocked
@@ -1077,7 +1087,9 @@ export default function DynamicApplicationDetailPage() {
                             ? "Application withdrawn"
                             : isContractExistingContract
                               ? "Contract was approved in a prior application"
-                              : getTabUnlockTooltip(
+                              : isAcceptanceExistingContract
+                                ? "Acceptance was completed when the linked contract was approved"
+                                : getTabUnlockTooltip(
                                   descriptor.reviewSection,
                                   sectionStatusMap,
                                   availableReviewSections,

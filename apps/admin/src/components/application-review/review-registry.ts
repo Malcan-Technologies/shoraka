@@ -4,6 +4,7 @@ import {
   getStepKeyFromStepId,
   isPrerequisiteSectionSatisfied,
   REVIEW_SECTION_ORDER,
+  shouldShowAcceptanceDocumentsReviewSection,
   workflowUsesOfferAcceptanceFlow,
   type ReviewSection,
 } from "@cashsouk/types";
@@ -96,7 +97,12 @@ export function getReviewTabDescriptorsFromWorkflow(
     });
   }
 
-  if (workflowUsesOfferAcceptanceFlow(workflow)) {
+  if (
+    shouldShowAcceptanceDocumentsReviewSection(
+      structureType,
+      workflowUsesOfferAcceptanceFlow(workflow)
+    )
+  ) {
     stepTabs.push({
       id: "acceptance_documents",
       label: getReviewTabLabel("acceptance_documents"),

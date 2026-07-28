@@ -174,6 +174,10 @@ export enum ApplicationStatus {
   CONTRACT_PENDING = "CONTRACT_PENDING",
   CONTRACT_SENT = "CONTRACT_SENT",
   CONTRACT_ACCEPTED = "CONTRACT_ACCEPTED",
+  INVOICE_ACCEPTED = "INVOICE_ACCEPTED",
+  SIGNING_PENDING = "SIGNING_PENDING",
+  CONTRACT_SIGNED = "CONTRACT_SIGNED",
+  INVOICE_SIGNED = "INVOICE_SIGNED",
   INVOICE_PENDING = "INVOICE_PENDING",
   INVOICES_SENT = "INVOICES_SENT",
   OFFER_EXPIRED = "OFFER_EXPIRED",
@@ -425,6 +429,7 @@ export * from "./ctos-report-table-math";
 export * from "./financial-unaudited-ctos-validation";
 export * from "./financial-statement-year-resolution";
 export * from "./review-scope";
+export * from "./contract-originating-application";
 export * from "./resubmit-path-utils";
 export * from "./resubmit-meaningful-field-path";
 export * from "./application-people-display";

@@ -80,6 +80,14 @@ export type ReviewApplicationView = {
   }[];
   application_review_items?: unknown;
   application_review_remarks?: unknown;
+  inherited_acceptance?: {
+    source_application_id: string;
+    source_product_id: string | null;
+    acceptance_documents: unknown;
+    review_items: { item_type: string; item_id: string; status: string }[];
+    product_workflow: unknown[] | null;
+    product_version: number | null;
+  } | null;
   issuer_organization_id?: string;
   issuer_organization?: {
     id?: string;
@@ -386,14 +394,38 @@ export function SectionContent({
     case "acceptance_documents": {
       const structureType = (app.financing_structure as { structure_type?: string } | null | undefined)
         ?.structure_type;
+      const inherited = app.inherited_acceptance ?? null;
+      const isInheritedAcceptance =
+        structureType === "existing_contract" && inherited != null;
+      const acceptanceDocuments = isInheritedAcceptance
+        ? inherited.acceptance_documents
+        : app.acceptance_documents;
+      const acceptanceReviewItems = isInheritedAcceptance
+        ? inherited.review_items
+        : (app.application_review_items as
+            | { item_type: string; item_id: string; status: string }[]
+            | undefined) ?? [];
+      const signingApplicationId = isInheritedAcceptance
+        ? inherited.source_application_id
+        : liveApplicationId;
+      const acceptanceWorkflow = isInheritedAcceptance
+        ? inherited.product_workflow ?? productWorkflow
+        : productWorkflow;
+      const acceptanceProductVersion = isInheritedAcceptance
+        ? inherited.product_version ?? productVersion
+        : productVersion;
       return (
         <AcceptanceSection
-          supportingDocuments={app.acceptance_documents}
-          reviewItems={reviewItems}
-          isReviewable={isReviewable}
+          supportingDocuments={acceptanceDocuments}
+          reviewItems={acceptanceReviewItems}
+          isReviewable={isReviewable && !isInheritedAcceptance}
           approvePending={approveItemPending}
-          isActionLocked={isActionLocked}
-          actionLockTooltip={actionLockTooltip}
+          isActionLocked={isActionLocked || isInheritedAcceptance}
+          actionLockTooltip={
+            isInheritedAcceptance
+              ? "Acceptance was completed when the linked contract was approved"
+              : actionLockTooltip
+          }
           viewDocumentPending={viewDocumentPending}
           onViewDocument={onViewDocument}
           onDownloadDocument={onDownloadDocument}
@@ -403,21 +435,36 @@ export function SectionContent({
           onRejectItem={(id) => onRejectItem(id, "document")}
           onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "document")}
           onResetItemToPending={
-            onResetItemToPending ? (id) => onResetItemToPending(id, "document") : undefined
+            onResetItemToPending && !isInheritedAcceptance
+              ? (id) => onResetItemToPending(id, "document")
+              : undefined
           }
           comments={sectionComments}
-          onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
-          hideSectionComments={hideSectionComments || !!sectionComparison}
-          applicationId={sectionComparison ? undefined : liveApplicationId}
-          workflow={productWorkflow}
+          onAddComment={
+            onAddSectionComment && !isInheritedAcceptance
+              ? (comment) => onAddSectionComment(section, comment)
+              : undefined
+          }
+          hideSectionComments={hideSectionComments || !!sectionComparison || isInheritedAcceptance}
+          applicationId={sectionComparison ? undefined : signingApplicationId}
+          workflow={acceptanceWorkflow}
           people={app.people ?? []}
           guarantors={app.application_guarantors}
           contractId={app.contract?.id ?? null}
-          productVersion={productVersion}
-          canManageSigning={canManageSigning}
+          productVersion={acceptanceProductVersion}
+          canManageSigning={canManageSigning && !isInheritedAcceptance}
           contractOfferDetails={app.contract?.offer_details}
           invoices={app.invoices ?? []}
           structureType={structureType}
+          acceptanceReviewMode={isInheritedAcceptance ? "inherited" : "live"}
+          inheritedSourceApplication={
+            isInheritedAcceptance
+              ? {
+                  id: inherited.source_application_id,
+                  productId: inherited.source_product_id,
+                }
+              : undefined
+          }
         />
       );
     }

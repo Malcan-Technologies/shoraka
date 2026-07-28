@@ -37,8 +37,33 @@ APPLICATION STATUS
     Admin can Send Offer again → CONTRACT_SENT / INVOICES_SENT.
 
   CONTRACT_ACCEPTED
-    Issuer accepted contract. Admin still needs to send invoice offers.
+    Issuer submitted Step 1 acceptance documents (phased offer flow).
+    Admin is reviewing acceptance docs. Not signing complete.
     Issuer: yes (shows as Under Review). Admin: yes.
+
+  INVOICE_ACCEPTED
+    Same as CONTRACT_ACCEPTED but invoice-only financing structure.
+    Issuer: yes (shows as Under Review). Admin: yes.
+
+  SIGNING_PENDING
+    Admin approved acceptance docs. Signing package can be created/sent.
+    Issuer: yes (shows as Under Review). Admin: yes.
+
+  CONTRACT_SIGNED
+    Contract envelope completed (commercial accept). Invoice tab may unlock next.
+    Issuer: yes (shows as Approved). Admin: yes.
+
+  INVOICE_SIGNED
+    Invoice-only envelope completed. May roll to COMPLETED when lifecycle finishes.
+    Issuer: yes (shows as Approved). Admin: yes.
+
+  Existing contract financing (structure_type = existing_contract):
+    Linked contract is already APPROVED from a prior application. This app skips
+    contract-offer stages (CONTRACT_SENT, CONTRACT_ACCEPTED, SIGNING_PENDING,
+    CONTRACT_SIGNED). The Acceptance tab shows a read-only mirror of uploads,
+    signing package, and completed status from the originating new_contract
+    application (contracts.originating_application_id). Status stays UNDER_REVIEW
+    until invoice tab unlocks, then INVOICE_PENDING / INVOICES_SENT as for invoice stages only.
 
   INVOICE_PENDING
     Admin is reviewing. Invoice tab unlocked. Next step: send invoice offers.
