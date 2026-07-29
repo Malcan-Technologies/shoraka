@@ -346,11 +346,15 @@ function ProspectusReviewPageInner() {
    * Do not load live Application financial_statements for Prospectus working tables.
    */
   const frozenFinancialYears = data?.financialComparison?.years ?? [];
+  // Officer/approval years exclude Prospectus display placeholders.
+  const realFrozenFinancialYears = frozenFinancialYears.filter((year) => !year.isPlaceholder);
   const incomeStatementYearKeys =
-    frozenFinancialYears.length > 0
-      ? frozenFinancialYears.map((year) => String(year.calendarYear))
-      : pageTwoFinancialTable.yearHeaders.length > 0
-        ? selectYearsFromPageTwoFinancialTable(pageTwoFinancialTable)
+    realFrozenFinancialYears.length > 0
+      ? realFrozenFinancialYears.map((year) => String(year.calendarYear))
+      : pageTwoFinancialTable.yearHeaders.filter((h) => !h.isPlaceholder).length > 0
+        ? selectYearsFromPageTwoFinancialTable({
+            yearHeaders: pageTwoFinancialTable.yearHeaders.filter((h) => !h.isPlaceholder),
+          })
         : [];
   const completionOptions = { incomeStatementYears: incomeStatementYearKeys };
   const stepStatuses = getProspectusStepStatuses(draft, completionOptions);

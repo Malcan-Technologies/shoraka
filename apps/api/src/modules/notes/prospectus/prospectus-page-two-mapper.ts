@@ -6,6 +6,7 @@
 import { buildProspectusCreditInsights } from "./prospectus-credit-insights";
 import { buildProspectusFinancialComparisonMetrics } from "./prospectus-financial-comparison-metrics";
 import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
+import { withProspectusThreeYearDisplay } from "./prospectus-three-year-display";
 import {
   PROSPECTUS_DATA_NOT_AVAILABLE,
   PROSPECTUS_FINANCIAL_COMPARISON_SECTION_HEADING,
@@ -188,7 +189,10 @@ export function mapProspectusPageTwoDataToInput(
 export function buildProspectusPageTwo(
   input: ProspectusPageTwoBuilderInput
 ): ProspectusPageTwo {
-  const financialComparisonSource = resolveFinancialComparisonSource(input);
+  // Display pad after real-year resolve — freeze/snapshot still uses unpadded source.
+  const financialComparisonSource = withProspectusThreeYearDisplay(
+    resolveFinancialComparisonSource(input)
+  );
   const financialComparisonMetrics = buildProspectusFinancialComparisonMetrics({
     source: financialComparisonSource,
     officerOverrides: input.publicationContent?.financialComparison?.overrides ?? null,

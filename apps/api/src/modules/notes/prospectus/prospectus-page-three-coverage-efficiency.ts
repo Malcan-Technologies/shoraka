@@ -80,6 +80,7 @@ export function numericValueForCoverageRow(
     "prospectusFinancialInputs" | "page2FinancialOverrides"
   >
 ): number | null {
+  if (year.isPlaceholder) return null;
   const manual = yearManualInputs(input.prospectusFinancialInputs?.years, year.year);
 
   switch (key) {
@@ -146,6 +147,7 @@ function valueForRow(
   year: ProspectusFinancialComparisonYear,
   input: ProspectusPageThreeCoverageEfficiencyInput
 ): string {
+  if (year.isPlaceholder) return PROSPECTUS_DATA_NOT_AVAILABLE;
   const manual = yearManualInputs(input.prospectusFinancialInputs?.years, year.year);
 
   switch (key) {
@@ -204,6 +206,7 @@ export function buildProspectusPageThreeCoverageEfficiency(
       year: year.year,
       yearLabel: year.yearLabel,
       financialYearEndLabel: year.financialYearEndLabel,
+      isPlaceholder: year.isPlaceholder === true,
     })),
     rows: PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_ROW_KEYS.map((key) => ({
       key,

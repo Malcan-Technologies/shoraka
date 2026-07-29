@@ -335,24 +335,34 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         frozenFinancialComparison: parsed!.financial_comparison,
       });
 
-      expect(row(page.incomeStatement.rows, "revenue")?.[0]).toBe("18.6");
-      expect(row(page.incomeStatement.rows, "profit_after_tax")?.[0]).toBe("1.8");
-      expect(row(page.incomeStatement.rows, "profit_before_tax")?.[0]).toBe(
+      // Display pad: FY2022 | FY2023 | FY2024 — only the real freeze year has values.
+      expect(page.incomeStatement.years.map((y) => y.year)).toEqual([2022, 2023, 2024]);
+      expect(row(page.incomeStatement.rows, "revenue")).toEqual([
+        PROSPECTUS_DATA_NOT_AVAILABLE,
+        PROSPECTUS_DATA_NOT_AVAILABLE,
+        "18.6",
+      ]);
+      expect(row(page.incomeStatement.rows, "profit_after_tax")).toEqual([
+        PROSPECTUS_DATA_NOT_AVAILABLE,
+        PROSPECTUS_DATA_NOT_AVAILABLE,
+        "1.8",
+      ]);
+      expect(row(page.incomeStatement.rows, "profit_before_tax")?.[2]).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
       );
-      expect(row(page.balanceSheet.rows, "current_assets")?.[0]).toBe("5.8");
+      expect(row(page.balanceSheet.rows, "current_assets")?.[2]).toBe("5.8");
       // Incomplete freeze components → Application zero-default Total Assets = bscatot only.
-      expect(row(page.balanceSheet.rows, "total_assets")?.[0]).toBe("5.8");
-      expect(row(page.balanceSheet.rows, "total_liabilities")?.[0]).toBe("3.4");
-      expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[0]).toBe(
+      expect(row(page.balanceSheet.rows, "total_assets")?.[2]).toBe("5.8");
+      expect(row(page.balanceSheet.rows, "total_liabilities")?.[2]).toBe("3.4");
+      expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[2]).toBe(
         formatProspectusFinancialPercentFromRatio(
           calculateReturnOnEquity(1_800_000, 2_400_000)
         )
       );
-      expect(row(page.balanceSheet.rows, "cash_and_bank")?.[0]).toBe(
+      expect(row(page.balanceSheet.rows, "cash_and_bank")?.[2]).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
       );
-      expect(row(page.balanceSheet.rows, "total_equity")?.[0]).toBe(
+      expect(row(page.balanceSheet.rows, "total_equity")?.[2]).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
       );
     });

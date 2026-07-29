@@ -13,6 +13,8 @@ export type FinancialYearHeader = {
   key: string;
   yearLabel: string;
   fyeLabel: string;
+  /** Display-only column — not officer-editable. */
+  isPlaceholder?: boolean;
 };
 
 export type FinancialMetricTableRow = {

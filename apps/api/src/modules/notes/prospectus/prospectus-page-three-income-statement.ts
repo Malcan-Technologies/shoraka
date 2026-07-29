@@ -39,8 +39,10 @@ function valueForRow(
   key: ProspectusPageThreeIncomeStatementRowKey,
   raw: Record<string, unknown>,
   year: number,
-  input: ProspectusPageThreeIncomeStatementInput
+  input: ProspectusPageThreeIncomeStatementInput,
+  isPlaceholder: boolean
 ): string {
+  if (isPlaceholder) return PROSPECTUS_DATA_NOT_AVAILABLE;
   const manual = yearManualInputs(input.prospectusFinancialInputs?.years, year);
 
   switch (key) {
@@ -85,11 +87,14 @@ export function buildProspectusPageThreeIncomeStatement(
       year: year.year,
       yearLabel: year.yearLabel,
       financialYearEndLabel: year.financialYearEndLabel,
+      isPlaceholder: year.isPlaceholder === true,
     })),
     rows: PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_ROW_KEYS.map((key) => ({
       key,
       label: PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_ROW_LABELS[key],
-      values: years.map((year) => valueForRow(key, year.rawFinancials, year.year, input)),
+      values: years.map((year) =>
+        valueForRow(key, year.rawFinancials, year.year, input, year.isPlaceholder === true)
+      ),
     })),
     audit: PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_AUDIT,
   };

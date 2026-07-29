@@ -28,6 +28,11 @@ export interface ProspectusFinancialComparisonYear {
   recordSource: ProspectusFinancialComparisonRecordSource;
   /** Original source fields for Stage 4B — not Canva-facing alone. */
   rawFinancials: Record<string, unknown>;
+  /**
+   * Prospectus display-only column with no real normalized financial record.
+   * Never stored, never approval-required, never used for trend numerics.
+   */
+  isPlaceholder?: boolean;
 }
 
 export interface ProspectusFinancialComparisonSourceAudit {

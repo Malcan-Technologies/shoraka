@@ -11,6 +11,7 @@ import {
   PROSPECTUS_FINANCIAL_COMPARISON_SOURCE_AUDIT,
   type ProspectusFinancialComparisonSource,
 } from "./prospectus-financial-comparison-source.types";
+import { withProspectusThreeYearDisplay } from "./prospectus-three-year-display";
 import { buildProspectusHeader } from "./prospectus-header";
 import {
   parseInvoiceSnapshotRiskRating,
@@ -129,7 +130,10 @@ export function mapProspectusPageThreeDataToInput(
 export function buildProspectusPageThree(
   input: ProspectusPageThreeBuilderInput
 ): ProspectusPageThree {
-  const financialSource = resolveFinancialComparisonSource(input);
+  // Same display pad as Page 2 — placeholders never enter freeze/approval year lists.
+  const financialSource = withProspectusThreeYearDisplay(
+    resolveFinancialComparisonSource(input)
+  );
   const issuer = parseIssuerSnapshot(input.issuerSnapshot);
   const paymaster = parsePaymasterSnapshot(input.paymasterSnapshot);
 
