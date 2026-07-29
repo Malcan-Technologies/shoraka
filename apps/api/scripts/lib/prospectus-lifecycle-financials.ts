@@ -1,5 +1,8 @@
 /**
  * Financial statement / CTOS builders for Prospectus lifecycle seed year variants.
+ *
+ * Uses a fixed 2024–2026 reporting span for 2026 UAT seeds.
+ * Do not derive years from `currentYear + 1` / `futureFyeIso` — that created FY2027.
  */
 
 import {
@@ -15,6 +18,16 @@ export type LifecycleFinancialVariant =
   | "one_year"
   | "two_years"
   | "gapped_years";
+
+/** Fixed reporting span for normal Prospectus lifecycle seeds (no future FY2027). */
+export const LIFECYCLE_REPORTING_YEARS = {
+  y0: 2024,
+  y1: 2025,
+  y2: 2026,
+} as const;
+
+/** Company financial-year-end month/day (2 Sep) — year label must match date year. */
+export const LIFECYCLE_FYE_MONTH_DAY = "09-02" as const;
 
 const SERIES = [
   {
@@ -64,12 +77,15 @@ const SERIES = [
   },
 ] as const;
 
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
+export function lifecycleQuestionnaire(): FinancialStatementsQuestionnaire {
+  return {
+    financial_year_end: `${LIFECYCLE_REPORTING_YEARS.y2}-${LIFECYCLE_FYE_MONTH_DAY}`,
+  };
 }
 
-function futureFyeIso(ref: Date): string {
-  return isoDate(new Date(ref.getTime() + 400 * 24 * 60 * 60 * 1000));
+/** Newest real reporting year for lifecycle seeds (fixed FY2026). */
+export function lifecycleNewestYear(): number {
+  return LIFECYCLE_REPORTING_YEARS.y2;
 }
 
 function blockFor(
@@ -84,18 +100,25 @@ function blockFor(
   };
 }
 
-/**
- * Resolve the newest FY-end year the issuer SSM window expects for `ref`.
- */
-export function lifecycleNewestYear(ref: Date = new Date()): number {
-  const questionnaire: FinancialStatementsQuestionnaire = {
-    financial_year_end: futureFyeIso(ref),
+function ctosRow(
+  year: number,
+  index: number,
+  questionnaire: FinancialStatementsQuestionnaire
+) {
+  return {
+    financial_year: year,
+    dates: {
+      pldd: getFinancialYearPeriodEndIso(questionnaire, year) ?? `${year}-${LIFECYCLE_FYE_MONTH_DAY}`,
+      bsdd: null,
+    },
+    account: { ...SERIES[Math.min(Math.max(index, 0), SERIES.length - 1)]! },
   };
-  const ssm = getAdminFinancialSummaryUserColumnYears(questionnaire, ref);
-  if (ssm.length > 0) return Math.max(...ssm);
-  return Number(questionnaire.financial_year_end.slice(0, 4));
 }
 
+/**
+ * Build application financial_statements + org CTOS rows for a lifecycle FY variant.
+ * `ref` only affects which years land in unaudited vs CTOS (SSM window); year numbers stay fixed.
+ */
 export function buildLifecycleFinancialBundle(
   variant: LifecycleFinancialVariant,
   ref: Date = new Date()
@@ -104,16 +127,11 @@ export function buildLifecycleFinancialBundle(
   ctosFinancials: unknown[];
   realYears: number[];
 } {
-  const questionnaire: FinancialStatementsQuestionnaire = {
-    financial_year_end: futureFyeIso(ref),
-  };
-  const newest = lifecycleNewestYear(ref);
-  const y0 = newest - 2;
-  const y1 = newest - 1;
-  const y2 = newest;
+  const questionnaire = lifecycleQuestionnaire();
+  const { y0, y1, y2 } = LIFECYCLE_REPORTING_YEARS;
 
   if (variant === "one_year") {
-    // Only newest unaudited year; no CTOS → display pads Y-2 / Y-1.
+    // Real: FY2026 only → display pads FY2024 | FY2025 | FY2026.
     const unaudited_by_year: Record<string, Record<string, unknown>> = {
       [String(y2)]: blockFor(y2, 2, questionnaire),
     };
@@ -125,81 +143,45 @@ export function buildLifecycleFinancialBundle(
   }
 
   if (variant === "two_years") {
-    // CTOS for Y-1 + unaudited Y-2 (SSM window may already ask for Y-1/Y-2).
-    const ssmYears = getAdminFinancialSummaryUserColumnYears(questionnaire, ref);
-    const unaudited_by_year: Record<string, Record<string, unknown>> = {};
-    for (const year of ssmYears) {
-      if (year === y2) {
-        unaudited_by_year[String(year)] = blockFor(year, 2, questionnaire);
-      }
-    }
-    if (!unaudited_by_year[String(y2)]) {
-      unaudited_by_year[String(y2)] = blockFor(y2, 2, questionnaire);
-    }
-    const ctosFinancials = [
-      {
-        financial_year: y1,
-        dates: {
-          pldd: getFinancialYearPeriodEndIso(questionnaire, y1) ?? `${y1}-12-31`,
-          bsdd: null,
-        },
-        account: { ...SERIES[1] },
-      },
-    ];
+    // Real: FY2025 (CTOS) + FY2026 (unaudited) → display pads FY2024.
+    const unaudited_by_year: Record<string, Record<string, unknown>> = {
+      [String(y2)]: blockFor(y2, 2, questionnaire),
+    };
     return {
       financialStatements: { questionnaire, unaudited_by_year },
-      ctosFinancials,
+      ctosFinancials: [ctosRow(y1, 1, questionnaire)],
       realYears: [y1, y2],
     };
   }
 
   if (variant === "gapped_years") {
-    // Real Y0 (CTOS) + Y2 (unaudited); Y1 missing → display placeholder.
+    // Real: FY2024 (CTOS) + FY2026 (unaudited); FY2025 missing → display placeholder.
+    // Never seed FY2027.
     const unaudited_by_year: Record<string, Record<string, unknown>> = {
       [String(y2)]: blockFor(y2, 2, questionnaire),
     };
-    const ctosFinancials = [
-      {
-        financial_year: y0,
-        dates: {
-          pldd: getFinancialYearPeriodEndIso(questionnaire, y0) ?? `${y0}-12-31`,
-          bsdd: null,
-        },
-        account: { ...SERIES[0] },
-      },
-    ];
     return {
       financialStatements: { questionnaire, unaudited_by_year },
-      ctosFinancials,
+      ctosFinancials: [ctosRow(y0, 0, questionnaire)],
       realYears: [y0, y2],
     };
   }
 
-  // three_years — CTOS for older span years + unaudited SSM years.
-  const ssmYears = getAdminFinancialSummaryUserColumnYears(questionnaire, ref);
+  // three_years — CTOS for older span years + unaudited SSM years → FY2024|FY2025|FY2026.
   const span = [y0, y1, y2];
-  const ssmSet = new Set(ssmYears);
+  const ssmYears = getAdminFinancialSummaryUserColumnYears(questionnaire, ref).filter((year) =>
+    span.includes(year)
+  );
+  const unauditedYears = ssmYears.includes(y2) ? ssmYears : [...ssmYears, y2];
   const unaudited_by_year: Record<string, Record<string, unknown>> = {};
-  for (const year of ssmYears) {
+  for (const year of unauditedYears) {
     const index = span.indexOf(year);
-    unaudited_by_year[String(year)] = blockFor(
-      year,
-      index >= 0 ? index : span.length - 1,
-      questionnaire
-    );
+    unaudited_by_year[String(year)] = blockFor(year, index >= 0 ? index : 2, questionnaire);
   }
   const ctosFinancials = span
-    .map((year, index) => {
-      if (ssmSet.has(year)) return null;
-      return {
-        financial_year: year,
-        dates: {
-          pldd: getFinancialYearPeriodEndIso(questionnaire, year) ?? `${year}-12-31`,
-          bsdd: null,
-        },
-        account: { ...SERIES[index]! },
-      };
-    })
+    .map((year, index) =>
+      unaudited_by_year[String(year)] ? null : ctosRow(year, index, questionnaire)
+    )
     .filter((row): row is NonNullable<typeof row> => row != null);
 
   return {
@@ -209,8 +191,6 @@ export function buildLifecycleFinancialBundle(
   };
 }
 
-export function ctosJson(
-  rows: unknown[]
-): Prisma.InputJsonValue {
+export function ctosJson(rows: unknown[]): Prisma.InputJsonValue {
   return rows as Prisma.InputJsonValue;
 }
