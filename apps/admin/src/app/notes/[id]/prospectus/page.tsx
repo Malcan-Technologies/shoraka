@@ -358,11 +358,6 @@ function ProspectusReviewPageInner() {
             yearHeaders: pageTwoFinancialTable.yearHeaders.filter((h) => !h.isPlaceholder),
           })
         : [];
-  // Display columns (incl. placeholders) — must stay aligned with Page 2/3 table headers.
-  const displayFinancialYearKeys =
-    frozenFinancialYears.length > 0
-      ? frozenFinancialYears.map((year) => String(year.calendarYear))
-      : pageTwoFinancialTable.yearHeaders.map((h) => h.yearLabel.replace(/^FY/, ""));
   const completionOptions = { incomeStatementYears: incomeStatementYearKeys };
   const stepStatuses = getProspectusStepStatuses(draft, completionOptions);
   const manualYears = draft.page3.manualFinancialInputs?.years;
