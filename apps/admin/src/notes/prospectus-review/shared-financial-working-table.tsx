@@ -101,6 +101,7 @@ export function ProspectusSharedFinancialWorkingTable({
                   </TableCell>
                   {headers.map((header, index) => {
                     if (spec.mode === "editable" && !header.isPlaceholder) {
+                      const yearFromHeader = header.yearLabel.replace(/^FY/, "");
                       const yearKey = spec.yearKeyForHeader(
                         header.key,
                         /^\d{4}$/.test(yearFromHeader)
