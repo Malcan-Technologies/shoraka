@@ -215,6 +215,7 @@ function prepareInvoice(
     status: api.status ?? "DRAFT",
     offerStatus,
     canReviewOffer,
+    offerAcceptanceStatus: acceptanceStatus,
     offer_details: api.offer_details ?? null,
     signedOfferLetterAvailable,
     withdrawReason: parseInvoiceWithdrawReason(api.withdraw_reason),

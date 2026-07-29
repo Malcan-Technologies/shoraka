@@ -60,6 +60,23 @@ describe("resolveApplicationStatusFromOfferAcceptancePhase", () => {
     ).toBe(ApplicationStatus.INVOICE_SIGNED);
   });
 
+  it("maps PENDING_ISSUER to sent statuses", () => {
+    expect(
+      resolveApplicationStatusFromOfferAcceptancePhase(false, "PENDING_ISSUER")
+    ).toBe(ApplicationStatus.CONTRACT_SENT);
+    expect(
+      resolveApplicationStatusFromOfferAcceptancePhase(true, "PENDING_ISSUER")
+    ).toBe(ApplicationStatus.INVOICES_SENT);
+  });
+
+  it("maps completed without entity approved to SIGNING_PENDING", () => {
+    expect(
+      resolveApplicationStatusFromOfferAcceptancePhase(false, "COMPLETED", {
+        entityApproved: false,
+      })
+    ).toBe(ApplicationStatus.SIGNING_PENDING);
+  });
+
   it("returns null without offer acceptance", () => {
     expect(resolveApplicationStatusFromOfferAcceptancePhase(false, null)).toBeNull();
   });

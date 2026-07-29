@@ -129,11 +129,30 @@ export interface NormalizedInvoice {
    * Populated from API when available; used only for Rejected / Declined invoice badges.
    */
   reasonOrRemarks?: string | null;
+  /** Offer acceptance phase from invoice offer_details when present. */
+  offerAcceptanceStatus?: string | null;
+}
+
+/** Badge key for an invoice row, accounting for offer_acceptance while entity stays OFFER_SENT. */
+export function resolveNormalizedInvoiceBadgeKey(
+  inv: NormalizedInvoice,
+  application?: Pick<NormalizedApplication, "offerAcceptanceStatus">
+): string {
+  const acceptanceStatus =
+    inv.offerAcceptanceStatus ??
+    (String(inv.status ?? "").toUpperCase() === "OFFER_SENT"
+      ? application?.offerAcceptanceStatus
+      : null);
+  return resolveIssuerInvoiceStatusBadgeKey(
+    inv.status,
+    inv.withdrawReason,
+    acceptanceStatus
+  );
 }
 
 /** True when the invoice badge is Rejected or Declined (issuer can open reason/remarks from the row menu). */
 export function issuerInvoiceCanViewReasonRemarks(inv: NormalizedInvoice): boolean {
-  const badge = resolveIssuerInvoiceStatusBadgeKey(inv.status, inv.withdrawReason);
+  const badge = resolveNormalizedInvoiceBadgeKey(inv);
   return badge === "rejected" || badge === "declined";
 }
 
@@ -348,8 +367,18 @@ export function getCardStatus(input: {
 
   /** Offer Waiting: contract or any invoice has OFFER_SENT. Card-level Review Offer only for contract offers. */
   if (contractOfferSent || anyInvoiceOfferSent) {
-    // Acceptance docs submitted — reuse Under Review (not a separate badge). CTA stays hidden.
-    if (acceptanceStatus === "PENDING_ADMIN_REVIEW") {
+    const issuerMustActOnOffer =
+      acceptanceStatus === "PENDING_ISSUER" || acceptanceStatus === "CHANGES_REQUESTED";
+    const adminReviewOrSigning =
+      acceptanceStatus === "PENDING_ADMIN_REVIEW" ||
+      acceptanceStatus === "APPROVED_FOR_SIGNING" ||
+      acceptanceStatus === "SIGNING_IN_PROGRESS" ||
+      acceptanceStatus === "COMPLETED" ||
+      app === "CONTRACT_ACCEPTED" ||
+      app === "INVOICE_ACCEPTED" ||
+      app === "SIGNING_PENDING";
+
+    if (adminReviewOrSigning && !issuerMustActOnOffer) {
       return {
         badgeKey: "under_review",
         displayLabel: "Under Review",

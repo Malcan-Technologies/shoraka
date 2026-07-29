@@ -57,7 +57,14 @@ An offer is considered "sent" when:
 - `contract.status === "OFFER_SENT"` or `invoice.status === "OFFER_SENT"`
 - `offer_details` exists and is non-null
 
-Application-level status stays `UNDER_REVIEW` while offers are pending; offer state is derived from contract and invoice status only.
+Application-level status reflects the offer lifecycle overlay (see [status-reference](../guides/application/status-reference.md)):
+
+- `CONTRACT_SENT` / `INVOICES_SENT` while the issuer must act on Step 1
+- `CONTRACT_ACCEPTED` / `INVOICE_ACCEPTED` while admin reviews acceptance docs
+- `SIGNING_PENDING` while the signing package is in progress
+- `CONTRACT_SIGNED` / `INVOICE_SIGNED` after envelope completion
+
+Entity `contract.status` / `invoice.status` stays `OFFER_SENT` until commercial accept; use both application status and `offer_acceptance.status` for UI.
 
 ### Deriving offer status for UI
 

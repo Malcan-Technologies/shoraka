@@ -56,6 +56,20 @@ ADMIN PORTAL (Admin actions)
   Send invoice offer                INVOICE_OFFER_SENT                   Timeline
   Retract contract offer            CONTRACT_OFFER_RETRACTED             Timeline
   Retract invoice offer             INVOICE_OFFER_RETRACTED              Timeline
+  Issuer submits acceptance docs    CONTRACT_OFFER_ACCEPTANCE_SUBMITTED  Timeline
+                                    / INVOICE_OFFER_ACCEPTANCE_SUBMITTED
+  Admin approves for signing        CONTRACT_ACCEPTANCE_APPROVED_FOR_    Timeline
+                                    SIGNING / INVOICE_ACCEPTANCE_
+                                    APPROVED_FOR_SIGNING
+  Signing package created           SIGNING_PACKAGE_CREATED              Timeline
+  Signing package sent              SIGNING_PACKAGE_SENT                 Timeline
+  Signing package voided            SIGNING_PACKAGE_VOIDED               Timeline
+  Extend signing deadline           CONTRACT_SIGNING_DEADLINE_EXTENDED   Timeline
+                                    / INVOICE_SIGNING_DEADLINE_EXTENDED
+
+Notes:
+  SIGNING_PACKAGE_COMPLETED is stored for audit but hidden from the timeline UI;
+  completion is shown via CONTRACT_OFFER_ACCEPTED / INVOICE_OFFER_ACCEPTED.
 
 ================================================================================
 SYSTEM (Cron / automatic)

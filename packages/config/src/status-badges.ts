@@ -205,10 +205,12 @@ export { API_STATUS_TO_BADGE_KEY };
 /**
  * Maps API invoice/application status + withdraw reason to issuer card/table badge key.
  * WITHDRAWN + OFFER_REJECTED → declined; OFFER_EXPIRED → offer_expired; else API map.
+ * When entity stays OFFER_SENT, offer_acceptance phase can collapse the row to under_review.
  */
 export function resolveIssuerInvoiceStatusBadgeKey(
   status: string | undefined,
-  withdrawReason?: WithdrawReason
+  withdrawReason?: WithdrawReason,
+  offerAcceptanceStatus?: string | null
 ): string {
   const upper = String(status ?? "").toUpperCase();
   if (upper === "WITHDRAWN" && withdrawReason === WithdrawReason.OFFER_REJECTED) {
@@ -216,6 +218,18 @@ export function resolveIssuerInvoiceStatusBadgeKey(
   }
   if (upper === "OFFER_EXPIRED") {
     return "offer_expired";
+  }
+  if (upper === "OFFER_SENT" && offerAcceptanceStatus) {
+    const phase = String(offerAcceptanceStatus).toUpperCase();
+    const issuerMustAct = phase === "PENDING_ISSUER" || phase === "CHANGES_REQUESTED";
+    const adminReviewOrSigning =
+      phase === "PENDING_ADMIN_REVIEW" ||
+      phase === "APPROVED_FOR_SIGNING" ||
+      phase === "SIGNING_IN_PROGRESS" ||
+      phase === "COMPLETED";
+    if (adminReviewOrSigning && !issuerMustAct) {
+      return "under_review";
+    }
   }
   return API_STATUS_TO_BADGE_KEY[upper] ?? (status?.toLowerCase() ?? "draft");
 }

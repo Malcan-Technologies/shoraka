@@ -817,6 +817,14 @@ export default function InvoiceDetailsStep({
         validationError = `Total financing amount (RM ${formatMoney(amountToCheck)}) exceeds facility limit (RM ${formatMoney(facilityLimit)}).`;
       }
     }
+
+    if (!validationError && isInvoiceOnly) {
+      const nonEmptyInvoiceCount = invoices.filter((inv) => !isRowEmpty(inv)).length;
+      if (nonEmptyInvoiceCount > 1) {
+        validationError =
+          "Invoice-only financing allows one invoice. Remove extra invoices or change financing structure on the previous step.";
+      }
+    }
   }
 
   const saveFunction = async () => {
@@ -841,8 +849,9 @@ export default function InvoiceDetailsStep({
 
     const apiClient = createApiClient(API_URL, getAccessToken);
     const token = await getAccessToken();
-    const structureType = application?.financing_structure?.structure_type;
-    const isInvoiceOnly = structureType === "invoice_only";
+    const saveStructureType =
+      effectiveStructureType ?? application?.financing_structure?.structure_type;
+    const isInvoiceOnly = saveStructureType === "invoice_only";
 
     for (const invoiceId of Object.keys(deletedInvoices)) {
       await apiClient.deleteInvoice(invoiceId);

@@ -18,7 +18,6 @@ import { EllipsisVerticalIcon, ArrowDownTrayIcon } from "@heroicons/react/24/out
 import {
   formatCurrency,
   getStatusPresentationByBadgeKey,
-  resolveIssuerInvoiceStatusBadgeKey,
 } from "@cashsouk/config";
 import type { WithdrawReason } from "@cashsouk/types";
 import { shouldShowIssuerReviewOfferCta, getOfferPhaseDeadlineDisplay } from "@/lib/offer-utils";
@@ -48,6 +47,7 @@ import { FileDisplayBadge } from "@/app/(application-flow)/applications/componen
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import {
   issuerInvoiceCanViewReasonRemarks,
+  resolveNormalizedInvoiceBadgeKey,
   type NormalizedApplication,
   type NormalizedInvoice,
 } from "../status";
@@ -608,7 +608,7 @@ export function ScrollableInvoiceTable({
                   >
                     <span className="inline-block">
                       <InvoiceStatusBadge
-                        badgeKey={resolveIssuerInvoiceStatusBadgeKey(inv.status, inv.withdrawReason)}
+                        badgeKey={resolveNormalizedInvoiceBadgeKey(inv, application)}
                         withdrawReason={inv.withdrawReason}
                       />
                     </span>
