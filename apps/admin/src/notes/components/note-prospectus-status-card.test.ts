@@ -95,7 +95,7 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.emphasize).toBe(true);
   });
 
-  it("Approved shows Ready to publish + Publish Note", () => {
+  it("Approved shows Ready to publish + Review Prospectus only (no Publish Note)", () => {
     const model = resolveProspectusStatusCard(
       baseNote({
         prospectus: {
@@ -112,8 +112,8 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.heading).toBe("Ready to publish");
     expect(model.description).toMatch(/eligible for publication/i);
     expect(model.badgeLabel).toBe("Approved");
-    expect(model.primaryLabel).toBe("Publish Note");
-    expect(model.secondaryLabel).toBe("Review Prospectus");
+    expect(model.primaryLabel).toBe("Review Prospectus");
+    expect(model.secondaryLabel).toBeNull();
     expect(model.emphasize).toBe(true);
   });
 
@@ -157,7 +157,8 @@ describe("resolveProspectusStatusCard", () => {
       })
     );
     expect(model.phase).toBe("approved");
-    expect(model.primaryLabel).toBe("Publish Note");
+    expect(model.primaryLabel).toBe("Review Prospectus");
+    expect(model.primaryLabel).not.toBe("Publish Note");
   });
 });
 
@@ -170,6 +171,10 @@ describe("Admin Note Detail prospectus UI cleanup", () => {
     path.join(__dirname, "../../app/notes/[id]/page.tsx"),
     "utf8"
   );
+  const cardSource = fs.readFileSync(
+    path.join(__dirname, "note-prospectus-status-card.tsx"),
+    "utf8"
+  );
 
   it("no longer renders the old Publication Checklist labels", () => {
     expect(lifecycleSource).not.toContain("Publication checklist");
@@ -180,10 +185,13 @@ describe("Admin Note Detail prospectus UI cleanup", () => {
     expect(pageSource).not.toContain("Listing window configurable at publish");
   });
 
-  it("wires NoteProspectusStatusCard on Note Detail", () => {
+  it("wires NoteProspectusStatusCard without a second publish action", () => {
     expect(pageSource).toContain("NoteProspectusStatusCard");
-    expect(pageSource).toContain("onPublishNote");
-    expect(pageSource).toContain('setPendingAction("publish")');
+    expect(pageSource).toContain("onReviewProspectus");
+    expect(pageSource).not.toContain("onPublishNote");
+    expect(cardSource).not.toContain("Publish Note");
+    expect(cardSource).not.toContain("onPublishNote");
+    expect(lifecycleSource).toContain("Publish to Marketplace");
   });
 });
 

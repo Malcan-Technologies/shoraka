@@ -36,8 +36,8 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
       heading: "Ready to publish",
       description: "The prospectus is approved and this Note is eligible for publication.",
       badgeLabel: "Approved",
-      primaryLabel: "Publish Note",
-      secondaryLabel: "Review Prospectus",
+      primaryLabel: "Review Prospectus",
+      secondaryLabel: null,
       emphasize: true,
     };
   }

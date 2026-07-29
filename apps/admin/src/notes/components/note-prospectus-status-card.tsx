@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { DocumentTextIcon, GlobeAltIcon } from "@heroicons/react/24/outline";
+import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import type { NoteDetail } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,28 +22,17 @@ const EMPHASIS_CARD_CLASS =
 
 type NoteProspectusStatusCardProps = {
   note: NoteDetail;
-  canManage?: boolean;
-  publishPending?: boolean;
   onReviewProspectus: () => void;
-  onPublishNote: () => void;
 };
 
+/**
+ * Prospectus status on Note Detail. Marketplace publish lives only on Note Lifecycle.
+ */
 export function NoteProspectusStatusCard({
   note,
-  canManage = true,
-  publishPending = false,
   onReviewProspectus,
-  onPublishNote,
 }: NoteProspectusStatusCardProps) {
   const model = resolveProspectusStatusCard(note);
-
-  const onPrimary = () => {
-    if (model.phase === "approved") {
-      onPublishNote();
-      return;
-    }
-    onReviewProspectus();
-  };
 
   return (
     <Card
@@ -63,23 +52,8 @@ export function NoteProspectusStatusCard({
           <p className="text-sm text-muted-foreground">{model.description}</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          {model.secondaryLabel ? (
-            <Button type="button" variant="outline" onClick={onReviewProspectus}>
-              <DocumentTextIcon className="mr-2 h-4 w-4" />
-              {model.secondaryLabel}
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            variant="default"
-            onClick={onPrimary}
-            disabled={model.phase === "approved" && (!canManage || publishPending)}
-          >
-            {model.phase === "approved" ? (
-              <GlobeAltIcon className="mr-2 h-4 w-4" />
-            ) : (
-              <DocumentTextIcon className="mr-2 h-4 w-4" />
-            )}
+          <Button type="button" variant="default" onClick={onReviewProspectus}>
+            <DocumentTextIcon className="mr-2 h-4 w-4" />
             {model.primaryLabel}
           </Button>
         </div>

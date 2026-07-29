@@ -296,7 +296,7 @@ describe("prospectus review action visibility", () => {
     expect(actions.viewProspectus).toBe(false);
   });
 
-  it("keeps Preview on APPROVED until Note is published", () => {
+  it("hides Approve on APPROVED while keeping Preview and Back to Note", () => {
     const approved = getProspectusActionVisibility({
       step: 2,
       status: "APPROVED",
@@ -305,23 +305,23 @@ describe("prospectus review action visibility", () => {
     });
     expect(approved.saveDraft).toBe(true);
     expect(approved.preview).toBe(true);
-    expect(approved.approve).toBe(true);
+    expect(approved.approve).toBe(false);
     expect(approved.backToNote).toBe(true);
     expect(approved.viewProspectus).toBe(false);
 
-    const published = getProspectusActionVisibility({
+    const publishedNote = getProspectusActionVisibility({
       step: 3,
       status: "APPROVED",
       canManage: true,
       notePublished: true,
     });
-    expect(published.saveDraft).toBe(false);
-    expect(published.preview).toBe(false);
-    expect(published.approve).toBe(false);
-    expect(published.viewProspectus).toBe(true);
+    expect(publishedNote.saveDraft).toBe(false);
+    expect(publishedNote.preview).toBe(false);
+    expect(publishedNote.approve).toBe(false);
+    expect(publishedNote.viewProspectus).toBe(true);
   });
 
-  it("hides Approve for view-only and published Prospectus", () => {
+  it("hides Approve for view-only and PUBLISHED Prospectus", () => {
     const viewOnly = getProspectusActionVisibility({
       step: 0,
       status: "DRAFT",
@@ -339,6 +339,9 @@ describe("prospectus review action visibility", () => {
       notePublished: true,
     });
     expect(published.approve).toBe(false);
+    expect(published.saveDraft).toBe(false);
+    expect(published.preview).toBe(false);
+    expect(published.viewProspectus).toBe(true);
   });
 
   it("blocks approval readiness when required checklist items are incomplete", () => {
