@@ -1,6 +1,9 @@
 import type { NoteDetail } from "@cashsouk/types";
+import type { WorkflowStatusTone } from "@/notes/utils/workflow-status-tokens";
 
 export type ProspectusNoteDetailPhase = "draft" | "approved" | "published";
+
+export type ProspectusStatusCardActionVariant = "default" | "outline";
 
 export type ProspectusStatusCardModel = {
   phase: ProspectusNoteDetailPhase;
@@ -9,7 +12,12 @@ export type ProspectusStatusCardModel = {
   badgeLabel: "Draft" | "Approved" | "Published";
   primaryLabel: string;
   secondaryLabel: string | null;
+  /** Red alert card while Prospectus still needs approval. */
   emphasize: boolean;
+  /** Shared workflow badge tone (Approved uses neutral outline pill). */
+  badgeTone: WorkflowStatusTone;
+  /** Primary (red) while action is required; outline when reviewing approved/published. */
+  actionVariant: ProspectusStatusCardActionVariant;
 };
 
 /** Pure UI model for Admin Note Detail prospectus next-action card. */
@@ -26,8 +34,9 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
       badgeLabel: "Published",
       primaryLabel: "View Prospectus",
       secondaryLabel: null,
-      // Neutral card — primary/red tint is reserved for genuine warning/error surfaces.
       emphasize: false,
+      badgeTone: "success",
+      actionVariant: "outline",
     };
   }
 
@@ -39,11 +48,13 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
       badgeLabel: "Approved",
       primaryLabel: "Review Prospectus",
       secondaryLabel: null,
-      // Ready state uses the default Note card surface — not primary/error emphasis.
       emphasize: false,
+      badgeTone: "neutral",
+      actionVariant: "outline",
     };
   }
 
+  // DRAFT, READY_FOR_REVIEW, missing review, or any pre-approval state.
   return {
     phase: "draft",
     heading: "Prospectus approval required",
@@ -51,6 +62,8 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
     badgeLabel: "Draft",
     primaryLabel: "Review Prospectus",
     secondaryLabel: null,
-    emphasize: false,
+    emphasize: true,
+    badgeTone: "active",
+    actionVariant: "default",
   };
 }

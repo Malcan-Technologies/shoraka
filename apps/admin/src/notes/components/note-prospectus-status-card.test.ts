@@ -7,6 +7,10 @@ import {
   NoteStatus,
   type NoteDetail,
 } from "@cashsouk/types";
+import {
+  WORKFLOW_CARD,
+  WORKFLOW_STATUS_BADGE,
+} from "@/notes/utils/workflow-status-tokens";
 import { resolveProspectusStatusCard } from "./note-prospectus-status-card.model";
 
 function baseNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
@@ -84,7 +88,7 @@ function baseNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
 }
 
 describe("resolveProspectusStatusCard", () => {
-  it("Draft shows Prospectus approval required + Review Prospectus", () => {
+  it("Draft / approval-required uses red emphasis and primary Review button", () => {
     const model = resolveProspectusStatusCard(baseNote());
     expect(model.phase).toBe("draft");
     expect(model.heading).toBe("Prospectus approval required");
@@ -92,10 +96,30 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.badgeLabel).toBe("Draft");
     expect(model.primaryLabel).toBe("Review Prospectus");
     expect(model.secondaryLabel).toBeNull();
-    expect(model.emphasize).toBe(false);
+    expect(model.emphasize).toBe(true);
+    expect(model.badgeTone).toBe("active");
+    expect(model.actionVariant).toBe("default");
   });
 
-  it("Approved shows Ready to publish + Review Prospectus only (no Publish Note)", () => {
+  it("READY_FOR_REVIEW still treats Prospectus as approval-required (red card)", () => {
+    const model = resolveProspectusStatusCard(
+      baseNote({
+        prospectus: {
+          status: "READY_FOR_REVIEW",
+          displayStatus: "Draft",
+          contentVersion: 1,
+          lastSavedAt: null,
+          approvedAt: null,
+          publishedAt: null,
+        },
+      })
+    );
+    expect(model.phase).toBe("draft");
+    expect(model.emphasize).toBe(true);
+    expect(model.actionVariant).toBe("default");
+  });
+
+  it("Approved uses neutral card, shared neutral Approved badge, outline Review button", () => {
     const model = resolveProspectusStatusCard(
       baseNote({
         prospectus: {
@@ -115,9 +139,12 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.primaryLabel).toBe("Review Prospectus");
     expect(model.secondaryLabel).toBeNull();
     expect(model.emphasize).toBe(false);
+    expect(model.badgeTone).toBe("neutral");
+    expect(model.actionVariant).toBe("outline");
+    expect(WORKFLOW_STATUS_BADGE.neutral.badgeClass).not.toMatch(/primary|rejected|destructive/);
   });
 
-  it("Published shows Published + View Prospectus", () => {
+  it("Published uses neutral card and outline View Prospectus button", () => {
     const model = resolveProspectusStatusCard(
       baseNote({
         status: NoteStatus.PUBLISHED,
@@ -141,6 +168,8 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.primaryLabel).toBe("View Prospectus");
     expect(model.secondaryLabel).toBeNull();
     expect(model.emphasize).toBe(false);
+    expect(model.badgeTone).toBe("success");
+    expect(model.actionVariant).toBe("outline");
   });
 
   it("does not auto-publish after approval", () => {
@@ -194,24 +223,11 @@ describe("Admin Note Detail prospectus UI cleanup", () => {
     expect(lifecycleSource).toContain("Publish to Marketplace");
   });
 
-  it("APPROVED Prospectus card does not use primary/error emphasis styling", () => {
-    const model = resolveProspectusStatusCard(
-      baseNote({
-        prospectus: {
-          status: "APPROVED",
-          displayStatus: "Approved",
-          contentVersion: 1,
-          lastSavedAt: null,
-          approvedAt: new Date().toISOString(),
-          publishedAt: null,
-        },
-      })
-    );
-    expect(model.emphasize).toBe(false);
-    expect(model.primaryLabel).toBe("Review Prospectus");
-    // Emphasis class still exists for optional use, but APPROVED must not enable it.
-    expect(cardSource).toContain("EMPHASIS_CARD_CLASS");
-    expect(cardSource).toMatch(/border-primary|bg-primary/);
+  it("maps card emphasis and button variant from status model", () => {
+    expect(cardSource).toContain("WORKFLOW_CARD.activeSection");
+    expect(cardSource).toContain("workflowBadgeClassName(model.badgeTone)");
+    expect(cardSource).toContain("variant={model.actionVariant}");
+    expect(WORKFLOW_CARD.activeSection).toMatch(/border-primary|bg-primary/);
   });
 });
 
