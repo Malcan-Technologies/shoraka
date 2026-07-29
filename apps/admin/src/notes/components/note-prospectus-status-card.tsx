@@ -29,6 +29,7 @@ type NoteProspectusStatusCardProps = {
 
 /**
  * Prospectus status on Note Detail. Marketplace publish lives only on Note Lifecycle.
+ * Red emphasis + primary button only while approval is still required.
  */
 export function NoteProspectusStatusCard({
   note,
@@ -50,10 +51,7 @@ export function NoteProspectusStatusCard({
             <h3 className="text-lg font-semibold">{model.heading}</h3>
             <Badge
               variant="outline"
-              className={cn(
-                "font-normal",
-                model.badgeTone ? workflowBadgeClassName(model.badgeTone) : undefined
-              )}
+              className={cn("font-normal", workflowBadgeClassName(model.badgeTone))}
             >
               {model.badgeLabel}
             </Badge>
@@ -61,7 +59,11 @@ export function NoteProspectusStatusCard({
           <p className="text-sm text-muted-foreground">{model.description}</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Button type="button" variant="default" onClick={onReviewProspectus}>
+          <Button
+            type="button"
+            variant={model.actionVariant}
+            onClick={onReviewProspectus}
+          >
             <DocumentTextIcon className="mr-2 h-4 w-4" />
             {model.primaryLabel}
           </Button>
