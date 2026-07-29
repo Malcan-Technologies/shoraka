@@ -122,29 +122,28 @@ const DEMO_FINANCIAL_SERIES = [
   },
 ] as const;
 
-function demoFutureFinancialYearEndIso(ref: Date): string {
-  // Same pattern as seed-application-helpers: FYE always strictly after seed-run "today".
-  const fye = new Date(ref.getTime() + 400 * 24 * 60 * 60 * 1000);
-  return isoDate(fye);
+/**
+ * Fixed 2024–2026 reporting span for Prospectus demo seeds.
+ * Do not use `today + 400 days` — that created FY2027 when run in mid-2026.
+ */
+const DEMO_REPORTING_YEARS = [2024, 2025, 2026] as const;
+const DEMO_FYE_ISO = "2026-09-02";
+
+function demoQuestionnaire(): FinancialStatementsQuestionnaire {
+  return { financial_year_end: DEMO_FYE_ISO };
 }
 
-function demoQuestionnaire(ref: Date): FinancialStatementsQuestionnaire {
-  return { financial_year_end: demoFutureFinancialYearEndIso(ref) };
-}
-
-/** Latest three calendar years ending at the newest SSM-expected year (or FYE year). */
+/** Fixed three calendar years FY2024|FY2025|FY2026 (no future FY2027). */
 function demoThreeYearSpan(ref: Date): {
   questionnaire: FinancialStatementsQuestionnaire;
   ssmYears: number[];
   spanYears: number[];
 } {
-  const questionnaire = demoQuestionnaire(ref);
-  const ssmYears = getAdminFinancialSummaryUserColumnYears(questionnaire, ref);
-  const newest =
-    ssmYears.length > 0
-      ? Math.max(...ssmYears)
-      : Number(questionnaire.financial_year_end.slice(0, 4));
-  const spanYears = [newest - 2, newest - 1, newest];
+  const questionnaire = demoQuestionnaire();
+  const ssmYears = getAdminFinancialSummaryUserColumnYears(questionnaire, ref).filter((y) =>
+    DEMO_REPORTING_YEARS.includes(y as (typeof DEMO_REPORTING_YEARS)[number])
+  );
+  const spanYears = [...DEMO_REPORTING_YEARS];
   return { questionnaire, ssmYears, spanYears };
 }
 

@@ -2,7 +2,11 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import type { SaveProspectusReviewDraftInput } from "@cashsouk/types";
+import type {
+  ProspectusReviewDetail,
+  ProspectusReviewGetResponse,
+  SaveProspectusReviewDraftInput,
+} from "@cashsouk/types";
 import { notesKeys } from "../query-keys";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -72,7 +76,13 @@ export function useApproveProspectusReview(noteId: string) {
       if (!res.success) throw new Error(res.error.message);
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (review: ProspectusReviewDetail) => {
+      // Apply APPROVED status immediately so the action bar drops Approve before refetch settles.
+      qc.setQueryData(
+        prospectusReviewKey(noteId),
+        (previous: ProspectusReviewGetResponse | undefined) =>
+          previous ? { ...previous, review } : previous
+      );
       void qc.invalidateQueries({ queryKey: prospectusReviewKey(noteId) });
       void qc.invalidateQueries({ queryKey: prospectusReviewPreviewKey(noteId) });
       void qc.invalidateQueries({ queryKey: notesKeys.detail(noteId) });

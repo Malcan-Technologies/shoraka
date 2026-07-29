@@ -714,7 +714,9 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(stageCta).toContain(PROSPECTUS_INVEST_CTA_DESCRIPTION);
       expect(stageCta).toContain("INVEST NOW");
       expect(stageCta).toContain("Minimum investment: RM 100.00");
-      expect(stageCta).toContain('disabled aria-disabled="true"');
+      expect(stageCta).toContain('<div class="cta-button" aria-hidden="true">INVEST NOW</div>');
+      expect(stageCta).not.toContain("<button");
+      expect(stageCta).not.toContain("disabled");
       expect(stageCta).not.toContain("CTA Paragraph");
       expect(stageCta).not.toContain("/investments/");
       expect(stageCta).not.toContain("<a ");
@@ -788,7 +790,9 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(html).toContain("INVEST WITH CONFIDENCE");
       expect(html).toContain(PROSPECTUS_INVEST_CTA_DESCRIPTION);
       expect(html).toContain("Minimum investment: RM 100.00");
-      expect(html).toContain('disabled aria-disabled="true"');
+      expect(html).toContain('<div class="cta-button" aria-hidden="true">INVEST NOW</div>');
+      expect(html).not.toContain("<button");
+      expect(html).not.toContain("disabled");
       expect(html.match(/class="risk-scale-note"/g)?.length).toBe(1);
       expect(html.match(/class="invest-confidence-description"/g)?.length).toBe(1);
       expect(html).toContain(PROSPECTUS_RISK_SCALE_NOTE);

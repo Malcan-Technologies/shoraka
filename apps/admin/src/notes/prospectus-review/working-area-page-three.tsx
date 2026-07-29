@@ -15,6 +15,7 @@ import type { PageThreeManualYears } from "@/notes/prospectus-review/page-three-
 import { ProspectusBalanceSheetWorkingTable } from "@/notes/prospectus-review/balance-sheet-working-table";
 import { ProspectusCoverageWorkingTable } from "@/notes/prospectus-review/coverage-working-table";
 import { ProspectusIncomeStatementWorkingTable } from "@/notes/prospectus-review/income-statement-working-table";
+import { ProspectusMissingFinancialYearWarning } from "@/notes/prospectus-review/missing-financial-year-warning";
 import {
   countMissingForTab,
   type ProspectusCompletionOptions,
@@ -49,11 +50,14 @@ export type WorkingAreaPageThreeProps = {
   incomeStatementTable: FinancialMetricTableModel;
   balanceSheetTable: FinancialMetricTableModel;
   coverageTable: FinancialMetricTableModel;
+  /** Display year keys aligned 1:1 with table yearHeaders (includes placeholders). */
   years: readonly string[];
   manualYears: PageThreeManualYears | undefined;
   catalogues: WorkingAreaPageThreeCatalogues;
   locked: boolean;
   canManage: boolean;
+  /** Same non-blocking ops warning as Page 2 financial comparison. */
+  financialComparisonOpsWarning?: { title: string; description: string } | null;
   updateManualField: (year: string, field: string, value: string) => void;
   updateDraft: (
     updater: (prev: ProspectusReviewStoredContent) => ProspectusReviewStoredContent
@@ -75,6 +79,7 @@ export function WorkingAreaPageThree({
   catalogues,
   locked,
   canManage,
+  financialComparisonOpsWarning = null,
   updateManualField,
   updateDraft,
   completionLabel,
@@ -94,6 +99,9 @@ export function WorkingAreaPageThree({
   const balanceMissing = countMissingForTab(draft, "balance", completionOptions);
   const coverageMissing = countMissingForTab(draft, "coverage", completionOptions);
   const takeawaysMissing = countMissingForTab(draft, "takeaways", completionOptions);
+  const showFinancialOpsWarning =
+    financialComparisonOpsWarning != null &&
+    (tab === "income" || tab === "balance" || tab === "coverage");
 
   return (
     <div className="space-y-6" data-prospectus-working-page="3">
@@ -122,6 +130,13 @@ export function WorkingAreaPageThree({
           },
         ]}
       />
+
+      {showFinancialOpsWarning && financialComparisonOpsWarning ? (
+        <ProspectusMissingFinancialYearWarning
+          title={financialComparisonOpsWarning.title}
+          description={financialComparisonOpsWarning.description}
+        />
+      ) : null}
 
       {tab === "overview" ? (
         <div role="tabpanel">

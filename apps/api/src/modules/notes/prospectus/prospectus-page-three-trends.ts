@@ -70,7 +70,7 @@ function buildCoverageTrend(
   input: ProspectusPageThreeTrendsInput
 ): ProspectusPageThreeTrendItem {
   const years = input.financialSource.years;
-  if (years.length !== 3) {
+  if (years.length !== 3 || years.some((year) => year.isPlaceholder)) {
     return unavailableTrend(metricKey, metricLabel);
   }
 

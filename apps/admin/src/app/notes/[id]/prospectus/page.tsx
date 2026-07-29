@@ -60,8 +60,10 @@ import {
   PROSPECTUS_STEP_PAGE_LABEL,
   formatActorDisplayName,
   formatProspectusReviewStatus,
+  prospectusReviewStatusBadgeClassName,
   type ProspectusWorkflowStepId,
 } from "@/notes/prospectus-review/labels";
+import { cn } from "@/lib/utils";
 import {
   PROSPECTUS_STEP_STATUS_LABEL,
   buildProspectusMissingRequiredFields,
@@ -346,12 +348,21 @@ function ProspectusReviewPageInner() {
    * Do not load live Application financial_statements for Prospectus working tables.
    */
   const frozenFinancialYears = data?.financialComparison?.years ?? [];
+  // Officer/approval years exclude Prospectus display placeholders.
+  const realFrozenFinancialYears = frozenFinancialYears.filter((year) => !year.isPlaceholder);
   const incomeStatementYearKeys =
+    realFrozenFinancialYears.length > 0
+      ? realFrozenFinancialYears.map((year) => String(year.calendarYear))
+      : pageTwoFinancialTable.yearHeaders.filter((h) => !h.isPlaceholder).length > 0
+        ? selectYearsFromPageTwoFinancialTable({
+            yearHeaders: pageTwoFinancialTable.yearHeaders.filter((h) => !h.isPlaceholder),
+          })
+        : [];
+  // Display columns (incl. placeholders) — must stay aligned with Page 2/3 table headers.
+  const displayFinancialYearKeys =
     frozenFinancialYears.length > 0
       ? frozenFinancialYears.map((year) => String(year.calendarYear))
-      : pageTwoFinancialTable.yearHeaders.length > 0
-        ? selectYearsFromPageTwoFinancialTable(pageTwoFinancialTable)
-        : [];
+      : pageTwoFinancialTable.yearHeaders.map((h) => h.yearLabel.replace(/^FY/, ""));
   const completionOptions = { incomeStatementYears: incomeStatementYearKeys };
   const stepStatuses = getProspectusStepStatuses(draft, completionOptions);
   const manualYears = draft.page3.manualFinancialInputs?.years;
@@ -599,7 +610,13 @@ function ProspectusReviewPageInner() {
                 <p className="mt-1 truncate text-sm text-muted-foreground">{data.note.title}</p>
               </div>
             </div>
-            <Badge variant="outline" className="shrink-0">
+            <Badge
+              variant="outline"
+              className={cn(
+                "shrink-0",
+                prospectusReviewStatusBadgeClassName(data.review.status, notePublished)
+              )}
+            >
               {formatProspectusReviewStatus(data.review.status, notePublished)}
             </Badge>
           </div>
@@ -729,7 +746,8 @@ function ProspectusReviewPageInner() {
                         incomeStatementTable={incomeStatementTable}
                         balanceSheetTable={balanceSheetTable}
                         coverageTable={coverageTable}
-                        years={incomeStatementYearKeys}
+                        years={displayFinancialYearKeys}
+                        financialComparisonOpsWarning={financialComparisonOpsWarning}
                         manualYears={manualYears}
                         catalogues={catalogues}
                         locked={locked}

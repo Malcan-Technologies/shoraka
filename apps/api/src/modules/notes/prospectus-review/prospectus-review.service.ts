@@ -680,8 +680,11 @@ export class ProspectusReviewService {
     const page3Input = mapProspectusPageThreeDataToInput(page3Data);
     page3Input.publicationContent = publication;
     const page3 = buildProspectusPageThree(page3Input);
+    // Approval uses real financial years only — never padded display placeholders.
     const errors = validateApprovalContent(approvedClone, {
-      incomeStatementYears: page3.incomeStatement.years.map((year) => String(year.year)),
+      incomeStatementYears: page3.incomeStatement.years
+        .filter((year) => !year.isPlaceholder)
+        .map((year) => String(year.year)),
     });
     if (errors.length > 0) {
       throw new AppError(422, "PROSPECTUS_REVIEW_INVALID", "Approval validation failed", {

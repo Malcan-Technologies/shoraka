@@ -242,7 +242,7 @@ h2{
 /* Risk label under shield — restore origin/main / Canva size (not the enlarged 14px treatment) */
 .risk-panel strong{display:block;text-align:center;font-size:12px}
 .risk-panel .prospectus-risk-description,.prospectus-risk-description{font-size:10px;line-height:1.35;font-weight:400;margin:8px 0 10px;color:var(--prospectus-text)}
-.risk-panel .scale-link{font-size:8px;font-weight:800;color:var(--prospectus-burgundy);text-decoration:none}
+.risk-panel .scale-link{font-size:8px;font-weight:800;color:var(--prospectus-burgundy);text-decoration:none;cursor:default}
 .card{border:var(--prospectus-border-width) solid var(--prospectus-border);border-radius:var(--prospectus-radius-card);overflow:hidden}
 /* Vertically stacked compound sections — one outer silhouette, no mid-seam radius */
 .connected-card-top{
@@ -353,7 +353,7 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
 .issuer-profile .issuer-meta-line{font-size:10px;font-weight:700;margin-bottom:6px}
 .plain th .fy-label,.report-box th .fy-label{display:block;font-weight:700}
 .plain th .fy-end,.report-box th .fy-end{display:block;font-size:7px;font-weight:400;margin-top:2px;color:#666}
-.cta{border:var(--prospectus-border-width) solid var(--prospectus-border-soft);border-radius:var(--prospectus-radius-card);background:var(--prospectus-cta-bg);padding:11px}.cta p{font-size:9px}.cta-button{display:block;width:100%;border:0;border-radius:5px;background:var(--prospectus-cta-button);color:#fff;text-transform:uppercase;font-weight:800;padding:8px;font-size:11px;text-align:center;text-decoration:none}.cta-button[disabled],.cta-button[aria-disabled="true"]{opacity:.85;cursor:default;pointer-events:none}.cta-minimum{text-align:center;display:block;margin-top:7px;font-size:8px}
+.cta{border:var(--prospectus-border-width) solid var(--prospectus-border-soft);border-radius:var(--prospectus-radius-card);background:var(--prospectus-cta-bg);padding:11px}.cta p{font-size:9px}.cta-button{display:block;width:100%;border:0;border-radius:5px;background:var(--prospectus-cta-button);color:#fff;text-transform:uppercase;font-weight:800;padding:8px;font-size:11px;text-align:center;text-decoration:none;cursor:default;pointer-events:none;user-select:none}.cta-minimum{text-align:center;display:block;margin-top:7px;font-size:8px}
 .risk-scale-note{margin:5px 0 0;font-size:7.5px;line-height:1.25;font-style:italic;color:var(--prospectus-muted)}
 .invest-confidence-description{margin:0 0 8px;font-size:9px;line-height:1.3}
 /* Shared page-level title block (Page 3 today; same tokens if reused elsewhere) */

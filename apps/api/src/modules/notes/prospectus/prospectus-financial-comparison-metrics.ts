@@ -125,6 +125,8 @@ export function resolveYearOverride(
   overrides: ProspectusFinancialComparisonMetricsInput["officerOverrides"]
 ): ProspectusFinancialComparisonYearOfficerOverride | null {
   if (!overrides) return null;
+  // Display placeholders never accept officer overrides.
+  if (year.isPlaceholder) return null;
   const fyeKey = year.financialYearEndIso;
   if (fyeKey && overrides[fyeKey]) return overrides[fyeKey] ?? null;
 
@@ -233,7 +235,13 @@ export function buildProspectusFinancialComparisonMetrics(
       key,
       label: PROSPECTUS_FINANCIAL_COMPARISON_METRIC_LABELS[key],
       values: source.years.map((year) =>
-        metricValueForYear(key, year.rawFinancials, resolveYearOverride(year, input.officerOverrides))
+        year.isPlaceholder
+          ? PROSPECTUS_DATA_NOT_AVAILABLE
+          : metricValueForYear(
+              key,
+              year.rawFinancials,
+              resolveYearOverride(year, input.officerOverrides)
+            )
       ),
     }));
 
@@ -255,15 +263,21 @@ export function buildProspectusFinancialComparisonMetrics(
 export function toAdminFinancialComparisonTable(
   metrics: ProspectusFinancialComparisonMetrics
 ): {
-  yearHeaders: Array<{ key: string; yearLabel: string; fyeLabel: string }>;
+  yearHeaders: Array<{
+    key: string;
+    yearLabel: string;
+    fyeLabel: string;
+    isPlaceholder?: boolean;
+  }>;
   rows: Array<{ metric: string; values: string[] }>;
   sourceFooter: string;
 } {
   return {
     yearHeaders: metrics.years.map((year) => ({
-      key: year.financialYearEndIso,
+      key: year.financialYearEndIso || `placeholder:${year.year}`,
       yearLabel: year.yearLabel,
       fyeLabel: year.financialYearEndLabel,
+      isPlaceholder: year.isPlaceholder === true,
     })),
     rows: metrics.rows.map((row) => ({
       metric: row.label,
@@ -308,11 +322,12 @@ export function toAdminFrozenFinancialYears(
   years: ProspectusFinancialComparisonYear[]
 ): ProspectusFrozenFinancialYear[] {
   return years.map((year) => ({
-    financialYearEndIso: year.financialYearEndIso,
+    financialYearEndIso: year.financialYearEndIso || `placeholder:${year.year}`,
     calendarYear: year.year,
     label: year.yearLabel,
     fyeLabel: year.financialYearEndLabel,
     sourceType: year.recordSource === "ctos_audited" ? "CTOS" : "UNAUDITED",
     raw: toFrozenRaw(year.rawFinancials),
+    isPlaceholder: year.isPlaceholder === true,
   }));
 }

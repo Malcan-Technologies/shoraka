@@ -273,6 +273,26 @@ describe("prospectus workflow transitions", () => {
     expect(service.submitForReview).toBeUndefined();
   });
 
+  it("rejects duplicate approve without creating another publication", async () => {
+    const draft = completeDraft();
+    mockFindUnique.mockResolvedValue(
+      baseRow({
+        status: ProspectusReviewStatus.APPROVED,
+        draft_content: draft,
+        approved_content: draft,
+        approved_publication_id: "pub-1",
+      })
+    );
+    mockPublicationCreate.mockClear();
+
+    await expect(service.approve("note-1", actor)).rejects.toMatchObject({
+      code: "PROSPECTUS_REVIEW_ALREADY_APPROVED",
+      statusCode: 409,
+    });
+    expect(mockPublicationCreate).not.toHaveBeenCalled();
+    expect(mockTransaction).not.toHaveBeenCalled();
+  });
+
   it("keeps APPROVED when saving identical draft content", async () => {
     const draft = completeDraft();
     const row = baseRow({

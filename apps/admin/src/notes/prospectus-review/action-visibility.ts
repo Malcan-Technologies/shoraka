@@ -14,6 +14,7 @@ export type ProspectusActionVisibility = {
 
 /**
  * Action bar visibility for Draft → Approved → Published (no submit/reopen).
+ * Approve is Draft-only — completeness may disable the button, but never show it when already APPROVED.
  */
 export function getProspectusActionVisibility(input: {
   step: ProspectusWorkflowStepId;
@@ -28,7 +29,7 @@ export function getProspectusActionVisibility(input: {
   return {
     saveDraft: canEdit,
     preview: canEdit,
-    approve: canEdit && (workflow === "DRAFT" || workflow === "APPROVED"),
+    approve: canEdit && workflow === "DRAFT",
     viewProspectus: published,
     backToNote: workflow === "APPROVED" || published,
   };

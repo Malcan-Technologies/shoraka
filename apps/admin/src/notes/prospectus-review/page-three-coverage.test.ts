@@ -401,6 +401,46 @@ describe("page three coverage verification", () => {
     ]);
   });
 
+  it("renders display placeholder years as — without using officer manuals", () => {
+    const empty: import("@cashsouk/types").ProspectusFrozenFinancialRaw = {
+      turnover: null,
+      plnpbt: null,
+      plnpat: null,
+      bscatot: null,
+      bsfatot: null,
+      othass: null,
+      bsclbank: null,
+      curlib: null,
+      bsslltd: null,
+      bsclstd: null,
+      bsqpuc: null,
+      totass: null,
+      totlib: null,
+      profit_margin: null,
+      return_on_equity: null,
+      currat: null,
+    };
+    const years = [
+      { ...frozenYear(2024, empty), isPlaceholder: true },
+      frozenYear(2025),
+      frozenYear(2026),
+    ];
+    const manuals = {
+      "2024": { grossProfit: 999 },
+      "2025": { grossProfit: 10 },
+      "2026": { grossProfit: 20 },
+    };
+    const income = buildPageThreeIncomeStatementTable(years, manuals);
+    expect(income.yearHeaders.map((h) => h.yearLabel)).toEqual([
+      "FY2024",
+      "FY2025",
+      "FY2026",
+    ]);
+    expect(income.yearHeaders[0]?.isPlaceholder).toBe(true);
+    const gp = income.rows.find((r) => r.metric === "Gross Profit");
+    expect(gp?.values[0]).toBe("—");
+  });
+
   it("Income, Balance, and Coverage share the same frozen year headers", () => {
     const income = buildPageThreeIncomeStatementTable(sampleFrozenYears, undefined);
     const balance = buildPageThreeBalanceSheetTable(sampleFrozenYears, undefined);

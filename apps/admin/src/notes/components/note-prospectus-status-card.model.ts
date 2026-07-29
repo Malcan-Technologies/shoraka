@@ -1,6 +1,9 @@
 import type { NoteDetail } from "@cashsouk/types";
+import type { WorkflowStatusTone } from "@/notes/utils/workflow-status-tokens";
 
 export type ProspectusNoteDetailPhase = "draft" | "approved" | "published";
+
+export type ProspectusStatusCardActionVariant = "default" | "outline";
 
 export type ProspectusStatusCardModel = {
   phase: ProspectusNoteDetailPhase;
@@ -9,7 +12,15 @@ export type ProspectusStatusCardModel = {
   badgeLabel: "Draft" | "Approved" | "Published";
   primaryLabel: string;
   secondaryLabel: string | null;
+  /** Red alert card while Prospectus still needs approval. */
   emphasize: boolean;
+  /**
+   * Extra workflow badge tone. Only Approved uses success (green).
+   * Draft / Published / others stay null → original plain outline Badge.
+   */
+  badgeTone: WorkflowStatusTone | null;
+  /** Primary (red) while action is required; outline when reviewing approved/published. */
+  actionVariant: ProspectusStatusCardActionVariant;
 };
 
 /** Pure UI model for Admin Note Detail prospectus next-action card. */
@@ -27,6 +38,8 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
       primaryLabel: "View Prospectus",
       secondaryLabel: null,
       emphasize: false,
+      badgeTone: null,
+      actionVariant: "outline",
     };
   }
 
@@ -36,12 +49,15 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
       heading: "Ready to publish",
       description: "The prospectus is approved and this Note is eligible for publication.",
       badgeLabel: "Approved",
-      primaryLabel: "Publish Note",
-      secondaryLabel: "Review Prospectus",
-      emphasize: true,
+      primaryLabel: "Review Prospectus",
+      secondaryLabel: null,
+      emphasize: false,
+      badgeTone: "success",
+      actionVariant: "outline",
     };
   }
 
+  // DRAFT, READY_FOR_REVIEW, missing review, or any pre-approval state.
   return {
     phase: "draft",
     heading: "Prospectus approval required",
@@ -50,5 +66,7 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
     primaryLabel: "Review Prospectus",
     secondaryLabel: null,
     emphasize: true,
+    badgeTone: null,
+    actionVariant: "default",
   };
 }
