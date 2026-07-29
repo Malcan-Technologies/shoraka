@@ -85,6 +85,32 @@ describe("resolveApplicationStatusAfterCommercialAccept", () => {
     ).toBe(ApplicationStatus.INVOICE_SIGNED);
   });
 
+  it("promotes to INVOICE_PENDING when contract path has invoices and invoice tab unlocked", () => {
+    expect(
+      resolveApplicationStatusAfterCommercialAccept({
+        isInvoiceOnly: false,
+        hasOfferAcceptance: true,
+        action: "accept",
+        isContractPath: true,
+        invoiceCount: 2,
+        isInvoiceTabUnlocked: true,
+      })
+    ).toBe(ApplicationStatus.INVOICE_PENDING);
+  });
+
+  it("keeps CONTRACT_SIGNED when invoice tab still locked", () => {
+    expect(
+      resolveApplicationStatusAfterCommercialAccept({
+        isInvoiceOnly: false,
+        hasOfferAcceptance: true,
+        action: "accept",
+        isContractPath: true,
+        invoiceCount: 2,
+        isInvoiceTabUnlocked: false,
+      })
+    ).toBe(ApplicationStatus.CONTRACT_SIGNED);
+  });
+
   it("returns null for legacy direct accept", () => {
     expect(
       resolveApplicationStatusAfterCommercialAccept({

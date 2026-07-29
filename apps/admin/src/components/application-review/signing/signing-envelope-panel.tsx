@@ -30,7 +30,9 @@ import {
   type ApplicationPersonRow,
   type SigningEnvelopeDto,
   type SigningEnvelopeStatus,
+  toTitleCase,
 } from "@cashsouk/types";
+import { getSigningEnvelopeBadgeClass } from "@cashsouk/config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,16 +56,6 @@ import {
   useExtendContractSigningDeadline,
   useExtendInvoiceSigningDeadline,
 } from "@/hooks/use-application-review-actions";
-
-const STATUS_STYLES: Record<SigningEnvelopeStatus, string> = {
-  DRAFT: "bg-muted text-muted-foreground",
-  SENT: "bg-amber-100 text-amber-800",
-  IN_PROGRESS: "bg-amber-100 text-amber-800",
-  COMPLETED: "bg-emerald-100 text-emerald-800",
-  DECLINED: "bg-primary/10 text-primary",
-  VOIDED: "bg-muted text-muted-foreground",
-  EXPIRED: "bg-muted text-muted-foreground",
-};
 
 const LIVE_STATUSES = new Set<SigningEnvelopeStatus>(["DRAFT", "SENT", "IN_PROGRESS"]);
 
@@ -320,12 +312,11 @@ export function SigningEnvelopePanel({
         </div>
       ) : null}
       {showOfferAcceptanceSummary && acceptancePresentation ? (
-        <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 space-y-1">
+        <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-medium text-foreground">Offer acceptance</span>
             <Badge variant="secondary">{acceptancePresentation.label}</Badge>
           </div>
-          <p className="text-sm text-muted-foreground">{acceptancePresentation.hint}</p>
         </div>
       ) : null}
 
@@ -460,8 +451,8 @@ function ActiveEnvelopeCard({
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="truncate font-medium">{envelope.title}</span>
-          <Badge className={STATUS_STYLES[envelope.status]}>
-            {envelope.status.replace(/_/g, " ")}
+          <Badge className={getSigningEnvelopeBadgeClass(envelope.status)}>
+            {toTitleCase(envelope.status.replace(/_/g, " "))}
           </Badge>
         </div>
         {canVoid ? (
@@ -514,8 +505,8 @@ function HistoryEnvelopeRow({
               className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
             />
             <span className="min-w-0 flex-1 truncate text-sm font-medium">{envelope.title}</span>
-            <Badge className={cn("shrink-0 font-normal", STATUS_STYLES[envelope.status])}>
-              {envelope.status.replace(/_/g, " ")}
+            <Badge className={cn("shrink-0", getSigningEnvelopeBadgeClass(envelope.status))}>
+              {toTitleCase(envelope.status.replace(/_/g, " "))}
             </Badge>
             <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
               {progress.signed}/{progress.total_required} signed

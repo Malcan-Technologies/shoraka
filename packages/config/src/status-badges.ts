@@ -1,16 +1,18 @@
 /**
- * Centralized status badge config. Colors grouped by meaning:
- * - action: Draft, Amendment Requested — user must act
- * - submitted: Submitted, Resubmitted — waiting for admin pickup
- * - in-progress: Under Review, Contract/Invoice Pending/Sent, Offer Sent — admin processing / awaiting issuer
- * - success: Approved, Completed, Contract Accepted — done
- * - rejected: Rejected — admin / platform negative outcome
- * - withdrawn: User withdrew (issuer UI); distinct from Declined (user declined an offer)
- * - declined: Issuer declined an offer (issuer UI; same red styling as Rejected)
- * - neutral: Pending, Archived — inactive
+ * Centralized status badge config. Four semantic colour groups (+ neutral):
+ * - issuer_action: Issuer must act (amber — status.action)
+ * - admin_action: Waiting on CashSouk (blue — status.submitted)
+ * - completed: Success / signed (emerald — status.success)
+ * - expired_closed: Negative / closed (red — status.rejected)
+ * - neutral: Inactive (slate — status.neutral)
  */
 
-import { WithdrawReason, formatWithdrawLabel } from "@cashsouk/types";
+import {
+  WithdrawReason,
+  formatWithdrawLabel,
+  type OfferAcceptanceStatus,
+  type SigningEnvelopeStatus,
+} from "@cashsouk/types";
 
 export type StatusPresentationOptions = {
   /**
@@ -20,13 +22,15 @@ export type StatusPresentationOptions = {
   issuerWithdrawPresentation?: boolean;
 };
 
-export type StatusVariant =
-  | "success"
-  | "in_progress"
-  | "action"
-  | "rejected"
-  | "neutral"
-  | "withdrawn";
+export type StatusBadgeGroup =
+  | "issuer_action"
+  | "admin_action"
+  | "completed"
+  | "expired_closed"
+  | "neutral";
+
+/** Semantic variant; withdrawn uses expired_closed styling but distinct for issuer logic. */
+export type StatusVariant = StatusBadgeGroup | "withdrawn";
 
 /** Tailwind classes for badge, icon, dot. Same pattern everywhere. */
 export interface StatusPresentation {
@@ -38,193 +42,129 @@ export interface StatusPresentation {
 }
 
 /** Shared badge classes per group. Dots use brighter fills than label text so small circles stay distinguishable. */
-const GROUP = {
-  action: "border-transparent bg-status-action-bg text-status-action-text dark:bg-amber-950/40 dark:text-amber-300",
-  submitted: "border-transparent bg-status-submitted-bg text-status-submitted-text dark:bg-blue-950/40 dark:text-blue-300",
-  "in-progress": "border-transparent bg-status-in-progress-bg text-status-in-progress-text dark:bg-indigo-950/40 dark:text-indigo-300",
-  success: "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300",
-  rejected: "border-transparent bg-status-rejected-bg text-status-rejected-text dark:bg-red-950/40 dark:text-red-300",
-  neutral: "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300",
-};
-const DOT = {
-  action: "bg-status-action-text",
-  submitted: "bg-status-submitted-text",
-  "in-progress": "bg-status-in-progress-text",
-  success: "bg-emerald-500 dark:bg-emerald-400",
-  rejected: "bg-status-rejected-text",
-  neutral: "bg-slate-400 dark:bg-slate-500",
+export const STATUS_BADGE_GROUPS: Record<
+  StatusBadgeGroup,
+  { badgeClass: string; iconClass: string; dotClass: string; label: string }
+> = {
+  issuer_action: {
+    label: "Issuer action",
+    badgeClass:
+      "border-transparent bg-status-action-bg text-status-action-text dark:bg-amber-950/40 dark:text-amber-300",
+    iconClass: "text-amber-600 dark:text-amber-400",
+    dotClass: "bg-status-action-text",
+  },
+  admin_action: {
+    label: "Admin action",
+    badgeClass:
+      "border-transparent bg-status-submitted-bg text-status-submitted-text dark:bg-blue-950/40 dark:text-blue-300",
+    iconClass: "text-blue-600 dark:text-blue-400",
+    dotClass: "bg-status-submitted-text",
+  },
+  completed: {
+    label: "Completed",
+    badgeClass:
+      "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300",
+    iconClass: "text-emerald-700 dark:text-emerald-400",
+    dotClass: "bg-emerald-500 dark:bg-emerald-400",
+  },
+  expired_closed: {
+    label: "Expired / closed",
+    badgeClass:
+      "border-transparent bg-status-rejected-bg text-status-rejected-text dark:bg-red-950/40 dark:text-red-300",
+    iconClass: "text-red-600 dark:text-red-400",
+    dotClass: "bg-status-rejected-text",
+  },
+  neutral: {
+    label: "Neutral",
+    badgeClass:
+      "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300",
+    iconClass: "text-slate-600 dark:text-slate-400",
+    dotClass: "bg-slate-400 dark:bg-slate-500",
+  },
 };
 
+const GROUP = Object.fromEntries(
+  Object.entries(STATUS_BADGE_GROUPS).map(([key, value]) => [key, value.badgeClass])
+) as Record<StatusBadgeGroup, string>;
+
+const ICON = Object.fromEntries(
+  Object.entries(STATUS_BADGE_GROUPS).map(([key, value]) => [key, value.iconClass])
+) as Record<StatusBadgeGroup, string>;
+
+const DOT = Object.fromEntries(
+  Object.entries(STATUS_BADGE_GROUPS).map(([key, value]) => [key, value.dotClass])
+) as Record<StatusBadgeGroup, string>;
+
+function groupPresentation(
+  group: StatusBadgeGroup,
+  label?: string,
+  variant?: StatusVariant
+): Omit<StatusPresentation, "label"> & { label?: string } {
+  return {
+    label,
+    badgeClass: GROUP[group],
+    iconClass: ICON[group],
+    dotClass: DOT[group],
+    variant: variant ?? group,
+  };
+}
+
 const STATUS_PRESENTATION: Record<string, Omit<StatusPresentation, "label"> & { label?: string }> = {
-  DRAFT: {
-    label: "Draft",
-    badgeClass: GROUP.action,
-    iconClass: "text-amber-600 dark:text-amber-400",
-    dotClass: DOT.action,
-    variant: "action",
-  },
-  SUBMITTED: {
-    label: "Submitted",
-    badgeClass: GROUP.submitted,
-    iconClass: "text-blue-600 dark:text-blue-400",
-    dotClass: DOT.submitted,
-    variant: "in_progress",
-  },
-  UNDER_REVIEW: {
-    label: "Under Review",
-    badgeClass: GROUP["in-progress"],
-    iconClass: "text-indigo-600 dark:text-indigo-400",
-    dotClass: DOT["in-progress"],
-    variant: "in_progress",
-  },
-  CONTRACT_PENDING: {
-    label: "Contract Pending",
-    badgeClass: GROUP["in-progress"],
-    iconClass: "text-indigo-600 dark:text-indigo-400",
-    dotClass: DOT["in-progress"],
-    variant: "in_progress",
-  },
-  CONTRACT_SENT: {
-    label: "Contract Sent",
-    badgeClass: GROUP["in-progress"],
-    iconClass: "text-indigo-600 dark:text-indigo-400",
-    dotClass: DOT["in-progress"],
-    variant: "in_progress",
-  },
-  CONTRACT_ACCEPTED: {
-    label: "Contract Accepted",
-    badgeClass: GROUP["in-progress"],
-    iconClass: "text-indigo-600 dark:text-indigo-400",
-    dotClass: DOT["in-progress"],
-    variant: "in_progress",
-  },
-  INVOICE_ACCEPTED: {
-    label: "Invoice Accepted",
-    badgeClass: GROUP["in-progress"],
-    iconClass: "text-indigo-600 dark:text-indigo-400",
-    dotClass: DOT["in-progress"],
-    variant: "in_progress",
-  },
-  SIGNING_PENDING: {
-    label: "Signing Pending",
-    badgeClass: GROUP["in-progress"],
-    iconClass: "text-indigo-600 dark:text-indigo-400",
-    dotClass: DOT["in-progress"],
-    variant: "in_progress",
-  },
-  CONTRACT_SIGNED: {
-    label: "Contract Signed",
-    badgeClass: GROUP.success,
-    iconClass: "text-emerald-700 dark:text-emerald-400",
-    dotClass: DOT.success,
-    variant: "success",
-  },
-  INVOICE_SIGNED: {
-    label: "Invoice Signed",
-    badgeClass: GROUP.success,
-    iconClass: "text-emerald-700 dark:text-emerald-400",
-    dotClass: DOT.success,
-    variant: "success",
-  },
-  INVOICE_PENDING: {
-    label: "Invoice Pending",
-    badgeClass: GROUP["in-progress"],
-    iconClass: "text-indigo-600 dark:text-indigo-400",
-    dotClass: DOT["in-progress"],
-    variant: "in_progress",
-  },
-  INVOICES_SENT: {
-    label: "Invoices Sent",
-    badgeClass: GROUP["in-progress"],
-    iconClass: "text-indigo-600 dark:text-indigo-400",
-    dotClass: DOT["in-progress"],
-    variant: "in_progress",
-  },
-  OFFER_SENT: {
-    label: "Offer Sent",
-    badgeClass: GROUP["in-progress"],
-    iconClass: "text-indigo-600 dark:text-indigo-400",
-    dotClass: DOT["in-progress"],
-    variant: "in_progress",
-  },
-  AMENDMENT_REQUESTED: {
-    label: "Amendment Requested",
-    badgeClass: GROUP.action,
-    iconClass: "text-amber-600 dark:text-amber-400",
-    dotClass: DOT.action,
-    variant: "action",
-  },
-  RESUBMITTED: {
-    label: "Resubmitted",
-    badgeClass: GROUP.submitted,
-    iconClass: "text-blue-600 dark:text-blue-400",
-    dotClass: DOT.submitted,
-    variant: "in_progress",
-  },
-  APPROVED: {
-    label: "Approved",
-    badgeClass: GROUP.success,
-    iconClass: "text-emerald-700 dark:text-emerald-400",
-    dotClass: DOT.success,
-    variant: "success",
-  },
-  COMPLETED: {
-    label: "Completed",
-    badgeClass: GROUP.success,
-    iconClass: "text-emerald-700 dark:text-emerald-400",
-    dotClass: DOT.success,
-    variant: "success",
-  },
-  REJECTED: {
-    label: "Rejected",
-    badgeClass: GROUP.rejected,
-    iconClass: "text-red-600 dark:text-red-400",
-    dotClass: DOT.rejected,
-    variant: "rejected",
-  },
-  WITHDRAWN: {
-    label: "Withdrawn",
-    badgeClass: GROUP.rejected,
-    iconClass: "text-red-600 dark:text-red-400",
-    dotClass: DOT.rejected,
-    variant: "withdrawn",
-  },
-  DECLINED: {
-    label: "Declined",
-    badgeClass: GROUP.rejected,
-    iconClass: "text-red-600 dark:text-red-400",
-    dotClass: DOT.rejected,
-    variant: "rejected",
-  },
+  DRAFT: { ...groupPresentation("issuer_action"), label: "Draft" },
+  SUBMITTED: { ...groupPresentation("admin_action"), label: "Submitted" },
+  UNDER_REVIEW: { ...groupPresentation("admin_action"), label: "Under Review" },
+  CONTRACT_PENDING: { ...groupPresentation("admin_action"), label: "Contract Pending" },
+  CONTRACT_SENT: { ...groupPresentation("issuer_action"), label: "Contract Sent" },
+  CONTRACT_ACCEPTED: { ...groupPresentation("admin_action"), label: "Contract Accepted" },
+  INVOICE_ACCEPTED: { ...groupPresentation("admin_action"), label: "Invoice Accepted" },
+  SIGNING_PENDING: { ...groupPresentation("admin_action"), label: "Signing Pending" },
+  CONTRACT_SIGNED: { ...groupPresentation("completed"), label: "Contract Signed" },
+  INVOICE_SIGNED: { ...groupPresentation("completed"), label: "Invoice Signed" },
+  INVOICE_PENDING: { ...groupPresentation("admin_action"), label: "Invoice Pending" },
+  INVOICES_SENT: { ...groupPresentation("issuer_action"), label: "Invoices Sent" },
+  OFFER_SENT: { ...groupPresentation("issuer_action"), label: "Offer Sent" },
+  AMENDMENT_REQUESTED: { ...groupPresentation("issuer_action"), label: "Amendment Requested" },
+  RESUBMITTED: { ...groupPresentation("admin_action"), label: "Resubmitted" },
+  APPROVED: { ...groupPresentation("completed"), label: "Approved" },
+  COMPLETED: { ...groupPresentation("completed"), label: "Completed" },
+  REJECTED: { ...groupPresentation("expired_closed"), label: "Rejected" },
+  WITHDRAWN: { ...groupPresentation("expired_closed", undefined, "withdrawn"), label: "Withdrawn" },
+  DECLINED: { ...groupPresentation("expired_closed"), label: "Declined" },
   OFFER_EXPIRED: {
+    ...groupPresentation("expired_closed", undefined, "withdrawn"),
     label: "Offer Expired",
-    badgeClass: GROUP.rejected,
-    iconClass: "text-red-600 dark:text-red-400",
-    dotClass: DOT.rejected,
-    variant: "withdrawn",
   },
-  ARCHIVED: {
-    label: "Archived",
-    badgeClass: GROUP.neutral,
-    iconClass: "text-slate-600 dark:text-slate-400",
-    dotClass: DOT.neutral,
-    variant: "neutral",
-  },
-  PENDING: {
-    label: "Pending",
-    badgeClass: GROUP.neutral,
-    iconClass: "text-slate-600 dark:text-slate-400",
-    dotClass: DOT.neutral,
-    variant: "neutral",
-  },
+  ARCHIVED: { ...groupPresentation("neutral"), label: "Archived" },
+  PENDING: { ...groupPresentation("neutral"), label: "Pending" },
 };
 
 const PENDING_FALLBACK: StatusPresentation = {
   label: "Pending",
   badgeClass: GROUP.neutral,
-  iconClass: "text-slate-600 dark:text-slate-400",
+  iconClass: ICON.neutral,
   dotClass: DOT.neutral,
   variant: "neutral",
+};
+
+const OFFER_ACCEPTANCE_PHASE_GROUP: Record<OfferAcceptanceStatus, StatusBadgeGroup> = {
+  PENDING_ISSUER: "issuer_action",
+  CHANGES_REQUESTED: "issuer_action",
+  PENDING_ADMIN_REVIEW: "admin_action",
+  APPROVED_FOR_SIGNING: "admin_action",
+  SIGNING_IN_PROGRESS: "admin_action",
+  COMPLETED: "completed",
+  REJECTED: "expired_closed",
+  DECLINED: "expired_closed",
+};
+
+const SIGNING_ENVELOPE_STATUS_GROUP: Record<SigningEnvelopeStatus, StatusBadgeGroup> = {
+  DRAFT: "neutral",
+  SENT: "issuer_action",
+  IN_PROGRESS: "issuer_action",
+  COMPLETED: "completed",
+  DECLINED: "expired_closed",
+  VOIDED: "expired_closed",
+  EXPIRED: "expired_closed",
 };
 
 function toLabel(status: string): string {
@@ -280,7 +220,7 @@ export function resolveIssuerInvoiceStatusBadgeKey(
   return API_STATUS_TO_BADGE_KEY[upper] ?? (status?.toLowerCase() ?? "draft");
 }
 
-/** All status keys for dev/showcase pages. */
+/** All application status keys for dev/showcase pages. */
 export const STATUS_EXAMPLE_KEYS = [
   "DRAFT",
   "SUBMITTED",
@@ -306,12 +246,48 @@ export const STATUS_EXAMPLE_KEYS = [
   "PENDING",
 ] as const;
 
+/** Offer acceptance phase keys for dev/showcase pages. */
+export const OFFER_ACCEPTANCE_EXAMPLE_KEYS = [
+  "PENDING_ISSUER",
+  "PENDING_ADMIN_REVIEW",
+  "CHANGES_REQUESTED",
+  "APPROVED_FOR_SIGNING",
+  "SIGNING_IN_PROGRESS",
+  "COMPLETED",
+  "REJECTED",
+  "DECLINED",
+] as const satisfies readonly OfferAcceptanceStatus[];
+
+/** Signing envelope status keys for dev/showcase pages. */
+export const SIGNING_ENVELOPE_EXAMPLE_KEYS = [
+  "DRAFT",
+  "SENT",
+  "IN_PROGRESS",
+  "COMPLETED",
+  "DECLINED",
+  "VOIDED",
+  "EXPIRED",
+] as const satisfies readonly SigningEnvelopeStatus[];
+
+/** Badge class for offer acceptance phase badges (Acceptance tab). */
+export function getOfferAcceptancePhaseBadgeClass(status: OfferAcceptanceStatus): string {
+  return GROUP[OFFER_ACCEPTANCE_PHASE_GROUP[status]];
+}
+
+/** Badge class for signing envelope status badges. */
+export function getSigningEnvelopeBadgeClass(status: SigningEnvelopeStatus): string {
+  return GROUP[SIGNING_ENVELOPE_STATUS_GROUP[status]];
+}
+
 /** Badge key (lowercase) → presentation. For issuer card badges. */
 const BADGE_KEY_PRESENTATION: Record<string, StatusPresentation> = {
   draft: { ...STATUS_PRESENTATION.DRAFT, label: "Draft" } as StatusPresentation,
   submitted: { ...STATUS_PRESENTATION.SUBMITTED, label: "Submitted" } as StatusPresentation,
   under_review: { ...STATUS_PRESENTATION.UNDER_REVIEW, label: "Under Review" } as StatusPresentation,
-  amendment_requested: { ...STATUS_PRESENTATION.AMENDMENT_REQUESTED, label: "Action Required" } as StatusPresentation,
+  amendment_requested: {
+    ...STATUS_PRESENTATION.AMENDMENT_REQUESTED,
+    label: "Action Required",
+  } as StatusPresentation,
   resubmitted: { ...STATUS_PRESENTATION.RESUBMITTED, label: "Resubmitted" } as StatusPresentation,
   offer_sent: { ...STATUS_PRESENTATION.OFFER_SENT, label: "Offer Received" } as StatusPresentation,
   accepted: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,

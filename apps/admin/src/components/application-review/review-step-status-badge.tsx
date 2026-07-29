@@ -37,7 +37,7 @@ export function ReviewStepStatusBadge({ status, size = "md" }: ReviewStepStatusB
   const Icon = config.Icon;
   const isCompact = size === "sm";
   const iconSize = isCompact ? "h-3 w-3" : "h-3.5 w-3.5";
-  const sizeClass = isCompact ? "text-[11px] px-1.5 py-0 shrink-0" : "";
+  const sizeClass = isCompact ? "text-xs px-1.5 py-0 shrink-0" : "";
   const displayText = toTitleCase(presentation.label);
 
   return (

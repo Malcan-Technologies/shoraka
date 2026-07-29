@@ -436,8 +436,6 @@ export function resolveStatusAfterOfferAcceptanceSubmit(workflow: unknown): Offe
 
 export type OfferAcceptanceStatusPresentation = {
   label: string;
-  /** Short hint for admin / issuer banners */
-  hint: string;
 };
 
 export function getOfferAcceptanceStatusPresentation(
@@ -445,21 +443,21 @@ export function getOfferAcceptanceStatusPresentation(
 ): OfferAcceptanceStatusPresentation {
   switch (status) {
     case "PENDING_ISSUER":
-      return { label: "Pending issuer", hint: "Issuer must upload acceptance documents." };
+      return { label: "Pending Issuer" };
     case "PENDING_ADMIN_REVIEW":
-      return { label: "Pending admin review", hint: "Review acceptance documents before signing can start." };
+      return { label: "Pending Review" };
     case "CHANGES_REQUESTED":
-      return { label: "Changes requested", hint: "Issuer must update acceptance documents and resubmit." };
+      return { label: "Changes Requested" };
     case "REJECTED":
-      return { label: "Acceptance rejected", hint: "Offer was withdrawn after acceptance was rejected." };
+      return { label: "Acceptance Rejected" };
     case "DECLINED":
-      return { label: "Offer declined", hint: "Issuer declined this offer; acceptance and signing are closed." };
+      return { label: "Offer Declined" };
     case "APPROVED_FOR_SIGNING":
-      return { label: "Approved for signing", hint: "Issuer can configure signers and send the signing package." };
+      return { label: "Approved For Signing" };
     case "SIGNING_IN_PROGRESS":
-      return { label: "Signing in progress", hint: "Signing package has been sent." };
+      return { label: "Signing In Progress" };
     case "COMPLETED":
-      return { label: "Completed", hint: "Signing package completed; offer accepted." };
+      return { label: "Completed" };
   }
 }
 

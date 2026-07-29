@@ -87,9 +87,17 @@ export function resolveApplicationStatusAfterCommercialAccept(input: {
   hasOfferAcceptance: boolean;
   action: "accept" | "reject";
   isContractPath: boolean;
+  /** Contract path: invoices present and invoice tab unlocked → INVOICE_PENDING instead of CONTRACT_SIGNED. */
+  invoiceCount?: number;
+  isInvoiceTabUnlocked?: boolean;
 }): ApplicationStatus | null {
   if (input.action !== "accept" || !input.hasOfferAcceptance) return null;
-  if (input.isContractPath) return ApplicationStatus.CONTRACT_SIGNED;
+  if (input.isContractPath) {
+    if ((input.invoiceCount ?? 0) > 0 && input.isInvoiceTabUnlocked) {
+      return ApplicationStatus.INVOICE_PENDING;
+    }
+    return ApplicationStatus.CONTRACT_SIGNED;
+  }
   if (input.isInvoiceOnly) return ApplicationStatus.INVOICE_SIGNED;
   return null;
 }

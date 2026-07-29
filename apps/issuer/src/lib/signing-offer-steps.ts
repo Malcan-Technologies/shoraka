@@ -169,7 +169,7 @@ function stepShells(input: SigningOfferStepShellInput): StepShell[] {
       shells.push({
         id: "rejected",
         label: presentation.label,
-        description: presentation.hint,
+        description: "This offer is closed",
       });
       return shells;
     }
@@ -178,7 +178,7 @@ function stepShells(input: SigningOfferStepShellInput): StepShell[] {
       shells.push({
         id: "declined",
         label: presentation.label,
-        description: presentation.hint,
+        description: "This offer is closed",
       });
       return shells;
     }

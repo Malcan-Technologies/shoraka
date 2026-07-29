@@ -9,10 +9,21 @@ import { notFound } from "next/navigation";
 import {
   getStatusPresentation,
   getStatusPresentationByBadgeKey,
+  getOfferAcceptancePhaseBadgeClass,
+  getSigningEnvelopeBadgeClass,
+  STATUS_BADGE_GROUPS,
   STATUS_EXAMPLE_KEYS,
+  OFFER_ACCEPTANCE_EXAMPLE_KEYS,
+  SIGNING_ENVELOPE_EXAMPLE_KEYS,
   API_STATUS_TO_BADGE_KEY,
+  type StatusBadgeGroup,
 } from "@cashsouk/config";
-import { WithdrawReason } from "@cashsouk/types";
+import {
+  WithdrawReason,
+  getOfferAcceptanceStatusPresentation,
+  type OfferAcceptanceStatus,
+  type SigningEnvelopeStatus,
+} from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { APPLICATION_STATUS_PRIORITY } from "@/app/(application-management)/applications/status";
@@ -59,10 +70,26 @@ function BadgeItem({
   );
 }
 
+function envelopeLabel(status: SigningEnvelopeStatus): string {
+  return status
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 export default function StatusExamplesPage() {
   if (process.env.NODE_ENV !== "development") {
     notFound();
   }
+
+  const groupOrder: StatusBadgeGroup[] = [
+    "issuer_action",
+    "admin_action",
+    "completed",
+    "expired_closed",
+    "neutral",
+  ];
 
   return (
     <div className="min-h-screen bg-background p-6 md:p-8">
@@ -70,9 +97,30 @@ export default function StatusExamplesPage() {
         <header>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Status Badge Reference</h1>
           <p className="mt-1 text-[15px] text-muted-foreground">
-            Dev-only. Admin: raw labels. Issuer: collapsed (e.g. Contract Pending → Under Review). Archived never shown in admin or issuer listing.
+            Dev-only. Four semantic colour groups (+ neutral). Admin: raw labels. Issuer: collapsed (e.g. Contract Pending → Under Review).
           </p>
         </header>
+
+        <Section title="Colour groups">
+          <p className="text-sm text-muted-foreground mb-3">
+            All application, offer-acceptance, and signing-envelope badges map to one of these groups.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {groupOrder.map((group) => {
+              const g = STATUS_BADGE_GROUPS[group];
+              return (
+                <BadgeItem
+                  key={group}
+                  badgeClass={g.badgeClass}
+                  dotClass={g.dotClass}
+                  label={g.label}
+                  meta={group}
+                  noDot
+                />
+              );
+            })}
+          </div>
+        </Section>
 
         <div className="grid gap-6 md:grid-cols-2">
           <Section title="DB → Display (all)">
@@ -85,6 +133,7 @@ export default function StatusExamplesPage() {
                   <tr className="border-b text-left sticky top-0 bg-card">
                     <th className="py-2 font-medium font-mono text-xs">DB</th>
                     <th className="py-2 font-medium">Display</th>
+                    <th className="py-2 font-medium font-mono text-xs">Group</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -97,6 +146,7 @@ export default function StatusExamplesPage() {
                       <tr key={key} className="border-b last:border-0">
                         <td className="py-1.5 font-mono text-xs text-muted-foreground">{key}</td>
                         <td className="py-1.5">{pres.label}</td>
+                        <td className="py-1.5 font-mono text-xs text-muted-foreground">{pres.variant}</td>
                       </tr>
                     );
                   })}
@@ -143,7 +193,7 @@ export default function StatusExamplesPage() {
                   badgeClass={pres.badgeClass}
                   dotClass={pres.dotClass}
                   label={pres.label}
-                  meta={`${key}${priority != null ? ` · #${priority}` : ""}`}
+                  meta={`${key} · ${pres.variant}${priority != null ? ` · #${priority}` : ""}`}
                 />
               );
             })}
@@ -162,8 +212,16 @@ export default function StatusExamplesPage() {
                 key === "WITHDRAWN" ? WithdrawReason.USER_CANCELLED : undefined,
                 { issuerWithdrawPresentation: true }
               );
+              // Dot/colour must match the collapsed badge, not the raw API status
+              // (e.g. CONTRACT_SENT → "Under Review" stays blue, not amber).
+              const collapsedStatusForDot =
+                badgeKey === "under_review"
+                  ? "UNDER_REVIEW"
+                  : badgeKey === "accepted" || badgeKey === "approved"
+                    ? "APPROVED"
+                    : key;
               const fullPres = getStatusPresentation(
-                key,
+                collapsedStatusForDot,
                 key === "WITHDRAWN" ? WithdrawReason.USER_CANCELLED : undefined,
                 { issuerWithdrawPresentation: true }
               );
@@ -174,7 +232,50 @@ export default function StatusExamplesPage() {
                   badgeClass={pres.color}
                   dotClass={fullPres.dotClass}
                   label={pres.label}
-                  meta={`${key}${priority != null ? ` · #${priority}` : ""}`}
+                  meta={`${key} · ${fullPres.variant}${priority != null ? ` · #${priority}` : ""}`}
+                />
+              );
+            })}
+          </div>
+        </Section>
+
+        <Section title="Offer acceptance phase badges">
+          <p className="text-sm text-muted-foreground mb-3">
+            Acceptance tab — labels from types; colours from config.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {OFFER_ACCEPTANCE_EXAMPLE_KEYS.map((status) => {
+              const { label } = getOfferAcceptanceStatusPresentation(status as OfferAcceptanceStatus);
+              const badgeClass = getOfferAcceptancePhaseBadgeClass(status as OfferAcceptanceStatus);
+              return (
+                <BadgeItem
+                  key={status}
+                  badgeClass={badgeClass}
+                  dotClass=""
+                  label={label}
+                  meta={status}
+                  noDot
+                />
+              );
+            })}
+          </div>
+        </Section>
+
+        <Section title="Signing envelope badges">
+          <p className="text-sm text-muted-foreground mb-3">
+            Signing package panel — shared colour groups.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {SIGNING_ENVELOPE_EXAMPLE_KEYS.map((status) => {
+              const badgeClass = getSigningEnvelopeBadgeClass(status);
+              return (
+                <BadgeItem
+                  key={status}
+                  badgeClass={badgeClass}
+                  dotClass=""
+                  label={envelopeLabel(status)}
+                  meta={status}
+                  noDot
                 />
               );
             })}

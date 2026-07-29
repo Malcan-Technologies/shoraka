@@ -2150,7 +2150,6 @@ export function ReviewOfferModal({
                 <XMarkIcon className="h-5 w-5" />
                 {presentation.label}
               </CardTitle>
-              <CardDescription>{presentation.hint}</CardDescription>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">

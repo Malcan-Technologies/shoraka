@@ -6683,11 +6683,98 @@ export class AdminService {
     });
   }
 
+  /**
+   * Statuses where admin review can still move the app between stage badges
+   * (e.g. UNDER_REVIEW → CONTRACT_PENDING when the contract tab unlocks).
+   * Offer-phase statuses (CONTRACT_SENT, SIGNING_PENDING, …) are owned by offer/signing flows.
+   */
+  private static readonly STAGE_SYNC_STATUSES: ReadonlySet<ApplicationStatus> = new Set([
+    ApplicationStatus.SUBMITTED,
+    ApplicationStatus.RESUBMITTED,
+    ApplicationStatus.UNDER_REVIEW,
+    ApplicationStatus.CONTRACT_PENDING,
+    ApplicationStatus.INVOICE_PENDING,
+    ApplicationStatus.CONTRACT_SIGNED,
+  ]);
+
+  private shouldSyncAdminStageStatus(
+    appStatus: ApplicationStatus,
+    isExistingContract: boolean
+  ): boolean {
+    if (AdminService.STAGE_SYNC_STATUSES.has(appStatus)) return true;
+    return (
+      isExistingContract &&
+      (CONTRACT_OFFER_CEREMONY_APPLICATION_STATUSES as ApplicationStatus[]).includes(appStatus)
+    );
+  }
+
+  /**
+   * Recompute application.status from contract/invoice state + tab unlock.
+   * Call after section/item approvals so CONTRACT_PENDING / INVOICE_PENDING stick when tabs unlock.
+   */
+  private async syncAdminStageStatus(
+    repository: AdminRepository,
+    applicationId: string,
+    application: {
+      status?: string;
+      contract_id?: string | null;
+      contract?: { status?: string; offer_details?: unknown } | null;
+      invoices?: Array<{ status?: string; contract_id?: string | null; offer_details?: unknown }>;
+      application_reviews?: { section: string; status: string }[];
+      financing_type?: unknown;
+      financing_structure?: unknown;
+    }
+  ): Promise<void> {
+    const appStatus = (application.status as ApplicationStatus) ?? ApplicationStatus.UNDER_REVIEW;
+    const structure = application.financing_structure as { structure_type?: string } | null | undefined;
+    const isExistingContract = isExistingContractFinancing(structure);
+    if (!this.shouldSyncAdminStageStatus(appStatus, isExistingContract)) {
+      return;
+    }
+
+    if (isExistingContract) {
+      await this.ensureExistingContractAcceptanceReviewApproved(
+        repository,
+        applicationId,
+        application
+      );
+    }
+
+    const isInvoiceOnly = structure?.structure_type === "invoice_only";
+    const sectionPolicy = await this.getReviewSectionPolicy(application);
+    const isContractTabUnlocked =
+      application.contract_id != null
+        ? this.isContractTabUnlocked(application, sectionPolicy)
+        : false;
+    const isInvoiceTabUnlocked = this.isInvoiceTabUnlocked(application, sectionPolicy);
+    const offerAcceptanceStatus = extractPrimaryOfferAcceptanceStatus({
+      financing_structure: structure ?? undefined,
+      contract: application.contract ?? undefined,
+      invoices: application.invoices,
+    });
+    const targetStatus = this.resolveAdminStageStatus({
+      contractId: application.contract_id,
+      contractStatus: application.contract?.status ?? null,
+      invoiceStatuses: (application.invoices ?? []).map(
+        (inv) => (inv as { status?: string }).status ?? "DRAFT"
+      ),
+      isContractTabUnlocked,
+      isInvoiceTabUnlocked,
+      isInvoiceOnly,
+      isExistingContract,
+      offerAcceptanceStatus,
+    });
+    if (targetStatus !== appStatus) {
+      await repository.updateApplicationStatus(applicationId, targetStatus);
+    }
+  }
+
   private async ensureUnderReview(
     repository: AdminRepository,
     applicationId: string,
     appStatus: ApplicationStatus,
     application: {
+      status?: string;
       contract_id?: string | null;
       contract?: { status?: string; offer_details?: unknown } | null;
       invoices?: Array<{ status?: string; contract_id?: string | null; offer_details?: unknown }>;
@@ -6696,48 +6783,10 @@ export class AdminService {
       financing_structure?: unknown;
     }
   ) {
-    const structure = application.financing_structure as { structure_type?: string } | null | undefined;
-    const isExistingContract = isExistingContractFinancing(structure);
-    const stuckInContractOfferStatus =
-      isExistingContract &&
-      (CONTRACT_OFFER_CEREMONY_APPLICATION_STATUSES as ApplicationStatus[]).includes(appStatus);
-
-    if (
-      appStatus === ApplicationStatus.SUBMITTED ||
-      appStatus === ApplicationStatus.RESUBMITTED ||
-      stuckInContractOfferStatus
-    ) {
-      if (isExistingContract) {
-        await this.ensureExistingContractAcceptanceReviewApproved(
-          repository,
-          applicationId,
-          application
-        );
-      }
-      const isInvoiceOnly = structure?.structure_type === "invoice_only";
-      const sectionPolicy = await this.getReviewSectionPolicy(application);
-      const isContractTabUnlocked =
-        application.contract_id != null
-          ? this.isContractTabUnlocked(application, sectionPolicy)
-          : false;
-      const isInvoiceTabUnlocked = this.isInvoiceTabUnlocked(application, sectionPolicy);
-      const offerAcceptanceStatus = extractPrimaryOfferAcceptanceStatus({
-        financing_structure: structure ?? undefined,
-        contract: application.contract ?? undefined,
-        invoices: application.invoices,
-      });
-      const targetStatus = this.resolveAdminStageStatus({
-        contractId: application.contract_id,
-        contractStatus: application.contract?.status ?? null,
-        invoiceStatuses: (application.invoices ?? []).map((inv) => (inv as { status?: string }).status ?? "DRAFT"),
-        isContractTabUnlocked,
-        isInvoiceTabUnlocked,
-        isInvoiceOnly,
-        isExistingContract,
-        offerAcceptanceStatus,
-      });
-      await repository.updateApplicationStatus(applicationId, targetStatus);
-    }
+    await this.syncAdminStageStatus(repository, applicationId, {
+      ...application,
+      status: application.status ?? appStatus,
+    });
   }
 
   /**
@@ -8542,7 +8591,12 @@ export class AdminService {
 
     await repository.removeDraftAmendment(applicationId, "section", section);
 
-    return repository.getApplicationById(applicationId);
+    const nextApp = await repository.getApplicationById(applicationId);
+    if (nextApp) {
+      await this.syncAdminStageStatus(repository, applicationId, nextApp);
+      return repository.getApplicationById(applicationId);
+    }
+    return nextApp;
   }
 
   /**
@@ -9458,6 +9512,10 @@ export class AdminService {
         );
         nextApp = await repository.getApplicationById(applicationId);
       }
+    }
+    if (nextApp) {
+      await this.syncAdminStageStatus(repository, applicationId, nextApp);
+      nextApp = await repository.getApplicationById(applicationId);
     }
     return nextApp ?? repository.getApplicationById(applicationId);
   }

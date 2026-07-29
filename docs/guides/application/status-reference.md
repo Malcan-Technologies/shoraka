@@ -185,8 +185,9 @@ ADMIN STAGE STATUS — WHEN AND LOGIC
     When: Contract section is available but offer not sent yet.
     Logic: Contract exists. Contract status is not OFFER_SENT or APPROVED.
            Contract tab is unlocked (prerequisite sections approved).
-    Set by: First admin review action on SUBMITTED/RESUBMITTED app.
-            Or when admin resets contract_details section to PENDING.
+    Set by: Admin stage sync after review approvals unlock the contract tab
+            (SUBMITTED/UNDER_REVIEW → CONTRACT_PENDING). Also when admin resets
+            contract_details section to PENDING.
     Default filter: yes (in admin application queue).
 
   CONTRACT_SENT
@@ -212,11 +213,14 @@ ADMIN STAGE STATUS — WHEN AND LOGIC
 
   INVOICE_PENDING
     When: Invoice section is available. Not all invoices have offers yet.
-    Logic: Contract is APPROVED. At least one invoice is not OFFER_SENT,
-           APPROVED, REJECTED, or WITHDRAWN. Invoice tab is unlocked.
-    Set by: First admin action after contract accepted. Or when admin sends
-            some invoice offers but not all. Or when admin resets invoice
-            section or invoice item to PENDING.
+    Logic: Contract is APPROVED (or invoice-only). At least one invoice is not
+           OFFER_SENT, APPROVED, REJECTED, or WITHDRAWN. Invoice tab is unlocked.
+    Set by: Admin stage sync when the invoice tab unlocks (UNDER_REVIEW →
+            INVOICE_PENDING for invoice-only; CONTRACT_SIGNED → INVOICE_PENDING
+            for contract financing). Also when issuer commercially accepts a
+            contract offer while invoices exist and the invoice tab is unlocked.
+            Or when admin sends some invoice offers but not all / resets invoice
+            section to PENDING.
     Default filter: yes.
 
   INVOICES_SENT

@@ -84,6 +84,7 @@ import {
   getFinancialYearEndComputationDetails,
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
+  getReviewSectionPrerequisites,
   getStepKeyFromStepId,
   hasActionableDirectorShareholder,
 } from "@cashsouk/types";
@@ -2247,12 +2248,30 @@ export class ApplicationService {
       const isInvoiceOnly =
         (application as { financing_structure?: { structure_type?: string } }).financing_structure
           ?.structure_type === "invoice_only";
+      const structureType =
+        (application as { financing_structure?: { structure_type?: string } }).financing_structure
+          ?.structure_type ?? null;
       const hasOfferAcceptance = !!getOfferAcceptanceFromOfferDetails(offer);
+      const sectionReviews = await tx.applicationReview.findMany({
+        where: { application_id: applicationId },
+        select: { section: true, status: true },
+      });
+      const sectionStatusMap = new Map(sectionReviews.map((r) => [r.section, r.status]));
+      // Contract accept just wrote contract_details → APPROVED in this transaction.
+      if (action === "accept") {
+        sectionStatusMap.set("contract_details", ReviewStepStatus.APPROVED);
+      }
+      const invoicePrereqs = getReviewSectionPrerequisites(structureType).invoice_details ?? [];
+      const isInvoiceTabUnlocked =
+        invoicePrereqs.length === 0 ||
+        invoicePrereqs.every((prereq) => sectionStatusMap.get(prereq) === ReviewStepStatus.APPROVED);
       const phasedAcceptStatus = resolveApplicationStatusAfterCommercialAccept({
         isInvoiceOnly,
         hasOfferAcceptance,
         action,
         isContractPath: true,
+        invoiceCount: updatedInvoices.length,
+        isInvoiceTabUnlocked,
       });
       const nextReviewStatusBase =
         action === "accept"

@@ -13,8 +13,8 @@ import {
   getOfferPhaseDeadlineDisplay,
   isOfferAcceptanceDocumentsVisibleToAdmin,
   type ApplicationPersonRow,
-  type OfferAcceptanceStatus,
 } from "@cashsouk/types";
+import { getOfferAcceptancePhaseBadgeClass } from "@cashsouk/config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,17 +29,6 @@ import { reviewCardTitleClass } from "../review-section-styles";
 import { useAdminSignedSigningDocument } from "@/hooks/use-admin-signed-signing-document";
 import { cn } from "@/lib/utils";
 
-/** Match Signing package status badge language — distinct hues for admin scan. */
-const OFFER_ACCEPTANCE_STATUS_STYLES: Record<OfferAcceptanceStatus, string> = {
-  PENDING_ISSUER: "bg-amber-100 text-amber-800",
-  PENDING_ADMIN_REVIEW: "bg-sky-100 text-sky-800",
-  CHANGES_REQUESTED: "bg-amber-100 text-amber-800",
-  REJECTED: "bg-primary/10 text-primary",
-  DECLINED: "bg-muted text-muted-foreground",
-  APPROVED_FOR_SIGNING: "bg-emerald-100 text-emerald-800",
-  SIGNING_IN_PROGRESS: "bg-indigo-100 text-indigo-800",
-  COMPLETED: "bg-emerald-100 text-emerald-800",
-};
 export type AcceptanceSectionProps = {
   supportingDocuments: unknown;
   reviewItems: { item_type: string; item_id: string; status: string }[];
@@ -121,66 +110,49 @@ function OfferAcceptanceBlock({
   offerDetails,
   structureType,
   documentsSlot,
-  documentsHeaderRight,
 }: {
   offerDetails: unknown;
   structureType?: string | null;
   /** Acceptance documents list rendered inside this same package card. */
   documentsSlot?: React.ReactNode;
-  /** e.g. Download all — shown beside the Acceptance documents heading. */
-  documentsHeaderRight?: React.ReactNode;
 }) {
   const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails);
-  const presentation = acceptance
-    ? getOfferAcceptanceStatusPresentation(acceptance.status)
-    : null;
   const isInvoiceOnly = structureType === "invoice_only";
   const emptyHint = isInvoiceOnly
     ? "Send an offer from Invoice to start acceptance."
     : "Send an offer from Contract to start acceptance.";
   const deadlineDisplay = getOfferPhaseDeadlineDisplay(offerDetails);
+  const showDeadline =
+    acceptance &&
+    deadlineDisplay &&
+    (acceptance.status === "PENDING_ISSUER" || acceptance.status === "CHANGES_REQUESTED");
 
   return (
-    <div className="space-y-4 rounded-lg border border-border p-4">
-      {presentation && acceptance ? (
-        <div className="space-y-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="truncate font-medium text-foreground">Financing offer</span>
-            <Badge className={cn("font-normal", OFFER_ACCEPTANCE_STATUS_STYLES[acceptance.status])}>
-              {presentation.label}
-            </Badge>
-          </div>
-          <p className="text-sm text-muted-foreground">{presentation.hint}</p>
-          {deadlineDisplay &&
-          (acceptance.status === "PENDING_ISSUER" ||
-            acceptance.status === "CHANGES_REQUESTED") ? (
-            <p
-              className={cn(
-                "text-sm",
-                deadlineDisplay.urgency === "past"
-                  ? "font-medium text-destructive"
-                  : deadlineDisplay.urgency === "soon"
-                    ? "font-medium text-amber-800"
-                    : "text-muted-foreground"
-              )}
-            >
-              {deadlineDisplay.summary}
-            </p>
-          ) : null}
-        </div>
+    <div className="space-y-4">
+      {showDeadline ? (
+        <p
+          className={cn(
+            "text-sm",
+            deadlineDisplay.urgency === "past"
+              ? "font-medium text-destructive"
+              : deadlineDisplay.urgency === "soon"
+                ? "font-medium text-amber-800"
+                : "text-muted-foreground"
+          )}
+        >
+          {deadlineDisplay.summary}
+        </p>
+      ) : null}
+
+      {documentsSlot ? (
+        documentsSlot
+      ) : acceptance ? (
+        <p className="text-sm text-muted-foreground">
+          Acceptance documents appear here after the issuer submits them.
+        </p>
       ) : (
         <p className="text-sm text-muted-foreground">{emptyHint}</p>
       )}
-
-      {documentsSlot ? (
-        <div className="space-y-3 border-t border-border pt-4">
-          <div className="flex items-center justify-between gap-3">
-            <h4 className="text-sm font-semibold text-foreground">Acceptance documents</h4>
-            {documentsHeaderRight}
-          </div>
-          {documentsSlot}
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -318,13 +290,26 @@ export function AcceptanceSection({
           );
 
           if (showSigningHub) {
+            const acceptance = getOfferAcceptanceFromOfferDetails(acceptanceOfferDetails);
+            const presentation = acceptance
+              ? getOfferAcceptanceStatusPresentation(acceptance.status)
+              : null;
             return (
-              <ReviewFieldBlock title="Offer acceptance">
+              <ReviewFieldBlock
+                title="Acceptance documents"
+                titleAside={
+                  presentation && acceptance ? (
+                    <Badge className={getOfferAcceptancePhaseBadgeClass(acceptance.status)}>
+                      {presentation.label}
+                    </Badge>
+                  ) : null
+                }
+                titleEnd={showAcceptanceDocuments ? downloadAllButton : undefined}
+              >
                 <OfferAcceptanceBlock
                   offerDetails={acceptanceOfferDetails}
                   structureType={structureType}
                   documentsSlot={showAcceptanceDocuments ? documentsList : undefined}
-                  documentsHeaderRight={showAcceptanceDocuments ? downloadAllButton : undefined}
                 />
               </ReviewFieldBlock>
             );

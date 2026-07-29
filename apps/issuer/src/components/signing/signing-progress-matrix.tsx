@@ -104,7 +104,16 @@ export function SigningProgressMatrix({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <Progress value={progress.percent} className="h-2 flex-1" />
+        <Progress
+          value={progress.percent}
+          className={cn(
+            "h-2 flex-1",
+            progress.percent >= 100 && "bg-status-success-bg"
+          )}
+          indicatorClassName={
+            progress.percent >= 100 ? "bg-status-success-text" : undefined
+          }
+        />
         <span className="shrink-0 text-sm font-medium tabular-nums text-foreground">
           {progress.signed}/{progress.total_required} signed ({progress.percent}%)
         </span>
