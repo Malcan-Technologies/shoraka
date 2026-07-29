@@ -61,10 +61,20 @@ export function sha256Hex(buffer: Buffer): string {
   return createHash("sha256").update(buffer).digest("hex");
 }
 
-/** Count top-level `.page` sections in combined HTML. */
+/**
+ * Count A4 `.page` sections in combined HTML.
+ * Only `<section>` elements whose class list includes the exact token `page`
+ * (not `page-header`, `page-two-issuer-grid`, etc.).
+ */
 export function countProspectusHtmlPages(documentHtml: string): number {
-  const matches = documentHtml.match(/class="[^"]*\bpage\b[^"]*"/g);
-  return matches?.length ?? 0;
+  const sectionClassRe = /<section\b[^>]*\bclass="([^"]*)"/gi;
+  let count = 0;
+  let match: RegExpExecArray | null;
+  while ((match = sectionClassRe.exec(documentHtml)) !== null) {
+    const tokens = match[1]?.split(/\s+/).filter(Boolean) ?? [];
+    if (tokens.includes("page")) count += 1;
+  }
+  return count;
 }
 
 /**

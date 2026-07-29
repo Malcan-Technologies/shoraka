@@ -37,6 +37,18 @@ describe("prospectus PDF helpers", () => {
     expect(countProspectusHtmlPages(html)).toBe(4);
   });
 
+  it("ignores page-* utility classes that are not A4 page roots", () => {
+    const html = `
+      <section class="page prospectus-page-one">
+        <div class="page-header">h</div>
+        <div class="page-two-issuer-grid">g</div>
+      </section>
+      <section class="page prospectus-page-two">2</section>
+      <section class="page prospectus-page-three">3</section>
+    `;
+    expect(countProspectusHtmlPages(html)).toBe(3);
+  });
+
   it("counts PDF page markers and hashes content", () => {
     const pdf = Buffer.from("%PDF-1.4 /Type /Page /Type /Page /Type /Page /Type /Pages");
     expect(countPdfPagesFromBuffer(pdf)).toBe(3);

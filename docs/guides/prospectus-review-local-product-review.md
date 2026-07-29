@@ -13,6 +13,20 @@ pnpm --filter @cashsouk/api seed:prospectus-review
 Idempotent. Stable Note reference: `PROSPECTUS-DEMO-001`.  
 Resets the Note to unpublished `DRAFT` and removes any prior review/publish state.
 
+### Full lifecycle scenarios (recommended for UAT)
+
+```bash
+pnpm --filter @cashsouk/api seed:prospectus-lifecycle
+```
+
+Creates Notes `SEED-PROSPECTUS-01` … `09` plus FY display variants.  
+Most useful for manual UI: **`SEED-PROSPECTUS-04-READY-APPROVE`** (complete draft — click Approve yourself).
+
+Approve/PDF/publish/invest stages need Playwright Chromium + private S3 (API Docker image).  
+If Chromium libs are missing locally, scenarios 05–09 still leave a complete draft; or set `SEED_PROSPECTUS_SKIP_APPROVE=1`.
+
+Blocked in production. Idempotent. Does not invent `pdf_generation_status=READY` without a real PDF.
+
 ## Automated product E2E (API layer)
 
 ```bash
