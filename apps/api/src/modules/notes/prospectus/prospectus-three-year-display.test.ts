@@ -66,6 +66,15 @@ describe("buildProspectusThreeYearDisplaySet", () => {
     expect(display[1]?.rawFinancials).toEqual({});
   });
 
+  it("pads FY2025 + FY2027 gap so all tables show FY2025 | FY2026 | FY2027", () => {
+    const display = buildProspectusThreeYearDisplaySet([
+      realYear(2025),
+      realYear(2027),
+    ]);
+    expect(display.map((y) => y.year)).toEqual([2025, 2026, 2027]);
+    expect(display.map((y) => !!y.isPlaceholder)).toEqual([false, true, false]);
+  });
+
   it("uses latest three real years as the display window when more than three exist", () => {
     const display = buildProspectusThreeYearDisplaySet([
       realYear(2022),
@@ -159,6 +168,117 @@ describe("Prospectus page builders + freeze", () => {
     ]);
     expect(page2.financialComparisonMetrics.rows[0]?.values).toEqual(["—", "—", "5"]);
     expect(page3.trends.trends.every((t) => t.trend === "—" || !t.approved)).toBe(true);
+  });
+
+  it("Page 2 comparison + Page 3 tables share FY2025|FY2026|FY2027 when FY2026 is missing", () => {
+    const frozenGap = {
+      source: "admin_financial_statements_normalized" as const,
+      calculated_at: "2027-07-01T00:00:00.000Z",
+      selected_years: [
+          {
+            year: 2025,
+            year_label: "FY2025",
+            financial_year_end_iso: "2025-12-31",
+            financial_year_end_label: "31 Dec 2025",
+            record_source: "unaudited_management" as const,
+            raw_financials: {
+              turnover: 4_000_000,
+              plnpat: 400_000,
+              plnpbt: null,
+              bscatot: null,
+              curlib: null,
+              bsfatot: null,
+              othass: null,
+              bsclbank: null,
+              bsslltd: null,
+              bsclstd: null,
+              bsqpuc: null,
+              totass: null,
+              totlib: null,
+              profit_margin: null,
+              return_on_equity: null,
+              currat: null,
+            },
+          },
+          {
+            year: 2027,
+            year_label: "FY2027",
+            financial_year_end_iso: "2027-12-31",
+            financial_year_end_label: "31 Dec 2027",
+            record_source: "unaudited_management" as const,
+            raw_financials: {
+              turnover: 6_000_000,
+              plnpat: 600_000,
+              plnpbt: null,
+              bscatot: null,
+              curlib: null,
+              bsfatot: null,
+              othass: null,
+              bsclbank: null,
+              bsslltd: null,
+              bsclstd: null,
+              bsqpuc: null,
+              totass: null,
+              totlib: null,
+              profit_margin: null,
+              return_on_equity: null,
+              currat: null,
+            },
+          },
+        ],
+      source_footer: "Source: Financial Statements",
+    };
+
+    const page2 = buildProspectusPageTwo({
+      noteId: "n-gap",
+      noteReference: "N-GAP",
+      isPublished: true,
+      financialMode: "frozen_publication_snapshot",
+      issuerSnapshot: { name: "Co" },
+      invoiceSnapshot: {},
+      paymasterSnapshot: {},
+      maturityDate: null,
+      liveFinancialStatements: null,
+      liveCtosFinancials: null,
+      frozenFinancialComparison: frozenGap,
+    });
+    const page3 = buildProspectusPageThree({
+      noteId: "n-gap",
+      isPublished: true,
+      financialMode: "frozen_publication_snapshot",
+      issuerSnapshot: { name: "Co" },
+      invoiceSnapshot: {},
+      paymasterSnapshot: {},
+      liveFinancialStatements: null,
+      liveCtosFinancials: null,
+      frozenFinancialComparison: frozenGap,
+    });
+
+    const expectedYears = [2025, 2026, 2027];
+    const expectedPlaceholders = [false, true, false];
+    expect(page2.financialComparisonSource.years.map((y) => y.year)).toEqual(expectedYears);
+    expect(page2.financialComparisonSource.years.map((y) => !!y.isPlaceholder)).toEqual(
+      expectedPlaceholders
+    );
+    expect(page2.financialComparisonMetrics.years.map((y) => y.year)).toEqual(expectedYears);
+    expect(page3.incomeStatement.years.map((y) => y.year)).toEqual(expectedYears);
+    expect(page3.balanceSheet.years.map((y) => y.year)).toEqual(expectedYears);
+    expect(page3.coverageEfficiency.years.map((y) => y.year)).toEqual(expectedYears);
+    expect(page3.incomeStatement.years.map((y) => !!y.isPlaceholder)).toEqual(
+      expectedPlaceholders
+    );
+
+    for (const row of page2.financialComparisonMetrics.rows) {
+      expect(row.values[1]).toBe("—");
+    }
+    for (const row of page3.incomeStatement.rows) {
+      expect(row.values[1]).toBe("—");
+    }
+    for (const row of page3.balanceSheet.rows) {
+      expect(row.values[1]).toBe("—");
+    }
+    expect(page3.trends.trends.every((t) => t.trend === "—")).toBe(true);
+    expect(frozenGap.selected_years.map((y) => y.year)).toEqual([2025, 2027]);
   });
 
   it("freeze snapshot stores only real years, not display placeholders", () => {

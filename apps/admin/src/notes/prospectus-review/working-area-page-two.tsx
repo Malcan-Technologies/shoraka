@@ -7,7 +7,6 @@ import {
   ChartBarIcon,
   ClipboardDocumentCheckIcon,
   DocumentTextIcon,
-  ExclamationTriangleIcon,
   ShieldCheckIcon,
   TableCellsIcon,
 } from "@heroicons/react/24/outline";
@@ -32,6 +31,7 @@ import { INVOICE_WORK_FIELD_LABELS } from "@/notes/prospectus-review/labels";
 import type { CoreTermRow } from "@/notes/prospectus-review/core-terms";
 import type { FinancialMetricTableModel } from "@/notes/prospectus-review/financial-metric-table";
 import { ProspectusFinancialComparisonWorkingTable } from "@/notes/prospectus-review/financial-comparison-working-table";
+import { ProspectusMissingFinancialYearWarning } from "@/notes/prospectus-review/missing-financial-year-warning";
 import {
   countMissingForTab,
   type ProspectusCompletionOptions,
@@ -374,22 +374,10 @@ export function WorkingAreaPageTwo({
             missingCount={financialMissing}
           >
             {financialComparisonOpsWarning ? (
-              <div
-                role="status"
-                data-testid="financial-comparison-ops-warning"
-                className="mb-3 flex gap-2 rounded-lg border border-amber-500/40 bg-amber-50 p-3 text-sm text-foreground dark:bg-amber-950/30"
-              >
-                <ExclamationTriangleIcon
-                  className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
-                  aria-hidden
-                />
-                <div className="min-w-0 space-y-1">
-                  <p className="font-semibold">{financialComparisonOpsWarning.title}</p>
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    {financialComparisonOpsWarning.description}
-                  </p>
-                </div>
-              </div>
+              <ProspectusMissingFinancialYearWarning
+                title={financialComparisonOpsWarning.title}
+                description={financialComparisonOpsWarning.description}
+              />
             ) : null}
             <ProspectusFinancialComparisonWorkingTable
               table={financialComparisonTable}
