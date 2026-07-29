@@ -37,6 +37,7 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
       badgeLabel: "Published",
       primaryLabel: "View Prospectus",
       secondaryLabel: null,
+      // Neutral card — primary/red tint is reserved for genuine warning/error surfaces.
       emphasize: false,
       badgeTone: null,
       actionVariant: "outline",
@@ -51,7 +52,8 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
       badgeLabel: "Approved",
       primaryLabel: "Review Prospectus",
       secondaryLabel: null,
-      emphasize: true,
+      // Ready state uses the default Note card surface — not primary/error emphasis.
+      emphasize: false,
     };
   }
 
@@ -63,8 +65,6 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
     badgeLabel: "Draft",
     primaryLabel: "Review Prospectus",
     secondaryLabel: null,
-    emphasize: true,
-    badgeTone: null,
-    actionVariant: "default",
+    emphasize: false,
   };
 }
