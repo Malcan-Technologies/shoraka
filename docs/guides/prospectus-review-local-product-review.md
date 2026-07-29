@@ -22,19 +22,10 @@ pnpm --filter @cashsouk/api seed:prospectus-lifecycle
 Creates Notes `SEED-PROSPECTUS-01` … `09` plus FY display variants.  
 Most useful for manual UI: **`SEED-PROSPECTUS-04-READY-APPROVE`** (complete draft — click Approve yourself).
 
-FY display variants use a fixed **FY2024 | FY2025 | FY2026** reporting span (company FYE **2 Sep**). No future FY2027:
-
-| Reference | Real years | Display |
-| --- | --- | --- |
-| `SEED-PROSPECTUS-FY-ONE` | FY2026 | FY2024 \| FY2025 \| FY2026 |
-| `SEED-PROSPECTUS-FY-TWO` | FY2025, FY2026 | FY2024 \| FY2025 \| FY2026 |
-| `SEED-PROSPECTUS-FY-THREE` | FY2024–FY2026 | FY2024 \| FY2025 \| FY2026 |
-| `SEED-PROSPECTUS-FY-GAPPED` | FY2024, FY2026 | FY2024 \| **FY2025 (—)** \| FY2026 |
-
 Approve/PDF/publish/invest stages need Playwright Chromium + private S3 (API Docker image).  
 If Chromium libs are missing locally, scenarios 05–09 still leave a complete draft; or set `SEED_PROSPECTUS_SKIP_APPROVE=1`.
 
-Blocked in production. Idempotent (re-run replaces application/CTOS financial JSON — removes stale FY2027). Does not invent `pdf_generation_status=READY` without a real PDF.
+Blocked in production. Idempotent. Does not invent `pdf_generation_status=READY` without a real PDF.
 
 ## Automated product E2E (API layer)
 
