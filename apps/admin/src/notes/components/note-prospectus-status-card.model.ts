@@ -51,9 +51,7 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
       badgeLabel: "Approved",
       primaryLabel: "Review Prospectus",
       secondaryLabel: null,
-      emphasize: false,
-      badgeTone: "success",
-      actionVariant: "outline",
+      emphasize: true,
     };
   }
 

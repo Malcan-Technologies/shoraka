@@ -29,7 +29,6 @@ type NoteProspectusStatusCardProps = {
 
 /**
  * Prospectus status on Note Detail. Marketplace publish lives only on Note Lifecycle.
- * Red emphasis + primary button only while approval is still required.
  */
 export function NoteProspectusStatusCard({
   note,
@@ -62,11 +61,7 @@ export function NoteProspectusStatusCard({
           <p className="text-sm text-muted-foreground">{model.description}</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant={model.actionVariant}
-            onClick={onReviewProspectus}
-          >
+          <Button type="button" variant="default" onClick={onReviewProspectus}>
             <DocumentTextIcon className="mr-2 h-4 w-4" />
             {model.primaryLabel}
           </Button>

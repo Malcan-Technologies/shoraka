@@ -101,26 +101,7 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.actionVariant).toBe("default");
   });
 
-  it("READY_FOR_REVIEW still treats Prospectus as approval-required (red card, original Draft badge)", () => {
-    const model = resolveProspectusStatusCard(
-      baseNote({
-        prospectus: {
-          status: "READY_FOR_REVIEW",
-          displayStatus: "Draft",
-          contentVersion: 1,
-          lastSavedAt: null,
-          approvedAt: null,
-          publishedAt: null,
-        },
-      })
-    );
-    expect(model.phase).toBe("draft");
-    expect(model.emphasize).toBe(true);
-    expect(model.badgeTone).toBeNull();
-    expect(model.actionVariant).toBe("default");
-  });
-
-  it("Approved uses neutral card, green success badge, outline Review button", () => {
+  it("Approved shows Ready to publish + Review Prospectus only (no Publish Note)", () => {
     const model = resolveProspectusStatusCard(
       baseNote({
         prospectus: {
@@ -139,10 +120,7 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.badgeLabel).toBe("Approved");
     expect(model.primaryLabel).toBe("Review Prospectus");
     expect(model.secondaryLabel).toBeNull();
-    expect(model.emphasize).toBe(false);
-    expect(model.badgeTone).toBe("success");
-    expect(model.actionVariant).toBe("outline");
-    expect(WORKFLOW_STATUS_BADGE.success.badgeClass).toMatch(/success/);
+    expect(model.emphasize).toBe(true);
   });
 
   it("Published uses neutral card, original outline badge, and outline View Prospectus button", () => {
@@ -222,29 +200,6 @@ describe("Admin Note Detail prospectus UI cleanup", () => {
     expect(cardSource).not.toContain("Publish Note");
     expect(cardSource).not.toContain("onPublishNote");
     expect(lifecycleSource).toContain("Publish to Marketplace");
-  });
-
-  it("maps card emphasis and button variant from status model; only Approved gets success badge tone", () => {
-    expect(cardSource).toContain("WORKFLOW_CARD.activeSection");
-    expect(cardSource).toContain("model.badgeTone ? workflowBadgeClassName(model.badgeTone)");
-    expect(cardSource).toContain("variant={model.actionVariant}");
-    expect(WORKFLOW_CARD.activeSection).toMatch(/border-primary|bg-primary/);
-
-    const approved = resolveProspectusStatusCard(
-      baseNote({
-        prospectus: {
-          status: "APPROVED",
-          displayStatus: "Approved",
-          contentVersion: 1,
-          lastSavedAt: null,
-          approvedAt: new Date().toISOString(),
-          publishedAt: null,
-        },
-      })
-    );
-    const draft = resolveProspectusStatusCard(baseNote());
-    expect(approved.badgeTone).toBe("success");
-    expect(draft.badgeTone).toBeNull();
   });
 });
 
