@@ -51,7 +51,10 @@ export function NoteProspectusStatusCard({
             <h3 className="text-lg font-semibold">{model.heading}</h3>
             <Badge
               variant="outline"
-              className={cn("font-normal", workflowBadgeClassName(model.badgeTone))}
+              className={cn(
+                "font-normal",
+                model.badgeTone ? workflowBadgeClassName(model.badgeTone) : undefined
+              )}
             >
               {model.badgeLabel}
             </Badge>

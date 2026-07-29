@@ -14,8 +14,11 @@ export type ProspectusStatusCardModel = {
   secondaryLabel: string | null;
   /** Red alert card while Prospectus still needs approval. */
   emphasize: boolean;
-  /** Shared workflow badge tone (Approved uses neutral outline pill). */
-  badgeTone: WorkflowStatusTone;
+  /**
+   * Extra workflow badge tone. Only Approved uses success (green).
+   * Draft / Published / others stay null → original plain outline Badge.
+   */
+  badgeTone: WorkflowStatusTone | null;
   /** Primary (red) while action is required; outline when reviewing approved/published. */
   actionVariant: ProspectusStatusCardActionVariant;
 };
@@ -35,7 +38,7 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
       primaryLabel: "View Prospectus",
       secondaryLabel: null,
       emphasize: false,
-      badgeTone: "success",
+      badgeTone: null,
       actionVariant: "outline",
     };
   }
@@ -49,7 +52,7 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
       primaryLabel: "Review Prospectus",
       secondaryLabel: null,
       emphasize: false,
-      badgeTone: "neutral",
+      badgeTone: "success",
       actionVariant: "outline",
     };
   }
@@ -63,7 +66,7 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
     primaryLabel: "Review Prospectus",
     secondaryLabel: null,
     emphasize: true,
-    badgeTone: "active",
+    badgeTone: null,
     actionVariant: "default",
   };
 }

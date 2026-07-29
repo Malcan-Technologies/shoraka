@@ -88,7 +88,7 @@ function baseNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
 }
 
 describe("resolveProspectusStatusCard", () => {
-  it("Draft / approval-required uses red emphasis and primary Review button", () => {
+  it("Draft / approval-required uses red emphasis, original outline badge, and primary Review button", () => {
     const model = resolveProspectusStatusCard(baseNote());
     expect(model.phase).toBe("draft");
     expect(model.heading).toBe("Prospectus approval required");
@@ -97,11 +97,11 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.primaryLabel).toBe("Review Prospectus");
     expect(model.secondaryLabel).toBeNull();
     expect(model.emphasize).toBe(true);
-    expect(model.badgeTone).toBe("active");
+    expect(model.badgeTone).toBeNull();
     expect(model.actionVariant).toBe("default");
   });
 
-  it("READY_FOR_REVIEW still treats Prospectus as approval-required (red card)", () => {
+  it("READY_FOR_REVIEW still treats Prospectus as approval-required (red card, original Draft badge)", () => {
     const model = resolveProspectusStatusCard(
       baseNote({
         prospectus: {
@@ -116,10 +116,11 @@ describe("resolveProspectusStatusCard", () => {
     );
     expect(model.phase).toBe("draft");
     expect(model.emphasize).toBe(true);
+    expect(model.badgeTone).toBeNull();
     expect(model.actionVariant).toBe("default");
   });
 
-  it("Approved uses neutral card, shared neutral Approved badge, outline Review button", () => {
+  it("Approved uses neutral card, green success badge, outline Review button", () => {
     const model = resolveProspectusStatusCard(
       baseNote({
         prospectus: {
@@ -139,12 +140,12 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.primaryLabel).toBe("Review Prospectus");
     expect(model.secondaryLabel).toBeNull();
     expect(model.emphasize).toBe(false);
-    expect(model.badgeTone).toBe("neutral");
+    expect(model.badgeTone).toBe("success");
     expect(model.actionVariant).toBe("outline");
-    expect(WORKFLOW_STATUS_BADGE.neutral.badgeClass).not.toMatch(/primary|rejected|destructive/);
+    expect(WORKFLOW_STATUS_BADGE.success.badgeClass).toMatch(/success/);
   });
 
-  it("Published uses neutral card and outline View Prospectus button", () => {
+  it("Published uses neutral card, original outline badge, and outline View Prospectus button", () => {
     const model = resolveProspectusStatusCard(
       baseNote({
         status: NoteStatus.PUBLISHED,
@@ -168,7 +169,7 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.primaryLabel).toBe("View Prospectus");
     expect(model.secondaryLabel).toBeNull();
     expect(model.emphasize).toBe(false);
-    expect(model.badgeTone).toBe("success");
+    expect(model.badgeTone).toBeNull();
     expect(model.actionVariant).toBe("outline");
   });
 
@@ -223,11 +224,27 @@ describe("Admin Note Detail prospectus UI cleanup", () => {
     expect(lifecycleSource).toContain("Publish to Marketplace");
   });
 
-  it("maps card emphasis and button variant from status model", () => {
+  it("maps card emphasis and button variant from status model; only Approved gets success badge tone", () => {
     expect(cardSource).toContain("WORKFLOW_CARD.activeSection");
-    expect(cardSource).toContain("workflowBadgeClassName(model.badgeTone)");
+    expect(cardSource).toContain("model.badgeTone ? workflowBadgeClassName(model.badgeTone)");
     expect(cardSource).toContain("variant={model.actionVariant}");
     expect(WORKFLOW_CARD.activeSection).toMatch(/border-primary|bg-primary/);
+
+    const approved = resolveProspectusStatusCard(
+      baseNote({
+        prospectus: {
+          status: "APPROVED",
+          displayStatus: "Approved",
+          contentVersion: 1,
+          lastSavedAt: null,
+          approvedAt: new Date().toISOString(),
+          publishedAt: null,
+        },
+      })
+    );
+    const draft = resolveProspectusStatusCard(baseNote());
+    expect(approved.badgeTone).toBe("success");
+    expect(draft.badgeTone).toBeNull();
   });
 });
 

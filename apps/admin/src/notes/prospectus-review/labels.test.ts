@@ -6,7 +6,9 @@ import {
   PROSPECTUS_STEP_TITLES,
   HIGHLIGHT_FIELD_LABELS,
   INVOICE_WORK_FIELD_LABELS,
+  prospectusReviewStatusBadgeClassName,
 } from "./labels";
+import { WORKFLOW_STATUS_BADGE } from "@/notes/utils/workflow-status-tokens";
 import {
   PROSPECTUS_STEP_STATUS_LABEL,
   buildProspectusCompletionChecklist,
@@ -35,6 +37,16 @@ describe("prospectus review admin labels", () => {
     expect(formatProspectusReviewStatus("SUPERSEDED")).toBe("Draft");
     expect(formatProspectusReviewStatus("APPROVED")).toBe("Approved");
     expect(formatProspectusReviewStatus("PUBLISHED", true)).toBe("Published");
+  });
+
+  it("applies green success badge only for Approved (shared with Note Detail card)", () => {
+    expect(prospectusReviewStatusBadgeClassName("DRAFT")).toBeUndefined();
+    expect(prospectusReviewStatusBadgeClassName("READY_FOR_REVIEW")).toBeUndefined();
+    expect(prospectusReviewStatusBadgeClassName("SUPERSEDED")).toBeUndefined();
+    expect(prospectusReviewStatusBadgeClassName("PUBLISHED", true)).toBeUndefined();
+    expect(prospectusReviewStatusBadgeClassName("APPROVED")).toBe(
+      WORKFLOW_STATUS_BADGE.success.badgeClass
+    );
   });
 
   it("uses four page-based working-area steps", () => {

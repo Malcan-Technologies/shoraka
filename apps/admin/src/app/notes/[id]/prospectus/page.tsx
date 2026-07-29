@@ -60,8 +60,10 @@ import {
   PROSPECTUS_STEP_PAGE_LABEL,
   formatActorDisplayName,
   formatProspectusReviewStatus,
+  prospectusReviewStatusBadgeClassName,
   type ProspectusWorkflowStepId,
 } from "@/notes/prospectus-review/labels";
+import { cn } from "@/lib/utils";
 import {
   PROSPECTUS_STEP_STATUS_LABEL,
   buildProspectusMissingRequiredFields,
@@ -603,7 +605,13 @@ function ProspectusReviewPageInner() {
                 <p className="mt-1 truncate text-sm text-muted-foreground">{data.note.title}</p>
               </div>
             </div>
-            <Badge variant="outline" className="shrink-0">
+            <Badge
+              variant="outline"
+              className={cn(
+                "shrink-0",
+                prospectusReviewStatusBadgeClassName(data.review.status, notePublished)
+              )}
+            >
               {formatProspectusReviewStatus(data.review.status, notePublished)}
             </Badge>
           </div>
