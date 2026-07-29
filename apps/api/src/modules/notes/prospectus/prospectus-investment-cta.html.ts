@@ -1,24 +1,21 @@
 /**
  * SECTION: Plain HTML fragment for Page 2 Investment CTA
- * WHY: Visual INVEST NOW control; clickable only when a future buttonHref is set
+ * WHY: Decorative INVEST NOW bar only — never a link, button, or focusable control
  */
 
-import { escapeHtml, escapeHtmlAttribute } from "./prospectus-html";
+import { escapeHtml } from "./prospectus-html";
 import type { ProspectusInvestmentCta } from "./prospectus-investment-cta.types";
 
 /**
- * Renders the CTA control.
- * - `buttonHref == null` → disabled presentation button (current frozen Prospectus).
- * - `buttonHref` set → `<a>` for a future approved investor route (not used today).
+ * Renders the CTA label as a static visual bar.
+ * `buttonHref` is ignored — frozen Prospectus never navigates from this control.
  */
 export function buildProspectusInvestmentCtaButtonHtml(
   data: Pick<ProspectusInvestmentCta, "buttonLabel" | "buttonHref">
 ): string {
   const label = escapeHtml(data.buttonLabel);
-  if (data.buttonHref) {
-    return `<a class="cta-button" href="${escapeHtmlAttribute(data.buttonHref)}">${label}</a>`;
-  }
-  return `<button type="button" class="cta-button" disabled aria-disabled="true">${label}</button>`;
+  void data.buttonHref;
+  return `<div class="cta-button" aria-hidden="true">${label}</div>`;
 }
 
 export function buildProspectusInvestmentCtaHtml(data: ProspectusInvestmentCta): string {

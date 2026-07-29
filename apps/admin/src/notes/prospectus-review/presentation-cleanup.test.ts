@@ -87,7 +87,13 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageTwo).not.toContain("From Invoice Offer");
     expect(pageTwo).not.toContain("Very Low Risk");
     expect(pageTwo).not.toContain("Moderately Low Risk");
-    expect(pageTwo).toContain("Disabled in Prospectus");
+    expect(pageTwo).not.toContain("Disabled in Prospectus");
+    expect(pageTwo).not.toContain("Button Behaviour");
+    expect(pageTwo).not.toContain('label="Destination"');
+    expect(pageTwo).toContain("CTA Description");
+    expect(pageTwo).toContain(
+      "Diversify your portfolio and earn attractive return with short-term, Shariah-compliant investment on CashSouk."
+    );
     expect(pageTwo).toContain("Invest with Confidence");
     expect(pageTwo).not.toMatch(/data-prospectus-investment-cta[\s\S]{0,400}<button/);
     expect(pageTwo).not.toContain("Working Area");

@@ -103,15 +103,17 @@ describe("prospectus Page 2 CTA and shared header (DATA STAGE 8)", () => {
       expect(html).not.toMatch(/guaranteed return/i);
     });
 
-    it("shows INVEST NOW as a disabled presentation button without a route", () => {
+    it("shows INVEST NOW as a static non-interactive bar", () => {
       const html = buildProspectusInvestmentCtaHtml(SAMPLE_PROSPECTUS_INVESTMENT_CTA);
 
       expect(html).toContain("INVEST WITH CONFIDENCE");
       expect(html).toContain(PROSPECTUS_INVESTMENT_CTA_DESCRIPTION);
       expect(html).toContain("INVEST NOW");
       expect(html).toContain("Minimum investment: RM 100.00");
-      expect(html).toContain('disabled aria-disabled="true"');
-      expect(html).toContain('class="cta-button"');
+      expect(html).toContain('<div class="cta-button" aria-hidden="true">INVEST NOW</div>');
+      expect(html).not.toContain("<button");
+      expect(html).not.toContain("disabled");
+      expect(html).not.toContain("aria-disabled");
       expect(html).not.toContain("CTA Paragraph");
       expect(html).not.toContain("Data not available");
       expect(html).not.toContain("<a ");
@@ -124,21 +126,23 @@ describe("prospectus Page 2 CTA and shared header (DATA STAGE 8)", () => {
       expect(html).not.toContain("QR");
     });
 
-    it("can render a future href without changing the button helper contract", () => {
+    it("never renders INVEST NOW as a link even if a reserved href is present", () => {
       const linked = buildProspectusInvestmentCtaButtonHtml({
         buttonLabel: "INVEST NOW",
         buttonHref: "/investments/futureNoteId001",
       });
-      expect(linked).toContain('<a class="cta-button" href="/investments/futureNoteId001">');
-      expect(linked).toContain("INVEST NOW");
-      expect(linked).not.toContain("disabled");
+      expect(linked).toBe('<div class="cta-button" aria-hidden="true">INVEST NOW</div>');
+      expect(linked).not.toContain("<a ");
+      expect(linked).not.toContain("href=");
+      expect(linked).not.toContain("<button");
 
       const frozen = buildProspectusInvestmentCtaButtonHtml({
         buttonLabel: "INVEST NOW",
         buttonHref: null,
       });
-      expect(frozen).toContain("disabled");
+      expect(frozen).toBe('<div class="cta-button" aria-hidden="true">INVEST NOW</div>');
       expect(frozen).not.toContain("<a ");
+      expect(frozen).not.toContain("<button");
     });
 
     it("formats minimum investment from MARKETPLACE_MIN_COMMIT_MYR without hardcoding", () => {
@@ -188,7 +192,10 @@ describe("prospectus Page 2 CTA and shared header (DATA STAGE 8)", () => {
       expect(html).toContain("INVEST WITH CONFIDENCE");
       expect(html).toContain("INVEST NOW");
       expect(html).toContain("Minimum investment: RM 100.00");
-      expect(html).toContain('disabled aria-disabled="true"');
+      expect(html).toContain('<div class="cta-button" aria-hidden="true">INVEST NOW</div>');
+      expect(html).not.toContain("disabled");
+      expect(html).not.toContain("<button");
+      expect(html).not.toContain("<a ");
 
       expect(html).not.toContain("logoSource");
       expect(html).not.toContain("taglineApproved");

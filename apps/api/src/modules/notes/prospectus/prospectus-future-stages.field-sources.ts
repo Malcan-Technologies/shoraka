@@ -298,7 +298,7 @@
  * Missing/invalid grade → scale with no selection + "—"
  *
  * Page 1 relationship:
- * - Page 1 links with "See rating scale on page 2"
+ * - Page 1 shows static text "See rating scale on page 2" (not a link)
  * - Page 2 has the A–F structural scale with selection highlight
  *
  * =============================================================================
@@ -319,13 +319,12 @@
  *
  * CTA (static frozen content only):
  * - Heading static: INVEST WITH CONFIDENCE
- * - Button label static: INVEST NOW (disabled presentation; buttonHref always null)
+ * - Button label static: INVEST NOW (decorative div; never a link or button)
  * - Minimum investment: MARKETPLACE_MIN_COMMIT_MYR via formatProspectusMoneyMyr
  * - Display: Minimum investment: RM 100.00 (platform floor; not capacity-adjusted)
  * - No paragraph DNA, live route, available amount, or acknowledgement
- * - HTML structured so a future buttonHref can become an <a> without redesign
  * - Live investability / invest controls remain on investor marketplace
- * - No attractive / short-term / Shariah-compliant investment claims
+ * - Description uses PROSPECTUS_INVEST_CTA_DESCRIPTION static copy
  *
  * No prospectus shared footer. No Investment Risk Warning / Product Terms block.
  * No visible source statement on Pages 1–3.

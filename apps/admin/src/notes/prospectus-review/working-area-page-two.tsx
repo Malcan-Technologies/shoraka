@@ -537,14 +537,13 @@ export function WorkingAreaPageTwo({
                   value="Invest with Confidence"
                 />
                 <ProspectusReadOnlyField
+                  label="CTA Description"
+                  value="Diversify your portfolio and earn attractive return with short-term, Shariah-compliant investment on CashSouk."
+                />
+                <ProspectusReadOnlyField
                   label="Minimum Investment"
                   value={formatCurrency(MARKETPLACE_MIN_COMMIT_MYR)}
                 />
-                <ProspectusReadOnlyField
-                  label="Button Behaviour"
-                  value="Disabled in Prospectus"
-                />
-                <ProspectusReadOnlyField label="Destination" value="None" />
               </ProspectusInfoGrid>
             </ProspectusSectionShell>
           </div>

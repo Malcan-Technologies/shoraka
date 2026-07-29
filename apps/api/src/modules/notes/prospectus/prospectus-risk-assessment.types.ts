@@ -7,7 +7,7 @@ import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types"
 
 export { PROSPECTUS_DATA_NOT_AVAILABLE };
 
-/** Static template link to Page 2 Cashsouk Risk Rating scale. */
+/** Static template text pointing readers to the Page 2 Cashsouk Risk Rating scale. */
 export const PROSPECTUS_RATING_SCALE_REFERENCE = "See rating scale on page 2";
 
 /** Internal marker: A–F catalogue is the approved Cashsouk scale. */

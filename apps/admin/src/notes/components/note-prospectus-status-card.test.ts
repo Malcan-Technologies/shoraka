@@ -92,7 +92,7 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.badgeLabel).toBe("Draft");
     expect(model.primaryLabel).toBe("Review Prospectus");
     expect(model.secondaryLabel).toBeNull();
-    expect(model.emphasize).toBe(true);
+    expect(model.emphasize).toBe(false);
   });
 
   it("Approved shows Ready to publish + Review Prospectus only (no Publish Note)", () => {
@@ -114,7 +114,7 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.badgeLabel).toBe("Approved");
     expect(model.primaryLabel).toBe("Review Prospectus");
     expect(model.secondaryLabel).toBeNull();
-    expect(model.emphasize).toBe(true);
+    expect(model.emphasize).toBe(false);
   });
 
   it("Published shows Published + View Prospectus", () => {
@@ -192,6 +192,26 @@ describe("Admin Note Detail prospectus UI cleanup", () => {
     expect(cardSource).not.toContain("Publish Note");
     expect(cardSource).not.toContain("onPublishNote");
     expect(lifecycleSource).toContain("Publish to Marketplace");
+  });
+
+  it("APPROVED Prospectus card does not use primary/error emphasis styling", () => {
+    const model = resolveProspectusStatusCard(
+      baseNote({
+        prospectus: {
+          status: "APPROVED",
+          displayStatus: "Approved",
+          contentVersion: 1,
+          lastSavedAt: null,
+          approvedAt: new Date().toISOString(),
+          publishedAt: null,
+        },
+      })
+    );
+    expect(model.emphasize).toBe(false);
+    expect(model.primaryLabel).toBe("Review Prospectus");
+    // Emphasis class still exists for optional use, but APPROVED must not enable it.
+    expect(cardSource).toContain("EMPHASIS_CARD_CLASS");
+    expect(cardSource).toMatch(/border-primary|bg-primary/);
   });
 });
 
