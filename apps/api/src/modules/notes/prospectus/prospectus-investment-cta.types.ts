@@ -99,14 +99,14 @@ export const PROSPECTUS_INVESTMENT_CTA_FIELD_SOURCES: Record<
     canonicalSource: "static",
     availability: "static",
     surface: "canva",
-    notes: "INVEST NOW — visual only until a future approved route is attached",
+    notes: "INVEST NOW — static decorative bar only (never a link or button)",
   },
   buttonHref: {
     label: "CTA Destination",
     canonicalSource: "none",
     availability: "reserved",
     surface: "audit",
-    notes: "Always null in frozen Prospectus today. Future optional investor path only.",
+    notes: "Ignored by HTML renderer. Frozen Prospectus never navigates from INVEST NOW.",
   },
   minimumInvestmentStatement: {
     label: "Minimum Investment Statement",

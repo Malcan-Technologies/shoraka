@@ -4,7 +4,6 @@
  */
 
 import {
-  getReadableTextColor,
   isSoukscoreRiskRating,
   SOUKSCORE_RISK_RATING_CATALOGUE,
 } from "@cashsouk/types";
@@ -34,7 +33,7 @@ export function buildProspectusSoukscoreRatingScale(
         label: entry.label,
         explanation: entry.explanation,
         color: entry.color,
-        textColor: getReadableTextColor(entry.color),
+        textColor: entry.textColor,
         isSelected: selected != null && grade === selected,
       };
     }),

@@ -391,10 +391,7 @@ export default function NoteDetailPage() {
 
               <NoteProspectusStatusCard
                 note={note}
-                canManage={canManage}
-                publishPending={publishNote.isPending}
                 onReviewProspectus={() => router.push(`/notes/${note.id}/prospectus`)}
-                onPublishNote={() => setPendingAction("publish")}
               />
 
               <div className="space-y-6">

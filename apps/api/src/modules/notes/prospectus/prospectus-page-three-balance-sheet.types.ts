@@ -46,6 +46,8 @@ export interface ProspectusPageThreeBalanceSheetYear {
   year: number;
   yearLabel: string;
   financialYearEndLabel: string;
+  /** Display-only column — excluded from approval officer-year lists. */
+  isPlaceholder?: boolean;
 }
 
 export interface ProspectusPageThreeBalanceSheetRow {

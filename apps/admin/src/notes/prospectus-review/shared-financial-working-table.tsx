@@ -100,10 +100,13 @@ export function ProspectusSharedFinancialWorkingTable({
                     {row.metric}
                   </TableCell>
                   {headers.map((header, index) => {
-                    if (spec.mode === "editable") {
+                    if (spec.mode === "editable" && !header.isPlaceholder) {
+                      const yearFromHeader = header.yearLabel.replace(/^FY/, "");
                       const yearKey = spec.yearKeyForHeader(
                         header.key,
-                        years?.[index] ?? header.yearLabel.replace(/^FY/, "")
+                        /^\d{4}$/.test(yearFromHeader)
+                          ? yearFromHeader
+                          : (years?.[index] ?? yearFromHeader)
                       );
                       const raw = getEditableValue(yearKey, spec.field);
                       const empty = raw == null || raw === "";
@@ -140,9 +143,15 @@ export function ProspectusSharedFinancialWorkingTable({
                       <TableCell
                         key={`${row.metric}-${header.key}`}
                         className="whitespace-nowrap bg-muted/30 text-sm tabular-nums text-foreground"
-                        title={spec.mode === "reused" ? spec.source : undefined}
+                        title={
+                          header.isPlaceholder
+                            ? "No financial record for this year"
+                            : spec.mode === "reused"
+                              ? spec.source
+                              : undefined
+                        }
                       >
-                        {row.values[index] ?? "—"}
+                        {header.isPlaceholder ? "—" : (row.values[index] ?? "—")}
                       </TableCell>
                     );
                   })}

@@ -4,8 +4,8 @@
  * SVG viewBox is 1440×540 with large transparent padding; crop to visible artwork.
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { resolveProspectusAssetAbsolutePath } from "./prospectus-asset-paths";
 import {
   PROSPECTUS_LOGO_DISPLAY_HEIGHT_PX,
   PROSPECTUS_LOGO_DISPLAY_WIDTH_PX,
@@ -16,15 +16,11 @@ import { PROSPECTUS_BRAND_NAME } from "./prospectus-header.types";
 let cachedDataUri: string | null | undefined;
 
 /**
- * Resolves apps/investor/public/logo.svg relative to this module.
- * Returns null when the asset is missing (tests / incomplete checkouts).
+ * Resolves logo.svg from apps/api/assets/prospectus (production) or investor/public (local).
+ * Returns null when the asset is missing.
  */
 export function resolveProspectusOfficialLogoAbsolutePath(): string | null {
-  const absolute = join(
-    __dirname,
-    "../../../../../investor/public/logo.svg"
-  );
-  return existsSync(absolute) ? absolute : null;
+  return resolveProspectusAssetAbsolutePath("logo.svg");
 }
 
 /**

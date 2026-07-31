@@ -3,7 +3,7 @@
  * WHY: Match reference layout; use corrected approved disclaimer wording
  */
 
-import { prospectusIcon } from "./prospectus-icons";
+import { renderProspectusHeroicon } from "./prospectus-icons";
 
 /** Line 1 — corrected spelling vs static reference. */
 export const PROSPECTUS_FOOTER_DISCLAIMER_LINE1 =
@@ -16,7 +16,7 @@ export const PROSPECTUS_FOOTER_DISCLAIMER_LINE2 =
 /** Shared disclaimer footer — pinned to A4 bottom via CSS margin-top:auto. */
 export function buildProspectusFooterHtml(): string {
   return `<footer class="prospectus-footer" data-stage="footer">
-  ${prospectusIcon.shieldCheck("icon")}
-  <span>${PROSPECTUS_FOOTER_DISCLAIMER_LINE1}<br />${PROSPECTUS_FOOTER_DISCLAIMER_LINE2}</span>
+  ${renderProspectusHeroicon("disclaimer", { className: "icon" })}
+  <span class="prospectus-footer-copy">${PROSPECTUS_FOOTER_DISCLAIMER_LINE1}<br />${PROSPECTUS_FOOTER_DISCLAIMER_LINE2}</span>
 </footer>`;
 }

@@ -252,6 +252,8 @@ export interface ProspectusFinancialComparisonAdminTable {
     key: string;
     yearLabel: string;
     fyeLabel: string;
+    /** Display-only column with no real financial record — not officer-editable. */
+    isPlaceholder?: boolean;
   }>;
   rows: Array<{
     metric: string;
@@ -294,6 +296,8 @@ export interface ProspectusFrozenFinancialYear {
   fyeLabel: string;
   sourceType: ProspectusFrozenFinancialSourceType;
   raw: ProspectusFrozenFinancialRaw;
+  /** Display-only column with no real financial record — not officer-editable. */
+  isPlaceholder?: boolean;
 }
 
 export interface ProspectusReviewGetResponse {

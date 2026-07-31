@@ -67,12 +67,87 @@ function moneyMillionsOrDna(value: number | string | null | undefined): string {
   return formatProspectusMyrMillions(parsed);
 }
 
+/**
+ * Numeric series for Trend (3-Yr) — same sources as displayed cells.
+ * Never reverse-parses formatted display strings.
+ */
+export function numericValueForCoverageRow(
+  key: ProspectusPageThreeCoverageEfficiencyRowKey,
+  raw: Record<string, unknown>,
+  year: ProspectusFinancialComparisonYear,
+  input: Pick<
+    ProspectusPageThreeCoverageEfficiencyInput,
+    "prospectusFinancialInputs" | "page2FinancialOverrides"
+  >
+): number | null {
+  if (year.isPlaceholder) return null;
+  const manual = yearManualInputs(input.prospectusFinancialInputs?.years, year.year);
+
+  switch (key) {
+    case "operating_cash_flow":
+      return parseProspectusFinancialNumber(manual?.operatingCashFlow);
+    case "free_cash_flow":
+      return parseProspectusFinancialNumber(manual?.freeCashFlow);
+    case "interest_coverage": {
+      const override = resolveYearOverride(
+        year,
+        input.page2FinancialOverrides as
+          | Record<string, ProspectusFinancialComparisonYearOfficerOverride>
+          | null
+          | undefined
+      );
+      return parseProspectusFinancialNumber(override?.interestCoverage);
+    }
+    case "dscr": {
+      const override = resolveYearOverride(
+        year,
+        input.page2FinancialOverrides as
+          | Record<string, ProspectusFinancialComparisonYearOfficerOverride>
+          | null
+          | undefined
+      );
+      return parseProspectusFinancialNumber(override?.dscr);
+    }
+    case "debt_equity":
+      return parseProspectusFinancialNumber(manual?.debtEquity);
+    case "return_on_assets":
+      return parseProspectusFinancialNumber(manual?.returnOnAssets);
+    case "receivables_days": {
+      const override = resolveYearOverride(
+        year,
+        input.page2FinancialOverrides as
+          | Record<string, ProspectusFinancialComparisonYearOfficerOverride>
+          | null
+          | undefined
+      );
+      const n = parseProspectusFinancialNumber(override?.receivablesDays);
+      if (n == null || !Number.isInteger(n)) return null;
+      return n;
+    }
+    case "payables_days":
+      return parseProspectusFinancialNumber(manual?.payablesDays);
+    case "asset_turnover":
+      return parseProspectusFinancialNumber(manual?.assetTurnover);
+    case "return_on_equity":
+      return resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: fieldFromRaw(raw, "return_on_equity"),
+        plnpat: fieldFromRaw(raw, "plnpat"),
+        bsqpuc: fieldFromRaw(raw, "bsqpuc"),
+      });
+    default: {
+      const _exhaustive: never = key;
+      return _exhaustive;
+    }
+  }
+}
+
 function valueForRow(
   key: ProspectusPageThreeCoverageEfficiencyRowKey,
   raw: Record<string, unknown>,
   year: ProspectusFinancialComparisonYear,
   input: ProspectusPageThreeCoverageEfficiencyInput
 ): string {
+  if (year.isPlaceholder) return PROSPECTUS_DATA_NOT_AVAILABLE;
   const manual = yearManualInputs(input.prospectusFinancialInputs?.years, year.year);
 
   switch (key) {
@@ -131,6 +206,7 @@ export function buildProspectusPageThreeCoverageEfficiency(
       year: year.year,
       yearLabel: year.yearLabel,
       financialYearEndLabel: year.financialYearEndLabel,
+      isPlaceholder: year.isPlaceholder === true,
     })),
     rows: PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_ROW_KEYS.map((key) => ({
       key,

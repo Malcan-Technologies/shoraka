@@ -13,7 +13,11 @@ export const PROSPECTUS_BRAND_NAME = "CashSouk";
  * Official CashSouk logo used by investor/issuer/landing/admin portals
  * and packages/ui Logo (src="/logo.svg").
  */
-export const PROSPECTUS_OFFICIAL_LOGO_REPO_PATH = "apps/investor/public/logo.svg";
+/** Canonical API-packaged logo for production Docker / PDF embedding. */
+export const PROSPECTUS_OFFICIAL_LOGO_REPO_PATH = "apps/api/assets/prospectus/logo.svg";
+/** Local monorepo fallback (investor portal public asset). */
+export const PROSPECTUS_OFFICIAL_LOGO_INVESTOR_FALLBACK_PATH =
+  "apps/investor/public/logo.svg";
 
 /**
  * Relative img src from apps/api/tmp/prospectus/*.html preview files.

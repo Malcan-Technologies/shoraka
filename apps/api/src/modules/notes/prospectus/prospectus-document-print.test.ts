@@ -26,6 +26,12 @@ describe("prospectus document A4 and print CSS", () => {
     expect(PROSPECTUS_DOCUMENT_CSS).toContain("min-height:var(--prospectus-a4-height)");
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(`--prospectus-a4-width:${PROSPECTUS_A4_WIDTH_MM}mm`);
     expect(PROSPECTUS_DOCUMENT_CSS).toContain(`--prospectus-a4-height:${PROSPECTUS_A4_HEIGHT_MM}mm`);
+    // Only .page owns 210mm — html/body/document use fluid width (no 100vw)
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(/html\{[^}]*width:100%/);
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(/body\{[^}]*width:100%/);
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(/\.document\{[^}]*width:100%/);
+    expect(PROSPECTUS_DOCUMENT_CSS).toMatch(/\.document\{[^}]*min-width:0/);
+    expect(PROSPECTUS_DOCUMENT_CSS).not.toContain("100vw");
   });
 
   it("does not include viewport max-width media queries that reflow grids or stack sections", () => {
@@ -40,6 +46,7 @@ describe("prospectus document A4 and print CSS", () => {
     expect(PROSPECTUS_DOCUMENT_CSS).toMatch(/\.page\{[^}]*background:#fff/);
     expect(PROSPECTUS_DOCUMENT_CSS).toMatch(/\.document\{[^}]*padding:24px 0/);
     expect(PROSPECTUS_DOCUMENT_CSS).toMatch(/box-shadow:0 4px 24px/);
+    expect(PROSPECTUS_DOCUMENT_CSS).toContain("*,*::before,*::after{box-sizing:border-box}");
   });
 
   it("lets Page 2 financial and insights cards grow instead of clipping content", () => {

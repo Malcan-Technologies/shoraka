@@ -6,9 +6,10 @@ import {
   PROSPECTUS_STEP_TITLES,
   HIGHLIGHT_FIELD_LABELS,
   INVOICE_WORK_FIELD_LABELS,
+  prospectusReviewStatusBadgeClassName,
 } from "./labels";
+import { WORKFLOW_STATUS_BADGE } from "@/notes/utils/workflow-status-tokens";
 import {
-  CHECKLIST_ITEM_STEP,
   PROSPECTUS_STEP_STATUS_LABEL,
   buildProspectusCompletionChecklist,
   buildProspectusMissingRequiredFields,
@@ -36,6 +37,16 @@ describe("prospectus review admin labels", () => {
     expect(formatProspectusReviewStatus("SUPERSEDED")).toBe("Draft");
     expect(formatProspectusReviewStatus("APPROVED")).toBe("Approved");
     expect(formatProspectusReviewStatus("PUBLISHED", true)).toBe("Published");
+  });
+
+  it("applies green success badge only for Approved (shared with Note Detail card)", () => {
+    expect(prospectusReviewStatusBadgeClassName("DRAFT")).toBeUndefined();
+    expect(prospectusReviewStatusBadgeClassName("READY_FOR_REVIEW")).toBeUndefined();
+    expect(prospectusReviewStatusBadgeClassName("SUPERSEDED")).toBeUndefined();
+    expect(prospectusReviewStatusBadgeClassName("PUBLISHED", true)).toBeUndefined();
+    expect(prospectusReviewStatusBadgeClassName("APPROVED")).toBe(
+      WORKFLOW_STATUS_BADGE.success.badgeClass
+    );
   });
 
   it("uses four page-based working-area steps", () => {
@@ -77,7 +88,7 @@ describe("prospectus review admin labels", () => {
   });
 });
 
-describe("prospectus review completion checklist", () => {
+describe("prospectus review completion readiness", () => {
   function emptyDraft(): ProspectusReviewStoredContent {
     return {
       page1: {
@@ -198,24 +209,15 @@ describe("prospectus review completion checklist", () => {
     expect(withIncome[2]).toBe("required");
   });
 
-  it("maps checklist rows to workflow steps for navigation", () => {
-    expect(CHECKLIST_ITEM_STEP).toEqual({
-      core: 0,
-      highlights: 0,
-      paymaster: 1,
-      credit: 1,
-      financials: 2,
-      takeaways: 2,
-    });
-
+  it("keeps shared completion categories for approval readiness only", () => {
     const checklist = buildProspectusCompletionChecklist(emptyDraft());
-    expect(checklist.map((i) => i.label)).toEqual([
-      "Note & Investment Details",
-      "Investor Highlights",
-      "Paymaster Track Record",
-      "Issuer, Credit & Invoice",
-      "Financial Review",
-      "Investor Takeaways",
+    expect(checklist.map((i) => i.id)).toEqual([
+      "core",
+      "highlights",
+      "paymaster",
+      "credit",
+      "financials",
+      "takeaways",
     ]);
     expect(statusForCompletionItem(checklist[0]!)).toBe("complete");
     expect(statusForCompletionItem(checklist[1]!)).toBe("required");
@@ -230,6 +232,17 @@ describe("prospectus review completion checklist", () => {
     expect(missing.some((m) => m.field === "Company Size")).toBe(true);
     expect(missing.some((m) => m.section === "Financial Comparison")).toBe(true);
     expect(missing.some((m) => m.year === "FY2024")).toBe(true);
+    expect(missing.every((m) => m.pageStep === 0 || m.pageStep === 1 || m.pageStep === 2)).toBe(
+      true
+    );
+  });
+
+  it("does not let optional paymaster fields affect missing counts", () => {
+    const draft = completeOfficerDraft();
+    draft.page2.paymasterTrackRecord = undefined;
+    const missing = buildProspectusMissingRequiredFields(draft);
+    expect(missing).toHaveLength(0);
+    expect(isProspectusDraftReadyToSubmit(draft)).toBe(true);
   });
 });
 
@@ -295,7 +308,7 @@ describe("prospectus review action visibility", () => {
     expect(actions.viewProspectus).toBe(false);
   });
 
-  it("keeps Preview on APPROVED until Note is published", () => {
+  it("hides Approve on APPROVED while keeping Preview and Back to Note", () => {
     const approved = getProspectusActionVisibility({
       step: 2,
       status: "APPROVED",
@@ -304,23 +317,23 @@ describe("prospectus review action visibility", () => {
     });
     expect(approved.saveDraft).toBe(true);
     expect(approved.preview).toBe(true);
-    expect(approved.approve).toBe(true);
+    expect(approved.approve).toBe(false);
     expect(approved.backToNote).toBe(true);
     expect(approved.viewProspectus).toBe(false);
 
-    const published = getProspectusActionVisibility({
+    const publishedNote = getProspectusActionVisibility({
       step: 3,
       status: "APPROVED",
       canManage: true,
       notePublished: true,
     });
-    expect(published.saveDraft).toBe(false);
-    expect(published.preview).toBe(false);
-    expect(published.approve).toBe(false);
-    expect(published.viewProspectus).toBe(true);
+    expect(publishedNote.saveDraft).toBe(false);
+    expect(publishedNote.preview).toBe(false);
+    expect(publishedNote.approve).toBe(false);
+    expect(publishedNote.viewProspectus).toBe(true);
   });
 
-  it("hides Approve for view-only and published Prospectus", () => {
+  it("hides Approve for view-only and PUBLISHED Prospectus", () => {
     const viewOnly = getProspectusActionVisibility({
       step: 0,
       status: "DRAFT",
@@ -338,6 +351,9 @@ describe("prospectus review action visibility", () => {
       notePublished: true,
     });
     expect(published.approve).toBe(false);
+    expect(published.saveDraft).toBe(false);
+    expect(published.preview).toBe(false);
+    expect(published.viewProspectus).toBe(true);
   });
 
   it("blocks approval readiness when required checklist items are incomplete", () => {

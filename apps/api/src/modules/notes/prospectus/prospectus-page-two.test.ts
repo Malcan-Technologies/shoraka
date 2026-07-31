@@ -648,7 +648,11 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(stage7Start).toBeGreaterThan(-1);
       expect(stage8Start).toBeGreaterThan(stage7Start);
       const stage7 = html.slice(stage7Start, stage8Start);
-      expect(stage7).toContain('data-grade="C" data-selected="true"');
+      expect(stage7).toContain('data-grade="C"');
+      expect(stage7).not.toContain("data-selected");
+      expect(stage7).not.toContain("is-selected");
+      expect(stage7).toContain("Risk Rating Scale");
+      expect(stage7).not.toContain("Cashsouk Risk Rating");
       expect(stage7).not.toContain("Assessment Note");
       expect(stage7).not.toContain("Risk Label");
       expect(stage7).not.toContain("Definition:");
@@ -710,7 +714,9 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(stageCta).toContain(PROSPECTUS_INVEST_CTA_DESCRIPTION);
       expect(stageCta).toContain("INVEST NOW");
       expect(stageCta).toContain("Minimum investment: RM 100.00");
-      expect(stageCta).toContain('disabled aria-disabled="true"');
+      expect(stageCta).toContain('<div class="cta-button" aria-hidden="true">INVEST NOW</div>');
+      expect(stageCta).not.toContain("<button");
+      expect(stageCta).not.toContain("disabled");
       expect(stageCta).not.toContain("CTA Paragraph");
       expect(stageCta).not.toContain("/investments/");
       expect(stageCta).not.toContain("<a ");
@@ -784,7 +790,9 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(html).toContain("INVEST WITH CONFIDENCE");
       expect(html).toContain(PROSPECTUS_INVEST_CTA_DESCRIPTION);
       expect(html).toContain("Minimum investment: RM 100.00");
-      expect(html).toContain('disabled aria-disabled="true"');
+      expect(html).toContain('<div class="cta-button" aria-hidden="true">INVEST NOW</div>');
+      expect(html).not.toContain("<button");
+      expect(html).not.toContain("disabled");
       expect(html.match(/class="risk-scale-note"/g)?.length).toBe(1);
       expect(html.match(/class="invest-confidence-description"/g)?.length).toBe(1);
       expect(html).toContain(PROSPECTUS_RISK_SCALE_NOTE);

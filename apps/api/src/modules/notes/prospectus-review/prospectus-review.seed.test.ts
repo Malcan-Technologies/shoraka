@@ -68,26 +68,32 @@ describe("prospectus review demo seed", () => {
     );
   });
 
-  it("seeds SSM-aligned financials with future FYE and valid pldd", () => {
+  it("seeds SSM-aligned financials for FY2024–FY2026 with matching pldd (no FY2027)", () => {
     const ref = new Date("2026-07-21T00:00:00.000Z");
     const fs = buildProspectusDemoFinancialStatements(ref);
     const questionnaire = normalizeFinancialStatementsQuestionnaire(fs.questionnaire, ref);
     expect(questionnaire).not.toBeNull();
+    expect(questionnaire?.financial_year_end).toBe("2026-09-02");
     const ssmYears = getAdminFinancialSummaryUserColumnYears(questionnaire, ref);
     expect(ssmYears.length).toBeGreaterThan(0);
+    expect(Math.max(...ssmYears)).toBeLessThanOrEqual(2026);
     const byYear = fs.unaudited_by_year as Record<string, Record<string, unknown>>;
     expect(Object.keys(byYear).sort()).toEqual(ssmYears.map(String).sort());
     for (const year of ssmYears) {
       const block = byYear[String(year)];
       expect(typeof block?.pldd).toBe("string");
       expect(String(block?.pldd)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(String(block?.pldd).startsWith(`${year}-`)).toBe(true);
       expect(block).not.toHaveProperty("grossProfit");
       expect(block).not.toHaveProperty("ebitda");
     }
     const newest = byYear[String(Math.max(...ssmYears))];
     expect(newest?.turnover).toBe(15_000_000);
     expect(newest?.plnpat).toBe(1_200_000);
-    expect(buildProspectusDemoCtosFinancials(ref).length).toBeGreaterThan(0);
+    const ctos = buildProspectusDemoCtosFinancials(ref) as Array<{ financial_year?: number }>;
+    expect(ctos.length).toBeGreaterThan(0);
+    expect(ctos.every((row) => (row.financial_year ?? 0) <= 2026)).toBe(true);
+    expect(ctos.some((row) => row.financial_year === 2027)).toBe(false);
   });
 
   it("builds a complete review draft that passes approval validation", () => {

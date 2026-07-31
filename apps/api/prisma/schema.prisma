@@ -879,6 +879,17 @@ model NoteProspectusPublication {
   approved_by_user_id  String
   approved_at          DateTime
   published_at         DateTime?
+  /// Private S3 PDF generated once at Approve from frozen HTML.
+  pdf_storage_bucket   String?
+  pdf_storage_key      String?
+  pdf_content_type     String?              @default("application/pdf")
+  pdf_size_bytes       Int?
+  pdf_sha256           String?
+  pdf_generated_at     DateTime?
+  pdf_generation_status String?             @default("PENDING")
+  pdf_generation_error String?
+  pdf_snapshot_hash    String?
+  pdf_page_count       Int?
   created_at           DateTime             @default(now())
   note                 Note                 @relation(fields: [note_id], references: [id], onDelete: Cascade)
   prospectus_review    NoteProspectusReview @relation(fields: [prospectus_review_id], references: [id], onDelete: Cascade)
@@ -887,6 +898,7 @@ model NoteProspectusPublication {
   @@index([note_id])
   @@index([prospectus_review_id])
   @@index([published_at])
+  @@index([pdf_storage_key])
   @@map("note_prospectus_publications")
 }
 

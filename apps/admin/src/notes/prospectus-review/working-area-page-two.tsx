@@ -7,7 +7,6 @@ import {
   ChartBarIcon,
   ClipboardDocumentCheckIcon,
   DocumentTextIcon,
-  ExclamationTriangleIcon,
   ShieldCheckIcon,
   TableCellsIcon,
 } from "@heroicons/react/24/outline";
@@ -18,9 +17,9 @@ import {
   PROSPECTUS_CONFIDENCE_GRADING_VALUES,
   PROSPECTUS_DEED_OF_ASSIGNMENT_VALUES,
   PROSPECTUS_PAYMASTER_RATING_VALUES,
+  CASHSCOUK_RISK_GRADE_LETTER_COLOR,
   SOUKSCORE_RISK_RATING_CATALOGUE,
   SOUKSCORE_RISK_RATING_GRADES,
-  getReadableTextColor,
   normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
   normalizeProspectusDeedOfAssignment,
@@ -28,11 +27,11 @@ import {
   resolveSoukscoreRiskRatingPresentation,
   type ProspectusReviewStoredContent,
 } from "@cashsouk/types";
-import { cn } from "@/lib/utils";
 import { INVOICE_WORK_FIELD_LABELS } from "@/notes/prospectus-review/labels";
 import type { CoreTermRow } from "@/notes/prospectus-review/core-terms";
 import type { FinancialMetricTableModel } from "@/notes/prospectus-review/financial-metric-table";
 import { ProspectusFinancialComparisonWorkingTable } from "@/notes/prospectus-review/financial-comparison-working-table";
+import { ProspectusMissingFinancialYearWarning } from "@/notes/prospectus-review/missing-financial-year-warning";
 import {
   countMissingForTab,
   type ProspectusCompletionOptions,
@@ -375,22 +374,10 @@ export function WorkingAreaPageTwo({
             missingCount={financialMissing}
           >
             {financialComparisonOpsWarning ? (
-              <div
-                role="status"
-                data-testid="financial-comparison-ops-warning"
-                className="mb-3 flex gap-2 rounded-lg border border-amber-500/40 bg-amber-50 p-3 text-sm text-foreground dark:bg-amber-950/30"
-              >
-                <ExclamationTriangleIcon
-                  className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
-                  aria-hidden
-                />
-                <div className="min-w-0 space-y-1">
-                  <p className="font-semibold">{financialComparisonOpsWarning.title}</p>
-                  <p className="text-xs leading-relaxed text-muted-foreground">
-                    {financialComparisonOpsWarning.description}
-                  </p>
-                </div>
-              </div>
+              <ProspectusMissingFinancialYearWarning
+                title={financialComparisonOpsWarning.title}
+                description={financialComparisonOpsWarning.description}
+              />
             ) : null}
             <ProspectusFinancialComparisonWorkingTable
               table={financialComparisonTable}
@@ -483,11 +470,8 @@ export function WorkingAreaPageTwo({
 
       {tab === "risk" ? (
         <div className="space-y-6" role="tabpanel">
-          <ProspectusSectionShell title="Cashsouk Risk Rating" icon={ShieldCheckIcon}>
+          <ProspectusSectionShell title="Risk Rating Scale" icon={ShieldCheckIcon}>
             <div className="space-y-3" data-prospectus-risk-rating-scale>
-              <p className="text-sm text-muted-foreground">
-                Full A–F Cashsouk scale. Selected Note grade is highlighted.
-              </p>
               <div className="overflow-x-auto rounded-xl border">
                 <table className="w-full min-w-[48rem] text-left text-sm">
                   <thead>
@@ -500,33 +484,20 @@ export function WorkingAreaPageTwo({
                   <tbody>
                     {SOUKSCORE_RISK_RATING_GRADES.map((grade) => {
                       const entry = SOUKSCORE_RISK_RATING_CATALOGUE[grade];
-                      const selected = risk.isAvailable && risk.grade === grade;
                       return (
-                        <tr
-                          key={grade}
-                          className={cn(
-                            "border-b last:border-0",
-                            selected && "bg-muted/30 ring-2 ring-inset ring-foreground"
-                          )}
-                          data-selected={selected ? "true" : "false"}
-                          aria-current={selected ? "true" : undefined}
-                        >
+                        <tr key={grade} className="border-b last:border-0">
                           <td className="px-3 py-2 font-semibold tabular-nums">
                             <span
                               className="inline-flex h-8 w-8 items-center justify-center rounded-md text-xs font-extrabold"
                               style={{
                                 backgroundColor: entry.color,
-                                color: getReadableTextColor(entry.color),
+                                color: CASHSCOUK_RISK_GRADE_LETTER_COLOR,
                               }}
                               data-grade-color={entry.color}
+                              data-grade-letter-color={CASHSCOUK_RISK_GRADE_LETTER_COLOR}
                             >
                               {entry.grade}
                             </span>
-                            {selected ? (
-                              <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                Selected
-                              </span>
-                            ) : null}
                           </td>
                           <td className="px-3 py-2">{entry.label}</td>
                           <td className="px-3 py-2 text-muted-foreground">
@@ -554,14 +525,13 @@ export function WorkingAreaPageTwo({
                   value="Invest with Confidence"
                 />
                 <ProspectusReadOnlyField
+                  label="CTA Description"
+                  value="Diversify your portfolio and earn attractive return with short-term, Shariah-compliant investment on CashSouk."
+                />
+                <ProspectusReadOnlyField
                   label="Minimum Investment"
                   value={formatCurrency(MARKETPLACE_MIN_COMMIT_MYR)}
                 />
-                <ProspectusReadOnlyField
-                  label="Button Behaviour"
-                  value="Disabled in Prospectus"
-                />
-                <ProspectusReadOnlyField label="Destination" value="None" />
               </ProspectusInfoGrid>
             </ProspectusSectionShell>
           </div>

@@ -2,6 +2,7 @@ import {
   getProspectusDisplayStatus,
   type ProspectusReviewStatus,
 } from "@cashsouk/types";
+import { workflowBadgeClassName } from "@/notes/utils/workflow-status-tokens";
 
 /** Four top-level working-area pages. */
 export type ProspectusWorkflowStepId = 0 | 1 | 2 | 3;
@@ -40,6 +41,21 @@ export function formatProspectusReviewStatus(
   notePublished = false
 ): string {
   return getProspectusDisplayStatus({ reviewStatus: status, notePublished });
+}
+
+/**
+ * Shared Prospectus status pill tone.
+ * Only "Approved" uses the green success badge; Draft / Published keep plain outline.
+ */
+export function prospectusReviewStatusBadgeClassName(
+  status: ProspectusReviewStatus,
+  notePublished = false
+): string | undefined {
+  const label = formatProspectusReviewStatus(status, notePublished);
+  if (label === "Approved") {
+    return workflowBadgeClassName("success");
+  }
+  return undefined;
 }
 
 export const HIGHLIGHT_FIELD_LABELS: Record<string, string> = {

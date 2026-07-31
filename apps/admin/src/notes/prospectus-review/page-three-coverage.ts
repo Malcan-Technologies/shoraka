@@ -143,6 +143,7 @@ function yearHeadersFromFrozen(
     key: year.financialYearEndIso,
     yearLabel: year.label,
     fyeLabel: year.fyeLabel,
+    isPlaceholder: year.isPlaceholder === true,
   }));
 }
 
@@ -396,6 +397,13 @@ function pivotYearRows(
   const yearHeaders = yearHeadersFromFrozen(frozenYears);
   const perYear = frozenYears.map((year) => {
     const calendarYear = String(year.calendarYear);
+    if (year.isPlaceholder) {
+      // Display-only column — never resolve metrics or officer manuals.
+      return buildRows({}, undefined, calendarYear).map((row) => ({
+        ...row,
+        value: DATA_NOT_AVAILABLE,
+      }));
+    }
     const manual =
       manualYears?.[calendarYear] ??
       manualYears?.[year.financialYearEndIso] ??

@@ -70,13 +70,30 @@ describe("prospectus review presentation cleanup", () => {
     expect(pageTwo).toContain("data-prospectus-risk-rating-scale");
     expect(pageTwo).toContain("SOUKSCORE_RISK_RATING_GRADES");
     expect(pageTwo).toContain("SOUKSCORE_RISK_RATING_CATALOGUE");
-    expect(pageTwo).toContain("Risk Information");
+    expect(pageTwo).toContain("Risk Rating Scale");
+    expect(pageTwo).not.toContain("Full A–F Cashsouk scale for reference.");
+    expect(pageTwo).not.toContain('title="Cashsouk Risk Rating"');
+    expect(pageTwo).not.toContain("Cashsouk Risk Rating");
     expect(pageTwo).toContain("Risk Level");
-    expect(pageTwo).toContain("Explanation");
+    expect(pageTwo).toContain("Description");
+    expect(pageTwo).toContain("CASHSCOUK_RISK_GRADE_LETTER_COLOR");
+    expect(pageTwo).toContain("data-grade-color");
+    expect(pageTwo).not.toContain("Selected Note grade is highlighted");
+    expect(pageTwo).not.toContain(">Selected<");
+    expect(pageTwo).not.toContain("ring-foreground");
+    expect(pageTwo).not.toContain("data-selected");
     expect(pageTwo).not.toContain("Scale Version");
     expect(pageTwo).not.toContain("soukscore-scale.v1");
     expect(pageTwo).not.toContain("From Invoice Offer");
-    expect(pageTwo).toContain("Disabled in Prospectus");
+    expect(pageTwo).not.toContain("Very Low Risk");
+    expect(pageTwo).not.toContain("Moderately Low Risk");
+    expect(pageTwo).not.toContain("Disabled in Prospectus");
+    expect(pageTwo).not.toContain("Button Behaviour");
+    expect(pageTwo).not.toContain('label="Destination"');
+    expect(pageTwo).toContain("CTA Description");
+    expect(pageTwo).toContain(
+      "Diversify your portfolio and earn attractive return with short-term, Shariah-compliant investment on CashSouk."
+    );
     expect(pageTwo).toContain("Invest with Confidence");
     expect(pageTwo).not.toMatch(/data-prospectus-investment-cta[\s\S]{0,400}<button/);
     expect(pageTwo).not.toContain("Working Area");
@@ -105,11 +122,29 @@ describe("prospectus review presentation cleanup", () => {
     expect(financialComparisonTable).toContain("ProspectusSharedFinancialWorkingTable");
   });
 
-  it("Preview & Approval lists missing required fields", () => {
+  it("Preview & Approval keeps readiness and missing fields without Completion checklist", () => {
     expect(preview).toContain("buildProspectusMissingRequiredFields");
     expect(preview).toContain("Missing required fields");
     expect(preview).toContain("Readiness by page");
+    expect(preview).toContain("Approval unavailable");
+    expect(preview).toContain("Ready for approval");
+    expect(preview).toContain("All required fields are complete.");
+    expect(preview).toContain("The Prospectus is ready for approval.");
+    expect(preview).toContain("required field");
+    expect(preview).toContain("are still missing.");
+    expect(preview).not.toContain("Completion checklist");
+    expect(preview).not.toContain("Note & Investment Details");
+    expect(preview).not.toContain("Investor Highlights");
+    expect(preview).not.toContain("Paymaster Track Record");
+    expect(preview).not.toContain("Issuer, Credit & Invoice");
+    expect(preview).not.toContain("Financial Review");
+    expect(preview).not.toContain("Investor Takeaways");
+    expect(preview).not.toContain("buildProspectusCompletionChecklist");
+    expect(preview).not.toContain("CHECKLIST_ITEM_STEP");
+    expect(preview).not.toContain("statusForCompletionItem");
+    expect(preview).not.toContain("ProspectusStatusBadge");
     expect(preview).not.toContain("data-prospectus-action-bar");
+    expect(preview).toContain("onNavigate(item.pageStep, item.tabId)");
   });
 
   it("maps workflow steps to prospectus preview pages for the four-step model", () => {
