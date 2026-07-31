@@ -68,7 +68,7 @@ Entity `contract.status` / `invoice.status` stays `OFFER_SENT` until commercial 
 
 ### Deriving offer status for UI
 
-Uses the active phase deadline on `offer_acceptance` (`acceptance_expires_at` while in Step 1/admin review; `signing_expires_at` while approved for signing / signing in progress). See `apps/issuer/src/lib/offer-utils.ts`.
+Uses the active phase deadline on `offer_acceptance` (`acceptance_expires_at` while in Step 1/admin review; `signing_expires_at` while approved for signing / signing in progress). Deadlines are **Malaysia calendar days** valid through **11:59 PM** on the last valid day; expiry is **`now >= expiresAt`** (exclusive next-midnight MYT stored as UTC). UI labels use shared formatting (`Accept by 06 Aug 2026, 11:59 PM`). See `apps/issuer/src/lib/offer-utils.ts` and `packages/types/src/deadline-config.ts`.
 
 - **"Offer received"** — Show offer badge, enable "Review offer" / Accept–Reject when the active clock has not passed.
 - **"Offer expired"** — Same label for past-deadline soft window (`OFFER_SENT` + clock past) and durable entity status `OFFER_EXPIRED`:
@@ -157,7 +157,7 @@ Non-production `{ skipSigning: true }` bypass applies the same as contract.
 
 - `400 INVALID_STATE` — No pending offer, no contract/invoice, or no `offer_details`.
 - `400 ALREADY_RESPONDED` — Already accepted or rejected.
-- `400 OFFER_EXPIRED` — active phase deadline (`acceptance_expires_at` or `signing_expires_at`) has passed.
+- `400 OFFER_EXPIRED` — active phase deadline (`acceptance_expires_at` or `signing_expires_at`) has passed (`now >= expiresAt`; calendar-day boundary in MYT).
 - `400 USE_SIGNING_FLOW` — SigningCloud configured; accept via envelope completion (or contract-linked direct accept when eligible).
 - `400 CONTRACT_SIGNING_INCOMPLETE` — Contract-linked invoice accept before contract envelope `COMPLETED`.
 - `403 FORBIDDEN` — User not in issuer org.

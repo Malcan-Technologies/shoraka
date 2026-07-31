@@ -2,8 +2,8 @@
 /**
  * Position an OFFER_SENT acceptance clock so the hourly expiry job should fire a reminder.
  *
- * Sets acceptance_expires_at = now + days_before_expiry (default 1 day), clears
- * deadline_reminders_sent for that key so the next job run sends the reminder.
+ * Sets acceptance_expires_at to the MYT calendar-day boundary N days from today (default 1),
+ * clears deadline_reminders_sent for that key so the next job run sends the reminder.
  *
  * Usage:
  *   pnpm seed-reminder-window-acceptance-deadline-for-test [contractId|invoiceId] [daysBefore=1]
@@ -12,7 +12,8 @@
 import "dotenv/config";
 import { PrismaClient, Prisma } from "@prisma/client";
 import {
-  addDaysIso,
+  computePhaseDeadlineExpiresAt,
+  computeReminderFireAt,
   deadlineReminderKey,
   getOfferAcceptanceFromOfferDetails,
 } from "@cashsouk/types";
@@ -26,8 +27,8 @@ function mergeReminderWindow(
   const acceptance = getOfferAcceptanceFromOfferDetails(offerDetails) ?? {
     status: "PENDING_ISSUER" as const,
   };
-  // Fire window opened ~1 minute ago so the next job run sends the reminder.
-  const expiresAt = addDaysIso(new Date(Date.now() - 60_000), daysBefore);
+  // Position expiry so the reminder window is open (fire time in the past, expiry still live).
+  const expiresAt = computePhaseDeadlineExpiresAt(new Date(), daysBefore);
   const reminderKey = deadlineReminderKey("acceptance", daysBefore);
   const sent = { ...(acceptance.deadline_reminders_sent ?? {}) };
   delete sent[reminderKey];
@@ -65,7 +66,7 @@ async function seedContract(id: string, daysBefore: number) {
     data: { offer_details: merged as Prisma.InputJsonValue },
   });
   console.log(
-    `Contract ${id}: acceptance_expires_at=${expiresAt} (cleared reminder ${reminderKey})`
+    `Contract ${id}: acceptance_expires_at=${expiresAt} (cleared reminder ${reminderKey}); reminder fires at ${computeReminderFireAt(expiresAt, daysBefore, 9).toISOString()}`
   );
   console.log("Run: pnpm run-acceptance-signing-expiry");
   return true;
@@ -90,7 +91,7 @@ async function seedInvoice(id: string, daysBefore: number) {
     data: { offer_details: merged as Prisma.InputJsonValue },
   });
   console.log(
-    `Invoice ${id}: acceptance_expires_at=${expiresAt} (cleared reminder ${reminderKey})`
+    `Invoice ${id}: acceptance_expires_at=${expiresAt} (cleared reminder ${reminderKey}); reminder fires at ${computeReminderFireAt(expiresAt, daysBefore, 9).toISOString()}`
   );
   console.log("Run: pnpm run-acceptance-signing-expiry");
   return true;

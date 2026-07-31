@@ -1,10 +1,10 @@
 #!/usr/bin/env tsx
 /**
- * Backdate acceptance or signing deadline on an OFFER_SENT offer for testing the expiry job.
+ * Set acceptance or signing deadline to a past MYT calendar boundary for testing the expiry job.
  *
  * Usage:
  *   pnpm seed-expired-acceptance-deadline-for-test [contractId|invoiceId] [acceptance|signing]
- * - No args: finds first OFFER_SENT contract/invoice with offer_acceptance and backdates acceptance_expires_at
+ * - No args: finds first OFFER_SENT contract/invoice with offer_acceptance and sets acceptance_expires_at past boundary
  * - Optional clock: acceptance (default) | signing
  */
 
@@ -13,7 +13,7 @@ import { PrismaClient, Prisma } from "@prisma/client";
 import { getOfferAcceptanceFromOfferDetails } from "@cashsouk/types";
 
 const prisma = new PrismaClient();
-const ONE_HOUR_AGO = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+const PAST_EXPIRES_AT = "2000-01-01T00:00:00.000Z";
 
 type Clock = "acceptance" | "signing";
 
@@ -37,11 +37,11 @@ function mergeDeadline(
             acceptance.status === "SIGNING_IN_PROGRESS"
               ? acceptance.status
               : ("APPROVED_FOR_SIGNING" as const),
-          signing_expires_at: ONE_HOUR_AGO,
+          signing_expires_at: PAST_EXPIRES_AT,
         }
       : {
           ...acceptance,
-          acceptance_expires_at: ONE_HOUR_AGO,
+          acceptance_expires_at: PAST_EXPIRES_AT,
         };
   return { ...offerDetails, offer_acceptance: next };
 }
@@ -65,7 +65,7 @@ async function backdateContract(id: string, clock: Clock) {
     data: { offer_details: merged as Prisma.InputJsonValue },
   });
   console.log(
-    `Contract ${id}: set offer_acceptance.${clock === "signing" ? "signing_expires_at" : "acceptance_expires_at"} to ${ONE_HOUR_AGO}`
+    `Contract ${id}: set offer_acceptance.${clock === "signing" ? "signing_expires_at" : "acceptance_expires_at"} to ${PAST_EXPIRES_AT}`
   );
   console.log("Run: pnpm run-acceptance-signing-expiry");
   console.log("Expect after job: status OFFER_EXPIRED with offer_details retained.");
@@ -91,7 +91,7 @@ async function backdateInvoice(id: string, clock: Clock) {
     data: { offer_details: merged as Prisma.InputJsonValue },
   });
   console.log(
-    `Invoice ${id}: set offer_acceptance.${clock === "signing" ? "signing_expires_at" : "acceptance_expires_at"} to ${ONE_HOUR_AGO}`
+    `Invoice ${id}: set offer_acceptance.${clock === "signing" ? "signing_expires_at" : "acceptance_expires_at"} to ${PAST_EXPIRES_AT}`
   );
   console.log("Run: pnpm run-acceptance-signing-expiry");
   console.log("Expect after job: status OFFER_EXPIRED with offer_details retained.");

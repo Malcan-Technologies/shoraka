@@ -151,37 +151,38 @@ describe("getOfferStatus", () => {
 describe("getPhaseDeadlineUrgency", () => {
   const now = new Date("2026-07-22T06:00:00.000Z");
 
-  it("is none when more than 2 days remain", () => {
-    expect(getPhaseDeadlineUrgency("2026-07-29T06:00:00.000Z", now)).toBe("none");
+  it("is none when more than 2 calendar days remain", () => {
+    expect(getPhaseDeadlineUrgency("2026-07-29T16:00:00.000Z", now)).toBe("none");
   });
 
-  it("is soon when within 2 days", () => {
-    expect(getPhaseDeadlineUrgency("2026-07-24T06:00:00.000Z", now)).toBe("soon");
-    expect(getPhaseDeadlineUrgency("2026-07-23T06:00:00.000Z", now)).toBe("soon");
+  it("is soon when within 2 calendar days", () => {
+    expect(getPhaseDeadlineUrgency("2026-07-24T16:00:00.000Z", now)).toBe("soon");
+    expect(getPhaseDeadlineUrgency("2026-07-23T16:00:00.000Z", now)).toBe("soon");
   });
 
   it("is past when the deadline has passed", () => {
-    expect(getPhaseDeadlineUrgency("2026-07-21T06:00:00.000Z", now)).toBe("past");
+    expect(getPhaseDeadlineUrgency("2026-07-21T16:00:00.000Z", now)).toBe("past");
   });
 });
 
 describe("getOfferPhaseDeadlineDisplay", () => {
   const now = new Date("2026-07-22T06:00:00.000Z");
+  const liveExpiresAt = "2026-07-23T16:00:00.000Z";
 
-  it("includes time in live summary with Accept by label", () => {
+  it("includes 11:59 PM in live summary with Accept by label", () => {
     const display = getOfferPhaseDeadlineDisplay(
       {
         offer_acceptance: {
           status: "PENDING_ISSUER",
-          acceptance_expires_at: "2026-07-23T14:00:00.000Z",
+          acceptance_expires_at: liveExpiresAt,
         },
       },
       now
     );
     expect(display?.label).toBe("Accept by");
     expect(display?.urgency).toBe("soon");
-    expect(display?.summary).toMatch(/^Accept by .+, .+ · .+ left$/);
-    expect(display?.summary).toContain(display!.absolute);
+    expect(display?.absolute).toBe("23 Jul 2026, 11:59 PM");
+    expect(display?.summary).toContain("Accept by 23 Jul 2026, 11:59 PM");
   });
 
   it("uses Expired label and datetime-only summary when past", () => {
@@ -189,7 +190,7 @@ describe("getOfferPhaseDeadlineDisplay", () => {
       {
         offer_acceptance: {
           status: "PENDING_ISSUER",
-          acceptance_expires_at: "2026-07-21T06:36:00.000Z",
+          acceptance_expires_at: "2026-07-21T16:00:00.000Z",
         },
       },
       now

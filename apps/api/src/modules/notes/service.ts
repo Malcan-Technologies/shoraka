@@ -4956,6 +4956,7 @@ export class NoteService {
       applicationProcessingFeeAmount: toNumber(settings.application_processing_fee_amount),
       investorMinDepositAmount: toNumber(settings.investor_min_deposit_amount),
       investorMaxDepositAmount: toNumber(settings.investor_max_deposit_amount),
+      offerDeadlineReminderHour: settings.offer_deadline_reminder_hour,
       trusteeLetterConfig:
         (settings.trustee_letter_config as TrusteeLetterConfig | null) ?? null,
       platformAccountsConfig:
@@ -5012,6 +5013,7 @@ export class NoteService {
           input.investorMaxDepositAmount != null
             ? money(input.investorMaxDepositAmount)
             : undefined,
+        offer_deadline_reminder_hour: input.offerDeadlineReminderHour,
         trustee_letter_config:
           input.trusteeLetterConfig != null
             ? (input.trusteeLetterConfig as Prisma.InputJsonValue)
@@ -5064,6 +5066,7 @@ export class NoteService {
           input.investorMaxDepositAmount != null
             ? money(input.investorMaxDepositAmount)
             : undefined,
+        offer_deadline_reminder_hour: input.offerDeadlineReminderHour,
         trustee_letter_config:
           input.trusteeLetterConfig != null
             ? (input.trusteeLetterConfig as Prisma.InputJsonValue)

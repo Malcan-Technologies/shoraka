@@ -1,9 +1,9 @@
 import {
-  addDaysIso,
+  computePhaseDeadlineExpiresAt,
+  computeReminderFireAt,
   assertPhaseDeadlineConfigValid,
   deadlineReminderKey,
   parsePhaseDeadlineConfig,
-  reminderFireAt,
   serializePhaseDeadlineConfig,
 } from "@cashsouk/types";
 import {
@@ -42,15 +42,16 @@ describe("phase deadline config", () => {
     ).toThrow(/less than deadline days/);
   });
 
-  it("serializes and adds days", () => {
+  it("serializes and computes MYT calendar deadlines", () => {
     const serialized = serializePhaseDeadlineConfig({
       days: 14,
       reminders: [{ days_before_expiry: 1 }, { days_before_expiry: 1 }],
     });
     expect(serialized.reminders).toHaveLength(1);
-    expect(addDaysIso("2026-01-01T00:00:00.000Z", 7)).toBe("2026-01-08T00:00:00.000Z");
-    expect(reminderFireAt("2026-01-08T00:00:00.000Z", 1).toISOString()).toBe(
-      "2026-01-07T00:00:00.000Z"
+    const expiresAt = computePhaseDeadlineExpiresAt("2026-01-01T00:00:00.000Z", 7);
+    expect(expiresAt).toBe("2026-01-08T16:00:00.000Z");
+    expect(computeReminderFireAt(expiresAt, 1, 9).toISOString()).toBe(
+      "2026-01-07T01:00:00.000Z"
     );
     expect(deadlineReminderKey("acceptance", 1)).toBe("acceptance:1");
   });
@@ -72,17 +73,17 @@ describe("phase deadline stamps and gates", () => {
   it("stamps acceptance_expires_at on send", () => {
     const acceptance = buildOfferAcceptanceOnSend(workflow, "2026-01-01T00:00:00.000Z");
     expect(acceptance.status).toBe("PENDING_ISSUER");
-    expect(acceptance.acceptance_expires_at).toBe("2026-01-08T00:00:00.000Z");
+    expect(acceptance.acceptance_expires_at).toBe("2026-01-08T16:00:00.000Z");
   });
 
   it("stamps signing_expires_at on approve once", () => {
     const first = signingDeadlinePatchOnApprove(workflow, "2026-01-10T00:00:00.000Z", {
       status: "PENDING_ADMIN_REVIEW",
     });
-    expect(first.signing_expires_at).toBe("2026-01-24T00:00:00.000Z");
+    expect(first.signing_expires_at).toBe("2026-01-24T16:00:00.000Z");
     const second = signingDeadlinePatchOnApprove(workflow, "2026-01-11T00:00:00.000Z", {
       status: "APPROVED_FOR_SIGNING",
-      signing_expires_at: "2026-01-24T00:00:00.000Z",
+      signing_expires_at: "2026-01-24T16:00:00.000Z",
     });
     expect(second).toEqual({});
   });
@@ -93,14 +94,14 @@ describe("phase deadline stamps and gates", () => {
       "2026-01-15T00:00:00.000Z",
       {
         status: "PENDING_ADMIN_REVIEW",
-        acceptance_expires_at: "2026-01-08T00:00:00.000Z",
+        acceptance_expires_at: "2026-01-08T16:00:00.000Z",
         deadline_reminders_sent: {
           "acceptance:1": "2026-01-07T00:00:00.000Z",
           "signing:3": "2026-01-12T00:00:00.000Z",
         },
       }
     );
-    expect(patch.acceptance_expires_at).toBe("2026-01-22T00:00:00.000Z");
+    expect(patch.acceptance_expires_at).toBe("2026-01-22T16:00:00.000Z");
     expect(patch.deadline_reminders_sent).toEqual({
       "signing:3": "2026-01-12T00:00:00.000Z",
     });
@@ -115,13 +116,13 @@ describe("phase deadline stamps and gates", () => {
         "signing:3": "2026-01-17T00:00:00.000Z",
       },
     });
-    expect(patch.signing_expires_at).toBe("2026-02-03T00:00:00.000Z");
+    expect(patch.signing_expires_at).toBe("2026-02-03T16:00:00.000Z");
     expect(patch.deadline_reminders_sent).toEqual({
       "acceptance:1": "2026-01-07T00:00:00.000Z",
     });
   });
 
-  it("gates past acceptance and signing deadlines", () => {
+  it("gates past acceptance and signing deadlines at the exclusive boundary", () => {
     expect(() =>
       assertAcceptanceDeadlineOpen({
         status: "PENDING_ISSUER",
@@ -137,10 +138,23 @@ describe("phase deadline stamps and gates", () => {
     ).toThrow(AppError);
 
     expect(() =>
-      assertAcceptanceDeadlineOpen({
-        status: "PENDING_ISSUER",
-        acceptance_expires_at: "2099-01-01T00:00:00.000Z",
-      })
+      assertAcceptanceDeadlineOpen(
+        {
+          status: "PENDING_ISSUER",
+          acceptance_expires_at: "2099-01-01T00:00:00.000Z",
+        },
+        new Date("2099-01-01T00:00:00.000Z")
+      )
+    ).toThrow(AppError);
+
+    expect(() =>
+      assertAcceptanceDeadlineOpen(
+        {
+          status: "PENDING_ISSUER",
+          acceptance_expires_at: "2099-01-01T00:00:00.000Z",
+        },
+        new Date("2098-12-31T23:59:59.999Z")
+      )
     ).not.toThrow();
   });
 

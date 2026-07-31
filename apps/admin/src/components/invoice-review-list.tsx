@@ -400,14 +400,20 @@ export function InvoiceList({
             const invoiceNo = details?.number ?? idx + 1;
             const scopeKey = buildInvoiceScopeKey(idx, invoiceNo);
             const reviewItemStatus = getItemStatus(inv, reviewItems, scopeKey);
-            const isInvoiceWithdrawn = (inv.status?.toString().toUpperCase() ?? "") === "WITHDRAWN";
-            const status = isInvoiceWithdrawn ? "WITHDRAWN" : reviewItemStatus;
+            const entityStatus = inv.status?.toString().toUpperCase() ?? "";
+            const status =
+              entityStatus === "WITHDRAWN"
+                ? "WITHDRAWN"
+                : entityStatus === "OFFER_EXPIRED"
+                  ? "OFFER_EXPIRED"
+                  : reviewItemStatus;
             /** Admin rejected this invoice in review; offer stays locked until reset to pending. */
             const isAdminRejected = reviewItemStatus === "REJECTED";
             const isRowReadOnly = readOnlyInvoiceIds?.has(inv.id) ?? false;
             const isTabLocked = !!isActionLocked || !isReviewable;
             const isInvoiceFinalizedByIssuer = reviewItemStatus === "APPROVED";
             const signedOfferAvailable = isSignedOfferLetterAvailable(inv.status);
+            const isInvoiceWithdrawn = status === "WITHDRAWN";
             const isRowGreyedOut =
               isRowReadOnly ||
               isTabLocked ||

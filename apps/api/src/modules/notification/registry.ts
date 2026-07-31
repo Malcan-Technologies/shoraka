@@ -1,5 +1,6 @@
 import { PortalType } from "../../lib/http/url-utils";
 import { PortalContext } from "../../lib/http/portal-context";
+import { formatPhaseDeadlineDateDDMMYYYY } from "@cashsouk/types";
 
 /**
  * Registry of all system notification types to ensure type safety
@@ -308,14 +309,14 @@ export const NOTIFICATION_TEMPLATES: {
   [NotificationTypeIds.CONTRACT_OFFER_SENT]: {
     title: 'Contract Offer Received',
     message: (data) =>
-      `A contract offer of ${data.offeredFacility.toLocaleString()} has been sent to your application ${getShortApplicationRef(data.applicationId)}.${data.expiresAt ? ` It expires on ${formatDateDDMMYYYY(data.expiresAt)}.` : ''}`,
+      `A contract offer of ${data.offeredFacility.toLocaleString()} has been sent to your application ${getShortApplicationRef(data.applicationId)}.${data.expiresAt ? ` It expires on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.` : ''}`,
     linkPath: () => `/applications`,
     portal: 'issuer',
   },
   [NotificationTypeIds.INVOICE_OFFER_SENT]: {
     title: 'Invoice Offer Received',
     message: (data) =>
-      `An invoice offer${data.invoiceNumber ? ` for invoice ${data.invoiceNumber}` : ''} of RM${data.offeredAmount.toLocaleString()} has been sent.${data.expiresAt ? ` It expires on ${formatDateDDMMYYYY(data.expiresAt)}.` : ''}`,
+      `An invoice offer${data.invoiceNumber ? ` for invoice ${data.invoiceNumber}` : ''} of RM${data.offeredAmount.toLocaleString()} has been sent.${data.expiresAt ? ` It expires on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.` : ''}`,
     linkPath: () => `/applications`,
     portal: 'issuer',
   },
@@ -345,7 +346,7 @@ export const NOTIFICATION_TEMPLATES: {
               ? 'in 1 day'
               : `in ${daysBefore} days`
           : 'soon';
-      return `${data.offerType === 'contract' ? 'Contract' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} expires ${windowLabel} on ${formatDateDDMMYYYY(data.expiresAt)}.`;
+      return `${data.offerType === 'contract' ? 'Contract' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} expires ${windowLabel} on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.`;
     },
     linkPath: () => `/applications`,
     portal: 'issuer',

@@ -3,11 +3,12 @@
  */
 
 import {
-  addDaysIso,
+  computePhaseDeadlineExpiresAt,
   createInitialOfferAcceptanceDetails,
   DEFAULT_ACCEPTANCE_DEADLINE,
   DEFAULT_SIGNING_DEADLINE,
   getOfferAcceptanceFromOfferDetails,
+  isPhaseDeadlineExpired,
   resolveAcceptanceDeadlineFromWorkflow,
   resolveSigningDeadlineFromWorkflow,
   type OfferAcceptanceDetails,
@@ -32,7 +33,7 @@ export function buildOfferAcceptanceOnSend(
 ): OfferAcceptanceDetails {
   const deadline = resolveAcceptanceDeadlineFromWorkflow(workflow) ?? DEFAULT_ACCEPTANCE_DEADLINE;
   return createInitialOfferAcceptanceDetails({
-    acceptance_expires_at: addDaysIso(sentAtIso, deadline.days),
+    acceptance_expires_at: computePhaseDeadlineExpiresAt(sentAtIso, deadline.days),
   });
 }
 
@@ -46,7 +47,7 @@ export function signingDeadlinePatchOnApprove(
     return {};
   }
   const deadline = resolveSigningDeadlineFromWorkflow(workflow) ?? DEFAULT_SIGNING_DEADLINE;
-  return { signing_expires_at: addDaysIso(nowIso, deadline.days) };
+  return { signing_expires_at: computePhaseDeadlineExpiresAt(nowIso, deadline.days) };
 }
 
 /**
@@ -66,7 +67,7 @@ export function acceptanceDeadlinePatchOnChangesRequested(
     }
   }
   return {
-    acceptance_expires_at: addDaysIso(nowIso, deadline.days),
+    acceptance_expires_at: computePhaseDeadlineExpiresAt(nowIso, deadline.days),
     deadline_reminders_sent: keptReminders,
   };
 }
@@ -88,7 +89,7 @@ export function signingDeadlinePatchOnExtend(
     }
   }
   return {
-    signing_expires_at: addDaysIso(nowIso, deadline.days),
+    signing_expires_at: computePhaseDeadlineExpiresAt(nowIso, deadline.days),
     deadline_reminders_sent: keptReminders,
   };
 }
@@ -100,7 +101,7 @@ export function assertAcceptanceDeadlineOpen(
   if (!acceptance || !ACCEPTANCE_ACTIVE.has(acceptance.status)) return;
   const expiresAt = acceptance.acceptance_expires_at;
   if (typeof expiresAt !== "string" || !expiresAt) return;
-  if (new Date(expiresAt) < now) {
+  if (isPhaseDeadlineExpired(expiresAt, now)) {
     throw new AppError(
       400,
       "OFFER_EXPIRED",
@@ -116,7 +117,7 @@ export function assertSigningDeadlineOpen(
   if (!acceptance || !SIGNING_ACTIVE.has(acceptance.status)) return;
   const expiresAt = acceptance.signing_expires_at;
   if (typeof expiresAt !== "string" || !expiresAt) return;
-  if (new Date(expiresAt) < now) {
+  if (isPhaseDeadlineExpired(expiresAt, now)) {
     throw new AppError(
       400,
       "OFFER_EXPIRED",

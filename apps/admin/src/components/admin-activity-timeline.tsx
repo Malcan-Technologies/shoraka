@@ -57,7 +57,7 @@ import { Button } from "@/components/ui/button";
 import { formatRemarkAsBullets } from "@/lib/utils";
 import { getReviewTabLabel } from "@/components/application-review/review-registry";
 import { formatCurrency } from "@cashsouk/config";
-import { getItemDisplayNameFromScopeKey } from "@cashsouk/types";
+import { getItemDisplayNameFromScopeKey, formatPhaseDeadlineAbsolute } from "@cashsouk/types";
 import type {
   ResubmitChangesMetadata,
   ResubmitFieldChangeItem,
@@ -661,7 +661,7 @@ export function AdminActivityTimeline({
                                       <>
                                         <dt className="text-muted-foreground">Accept by</dt>
                                         <dd className="tabular-nums">
-                                          {format(new Date(metadata.acceptance_expires_at), "dd MMM yyyy, h:mm a")}
+                                          {formatPhaseDeadlineAbsolute(metadata.acceptance_expires_at)}
                                         </dd>
                                       </>
                                     )}
@@ -692,7 +692,7 @@ export function AdminActivityTimeline({
                                       <>
                                         <dt className="text-muted-foreground">Accept by</dt>
                                         <dd className="tabular-nums">
-                                          {format(new Date(metadata.acceptance_expires_at), "dd MMM yyyy, h:mm a")}
+                                          {formatPhaseDeadlineAbsolute(metadata.acceptance_expires_at)}
                                         </dd>
                                       </>
                                     )}

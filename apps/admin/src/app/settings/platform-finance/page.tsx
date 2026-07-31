@@ -148,6 +148,7 @@ export default function PlatformFinanceSettingsPage() {
     investorMinDepositAmount: "100",
     investorMaxDepositAmount: "30000",
   });
+  const [offerDeadlineReminderHour, setOfferDeadlineReminderHour] = React.useState("9");
   const [trusteeLetter, setTrusteeLetter] = React.useState<TrusteeLetterConfig>(DEFAULT_TRUSTEE_LETTER);
   const [platformAccounts, setPlatformAccounts] =
     React.useState<PlatformAccountsConfig>(emptyPlatformAccounts());
@@ -290,6 +291,7 @@ export default function PlatformFinanceSettingsPage() {
       investorMinDepositAmount: String(data.investorMinDepositAmount),
       investorMaxDepositAmount: String(data.investorMaxDepositAmount),
     });
+    setOfferDeadlineReminderHour(String(data.offerDeadlineReminderHour ?? 9));
     setTrusteeLetter({ ...DEFAULT_TRUSTEE_LETTER, ...(data.trusteeLetterConfig ?? {}) });
     setPlatformAccounts({ ...emptyPlatformAccounts(), ...(data.platformAccountsConfig ?? {}) });
     setBucketAccounts({ ...emptyBucketAccounts(), ...(data.ledgerBucketAccountsConfig ?? {}) });
@@ -372,9 +374,10 @@ export default function PlatformFinanceSettingsPage() {
 
         <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
           <Tabs defaultValue="late-payment" className="space-y-6">
-            <TabsList className="grid h-auto w-full max-w-[760px] grid-cols-1 gap-2 md:grid-cols-4">
+            <TabsList className="grid h-auto w-full max-w-[760px] grid-cols-1 gap-2 md:grid-cols-5">
               <TabsTrigger value="late-payment">Late Payment</TabsTrigger>
               <TabsTrigger value="gateway-fees">Gateway Fees</TabsTrigger>
+              <TabsTrigger value="offer-deadlines">Offer Deadlines</TabsTrigger>
               <TabsTrigger value="trustee-letter">Trustee Letter</TabsTrigger>
               <TabsTrigger value="money-flow-accounts">Money Flow Accounts</TabsTrigger>
             </TabsList>
@@ -472,6 +475,52 @@ export default function PlatformFinanceSettingsPage() {
                       }}
                     >
                       Save Gateway Fees
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="offer-deadlines">
+              <Card className="rounded-2xl p-6 shadow-sm md:p-8">
+                <CardHeader className="px-0 pt-0">
+                  <CardTitle>Offer deadline reminders</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-4 px-0 md:grid-cols-2">
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-sm font-medium">Reminder delivery hour</label>
+                    <p className="text-sm text-muted-foreground">
+                      Offer acceptance and signing reminders are sent on the configured calendar
+                      day at this hour. Deadlines use Malaysia calendar days and expire at the
+                      end of the deadline date (11:59 PM).
+                    </p>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={23}
+                      className="h-11 max-w-[8rem] rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
+                      value={offerDeadlineReminderHour}
+                      disabled={disabled}
+                      onChange={(event) => setOfferDeadlineReminderHour(event.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Whole hour from 0 to 23 (e.g. 9 = 9:00 AM).
+                    </p>
+                  </div>
+                  <div className="md:col-span-2 flex justify-end">
+                    <Button
+                      disabled={disabled || saveMutation.isPending}
+                      className="bg-primary text-primary-foreground shadow-brand hover:opacity-95"
+                      onClick={() => {
+                        const hour = Number.parseInt(offerDeadlineReminderHour, 10);
+                        if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
+                          toast.error("Reminder hour must be between 0 and 23");
+                          return;
+                        }
+                        saveMutation.mutate({ offerDeadlineReminderHour: hour });
+                      }}
+                    >
+                      Save Offer Deadlines
                     </Button>
                   </div>
                 </CardContent>

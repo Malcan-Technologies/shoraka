@@ -7,12 +7,14 @@
 import { Prisma } from "@prisma/client";
 import {
   ApplicationStatus,
+  computeReminderFireAt,
   DEFAULT_ACCEPTANCE_DEADLINE,
+  DEFAULT_OFFER_DEADLINE_REMINDER_HOUR,
   DEFAULT_SIGNING_DEADLINE,
   deadlineReminderKey,
   getOfferAcceptanceFromOfferDetails,
+  isPhaseDeadlineExpired,
   parseOfferAcceptanceDetails,
-  reminderFireAt,
   resolveAcceptanceDeadlineFromWorkflow,
   resolveSigningDeadlineFromWorkflow,
   type OfferAcceptanceDetails,
@@ -28,6 +30,11 @@ import { getIssuerRecipientUserIdsForApplication } from "../../modules/notificat
 import { ProductRepository } from "../../modules/products/repository";
 import { ACCEPTANCE_ACTIVE, SIGNING_ACTIVE } from "../phase-deadlines";
 import { patchOfferAcceptanceUnchecked } from "../../modules/applications/offer-acceptance";
+import { computeInvoiceDetailsSectionStatus } from "../../modules/applications/invoice-details-section-status";
+import {
+  collectInvoiceScopeKeys,
+  resolveInvoiceScopeKeyForId,
+} from "../../modules/applications/invoice-review-scope";
 
 const SYSTEM_USER_ID = "SYS";
 const notificationService = new NotificationService();
@@ -274,11 +281,26 @@ async function expireOffer(params: {
         where: { id: row.id },
         data: { status: "OFFER_EXPIRED" },
       });
+
+      const application = await tx.application.findUnique({
+        where: { id: row.application_id },
+        select: {
+          invoices: {
+            orderBy: { created_at: "asc" },
+            select: { id: true, details: true },
+          },
+        },
+      });
+      const scopeKey =
+        application != null
+          ? resolveInvoiceScopeKeyForId(application.invoices, row.id)
+          : null;
+
       await tx.applicationReviewItem.updateMany({
         where: {
           application_id: row.application_id,
           item_type: "invoice",
-          item_id: row.id,
+          OR: [{ item_id: row.id }, ...(scopeKey ? [{ item_id: scopeKey }] : [])],
         },
         data: {
           status: "OFFER_EXPIRED",
@@ -286,6 +308,36 @@ async function expireOffer(params: {
           reviewed_at: new Date(),
         },
       });
+
+      if (application && application.invoices.length > 0) {
+        const invoiceKeys = collectInvoiceScopeKeys(application.invoices);
+        const invoiceItems = await tx.applicationReviewItem.findMany({
+          where: { application_id: row.application_id, item_type: "invoice" },
+          select: { item_id: true, status: true },
+        });
+        const sectionStatus = computeInvoiceDetailsSectionStatus(invoiceKeys, invoiceItems);
+        await tx.applicationReview.upsert({
+          where: {
+            application_id_section: {
+              application_id: row.application_id,
+              section: "invoice_details",
+            },
+          },
+          create: {
+            application_id: row.application_id,
+            section: "invoice_details",
+            status: sectionStatus,
+            reviewer_user_id: systemUserId,
+            reviewed_at: new Date(),
+          },
+          update: {
+            status: sectionStatus,
+            reviewer_user_id: systemUserId,
+            reviewed_at: new Date(),
+          },
+        });
+      }
+
       await tx.application.update({
         where: { id: row.application_id },
         data: { status: ApplicationStatus.OFFER_EXPIRED },
@@ -334,15 +386,28 @@ async function expireOffer(params: {
   }
 }
 
+async function loadOfferDeadlineReminderHour(): Promise<number> {
+  const settings = await prisma.platformFinanceSetting.findUnique({
+    where: { key: "DEFAULT" },
+    select: { offer_deadline_reminder_hour: true },
+  });
+  const hour = settings?.offer_deadline_reminder_hour;
+  if (typeof hour === "number" && Number.isInteger(hour) && hour >= 0 && hour <= 23) {
+    return hour;
+  }
+  return DEFAULT_OFFER_DEADLINE_REMINDER_HOUR;
+}
+
 async function processRemindersForRow(params: {
   row: OfferRow;
   acceptance: OfferAcceptanceDetails;
   offer: Record<string, unknown>;
   workflow: unknown[];
   now: Date;
+  reminderHour: number;
   result: AcceptanceSigningExpiryResult;
 }): Promise<void> {
-  const { row, acceptance, offer, workflow, now, result } = params;
+  const { row, acceptance, offer, workflow, now, reminderHour, result } = params;
   const acceptanceDeadline: PhaseDeadlineConfig =
     resolveAcceptanceDeadlineFromWorkflow(workflow) ?? DEFAULT_ACCEPTANCE_DEADLINE;
   const signingDeadline: PhaseDeadlineConfig =
@@ -376,9 +441,13 @@ async function processRemindersForRow(params: {
     for (const reminder of entry.config.reminders) {
       const key = deadlineReminderKey(entry.clock, reminder.days_before_expiry);
       if (nextAcceptance.deadline_reminders_sent?.[key]) continue;
-      const fireAt = reminderFireAt(entry.expiresAt, reminder.days_before_expiry);
+      const fireAt = computeReminderFireAt(
+        entry.expiresAt,
+        reminder.days_before_expiry,
+        reminderHour
+      );
       if (now < fireAt) continue;
-      if (new Date(entry.expiresAt) <= now) continue;
+      if (isPhaseDeadlineExpired(entry.expiresAt, now)) continue;
 
       try {
         await sendIssuerNotificationForApplication(
@@ -442,6 +511,7 @@ export async function runAcceptanceSigningExpiryJob(): Promise<AcceptanceSigning
 
   try {
     const now = new Date();
+    const reminderHour = await loadOfferDeadlineReminderHour();
     const rows = await loadOfferSentRows();
 
     for (const row of rows) {
@@ -458,6 +528,7 @@ export async function runAcceptanceSigningExpiryJob(): Promise<AcceptanceSigning
         offer,
         workflow,
         now,
+        reminderHour,
         result,
       });
 
@@ -480,7 +551,7 @@ export async function runAcceptanceSigningExpiryJob(): Promise<AcceptanceSigning
       if (
         ACCEPTANCE_ACTIVE.has(freshAcceptance.status) &&
         typeof freshAcceptance.acceptance_expires_at === "string" &&
-        new Date(freshAcceptance.acceptance_expires_at) < now
+        isPhaseDeadlineExpired(freshAcceptance.acceptance_expires_at, now)
       ) {
         await expireOffer({
           row,
@@ -494,7 +565,7 @@ export async function runAcceptanceSigningExpiryJob(): Promise<AcceptanceSigning
       if (
         SIGNING_ACTIVE.has(freshAcceptance.status) &&
         typeof freshAcceptance.signing_expires_at === "string" &&
-        new Date(freshAcceptance.signing_expires_at) < now
+        isPhaseDeadlineExpired(freshAcceptance.signing_expires_at, now)
       ) {
         await expireOffer({
           row,

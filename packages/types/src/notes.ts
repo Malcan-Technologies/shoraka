@@ -633,6 +633,8 @@ export interface PlatformFinanceSetting {
   applicationProcessingFeeAmount: number;
   investorMinDepositAmount: number;
   investorMaxDepositAmount: number;
+  /** Whole hour 0–23 MYT when offer phase deadline reminders are sent. */
+  offerDeadlineReminderHour: number;
   trusteeLetterConfig: TrusteeLetterConfig | null;
   platformAccountsConfig: PlatformAccountsConfig | null;
   ledgerBucketAccountsConfig: LedgerBucketAccountsConfig | null;

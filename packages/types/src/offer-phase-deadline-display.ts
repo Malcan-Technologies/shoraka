@@ -3,8 +3,13 @@
  * Keep portal UIs on these helpers so copy and urgency do not drift.
  */
 
-import { format } from "date-fns";
-import { addDaysIso, DEFAULT_ACCEPTANCE_DEADLINE } from "./deadline-config";
+import {
+  computePhaseDeadlineExpiresAt,
+  DEFAULT_ACCEPTANCE_DEADLINE,
+  formatPhaseDeadlineAbsolute,
+  isPhaseDeadlineExpired,
+  mytCalendarDaysUntilDeadline,
+} from "./deadline-config";
 import {
   getOfferAcceptanceFromOfferDetails,
   resolveAcceptanceDeadlineFromWorkflow,
@@ -29,8 +34,8 @@ export type OfferPhaseDeadlineDisplay = {
   urgency: PhaseDeadlineUrgency;
   /**
    * Compact one-liner for cards:
-   * live — "Accept by 29 Jul 2026, 2:36 PM · 6 days left"
-   * past — "Expired 22 Jul 2026, 2:36 PM"
+   * live — "Accept by 06 Aug 2026, 11:59 PM · 6 days left"
+   * past — "Expired 06 Aug 2026, 11:59 PM"
    */
   summary: string;
 };
@@ -40,12 +45,13 @@ export type AcceptanceDeadlinePreview = {
   days: number;
   acceptByIso: string;
   absolute: string;
-  /** e.g. "Issuer has 7 days · Accept by 29 Jul 2026, 2:36 PM" */
+  /** e.g. "Issuer has 7 days · Accept by 06 Aug 2026, 11:59 PM" */
   summary: string;
   /** Stacked confirm-dialog copy (avoids wrapping the one-liner at narrow widths). */
   confirmDialogLines: {
     duration: string;
-    acceptBy: string;
+    /** Inclusive deadline datetime only (row label is "Acceptance deadline"). */
+    deadlineAt: string;
   };
 };
 
@@ -65,27 +71,31 @@ export function formatPhaseDeadline(
   isPast: boolean;
   daysRemaining: number;
 } {
-  const deadline = new Date(iso);
-  const isPast = deadline.getTime() < now.getTime();
-  const absolute = format(deadline, "dd MMM yyyy, h:mm a");
-  const dayMs = 24 * 60 * 60 * 1000;
-  const days = Math.ceil(Math.abs(deadline.getTime() - now.getTime()) / dayMs);
+  const isPast = isPhaseDeadlineExpired(iso, now);
+  const absolute = formatPhaseDeadlineAbsolute(iso);
+  const daysRemaining = mytCalendarDaysUntilDeadline(iso, now);
+
   if (isPast) {
+    const daysAgo = Math.abs(daysRemaining);
     return {
       absolute,
-      // Label already says "Expired"; only add age when useful.
-      relative: days <= 1 ? "" : `${days} days ago`,
+      relative: daysAgo <= 1 ? "" : `${daysAgo} days ago`,
       isPast: true,
       daysRemaining: 0,
     };
   }
-  if (days <= 0) {
+  if (daysRemaining <= 0) {
     return { absolute, relative: "Expires today", isPast: false, daysRemaining: 0 };
   }
-  if (days === 1) {
+  if (daysRemaining === 1) {
     return { absolute, relative: "1 day left", isPast: false, daysRemaining: 1 };
   }
-  return { absolute, relative: `${days} days left`, isPast: false, daysRemaining: days };
+  return {
+    absolute,
+    relative: `${daysRemaining} days left`,
+    isPast: false,
+    daysRemaining,
+  };
 }
 
 export function getPhaseDeadlineUrgency(
@@ -131,8 +141,8 @@ export function previewAcceptanceDeadlineFromWorkflow(
 ): AcceptanceDeadlinePreview | null {
   if (!workflowUsesOfferAcceptanceFlow(workflow)) return null;
   const deadline = resolveAcceptanceDeadlineFromWorkflow(workflow) ?? DEFAULT_ACCEPTANCE_DEADLINE;
-  const acceptByIso = addDaysIso(sentAt, deadline.days);
-  const absolute = format(new Date(acceptByIso), "dd MMM yyyy, h:mm a");
+  const acceptByIso = computePhaseDeadlineExpiresAt(sentAt, deadline.days);
+  const absolute = formatPhaseDeadlineAbsolute(acceptByIso);
   const dayLabel = deadline.days === 1 ? "1 day" : `${deadline.days} days`;
   const duration = `Issuer has ${dayLabel}`;
   return {
@@ -142,7 +152,7 @@ export function previewAcceptanceDeadlineFromWorkflow(
     summary: `${duration} · Accept by ${absolute}`,
     confirmDialogLines: {
       duration,
-      acceptBy: `Accept by ${absolute}`,
+      deadlineAt: absolute,
     },
   };
 }

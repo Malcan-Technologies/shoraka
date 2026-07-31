@@ -21,12 +21,13 @@ import {
 } from "@/hooks/use-signing-envelopes";
 import {
   computeSigningEnvelopeProgress,
+  computePhaseDeadlineExpiresAt,
+  formatPhaseDeadlineAbsolute,
   getOfferAcceptanceFromOfferDetails,
   getOfferAcceptanceStatusPresentation,
   getOfferPhaseDeadlineDisplay,
   resolveSigningDeadlineFromWorkflow,
   DEFAULT_SIGNING_DEADLINE,
-  addDaysIso,
   type ApplicationPersonRow,
   type SigningEnvelopeDto,
   type SigningEnvelopeStatus,
@@ -206,10 +207,10 @@ export function SigningEnvelopePanel({
 
   const signingExtendPreview = React.useMemo(() => {
     const deadline = resolveSigningDeadlineFromWorkflow(workflow) ?? DEFAULT_SIGNING_DEADLINE;
-    const completeByIso = addDaysIso(new Date().toISOString(), deadline.days);
+    const completeByIso = computePhaseDeadlineExpiresAt(new Date().toISOString(), deadline.days);
     return {
       days: deadline.days,
-      absolute: format(new Date(completeByIso), "dd MMM yyyy, h:mm a"),
+      absolute: formatPhaseDeadlineAbsolute(completeByIso),
     };
   }, [workflow, extendConfirmOpen]);
 

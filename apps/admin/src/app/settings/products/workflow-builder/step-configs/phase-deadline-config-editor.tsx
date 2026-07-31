@@ -56,6 +56,10 @@ export function PhaseDeadlineConfigEditor({
       <div>
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
         <p className="text-sm text-muted-foreground">{description}</p>
+        <p className="text-xs text-muted-foreground">
+          Days are Malaysia calendar days. The deadline is the end of the last valid day (11:59 PM).
+          Reminders fire on the configured platform delivery hour.
+        </p>
       </div>
       <div className="space-y-1.5">
         <Label className="text-sm font-medium">Days until expiry</Label>

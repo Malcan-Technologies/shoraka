@@ -5,6 +5,7 @@
 jest.mock("../prisma", () => ({
   prisma: {
     user: { upsert: jest.fn() },
+    platformFinanceSetting: { findUnique: jest.fn() },
     $queryRaw: jest.fn(),
     $transaction: jest.fn(),
     contract: { findUnique: jest.fn(), update: jest.fn() },
@@ -50,23 +51,38 @@ const offerDetails = {
 type TxSpies = {
   contract: { update: jest.Mock };
   applicationReview: { upsert: jest.Mock };
-  application: { update: jest.Mock };
+  application: { update: jest.Mock; findUnique: jest.Mock };
   signingEnvelope: { findMany: jest.Mock; updateMany: jest.Mock };
   invoice: { update: jest.Mock };
-  applicationReviewItem: { updateMany: jest.Mock };
+  applicationReviewItem: { updateMany: jest.Mock; findMany: jest.Mock };
 };
 
 function createTxSpies(): TxSpies {
   return {
     contract: { update: jest.fn().mockResolvedValue({}) },
     applicationReview: { upsert: jest.fn().mockResolvedValue({}) },
-    application: { update: jest.fn().mockResolvedValue({}) },
+    application: {
+      update: jest.fn().mockResolvedValue({}),
+      findUnique: jest.fn().mockResolvedValue({
+        invoices: [
+          {
+            id: "invoice-1",
+            details: { number: "INV-99463" },
+          },
+        ],
+      }),
+    },
     signingEnvelope: {
       findMany: jest.fn().mockResolvedValue([]),
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
     invoice: { update: jest.fn().mockResolvedValue({}) },
-    applicationReviewItem: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    applicationReviewItem: {
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      findMany: jest.fn().mockResolvedValue([
+        { item_id: "invoice_details:0:INV-99463", status: "OFFER_EXPIRED" },
+      ]),
+    },
   };
 }
 
@@ -77,6 +93,9 @@ describe("runAcceptanceSigningExpiryJob", () => {
     jest.clearAllMocks();
     tx = createTxSpies();
     (prisma.user.upsert as jest.Mock).mockResolvedValue({ user_id: "SYS" });
+    (prisma.platformFinanceSetting.findUnique as jest.Mock).mockResolvedValue({
+      offer_deadline_reminder_hour: 9,
+    });
     (prisma.$queryRaw as jest.Mock)
       .mockResolvedValueOnce([
         {
@@ -126,6 +145,59 @@ describe("runAcceptanceSigningExpiryJob", () => {
         applicationId: "app-1",
         eventType: "CONTRACT_OFFER_EXPIRED",
         entityId: "contract-1",
+      })
+    );
+  });
+
+  it("sets OFFER_EXPIRED on invoice review item by scope key and syncs invoice_details section", async () => {
+    (prisma.$queryRaw as jest.Mock)
+      .mockReset()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "invoice-1",
+          offer_details: offerDetails,
+          application_id: "app-inv-1",
+          contract_id: null,
+          product_id: "prod-1",
+          product_version: 1,
+          financing_structure: { structure_type: "invoice_only" },
+        },
+      ]);
+    (prisma.invoice.findUnique as jest.Mock).mockResolvedValue({
+      offer_details: offerDetails,
+      status: "OFFER_SENT",
+    });
+
+    const result = await runAcceptanceSigningExpiryJob();
+
+    expect(result.invoicesExpired).toEqual(["invoice-1"]);
+    expect(tx.applicationReviewItem.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          application_id: "app-inv-1",
+          item_type: "invoice",
+          OR: [{ item_id: "invoice-1" }, { item_id: "invoice_details:0:INV-99463" }],
+        }),
+        data: expect.objectContaining({ status: "OFFER_EXPIRED" }),
+      })
+    );
+    expect(tx.applicationReview.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          application_id_section: {
+            application_id: "app-inv-1",
+            section: "invoice_details",
+          },
+        },
+        update: expect.objectContaining({ status: "OFFER_EXPIRED" }),
+      })
+    );
+    expect(logApplicationActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        applicationId: "app-inv-1",
+        eventType: "INVOICE_OFFER_EXPIRED",
+        entityId: "invoice-1",
       })
     );
   });

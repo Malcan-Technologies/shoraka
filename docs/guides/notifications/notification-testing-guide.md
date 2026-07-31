@@ -57,7 +57,7 @@ This guide explains:
 | `invoice_offer_sent` | Yes | Admin `sendInvoiceOffer` | Send invoice offer from admin application review. |
 | `offer_retracted_or_reset` | Yes | Admin reset/retract flows | Reset contract/invoice offer to pending after sending it. |
 | `offer_expired` | Yes | Acceptance/signing expiry job (durable `OFFER_EXPIRED`) | `pnpm seed-expired-acceptance-deadline-for-test` then `pnpm run-acceptance-signing-expiry`. |
-| `offer_expiry_reminder_24h` | Yes | Same job (configurable days_before_expiry reminders) | Seed an offer whose reminder window has opened; run the job. |
+| `offer_expiry_reminder_24h` | Yes | Same job (configurable `days_before_expiry`; delivery hour from Platform Finance → Offer Deadlines, default 09:00 MYT) | `pnpm seed-reminder-window-acceptance-deadline-for-test` then `pnpm run-acceptance-signing-expiry`. |
 | `application_resubmitted_confirmation` | Yes | Issuer resubmit flow | In issuer portal, resubmit an amended application. |
 | `application_withdrawn_confirmation` | Yes | Issuer cancellation/offer-reject withdrawal path | Cancel application or reject offer in issuer portal. |
 | `application_completed` | Yes | Issuer offer acceptance completion path | Accept final required offer(s) until application becomes `COMPLETED`. |

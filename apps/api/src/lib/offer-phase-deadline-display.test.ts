@@ -1,4 +1,5 @@
 import {
+  computePhaseDeadlineExpiresAt,
   getOfferPhaseDeadlineDisplay,
   previewAcceptanceDeadlineFromWorkflow,
   ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY,
@@ -25,18 +26,20 @@ function workflowWithAcceptance(days = 7) {
 
 describe("getOfferPhaseDeadlineDisplay (shared)", () => {
   const now = new Date("2026-07-22T06:00:00.000Z");
+  const liveExpiresAt = computePhaseDeadlineExpiresAt("2026-07-22T06:00:00.000Z", 7);
 
   it("shows Accept by when live", () => {
     const display = getOfferPhaseDeadlineDisplay(
       {
         offer_acceptance: {
           status: "PENDING_ISSUER",
-          acceptance_expires_at: "2026-07-29T06:00:00.000Z",
+          acceptance_expires_at: liveExpiresAt,
         },
       },
       now
     );
     expect(display?.label).toBe("Accept by");
+    expect(display?.absolute).toBe("29 Jul 2026, 11:59 PM");
     expect(display?.isPast).toBe(false);
   });
 
@@ -45,7 +48,7 @@ describe("getOfferPhaseDeadlineDisplay (shared)", () => {
       {
         offer_acceptance: {
           status: "APPROVED_FOR_SIGNING",
-          signing_expires_at: "2026-08-05T06:00:00.000Z",
+          signing_expires_at: computePhaseDeadlineExpiresAt("2026-07-22T06:00:00.000Z", 14),
         },
       },
       now
@@ -58,7 +61,7 @@ describe("getOfferPhaseDeadlineDisplay (shared)", () => {
       {
         offer_acceptance: {
           status: "PENDING_ISSUER",
-          acceptance_expires_at: "2026-07-21T06:00:00.000Z",
+          acceptance_expires_at: "2026-07-21T16:00:00.000Z",
         },
       },
       now
@@ -72,7 +75,7 @@ describe("getOfferPhaseDeadlineDisplay (shared)", () => {
       {
         offer_acceptance: {
           status: "PENDING_ADMIN_REVIEW",
-          acceptance_expires_at: "2026-07-29T06:00:00.000Z",
+          acceptance_expires_at: liveExpiresAt,
         },
       },
       now
@@ -87,15 +90,16 @@ describe("previewAcceptanceDeadlineFromWorkflow", () => {
   });
 
   it("previews Accept by from product days", () => {
-    const sentAt = new Date("2026-07-22T00:00:00.000Z");
+    const sentAt = new Date("2026-07-22T06:00:00.000Z");
     const preview = previewAcceptanceDeadlineFromWorkflow(workflowWithAcceptance(7), sentAt);
     expect(preview?.days).toBe(7);
-    expect(preview?.acceptByIso).toBe("2026-07-29T00:00:00.000Z");
+    expect(preview?.acceptByIso).toBe("2026-07-29T16:00:00.000Z");
+    expect(preview?.absolute).toBe("29 Jul 2026, 11:59 PM");
     expect(preview?.summary).toContain("Issuer has 7 days");
-    expect(preview?.summary).toContain("Accept by");
+    expect(preview?.summary).toContain("Accept by 29 Jul 2026, 11:59 PM");
     expect(preview?.confirmDialogLines).toEqual({
       duration: "Issuer has 7 days",
-      acceptBy: expect.stringContaining("Accept by"),
+      deadlineAt: "29 Jul 2026, 11:59 PM",
     });
   });
 });

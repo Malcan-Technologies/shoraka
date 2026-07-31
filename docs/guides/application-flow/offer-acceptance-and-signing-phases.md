@@ -13,7 +13,9 @@ Configurable on the financing-type step (product builder):
 | **Acceptance** | `acceptance_deadline` | Acceptance (product builder) | Admin Send Offer; **restamped** on admin `CHANGES_REQUESTED` | 7 days |
 | **Signing** | `signing_deadline` | Signing packages | Admin BR approve → `APPROVED_FOR_SIGNING` | 14 days |
 
-Each deadline has `days` plus optional `reminders: [{ days_before_expiry }]`. Runtime stamps:
+Each deadline has `days` plus optional `reminders: [{ days_before_expiry }]`. Configured **days** are **Malaysia calendar days** (`Asia/Kuala_Lumpur`): an offer sent on 30 Jul with `days: 7` is valid through **6 Aug 11:59 PM** and rejected from **7 Aug 00:00 MYT** onward. The stored `*_expires_at` is the exclusive UTC boundary (`2026-08-07T00:00:00+08:00` → ISO UTC). All gates and the hourly job use **`now >= expiresAt`**. Weekends and holidays count as calendar days.
+
+Runtime stamps:
 
 - `offer_acceptance.acceptance_expires_at` on Send Offer
 - Acceptance clock is **active** only for `PENDING_ISSUER` and `CHANGES_REQUESTED` — it **pauses** during `PENDING_ADMIN_REVIEW` (issuer already submitted; CashSouk is reviewing)
@@ -22,13 +24,15 @@ Each deadline has `days` plus optional `reminders: [{ days_before_expiry }]`. Ru
 - Envelope `expires_at` aligned to `signing_expires_at` on package create
 - After signing clock passes: admin can **Extend signing deadline** on Acceptance → Signing package (restamps `signing_expires_at`, clears `signing:*` reminders, restores `OFFER_SENT` if durable-expired). Full **Send Offer** on Contract/Invoice remains the commercial reset path.
 
-**Expiry** (exact-time API gates + hourly job):
+**Expiry** (API gates + hourly job; boundary `now >= expiresAt`):
 
 - While still `OFFER_SENT` and the **active** clock is past, mutations return `400 OFFER_EXPIRED` and issuer UI shows **Offer Expired** (read-only).
 - The hourly job then sets contract/invoice → **`OFFER_EXPIRED`**, keeps full `offer_details`, review → `OFFER_EXPIRED`, application → **`OFFER_EXPIRED`**. Admin can **Send Offer** directly from that status (overwrites terms + new acceptance clock → entity `OFFER_SENT`, application `CONTRACT_SENT` / `INVOICES_SENT`).
 - Not terminal `WITHDRAWN`. Reminders and expiry notify via `offer_expiry_reminder_24h` / `offer_expired`. Timeline: `CONTRACT_OFFER_EXPIRED` / `INVOICE_OFFER_EXPIRED`.
 
-Manual test: `pnpm seed-expired-acceptance-deadline-for-test` then `pnpm run-acceptance-signing-expiry`.
+**Reminder delivery:** One platform-wide hour (default **09:00** MYT) on **Settings → Platform Finance → Offer Deadlines**. Reminder offsets are relative to the displayed deadline date (`1` = preceding calendar day at that hour; `0` = deadline date at that hour). Signing-link TTL, regeneration, and recipient-token rules are unchanged.
+
+Manual test: `pnpm seed-expired-acceptance-deadline-for-test` then `pnpm run-acceptance-signing-expiry`. Reminder window: `pnpm seed-reminder-window-acceptance-deadline-for-test`.
 
 ## Phases
 

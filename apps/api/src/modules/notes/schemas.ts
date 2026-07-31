@@ -227,6 +227,7 @@ export const updatePlatformFinanceSettingsSchema = z.object({
   applicationProcessingFeeAmount: z.number().positive().optional(),
   investorMinDepositAmount: z.number().positive().optional(),
   investorMaxDepositAmount: z.number().positive().optional(),
+  offerDeadlineReminderHour: z.number().int().min(0).max(23).optional(),
   trusteeLetterConfig: z.record(z.unknown()).optional(),
   platformAccountsConfig: z.record(z.unknown()).optional(),
   ledgerBucketAccountsConfig: z.record(z.unknown()).optional(),

@@ -76,6 +76,7 @@ import {
   collectAcceptanceDocumentReviewKeys,
   getOfferAcceptanceFromOfferDetails,
   isOfferAcceptanceResendBlocked,
+  isPhaseDeadlineExpired,
   workflowUsesOfferAcceptanceFlow,
   shouldShowAcceptanceDocumentsReviewSection,
   isRegtankIso3166Code,
@@ -7937,7 +7938,7 @@ export class AdminService {
         );
       }
       const expiresAt = current.signing_expires_at;
-      if (typeof expiresAt !== "string" || !expiresAt || new Date(expiresAt) >= now) {
+      if (typeof expiresAt !== "string" || !expiresAt || !isPhaseDeadlineExpired(expiresAt, now)) {
         throw new AppError(400, "INVALID_STATE", "Signing deadline has not expired yet");
       }
 
@@ -8414,7 +8415,7 @@ export class AdminService {
         );
       }
       const expiresAt = current.signing_expires_at;
-      if (typeof expiresAt !== "string" || !expiresAt || new Date(expiresAt) >= now) {
+      if (typeof expiresAt !== "string" || !expiresAt || !isPhaseDeadlineExpired(expiresAt, now)) {
         throw new AppError(400, "INVALID_STATE", "Signing deadline has not expired yet");
       }
 

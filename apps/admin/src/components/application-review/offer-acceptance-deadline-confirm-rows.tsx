@@ -16,12 +16,11 @@ export function OfferAcceptanceDeadlineConfirmRows({
   valueClassName?: string;
 }) {
   return (
-    <div className="flex justify-between gap-4">
+    <div className="flex justify-between items-baseline gap-4">
       <span className={labelClassName}>Acceptance deadline</span>
-      <div className={`min-w-0 text-right ${valueClassName}`}>
-        <div>{preview.confirmDialogLines.duration}</div>
-        <div>{preview.confirmDialogLines.acceptBy}</div>
-      </div>
+      <span className={`min-w-0 text-right ${valueClassName}`}>
+        {preview.confirmDialogLines.deadlineAt}
+      </span>
     </div>
   );
 }

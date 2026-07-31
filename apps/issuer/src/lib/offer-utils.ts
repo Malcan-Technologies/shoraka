@@ -9,6 +9,7 @@ import {
   getOfferAcceptanceFromOfferDetails,
   getOfferPhaseDeadlineDisplay as getOfferPhaseDeadlineDisplayShared,
   getPhaseDeadlineUrgency as getPhaseDeadlineUrgencyShared,
+  isPhaseDeadlineExpired,
   PHASE_DEADLINE_SOON_DAYS as PHASE_DEADLINE_SOON_DAYS_SHARED,
   phaseDeadlineLabel as phaseDeadlineLabelShared,
   offerAcceptanceAllowsIssuerReviewCta,
@@ -40,7 +41,7 @@ export function getOfferStatus(item: {
   const expiresAt = resolveActiveOfferDeadlineIso(acceptance);
   if (!expiresAt) return "Offer received";
 
-  const isExpired = new Date(expiresAt) < new Date();
+  const isExpired = isPhaseDeadlineExpired(expiresAt);
   return isExpired ? "Offer expired" : "Offer received";
 }
 

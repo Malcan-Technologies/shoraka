@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@cashsouk/ui";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
+import { formatPhaseDeadlineAbsolute } from "@cashsouk/types";
 import { ApplicationStatusBadge } from "@/components/application-review";
 import { formatFileSize } from "@/components/application-review/review-section-styles";
 import {
@@ -63,6 +64,11 @@ function formatValue(key: string, value: unknown): React.ReactNode {
       return formatCurrency(value);
     }
     return value.toLocaleString();
+  }
+  if (key === "acceptance_expires_at" || key === "signing_expires_at") {
+    if (typeof value === "string" && isIsoDate(value)) {
+      return formatPhaseDeadlineAbsolute(value);
+    }
   }
   const lowerKey = key.toLowerCase();
   if ((lowerKey.includes("date") || lowerKey.endsWith("_at") || lowerKey === "updated") && isIsoDate(value)) {
