@@ -284,6 +284,49 @@ export function useResetItemReviewToPending() {
   });
 }
 
+/** Immediate item amendment / acceptance "Request change" (not the underwriting draft queue). */
+export function useRequestAmendmentReviewItem() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({
+      applicationId,
+      itemType,
+      itemId,
+      remark,
+    }: {
+      applicationId: string;
+      itemType: "invoice" | "document";
+      itemId: string;
+      remark: string;
+    }) => {
+      const response = await apiClient.requestAmendmentReviewItem(
+        applicationId,
+        itemType,
+        itemId,
+        remark
+      );
+      if (!response.success) {
+        throw new Error(
+          (response as ApiError).error?.message ?? "Failed to request document change"
+        );
+      }
+      return response.data;
+    },
+    onSuccess: async (_, variables) => {
+      invalidateReviewDetailExtras(queryClient, variables.applicationId, {
+        includeActionCount: true,
+        includePendingAmendments: false,
+      });
+      await queryClient.refetchQueries({
+        queryKey: applicationsKeys.detail(variables.applicationId),
+      });
+    },
+  });
+}
+
 export function useSendContractOffer() {
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();

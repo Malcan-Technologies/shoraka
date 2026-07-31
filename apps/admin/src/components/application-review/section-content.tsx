@@ -22,7 +22,8 @@ import { CustomerSection } from "./sections/customer-section";
 import { InvoiceSection } from "./sections/invoice-section";
 import type { ReviewSectionId } from "./section-types";
 import type { ReviewTabDescriptor } from "./review-registry";
-import { isSignedOfferLetterAvailable } from "./offer-signing-availability";
+import { isSignedContractOfferLetterAvailable } from "./offer-signing-availability";
+import { useAdminSigningEnvelopes } from "@/hooks/use-signing-envelopes";
 import type { SoukscoreRiskRating } from "@cashsouk/types";
 
 export interface SectionCommentRecord {
@@ -242,6 +243,14 @@ export function SectionContent({
   canManageSigning = true,
   productVersion = null,
 }: SectionContentProps) {
+  const signingApplicationId =
+    (typeof liveApplicationId === "string" && liveApplicationId) ||
+    (typeof app.id === "string" ? app.id : "");
+  const { data: signingEnvelopes = [] } = useAdminSigningEnvelopes(signingApplicationId);
+  const signedContractOfferLetterAvailable = isSignedContractOfferLetterAvailable({
+    contractId: app.contract?.id,
+    envelopes: signingEnvelopes,
+  });
   const reviewItems =
     (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
   const reviewComments = (app.application_review_remarks as SectionCommentRecord[] | undefined) ?? [];
@@ -530,9 +539,7 @@ export function SectionContent({
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
           onViewSignedContractOffer={onViewSignedContractOffer}
-          signedContractOfferLetterAvailable={isSignedOfferLetterAvailable(
-            (app.contract as { status?: string } | null | undefined)?.status
-          )}
+          signedContractOfferLetterAvailable={signedContractOfferLetterAvailable}
           viewSignedOfferLetterPending={viewSignedOfferLetterPending}
           sectionComparison={
             sectionComparison
@@ -591,6 +598,7 @@ export function SectionContent({
           : undefined;
       return (
         <InvoiceSection
+          applicationId={signingApplicationId}
           invoices={mergedInvoices}
           readOnlyInvoiceIds={readOnlyInvoiceIds}
           contractFacility={contractFacility}

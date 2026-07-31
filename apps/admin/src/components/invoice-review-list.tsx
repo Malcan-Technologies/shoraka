@@ -57,7 +57,8 @@ import {
   applicationTableExpandableValueClass,
   applicationTableExpandableFieldGapClass,
 } from "@/components/application-review/application-table-styles";
-import { isSignedOfferLetterAvailable } from "@/components/application-review/offer-signing-availability";
+import { isSignedInvoiceOfferLetterAvailable } from "@/components/application-review/offer-signing-availability";
+import { useAdminSigningEnvelopes } from "@/hooks/use-signing-envelopes";
 
 const PROFIT_RATE_OPTIONS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
 
@@ -74,6 +75,8 @@ const invoiceSummaryHeadNumericClass =
   "text-sm font-semibold text-foreground px-3 py-2 text-right tabular-nums";
 
 interface InvoiceReviewListProps {
+  /** Live application id — used to resolve signed offer-letter availability from envelopes. */
+  applicationId?: string;
   invoices: {
     id: string;
     details?: unknown;
@@ -158,6 +161,7 @@ function clampPlatformFeePercent(parsed: number, fallback: number, cap: number):
 }
 
 export function InvoiceList({
+  applicationId,
   invoices,
   readOnlyInvoiceIds,
   reviewItems,
@@ -180,6 +184,7 @@ export function InvoiceList({
   onViewSignedInvoiceOffer,
 }: InvoiceReviewListProps) {
   const [expandedById, setExpandedById] = React.useState<Record<string, boolean>>({});
+  const { data: signingEnvelopes = [] } = useAdminSigningEnvelopes(applicationId ?? "");
   const acceptanceDeadlinePreview = previewAcceptanceDeadlineFromWorkflow(productWorkflow);
   const platformFeeCap = React.useMemo(() => {
     const cap = platformFeeRateCapPercent ?? 3;
@@ -412,7 +417,10 @@ export function InvoiceList({
             const isRowReadOnly = readOnlyInvoiceIds?.has(inv.id) ?? false;
             const isTabLocked = !!isActionLocked || !isReviewable;
             const isInvoiceFinalizedByIssuer = reviewItemStatus === "APPROVED";
-            const signedOfferAvailable = isSignedOfferLetterAvailable(inv.status);
+            const signedOfferAvailable = isSignedInvoiceOfferLetterAvailable({
+              invoiceId: inv.id,
+              envelopes: signingEnvelopes,
+            });
             const isInvoiceWithdrawn = status === "WITHDRAWN";
             const isRowGreyedOut =
               isRowReadOnly ||

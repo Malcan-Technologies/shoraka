@@ -355,7 +355,17 @@ export function DocumentList({
           {requirementMeta ? <SupportingDocRequirementBadges meta={requirementMeta} /> : null}
         </div>
         <div className="ml-auto flex min-w-0 shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
-          {status !== "PENDING" && <ReviewStepStatusBadge status={status} size="sm" />}
+          {status !== "PENDING" && (
+            <ReviewStepStatusBadge
+              status={status}
+              size="sm"
+              label={
+                documentKind === "acceptance" && status === "AMENDMENT_REQUESTED"
+                  ? "Changes Requested"
+                  : undefined
+              }
+            />
+          )}
           <div className="flex w-full max-w-[min(22.5rem,calc(100vw-4rem))] gap-2 sm:w-[22.5rem]">
             {canViewSingle && !canViewMultiple ? (
               <div className="min-w-0 flex-1">
@@ -455,7 +465,13 @@ export function DocumentList({
                   actionLockTooltip={actionLockTooltip}
                   showApprove={!lockItemPrimaryReviewActions}
                   showReject={!lockItemPrimaryReviewActions}
-                  showRequestAmendment={!lockItemPrimaryReviewActions}
+                  showRequestAmendment={
+                    !lockItemPrimaryReviewActions &&
+                    (documentKind !== "acceptance" || status === "PENDING")
+                  }
+                  requestAmendmentLabel={
+                    documentKind === "acceptance" ? "Request change" : "Request Amendment"
+                  }
                   noActionsTooltip={
                     lockItemPrimaryReviewActions && status === "PENDING"
                       ? "Another document was rejected. Clear that rejection or use Set to Pending on it, or reset the whole section."

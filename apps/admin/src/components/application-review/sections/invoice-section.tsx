@@ -16,6 +16,8 @@ import { formatCurrency, resolveOfferedAmount } from "@cashsouk/config";
 import type { SoukscoreRiskRating } from "@cashsouk/types";
 
 export interface InvoiceSectionProps {
+  /** Live application id — used to resolve signed offer-letter availability from envelopes. */
+  applicationId?: string;
   invoices: {
     id: string;
     details?: unknown;
@@ -110,6 +112,7 @@ function invoiceFinancingRatioDisplay(inv: { details?: unknown } | undefined): s
 }
 
 export function InvoiceSection({
+  applicationId,
   invoices,
   readOnlyInvoiceIds,
   contractFacility,
@@ -236,6 +239,7 @@ export function InvoiceSection({
       )}
       {invoices?.length ? (
         <InvoiceList
+          applicationId={applicationId}
           invoices={invoices}
           readOnlyInvoiceIds={readOnlyInvoiceIds}
           reviewItems={reviewItems}

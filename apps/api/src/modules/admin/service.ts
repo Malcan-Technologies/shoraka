@@ -50,6 +50,12 @@ import {
   NotificationTypeIds,
 } from "../notification/registry";
 import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
+import {
+  assertAcceptanceDocumentChangeRequestAllowed,
+  isAcceptanceDocumentItemId,
+  isAcceptanceDocumentsAmendmentQueueScope,
+  shouldNotifyAcceptanceDocumentChanges,
+} from "./acceptance-document-change";
 import { getRegTankConfig } from "../../config/regtank";
 import {
   AdminRole,
@@ -553,18 +559,47 @@ export class AdminService {
     applicationId: string,
     typeId: T,
     payload: NotificationPayloads[T],
-    idempotencySuffix: string
+    idempotencySuffix: string,
+    options?: { platformOnly?: boolean; ensureTypesSeeded?: boolean }
   ) {
     const recipientUserIds = await getIssuerRecipientUserIdsForApplication(applicationId);
-    await Promise.all(
+    if (recipientUserIds.length === 0) {
+      logger.warn(
+        { applicationId, typeId },
+        "Skipping issuer notification: no owner/admin recipients on application org"
+      );
+      return;
+    }
+
+    if (options?.ensureTypesSeeded) {
+      // Ensures newly added catalog rows (e.g. acceptance change) exist before create.
+      await this.notificationService.seedNotificationTypes();
+    }
+
+    const send = options?.platformOnly
+      ? this.notificationService.sendTypedPlatformOnly.bind(this.notificationService)
+      : this.notificationService.sendTyped.bind(this.notificationService);
+
+    const results = await Promise.all(
       recipientUserIds.map((userId) =>
-        this.notificationService.sendTyped(
+        send(
           userId,
           typeId,
           payload,
           `app:${applicationId}:notif:${String(typeId)}:user:${userId}:${idempotencySuffix}`
         )
       )
+    );
+
+    logger.info(
+      {
+        applicationId,
+        typeId,
+        recipientCount: recipientUserIds.length,
+        createdCount: results.filter(Boolean).length,
+        platformOnly: options?.platformOnly === true,
+      },
+      "Issuer notification dispatched"
     );
   }
 
@@ -7177,9 +7212,40 @@ export class AdminService {
     return (product?.workflow as unknown[]) ?? [];
   }
 
+  /** Primary offer (contract, else standalone invoice) acceptance phase status. */
+  private getPrimaryOfferAcceptanceStatus(application: {
+    contract?: { offer_details?: unknown } | null;
+    invoices?: Array<{ contract_id?: string | null; offer_details?: unknown }>;
+  }): string | null {
+    return this.getPrimaryOfferAcceptance(application)?.status ?? null;
+  }
+
+  private getPrimaryOfferAcceptanceSubmittedAt(application: {
+    contract?: { offer_details?: unknown } | null;
+    invoices?: Array<{ contract_id?: string | null; offer_details?: unknown }>;
+  }): string | null {
+    const submittedAt = this.getPrimaryOfferAcceptance(application)?.submitted_at;
+    return typeof submittedAt === "string" && submittedAt.trim() !== "" ? submittedAt : null;
+  }
+
+  private getPrimaryOfferAcceptance(application: {
+    contract?: { offer_details?: unknown } | null;
+    invoices?: Array<{ contract_id?: string | null; offer_details?: unknown }>;
+  }) {
+    return (
+      getOfferAcceptanceFromOfferDetails(application.contract?.offer_details) ??
+      (application.invoices ?? [])
+        .filter((inv) => !inv.contract_id)
+        .map((inv) => getOfferAcceptanceFromOfferDetails(inv.offer_details))
+        .find((phase) => phase != null) ??
+      null
+    );
+  }
+
   /**
    * Keep offer_acceptance.status aligned with acceptance-doc review items.
    * - Amendment → CHANGES_REQUESTED (only after Step 1 was submitted); restamps acceptance clock
+   * - Clearing all amendment flags rolls CHANGES_REQUESTED → PENDING_ADMIN_REVIEW
    * - All approved → APPROVED_FOR_SIGNING (only from PENDING_ADMIN_REVIEW / already approved)
    * - Never promote PENDING_ISSUER; never approve from CHANGES_REQUESTED without resubmit
    * - Reset of approvals rolls APPROVED_FOR_SIGNING → PENDING_ADMIN_REVIEW
@@ -7250,6 +7316,11 @@ export class AdminService {
           return "CHANGES_REQUESTED";
         }
         return null;
+      }
+
+      // Admin cleared every change request (Set to Pending) — leave issuer-action phase.
+      if (current.status === "CHANGES_REQUESTED") {
+        return "PENDING_ADMIN_REVIEW";
       }
 
       if (allApproved) {
@@ -9676,18 +9747,21 @@ export class AdminService {
     if (itemType === "invoice") {
       await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
     }
-    if (itemType === "document" && itemId.startsWith("acceptance_documents:")) {
+    const existing = application.application_review_items?.find(
+      (r: { item_type: string; item_id: string; status: string }) =>
+        r.item_type === itemType && r.item_id === itemId
+    );
+    const oldStatus = existing?.status ?? "PENDING";
+    const isAcceptanceDoc =
+      itemType === "document" && isAcceptanceDocumentItemId(itemId);
+    if (isAcceptanceDoc) {
+      assertAcceptanceDocumentChangeRequestAllowed(oldStatus);
       await this.assertNoActiveSigningPackageForAcceptanceActions(
         applicationId,
         application,
         "requesting acceptance document changes"
       );
     }
-    const existing = application.application_review_items?.find(
-      (r: { item_type: string; item_id: string; status: string }) =>
-        r.item_type === itemType && r.item_id === itemId
-    );
-    const oldStatus = existing?.status ?? "PENDING";
 
     await repository.upsertItemReviewStatus(
       applicationId,
@@ -9731,6 +9805,10 @@ export class AdminService {
     }
 
     let nextApp = await repository.getApplicationById(applicationId);
+    const acceptancePhaseBefore = isAcceptanceDoc
+      ? this.getPrimaryOfferAcceptanceStatus(application)
+      : null;
+
     if (itemType === "document" && nextApp) {
       await this.syncDocumentDerivedSectionsFromItems(
         repository,
@@ -9740,7 +9818,7 @@ export class AdminService {
         logContext
       );
       nextApp = await repository.getApplicationById(applicationId);
-      if (itemId.startsWith("acceptance_documents:") && nextApp) {
+      if (isAcceptanceDoc && nextApp) {
         await this.syncOfferAcceptancePhaseFromAcceptanceDocs(
           applicationId,
           nextApp as {
@@ -9770,6 +9848,42 @@ export class AdminService {
         nextApp = await repository.getApplicationById(applicationId);
       }
     }
+
+    if (isAcceptanceDoc) {
+      const acceptancePhaseAfter = this.getPrimaryOfferAcceptanceStatus(
+        nextApp ?? application
+      );
+      if (shouldNotifyAcceptanceDocumentChanges(acceptancePhaseBefore, acceptancePhaseAfter)) {
+        try {
+          const submittedAt =
+            this.getPrimaryOfferAcceptanceSubmittedAt(nextApp ?? application) ?? "none";
+          await this.sendIssuerNotification(
+            applicationId,
+            NotificationTypeIds.ACCEPTANCE_DOCUMENT_CHANGES_REQUESTED,
+            { applicationId },
+            // One notify per acceptance submit cycle when first entering CHANGES_REQUESTED.
+            `acceptance-changes-entered:${submittedAt}`,
+            { platformOnly: true, ensureTypesSeeded: true }
+          );
+        } catch (notificationError) {
+          logger.error(
+            { error: notificationError, applicationId, itemId },
+            "Failed to send acceptance document change notification to issuer"
+          );
+        }
+      } else {
+        logger.info(
+          {
+            applicationId,
+            itemId,
+            acceptancePhaseBefore,
+            acceptancePhaseAfter,
+          },
+          "Skipped acceptance change notification (already in CHANGES_REQUESTED or phase unchanged)"
+        );
+      }
+    }
+
     if (itemType === "invoice" && nextApp) {
       await this.syncInvoiceDetailsSectionFromItems(
         repository,
@@ -9804,6 +9918,14 @@ export class AdminService {
       application.status as ApplicationStatus,
       application
     );
+
+    if (isAcceptanceDocumentsAmendmentQueueScope(scope, scopeKey)) {
+      throw new AppError(
+        400,
+        "INVALID_ACTION",
+        "Acceptance document changes use Request change (immediate), not the underwriting amendment queue"
+      );
+    }
 
     if (scope === "section") {
       const validSections = REVIEW_SECTION_ORDER;

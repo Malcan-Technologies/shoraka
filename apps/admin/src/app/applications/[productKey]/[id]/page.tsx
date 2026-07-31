@@ -20,6 +20,7 @@ import {
   useResetItemReviewToPending,
   useApproveReviewItem,
   useRejectReviewItem,
+  useRequestAmendmentReviewItem,
   useAddSectionComment,
   useAddPendingAmendment,
   useListPendingAmendments,
@@ -87,9 +88,13 @@ import {
   ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT,
 } from "@/lib/admin-director-shareholder-review-message";
 import { ApplicationStatusBadge } from "@/components/application-review";
-import { isSignedOfferLetterAvailable } from "@/components/application-review/offer-signing-availability";
+import {
+  isSignedContractOfferLetterAvailable,
+  isSignedInvoiceOfferLetterAvailable,
+} from "@/components/application-review/offer-signing-availability";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useAdminSigningEnvelopes } from "@/hooks/use-signing-envelopes";
 import type { AdminPermission } from "@cashsouk/types";
 import JSZip from "jszip";
 
@@ -177,6 +182,7 @@ export default function DynamicApplicationDetailPage() {
   const platformFeeRateCapPercent = platformFinanceSettings?.platformFeeRateCapPercent ?? 3;
 
   const { data: app, isLoading, error } = useApplicationDetail(applicationId);
+  const { data: signingEnvelopes = [] } = useAdminSigningEnvelopes(applicationId);
   const updateStatus = useUpdateApplicationStatus();
 
   // Fetch products to get the current product name (include deleted/inactive for nav key match)
@@ -199,6 +205,7 @@ export default function DynamicApplicationDetailPage() {
   const addPendingAmendment = useAddPendingAmendment();
   const approveItem = useApproveReviewItem();
   const rejectItem = useRejectReviewItem();
+  const requestAmendmentReviewItem = useRequestAmendmentReviewItem();
   const addSectionComment = useAddSectionComment();
   const { data: pendingAmendments = [] } = useListPendingAmendments(applicationId);
   const removePendingAmendment = useRemovePendingAmendment();
@@ -345,7 +352,11 @@ export default function DynamicApplicationDetailPage() {
 
   const handleViewSignedInvoiceOffer = React.useCallback(
     async (invoiceId: string) => {
-      if (!applicationId || !invoiceId) {
+      const signedInvoiceOfferAvailable = isSignedInvoiceOfferLetterAvailable({
+        invoiceId,
+        envelopes: signingEnvelopes,
+      });
+      if (!applicationId || !invoiceId || !signedInvoiceOfferAvailable) {
         toast.error("Signed offer document is unavailable");
         return;
       }
@@ -358,13 +369,17 @@ export default function DynamicApplicationDetailPage() {
         toast.error(err instanceof Error ? err.message : "Failed to open signed offer letter");
       }
     },
-    [platformFinanceApiClient, applicationId]
+    [platformFinanceApiClient, applicationId, signingEnvelopes]
   );
 
-  const signedContractOfferAvailable = React.useMemo(() => {
-    const status = (app?.contract as { status?: string } | null | undefined)?.status;
-    return isSignedOfferLetterAvailable(status);
-  }, [app?.contract]);
+  const signedContractOfferAvailable = React.useMemo(
+    () =>
+      isSignedContractOfferLetterAvailable({
+        contractId: (app?.contract as { id?: string } | null | undefined)?.id,
+        envelopes: signingEnvelopes,
+      }),
+    [app?.contract, signingEnvelopes]
+  );
 
   const handleViewSignedContractOffer = React.useCallback(async () => {
     if (!applicationId || !signedContractOfferAvailable) {
@@ -604,6 +619,23 @@ export default function DynamicApplicationDetailPage() {
     }
   };
 
+  const handleRequestAcceptanceDocumentChange = async (remark: string) => {
+    const d = noteDialog;
+    if (!d || !("itemType" in d)) return;
+    try {
+      await requestAmendmentReviewItem.mutateAsync({
+        applicationId,
+        itemType: d.itemType,
+        itemId: d.itemId,
+        remark,
+      });
+      toast.success("Change requested — issuer has been notified");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to request change");
+      throw err;
+    }
+  };
+
   const handleAddPendingAmendmentSection = async (remark: string) => {
     const d = noteDialog;
     if (!d || !("section" in d)) return;
@@ -659,6 +691,8 @@ export default function DynamicApplicationDetailPage() {
         }
       } else if (d.action === "reject") {
         await handleRejectItem(remark);
+      } else if (d.itemId.startsWith("acceptance_documents:")) {
+        await handleRequestAcceptanceDocumentChange(remark);
       } else {
         await handleAddPendingAmendmentItem(remark);
       }
@@ -667,6 +701,11 @@ export default function DynamicApplicationDetailPage() {
 
   const noteDialogIsSection = noteDialog && "section" in noteDialog;
   const noteDialogIsApprove = noteDialog?.action === "approve";
+  const noteDialogIsAcceptanceChange =
+    !!noteDialog &&
+    "itemType" in noteDialog &&
+    noteDialog.action === "amend" &&
+    noteDialog.itemId.startsWith("acceptance_documents:");
   const sectionLabel = noteDialogIsSection
     ? noteDialog.section === "contract_details" && isInvoiceOnly
       ? "Customer"
@@ -682,19 +721,25 @@ export default function DynamicApplicationDetailPage() {
         : `Request Amendment for ${sectionLabel}?`
       : noteDialog?.action === "reject"
         ? "Reject item?"
-        : "Request amendment?";
+        : noteDialogIsAcceptanceChange
+          ? "Request change?"
+          : "Request amendment?";
   const noteDialogDescription = noteDialogIsApprove
     ? "Add an optional remark to record your review decision."
-    : noteDialogIsSection
-      ? noteDialog.action === "reject"
-        ? "This will reject the section. A remark is required."
-        : "Add this section to the amendment list. A remark is required. Use the Request Amendment button to review and send all amendments."
-      : "Add this item to the amendment list. A remark is required. Use the Request Amendment button to review and send all amendments.";
+    : noteDialogIsAcceptanceChange
+      ? "The issuer will be notified to update this acceptance document. A remark is required and will be shown to them."
+      : noteDialogIsSection
+        ? noteDialog.action === "reject"
+          ? "This will reject the section. A remark is required."
+          : "Add this section to the amendment list. A remark is required. Use the Request Amendment button to review and send all amendments."
+        : "Add this item to the amendment list. A remark is required. Use the Request Amendment button to review and send all amendments.";
   const noteDialogSubmitLabel = noteDialogIsApprove
     ? "Approve"
     : noteDialog?.action === "reject"
       ? "Reject"
-      : "Add to List";
+      : noteDialogIsAcceptanceChange
+        ? "Request change"
+        : "Add to List";
   const noteDialogCommonReasons =
     noteDialog && noteDialog.action === "reject"
       ? "section" in noteDialog
@@ -708,6 +753,7 @@ export default function DynamicApplicationDetailPage() {
     approveItem.isPending ||
     rejectSection.isPending ||
     addPendingAmendment.isPending ||
+    requestAmendmentReviewItem.isPending ||
     rejectItem.isPending;
 
   const handleConfirmRejectApplication = async () => {

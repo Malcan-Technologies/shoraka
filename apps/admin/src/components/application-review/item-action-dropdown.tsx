@@ -35,8 +35,10 @@ interface ItemActionDropdownProps {
   showApprove?: boolean;
   /** When false, hides Reject (e.g. documents locked after a peer document was rejected). */
   showReject?: boolean;
-  /** When false, hides Request amendment. */
+  /** When false, hides Request amendment / Request change. */
   showRequestAmendment?: boolean;
+  /** Menu label for the amendment/change action (acceptance uses "Request change"). */
+  requestAmendmentLabel?: string;
   /** When true, menu shows only "View Signed Offer" (e.g. after invoice review is finalized). */
   viewSignedOfferOnly?: boolean;
   onViewSignedOffer?: () => void | Promise<void>;
@@ -59,6 +61,7 @@ export function ItemActionDropdown({
   showApprove = true,
   showReject = true,
   showRequestAmendment = true,
+  requestAmendmentLabel = "Request Amendment",
   viewSignedOfferOnly = false,
   onViewSignedOffer,
   noActionsTooltip,
@@ -195,7 +198,7 @@ export function ItemActionDropdown({
             onClick={() => onRequestAmendment(itemId)}
           >
             <DocumentTextIcon className="h-4 w-4 mr-2" />
-            Request Amendment
+            {requestAmendmentLabel}
           </DropdownMenuItem>
         )}
         {showResetOption && (

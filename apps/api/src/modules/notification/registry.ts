@@ -23,6 +23,8 @@ export const NotificationTypeIds = {
 
   // Issuer application / review lifecycle
   APPLICATION_AMENDMENTS_REQUESTED: 'application_amendments_requested',
+  /** Post-offer acceptance docs: admin requested a specific document change. */
+  ACCEPTANCE_DOCUMENT_CHANGES_REQUESTED: 'acceptance_document_changes_requested',
   APPLICATION_APPROVED: 'application_approved',
   APPLICATION_REJECTED: 'application_rejected',
   CONTRACT_OFFER_SENT: 'contract_offer_sent',
@@ -98,6 +100,9 @@ export interface NotificationPayloads {
   [NotificationTypeIds.APPLICATION_AMENDMENTS_REQUESTED]: {
     applicationId: string;
     amendmentCount: number;
+  };
+  [NotificationTypeIds.ACCEPTANCE_DOCUMENT_CHANGES_REQUESTED]: {
+    applicationId: string;
   };
   [NotificationTypeIds.APPLICATION_APPROVED]: {
     applicationId: string;
@@ -292,6 +297,13 @@ export const NOTIFICATION_TEMPLATES: {
     message: (data) =>
       `Your application ${getShortApplicationRef(data.applicationId)} requires updates. ${data.amendmentCount} amendment item(s) were requested by the reviewer.`,
     linkPath: (data) => `/applications/edit/${data.applicationId}`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.ACCEPTANCE_DOCUMENT_CHANGES_REQUESTED]: {
+    title: 'Acceptance Documents Need Updates',
+    message: (data) =>
+      `A reviewer requested updates to acceptance documents on application ${getShortApplicationRef(data.applicationId)}. Open Review Offer to see which files to replace.`,
+    linkPath: () => `/applications`,
     portal: 'issuer',
   },
   [NotificationTypeIds.APPLICATION_APPROVED]: {
