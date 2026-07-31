@@ -764,16 +764,16 @@ const hasChanges = !isEdit
                   Workflow steps
                 </TabsTrigger>
                 <TabsTrigger
-                  value="signing"
-                  className="h-auto whitespace-normal px-1.5 py-2 text-center text-[11px] leading-snug sm:px-2 sm:text-sm"
-                >
-                  Signing packages
-                </TabsTrigger>
-                <TabsTrigger
                   value="acceptance"
                   className="h-auto whitespace-normal px-1.5 py-2 text-center text-[11px] leading-snug sm:px-2 sm:text-sm"
                 >
                   Acceptance
+                </TabsTrigger>
+                <TabsTrigger
+                  value="signing"
+                  className="h-auto whitespace-normal px-1.5 py-2 text-center text-[11px] leading-snug sm:px-2 sm:text-sm"
+                >
+                  Signing packages
                 </TabsTrigger>
                 <TabsTrigger
                   value="fees"

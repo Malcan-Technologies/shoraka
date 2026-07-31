@@ -6,7 +6,8 @@ import { Button } from "../../../../../components/ui/button";
 import { Input } from "../../../../../components/ui/input";
 import { Label } from "../../../../../components/ui/label";
 import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
-import { INPUT_CLASS } from "../product-form-input-styles";
+import { cn } from "@/lib/utils";
+import { INPUT_CLASS, SECTION_GAP, WORKFLOW_ICON_DELETE_BUTTON_CLASS } from "../product-form-input-styles";
 
 export function PhaseDeadlineConfigEditor({
   title,
@@ -52,53 +53,66 @@ export function PhaseDeadlineConfigEditor({
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-border/60 p-4">
-      <div>
+    <div
+      className={cn(
+        "grid rounded-xl border border-border bg-card p-4 text-sm leading-6",
+        SECTION_GAP
+      )}
+    >
+      <div className="min-w-0">
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
         <p className="text-sm text-muted-foreground">{description}</p>
-        <p className="text-xs text-muted-foreground">
-          Days are Malaysia calendar days. The deadline is the end of the last valid day (11:59 PM).
-          Reminders fire on the configured platform delivery hour.
+        <p className="mt-1 text-sm text-muted-foreground">
+          The deadline is the end of the last valid day (11:59 PM). Reminders fire on the
+          configured platform delivery hour.
         </p>
       </div>
-      <div className="space-y-1.5">
-        <Label className="text-sm font-medium">Days until expiry</Label>
+      <div className="grid gap-2">
+        <Label className="text-xs font-medium text-muted-foreground">Days until expiry</Label>
         <Input
           type="number"
           min={1}
-          className={INPUT_CLASS}
+          className={cn(INPUT_CLASS, "h-9")}
           value={value.days}
           onChange={(e) => updateDays(e.target.value)}
         />
       </div>
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <Label className="text-sm font-medium">Reminders (days before expiry)</Label>
-          <Button type="button" variant="outline" size="sm" onClick={addReminder}>
-            <PlusIcon className="mr-1 h-4 w-4" />
+      <div className="grid gap-2">
+        <div className="flex items-center justify-between gap-3 min-w-0">
+          <Label className="min-w-0 text-xs font-medium text-muted-foreground">
+            Reminders (days before expiry)
+          </Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addReminder}
+            className="shrink-0 gap-1.5"
+          >
+            <PlusIcon className="h-4 w-4 shrink-0" />
             Add reminder
           </Button>
         </div>
         {(value.reminders ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground">No reminders configured.</p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="grid gap-2">
             {(value.reminders ?? []).map((reminder, index) => (
-              <li key={`${reminder.days_before_expiry}-${index}`} className="flex items-center gap-2">
+              <li key={`${reminder.days_before_expiry}-${index}`} className="flex min-w-0 items-center gap-2">
                 <Input
                   type="number"
                   min={0}
                   max={Math.max(0, value.days - 1)}
-                  className={INPUT_CLASS}
+                  className={cn(INPUT_CLASS, "h-9 min-w-0 flex-1")}
                   value={reminder.days_before_expiry}
                   onChange={(e) => updateReminder(index, e.target.value)}
                 />
-                <span className="shrink-0 text-sm text-muted-foreground">days before</span>
+                <span className="shrink-0 text-sm text-muted-foreground">days before expiry</span>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                  className={WORKFLOW_ICON_DELETE_BUTTON_CLASS}
                   onClick={() => removeReminder(index)}
                   aria-label="Remove reminder"
                 >

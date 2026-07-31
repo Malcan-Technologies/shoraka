@@ -20,6 +20,10 @@ export function inputClass(hasError?: boolean, className?: string): string {
 /** Textarea: min-height, resize. Focus on border. */
 export const TEXTAREA_CLASS = "min-h-[80px] resize-y py-2 focus-visible:outline-none focus-visible:ring-0 focus-visible:border-ring";
 
+/** Ghost icon delete control in workflow builder lists. */
+export const WORKFLOW_ICON_DELETE_BUTTON_CLASS =
+  "h-8 w-8 shrink-0 p-0 text-muted-foreground hover:bg-accent hover:text-white";
+
 /** Select trigger: height matches Input, focus on border. */
 export const SELECT_TRIGGER_CLASS = "h-9 focus:outline-none focus:ring-0 focus:border-ring focus-visible:outline-none focus-visible:ring-0 focus-visible:border-ring";
 

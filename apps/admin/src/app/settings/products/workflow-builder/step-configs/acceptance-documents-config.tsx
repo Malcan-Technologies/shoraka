@@ -130,15 +130,6 @@ export function AcceptanceDocumentsConfig({
 
   return (
     <div className={cn("grid min-w-0", SECTION_GAP)}>
-      <div className="min-w-0">
-        <h2 className="text-sm font-semibold text-foreground">Acceptance documents</h2>
-        <p className="text-sm text-muted-foreground">
-          Documents the issuer uploads when accepting an offer (for example a Board Resolution).
-          They are reviewed by admin before signing — not part of supporting documents or the
-          signing envelope.
-        </p>
-      </div>
-
       <PhaseDeadlineConfigEditor
         title="Acceptance deadline"
         description="Clock starts when admin sends the offer. Issuer must upload acceptance documents before it lapses."
@@ -146,33 +137,49 @@ export function AcceptanceDocumentsConfig({
         onChange={persistDeadline}
       />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="outline" size="sm" onClick={addDoc} className="gap-1.5">
-          <PlusIcon className="h-4 w-4 shrink-0" />
-          Add document
-        </Button>
-      </div>
+      <div
+        className={cn(
+          "grid rounded-xl border border-border bg-card p-4 text-sm leading-6",
+          SECTION_GAP
+        )}
+      >
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-foreground">Acceptance documents</h3>
+          <p className="text-sm text-muted-foreground">
+            Documents the issuer must upload when accepting an offer. Leave empty to skip the
+            upload step at offer time.
+          </p>
+        </div>
 
-      {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground leading-6">
-          No acceptance documents configured. Issuers will skip the upload step at offer time.
-        </p>
-      ) : (
-        <ul className={cn("flex flex-col", SECTION_GAP)}>
-          {items.map((item, index) => (
-            <WorkflowDocumentRowEditor
-              key={`${ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY}_${index}`}
-              item={item}
-              index={index}
-              pendingFile={pendingFiles[index] ?? null}
-              onUpdate={(updates) => updateDoc(index, updates)}
-              onRemove={() => removeDoc(index)}
-              onTemplateSelect={(e) => handleTemplateSelect(index, e)}
-              onTemplateRemove={() => removeTemplate(index)}
-            />
-          ))}
-        </ul>
-      )}
+        <div className="flex justify-end">
+          <Button type="button" variant="outline" size="sm" onClick={addDoc} className="gap-1.5">
+            <PlusIcon className="h-4 w-4 shrink-0" />
+            Add document
+          </Button>
+        </div>
+
+        {items.length === 0 ? (
+          <p className="text-sm text-muted-foreground leading-6">
+            No acceptance documents configured yet.
+          </p>
+        ) : (
+          <ul className="grid gap-4">
+            {items.map((item, index) => (
+              <WorkflowDocumentRowEditor
+                key={`${ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY}_${index}`}
+                item={item}
+                index={index}
+                variant="card"
+                pendingFile={pendingFiles[index] ?? null}
+                onUpdate={(updates) => updateDoc(index, updates)}
+                onRemove={() => removeDoc(index)}
+                onTemplateSelect={(e) => handleTemplateSelect(index, e)}
+                onTemplateRemove={() => removeTemplate(index)}
+              />
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

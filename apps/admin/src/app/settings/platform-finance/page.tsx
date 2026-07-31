@@ -14,6 +14,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
@@ -45,6 +52,14 @@ const DEFAULT_TRUSTEE_LETTER: TrusteeLetterConfig = {
 
 const ALLOWED_SIGNATURE_CONTENT_TYPES = ["image/png", "image/jpeg", "image/jpg", "image/webp"];
 const MAX_SIGNATURE_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+
+const REMINDER_DELIVERY_HOUR_OPTIONS = Array.from({ length: 24 }, (_, hour) => hour);
+
+function formatReminderDeliveryHourLabel(hour: number): string {
+  const period = hour < 12 ? "AM" : "PM";
+  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+  return `${displayHour}:00 ${period}`;
+}
 
 function emptyPlatformAccounts(): PlatformAccountsConfig {
   return {
@@ -490,21 +505,27 @@ export default function PlatformFinanceSettingsPage() {
                   <div className="space-y-2 md:col-span-2">
                     <label className="text-sm font-medium">Reminder delivery hour</label>
                     <p className="text-sm text-muted-foreground">
-                      Offer acceptance and signing reminders are sent on the configured calendar
-                      day at this hour. Deadlines use Malaysia calendar days and expire at the
-                      end of the deadline date (11:59 PM).
+                      Offer acceptance and signing reminders are sent on the configured
+                      day at this hour. Deadlines expire at the end of the day (11:59 PM).
                     </p>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={23}
-                      className="h-11 max-w-[8rem] rounded-xl px-4 focus-visible:ring-2 focus-visible:ring-primary"
+                    <Select
                       value={offerDeadlineReminderHour}
                       disabled={disabled}
-                      onChange={(event) => setOfferDeadlineReminderHour(event.target.value)}
-                    />
+                      onValueChange={setOfferDeadlineReminderHour}
+                    >
+                      <SelectTrigger className="h-11 w-full max-w-xs rounded-xl focus:ring-2 focus:ring-primary">
+                        <SelectValue placeholder="Select delivery time" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        {REMINDER_DELIVERY_HOUR_OPTIONS.map((hour) => (
+                          <SelectItem key={hour} value={String(hour)}>
+                            {formatReminderDeliveryHourLabel(hour)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <p className="text-xs text-muted-foreground">
-                      Whole hour from 0 to 23 (e.g. 9 = 9:00 AM).
+                      Malaysia time (MYT). Reminders are sent on the selected hour.
                     </p>
                   </div>
                   <div className="md:col-span-2 flex justify-end">

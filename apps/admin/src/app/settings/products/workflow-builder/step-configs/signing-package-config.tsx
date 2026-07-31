@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../../../components/ui/select";
-import { INPUT_CLASS, SELECT_TRIGGER_CLASS, SECTION_GAP } from "../product-form-input-styles";
+import { INPUT_CLASS, SELECT_TRIGGER_CLASS, SECTION_GAP, WORKFLOW_ICON_DELETE_BUTTON_CLASS } from "../product-form-input-styles";
 import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { PhaseDeadlineConfigEditor } from "./phase-deadline-config-editor";
 
@@ -338,7 +338,7 @@ function SigningPackageSection({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                      className={WORKFLOW_ICON_DELETE_BUTTON_CLASS}
                       onClick={() => removeDocument(document.key)}
                       aria-label={`Remove ${document.name}`}
                     >
@@ -409,7 +409,7 @@ function SigningPackageSection({
                               type="button"
                               variant="ghost"
                               size="sm"
-                              className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                              className={WORKFLOW_ICON_DELETE_BUTTON_CLASS}
                               onClick={() => removeRole(document.key, role.key)}
                               aria-label="Remove signer"
                               disabled={documentRoles.length === 1}
@@ -502,27 +502,17 @@ export function SigningPackageConfig({
 
   return (
     <div className={cn("grid", SECTION_GAP)}>
-      <div className="min-w-0">
-        <h2 className="text-sm font-semibold text-foreground">Signing package</h2>
-        <p className="text-sm text-muted-foreground">
-          Envelope documents and signer roles for contract offers and invoice-only invoice offers.
-          Contract-linked invoices skip this package after the contract envelope completes (Accept/Decline
-          only). Acceptance documents (e.g. Board Resolution) are configured under Acknowledgements —
-          issuers upload them at offer time for admin review; they are not signed here.
-        </p>
-      </div>
 
       <PhaseDeadlineConfigEditor
         title="Signing deadline"
-        description="Clock starts when admin approves acceptance documents (approved for signing). Issuer must complete the execution pack before it lapses."
+        description="Clock starts when admin approves acceptance documents. Issuer must complete the execution pack before it lapses."
         value={deadline}
         onChange={persistDeadline}
       />
 
       <SigningPackageSection
-        title="Documents and signers"
-        description="Issuers assign people and send signing emails when accepting a contract offer or an invoice-only invoice offer."
-        helperText="Contract-linked invoice offers do not use this package — Accept/Decline after the contract envelope is completed."
+        title="Documents and signatories"
+        description="Configure the documents and signatories for the signing package."
         config={packages}
         onChange={persistPackages}
       />

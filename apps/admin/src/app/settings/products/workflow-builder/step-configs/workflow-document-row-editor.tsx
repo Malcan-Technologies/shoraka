@@ -15,7 +15,7 @@ import { Button } from "../../../../../components/ui/button";
 import { TrashIcon } from "@heroicons/react/24/outline";
 import { useS3ViewUrl } from "../../../../../hooks/use-s3";
 import { toast } from "sonner";
-import { INPUT_CLASS, SELECT_TRIGGER_CLASS } from "../product-form-input-styles";
+import { INPUT_CLASS, SELECT_TRIGGER_CLASS, WORKFLOW_ICON_DELETE_BUTTON_CLASS } from "../product-form-input-styles";
 
 export type WorkflowDocumentRowShape = {
   name: string;
@@ -118,6 +118,8 @@ export interface WorkflowDocumentRowEditorProps {
   onTemplateRemove: () => void;
   isUploadingTemplate?: boolean;
   showRemove?: boolean;
+  /** When set, renders each row as a nested card (acceptance documents list). */
+  variant?: "plain" | "card";
 }
 
 export function WorkflowDocumentRowEditor({
@@ -130,6 +132,7 @@ export function WorkflowDocumentRowEditor({
   onTemplateRemove,
   isUploadingTemplate = false,
   showRemove = true,
+  variant = "plain",
 }: WorkflowDocumentRowEditorProps) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const issuerTypeIsExcel = resolveWorkflowDocumentAllowedTypes(item).includes("excel");
@@ -141,7 +144,14 @@ export function WorkflowDocumentRowEditor({
   const showSavedTemplate = hasTemplate && !showPending;
 
   return (
-    <li className="flex gap-2 py-3 px-0 min-w-0 sm:gap-3">
+    <li
+      className={cn(
+        "flex min-w-0 gap-2 sm:gap-3",
+        variant === "card"
+          ? "rounded-lg border border-border bg-muted/15 p-4"
+          : "px-0 py-3"
+      )}
+    >
       <span className="flex h-8 w-6 shrink-0 items-start justify-center pt-1.5 text-sm font-medium text-muted-foreground tabular-nums">
         {index + 1}
       </span>
@@ -171,7 +181,7 @@ export function WorkflowDocumentRowEditor({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-8 w-8 shrink-0 p-0 text-muted-foreground hover:text-destructive"
+              className={WORKFLOW_ICON_DELETE_BUTTON_CLASS}
               onClick={onRemove}
               aria-label="Remove document"
             >
