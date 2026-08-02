@@ -15,8 +15,8 @@ export type ProspectusStatusCardModel = {
   /** Red alert card while Prospectus still needs approval. */
   emphasize: boolean;
   /**
-   * Extra workflow badge tone. Only Approved uses success (green).
-   * Draft / Published / others stay null → original plain outline Badge.
+   * Extra workflow badge tone. Approved and Published use success (green).
+   * Draft stays null → original plain outline Badge.
    */
   badgeTone: WorkflowStatusTone | null;
   /** Primary (red) while action is required; outline when reviewing approved/published. */
@@ -38,7 +38,7 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
       primaryLabel: "View Prospectus",
       secondaryLabel: null,
       emphasize: false,
-      badgeTone: null,
+      badgeTone: "success",
       actionVariant: "outline",
     };
   }

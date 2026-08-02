@@ -39,11 +39,13 @@ describe("prospectus review admin labels", () => {
     expect(formatProspectusReviewStatus("PUBLISHED", true)).toBe("Published");
   });
 
-  it("applies green success badge only for Approved (shared with Note Detail card)", () => {
+  it("applies green success badge for Approved and Published (shared with Note Detail card)", () => {
     expect(prospectusReviewStatusBadgeClassName("DRAFT")).toBeUndefined();
     expect(prospectusReviewStatusBadgeClassName("READY_FOR_REVIEW")).toBeUndefined();
     expect(prospectusReviewStatusBadgeClassName("SUPERSEDED")).toBeUndefined();
-    expect(prospectusReviewStatusBadgeClassName("PUBLISHED", true)).toBeUndefined();
+    expect(prospectusReviewStatusBadgeClassName("PUBLISHED", true)).toBe(
+      WORKFLOW_STATUS_BADGE.success.badgeClass
+    );
     expect(prospectusReviewStatusBadgeClassName("APPROVED")).toBe(
       WORKFLOW_STATUS_BADGE.success.badgeClass
     );
