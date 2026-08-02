@@ -51,8 +51,9 @@ export function LegalReacceptancePanel({
   onComplete,
 }: LegalReacceptancePanelProps) {
   const { getAccessToken } = useAuthToken();
-  const { refreshOrganizations } = useOrganization();
+  const { refreshOrganizations, activeOrganization } = useOrganization();
   const audience = audienceFromPortal(portalType);
+  const isOwner = activeOrganization?.id === organizationId ? Boolean(activeOrganization.isOwner) : false;
 
   const [status, setStatus] = useState<LegalComplianceStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -206,6 +207,51 @@ export function LegalReacceptancePanel({
 
   if (!status?.hasPendingReacceptance || pending.length === 0) {
     return null;
+  }
+
+  if (!isOwner) {
+    return (
+      <Card className="w-full rounded-2xl shadow-lg border-primary/30">
+        <CardHeader>
+          <CardTitle>Updated legal documents</CardTitle>
+          <CardDescription>
+            The organisation owner must accept the updated legal document before new transactions can
+            continue.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            You can still view the documents below. Acceptance can only be completed by the
+            organisation owner. Your account stays active for login, dashboards, and existing
+            transactions.
+          </p>
+          {pending.map((doc) => (
+            <section
+              key={doc.documentVersionId}
+              className="rounded-xl border border-border bg-muted/30 p-4"
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h3 className="text-[17px] font-semibold leading-7">{doc.title}</h3>
+                  <p className="text-sm text-muted-foreground">Version {doc.version}</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-2"
+                  disabled={localState[doc.documentVersionId]?.opening}
+                  onClick={() => void handleOpen(doc)}
+                >
+                  <DocumentArrowDownIcon className="size-4" aria-hidden />
+                  {localState[doc.documentVersionId]?.opening ? "Opening…" : "View PDF"}
+                </Button>
+              </div>
+            </section>
+          ))}
+        </CardContent>
+      </Card>
+    );
   }
 
   return (

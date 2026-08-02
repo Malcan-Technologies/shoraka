@@ -30,9 +30,11 @@ export function TermsAcceptanceCard({
   lastUpdated,
   onAccepted,
 }: TermsAcceptanceCardProps) {
-  const { acceptTnc, refreshOrganizations } = useOrganization();
+  const { acceptTnc, refreshOrganizations, activeOrganization } = useOrganization();
   const [isAccepted, setIsAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isOwner =
+    activeOrganization?.id === organizationId ? Boolean(activeOrganization.isOwner) : false;
 
   const handleAccept = async () => {
     if (!isAccepted) {
@@ -66,7 +68,9 @@ export function TermsAcceptanceCard({
       <CardHeader>
         <CardTitle>User Agreement</CardTitle>
         <CardDescription>
-          Please read and accept our Terms and Conditions to continue.
+          {isOwner
+            ? "Please read and accept our Terms and Conditions to continue."
+            : "The organisation owner must accept the updated legal document before new transactions can continue."}
           <br />
           <span className="text-xs text-muted-foreground">Last updated: {formattedDate}</span>
         </CardDescription>
@@ -78,26 +82,35 @@ export function TermsAcceptanceCard({
           </div>
         </ScrollArea>
       </CardContent>
-      <CardFooter className="flex flex-col gap-4">
-        <div className="flex items-start gap-3 w-full">
-          <Checkbox
-            id="accept-tnc"
-            checked={isAccepted}
-            onCheckedChange={(checked) => setIsAccepted(checked === true)}
-            disabled={isSubmitting}
-          />
-          <Label htmlFor="accept-tnc" className="text-sm leading-relaxed cursor-pointer">
-            I have read and agree to the Terms and Conditions
-          </Label>
-        </div>
-        <Button
-          onClick={handleAccept}
-          disabled={!isAccepted || isSubmitting}
-          className="w-full"
-        >
-          {isSubmitting ? "Submitting..." : "Accept and Continue"}
-        </Button>
-      </CardFooter>
+      {isOwner ? (
+        <CardFooter className="flex flex-col gap-4">
+          <div className="flex items-start gap-3 w-full">
+            <Checkbox
+              id="accept-tnc"
+              checked={isAccepted}
+              onCheckedChange={(checked) => setIsAccepted(checked === true)}
+              disabled={isSubmitting}
+            />
+            <Label htmlFor="accept-tnc" className="text-sm leading-relaxed cursor-pointer">
+              I have read and agree to the Terms and Conditions
+            </Label>
+          </div>
+          <Button
+            onClick={handleAccept}
+            disabled={!isAccepted || isSubmitting}
+            className="w-full"
+          >
+            {isSubmitting ? "Submitting..." : "Accept and Continue"}
+          </Button>
+        </CardFooter>
+      ) : (
+        <CardFooter>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Only the organisation owner can accept these terms. You can still read the document
+            above.
+          </p>
+        </CardFooter>
+      )}
     </Card>
   );
 }
