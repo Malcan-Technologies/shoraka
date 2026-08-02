@@ -446,12 +446,38 @@ describe("resolveApplicationFinancialProfitMarginRatio", () => {
 });
 
 describe("resolveApplicationFinancialReturnOnEquityRatio", () => {
+  it("prefers direct return_on_equity when present (20%)", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: 20,
+        plnpat: 100,
+        networth: 500,
+        totass: 700,
+        totlib: 200,
+      })
+    ).toBeCloseTo(0.2);
+  });
+
   it("uses PAT / Net Worth (20%) when flat ROE absent", () => {
     expect(
       resolveApplicationFinancialReturnOnEquityRatio({
         return_on_equity: null,
         plnpat: 100,
         networth: 500,
+        totass: 700,
+        totlib: 200,
+      })
+    ).toBeCloseTo(0.2);
+  });
+
+  it("derives Net Worth from totass − totlib when direct networth missing", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: null,
+        totass: 700,
+        totlib: 200,
       })
     ).toBeCloseTo(0.2);
   });
@@ -461,14 +487,19 @@ describe("resolveApplicationFinancialReturnOnEquityRatio", () => {
       resolveApplicationFinancialReturnOnEquityRatio({
         return_on_equity: null,
         plnpat: 100,
-        networth: 500,
+        networth: null,
+        totass: 700,
+        totlib: 200,
       })
     ).toBeCloseTo(0.2);
+    // bsqpuc=200 would wrongly yield 50% — must not be used
     expect(
       resolveApplicationFinancialReturnOnEquityRatio({
         return_on_equity: null,
         plnpat: 100,
-        networth: 500,
+        networth: null,
+        totass: 700,
+        totlib: 200,
       })
     ).not.toBeCloseTo(0.5);
   });
@@ -483,12 +514,14 @@ describe("resolveApplicationFinancialReturnOnEquityRatio", () => {
     ).toBeCloseTo(0.085);
   });
 
-  it("returns null for zero or missing Net Worth", () => {
+  it("returns null for zero or missing resolved Net Worth", () => {
     expect(
       resolveApplicationFinancialReturnOnEquityRatio({
         return_on_equity: null,
         plnpat: 100,
         networth: 0,
+        totass: 700,
+        totlib: 200,
       })
     ).toBeNull();
     expect(
@@ -496,16 +529,57 @@ describe("resolveApplicationFinancialReturnOnEquityRatio", () => {
         return_on_equity: null,
         plnpat: 100,
         networth: null,
+        totass: 200,
+        totlib: 200,
+      })
+    ).toBeNull();
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: null,
+        totass: null,
+        totlib: null,
       })
     ).toBeNull();
   });
 
-  it("returns 0 when PAT is zero and Net Worth is valid", () => {
+  it("returns null when one of totass or totlib is missing and networth absent", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: null,
+        totass: 700,
+        totlib: null,
+      })
+    ).toBeNull();
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: null,
+        totass: null,
+        totlib: 200,
+      })
+    ).toBeNull();
+  });
+
+  it("returns 0 when PAT is zero and resolved Net Worth is valid", () => {
     expect(
       resolveApplicationFinancialReturnOnEquityRatio({
         return_on_equity: null,
         plnpat: 0,
         networth: 500,
+      })
+    ).toBe(0);
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 0,
+        networth: null,
+        totass: 700,
+        totlib: 200,
       })
     ).toBe(0);
   });
@@ -516,6 +590,15 @@ describe("resolveApplicationFinancialReturnOnEquityRatio", () => {
         return_on_equity: null,
         plnpat: -50,
         networth: 200,
+      })
+    ).toBeCloseTo(-0.25);
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 50,
+        networth: null,
+        totass: 100,
+        totlib: 300,
       })
     ).toBeCloseTo(-0.25);
   });

@@ -362,6 +362,8 @@ export function buildCoverageResolvedRows(
           return_on_equity: parseNumber(yearRaw.return_on_equity),
           plnpat: parseNumber(yearRaw.plnpat),
           networth: parseNumber(yearRaw.networth),
+          totass: parseNumber(yearRaw.totass),
+          totlib: parseNumber(yearRaw.totlib),
         })
       ),
     },

@@ -196,6 +196,8 @@ function metricValueForYear(
           return_on_equity: fieldFromRaw(raw, "return_on_equity"),
           plnpat: fieldFromRaw(raw, "plnpat"),
           networth: fieldFromRaw(raw, "networth"),
+          totass: fieldFromRaw(raw, "totass"),
+          totlib: fieldFromRaw(raw, "totlib"),
         })
       );
     }

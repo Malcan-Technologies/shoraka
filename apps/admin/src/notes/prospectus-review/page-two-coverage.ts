@@ -129,6 +129,8 @@ function metricForYear(
           return_on_equity: parseMoney(raw.return_on_equity),
           plnpat: parseMoney(raw.plnpat),
           networth: parseMoney(raw.networth),
+          totass: parseMoney(raw.totass),
+          totlib: parseMoney(raw.totlib),
         })
       );
     }

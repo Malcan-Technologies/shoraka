@@ -185,19 +185,27 @@ export function resolveApplicationFinancialProfitMarginRatio(input: {
 }
 
 /**
- * Prospectus Return on Equity as a decimal ratio.
- * Prefer CTOS flat `return_on_equity` (percent points) when present; else PAT ÷ Net Worth.
+ * Prospectus / shared Return on Equity as a decimal ratio.
+ * Prefer CTOS flat `return_on_equity` (percent points) when present;
+ * else PAT ÷ Net Worth, where Net Worth is direct `networth` or else `totass − totlib`.
  * Never uses Paid-Up Capital (`bsqpuc`) as the denominator.
  */
 export function resolveApplicationFinancialReturnOnEquityRatio(input: {
   return_on_equity: number | null;
   plnpat: number | null;
   networth: number | null;
+  totass?: number | null;
+  totlib?: number | null;
 }): number | null {
   if (isFinitePresent(input.return_on_equity)) {
     return input.return_on_equity / 100;
   }
-  return computeReturnOnEquity(input.plnpat, input.networth);
+  const netWorth = isFinitePresent(input.networth)
+    ? input.networth
+    : isFinitePresent(input.totass) && isFinitePresent(input.totlib)
+      ? computeNetWorth(input.totass, input.totlib)
+      : null;
+  return computeReturnOnEquity(input.plnpat, netWorth);
 }
 
 /**

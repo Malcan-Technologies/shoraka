@@ -97,6 +97,8 @@ function prospectusUnderlying(raw: Record<string, number | null>) {
       return_on_equity: raw.return_on_equity ?? null,
       plnpat: raw.plnpat ?? null,
       networth: raw.networth ?? null,
+      totass: raw.totass ?? null,
+      totlib: raw.totlib ?? null,
     }),
     currat: resolveApplicationFinancialCurrentRatio({
       currat: raw.currat ?? null,
