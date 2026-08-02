@@ -73,6 +73,7 @@ import {
   ArrowUpTrayIcon,
   ArrowDownTrayIcon,
   EyeIcon,
+  CheckCircleIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import {
@@ -866,12 +867,14 @@ export default function LegalDocumentsPage() {
                                 .map((action) => renderIconAction(action))}
                               {actions.showPublishButton && draft ? (
                                 <Button
+                                  variant="ghost"
                                   size="sm"
                                   disabled={!canManage}
                                   title={!canManage ? deniedTitle : "Publish"}
+                                  className="text-primary hover:text-primary"
                                   onClick={() => openPublishDialog(doc, draft)}
                                 >
-                                  Publish
+                                  <CheckCircleIcon className="h-4 w-4" />
                                 </Button>
                               ) : null}
                               {actions.icons

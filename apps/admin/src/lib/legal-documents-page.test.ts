@@ -40,6 +40,8 @@ describe("Admin Legal Documents page UX", () => {
     expect(source).toContain("PencilSquareIcon");
     expect(source).toContain("ArrowUpTrayIcon");
     expect(source).toContain("ArchiveBoxIcon");
+    expect(source).toContain("CheckCircleIcon");
+    expect(source).toContain(': "Publish"');
     expect(source).toContain("hasLegalVersionHistory");
     expect(source).toContain('title="Version history"');
     expect(source).not.toContain("EllipsisHorizontalIcon");
