@@ -1,6 +1,7 @@
 "use client";
 
 import { APP_VERSION } from "@cashsouk/config";
+import { useCompactPortalLegalLinks } from "./hooks/use-compact-portal-legal-links";
 
 /**
  * Compact portal footer / sidebar legal links.
@@ -14,13 +15,6 @@ function landingBaseUrl(): string {
   return raw.replace(/\/$/, "");
 }
 
-const compactLegalLinks = [
-  { href: "/legal/terms-of-use", label: "Terms of Use" },
-  { href: "/legal/pdpa-notice-and-consent", label: "PDPA" },
-  { href: "/legal/risk-statement", label: "Risk Statement" },
-  { href: "/legal", label: "Legal Documents" },
-] as const;
-
 function LegalLinks({
   className,
   stacked = false,
@@ -29,13 +23,15 @@ function LegalLinks({
   stacked?: boolean;
 }) {
   const base = landingBaseUrl();
+  const { links } = useCompactPortalLegalLinks();
+
   return (
     <div className={className}>
-      {compactLegalLinks.map((link, index) => (
-        <span key={link.href + link.label} className="inline-flex items-center gap-2">
+      {links.map((link, index) => (
+        <span key={link.path + link.label} className="inline-flex items-center gap-2">
           {!stacked && index > 0 ? <span aria-hidden>•</span> : null}
           <a
-            href={`${base}${link.href}`}
+            href={`${base}${link.path}`}
             className="hover:text-foreground"
             target="_blank"
             rel="noopener noreferrer"
