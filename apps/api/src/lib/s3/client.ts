@@ -334,6 +334,21 @@ export function generateSiteDocumentKey(params: {
 }
 
 /**
+ * Generate S3 key for legal document version PDFs
+ * Format: legal-documents/{type}/{version}-{date}-{cuid}.{ext}
+ */
+export function generateLegalDocumentKey(params: {
+  type: string;
+  version: number;
+  cuid: string;
+  extension: string;
+}): string {
+  const date = new Date().toISOString().split("T")[0];
+  const typeSlug = params.type.toLowerCase().replace(/_/g, "-");
+  return `legal-documents/${typeSlug}/v${params.version}-${date}-${params.cuid}.${params.extension}`;
+}
+
+/**
  * Extract file extension from filename
  */
 export function getFileExtension(fileName: string): string {

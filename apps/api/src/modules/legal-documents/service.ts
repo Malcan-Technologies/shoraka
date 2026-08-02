@@ -1,0 +1,449 @@
+import { Request } from "express";
+import { AppError } from "../../lib/http/error-handler";
+import { extractRequestMetadata } from "../../lib/http/request-utils";
+import { logger } from "../../lib/logger";
+import {
+  generateLegalDocumentKey,
+  generatePresignedDownloadUrl,
+  generatePresignedUploadUrl,
+  getFileExtension,
+  validateSiteDocument,
+} from "../../lib/s3/client";
+import { documentLogRepository } from "../site-documents/repository";
+import { legalDocumentRepository, type VersionWithDocument } from "./repository";
+import type {
+  CreateLegalDocumentInput,
+  CreateVersionInput,
+  LegalDocumentEventType,
+  ListLegalDocumentsQuery,
+  PublishVersionInput,
+  RequestVersionUploadUrlInput,
+  UpdateLegalDocumentInput,
+  UpdateVersionInput,
+} from "./schemas";
+
+function toVersionSummary(version: {
+  id: string;
+  version: number;
+  status: string;
+  file_name: string;
+  file_size: number;
+  file_hash: string | null;
+  reacceptance_required: boolean;
+  uploaded_by: string;
+  published_by: string | null;
+  published_at: Date | null;
+  archived_by: string | null;
+  archived_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}) {
+  return {
+    id: version.id,
+    version: version.version,
+    status: version.status,
+    fileName: version.file_name,
+    fileSize: version.file_size,
+    fileHash: version.file_hash,
+    reacceptanceRequired: version.reacceptance_required,
+    uploadedBy: version.uploaded_by,
+    publishedBy: version.published_by,
+    publishedAt: version.published_at?.toISOString() ?? null,
+    archivedBy: version.archived_by,
+    archivedAt: version.archived_at?.toISOString() ?? null,
+    createdAt: version.created_at.toISOString(),
+    updatedAt: version.updated_at.toISOString(),
+  };
+}
+
+function toDocumentResponse(doc: {
+  id: string;
+  type: string;
+  title: string;
+  description: string | null;
+  audience: string;
+  required_for_onboarding: boolean;
+  public_visibility: boolean;
+  created_at: Date;
+  updated_at: Date;
+  versions?: Array<Parameters<typeof toVersionSummary>[0]>;
+}) {
+  return {
+    id: doc.id,
+    type: doc.type,
+    title: doc.title,
+    description: doc.description,
+    audience: doc.audience,
+    requiredForOnboarding: doc.required_for_onboarding,
+    publicVisibility: doc.public_visibility,
+    createdAt: doc.created_at.toISOString(),
+    updatedAt: doc.updated_at.toISOString(),
+    versions: (doc.versions ?? []).map(toVersionSummary),
+  };
+}
+
+function toVersionResponse(version: VersionWithDocument) {
+  return {
+    ...toVersionSummary(version),
+    legalDocumentId: version.legal_document_id,
+    s3Key: version.s3_key,
+    contentType: version.content_type,
+    type: version.legal_document.type,
+    title: version.legal_document.title,
+    description: version.legal_document.description,
+    audience: version.legal_document.audience,
+    requiredForOnboarding: version.legal_document.required_for_onboarding,
+    publicVisibility: version.legal_document.public_visibility,
+  };
+}
+
+export class LegalDocumentService {
+  async listDocuments(query: ListLegalDocumentsQuery) {
+    const { documents, total } = await legalDocumentRepository.findAll(query);
+    return {
+      documents: documents.map(toDocumentResponse),
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        totalCount: total,
+        totalPages: Math.ceil(total / query.pageSize),
+      },
+    };
+  }
+
+  async createDefinition(input: CreateLegalDocumentInput, adminUserId: string, req: Request) {
+    const existing = await legalDocumentRepository.findByType(input.type);
+    if (existing) {
+      throw new AppError(
+        409,
+        "CONFLICT",
+        `A legal document definition for type ${input.type} already exists`
+      );
+    }
+
+    const document = await legalDocumentRepository.create(input);
+
+    await this.logEvent(req, adminUserId, document.id, "LEGAL_DOCUMENT_CREATED", {
+      legal_document_id: document.id,
+      type: document.type,
+      title: document.title,
+      audience: document.audience,
+      required_for_onboarding: document.required_for_onboarding,
+      public_visibility: document.public_visibility,
+    });
+
+    logger.info({ legalDocumentId: document.id, type: document.type }, "Legal document created");
+    return toDocumentResponse(document);
+  }
+
+  async updateDefinition(
+    id: string,
+    input: UpdateLegalDocumentInput,
+    adminUserId: string,
+    req: Request
+  ) {
+    const existing = await legalDocumentRepository.findById(id);
+    if (!existing) {
+      throw new AppError(404, "NOT_FOUND", "Legal document not found");
+    }
+
+    const changes: Record<string, { from: unknown; to: unknown }> = {};
+    if (input.title !== undefined && input.title !== existing.title) {
+      changes.title = { from: existing.title, to: input.title };
+    }
+    if (input.description !== undefined && input.description !== existing.description) {
+      changes.description = { from: existing.description, to: input.description };
+    }
+    if (input.audience !== undefined && input.audience !== existing.audience) {
+      changes.audience = { from: existing.audience, to: input.audience };
+    }
+    if (
+      input.requiredForOnboarding !== undefined &&
+      input.requiredForOnboarding !== existing.required_for_onboarding
+    ) {
+      changes.required_for_onboarding = {
+        from: existing.required_for_onboarding,
+        to: input.requiredForOnboarding,
+      };
+    }
+    if (
+      input.publicVisibility !== undefined &&
+      input.publicVisibility !== existing.public_visibility
+    ) {
+      changes.public_visibility = {
+        from: existing.public_visibility,
+        to: input.publicVisibility,
+      };
+    }
+
+    if (Object.keys(changes).length === 0) {
+      return toDocumentResponse(existing);
+    }
+
+    const updated = await legalDocumentRepository.update(id, input);
+
+    await this.logEvent(req, adminUserId, id, "LEGAL_DOCUMENT_UPDATED", {
+      legal_document_id: id,
+      type: existing.type,
+      changes,
+    });
+
+    logger.info({ legalDocumentId: id, changes: Object.keys(changes) }, "Legal document updated");
+    return toDocumentResponse(updated);
+  }
+
+  async requestVersionUploadUrl(
+    legalDocumentId: string,
+    input: RequestVersionUploadUrlInput,
+    adminUserId: string
+  ) {
+    const document = await legalDocumentRepository.findById(legalDocumentId);
+    if (!document) {
+      throw new AppError(404, "NOT_FOUND", "Legal document not found");
+    }
+
+    const validation = validateSiteDocument({
+      contentType: input.contentType,
+      fileSize: input.fileSize,
+    });
+    if (!validation.valid) {
+      throw new AppError(400, "VALIDATION_ERROR", validation.error!);
+    }
+
+    const extension = getFileExtension(input.fileName);
+    if (extension !== "pdf") {
+      throw new AppError(400, "VALIDATION_ERROR", "Only PDF files are allowed");
+    }
+
+    const latestVersion = await legalDocumentRepository.getLatestVersionNumber(legalDocumentId);
+    const newVersion = latestVersion + 1;
+    const s3Key = generateLegalDocumentKey({
+      type: document.type,
+      version: newVersion,
+      cuid: this.generateCuid(),
+      extension,
+    });
+
+    const { uploadUrl, expiresIn } = await generatePresignedUploadUrl({
+      key: s3Key,
+      contentType: input.contentType,
+      contentLength: input.fileSize,
+    });
+
+    logger.info(
+      { legalDocumentId, s3Key, version: newVersion, adminUserId },
+      "Generated legal document version upload URL"
+    );
+
+    return {
+      uploadUrl,
+      s3Key,
+      expiresIn,
+      version: newVersion,
+    };
+  }
+
+  async createDraftVersion(
+    legalDocumentId: string,
+    input: CreateVersionInput,
+    adminUserId: string,
+    req: Request
+  ) {
+    const document = await legalDocumentRepository.findById(legalDocumentId);
+    if (!document) {
+      throw new AppError(404, "NOT_FOUND", "Legal document not found");
+    }
+
+    if (!input.s3Key.startsWith("legal-documents/")) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid S3 key for legal document");
+    }
+
+    const latestVersion = await legalDocumentRepository.getLatestVersionNumber(legalDocumentId);
+    const newVersion = latestVersion + 1;
+
+    const version = await legalDocumentRepository.createVersion(
+      legalDocumentId,
+      newVersion,
+      input,
+      adminUserId
+    );
+
+    await this.logEvent(req, adminUserId, legalDocumentId, "LEGAL_VERSION_UPLOADED", {
+      legal_document_id: legalDocumentId,
+      legal_document_version_id: version.id,
+      type: document.type,
+      version: version.version,
+      file_name: version.file_name,
+      file_hash: version.file_hash,
+      s3_key: version.s3_key,
+      status: version.status,
+    });
+
+    logger.info(
+      { legalDocumentId, versionId: version.id, version: version.version },
+      "Legal document draft version created"
+    );
+
+    return toVersionResponse(version);
+  }
+
+  async updateDraftVersion(
+    versionId: string,
+    input: UpdateVersionInput,
+    adminUserId: string,
+    req: Request
+  ) {
+    const existing = await legalDocumentRepository.findVersionById(versionId);
+    if (!existing) {
+      throw new AppError(404, "NOT_FOUND", "Legal document version not found");
+    }
+    if (existing.status !== "DRAFT") {
+      throw new AppError(400, "INVALID_STATUS", "Only draft versions can be edited");
+    }
+
+    const updated = await legalDocumentRepository.updateDraftVersion(versionId, input);
+
+    await this.logEvent(
+      req,
+      adminUserId,
+      existing.legal_document_id,
+      "LEGAL_VERSION_UPDATED",
+      {
+        legal_document_id: existing.legal_document_id,
+        legal_document_version_id: versionId,
+        type: existing.legal_document.type,
+        version: existing.version,
+        file_hash: updated.file_hash,
+      }
+    );
+
+    return toVersionResponse(updated);
+  }
+
+  async publishVersion(
+    versionId: string,
+    input: PublishVersionInput,
+    adminUserId: string,
+    req: Request
+  ) {
+    const existing = await legalDocumentRepository.findVersionById(versionId);
+    if (!existing) {
+      throw new AppError(404, "NOT_FOUND", "Legal document version not found");
+    }
+    if (existing.status !== "DRAFT" && existing.status !== "ARCHIVED") {
+      throw new AppError(400, "INVALID_STATUS", "Only draft or archived versions can be published");
+    }
+
+    const reacceptanceRequired = input.reacceptanceRequired ?? false;
+
+    // Never reset organisation tnc_accepted on publish.
+    const published = await legalDocumentRepository.publishVersion(
+      versionId,
+      existing.legal_document_id,
+      adminUserId,
+      reacceptanceRequired
+    );
+
+    await this.logEvent(
+      req,
+      adminUserId,
+      existing.legal_document_id,
+      "LEGAL_VERSION_PUBLISHED",
+      {
+        legal_document_id: existing.legal_document_id,
+        legal_document_version_id: versionId,
+        type: existing.legal_document.type,
+        version: published.version,
+        file_hash: published.file_hash,
+        reacceptance_required: reacceptanceRequired,
+      }
+    );
+
+    logger.info(
+      {
+        versionId,
+        legalDocumentId: existing.legal_document_id,
+        reacceptanceRequired,
+      },
+      "Legal document version published"
+    );
+
+    return toVersionResponse(published);
+  }
+
+  async archiveVersion(versionId: string, adminUserId: string, req: Request) {
+    const existing = await legalDocumentRepository.findVersionById(versionId);
+    if (!existing) {
+      throw new AppError(404, "NOT_FOUND", "Legal document version not found");
+    }
+    if (existing.status === "ARCHIVED") {
+      return toVersionResponse(existing);
+    }
+
+    const archived = await legalDocumentRepository.archiveVersion(versionId, adminUserId);
+
+    await this.logEvent(
+      req,
+      adminUserId,
+      existing.legal_document_id,
+      "LEGAL_VERSION_ARCHIVED",
+      {
+        legal_document_id: existing.legal_document_id,
+        legal_document_version_id: versionId,
+        type: existing.legal_document.type,
+        version: archived.version,
+        file_hash: archived.file_hash,
+        previous_status: existing.status,
+      }
+    );
+
+    return toVersionResponse(archived);
+  }
+
+  async getAdminDownloadUrl(versionId: string) {
+    const version = await legalDocumentRepository.findVersionById(versionId);
+    if (!version) {
+      throw new AppError(404, "NOT_FOUND", "Legal document version not found");
+    }
+
+    const { downloadUrl, expiresIn } = await generatePresignedDownloadUrl({
+      key: version.s3_key,
+      fileName: version.file_name,
+    });
+
+    return {
+      downloadUrl,
+      expiresIn,
+      fileName: version.file_name,
+      contentType: version.content_type,
+      fileSize: version.file_size,
+    };
+  }
+
+  private async logEvent(
+    req: Request,
+    userId: string,
+    documentId: string,
+    eventType: LegalDocumentEventType,
+    metadata: Record<string, unknown>
+  ) {
+    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
+    await documentLogRepository.create({
+      userId,
+      documentId,
+      eventType: eventType as never,
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      metadata,
+    });
+  }
+
+  private generateCuid(): string {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 10);
+    return `${timestamp}${random}`;
+  }
+}
+
+export const legalDocumentService = new LegalDocumentService();

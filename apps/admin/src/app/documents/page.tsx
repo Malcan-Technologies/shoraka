@@ -78,7 +78,6 @@ const DOCUMENT_TYPES: { value: SiteDocumentType; label: string }[] = [
   { value: "TERMS_AND_CONDITIONS", label: "Terms & Conditions" },
   { value: "PRIVACY_POLICY", label: "Privacy Policy" },
   { value: "RISK_DISCLOSURE", label: "Risk Disclosure" },
-  { value: "PRODUCT_TERMS", label: "Product Terms" },
   { value: "PLATFORM_AGREEMENT", label: "Platform Agreement" },
   { value: "INVESTOR_GUIDE", label: "Investor Guide" },
   { value: "ISSUER_GUIDE", label: "Issuer Guide" },

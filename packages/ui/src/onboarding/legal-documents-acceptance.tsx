@@ -47,6 +47,10 @@ function audienceFromPortal(portalType: PortalType): LegalAcceptanceAudience {
   return portalType === "issuer" ? "ISSUER" : "INVESTOR";
 }
 
+function versionIdOf(doc: RequiredLegalDocumentResponse): string {
+  return doc.legalDocumentVersionId;
+}
+
 export function LegalDocumentsAcceptance({
   organizationId,
   portalType,
@@ -87,12 +91,13 @@ export function LegalDocumentsAcceptance({
       setLocalState((prev) => {
         const next: Record<string, LocalDocState> = {};
         for (const doc of data.documents) {
+          const versionId = versionIdOf(doc);
           const opened =
             doc.acceptance_status === "OPENED" ||
             doc.acceptance_status === "ACCEPTED" ||
             !doc.open_before_accept_required;
-          next[doc.id] = {
-            checked: doc.acceptance_status === "ACCEPTED" || prev[doc.id]?.checked === true,
+          next[versionId] = {
+            checked: doc.acceptance_status === "ACCEPTED" || prev[versionId]?.checked === true,
             opened,
             accepting: false,
             opening: false,
@@ -115,14 +120,15 @@ export function LegalDocumentsAcceptance({
     if (!status || status.documents.length === 0) return false;
     return status.documents.every((doc) => {
       if (doc.acceptance_status === "ACCEPTED") return true;
-      return localState[doc.id]?.checked === true;
+      return localState[versionIdOf(doc)]?.checked === true;
     });
   }, [localState, status]);
 
   const handleOpen = async (doc: RequiredLegalDocumentResponse) => {
+    const versionId = versionIdOf(doc);
     setLocalState((prev) => ({
       ...prev,
-      [doc.id]: { ...prev[doc.id], opening: true },
+      [versionId]: { ...prev[versionId], opening: true },
     }));
 
     try {
@@ -131,7 +137,7 @@ export function LegalDocumentsAcceptance({
         downloadUrl: string;
         viewUrl: string;
         fileName: string;
-      }>(`/v1/legal-documents/${doc.id}/open`, {
+      }>(`/v1/legal-documents/versions/${versionId}/open`, {
         organizationId,
         audience,
       });
@@ -142,8 +148,8 @@ export function LegalDocumentsAcceptance({
 
       setLocalState((prev) => ({
         ...prev,
-        [doc.id]: {
-          ...prev[doc.id],
+        [versionId]: {
+          ...prev[versionId],
           opened: true,
           opening: false,
         },
@@ -154,7 +160,7 @@ export function LegalDocumentsAcceptance({
         return {
           ...prev,
           documents: prev.documents.map((d) =>
-            d.id === doc.id
+            versionIdOf(d) === versionId
               ? {
                   ...d,
                   acceptance_status:
@@ -170,7 +176,7 @@ export function LegalDocumentsAcceptance({
     } catch (err) {
       setLocalState((prev) => ({
         ...prev,
-        [doc.id]: { ...prev[doc.id], opening: false },
+        [versionId]: { ...prev[versionId], opening: false },
       }));
       toast.error(err instanceof Error ? err.message : "Failed to open document");
     }
@@ -189,10 +195,13 @@ export function LegalDocumentsAcceptance({
       for (const doc of status.documents) {
         if (doc.acceptance_status === "ACCEPTED") continue;
 
-        const result = await client.post(`/v1/legal-documents/${doc.id}/accept`, {
-          organizationId,
-          audience,
-        });
+        const result = await client.post(
+          `/v1/legal-documents/versions/${versionIdOf(doc)}/accept`,
+          {
+            organizationId,
+            audience,
+          }
+        );
         if (!result.success) {
           throw new Error(result.error?.message || `Failed to accept ${doc.title}`);
         }
@@ -250,7 +259,7 @@ export function LegalDocumentsAcceptance({
         <CardHeader>
           <CardTitle>Legal documents</CardTitle>
           <CardDescription>
-            The organisation owner must accept the updated legal document before new transactions can
+            The organisation owner must accept the required legal documents before onboarding can
             continue.
           </CardDescription>
         </CardHeader>
@@ -259,30 +268,33 @@ export function LegalDocumentsAcceptance({
             You can view the documents below. Only the organisation owner can complete acceptance
             during onboarding.
           </p>
-          {status.documents.map((doc) => (
-            <section
-              key={doc.id}
-              className="rounded-xl border border-border bg-muted/30 p-4"
-            >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h3 className="text-[17px] font-semibold leading-7">{doc.title}</h3>
-                  <p className="text-sm text-muted-foreground">Version {doc.version}</p>
+          {status.documents.map((doc) => {
+            const versionId = versionIdOf(doc);
+            return (
+              <section
+                key={versionId}
+                className="rounded-xl border border-border bg-muted/30 p-4"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-[17px] font-semibold leading-7">{doc.title}</h3>
+                    <p className="text-sm text-muted-foreground">Version {doc.version}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 gap-2"
+                    disabled={localState[versionId]?.opening}
+                    onClick={() => void handleOpen(doc)}
+                  >
+                    <DocumentArrowDownIcon className="size-4" aria-hidden />
+                    {localState[versionId]?.opening ? "Opening…" : "View PDF"}
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 gap-2"
-                  disabled={localState[doc.id]?.opening}
-                  onClick={() => void handleOpen(doc)}
-                >
-                  <DocumentArrowDownIcon className="size-4" aria-hidden />
-                  {localState[doc.id]?.opening ? "Opening…" : "View PDF"}
-                </Button>
-              </div>
-            </section>
-          ))}
+              </section>
+            );
+          })}
         </CardContent>
       </Card>
     );
@@ -299,14 +311,15 @@ export function LegalDocumentsAcceptance({
       </CardHeader>
       <CardContent className="space-y-6">
         {status.documents.map((doc) => {
-          const state = localState[doc.id];
+          const versionId = versionIdOf(doc);
+          const state = localState[versionId];
           const isAccepted = doc.acceptance_status === "ACCEPTED";
           const canCheck = isAccepted || state?.opened === true;
-          const checkboxId = `legal-accept-${doc.id}`;
+          const checkboxId = `legal-accept-${versionId}`;
 
           return (
             <section
-              key={doc.id}
+              key={versionId}
               className="rounded-xl border border-border bg-muted/30 p-4"
               aria-labelledby={`${checkboxId}-title`}
             >
@@ -338,8 +351,8 @@ export function LegalDocumentsAcceptance({
                   onCheckedChange={(checked) => {
                     setLocalState((prev) => ({
                       ...prev,
-                      [doc.id]: {
-                        ...prev[doc.id],
+                      [versionId]: {
+                        ...prev[versionId],
                         checked: checked === true,
                       },
                     }));

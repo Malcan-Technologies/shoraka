@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { SidebarTrigger } from "../../components/ui/sidebar";
 import { Separator } from "../../components/ui/separator";
 import { SystemHealthIndicator } from "../../components/system-health-indicator";
@@ -34,19 +36,7 @@ import { Label } from "../../components/ui/label";
 import { Textarea } from "../../components/ui/textarea";
 import { Switch } from "../../components/ui/switch";
 import { Skeleton } from "../../components/ui/skeleton";
-import {
-  useSiteDocuments,
-  useRequestUploadUrl,
-  useCreateSiteDocument,
-  useUpdateSiteDocument,
-  useRequestReplaceUrl,
-  useConfirmReplace,
-  useArchiveSiteDocument,
-  useRestoreSiteDocument,
-  useDownloadSiteDocument,
-  usePublishSiteDocument,
-  uploadFileToS3,
-} from "../../hooks/use-site-documents";
+import { uploadFileToS3 } from "../../hooks/use-site-documents";
 import {
   DocumentIcon,
   ArrowPathIcon,
@@ -55,23 +45,27 @@ import {
   PencilSquareIcon,
   ArchiveBoxIcon,
   ArrowUpTrayIcon,
-  ArrowUturnLeftIcon,
   ArrowDownTrayIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
-import type { SiteDocumentType, SiteDocumentResponse } from "@cashsouk/types";
 import {
   LEGAL_DOCUMENT_DEFAULT_AUDIENCE,
   LEGAL_DOCUMENT_TYPE_LABELS,
-  ONBOARDING_LEGAL_DOCUMENT_TYPES,
+  LEGAL_DOCUMENT_TYPES,
   type LegalDocumentAudience,
-  type LegalDocumentStatus,
-  type OnboardingLegalDocumentType,
+  type LegalDocumentDefinitionResponse,
+  type LegalDocumentType,
+  type LegalDocumentVersionStatus,
+  type LegalDocumentVersionSummary,
 } from "@cashsouk/types";
 import { RequirePermission } from "../../components/require-permission";
 import { usePermissions } from "../../hooks/use-permissions";
 
-const LEGAL_TYPES = ONBOARDING_LEGAL_DOCUMENT_TYPES.map((value) => ({
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+const LEGAL_TYPES = LEGAL_DOCUMENT_TYPES.map((value) => ({
   value,
   label: LEGAL_DOCUMENT_TYPE_LABELS[value],
 }));
@@ -81,13 +75,6 @@ const AUDIENCES: { value: LegalDocumentAudience; label: string }[] = [
   { value: "ISSUER", label: "Issuer" },
   { value: "INVESTOR", label: "Investor" },
   { value: "BOTH", label: "Issuer & Investor" },
-];
-
-const STATUSES: { value: LegalDocumentStatus | "all"; label: string }[] = [
-  { value: "all", label: "All statuses" },
-  { value: "DRAFT", label: "Draft" },
-  { value: "PUBLISHED", label: "Published" },
-  { value: "ARCHIVED", label: "Archived" },
 ];
 
 function formatFileSize(bytes: number): string {
@@ -106,118 +93,218 @@ function formatDate(dateStr: string): string {
   });
 }
 
-const ITEMS_PER_PAGE = 10;
+function versionStatusVariant(
+  status: LegalDocumentVersionStatus
+): "default" | "secondary" | "outline" {
+  if (status === "PUBLISHED") return "default";
+  if (status === "DRAFT") return "secondary";
+  return "outline";
+}
+
+type ListResponse = {
+  documents: LegalDocumentDefinitionResponse[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
+};
 
 export default function LegalDocumentsPage() {
   const { can } = usePermissions();
   const canManage = can("document_management.manage");
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+
   const [page, setPage] = React.useState(1);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState<string>("all");
-  const [statusFilter, setStatusFilter] = React.useState<LegalDocumentStatus | "all">("all");
+  const [expandedIds, setExpandedIds] = React.useState<Set<string>>(new Set());
 
-  const [uploadDialogOpen, setUploadDialogOpen] = React.useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
   const [editDialogOpen, setEditDialogOpen] = React.useState(false);
-  const [replaceDialogOpen, setReplaceDialogOpen] = React.useState(false);
+  const [uploadVersionDialogOpen, setUploadVersionDialogOpen] = React.useState(false);
   const [publishDialogOpen, setPublishDialogOpen] = React.useState(false);
-  const [selectedDocument, setSelectedDocument] = React.useState<SiteDocumentResponse | null>(null);
-  const [reacceptanceRequired, setReacceptanceRequired] = React.useState(false);
 
-  const [uploadForm, setUploadForm] = React.useState({
-    type: "PDPA_NOTICE" as OnboardingLegalDocumentType,
+  const [selectedDefinition, setSelectedDefinition] =
+    React.useState<LegalDocumentDefinitionResponse | null>(null);
+  const [selectedVersion, setSelectedVersion] =
+    React.useState<LegalDocumentVersionSummary | null>(null);
+  const [reacceptanceRequired, setReacceptanceRequired] = React.useState(false);
+  const [uploading, setUploading] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [publishing, setPublishing] = React.useState(false);
+
+  const [createForm, setCreateForm] = React.useState({
+    type: "PDPA_NOTICE_AND_CONSENT" as LegalDocumentType,
     title: "",
     description: "",
     audience: "BOTH" as LegalDocumentAudience,
-    acceptanceRequired: true,
-    openBeforeAcceptRequired: true,
-    showInAccount: false,
-    file: null as File | null,
+    requiredForOnboarding: true,
+    publicVisibility: false,
   });
   const [editForm, setEditForm] = React.useState({
     title: "",
     description: "",
     audience: "BOTH" as LegalDocumentAudience,
-    acceptanceRequired: true,
-    openBeforeAcceptRequired: true,
-    showInAccount: false,
+    requiredForOnboarding: true,
+    publicVisibility: false,
   });
-  const [replaceFile, setReplaceFile] = React.useState<File | null>(null);
-  const [uploading, setUploading] = React.useState(false);
+  const [versionFile, setVersionFile] = React.useState<File | null>(null);
 
-  const requestUploadUrl = useRequestUploadUrl();
-  const createDocument = useCreateSiteDocument();
-  const updateDocument = useUpdateSiteDocument();
-  const requestReplaceUrl = useRequestReplaceUrl();
-  const confirmReplace = useConfirmReplace();
-  const archiveDocument = useArchiveSiteDocument();
-  const restoreDocument = useRestoreSiteDocument();
-  const downloadDocument = useDownloadSiteDocument();
-  const publishDocument = usePublishSiteDocument();
-
-  const { data, isLoading } = useSiteDocuments({
-    page,
-    pageSize: ITEMS_PER_PAGE,
-    type: typeFilter !== "all" ? (typeFilter as SiteDocumentType) : undefined,
-    status: statusFilter !== "all" ? statusFilter : undefined,
-    includeInactive: true,
-    search: searchQuery || undefined,
-  });
-
-  const documents = (data?.documents || []).filter((doc) =>
-    ONBOARDING_LEGAL_DOCUMENT_TYPES.includes(doc.type as OnboardingLegalDocumentType)
+  const apiClient = React.useMemo(
+    () => createApiClient(API_URL, getAccessToken),
+    [getAccessToken]
   );
-  const totalCount = data?.pagination.totalCount || 0;
-  const totalPages = data?.pagination.totalPages || 0;
 
-  const handleUploadDocument = async () => {
-    if (!uploadForm.file) return;
+  const { data, isLoading } = useQuery({
+    queryKey: ["admin", "legal-documents", page, typeFilter, searchQuery],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: "20",
+      });
+      if (typeFilter !== "all") params.set("type", typeFilter);
+      if (searchQuery) params.set("search", searchQuery);
+      const result = await apiClient.get<ListResponse>(
+        `/v1/admin/legal-documents?${params.toString()}`
+      );
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to load legal documents");
+      }
+      return result.data;
+    },
+  });
 
-    setUploading(true);
+  const documents = data?.documents ?? [];
+  const totalCount = data?.pagination.totalCount ?? 0;
+  const totalPages = data?.pagination.totalPages ?? 0;
+
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ["admin", "legal-documents"] });
+  };
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleCreateDefinition = async () => {
+    if (!createForm.title.trim()) return;
+    setSaving(true);
     try {
-      const uploadData = await requestUploadUrl.mutateAsync({
-        type: uploadForm.type,
-        title: uploadForm.title,
-        description: uploadForm.description || undefined,
-        fileName: uploadForm.file.name,
-        contentType: "application/pdf",
-        fileSize: uploadForm.file.size,
-        showInAccount: uploadForm.showInAccount,
-        audience: uploadForm.audience,
-        acceptanceRequired: uploadForm.acceptanceRequired,
-        openBeforeAcceptRequired: uploadForm.openBeforeAcceptRequired,
+      const result = await apiClient.post<{ document: LegalDocumentDefinitionResponse }>(
+        "/v1/admin/legal-documents",
+        {
+          type: createForm.type,
+          title: createForm.title.trim(),
+          description: createForm.description.trim() || undefined,
+          audience: createForm.audience,
+          requiredForOnboarding: createForm.requiredForOnboarding,
+          publicVisibility: createForm.publicVisibility,
+        }
+      );
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to create definition");
+      }
+      toast.success("Definition created", {
+        description: `"${createForm.title}" is ready. Upload a draft PDF next.`,
       });
-
-      await uploadFileToS3(uploadData.uploadUrl, uploadForm.file);
-
-      await createDocument.mutateAsync({
-        type: uploadForm.type,
-        title: uploadForm.title,
-        description: uploadForm.description || undefined,
-        fileName: uploadForm.file.name,
-        s3Key: uploadData.s3Key,
-        contentType: "application/pdf",
-        fileSize: uploadForm.file.size,
-        showInAccount: uploadForm.showInAccount,
-        audience: uploadForm.audience,
-        acceptanceRequired: uploadForm.acceptanceRequired,
-        openBeforeAcceptRequired: uploadForm.openBeforeAcceptRequired,
-      });
-
-      toast.success("Draft uploaded", {
-        description: `"${uploadForm.title}" was saved as a draft. Publish it when ready.`,
-      });
-
-      setUploadForm({
-        type: "PDPA_NOTICE",
+      setCreateDialogOpen(false);
+      setCreateForm({
+        type: "PDPA_NOTICE_AND_CONSENT",
         title: "",
         description: "",
         audience: "BOTH",
-        acceptanceRequired: true,
-        openBeforeAcceptRequired: true,
-        showInAccount: false,
-        file: null,
+        requiredForOnboarding: true,
+        publicVisibility: false,
       });
-      setUploadDialogOpen(false);
+      invalidate();
+      setSelectedDefinition(result.data.document);
+      setVersionFile(null);
+      setUploadVersionDialogOpen(true);
+    } catch (error) {
+      toast.error("Create failed", {
+        description: error instanceof Error ? error.message : "An error occurred",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEditDefinition = async () => {
+    if (!selectedDefinition) return;
+    setSaving(true);
+    try {
+      const result = await apiClient.patch<{ document: LegalDocumentDefinitionResponse }>(
+        `/v1/admin/legal-documents/${selectedDefinition.id}`,
+        {
+          title: editForm.title.trim() || undefined,
+          description: editForm.description.trim() || null,
+          audience: editForm.audience,
+          requiredForOnboarding: editForm.requiredForOnboarding,
+          publicVisibility: editForm.publicVisibility,
+        }
+      );
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to update definition");
+      }
+      toast.success("Definition updated");
+      setEditDialogOpen(false);
+      setSelectedDefinition(null);
+      invalidate();
+    } catch (error) {
+      toast.error("Update failed", {
+        description: error instanceof Error ? error.message : "An error occurred",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUploadVersion = async () => {
+    if (!selectedDefinition || !versionFile) return;
+    setUploading(true);
+    try {
+      const uploadUrlResult = await apiClient.post<{
+        uploadUrl: string;
+        s3Key: string;
+      }>(`/v1/admin/legal-documents/${selectedDefinition.id}/versions/upload-url`, {
+        fileName: versionFile.name,
+        contentType: "application/pdf",
+        fileSize: versionFile.size,
+      });
+      if (!uploadUrlResult.success) {
+        throw new Error(uploadUrlResult.error?.message || "Failed to get upload URL");
+      }
+
+      await uploadFileToS3(uploadUrlResult.data.uploadUrl, versionFile);
+
+      const confirmResult = await apiClient.post(
+        `/v1/admin/legal-documents/${selectedDefinition.id}/versions`,
+        {
+          s3Key: uploadUrlResult.data.s3Key,
+          fileName: versionFile.name,
+          contentType: "application/pdf",
+          fileSize: versionFile.size,
+        }
+      );
+      if (!confirmResult.success) {
+        throw new Error(confirmResult.error?.message || "Failed to create draft version");
+      }
+
+      toast.success("Draft version uploaded", {
+        description: `"${selectedDefinition.title}" draft is ready. Publish when ready.`,
+      });
+      setUploadVersionDialogOpen(false);
+      setSelectedDefinition(null);
+      setVersionFile(null);
+      invalidate();
     } catch (error) {
       toast.error("Upload failed", {
         description: error instanceof Error ? error.message : "An error occurred",
@@ -227,98 +314,52 @@ export default function LegalDocumentsPage() {
     }
   };
 
-  const handleEditDocument = async () => {
-    if (!selectedDocument) return;
-
-    try {
-      await updateDocument.mutateAsync({
-        id: selectedDocument.id,
-        data: {
-          title: editForm.title || undefined,
-          description: editForm.description,
-          showInAccount: editForm.showInAccount,
-          audience: editForm.audience,
-          acceptanceRequired: editForm.acceptanceRequired,
-          openBeforeAcceptRequired: editForm.openBeforeAcceptRequired,
-        },
-      });
-      toast.success("Document updated");
-      setEditDialogOpen(false);
-      setSelectedDocument(null);
-    } catch (error) {
-      toast.error("Update failed", {
-        description: error instanceof Error ? error.message : "An error occurred",
-      });
-    }
-  };
-
-  const handleReplaceFile = async () => {
-    if (!selectedDocument || !replaceFile) return;
-
-    setUploading(true);
-    try {
-      const replaceData = await requestReplaceUrl.mutateAsync({
-        id: selectedDocument.id,
-        data: {
-          fileName: replaceFile.name,
-          contentType: "application/pdf",
-          fileSize: replaceFile.size,
-        },
-      });
-
-      await uploadFileToS3(replaceData.uploadUrl, replaceFile);
-
-      await confirmReplace.mutateAsync({
-        id: selectedDocument.id,
-        data: {
-          s3Key: replaceData.s3Key,
-          fileName: replaceFile.name,
-          fileSize: replaceFile.size,
-        },
-      });
-
-      toast.success("New draft version created", {
-        description: `"${selectedDocument.title}" was uploaded as a new draft. Publish it when ready.`,
-      });
-
-      setReplaceDialogOpen(false);
-      setSelectedDocument(null);
-      setReplaceFile(null);
-    } catch (error) {
-      toast.error("Replace failed", {
-        description: error instanceof Error ? error.message : "An error occurred",
-      });
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const handlePublish = async () => {
-    if (!selectedDocument) return;
+    if (!selectedVersion || !selectedDefinition) return;
+    setPublishing(true);
     try {
-      await publishDocument.mutateAsync({
-        id: selectedDocument.id,
-        reacceptanceRequired,
-      });
-      toast.success("Document published", {
+      const result = await apiClient.post(
+        `/v1/admin/legal-documents/versions/${selectedVersion.id}/publish`,
+        { reacceptanceRequired }
+      );
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to publish version");
+      }
+      toast.success("Version published", {
         description: reacceptanceRequired
-          ? `"${selectedDocument.title}" published. Existing users must re-accept before new transactions.`
-          : `"${selectedDocument.title}" published. Only new users must accept this version.`,
+          ? `"${selectedDefinition.title}" published. Existing applicable users must accept before new transactions.`
+          : `"${selectedDefinition.title}" published. Only users who have not completed the applicable legal step must accept.`,
       });
       setPublishDialogOpen(false);
-      setSelectedDocument(null);
+      setSelectedDefinition(null);
+      setSelectedVersion(null);
       setReacceptanceRequired(false);
+      invalidate();
     } catch (error) {
       toast.error("Publish failed", {
         description: error instanceof Error ? error.message : "An error occurred",
       });
+    } finally {
+      setPublishing(false);
     }
   };
 
-  const handleArchive = async (id: string, title: string) => {
+  const handleArchiveVersion = async (
+    definition: LegalDocumentDefinitionResponse,
+    version: LegalDocumentVersionSummary
+  ) => {
     try {
-      await archiveDocument.mutateAsync(id);
-      toast.success("Document archived", { description: `"${title}" has been archived.` });
+      const result = await apiClient.post(
+        `/v1/admin/legal-documents/versions/${version.id}/archive`,
+        {}
+      );
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to archive version");
+      }
+      toast.success("Version archived", {
+        description: `"${definition.title}" v${version.version} archived.`,
+      });
+      invalidate();
     } catch (error) {
       toast.error("Archive failed", {
         description: error instanceof Error ? error.message : "An error occurred",
@@ -326,52 +367,55 @@ export default function LegalDocumentsPage() {
     }
   };
 
-  const handleRestore = async (id: string, title: string) => {
+  const handleDownloadVersion = async (version: LegalDocumentVersionSummary) => {
     try {
-      await restoreDocument.mutateAsync(id);
-      toast.success("Document restored", { description: `"${title}" has been restored.` });
-    } catch (error) {
-      toast.error("Restore failed", {
-        description: error instanceof Error ? error.message : "An error occurred",
-      });
-    }
-  };
-
-  const handleDownload = async (id: string, fileName: string) => {
-    try {
-      const result = await downloadDocument.mutateAsync(id);
-      window.open(result.downloadUrl, "_blank", "noopener,noreferrer");
+      const result = await apiClient.get<{ downloadUrl: string }>(
+        `/v1/admin/legal-documents/versions/${version.id}/download`
+      );
+      if (!result.success) {
+        throw new Error(result.error?.message || "Download unavailable");
+      }
+      window.open(result.data.downloadUrl, "_blank", "noopener,noreferrer");
     } catch (error) {
       toast.error("Download failed", {
-        description: error instanceof Error ? error.message : `Could not download ${fileName}`,
+        description: error instanceof Error ? error.message : `Could not download ${version.fileName}`,
       });
     }
   };
 
-  const openEditDialog = (doc: SiteDocumentResponse) => {
-    setSelectedDocument(doc);
+  const openEditDialog = (doc: LegalDocumentDefinitionResponse) => {
+    setSelectedDefinition(doc);
     setEditForm({
       title: doc.title,
       description: doc.description || "",
-      audience: doc.audience || "PUBLIC",
-      acceptanceRequired: doc.acceptance_required ?? true,
-      openBeforeAcceptRequired: doc.open_before_accept_required ?? true,
-      showInAccount: doc.show_in_account,
+      audience: doc.audience,
+      requiredForOnboarding: doc.requiredForOnboarding,
+      publicVisibility: doc.publicVisibility,
     });
     setEditDialogOpen(true);
   };
 
-  const openReplaceDialog = (doc: SiteDocumentResponse) => {
-    setSelectedDocument(doc);
-    setReplaceFile(null);
-    setReplaceDialogOpen(true);
+  const openUploadVersionDialog = (doc: LegalDocumentDefinitionResponse) => {
+    setSelectedDefinition(doc);
+    setVersionFile(null);
+    setUploadVersionDialogOpen(true);
   };
 
-  const openPublishDialog = (doc: SiteDocumentResponse) => {
-    setSelectedDocument(doc);
+  const openPublishDialog = (
+    doc: LegalDocumentDefinitionResponse,
+    version: LegalDocumentVersionSummary
+  ) => {
+    setSelectedDefinition(doc);
+    setSelectedVersion(version);
     setReacceptanceRequired(false);
     setPublishDialogOpen(true);
   };
+
+  const latestPublished = (doc: LegalDocumentDefinitionResponse) =>
+    (doc.versions ?? []).find((v) => v.status === "PUBLISHED");
+
+  const draftVersion = (doc: LegalDocumentDefinitionResponse) =>
+    (doc.versions ?? []).find((v) => v.status === "DRAFT");
 
   return (
     <RequirePermission permission="document_management.view">
@@ -383,7 +427,7 @@ export default function LegalDocumentsPage() {
             <div>
               <h1 className="text-lg font-semibold">Legal Documents</h1>
               <p className="text-sm text-muted-foreground">
-                Publish onboarding and re-acceptance PDFs. Generic site files stay on Documents.
+                Create definitions, upload draft PDFs, then publish with optional re-acceptance.
               </p>
             </div>
             <SystemHealthIndicator />
@@ -424,32 +468,14 @@ export default function LegalDocumentsPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <Select
-                value={statusFilter}
-                onValueChange={(value) => {
-                  setStatusFilter(value as LegalDocumentStatus | "all");
-                  setPage(1);
-                }}
-              >
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  {STATUSES.map((status) => (
-                    <SelectItem key={status.value} value={status.value}>
-                      {status.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
             <Button
-              onClick={() => setUploadDialogOpen(true)}
+              onClick={() => setCreateDialogOpen(true)}
               disabled={!canManage}
               title={!canManage ? "You do not have permission to perform this action." : undefined}
             >
               <PlusIcon className="mr-2 h-4 w-4" />
-              Upload legal PDF
+              New definition
             </Button>
           </div>
 
@@ -457,12 +483,11 @@ export default function LegalDocumentsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[280px]">Document</TableHead>
+                  <TableHead className="w-[320px]">Document</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Audience</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Accept</TableHead>
-                  <TableHead>Version</TableHead>
+                  <TableHead>Onboarding</TableHead>
+                  <TableHead>Published</TableHead>
                   <TableHead>Updated</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -471,7 +496,7 @@ export default function LegalDocumentsPage() {
                 {isLoading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
-                      {Array.from({ length: 8 }).map((__, j) => (
+                      {Array.from({ length: 7 }).map((__, j) => (
                         <TableCell key={j}>
                           <Skeleton className="h-5 w-full" />
                         </TableCell>
@@ -480,113 +505,167 @@ export default function LegalDocumentsPage() {
                   ))
                 ) : documents.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
+                    <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
                       <DocumentIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
-                      <p>No legal documents found</p>
+                      <p>No legal document definitions yet</p>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  documents.map((doc) => (
-                    <TableRow key={doc.id} className={doc.status === "ARCHIVED" ? "opacity-60" : ""}>
-                      <TableCell>
-                        <div>
-                          <p className="truncate text-sm font-medium" title={doc.title}>
-                            {doc.title}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground" title={doc.file_name}>
-                            {doc.file_name}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">
-                          {LEGAL_DOCUMENT_TYPE_LABELS[doc.type as OnboardingLegalDocumentType] ||
-                            doc.type}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm">{doc.audience}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            doc.status === "PUBLISHED"
-                              ? "default"
-                              : doc.status === "DRAFT"
-                                ? "secondary"
-                                : "outline"
-                          }
-                        >
-                          {doc.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {doc.acceptance_required ? "Required" : "Optional"}
-                        {doc.reacceptance_required ? " · Re-accept" : ""}
-                      </TableCell>
-                      <TableCell className="text-sm">v{doc.version}</TableCell>
-                      <TableCell className="text-sm">{formatDate(doc.updated_at)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDownload(doc.id, doc.file_name)}
-                            title="Download"
+                  documents.flatMap((doc) => {
+                    const published = latestPublished(doc);
+                    const draft = draftVersion(doc);
+                    const expanded = expandedIds.has(doc.id);
+                    const versions = doc.versions ?? [];
+                    const rows = [
+                      <TableRow key={doc.id}>
+                        <TableCell>
+                          <button
+                            type="button"
+                            className="flex max-w-full items-start gap-2 text-left"
+                            onClick={() => toggleExpanded(doc.id)}
                           >
-                            <ArrowDownTrayIcon className="h-4 w-4" />
-                          </Button>
-                          {doc.status === "DRAFT" ? (
+                            {expanded ? (
+                              <ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                            ) : (
+                              <ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                            )}
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium" title={doc.title}>
+                                {doc.title}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {versions.length} version{versions.length === 1 ? "" : "s"}
+                                {draft ? " · draft ready" : ""}
+                              </p>
+                            </div>
+                          </button>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {LEGAL_DOCUMENT_TYPE_LABELS[doc.type] || doc.type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm">{doc.audience}</TableCell>
+                        <TableCell className="text-sm">
+                          {doc.requiredForOnboarding ? "Required" : "Optional"}
+                          {doc.publicVisibility ? " · Public" : ""}
+                        </TableCell>
+                        <TableCell className="text-sm">
+                          {published ? `v${published.version}` : "—"}
+                        </TableCell>
+                        <TableCell className="text-sm">{formatDate(doc.updatedAt)}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            {draft ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openPublishDialog(doc, draft)}
+                                disabled={!canManage}
+                                className="text-primary"
+                              >
+                                Publish
+                              </Button>
+                            ) : null}
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => openPublishDialog(doc)}
-                              disabled={!canManage || publishDocument.isPending}
-                              className="text-primary"
-                            >
-                              Publish
-                            </Button>
-                          ) : null}
-                          {doc.status !== "ARCHIVED" ? (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openEditDialog(doc)}
-                                disabled={!canManage}
-                              >
-                                <PencilSquareIcon className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openReplaceDialog(doc)}
-                                disabled={!canManage}
-                                title="Upload new draft version"
-                              >
-                                <ArrowUpTrayIcon className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleArchive(doc.id, doc.title)}
-                                disabled={!canManage}
-                              >
-                                <ArchiveBoxIcon className="h-4 w-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleRestore(doc.id, doc.title)}
+                              onClick={() => openEditDialog(doc)}
                               disabled={!canManage}
+                              title="Edit definition"
                             >
-                              <ArrowUturnLeftIcon className="h-4 w-4" />
+                              <PencilSquareIcon className="h-4 w-4" />
                             </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openUploadVersionDialog(doc)}
+                              disabled={!canManage}
+                              title="Upload draft version"
+                            >
+                              <ArrowUpTrayIcon className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>,
+                    ];
+
+                    if (expanded) {
+                      if (versions.length === 0) {
+                        rows.push(
+                          <TableRow key={`${doc.id}-empty`} className="bg-muted/30">
+                            <TableCell colSpan={7} className="py-3 pl-12 text-sm text-muted-foreground">
+                              No versions yet. Upload a draft PDF.
+                            </TableCell>
+                          </TableRow>
+                        );
+                      } else {
+                        for (const version of versions) {
+                          rows.push(
+                            <TableRow key={version.id} className="bg-muted/30">
+                              <TableCell className="pl-12">
+                                <p className="text-sm font-medium">Version {version.version}</p>
+                                <p className="truncate text-xs text-muted-foreground" title={version.fileName}>
+                                  {version.fileName} · {formatFileSize(version.fileSize)}
+                                </p>
+                              </TableCell>
+                              <TableCell colSpan={2} />
+                              <TableCell>
+                                <Badge variant={versionStatusVariant(version.status)}>
+                                  {version.status}
+                                </Badge>
+                                {version.reacceptanceRequired ? (
+                                  <span className="ml-2 text-xs text-muted-foreground">Re-accept</span>
+                                ) : null}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {version.publishedAt
+                                  ? formatDate(version.publishedAt)
+                                  : formatDate(version.createdAt)}
+                              </TableCell>
+                              <TableCell className="text-sm" />
+                              <TableCell className="text-right">
+                                <div className="flex justify-end gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => void handleDownloadVersion(version)}
+                                    title="Download"
+                                  >
+                                    <ArrowDownTrayIcon className="h-4 w-4" />
+                                  </Button>
+                                  {version.status === "DRAFT" ? (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => openPublishDialog(doc, version)}
+                                      disabled={!canManage}
+                                      className="text-primary"
+                                    >
+                                      Publish
+                                    </Button>
+                                  ) : null}
+                                  {version.status !== "ARCHIVED" ? (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => void handleArchiveVersion(doc, version)}
+                                      disabled={!canManage}
+                                      title="Archive version"
+                                    >
+                                      <ArchiveBoxIcon className="h-4 w-4" />
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        }
+                      }
+                    }
+
+                    return rows;
+                  })
                 )}
               </TableBody>
             </Table>
@@ -623,17 +702,18 @@ export default function LegalDocumentsPage() {
           onOpenChange={(open) => {
             setPublishDialogOpen(open);
             if (!open) {
-              setSelectedDocument(null);
+              setSelectedDefinition(null);
+              setSelectedVersion(null);
               setReacceptanceRequired(false);
             }
           }}
         >
           <DialogContent className="sm:max-w-[520px]">
             <DialogHeader>
-              <DialogTitle>Publish document</DialogTitle>
+              <DialogTitle>Publish version</DialogTitle>
               <DialogDescription>
-                {selectedDocument
-                  ? `Publish “${selectedDocument.title}” (v${selectedDocument.version}) for users.`
+                {selectedDefinition && selectedVersion
+                  ? `Publish “${selectedDefinition.title}” (v${selectedVersion.version}) for users.`
                   : "Publish this draft version."}
               </DialogDescription>
             </DialogHeader>
@@ -654,7 +734,8 @@ export default function LegalDocumentsPage() {
                     <span className="font-medium">No</span>
                     <br />
                     <span className="text-muted-foreground">
-                      Only new users must accept this version.
+                      only users who have not completed the applicable legal step must accept this
+                      version.
                     </span>
                   </span>
                 </label>
@@ -670,7 +751,8 @@ export default function LegalDocumentsPage() {
                     <span className="font-medium">Yes</span>
                     <br />
                     <span className="text-muted-foreground">
-                      Existing users must accept before starting new transactions.
+                      existing applicable users must accept this version before starting new
+                      transactions.
                     </span>
                   </span>
                 </label>
@@ -680,31 +762,32 @@ export default function LegalDocumentsPage() {
               <Button variant="outline" onClick={() => setPublishDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={() => void handlePublish()} disabled={publishDocument.isPending}>
-                {publishDocument.isPending ? "Publishing…" : "Publish"}
+              <Button onClick={() => void handlePublish()} disabled={publishing}>
+                {publishing ? "Publishing…" : "Publish"}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
           <DialogContent className="sm:max-w-[520px]">
             <DialogHeader>
-              <DialogTitle>Upload legal document</DialogTitle>
+              <DialogTitle>New legal document definition</DialogTitle>
               <DialogDescription>
-                Creates a draft PDF. Publish it to require acceptance during onboarding.
+                Creates the document type entry. You can upload a draft PDF right after.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
                 <Label>Document Type</Label>
                 <Select
-                  value={uploadForm.type}
-                  onValueChange={(value: OnboardingLegalDocumentType) =>
-                    setUploadForm((f) => ({
+                  value={createForm.type}
+                  onValueChange={(value: LegalDocumentType) =>
+                    setCreateForm((f) => ({
                       ...f,
                       type: value,
                       audience: LEGAL_DOCUMENT_DEFAULT_AUDIENCE[value],
+                      title: f.title || LEGAL_DOCUMENT_TYPE_LABELS[value],
                     }))
                   }
                 >
@@ -723,24 +806,24 @@ export default function LegalDocumentsPage() {
               <div className="space-y-2">
                 <Label>Title</Label>
                 <Input
-                  value={uploadForm.title}
-                  onChange={(e) => setUploadForm((f) => ({ ...f, title: e.target.value }))}
+                  value={createForm.title}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Description (optional)</Label>
                 <Textarea
-                  value={uploadForm.description}
-                  onChange={(e) => setUploadForm((f) => ({ ...f, description: e.target.value }))}
+                  value={createForm.description}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
                   rows={2}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Audience</Label>
                 <Select
-                  value={uploadForm.audience}
+                  value={createForm.audience}
                   onValueChange={(value: LegalDocumentAudience) =>
-                    setUploadForm((f) => ({ ...f, audience: value }))
+                    setCreateForm((f) => ({ ...f, audience: value }))
                   }
                 >
                   <SelectTrigger>
@@ -755,67 +838,46 @@ export default function LegalDocumentsPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label>PDF File</Label>
-                <Input
-                  type="file"
-                  accept=".pdf,application/pdf"
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setUploadForm((f) => ({ ...f, file: e.target.files?.[0] || null }))
-                  }
-                />
-                {uploadForm.file && (
-                  <p className="text-sm text-muted-foreground">
-                    {uploadForm.file.name} ({formatFileSize(uploadForm.file.size)})
-                  </p>
-                )}
-              </div>
               <div className="flex items-center justify-between">
-                <Label htmlFor="legal-accept-required">Required during onboarding</Label>
+                <Label htmlFor="legal-required-onboarding">Required for onboarding</Label>
                 <Switch
-                  id="legal-accept-required"
-                  checked={uploadForm.acceptanceRequired}
+                  id="legal-required-onboarding"
+                  checked={createForm.requiredForOnboarding}
                   onCheckedChange={(checked) =>
-                    setUploadForm((f) => ({ ...f, acceptanceRequired: checked }))
+                    setCreateForm((f) => ({ ...f, requiredForOnboarding: checked }))
                   }
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label htmlFor="legal-open-required">Must open PDF before accept</Label>
+                <Label htmlFor="legal-public-visibility">Public visibility</Label>
                 <Switch
-                  id="legal-open-required"
-                  checked={uploadForm.openBeforeAcceptRequired}
+                  id="legal-public-visibility"
+                  checked={createForm.publicVisibility}
                   onCheckedChange={(checked) =>
-                    setUploadForm((f) => ({ ...f, openBeforeAcceptRequired: checked }))
-                  }
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label htmlFor="legal-show-account">Show in Account Documents tab</Label>
-                <Switch
-                  id="legal-show-account"
-                  checked={uploadForm.showInAccount}
-                  onCheckedChange={(checked) =>
-                    setUploadForm((f) => ({ ...f, showInAccount: checked }))
+                    setCreateForm((f) => ({ ...f, publicVisibility: checked }))
                   }
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setUploadDialogOpen(false)} disabled={uploading}>
+              <Button
+                variant="outline"
+                onClick={() => setCreateDialogOpen(false)}
+                disabled={saving}
+              >
                 Cancel
               </Button>
               <Button
-                onClick={() => void handleUploadDocument()}
-                disabled={uploading || !uploadForm.file || !uploadForm.title}
+                onClick={() => void handleCreateDefinition()}
+                disabled={saving || !createForm.title.trim()}
               >
-                {uploading ? (
+                {saving ? (
                   <>
                     <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" />
-                    Uploading...
+                    Creating…
                   </>
                 ) : (
-                  "Upload draft"
+                  "Create definition"
                 )}
               </Button>
             </DialogFooter>
@@ -825,8 +887,10 @@ export default function LegalDocumentsPage() {
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
           <DialogContent className="sm:max-w-[520px]">
             <DialogHeader>
-              <DialogTitle>Edit legal document</DialogTitle>
-              <DialogDescription>Update metadata. Use Replace to upload a new PDF version.</DialogDescription>
+              <DialogTitle>Edit definition</DialogTitle>
+              <DialogDescription>
+                Update metadata. Use Upload to add a new draft PDF version.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
@@ -865,29 +929,20 @@ export default function LegalDocumentsPage() {
                 </Select>
               </div>
               <div className="flex items-center justify-between">
-                <Label>Required during onboarding</Label>
+                <Label>Required for onboarding</Label>
                 <Switch
-                  checked={editForm.acceptanceRequired}
+                  checked={editForm.requiredForOnboarding}
                   onCheckedChange={(checked) =>
-                    setEditForm((f) => ({ ...f, acceptanceRequired: checked }))
+                    setEditForm((f) => ({ ...f, requiredForOnboarding: checked }))
                   }
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label>Must open PDF before accept</Label>
+                <Label>Public visibility</Label>
                 <Switch
-                  checked={editForm.openBeforeAcceptRequired}
+                  checked={editForm.publicVisibility}
                   onCheckedChange={(checked) =>
-                    setEditForm((f) => ({ ...f, openBeforeAcceptRequired: checked }))
-                  }
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <Label>Show in Account Documents tab</Label>
-                <Switch
-                  checked={editForm.showInAccount}
-                  onCheckedChange={(checked) =>
-                    setEditForm((f) => ({ ...f, showInAccount: checked }))
+                    setEditForm((f) => ({ ...f, publicVisibility: checked }))
                   }
                 />
               </div>
@@ -896,45 +951,59 @@ export default function LegalDocumentsPage() {
               <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={() => void handleEditDocument()} disabled={updateDocument.isPending}>
-                {updateDocument.isPending ? "Saving..." : "Save Changes"}
+              <Button onClick={() => void handleEditDefinition()} disabled={saving}>
+                {saving ? "Saving…" : "Save Changes"}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        <Dialog open={replaceDialogOpen} onOpenChange={setReplaceDialogOpen}>
+        <Dialog open={uploadVersionDialogOpen} onOpenChange={setUploadVersionDialogOpen}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>Upload new draft version</DialogTitle>
+              <DialogTitle>Upload draft version</DialogTitle>
               <DialogDescription>
-                Creates a new draft for <strong>{selectedDocument?.title}</strong>. Publish when ready.
+                Upload a PDF draft for <strong>{selectedDefinition?.title}</strong>. Publish when
+                ready.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
-              <div className="rounded-lg bg-muted/50 p-4">
-                <p className="text-sm text-muted-foreground">Current version</p>
-                <p className="font-medium">
-                  v{selectedDocument?.version} - {selectedDocument?.file_name}
-                </p>
-              </div>
               <div className="space-y-2">
-                <Label>New PDF File</Label>
+                <Label>PDF File</Label>
                 <Input
                   type="file"
                   accept=".pdf,application/pdf"
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setReplaceFile(e.target.files?.[0] || null)
+                    setVersionFile(e.target.files?.[0] || null)
                   }
                 />
+                {versionFile ? (
+                  <p className="text-sm text-muted-foreground">
+                    {versionFile.name} ({formatFileSize(versionFile.size)})
+                  </p>
+                ) : null}
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setReplaceDialogOpen(false)} disabled={uploading}>
+              <Button
+                variant="outline"
+                onClick={() => setUploadVersionDialogOpen(false)}
+                disabled={uploading}
+              >
                 Cancel
               </Button>
-              <Button onClick={() => void handleReplaceFile()} disabled={uploading || !replaceFile}>
-                {uploading ? "Uploading..." : "Create draft"}
+              <Button
+                onClick={() => void handleUploadVersion()}
+                disabled={uploading || !versionFile}
+              >
+                {uploading ? (
+                  <>
+                    <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" />
+                    Uploading…
+                  </>
+                ) : (
+                  "Upload draft"
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>

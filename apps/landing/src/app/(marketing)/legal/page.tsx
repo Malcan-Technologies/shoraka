@@ -42,8 +42,10 @@ export default function LegalDocumentsPage() {
     };
   }, []);
 
-  const openDownload = async (id: string) => {
-    const res = await fetch(`${API_URL}/v1/public/legal-documents/${id}/download`);
+  const openDownload = async (versionId: string) => {
+    const res = await fetch(
+      `${API_URL}/v1/public/legal-documents/versions/${versionId}/download`
+    );
     const json = await res.json();
     if (!json.success) {
       throw new Error(json.error?.message || "Download unavailable");
@@ -76,7 +78,7 @@ export default function LegalDocumentsPage() {
       <ul className="mt-10 space-y-4">
         {documents.map((doc) => (
           <li
-            key={doc.id}
+            key={doc.legalDocumentVersionId}
             className="flex flex-col gap-3 border-b border-border py-4 sm:flex-row sm:items-center sm:justify-between"
           >
             <div>
@@ -91,7 +93,7 @@ export default function LegalDocumentsPage() {
               type="button"
               variant="outline"
               onClick={() => {
-                void openDownload(doc.id).catch((err: unknown) => {
+                void openDownload(doc.legalDocumentVersionId).catch((err: unknown) => {
                   window.alert(err instanceof Error ? err.message : "Download failed");
                 });
               }}

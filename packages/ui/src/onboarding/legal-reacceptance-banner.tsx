@@ -12,6 +12,7 @@ export function LegalReacceptanceBanner({ portalType }: { portalType: "issuer" |
   const { activeOrganization } = useOrganization();
   const { getAccessToken } = useAuthToken();
   const [pending, setPending] = React.useState(false);
+  const [isOrganisationOwner, setIsOrganisationOwner] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -32,6 +33,7 @@ export function LegalReacceptanceBanner({ portalType }: { portalType: "issuer" |
         );
         if (!cancelled && result.success) {
           setPending(result.data.hasPendingReacceptance);
+          setIsOrganisationOwner(result.data.isOrganisationOwner);
         }
       } catch {
         if (!cancelled) setPending(false);
@@ -45,7 +47,7 @@ export function LegalReacceptanceBanner({ portalType }: { portalType: "issuer" |
 
   if (!pending || !activeOrganization) return null;
 
-  const isOwner = Boolean(activeOrganization.isOwner);
+  const isOwner = isOrganisationOwner || Boolean(activeOrganization.isOwner);
 
   return (
     <div

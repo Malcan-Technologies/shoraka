@@ -33,7 +33,7 @@ import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { getPortalFromRole } from "../../lib/role-detector";
 import { AuthRepository } from "../auth/repository";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
-import { legalDocumentAcceptanceService } from "../site-documents/acceptance-service";
+import { legalDocumentAcceptanceService } from "../legal-documents/acceptance-service";
 import { sendEmail } from "../../lib/email/ses-client";
 import { sendOnboardingEmail } from "../../lib/email/ses";
 import { organizationInvitationTemplate } from "../../lib/email/templates";

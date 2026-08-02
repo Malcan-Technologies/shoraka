@@ -1,47 +1,54 @@
 /**
- * Onboarding / public legal document types and acceptance DTOs.
- * Reuses SiteDocument rows as versioned PDFs (DRAFT → PUBLISHED → ARCHIVED).
+ * Legal document types and acceptance DTOs (LegalDocument / LegalDocumentVersion).
  */
 
 export type LegalDocumentAudience = "PUBLIC" | "ISSUER" | "INVESTOR" | "BOTH";
-export type LegalDocumentStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+export type LegalDocumentVersionStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
 export type LegalAcceptanceAudience = "ISSUER" | "INVESTOR";
 export type LegalAcceptanceStatus = "NOT_OPENED" | "OPENED" | "ACCEPTED";
 
-/** Document types used for onboarding legal acceptance and public footer links. */
-export type OnboardingLegalDocumentType =
-  | "PDPA_NOTICE"
-  | "TERMS_AND_CONDITIONS"
+/** @deprecated Use LegalDocumentVersionStatus */
+export type LegalDocumentStatus = LegalDocumentVersionStatus;
+
+export type LegalDocumentType =
+  | "PDPA_NOTICE_AND_CONSENT"
+  | "TERMS_OF_USE"
   | "RISK_STATEMENT"
   | "ISSUER_WARNING_STATEMENT"
-  | "ISSUER_AGREEMENT"
   | "INVESTOR_WARNING_STATEMENT"
+  | "ISSUER_AGREEMENT"
   | "INVESTOR_AGREEMENT";
 
-export const ONBOARDING_LEGAL_DOCUMENT_TYPES: OnboardingLegalDocumentType[] = [
-  "PDPA_NOTICE",
-  "TERMS_AND_CONDITIONS",
+/** @deprecated Use LegalDocumentType */
+export type OnboardingLegalDocumentType = LegalDocumentType;
+
+export const LEGAL_DOCUMENT_TYPES: LegalDocumentType[] = [
+  "PDPA_NOTICE_AND_CONSENT",
+  "TERMS_OF_USE",
   "RISK_STATEMENT",
   "ISSUER_WARNING_STATEMENT",
-  "ISSUER_AGREEMENT",
   "INVESTOR_WARNING_STATEMENT",
+  "ISSUER_AGREEMENT",
   "INVESTOR_AGREEMENT",
 ];
 
-export const LEGAL_DOCUMENT_TYPE_LABELS: Record<OnboardingLegalDocumentType, string> = {
-  PDPA_NOTICE: "PDPA Notice and Consent",
-  TERMS_AND_CONDITIONS: "Terms of Use",
+/** @deprecated Use LEGAL_DOCUMENT_TYPES */
+export const ONBOARDING_LEGAL_DOCUMENT_TYPES = LEGAL_DOCUMENT_TYPES;
+
+export const LEGAL_DOCUMENT_TYPE_LABELS: Record<LegalDocumentType, string> = {
+  PDPA_NOTICE_AND_CONSENT: "PDPA Notice and Consent",
+  TERMS_OF_USE: "Terms of Use",
   RISK_STATEMENT: "Risk Statement",
   ISSUER_WARNING_STATEMENT: "Issuer Warning Statement",
-  ISSUER_AGREEMENT: "Issuer Agreement",
   INVESTOR_WARNING_STATEMENT: "Investor Warning Statement",
+  ISSUER_AGREEMENT: "Issuer Agreement",
   INVESTOR_AGREEMENT: "Investor Agreement",
 };
 
-export const LEGAL_DOCUMENT_CHECKBOX_WORDING: Record<OnboardingLegalDocumentType, string> = {
-  PDPA_NOTICE:
+export const LEGAL_DOCUMENT_CHECKBOX_WORDING: Record<LegalDocumentType, string> = {
+  PDPA_NOTICE_AND_CONSENT:
     "I consent to the collection, use and processing of my personal data as described in the PDPA Notice.",
-  TERMS_AND_CONDITIONS: "I confirm that I have read and agree to the Terms of Use.",
+  TERMS_OF_USE: "I confirm that I have read and agree to the Terms of Use.",
   RISK_STATEMENT:
     "I confirm that I have read and understood the risks described in the Risk Statement.",
   ISSUER_WARNING_STATEMENT:
@@ -52,13 +59,10 @@ export const LEGAL_DOCUMENT_CHECKBOX_WORDING: Record<OnboardingLegalDocumentType
   INVESTOR_AGREEMENT: "I confirm that I have read and agree to the Investor Agreement.",
 };
 
-/** Default audience when admin uploads an onboarding legal PDF. */
-export const LEGAL_DOCUMENT_DEFAULT_AUDIENCE: Record<
-  OnboardingLegalDocumentType,
-  LegalDocumentAudience
-> = {
-  PDPA_NOTICE: "BOTH",
-  TERMS_AND_CONDITIONS: "BOTH",
+/** Default audience when admin creates a legal document definition. */
+export const LEGAL_DOCUMENT_DEFAULT_AUDIENCE: Record<LegalDocumentType, LegalDocumentAudience> = {
+  PDPA_NOTICE_AND_CONSENT: "BOTH",
+  TERMS_OF_USE: "BOTH",
   RISK_STATEMENT: "BOTH",
   ISSUER_WARNING_STATEMENT: "ISSUER",
   ISSUER_AGREEMENT: "ISSUER",
@@ -67,26 +71,26 @@ export const LEGAL_DOCUMENT_DEFAULT_AUDIENCE: Record<
 };
 
 /** Shared + issuer docs for issuer onboarding. */
-export const ISSUER_REQUIRED_LEGAL_TYPES: OnboardingLegalDocumentType[] = [
-  "PDPA_NOTICE",
-  "TERMS_AND_CONDITIONS",
+export const ISSUER_REQUIRED_LEGAL_TYPES: LegalDocumentType[] = [
+  "PDPA_NOTICE_AND_CONSENT",
+  "TERMS_OF_USE",
   "RISK_STATEMENT",
   "ISSUER_WARNING_STATEMENT",
   "ISSUER_AGREEMENT",
 ];
 
 /** Shared + investor docs for investor onboarding. */
-export const INVESTOR_REQUIRED_LEGAL_TYPES: OnboardingLegalDocumentType[] = [
-  "PDPA_NOTICE",
-  "TERMS_AND_CONDITIONS",
+export const INVESTOR_REQUIRED_LEGAL_TYPES: LegalDocumentType[] = [
+  "PDPA_NOTICE_AND_CONSENT",
+  "TERMS_OF_USE",
   "RISK_STATEMENT",
   "INVESTOR_WARNING_STATEMENT",
   "INVESTOR_AGREEMENT",
 ];
 
-export const PUBLIC_FOOTER_LEGAL_TYPES: OnboardingLegalDocumentType[] = [
-  "PDPA_NOTICE",
-  "TERMS_AND_CONDITIONS",
+export const PUBLIC_FOOTER_LEGAL_TYPES: LegalDocumentType[] = [
+  "PDPA_NOTICE_AND_CONSENT",
+  "TERMS_OF_USE",
   "RISK_STATEMENT",
   "ISSUER_AGREEMENT",
   "INVESTOR_AGREEMENT",
@@ -94,47 +98,67 @@ export const PUBLIC_FOOTER_LEGAL_TYPES: OnboardingLegalDocumentType[] = [
   "INVESTOR_WARNING_STATEMENT",
 ];
 
-export function isOnboardingLegalDocumentType(
-  type: string
-): type is OnboardingLegalDocumentType {
-  return (ONBOARDING_LEGAL_DOCUMENT_TYPES as string[]).includes(type);
+export function isLegalDocumentType(type: string): type is LegalDocumentType {
+  return (LEGAL_DOCUMENT_TYPES as string[]).includes(type);
+}
+
+/** @deprecated Use isLegalDocumentType */
+export function isOnboardingLegalDocumentType(type: string): type is LegalDocumentType {
+  return isLegalDocumentType(type);
 }
 
 export function getRequiredLegalTypesForAudience(
   audience: LegalAcceptanceAudience
-): OnboardingLegalDocumentType[] {
+): LegalDocumentType[] {
   return audience === "ISSUER" ? ISSUER_REQUIRED_LEGAL_TYPES : INVESTOR_REQUIRED_LEGAL_TYPES;
 }
 
-export interface LegalDocumentVersionResponse {
+export interface LegalDocumentDefinitionResponse {
   id: string;
-  type: string;
+  type: LegalDocumentType;
   title: string;
   description: string | null;
-  file_name: string;
-  file_size: number;
-  file_hash: string | null;
-  version: number;
   audience: LegalDocumentAudience;
-  status: LegalDocumentStatus;
-  effective_date: string | null;
-  acceptance_required: boolean;
-  open_before_accept_required: boolean;
-  reacceptance_required: boolean;
-  show_in_account: boolean;
-  is_active: boolean;
-  uploaded_by: string;
-  published_by: string | null;
-  published_at: string | null;
-  archived_by: string | null;
-  archived_at: string | null;
-  created_at: string;
-  updated_at: string;
+  requiredForOnboarding: boolean;
+  publicVisibility: boolean;
+  createdAt: string;
+  updatedAt: string;
+  versions?: LegalDocumentVersionSummary[];
+}
+
+export interface LegalDocumentVersionSummary {
+  id: string;
+  version: number;
+  status: LegalDocumentVersionStatus;
+  fileName: string;
+  fileSize: number;
+  fileHash: string | null;
+  reacceptanceRequired: boolean;
+  uploadedBy: string;
+  publishedBy: string | null;
+  publishedAt: string | null;
+  archivedBy: string | null;
+  archivedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LegalDocumentVersionResponse extends LegalDocumentVersionSummary {
+  legalDocumentId: string;
+  s3Key: string;
+  contentType: string;
+  type: LegalDocumentType;
+  title: string;
+  description: string | null;
+  audience: LegalDocumentAudience;
+  requiredForOnboarding: boolean;
+  publicVisibility: boolean;
 }
 
 export interface RequiredLegalDocumentResponse {
-  id: string;
-  type: OnboardingLegalDocumentType;
+  legalDocumentId: string;
+  legalDocumentVersionId: string;
+  type: LegalDocumentType;
   title: string;
   version: number;
   file_name: string;
@@ -155,9 +179,9 @@ export interface LegalAcceptanceStatusResponse {
 }
 
 export interface PendingLegalDocumentResponse {
-  documentId: string;
-  documentVersionId: string;
-  documentType: OnboardingLegalDocumentType;
+  legalDocumentId: string;
+  legalDocumentVersionId: string;
+  documentType: LegalDocumentType;
   title: string;
   version: number;
   file_name: string;
@@ -177,14 +201,16 @@ export type LegalBlockedAction =
 export interface LegalComplianceStatus {
   onboardingComplete: boolean;
   hasPendingReacceptance: boolean;
+  isOrganisationOwner: boolean;
   pendingDocuments: PendingLegalDocumentResponse[];
   blockedActions: LegalBlockedAction[];
   tncAccepted: boolean;
 }
 
 export interface PublicLegalDocumentResponse {
-  id: string;
-  type: OnboardingLegalDocumentType;
+  legalDocumentId: string;
+  legalDocumentVersionId: string;
+  type: LegalDocumentType;
   title: string;
   version: number;
   file_name: string;

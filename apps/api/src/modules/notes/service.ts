@@ -23,7 +23,7 @@ import {
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
-import { legalDocumentAcceptanceService } from "../site-documents/acceptance-service";
+import { legalDocumentAcceptanceService } from "../legal-documents/acceptance-service";
 import {
   generatePresignedUploadUrl,
   generatePresignedViewUrl,
