@@ -1469,6 +1469,7 @@ model LegalDocumentVersion {
   @@unique([legal_document_id, version])
   @@index([legal_document_id, status])
   @@index([status, reacceptance_required])
+  /// Partial unique index (SQL migration): at most one PUBLISHED per legal_document_id.
   @@map("legal_document_versions")
 }
 

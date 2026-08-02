@@ -214,6 +214,12 @@ export class LegalDocumentRepository {
     reacceptanceRequired: boolean
   ) {
     return prisma.$transaction(async (tx) => {
+      // Serialize publish/restore/archive against the same definition.
+      await tx.$queryRaw`
+        SELECT id FROM legal_documents WHERE id = ${legalDocumentId} FOR UPDATE
+      `;
+
+      // Only one active Published version may exist. Archive every other Published row.
       await tx.legalDocumentVersion.updateMany({
         where: {
           legal_document_id: legalDocumentId,
@@ -227,7 +233,7 @@ export class LegalDocumentRepository {
         },
       });
 
-      return (await tx.legalDocumentVersion.update({
+      const published = (await tx.legalDocumentVersion.update({
         where: { id: versionId },
         data: {
           status: "PUBLISHED",
@@ -239,19 +245,47 @@ export class LegalDocumentRepository {
         },
         include: { legal_document: true },
       })) as VersionWithDocument;
+
+      const activeCount = await tx.legalDocumentVersion.count({
+        where: {
+          legal_document_id: legalDocumentId,
+          status: "PUBLISHED",
+        },
+      });
+      if (activeCount !== 1) {
+        throw new Error(
+          `Publish integrity failed: expected exactly 1 PUBLISHED version, found ${activeCount}`
+        );
+      }
+
+      return published;
     });
   }
 
   async archiveVersion(versionId: string, archivedBy: string) {
-    return (await prisma.legalDocumentVersion.update({
-      where: { id: versionId },
-      data: {
-        status: "ARCHIVED",
-        archived_by: archivedBy,
-        archived_at: new Date(),
-      },
-      include: { legal_document: true },
-    })) as VersionWithDocument;
+    return prisma.$transaction(async (tx) => {
+      const existing = await tx.legalDocumentVersion.findUnique({
+        where: { id: versionId },
+        select: { legal_document_id: true, status: true },
+      });
+      if (!existing) {
+        throw new Error("Legal document version not found");
+      }
+
+      await tx.$queryRaw`
+        SELECT id FROM legal_documents WHERE id = ${existing.legal_document_id} FOR UPDATE
+      `;
+
+      return (await tx.legalDocumentVersion.update({
+        where: { id: versionId },
+        data: {
+          status: "ARCHIVED",
+          archived_by: archivedBy,
+          archived_at: new Date(),
+        },
+        include: { legal_document: true },
+      })) as VersionWithDocument;
+    });
   }
 
   async findDraftByDocumentId(legalDocumentId: string) {
