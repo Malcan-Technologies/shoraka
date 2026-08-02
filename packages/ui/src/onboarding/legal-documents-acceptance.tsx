@@ -12,20 +12,16 @@ import type {
   LegalAcceptanceStatusResponse,
   RequiredLegalDocumentResponse,
 } from "@cashsouk/types";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "../components/card";
-import { Checkbox } from "../components/checkbox";
-import { Label } from "../components/label";
 import { Button } from "../components/button";
-import { Skeleton } from "../components/skeleton";
 import { toast } from "sonner";
-import { DocumentArrowDownIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
+import {
+  LegalDocumentChecklistError,
+  LegalDocumentChecklistLoading,
+  LegalDocumentChecklistRows,
+  LegalDocumentChecklistShell,
+  type LegalChecklistDocRow,
+  type LegalChecklistDocStatus,
+} from "./legal-document-checklist";
 
 export interface LegalDocumentsAcceptanceProps {
   organizationId: string;
@@ -39,7 +35,6 @@ export interface LegalDocumentsAcceptanceProps {
 type LocalDocState = {
   checked: boolean;
   opened: boolean;
-  accepting: boolean;
   opening: boolean;
 };
 
@@ -49,6 +44,15 @@ function audienceFromPortal(portalType: PortalType): LegalAcceptanceAudience {
 
 function versionIdOf(doc: RequiredLegalDocumentResponse): string {
   return doc.legalDocumentVersionId;
+}
+
+function rowStatus(
+  doc: RequiredLegalDocumentResponse,
+  state: LocalDocState | undefined
+): LegalChecklistDocStatus {
+  if (doc.acceptance_status === "ACCEPTED") return "accepted";
+  if (state?.opened || doc.acceptance_status === "OPENED") return "opened";
+  return "not_opened";
 }
 
 export function LegalDocumentsAcceptance({
@@ -99,7 +103,6 @@ export function LegalDocumentsAcceptance({
           next[versionId] = {
             checked: doc.acceptance_status === "ACCEPTED" || prev[versionId]?.checked === true,
             opened,
-            accepting: false,
             opening: false,
           };
         }
@@ -123,6 +126,26 @@ export function LegalDocumentsAcceptance({
       return localState[versionIdOf(doc)]?.checked === true;
     });
   }, [localState, status]);
+
+  const rows: LegalChecklistDocRow[] = useMemo(() => {
+    if (!status) return [];
+    return status.documents.map((doc) => {
+      const id = versionIdOf(doc);
+      const state = localState[id];
+      const statusValue = rowStatus(doc, state);
+      return {
+        id,
+        title: doc.title,
+        version: doc.version,
+        checkboxWording: doc.checkbox_wording,
+        status: statusValue,
+        checked: statusValue === "accepted" || state?.checked === true,
+        opening: state?.opening === true,
+        canCheck: statusValue === "opened" || statusValue === "accepted",
+        showCheckbox: isOwner,
+      };
+    });
+  }, [isOwner, localState, status]);
 
   const handleOpen = async (doc: RequiredLegalDocumentResponse) => {
     const versionId = versionIdOf(doc);
@@ -218,34 +241,27 @@ export function LegalDocumentsAcceptance({
     }
   };
 
+  const title = "Legal documents";
+  const description = isOwner
+    ? "Please review and accept each required document before continuing. Open each PDF, then tick its checkbox. Continue stays disabled until all required documents are accepted."
+    : "Your organization owner must review and accept the required legal documents before onboarding can continue.";
+
   if (loading) {
     return (
-      <Card className="w-full rounded-2xl shadow-lg">
-        <CardHeader>
-          <CardTitle>Legal documents</CardTitle>
-          <CardDescription>Loading required documents…</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
-        </CardContent>
-      </Card>
+      <LegalDocumentChecklistLoading
+        title={title}
+        description="Loading required documents…"
+      />
     );
   }
 
   if (error) {
     return (
-      <Card className="w-full rounded-2xl shadow-lg">
-        <CardHeader>
-          <CardTitle>Legal documents</CardTitle>
-          <CardDescription className="text-destructive">{error}</CardDescription>
-        </CardHeader>
-        <CardFooter>
-          <Button onClick={() => void loadStatus()} variant="outline">
-            Retry
-          </Button>
-        </CardFooter>
-      </Card>
+      <LegalDocumentChecklistError
+        title={title}
+        error={error}
+        onRetry={() => void loadStatus()}
+      />
     );
   }
 
@@ -253,144 +269,41 @@ export function LegalDocumentsAcceptance({
     return <>{fallback}</>;
   }
 
-  if (!isOwner) {
-    return (
-      <Card className="w-full rounded-2xl shadow-lg">
-        <CardHeader>
-          <CardTitle>Legal documents</CardTitle>
-          <CardDescription>
-            The organisation owner must accept the required legal documents before onboarding can
-            continue.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            You can view the documents below. Only the organisation owner can complete acceptance
-            during onboarding.
-          </p>
-          {status.documents.map((doc) => {
-            const versionId = versionIdOf(doc);
-            return (
-              <section
-                key={versionId}
-                className="rounded-xl border border-border bg-muted/30 p-4"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <h3 className="text-[17px] font-semibold leading-7">{doc.title}</h3>
-                    <p className="text-sm text-muted-foreground">Version {doc.version}</p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0 gap-2"
-                    disabled={localState[versionId]?.opening}
-                    onClick={() => void handleOpen(doc)}
-                  >
-                    <DocumentArrowDownIcon className="size-4" aria-hidden />
-                    {localState[versionId]?.opening ? "Opening…" : "View PDF"}
-                  </Button>
-                </div>
-              </section>
-            );
-          })}
-        </CardContent>
-      </Card>
-    );
-  }
+  const docsById = new Map(status.documents.map((doc) => [versionIdOf(doc), doc]));
 
   return (
-    <Card className="w-full rounded-2xl shadow-lg">
-      <CardHeader>
-        <CardTitle>Legal documents</CardTitle>
-        <CardDescription>
-          Open each PDF, then tick its checkbox. Continue stays disabled until every required
-          document is accepted.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {status.documents.map((doc) => {
-          const versionId = versionIdOf(doc);
-          const state = localState[versionId];
-          const isAccepted = doc.acceptance_status === "ACCEPTED";
-          const canCheck = isAccepted || state?.opened === true;
-          const checkboxId = `legal-accept-${versionId}`;
-
-          return (
-            <section
-              key={versionId}
-              className="rounded-xl border border-border bg-muted/30 p-4"
-              aria-labelledby={`${checkboxId}-title`}
-            >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h3 id={`${checkboxId}-title`} className="text-[17px] font-semibold leading-7">
-                    {doc.title}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">Version {doc.version}</p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 gap-2"
-                  disabled={state?.opening || submitting}
-                  onClick={() => void handleOpen(doc)}
-                >
-                  <DocumentArrowDownIcon className="size-4" aria-hidden />
-                  {state?.opening ? "Opening…" : "View PDF"}
-                </Button>
-              </div>
-
-              <div className="mt-4 flex items-start gap-3">
-                <Checkbox
-                  id={checkboxId}
-                  checked={isAccepted || state?.checked === true}
-                  disabled={!canCheck || isAccepted || submitting}
-                  onCheckedChange={(checked) => {
-                    setLocalState((prev) => ({
-                      ...prev,
-                      [versionId]: {
-                        ...prev[versionId],
-                        checked: checked === true,
-                      },
-                    }));
-                  }}
-                />
-                <Label
-                  htmlFor={checkboxId}
-                  className={`text-sm leading-relaxed ${canCheck ? "cursor-pointer" : "cursor-not-allowed text-muted-foreground"}`}
-                >
-                  {doc.checkbox_wording}
-                </Label>
-              </div>
-
-              {!canCheck ? (
-                <p className="mt-2 text-sm text-muted-foreground" role="status">
-                  Open the PDF before you can accept this document.
-                </p>
-              ) : null}
-
-              {isAccepted ? (
-                <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-foreground">
-                  <CheckCircleIcon className="size-4 text-primary" aria-hidden />
-                  Accepted
-                </p>
-              ) : null}
-            </section>
-          );
-        })}
-      </CardContent>
-      <CardFooter>
-        <Button
-          onClick={() => void handleContinue()}
-          disabled={!allChecked || submitting}
-          className="w-full"
-        >
-          {submitting ? "Submitting…" : "Accept and Continue"}
-        </Button>
-      </CardFooter>
-    </Card>
+    <LegalDocumentChecklistShell
+      title={title}
+      description={description}
+      footer={
+        isOwner ? (
+          <Button
+            onClick={() => void handleContinue()}
+            disabled={!allChecked || submitting}
+            className="h-11 w-full rounded-xl"
+          >
+            {submitting ? "Submitting…" : "Accept and Continue"}
+          </Button>
+        ) : undefined
+      }
+    >
+      <LegalDocumentChecklistRows
+        rows={rows}
+        disabled={submitting}
+        onOpen={(id) => {
+          const doc = docsById.get(id);
+          if (doc) void handleOpen(doc);
+        }}
+        onCheckedChange={(id, checked) => {
+          setLocalState((prev) => ({
+            ...prev,
+            [id]: {
+              ...prev[id],
+              checked,
+            },
+          }));
+        }}
+      />
+    </LegalDocumentChecklistShell>
   );
 }

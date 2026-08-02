@@ -12,20 +12,16 @@ import type {
   LegalComplianceStatus,
   PendingLegalDocumentResponse,
 } from "@cashsouk/types";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "../components/card";
-import { Checkbox } from "../components/checkbox";
-import { Label } from "../components/label";
 import { Button } from "../components/button";
-import { Skeleton } from "../components/skeleton";
 import { toast } from "sonner";
-import { DocumentArrowDownIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
+import {
+  LegalDocumentChecklistError,
+  LegalDocumentChecklistLoading,
+  LegalDocumentChecklistRows,
+  LegalDocumentChecklistShell,
+  type LegalChecklistDocRow,
+  type LegalChecklistDocStatus,
+} from "./legal-document-checklist";
 
 export interface LegalReacceptancePanelProps {
   organizationId: string;
@@ -49,6 +45,15 @@ function versionIdOf(doc: PendingLegalDocumentResponse): string {
   const legacy = (doc as PendingLegalDocumentResponse & { documentVersionId?: string })
     .documentVersionId;
   return doc.legalDocumentVersionId || legacy || "";
+}
+
+function rowStatus(
+  doc: PendingLegalDocumentResponse,
+  state: LocalDocState | undefined
+): LegalChecklistDocStatus {
+  if (doc.acceptance_status === "ACCEPTED") return "accepted";
+  if (state?.opened || doc.acceptance_status === "OPENED") return "opened";
+  return "not_opened";
 }
 
 export function LegalReacceptancePanel({
@@ -118,6 +123,25 @@ export function LegalReacceptancePanel({
     if (pending.length === 0) return false;
     return pending.every((doc) => localState[versionIdOf(doc)]?.checked === true);
   }, [localState, pending]);
+
+  const rows: LegalChecklistDocRow[] = useMemo(() => {
+    return pending.map((doc) => {
+      const id = versionIdOf(doc);
+      const state = localState[id];
+      const statusValue = rowStatus(doc, state);
+      return {
+        id,
+        title: doc.title,
+        version: doc.version,
+        checkboxWording: doc.checkbox_wording,
+        status: statusValue,
+        checked: state?.checked === true,
+        opening: state?.opening === true,
+        canCheck: statusValue === "opened" || statusValue === "accepted",
+        showCheckbox: isOwner,
+      };
+    });
+  }, [isOwner, localState, pending]);
 
   const handleOpen = async (doc: PendingLegalDocumentResponse) => {
     const versionId = versionIdOf(doc);
@@ -190,33 +214,27 @@ export function LegalReacceptancePanel({
     }
   };
 
+  const title = "Updated legal documents";
+  const description = isOwner
+    ? "Some legal documents have been updated. Please review and accept them before starting new transactions. Your account remains active."
+    : "Your organization owner must review and accept the latest legal documents before new transactions can begin.";
+
   if (loading) {
     return (
-      <Card className="w-full rounded-2xl shadow-lg">
-        <CardHeader>
-          <CardTitle>Updated legal documents</CardTitle>
-          <CardDescription>Checking for documents that need review…</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-24 w-full" />
-        </CardContent>
-      </Card>
+      <LegalDocumentChecklistLoading
+        title={title}
+        description="Checking for documents that need review…"
+      />
     );
   }
 
   if (error) {
     return (
-      <Card className="w-full rounded-2xl shadow-lg">
-        <CardHeader>
-          <CardTitle>Updated legal documents</CardTitle>
-          <CardDescription className="text-destructive">{error}</CardDescription>
-        </CardHeader>
-        <CardFooter>
-          <Button onClick={() => void loadStatus()} variant="outline">
-            Retry
-          </Button>
-        </CardFooter>
-      </Card>
+      <LegalDocumentChecklistError
+        title={title}
+        error={error}
+        onRetry={() => void loadStatus()}
+      />
     );
   }
 
@@ -224,137 +242,41 @@ export function LegalReacceptancePanel({
     return null;
   }
 
-  if (!isOwner) {
-    return (
-      <Card className="w-full rounded-2xl shadow-lg border-primary/30">
-        <CardHeader>
-          <CardTitle>Updated legal documents</CardTitle>
-          <CardDescription>
-            The organisation owner must accept the updated legal document before new transactions can
-            continue.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            You can still view the documents below. Acceptance can only be completed by the
-            organisation owner. Your account stays active for login, dashboards, and existing
-            transactions.
-          </p>
-          {pending.map((doc) => {
-            const versionId = versionIdOf(doc);
-            return (
-              <section
-                key={versionId}
-                className="rounded-xl border border-border bg-muted/30 p-4"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <h3 className="text-[17px] font-semibold leading-7">{doc.title}</h3>
-                    <p className="text-sm text-muted-foreground">Version {doc.version}</p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0 gap-2"
-                    disabled={localState[versionId]?.opening}
-                    onClick={() => void handleOpen(doc)}
-                  >
-                    <DocumentArrowDownIcon className="size-4" aria-hidden />
-                    {localState[versionId]?.opening ? "Opening…" : "View PDF"}
-                  </Button>
-                </div>
-              </section>
-            );
-          })}
-        </CardContent>
-      </Card>
-    );
-  }
+  const docsById = new Map(pending.map((doc) => [versionIdOf(doc), doc]));
 
   return (
-    <Card className="w-full rounded-2xl shadow-lg border-primary/30">
-      <CardHeader>
-        <CardTitle>Updated legal documents</CardTitle>
-        <CardDescription>
-          An updated legal document requires your review and acceptance before you can start new
-          transactions. Your account stays active. You do not need to repeat onboarding, fee payment,
-          or identity checks.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {pending.map((doc) => {
-          const versionId = versionIdOf(doc);
-          const state = localState[versionId];
-          const canCheck = state?.opened === true;
-          const checkboxId = `legal-reaccept-${versionId}`;
-          return (
-            <section
-              key={versionId}
-              className="rounded-xl border border-border bg-muted/30 p-4"
-            >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h3 className="text-[17px] font-semibold leading-7">{doc.title}</h3>
-                  <p className="text-sm text-muted-foreground">Version {doc.version}</p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 gap-2"
-                  disabled={state?.opening || submitting}
-                  onClick={() => void handleOpen(doc)}
-                >
-                  <DocumentArrowDownIcon className="size-4" aria-hidden />
-                  {state?.opening ? "Opening…" : "View PDF"}
-                </Button>
-              </div>
-              <div className="mt-4 flex items-start gap-3">
-                <Checkbox
-                  id={checkboxId}
-                  checked={state?.checked === true}
-                  disabled={!canCheck || submitting}
-                  onCheckedChange={(checked) => {
-                    setLocalState((prev) => ({
-                      ...prev,
-                      [versionId]: {
-                        ...prev[versionId],
-                        checked: checked === true,
-                      },
-                    }));
-                  }}
-                />
-                <Label
-                  htmlFor={checkboxId}
-                  className={`text-sm leading-relaxed ${canCheck ? "cursor-pointer" : "cursor-not-allowed text-muted-foreground"}`}
-                >
-                  {doc.checkbox_wording}
-                </Label>
-              </div>
-              {!canCheck ? (
-                <p className="mt-2 text-sm text-muted-foreground" role="status">
-                  Open the PDF before you can accept this document.
-                </p>
-              ) : (
-                <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <CheckCircleIcon className="size-4" aria-hidden />
-                  Document opened — you can accept
-                </p>
-              )}
-            </section>
-          );
-        })}
-      </CardContent>
-      <CardFooter>
-        <Button
-          onClick={() => void handleContinue()}
-          disabled={!allChecked || submitting}
-          className="w-full"
-        >
-          {submitting ? "Submitting…" : "Accept updated documents"}
-        </Button>
-      </CardFooter>
-    </Card>
+    <LegalDocumentChecklistShell
+      title={title}
+      description={description}
+      footer={
+        isOwner ? (
+          <Button
+            onClick={() => void handleContinue()}
+            disabled={!allChecked || submitting}
+            className="h-11 w-full rounded-xl"
+          >
+            {submitting ? "Submitting…" : "Accept updated documents"}
+          </Button>
+        ) : undefined
+      }
+    >
+      <LegalDocumentChecklistRows
+        rows={rows}
+        disabled={submitting}
+        onOpen={(id) => {
+          const doc = docsById.get(id);
+          if (doc) void handleOpen(doc);
+        }}
+        onCheckedChange={(id, checked) => {
+          setLocalState((prev) => ({
+            ...prev,
+            [id]: {
+              ...prev[id],
+              checked,
+            },
+          }));
+        }}
+      />
+    </LegalDocumentChecklistShell>
   );
 }
