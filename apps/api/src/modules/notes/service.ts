@@ -23,6 +23,7 @@ import {
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
+import { legalDocumentAcceptanceService } from "../site-documents/acceptance-service";
 import {
   generatePresignedUploadUrl,
   generatePresignedViewUrl,
@@ -1953,6 +1954,16 @@ export class NoteService {
       throw new AppError(409, "INVOICE_NOT_APPROVED", "Only approved invoices can become notes");
     }
 
+    const issuerOrgId = invoice.application.issuer_organization_id;
+    if (issuerOrgId) {
+      await legalDocumentAcceptanceService.assertNoPendingReacceptance(
+        actor.userId,
+        issuerOrgId,
+        "ISSUER",
+        "NEW_UTILISATION"
+      );
+    }
+
     return this.createFromInvoiceSource({
       application: invoice.application,
       invoice,
@@ -1977,6 +1988,14 @@ export class NoteService {
     });
 
     if (!source) throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+
+    await legalDocumentAcceptanceService.assertNoPendingReacceptance(
+      actor.userId,
+      source.issuer_organization_id,
+      "ISSUER",
+      "NEW_UTILISATION"
+    );
+
     if (source.status !== ApplicationStatus.COMPLETED) {
       throw new AppError(
         409,
@@ -2587,6 +2606,14 @@ export class NoteService {
     });
     if (!investorOrg)
       throw new AppError(403, "INVESTOR_ORG_FORBIDDEN", "Investor organization not accessible");
+
+    await legalDocumentAcceptanceService.assertNoPendingReacceptance(
+      actor.userId,
+      input.investorOrganizationId,
+      "INVESTOR",
+      "NEW_INVESTMENT"
+    );
+
     if (!investorOrg.deposit_received) {
       throw new AppError(
         403,

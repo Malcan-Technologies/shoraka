@@ -195,6 +195,8 @@ export {
   OnboardingStepper,
   TermsAcceptanceCard,
   LegalDocumentsAcceptance,
+  LegalReacceptancePanel,
+  LegalReacceptanceBanner,
   IdentityVerifyStep,
   OnboardingLayout,
   OnboardingStatusCard,
@@ -205,6 +207,7 @@ export type {
   OnboardingStatusCardProps,
   OnboardingStep,
   LegalDocumentsAcceptanceProps,
+  LegalReacceptancePanelProps,
 } from "./onboarding";
 export {
   DirectorShareholdersUnifiedSection,

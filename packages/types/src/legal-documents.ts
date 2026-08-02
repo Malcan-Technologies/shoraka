@@ -154,6 +154,34 @@ export interface LegalAcceptanceStatusResponse {
   documents: RequiredLegalDocumentResponse[];
 }
 
+export interface PendingLegalDocumentResponse {
+  documentId: string;
+  documentVersionId: string;
+  documentType: OnboardingLegalDocumentType;
+  title: string;
+  version: number;
+  file_name: string;
+  file_hash: string | null;
+  open_before_accept_required: boolean;
+  checkbox_wording: string;
+  acceptance_status: LegalAcceptanceStatus;
+  openedAt: string | null;
+  acceptedAt: string | null;
+}
+
+export type LegalBlockedAction =
+  | "NEW_FINANCING_APPLICATION"
+  | "NEW_UTILISATION"
+  | "NEW_INVESTMENT";
+
+export interface LegalComplianceStatus {
+  onboardingComplete: boolean;
+  hasPendingReacceptance: boolean;
+  pendingDocuments: PendingLegalDocumentResponse[];
+  blockedActions: LegalBlockedAction[];
+  tncAccepted: boolean;
+}
+
 export interface PublicLegalDocumentResponse {
   id: string;
   type: OnboardingLegalDocumentType;

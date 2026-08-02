@@ -2021,11 +2021,12 @@ export class ApiClient {
   }
 
   async publishSiteDocument(
-    id: string
+    id: string,
+    data: { reacceptanceRequired?: boolean } = {}
   ): Promise<ApiResponse<{ document: SiteDocumentResponse }> | ApiError> {
     return this.post<{ document: SiteDocumentResponse }>(
       `/v1/admin/site-documents/${id}/publish`,
-      {}
+      { reacceptanceRequired: data.reacceptanceRequired ?? false }
     );
   }
 

@@ -9,6 +9,7 @@ import {
   requestReplaceUploadUrlSchema,
   confirmReplaceSchema,
   listDocumentsQuerySchema,
+  publishDocumentSchema,
 } from "./schemas";
 
 const router = Router();
@@ -267,12 +268,18 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
+      const validated = publishDocumentSchema.parse(req.body ?? {});
 
       if (!req.user) {
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
 
-      const document = await siteDocumentService.publishDocument(id, req.user.user_id, req);
+      const document = await siteDocumentService.publishDocument(
+        id,
+        req.user.user_id,
+        req,
+        validated.reacceptanceRequired
+      );
 
       res.json({
         success: true,
@@ -280,7 +287,13 @@ router.post(
         correlationId: res.locals.correlationId,
       });
     } catch (error) {
-      next(error);
+      next(
+        error instanceof AppError
+          ? error
+          : error instanceof Error
+            ? new AppError(400, "VALIDATION_ERROR", error.message)
+            : error
+      );
     }
   }
 );

@@ -127,7 +127,9 @@ export default function DocumentsPage() {
   const [uploadDialogOpen, setUploadDialogOpen] = React.useState(false);
   const [editDialogOpen, setEditDialogOpen] = React.useState(false);
   const [replaceDialogOpen, setReplaceDialogOpen] = React.useState(false);
+  const [publishDialogOpen, setPublishDialogOpen] = React.useState(false);
   const [selectedDocument, setSelectedDocument] = React.useState<SiteDocumentResponse | null>(null);
+  const [reacceptanceRequired, setReacceptanceRequired] = React.useState(false);
 
   // Form state
   const [uploadForm, setUploadForm] = React.useState({
@@ -309,17 +311,32 @@ export default function DocumentsPage() {
     }
   };
 
-  const handlePublish = async (id: string, title: string) => {
+  const handlePublish = async () => {
+    if (!selectedDocument) return;
     try {
-      await publishDocument.mutateAsync(id);
-      toast.success("Document published", {
-        description: `"${title}" is now the published version for users.`,
+      await publishDocument.mutateAsync({
+        id: selectedDocument.id,
+        reacceptanceRequired,
       });
+      toast.success("Document published", {
+        description: reacceptanceRequired
+          ? `"${selectedDocument.title}" published. Existing users must re-accept before new transactions.`
+          : `"${selectedDocument.title}" published. Only new users must accept this version.`,
+      });
+      setPublishDialogOpen(false);
+      setSelectedDocument(null);
+      setReacceptanceRequired(false);
     } catch (error) {
       toast.error("Publish failed", {
         description: error instanceof Error ? error.message : "An error occurred",
       });
     }
+  };
+
+  const openPublishDialog = (doc: SiteDocumentResponse) => {
+    setSelectedDocument(doc);
+    setReacceptanceRequired(false);
+    setPublishDialogOpen(true);
   };
 
   const handleDownload = async (id: string, fileName: string) => {
@@ -602,7 +619,7 @@ export default function DocumentsPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handlePublish(doc.id, doc.title)}
+                              onClick={() => openPublishDialog(doc)}
                               title={!canManage ? "You do not have permission to perform this action." : "Publish"}
                               disabled={!canManage || publishDocument.isPending}
                               className="text-primary"
@@ -689,6 +706,78 @@ export default function DocumentsPage() {
           </div>
         </div>
       </div>
+
+      {/* Publish Document Dialog */}
+      <Dialog
+        open={publishDialogOpen}
+        onOpenChange={(open) => {
+          setPublishDialogOpen(open);
+          if (!open) {
+            setSelectedDocument(null);
+            setReacceptanceRequired(false);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Publish document</DialogTitle>
+            <DialogDescription>
+              {selectedDocument
+                ? `Publish “${selectedDocument.title}” (v${selectedDocument.version}) for users.`
+                : "Publish this draft version."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <fieldset className="space-y-3">
+              <legend className="text-sm font-medium">
+                Require existing users to re-accept this version?
+              </legend>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="reacceptance"
+                  className="mt-1"
+                  checked={!reacceptanceRequired}
+                  onChange={() => setReacceptanceRequired(false)}
+                />
+                <span className="text-sm leading-relaxed">
+                  <span className="font-medium">No</span>
+                  <br />
+                  <span className="text-muted-foreground">
+                    Only new users must accept this version. Existing users keep their previous
+                    acceptance and stay uninterrupted.
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="reacceptance"
+                  className="mt-1"
+                  checked={reacceptanceRequired}
+                  onChange={() => setReacceptanceRequired(true)}
+                />
+                <span className="text-sm leading-relaxed">
+                  <span className="font-medium">Yes</span>
+                  <br />
+                  <span className="text-muted-foreground">
+                    Existing users must accept this version before starting new transactions. Login,
+                    dashboards, repayments and withdrawals stay available.
+                  </span>
+                </span>
+              </label>
+            </fieldset>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPublishDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handlePublish()} disabled={publishDocument.isPending}>
+              {publishDocument.isPending ? "Publishing…" : "Publish"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Upload Document Dialog */}
       <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>

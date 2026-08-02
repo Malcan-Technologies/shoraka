@@ -5,7 +5,13 @@ import { Inter } from "next/font/google";
 import "@cashsouk/styles/globals.css";
 import "./globals.css";
 import { AppSidebar } from "../components/app-sidebar";
-import { CashSoukPortalFooter, Header, SidebarInset, SidebarProvider } from "@cashsouk/ui";
+import {
+  CashSoukPortalFooter,
+  Header,
+  LegalReacceptanceBanner,
+  SidebarInset,
+  SidebarProvider,
+} from "@cashsouk/ui";
 import { InvestorHeaderActions } from "../components/investor-header-actions";
 import { Toaster } from "../components/ui/sonner";
 import { Providers } from "../lib/providers";
@@ -37,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <AppSidebar />
               <SidebarInset>
                 <Header rightContent={<InvestorHeaderActions />} />
+                <LegalReacceptanceBanner portalType="investor" />
                 <div className="flex min-h-0 flex-1 flex-col">{children}</div>
                 <CashSoukPortalFooter variant="investor" />
               </SidebarInset>
