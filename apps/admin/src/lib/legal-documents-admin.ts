@@ -1,9 +1,11 @@
 import type {
   LegalDocumentAudience,
   LegalDocumentDefinitionResponse,
+  LegalDocumentType,
   LegalDocumentVersionStatus,
   LegalDocumentVersionSummary,
 } from "@cashsouk/types";
+import { LEGAL_DOCUMENT_TYPE_LABELS } from "@cashsouk/types";
 
 export const MAX_LEGAL_PDF_BYTES = 10 * 1024 * 1024;
 
@@ -191,19 +193,37 @@ export function validateLegalPdfFile(file: File | null | undefined): PdfValidati
 }
 
 export type CreateLegalDocumentFormValues = {
-  type: string;
-  title: string;
-  description: string;
+  type: LegalDocumentType;
   audience: LegalDocumentAudience;
   requiredForOnboarding: boolean;
   publicVisibility: boolean;
 };
 
+/** Fixed display name from legal type (Admin no longer edits title/description). */
+export function legalDocumentDisplayName(type: LegalDocumentType): string {
+  return LEGAL_DOCUMENT_TYPE_LABELS[type];
+}
+
 export function buildCreateDefinitionPayload(form: CreateLegalDocumentFormValues) {
   return {
     type: form.type,
-    title: form.title.trim(),
-    description: form.description.trim() || undefined,
+    title: legalDocumentDisplayName(form.type),
+    audience: form.audience,
+    requiredForOnboarding: form.requiredForOnboarding,
+    publicVisibility: form.publicVisibility,
+  };
+}
+
+/** Edit payload keeps title synced to type label; description is not used in UI. */
+export function buildEditDefinitionPayload(form: {
+  type: LegalDocumentType;
+  audience: LegalDocumentAudience;
+  requiredForOnboarding: boolean;
+  publicVisibility: boolean;
+}) {
+  return {
+    title: legalDocumentDisplayName(form.type),
+    description: null,
     audience: form.audience,
     requiredForOnboarding: form.requiredForOnboarding,
     publicVisibility: form.publicVisibility,
@@ -250,13 +270,15 @@ export function shouldSkipVersionUpload(state: CreateOrchestrationState): boolea
   return Boolean(state.versionId);
 }
 
-/** Compact Admin publish dialog title: `Publish {title} v{n}?` */
+/** Compact Admin publish dialog title: `Publish {type label} v{n}?` */
 export function buildPublishDialogTitle(
-  title: string | null | undefined,
-  typeLabel: string | null | undefined,
+  type: LegalDocumentType | string | null | undefined,
   version: number
 ): string {
-  const name = (title?.trim() || typeLabel?.trim() || "document").trim();
+  const name =
+    (type && type in LEGAL_DOCUMENT_TYPE_LABELS
+      ? LEGAL_DOCUMENT_TYPE_LABELS[type as LegalDocumentType]
+      : null) || "document";
   return `Publish ${name} v${version}?`;
 }
 

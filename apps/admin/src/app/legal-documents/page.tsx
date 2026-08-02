@@ -52,7 +52,6 @@ import {
   SheetTitle,
 } from "../../components/ui/sheet";
 import { Label } from "../../components/ui/label";
-import { Textarea } from "../../components/ui/textarea";
 import { Switch } from "../../components/ui/switch";
 import { Skeleton } from "../../components/ui/skeleton";
 import {
@@ -88,6 +87,7 @@ import { usePermissions } from "../../hooks/use-permissions";
 import {
   audienceLabel,
   buildCreateDefinitionPayload,
+  buildEditDefinitionPayload,
   buildPublishDialogTitle,
   documentCurrentStatus,
   documentCurrentVersion,
@@ -96,6 +96,7 @@ import {
   getLegalDocumentRowActions,
   latestDraftVersion,
   latestPublishedVersion,
+  legalDocumentDisplayName,
   legalStatusBadgeVariant,
   matchesClientFilters,
   nextCreateOrchestrationAfterDefinition,
@@ -132,8 +133,6 @@ type ListResponse = {
 
 const emptyCreateForm = () => ({
   type: "PDPA_NOTICE_AND_CONSENT" as LegalDocumentType,
-  title: "",
-  description: "",
   audience: LEGAL_DOCUMENT_DEFAULT_AUDIENCE.PDPA_NOTICE_AND_CONSENT,
   requiredForOnboarding: true,
   publicVisibility: false,
@@ -223,8 +222,6 @@ export default function LegalDocumentsPage() {
 
   const [createForm, setCreateForm] = React.useState(emptyCreateForm);
   const [editForm, setEditForm] = React.useState({
-    title: "",
-    description: "",
     audience: "BOTH" as LegalDocumentAudience,
     requiredForOnboarding: true,
     publicVisibility: false,
@@ -324,10 +321,6 @@ export default function LegalDocumentsPage() {
   };
 
   const handleCreateDocument = async () => {
-    if (!createForm.title.trim()) {
-      toast.error("Title is required");
-      return;
-    }
     const pdfCheck = validateLegalPdfFile(createForm.file);
     if (!pdfCheck.ok) {
       setCreateFileError(pdfCheck.error);
@@ -338,10 +331,11 @@ export default function LegalDocumentsPage() {
 
     let orchestration = createOrchestration;
     let definitionCreated = Boolean(orchestration.definitionId);
+    const displayName = legalDocumentDisplayName(createForm.type);
 
     try {
       let definitionId = orchestration.definitionId;
-      let definitionTitle = orchestration.definitionTitle ?? createForm.title.trim();
+      let definitionTitle = orchestration.definitionTitle ?? displayName;
 
       if (!shouldSkipDefinitionCreate(orchestration)) {
         const result = await apiClient.post<{ document: LegalDocumentDefinitionResponse }>(
@@ -354,7 +348,7 @@ export default function LegalDocumentsPage() {
         orchestration = nextCreateOrchestrationAfterDefinition(result.data.document);
         setCreateOrchestration(orchestration);
         definitionId = orchestration.definitionId;
-        definitionTitle = orchestration.definitionTitle ?? createForm.title.trim();
+        definitionTitle = orchestration.definitionTitle ?? displayName;
         definitionCreated = true;
       }
 
@@ -389,13 +383,12 @@ export default function LegalDocumentsPage() {
     try {
       const result = await apiClient.patch<{ document: LegalDocumentDefinitionResponse }>(
         `/v1/admin/legal-documents/${selectedDefinition.id}`,
-        {
-          title: editForm.title.trim() || undefined,
-          description: editForm.description.trim() || null,
+        buildEditDefinitionPayload({
+          type: selectedDefinition.type,
           audience: editForm.audience,
           requiredForOnboarding: editForm.requiredForOnboarding,
           publicVisibility: editForm.publicVisibility,
-        }
+        })
       );
       if (!result.success) {
         throw new Error(result.error?.message || "Failed to update document");
@@ -438,7 +431,7 @@ export default function LegalDocumentsPage() {
 
       const uploaded = await uploadDraftVersion(selectedDefinition.id, pdfCheck.file);
       toast.success("Draft PDF saved", {
-        description: `"${selectedDefinition.title}" v${uploaded.versionNumber} saved as draft.`,
+        description: `"${legalDocumentDisplayName(selectedDefinition.type)}" v${uploaded.versionNumber} saved as draft.`,
       });
       setUploadDialogOpen(false);
       setSelectedDefinition(null);
@@ -460,8 +453,8 @@ export default function LegalDocumentsPage() {
       await publishVersionById(selectedVersion.id, reacceptanceRequired);
       toast.success("Published", {
         description: reacceptanceRequired
-          ? `"${selectedDefinition.title}" is live. Existing users must accept again before new transactions.`
-          : `"${selectedDefinition.title}" is live for new or incomplete onboarding.`,
+          ? `"${legalDocumentDisplayName(selectedDefinition.type)}" is live. Existing users must accept again before new transactions.`
+          : `"${legalDocumentDisplayName(selectedDefinition.type)}" is live for new or incomplete onboarding.`,
       });
       setPublishDialogOpen(false);
       setSelectedDefinition(null);
@@ -488,7 +481,7 @@ export default function LegalDocumentsPage() {
         throw new Error(result.error?.message || "Failed to archive version");
       }
       toast.success("Archived", {
-        description: `"${selectedDefinition.title}" v${selectedVersion.version} archived.`,
+        description: `"${legalDocumentDisplayName(selectedDefinition.type)}" v${selectedVersion.version} archived.`,
       });
       setArchiveConfirmOpen(false);
       setSelectedDefinition(null);
@@ -530,8 +523,6 @@ export default function LegalDocumentsPage() {
   const openEditDialog = (doc: LegalDocumentDefinitionResponse) => {
     setSelectedDefinition(doc);
     setEditForm({
-      title: doc.title,
-      description: doc.description || "",
       audience: doc.audience === "PUBLIC" ? "BOTH" : doc.audience,
       requiredForOnboarding: doc.requiredForOnboarding,
       publicVisibility: doc.publicVisibility,
@@ -614,7 +605,7 @@ export default function LegalDocumentsPage() {
               <div className="relative min-w-[200px] flex-1">
                 <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Search by title…"
+                  placeholder="Search by type…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="h-11 rounded-xl pl-9"
@@ -796,8 +787,11 @@ export default function LegalDocumentsPage() {
                                 <DocumentIcon className="h-5 w-5 text-primary" />
                               </div>
                               <div className="min-w-0">
-                                <p className="truncate font-medium" title={doc.title}>
-                                  {doc.title}
+                                <p
+                                  className="truncate font-medium"
+                                  title={legalDocumentDisplayName(doc.type)}
+                                >
+                                  {legalDocumentDisplayName(doc.type)}
                                 </p>
                                 <p
                                   className="truncate text-xs text-muted-foreground"
@@ -851,7 +845,7 @@ export default function LegalDocumentsPage() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    aria-label={`More actions for ${doc.title}`}
+                                    aria-label={`More actions for ${legalDocumentDisplayName(doc.type)}`}
                                   >
                                     <EllipsisHorizontalIcon className="h-4 w-4" />
                                   </Button>
@@ -926,7 +920,7 @@ export default function LegalDocumentsPage() {
               ) : null}
 
               <section className="space-y-3 rounded-lg border p-4">
-                <h3 className="text-sm font-semibold">Basic information</h3>
+                <h3 className="text-sm font-semibold">Document type</h3>
                 <div className="space-y-2">
                   <Label htmlFor="legal-type">Type</Label>
                   <Select
@@ -938,7 +932,6 @@ export default function LegalDocumentsPage() {
                         ...prev,
                         type,
                         audience: LEGAL_DOCUMENT_DEFAULT_AUDIENCE[type],
-                        title: prev.title || LEGAL_DOCUMENT_TYPE_LABELS[type],
                       }));
                     }}
                   >
@@ -953,29 +946,9 @@ export default function LegalDocumentsPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="legal-title">Title</Label>
-                  <Input
-                    id="legal-title"
-                    placeholder="e.g. PDPA Notice and Consent"
-                    value={createForm.title}
-                    disabled={Boolean(createOrchestration.definitionId)}
-                    onChange={(e) => setCreateForm((prev) => ({ ...prev, title: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="legal-description">Description</Label>
-                  <Textarea
-                    id="legal-description"
-                    placeholder="Briefly describe what this document covers"
-                    value={createForm.description}
-                    disabled={Boolean(createOrchestration.definitionId)}
-                    onChange={(e) =>
-                      setCreateForm((prev) => ({ ...prev, description: e.target.value }))
-                    }
-                    rows={2}
-                  />
+                  <p className="text-xs text-muted-foreground">
+                    The type name is used as the display name everywhere.
+                  </p>
                 </div>
               </section>
 
@@ -1105,29 +1078,19 @@ export default function LegalDocumentsPage() {
             <DialogHeader>
               <DialogTitle>Edit details</DialogTitle>
               <DialogDescription>
-                Change title and access. To change the PDF, use Upload new version.
+                Change who this applies to, onboarding, and website visibility. To change the PDF,
+                use Upload new version.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-title">Title</Label>
-                <Input
-                  id="edit-title"
-                  value={editForm.title}
-                  onChange={(e) => setEditForm((prev) => ({ ...prev, title: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-description">Description</Label>
-                <Textarea
-                  id="edit-description"
-                  value={editForm.description}
-                  onChange={(e) =>
-                    setEditForm((prev) => ({ ...prev, description: e.target.value }))
-                  }
-                  rows={2}
-                />
-              </div>
+              {selectedDefinition ? (
+                <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+                  <p className="font-medium">
+                    {legalDocumentDisplayName(selectedDefinition.type)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Display name comes from the type.</p>
+                </div>
+              ) : null}
               <div className="space-y-2">
                 <Label htmlFor="edit-audience">Applies to</Label>
                 <Select
@@ -1202,7 +1165,7 @@ export default function LegalDocumentsPage() {
               </DialogTitle>
               <DialogDescription>
                 {selectedDefinition
-                  ? `Upload a PDF for “${selectedDefinition.title}”. It saves as a draft.`
+                  ? `Upload a PDF for “${legalDocumentDisplayName(selectedDefinition.type)}”. It saves as a draft.`
                   : "Upload a PDF draft."}
               </DialogDescription>
             </DialogHeader>
@@ -1263,8 +1226,7 @@ export default function LegalDocumentsPage() {
               <DialogTitle>
                 {selectedDefinition && selectedVersion
                   ? buildPublishDialogTitle(
-                      selectedDefinition.title,
-                      LEGAL_DOCUMENT_TYPE_LABELS[selectedDefinition.type],
+                      selectedDefinition.type,
                       selectedVersion.version
                     )
                   : "Publish version?"}
@@ -1318,7 +1280,7 @@ export default function LegalDocumentsPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>
                 {selectedDefinition && selectedVersion
-                  ? `Archive ${selectedDefinition.title} v${selectedVersion.version}?`
+                  ? `Archive ${legalDocumentDisplayName(selectedDefinition.type)} v${selectedVersion.version}?`
                   : "Archive version?"}
               </AlertDialogTitle>
               <AlertDialogDescription>
@@ -1342,7 +1304,7 @@ export default function LegalDocumentsPage() {
               <SheetTitle>Version history</SheetTitle>
               <SheetDescription>
                 {selectedDefinition
-                  ? `PDF versions for “${selectedDefinition.title}”. Numbers are automatic.`
+                  ? `PDF versions for “${legalDocumentDisplayName(selectedDefinition.type)}”. Numbers are automatic.`
                   : "PDF versions"}
               </SheetDescription>
             </SheetHeader>
