@@ -9,7 +9,6 @@ import {
   requestReplaceUploadUrlSchema,
   confirmReplaceSchema,
   listDocumentsQuerySchema,
-  publishDocumentSchema,
 } from "./schemas";
 
 const router = Router();
@@ -254,74 +253,6 @@ router.post(
             ? new AppError(400, "VALIDATION_ERROR", error.message)
             : error
       );
-    }
-  }
-);
-
-/**
- * POST /v1/admin/site-documents/:id/publish
- * Publish a draft document (archives previous published of same type+audience)
- */
-router.post(
-  "/:id/publish",
-  requirePermission("document_management.manage"),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id } = req.params;
-      const validated = publishDocumentSchema.parse(req.body ?? {});
-
-      if (!req.user) {
-        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
-      }
-
-      const document = await siteDocumentService.publishDocument(
-        id,
-        req.user.user_id,
-        req,
-        validated.reacceptanceRequired
-      );
-
-      res.json({
-        success: true,
-        data: { document },
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(
-        error instanceof AppError
-          ? error
-          : error instanceof Error
-            ? new AppError(400, "VALIDATION_ERROR", error.message)
-            : error
-      );
-    }
-  }
-);
-
-/**
- * POST /v1/admin/site-documents/:id/archive
- * Archive a document version (keeps file and audit history)
- */
-router.post(
-  "/:id/archive",
-  requirePermission("document_management.manage"),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id } = req.params;
-
-      if (!req.user) {
-        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
-      }
-
-      const document = await siteDocumentService.archiveDocument(id, req.user.user_id, req);
-
-      res.json({
-        success: true,
-        data: { document },
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(error);
     }
   }
 );
