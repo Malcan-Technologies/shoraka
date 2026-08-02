@@ -10,6 +10,7 @@ import {
   validateSiteDocument,
 } from "../../lib/s3/client";
 import { documentLogRepository } from "../site-documents/repository";
+import { resolveActivePublishedByDocumentId } from "./active-published";
 import { legalDocumentRepository, type VersionWithDocument } from "./repository";
 import type {
   CreateLegalDocumentInput,
@@ -394,6 +395,7 @@ export class LegalDocumentService {
         version: archived.version,
         file_hash: archived.file_hash,
         previous_status: existing.status,
+        new_status: "ARCHIVED",
       }
     );
 
@@ -417,14 +419,14 @@ export class LegalDocumentService {
     const wasPublished = Boolean(existing.published_at);
 
     if (wasPublished) {
-      const currentPublished = await legalDocumentRepository.findPublishedByDocumentId(
+      const currentPublished = await resolveActivePublishedByDocumentId(
         existing.legal_document_id
       );
       if (currentPublished && currentPublished.version > existing.version) {
         throw new AppError(
           409,
           "NEWER_PUBLISHED_EXISTS",
-          "A newer published version already exists. Upload a new version instead of restoring this one."
+          "A newer published version already exists. Upload a new version instead."
         );
       }
 
@@ -446,6 +448,8 @@ export class LegalDocumentService {
           type: existing.legal_document.type,
           version: published.version,
           file_hash: published.file_hash,
+          previous_status: "ARCHIVED",
+          new_status: "PUBLISHED",
           restored_as: "PUBLISHED",
         }
       );
@@ -460,7 +464,7 @@ export class LegalDocumentService {
       throw new AppError(
         409,
         "DRAFT_EXISTS",
-        "A draft version already exists. Finish or archive it before restoring this version."
+        "Another draft already exists for this legal document."
       );
     }
 
@@ -477,6 +481,8 @@ export class LegalDocumentService {
         type: existing.legal_document.type,
         version: restored.version,
         file_hash: restored.file_hash,
+        previous_status: "ARCHIVED",
+        new_status: "DRAFT",
         restored_as: "DRAFT",
       }
     );

@@ -30,6 +30,12 @@ import {
   legalDocumentRepository,
   type VersionWithDocument,
 } from "./repository";
+import {
+  resolveActivePublishedByTypeAndAudiences,
+  resolveActivePublishedReacceptanceByTypeAndAudiences,
+  resolveActivePublicPublishedByType,
+  resolveActivePublicPublishedVersions,
+} from "./active-published";
 
 type AcceptanceRow = {
   id: string;
@@ -186,10 +192,9 @@ export class LegalDocumentAcceptanceService {
     const documents: RequiredLegalDocumentResponse[] = [];
 
     for (const type of requiredTypes) {
-      const published = await legalDocumentRepository.findPublishedByTypeAndAudiences(
-        type,
-        [...allowedAudiences]
-      );
+      const published = await resolveActivePublishedByTypeAndAudiences(type, [
+        ...allowedAudiences,
+      ]);
       if (!published) continue;
 
       const [acceptance, orgAccepted] = await Promise.all([
@@ -227,11 +232,10 @@ export class LegalDocumentAcceptanceService {
     const pending: PendingLegalDocumentResponse[] = [];
 
     for (const type of requiredTypes) {
-      const published =
-        await legalDocumentRepository.findPublishedReacceptanceByTypeAndAudiences(
-          type,
-          [...allowedAudiences]
-        );
+      const published = await resolveActivePublishedReacceptanceByTypeAndAudiences(
+        type,
+        [...allowedAudiences]
+      );
       if (!published) continue;
 
       const orgAccepted = await findOrgAccepted(organizationId, published.id);
@@ -525,7 +529,7 @@ export class LegalDocumentAcceptanceService {
   }
 
   async listPublicPublishedDocuments(): Promise<PublicLegalDocumentResponse[]> {
-    const rows = await legalDocumentRepository.findPublicPublishedVersions();
+    const rows = await resolveActivePublicPublishedVersions();
     const byType = new Map<string, VersionWithDocument>();
 
     for (const row of rows) {
@@ -544,7 +548,7 @@ export class LegalDocumentAcceptanceService {
       throw new AppError(404, "NOT_FOUND", "Legal document not found");
     }
 
-    const row = await legalDocumentRepository.findPublicPublishedByType(type);
+    const row = await resolveActivePublicPublishedByType(type);
     if (!row) {
       throw new AppError(404, "NOT_FOUND", "Legal document not found");
     }

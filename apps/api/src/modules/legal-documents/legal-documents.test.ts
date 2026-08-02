@@ -637,6 +637,43 @@ describe("legal document acceptance service", () => {
       legalDocumentService.restoreVersion("ver1", "admin1", mockReq)
     ).rejects.toMatchObject({ code: "NEWER_PUBLISHED_EXISTS" });
   });
+
+  it("archives published version and leaves no automatic fallback", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+      publishedVersion({
+        id: "ver2",
+        version: 2,
+        status: "PUBLISHED",
+        reacceptance_required: true,
+      }) as never
+    );
+    jest.spyOn(legalDocumentRepository, "archiveVersion").mockResolvedValue(
+      publishedVersion({
+        id: "ver2",
+        version: 2,
+        status: "ARCHIVED",
+        reacceptance_required: true,
+        archived_at: new Date(),
+        archived_by: "admin1",
+      }) as never
+    );
+    jest.spyOn(documentLogRepository, "create").mockResolvedValue({} as never);
+    jest.spyOn(legalDocumentRepository, "findPublishedByDocumentId").mockResolvedValue(null);
+
+    const archived = await legalDocumentService.archiveVersion("ver2", "admin1", mockReq);
+    expect(archived.status).toBe("ARCHIVED");
+    expect(documentLogRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "LEGAL_VERSION_ARCHIVED",
+        metadata: expect.objectContaining({
+          previous_status: "PUBLISHED",
+          new_status: "ARCHIVED",
+        }),
+      })
+    );
+    const stillPublished = await legalDocumentRepository.findPublishedByDocumentId("ld1");
+    expect(stillPublished).toBeNull();
+  });
 });
 
 describe("legal document upload validation", () => {

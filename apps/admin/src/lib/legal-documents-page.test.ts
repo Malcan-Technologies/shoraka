@@ -62,4 +62,18 @@ describe("Admin Legal Documents page UX", () => {
     expect(source).toContain("Replace draft PDF");
     expect(source).toContain("Upload new version");
   });
+
+  it("archive confirmation warns when no published version would remain", () => {
+    expect(source).toContain("buildArchiveDialogCopy");
+    expect(source).toContain("isOnlyActivePublishedVersion");
+    expect(source).toContain("legalRowVersionLabel");
+    expect(source).toContain("No published version");
+    expect(source).toContain("Legal document version archived.");
+    expect(source).toContain("Legal document version restored.");
+    expect(source).toContain("New draft version created.");
+    expect(source).toContain("bg-destructive");
+    expect(helpers).toContain(
+      "This legal document will have no published version. No older version will be activated automatically."
+    );
+  });
 });

@@ -193,15 +193,71 @@ export function documentCurrentStatus(
   return "DRAFT";
 }
 
+/** Row ops pointer: draft, else published, else highest archived (for admin actions only). */
 export function documentCurrentVersion(
   doc: LegalDocumentDefinitionResponse
 ): LegalDocumentVersionSummary | null {
   return (
     latestDraftVersion(doc) ??
     latestPublishedVersion(doc) ??
-    (doc.versions ?? []).slice().sort((a, b) => b.version - a.version)[0] ??
+    (doc.versions ?? [])
+      .filter((v) => v.status === "ARCHIVED")
+      .slice()
+      .sort((a, b) => b.version - a.version)[0] ??
     null
   );
+}
+
+/** Active published only — never archived. */
+export function hasActivePublishedVersion(
+  doc: LegalDocumentDefinitionResponse
+): boolean {
+  return Boolean(latestPublishedVersion(doc));
+}
+
+/**
+ * Version column label.
+ * Draft / published show vN. When none published (and no draft), show "No published version".
+ */
+export function legalRowVersionLabel(doc: LegalDocumentDefinitionResponse): string {
+  const draft = latestDraftVersion(doc);
+  if (draft) return `v${draft.version}`;
+  const published = latestPublishedVersion(doc);
+  if (published) return `v${published.version}`;
+  return "No published version";
+}
+
+export function isOnlyActivePublishedVersion(
+  doc: LegalDocumentDefinitionResponse,
+  version: LegalDocumentVersionSummary
+): boolean {
+  if (version.status !== "PUBLISHED") return false;
+  const published = (doc.versions ?? []).filter((v) => v.status === "PUBLISHED");
+  return published.length === 1 && published[0]?.id === version.id;
+}
+
+export function buildArchiveDialogCopy(input: {
+  name: string;
+  version: number;
+  isPublished: boolean;
+  isOnlyPublished: boolean;
+  reacceptanceRequired: boolean;
+}): { title: string; paragraphs: string[] } {
+  const paragraphs = ["This version will become inactive immediately."];
+  if (input.isPublished && input.isOnlyPublished) {
+    paragraphs.push(
+      "This legal document will have no published version. No older version will be activated automatically."
+    );
+  }
+  if (input.reacceptanceRequired) {
+    paragraphs.push(
+      "Any pending acceptance requirement for this version will stop. Previous acceptance records will remain available for audit."
+    );
+  }
+  return {
+    title: `Archive ${input.name} v${input.version}?`,
+    paragraphs,
+  };
 }
 
 export type PdfValidationResult = { ok: true; file: File } | { ok: false; error: string };
