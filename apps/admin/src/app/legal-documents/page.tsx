@@ -38,7 +38,6 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -69,7 +68,11 @@ import {
   MagnifyingGlassIcon,
   XMarkIcon,
   FunnelIcon,
-  EllipsisHorizontalIcon,
+  PencilSquareIcon,
+  ArchiveBoxIcon,
+  ArrowUpTrayIcon,
+  ArrowDownTrayIcon,
+  EyeIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import {
@@ -94,6 +97,7 @@ import {
   formatLegalDate,
   formatLegalFileSize,
   getLegalDocumentRowActions,
+  hasLegalVersionHistory,
   latestDraftVersion,
   latestPublishedVersion,
   legalDocumentDisplayName,
@@ -110,7 +114,7 @@ import {
   websiteBadgeVariant,
   websiteVisibilityLabel,
   type CreateOrchestrationState,
-  type LegalRowMenuAction,
+  type LegalRowIconAction,
 } from "../../lib/legal-documents-admin";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -662,10 +666,9 @@ export default function LegalDocumentsPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[300px]">Document</TableHead>
-                    <TableHead>Type</TableHead>
                     <TableHead>Version</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Applies to</TableHead>
+                    <TableHead>Audience</TableHead>
                     <TableHead>Onboarding</TableHead>
                     <TableHead>Website</TableHead>
                     <TableHead>Updated</TableHead>
@@ -676,7 +679,7 @@ export default function LegalDocumentsPage() {
                   {isLoading ? (
                     Array.from({ length: 4 }).map((_, i) => (
                       <TableRow key={i}>
-                        {Array.from({ length: 9 }).map((__, j) => (
+                        {Array.from({ length: 8 }).map((__, j) => (
                           <TableCell key={j}>
                             <Skeleton className="h-5 w-full" />
                           </TableCell>
@@ -685,7 +688,7 @@ export default function LegalDocumentsPage() {
                     ))
                   ) : documents.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
                         <DocumentIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
                         <p>No legal documents yet</p>
                         <p className="mt-1 text-sm">
@@ -703,73 +706,90 @@ export default function LegalDocumentsPage() {
                         hasCurrentVersion: Boolean(current),
                         hasDraft: Boolean(draft),
                       });
-                      const renderMenuItem = (action: LegalRowMenuAction) => {
+                      const showHistory = hasLegalVersionHistory(doc);
+                      const deniedTitle =
+                        "You do not have permission to perform this action.";
+
+                      const renderIconAction = (action: LegalRowIconAction) => {
                         switch (action) {
                           case "view":
                             return current ? (
-                              <DropdownMenuItem
+                              <Button
                                 key={action}
+                                variant="ghost"
+                                size="sm"
+                                title="View PDF"
                                 onClick={() => void handleViewOrDownload(current, "view")}
                               >
-                                View PDF
-                              </DropdownMenuItem>
+                                <EyeIcon className="h-4 w-4" />
+                              </Button>
                             ) : null;
                           case "download":
                             return published || current ? (
-                              <DropdownMenuItem
+                              <Button
                                 key={action}
+                                variant="ghost"
+                                size="sm"
+                                title="Download PDF"
                                 onClick={() =>
                                   void handleViewOrDownload(published ?? current!, "download")
                                 }
                               >
-                                Download PDF
-                              </DropdownMenuItem>
+                                <ArrowDownTrayIcon className="h-4 w-4" />
+                              </Button>
                             ) : null;
                           case "edit":
                             return (
-                              <DropdownMenuItem
+                              <Button
                                 key={action}
+                                variant="ghost"
+                                size="sm"
+                                title={!canManage ? deniedTitle : "Edit details"}
                                 disabled={!canManage}
                                 onClick={() => openEditDialog(doc)}
                               >
-                                Edit details
-                              </DropdownMenuItem>
+                                <PencilSquareIcon className="h-4 w-4" />
+                              </Button>
                             );
                           case "replaceDraft":
                             return (
-                              <DropdownMenuItem
+                              <Button
                                 key={action}
+                                variant="ghost"
+                                size="sm"
+                                title={!canManage ? deniedTitle : "Replace draft PDF"}
                                 disabled={!canManage}
                                 onClick={() => openUploadDialog(doc, "replace")}
                               >
-                                Replace draft PDF
-                              </DropdownMenuItem>
+                                <ArrowUpTrayIcon className="h-4 w-4" />
+                              </Button>
                             );
                           case "uploadNew":
                             return (
-                              <DropdownMenuItem
+                              <Button
                                 key={action}
+                                variant="ghost"
+                                size="sm"
+                                title={!canManage ? deniedTitle : "Upload new version"}
                                 disabled={!canManage}
                                 onClick={() => openUploadDialog(doc, "new")}
                               >
-                                Upload new version
-                              </DropdownMenuItem>
-                            );
-                          case "history":
-                            return (
-                              <DropdownMenuItem key={action} onClick={() => openHistory(doc)}>
-                                Version history
-                              </DropdownMenuItem>
+                                <ArrowUpTrayIcon className="h-4 w-4" />
+                              </Button>
                             );
                           case "archive":
                             return current ? (
-                              <DropdownMenuItem
+                              <Button
                                 key={action}
+                                variant="ghost"
+                                size="sm"
+                                title={!canManage ? deniedTitle : "Archive"}
                                 disabled={!canManage}
+                                className="text-muted-foreground hover:text-foreground"
                                 onClick={() => openArchiveConfirm(doc, current)}
                               >
-                                Archive
-                              </DropdownMenuItem>
+                                <ArchiveBoxIcon className="h-4 w-4" />
+                              </Button>
                             ) : null;
                           default:
                             return null;
@@ -802,13 +822,23 @@ export default function LegalDocumentsPage() {
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="text-sm">
-                            <Badge variant="outline">
-                              {LEGAL_DOCUMENT_TYPE_LABELS[doc.type]}
-                            </Badge>
-                          </TableCell>
                           <TableCell className="text-sm tabular-nums">
-                            {current ? `v${current.version}` : "—"}
+                            {current ? (
+                              showHistory ? (
+                                <button
+                                  type="button"
+                                  className="text-primary underline-offset-2 hover:underline"
+                                  title="Version history"
+                                  onClick={() => openHistory(doc)}
+                                >
+                                  v{current.version}
+                                </button>
+                              ) : (
+                                `v${current.version}`
+                              )
+                            ) : (
+                              "—"
+                            )}
                           </TableCell>
                           <TableCell>
                             <Badge variant={legalStatusBadgeVariant(status)}>
@@ -830,30 +860,23 @@ export default function LegalDocumentsPage() {
                             {formatLegalDate(doc.updatedAt)}
                           </TableCell>
                           <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
+                            <div className="flex justify-end gap-1">
+                              {actions.icons
+                                .filter((action) => action !== "archive")
+                                .map((action) => renderIconAction(action))}
                               {actions.showPublishButton && draft ? (
                                 <Button
                                   size="sm"
                                   disabled={!canManage}
+                                  title={!canManage ? deniedTitle : "Publish"}
                                   onClick={() => openPublishDialog(doc, draft)}
                                 >
                                   Publish
                                 </Button>
                               ) : null}
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    aria-label={`More actions for ${legalDocumentDisplayName(doc.type)}`}
-                                  >
-                                    <EllipsisHorizontalIcon className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="w-52">
-                                  {actions.menu.map((action) => renderMenuItem(action))}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                              {actions.icons
+                                .filter((action) => action === "archive")
+                                .map((action) => renderIconAction(action))}
                             </div>
                           </TableCell>
                         </TableRow>
@@ -953,9 +976,9 @@ export default function LegalDocumentsPage() {
               </section>
 
               <section className="space-y-3 rounded-lg border p-4">
-                <h3 className="text-sm font-semibold">Access</h3>
+                <h3 className="text-sm font-semibold">Audience and visibility</h3>
                 <div className="space-y-2">
-                  <Label htmlFor="legal-audience">Applies to</Label>
+                  <Label htmlFor="legal-audience">Audience</Label>
                   <Select
                     value={createForm.audience}
                     disabled={Boolean(createOrchestration.definitionId)}
@@ -978,7 +1001,7 @@ export default function LegalDocumentsPage() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    Select which portal users this applies to.
+                    Choose who this document applies to.
                   </p>
                 </div>
                 <div className="flex items-start justify-between gap-4">
@@ -1092,7 +1115,7 @@ export default function LegalDocumentsPage() {
                 </div>
               ) : null}
               <div className="space-y-2">
-                <Label htmlFor="edit-audience">Applies to</Label>
+                <Label htmlFor="edit-audience">Audience</Label>
                 <Select
                   value={editForm.audience}
                   onValueChange={(value) =>
@@ -1113,6 +1136,9 @@ export default function LegalDocumentsPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Choose who this document applies to.
+                </p>
               </div>
               <div className="flex items-start justify-between gap-4">
                 <div className="pr-4">

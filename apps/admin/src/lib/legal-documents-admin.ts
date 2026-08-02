@@ -12,9 +12,9 @@ export const MAX_LEGAL_PDF_BYTES = 10 * 1024 * 1024;
 /** Who must accept this document in a portal (not the same as website visibility). */
 export const LEGAL_AUDIENCE_LABELS: Record<LegalDocumentAudience, string> = {
   BOTH: "Issuer & Investor",
-  ISSUER: "Issuer only",
-  INVESTOR: "Investor only",
-  PUBLIC: "No portal acceptance",
+  ISSUER: "Issuer",
+  INVESTOR: "Investor",
+  PUBLIC: "Public",
 };
 
 /** Audiences offered when creating/editing (exclude confusing PUBLIC). */
@@ -64,21 +64,20 @@ export function websiteBadgeVariant(visible: boolean): LegalBadgeVariant {
   return visible ? "info" : "secondary";
 }
 
-export type LegalRowMenuAction =
+export type LegalRowIconAction =
   | "view"
   | "download"
   | "edit"
   | "replaceDraft"
   | "uploadNew"
-  | "history"
   | "archive";
 
 export type LegalRowActions = {
   showPublishButton: boolean;
-  menu: LegalRowMenuAction[];
+  icons: LegalRowIconAction[];
 };
 
-/** Centralized row-action visibility by current document status. */
+/** Compact icon actions by status (no ellipsis menu). */
 export function getLegalDocumentRowActions(
   status: LegalDocumentVersionStatus,
   options: { hasCurrentVersion: boolean; hasDraft: boolean }
@@ -88,12 +87,11 @@ export function getLegalDocumentRowActions(
   if (status === "DRAFT") {
     return {
       showPublishButton: hasDraft,
-      menu: [
-        ...(hasCurrentVersion ? (["view"] as LegalRowMenuAction[]) : []),
+      icons: [
+        ...(hasCurrentVersion ? (["view"] as LegalRowIconAction[]) : []),
         "edit",
-        ...(hasDraft ? (["replaceDraft"] as LegalRowMenuAction[]) : []),
-        "history",
-        ...(hasCurrentVersion ? (["archive"] as LegalRowMenuAction[]) : []),
+        ...(hasDraft ? (["replaceDraft"] as LegalRowIconAction[]) : []),
+        ...(hasCurrentVersion ? (["archive"] as LegalRowIconAction[]) : []),
       ],
     };
   }
@@ -101,23 +99,26 @@ export function getLegalDocumentRowActions(
   if (status === "PUBLISHED") {
     return {
       showPublishButton: false,
-      menu: [
-        ...(hasCurrentVersion ? (["view", "download"] as LegalRowMenuAction[]) : []),
+      icons: [
+        ...(hasCurrentVersion ? (["view", "download"] as LegalRowIconAction[]) : []),
         "edit",
         "uploadNew",
-        "history",
-        ...(hasCurrentVersion ? (["archive"] as LegalRowMenuAction[]) : []),
+        ...(hasCurrentVersion ? (["archive"] as LegalRowIconAction[]) : []),
       ],
     };
   }
 
   return {
     showPublishButton: false,
-    menu: [
-      ...(hasCurrentVersion ? (["view"] as LegalRowMenuAction[]) : []),
-      "history",
-    ],
+    icons: [...(hasCurrentVersion ? (["view"] as LegalRowIconAction[]) : [])],
   };
+}
+
+/** Show version-history control only when there is more than one version. */
+export function hasLegalVersionHistory(
+  doc: Pick<LegalDocumentDefinitionResponse, "versions">
+): boolean {
+  return (doc.versions?.length ?? 0) > 1;
 }
 
 export function formatLegalFileSize(bytes: number): string {

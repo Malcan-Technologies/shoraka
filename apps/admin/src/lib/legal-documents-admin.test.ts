@@ -8,6 +8,7 @@ import {
   documentCurrentStatus,
   formatLegalDate,
   getLegalDocumentRowActions,
+  hasLegalVersionHistory,
   latestDraftVersion,
   legalDocumentDisplayName,
   legalStatusBadgeVariant,
@@ -45,9 +46,9 @@ describe("legal-documents-admin helpers", () => {
 
   it("separates who-must-accept labels from website visibility", () => {
     expect(audienceLabel("BOTH")).toBe("Issuer & Investor");
-    expect(audienceLabel("ISSUER")).toBe("Issuer only");
-    expect(audienceLabel("INVESTOR")).toBe("Investor only");
-    expect(audienceLabel("PUBLIC")).toBe("No portal acceptance");
+    expect(audienceLabel("ISSUER")).toBe("Issuer");
+    expect(audienceLabel("INVESTOR")).toBe("Investor");
+    expect(audienceLabel("PUBLIC")).toBe("Public");
     expect(websiteVisibilityLabel(true)).toBe("Public");
     expect(websiteVisibilityLabel(false)).toBe("Private");
     expect(OPERATIONAL_AUDIENCES).not.toContain("PUBLIC");
@@ -220,29 +221,101 @@ describe("legal-documents-admin helpers", () => {
       hasDraft: true,
     });
     expect(draftActions.showPublishButton).toBe(true);
-    expect(draftActions.menu).toEqual([
-      "view",
-      "edit",
-      "replaceDraft",
-      "history",
-      "archive",
-    ]);
-    expect(draftActions.menu).not.toContain("publish");
-    expect(draftActions.menu).not.toContain("uploadNew");
+    expect(draftActions.icons).toEqual(["view", "edit", "replaceDraft", "archive"]);
+    expect(draftActions.icons).not.toContain("uploadNew");
 
     const publishedActions = getLegalDocumentRowActions("PUBLISHED", {
       hasCurrentVersion: true,
       hasDraft: false,
     });
     expect(publishedActions.showPublishButton).toBe(false);
-    expect(publishedActions.menu).toContain("uploadNew");
-    expect(publishedActions.menu).not.toContain("replaceDraft");
+    expect(publishedActions.icons).toEqual([
+      "view",
+      "download",
+      "edit",
+      "uploadNew",
+      "archive",
+    ]);
+    expect(publishedActions.icons).not.toContain("replaceDraft");
 
     const archivedActions = getLegalDocumentRowActions("ARCHIVED", {
       hasCurrentVersion: true,
       hasDraft: false,
     });
     expect(archivedActions.showPublishButton).toBe(false);
-    expect(archivedActions.menu).toEqual(["view", "history"]);
+    expect(archivedActions.icons).toEqual(["view"]);
+  });
+
+  it("shows version history only when more than one version exists", () => {
+    expect(
+      hasLegalVersionHistory(
+        baseDoc({
+          id: "1",
+          type: "PDPA_NOTICE_AND_CONSENT",
+          title: "PDPA",
+          versions: [
+            {
+              id: "v1",
+              version: 1,
+              status: "PUBLISHED",
+              fileName: "a.pdf",
+              fileSize: 1,
+              fileHash: null,
+              reacceptanceRequired: false,
+              uploadedBy: "u",
+              publishedBy: "u",
+              publishedAt: "2026-08-01T00:00:00.000Z",
+              archivedBy: null,
+              archivedAt: null,
+              createdAt: "2026-08-01T00:00:00.000Z",
+              updatedAt: "2026-08-01T00:00:00.000Z",
+            },
+          ],
+        })
+      )
+    ).toBe(false);
+    expect(
+      hasLegalVersionHistory(
+        baseDoc({
+          id: "1",
+          type: "PDPA_NOTICE_AND_CONSENT",
+          title: "PDPA",
+          versions: [
+            {
+              id: "v1",
+              version: 1,
+              status: "ARCHIVED",
+              fileName: "a.pdf",
+              fileSize: 1,
+              fileHash: null,
+              reacceptanceRequired: false,
+              uploadedBy: "u",
+              publishedBy: "u",
+              publishedAt: "2026-08-01T00:00:00.000Z",
+              archivedBy: "u",
+              archivedAt: "2026-08-02T00:00:00.000Z",
+              createdAt: "2026-08-01T00:00:00.000Z",
+              updatedAt: "2026-08-02T00:00:00.000Z",
+            },
+            {
+              id: "v2",
+              version: 2,
+              status: "PUBLISHED",
+              fileName: "b.pdf",
+              fileSize: 1,
+              fileHash: null,
+              reacceptanceRequired: false,
+              uploadedBy: "u",
+              publishedBy: "u",
+              publishedAt: "2026-08-02T00:00:00.000Z",
+              archivedBy: null,
+              archivedAt: null,
+              createdAt: "2026-08-02T00:00:00.000Z",
+              updatedAt: "2026-08-02T00:00:00.000Z",
+            },
+          ],
+        })
+      )
+    ).toBe(true);
   });
 });
