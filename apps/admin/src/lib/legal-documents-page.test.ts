@@ -80,4 +80,15 @@ describe("Admin Legal Documents page UX", () => {
       "This legal document will have no published version. No older version will be activated automatically."
     );
   });
+
+  it("disables already-added types in Add Legal Document", () => {
+    expect(source).toContain("Already added");
+    expect(source).toContain("EXISTING_LEGAL_TYPE_CREATE_MESSAGE");
+    expect(source).toContain("Go to existing document");
+    expect(source).toContain("availableLegalDocumentTypes");
+    expect(source).toContain("existingLegalDocumentTypes");
+    expect(helpers).toContain(
+      "This legal document already exists. Upload a new version from its row instead."
+    );
+  });
 });

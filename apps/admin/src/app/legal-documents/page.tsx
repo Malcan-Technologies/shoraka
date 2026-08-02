@@ -95,8 +95,12 @@ import {
   buildEditDefinitionPayload,
   buildPublishDialogTitle,
   canRestoreArchivedVersion,
+  createFormDefaultsForAvailableTypes,
   documentCurrentStatus,
   documentCurrentVersion,
+  EXISTING_LEGAL_TYPE_CREATE_MESSAGE,
+  existingLegalDocumentTypes,
+  availableLegalDocumentTypes,
   formatLegalDate,
   formatLegalFileSize,
   getLegalDocumentRowActions,
@@ -259,6 +263,29 @@ export default function LegalDocumentsPage() {
     },
   });
 
+  const { data: typeCatalog = [] } = useQuery({
+    queryKey: ["admin", "legal-documents", "type-catalog"],
+    queryFn: async () => {
+      const result = await apiClient.get<ListResponse>(
+        "/v1/admin/legal-documents?page=1&pageSize=100"
+      );
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to load legal document types");
+      }
+      return result.data.documents;
+    },
+    enabled: createDialogOpen,
+  });
+
+  const existingTypes = React.useMemo(
+    () => existingLegalDocumentTypes(typeCatalog),
+    [typeCatalog]
+  );
+  const availableTypes = React.useMemo(
+    () => availableLegalDocumentTypes(typeCatalog),
+    [typeCatalog]
+  );
+
   const documents = (data?.documents ?? []).filter((doc) =>
     matchesClientFilters(doc, {
       audience: "all",
@@ -367,6 +394,21 @@ export default function LegalDocumentsPage() {
   };
 
   const handleCreateDocument = async () => {
+    if (existingTypes.has(createForm.type)) {
+      toast.error(EXISTING_LEGAL_TYPE_CREATE_MESSAGE, {
+        action: {
+          label: "Go to existing document",
+          onClick: () => goToExistingDocument(createForm.type),
+        },
+      });
+      return;
+    }
+    if (availableTypes.length === 0) {
+      toast.error("All legal document types have already been added.", {
+        description: "Use Upload new version on an existing row.",
+      });
+      return;
+    }
     const pdfCheck = validateLegalPdfFile(createForm.file);
     if (!pdfCheck.ok) {
       setCreateFileError(pdfCheck.error);
@@ -413,10 +455,21 @@ export default function LegalDocumentsPage() {
       invalidate();
     } catch (error) {
       const message = error instanceof Error ? error.message : "An error occurred";
-      toast.error("Save failed", {
-        description: definitionCreated
-          ? `${message} Details were saved — choose the PDF again and retry Save as Draft.`
-          : message,
+      const isExistingType =
+        message.includes("already exists") ||
+        message.includes(EXISTING_LEGAL_TYPE_CREATE_MESSAGE);
+      toast.error(isExistingType ? EXISTING_LEGAL_TYPE_CREATE_MESSAGE : "Save failed", {
+        description: isExistingType
+          ? undefined
+          : definitionCreated
+            ? `${message} Details were saved — choose the PDF again and retry Save as Draft.`
+            : message,
+        action: isExistingType
+          ? {
+              label: "Go to existing document",
+              onClick: () => goToExistingDocument(createForm.type),
+            }
+          : undefined,
       });
     } finally {
       setSaving(false);
@@ -581,10 +634,34 @@ export default function LegalDocumentsPage() {
   };
 
   const openCreateDialog = () => {
-    setCreateForm(emptyCreateForm());
     setCreateFileError(null);
     setCreateOrchestration(resetCreateOrchestration());
+    setCreateForm(emptyCreateForm());
     setCreateDialogOpen(true);
+  };
+
+  React.useEffect(() => {
+    if (!createDialogOpen || createOrchestration.definitionId) return;
+    const defaults = createFormDefaultsForAvailableTypes(availableTypes);
+    if (defaults) {
+      setCreateForm((prev) =>
+        existingTypes.has(prev.type) ? { ...defaults, file: prev.file } : prev
+      );
+    }
+  }, [availableTypes, createDialogOpen, createOrchestration.definitionId, existingTypes]);
+
+  const goToExistingDocument = (type: LegalDocumentType) => {
+    const existing =
+      typeCatalog.find((doc) => doc.type === type) ??
+      documents.find((doc) => doc.type === type);
+    setCreateDialogOpen(false);
+    setCreateOrchestration(resetCreateOrchestration());
+    clearFilters();
+    if (existing) {
+      openUploadDialog(existing, "new");
+    } else {
+      toast.message(EXISTING_LEGAL_TYPE_CREATE_MESSAGE);
+    }
   };
 
   const openEditDialog = (doc: LegalDocumentDefinitionResponse) => {
@@ -1021,37 +1098,55 @@ export default function LegalDocumentsPage() {
 
               <section className="space-y-3 rounded-lg border p-4">
                 <h3 className="text-sm font-semibold">Document type</h3>
-                <div className="space-y-2">
-                  <Label htmlFor="legal-type">Type</Label>
-                  <Select
-                    value={createForm.type}
-                    disabled={Boolean(createOrchestration.definitionId)}
-                    onValueChange={(value) => {
-                      const type = value as LegalDocumentType;
-                      setCreateForm((prev) => ({
-                        ...prev,
-                        type,
-                        audience: LEGAL_DOCUMENT_DEFAULT_AUDIENCE[type],
-                      }));
-                    }}
-                  >
-                    <SelectTrigger id="legal-type">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {LEGAL_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    The type name is used as the display name everywhere.
-                  </p>
-                </div>
+                {availableTypes.length === 0 ? (
+                  <div className="space-y-2 rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
+                    <p>All legal document types have already been added.</p>
+                    <p>Use Upload new version on an existing row, including archived documents.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label htmlFor="legal-type">Type</Label>
+                    <Select
+                      value={createForm.type}
+                      disabled={Boolean(createOrchestration.definitionId)}
+                      onValueChange={(value) => {
+                        const type = value as LegalDocumentType;
+                        if (existingTypes.has(type)) return;
+                        setCreateForm((prev) => ({
+                          ...prev,
+                          type,
+                          audience: LEGAL_DOCUMENT_DEFAULT_AUDIENCE[type],
+                        }));
+                      }}
+                    >
+                      <SelectTrigger id="legal-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {LEGAL_TYPES.map((type) => {
+                          const alreadyAdded = existingTypes.has(type.value);
+                          return (
+                            <SelectItem
+                              key={type.value}
+                              value={type.value}
+                              disabled={alreadyAdded}
+                            >
+                              {alreadyAdded ? `${type.label} (Already added)` : type.label}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      The type name is used as the display name everywhere. Types already added are
+                      disabled — use Upload new version on that row instead.
+                    </p>
+                  </div>
+                )}
               </section>
 
+              {availableTypes.length > 0 ? (
+              <>
               <section className="space-y-3 rounded-lg border p-4">
                 <h3 className="text-sm font-semibold">Audience and visibility</h3>
                 <div className="space-y-2">
@@ -1145,6 +1240,8 @@ export default function LegalDocumentsPage() {
                   </p>
                 </div>
               </section>
+              </>
+              ) : null}
             </div>
 
             <DialogFooter>
@@ -1158,8 +1255,10 @@ export default function LegalDocumentsPage() {
               >
                 Cancel
               </Button>
-              <Button onClick={() => void handleCreateDocument()} disabled={saving || !canManage}>
-                {saving ? (
+              <Button
+                onClick={() => void handleCreateDocument()}
+                disabled={saving || !canManage || availableTypes.length === 0}
+              >                {saving ? (
                   <>
                     <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" />
                     Saving...
