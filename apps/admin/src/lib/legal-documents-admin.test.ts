@@ -7,9 +7,11 @@ import {
   latestDraftVersion,
   matchesClientFilters,
   nextCreateOrchestrationAfterDefinition,
+  nextCreateOrchestrationAfterVersion,
   OPERATIONAL_AUDIENCES,
   resetCreateOrchestration,
   shouldSkipDefinitionCreate,
+  shouldSkipVersionUpload,
   statusLabel,
   validateLegalPdfFile,
   websiteVisibilityLabel,
@@ -114,6 +116,13 @@ describe("legal-documents-admin helpers", () => {
       )
     ).toBe(true);
     expect(shouldSkipDefinitionCreate(resetCreateOrchestration())).toBe(false);
+
+    const afterVersion = nextCreateOrchestrationAfterVersion(
+      nextCreateOrchestrationAfterDefinition({ id: "ld-1", title: "PDPA" }),
+      "ver-1"
+    );
+    expect(shouldSkipVersionUpload(afterVersion)).toBe(true);
+    expect(shouldSkipVersionUpload(resetCreateOrchestration())).toBe(false);
   });
 
   it("filters by status", () => {

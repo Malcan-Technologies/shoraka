@@ -7,41 +7,52 @@ describe("Admin Legal Documents page UX", () => {
     "utf8"
   );
 
-  it("keeps one-step create with PDF and no manual version field", () => {
+  it("Add modal has Save as Draft and Publish Now with bordered sections", () => {
     expect(source).toContain("Add Legal Document");
-    expect(source).toContain('id="legal-pdf"');
     expect(source).toContain("Save as Draft");
-    expect(source).toContain("Version numbers are assigned automatically");
-    expect(source).not.toContain('id="legal-version"');
-    expect(source).not.toContain("New definition");
+    expect(source).toContain("Publish Now");
+    expect(source).toContain('handleCreateDocument("draft")');
+    expect(source).toContain('handleCreateDocument("publish")');
+    expect(source).toContain("Document details");
+    expect(source).toContain("Access and requirements");
+    expect(source).toContain(">PDF</h3>");
+    expect(source).toContain("Publishing");
+    expect(source).toContain('placeholder="e.g. PDPA Notice and Consent"');
+    expect(source).toContain('placeholder="Briefly explain what this document covers"');
+    expect(source).toContain('id="legal-pdf"');
   });
 
-  it("separates who-must-accept from website visibility", () => {
-    expect(source).toContain("Who must accept");
-    expect(source).toContain("Show on website");
-    expect(source).toContain("Which portal users see this during onboarding.");
-    expect(source).toContain("show a link in the public footer");
-    expect(source).not.toContain("Publicly visible");
-    expect(source).not.toContain('label: audienceLabel("PUBLIC")');
+  it("Publish Now orchestrates create, upload, and publish with reacceptanceRequired", () => {
+    expect(source).toContain("publishVersionById");
+    expect(source).toContain("createReacceptanceRequired");
+    expect(source).toContain("shouldSkipVersionUpload");
+    expect(source).toContain("nextCreateOrchestrationAfterVersion");
+    expect(source).toContain("{ reacceptanceRequired: requireReaccept }");
   });
 
-  it("uses a simpler table and brand primary Publish buttons", () => {
+  it("defaults re-acceptance to No", () => {
+    expect(source).toContain("setCreateReacceptanceRequired(false)");
+    expect(source).toContain("setReacceptanceRequired(false)");
+  });
+
+  it("draft rows show Publish plus ellipsis; published use ellipsis menu actions", () => {
+    expect(source).toContain("EllipsisHorizontalIcon");
+    expect(source).toContain("More actions for");
+    expect(source).toContain("View PDF");
+    expect(source).toContain("Edit details");
+    expect(source).toContain("Upload new version");
+    expect(source).toContain("Version history");
+    expect(source).toContain("Replace draft PDF");
+    expect(source).toContain("openPublishDialog(doc, draft)");
     expect(source).toContain(">Document</TableHead>");
-    expect(source).toContain(">Status</TableHead>");
     expect(source).toContain(">Who must accept</TableHead>");
     expect(source).toContain(">Website</TableHead>");
-    expect(source).not.toContain(">Audience</TableHead>");
-    expect(source).not.toContain(">Onboarding</TableHead>");
-    expect(source).not.toContain(">Public</TableHead>");
-    expect(source).toContain("openPublishDialog");
-    expect(source).toMatch(/<Button\s+size="sm"\s+onClick=\{\(\) => openPublishDialog/);
-    expect(source).toContain('sm:max-w-[460px]');
   });
 
-  it("publish defaults to No and posts reacceptanceRequired", () => {
+  it("existing draft publish dialog stays compact with bordered options", () => {
     expect(source).toContain("buildPublishDialogTitle");
-    expect(source).toContain("setReacceptanceRequired(false)");
-    expect(source).toContain("{ reacceptanceRequired }");
-    expect(source).toContain('type="radio"');
+    expect(source).toContain("ReacceptanceOptions");
+    expect(source).toContain('sm:max-w-[460px]');
+    expect(source).toContain("rounded-lg border p-3");
   });
 });
