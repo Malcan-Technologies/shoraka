@@ -3,11 +3,13 @@ import { LEGAL_DOCUMENT_TYPE_LABELS } from "@cashsouk/types";
 import {
   audienceLabel,
   buildCreateDefinitionPayload,
+  buildEditDefinitionPayload,
   buildPublishDialogTitle,
   documentCurrentStatus,
   formatLegalDate,
   getLegalDocumentRowActions,
   latestDraftVersion,
+  legalDocumentDisplayName,
   legalStatusBadgeVariant,
   matchesClientFilters,
   nextCreateOrchestrationAfterDefinition,
@@ -75,31 +77,45 @@ describe("legal-documents-admin helpers", () => {
     expect(websiteBadgeVariant(false)).toBe("secondary");
   });
 
-  it("builds create payload with onboarding and website toggles", () => {
+  it("builds create and edit payloads from type label without free-text title", () => {
+    expect(legalDocumentDisplayName("PDPA_NOTICE_AND_CONSENT")).toBe(
+      "PDPA Notice and Consent"
+    );
     expect(
       buildCreateDefinitionPayload({
         type: "PDPA_NOTICE_AND_CONSENT",
-        title: "  PDPA Notice  ",
-        description: "  Privacy notice  ",
         audience: "BOTH",
         requiredForOnboarding: true,
         publicVisibility: true,
       })
     ).toEqual({
       type: "PDPA_NOTICE_AND_CONSENT",
-      title: "PDPA Notice",
-      description: "Privacy notice",
+      title: "PDPA Notice and Consent",
       audience: "BOTH",
       requiredForOnboarding: true,
       publicVisibility: true,
     });
+    expect(
+      buildEditDefinitionPayload({
+        type: "TERMS_OF_USE",
+        audience: "ISSUER",
+        requiredForOnboarding: false,
+        publicVisibility: false,
+      })
+    ).toEqual({
+      title: "Terms of Use",
+      description: null,
+      audience: "ISSUER",
+      requiredForOnboarding: false,
+      publicVisibility: false,
+    });
   });
 
-  it("builds publish dialog titles with document title and version", () => {
-    expect(buildPublishDialogTitle("PDPA Notice and Consent", "PDPA", 1)).toBe(
+  it("builds publish dialog titles from type label and version", () => {
+    expect(buildPublishDialogTitle("PDPA_NOTICE_AND_CONSENT", 1)).toBe(
       "Publish PDPA Notice and Consent v1?"
     );
-    expect(buildPublishDialogTitle("  ", "Terms of Use", 2)).toBe("Publish Terms of Use v2?");
+    expect(buildPublishDialogTitle("TERMS_OF_USE", 2)).toBe("Publish Terms of Use v2?");
   });
 
   it("rejects non-PDF and oversized files", () => {

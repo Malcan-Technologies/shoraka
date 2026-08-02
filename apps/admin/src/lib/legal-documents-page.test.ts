@@ -16,6 +16,12 @@ describe("Admin Legal Documents page UX", () => {
     expect(source).toContain("Save as Draft");
     expect(source).toContain('id="legal-pdf"');
     expect(source).not.toContain("Publish Now");
+    expect(source).not.toContain('id="legal-title"');
+    expect(source).not.toContain('id="legal-description"');
+    expect(source).not.toContain('id="edit-title"');
+    expect(source).not.toContain('id="edit-description"');
+    expect(source).toContain("legalDocumentDisplayName");
+    expect(helpers).toContain("buildEditDefinitionPayload");
   });
 
   it("table follows Document Management column order with filename and type", () => {
@@ -30,7 +36,7 @@ describe("Admin Legal Documents page UX", () => {
     expect(source).toContain(">Actions</TableHead>");
     expect(source).toContain("current?.fileName");
     expect(source).toContain("No PDF yet");
-    expect(source).toContain("LEGAL_DOCUMENT_TYPE_LABELS[doc.type]");
+    expect(source).toContain("legalDocumentDisplayName(doc.type)");
     expect(helpers).toContain('hour: "2-digit"');
     expect(helpers).toContain('minute: "2-digit"');
   });
