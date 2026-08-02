@@ -153,6 +153,16 @@ export {
   type SidebarFooterVariant,
 } from "./cashsouk-sidebar-footer";
 export {
+  buildCompactPortalLegalLinks,
+  permanentCompactPortalLegalLinks,
+  CONDITIONAL_COMPACT_LEGAL_LINKS,
+  type CompactPortalLegalLink,
+} from "./lib/compact-portal-legal-links";
+export {
+  useCompactPortalLegalLinks,
+  clearPublicLegalDocumentsCache,
+} from "./hooks/use-compact-portal-legal-links";
+export {
   HelpArticleView,
   HelpIndexView,
   type HelpArticleSummaryViewModel,
