@@ -116,7 +116,7 @@ export function computeReturnOnEquity(pat: number | null, equity: number | null)
 
 /**
  * Financial Summary Profit Margin (CTOS + issuer columns): PAT ÷ turnover as a decimal ratio.
- * Never uses CTOS `profit_margin` (official PBT Margin). Prospectus resolvers stay unchanged.
+ * Never uses CTOS `profit_margin` (official PBT Margin).
  */
 export function resolveFinancialSummaryProfitMarginRatio(input: {
   plnpat: number | null;
@@ -127,7 +127,7 @@ export function resolveFinancialSummaryProfitMarginRatio(input: {
 
 /**
  * Financial Summary issuer-submitted Return of Equity: PAT ÷ Net Worth as a decimal ratio.
- * CTOS column keeps preferring flat `return_on_equity` in Admin UI. Prospectus resolvers unchanged.
+ * CTOS column keeps preferring flat `return_on_equity` in Admin UI.
  */
 export function resolveFinancialSummaryIssuerReturnOnEquityRatio(input: {
   plnpat: number | null;
@@ -151,34 +151,33 @@ function isFinitePresent(v: number | null | undefined): v is number {
 }
 
 /**
- * Application Financial Summary profit margin as a decimal ratio (for Prospectus % formatters).
- * Prefer CTOS flat `profit_margin` (already percent points, e.g. 12.6 → ratio 0.126).
- * Else recompute with Application missing→0 coercion (CTOS column metrics path).
+ * Prospectus Net Profit Margin as a decimal ratio: PAT ÷ Turnover.
+ * Never uses CTOS `profit_margin` (official PBT Margin, not PAT margin).
  */
 export function resolveApplicationFinancialProfitMarginRatio(input: {
-  profit_margin: number | null;
   plnpat: number | null;
   turnover: number | null;
+  /** @deprecated Ignored — CTOS profit_margin is PBT Margin, not Net Profit Margin. */
+  profit_margin?: number | null;
 }): number | null {
-  if (isFinitePresent(input.profit_margin)) {
-    return input.profit_margin / 100;
-  }
-  return computeProfitMargin(input.plnpat ?? 0, input.turnover ?? 0);
+  void input.profit_margin;
+  return computeProfitMargin(input.plnpat, input.turnover);
 }
 
 /**
- * Application Financial Summary ROE as a decimal ratio.
- * Prefer CTOS flat `return_on_equity` (percent points) → ratio; else recompute with missing→0.
+ * Prospectus Return on Equity as a decimal ratio.
+ * Prefer CTOS flat `return_on_equity` (percent points) when present; else PAT ÷ Net Worth.
+ * Never uses Paid-Up Capital (`bsqpuc`) as the denominator.
  */
 export function resolveApplicationFinancialReturnOnEquityRatio(input: {
   return_on_equity: number | null;
   plnpat: number | null;
-  bsqpuc: number | null;
+  networth: number | null;
 }): number | null {
   if (isFinitePresent(input.return_on_equity)) {
     return input.return_on_equity / 100;
   }
-  return computeReturnOnEquity(input.plnpat ?? 0, input.bsqpuc ?? 0);
+  return computeReturnOnEquity(input.plnpat, input.networth);
 }
 
 /**

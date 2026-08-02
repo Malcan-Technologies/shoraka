@@ -340,11 +340,11 @@ export const PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_FIELD_SOURCES: Record<
   return_on_equity: {
     label: "Return on Equity",
     canonicalSource:
-      "resolveApplicationFinancialReturnOnEquityRatio(return_on_equity | plnpat/bsqpuc)",
+      "resolveApplicationFinancialReturnOnEquityRatio(return_on_equity | plnpat/networth)",
     availability: "calculated",
     surface: "canva",
-    possibleAlternatives: "Local duplicate formula — not used",
-    notes: "Application-aligned resolver; percent-from-ratio display.",
+    possibleAlternatives: "plnpat/bsqpuc (Paid-Up Capital) — not used",
+    notes: "Prefer CTOS return_on_equity; fallback PAT ÷ Net Worth; never Paid-Up Capital.",
   },
   return_on_assets: {
     label: "Return on Assets",

@@ -1,8 +1,8 @@
 import { formatCurrency } from "@cashsouk/config";
 import {
-  calculateCurrentRatio,
-  calculateProfitMargin,
-  calculateReturnOnEquity,
+  resolveApplicationFinancialCurrentRatio,
+  resolveApplicationFinancialProfitMarginRatio,
+  resolveApplicationFinancialReturnOnEquityRatio,
   fyEndDateForYear,
   type NoteDetail,
 } from "@cashsouk/types";
@@ -116,22 +116,30 @@ function metricForYear(
     case "profitAfterTax":
       return formatMoneyOrDna(parseMoney(raw.plnpat));
     case "netProfitMargin": {
-      const pat = parseMoney(raw.plnpat);
-      const rev = parseMoney(raw.turnover);
-      if (pat == null || rev == null) return DATA_NOT_AVAILABLE;
-      return formatPercentFromRatio(calculateProfitMargin(pat, rev));
+      return formatPercentFromRatio(
+        resolveApplicationFinancialProfitMarginRatio({
+          plnpat: parseMoney(raw.plnpat),
+          turnover: parseMoney(raw.turnover),
+        })
+      );
     }
     case "roe": {
-      const pat = parseMoney(raw.plnpat);
-      const equity = parseMoney(raw.bsqpuc);
-      if (pat == null || equity == null) return DATA_NOT_AVAILABLE;
-      return formatPercentFromRatio(calculateReturnOnEquity(pat, equity));
+      return formatPercentFromRatio(
+        resolveApplicationFinancialReturnOnEquityRatio({
+          return_on_equity: parseMoney(raw.return_on_equity),
+          plnpat: parseMoney(raw.plnpat),
+          networth: parseMoney(raw.networth),
+        })
+      );
     }
     case "currentRatio": {
-      const assets = parseMoney(raw.bscatot);
-      const liabilities = parseMoney(raw.curlib);
-      if (assets == null || liabilities == null) return DATA_NOT_AVAILABLE;
-      return formatMultiple(calculateCurrentRatio(assets, liabilities));
+      return formatMultiple(
+        resolveApplicationFinancialCurrentRatio({
+          currat: parseMoney(raw.currat),
+          bscatot: parseMoney(raw.bscatot),
+          curlib: parseMoney(raw.curlib),
+        })
+      );
     }
     case "netDebtEquity":
     case "interestCoverage":

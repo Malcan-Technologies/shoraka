@@ -277,11 +277,10 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_FIELD_SOURCES: Record<
   net_profit_margin: {
     label: "Net Profit Margin",
     canonicalSource:
-      "resolveApplicationFinancialProfitMarginRatio(profit_margin | plnpat/turnover)",
+      "resolveApplicationFinancialProfitMarginRatio(plnpat/turnover)",
     availability: "calculated",
     surface: "canva",
-    possibleAlternatives: "Local duplicate formula — not used",
-    notes:
-      "Same Application-aligned resolver as Page 2 (CTOS flat percent preferred, else recompute).",
+    possibleAlternatives: "CTOS profit_margin (PBT Margin) — not used",
+    notes: "Always PAT ÷ Turnover; never CTOS profit_margin.",
   },
 };

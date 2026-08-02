@@ -185,7 +185,6 @@ function metricValueForYear(
     case "netProfitMargin": {
       return formatProspectusFinancialPercentFromRatio(
         resolveApplicationFinancialProfitMarginRatio({
-          profit_margin: fieldFromRaw(raw, "profit_margin"),
           plnpat: fieldFromRaw(raw, "plnpat"),
           turnover: fieldFromRaw(raw, "turnover"),
         })
@@ -196,7 +195,7 @@ function metricValueForYear(
         resolveApplicationFinancialReturnOnEquityRatio({
           return_on_equity: fieldFromRaw(raw, "return_on_equity"),
           plnpat: fieldFromRaw(raw, "plnpat"),
-          bsqpuc: fieldFromRaw(raw, "bsqpuc"),
+          networth: fieldFromRaw(raw, "networth"),
         })
       );
     }
@@ -299,6 +298,7 @@ const FROZEN_RAW_KEYS = [
   "bsslltd",
   "bsclstd",
   "bsqpuc",
+  "networth",
   "totass",
   "totlib",
   "profit_margin",

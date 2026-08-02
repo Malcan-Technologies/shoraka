@@ -249,60 +249,120 @@ describe("computeNetWorth", () => {
 });
 
 describe("resolveApplicationFinancialProfitMarginRatio", () => {
-  it("prefers CTOS flat percent points and converts to ratio", () => {
+  it("uses PAT / Turnover (15%)", () => {
     expect(
       resolveApplicationFinancialProfitMarginRatio({
-        profit_margin: 12.6,
-        plnpat: 1,
+        plnpat: 15,
         turnover: 100,
       })
-    ).toBeCloseTo(0.126);
+    ).toBeCloseTo(0.15);
   });
 
-  it("recomputes with missing→0 when flat absent", () => {
+  it("ignores CTOS profit_margin (PBT Margin) and still uses PAT / Turnover", () => {
     expect(
       resolveApplicationFinancialProfitMarginRatio({
-        profit_margin: null,
-        plnpat: null,
-        turnover: 200,
+        profit_margin: 20,
+        plnpat: 15,
+        turnover: 100,
       })
-    ).toBe(0);
+    ).toBeCloseTo(0.15);
+  });
+
+  it("returns null for zero or missing turnover", () => {
     expect(
-      resolveApplicationFinancialProfitMarginRatio({
-        profit_margin: null,
-        plnpat: 50,
-        turnover: 0,
-      })
+      resolveApplicationFinancialProfitMarginRatio({ plnpat: 15, turnover: 0 })
     ).toBeNull();
+    expect(
+      resolveApplicationFinancialProfitMarginRatio({ plnpat: 15, turnover: null })
+    ).toBeNull();
+  });
+
+  it("returns 0 when PAT is zero and turnover is valid", () => {
+    expect(
+      resolveApplicationFinancialProfitMarginRatio({ plnpat: 0, turnover: 100 })
+    ).toBe(0);
+  });
+
+  it("preserves negative PAT", () => {
+    expect(
+      resolveApplicationFinancialProfitMarginRatio({ plnpat: -25, turnover: 100 })
+    ).toBeCloseTo(-0.25);
   });
 });
 
 describe("resolveApplicationFinancialReturnOnEquityRatio", () => {
-  it("prefers CTOS flat percent points and converts to ratio", () => {
-    expect(
-      resolveApplicationFinancialReturnOnEquityRatio({
-        return_on_equity: 8.5,
-        plnpat: 1,
-        bsqpuc: 100,
-      })
-    ).toBeCloseTo(0.085);
-  });
-
-  it("recomputes with missing→0 when flat absent", () => {
-    expect(
-      resolveApplicationFinancialReturnOnEquityRatio({
-        return_on_equity: null,
-        plnpat: null,
-        bsqpuc: 2_000_000,
-      })
-    ).toBe(0);
+  it("uses PAT / Net Worth (20%) when flat ROE absent", () => {
     expect(
       resolveApplicationFinancialReturnOnEquityRatio({
         return_on_equity: null,
         plnpat: 100,
-        bsqpuc: 0,
+        networth: 500,
+      })
+    ).toBeCloseTo(0.2);
+  });
+
+  it("does not use Paid-Up Capital as denominator", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: 500,
+      })
+    ).toBeCloseTo(0.2);
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: 500,
+      })
+    ).not.toBeCloseTo(0.5);
+  });
+
+  it("prefers CTOS flat return_on_equity when present", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: 8.5,
+        plnpat: 1,
+        networth: 100,
+      })
+    ).toBeCloseTo(0.085);
+  });
+
+  it("returns null for zero or missing Net Worth", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: 0,
       })
     ).toBeNull();
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: null,
+      })
+    ).toBeNull();
+  });
+
+  it("returns 0 when PAT is zero and Net Worth is valid", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 0,
+        networth: 500,
+      })
+    ).toBe(0);
+  });
+
+  it("preserves negative values", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: -50,
+        networth: 200,
+      })
+    ).toBeCloseTo(-0.25);
   });
 });
 

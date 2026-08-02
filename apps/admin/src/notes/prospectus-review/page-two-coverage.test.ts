@@ -149,8 +149,22 @@ describe("page two coverage verification", () => {
     const table = buildPageTwoFinancialComparisonTable({
       questionnaire: { financial_year_end: "2024-12-31" },
       unaudited_by_year: {
-        "2023": { turnover: 1000, plnpat: 100, bsqpuc: 500, bscatot: 200, curlib: 100 },
-        "2024": { turnover: 2000, plnpat: 200, bsqpuc: 800, bscatot: 400, curlib: 200 },
+        "2023": {
+          turnover: 1000,
+          plnpat: 100,
+          bsqpuc: 500,
+          networth: 500,
+          bscatot: 200,
+          curlib: 100,
+        },
+        "2024": {
+          turnover: 2000,
+          plnpat: 200,
+          bsqpuc: 800,
+          networth: 800,
+          bscatot: 400,
+          curlib: 200,
+        },
       },
     });
     expect(table.yearHeaders.map((h) => h.yearLabel)).toEqual(["FY2023", "FY2024"]);

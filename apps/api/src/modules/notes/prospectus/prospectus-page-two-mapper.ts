@@ -103,6 +103,7 @@ export function buildFinancialComparisonSourceFromFrozen(
         bsclstd: year.raw_financials.bsclstd,
         totass: year.raw_financials.totass,
         totlib: year.raw_financials.totlib,
+        networth: year.raw_financials.networth,
         profit_margin: year.raw_financials.profit_margin,
         return_on_equity: year.raw_financials.return_on_equity,
         currat: year.raw_financials.currat,

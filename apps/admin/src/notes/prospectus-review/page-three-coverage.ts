@@ -358,7 +358,7 @@ export function buildCoverageResolvedRows(
         resolveApplicationFinancialReturnOnEquityRatio({
           return_on_equity: parseNumber(yearRaw.return_on_equity),
           plnpat: parseNumber(yearRaw.plnpat),
-          bsqpuc: parseNumber(yearRaw.bsqpuc),
+          networth: parseNumber(yearRaw.networth),
         })
       ),
     },
