@@ -175,7 +175,9 @@ export function formatLegalDate(dateStr: string): string {
 export function latestPublishedVersion(
   doc: LegalDocumentDefinitionResponse
 ): LegalDocumentVersionSummary | undefined {
-  return (doc.versions ?? []).find((v) => v.status === "PUBLISHED");
+  return (doc.versions ?? [])
+    .filter((v) => v.status === "PUBLISHED")
+    .sort((a, b) => b.version - a.version)[0];
 }
 
 export function latestDraftVersion(
@@ -265,7 +267,7 @@ export function buildArchiveDialogCopy(input: {
 }
 
 export const EXISTING_LEGAL_TYPE_CREATE_MESSAGE =
-  "This legal document already exists. Upload a new version from its row instead.";
+  "This legal document already exists. Upload a new version from the existing document instead.";
 
 /** Types that already have a LegalDocument definition (including archived-only). */
 export function existingLegalDocumentTypes(

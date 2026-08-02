@@ -88,7 +88,7 @@ describe("Admin Legal Documents page UX", () => {
     expect(source).toContain("availableLegalDocumentTypes");
     expect(source).toContain("existingLegalDocumentTypes");
     expect(helpers).toContain(
-      "This legal document already exists. Upload a new version from its row instead."
+      "This legal document already exists. Upload a new version from the existing document instead."
     );
   });
 });

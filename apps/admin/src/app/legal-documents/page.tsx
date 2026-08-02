@@ -1101,7 +1101,9 @@ export default function LegalDocumentsPage() {
                 {availableTypes.length === 0 ? (
                   <div className="space-y-2 rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
                     <p>All legal document types have already been added.</p>
-                    <p>Use Upload new version on an existing row, including archived documents.</p>
+                    <p>
+                      Use Upload new version from the existing document instead.
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-2">

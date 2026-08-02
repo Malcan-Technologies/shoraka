@@ -15,8 +15,10 @@ import {
   formatLegalDate,
   getLegalDocumentRowActions,
   hasLegalVersionHistory,
+  hasActivePublishedVersion,
   isOnlyActivePublishedVersion,
   latestDraftVersion,
+  latestPublishedVersion,
   legalDocumentDisplayName,
   legalRowVersionLabel,
   legalStatusBadgeVariant,
@@ -395,6 +397,52 @@ describe("legal-documents-admin helpers", () => {
       "TERMS_OF_USE"
     );
     expect(EXISTING_LEGAL_TYPE_CREATE_MESSAGE).toContain("Upload a new version");
+  });
+
+  it("shows No published version after only active published is gone", () => {
+    const afterArchiveV2 = baseDoc({
+      id: "1",
+      type: "TERMS_OF_USE",
+      title: "Terms of Use",
+      versions: [
+        {
+          id: "v1",
+          version: 1,
+          status: "ARCHIVED",
+          fileName: "terms-v1.pdf",
+          fileSize: 1,
+          fileHash: null,
+          reacceptanceRequired: false,
+          uploadedBy: "u",
+          publishedBy: "u",
+          publishedAt: "2026-08-01T00:00:00.000Z",
+          archivedBy: "u",
+          archivedAt: "2026-08-02T00:00:00.000Z",
+          createdAt: "2026-08-01T00:00:00.000Z",
+          updatedAt: "2026-08-02T00:00:00.000Z",
+        },
+        {
+          id: "v2",
+          version: 2,
+          status: "ARCHIVED",
+          fileName: "terms-v2.pdf",
+          fileSize: 1,
+          fileHash: null,
+          reacceptanceRequired: true,
+          uploadedBy: "u",
+          publishedBy: "u",
+          publishedAt: "2026-08-02T00:00:00.000Z",
+          archivedBy: "u",
+          archivedAt: "2026-08-03T00:00:00.000Z",
+          createdAt: "2026-08-02T00:00:00.000Z",
+          updatedAt: "2026-08-03T00:00:00.000Z",
+        },
+      ],
+    });
+    expect(latestPublishedVersion(afterArchiveV2)).toBeUndefined();
+    expect(hasActivePublishedVersion(afterArchiveV2)).toBe(false);
+    expect(legalRowVersionLabel(afterArchiveV2)).toBe("No published version");
+    expect(documentCurrentStatus(afterArchiveV2)).toBe("ARCHIVED");
   });
 
   it("shows version history only when more than one version exists", () => {
