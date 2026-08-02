@@ -2,12 +2,10 @@
 
 import * as React from "react";
 import { Suspense } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowPathIcon,
   MagnifyingGlassIcon,
-  PlusIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { useOrganization } from "@cashsouk/config";
@@ -20,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
+import { ApplyForFinancingButton } from "@/components/apply-for-financing-button";
 import { useIssuerDashboard } from "@/hooks/use-issuer-dashboard";
 import { useProducts } from "@/hooks/use-products";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
@@ -264,9 +263,9 @@ function IssuerFinancingPageContent() {
         ) : contracts.length === 0 && invoices.length === 0 ? (
           <div className="rounded-2xl border border-dashed p-10 text-center text-muted-foreground">
             <p>No financing activity yet.</p>
-            <Button asChild variant="link" className="mt-2">
-              <Link href="/applications/new">Apply for financing</Link>
-            </Button>
+            <div className="mt-2 flex justify-center">
+              <ApplyForFinancingButton variant="link" showIcon={false} className="h-auto p-0" />
+            </div>
           </div>
         ) : (
           <Tabs value={tab} onValueChange={onTabChange} className="w-full">
@@ -412,15 +411,7 @@ function PageHeader() {
           Your active facilities and invoice financing across all products.
         </p>
       </div>
-      <Button
-        asChild
-        className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95"
-      >
-        <Link href="/applications/new">
-          <PlusIcon className="h-4 w-4" />
-          Apply for financing
-        </Link>
-      </Button>
+      <ApplyForFinancingButton className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95" />
     </div>
   );
 }

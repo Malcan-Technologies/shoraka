@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { formatCurrency, useOrganization } from "@cashsouk/config";
-import { MoneyInput, useHeader } from "@cashsouk/ui";
+import { MoneyInput, useHeader, LEGAL_REACCEPTANCE_REDIRECT, legalReacceptanceInterceptMessage } from "@cashsouk/ui";
 import {
   ArrowPathIcon,
   ChevronLeftIcon,
@@ -440,6 +440,13 @@ export function MarketplacePage() {
       setIsConfirmDialogOpen(false);
       closeInvestDialog();
     } catch (err) {
+      const code = err && typeof err === "object" && "code" in err ? String(err.code) : "";
+      if (code === "LEGAL_REACCEPTANCE_REQUIRED") {
+        toast.message(legalReacceptanceInterceptMessage("investor"));
+        setIsConfirmDialogOpen(false);
+        router.push(LEGAL_REACCEPTANCE_REDIRECT);
+        return;
+      }
       toast.error(err instanceof Error ? err.message : "Failed to commit investment");
     }
   }

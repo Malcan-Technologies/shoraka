@@ -3,7 +3,6 @@
 import { Suspense } from "react";
 import { useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useAuth } from "../lib/auth";
 import {
   useOrganization,
@@ -25,7 +24,7 @@ import { useHeader } from "@cashsouk/ui";
 import { useIssuerDashboard } from "../hooks/use-issuer-dashboard";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
-
+import { ApplyForFinancingButton } from "../components/apply-for-financing-button";
 function IssuerDashboardContent() {
   const { setTitle } = useHeader();
 
@@ -228,15 +227,7 @@ function IssuerDashboardContent() {
                       Manage your financing applications from this dashboard.
                     </p>
                   </div>
-                  <Button
-                    asChild
-                    className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95"
-                  >
-                    <Link href="/applications/new">
-                      <PlusIcon className="h-4 w-4" />
-                      Apply for financing
-                    </Link>
-                  </Button>
+                  <ApplyForFinancingButton className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95" />
                 </section>
               )}
 

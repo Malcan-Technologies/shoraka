@@ -12,7 +12,14 @@ export {
   legalReacceptanceBannerDescription,
   legalReacceptanceBannerCtaLabel,
   legalReacceptanceBannerShellClassName,
+  shouldShowLegalReacceptanceBanner,
 } from "./legal-reacceptance-banner-copy";
+export {
+  useLegalReacceptanceGate,
+  LEGAL_REACCEPTANCE_REDIRECT,
+  legalReacceptanceInterceptMessage,
+} from "./use-legal-reacceptance-gate";
+export type { LegalReacceptanceGateState } from "./use-legal-reacceptance-gate";
 export { IdentityVerifyStep } from "./identity-verify-step";
 export { OnboardingLayout } from "./onboarding-layout";
 export { OnboardingStatusCard, getOnboardingSteps } from "./onboarding-status-card";

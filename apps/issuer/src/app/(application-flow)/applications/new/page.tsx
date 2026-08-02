@@ -2,7 +2,13 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { useHeader, SidebarTrigger } from "@cashsouk/ui";
+import {
+  useHeader,
+  SidebarTrigger,
+  LEGAL_REACCEPTANCE_REDIRECT,
+  legalReacceptanceInterceptMessage,
+  useLegalReacceptanceGate,
+} from "@cashsouk/ui";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
@@ -41,6 +47,7 @@ import {
 export default function NewApplicationPage() {
   const router = useRouter();
   const { activeOrganization, isLoading: isOrgLoading } = useOrganization();
+  const { shouldIntercept, loading: legalGateLoading } = useLegalReacceptanceGate("issuer");
 
   const visiblePeopleForDsAlert = React.useMemo(
     () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
@@ -51,6 +58,13 @@ export default function NewApplicationPage() {
   React.useEffect(() => {
     setTitle("New Application");
   }, [setTitle]);
+
+  React.useEffect(() => {
+    if (legalGateLoading) return;
+    if (!shouldIntercept("NEW_FINANCING_APPLICATION")) return;
+    toast.message(legalReacceptanceInterceptMessage("issuer"));
+    router.replace(LEGAL_REACCEPTANCE_REDIRECT);
+  }, [legalGateLoading, shouldIntercept, router]);
 
   // Load products from API
   const {

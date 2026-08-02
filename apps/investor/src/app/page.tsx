@@ -3,7 +3,6 @@
 import { Suspense, startTransition, useMemo } from "react";
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useAuth } from "../lib/auth";
 import {
   useOrganization,
@@ -24,6 +23,7 @@ import {
   INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
   useHeader,
 } from "@cashsouk/ui";
+import { InvestNowButton } from "../components/invest-now-button";
 
 function InvestorDashboardContent() {
   const { setTitle } = useHeader();
@@ -220,12 +220,7 @@ function InvestorDashboardContent() {
                   Browse and invest in verified financing opportunities from your dashboard.
                 </p>
               </div>
-              <Button asChild className="gap-2">
-                <Link href="/marketplace">
-                  <PlusIcon className="h-4 w-4" />
-                  Invest now
-                </Link>
-              </Button>
+              <InvestNowButton />
             </section>
           )}
 

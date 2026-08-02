@@ -55,11 +55,27 @@ function audiencesForRole(role: LegalAcceptanceAudience): LegalDocumentAudience[
   return role === "ISSUER" ? ["ISSUER", "BOTH"] : ["INVESTOR", "BOTH"];
 }
 
+type OrgAccessRow = {
+  id: string;
+  owner_user_id: string;
+  tnc_accepted: boolean;
+  onboarding_status: string;
+};
+
+/**
+ * Re-acceptance applies only to fully onboarded organizations.
+ * Authoritative field: issuer_organizations / investor_organizations.onboarding_status = COMPLETED.
+ * tnc_accepted alone is not enough (it becomes true mid-onboarding after the terms step).
+ */
+function isOrganizationOnboardingComplete(org: Pick<OrgAccessRow, "onboarding_status">): boolean {
+  return org.onboarding_status === "COMPLETED";
+}
+
 async function assertOrgAccess(
   userId: string,
   organizationId: string,
   audience: LegalAcceptanceAudience
-) {
+): Promise<OrgAccessRow> {
   if (audience === "ISSUER") {
     const org = await prisma.issuerOrganization.findFirst({
       where: {
@@ -69,7 +85,12 @@ async function assertOrgAccess(
           { members: { some: { user_id: userId } } },
         ],
       },
-      select: { id: true, owner_user_id: true, tnc_accepted: true },
+      select: {
+        id: true,
+        owner_user_id: true,
+        tnc_accepted: true,
+        onboarding_status: true,
+      },
     });
     if (!org) {
       throw new AppError(404, "NOT_FOUND", "Organization not found");
@@ -85,12 +106,24 @@ async function assertOrgAccess(
         { members: { some: { user_id: userId } } },
       ],
     },
-    select: { id: true, owner_user_id: true, tnc_accepted: true },
+    select: {
+      id: true,
+      owner_user_id: true,
+      tnc_accepted: true,
+      onboarding_status: true,
+    },
   });
   if (!org) {
     throw new AppError(404, "NOT_FOUND", "Organization not found");
   }
   return org;
+}
+
+function reacceptanceBlockMessage(audience: LegalAcceptanceAudience): string {
+  if (audience === "ISSUER") {
+    return "Accept the latest legal documents before starting a new financing transaction.";
+  }
+  return "Accept the latest legal documents before starting a new investment transaction.";
 }
 
 async function findUserAcceptance(
@@ -223,7 +256,8 @@ export class LegalDocumentAcceptanceService {
     audience: LegalAcceptanceAudience
   ): Promise<PendingLegalDocumentResponse[]> {
     const org = await assertOrgAccess(userId, organizationId, audience);
-    if (!org.tnc_accepted) {
+    // Incomplete / in-progress orgs use onboarding acceptance, not re-acceptance.
+    if (!isOrganizationOnboardingComplete(org) || !org.tnc_accepted) {
       return [];
     }
 
@@ -255,15 +289,12 @@ export class LegalDocumentAcceptanceService {
   ): Promise<LegalComplianceStatus> {
     const org = await assertOrgAccess(userId, organizationId, audience);
     const isOrganisationOwner = org.owner_user_id === userId;
-    const onboardingDocs = await this.getRequiredDocuments(userId, organizationId, audience);
-    const pendingDocuments = org.tnc_accepted
+    const onboardingComplete = isOrganizationOnboardingComplete(org);
+    const pendingDocuments = onboardingComplete
       ? await this.getPendingReacceptanceDocuments(userId, organizationId, audience)
       : [];
 
     const hasPendingReacceptance = pendingDocuments.length > 0;
-    const onboardingComplete =
-      org.tnc_accepted &&
-      (!onboardingDocs.documents.length || onboardingDocs.all_accepted);
 
     return {
       onboardingComplete,
@@ -300,7 +331,7 @@ export class LegalDocumentAcceptanceService {
     throw new AppError(
       403,
       "LEGAL_REACCEPTANCE_REQUIRED",
-      "An updated legal document requires your review and acceptance before you can start new transactions."
+      reacceptanceBlockMessage(audience)
     );
   }
 

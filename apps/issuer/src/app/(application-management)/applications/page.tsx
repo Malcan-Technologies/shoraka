@@ -7,7 +7,6 @@ import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
-  PlusIcon,
   EllipsisVerticalIcon,
   MagnifyingGlassIcon,
   FunnelIcon,
@@ -31,6 +30,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ApplyForFinancingButton } from "@/components/apply-for-financing-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -825,15 +825,7 @@ export default function ApplicationsPage() {
             Manage your financing applications, drafts, and offers.
           </p>
         </div>
-        <Button
-          asChild
-          className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95"
-        >
-          <Link href="/applications/new">
-            <PlusIcon className="h-4 w-4" />
-            Apply for financing
-          </Link>
-        </Button>
+        <ApplyForFinancingButton className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95" />
       </section>
 
       <div className="space-y-6">

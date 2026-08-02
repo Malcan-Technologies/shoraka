@@ -217,6 +217,9 @@ export {
   LegalDocumentsAcceptance,
   LegalReacceptancePanel,
   LegalReacceptanceBanner,
+  useLegalReacceptanceGate,
+  LEGAL_REACCEPTANCE_REDIRECT,
+  legalReacceptanceInterceptMessage,
   IdentityVerifyStep,
   OnboardingLayout,
   OnboardingStatusCard,
@@ -228,6 +231,7 @@ export type {
   OnboardingStep,
   LegalDocumentsAcceptanceProps,
   LegalReacceptancePanelProps,
+  LegalReacceptanceGateState,
 } from "./onboarding";
 export {
   DirectorShareholdersUnifiedSection,

@@ -5,13 +5,15 @@ import {
   legalReacceptanceBannerDescription,
   legalReacceptanceBannerShellClassName,
   legalReacceptanceBannerTitle,
+  shouldShowLegalReacceptanceBanner,
 } from "./legal-reacceptance-banner-copy";
 
 describe("LegalReacceptanceBanner copy and layout helpers", () => {
   const source = readFileSync(join(__dirname, "legal-reacceptance-banner.tsx"), "utf8");
 
-  it("uses the shared attention title", () => {
-    expect(legalReacceptanceBannerTitle()).toBe("Legal documents require your attention");
+  it("uses the shared attention title for owners", () => {
+    expect(legalReacceptanceBannerTitle(true)).toBe("Legal documents require your attention");
+    expect(legalReacceptanceBannerTitle(false)).toBe("Legal documents require acceptance");
   });
 
   it("uses issuer financing copy and investor investment copy for owners", () => {
@@ -23,7 +25,7 @@ describe("LegalReacceptanceBanner copy and layout helpers", () => {
 
   it("keeps a short non-owner message without saying updated", () => {
     const text = legalReacceptanceBannerDescription("issuer", false);
-    expect(text).toContain("organisation owner");
+    expect(text).toContain("organization owner");
     expect(text).not.toContain("updated");
   });
 
@@ -34,7 +36,50 @@ describe("LegalReacceptanceBanner copy and layout helpers", () => {
 
   it("renders only when pending acceptance exists", () => {
     expect(source).toContain("hasPendingReacceptance");
-    expect(source).toContain("if (!pending || !activeOrganization) return null");
+    expect(source).toContain("if (!eligible || !pending || !activeOrganization) return null");
+  });
+
+  it("hides banner for incomplete organizations and onboarding routes", () => {
+    expect(
+      shouldShowLegalReacceptanceBanner({
+        hasOrganization: true,
+        onboardingStatus: "IN_PROGRESS",
+        tncAccepted: true,
+        pathname: "/",
+      })
+    ).toBe(false);
+    expect(
+      shouldShowLegalReacceptanceBanner({
+        hasOrganization: true,
+        onboardingStatus: "COMPLETED",
+        tncAccepted: true,
+        pathname: "/onboarding/terms",
+      })
+    ).toBe(false);
+    expect(
+      shouldShowLegalReacceptanceBanner({
+        hasOrganization: true,
+        onboardingStatus: "COMPLETED",
+        tncAccepted: true,
+        pathname: "/onboarding/account",
+      })
+    ).toBe(false);
+    expect(
+      shouldShowLegalReacceptanceBanner({
+        hasOrganization: false,
+        onboardingStatus: "COMPLETED",
+        tncAccepted: true,
+        pathname: "/",
+      })
+    ).toBe(false);
+    expect(
+      shouldShowLegalReacceptanceBanner({
+        hasOrganization: true,
+        onboardingStatus: "COMPLETED",
+        tncAccepted: true,
+        pathname: "/",
+      })
+    ).toBe(true);
   });
 
   it("uses a compact inline card on desktop and stacks on mobile", () => {

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import type { LegalComplianceStatus } from "@cashsouk/types";
@@ -12,6 +13,7 @@ import {
   legalReacceptanceBannerDescription,
   legalReacceptanceBannerShellClassName,
   legalReacceptanceBannerTitle,
+  shouldShowLegalReacceptanceBanner,
   type LegalReacceptancePortal,
 } from "./legal-reacceptance-banner-copy";
 
@@ -21,6 +23,7 @@ export {
   legalReacceptanceBannerDescription,
   legalReacceptanceBannerCtaLabel,
   legalReacceptanceBannerShellClassName,
+  shouldShowLegalReacceptanceBanner,
 } from "./legal-reacceptance-banner-copy";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -30,15 +33,23 @@ export function LegalReacceptanceBanner({
 }: {
   portalType: LegalReacceptancePortal;
 }) {
+  const pathname = usePathname();
   const { activeOrganization } = useOrganization();
   const { getAccessToken } = useAuthToken();
   const [pending, setPending] = React.useState(false);
   const [isOrganisationOwner, setIsOrganisationOwner] = React.useState(false);
 
+  const eligible = shouldShowLegalReacceptanceBanner({
+    hasOrganization: Boolean(activeOrganization),
+    onboardingStatus: activeOrganization?.onboardingStatus,
+    tncAccepted: activeOrganization?.tncAccepted,
+    pathname,
+  });
+
   React.useEffect(() => {
     let cancelled = false;
     async function load() {
-      if (!activeOrganization?.tncAccepted) {
+      if (!eligible || !activeOrganization) {
         setPending(false);
         return;
       }
@@ -64,12 +75,12 @@ export function LegalReacceptanceBanner({
     return () => {
       cancelled = true;
     };
-  }, [activeOrganization, getAccessToken, portalType]);
+  }, [activeOrganization, eligible, getAccessToken, portalType]);
 
-  if (!pending || !activeOrganization) return null;
+  if (!eligible || !pending || !activeOrganization) return null;
 
   const isOwner = isOrganisationOwner || Boolean(activeOrganization.isOwner);
-  const title = legalReacceptanceBannerTitle();
+  const title = legalReacceptanceBannerTitle(isOwner);
   const description = legalReacceptanceBannerDescription(portalType, isOwner);
   const ctaLabel = legalReacceptanceBannerCtaLabel(isOwner);
 
