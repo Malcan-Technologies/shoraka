@@ -1233,6 +1233,7 @@ model GatewayPayment {
   application              Application?            @relation(fields: [application_id], references: [id], onDelete: Cascade)
   events                   GatewayPaymentEvent[]
   recon_exceptions         GatewayReconException[]
+  receipt                  GatewayPaymentReceipt?
 
   @@index([status, created_at])
   @@index([purpose])
@@ -1246,6 +1247,58 @@ model GatewayPayment {
   @@unique([gatewayAccount, curlec_order_id])
   @@unique([gatewayAccount, curlec_payment_id])
   @@map("gateway_payments")
+}
+
+/// Official finance receipt PDF for a completed Curlec gateway payment (one per payment).
+model GatewayPaymentReceipt {
+  id                   String                        @id @default(cuid())
+  receipt_number       String                        @unique
+  gateway_payment_id   String                        @unique
+  payment_purpose      GatewayPaymentPurpose
+  purpose_label        String
+  payer_name           String?
+  payer_company_name   String?
+  payer_email          String?
+  payer_phone          String?
+  amount               Decimal                       @db.Decimal(18, 6)
+  currency             String                        @default("MYR")
+  payment_method       String?
+  payment_date         DateTime
+  curlec_payment_id    String?
+  curlec_order_id      String
+  related_entity_type  String
+  related_entity_id    String
+  related_reference    String
+  wallet_credited      Boolean                       @default(false)
+  pdf_s3_key           String?
+  status               GatewayPaymentReceiptStatus   @default(PENDING)
+  generation_error     String?
+  generated_at         DateTime?
+  refund_reference     String?
+  refund_amount        Decimal?                      @db.Decimal(18, 6)
+  refunded_at          DateTime?
+  merchant_snapshot    Json?
+  created_at           DateTime                      @default(now())
+  updated_at           DateTime                      @updatedAt
+  gateway_payment      GatewayPayment                @relation(fields: [gateway_payment_id], references: [id], onDelete: Cascade)
+
+  @@unique([curlec_payment_id])
+  @@index([payment_purpose])
+  @@index([status])
+  @@index([payment_date])
+  @@index([payer_name])
+  @@index([payer_company_name])
+  @@index([related_entity_type, related_entity_id])
+  @@map("gateway_payment_receipts")
+}
+
+/// Daily running sequence for RCP-YYYYMMDD-NNN receipt numbers (Asia/Kuala_Lumpur date).
+model ReceiptDailyCounter {
+  date_key   String   @id
+  last_value Int      @default(0)
+  updated_at DateTime @updatedAt
+
+  @@map("receipt_daily_counters")
 }
 
 /// Durable checkpoint for a Curlec order-create attempt. Written before the
@@ -1980,6 +2033,13 @@ enum GatewayPaymentPurpose {
   INVESTOR_DEPOSIT
   ISSUER_ONBOARDING_FEE
   APPLICATION_PROCESSING_FEE
+}
+
+enum GatewayPaymentReceiptStatus {
+  PENDING
+  GENERATED
+  FAILED
+  REFUNDED
 }
 
 enum GatewayOrganizationType {

@@ -16,6 +16,25 @@ jest.mock("./admin-service", () => ({
   rejectNameCheck: jest.fn(async () => ({ id: "pay_test", status: "REFUNDING" })),
 }));
 
+jest.mock("./receipt/receipt-admin-service", () => ({
+  listGatewayPaymentReceipts: jest.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 20 })),
+  getGatewayPaymentReceipt: jest.fn(async () => ({ id: "rcp_test", receiptNumber: "RCP-20260803-001" })),
+  getGatewayPaymentReceiptByPaymentId: jest.fn(async () => ({
+    id: "rcp_test",
+    receiptNumber: "RCP-20260803-001",
+  })),
+  getGatewayPaymentReceiptPdfUrl: jest.fn(async () => ({
+    url: "https://signed.example/receipt.pdf",
+    expiresIn: 900,
+    fileName: "RCP-20260803-001.pdf",
+    mode: "view",
+  })),
+  retryGatewayPaymentReceiptGeneration: jest.fn(async () => ({
+    id: "rcp_test",
+    status: "GENERATED",
+  })),
+}));
+
 jest.mock("./recon-service", () => ({
   listReconRuns: jest.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 20 })),
   getReconRunDetail: jest.fn(async () => ({ id: "run_test", status: "COMPLETED" })),
@@ -85,6 +104,32 @@ describe("gateway payment admin RBAC", () => {
     const retryResponse = await request(app).post("/admin/gateway-payments/pay_test/retry-refund");
     expect(retryResponse.status).toBe(200);
     expect(retryResponse.body.success).toBe(true);
+  });
+
+  it("allows receipt list/detail/pdf with gateway_payments.view", async () => {
+    const app = createAdminApp(["gateway_payments.view"]);
+
+    const listResponse = await request(app).get("/admin/gateway-payments/receipts");
+    expect(listResponse.status).toBe(200);
+
+    const detailResponse = await request(app).get("/admin/gateway-payments/receipts/rcp_test");
+    expect(detailResponse.status).toBe(200);
+
+    const pdfResponse = await request(app).get("/admin/gateway-payments/receipts/rcp_test/pdf");
+    expect(pdfResponse.status).toBe(200);
+    expect(pdfResponse.body.data.url).toContain("https://");
+  });
+
+  it("denies receipt access without gateway_payments.view", async () => {
+    const app = createAdminApp([]);
+    const response = await request(app).get("/admin/gateway-payments/receipts/rcp_test/pdf");
+    expect(response.status).toBe(403);
+  });
+
+  it("denies receipt retry without gateway_payments.manage", async () => {
+    const app = createAdminApp(["gateway_payments.view"]);
+    const response = await request(app).post("/admin/gateway-payments/receipts/rcp_test/retry");
+    expect(response.status).toBe(403);
   });
 });
 

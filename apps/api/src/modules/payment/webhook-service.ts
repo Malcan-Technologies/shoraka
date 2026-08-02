@@ -25,6 +25,7 @@ import { verifyCurlecWebhookSignature } from "./curlec-signature";
 import { createCurlecClient } from "./curlec-client";
 import { assertGatewayAccountMatch } from "./gateway-account";
 import { recordGatewayPaymentEvent } from "./gateway-events";
+import { scheduleGatewayPaymentReceipt } from "./receipt/receipt-service";
 import {
   extractBankCodeFromPayment,
   extractPayerNameFromPayment,
@@ -517,6 +518,11 @@ export async function processInvestorDepositCapture(
       const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
       await creditCompletedDeposit(tx, current, { nameCheckResult: NameCheckResult.PASS });
     });
+
+    const completed = await db.gatewayPayment.findUnique({ where: { id: payment.id } });
+    if (completed?.status === GatewayPaymentStatus.COMPLETED) {
+      scheduleGatewayPaymentReceipt(completed.id, db);
+    }
   } else if (nameCheckResult === NameCheckResult.FAIL) {
     await db.$transaction(async (tx) => {
       await claimCaptureToPaid(tx, payment.id);
@@ -844,6 +850,11 @@ export async function processOnboardingFeeCapture(
     await completeOnboardingFeePayment(tx, current);
   });
 
+  const completedOnboarding = await db.gatewayPayment.findUnique({ where: { id: payment.id } });
+  if (completedOnboarding?.status === GatewayPaymentStatus.COMPLETED) {
+    scheduleGatewayPaymentReceipt(completedOnboarding.id, db);
+  }
+
   await markWebhookProcessed(db, input.eventId, null, routeGatewayAccount);
 
   logger.info(
@@ -954,6 +965,11 @@ export async function processProcessingFeeCapture(
     const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
     await completeProcessingFeePayment(tx, current);
   });
+
+  const completedProcessing = await db.gatewayPayment.findUnique({ where: { id: payment.id } });
+  if (completedProcessing?.status === GatewayPaymentStatus.COMPLETED) {
+    scheduleGatewayPaymentReceipt(completedProcessing.id, db);
+  }
 
   await markWebhookProcessed(db, input.eventId, null, routeGatewayAccount);
 

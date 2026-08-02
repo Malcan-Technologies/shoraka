@@ -17,6 +17,7 @@ import { postLedgerEntry } from "../notes/ledger";
 import { createCurlecClient } from "./curlec-client";
 import { recordGatewayPaymentEvent } from "./gateway-events";
 import { myrDecimalToSen } from "./money";
+import { markGatewayPaymentReceiptRefunded } from "./receipt/receipt-service";
 import { assertTransition, TERMINAL_GATEWAY_STATUSES } from "./state";
 
 export type AutoRefundReason =
@@ -393,6 +394,16 @@ export async function completeInvestorDepositRefund(
         metadata: input.refundId ? { refundId: input.refundId } : undefined,
       });
     });
+
+    await markGatewayPaymentReceiptRefunded(
+      payment.id,
+      {
+        refundReference: input.refundId ?? payment.refund_reference,
+        refundAmount: payment.amount,
+        refundedAt: new Date(),
+      },
+      db
+    );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorCode =

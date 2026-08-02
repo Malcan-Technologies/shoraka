@@ -41,9 +41,9 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const PURPOSE_LABEL: Record<string, string> = {
-  INVESTOR_DEPOSIT: "Investor deposit",
-  ISSUER_ONBOARDING_FEE: "Issuer onboarding fee",
-  APPLICATION_PROCESSING_FEE: "Processing fee",
+  INVESTOR_DEPOSIT: "Investor Deposit",
+  ISSUER_ONBOARDING_FEE: "Issuer Registration Fee",
+  APPLICATION_PROCESSING_FEE: "Application Processing Fee",
 };
 
 const FILTER_OPTIONS = [

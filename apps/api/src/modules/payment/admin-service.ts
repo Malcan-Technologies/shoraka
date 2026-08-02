@@ -18,6 +18,7 @@ import {
   initiateInvestorDepositRefund,
   retryWalletReversalForConfirmedRefund,
 } from "./refund-service";
+import { scheduleGatewayPaymentReceipt } from "./receipt/receipt-service";
 
 export type AdminActorContext = {
   userId: string;
@@ -124,6 +125,7 @@ async function getGatewayPaymentOrThrow(
     include: {
       investor_organization: true,
       events: { orderBy: { created_at: "asc" } },
+      receipt: true,
     },
   });
 
@@ -220,6 +222,22 @@ export async function getGatewayPaymentDetail(
         ? (payment.metadata as Record<string, unknown>)
         : null,
     events: payment.events.map(mapGatewayPaymentEvent),
+    receipt: payment.receipt
+      ? {
+          id: payment.receipt.id,
+          receiptNumber: payment.receipt.receipt_number,
+          purposeLabel: payment.receipt.purpose_label,
+          status: payment.receipt.status,
+          hasPdf: Boolean(payment.receipt.pdf_s3_key),
+          paymentDate: payment.receipt.payment_date.toISOString(),
+          relatedReference: payment.receipt.related_reference,
+          amount: decimalToNumber(payment.receipt.amount),
+          currency: payment.receipt.currency,
+          payerName: payment.receipt.payer_name,
+          payerCompanyName: payment.receipt.payer_company_name,
+          curlecPaymentId: payment.receipt.curlec_payment_id,
+        }
+      : null,
   };
 }
 
@@ -338,6 +356,8 @@ export async function approveNameCheck(
       toStatus: GatewayPaymentStatus.COMPLETED,
     });
   });
+
+  scheduleGatewayPaymentReceipt(payment.id, db);
 
   return getGatewayPaymentDetail(gatewayPaymentId, db);
 }

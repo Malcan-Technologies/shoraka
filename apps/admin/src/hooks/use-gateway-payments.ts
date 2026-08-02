@@ -141,3 +141,39 @@ export function useRejectGatewayNameCheck() {
     onSuccess: (_data, id) => void invalidate(id),
   });
 }
+
+export function useGatewayPaymentReceiptPdf() {
+  const apiClient = useGatewayPaymentsApiClient();
+  return useMutation({
+    mutationFn: async ({
+      receiptId,
+      mode,
+    }: {
+      receiptId: string;
+      mode: "view" | "download";
+    }) => {
+      const response = await apiClient.getAdminGatewayPaymentReceiptPdfUrl(receiptId, mode);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+  });
+}
+
+export function useRetryGatewayPaymentReceipt() {
+  const apiClient = useGatewayPaymentsApiClient();
+  const invalidate = useInvalidateGatewayPayments();
+  return useMutation({
+    mutationFn: async ({
+      receiptId,
+      gatewayPaymentId,
+    }: {
+      receiptId: string;
+      gatewayPaymentId: string;
+    }) => {
+      const response = await apiClient.retryAdminGatewayPaymentReceipt(receiptId);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: (_data, variables) => void invalidate(variables.gatewayPaymentId),
+  });
+}

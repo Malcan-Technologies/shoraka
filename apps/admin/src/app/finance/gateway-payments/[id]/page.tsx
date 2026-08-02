@@ -24,8 +24,10 @@ import {
 import {
   useApproveGatewayNameCheck,
   useGatewayPayment,
+  useGatewayPaymentReceiptPdf,
   useInitiateGatewayPaymentRefund,
   useRejectGatewayNameCheck,
+  useRetryGatewayPaymentReceipt,
   useRetryGatewayPaymentRefund,
 } from "@/hooks/use-gateway-payments";
 
@@ -57,13 +59,17 @@ export default function GatewayPaymentDetailPage() {
   const initiateRefund = useInitiateGatewayPaymentRefund();
   const approveNameCheck = useApproveGatewayNameCheck();
   const rejectNameCheck = useRejectGatewayNameCheck();
+  const receiptPdf = useGatewayPaymentReceiptPdf();
+  const retryReceipt = useRetryGatewayPaymentReceipt();
   const [showRefundDialog, setShowRefundDialog] = React.useState(false);
 
   const isPending =
     retryRefund.isPending ||
     initiateRefund.isPending ||
     approveNameCheck.isPending ||
-    rejectNameCheck.isPending;
+    rejectNameCheck.isPending ||
+    receiptPdf.isPending ||
+    retryReceipt.isPending;
 
   const showReviewNameCheck = payment?.status === "NAME_CHECK_PENDING";
   const showRetryRefund = payment?.status === "HELD";
@@ -109,6 +115,28 @@ export default function GatewayPaymentDetailPage() {
       toast.success("Name check rejected — refund initiated");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Name check rejection failed");
+    }
+  };
+
+  const handleOpenReceiptPdf = async (mode: "view" | "download") => {
+    const receiptId = payment?.receipt?.id;
+    if (!receiptId) return;
+    try {
+      const result = await receiptPdf.mutateAsync({ receiptId, mode });
+      window.open(result.url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not open receipt PDF");
+    }
+  };
+
+  const handleRetryReceipt = async () => {
+    const receiptId = payment?.receipt?.id;
+    if (!receiptId || !id) return;
+    try {
+      await retryReceipt.mutateAsync({ receiptId, gatewayPaymentId: id });
+      toast.success("Receipt generation retried");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Receipt retry failed");
     }
   };
 
@@ -266,6 +294,90 @@ export default function GatewayPaymentDetailPage() {
                     </CardContent>
                   </Card>
                 ) : null}
+
+                <Card className="rounded-2xl">
+                  <CardHeader>
+                    <CardTitle>Receipt</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {!payment.receipt ? (
+                      <p className="text-sm text-muted-foreground">
+                        No receipt yet. Receipts are created after a payment is successfully
+                        completed.
+                      </p>
+                    ) : (
+                      <>
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Receipt number</p>
+                            <p className="font-mono text-sm">{payment.receipt.receiptNumber}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Status</p>
+                            <p>{payment.receipt.status}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Payer / company</p>
+                            <p>
+                              {payment.receipt.payerCompanyName ||
+                                payment.receipt.payerName ||
+                                "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Purpose</p>
+                            <p>{payment.receipt.purposeLabel}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Amount</p>
+                            <p>{formatCurrency(payment.receipt.amount)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Payment date</p>
+                            <p>{formatDate(payment.receipt.paymentDate)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Curlec payment ID</p>
+                            <p className="font-mono text-sm">
+                              {payment.receipt.curlecPaymentId ?? "—"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Related reference</p>
+                            <p className="font-mono text-sm">{payment.receipt.relatedReference}</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => void handleOpenReceiptPdf("view")}
+                            disabled={!payment.receipt.hasPdf || isPending}
+                          >
+                            View PDF
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => void handleOpenReceiptPdf("download")}
+                            disabled={!payment.receipt.hasPdf || isPending}
+                          >
+                            Download PDF
+                          </Button>
+                          {canManage &&
+                          (payment.receipt.status === "PENDING" ||
+                            payment.receipt.status === "FAILED") ? (
+                            <Button
+                              onClick={() => void handleRetryReceipt()}
+                              disabled={isPending}
+                              title={disabledReason}
+                            >
+                              Retry generation
+                            </Button>
+                          ) : null}
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
 
                 <Card className="rounded-2xl">
                   <CardHeader>

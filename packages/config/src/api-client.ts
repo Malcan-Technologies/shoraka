@@ -137,6 +137,9 @@ import type {
   GatewayPaymentDetailDto,
   GatewayPaymentListResponse,
   GatewayPaymentPendingCountResponse,
+  GatewayPaymentReceiptDto,
+  GatewayPaymentReceiptListResponse,
+  GatewayPaymentReceiptPdfUrlResponse,
   CurlecGatewayAccount,
   GatewayReconExceptionDto,
   GatewayReconExceptionListResponse,
@@ -990,6 +993,63 @@ export class ApiClient {
 
   async getAdminGatewayPayment(id: string): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
     return this.get<GatewayPaymentDetailDto>(`/v1/admin/gateway-payments/${id}`);
+  }
+
+  async listAdminGatewayPaymentReceipts(params?: {
+    page?: number;
+    pageSize?: number;
+    receiptNumber?: string;
+    payer?: string;
+    purpose?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+  }): Promise<ApiResponse<GatewayPaymentReceiptListResponse> | ApiError> {
+    const search = new URLSearchParams();
+    if (params?.page) search.set("page", String(params.page));
+    if (params?.pageSize) search.set("pageSize", String(params.pageSize));
+    if (params?.receiptNumber) search.set("receiptNumber", params.receiptNumber);
+    if (params?.payer) search.set("payer", params.payer);
+    if (params?.purpose) search.set("purpose", params.purpose);
+    if (params?.status) search.set("status", params.status);
+    if (params?.from) search.set("from", params.from);
+    if (params?.to) search.set("to", params.to);
+    const qs = search.toString();
+    return this.get<GatewayPaymentReceiptListResponse>(
+      `/v1/admin/gateway-payments/receipts${qs ? `?${qs}` : ""}`
+    );
+  }
+
+  async getAdminGatewayPaymentReceipt(
+    id: string
+  ): Promise<ApiResponse<GatewayPaymentReceiptDto> | ApiError> {
+    return this.get<GatewayPaymentReceiptDto>(`/v1/admin/gateway-payments/receipts/${id}`);
+  }
+
+  async getAdminGatewayPaymentReceiptByPaymentId(
+    gatewayPaymentId: string
+  ): Promise<ApiResponse<GatewayPaymentReceiptDto> | ApiError> {
+    return this.get<GatewayPaymentReceiptDto>(
+      `/v1/admin/gateway-payments/${gatewayPaymentId}/receipt`
+    );
+  }
+
+  async getAdminGatewayPaymentReceiptPdfUrl(
+    id: string,
+    mode: "view" | "download" = "view"
+  ): Promise<ApiResponse<GatewayPaymentReceiptPdfUrlResponse> | ApiError> {
+    return this.get<GatewayPaymentReceiptPdfUrlResponse>(
+      `/v1/admin/gateway-payments/receipts/${id}/pdf?mode=${mode}`
+    );
+  }
+
+  async retryAdminGatewayPaymentReceipt(
+    id: string
+  ): Promise<ApiResponse<GatewayPaymentReceiptDto> | ApiError> {
+    return this.post<GatewayPaymentReceiptDto>(
+      `/v1/admin/gateway-payments/receipts/${id}/retry`,
+      {}
+    );
   }
 
   async retryAdminGatewayPaymentRefund(
