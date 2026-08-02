@@ -6,6 +6,13 @@ export type { LegalDocumentsAcceptanceProps } from "./legal-documents-acceptance
 export { LegalReacceptancePanel } from "./legal-reacceptance-panel";
 export type { LegalReacceptancePanelProps } from "./legal-reacceptance-panel";
 export { LegalReacceptanceBanner } from "./legal-reacceptance-banner";
+export type { LegalReacceptancePortal } from "./legal-reacceptance-banner-copy";
+export {
+  legalReacceptanceBannerTitle,
+  legalReacceptanceBannerDescription,
+  legalReacceptanceBannerCtaLabel,
+  legalReacceptanceBannerShellClassName,
+} from "./legal-reacceptance-banner-copy";
 export { IdentityVerifyStep } from "./identity-verify-step";
 export { OnboardingLayout } from "./onboarding-layout";
 export { OnboardingStatusCard, getOnboardingSteps } from "./onboarding-status-card";
