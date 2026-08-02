@@ -30,10 +30,10 @@ describe("LegalReacceptanceBanner copy and layout helpers", () => {
     expect(text).not.toContain("updated");
   });
 
-  it("links Review documents to /onboarding/terms", () => {
+  it("links Review documents to /legal-updates", () => {
     expect(legalReacceptanceBannerCtaLabel(true)).toBe("Review documents");
-    expect(LEGAL_REACCEPTANCE_REDIRECT).toBe("/onboarding/terms");
-    expect(source).toContain('href="/onboarding/terms"');
+    expect(LEGAL_REACCEPTANCE_REDIRECT).toBe("/legal-updates");
+    expect(source).toContain('href="/legal-updates"');
   });
 
   it("renders only when pending acceptance exists", () => {
