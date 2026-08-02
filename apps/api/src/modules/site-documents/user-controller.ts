@@ -1,9 +1,13 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { AppError } from "../../lib/http/error-handler";
 import { siteDocumentService } from "./service";
-import { siteDocumentTypes, type SiteDocumentType } from "./schemas";
+import type { SiteDocumentType } from "./schemas";
 
 const router = Router();
+
+// Enum values for validation
+const siteDocumentTypes: SiteDocumentType[] = ["TERMS_AND_CONDITIONS", "PRIVACY_POLICY", "RISK_DISCLOSURE", "PLATFORM_AGREEMENT", "INVESTOR_GUIDE", "ISSUER_GUIDE", "OTHER"];
+
 /**
  * GET /v1/documents
  * List all active site documents
