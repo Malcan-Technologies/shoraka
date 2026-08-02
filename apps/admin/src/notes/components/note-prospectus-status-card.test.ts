@@ -105,7 +105,7 @@ describe("resolveProspectusStatusCard", () => {
     const model = resolveProspectusStatusCard(
       baseNote({
         prospectus: {
-          status: "READY_FOR_REVIEW",
+          status: "DRAFT",
           displayStatus: "Draft",
           contentVersion: 1,
           lastSavedAt: null,
