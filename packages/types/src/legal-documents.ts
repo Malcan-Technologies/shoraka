@@ -98,7 +98,7 @@ export const PUBLIC_FOOTER_LEGAL_TYPES: LegalDocumentType[] = [
   "INVESTOR_AGREEMENT",
 ];
 
-/** Public URL slug for each legal document type (landing `/legal/[slug]`). */
+/** Stable slug for each legal document type (API / admin compatibility). */
 export const LEGAL_DOCUMENT_TYPE_SLUGS: Record<LegalDocumentType, string> = {
   TERMS_OF_USE: "terms-of-use",
   PDPA_NOTICE_AND_CONSENT: "pdpa-notice-and-consent",

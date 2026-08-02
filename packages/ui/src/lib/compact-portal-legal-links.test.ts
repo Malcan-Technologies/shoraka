@@ -1,7 +1,10 @@
 import type { PublicLegalDocumentResponse } from "@cashsouk/types";
 import {
   buildCompactPortalLegalLinks,
+  buildLandingFooterLegalLinks,
   permanentCompactPortalLegalLinks,
+  publicLegalDownloadApiPath,
+  publicLegalViewApiPath,
 } from "./compact-portal-legal-links";
 
 function doc(
@@ -23,28 +26,32 @@ function doc(
 }
 
 describe("buildCompactPortalLegalLinks", () => {
-  it("always includes Legal Documents", () => {
-    expect(permanentCompactPortalLegalLinks()).toEqual([
-      { label: "Legal Documents", path: "/legal", permanent: true },
-    ]);
-    expect(buildCompactPortalLegalLinks([])[0]).toMatchObject({
-      label: "Legal Documents",
-      path: "/legal",
-      permanent: true,
-    });
+  it("has no permanent Legal Documents /legal link", () => {
+    expect(permanentCompactPortalLegalLinks()).toEqual([]);
+    expect(buildCompactPortalLegalLinks([])).toEqual([]);
   });
 
-  it("shows Terms of Use when a published public Terms document exists", () => {
+  it("shows Terms of Use with versionId when publicly available", () => {
     const links = buildCompactPortalLegalLinks([
-      doc({ type: "TERMS_OF_USE", slug: "terms-of-use", title: "Terms of Use" }),
+      doc({
+        type: "TERMS_OF_USE",
+        slug: "terms-of-use",
+        title: "Terms of Use",
+        legalDocumentVersionId: "ver-terms",
+      }),
     ]);
-    expect(links.map((l) => l.label)).toEqual(["Legal Documents", "Terms of Use"]);
-    expect(links[1]?.path).toBe("/legal/terms-of-use");
+    expect(links).toEqual([
+      {
+        type: "TERMS_OF_USE",
+        label: "Terms of Use",
+        versionId: "ver-terms",
+        title: "Terms of Use",
+      },
+    ]);
   });
 
   it("hides Terms of Use when unpublished / missing from public list", () => {
-    const links = buildCompactPortalLegalLinks([]);
-    expect(links.map((l) => l.label)).toEqual(["Legal Documents"]);
+    expect(buildCompactPortalLegalLinks([]).map((l) => l.label)).toEqual([]);
   });
 
   it("shows PDPA only when publicly available", () => {
@@ -53,17 +60,23 @@ describe("buildCompactPortalLegalLinks", () => {
         type: "PDPA_NOTICE_AND_CONSENT",
         slug: "pdpa-notice-and-consent",
         title: "PDPA Notice and Consent",
+        legalDocumentVersionId: "ver-pdpa",
       }),
     ]);
-    expect(links.map((l) => l.label)).toEqual(["Legal Documents", "PDPA"]);
-    expect(links[1]?.path).toBe("/legal/pdpa-notice-and-consent");
+    expect(links.map((l) => l.label)).toEqual(["PDPA"]);
+    expect(links[0]?.versionId).toBe("ver-pdpa");
   });
 
   it("shows Risk Statement only when publicly available", () => {
     const links = buildCompactPortalLegalLinks([
-      doc({ type: "RISK_STATEMENT", slug: "risk-statement", title: "Risk Statement" }),
+      doc({
+        type: "RISK_STATEMENT",
+        slug: "risk-statement",
+        title: "Risk Statement",
+        legalDocumentVersionId: "ver-risk",
+      }),
     ]);
-    expect(links.map((l) => l.label)).toEqual(["Legal Documents", "Risk Statement"]);
+    expect(links.map((l) => l.label)).toEqual(["Risk Statement"]);
   });
 
   it("does not create links from SiteDocument-style types", () => {
@@ -79,40 +92,93 @@ describe("buildCompactPortalLegalLinks", () => {
         title: "Privacy Policy",
       }),
     ]);
-    expect(links.map((l) => l.label)).toEqual(["Legal Documents"]);
+    expect(links).toEqual([]);
   });
 
-  it("uses API slug and ignores hard-coded fallbacks for missing docs", () => {
+  it("omits a document without a version id", () => {
     const links = buildCompactPortalLegalLinks([
-      doc({ type: "TERMS_OF_USE", slug: "custom-terms-slug", title: "Terms" }),
+      doc({
+        type: "TERMS_OF_USE",
+        slug: "terms-of-use",
+        title: "Terms of Use",
+        legalDocumentVersionId: "",
+      }),
     ]);
-    expect(links.find((l) => l.label === "Terms of Use")?.path).toBe(
-      "/legal/custom-terms-slug"
-    );
-  });
-
-  it("omits a document without a slug", () => {
-    const links = buildCompactPortalLegalLinks([
-      doc({ type: "TERMS_OF_USE", slug: "", title: "Terms of Use" }),
-    ]);
-    expect(links.map((l) => l.label)).toEqual(["Legal Documents"]);
+    expect(links).toEqual([]);
   });
 
   it("shows all three when all are publicly available", () => {
     const links = buildCompactPortalLegalLinks([
-      doc({ type: "RISK_STATEMENT", slug: "risk-statement", title: "Risk Statement" }),
-      doc({ type: "TERMS_OF_USE", slug: "terms-of-use", title: "Terms of Use" }),
+      doc({
+        type: "RISK_STATEMENT",
+        slug: "risk-statement",
+        title: "Risk Statement",
+        legalDocumentVersionId: "v-risk",
+      }),
+      doc({
+        type: "TERMS_OF_USE",
+        slug: "terms-of-use",
+        title: "Terms of Use",
+        legalDocumentVersionId: "v-terms",
+      }),
       doc({
         type: "PDPA_NOTICE_AND_CONSENT",
         slug: "pdpa-notice-and-consent",
         title: "PDPA",
+        legalDocumentVersionId: "v-pdpa",
       }),
     ]);
     expect(links.map((l) => l.label)).toEqual([
-      "Legal Documents",
       "Terms of Use",
       "PDPA",
       "Risk Statement",
     ]);
+    expect(links.map((l) => l.versionId)).toEqual(["v-terms", "v-pdpa", "v-risk"]);
+  });
+});
+
+describe("buildLandingFooterLegalLinks", () => {
+  it("links PDPA, Terms, and Risk Statement by versionId", () => {
+    const links = buildLandingFooterLegalLinks([
+      doc({
+        type: "PDPA_NOTICE_AND_CONSENT",
+        slug: "pdpa",
+        title: "PDPA Notice and Consent",
+        legalDocumentVersionId: "ver-pdpa",
+      }),
+      doc({
+        type: "TERMS_OF_USE",
+        slug: "terms",
+        title: "Terms of Use",
+        legalDocumentVersionId: "ver-terms",
+      }),
+      doc({
+        type: "RISK_STATEMENT",
+        slug: "risk",
+        title: "Risk Statement",
+        legalDocumentVersionId: "ver-risk",
+      }),
+    ]);
+    expect(links.find((l) => l.type === "PDPA_NOTICE_AND_CONSENT")?.versionId).toBe(
+      "ver-pdpa"
+    );
+    expect(links.find((l) => l.type === "TERMS_OF_USE")?.versionId).toBe("ver-terms");
+    expect(links.find((l) => l.type === "RISK_STATEMENT")?.versionId).toBe("ver-risk");
+  });
+
+  it("hides draft/archived/missing/non-public docs (absent from public list)", () => {
+    expect(buildLandingFooterLegalLinks([])).toEqual([]);
+  });
+});
+
+describe("public legal PDF API paths", () => {
+  it("builds view and download endpoints without raw S3 URLs", () => {
+    expect(publicLegalViewApiPath("abc", "https://api.example.com")).toBe(
+      "https://api.example.com/v1/public/legal-documents/versions/abc/view"
+    );
+    expect(publicLegalDownloadApiPath("abc", "https://api.example.com/")).toBe(
+      "https://api.example.com/v1/public/legal-documents/versions/abc/download"
+    );
+    expect(publicLegalViewApiPath("abc", "https://api.example.com")).not.toMatch(/s3/i);
   });
 });
