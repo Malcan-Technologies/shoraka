@@ -354,7 +354,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     if (item.title === "Help") return true;
     if (item.title === "Users") return canViewUsers;
     if (item.title === "Organizations") return canViewOrganizations;
-    if (item.title === "Documents") return canViewDocuments;
+    if (item.title === "Documents" || item.title === "Legal Documents") return canViewDocuments;
     return false;
   });
 
@@ -690,7 +690,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     const canShow =
                       (item.title === "Users" && canViewUsers) ||
                       (item.title === "Organizations" && canViewOrganizations) ||
-                      (item.title === "Documents" && canViewDocuments);
+                      (item.title === "Documents" && canViewDocuments) ||
+                      (item.title === "Legal Documents" && canViewDocuments);
 
                     if (!canShow && item.title !== "Help") return null;
 
