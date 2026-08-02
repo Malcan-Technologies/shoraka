@@ -1546,15 +1546,7 @@ export default function LegalDocumentsPage() {
                             {version.fileName}
                           </p>
                         </div>
-                        <Badge
-                          variant={
-                            version.status === "PUBLISHED"
-                              ? "default"
-                              : version.status === "DRAFT"
-                                ? "secondary"
-                                : "outline"
-                          }
-                        >
+                        <Badge variant={legalStatusBadgeVariant(version.status)}>
                           {statusLabel(version.status)}
                         </Badge>
                       </div>
