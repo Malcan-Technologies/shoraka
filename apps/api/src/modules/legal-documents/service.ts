@@ -119,7 +119,7 @@ export class LegalDocumentService {
       throw new AppError(
         409,
         "CONFLICT",
-        `A legal document definition for type ${input.type} already exists`
+        `This legal document already exists. Upload a new version from its row instead.`
       );
     }
 

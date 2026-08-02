@@ -5,7 +5,11 @@ import type {
   LegalDocumentVersionStatus,
   LegalDocumentVersionSummary,
 } from "@cashsouk/types";
-import { LEGAL_DOCUMENT_TYPE_LABELS } from "@cashsouk/types";
+import {
+  LEGAL_DOCUMENT_DEFAULT_AUDIENCE,
+  LEGAL_DOCUMENT_TYPE_LABELS,
+  LEGAL_DOCUMENT_TYPES,
+} from "@cashsouk/types";
 
 export const MAX_LEGAL_PDF_BYTES = 10 * 1024 * 1024;
 
@@ -257,6 +261,43 @@ export function buildArchiveDialogCopy(input: {
   return {
     title: `Archive ${input.name} v${input.version}?`,
     paragraphs,
+  };
+}
+
+export const EXISTING_LEGAL_TYPE_CREATE_MESSAGE =
+  "This legal document already exists. Upload a new version from its row instead.";
+
+/** Types that already have a LegalDocument definition (including archived-only). */
+export function existingLegalDocumentTypes(
+  documents: Array<Pick<LegalDocumentDefinitionResponse, "type">>
+): Set<LegalDocumentType> {
+  return new Set(documents.map((doc) => doc.type));
+}
+
+export function availableLegalDocumentTypes(
+  documents: Array<Pick<LegalDocumentDefinitionResponse, "type">>
+): LegalDocumentType[] {
+  const existing = existingLegalDocumentTypes(documents);
+  return LEGAL_DOCUMENT_TYPES.filter((type) => !existing.has(type));
+}
+
+export function createFormDefaultsForAvailableTypes(
+  available: LegalDocumentType[]
+): {
+  type: LegalDocumentType;
+  audience: LegalDocumentAudience;
+  requiredForOnboarding: boolean;
+  publicVisibility: boolean;
+  file: File | null;
+} | null {
+  const type = available[0];
+  if (!type) return null;
+  return {
+    type,
+    audience: LEGAL_DOCUMENT_DEFAULT_AUDIENCE[type],
+    requiredForOnboarding: true,
+    publicVisibility: false,
+    file: null,
   };
 }
 

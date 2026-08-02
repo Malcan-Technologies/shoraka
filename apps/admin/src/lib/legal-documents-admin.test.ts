@@ -2,12 +2,16 @@ import type { LegalDocumentDefinitionResponse } from "@cashsouk/types";
 import { LEGAL_DOCUMENT_TYPE_LABELS } from "@cashsouk/types";
 import {
   audienceLabel,
+  availableLegalDocumentTypes,
+  buildArchiveDialogCopy,
   buildCreateDefinitionPayload,
   buildEditDefinitionPayload,
   buildPublishDialogTitle,
   canRestoreArchivedVersion,
-  buildArchiveDialogCopy,
+  createFormDefaultsForAvailableTypes,
   documentCurrentStatus,
+  EXISTING_LEGAL_TYPE_CREATE_MESSAGE,
+  existingLegalDocumentTypes,
   formatLegalDate,
   getLegalDocumentRowActions,
   hasLegalVersionHistory,
@@ -374,6 +378,23 @@ describe("legal-documents-admin helpers", () => {
         "Any pending acceptance requirement for this version will stop. Previous acceptance records will remain available for audit.",
       ],
     });
+  });
+
+  it("keeps existing types out of create defaults and explains the conflict", () => {
+    const docs = [
+      baseDoc({
+        id: "1",
+        type: "PDPA_NOTICE_AND_CONSENT",
+        title: "PDPA",
+      }),
+    ];
+    expect(existingLegalDocumentTypes(docs).has("PDPA_NOTICE_AND_CONSENT")).toBe(true);
+    expect(availableLegalDocumentTypes(docs)).not.toContain("PDPA_NOTICE_AND_CONSENT");
+    expect(availableLegalDocumentTypes(docs)).toContain("TERMS_OF_USE");
+    expect(createFormDefaultsForAvailableTypes(availableLegalDocumentTypes(docs))?.type).toBe(
+      "TERMS_OF_USE"
+    );
+    expect(EXISTING_LEGAL_TYPE_CREATE_MESSAGE).toContain("Upload a new version");
   });
 
   it("shows version history only when more than one version exists", () => {
