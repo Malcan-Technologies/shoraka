@@ -8,6 +8,7 @@ import {
   generateSiteDocumentKey,
   getFileExtension,
   validateSiteDocument,
+  deleteS3Object,
 } from "../../lib/s3/client";
 import {
   siteDocumentRepository,
@@ -86,6 +87,12 @@ export class SiteDocumentService {
     const latestVersion = await siteDocumentRepository.getLatestVersionByType(input.type);
     const version = latestVersion + 1;
 
+    // Legal acceptance workflow is opt-in via acceptanceRequired=true (Legal Documents admin).
+    // Generic SiteDocuments (origin/main behaviour) are immediately published and never
+    // become onboarding requirements unless explicitly configured.
+    const useLegalWorkflow = input.acceptanceRequired === true;
+    const status = useLegalWorkflow ? "DRAFT" : "PUBLISHED";
+
     const data: CreateSiteDocumentData = {
       type: input.type,
       title: input.title,
@@ -98,12 +105,16 @@ export class SiteDocumentService {
       showInAccount: input.showInAccount ?? false,
       uploadedBy: adminUserId,
       version,
-      audience: input.audience,
-      acceptanceRequired: input.acceptanceRequired,
-      openBeforeAcceptRequired: input.openBeforeAcceptRequired,
-      reacceptanceRequired: input.reacceptanceRequired,
-      effectiveDate: input.effectiveDate ? new Date(input.effectiveDate) : null,
-      status: "DRAFT",
+      audience: input.audience ?? "PUBLIC",
+      acceptanceRequired: useLegalWorkflow,
+      openBeforeAcceptRequired: useLegalWorkflow
+        ? (input.openBeforeAcceptRequired ?? true)
+        : false,
+      reacceptanceRequired: false,
+      effectiveDate: useLegalWorkflow && input.effectiveDate
+        ? new Date(input.effectiveDate)
+        : null,
+      status,
     };
 
     const document = await siteDocumentRepository.create(data);
@@ -123,7 +134,7 @@ export class SiteDocumentService {
 
     logger.info(
       { documentId: document.id, type: document.type, status: document.status },
-      "Site document draft created"
+      "Site document created"
     );
 
     return document;
@@ -408,52 +419,110 @@ export class SiteDocumentService {
       throw new AppError(404, "NOT_FOUND", "Document not found");
     }
 
-    const latestVersion = await siteDocumentRepository.getLatestVersionByType(existing.type);
-    const newVersion = latestVersion + 1;
+    // Legal acceptance docs: keep prior versions and create a new DRAFT row.
+    // Generic SiteDocuments: in-place replace (origin/main behaviour).
+    const useLegalWorkflow =
+      existing.acceptance_required === true || existing.status === "DRAFT";
 
-    const created = await siteDocumentRepository.create({
-      type: existing.type,
-      title: existing.title,
-      description: existing.description,
-      fileName: input.fileName,
+    if (useLegalWorkflow) {
+      const latestVersion = await siteDocumentRepository.getLatestVersionByType(existing.type);
+      const newVersion = latestVersion + 1;
+
+      const created = await siteDocumentRepository.create({
+        type: existing.type,
+        title: existing.title,
+        description: existing.description,
+        fileName: input.fileName,
+        s3Key: input.s3Key,
+        contentType: "application/pdf",
+        fileSize: input.fileSize,
+        fileHash: input.fileHash ?? null,
+        showInAccount: existing.show_in_account,
+        uploadedBy: adminUserId,
+        version: newVersion,
+        audience: existing.audience,
+        acceptanceRequired: existing.acceptance_required,
+        openBeforeAcceptRequired: existing.open_before_accept_required,
+        reacceptanceRequired: false,
+        effectiveDate: null,
+        status: "DRAFT",
+      });
+
+      await this.logDocumentEvent(req, adminUserId, created.id, "DOCUMENT_CREATED", {
+        document_id: created.id,
+        previous_document_id: id,
+        title: created.title,
+        type: created.type,
+        previous_version: existing.version,
+        new_version: newVersion,
+        file_name: input.fileName,
+        file_size: input.fileSize,
+        file_hash: input.fileHash ?? null,
+        status: "DRAFT",
+      });
+
+      return created;
+    }
+
+    // Generic SiteDocuments: in-place replace (origin/main behaviour).
+    const previousS3Key = existing.s3_key;
+    const previousVersion = existing.version;
+    const newVersion = existing.version + 1;
+
+    const updated = await siteDocumentRepository.replaceFile(id, {
       s3Key: input.s3Key,
-      contentType: "application/pdf",
+      fileName: input.fileName,
       fileSize: input.fileSize,
+      newVersion,
       fileHash: input.fileHash ?? null,
-      showInAccount: existing.show_in_account,
-      uploadedBy: adminUserId,
-      version: newVersion,
-      audience: existing.audience,
-      acceptanceRequired: existing.acceptance_required,
-      openBeforeAcceptRequired: existing.open_before_accept_required,
-      reacceptanceRequired: existing.reacceptance_required,
-      effectiveDate: null,
-      status: "DRAFT",
     });
 
-    await this.logDocumentEvent(req, adminUserId, created.id, "DOCUMENT_CREATED", {
-      document_id: created.id,
-      previous_document_id: id,
-      title: created.title,
-      type: created.type,
-      previous_version: existing.version,
+    await this.logDocumentEvent(req, adminUserId, id, "DOCUMENT_REPLACED", {
+      document_id: id,
+      title: existing.title,
+      type: existing.type,
+      previous_version: previousVersion,
       new_version: newVersion,
       file_name: input.fileName,
       file_size: input.fileSize,
-      file_hash: input.fileHash ?? null,
-      status: "DRAFT",
     });
 
+    try {
+      await deleteS3Object(previousS3Key);
+      logger.info({ s3Key: previousS3Key }, "Deleted old document file from S3");
+    } catch (error) {
+      logger.warn({ s3Key: previousS3Key, error }, "Failed to delete old document file from S3");
+    }
+
     logger.info(
-      { previousDocumentId: id, documentId: created.id, newVersion },
-      "New draft document version created (previous version retained)"
+      { documentId: id, previousVersion, newVersion },
+      "Site document file replaced"
     );
 
-    return created;
+    return updated;
   }
 
   async deleteDocument(id: string, adminUserId: string, req: Request) {
-    return this.archiveDocument(id, adminUserId, req);
+    const existing = await siteDocumentRepository.findById(id);
+    if (!existing) {
+      throw new AppError(404, "NOT_FOUND", "Document not found");
+    }
+
+    if (!existing.is_active) {
+      throw new AppError(400, "ALREADY_DELETED", "Document is already deleted");
+    }
+
+    const updated = await siteDocumentRepository.softDelete(id);
+
+    await this.logDocumentEvent(req, adminUserId, id, "DOCUMENT_DELETED", {
+      document_id: id,
+      title: existing.title,
+      type: existing.type,
+    });
+
+    logger.info({ documentId: id }, "Site document soft deleted");
+
+    return updated;
   }
 
   async restoreDocument(id: string, adminUserId: string, req: Request) {
@@ -462,8 +531,8 @@ export class SiteDocumentService {
       throw new AppError(404, "NOT_FOUND", "Document not found");
     }
 
-    if (existing.status !== "ARCHIVED") {
-      throw new AppError(400, "NOT_ARCHIVED", "Document is not archived");
+    if (existing.is_active) {
+      throw new AppError(400, "NOT_DELETED", "Document is not deleted");
     }
 
     const updated = await siteDocumentRepository.restore(id);
@@ -475,7 +544,7 @@ export class SiteDocumentService {
       status: updated.status,
     });
 
-    logger.info({ documentId: id }, "Site document restored to draft");
+    logger.info({ documentId: id }, "Site document restored");
 
     return updated;
   }

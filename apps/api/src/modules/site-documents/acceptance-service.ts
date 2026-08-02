@@ -10,6 +10,7 @@ import {
   type LegalAcceptanceStatusResponse,
   type LegalBlockedAction,
   type LegalComplianceStatus,
+  type LegalDocumentAudience,
   type OnboardingLegalDocumentType,
   type PendingLegalDocumentResponse,
   type PublicLegalDocumentResponse,
@@ -43,8 +44,8 @@ type AcceptanceRow = {
 };
 
 /** Portal audiences for onboarding/re-acceptance (not PUBLIC-only docs). */
-function audiencesForRole(role: LegalAcceptanceAudience) {
-  return role === "ISSUER" ? (["ISSUER", "BOTH"] as const) : (["INVESTOR", "BOTH"] as const);
+function audiencesForRole(role: LegalAcceptanceAudience): LegalDocumentAudience[] {
+  return role === "ISSUER" ? ["ISSUER", "BOTH"] : ["INVESTOR", "BOTH"];
 }
 
 async function assertOrgAccess(
@@ -553,7 +554,7 @@ export class LegalDocumentAcceptanceService {
     audience: LegalAcceptanceAudience
   ) {
     const allowed = audiencesForRole(audience);
-    if (!allowed.includes(document.audience as (typeof allowed)[number])) {
+    if (!allowed.includes(document.audience)) {
       throw new AppError(
         403,
         "FORBIDDEN",

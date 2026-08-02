@@ -122,8 +122,9 @@ export class SiteDocumentRepository {
     if (status) where.status = status;
     if (audience) where.audience = audience;
 
+    // Match origin/main: default list is active documents only.
     if (!includeInactive && !status) {
-      where.status = { in: ["DRAFT", "PUBLISHED"] };
+      where.is_active = true;
     }
 
     if (search) {
@@ -139,7 +140,7 @@ export class SiteDocumentRepository {
         where,
         skip,
         take: pageSize,
-        orderBy: [{ type: "asc" }, { version: "desc" }],
+        orderBy: { created_at: "desc" },
       }),
       prismaDocs.siteDocument.count({ where }),
     ]);
@@ -225,7 +226,8 @@ export class SiteDocumentRepository {
   }
 
   async create(data: CreateSiteDocumentData) {
-    const status = data.status ?? "DRAFT";
+    const status = data.status ?? "PUBLISHED";
+    const now = new Date();
     return prismaDocs.siteDocument.create({
       data: {
         type: data.type,
@@ -246,6 +248,12 @@ export class SiteDocumentRepository {
         open_before_accept_required: data.openBeforeAcceptRequired,
         reacceptance_required: data.reacceptanceRequired,
         effective_date: data.effectiveDate ?? null,
+        ...(status === "PUBLISHED"
+          ? {
+              published_by: data.uploadedBy,
+              published_at: now,
+            }
+          : {}),
       },
     });
   }
@@ -330,12 +338,34 @@ export class SiteDocumentRepository {
     });
   }
 
+  async replaceFile(
+    id: string,
+    data: {
+      s3Key: string;
+      fileName: string;
+      fileSize: number;
+      newVersion: number;
+      fileHash?: string | null;
+    }
+  ) {
+    return prismaDocs.siteDocument.update({
+      where: { id },
+      data: {
+        s3_key: data.s3Key,
+        file_name: data.fileName,
+        file_size: data.fileSize,
+        version: data.newVersion,
+        ...(data.fileHash !== undefined && { file_hash: data.fileHash }),
+      },
+    });
+  }
+
   async restore(id: string) {
     return prismaDocs.siteDocument.update({
       where: { id },
       data: {
         is_active: true,
-        status: "DRAFT",
+        status: "PUBLISHED",
         archived_by: null,
         archived_at: null,
       },

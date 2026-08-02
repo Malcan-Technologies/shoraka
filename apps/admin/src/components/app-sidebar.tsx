@@ -16,6 +16,7 @@ import {
   CheckBadgeIcon,
   DocumentCheckIcon,
   FolderOpenIcon,
+  ScaleIcon,
   DocumentDuplicateIcon,
   QuestionMarkCircleIcon,
   BanknotesIcon,
@@ -286,6 +287,7 @@ const navDirectory = [
   { title: "Users", url: "/users", icon: UsersIcon },
   { title: "Organizations", url: "/organizations", icon: BuildingOffice2Icon },
   { title: "Documents", url: "/documents", icon: FolderOpenIcon },
+  { title: "Legal Documents", url: "/legal-documents", icon: ScaleIcon },
 ] as const;
 
 const navSettings = [
@@ -752,7 +754,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   const canShow =
                     (item.title === "Users" && canViewUsers) ||
                     (item.title === "Organizations" && canViewOrganizations) ||
-                    (item.title === "Documents" && canViewDocuments);
+                    (item.title === "Documents" && canViewDocuments) ||
+                    (item.title === "Legal Documents" && canViewDocuments);
                   if (!canShow) return null;
                   const Icon = item.icon;
                   return (
