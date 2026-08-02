@@ -2,16 +2,15 @@ import { Request } from "express";
 import {
   LEGAL_DOCUMENT_CHECKBOX_WORDING,
   LEGAL_DOCUMENT_TYPE_LABELS,
-  PUBLIC_FOOTER_LEGAL_TYPES,
   getRequiredLegalTypesForAudience,
-  isOnboardingLegalDocumentType,
+  isLegalDocumentType,
   type LegalAcceptanceAudience,
   type LegalAcceptanceStatus,
   type LegalAcceptanceStatusResponse,
   type LegalBlockedAction,
   type LegalComplianceStatus,
   type LegalDocumentAudience,
-  type OnboardingLegalDocumentType,
+  type LegalDocumentType,
   type PendingLegalDocumentResponse,
   type PublicLegalDocumentResponse,
   type RequiredLegalDocumentResponse,
@@ -24,18 +23,19 @@ import {
 } from "../../lib/s3/client";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
-import { documentLogRepository, siteDocumentRepository, type SiteDocumentRow } from "./repository";
-import type { SiteDocumentType } from "./schemas";
+import { documentLogRepository } from "../site-documents/repository";
+import {
+  legalDocumentRepository,
+  type VersionWithDocument,
+} from "./repository";
 
 type AcceptanceRow = {
   id: string;
   user_id: string;
   organization_id: string | null;
   audience_role: LegalAcceptanceAudience;
-  document_id: string;
-  document_type: SiteDocumentType;
-  version: number;
-  file_hash: string | null;
+  legal_document_version_id: string;
+  document_hash: string | null;
   status: LegalAcceptanceStatus;
   opened_at: Date | null;
   accepted_at: Date | null;
@@ -43,7 +43,6 @@ type AcceptanceRow = {
   user_agent: string | null;
 };
 
-/** Portal audiences for onboarding/re-acceptance (not PUBLIC-only docs). */
 function audiencesForRole(role: LegalAcceptanceAudience): LegalDocumentAudience[] {
   return role === "ISSUER" ? ["ISSUER", "BOTH"] : ["INVESTOR", "BOTH"];
 }
@@ -89,46 +88,48 @@ async function assertOrgAccess(
 async function findUserAcceptance(
   userId: string,
   organizationId: string,
-  documentId: string
+  versionId: string
 ) {
   return (await prisma.legalDocumentAcceptance.findFirst({
     where: {
       user_id: userId,
       organization_id: organizationId,
-      document_id: documentId,
+      legal_document_version_id: versionId,
     },
   })) as AcceptanceRow | null;
 }
 
-/** Org-level: any accepted row for this org + document version satisfies the org. */
-async function findOrgAccepted(organizationId: string, documentId: string) {
+/** Org-level: any ACCEPTED row for this org + version satisfies compliance. */
+async function findOrgAccepted(organizationId: string, versionId: string) {
   return (await prisma.legalDocumentAcceptance.findFirst({
     where: {
       organization_id: organizationId,
-      document_id: documentId,
+      legal_document_version_id: versionId,
       status: "ACCEPTED",
     },
   })) as AcceptanceRow | null;
 }
 
 function toRequiredDoc(
-  doc: SiteDocumentRow,
+  version: VersionWithDocument,
   acceptance: AcceptanceRow | null,
   orgAccepted: boolean
 ): RequiredLegalDocumentResponse {
-  const type = doc.type as OnboardingLegalDocumentType;
+  const type = version.legal_document.type as LegalDocumentType;
   const status: LegalAcceptanceStatus = orgAccepted
     ? "ACCEPTED"
     : acceptance?.status ?? "NOT_OPENED";
+
   return {
-    id: doc.id,
+    legalDocumentId: version.legal_document_id,
+    legalDocumentVersionId: version.id,
     type,
-    title: doc.title || LEGAL_DOCUMENT_TYPE_LABELS[type],
-    version: doc.version,
-    file_name: doc.file_name,
-    file_hash: doc.file_hash,
-    open_before_accept_required: doc.open_before_accept_required,
-    acceptance_required: doc.acceptance_required,
+    title: version.legal_document.title || LEGAL_DOCUMENT_TYPE_LABELS[type],
+    version: version.version,
+    file_name: version.file_name,
+    file_hash: version.file_hash,
+    open_before_accept_required: true,
+    acceptance_required: version.legal_document.required_for_onboarding,
     checkbox_wording: LEGAL_DOCUMENT_CHECKBOX_WORDING[type],
     acceptance_status: status,
     opened_at: acceptance?.opened_at?.toISOString() ?? null,
@@ -139,19 +140,19 @@ function toRequiredDoc(
 }
 
 function toPendingDoc(
-  doc: SiteDocumentRow,
+  version: VersionWithDocument,
   acceptance: AcceptanceRow | null
 ): PendingLegalDocumentResponse {
-  const type = doc.type as OnboardingLegalDocumentType;
+  const type = version.legal_document.type as LegalDocumentType;
   return {
-    documentId: doc.id,
-    documentVersionId: doc.id,
+    legalDocumentId: version.legal_document_id,
+    legalDocumentVersionId: version.id,
     documentType: type,
-    title: doc.title || LEGAL_DOCUMENT_TYPE_LABELS[type],
-    version: doc.version,
-    file_name: doc.file_name,
-    file_hash: doc.file_hash,
-    open_before_accept_required: doc.open_before_accept_required,
+    title: version.legal_document.title || LEGAL_DOCUMENT_TYPE_LABELS[type],
+    version: version.version,
+    file_name: version.file_name,
+    file_hash: version.file_hash,
+    open_before_accept_required: true,
     checkbox_wording: LEGAL_DOCUMENT_CHECKBOX_WORDING[type],
     acceptance_status: acceptance?.status ?? "NOT_OPENED",
     openedAt: acceptance?.opened_at?.toISOString() ?? null,
@@ -171,10 +172,6 @@ function blockedActionsFor(
 }
 
 export class LegalDocumentAcceptanceService {
-  /**
-   * Documents a new user must accept during onboarding (all currently published
-   * acceptance_required docs for their audience).
-   */
   async getRequiredDocuments(
     userId: string,
     organizationId: string,
@@ -187,7 +184,7 @@ export class LegalDocumentAcceptanceService {
     const documents: RequiredLegalDocumentResponse[] = [];
 
     for (const type of requiredTypes) {
-      const published = await siteDocumentRepository.findPublishedByTypeAndAudiences(
+      const published = await legalDocumentRepository.findPublishedByTypeAndAudiences(
         type,
         [...allowedAudiences]
       );
@@ -213,10 +210,6 @@ export class LegalDocumentAcceptanceService {
     };
   }
 
-  /**
-   * Pending re-acceptance for existing onboarded orgs when admin published with
-   * reacceptance_required=true. Does not use or change tnc_accepted.
-   */
   async getPendingReacceptanceDocuments(
     userId: string,
     organizationId: string,
@@ -233,7 +226,7 @@ export class LegalDocumentAcceptanceService {
 
     for (const type of requiredTypes) {
       const published =
-        await siteDocumentRepository.findPublishedReacceptanceByTypeAndAudiences(
+        await legalDocumentRepository.findPublishedReacceptanceByTypeAndAudiences(
           type,
           [...allowedAudiences]
         );
@@ -255,6 +248,7 @@ export class LegalDocumentAcceptanceService {
     audience: LegalAcceptanceAudience
   ): Promise<LegalComplianceStatus> {
     const org = await assertOrgAccess(userId, organizationId, audience);
+    const isOrganisationOwner = org.owner_user_id === userId;
     const onboardingDocs = await this.getRequiredDocuments(userId, organizationId, audience);
     const pendingDocuments = org.tnc_accepted
       ? await this.getPendingReacceptanceDocuments(userId, organizationId, audience)
@@ -268,6 +262,7 @@ export class LegalDocumentAcceptanceService {
     return {
       onboardingComplete,
       hasPendingReacceptance,
+      isOrganisationOwner,
       pendingDocuments,
       blockedActions: blockedActionsFor(audience, hasPendingReacceptance),
       tncAccepted: org.tnc_accepted,
@@ -306,22 +301,21 @@ export class LegalDocumentAcceptanceService {
   async recordOpened(
     req: Request,
     userId: string,
-    documentId: string,
+    versionId: string,
     organizationId: string,
     audience: LegalAcceptanceAudience
   ) {
     await assertOrgAccess(userId, organizationId, audience);
 
-    const document = await siteDocumentRepository.findById(documentId);
-    if (!document || document.status !== "PUBLISHED") {
-      throw new AppError(404, "NOT_FOUND", "Published document not found");
+    const version = await legalDocumentRepository.findVersionById(versionId);
+    if (!version || version.status !== "PUBLISHED") {
+      throw new AppError(404, "NOT_FOUND", "Published document version not found");
     }
 
-    this.assertDocumentAudience(document, audience);
+    this.assertDocumentAudience(version, audience);
 
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-
-    const existing = await findUserAcceptance(userId, organizationId, documentId);
+    const existing = await findUserAcceptance(userId, organizationId, versionId);
 
     if (existing?.status === "ACCEPTED" || existing?.status === "OPENED") {
       return existing;
@@ -342,10 +336,8 @@ export class LegalDocumentAcceptanceService {
             user_id: userId,
             organization_id: organizationId,
             audience_role: audience,
-            document_id: documentId,
-            document_type: document.type,
-            version: document.version,
-            file_hash: document.file_hash,
+            legal_document_version_id: versionId,
+            document_hash: version.file_hash,
             status: "OPENED",
             opened_at: new Date(),
             ip_address: ipAddress,
@@ -355,23 +347,25 @@ export class LegalDocumentAcceptanceService {
 
     await documentLogRepository.create({
       userId,
-      documentId,
-      eventType: "DOCUMENT_OPENED",
+      documentId: version.legal_document_id,
+      eventType: "LEGAL_DOCUMENT_OPENED" as never,
       ipAddress,
       userAgent,
       deviceInfo,
       metadata: {
         organization_id: organizationId,
         audience,
-        document_type: document.type,
-        version: document.version,
-        file_hash: document.file_hash,
+        legal_document_id: version.legal_document_id,
+        legal_document_version_id: versionId,
+        document_type: version.legal_document.type,
+        version: version.version,
+        file_hash: version.file_hash,
         acceptance_status: "OPENED",
       },
     });
 
     logger.info(
-      { userId, documentId, organizationId, audience },
+      { userId, versionId, organizationId, audience },
       "Legal document open recorded"
     );
 
@@ -381,7 +375,7 @@ export class LegalDocumentAcceptanceService {
   async recordAccepted(
     req: Request,
     userId: string,
-    documentId: string,
+    versionId: string,
     organizationId: string,
     audience: LegalAcceptanceAudience
   ) {
@@ -394,8 +388,8 @@ export class LegalDocumentAcceptanceService {
       );
     }
 
-    const document = await siteDocumentRepository.findById(documentId);
-    if (!document || document.status !== "PUBLISHED") {
+    const version = await legalDocumentRepository.findVersionById(versionId);
+    if (!version || version.status !== "PUBLISHED") {
       throw new AppError(
         400,
         "INVALID_DOCUMENT",
@@ -403,24 +397,20 @@ export class LegalDocumentAcceptanceService {
       );
     }
 
-    this.assertDocumentAudience(document, audience);
+    this.assertDocumentAudience(version, audience);
 
-    if (!document.acceptance_required) {
+    if (!version.legal_document.required_for_onboarding) {
       throw new AppError(400, "NOT_REQUIRED", "Acceptance is not required for this document");
     }
 
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-
-    const existing = await findUserAcceptance(userId, organizationId, documentId);
+    const existing = await findUserAcceptance(userId, organizationId, versionId);
 
     if (existing?.status === "ACCEPTED") {
       return existing;
     }
 
-    if (
-      document.open_before_accept_required &&
-      (!existing || existing.status === "NOT_OPENED")
-    ) {
+    if (!existing || existing.status === "NOT_OPENED") {
       throw new AppError(
         400,
         "OPEN_REQUIRED",
@@ -428,120 +418,121 @@ export class LegalDocumentAcceptanceService {
       );
     }
 
-    const row = existing
-      ? ((await prisma.legalDocumentAcceptance.update({
-          where: { id: existing.id },
-          data: {
-            status: "ACCEPTED",
-            accepted_at: new Date(),
-            opened_at: existing.opened_at ?? new Date(),
-            file_hash: document.file_hash,
-            version: document.version,
-            ip_address: ipAddress,
-            user_agent: userAgent,
-          },
-        })) as AcceptanceRow)
-      : ((await prisma.legalDocumentAcceptance.create({
-          data: {
-            user_id: userId,
-            organization_id: organizationId,
-            audience_role: audience,
-            document_id: documentId,
-            document_type: document.type,
-            version: document.version,
-            file_hash: document.file_hash,
-            status: "ACCEPTED",
-            opened_at: new Date(),
-            accepted_at: new Date(),
-            ip_address: ipAddress,
-            user_agent: userAgent,
-          },
-        })) as AcceptanceRow);
+    const row = (await prisma.legalDocumentAcceptance.update({
+      where: { id: existing.id },
+      data: {
+        status: "ACCEPTED",
+        accepted_at: new Date(),
+        opened_at: existing.opened_at ?? new Date(),
+        document_hash: version.file_hash,
+        ip_address: ipAddress,
+        user_agent: userAgent,
+      },
+    })) as AcceptanceRow;
 
     await documentLogRepository.create({
       userId,
-      documentId,
-      eventType: "DOCUMENT_ACCEPTED",
+      documentId: version.legal_document_id,
+      eventType: "LEGAL_DOCUMENT_ACCEPTED" as never,
       ipAddress,
       userAgent,
       deviceInfo,
       metadata: {
         organization_id: organizationId,
         audience,
-        document_type: document.type,
-        version: document.version,
-        file_hash: document.file_hash,
+        legal_document_id: version.legal_document_id,
+        legal_document_version_id: versionId,
+        document_type: version.legal_document.type,
+        version: version.version,
+        file_hash: version.file_hash,
         acceptance_status: "ACCEPTED",
       },
     });
 
     logger.info(
-      { userId, documentId, organizationId, audience },
+      { userId, versionId, organizationId, audience },
       "Legal document acceptance recorded"
     );
 
     return row;
   }
 
-  async getPublishedDownloadUrl(documentId: string) {
-    const document = await siteDocumentRepository.findById(documentId);
-    if (!document || document.status !== "PUBLISHED") {
-      throw new AppError(404, "NOT_FOUND", "Published document not found");
+  async getPublishedDownloadUrl(versionId: string) {
+    const version = await legalDocumentRepository.findVersionById(versionId);
+    if (!version || version.status !== "PUBLISHED") {
+      throw new AppError(404, "NOT_FOUND", "Published document version not found");
     }
 
     const { downloadUrl, expiresIn } = await generatePresignedDownloadUrl({
-      key: document.s3_key,
-      fileName: document.file_name,
+      key: version.s3_key,
+      fileName: version.file_name,
     });
 
     return {
       downloadUrl,
       expiresIn,
-      fileName: document.file_name,
-      contentType: document.content_type,
-      fileSize: document.file_size,
+      fileName: version.file_name,
+      contentType: version.content_type,
+      fileSize: version.file_size,
     };
   }
 
-  async getPublishedViewUrl(documentId: string) {
-    const document = await siteDocumentRepository.findById(documentId);
-    if (!document || document.status !== "PUBLISHED") {
-      throw new AppError(404, "NOT_FOUND", "Published document not found");
+  async getPublishedViewUrl(versionId: string) {
+    const version = await legalDocumentRepository.findVersionById(versionId);
+    if (!version || version.status !== "PUBLISHED") {
+      throw new AppError(404, "NOT_FOUND", "Published document version not found");
     }
 
     const { viewUrl, expiresIn } = await generatePresignedViewUrl({
-      key: document.s3_key,
+      key: version.s3_key,
     });
 
     return {
       viewUrl,
       expiresIn,
-      fileName: document.file_name,
-      contentType: document.content_type,
-      fileSize: document.file_size,
+      fileName: version.file_name,
+      contentType: version.content_type,
+      fileSize: version.file_size,
     };
   }
 
-  async listPublicPublishedDocuments(): Promise<PublicLegalDocumentResponse[]> {
-    const rows = await siteDocumentRepository.findPublishedForPublic([
-      ...PUBLIC_FOOTER_LEGAL_TYPES,
-    ] as SiteDocumentType[]);
+  async getPublicDownloadUrl(versionId: string) {
+    const version = await legalDocumentRepository.findVersionById(versionId);
+    if (!version || version.status !== "PUBLISHED") {
+      throw new AppError(404, "NOT_FOUND", "Published document version not found");
+    }
 
-    const byType = new Map<string, SiteDocumentRow>();
+    const parent = version.legal_document;
+    const isPublic =
+      parent.public_visibility ||
+      parent.audience === "PUBLIC" ||
+      parent.audience === "BOTH";
+
+    if (!isPublic) {
+      throw new AppError(404, "NOT_FOUND", "Published document version not found");
+    }
+
+    return this.getPublishedDownloadUrl(versionId);
+  }
+
+  async listPublicPublishedDocuments(): Promise<PublicLegalDocumentResponse[]> {
+    const rows = await legalDocumentRepository.findPublicPublishedVersions();
+    const byType = new Map<string, VersionWithDocument>();
+
     for (const row of rows) {
-      if (!isOnboardingLegalDocumentType(row.type)) continue;
-      if (row.status !== "PUBLISHED") continue;
-      if (!byType.has(row.type)) {
-        byType.set(row.type, row);
+      if (!isLegalDocumentType(row.legal_document.type)) continue;
+      if (!byType.has(row.legal_document.type)) {
+        byType.set(row.legal_document.type, row);
       }
     }
 
-    return PUBLIC_FOOTER_LEGAL_TYPES.filter((type) => byType.has(type)).map((type) => {
-      const row = byType.get(type)!;
+    return [...byType.values()].map((row) => {
+      const type = row.legal_document.type as LegalDocumentType;
       return {
-        id: row.id,
+        legalDocumentId: row.legal_document_id,
+        legalDocumentVersionId: row.id,
         type,
-        title: row.title || LEGAL_DOCUMENT_TYPE_LABELS[type],
+        title: row.legal_document.title || LEGAL_DOCUMENT_TYPE_LABELS[type],
         version: row.version,
         file_name: row.file_name,
         published_at: row.published_at?.toISOString() ?? null,
@@ -550,11 +541,11 @@ export class LegalDocumentAcceptanceService {
   }
 
   private assertDocumentAudience(
-    document: SiteDocumentRow,
+    version: VersionWithDocument,
     audience: LegalAcceptanceAudience
   ) {
     const allowed = audiencesForRole(audience);
-    if (!allowed.includes(document.audience)) {
+    if (!allowed.includes(version.legal_document.audience)) {
       throw new AppError(
         403,
         "FORBIDDEN",

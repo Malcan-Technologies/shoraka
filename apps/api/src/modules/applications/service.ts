@@ -25,7 +25,7 @@ import {
 } from "@prisma/client";
 import { requestPresignedUploadUrl, deleteDocumentFromS3 } from "./documents/service";
 import { shouldPreserveApplicationDocumentsInS3 } from "./amendment-preserve-s3";
-import { legalDocumentAcceptanceService } from "../site-documents/acceptance-service";
+import { legalDocumentAcceptanceService } from "../legal-documents/acceptance-service";
 import {
   assertRequiredSupportingDocumentsPresent,
   assertRequiredAcceptanceDocumentsPresent,

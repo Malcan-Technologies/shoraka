@@ -1960,8 +1960,6 @@ export class ApiClient {
     queryParams.append("page", String(params.page));
     queryParams.append("pageSize", String(params.pageSize));
     if (params.type) queryParams.append("type", params.type);
-    if (params.status) queryParams.append("status", params.status);
-    if (params.audience) queryParams.append("audience", params.audience);
     if (params.includeInactive !== undefined)
       queryParams.append("includeInactive", String(params.includeInactive));
     if (params.search) queryParams.append("search", params.search);
@@ -2020,25 +2018,6 @@ export class ApiClient {
   ): Promise<ApiResponse<{ document: SiteDocumentResponse }> | ApiError> {
     return this.post<{ document: SiteDocumentResponse }>(
       `/v1/admin/site-documents/${id}/restore`,
-      {}
-    );
-  }
-
-  async publishSiteDocument(
-    id: string,
-    data: { reacceptanceRequired?: boolean } = {}
-  ): Promise<ApiResponse<{ document: SiteDocumentResponse }> | ApiError> {
-    return this.post<{ document: SiteDocumentResponse }>(
-      `/v1/admin/site-documents/${id}/publish`,
-      { reacceptanceRequired: data.reacceptanceRequired ?? false }
-    );
-  }
-
-  async archiveSiteDocument(
-    id: string
-  ): Promise<ApiResponse<{ document: SiteDocumentResponse }> | ApiError> {
-    return this.post<{ document: SiteDocumentResponse }>(
-      `/v1/admin/site-documents/${id}/archive`,
       {}
     );
   }

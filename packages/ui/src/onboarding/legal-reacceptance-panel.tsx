@@ -44,6 +44,13 @@ function audienceFromPortal(portalType: PortalType): LegalAcceptanceAudience {
   return portalType === "issuer" ? "ISSUER" : "INVESTOR";
 }
 
+/** Prefer legalDocumentVersionId; tolerate legacy documentVersionId alias if present. */
+function versionIdOf(doc: PendingLegalDocumentResponse): string {
+  const legacy = (doc as PendingLegalDocumentResponse & { documentVersionId?: string })
+    .documentVersionId;
+  return doc.legalDocumentVersionId || legacy || "";
+}
+
 export function LegalReacceptancePanel({
   organizationId,
   portalType,
@@ -53,13 +60,16 @@ export function LegalReacceptancePanel({
   const { getAccessToken } = useAuthToken();
   const { refreshOrganizations, activeOrganization } = useOrganization();
   const audience = audienceFromPortal(portalType);
-  const isOwner = activeOrganization?.id === organizationId ? Boolean(activeOrganization.isOwner) : false;
 
   const [status, setStatus] = useState<LegalComplianceStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [localState, setLocalState] = useState<Record<string, LocalDocState>>({});
   const [error, setError] = useState<string | null>(null);
+
+  const isOwner =
+    status?.isOrganisationOwner ??
+    (activeOrganization?.id === organizationId ? Boolean(activeOrganization.isOwner) : false);
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -78,12 +88,13 @@ export function LegalReacceptancePanel({
       setLocalState((prev) => {
         const next: Record<string, LocalDocState> = {};
         for (const doc of data.pendingDocuments) {
+          const versionId = versionIdOf(doc);
           const opened =
             doc.acceptance_status === "OPENED" ||
             doc.acceptance_status === "ACCEPTED" ||
             !doc.open_before_accept_required;
-          next[doc.documentVersionId] = {
-            checked: prev[doc.documentVersionId]?.checked === true,
+          next[versionId] = {
+            checked: prev[versionId]?.checked === true,
             opened,
             opening: false,
           };
@@ -105,20 +116,21 @@ export function LegalReacceptancePanel({
 
   const allChecked = useMemo(() => {
     if (pending.length === 0) return false;
-    return pending.every((doc) => localState[doc.documentVersionId]?.checked === true);
+    return pending.every((doc) => localState[versionIdOf(doc)]?.checked === true);
   }, [localState, pending]);
 
   const handleOpen = async (doc: PendingLegalDocumentResponse) => {
+    const versionId = versionIdOf(doc);
     setLocalState((prev) => ({
       ...prev,
-      [doc.documentVersionId]: { ...prev[doc.documentVersionId], opening: true },
+      [versionId]: { ...prev[versionId], opening: true },
     }));
     try {
       const client = createApiClient(apiUrl, getAccessToken);
       const result = await client.post<{
         downloadUrl: string;
         viewUrl: string;
-      }>(`/v1/legal-documents/${doc.documentVersionId}/open`, {
+      }>(`/v1/legal-documents/versions/${versionId}/open`, {
         organizationId,
         audience,
       });
@@ -127,8 +139,8 @@ export function LegalReacceptancePanel({
       }
       setLocalState((prev) => ({
         ...prev,
-        [doc.documentVersionId]: {
-          ...prev[doc.documentVersionId],
+        [versionId]: {
+          ...prev[versionId],
           opened: true,
           opening: false,
         },
@@ -141,7 +153,7 @@ export function LegalReacceptancePanel({
     } catch (err) {
       setLocalState((prev) => ({
         ...prev,
-        [doc.documentVersionId]: { ...prev[doc.documentVersionId], opening: false },
+        [versionId]: { ...prev[versionId], opening: false },
       }));
       toast.error(err instanceof Error ? err.message : "Failed to open document");
     }
@@ -156,10 +168,13 @@ export function LegalReacceptancePanel({
     try {
       const client = createApiClient(apiUrl, getAccessToken);
       for (const doc of pending) {
-        const result = await client.post(`/v1/legal-documents/${doc.documentVersionId}/accept`, {
-          organizationId,
-          audience,
-        });
+        const result = await client.post(
+          `/v1/legal-documents/versions/${versionIdOf(doc)}/accept`,
+          {
+            organizationId,
+            audience,
+          }
+        );
         if (!result.success) {
           throw new Error(result.error?.message || `Failed to accept ${doc.title}`);
         }
@@ -225,30 +240,33 @@ export function LegalReacceptancePanel({
             organisation owner. Your account stays active for login, dashboards, and existing
             transactions.
           </p>
-          {pending.map((doc) => (
-            <section
-              key={doc.documentVersionId}
-              className="rounded-xl border border-border bg-muted/30 p-4"
-            >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h3 className="text-[17px] font-semibold leading-7">{doc.title}</h3>
-                  <p className="text-sm text-muted-foreground">Version {doc.version}</p>
+          {pending.map((doc) => {
+            const versionId = versionIdOf(doc);
+            return (
+              <section
+                key={versionId}
+                className="rounded-xl border border-border bg-muted/30 p-4"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-[17px] font-semibold leading-7">{doc.title}</h3>
+                    <p className="text-sm text-muted-foreground">Version {doc.version}</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0 gap-2"
+                    disabled={localState[versionId]?.opening}
+                    onClick={() => void handleOpen(doc)}
+                  >
+                    <DocumentArrowDownIcon className="size-4" aria-hidden />
+                    {localState[versionId]?.opening ? "Opening…" : "View PDF"}
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 gap-2"
-                  disabled={localState[doc.documentVersionId]?.opening}
-                  onClick={() => void handleOpen(doc)}
-                >
-                  <DocumentArrowDownIcon className="size-4" aria-hidden />
-                  {localState[doc.documentVersionId]?.opening ? "Opening…" : "View PDF"}
-                </Button>
-              </div>
-            </section>
-          ))}
+              </section>
+            );
+          })}
         </CardContent>
       </Card>
     );
@@ -266,12 +284,13 @@ export function LegalReacceptancePanel({
       </CardHeader>
       <CardContent className="space-y-6">
         {pending.map((doc) => {
-          const state = localState[doc.documentVersionId];
+          const versionId = versionIdOf(doc);
+          const state = localState[versionId];
           const canCheck = state?.opened === true;
-          const checkboxId = `legal-reaccept-${doc.documentVersionId}`;
+          const checkboxId = `legal-reaccept-${versionId}`;
           return (
             <section
-              key={doc.documentVersionId}
+              key={versionId}
               className="rounded-xl border border-border bg-muted/30 p-4"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -299,8 +318,8 @@ export function LegalReacceptancePanel({
                   onCheckedChange={(checked) => {
                     setLocalState((prev) => ({
                       ...prev,
-                      [doc.documentVersionId]: {
-                        ...prev[doc.documentVersionId],
+                      [versionId]: {
+                        ...prev[versionId],
                         checked: checked === true,
                       },
                     }));

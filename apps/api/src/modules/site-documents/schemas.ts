@@ -3,7 +3,7 @@ import { z } from "zod";
 export type SiteDocumentType = "TERMS_AND_CONDITIONS" | "PRIVACY_POLICY" | "RISK_DISCLOSURE" | "PLATFORM_AGREEMENT" | "INVESTOR_GUIDE" | "ISSUER_GUIDE" | "OTHER";
 
 // Enum values for validation
-const siteDocumentTypes: SiteDocumentType[] = ["TERMS_AND_CONDITIONS", "PRIVACY_POLICY", "RISK_DISCLOSURE", "PLATFORM_AGREEMENT", "INVESTOR_GUIDE", "ISSUER_GUIDE", "OTHER"];
+export const siteDocumentTypes: SiteDocumentType[] = ["TERMS_AND_CONDITIONS", "PRIVACY_POLICY", "RISK_DISCLOSURE", "PLATFORM_AGREEMENT", "INVESTOR_GUIDE", "ISSUER_GUIDE", "OTHER"];
 
 // Request presigned upload URL
 export const requestUploadUrlSchema = z.object({
