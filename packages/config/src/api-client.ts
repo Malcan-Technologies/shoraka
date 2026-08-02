@@ -1958,6 +1958,8 @@ export class ApiClient {
     queryParams.append("page", String(params.page));
     queryParams.append("pageSize", String(params.pageSize));
     if (params.type) queryParams.append("type", params.type);
+    if (params.status) queryParams.append("status", params.status);
+    if (params.audience) queryParams.append("audience", params.audience);
     if (params.includeInactive !== undefined)
       queryParams.append("includeInactive", String(params.includeInactive));
     if (params.search) queryParams.append("search", params.search);

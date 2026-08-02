@@ -70,10 +70,10 @@ export const requestUploadUrlSchema = z
   .transform((data) => ({
     ...data,
     audience: data.audience ?? defaultAudienceForType(data.type),
-    acceptanceRequired:
-      data.acceptanceRequired ?? isOnboardingLegalDocumentType(data.type),
-    openBeforeAcceptRequired:
-      data.openBeforeAcceptRequired ?? isOnboardingLegalDocumentType(data.type),
+    // Acceptance flags default off so generic uploads stay compatible with origin/main.
+    // Legal Documents admin must pass acceptanceRequired: true explicitly.
+    acceptanceRequired: data.acceptanceRequired ?? false,
+    openBeforeAcceptRequired: data.openBeforeAcceptRequired ?? false,
     reacceptanceRequired: data.reacceptanceRequired ?? false,
   }));
 
@@ -99,10 +99,8 @@ export const createDocumentSchema = z
   .transform((data) => ({
     ...data,
     audience: data.audience ?? defaultAudienceForType(data.type),
-    acceptanceRequired:
-      data.acceptanceRequired ?? isOnboardingLegalDocumentType(data.type),
-    openBeforeAcceptRequired:
-      data.openBeforeAcceptRequired ?? isOnboardingLegalDocumentType(data.type),
+    acceptanceRequired: data.acceptanceRequired ?? false,
+    openBeforeAcceptRequired: data.openBeforeAcceptRequired ?? false,
     reacceptanceRequired: data.reacceptanceRequired ?? false,
   }));
 

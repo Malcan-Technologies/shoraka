@@ -61,7 +61,8 @@ import { prisma } from "../../lib/prisma";
 import { legalDocumentAcceptanceService } from "./acceptance-service";
 import { siteDocumentRepository, documentLogRepository } from "./repository";
 import { siteDocumentService } from "./service";
-import { validateSiteDocument } from "../../lib/s3/client";
+import { createDocumentSchema } from "./schemas";
+import { validateSiteDocument, deleteS3Object } from "../../lib/s3/client";
 
 const mockReq = {
   headers: {
@@ -541,5 +542,197 @@ describe("site document upload validation", () => {
         "admin1"
       )
     ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+  });
+});
+
+describe("generic SiteDocument regression (origin/main compatible)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest.spyOn(documentLogRepository, "create").mockResolvedValue({} as never);
+  });
+
+  it("accepts origin/main create payloads without legal fields", () => {
+    const parsed = createDocumentSchema.parse({
+      type: "PRIVACY_POLICY",
+      title: "Privacy Policy",
+      fileName: "privacy.pdf",
+      s3Key: "site-documents/privacy.pdf",
+      contentType: "application/pdf",
+      fileSize: 2048,
+      showInAccount: true,
+    });
+
+    expect(parsed.acceptanceRequired).toBe(false);
+    expect(parsed.openBeforeAcceptRequired).toBe(false);
+    expect(parsed.reacceptanceRequired).toBe(false);
+    expect(parsed.audience).toBe("PUBLIC");
+    expect(parsed.showInAccount).toBe(true);
+  });
+
+  it("creates generic uploads as PUBLISHED with acceptance flags off", async () => {
+    const createSpy = jest.spyOn(siteDocumentRepository, "create").mockResolvedValue({
+      id: "doc-generic",
+      type: "PRIVACY_POLICY",
+      title: "Privacy Policy",
+      description: null,
+      file_name: "privacy.pdf",
+      s3_key: "key",
+      content_type: "application/pdf",
+      file_size: 100,
+      file_hash: null,
+      version: 1,
+      is_active: true,
+      show_in_account: true,
+      audience: "PUBLIC",
+      status: "PUBLISHED",
+      acceptance_required: false,
+      open_before_accept_required: false,
+      reacceptance_required: false,
+      effective_date: null,
+      uploaded_by: "admin1",
+      published_by: "admin1",
+      published_at: new Date(),
+      archived_by: null,
+      archived_at: null,
+      created_at: new Date(),
+      updated_at: new Date(),
+    } as never);
+    jest.spyOn(siteDocumentRepository, "getLatestVersionByType").mockResolvedValue(0);
+
+    await siteDocumentService.createDocument(
+      createDocumentSchema.parse({
+        type: "PRIVACY_POLICY",
+        title: "Privacy Policy",
+        fileName: "privacy.pdf",
+        s3Key: "key",
+        contentType: "application/pdf",
+        fileSize: 100,
+        showInAccount: true,
+      }),
+      "admin1",
+      mockReq
+    );
+
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "PUBLISHED",
+        acceptanceRequired: false,
+        openBeforeAcceptRequired: false,
+        reacceptanceRequired: false,
+        showInAccount: true,
+      })
+    );
+  });
+
+  it("creates acceptance-required legal uploads as DRAFT", async () => {
+    const createSpy = jest.spyOn(siteDocumentRepository, "create").mockResolvedValue({
+      id: "doc-legal",
+      type: "PDPA_NOTICE",
+      status: "DRAFT",
+      acceptance_required: true,
+      title: "PDPA",
+      version: 1,
+    } as never);
+    jest.spyOn(siteDocumentRepository, "getLatestVersionByType").mockResolvedValue(0);
+
+    await siteDocumentService.createDocument(
+      createDocumentSchema.parse({
+        type: "PDPA_NOTICE",
+        title: "PDPA",
+        fileName: "pdpa.pdf",
+        s3Key: "key2",
+        contentType: "application/pdf",
+        fileSize: 100,
+        acceptanceRequired: true,
+        openBeforeAcceptRequired: true,
+        audience: "BOTH",
+      }),
+      "admin1",
+      mockReq
+    );
+
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "DRAFT",
+        acceptanceRequired: true,
+        openBeforeAcceptRequired: true,
+      })
+    );
+  });
+
+  it("replaces generic documents in place and deletes prior S3 object", async () => {
+    jest.spyOn(siteDocumentRepository, "findById").mockResolvedValue({
+      id: "doc-g",
+      type: "PLATFORM_AGREEMENT",
+      title: "Platform",
+      description: null,
+      s3_key: "old-key",
+      version: 2,
+      show_in_account: false,
+      acceptance_required: false,
+      status: "PUBLISHED",
+      audience: "PUBLIC",
+      open_before_accept_required: false,
+      reacceptance_required: false,
+    } as never);
+    const replaceSpy = jest.spyOn(siteDocumentRepository, "replaceFile").mockResolvedValue({
+      id: "doc-g",
+      version: 3,
+    } as never);
+    const createSpy = jest.spyOn(siteDocumentRepository, "create").mockResolvedValue({} as never);
+
+    await siteDocumentService.confirmReplace(
+      "doc-g",
+      { s3Key: "new-key", fileName: "platform-v3.pdf", fileSize: 50 },
+      "admin1",
+      mockReq
+    );
+
+    expect(replaceSpy).toHaveBeenCalledWith(
+      "doc-g",
+      expect.objectContaining({ s3Key: "new-key", newVersion: 3 })
+    );
+    expect(createSpy).not.toHaveBeenCalled();
+    expect(deleteS3Object).toHaveBeenCalledWith("old-key");
+  });
+
+  it("does not treat generic published docs as onboarding requirements", async () => {
+    jest.spyOn(siteDocumentRepository, "findPublishedByTypeAndAudiences").mockResolvedValue(null);
+    (prisma.issuerOrganization.findFirst as jest.Mock).mockResolvedValue({
+      id: "org1",
+      owner_user_id: "u1",
+      tnc_accepted: false,
+    });
+
+    const status = await legalDocumentAcceptanceService.getRequiredDocuments(
+      "u1",
+      "org1",
+      "ISSUER"
+    );
+
+    expect(status.documents).toEqual([]);
+    expect(siteDocumentRepository.findPublishedByTypeAndAudiences).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Array)
+    );
+  });
+
+  it("does not create pending reacceptance for docs without reacceptance_required", async () => {
+    jest
+      .spyOn(siteDocumentRepository, "findPublishedReacceptanceByTypeAndAudiences")
+      .mockResolvedValue(null);
+    (prisma.issuerOrganization.findFirst as jest.Mock).mockResolvedValue({
+      id: "org1",
+      owner_user_id: "u1",
+      tnc_accepted: true,
+    });
+
+    const pending = await legalDocumentAcceptanceService.getPendingReacceptanceDocuments(
+      "u1",
+      "org1",
+      "ISSUER"
+    );
+
+    expect(pending).toEqual([]);
   });
 });

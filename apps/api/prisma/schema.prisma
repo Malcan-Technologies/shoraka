@@ -1418,11 +1418,11 @@ model SiteDocument {
   is_active                  Boolean                @default(true)
   show_in_account            Boolean                @default(false)
   audience                   LegalDocumentAudience  @default(PUBLIC)
-  status                     LegalDocumentStatus    @default(DRAFT)
+  status                     LegalDocumentStatus    @default(PUBLISHED)
   effective_date             DateTime?
-  acceptance_required        Boolean                @default(true)
-  open_before_accept_required Boolean               @default(true)
-  reacceptance_required      Boolean                @default(true)
+  acceptance_required        Boolean                @default(false)
+  open_before_accept_required Boolean               @default(false)
+  reacceptance_required      Boolean                @default(false)
   uploaded_by                String
   published_by               String?
   published_at               DateTime?

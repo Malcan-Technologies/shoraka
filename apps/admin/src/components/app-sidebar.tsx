@@ -17,6 +17,7 @@ import {
   CheckBadgeIcon,
   DocumentCheckIcon,
   FolderOpenIcon,
+  ScaleIcon,
   DocumentDuplicateIcon,
   CubeIcon,
   QuestionMarkCircleIcon,
@@ -181,6 +182,11 @@ const navPlatform = [
     title: "Documents",
     url: "/documents",
     icon: FolderOpenIcon,
+  },
+  {
+    title: "Legal Documents",
+    url: "/legal-documents",
+    icon: ScaleIcon,
   },
   {
     title: "Help",

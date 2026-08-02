@@ -940,6 +940,8 @@ export interface GetSiteDocumentsParams extends PaginationParams {
   type?: SiteDocumentType;
   includeInactive?: boolean;
   search?: string;
+  status?: import("./legal-documents").LegalDocumentStatus;
+  audience?: import("./legal-documents").LegalDocumentAudience;
 }
 
 export interface SiteDocumentsResponse {
