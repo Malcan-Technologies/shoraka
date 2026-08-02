@@ -7,12 +7,20 @@ import type {
 
 export const MAX_LEGAL_PDF_BYTES = 10 * 1024 * 1024;
 
+/** Who must accept this document in a portal (not the same as website visibility). */
 export const LEGAL_AUDIENCE_LABELS: Record<LegalDocumentAudience, string> = {
   BOTH: "Issuer & Investor",
-  ISSUER: "Issuer",
-  INVESTOR: "Investor",
-  PUBLIC: "Public",
+  ISSUER: "Issuer only",
+  INVESTOR: "Investor only",
+  PUBLIC: "No portal acceptance",
 };
+
+/** Audiences offered when creating/editing (exclude confusing PUBLIC). */
+export const OPERATIONAL_AUDIENCES: LegalDocumentAudience[] = [
+  "BOTH",
+  "ISSUER",
+  "INVESTOR",
+];
 
 export const LEGAL_STATUS_LABELS: Record<LegalDocumentVersionStatus, string> = {
   DRAFT: "Draft",
@@ -28,6 +36,10 @@ export function statusLabel(status: LegalDocumentVersionStatus): string {
   return LEGAL_STATUS_LABELS[status] ?? status;
 }
 
+export function websiteVisibilityLabel(visible: boolean): string {
+  return visible ? "On website" : "Hidden";
+}
+
 export function formatLegalFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
@@ -39,8 +51,6 @@ export function formatLegalDate(dateStr: string): string {
     day: "numeric",
     month: "short",
     year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
   });
 }
 

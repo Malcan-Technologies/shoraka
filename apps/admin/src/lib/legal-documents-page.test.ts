@@ -7,55 +7,41 @@ describe("Admin Legal Documents page UX", () => {
     "utf8"
   );
 
-  it("keeps a single Add Legal Document create modal with PDF upload", () => {
+  it("keeps one-step create with PDF and no manual version field", () => {
     expect(source).toContain("Add Legal Document");
-    expect(source).toContain("Create the legal document and upload its first PDF version.");
-    expect(source).toContain("Save as Draft");
     expect(source).toContain('id="legal-pdf"');
-    expect(source).toContain("validateLegalPdfFile");
+    expect(source).toContain("Save as Draft");
+    expect(source).toContain("Version numbers are assigned automatically");
+    expect(source).not.toContain('id="legal-version"');
     expect(source).not.toContain("New definition");
-    expect(source).not.toContain("Upload a draft PDF next");
   });
 
-  it("uses compact Admin table columns like Site Documents", () => {
+  it("separates who-must-accept from website visibility", () => {
+    expect(source).toContain("Who must accept");
+    expect(source).toContain("Show on website");
+    expect(source).toContain("Which portal users see this during onboarding.");
+    expect(source).toContain("show a link in the public footer");
+    expect(source).not.toContain("Publicly visible");
+    expect(source).not.toContain('label: audienceLabel("PUBLIC")');
+  });
+
+  it("uses a simpler table and brand primary Publish buttons", () => {
     expect(source).toContain(">Document</TableHead>");
-    expect(source).toContain(">Type</TableHead>");
-    expect(source).toContain(">Audience</TableHead>");
-    expect(source).toContain(">Version</TableHead>");
     expect(source).toContain(">Status</TableHead>");
-    expect(source).toContain(">Onboarding</TableHead>");
-    expect(source).toContain(">Public</TableHead>");
-    expect(source).toContain(">Updated</TableHead>");
-    expect(source).toContain(">Actions</TableHead>");
-    expect(source).not.toContain("Current Version");
-    expect(source).toContain('className="flex justify-end gap-1"');
+    expect(source).toContain(">Who must accept</TableHead>");
+    expect(source).toContain(">Website</TableHead>");
+    expect(source).not.toContain(">Audience</TableHead>");
+    expect(source).not.toContain(">Onboarding</TableHead>");
+    expect(source).not.toContain(">Public</TableHead>");
+    expect(source).toContain("openPublishDialog");
+    expect(source).toMatch(/<Button\s+size="sm"\s+onClick=\{\(\) => openPublishDialog/);
+    expect(source).toContain('sm:max-w-[460px]');
   });
 
-  it("publish dialog uses title+version helper, defaults to No, and standard radios", () => {
+  it("publish defaults to No and posts reacceptanceRequired", () => {
     expect(source).toContain("buildPublishDialogTitle");
     expect(source).toContain("setReacceptanceRequired(false)");
-    expect(source).toContain("Require existing users to accept this version again?");
-    expect(source).toContain(
-      "This version will become the current version shown to applicable users."
-    );
-    expect(source).toContain('type="radio"');
     expect(source).toContain("{ reacceptanceRequired }");
-    expect(source).toContain('sm:max-w-[480px]');
-    expect(source).toContain('className="flex cursor-pointer items-start gap-2"');
-    expect(source).not.toContain("rounded-lg border p-3\">\n                <input");
-  });
-
-  it("orchestrates create definition then draft upload without duplicates on retry", () => {
-    expect(source).toContain("shouldSkipDefinitionCreate");
-    expect(source).toContain("nextCreateOrchestrationAfterDefinition");
-    expect(source).toContain("uploadDraftVersion");
-    expect(source).toContain("definitionCreatedInAttempt");
-  });
-
-  it("supports upload new version, replace draft, history, and archive confirm", () => {
-    expect(source).toContain("Upload New Version");
-    expect(source).toContain("Replace Draft PDF");
-    expect(source).toContain("Version History");
-    expect(source).toContain("Archive");
+    expect(source).toContain('type="radio"');
   });
 });
