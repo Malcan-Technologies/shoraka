@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import type { LegalComplianceStatus } from "@cashsouk/types";
-import { Button } from "@cashsouk/ui";
+import { Button } from "../components/button";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -43,7 +43,9 @@ export function LegalReacceptanceBanner({ portalType }: { portalType: "issuer" |
     };
   }, [activeOrganization, getAccessToken, portalType]);
 
-  if (!pending) return null;
+  if (!pending || !activeOrganization) return null;
+
+  const isOwner = Boolean(activeOrganization.isOwner);
 
   return (
     <div
@@ -53,11 +55,12 @@ export function LegalReacceptanceBanner({ portalType }: { portalType: "issuer" |
     >
       <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm leading-relaxed text-foreground">
-          An updated legal document requires your review and acceptance before you can start new
-          transactions.
+          {isOwner
+            ? "An updated legal document requires your review and acceptance before you can start new transactions."
+            : "The organisation owner must accept the updated legal document before new transactions can continue."}
         </p>
         <Button asChild size="sm" className="shrink-0">
-          <Link href="/legal-updates">Review documents</Link>
+          <Link href="/legal-updates">{isOwner ? "Review documents" : "View documents"}</Link>
         </Button>
       </div>
     </div>
