@@ -1138,8 +1138,8 @@ export default function LegalDocumentsPage() {
                       </SelectContent>
                     </Select>
                     <p className="text-xs text-muted-foreground">
-                      The type name is used as the display name everywhere. Types already added are
-                      disabled — use Upload new version on that row instead.
+                      Choose a type that has not been added yet. If a type is already listed, open
+                      that row and use Upload new version.
                     </p>
                   </div>
                 )}
