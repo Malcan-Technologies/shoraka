@@ -131,26 +131,43 @@ export function buildCreateDefinitionPayload(form: CreateLegalDocumentFormValues
 }
 
 /**
- * Tracks create+upload orchestration so a failed upload can retry without
- * creating a duplicate LegalDocument definition.
+ * Tracks create+upload(+publish) orchestration so a failed later step can retry
+ * without creating a duplicate LegalDocument or duplicate draft version.
  */
 export type CreateOrchestrationState = {
   definitionId: string | null;
   definitionTitle: string | null;
+  /** Set after draft version is created; used to retry publish only. */
+  versionId: string | null;
 };
 
 export function nextCreateOrchestrationAfterDefinition(
   definition: Pick<LegalDocumentDefinitionResponse, "id" | "title">
 ): CreateOrchestrationState {
-  return { definitionId: definition.id, definitionTitle: definition.title };
+  return {
+    definitionId: definition.id,
+    definitionTitle: definition.title,
+    versionId: null,
+  };
+}
+
+export function nextCreateOrchestrationAfterVersion(
+  state: CreateOrchestrationState,
+  versionId: string
+): CreateOrchestrationState {
+  return { ...state, versionId };
 }
 
 export function resetCreateOrchestration(): CreateOrchestrationState {
-  return { definitionId: null, definitionTitle: null };
+  return { definitionId: null, definitionTitle: null, versionId: null };
 }
 
 export function shouldSkipDefinitionCreate(state: CreateOrchestrationState): boolean {
   return Boolean(state.definitionId);
+}
+
+export function shouldSkipVersionUpload(state: CreateOrchestrationState): boolean {
+  return Boolean(state.versionId);
 }
 
 /** Compact Admin publish dialog title: `Publish {title} v{n}?` */
