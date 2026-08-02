@@ -106,12 +106,34 @@ export function computeProfitMargin(pat: number | null, turnover: number | null)
 }
 
 /**
- * Return on equity: profit after tax divided by equity (paid-up capital). Not if equity is zero or missing.
+ * Return on equity: profit after tax divided by equity denominator. Not if equity is zero or missing.
  */
 export function computeReturnOnEquity(pat: number | null, equity: number | null): number | null {
   if (pat == null || equity == null || !Number.isFinite(pat) || !Number.isFinite(equity)) return null;
   if (equity === 0) return null;
   return pat / equity;
+}
+
+/**
+ * Financial Summary Profit Margin (CTOS + issuer columns): PAT ÷ turnover as a decimal ratio.
+ * Never uses CTOS `profit_margin` (official PBT Margin). Prospectus resolvers stay unchanged.
+ */
+export function resolveFinancialSummaryProfitMarginRatio(input: {
+  plnpat: number | null;
+  turnover: number | null;
+}): number | null {
+  return computeProfitMargin(input.plnpat, input.turnover);
+}
+
+/**
+ * Financial Summary issuer-submitted Return of Equity: PAT ÷ Net Worth as a decimal ratio.
+ * CTOS column keeps preferring flat `return_on_equity` in Admin UI. Prospectus resolvers unchanged.
+ */
+export function resolveFinancialSummaryIssuerReturnOnEquityRatio(input: {
+  plnpat: number | null;
+  netWorth: number | null;
+}): number | null {
+  return computeReturnOnEquity(input.plnpat, input.netWorth);
 }
 
 /**

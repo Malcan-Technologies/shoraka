@@ -34,6 +34,8 @@ import {
   computeHasPendingDirectorShareholder,
   normalizeFinancialStatementsQuestionnaire,
   normalizeDirectorShareholderIdKey,
+  resolveFinancialSummaryIssuerReturnOnEquityRatio,
+  resolveFinancialSummaryProfitMarginRatio,
   type ApplicationPersonRow,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
@@ -390,7 +392,15 @@ export function ApplicationFinancialReviewContent({
       if (!fs) return null;
       const input = financialRecordToInput(fs as Record<string, unknown>);
       const { bs, pl } = financialFormToBsPl(input);
-      return computeColumnMetrics(bs, pl, g);
+      const metrics = computeColumnMetrics(bs, pl, g);
+      // Financial Summary issuer ROE: PAT ÷ Net Worth (not Paid-Up Capital).
+      return {
+        ...metrics,
+        return_of_equity: resolveFinancialSummaryIssuerReturnOnEquityRatio({
+          plnpat: pl.profit_after_tax,
+          netWorth: metrics.networth,
+        }),
+      };
     });
   }, [columns, byYear, turnoverByYear, hasIssuerFinancialData, unauditedByYear]);
 
@@ -580,8 +590,15 @@ export function ApplicationFinancialReviewContent({
       }
       case "profit_margin": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
-        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "profit_margin")) {
-          return formatNumber(toNum(fs.profit_margin), 2) + "%";
+        // Always PAT ÷ turnover. Never CTOS profit_margin (that is PBT Margin).
+        if (specCol.kind === "ctos") {
+          const row = byYear.get(specCol.year);
+          const ratio = resolveFinancialSummaryProfitMarginRatio({
+            plnpat: row?.account.plnpat ?? null,
+            turnover: row?.account.turnover ?? null,
+          });
+          if (ratio == null) return "N/A";
+          return formatNumber(ratio * 100, 2) + "%";
         }
         if (!computed || computed.profit_margin == null) return "N/A";
         return formatNumber(computed.profit_margin * 100, 2) + "%";

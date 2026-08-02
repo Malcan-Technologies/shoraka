@@ -16,6 +16,7 @@ import {
   financialFormToBsPl,
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
+  resolveFinancialSummaryIssuerReturnOnEquityRatio,
   type FinancialStatementsInput,
   type FinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
@@ -302,8 +303,13 @@ function formatIssuerFinancialCell(rowId: string, fs: Record<string, unknown> | 
       return computed.turnover_growth == null ? "—" : formatNumber(computed.turnover_growth * 100, 2) + "%";
     case "profit_margin":
       return computed.profit_margin == null ? "—" : formatNumber(computed.profit_margin * 100, 2) + "%";
-    case "return_of_equity":
-      return computed.return_of_equity == null ? "—" : formatNumber(computed.return_of_equity * 100, 2) + "%";
+    case "return_of_equity": {
+      const roe = resolveFinancialSummaryIssuerReturnOnEquityRatio({
+        plnpat: pl.profit_after_tax,
+        netWorth: computed.networth,
+      });
+      return roe == null ? "—" : formatNumber(roe * 100, 2) + "%";
+    }
     case "currat":
       return computed.currat == null ? "—" : formatNumber(computed.currat, 2);
     case "workcap":

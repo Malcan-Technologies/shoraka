@@ -9,6 +9,8 @@ import {
   resolveApplicationFinancialReturnOnEquityRatio,
   resolveApplicationFinancialTotalAssets,
   resolveApplicationFinancialTotalLiabilities,
+  resolveFinancialSummaryIssuerReturnOnEquityRatio,
+  resolveFinancialSummaryProfitMarginRatio,
 } from "@cashsouk/types";
 
 describe("computeTurnoverGrowth", () => {
@@ -50,6 +52,81 @@ describe("computeProfitMargin", () => {
 
   it("returns pat/turnover when valid", () => {
     expect(computeProfitMargin(50, 200)).toBeCloseTo(0.25);
+  });
+});
+
+describe("resolveFinancialSummaryProfitMarginRatio", () => {
+  it("uses plnpat/turnover (15%)", () => {
+    expect(
+      resolveFinancialSummaryProfitMarginRatio({ plnpat: 15, turnover: 100 })
+    ).toBeCloseTo(0.15);
+  });
+
+  it("ignores PBT and never uses CTOS profit_margin semantics", () => {
+    // Even if a caller had PBT 20 vs PAT 15, this helper only sees plnpat.
+    expect(
+      resolveFinancialSummaryProfitMarginRatio({ plnpat: 15, turnover: 100 })
+    ).toBeCloseTo(0.15);
+    expect(
+      resolveFinancialSummaryProfitMarginRatio({ plnpat: 15, turnover: 100 })
+    ).not.toBeCloseTo(0.2);
+  });
+
+  it("returns null for zero or missing turnover", () => {
+    expect(resolveFinancialSummaryProfitMarginRatio({ plnpat: 15, turnover: 0 })).toBeNull();
+    expect(resolveFinancialSummaryProfitMarginRatio({ plnpat: 15, turnover: null })).toBeNull();
+  });
+
+  it("returns 0 when PAT is zero and turnover is valid", () => {
+    expect(resolveFinancialSummaryProfitMarginRatio({ plnpat: 0, turnover: 100 })).toBe(0);
+  });
+
+  it("preserves negative PAT", () => {
+    expect(
+      resolveFinancialSummaryProfitMarginRatio({ plnpat: -25, turnover: 100 })
+    ).toBeCloseTo(-0.25);
+  });
+});
+
+describe("resolveFinancialSummaryIssuerReturnOnEquityRatio", () => {
+  it("uses PAT / Net Worth (20%)", () => {
+    expect(
+      resolveFinancialSummaryIssuerReturnOnEquityRatio({ plnpat: 100, netWorth: 500 })
+    ).toBeCloseTo(0.2);
+  });
+
+  it("does not use Paid-Up Capital as denominator", () => {
+    // Paid-up 200 would wrongly yield 50%; Net Worth 500 yields 20%.
+    expect(
+      resolveFinancialSummaryIssuerReturnOnEquityRatio({ plnpat: 100, netWorth: 500 })
+    ).toBeCloseTo(0.2);
+    expect(
+      resolveFinancialSummaryIssuerReturnOnEquityRatio({ plnpat: 100, netWorth: 500 })
+    ).not.toBeCloseTo(0.5);
+  });
+
+  it("returns null for zero or missing Net Worth", () => {
+    expect(
+      resolveFinancialSummaryIssuerReturnOnEquityRatio({ plnpat: 100, netWorth: 0 })
+    ).toBeNull();
+    expect(
+      resolveFinancialSummaryIssuerReturnOnEquityRatio({ plnpat: 100, netWorth: null })
+    ).toBeNull();
+  });
+
+  it("returns 0 when PAT is zero and Net Worth is valid", () => {
+    expect(
+      resolveFinancialSummaryIssuerReturnOnEquityRatio({ plnpat: 0, netWorth: 500 })
+    ).toBe(0);
+  });
+
+  it("preserves negative values", () => {
+    expect(
+      resolveFinancialSummaryIssuerReturnOnEquityRatio({ plnpat: -50, netWorth: 200 })
+    ).toBeCloseTo(-0.25);
+    expect(
+      resolveFinancialSummaryIssuerReturnOnEquityRatio({ plnpat: 50, netWorth: -200 })
+    ).toBeCloseTo(-0.25);
   });
 });
 
