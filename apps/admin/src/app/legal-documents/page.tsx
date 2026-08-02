@@ -90,17 +90,22 @@ import { RequirePermission } from "../../components/require-permission";
 import { usePermissions } from "../../hooks/use-permissions";
 import {
   audienceLabel,
+  buildArchiveDialogCopy,
   buildCreateDefinitionPayload,
   buildEditDefinitionPayload,
   buildPublishDialogTitle,
+  canRestoreArchivedVersion,
   documentCurrentStatus,
   documentCurrentVersion,
   formatLegalDate,
   formatLegalFileSize,
   getLegalDocumentRowActions,
   hasLegalVersionHistory,
+  isOnlyActivePublishedVersion,
   latestDraftVersion,
+  latestPublishedVersion,
   legalDocumentDisplayName,
+  legalRowVersionLabel,
   legalStatusBadgeVariant,
   matchesClientFilters,
   nextCreateOrchestrationAfterDefinition,
@@ -110,7 +115,6 @@ import {
   resetCreateOrchestration,
   shouldSkipDefinitionCreate,
   statusLabel,
-  canRestoreArchivedVersion,
   validateLegalPdfFile,
   websiteBadgeVariant,
   websiteVisibilityLabel,
@@ -435,8 +439,8 @@ export default function LegalDocumentsPage() {
       }
 
       const uploaded = await uploadDraftVersion(selectedDefinition.id, pdfCheck.file);
-      toast.success("Draft PDF saved", {
-        description: `"${legalDocumentDisplayName(selectedDefinition.type)}" v${uploaded.versionNumber} saved as draft.`,
+      toast.success("New draft version created.", {
+        description: `v${uploaded.versionNumber} saved as draft.`,
       });
       setUploadDialogOpen(false);
       setSelectedDefinition(null);
@@ -485,9 +489,7 @@ export default function LegalDocumentsPage() {
       if (!result.success) {
         throw new Error(result.error?.message || "Failed to archive version");
       }
-      toast.success("Archived", {
-        description: `"${legalDocumentDisplayName(selectedDefinition.type)}" v${selectedVersion.version} archived.`,
-      });
+      toast.success("Legal document version archived.");
       setArchiveConfirmOpen(false);
       setSelectedDefinition(null);
       setSelectedVersion(null);
@@ -500,7 +502,7 @@ export default function LegalDocumentsPage() {
   };
 
   const handleRestoreVersion = async (
-    doc: LegalDocumentDefinitionResponse,
+    _doc: LegalDocumentDefinitionResponse,
     version: LegalDocumentVersionSummary
   ) => {
     try {
@@ -511,10 +513,7 @@ export default function LegalDocumentsPage() {
       if (!result.success) {
         throw new Error(result.error?.message || "Failed to restore version");
       }
-      const restoredAs = result.data.version.status === "PUBLISHED" ? "Published" : "Draft";
-      toast.success("Restored", {
-        description: `"${legalDocumentDisplayName(doc.type)}" v${version.version} restored as ${restoredAs}.`,
-      });
+      toast.success("Legal document version restored.");
       invalidate();
     } catch (error) {
       toast.error("Restore failed", {
@@ -730,6 +729,8 @@ export default function LegalDocumentsPage() {
                       const current = documentCurrentVersion(doc);
                       const status = documentCurrentStatus(doc);
                       const draft = latestDraftVersion(doc);
+                      const published = latestPublishedVersion(doc);
+                      const versionLabel = legalRowVersionLabel(doc);
                       const canRestore = current
                         ? canRestoreArchivedVersion(current, doc)
                         : false;
@@ -854,21 +855,33 @@ export default function LegalDocumentsPage() {
                             </div>
                           </TableCell>
                           <TableCell className="text-sm tabular-nums">
-                            {current ? (
+                            {current || published || draft ? (
                               showHistory ? (
                                 <button
                                   type="button"
-                                  className="text-primary underline-offset-2 hover:underline"
+                                  className={
+                                    versionLabel === "No published version"
+                                      ? "text-muted-foreground underline-offset-2 hover:underline"
+                                      : "text-primary underline-offset-2 hover:underline"
+                                  }
                                   title="Version history"
                                   onClick={() => openHistory(doc)}
                                 >
-                                  v{current.version}
+                                  {versionLabel}
                                 </button>
                               ) : (
-                                `v${current.version}`
+                                <span
+                                  className={
+                                    versionLabel === "No published version"
+                                      ? "text-muted-foreground"
+                                      : undefined
+                                  }
+                                >
+                                  {versionLabel}
+                                </span>
                               )
                             ) : (
-                              "—"
+                              <span className="text-muted-foreground">No published version</span>
                             )}
                           </TableCell>
                           <TableCell>
@@ -1339,18 +1352,44 @@ export default function LegalDocumentsPage() {
             <AlertDialogHeader>
               <AlertDialogTitle>
                 {selectedDefinition && selectedVersion
-                  ? `Archive ${legalDocumentDisplayName(selectedDefinition.type)} v${selectedVersion.version}?`
+                  ? buildArchiveDialogCopy({
+                      name: legalDocumentDisplayName(selectedDefinition.type),
+                      version: selectedVersion.version,
+                      isPublished: selectedVersion.status === "PUBLISHED",
+                      isOnlyPublished: isOnlyActivePublishedVersion(
+                        selectedDefinition,
+                        selectedVersion
+                      ),
+                      reacceptanceRequired: selectedVersion.reacceptanceRequired,
+                    }).title
                   : "Archive version?"}
               </AlertDialogTitle>
-              <AlertDialogDescription>
-                {selectedVersion?.status === "PUBLISHED"
-                  ? "This removes the live published version until you publish another draft."
-                  : "This draft will no longer be available to publish."}
+              <AlertDialogDescription asChild>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  {(selectedDefinition && selectedVersion
+                    ? buildArchiveDialogCopy({
+                        name: legalDocumentDisplayName(selectedDefinition.type),
+                        version: selectedVersion.version,
+                        isPublished: selectedVersion.status === "PUBLISHED",
+                        isOnlyPublished: isOnlyActivePublishedVersion(
+                          selectedDefinition,
+                          selectedVersion
+                        ),
+                        reacceptanceRequired: selectedVersion.reacceptanceRequired,
+                      }).paragraphs
+                    : ["This version will become inactive immediately."]
+                  ).map((paragraph) => (
+                    <p key={paragraph}>{paragraph}</p>
+                  ))}
+                </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => void handleArchiveVersion()}>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => void handleArchiveVersion()}
+              >
                 Archive
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -1367,6 +1406,20 @@ export default function LegalDocumentsPage() {
                   : "PDF versions"}
               </SheetDescription>
             </SheetHeader>
+            {selectedDefinition && canManage ? (
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setHistoryOpen(false);
+                    openUploadDialog(selectedDefinition, "new");
+                  }}
+                >
+                  Upload new version
+                </Button>
+              </div>
+            ) : null}
             <div className="mt-6 space-y-3">
               {(selectedDefinition?.versions ?? []).length === 0 ? (
                 <p className="text-sm text-muted-foreground">No versions yet.</p>

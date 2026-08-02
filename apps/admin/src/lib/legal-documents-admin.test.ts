@@ -6,12 +6,15 @@ import {
   buildEditDefinitionPayload,
   buildPublishDialogTitle,
   canRestoreArchivedVersion,
+  buildArchiveDialogCopy,
   documentCurrentStatus,
   formatLegalDate,
   getLegalDocumentRowActions,
   hasLegalVersionHistory,
+  isOnlyActivePublishedVersion,
   latestDraftVersion,
   legalDocumentDisplayName,
+  legalRowVersionLabel,
   legalStatusBadgeVariant,
   matchesClientFilters,
   nextCreateOrchestrationAfterDefinition,
@@ -320,6 +323,57 @@ describe("legal-documents-admin helpers", () => {
         olderArchivedWithNewerPublished
       )
     ).toBe(false);
+  });
+
+  it("shows No published version and builds archive confirmation copy", () => {
+    const archivedOnly = baseDoc({
+      id: "1",
+      type: "TERMS_OF_USE",
+      title: "Terms of Use",
+      versions: [
+        {
+          id: "v2",
+          version: 2,
+          status: "ARCHIVED",
+          fileName: "terms-v2.pdf",
+          fileSize: 1,
+          fileHash: null,
+          reacceptanceRequired: true,
+          uploadedBy: "u",
+          publishedBy: "u",
+          publishedAt: "2026-08-01T00:00:00.000Z",
+          archivedBy: "u",
+          archivedAt: "2026-08-02T00:00:00.000Z",
+          createdAt: "2026-08-01T00:00:00.000Z",
+          updatedAt: "2026-08-02T00:00:00.000Z",
+        },
+      ],
+    });
+    expect(legalRowVersionLabel(archivedOnly)).toBe("No published version");
+    expect(documentCurrentStatus(archivedOnly)).toBe("ARCHIVED");
+
+    const published = archivedOnly.versions![0];
+    const publishedDoc = baseDoc({
+      ...archivedOnly,
+      versions: [{ ...published, status: "PUBLISHED", archivedAt: null, archivedBy: null }],
+    });
+    expect(isOnlyActivePublishedVersion(publishedDoc, publishedDoc.versions![0])).toBe(true);
+    expect(
+      buildArchiveDialogCopy({
+        name: "Terms of Use",
+        version: 2,
+        isPublished: true,
+        isOnlyPublished: true,
+        reacceptanceRequired: true,
+      })
+    ).toEqual({
+      title: "Archive Terms of Use v2?",
+      paragraphs: [
+        "This version will become inactive immediately.",
+        "This legal document will have no published version. No older version will be activated automatically.",
+        "Any pending acceptance requirement for this version will stop. Previous acceptance records will remain available for audit.",
+      ],
+    });
   });
 
   it("shows version history only when more than one version exists", () => {
