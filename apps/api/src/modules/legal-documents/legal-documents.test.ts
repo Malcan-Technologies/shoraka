@@ -579,6 +579,64 @@ describe("legal document acceptance service", () => {
       })
     );
   });
+
+  it("restores archived draft to draft", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+      publishedVersion({
+        id: "ver1",
+        status: "ARCHIVED",
+        published_at: null,
+        published_by: null,
+        archived_at: new Date(),
+        archived_by: "admin1",
+      }) as never
+    );
+    jest.spyOn(legalDocumentRepository, "findDraftByDocumentId").mockResolvedValue(null);
+    jest.spyOn(legalDocumentRepository, "restoreVersionToDraft").mockResolvedValue(
+      publishedVersion({
+        id: "ver1",
+        status: "DRAFT",
+        published_at: null,
+        published_by: null,
+        archived_at: null,
+        archived_by: null,
+      }) as never
+    );
+    jest.spyOn(documentLogRepository, "create").mockResolvedValue({} as never);
+
+    const restored = await legalDocumentService.restoreVersion("ver1", "admin1", mockReq);
+    expect(restored.status).toBe("DRAFT");
+    expect(documentLogRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "LEGAL_VERSION_RESTORED",
+        metadata: expect.objectContaining({ restored_as: "DRAFT" }),
+      })
+    );
+  });
+
+  it("blocks restore of archived published when a newer published exists", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+      publishedVersion({
+        id: "ver1",
+        version: 1,
+        status: "ARCHIVED",
+        published_at: new Date("2026-08-01"),
+        archived_at: new Date("2026-08-02"),
+        archived_by: "admin1",
+      }) as never
+    );
+    jest.spyOn(legalDocumentRepository, "findPublishedByDocumentId").mockResolvedValue(
+      publishedVersion({
+        id: "ver2",
+        version: 2,
+        status: "PUBLISHED",
+      }) as never
+    );
+
+    await expect(
+      legalDocumentService.restoreVersion("ver1", "admin1", mockReq)
+    ).rejects.toMatchObject({ code: "NEWER_PUBLISHED_EXISTS" });
+  });
 });
 
 describe("legal document upload validation", () => {
