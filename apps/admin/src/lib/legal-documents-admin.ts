@@ -68,6 +68,24 @@ export function websiteBadgeVariant(visible: boolean): LegalBadgeVariant {
   return visible ? "info" : "secondary";
 }
 
+/**
+ * Re-acceptance applies only to the active Published version.
+ * Draft / archived-only rows show "—".
+ */
+export function reacceptanceBadgeLabel(
+  published: LegalDocumentVersionSummary | undefined | null
+): string {
+  if (!published || published.status !== "PUBLISHED") return "—";
+  return published.reacceptanceRequired ? "Yes" : "No";
+}
+
+export function reacceptanceBadgeVariant(
+  published: LegalDocumentVersionSummary | undefined | null
+): LegalBadgeVariant {
+  if (!published || published.status !== "PUBLISHED") return "muted";
+  return published.reacceptanceRequired ? "warning" : "secondary";
+}
+
 export type LegalRowIconAction =
   | "download"
   | "edit"

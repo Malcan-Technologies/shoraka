@@ -31,9 +31,12 @@ describe("Admin Legal Documents page UX", () => {
     expect(source).toContain(">Audience</TableHead>");
     expect(source).toContain(">Onboarding</TableHead>");
     expect(source).toContain(">Website</TableHead>");
+    expect(source).toContain(">Re-accept</TableHead>");
     expect(source).toContain(">Updated</TableHead>");
     expect(source).toContain(">Actions</TableHead>");
     expect(source).not.toContain(">Type</TableHead>");
+    expect(source).toContain("reacceptanceBadgeLabel");
+    expect(source).toContain("reacceptanceBadgeVariant");
     expect(source).toContain("legalDocumentDisplayName(doc.type)");
     expect(source).toContain("current?.fileName");
     expect(source).toContain("ArrowDownTrayIcon");
