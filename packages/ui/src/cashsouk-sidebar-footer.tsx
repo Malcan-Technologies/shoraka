@@ -3,28 +3,43 @@
 import { APP_VERSION } from "@cashsouk/config";
 
 /**
- * SECTION: CashSouk Footer
- * WHY: Reusable footer with variant-based display
- * INPUT: variant ("issuer" | "investor" | "admin")
- * OUTPUT: footer UI
- * WHERE USED: portal layouts and admin AppSidebar
+ * Compact portal footer / sidebar legal links.
+ * Links open the public landing legal pages (no extra login).
  */
 export type PortalFooterVariant = "issuer" | "investor";
 export type SidebarFooterVariant = PortalFooterVariant | "admin";
 
-const footerLinks = [
-  { href: "/legal", label: "Legal" },
-  { href: "/legal", label: "PDPA" },
-  { href: "/support", label: "Support" },
+function landingBaseUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_LANDING_URL || "http://localhost:3000";
+  return raw.replace(/\/$/, "");
+}
+
+const compactLegalLinks = [
+  { href: "/legal/terms-of-use", label: "Terms of Use" },
+  { href: "/legal/pdpa-notice-and-consent", label: "PDPA" },
+  { href: "/legal/risk-statement", label: "Risk Statement" },
+  { href: "/legal", label: "Legal Documents" },
 ] as const;
 
-function FooterLinks({ className }: { className: string }) {
+function LegalLinks({
+  className,
+  stacked = false,
+}: {
+  className: string;
+  stacked?: boolean;
+}) {
+  const base = landingBaseUrl();
   return (
     <div className={className}>
-      {footerLinks.map((link, index) => (
-        <span key={link.href} className="inline-flex items-center gap-2">
-          {index > 0 ? <span aria-hidden>•</span> : null}
-          <a href={link.href} className="hover:text-foreground">
+      {compactLegalLinks.map((link, index) => (
+        <span key={link.href + link.label} className="inline-flex items-center gap-2">
+          {!stacked && index > 0 ? <span aria-hidden>•</span> : null}
+          <a
+            href={`${base}${link.href}`}
+            className="hover:text-foreground"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             {link.label}
           </a>
         </span>
@@ -38,20 +53,16 @@ export function CashSoukSidebarFooter({ variant }: { variant: SidebarFooterVaria
 
   return (
     <div className="mt-auto px-4 py-3 text-left text-xs text-muted-foreground">
-      <div className="font-medium text-foreground">
-        CashSouk {APP_VERSION}
-      </div>
+      <div className="font-medium text-foreground">CashSouk {APP_VERSION}</div>
       <div className="mt-1">© 2026 Shoraka Sdn. Bhd.</div>
 
       {showContact ? (
         <>
           <div className="mt-1">(SSM No. 201612345678)</div>
-
           <div className="mt-2">+60 3-1234 5678</div>
-
           <div>info@cashsouk.com</div>
-
-          <FooterLinks className="mt-2 flex flex-wrap gap-2" />
+          <p className="mt-3 font-medium text-foreground">Legal</p>
+          <LegalLinks className="mt-1 flex flex-col gap-1" stacked />
         </>
       ) : null}
     </div>
@@ -77,7 +88,7 @@ export function CashSoukPortalFooter({ variant }: { variant: PortalFooterVariant
           <a href="mailto:info@cashsouk.com" className="hover:text-foreground">
             info@cashsouk.com
           </a>
-          <FooterLinks className="flex flex-wrap items-center justify-end gap-2" />
+          <LegalLinks className="flex flex-wrap items-center justify-end gap-2" />
         </div>
       </div>
     </footer>

@@ -89,14 +89,42 @@ export const INVESTOR_REQUIRED_LEGAL_TYPES: LegalDocumentType[] = [
 ];
 
 export const PUBLIC_FOOTER_LEGAL_TYPES: LegalDocumentType[] = [
-  "PDPA_NOTICE_AND_CONSENT",
   "TERMS_OF_USE",
+  "PDPA_NOTICE_AND_CONSENT",
   "RISK_STATEMENT",
-  "ISSUER_AGREEMENT",
-  "INVESTOR_AGREEMENT",
   "ISSUER_WARNING_STATEMENT",
+  "ISSUER_AGREEMENT",
   "INVESTOR_WARNING_STATEMENT",
+  "INVESTOR_AGREEMENT",
 ];
+
+/** Public URL slug for each legal document type (landing `/legal/[slug]`). */
+export const LEGAL_DOCUMENT_TYPE_SLUGS: Record<LegalDocumentType, string> = {
+  TERMS_OF_USE: "terms-of-use",
+  PDPA_NOTICE_AND_CONSENT: "pdpa-notice-and-consent",
+  RISK_STATEMENT: "risk-statement",
+  ISSUER_WARNING_STATEMENT: "issuer-warning-statement",
+  ISSUER_AGREEMENT: "issuer-agreement",
+  INVESTOR_WARNING_STATEMENT: "investor-warning-statement",
+  INVESTOR_AGREEMENT: "investor-agreement",
+};
+
+export const LEGAL_DOCUMENT_PUBLIC_GROUPS = {
+  general: ["TERMS_OF_USE", "PDPA_NOTICE_AND_CONSENT", "RISK_STATEMENT"] as const,
+  issuer: ["ISSUER_WARNING_STATEMENT", "ISSUER_AGREEMENT"] as const,
+  investor: ["INVESTOR_WARNING_STATEMENT", "INVESTOR_AGREEMENT"] as const,
+};
+
+export function legalDocumentTypeToSlug(type: LegalDocumentType): string {
+  return LEGAL_DOCUMENT_TYPE_SLUGS[type];
+}
+
+export function legalDocumentSlugToType(slug: string): LegalDocumentType | null {
+  const entry = (Object.entries(LEGAL_DOCUMENT_TYPE_SLUGS) as [LegalDocumentType, string][]).find(
+    ([, value]) => value === slug
+  );
+  return entry?.[0] ?? null;
+}
 
 export function isLegalDocumentType(type: string): type is LegalDocumentType {
   return (LEGAL_DOCUMENT_TYPES as string[]).includes(type);
@@ -211,7 +239,10 @@ export interface PublicLegalDocumentResponse {
   legalDocumentId: string;
   legalDocumentVersionId: string;
   type: LegalDocumentType;
+  slug: string;
   title: string;
+  description: string | null;
+  audience: LegalDocumentAudience;
   version: number;
   file_name: string;
   published_at: string | null;
