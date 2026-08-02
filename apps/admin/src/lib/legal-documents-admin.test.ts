@@ -4,16 +4,21 @@ import {
   buildCreateDefinitionPayload,
   buildPublishDialogTitle,
   documentCurrentStatus,
+  getLegalDocumentRowActions,
   latestDraftVersion,
+  legalStatusBadgeVariant,
   matchesClientFilters,
   nextCreateOrchestrationAfterDefinition,
   nextCreateOrchestrationAfterVersion,
+  onboardingBadgeLabel,
+  onboardingBadgeVariant,
   OPERATIONAL_AUDIENCES,
   resetCreateOrchestration,
   shouldSkipDefinitionCreate,
   shouldSkipVersionUpload,
   statusLabel,
   validateLegalPdfFile,
+  websiteBadgeVariant,
   websiteVisibilityLabel,
 } from "./legal-documents-admin";
 
@@ -39,8 +44,8 @@ describe("legal-documents-admin helpers", () => {
     expect(audienceLabel("ISSUER")).toBe("Issuer only");
     expect(audienceLabel("INVESTOR")).toBe("Investor only");
     expect(audienceLabel("PUBLIC")).toBe("No portal acceptance");
-    expect(websiteVisibilityLabel(true)).toBe("On website");
-    expect(websiteVisibilityLabel(false)).toBe("Hidden");
+    expect(websiteVisibilityLabel(true)).toBe("Public");
+    expect(websiteVisibilityLabel(false)).toBe("Private");
     expect(OPERATIONAL_AUDIENCES).not.toContain("PUBLIC");
     expect(statusLabel("DRAFT")).toBe("Draft");
   });
@@ -157,5 +162,46 @@ describe("legal-documents-admin helpers", () => {
         onboarding: "all",
       })
     ).toBe(true);
+  });
+
+  it("maps badge variants and row actions by status", () => {
+    expect(legalStatusBadgeVariant("PUBLISHED")).toBe("success");
+    expect(legalStatusBadgeVariant("DRAFT")).toBe("secondary");
+    expect(legalStatusBadgeVariant("ARCHIVED")).toBe("muted");
+    expect(onboardingBadgeVariant(true)).toBe("warning");
+    expect(onboardingBadgeLabel(true)).toBe("Required");
+    expect(onboardingBadgeLabel(false)).toBe("Optional");
+    expect(websiteBadgeVariant(true)).toBe("info");
+    expect(websiteVisibilityLabel(true)).toBe("Public");
+
+    const draftActions = getLegalDocumentRowActions("DRAFT", {
+      hasCurrentVersion: true,
+      hasDraft: true,
+    });
+    expect(draftActions.showPublishButton).toBe(true);
+    expect(draftActions.menu).toEqual([
+      "view",
+      "edit",
+      "replaceDraft",
+      "history",
+      "archive",
+    ]);
+    expect(draftActions.menu).not.toContain("publish");
+    expect(draftActions.menu).not.toContain("uploadNew");
+
+    const publishedActions = getLegalDocumentRowActions("PUBLISHED", {
+      hasCurrentVersion: true,
+      hasDraft: false,
+    });
+    expect(publishedActions.showPublishButton).toBe(false);
+    expect(publishedActions.menu).toContain("uploadNew");
+    expect(publishedActions.menu).not.toContain("replaceDraft");
+
+    const archivedActions = getLegalDocumentRowActions("ARCHIVED", {
+      hasCurrentVersion: true,
+      hasDraft: false,
+    });
+    expect(archivedActions.showPublishButton).toBe(false);
+    expect(archivedActions.menu).toEqual(["view", "history"]);
   });
 });

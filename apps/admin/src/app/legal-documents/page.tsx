@@ -42,7 +42,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu";
 import {
@@ -94,17 +93,23 @@ import {
   documentCurrentVersion,
   formatLegalDate,
   formatLegalFileSize,
+  getLegalDocumentRowActions,
   latestDraftVersion,
   latestPublishedVersion,
+  legalStatusBadgeVariant,
   matchesClientFilters,
   nextCreateOrchestrationAfterDefinition,
+  onboardingBadgeLabel,
+  onboardingBadgeVariant,
   OPERATIONAL_AUDIENCES,
   resetCreateOrchestration,
   shouldSkipDefinitionCreate,
   statusLabel,
   validateLegalPdfFile,
+  websiteBadgeVariant,
   websiteVisibilityLabel,
   type CreateOrchestrationState,
+  type LegalRowMenuAction,
 } from "../../lib/legal-documents-admin";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -665,9 +670,11 @@ export default function LegalDocumentsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[340px]">Document</TableHead>
+                    <TableHead className="w-[280px]">Document</TableHead>
+                    <TableHead>Version</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Applies to</TableHead>
+                    <TableHead>Onboarding</TableHead>
                     <TableHead>Website</TableHead>
                     <TableHead>Updated</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -677,7 +684,7 @@ export default function LegalDocumentsPage() {
                   {isLoading ? (
                     Array.from({ length: 4 }).map((_, i) => (
                       <TableRow key={i}>
-                        {Array.from({ length: 6 }).map((__, j) => (
+                        {Array.from({ length: 8 }).map((__, j) => (
                           <TableCell key={j}>
                             <Skeleton className="h-5 w-full" />
                           </TableCell>
@@ -686,7 +693,7 @@ export default function LegalDocumentsPage() {
                     ))
                   ) : documents.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
+                      <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
                         <DocumentIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
                         <p>No legal documents yet</p>
                         <p className="mt-1 text-sm">
@@ -700,6 +707,83 @@ export default function LegalDocumentsPage() {
                       const status = documentCurrentStatus(doc);
                       const draft = latestDraftVersion(doc);
                       const published = latestPublishedVersion(doc);
+                      const actions = getLegalDocumentRowActions(status, {
+                        hasCurrentVersion: Boolean(current),
+                        hasDraft: Boolean(draft),
+                      });
+                      const renderMenuItem = (action: LegalRowMenuAction) => {
+                        switch (action) {
+                          case "view":
+                            return current ? (
+                              <DropdownMenuItem
+                                key={action}
+                                onClick={() => void handleViewOrDownload(current, "view")}
+                              >
+                                View PDF
+                              </DropdownMenuItem>
+                            ) : null;
+                          case "download":
+                            return published || current ? (
+                              <DropdownMenuItem
+                                key={action}
+                                onClick={() =>
+                                  void handleViewOrDownload(published ?? current!, "download")
+                                }
+                              >
+                                Download PDF
+                              </DropdownMenuItem>
+                            ) : null;
+                          case "edit":
+                            return (
+                              <DropdownMenuItem
+                                key={action}
+                                disabled={!canManage}
+                                onClick={() => openEditDialog(doc)}
+                              >
+                                Edit details
+                              </DropdownMenuItem>
+                            );
+                          case "replaceDraft":
+                            return (
+                              <DropdownMenuItem
+                                key={action}
+                                disabled={!canManage}
+                                onClick={() => openUploadDialog(doc, "replace")}
+                              >
+                                Replace draft PDF
+                              </DropdownMenuItem>
+                            );
+                          case "uploadNew":
+                            return (
+                              <DropdownMenuItem
+                                key={action}
+                                disabled={!canManage}
+                                onClick={() => openUploadDialog(doc, "new")}
+                              >
+                                Upload new version
+                              </DropdownMenuItem>
+                            );
+                          case "history":
+                            return (
+                              <DropdownMenuItem key={action} onClick={() => openHistory(doc)}>
+                                Version history
+                              </DropdownMenuItem>
+                            );
+                          case "archive":
+                            return current ? (
+                              <DropdownMenuItem
+                                key={action}
+                                disabled={!canManage}
+                                onClick={() => openArchiveConfirm(doc, current)}
+                              >
+                                Archive
+                              </DropdownMenuItem>
+                            ) : null;
+                          default:
+                            return null;
+                        }
+                      };
+
                       return (
                         <TableRow
                           key={doc.id}
@@ -716,35 +800,35 @@ export default function LegalDocumentsPage() {
                                 </p>
                                 <p className="truncate text-xs text-muted-foreground">
                                   {LEGAL_DOCUMENT_TYPE_LABELS[doc.type]}
-                                  {current ? ` · v${current.version}` : ""}
-                                  {doc.requiredForOnboarding ? " · Onboarding" : ""}
                                 </p>
                               </div>
                             </div>
                           </TableCell>
+                          <TableCell className="text-sm tabular-nums">
+                            {current ? `v${current.version}` : "—"}
+                          </TableCell>
                           <TableCell>
-                            <Badge
-                              variant={
-                                status === "PUBLISHED"
-                                  ? "default"
-                                  : status === "DRAFT"
-                                    ? "secondary"
-                                    : "outline"
-                              }
-                            >
+                            <Badge variant={legalStatusBadgeVariant(status)}>
                               {statusLabel(status)}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-sm">{audienceLabel(doc.audience)}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {websiteVisibilityLabel(doc.publicVisibility)}
+                          <TableCell>
+                            <Badge variant={onboardingBadgeVariant(doc.requiredForOnboarding)}>
+                              {onboardingBadgeLabel(doc.requiredForOnboarding)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={websiteBadgeVariant(doc.publicVisibility)}>
+                              {websiteVisibilityLabel(doc.publicVisibility)}
+                            </Badge>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {formatLegalDate(doc.updatedAt)}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
-                              {draft ? (
+                              {actions.showPublishButton && draft ? (
                                 <Button
                                   size="sm"
                                   disabled={!canManage}
@@ -764,64 +848,7 @@ export default function LegalDocumentsPage() {
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-52">
-                                  {current ? (
-                                    <DropdownMenuItem
-                                      onClick={() => void handleViewOrDownload(current, "view")}
-                                    >
-                                      View PDF
-                                    </DropdownMenuItem>
-                                  ) : null}
-                                  {published ? (
-                                    <DropdownMenuItem
-                                      onClick={() =>
-                                        void handleViewOrDownload(published, "download")
-                                      }
-                                    >
-                                      Download PDF
-                                    </DropdownMenuItem>
-                                  ) : null}
-                                  <DropdownMenuItem
-                                    disabled={!canManage}
-                                    onClick={() => openEditDialog(doc)}
-                                  >
-                                    Edit details
-                                  </DropdownMenuItem>
-                                  {draft ? (
-                                    <DropdownMenuItem
-                                      disabled={!canManage}
-                                      onClick={() => openUploadDialog(doc, "replace")}
-                                    >
-                                      Replace draft PDF
-                                    </DropdownMenuItem>
-                                  ) : null}
-                                  <DropdownMenuItem
-                                    disabled={!canManage}
-                                    onClick={() => openUploadDialog(doc, "new")}
-                                  >
-                                    Upload new version
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => openHistory(doc)}>
-                                    Version history
-                                  </DropdownMenuItem>
-                                  {draft ? (
-                                    <DropdownMenuItem
-                                      disabled={!canManage}
-                                      onClick={() => openPublishDialog(doc, draft)}
-                                    >
-                                      Publish
-                                    </DropdownMenuItem>
-                                  ) : null}
-                                  {current && current.status !== "ARCHIVED" ? (
-                                    <>
-                                      <DropdownMenuSeparator />
-                                      <DropdownMenuItem
-                                        disabled={!canManage}
-                                        onClick={() => openArchiveConfirm(doc, current)}
-                                      >
-                                        Archive
-                                      </DropdownMenuItem>
-                                    </>
-                                  ) : null}
+                                  {actions.menu.map((action) => renderMenuItem(action))}
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </div>
