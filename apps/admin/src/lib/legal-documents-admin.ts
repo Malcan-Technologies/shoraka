@@ -65,7 +65,6 @@ export function websiteBadgeVariant(visible: boolean): LegalBadgeVariant {
 }
 
 export type LegalRowIconAction =
-  | "view"
   | "download"
   | "edit"
   | "replaceDraft"
@@ -88,7 +87,7 @@ export function getLegalDocumentRowActions(
     return {
       showPublishButton: hasDraft,
       icons: [
-        ...(hasCurrentVersion ? (["view"] as LegalRowIconAction[]) : []),
+        ...(hasCurrentVersion ? (["download"] as LegalRowIconAction[]) : []),
         "edit",
         ...(hasDraft ? (["replaceDraft"] as LegalRowIconAction[]) : []),
         ...(hasCurrentVersion ? (["archive"] as LegalRowIconAction[]) : []),
@@ -100,7 +99,7 @@ export function getLegalDocumentRowActions(
     return {
       showPublishButton: false,
       icons: [
-        ...(hasCurrentVersion ? (["view", "download"] as LegalRowIconAction[]) : []),
+        ...(hasCurrentVersion ? (["download"] as LegalRowIconAction[]) : []),
         "edit",
         "uploadNew",
         ...(hasCurrentVersion ? (["archive"] as LegalRowIconAction[]) : []),
@@ -110,7 +109,7 @@ export function getLegalDocumentRowActions(
 
   return {
     showPublishButton: false,
-    icons: [...(hasCurrentVersion ? (["view"] as LegalRowIconAction[]) : [])],
+    icons: [...(hasCurrentVersion ? (["download"] as LegalRowIconAction[]) : [])],
   };
 }
 

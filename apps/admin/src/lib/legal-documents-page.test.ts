@@ -36,15 +36,17 @@ describe("Admin Legal Documents page UX", () => {
     expect(source).not.toContain(">Type</TableHead>");
     expect(source).toContain("legalDocumentDisplayName(doc.type)");
     expect(source).toContain("current?.fileName");
-    expect(source).toContain("EyeIcon");
+    expect(source).toContain("ArrowDownTrayIcon");
     expect(source).toContain("PencilSquareIcon");
     expect(source).toContain("ArrowUpTrayIcon");
     expect(source).toContain("ArchiveBoxIcon");
     expect(source).toContain("CheckCircleIcon");
     expect(source).toContain(': "Publish"');
+    expect(source).toContain("handleDownload");
     expect(source).toContain("hasLegalVersionHistory");
     expect(source).toContain('title="Version history"');
     expect(source).not.toContain("EllipsisHorizontalIcon");
+    expect(source).not.toContain("EyeIcon");
     expect(helpers).toContain('hour: "2-digit"');
   });
 
