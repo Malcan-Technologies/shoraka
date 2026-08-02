@@ -5,6 +5,7 @@ import {
   buildCreateDefinitionPayload,
   buildEditDefinitionPayload,
   buildPublishDialogTitle,
+  canRestoreArchivedVersion,
   documentCurrentStatus,
   formatLegalDate,
   getLegalDocumentRowActions,
@@ -235,9 +236,90 @@ describe("legal-documents-admin helpers", () => {
     const archivedActions = getLegalDocumentRowActions("ARCHIVED", {
       hasCurrentVersion: true,
       hasDraft: false,
+      canRestore: true,
     });
     expect(archivedActions.showPublishButton).toBe(false);
-    expect(archivedActions.icons).toEqual(["download"]);
+    expect(archivedActions.icons).toEqual(["download", "restore", "uploadNew"]);
+
+    const archivedNoRestore = getLegalDocumentRowActions("ARCHIVED", {
+      hasCurrentVersion: true,
+      hasDraft: false,
+      canRestore: false,
+    });
+    expect(archivedNoRestore.icons).toEqual(["download", "uploadNew"]);
+  });
+
+  it("applies restore safety rules for archived versions", () => {
+    const archivedDraft = baseDoc({
+      id: "1",
+      type: "PDPA_NOTICE_AND_CONSENT",
+      title: "PDPA",
+      versions: [
+        {
+          id: "v1",
+          version: 1,
+          status: "ARCHIVED",
+          fileName: "a.pdf",
+          fileSize: 1,
+          fileHash: null,
+          reacceptanceRequired: false,
+          uploadedBy: "u",
+          publishedBy: null,
+          publishedAt: null,
+          archivedBy: "u",
+          archivedAt: "2026-08-02T00:00:00.000Z",
+          createdAt: "2026-08-01T00:00:00.000Z",
+          updatedAt: "2026-08-02T00:00:00.000Z",
+        },
+      ],
+    });
+    expect(canRestoreArchivedVersion(archivedDraft.versions![0], archivedDraft)).toBe(true);
+
+    const olderArchivedWithNewerPublished = baseDoc({
+      id: "1",
+      type: "PDPA_NOTICE_AND_CONSENT",
+      title: "PDPA",
+      versions: [
+        {
+          id: "v1",
+          version: 1,
+          status: "ARCHIVED",
+          fileName: "a.pdf",
+          fileSize: 1,
+          fileHash: null,
+          reacceptanceRequired: false,
+          uploadedBy: "u",
+          publishedBy: "u",
+          publishedAt: "2026-08-01T00:00:00.000Z",
+          archivedBy: "u",
+          archivedAt: "2026-08-02T00:00:00.000Z",
+          createdAt: "2026-08-01T00:00:00.000Z",
+          updatedAt: "2026-08-02T00:00:00.000Z",
+        },
+        {
+          id: "v2",
+          version: 2,
+          status: "PUBLISHED",
+          fileName: "b.pdf",
+          fileSize: 1,
+          fileHash: null,
+          reacceptanceRequired: false,
+          uploadedBy: "u",
+          publishedBy: "u",
+          publishedAt: "2026-08-02T00:00:00.000Z",
+          archivedBy: null,
+          archivedAt: null,
+          createdAt: "2026-08-02T00:00:00.000Z",
+          updatedAt: "2026-08-02T00:00:00.000Z",
+        },
+      ],
+    });
+    expect(
+      canRestoreArchivedVersion(
+        olderArchivedWithNewerPublished.versions![0],
+        olderArchivedWithNewerPublished
+      )
+    ).toBe(false);
   });
 
   it("shows version history only when more than one version exists", () => {

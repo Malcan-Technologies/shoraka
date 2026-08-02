@@ -73,6 +73,7 @@ import {
   ArrowUpTrayIcon,
   ArrowDownTrayIcon,
   CheckCircleIcon,
+  ArrowUturnLeftIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import {
@@ -109,6 +110,7 @@ import {
   resetCreateOrchestration,
   shouldSkipDefinitionCreate,
   statusLabel,
+  canRestoreArchivedVersion,
   validateLegalPdfFile,
   websiteBadgeVariant,
   websiteVisibilityLabel,
@@ -497,6 +499,30 @@ export default function LegalDocumentsPage() {
     }
   };
 
+  const handleRestoreVersion = async (
+    doc: LegalDocumentDefinitionResponse,
+    version: LegalDocumentVersionSummary
+  ) => {
+    try {
+      const result = await apiClient.post<{ version: LegalDocumentVersionResponse }>(
+        `/v1/admin/legal-documents/versions/${version.id}/restore`,
+        {}
+      );
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to restore version");
+      }
+      const restoredAs = result.data.version.status === "PUBLISHED" ? "Published" : "Draft";
+      toast.success("Restored", {
+        description: `"${legalDocumentDisplayName(doc.type)}" v${version.version} restored as ${restoredAs}.`,
+      });
+      invalidate();
+    } catch (error) {
+      toast.error("Restore failed", {
+        description: error instanceof Error ? error.message : "An error occurred",
+      });
+    }
+  };
+
   const handleDownload = async (version: LegalDocumentVersionSummary) => {
     try {
       const result = await apiClient.get<{ downloadUrl: string; fileName?: string }>(
@@ -704,9 +730,13 @@ export default function LegalDocumentsPage() {
                       const current = documentCurrentVersion(doc);
                       const status = documentCurrentStatus(doc);
                       const draft = latestDraftVersion(doc);
+                      const canRestore = current
+                        ? canRestoreArchivedVersion(current, doc)
+                        : false;
                       const actions = getLegalDocumentRowActions(status, {
                         hasCurrentVersion: Boolean(current),
                         hasDraft: Boolean(draft),
+                        canRestore,
                       });
                       const showHistory = hasLegalVersionHistory(doc);
                       const deniedTitle =
@@ -765,6 +795,19 @@ export default function LegalDocumentsPage() {
                                 <ArrowUpTrayIcon className="h-4 w-4" />
                               </Button>
                             );
+                          case "restore":
+                            return current ? (
+                              <Button
+                                key={action}
+                                variant="ghost"
+                                size="sm"
+                                title={!canManage ? deniedTitle : "Restore"}
+                                disabled={!canManage}
+                                onClick={() => void handleRestoreVersion(doc, current)}
+                              >
+                                <ArrowUturnLeftIcon className="h-4 w-4" />
+                              </Button>
+                            ) : null;
                           case "archive":
                             return current ? (
                               <Button
@@ -1364,14 +1407,28 @@ export default function LegalDocumentsPage() {
                           Re-accept asked: {version.reacceptanceRequired ? "Yes" : "No"}
                         </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="mt-2"
-                        onClick={() => void handleDownload(version)}
-                      >
-                        Download
-                      </Button>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void handleDownload(version)}
+                        >
+                          Download
+                        </Button>
+                        {selectedDefinition &&
+                        canRestoreArchivedVersion(version, selectedDefinition) ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={!canManage}
+                            onClick={() =>
+                              void handleRestoreVersion(selectedDefinition, version)
+                            }
+                          >
+                            Restore
+                          </Button>
+                        ) : null}
+                      </div>
                     </div>
                   ))
               )}

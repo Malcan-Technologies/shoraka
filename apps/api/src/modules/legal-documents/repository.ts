@@ -231,6 +231,40 @@ export class LegalDocumentRepository {
     })) as VersionWithDocument;
   }
 
+  async findDraftByDocumentId(legalDocumentId: string) {
+    return (await prisma.legalDocumentVersion.findFirst({
+      where: {
+        legal_document_id: legalDocumentId,
+        status: "DRAFT",
+      },
+      include: { legal_document: true },
+      orderBy: { version: "desc" },
+    })) as VersionWithDocument | null;
+  }
+
+  async findPublishedByDocumentId(legalDocumentId: string) {
+    return (await prisma.legalDocumentVersion.findFirst({
+      where: {
+        legal_document_id: legalDocumentId,
+        status: "PUBLISHED",
+      },
+      include: { legal_document: true },
+      orderBy: { version: "desc" },
+    })) as VersionWithDocument | null;
+  }
+
+  async restoreVersionToDraft(versionId: string) {
+    return (await prisma.legalDocumentVersion.update({
+      where: { id: versionId },
+      data: {
+        status: "DRAFT",
+        archived_by: null,
+        archived_at: null,
+      },
+      include: { legal_document: true },
+    })) as VersionWithDocument;
+  }
+
   async findPublishedByTypeAndAudiences(
     type: LegalDocumentTypeValue,
     audiences: Array<"PUBLIC" | "ISSUER" | "INVESTOR" | "BOTH">

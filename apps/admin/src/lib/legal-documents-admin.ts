@@ -69,6 +69,7 @@ export type LegalRowIconAction =
   | "edit"
   | "replaceDraft"
   | "uploadNew"
+  | "restore"
   | "archive";
 
 export type LegalRowActions = {
@@ -76,12 +77,39 @@ export type LegalRowActions = {
   icons: LegalRowIconAction[];
 };
 
+/**
+ * Restore rules for an archived version:
+ * - previously published → only if no newer published version exists
+ * - never published (archived draft) → only if no other draft exists
+ */
+export function canRestoreArchivedVersion(
+  version: LegalDocumentVersionSummary,
+  doc: LegalDocumentDefinitionResponse
+): boolean {
+  if (version.status !== "ARCHIVED") return false;
+
+  if (version.publishedAt) {
+    const published = latestPublishedVersion(doc);
+    if (published && published.version > version.version) return false;
+    if (published && published.id !== version.id) return false;
+    return true;
+  }
+
+  const draft = latestDraftVersion(doc);
+  if (draft && draft.id !== version.id) return false;
+  return true;
+}
+
 /** Compact icon actions by status (no ellipsis menu). */
 export function getLegalDocumentRowActions(
   status: LegalDocumentVersionStatus,
-  options: { hasCurrentVersion: boolean; hasDraft: boolean }
+  options: {
+    hasCurrentVersion: boolean;
+    hasDraft: boolean;
+    canRestore?: boolean;
+  }
 ): LegalRowActions {
-  const { hasCurrentVersion, hasDraft } = options;
+  const { hasCurrentVersion, hasDraft, canRestore = false } = options;
 
   if (status === "DRAFT") {
     return {
@@ -109,7 +137,11 @@ export function getLegalDocumentRowActions(
 
   return {
     showPublishButton: false,
-    icons: [...(hasCurrentVersion ? (["download"] as LegalRowIconAction[]) : [])],
+    icons: [
+      ...(hasCurrentVersion ? (["download"] as LegalRowIconAction[]) : []),
+      ...(canRestore ? (["restore"] as LegalRowIconAction[]) : []),
+      "uploadNew",
+    ],
   };
 }
 

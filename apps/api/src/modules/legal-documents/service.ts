@@ -400,6 +400,90 @@ export class LegalDocumentService {
     return toVersionResponse(archived);
   }
 
+  /**
+   * Restore an archived version:
+   * - never-published archive → Draft (blocked if another draft exists)
+   * - previously published archive → Published (blocked if a newer published version exists)
+   */
+  async restoreVersion(versionId: string, adminUserId: string, req: Request) {
+    const existing = await legalDocumentRepository.findVersionById(versionId);
+    if (!existing) {
+      throw new AppError(404, "NOT_FOUND", "Legal document version not found");
+    }
+    if (existing.status !== "ARCHIVED") {
+      throw new AppError(400, "INVALID_STATUS", "Only archived versions can be restored");
+    }
+
+    const wasPublished = Boolean(existing.published_at);
+
+    if (wasPublished) {
+      const currentPublished = await legalDocumentRepository.findPublishedByDocumentId(
+        existing.legal_document_id
+      );
+      if (currentPublished && currentPublished.version > existing.version) {
+        throw new AppError(
+          409,
+          "NEWER_PUBLISHED_EXISTS",
+          "A newer published version already exists. Upload a new version instead of restoring this one."
+        );
+      }
+
+      const published = await legalDocumentRepository.publishVersion(
+        versionId,
+        existing.legal_document_id,
+        adminUserId,
+        existing.reacceptance_required
+      );
+
+      await this.logEvent(
+        req,
+        adminUserId,
+        existing.legal_document_id,
+        "LEGAL_VERSION_RESTORED",
+        {
+          legal_document_id: existing.legal_document_id,
+          legal_document_version_id: versionId,
+          type: existing.legal_document.type,
+          version: published.version,
+          file_hash: published.file_hash,
+          restored_as: "PUBLISHED",
+        }
+      );
+
+      return toVersionResponse(published);
+    }
+
+    const currentDraft = await legalDocumentRepository.findDraftByDocumentId(
+      existing.legal_document_id
+    );
+    if (currentDraft) {
+      throw new AppError(
+        409,
+        "DRAFT_EXISTS",
+        "A draft version already exists. Finish or archive it before restoring this version."
+      );
+    }
+
+    const restored = await legalDocumentRepository.restoreVersionToDraft(versionId);
+
+    await this.logEvent(
+      req,
+      adminUserId,
+      existing.legal_document_id,
+      "LEGAL_VERSION_RESTORED",
+      {
+        legal_document_id: existing.legal_document_id,
+        legal_document_version_id: versionId,
+        type: existing.legal_document.type,
+        version: restored.version,
+        file_hash: restored.file_hash,
+        restored_as: "DRAFT",
+      }
+    );
+
+    return toVersionResponse(restored);
+  }
+
   async getAdminDownloadUrl(versionId: string) {
     const version = await legalDocumentRepository.findVersionById(versionId);
     if (!version) {
