@@ -28,6 +28,8 @@ import {
   onboardingBadgeLabel,
   onboardingBadgeVariant,
   OPERATIONAL_AUDIENCES,
+  reacceptanceBadgeLabel,
+  reacceptanceBadgeVariant,
   resetCreateOrchestration,
   shouldSkipDefinitionCreate,
   shouldSkipVersionUpload,
@@ -86,6 +88,91 @@ describe("legal-documents-admin helpers", () => {
     expect(onboardingBadgeLabel(true)).toBe("Required");
     expect(websiteBadgeVariant(true)).toBe("info");
     expect(websiteBadgeVariant(false)).toBe("secondary");
+  });
+
+  it("shows re-acceptance from the active published version only", () => {
+    expect(reacceptanceBadgeLabel(undefined)).toBe("—");
+    expect(reacceptanceBadgeVariant(undefined)).toBe("muted");
+    expect(
+      reacceptanceBadgeLabel({
+        id: "v1",
+        version: 1,
+        status: "DRAFT",
+        fileName: "a.pdf",
+        fileSize: 1,
+        contentType: "application/pdf",
+        fileHash: null,
+        reacceptanceRequired: true,
+        publishedAt: null,
+        archivedAt: null,
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-01T00:00:00.000Z",
+      })
+    ).toBe("—");
+    expect(
+      reacceptanceBadgeLabel({
+        id: "v2",
+        version: 2,
+        status: "PUBLISHED",
+        fileName: "a.pdf",
+        fileSize: 1,
+        contentType: "application/pdf",
+        fileHash: null,
+        reacceptanceRequired: true,
+        publishedAt: "2026-08-02T00:00:00.000Z",
+        archivedAt: null,
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-02T00:00:00.000Z",
+      })
+    ).toBe("Yes");
+    expect(
+      reacceptanceBadgeVariant({
+        id: "v2",
+        version: 2,
+        status: "PUBLISHED",
+        fileName: "a.pdf",
+        fileSize: 1,
+        contentType: "application/pdf",
+        fileHash: null,
+        reacceptanceRequired: true,
+        publishedAt: "2026-08-02T00:00:00.000Z",
+        archivedAt: null,
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-02T00:00:00.000Z",
+      })
+    ).toBe("warning");
+    expect(
+      reacceptanceBadgeLabel({
+        id: "v3",
+        version: 3,
+        status: "PUBLISHED",
+        fileName: "a.pdf",
+        fileSize: 1,
+        contentType: "application/pdf",
+        fileHash: null,
+        reacceptanceRequired: false,
+        publishedAt: "2026-08-03T00:00:00.000Z",
+        archivedAt: null,
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-03T00:00:00.000Z",
+      })
+    ).toBe("No");
+    expect(
+      reacceptanceBadgeVariant({
+        id: "v3",
+        version: 3,
+        status: "PUBLISHED",
+        fileName: "a.pdf",
+        fileSize: 1,
+        contentType: "application/pdf",
+        fileHash: null,
+        reacceptanceRequired: false,
+        publishedAt: "2026-08-03T00:00:00.000Z",
+        archivedAt: null,
+        createdAt: "2026-08-01T00:00:00.000Z",
+        updatedAt: "2026-08-03T00:00:00.000Z",
+      })
+    ).toBe("secondary");
   });
 
   it("builds create and edit payloads from type label without free-text title", () => {

@@ -116,6 +116,8 @@ import {
   onboardingBadgeLabel,
   onboardingBadgeVariant,
   OPERATIONAL_AUDIENCES,
+  reacceptanceBadgeLabel,
+  reacceptanceBadgeVariant,
   resetCreateOrchestration,
   shouldSkipDefinitionCreate,
   statusLabel,
@@ -807,6 +809,7 @@ export default function LegalDocumentsPage() {
                     <TableHead>Audience</TableHead>
                     <TableHead>Onboarding</TableHead>
                     <TableHead>Website</TableHead>
+                    <TableHead>Re-accept</TableHead>
                     <TableHead>Updated</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -815,7 +818,7 @@ export default function LegalDocumentsPage() {
                   {isLoading ? (
                     Array.from({ length: 4 }).map((_, i) => (
                       <TableRow key={i}>
-                        {Array.from({ length: 8 }).map((__, j) => (
+                        {Array.from({ length: 9 }).map((__, j) => (
                           <TableCell key={j}>
                             <Skeleton className="h-5 w-full" />
                           </TableCell>
@@ -824,7 +827,7 @@ export default function LegalDocumentsPage() {
                     ))
                   ) : documents.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
+                      <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
                         <DocumentIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
                         <p>No legal documents yet</p>
                         <p className="mt-1 text-sm">
@@ -1006,6 +1009,20 @@ export default function LegalDocumentsPage() {
                           <TableCell>
                             <Badge variant={websiteBadgeVariant(doc.publicVisibility)}>
                               {websiteVisibilityLabel(doc.publicVisibility)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant={reacceptanceBadgeVariant(published)}
+                              title={
+                                published
+                                  ? published.reacceptanceRequired
+                                    ? "Active published version requires re-acceptance"
+                                    : "Active published version does not require re-acceptance"
+                                  : "No active published version"
+                              }
+                            >
+                              {reacceptanceBadgeLabel(published)}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
