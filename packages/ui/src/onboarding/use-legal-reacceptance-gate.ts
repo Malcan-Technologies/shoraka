@@ -13,7 +13,7 @@ export type LegalReacceptanceGateState = {
   pending: boolean;
   isOwner: boolean;
   blockedActions: LegalBlockedAction[];
-  /** Returns true when navigation should be redirected to /legal-updates. */
+  /** Returns true when navigation should be redirected to /onboarding/terms. */
   shouldIntercept: (action: LegalBlockedAction) => boolean;
 };
 
@@ -91,7 +91,7 @@ export function useLegalReacceptanceGate(
   };
 }
 
-export const LEGAL_REACCEPTANCE_REDIRECT = "/legal-updates";
+export const LEGAL_REACCEPTANCE_REDIRECT = "/onboarding/terms";
 
 export function legalReacceptanceInterceptMessage(
   portalType: LegalReacceptancePortal

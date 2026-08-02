@@ -47,16 +47,13 @@ export const LEGAL_DOCUMENT_TYPE_LABELS: Record<LegalDocumentType, string> = {
 
 export const LEGAL_DOCUMENT_CHECKBOX_WORDING: Record<LegalDocumentType, string> = {
   PDPA_NOTICE_AND_CONSENT:
-    "I consent to the collection, use and processing of my personal data as described in the PDPA Notice.",
-  TERMS_OF_USE: "I confirm that I have read and agree to the Terms of Use.",
-  RISK_STATEMENT:
-    "I confirm that I have read and understood the risks described in the Risk Statement.",
-  ISSUER_WARNING_STATEMENT:
-    "I acknowledge that I have read and understood the Issuer Warning Statement.",
-  ISSUER_AGREEMENT: "I confirm that I have read and agree to the Issuer Agreement.",
-  INVESTOR_WARNING_STATEMENT:
-    "I acknowledge that I have read and understood the Investor Warning Statement.",
-  INVESTOR_AGREEMENT: "I confirm that I have read and agree to the Investor Agreement.",
+    "I have read the PDPA Notice and consent to the handling of my personal data as described.",
+  TERMS_OF_USE: "I have read and agree to the Terms of Use.",
+  RISK_STATEMENT: "I have read and understood the Risk Statement.",
+  ISSUER_WARNING_STATEMENT: "I have read and understood the Issuer Warning Statement.",
+  INVESTOR_WARNING_STATEMENT: "I have read and understood the Investor Warning Statement.",
+  ISSUER_AGREEMENT: "I have read and agree to the Issuer Agreement.",
+  INVESTOR_AGREEMENT: "I have read and agree to the Investor Agreement.",
 };
 
 /** Default audience when admin creates a legal document definition. */

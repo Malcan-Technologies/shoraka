@@ -14,7 +14,6 @@ export type LegalChecklistDocStatus = "not_opened" | "opened" | "accepted";
 export type LegalChecklistDocRow = {
   id: string;
   title: string;
-  version: number;
   checkboxWording: string;
   status: LegalChecklistDocStatus;
   checked: boolean;
@@ -23,10 +22,13 @@ export type LegalChecklistDocRow = {
   showCheckbox: boolean;
 };
 
-export function legalChecklistStatusLabel(status: LegalChecklistDocStatus): string {
+/** Only show helper text before the PDF is opened. Unlocking the checkbox is enough after. */
+export function legalChecklistStatusLabel(
+  status: LegalChecklistDocStatus
+): string | null {
   if (status === "accepted") return "Accepted";
-  if (status === "opened") return "Document opened — you can now accept.";
-  return "You must open this document before accepting.";
+  if (status === "not_opened") return "Open this document before accepting.";
+  return null;
 }
 
 export function LegalDocumentChecklistShell({
@@ -114,12 +116,12 @@ export function LegalDocumentChecklistRows({
     <ul className="divide-y divide-border">
       {rows.map((row) => {
         const checkboxId = `legal-checklist-${row.id}`;
+        const helper = legalChecklistStatusLabel(row.status);
         return (
           <li key={row.id} className="px-5 py-5 md:px-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <h3 className="text-[17px] font-semibold leading-7 text-foreground">{row.title}</h3>
-                <p className="text-sm text-muted-foreground">Version {row.version}</p>
               </div>
               <Button
                 type="button"
@@ -156,20 +158,22 @@ export function LegalDocumentChecklistRows({
                   </Label>
                 </div>
 
-                <p
-                  className={cn(
-                    "mt-2 text-sm",
-                    row.status === "accepted"
-                      ? "inline-flex items-center gap-1.5 text-foreground"
-                      : "text-muted-foreground"
-                  )}
-                  role="status"
-                >
-                  {row.status === "accepted" ? (
-                    <CheckCircleIcon className="size-4 text-primary" aria-hidden />
-                  ) : null}
-                  {legalChecklistStatusLabel(row.status)}
-                </p>
+                {helper ? (
+                  <p
+                    className={cn(
+                      "mt-2 text-sm",
+                      row.status === "accepted"
+                        ? "inline-flex items-center gap-1.5 text-foreground"
+                        : "text-muted-foreground"
+                    )}
+                    role="status"
+                  >
+                    {row.status === "accepted" ? (
+                      <CheckCircleIcon className="size-4 text-primary" aria-hidden />
+                    ) : null}
+                    {helper}
+                  </p>
+                ) : null}
               </>
             ) : null}
           </li>
