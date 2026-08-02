@@ -54,6 +54,7 @@ import {
   useArchiveSiteDocument,
   useRestoreSiteDocument,
   useDownloadSiteDocument,
+  usePublishSiteDocument,
   uploadFileToS3,
 } from "../../hooks/use-site-documents";
 import {
@@ -75,9 +76,16 @@ import { RequirePermission } from "../../components/require-permission";
 import { usePermissions } from "../../hooks/use-permissions";
 
 const DOCUMENT_TYPES: { value: SiteDocumentType; label: string }[] = [
-  { value: "TERMS_AND_CONDITIONS", label: "Terms & Conditions" },
+  { value: "PDPA_NOTICE", label: "PDPA Notice and Consent" },
+  { value: "TERMS_AND_CONDITIONS", label: "Terms of Use" },
+  { value: "RISK_STATEMENT", label: "Risk Statement" },
+  { value: "ISSUER_WARNING_STATEMENT", label: "Issuer Warning Statement" },
+  { value: "ISSUER_AGREEMENT", label: "Issuer Agreement" },
+  { value: "INVESTOR_WARNING_STATEMENT", label: "Investor Warning Statement" },
+  { value: "INVESTOR_AGREEMENT", label: "Investor Agreement" },
   { value: "PRIVACY_POLICY", label: "Privacy Policy" },
   { value: "RISK_DISCLOSURE", label: "Risk Disclosure" },
+  { value: "PRODUCT_TERMS", label: "Product Terms" },
   { value: "PLATFORM_AGREEMENT", label: "Platform Agreement" },
   { value: "INVESTOR_GUIDE", label: "Investor Guide" },
   { value: "ISSUER_GUIDE", label: "Issuer Guide" },
@@ -123,7 +131,7 @@ export default function DocumentsPage() {
 
   // Form state
   const [uploadForm, setUploadForm] = React.useState({
-    type: "TERMS_AND_CONDITIONS" as SiteDocumentType,
+    type: "PDPA_NOTICE" as SiteDocumentType,
     title: "",
     description: "",
     showInAccount: false,
@@ -146,6 +154,7 @@ export default function DocumentsPage() {
   const archiveDocument = useArchiveSiteDocument();
   const restoreDocument = useRestoreSiteDocument();
   const downloadDocument = useDownloadSiteDocument();
+  const publishDocument = usePublishSiteDocument();
 
   const { data, isLoading } = useSiteDocuments({
     page,
@@ -197,13 +206,13 @@ export default function DocumentsPage() {
         showInAccount: uploadForm.showInAccount,
       });
 
-      toast.success("Document uploaded", {
-        description: `"${uploadForm.title}" has been uploaded successfully.`,
+      toast.success("Draft uploaded", {
+        description: `"${uploadForm.title}" was saved as a draft. Publish it when ready.`,
       });
 
       // Reset and close
       setUploadForm({
-        type: "TERMS_AND_CONDITIONS",
+        type: "PDPA_NOTICE",
         title: "",
         description: "",
         showInAccount: false,
@@ -271,8 +280,8 @@ export default function DocumentsPage() {
         },
       });
 
-      toast.success("Document replaced", {
-        description: `"${selectedDocument.title}" has been updated to a new version.`,
+      toast.success("New draft version created", {
+        description: `"${selectedDocument.title}" was uploaded as a new draft. Publish it when ready.`,
       });
 
       setReplaceDialogOpen(false);
@@ -295,6 +304,19 @@ export default function DocumentsPage() {
       });
     } catch (error) {
       toast.error("Archive failed", {
+        description: error instanceof Error ? error.message : "An error occurred",
+      });
+    }
+  };
+
+  const handlePublish = async (id: string, title: string) => {
+    try {
+      await publishDocument.mutateAsync(id);
+      toast.success("Document published", {
+        description: `"${title}" is now the published version for users.`,
+      });
+    } catch (error) {
+      toast.error("Publish failed", {
         description: error instanceof Error ? error.message : "An error occurred",
       });
     }
@@ -481,6 +503,7 @@ export default function DocumentsPage() {
                 <TableRow>
                   <TableHead className="w-[300px]">Document</TableHead>
                   <TableHead>Type</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Version</TableHead>
                   <TableHead>Size</TableHead>
                   <TableHead>Account Tab</TableHead>
@@ -517,7 +540,7 @@ export default function DocumentsPage() {
                   ))
                 ) : documents.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                    <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                       <DocumentIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
                       <p>No documents found</p>
                       <p className="text-sm mt-1">Upload your first document to get started</p>
@@ -525,7 +548,7 @@ export default function DocumentsPage() {
                   </TableRow>
                 ) : (
                   documents.map((doc) => (
-                    <TableRow key={doc.id} className={!doc.is_active ? "opacity-60" : ""}>
+                    <TableRow key={doc.id} className={doc.status === "ARCHIVED" ? "opacity-60" : ""}>
                       <TableCell className="text-sm">
                         <div className="flex items-center gap-3">
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
@@ -535,15 +558,23 @@ export default function DocumentsPage() {
                             <p className="font-medium text-sm truncate" title={doc.title}>{doc.title}</p>
                             <p className="text-xs text-muted-foreground truncate" title={doc.file_name}>{doc.file_name}</p>
                           </div>
-                          {!doc.is_active && (
-                            <Badge variant="secondary" className="ml-2 shrink-0">
-                              Archived
-                            </Badge>
-                          )}
                         </div>
                       </TableCell>
                       <TableCell className="text-sm">
                         <Badge variant="outline">{getDocumentTypeLabel(doc.type)}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        <Badge
+                          variant={
+                            doc.status === "PUBLISHED"
+                              ? "default"
+                              : doc.status === "DRAFT"
+                                ? "secondary"
+                                : "outline"
+                          }
+                        >
+                          {doc.status || (doc.is_active ? "PUBLISHED" : "ARCHIVED")}
+                        </Badge>
                       </TableCell>
                       <TableCell className="text-sm">v{doc.version}</TableCell>
                       <TableCell className="text-sm">{formatFileSize(doc.file_size)}</TableCell>
@@ -559,16 +590,28 @@ export default function DocumentsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-1 justify-end">
-                          {doc.is_active ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDownload(doc.id, doc.file_name)}
+                            title="Download"
+                          >
+                            <ArrowDownTrayIcon className="h-4 w-4" />
+                          </Button>
+                          {doc.status === "DRAFT" ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handlePublish(doc.id, doc.title)}
+                              title={!canManage ? "You do not have permission to perform this action." : "Publish"}
+                              disabled={!canManage || publishDocument.isPending}
+                              className="text-primary"
+                            >
+                              Publish
+                            </Button>
+                          ) : null}
+                          {doc.status !== "ARCHIVED" ? (
                             <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDownload(doc.id, doc.file_name)}
-                                title="Download"
-                              >
-                                <ArrowDownTrayIcon className="h-4 w-4" />
-                              </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -582,7 +625,7 @@ export default function DocumentsPage() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => openReplaceDialog(doc)}
-                                title={!canManage ? "You do not have permission to perform this action." : "Replace File"}
+                                title={!canManage ? "You do not have permission to perform this action." : "Upload new draft version"}
                                 disabled={!canManage}
                               >
                                 <ArrowUpTrayIcon className="h-4 w-4" />
@@ -603,7 +646,7 @@ export default function DocumentsPage() {
                               variant="ghost"
                               size="sm"
                               onClick={() => handleRestore(doc.id, doc.title)}
-                              title={!canManage ? "You do not have permission to perform this action." : "Restore"}
+                              title={!canManage ? "You do not have permission to perform this action." : "Restore to draft"}
                               disabled={!canManage}
                             >
                               <ArrowUturnLeftIcon className="h-4 w-4" />

@@ -1,16 +1,48 @@
 import { prisma } from "../../lib/prisma";
 import { Prisma } from "@prisma/client";
-import type { DocumentEventType, GetDocumentLogsQuery, SiteDocumentType } from "./schemas";
+import type {
+  DocumentEventType,
+  GetDocumentLogsQuery,
+  SiteDocumentType,
+} from "./schemas";
+import type { LegalDocumentAudience, LegalDocumentStatus } from "@cashsouk/types";
 
-// Prisma Client types may not be generated yet - using type assertions
-// These models exist in schema.prisma but require prisma generate
+type SiteDocumentRow = {
+  id: string;
+  type: SiteDocumentType;
+  title: string;
+  description: string | null;
+  file_name: string;
+  s3_key: string;
+  content_type: string;
+  file_size: number;
+  file_hash: string | null;
+  version: number;
+  is_active: boolean;
+  show_in_account: boolean;
+  audience: LegalDocumentAudience;
+  status: LegalDocumentStatus;
+  effective_date: Date | null;
+  acceptance_required: boolean;
+  open_before_accept_required: boolean;
+  reacceptance_required: boolean;
+  uploaded_by: string;
+  published_by: string | null;
+  published_at: Date | null;
+  archived_by: string | null;
+  archived_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+};
+
 type PrismaClientWithDocs = typeof prisma & {
   siteDocument: {
-    findMany: (args: unknown) => Promise<unknown[]>;
-    findUnique: (args: unknown) => Promise<unknown | null>;
-    findFirst: (args: unknown) => Promise<unknown | null>;
-    create: (args: unknown) => Promise<unknown>;
-    update: (args: unknown) => Promise<unknown>;
+    findMany: (args: unknown) => Promise<SiteDocumentRow[]>;
+    findUnique: (args: unknown) => Promise<SiteDocumentRow | null>;
+    findFirst: (args: unknown) => Promise<SiteDocumentRow | null>;
+    create: (args: unknown) => Promise<SiteDocumentRow>;
+    update: (args: unknown) => Promise<SiteDocumentRow>;
+    updateMany: (args: unknown) => Promise<{ count: number }>;
     count: (args: unknown) => Promise<number>;
   };
   documentLog: {
@@ -18,7 +50,16 @@ type PrismaClientWithDocs = typeof prisma & {
     create: (args: unknown) => Promise<unknown>;
     count: (args: unknown) => Promise<number>;
   };
+  legalDocumentAcceptance: {
+    findMany: (args: unknown) => Promise<unknown[]>;
+    findFirst: (args: unknown) => Promise<unknown | null>;
+    findUnique: (args: unknown) => Promise<unknown | null>;
+    create: (args: unknown) => Promise<unknown>;
+    update: (args: unknown) => Promise<unknown>;
+    upsert: (args: unknown) => Promise<unknown>;
+  };
 };
+
 const prismaDocs = prisma as unknown as PrismaClientWithDocs;
 
 export interface CreateSiteDocumentData {
@@ -29,14 +70,27 @@ export interface CreateSiteDocumentData {
   s3Key: string;
   contentType: string;
   fileSize: number;
+  fileHash?: string | null;
   showInAccount: boolean;
   uploadedBy: string;
+  version: number;
+  audience: LegalDocumentAudience;
+  acceptanceRequired: boolean;
+  openBeforeAcceptRequired: boolean;
+  reacceptanceRequired: boolean;
+  effectiveDate?: Date | null;
+  status?: LegalDocumentStatus;
 }
 
 export interface UpdateSiteDocumentData {
   title?: string;
   description?: string | null;
   showInAccount?: boolean;
+  audience?: LegalDocumentAudience;
+  acceptanceRequired?: boolean;
+  openBeforeAcceptRequired?: boolean;
+  reacceptanceRequired?: boolean;
+  effectiveDate?: Date | null;
 }
 
 export interface CreateDocumentLogData {
@@ -54,20 +108,22 @@ export class SiteDocumentRepository {
     page: number;
     pageSize: number;
     type?: SiteDocumentType;
+    status?: LegalDocumentStatus;
+    audience?: LegalDocumentAudience;
     includeInactive?: boolean;
     search?: string;
   }) {
-    const { page, pageSize, type, includeInactive, search } = params;
+    const { page, pageSize, type, status, audience, includeInactive, search } = params;
     const skip = (page - 1) * pageSize;
 
     const where = {} as Record<string, unknown>;
 
-    if (type) {
-      where.type = type;
-    }
+    if (type) where.type = type;
+    if (status) where.status = status;
+    if (audience) where.audience = audience;
 
-    if (!includeInactive) {
-      where.is_active = true;
+    if (!includeInactive && !status) {
+      where.status = { in: ["DRAFT", "PUBLISHED"] };
     }
 
     if (search) {
@@ -83,7 +139,7 @@ export class SiteDocumentRepository {
         where,
         skip,
         take: pageSize,
-        orderBy: { created_at: "desc" },
+        orderBy: [{ type: "asc" }, { version: "desc" }],
       }),
       prismaDocs.siteDocument.count({ where }),
     ]);
@@ -101,15 +157,43 @@ export class SiteDocumentRepository {
     return prismaDocs.siteDocument.findFirst({
       where: {
         type,
+        status: "PUBLISHED",
         is_active: true,
       },
       orderBy: { version: "desc" },
     });
   }
 
+  async findPublishedByTypeAndAudiences(
+    type: SiteDocumentType,
+    audiences: LegalDocumentAudience[]
+  ) {
+    return prismaDocs.siteDocument.findFirst({
+      where: {
+        type,
+        status: "PUBLISHED",
+        audience: { in: audiences },
+        acceptance_required: true,
+      },
+      orderBy: { version: "desc" },
+    });
+  }
+
+  async findPublishedForPublic(types: SiteDocumentType[]) {
+    return prismaDocs.siteDocument.findMany({
+      where: {
+        type: { in: types },
+        status: "PUBLISHED",
+        audience: { in: ["PUBLIC", "BOTH", "ISSUER", "INVESTOR"] },
+      },
+      orderBy: [{ type: "asc" }, { version: "desc" }],
+    });
+  }
+
   async findActiveForAccount() {
     return prismaDocs.siteDocument.findMany({
       where: {
+        status: "PUBLISHED",
         is_active: true,
         show_in_account: true,
       },
@@ -119,12 +203,13 @@ export class SiteDocumentRepository {
 
   async findAllActive() {
     return prismaDocs.siteDocument.findMany({
-      where: { is_active: true },
+      where: { status: "PUBLISHED", is_active: true },
       orderBy: { created_at: "desc" },
     });
   }
 
   async create(data: CreateSiteDocumentData) {
+    const status = data.status ?? "DRAFT";
     return prismaDocs.siteDocument.create({
       data: {
         type: data.type,
@@ -134,10 +219,17 @@ export class SiteDocumentRepository {
         s3_key: data.s3Key,
         content_type: data.contentType,
         file_size: data.fileSize,
+        file_hash: data.fileHash ?? null,
         show_in_account: data.showInAccount,
         uploaded_by: data.uploadedBy,
-        version: 1,
-        is_active: true,
+        version: data.version,
+        audience: data.audience,
+        status,
+        is_active: status === "PUBLISHED",
+        acceptance_required: data.acceptanceRequired,
+        open_before_accept_required: data.openBeforeAcceptRequired,
+        reacceptance_required: data.reacceptanceRequired,
+        effective_date: data.effectiveDate ?? null,
       },
     });
   }
@@ -149,26 +241,64 @@ export class SiteDocumentRepository {
         ...(data.title !== undefined && { title: data.title }),
         ...(data.description !== undefined && { description: data.description }),
         ...(data.showInAccount !== undefined && { show_in_account: data.showInAccount }),
+        ...(data.audience !== undefined && { audience: data.audience }),
+        ...(data.acceptanceRequired !== undefined && {
+          acceptance_required: data.acceptanceRequired,
+        }),
+        ...(data.openBeforeAcceptRequired !== undefined && {
+          open_before_accept_required: data.openBeforeAcceptRequired,
+        }),
+        ...(data.reacceptanceRequired !== undefined && {
+          reacceptance_required: data.reacceptanceRequired,
+        }),
+        ...(data.effectiveDate !== undefined && { effective_date: data.effectiveDate }),
       },
     });
   }
 
-  async replaceFile(
-    id: string,
-    data: {
-      s3Key: string;
-      fileName: string;
-      fileSize: number;
-      newVersion: number;
-    }
-  ) {
+  async publish(id: string, adminUserId: string, effectiveDate?: Date | null) {
+    return prisma.$transaction(async (tx) => {
+      const existing = await tx.siteDocument.findUnique({ where: { id } });
+      if (!existing) return null;
+
+      await tx.siteDocument.updateMany({
+        where: {
+          type: existing.type,
+          audience: existing.audience,
+          status: "PUBLISHED",
+          id: { not: id },
+        },
+        data: {
+          status: "ARCHIVED",
+          is_active: false,
+          archived_by: adminUserId,
+          archived_at: new Date(),
+        },
+      });
+
+      return tx.siteDocument.update({
+        where: { id },
+        data: {
+          status: "PUBLISHED",
+          is_active: true,
+          published_by: adminUserId,
+          published_at: new Date(),
+          archived_by: null,
+          archived_at: null,
+          ...(effectiveDate !== undefined && { effective_date: effectiveDate }),
+        },
+      });
+    });
+  }
+
+  async archive(id: string, adminUserId: string) {
     return prismaDocs.siteDocument.update({
       where: { id },
       data: {
-        s3_key: data.s3Key,
-        file_name: data.fileName,
-        file_size: data.fileSize,
-        version: data.newVersion,
+        status: "ARCHIVED",
+        is_active: false,
+        archived_by: adminUserId,
+        archived_at: new Date(),
       },
     });
   }
@@ -176,14 +306,23 @@ export class SiteDocumentRepository {
   async softDelete(id: string) {
     return prismaDocs.siteDocument.update({
       where: { id },
-      data: { is_active: false },
+      data: {
+        is_active: false,
+        status: "ARCHIVED",
+        archived_at: new Date(),
+      },
     });
   }
 
   async restore(id: string) {
     return prismaDocs.siteDocument.update({
       where: { id },
-      data: { is_active: true },
+      data: {
+        is_active: true,
+        status: "DRAFT",
+        archived_by: null,
+        archived_at: null,
+      },
     });
   }
 
@@ -193,7 +332,7 @@ export class SiteDocumentRepository {
       orderBy: { version: "desc" },
       select: { version: true },
     });
-    return latest?.version ?? 0;
+    return (latest as { version?: number } | null)?.version ?? 0;
   }
 }
 
@@ -207,7 +346,7 @@ export class DocumentLogRepository {
         ip_address: data.ipAddress,
         user_agent: data.userAgent,
         device_info: data.deviceInfo,
-        metadata: data.metadata as Prisma.InputJsonValue ?? Prisma.JsonNull,
+        metadata: (data.metadata as Prisma.InputJsonValue) ?? Prisma.JsonNull,
       },
     });
   }
@@ -224,7 +363,7 @@ export class DocumentLogRepository {
 
     if (dateRange !== "all") {
       const now = new Date();
-      let startDate: Date;
+      let startDate: Date = now;
       switch (dateRange) {
         case "24h":
           startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -287,7 +426,7 @@ export class DocumentLogRepository {
 
     if (params.dateRange !== "all") {
       const now = new Date();
-      let startDate: Date;
+      let startDate: Date = now;
       switch (params.dateRange) {
         case "24h":
           startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -313,7 +452,7 @@ export class DocumentLogRepository {
     return prismaDocs.documentLog.findMany({
       where,
       orderBy: { created_at: "desc" },
-      take: 10000, // Limit export to prevent memory issues
+      take: 10000,
       include: {
         user: {
           select: {
@@ -331,4 +470,4 @@ export class DocumentLogRepository {
 
 export const siteDocumentRepository = new SiteDocumentRepository();
 export const documentLogRepository = new DocumentLogRepository();
-
+export type { SiteDocumentRow };

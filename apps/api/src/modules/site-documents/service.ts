@@ -1,14 +1,13 @@
 import { Request } from "express";
 import type { SiteDocumentType } from "./schemas";
 import { AppError } from "../../lib/http/error-handler";
-import { getDeviceInfo } from "../../lib/http/request-utils";
+import { extractRequestMetadata, getDeviceInfo } from "../../lib/http/request-utils";
 import {
   generatePresignedUploadUrl,
   generatePresignedDownloadUrl,
   generateSiteDocumentKey,
   getFileExtension,
   validateSiteDocument,
-  deleteS3Object,
 } from "../../lib/s3/client";
 import {
   siteDocumentRepository,
@@ -28,13 +27,10 @@ import type {
   ExportDocumentLogsQuery,
 } from "./schemas";
 import { logger } from "../../lib/logger";
+import { prisma } from "../../lib/prisma";
 
 export class SiteDocumentService {
-  /**
-   * Request a presigned URL for uploading a new document
-   */
   async requestUploadUrl(input: RequestUploadUrlInput, adminUserId: string) {
-    // Validate file
     const validation = validateSiteDocument({
       contentType: input.contentType,
       fileSize: input.fileSize,
@@ -44,8 +40,15 @@ export class SiteDocumentService {
       throw new AppError(400, "VALIDATION_ERROR", validation.error!);
     }
 
-    // Generate unique S3 key
+    if (input.contentType !== "application/pdf") {
+      throw new AppError(400, "VALIDATION_ERROR", "Only PDF uploads are allowed");
+    }
+
     const extension = getFileExtension(input.fileName);
+    if (extension.toLowerCase() !== "pdf") {
+      throw new AppError(400, "VALIDATION_ERROR", "Only PDF uploads are allowed");
+    }
+
     const cuid = this.generateCuid();
     const latestVersion = await siteDocumentRepository.getLatestVersionByType(input.type);
     const newVersion = latestVersion + 1;
@@ -57,7 +60,6 @@ export class SiteDocumentService {
       extension,
     });
 
-    // Generate presigned upload URL
     const { uploadUrl, expiresIn } = await generatePresignedUploadUrl({
       key: s3Key,
       contentType: input.contentType,
@@ -65,8 +67,8 @@ export class SiteDocumentService {
     });
 
     logger.info(
-      { type: input.type, s3Key, adminUserId },
-      "Generated presigned upload URL for new document"
+      { type: input.type, s3Key, adminUserId, version: newVersion },
+      "Generated presigned upload URL for new document draft"
     );
 
     return {
@@ -77,11 +79,14 @@ export class SiteDocumentService {
     };
   }
 
-  /**
-   * Create document record after successful upload
-   */
   async createDocument(input: CreateDocumentInput, adminUserId: string, req: Request) {
-    // Create the document
+    if (input.contentType !== "application/pdf") {
+      throw new AppError(400, "VALIDATION_ERROR", "Only PDF uploads are allowed");
+    }
+
+    const latestVersion = await siteDocumentRepository.getLatestVersionByType(input.type);
+    const version = latestVersion + 1;
+
     const data: CreateSiteDocumentData = {
       type: input.type,
       title: input.title,
@@ -90,35 +95,48 @@ export class SiteDocumentService {
       s3Key: input.s3Key,
       contentType: input.contentType,
       fileSize: input.fileSize,
+      fileHash: input.fileHash ?? null,
       showInAccount: input.showInAccount ?? false,
       uploadedBy: adminUserId,
+      version,
+      audience: input.audience,
+      acceptanceRequired: input.acceptanceRequired,
+      openBeforeAcceptRequired: input.openBeforeAcceptRequired,
+      reacceptanceRequired: input.reacceptanceRequired,
+      effectiveDate: input.effectiveDate ? new Date(input.effectiveDate) : null,
+      status: "DRAFT",
     };
 
     const document = await siteDocumentRepository.create(data);
 
-    // Log the creation
     await this.logDocumentEvent(req, adminUserId, document.id, "DOCUMENT_CREATED", {
       title: document.title,
       type: document.type,
       file_name: document.file_name,
       file_size: document.file_size,
+      file_hash: document.file_hash,
       version: document.version,
+      audience: document.audience,
+      status: document.status,
+      acceptance_required: document.acceptance_required,
       show_in_account: document.show_in_account,
     });
 
-    logger.info({ documentId: document.id, type: document.type }, "Site document created");
+    logger.info(
+      { documentId: document.id, type: document.type, status: document.status },
+      "Site document draft created"
+    );
 
     return document;
   }
 
-  /**
-   * List documents (admin view, includes inactive)
-   */
   async listDocuments(query: ListDocumentsQuery) {
     const { documents, total } = await siteDocumentRepository.findAll({
       page: query.page,
       pageSize: query.pageSize,
       type: query.type,
+      status: query.status,
+      audience: query.audience,
       includeInactive: query.includeInactive,
       search: query.search,
     });
@@ -134,9 +152,6 @@ export class SiteDocumentService {
     };
   }
 
-  /**
-   * Get document by ID
-   */
   async getDocumentById(id: string) {
     const document = await siteDocumentRepository.findById(id);
     if (!document) {
@@ -145,13 +160,14 @@ export class SiteDocumentService {
     return document;
   }
 
-  /**
-   * Update document metadata
-   */
   async updateDocument(id: string, input: UpdateDocumentInput, adminUserId: string, req: Request) {
     const existing = await siteDocumentRepository.findById(id);
     if (!existing) {
       throw new AppError(404, "NOT_FOUND", "Document not found");
+    }
+
+    if (existing.status === "ARCHIVED") {
+      throw new AppError(400, "ARCHIVED", "Archived documents cannot be edited");
     }
 
     const data: UpdateSiteDocumentData = {};
@@ -172,13 +188,59 @@ export class SiteDocumentService {
       changes.show_in_account = { from: existing.show_in_account, to: input.showInAccount };
     }
 
+    if (input.audience !== undefined && input.audience !== existing.audience) {
+      data.audience = input.audience;
+      changes.audience = { from: existing.audience, to: input.audience };
+    }
+
+    if (
+      input.acceptanceRequired !== undefined &&
+      input.acceptanceRequired !== existing.acceptance_required
+    ) {
+      data.acceptanceRequired = input.acceptanceRequired;
+      changes.acceptance_required = {
+        from: existing.acceptance_required,
+        to: input.acceptanceRequired,
+      };
+    }
+
+    if (
+      input.openBeforeAcceptRequired !== undefined &&
+      input.openBeforeAcceptRequired !== existing.open_before_accept_required
+    ) {
+      data.openBeforeAcceptRequired = input.openBeforeAcceptRequired;
+      changes.open_before_accept_required = {
+        from: existing.open_before_accept_required,
+        to: input.openBeforeAcceptRequired,
+      };
+    }
+
+    if (
+      input.reacceptanceRequired !== undefined &&
+      input.reacceptanceRequired !== existing.reacceptance_required
+    ) {
+      data.reacceptanceRequired = input.reacceptanceRequired;
+      changes.reacceptance_required = {
+        from: existing.reacceptance_required,
+        to: input.reacceptanceRequired,
+      };
+    }
+
+    if (input.effectiveDate !== undefined) {
+      const nextDate = input.effectiveDate ? new Date(input.effectiveDate) : null;
+      data.effectiveDate = nextDate;
+      changes.effective_date = {
+        from: existing.effective_date,
+        to: nextDate,
+      };
+    }
+
     if (Object.keys(data).length === 0) {
-      return existing; // No changes
+      return existing;
     }
 
     const updated = await siteDocumentRepository.update(id, data);
 
-    // Log the update
     await this.logDocumentEvent(req, adminUserId, id, "DOCUMENT_UPDATED", {
       document_id: id,
       title: existing.title,
@@ -191,8 +253,97 @@ export class SiteDocumentService {
     return updated;
   }
 
+  async publishDocument(id: string, adminUserId: string, req: Request) {
+    const existing = await siteDocumentRepository.findById(id);
+    if (!existing) {
+      throw new AppError(404, "NOT_FOUND", "Document not found");
+    }
+
+    if (existing.status === "PUBLISHED") {
+      return existing;
+    }
+
+    if (existing.status === "ARCHIVED") {
+      throw new AppError(400, "ARCHIVED", "Archived documents cannot be published");
+    }
+
+    const published = await siteDocumentRepository.publish(id, adminUserId);
+    if (!published) {
+      throw new AppError(404, "NOT_FOUND", "Document not found");
+    }
+
+    if (published.acceptance_required && published.reacceptance_required) {
+      await this.resetTncAcceptedForAudience(published.audience);
+    }
+
+    await this.logDocumentEvent(req, adminUserId, id, "DOCUMENT_PUBLISHED", {
+      document_id: id,
+      title: published.title,
+      type: published.type,
+      version: published.version,
+      audience: published.audience,
+      file_hash: published.file_hash,
+      acceptance_required: published.acceptance_required,
+      reacceptance_required: published.reacceptance_required,
+    });
+
+    logger.info(
+      { documentId: id, type: published.type, version: published.version },
+      "Site document published"
+    );
+
+    return published;
+  }
+
+  private async resetTncAcceptedForAudience(audience: string) {
+    if (audience === "ISSUER" || audience === "BOTH" || audience === "PUBLIC") {
+      await prisma.issuerOrganization.updateMany({
+        where: { tnc_accepted: true },
+        data: { tnc_accepted: false },
+      });
+    }
+
+    if (audience === "INVESTOR" || audience === "BOTH" || audience === "PUBLIC") {
+      await prisma.investorOrganization.updateMany({
+        where: { tnc_accepted: true },
+        data: { tnc_accepted: false },
+      });
+    }
+
+    logger.info(
+      { audience },
+      "Reset tnc_accepted for re-acceptance after legal document publish"
+    );
+  }
+
+  async archiveDocument(id: string, adminUserId: string, req: Request) {
+    const existing = await siteDocumentRepository.findById(id);
+    if (!existing) {
+      throw new AppError(404, "NOT_FOUND", "Document not found");
+    }
+
+    if (existing.status === "ARCHIVED") {
+      return existing;
+    }
+
+    const archived = await siteDocumentRepository.archive(id, adminUserId);
+
+    await this.logDocumentEvent(req, adminUserId, id, "DOCUMENT_ARCHIVED", {
+      document_id: id,
+      title: archived.title,
+      type: archived.type,
+      version: archived.version,
+      previous_status: existing.status,
+    });
+
+    logger.info({ documentId: id }, "Site document archived");
+
+    return archived;
+  }
+
   /**
-   * Request presigned URL for replacing document file
+   * Upload a new draft version based on an existing document.
+   * Previous file versions remain in S3 and in the database for audit.
    */
   async requestReplaceUrl(
     id: string,
@@ -204,7 +355,6 @@ export class SiteDocumentService {
       throw new AppError(404, "NOT_FOUND", "Document not found");
     }
 
-    // Validate file
     const validation = validateSiteDocument({
       contentType: input.contentType,
       fileSize: input.fileSize,
@@ -214,10 +364,18 @@ export class SiteDocumentService {
       throw new AppError(400, "VALIDATION_ERROR", validation.error!);
     }
 
-    // Generate new S3 key with incremented version
+    if (input.contentType !== "application/pdf") {
+      throw new AppError(400, "VALIDATION_ERROR", "Only PDF uploads are allowed");
+    }
+
     const extension = getFileExtension(input.fileName);
+    if (extension.toLowerCase() !== "pdf") {
+      throw new AppError(400, "VALIDATION_ERROR", "Only PDF uploads are allowed");
+    }
+
     const cuid = this.generateCuid();
-    const newVersion = existing.version + 1;
+    const latestVersion = await siteDocumentRepository.getLatestVersionByType(existing.type);
+    const newVersion = latestVersion + 1;
 
     const s3Key = generateSiteDocumentKey({
       type: existing.type,
@@ -226,7 +384,6 @@ export class SiteDocumentService {
       extension,
     });
 
-    // Generate presigned upload URL
     const { uploadUrl, expiresIn } = await generatePresignedUploadUrl({
       key: s3Key,
       contentType: input.contentType,
@@ -235,7 +392,7 @@ export class SiteDocumentService {
 
     logger.info(
       { documentId: id, newVersion, s3Key, adminUserId },
-      "Generated presigned upload URL for document replacement"
+      "Generated presigned upload URL for new draft version"
     );
 
     return {
@@ -244,12 +401,12 @@ export class SiteDocumentService {
       expiresIn,
       previousVersion: existing.version,
       newVersion,
+      type: existing.type,
+      title: existing.title,
+      audience: existing.audience,
     };
   }
 
-  /**
-   * Confirm document file replacement
-   */
   async confirmReplace(
     id: string,
     input: ConfirmReplaceInput,
@@ -261,118 +418,86 @@ export class SiteDocumentService {
       throw new AppError(404, "NOT_FOUND", "Document not found");
     }
 
-    const previousS3Key = existing.s3_key;
-    const previousVersion = existing.version;
-    const newVersion = existing.version + 1;
+    const latestVersion = await siteDocumentRepository.getLatestVersionByType(existing.type);
+    const newVersion = latestVersion + 1;
 
-    // Update the document record
-    const updated = await siteDocumentRepository.replaceFile(id, {
-      s3Key: input.s3Key,
+    const created = await siteDocumentRepository.create({
+      type: existing.type,
+      title: existing.title,
+      description: existing.description,
       fileName: input.fileName,
+      s3Key: input.s3Key,
+      contentType: "application/pdf",
       fileSize: input.fileSize,
-      newVersion,
+      fileHash: input.fileHash ?? null,
+      showInAccount: existing.show_in_account,
+      uploadedBy: adminUserId,
+      version: newVersion,
+      audience: existing.audience,
+      acceptanceRequired: existing.acceptance_required,
+      openBeforeAcceptRequired: existing.open_before_accept_required,
+      reacceptanceRequired: existing.reacceptance_required,
+      effectiveDate: null,
+      status: "DRAFT",
     });
 
-    // Log the replacement
-    await this.logDocumentEvent(req, adminUserId, id, "DOCUMENT_REPLACED", {
-      document_id: id,
-      title: existing.title,
-      type: existing.type,
-      previous_version: previousVersion,
+    await this.logDocumentEvent(req, adminUserId, created.id, "DOCUMENT_CREATED", {
+      document_id: created.id,
+      previous_document_id: id,
+      title: created.title,
+      type: created.type,
+      previous_version: existing.version,
       new_version: newVersion,
       file_name: input.fileName,
       file_size: input.fileSize,
+      file_hash: input.fileHash ?? null,
+      status: "DRAFT",
     });
-
-    // Delete old file from S3 (best effort, don't fail if this errors)
-    try {
-      await deleteS3Object(previousS3Key);
-      logger.info({ s3Key: previousS3Key }, "Deleted old document file from S3");
-    } catch (error) {
-      logger.warn({ s3Key: previousS3Key, error }, "Failed to delete old document file from S3");
-    }
 
     logger.info(
-      { documentId: id, previousVersion, newVersion },
-      "Site document file replaced"
+      { previousDocumentId: id, documentId: created.id, newVersion },
+      "New draft document version created (previous version retained)"
     );
 
-    return updated;
+    return created;
   }
 
-  /**
-   * Soft delete document
-   */
   async deleteDocument(id: string, adminUserId: string, req: Request) {
-    const existing = await siteDocumentRepository.findById(id);
-    if (!existing) {
-      throw new AppError(404, "NOT_FOUND", "Document not found");
-    }
-
-    if (!existing.is_active) {
-      throw new AppError(400, "ALREADY_DELETED", "Document is already deleted");
-    }
-
-    const updated = await siteDocumentRepository.softDelete(id);
-
-    // Log the deletion
-    await this.logDocumentEvent(req, adminUserId, id, "DOCUMENT_DELETED", {
-      document_id: id,
-      title: existing.title,
-      type: existing.type,
-    });
-
-    logger.info({ documentId: id }, "Site document soft deleted");
-
-    return updated;
+    return this.archiveDocument(id, adminUserId, req);
   }
 
-  /**
-   * Restore soft-deleted document
-   */
   async restoreDocument(id: string, adminUserId: string, req: Request) {
     const existing = await siteDocumentRepository.findById(id);
     if (!existing) {
       throw new AppError(404, "NOT_FOUND", "Document not found");
     }
 
-    if (existing.is_active) {
-      throw new AppError(400, "NOT_DELETED", "Document is not deleted");
+    if (existing.status !== "ARCHIVED") {
+      throw new AppError(400, "NOT_ARCHIVED", "Document is not archived");
     }
 
     const updated = await siteDocumentRepository.restore(id);
 
-    // Log the restoration
     await this.logDocumentEvent(req, adminUserId, id, "DOCUMENT_RESTORED", {
       document_id: id,
       title: existing.title,
       type: existing.type,
+      status: updated.status,
     });
 
-    logger.info({ documentId: id }, "Site document restored");
+    logger.info({ documentId: id }, "Site document restored to draft");
 
     return updated;
   }
 
-  // ========== User-facing methods ==========
-
-  /**
-   * List active documents (user view)
-   */
   async listActiveDocuments() {
     return siteDocumentRepository.findAllActive();
   }
 
-  /**
-   * List documents for account page (show_in_account = true)
-   */
   async listAccountDocuments() {
     return siteDocumentRepository.findActiveForAccount();
   }
 
-  /**
-   * Get active document by type
-   */
   async getActiveDocumentByType(type: SiteDocumentType) {
     const document = await siteDocumentRepository.findActiveByType(type);
     if (!document) {
@@ -381,16 +506,13 @@ export class SiteDocumentService {
     return document;
   }
 
-  /**
-   * Get presigned download URL for document (user - active documents only)
-   */
   async getDownloadUrl(id: string) {
     const document = await siteDocumentRepository.findById(id);
     if (!document) {
       throw new AppError(404, "NOT_FOUND", "Document not found");
     }
 
-    if (!document.is_active) {
+    if (document.status !== "PUBLISHED" || !document.is_active) {
       throw new AppError(404, "NOT_FOUND", "Document not found");
     }
 
@@ -408,42 +530,26 @@ export class SiteDocumentService {
     };
   }
 
-  /**
-   * Get presigned download URL for document (admin - includes archived documents)
-   */
   async getAdminDownloadUrl(id: string) {
     const document = await siteDocumentRepository.findById(id);
     if (!document) {
       throw new AppError(404, "NOT_FOUND", "Document not found");
     }
 
-    const doc = document as unknown as {
-      s3_key: string;
-      file_name: string;
-      content_type: string;
-      file_size: number;
-    };
-    
-    // Admin can download any document, including archived ones
     const { downloadUrl, expiresIn } = await generatePresignedDownloadUrl({
-      key: doc.s3_key,
-      fileName: doc.file_name,
+      key: document.s3_key,
+      fileName: document.file_name,
     });
 
     return {
       downloadUrl,
       expiresIn,
-      fileName: doc.file_name,
-      contentType: doc.content_type,
-      fileSize: doc.file_size,
+      fileName: document.file_name,
+      contentType: document.content_type,
+      fileSize: document.file_size,
     };
   }
 
-  // ========== Document Logs ==========
-
-  /**
-   * Get document logs with pagination and filters
-   */
   async getDocumentLogs(query: GetDocumentLogsQuery) {
     const { logs, total } = await documentLogRepository.findAll(query);
 
@@ -458,10 +564,7 @@ export class SiteDocumentService {
     };
   }
 
-  /**
-   * Export document logs
-   */
-  async exportDocumentLogs(query: Omit<ExportDocumentLogsQuery, 'format'>) {
+  async exportDocumentLogs(query: Omit<ExportDocumentLogsQuery, "format">) {
     return documentLogRepository.findForExport({
       search: query.search,
       eventType: query.eventType,
@@ -470,8 +573,6 @@ export class SiteDocumentService {
     });
   }
 
-  // ========== Private helpers ==========
-
   private async logDocumentEvent(
     req: Request,
     userId: string,
@@ -479,25 +580,21 @@ export class SiteDocumentService {
     eventType: DocumentEventType,
     metadata: Record<string, unknown>
   ) {
+    const { ipAddress, userAgent } = extractRequestMetadata(req);
     const deviceInfo = getDeviceInfo(req);
-    const ipAddress =
-      (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ||
-      req.socket.remoteAddress ||
-      null;
 
     await documentLogRepository.create({
       userId,
       documentId,
       eventType,
       ipAddress,
-      userAgent: req.headers["user-agent"] ?? null,
+      userAgent,
       deviceInfo,
       metadata,
     });
   }
 
   private generateCuid(): string {
-    // Simple cuid-like generator for S3 keys
     const timestamp = Date.now().toString(36);
     const random = Math.random().toString(36).substring(2, 10);
     return `${timestamp}${random}`;
@@ -505,4 +602,3 @@ export class SiteDocumentService {
 }
 
 export const siteDocumentService = new SiteDocumentService();
-

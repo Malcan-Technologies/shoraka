@@ -410,6 +410,7 @@ export interface InvoiceOfferDetails {
 export * from "./invoice-offer-risk-rating";
 export * from "./activity-config";
 export * from "./admin";
+export * from "./legal-documents";
 export * from "./application-steps";
 export * from "./financial-calculator";
 export * from "./financial-field-labels";

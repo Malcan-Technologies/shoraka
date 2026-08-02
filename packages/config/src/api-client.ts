@@ -2020,6 +2020,24 @@ export class ApiClient {
     );
   }
 
+  async publishSiteDocument(
+    id: string
+  ): Promise<ApiResponse<{ document: SiteDocumentResponse }> | ApiError> {
+    return this.post<{ document: SiteDocumentResponse }>(
+      `/v1/admin/site-documents/${id}/publish`,
+      {}
+    );
+  }
+
+  async archiveSiteDocument(
+    id: string
+  ): Promise<ApiResponse<{ document: SiteDocumentResponse }> | ApiError> {
+    return this.post<{ document: SiteDocumentResponse }>(
+      `/v1/admin/site-documents/${id}/archive`,
+      {}
+    );
+  }
+
   async getAdminDocumentDownloadUrl(
     id: string
   ): Promise<ApiResponse<DownloadUrlResponse> | ApiError> {

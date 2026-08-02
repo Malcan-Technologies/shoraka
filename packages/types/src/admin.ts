@@ -889,14 +889,24 @@ export type SiteDocumentType =
   | "PLATFORM_AGREEMENT"
   | "INVESTOR_GUIDE"
   | "ISSUER_GUIDE"
-  | "OTHER";
+  | "OTHER"
+  | "PDPA_NOTICE"
+  | "RISK_STATEMENT"
+  | "ISSUER_WARNING_STATEMENT"
+  | "ISSUER_AGREEMENT"
+  | "INVESTOR_WARNING_STATEMENT"
+  | "INVESTOR_AGREEMENT";
 
 export type DocumentEventType =
   | "DOCUMENT_CREATED"
   | "DOCUMENT_UPDATED"
   | "DOCUMENT_REPLACED"
   | "DOCUMENT_DELETED"
-  | "DOCUMENT_RESTORED";
+  | "DOCUMENT_RESTORED"
+  | "DOCUMENT_PUBLISHED"
+  | "DOCUMENT_ARCHIVED"
+  | "DOCUMENT_OPENED"
+  | "DOCUMENT_ACCEPTED";
 
 export interface SiteDocumentResponse {
   id: string;
@@ -907,10 +917,21 @@ export interface SiteDocumentResponse {
   s3_key: string;
   content_type: string;
   file_size: number;
+  file_hash: string | null;
   version: number;
   is_active: boolean;
   show_in_account: boolean;
+  audience: import("./legal-documents").LegalDocumentAudience;
+  status: import("./legal-documents").LegalDocumentStatus;
+  effective_date: string | null;
+  acceptance_required: boolean;
+  open_before_accept_required: boolean;
+  reacceptance_required: boolean;
   uploaded_by: string;
+  published_by: string | null;
+  published_at: string | null;
+  archived_by: string | null;
+  archived_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -934,6 +955,12 @@ export interface RequestUploadUrlInput {
   contentType: "application/pdf";
   fileSize: number;
   showInAccount?: boolean;
+  audience?: import("./legal-documents").LegalDocumentAudience;
+  acceptanceRequired?: boolean;
+  openBeforeAcceptRequired?: boolean;
+  reacceptanceRequired?: boolean;
+  effectiveDate?: string;
+  fileHash?: string;
 }
 
 export interface RequestUploadUrlResponse {
@@ -952,12 +979,23 @@ export interface CreateSiteDocumentInput {
   contentType: "application/pdf";
   fileSize: number;
   showInAccount?: boolean;
+  audience?: import("./legal-documents").LegalDocumentAudience;
+  acceptanceRequired?: boolean;
+  openBeforeAcceptRequired?: boolean;
+  reacceptanceRequired?: boolean;
+  effectiveDate?: string | null;
+  fileHash?: string | null;
 }
 
 export interface UpdateSiteDocumentInput {
   title?: string;
   description?: string | null;
   showInAccount?: boolean;
+  audience?: import("./legal-documents").LegalDocumentAudience;
+  acceptanceRequired?: boolean;
+  openBeforeAcceptRequired?: boolean;
+  reacceptanceRequired?: boolean;
+  effectiveDate?: string | null;
 }
 
 export interface RequestReplaceUrlInput {

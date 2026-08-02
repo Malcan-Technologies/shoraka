@@ -201,6 +201,25 @@ export function useDownloadSiteDocument() {
   });
 }
 
+export function usePublishSiteDocument() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.publishSiteDocument(id);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data.document;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "site-documents"] });
+    },
+  });
+}
+
 /**
  * Upload a file to S3 using a presigned URL
  */

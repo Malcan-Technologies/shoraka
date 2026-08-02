@@ -194,12 +194,18 @@ export type {
 export {
   OnboardingStepper,
   TermsAcceptanceCard,
+  LegalDocumentsAcceptance,
   IdentityVerifyStep,
   OnboardingLayout,
   OnboardingStatusCard,
   getOnboardingSteps,
 } from "./onboarding";
-export type { OnboardingStepperStep, OnboardingStatusCardProps, OnboardingStep } from "./onboarding";
+export type {
+  OnboardingStepperStep,
+  OnboardingStatusCardProps,
+  OnboardingStep,
+  LegalDocumentsAcceptanceProps,
+} from "./onboarding";
 export {
   DirectorShareholdersUnifiedSection,
   directorShareholderOrgApiBase,

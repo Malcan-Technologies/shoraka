@@ -258,6 +258,62 @@ router.post(
 );
 
 /**
+ * POST /v1/admin/site-documents/:id/publish
+ * Publish a draft document (archives previous published of same type+audience)
+ */
+router.post(
+  "/:id/publish",
+  requirePermission("document_management.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const document = await siteDocumentService.publishDocument(id, req.user.user_id, req);
+
+      res.json({
+        success: true,
+        data: { document },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * POST /v1/admin/site-documents/:id/archive
+ * Archive a document version (keeps file and audit history)
+ */
+router.post(
+  "/:id/archive",
+  requirePermission("document_management.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const document = await siteDocumentService.archiveDocument(id, req.user.user_id, req);
+
+      res.json({
+        success: true,
+        data: { document },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * DELETE /v1/admin/site-documents/:id
  * Soft delete document
  */

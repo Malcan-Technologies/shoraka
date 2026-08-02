@@ -13,8 +13,8 @@ export type PortalFooterVariant = "issuer" | "investor";
 export type SidebarFooterVariant = PortalFooterVariant | "admin";
 
 const footerLinks = [
-  { href: "/terms", label: "Terms" },
-  { href: "/privacy", label: "Privacy" },
+  { href: "/legal", label: "Legal" },
+  { href: "/legal", label: "PDPA" },
   { href: "/support", label: "Support" },
 ] as const;
 
