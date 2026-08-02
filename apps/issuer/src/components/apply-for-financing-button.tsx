@@ -22,7 +22,7 @@ type ApplyForFinancingButtonProps = {
 
 /**
  * Apply CTA that stays visible when legal re-acceptance is pending,
- * but redirects to /onboarding/terms instead of starting a new application.
+ * but redirects to /legal-updates instead of starting a new application.
  */
 export function ApplyForFinancingButton({
   className,

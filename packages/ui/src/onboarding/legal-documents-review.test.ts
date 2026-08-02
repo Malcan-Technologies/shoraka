@@ -80,9 +80,9 @@ describe("legal documents review modes and copy", () => {
     expect(legalChecklistStatusLabel("accepted")).toBe("Accepted");
   });
 
-  it("submits exact version IDs and points re-acceptance to /onboarding/terms", () => {
+  it("submits exact version IDs and points re-acceptance to /legal-updates", () => {
     expect(reviewSource).toContain("/v1/legal-documents/versions/${doc.versionId}/accept");
     expect(reviewSource).toContain("/v1/legal-documents/versions/${versionId}/open");
-    expect(bannerSource).toContain('href="/onboarding/terms"');
+    expect(bannerSource).toContain('href="/legal-updates"');
   });
 });
