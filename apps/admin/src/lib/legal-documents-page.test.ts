@@ -7,52 +7,44 @@ describe("Admin Legal Documents page UX", () => {
     "utf8"
   );
 
-  it("Add modal has Save as Draft and Publish Now with bordered sections", () => {
+  it("create modal uploads PDF and saves as draft only", () => {
     expect(source).toContain("Add Legal Document");
+    expect(source).toContain("Upload a PDF and save it as a draft.");
     expect(source).toContain("Save as Draft");
-    expect(source).toContain("Publish Now");
-    expect(source).toContain('handleCreateDocument("draft")');
-    expect(source).toContain('handleCreateDocument("publish")');
-    expect(source).toContain("Document details");
-    expect(source).toContain("Access and requirements");
-    expect(source).toContain(">PDF</h3>");
-    expect(source).toContain("Publishing");
-    expect(source).toContain('placeholder="e.g. PDPA Notice and Consent"');
-    expect(source).toContain('placeholder="Briefly explain what this document covers"');
     expect(source).toContain('id="legal-pdf"');
+    expect(source).toContain("handleCreateDocument()");
+    expect(source).not.toContain("Publish Now");
+    expect(source).not.toContain("createReacceptanceRequired");
+    expect(source).not.toContain("create-reacceptance");
+    expect(source).not.toContain('handleCreateDocument("publish")');
   });
 
-  it("Publish Now orchestrates create, upload, and publish with reacceptanceRequired", () => {
-    expect(source).toContain("publishVersionById");
-    expect(source).toContain("createReacceptanceRequired");
-    expect(source).toContain("shouldSkipVersionUpload");
-    expect(source).toContain("nextCreateOrchestrationAfterVersion");
-    expect(source).toContain("{ reacceptanceRequired: requireReaccept }");
+  it("create modal uses clearer section copy", () => {
+    expect(source).toContain("Basic information");
+    expect(source).toContain(">Type</Label>");
+    expect(source).toContain("Access");
+    expect(source).toContain("Applies to");
+    expect(source).toContain("Required during onboarding");
+    expect(source).toContain("Show on public website");
+    expect(source).toContain(">File</h3>");
+    expect(source).toContain('placeholder="e.g. PDPA Notice and Consent"');
+    expect(source).toContain('placeholder="Briefly describe what this document covers"');
+    expect(source).not.toContain("Document details");
+    expect(source).not.toContain("Access and requirements");
+    expect(source).not.toContain(">Publishing</h3>");
   });
 
-  it("defaults re-acceptance to No", () => {
-    expect(source).toContain("setCreateReacceptanceRequired(false)");
-    expect(source).toContain("setReacceptanceRequired(false)");
-  });
-
-  it("draft rows show Publish plus ellipsis; published use ellipsis menu actions", () => {
-    expect(source).toContain("EllipsisHorizontalIcon");
-    expect(source).toContain("More actions for");
-    expect(source).toContain("View PDF");
-    expect(source).toContain("Edit details");
-    expect(source).toContain("Upload new version");
-    expect(source).toContain("Version history");
-    expect(source).toContain("Replace draft PDF");
-    expect(source).toContain("openPublishDialog(doc, draft)");
-    expect(source).toContain(">Document</TableHead>");
-    expect(source).toContain(">Who must accept</TableHead>");
-    expect(source).toContain(">Website</TableHead>");
-  });
-
-  it("existing draft publish dialog stays compact with bordered options", () => {
+  it("draft publish stays separate with re-acceptance defaults to No", () => {
+    expect(source).toContain("openPublishDialog");
     expect(source).toContain("buildPublishDialogTitle");
+    expect(source).toContain("setReacceptanceRequired(false)");
     expect(source).toContain("ReacceptanceOptions");
-    expect(source).toContain('sm:max-w-[460px]');
-    expect(source).toContain("rounded-lg border p-3");
+    expect(source).toContain("This version will become live for the users it applies to.");
+    expect(source).toContain("EllipsisHorizontalIcon");
+  });
+
+  it("avoids duplicate definitions on upload retry", () => {
+    expect(source).toContain("shouldSkipDefinitionCreate");
+    expect(source).toContain("nextCreateOrchestrationAfterDefinition");
   });
 });
