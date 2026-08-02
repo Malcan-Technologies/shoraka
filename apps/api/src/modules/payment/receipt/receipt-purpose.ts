@@ -31,3 +31,21 @@ export function getReceiptRelatedEntityType(
     }
   }
 }
+
+/** Visible PDF/admin label for the related-reference field (not a new reference system). */
+export function getReceiptRelatedReferenceLabel(
+  purpose: GatewayPaymentPurpose
+): string {
+  switch (purpose) {
+    case GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE:
+      return "Issuer Reference";
+    case GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE:
+      return "Application Reference";
+    case GatewayPaymentPurpose.INVESTOR_DEPOSIT:
+      return "Deposit Reference";
+    default: {
+      const _exhaustive: never = purpose;
+      return _exhaustive;
+    }
+  }
+}

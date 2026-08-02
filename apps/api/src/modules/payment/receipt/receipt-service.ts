@@ -1,5 +1,6 @@
 import {
   GatewayPaymentPurpose,
+  GatewayPaymentReceipt,
   GatewayPaymentReceiptStatus,
   GatewayPaymentStatus,
   OrganizationType,
@@ -17,6 +18,7 @@ import { allocateReceiptNumber, getMalaysiaDateKey } from "./receipt-number";
 import {
   getReceiptPurposeLabel,
   getReceiptRelatedEntityType,
+  getReceiptRelatedReferenceLabel,
 } from "./receipt-purpose";
 import { renderReceiptHtmlToPdfBuffer } from "./render-receipt-html-to-pdf";
 
@@ -89,6 +91,21 @@ function isUniqueViolation(error: unknown): boolean {
   );
 }
 
+function canGenerateReceiptPdf(receipt: {
+  status: GatewayPaymentReceiptStatus;
+  pdf_s3_key: string | null;
+}): boolean {
+  // Never replace an already-issued PDF.
+  if (receipt.pdf_s3_key) {
+    return false;
+  }
+  return (
+    receipt.status === GatewayPaymentReceiptStatus.PENDING ||
+    receipt.status === GatewayPaymentReceiptStatus.FAILED ||
+    receipt.status === GatewayPaymentReceiptStatus.REFUNDED
+  );
+}
+
 type PaymentForReceipt = Prisma.GatewayPaymentGetPayload<{
   include: {
     investor_organization: { include: { owner: true } };
@@ -118,16 +135,18 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
       typeof payment.metadata === "object" &&
       !Array.isArray(payment.metadata) &&
       typeof (payment.metadata as { receipt?: unknown }).receipt === "string"
-        ? (payment.metadata as { receipt: string }).receipt
+        ? (payment.metadata as { receipt: string }).receipt.trim()
         : null;
 
+    // Deposit Reference = Curlec order receipt string when present; never label curlec_payment_id as deposit ref.
+    // COMPLETED is only set after wallet credit + ledger in creditCompletedDeposit (same transaction).
     return {
       payerName: payment.payer_name ?? personName,
       payerCompanyName: companyName,
       payerEmail: org.owner?.email ?? null,
       payerPhone: org.phone_number ?? org.owner?.phone ?? null,
       relatedEntityId: org.id,
-      relatedReference: metadataReceipt ?? payment.id,
+      relatedReference: metadataReceipt || payment.id,
       walletCredited: payment.status === GatewayPaymentStatus.COMPLETED,
     };
   }
@@ -176,6 +195,7 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
     payerEmail: org?.owner?.email ?? null,
     payerPhone: org?.phone_number ?? org?.owner?.phone ?? null,
     relatedEntityId: application.id,
+    // Temporary until standardized application references exist — do not invent another system.
     relatedReference: application.id,
     walletCredited: false,
   };
@@ -195,6 +215,48 @@ async function loadPaymentForReceipt(
   });
 }
 
+/**
+ * Persist a PENDING receipt row with snapshot fields + reserved receipt number.
+ * This is the durable work marker for cron retries if the process dies mid-PDF.
+ */
+export async function ensurePendingGatewayPaymentReceipt(
+  gatewayPaymentId: string,
+  db: PrismaClient = defaultPrisma
+): Promise<GatewayPaymentReceipt | null> {
+  const payment = await loadPaymentForReceipt(gatewayPaymentId, db);
+  if (!payment) {
+    logger.warn({ gatewayPaymentId }, "Receipt skipped — gateway payment not found");
+    return null;
+  }
+
+  if (
+    payment.status !== GatewayPaymentStatus.COMPLETED &&
+    payment.status !== GatewayPaymentStatus.REFUNDED
+  ) {
+    logger.info(
+      { gatewayPaymentId, status: payment.status },
+      "Receipt skipped — payment not COMPLETED/REFUNDED"
+    );
+    return null;
+  }
+
+  if (payment.status === GatewayPaymentStatus.REFUNDED) {
+    const existing = await db.gatewayPaymentReceipt.findUnique({
+      where: { gateway_payment_id: gatewayPaymentId },
+    });
+    if (!existing) {
+      logger.info(
+        { gatewayPaymentId },
+        "Receipt skipped — refunded payment has no prior receipt row"
+      );
+      return null;
+    }
+    return existing;
+  }
+
+  return createPendingReceiptRow(payment, db);
+}
+
 async function createPendingReceiptRow(
   payment: PaymentForReceipt,
   db: PrismaClient
@@ -212,6 +274,7 @@ async function createPendingReceiptRow(
       return existing;
     }
 
+    // Allocate number inside the same transaction as create — gaps are OK; reuse is not.
     const receiptNumber = await allocateReceiptNumber(tx, paymentDate);
 
     try {
@@ -250,79 +313,70 @@ async function createPendingReceiptRow(
   });
 }
 
-/**
- * Ensure a receipt exists for a COMPLETED gateway payment and generate/upload the PDF.
- * Safe to call repeatedly — never creates a second receipt for the same payment.
- */
-export async function generateGatewayPaymentReceipt(
-  gatewayPaymentId: string,
-  db: PrismaClient = defaultPrisma
+async function resolveMerchantForReceipt(db: PrismaClient) {
+  const financeSettings = await db.platformFinanceSetting.findUnique({
+    where: { key: "DEFAULT" },
+  });
+  const configuredDisplayName =
+    financeSettings?.trustee_letter_config &&
+    typeof financeSettings.trustee_letter_config === "object" &&
+    !Array.isArray(financeSettings.trustee_letter_config)
+      ? (
+          financeSettings.trustee_letter_config as {
+            platformDisplayName?: string;
+          }
+        ).platformDisplayName
+      : null;
+
+  return loadReceiptMerchantDetails(
+    configuredDisplayName ?? TRUSTEE_LETTER_MOCK_DEFAULTS.platformDisplayName
+  );
+}
+
+async function generatePdfForExistingReceipt(
+  receipt: GatewayPaymentReceipt,
+  db: PrismaClient
 ) {
-  const payment = await loadPaymentForReceipt(gatewayPaymentId, db);
-  if (!payment) {
-    logger.warn({ gatewayPaymentId }, "Receipt skipped — gateway payment not found");
-    return null;
-  }
-
-  if (
-    payment.status !== GatewayPaymentStatus.COMPLETED &&
-    payment.status !== GatewayPaymentStatus.REFUNDED
-  ) {
-    logger.info(
-      { gatewayPaymentId, status: payment.status },
-      "Receipt skipped — payment not COMPLETED/REFUNDED"
-    );
-    return null;
-  }
-
-  if (payment.status === GatewayPaymentStatus.REFUNDED) {
-    const existing = await db.gatewayPaymentReceipt.findUnique({
-      where: { gateway_payment_id: gatewayPaymentId },
-    });
-    if (!existing) {
-      logger.info(
-        { gatewayPaymentId },
-        "Receipt skipped — refunded payment has no prior receipt row"
-      );
-      return null;
-    }
-  }
-
-  const receipt = await createPendingReceiptRow(payment, db);
-
-  if (
-    receipt.status === GatewayPaymentReceiptStatus.GENERATED ||
-    (receipt.status === GatewayPaymentReceiptStatus.REFUNDED && receipt.pdf_s3_key)
-  ) {
+  if (!canGenerateReceiptPdf(receipt)) {
     return receipt;
   }
 
   const preserveRefunded = receipt.status === GatewayPaymentReceiptStatus.REFUNDED;
 
   try {
-    const financeSettings = await db.platformFinanceSetting.findUnique({
-      where: { key: "DEFAULT" },
-    });
-    const configuredDisplayName =
-      financeSettings?.trustee_letter_config &&
-      typeof financeSettings.trustee_letter_config === "object" &&
-      !Array.isArray(financeSettings.trustee_letter_config)
-        ? (
-            financeSettings.trustee_letter_config as {
-              platformDisplayName?: string;
-            }
-          ).platformDisplayName
+    // Prefer merchant snapshot already sealed on a prior successful attempt.
+    // First successful generation seals merchant_snapshot permanently.
+    let merchant =
+      receipt.merchant_snapshot &&
+      typeof receipt.merchant_snapshot === "object" &&
+      !Array.isArray(receipt.merchant_snapshot)
+        ? (receipt.merchant_snapshot as {
+            legalName?: string;
+            registrationNumber?: string | null;
+            licenceNumber?: string | null;
+            address?: string | null;
+            telephone?: string | null;
+            email?: string | null;
+          })
         : null;
 
-    const merchant = loadReceiptMerchantDetails(
-      configuredDisplayName ?? TRUSTEE_LETTER_MOCK_DEFAULTS.platformDisplayName
-    );
+    const resolvedMerchant = merchant?.legalName
+      ? {
+          legalName: merchant.legalName,
+          registrationNumber: merchant.registrationNumber ?? null,
+          licenceNumber: merchant.licenceNumber ?? null,
+          address: merchant.address ?? null,
+          telephone: merchant.telephone ?? null,
+          email: merchant.email ?? null,
+        }
+      : await resolveMerchantForReceipt(db);
 
     const amountLabel = formatAmountLabel(receipt.amount, receipt.currency);
+    const paymentStatus = preserveRefunded ? "Refunded" : "Paid";
     const html = buildPaymentReceiptHtml({
       receiptNumber: receipt.receipt_number,
       receiptDateLabel: formatMalaysiaDateTime(receipt.created_at),
-      merchant,
+      merchant: resolvedMerchant,
       payerName: receipt.payer_name,
       payerCompanyName: receipt.payer_company_name,
       payerEmail: receipt.payer_email,
@@ -331,10 +385,11 @@ export async function generateGatewayPaymentReceipt(
       amountLabel,
       currency: receipt.currency,
       paymentMethod: receipt.payment_method,
-      paymentStatus: "Paid",
+      paymentStatus,
       paymentDateLabel: formatMalaysiaDateTime(receipt.payment_date),
       curlecPaymentId: receipt.curlec_payment_id,
       curlecOrderId: receipt.curlec_order_id,
+      relatedReferenceLabel: getReceiptRelatedReferenceLabel(receipt.payment_purpose),
       relatedReference: receipt.related_reference,
       walletCreditStatus:
         receipt.payment_purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT &&
@@ -344,7 +399,7 @@ export async function generateGatewayPaymentReceipt(
     });
 
     const pdf = await renderReceiptHtmlToPdfBuffer(html);
-    const s3Key = receipt.pdf_s3_key ?? buildS3Key(receipt.receipt_number);
+    const s3Key = buildS3Key(receipt.receipt_number);
 
     await putS3ObjectBuffer({
       key: s3Key,
@@ -361,14 +416,14 @@ export async function generateGatewayPaymentReceipt(
           : GatewayPaymentReceiptStatus.GENERATED,
         generation_error: null,
         generated_at: new Date(),
-        merchant_snapshot: merchant as Prisma.InputJsonValue,
+        merchant_snapshot: resolvedMerchant as Prisma.InputJsonValue,
       },
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     logger.error(
       {
-        gatewayPaymentId,
+        gatewayPaymentId: receipt.gateway_payment_id,
         receiptId: receipt.id,
         receiptNumber: receipt.receipt_number,
         error: message,
@@ -395,12 +450,40 @@ export async function generateGatewayPaymentReceipt(
   }
 }
 
-/** Fire-and-forget wrapper so webhook handlers stay fast. */
+/**
+ * Ensure a receipt exists for a COMPLETED gateway payment and generate/upload the PDF.
+ * Safe to call repeatedly — never creates a second receipt or replaces an issued PDF.
+ */
+export async function generateGatewayPaymentReceipt(
+  gatewayPaymentId: string,
+  db: PrismaClient = defaultPrisma
+) {
+  const receipt = await ensurePendingGatewayPaymentReceipt(gatewayPaymentId, db);
+  if (!receipt) {
+    return null;
+  }
+
+  return generatePdfForExistingReceipt(receipt, db);
+}
+
+/**
+ * Persist PENDING receipt first (durable), then continue PDF generation asynchronously.
+ * Cron retries any PENDING/FAILED rows and COMPLETED payments still missing a receipt.
+ */
 export function scheduleGatewayPaymentReceipt(
   gatewayPaymentId: string,
   db: PrismaClient = defaultPrisma
 ): void {
-  void generateGatewayPaymentReceipt(gatewayPaymentId, db).catch((error) => {
+  void (async () => {
+    const receipt = await ensurePendingGatewayPaymentReceipt(gatewayPaymentId, db);
+    if (!receipt) {
+      return;
+    }
+    if (!canGenerateReceiptPdf(receipt)) {
+      return;
+    }
+    await generatePdfForExistingReceipt(receipt, db);
+  })().catch((error) => {
     logger.error(
       {
         gatewayPaymentId,
@@ -413,7 +496,11 @@ export function scheduleGatewayPaymentReceipt(
 
 export async function markGatewayPaymentReceiptRefunded(
   gatewayPaymentId: string,
-  input: { refundReference?: string | null; refundAmount?: Prisma.Decimal | number | null; refundedAt?: Date },
+  input: {
+    refundReference?: string | null;
+    refundAmount?: Prisma.Decimal | number | null;
+    refundedAt?: Date;
+  },
   db: PrismaClient = defaultPrisma
 ) {
   const receipt = await db.gatewayPaymentReceipt.findUnique({
@@ -441,11 +528,31 @@ export async function retryFailedGatewayPaymentReceipts(
   db: PrismaClient = defaultPrisma,
   limit = 20
 ) {
+  // Safety net: COMPLETED payments that never got a durable receipt row (process died early).
+  const missingPayments = await db.gatewayPayment.findMany({
+    where: {
+      status: GatewayPaymentStatus.COMPLETED,
+      receipt: null,
+      // Small grace so an in-flight schedule can create the PENDING row first.
+      updated_at: { lt: new Date(Date.now() - 60_000) },
+    },
+    orderBy: { updated_at: "asc" },
+    take: limit,
+    select: { id: true },
+  });
+
+  for (const payment of missingPayments) {
+    await ensurePendingGatewayPaymentReceipt(payment.id, db);
+  }
+
   const rows = await db.gatewayPaymentReceipt.findMany({
     where: {
-      status: {
-        in: [GatewayPaymentReceiptStatus.PENDING, GatewayPaymentReceiptStatus.FAILED],
-      },
+      pdf_s3_key: null,
+      OR: [
+        { status: GatewayPaymentReceiptStatus.PENDING },
+        { status: GatewayPaymentReceiptStatus.FAILED },
+        { status: GatewayPaymentReceiptStatus.REFUNDED },
+      ],
     },
     orderBy: { created_at: "asc" },
     take: limit,
@@ -457,12 +564,17 @@ export async function retryFailedGatewayPaymentReceipts(
 
   for (const row of rows) {
     const result = await generateGatewayPaymentReceipt(row.gateway_payment_id, db);
-    if (result?.status === GatewayPaymentReceiptStatus.GENERATED) {
+    if (result?.pdf_s3_key) {
       succeeded += 1;
     } else {
       failed += 1;
     }
   }
 
-  return { attempted: rows.length, succeeded, failed };
+  return {
+    attempted: rows.length,
+    backfilledPending: missingPayments.length,
+    succeeded,
+    failed,
+  };
 }

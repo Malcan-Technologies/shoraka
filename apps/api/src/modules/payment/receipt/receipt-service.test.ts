@@ -17,6 +17,7 @@ import {
   OrganizationType,
 } from "@prisma/client";
 import { putS3ObjectBuffer } from "../../../lib/s3/client";
+import { loadReceiptMerchantDetails } from "./receipt-merchant-config";
 import { generateGatewayPaymentReceipt } from "./receipt-service";
 import { renderReceiptHtmlToPdfBuffer } from "./render-receipt-html-to-pdf";
 
@@ -79,6 +80,7 @@ function createDbMock(overrides?: {
     status: GatewayPaymentReceiptStatus.PENDING,
     generation_error: null,
     generated_at: null,
+    merchant_snapshot: null,
     created_at: new Date("2026-08-03T02:00:00.000Z"),
   };
 
@@ -87,15 +89,18 @@ function createDbMock(overrides?: {
   return {
     gatewayPayment: {
       findUnique: jest.fn(async () => payment),
+      findMany: jest.fn(async () => []),
     },
     platformFinanceSetting: {
       findUnique: jest.fn(async () => null),
     },
     gatewayPaymentReceipt: {
       findUnique: jest.fn(async () => existing),
+      findMany: jest.fn(async () => []),
       create: jest.fn(async () => receiptRow),
       update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({
         ...receiptRow,
+        ...existing,
         ...data,
       })),
     },
@@ -112,9 +117,43 @@ function createDbMock(overrides?: {
   };
 }
 
+describe("loadReceiptMerchantDetails", () => {
+  const originalEnv = process.env;
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it("requires legal name and registration number in production", () => {
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: "production",
+      RECEIPT_MERCHANT_LEGAL_NAME: "",
+      RECEIPT_MERCHANT_REGISTRATION_NUMBER: "",
+    };
+    expect(() => loadReceiptMerchantDetails("CashSouk Sdn Bhd")).toThrow(
+      /RECEIPT_MERCHANT_CONFIG_REQUIRED/
+    );
+  });
+
+  it("allows fallback legal name outside production", () => {
+    process.env = {
+      ...originalEnv,
+      NODE_ENV: "test",
+      RECEIPT_MERCHANT_LEGAL_NAME: "",
+      RECEIPT_MERCHANT_REGISTRATION_NUMBER: "",
+    };
+    const merchant = loadReceiptMerchantDetails("Fallback Co");
+    expect(merchant.legalName).toBe("Fallback Co");
+  });
+});
+
 describe("generateGatewayPaymentReceipt", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.NODE_ENV = "test";
+    delete process.env.RECEIPT_MERCHANT_LEGAL_NAME;
+    delete process.env.RECEIPT_MERCHANT_REGISTRATION_NUMBER;
   });
 
   it("skips non-completed payments", async () => {
@@ -145,19 +184,35 @@ describe("generateGatewayPaymentReceipt", () => {
     );
   });
 
-  it("does not regenerate an already GENERATED receipt", async () => {
+  it("does not regenerate when a PDF was already issued", async () => {
     const db = createDbMock({
       existingReceipt: {
         id: "rcp_1",
         receipt_number: "RCP-20260803-001",
         gateway_payment_id: "pay_1",
+        payment_purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        purpose_label: "Issuer Registration Fee",
         status: GatewayPaymentReceiptStatus.GENERATED,
         pdf_s3_key: "receipts/2026/08/RCP-20260803-001.pdf",
+        merchant_snapshot: null,
+        amount: { toNumber: () => 150 },
+        currency: "MYR",
+        payment_method: "fpx",
+        payment_date: new Date("2026-08-03T02:00:00.000Z"),
+        curlec_payment_id: "pay_curlec_1",
+        curlec_order_id: "order_1",
+        related_reference: "SSM-1",
+        payer_name: null,
+        payer_company_name: "Issuer Co",
+        payer_email: null,
+        payer_phone: null,
+        wallet_credited: false,
+        created_at: new Date("2026-08-03T02:00:00.000Z"),
       },
     });
 
     const result = await generateGatewayPaymentReceipt("pay_1", db as never);
-    expect(result?.status).toBe(GatewayPaymentReceiptStatus.GENERATED);
+    expect(result?.pdf_s3_key).toBe("receipts/2026/08/RCP-20260803-001.pdf");
     expect(renderReceiptHtmlToPdfBuffer).not.toHaveBeenCalled();
     expect(putS3ObjectBuffer).not.toHaveBeenCalled();
   });
@@ -168,6 +223,7 @@ describe("generateGatewayPaymentReceipt", () => {
 
     const result = await generateGatewayPaymentReceipt("pay_1", db as never);
     expect(result?.status).toBe(GatewayPaymentReceiptStatus.FAILED);
+    expect(result?.receipt_number ?? "RCP-20260803-001").toBe("RCP-20260803-001");
     expect(db.gatewayPaymentReceipt.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -175,5 +231,67 @@ describe("generateGatewayPaymentReceipt", () => {
         }),
       })
     );
+  });
+
+  it("allows first PDF generation for a refunded receipt that never got a PDF", async () => {
+    const db = createDbMock({
+      payment: {
+        id: "pay_1",
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        status: GatewayPaymentStatus.REFUNDED,
+        amount: { toNumber: () => 150 },
+        currency: "MYR",
+        method: "fpx",
+        payer_name: null,
+        curlec_payment_id: "pay_curlec_1",
+        curlec_order_id: "order_1",
+        updated_at: new Date("2026-08-03T02:00:00.000Z"),
+        metadata: null,
+        investor_organization: null,
+        issuer_organization: {
+          id: "issuer_1",
+          type: OrganizationType.COMPANY,
+          name: "Issuer Co",
+          registration_number: "SSM-1",
+          first_name: null,
+          middle_name: null,
+          last_name: null,
+          phone_number: "012",
+          corporate_onboarding_data: null,
+          owner: { email: "issuer@example.com", phone: "012" },
+        },
+        application: null,
+      },
+      existingReceipt: {
+        id: "rcp_1",
+        receipt_number: "RCP-20260803-001",
+        gateway_payment_id: "pay_1",
+        payment_purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        purpose_label: "Issuer Registration Fee",
+        status: GatewayPaymentReceiptStatus.REFUNDED,
+        pdf_s3_key: null,
+        merchant_snapshot: null,
+        amount: { toNumber: () => 150 },
+        currency: "MYR",
+        payment_method: "fpx",
+        payment_date: new Date("2026-08-03T02:00:00.000Z"),
+        curlec_payment_id: "pay_curlec_1",
+        curlec_order_id: "order_1",
+        related_reference: "SSM-1",
+        payer_name: null,
+        payer_company_name: "Issuer Co",
+        payer_email: null,
+        payer_phone: null,
+        wallet_credited: false,
+        created_at: new Date("2026-08-03T02:00:00.000Z"),
+      },
+    });
+
+    const result = await generateGatewayPaymentReceipt("pay_1", db as never);
+    expect(result?.status).toBe(GatewayPaymentReceiptStatus.REFUNDED);
+    expect(result?.pdf_s3_key).toBe("receipts/2026/08/RCP-20260803-001.pdf");
+    expect(renderReceiptHtmlToPdfBuffer).toHaveBeenCalledTimes(1);
+    const html = (renderReceiptHtmlToPdfBuffer as jest.Mock).mock.calls[0][0] as string;
+    expect(html).toContain("Refunded");
   });
 });

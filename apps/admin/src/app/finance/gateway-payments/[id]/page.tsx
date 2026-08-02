@@ -343,7 +343,9 @@ export default function GatewayPaymentDetailPage() {
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground">Related reference</p>
+                            <p className="text-xs text-muted-foreground">
+                              {payment.receipt.relatedReferenceLabel ?? "Related reference"}
+                            </p>
                             <p className="font-mono text-sm">{payment.receipt.relatedReference}</p>
                           </div>
                         </div>

@@ -2,6 +2,7 @@ import { GatewayPaymentPurpose } from "@prisma/client";
 import {
   getReceiptPurposeLabel,
   getReceiptRelatedEntityType,
+  getReceiptRelatedReferenceLabel,
 } from "./receipt-purpose";
 
 describe("receipt-purpose", () => {
@@ -30,5 +31,17 @@ describe("receipt-purpose", () => {
     expect(getReceiptRelatedEntityType(GatewayPaymentPurpose.INVESTOR_DEPOSIT)).toBe(
       "INVESTOR_ORGANIZATION"
     );
+  });
+
+  it("uses finance-friendly related reference labels", () => {
+    expect(
+      getReceiptRelatedReferenceLabel(GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE)
+    ).toBe("Application Reference");
+    expect(getReceiptRelatedReferenceLabel(GatewayPaymentPurpose.INVESTOR_DEPOSIT)).toBe(
+      "Deposit Reference"
+    );
+    expect(
+      getReceiptRelatedReferenceLabel(GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE)
+    ).toBe("Issuer Reference");
   });
 });

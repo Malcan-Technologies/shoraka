@@ -19,6 +19,7 @@ import {
   retryWalletReversalForConfirmedRefund,
 } from "./refund-service";
 import { scheduleGatewayPaymentReceipt } from "./receipt/receipt-service";
+import { getReceiptRelatedReferenceLabel } from "./receipt/receipt-purpose";
 
 export type AdminActorContext = {
   userId: string;
@@ -231,6 +232,9 @@ export async function getGatewayPaymentDetail(
           hasPdf: Boolean(payment.receipt.pdf_s3_key),
           paymentDate: payment.receipt.payment_date.toISOString(),
           relatedReference: payment.receipt.related_reference,
+          relatedReferenceLabel: getReceiptRelatedReferenceLabel(
+            payment.receipt.payment_purpose
+          ),
           amount: decimalToNumber(payment.receipt.amount),
           currency: payment.receipt.currency,
           payerName: payment.receipt.payer_name,

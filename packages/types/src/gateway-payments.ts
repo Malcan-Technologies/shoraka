@@ -81,6 +81,7 @@ export interface GatewayPaymentReceiptSummaryDto {
   hasPdf: boolean;
   paymentDate: string;
   relatedReference: string;
+  relatedReferenceLabel?: string;
   amount: number;
   currency: string;
   payerName: string | null;

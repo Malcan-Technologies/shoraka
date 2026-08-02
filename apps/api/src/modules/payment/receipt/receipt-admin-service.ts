@@ -1,4 +1,5 @@
 import {
+  GatewayPaymentPurpose,
   GatewayPaymentReceiptStatus,
   Prisma,
   PrismaClient,
@@ -10,6 +11,7 @@ import {
   generatePresignedViewUrl,
 } from "../../../lib/s3/client";
 import { ListGatewayPaymentReceiptsQuery } from "./receipt-admin-schemas";
+import { getReceiptRelatedReferenceLabel } from "./receipt-purpose";
 import { generateGatewayPaymentReceipt } from "./receipt-service";
 
 function decimalToNumber(value: Prisma.Decimal): number {
@@ -20,7 +22,7 @@ function mapReceipt(receipt: {
   id: string;
   receipt_number: string;
   gateway_payment_id: string;
-  payment_purpose: string;
+  payment_purpose: GatewayPaymentPurpose;
   purpose_label: string;
   payer_name: string | null;
   payer_company_name: string | null;
@@ -65,6 +67,7 @@ function mapReceipt(receipt: {
     relatedEntityType: receipt.related_entity_type,
     relatedEntityId: receipt.related_entity_id,
     relatedReference: receipt.related_reference,
+    relatedReferenceLabel: getReceiptRelatedReferenceLabel(receipt.payment_purpose),
     walletCredited: receipt.wallet_credited,
     hasPdf: Boolean(receipt.pdf_s3_key),
     status: receipt.status,
