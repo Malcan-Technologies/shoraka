@@ -4,6 +4,7 @@
  */
 
 import type { ProspectusHeader } from "./prospectus-header.types";
+import type { ProspectusIncomeTrendInsight } from "./prospectus-income-trend-insight.types";
 import type { ProspectusPageThreeBalanceSheet } from "./prospectus-page-three-balance-sheet.types";
 import type { ProspectusPageThreeCoverageEfficiency } from "./prospectus-page-three-coverage-efficiency.types";
 import type { ProspectusPageThreeIncomeStatement } from "./prospectus-page-three-income-statement.types";
@@ -40,6 +41,8 @@ export interface ProspectusPageThree {
   /** Shared Page 2 Stage 4A source — not rendered as a duplicate section. */
   financialSource: ProspectusFinancialComparisonSource;
   incomeStatement: ProspectusPageThreeIncomeStatement;
+  /** Always-visible Revenue + PAT trend card under the Income Statement table. */
+  incomeTrendInsight: ProspectusIncomeTrendInsight;
   balanceSheet: ProspectusPageThreeBalanceSheet;
   coverageEfficiency: ProspectusPageThreeCoverageEfficiency;
   trends: ProspectusPageThreeTrends;

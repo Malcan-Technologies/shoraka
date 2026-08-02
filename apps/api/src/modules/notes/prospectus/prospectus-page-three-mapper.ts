@@ -21,6 +21,7 @@ import {
 } from "./prospectus-json-guards";
 import { buildProspectusPageThreeBalanceSheet } from "./prospectus-page-three-balance-sheet";
 import { buildProspectusPageThreeCoverageEfficiency } from "./prospectus-page-three-coverage-efficiency";
+import { buildProspectusIncomeTrendInsight } from "./prospectus-income-trend-insight";
 import { buildProspectusPageThreeIncomeStatement } from "./prospectus-page-three-income-statement";
 import { buildProspectusPageThreeInvestorTakeaways } from "./prospectus-page-three-investor-takeaways";
 import { buildProspectusPageThreeMetadata } from "./prospectus-page-three-metadata";
@@ -156,6 +157,7 @@ export function buildProspectusPageThree(
     financialSource,
     prospectusFinancialInputs: financialInputs,
   });
+  const incomeTrendInsight = buildProspectusIncomeTrendInsight(financialSource);
   const balanceSheet = buildProspectusPageThreeBalanceSheet({
     financialSource,
     prospectusFinancialInputs: financialInputs,
@@ -188,6 +190,7 @@ export function buildProspectusPageThree(
     metadata,
     financialSource,
     incomeStatement,
+    incomeTrendInsight,
     balanceSheet,
     coverageEfficiency,
     trends,

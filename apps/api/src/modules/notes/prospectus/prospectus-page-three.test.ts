@@ -598,6 +598,11 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).toContain('data-meta-key="confidenceGrading"');
 
       expect(html).toContain("3-YEAR INCOME STATEMENT SUMMARY (MYR mil.)");
+      expect(html).toContain("prospectus-income-trend-insight");
+      expect(html).toContain('data-income-trend-insight="true"');
+      expect(html).toContain(
+        "Revenue and profit show consistent growth over the past three financial years."
+      );
       expect(html).toContain("3-YEAR BALANCE SHEET &amp; LIQUIDITY (MYR mil.)");
       expect(html).toContain("13.9");
       expect(html).toContain("2.1");
