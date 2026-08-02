@@ -164,6 +164,22 @@ export class SiteDocumentRepository {
     });
   }
 
+  async findPublishedReacceptanceByTypeAndAudiences(
+    type: SiteDocumentType,
+    audiences: LegalDocumentAudience[]
+  ) {
+    return prismaDocs.siteDocument.findFirst({
+      where: {
+        type,
+        status: "PUBLISHED",
+        audience: { in: audiences },
+        acceptance_required: true,
+        reacceptance_required: true,
+      },
+      orderBy: { version: "desc" },
+    });
+  }
+
   async findPublishedByTypeAndAudiences(
     type: SiteDocumentType,
     audiences: LegalDocumentAudience[]
@@ -256,7 +272,7 @@ export class SiteDocumentRepository {
     });
   }
 
-  async publish(id: string, adminUserId: string, effectiveDate?: Date | null) {
+  async publish(id: string, adminUserId: string, reacceptanceRequired: boolean) {
     return prisma.$transaction(async (tx) => {
       const existing = await tx.siteDocument.findUnique({ where: { id } });
       if (!existing) return null;
@@ -281,11 +297,11 @@ export class SiteDocumentRepository {
         data: {
           status: "PUBLISHED",
           is_active: true,
+          reacceptance_required: reacceptanceRequired,
           published_by: adminUserId,
           published_at: new Date(),
           archived_by: null,
           archived_at: null,
-          ...(effectiveDate !== undefined && { effective_date: effectiveDate }),
         },
       });
     });

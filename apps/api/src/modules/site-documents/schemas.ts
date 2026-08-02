@@ -74,8 +74,7 @@ export const requestUploadUrlSchema = z
       data.acceptanceRequired ?? isOnboardingLegalDocumentType(data.type),
     openBeforeAcceptRequired:
       data.openBeforeAcceptRequired ?? isOnboardingLegalDocumentType(data.type),
-    reacceptanceRequired:
-      data.reacceptanceRequired ?? isOnboardingLegalDocumentType(data.type),
+    reacceptanceRequired: data.reacceptanceRequired ?? false,
   }));
 
 export type RequestUploadUrlInput = z.infer<typeof requestUploadUrlSchema>;
@@ -104,8 +103,7 @@ export const createDocumentSchema = z
       data.acceptanceRequired ?? isOnboardingLegalDocumentType(data.type),
     openBeforeAcceptRequired:
       data.openBeforeAcceptRequired ?? isOnboardingLegalDocumentType(data.type),
-    reacceptanceRequired:
-      data.reacceptanceRequired ?? isOnboardingLegalDocumentType(data.type),
+    reacceptanceRequired: data.reacceptanceRequired ?? false,
   }));
 
 export type CreateDocumentInput = z.infer<typeof createDocumentSchema>;
@@ -186,6 +184,12 @@ export const exportDocumentLogsQuerySchema = z.object({
 });
 
 export type ExportDocumentLogsQuery = z.infer<typeof exportDocumentLogsQuerySchema>;
+
+export const publishDocumentSchema = z.object({
+  reacceptanceRequired: z.boolean().default(false),
+});
+
+export type PublishDocumentInput = z.infer<typeof publishDocumentSchema>;
 
 export const requiredLegalDocumentsQuerySchema = z.object({
   audience: z.enum(legalAcceptanceAudiences),

@@ -44,7 +44,7 @@ router.get("/required", async (req: Request, res: Response, next: NextFunction) 
 
 /**
  * GET /v1/legal-documents/acceptance-status
- * Alias of /required for the acceptance status payload.
+ * Full compliance status including pending re-acceptance and blocked actions.
  */
 router.get("/acceptance-status", async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -53,7 +53,7 @@ router.get("/acceptance-status", async (req: Request, res: Response, next: NextF
     }
 
     const validated = requiredLegalDocumentsQuerySchema.parse(req.query);
-    const data = await legalDocumentAcceptanceService.getRequiredDocuments(
+    const data = await legalDocumentAcceptanceService.getComplianceStatus(
       req.user.user_id,
       validated.organizationId,
       validated.audience
@@ -62,6 +62,42 @@ router.get("/acceptance-status", async (req: Request, res: Response, next: NextF
     res.json({
       success: true,
       data,
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(
+      error instanceof AppError
+        ? error
+        : error instanceof Error
+          ? new AppError(400, "VALIDATION_ERROR", error.message)
+          : error
+    );
+  }
+});
+
+/**
+ * GET /v1/legal-documents/pending
+ * Pending re-acceptance documents for existing onboarded organisations.
+ */
+router.get("/pending", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+    }
+
+    const validated = requiredLegalDocumentsQuerySchema.parse(req.query);
+    const documents = await legalDocumentAcceptanceService.getPendingReacceptanceDocuments(
+      req.user.user_id,
+      validated.organizationId,
+      validated.audience
+    );
+
+    res.json({
+      success: true,
+      data: {
+        documents,
+        hasPendingReacceptance: documents.length > 0,
+      },
       correlationId: res.locals.correlationId,
     });
   } catch (error) {

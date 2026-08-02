@@ -35,10 +35,10 @@ function getUserId(req: Request): string {
 async function createApplication(req: Request, res: Response, next: NextFunction) {
   try {
     const input = createApplicationSchema.parse(req.body);
-    const application = await applicationService.createApplication(input);
+    const callerUserId = getUserId(req);
+    const application = await applicationService.createApplication(input, callerUserId);
     // Log application creation (issuer flow). Do not break main flow on failure.
     try {
-      const callerUserId = getUserId(req);
       await logApplicationActivity({
         userId: callerUserId,
         applicationId: application.id,

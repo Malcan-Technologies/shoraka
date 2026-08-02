@@ -8,7 +8,10 @@ import {
   type LegalAcceptanceAudience,
   type LegalAcceptanceStatus,
   type LegalAcceptanceStatusResponse,
+  type LegalBlockedAction,
+  type LegalComplianceStatus,
   type OnboardingLegalDocumentType,
+  type PendingLegalDocumentResponse,
   type PublicLegalDocumentResponse,
   type RequiredLegalDocumentResponse,
 } from "@cashsouk/types";
@@ -39,10 +42,9 @@ type AcceptanceRow = {
   user_agent: string | null;
 };
 
+/** Portal audiences for onboarding/re-acceptance (not PUBLIC-only docs). */
 function audiencesForRole(role: LegalAcceptanceAudience) {
-  return role === "ISSUER"
-    ? (["ISSUER", "BOTH", "PUBLIC"] as const)
-    : (["INVESTOR", "BOTH", "PUBLIC"] as const);
+  return role === "ISSUER" ? (["ISSUER", "BOTH"] as const) : (["INVESTOR", "BOTH"] as const);
 }
 
 async function assertOrgAccess(
@@ -59,7 +61,7 @@ async function assertOrgAccess(
           { members: { some: { user_id: userId } } },
         ],
       },
-      select: { id: true, owner_user_id: true },
+      select: { id: true, owner_user_id: true, tnc_accepted: true },
     });
     if (!org) {
       throw new AppError(404, "NOT_FOUND", "Organization not found");
@@ -75,7 +77,7 @@ async function assertOrgAccess(
         { members: { some: { user_id: userId } } },
       ],
     },
-    select: { id: true, owner_user_id: true },
+    select: { id: true, owner_user_id: true, tnc_accepted: true },
   });
   if (!org) {
     throw new AppError(404, "NOT_FOUND", "Organization not found");
@@ -83,11 +85,40 @@ async function assertOrgAccess(
   return org;
 }
 
+async function findUserAcceptance(
+  userId: string,
+  organizationId: string,
+  documentId: string
+) {
+  return (await prisma.legalDocumentAcceptance.findFirst({
+    where: {
+      user_id: userId,
+      organization_id: organizationId,
+      document_id: documentId,
+    },
+  })) as AcceptanceRow | null;
+}
+
+/** Org-level: any accepted row for this org + document version satisfies the org. */
+async function findOrgAccepted(organizationId: string, documentId: string) {
+  return (await prisma.legalDocumentAcceptance.findFirst({
+    where: {
+      organization_id: organizationId,
+      document_id: documentId,
+      status: "ACCEPTED",
+    },
+  })) as AcceptanceRow | null;
+}
+
 function toRequiredDoc(
   doc: SiteDocumentRow,
-  acceptance: AcceptanceRow | null
+  acceptance: AcceptanceRow | null,
+  orgAccepted: boolean
 ): RequiredLegalDocumentResponse {
   const type = doc.type as OnboardingLegalDocumentType;
+  const status: LegalAcceptanceStatus = orgAccepted
+    ? "ACCEPTED"
+    : acceptance?.status ?? "NOT_OPENED";
   return {
     id: doc.id,
     type,
@@ -98,13 +129,51 @@ function toRequiredDoc(
     open_before_accept_required: doc.open_before_accept_required,
     acceptance_required: doc.acceptance_required,
     checkbox_wording: LEGAL_DOCUMENT_CHECKBOX_WORDING[type],
-    acceptance_status: acceptance?.status ?? "NOT_OPENED",
+    acceptance_status: status,
     opened_at: acceptance?.opened_at?.toISOString() ?? null,
-    accepted_at: acceptance?.accepted_at?.toISOString() ?? null,
+    accepted_at:
+      acceptance?.accepted_at?.toISOString() ??
+      (orgAccepted ? new Date(0).toISOString() : null),
   };
 }
 
+function toPendingDoc(
+  doc: SiteDocumentRow,
+  acceptance: AcceptanceRow | null
+): PendingLegalDocumentResponse {
+  const type = doc.type as OnboardingLegalDocumentType;
+  return {
+    documentId: doc.id,
+    documentVersionId: doc.id,
+    documentType: type,
+    title: doc.title || LEGAL_DOCUMENT_TYPE_LABELS[type],
+    version: doc.version,
+    file_name: doc.file_name,
+    file_hash: doc.file_hash,
+    open_before_accept_required: doc.open_before_accept_required,
+    checkbox_wording: LEGAL_DOCUMENT_CHECKBOX_WORDING[type],
+    acceptance_status: acceptance?.status ?? "NOT_OPENED",
+    openedAt: acceptance?.opened_at?.toISOString() ?? null,
+    acceptedAt: acceptance?.accepted_at?.toISOString() ?? null,
+  };
+}
+
+function blockedActionsFor(
+  audience: LegalAcceptanceAudience,
+  hasPending: boolean
+): LegalBlockedAction[] {
+  if (!hasPending) return [];
+  if (audience === "ISSUER") {
+    return ["NEW_FINANCING_APPLICATION", "NEW_UTILISATION"];
+  }
+  return ["NEW_INVESTMENT"];
+}
+
 export class LegalDocumentAcceptanceService {
+  /**
+   * Documents a new user must accept during onboarding (all currently published
+   * acceptance_required docs for their audience).
+   */
   async getRequiredDocuments(
     userId: string,
     organizationId: string,
@@ -114,7 +183,6 @@ export class LegalDocumentAcceptanceService {
 
     const requiredTypes = getRequiredLegalTypesForAudience(audience);
     const allowedAudiences = audiencesForRole(audience);
-
     const documents: RequiredLegalDocumentResponse[] = [];
 
     for (const type of requiredTypes) {
@@ -122,20 +190,14 @@ export class LegalDocumentAcceptanceService {
         type,
         [...allowedAudiences]
       );
-      if (!published) {
-        // RISK_STATEMENT and any other type without a published required version are skipped.
-        continue;
-      }
+      if (!published) continue;
 
-      const acceptance = (await prisma.legalDocumentAcceptance.findFirst({
-        where: {
-          user_id: userId,
-          organization_id: organizationId,
-          document_id: published.id,
-        },
-      })) as AcceptanceRow | null;
+      const [acceptance, orgAccepted] = await Promise.all([
+        findUserAcceptance(userId, organizationId, published.id),
+        findOrgAccepted(organizationId, published.id),
+      ]);
 
-      documents.push(toRequiredDoc(published, acceptance));
+      documents.push(toRequiredDoc(published, acceptance, Boolean(orgAccepted)));
     }
 
     const allAccepted =
@@ -151,10 +213,66 @@ export class LegalDocumentAcceptanceService {
   }
 
   /**
-   * True when every currently required published legal PDF for this audience
-   * has been accepted for the organization. When no required PDFs exist yet,
-   * returns true so the legacy markdown T&C gate (tnc_accepted) still applies.
+   * Pending re-acceptance for existing onboarded orgs when admin published with
+   * reacceptance_required=true. Does not use or change tnc_accepted.
    */
+  async getPendingReacceptanceDocuments(
+    userId: string,
+    organizationId: string,
+    audience: LegalAcceptanceAudience
+  ): Promise<PendingLegalDocumentResponse[]> {
+    const org = await assertOrgAccess(userId, organizationId, audience);
+    if (!org.tnc_accepted) {
+      return [];
+    }
+
+    const requiredTypes = getRequiredLegalTypesForAudience(audience);
+    const allowedAudiences = audiencesForRole(audience);
+    const pending: PendingLegalDocumentResponse[] = [];
+
+    for (const type of requiredTypes) {
+      const published =
+        await siteDocumentRepository.findPublishedReacceptanceByTypeAndAudiences(
+          type,
+          [...allowedAudiences]
+        );
+      if (!published) continue;
+
+      const orgAccepted = await findOrgAccepted(organizationId, published.id);
+      if (orgAccepted) continue;
+
+      const acceptance = await findUserAcceptance(userId, organizationId, published.id);
+      pending.push(toPendingDoc(published, acceptance));
+    }
+
+    return pending;
+  }
+
+  async getComplianceStatus(
+    userId: string,
+    organizationId: string,
+    audience: LegalAcceptanceAudience
+  ): Promise<LegalComplianceStatus> {
+    const org = await assertOrgAccess(userId, organizationId, audience);
+    const onboardingDocs = await this.getRequiredDocuments(userId, organizationId, audience);
+    const pendingDocuments = org.tnc_accepted
+      ? await this.getPendingReacceptanceDocuments(userId, organizationId, audience)
+      : [];
+
+    const hasPendingReacceptance = pendingDocuments.length > 0;
+    const onboardingComplete =
+      org.tnc_accepted &&
+      (!onboardingDocs.documents.length || onboardingDocs.all_accepted);
+
+    return {
+      onboardingComplete,
+      hasPendingReacceptance,
+      pendingDocuments,
+      blockedActions: blockedActionsFor(audience, hasPendingReacceptance),
+      tncAccepted: org.tnc_accepted,
+    };
+  }
+
   async hasCompletedRequiredAcceptances(
     userId: string,
     organizationId: string,
@@ -165,6 +283,23 @@ export class LegalDocumentAcceptanceService {
       hasRequiredDocuments: status.documents.length > 0,
       allAccepted: status.all_accepted,
     };
+  }
+
+  async assertNoPendingReacceptance(
+    userId: string,
+    organizationId: string,
+    audience: LegalAcceptanceAudience,
+    action: LegalBlockedAction
+  ) {
+    const compliance = await this.getComplianceStatus(userId, organizationId, audience);
+    if (!compliance.hasPendingReacceptance) return;
+    if (!compliance.blockedActions.includes(action)) return;
+
+    throw new AppError(
+      403,
+      "LEGAL_REACCEPTANCE_REQUIRED",
+      "An updated legal document requires your review and acceptance before you can start new transactions."
+    );
   }
 
   async recordOpened(
@@ -185,13 +320,7 @@ export class LegalDocumentAcceptanceService {
 
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
 
-    const existing = (await prisma.legalDocumentAcceptance.findFirst({
-      where: {
-        user_id: userId,
-        organization_id: organizationId,
-        document_id: documentId,
-      },
-    })) as AcceptanceRow | null;
+    const existing = await findUserAcceptance(userId, organizationId, documentId);
 
     if (existing?.status === "ACCEPTED" || existing?.status === "OPENED") {
       return existing;
@@ -281,13 +410,7 @@ export class LegalDocumentAcceptanceService {
 
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
 
-    const existing = (await prisma.legalDocumentAcceptance.findFirst({
-      where: {
-        user_id: userId,
-        organization_id: organizationId,
-        document_id: documentId,
-      },
-    })) as AcceptanceRow | null;
+    const existing = await findUserAcceptance(userId, organizationId, documentId);
 
     if (existing?.status === "ACCEPTED") {
       return existing;
@@ -406,6 +529,7 @@ export class LegalDocumentAcceptanceService {
     const byType = new Map<string, SiteDocumentRow>();
     for (const row of rows) {
       if (!isOnboardingLegalDocumentType(row.type)) continue;
+      if (row.status !== "PUBLISHED") continue;
       if (!byType.has(row.type)) {
         byType.set(row.type, row);
       }

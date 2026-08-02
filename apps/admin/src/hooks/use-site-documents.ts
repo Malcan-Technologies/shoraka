@@ -207,8 +207,14 @@ export function usePublishSiteDocument() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (id: string) => {
-      const response = await apiClient.publishSiteDocument(id);
+    mutationFn: async ({
+      id,
+      reacceptanceRequired,
+    }: {
+      id: string;
+      reacceptanceRequired: boolean;
+    }) => {
+      const response = await apiClient.publishSiteDocument(id, { reacceptanceRequired });
       if (!response.success) {
         throw new Error(response.error.message);
       }

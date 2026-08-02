@@ -27,7 +27,6 @@ import type {
   ExportDocumentLogsQuery,
 } from "./schemas";
 import { logger } from "../../lib/logger";
-import { prisma } from "../../lib/prisma";
 
 export class SiteDocumentService {
   async requestUploadUrl(input: RequestUploadUrlInput, adminUserId: string) {
@@ -253,7 +252,12 @@ export class SiteDocumentService {
     return updated;
   }
 
-  async publishDocument(id: string, adminUserId: string, req: Request) {
+  async publishDocument(
+    id: string,
+    adminUserId: string,
+    req: Request,
+    reacceptanceRequired = false
+  ) {
     const existing = await siteDocumentRepository.findById(id);
     if (!existing) {
       throw new AppError(404, "NOT_FOUND", "Document not found");
@@ -267,14 +271,16 @@ export class SiteDocumentService {
       throw new AppError(400, "ARCHIVED", "Archived documents cannot be published");
     }
 
-    const published = await siteDocumentRepository.publish(id, adminUserId);
+    const published = await siteDocumentRepository.publish(
+      id,
+      adminUserId,
+      reacceptanceRequired
+    );
     if (!published) {
       throw new AppError(404, "NOT_FOUND", "Document not found");
     }
 
-    if (published.acceptance_required && published.reacceptance_required) {
-      await this.resetTncAcceptedForAudience(published.audience);
-    }
+    // Never reset tnc_accepted. Pending re-acceptance is calculated separately.
 
     await this.logDocumentEvent(req, adminUserId, id, "DOCUMENT_PUBLISHED", {
       document_id: id,
@@ -288,32 +294,16 @@ export class SiteDocumentService {
     });
 
     logger.info(
-      { documentId: id, type: published.type, version: published.version },
+      {
+        documentId: id,
+        type: published.type,
+        version: published.version,
+        reacceptanceRequired: published.reacceptance_required,
+      },
       "Site document published"
     );
 
     return published;
-  }
-
-  private async resetTncAcceptedForAudience(audience: string) {
-    if (audience === "ISSUER" || audience === "BOTH" || audience === "PUBLIC") {
-      await prisma.issuerOrganization.updateMany({
-        where: { tnc_accepted: true },
-        data: { tnc_accepted: false },
-      });
-    }
-
-    if (audience === "INVESTOR" || audience === "BOTH" || audience === "PUBLIC") {
-      await prisma.investorOrganization.updateMany({
-        where: { tnc_accepted: true },
-        data: { tnc_accepted: false },
-      });
-    }
-
-    logger.info(
-      { audience },
-      "Reset tnc_accepted for re-acceptance after legal document publish"
-    );
   }
 
   async archiveDocument(id: string, adminUserId: string, req: Request) {
