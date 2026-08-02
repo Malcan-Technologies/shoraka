@@ -21,7 +21,7 @@ type InvestNowButtonProps = {
 };
 
 /**
- * Invest CTA that redirects to /legal-updates when re-acceptance is pending.
+ * Invest CTA that redirects to /onboarding/terms when re-acceptance is pending.
  * Backend createInvestment still enforces LEGAL_REACCEPTANCE_REQUIRED.
  */
 export function InvestNowButton({

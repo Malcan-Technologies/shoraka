@@ -3,6 +3,14 @@ export type { OnboardingStepperStep } from "./onboarding-stepper";
 export { TermsAcceptanceCard } from "./terms-acceptance-card";
 export { LegalDocumentsAcceptance } from "./legal-documents-acceptance";
 export type { LegalDocumentsAcceptanceProps } from "./legal-documents-acceptance";
+export { LegalDocumentsReview } from "./legal-documents-review";
+export type { LegalDocumentsReviewProps } from "./legal-documents-review";
+export {
+  resolveLegalDocumentsReviewMode,
+  legalDocumentsReviewCopy,
+  legalDocumentCheckboxWording,
+} from "./legal-documents-review-copy";
+export type { LegalDocumentsReviewMode } from "./legal-documents-review-copy";
 export {
   LegalDocumentChecklistShell,
   LegalDocumentChecklistRows,

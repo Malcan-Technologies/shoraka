@@ -50,7 +50,6 @@ export function shouldShowLegalReacceptanceBanner(input: {
 
   const path = input.pathname ?? "";
   if (path.startsWith("/onboarding")) return false;
-  if (path === "/legal-updates") return false;
 
   return true;
 }

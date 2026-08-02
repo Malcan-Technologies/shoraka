@@ -109,7 +109,7 @@ export function LegalReacceptanceBanner({
           </div>
         </div>
         <Button asChild size="sm" className="w-full shrink-0 sm:w-auto">
-          <Link href="/legal-updates">{ctaLabel}</Link>
+          <Link href="/onboarding/terms">{ctaLabel}</Link>
         </Button>
       </div>
     </div>

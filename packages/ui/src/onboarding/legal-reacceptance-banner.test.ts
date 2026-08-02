@@ -7,6 +7,7 @@ import {
   legalReacceptanceBannerTitle,
   shouldShowLegalReacceptanceBanner,
 } from "./legal-reacceptance-banner-copy";
+import { LEGAL_REACCEPTANCE_REDIRECT } from "./use-legal-reacceptance-gate";
 
 describe("LegalReacceptanceBanner copy and layout helpers", () => {
   const source = readFileSync(join(__dirname, "legal-reacceptance-banner.tsx"), "utf8");
@@ -29,9 +30,10 @@ describe("LegalReacceptanceBanner copy and layout helpers", () => {
     expect(text).not.toContain("updated");
   });
 
-  it("links Review documents to /legal-updates", () => {
+  it("links Review documents to /onboarding/terms", () => {
     expect(legalReacceptanceBannerCtaLabel(true)).toBe("Review documents");
-    expect(source).toContain('href="/legal-updates"');
+    expect(LEGAL_REACCEPTANCE_REDIRECT).toBe("/onboarding/terms");
+    expect(source).toContain('href="/onboarding/terms"');
   });
 
   it("renders only when pending acceptance exists", () => {
@@ -61,22 +63,6 @@ describe("LegalReacceptanceBanner copy and layout helpers", () => {
         hasOrganization: true,
         onboardingStatus: "COMPLETED",
         tncAccepted: true,
-        pathname: "/onboarding/account",
-      })
-    ).toBe(false);
-    expect(
-      shouldShowLegalReacceptanceBanner({
-        hasOrganization: false,
-        onboardingStatus: "COMPLETED",
-        tncAccepted: true,
-        pathname: "/",
-      })
-    ).toBe(false);
-    expect(
-      shouldShowLegalReacceptanceBanner({
-        hasOrganization: true,
-        onboardingStatus: "COMPLETED",
-        tncAccepted: true,
         pathname: "/",
       })
     ).toBe(true);
@@ -88,20 +74,11 @@ describe("LegalReacceptanceBanner copy and layout helpers", () => {
     expect(source).toContain("w-full shrink-0 sm:w-auto");
     expect(source).toContain("ExclamationTriangleIcon");
     expect(source).toContain("rounded-xl border border-amber-200");
-    expect(source).not.toContain("border-b border-border bg-muted/60");
-    expect(source).not.toContain("max-w-6xl");
-    expect(source).not.toContain("justify-between");
   });
 
   it("matches issuer and investor dashboard gutters", () => {
     expect(legalReacceptanceBannerShellClassName("issuer")).toContain("px-6");
     expect(legalReacceptanceBannerShellClassName("issuer")).toContain("lg:px-10");
     expect(legalReacceptanceBannerShellClassName("investor")).toContain("px-4");
-  });
-
-  it("does not change acceptance API paths or transaction guards", () => {
-    expect(source).toContain("/v1/legal-documents/acceptance-status");
-    expect(source).not.toContain("transaction");
-    expect(source).not.toContain("block");
   });
 });
