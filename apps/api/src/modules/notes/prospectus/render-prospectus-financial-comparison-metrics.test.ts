@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { calculateGearing } from "@cashsouk/types";
 import { buildProspectusFinancialComparisonSource } from "./prospectus-financial-comparison-source";
 import {
   buildProspectusFinancialComparisonMetrics,
@@ -113,7 +112,6 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
 
     expect(formatProspectusFinancialPercentFromRatio(0.086330935)).toBe("8.63%");
     expect(formatProspectusFinancialMultiple(1.620689655)).toBe("1.62x");
-    expect(calculateGearing(2_900_000, 1_000_000, 500_000, 16_216_216)).not.toBeNull();
     expect(row(sample, "netDebtEquity")?.values).toEqual([
       PROSPECTUS_DATA_NOT_AVAILABLE,
       PROSPECTUS_DATA_NOT_AVAILABLE,

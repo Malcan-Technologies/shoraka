@@ -213,12 +213,12 @@
  * Supported rows:
  * - Revenue → rawFinancials.turnover → formatProspectusMoneyMyr
  * - Profit After Tax → rawFinancials.plnpat → formatProspectusMoneyMyr
- * - Net Profit Margin → calculateProfitMargin(plnpat, turnover) → percent from ratio
- * - ROE → calculateReturnOnEquity(plnpat, bsqpuc) → percent from ratio
- * - Current Ratio → calculateCurrentRatio(bscatot, curlib) → "{n}x"
+ * - Net Profit Margin → resolveApplicationFinancialProfitMarginRatio(plnpat/turnover)
+ * - ROE → resolveApplicationFinancialReturnOnEquityRatio(return_on_equity | plnpat/networth)
+ * - Current Ratio → resolveApplicationFinancialCurrentRatio(currat | bscatot/curlib)
  *
  * Officer-configurable when unset → — (no approximation):
- * - Net Debt / Equity — page2.financialComparison.overrides; do NOT substitute calculateGearing
+ * - Net Debt / Equity — page2.financialComparison.overrides; do NOT substitute gearing helpers
  * - Interest Coverage — officer override per year
  * - DSCR — officer override per year
  * - Receivables Days — officer override per year

@@ -4,7 +4,7 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { calculateReturnOnEquity } from "@cashsouk/types";
+import { computeReturnOnEquity } from "@cashsouk/types";
 import {
   buildProspectusFinancialComparisonMetrics,
   formatProspectusFinancialMultiple,
@@ -158,7 +158,7 @@ describe("prospectus Page 3 coverage/efficiency", () => {
     );
     expect(row(page3, "return_on_equity")?.values[0]).toBe(
       formatProspectusFinancialPercentFromRatio(
-        calculateReturnOnEquity(1_200_000, 2_000_000)
+        computeReturnOnEquity(1_200_000, 2_000_000)
       )
     );
 
@@ -180,7 +180,7 @@ describe("prospectus Page 3 coverage/efficiency", () => {
       }),
     });
     expect(row(paidUpIgnored, "return_on_equity")?.values[0]).toBe(
-      formatProspectusFinancialPercentFromRatio(calculateReturnOnEquity(100, 500))
+      formatProspectusFinancialPercentFromRatio(computeReturnOnEquity(100, 500))
     );
 
     const missingPat = buildProspectusPageThreeCoverageEfficiency({

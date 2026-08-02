@@ -230,6 +230,9 @@ function financialRecordToInput(fs: Record<string, unknown>): FinancialStatement
     bsslltd: toNum(fs.bsslltd),
     bsclstd: toNum(fs.bsclstd),
     bsqpuc: toNum(fs.bsqpuc),
+    networth: fs.networth == null || fs.networth === "" ? undefined : toNum(fs.networth),
+    totass: fs.totass == null || fs.totass === "" ? undefined : toNum(fs.totass),
+    totlib: fs.totlib == null || fs.totlib === "" ? undefined : toNum(fs.totlib),
     turnover: toNum(fs.turnover),
     plnpat: toNum(fs.plnpat),
   };
@@ -377,12 +380,11 @@ export function ApplicationFinancialReviewContent({
           bsslltd: ac.bsslltd ?? 0,
           bsclstd: ac.bsclstd ?? 0,
           bsqpuc: ac.bsqpuc ?? 0,
+          networth: ac.networth ?? undefined,
+          totass: ac.totass ?? undefined,
+          totlib: ac.totlib ?? undefined,
           turnover: ac.turnover ?? 0,
           plnpat: ac.plnpat ?? 0,
-        });
-        Object.assign(bs, {
-          total_assets: ac.totass,
-          total_liabilities: ac.totlib,
         });
         return computeColumnMetrics(bs, pl, g);
       }
@@ -471,7 +473,7 @@ export function ApplicationFinancialReviewContent({
     {
       id: "return_of_equity",
       label: COMPUTED_FIELD_LABELS.return_of_equity,
-      formulaHint: "Profit after tax ÷ paid-up capital.",
+      formulaHint: "Profit after tax ÷ net worth.",
     },
     { id: "currat", label: COMPUTED_FIELD_LABELS.currat, formulaHint: "Current assets ÷ current liabilities." },
     { id: "workcap", label: COMPUTED_FIELD_LABELS.workcap, formulaHint: "Current assets − current liabilities." },

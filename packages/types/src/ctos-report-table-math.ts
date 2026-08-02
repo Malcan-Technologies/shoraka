@@ -282,12 +282,15 @@ export function computeColumnMetrics(
   const totass = computeTotalAssets(bs);
   const totlib = computeTotalLiabilities(bs);
   const networth = computeNetWorth(totass, totlib);
+  // ROE denominator: prefer explicit Net Worth on `equity`; else totass − totlib. Never Paid-Up Capital.
+  const roeEquity =
+    bs.equity != null && Number.isFinite(bs.equity) ? bs.equity : networth;
   return {
     totass,
     totlib,
     networth,
     profit_margin: computeProfitMargin(pl.profit_after_tax, pl.revenue),
-    return_of_equity: computeReturnOnEquity(pl.profit_after_tax, bs.equity),
+    return_of_equity: computeReturnOnEquity(pl.profit_after_tax, roeEquity),
     currat: computeCurrentRatio(bs.current_assets, bs.current_liabilities),
     workcap: computeWorkingCapital(bs.current_assets, bs.current_liabilities),
     turnover_growth: turnoverGrowth,
@@ -296,6 +299,7 @@ export function computeColumnMetrics(
 
 /**
  * Maps flat financial statement fields (issuer step) into balance sheet / P&amp;L slices for metrics.
+ * `equity` is Net Worth only (flat `networth`). Never map Paid-Up Capital (`bsqpuc`) here.
  */
 export function financialFormToBsPl(fs: FinancialStatementsInput) {
   const n = (v: number | undefined) => (v == null || Number.isNaN(v) ? null : v);
@@ -305,12 +309,12 @@ export function financialFormToBsPl(fs: FinancialStatementsInput) {
       other_assets: n(fs.othass),
       current_assets: n(fs.bscatot),
       non_current_assets: n(fs.bsclbank),
-      total_assets: null,
+      total_assets: n(fs.totass),
       current_liabilities: n(fs.curlib),
       long_term_liabilities: n(fs.bsslltd),
       non_current_liabilities: n(fs.bsclstd),
-      total_liabilities: null,
-      equity: n(fs.bsqpuc),
+      total_liabilities: n(fs.totlib),
+      equity: n(fs.networth),
     },
     pl: {
       profit_after_tax: n(fs.plnpat),

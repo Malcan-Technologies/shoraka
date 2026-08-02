@@ -1,5 +1,5 @@
 import { NoteStatus } from "@prisma/client";
-import { calculateReturnOnEquity, resolveApplicationFinancialTotalAssets } from "@cashsouk/types";
+import { computeReturnOnEquity, resolveApplicationFinancialTotalAssets } from "@cashsouk/types";
 import {
   buildProspectusFinancialComparisonMetrics,
   formatProspectusFinancialPercentFromRatio,
@@ -417,7 +417,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(row(page.balanceSheet.rows, "quick_ratio")?.[0]).toBe("1.11x");
       expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[0]).toBe(
         formatProspectusFinancialPercentFromRatio(
-          calculateReturnOnEquity(1_200_000, 2_000_000)
+          computeReturnOnEquity(1_200_000, 2_000_000)
         )
       );
       expect(row(page.coverageEfficiency.rows, "dscr")?.[0]).toBe(

@@ -1,7 +1,7 @@
 import { formatCurrency } from "@cashsouk/config";
 import {
-  calculateCurrentRatio,
   calculateProfitMargin,
+  resolveApplicationFinancialCurrentRatio,
   resolveApplicationFinancialReturnOnEquityRatio,
   resolveApplicationFinancialTotalAssets,
   resolveApplicationFinancialTotalLiabilities,
@@ -317,10 +317,13 @@ export function buildBalanceSheetResolvedRows(
     { label: "Total Equity", value: manualDisplay(manual?.totalEquity, "money") },
     {
       label: "Current Ratio",
-      value:
-        currentAssets != null && currentLiabilities != null
-          ? formatMultiple(calculateCurrentRatio(currentAssets, currentLiabilities))
-          : DATA_NOT_AVAILABLE,
+      value: formatMultiple(
+        resolveApplicationFinancialCurrentRatio({
+          currat: parseNumber(yearRaw.currat),
+          bscatot: currentAssets,
+          curlib: currentLiabilities,
+        })
+      ),
     },
     { label: "Quick Ratio", value: manualDisplay(manual?.quickRatio, "ratio") },
   ];

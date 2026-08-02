@@ -58,10 +58,7 @@ export interface ProspectusIssuerFundamentalsHighlightAudit {
 /** Names only — Stage 5B must not call these as claim evidence. */
 export const PROSPECTUS_ISSUER_DOCUMENTED_FINANCIAL_CALCULATORS = [
   "calculateProfitMargin",
-  "calculateGearing",
   "calculateCurrentRatio",
-  "calculateWorkingCapital",
-  "calculateFinancialMetrics",
 ] as const;
 
 /** Canva-facing highlight fields only. */
@@ -130,7 +127,7 @@ export const PROSPECTUS_ISSUER_FUNDAMENTALS_HIGHLIGHT_FIELD_SOURCES: Record<
     availability: "unresolved",
     surface: "canva",
     possibleAlternatives:
-      "calculateGearing; currat; workcap; invent conservative/high bands — not used",
+      "gearing helpers; currat; workcap; invent conservative/high bands — not used",
     notes: "Shared gearing helper is analytics only. classificationAllowed = false.",
   },
   highlightTitle: {

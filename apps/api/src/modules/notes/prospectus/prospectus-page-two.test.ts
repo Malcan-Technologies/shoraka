@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { NoteStatus } from "@prisma/client";
 import {
   calculateProfitMargin,
-  calculateReturnOnEquity,
+  computeReturnOnEquity,
   MARKETPLACE_MIN_COMMIT_MYR,
 } from "@cashsouk/types";
 import { AppError } from "../../../lib/http/error-handler";
@@ -357,7 +357,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
         formatProspectusFinancialPercentFromRatio(calculateProfitMargin(15, 100))
       );
       expect(previewMetrics.rows.find((r) => r.key === "roe")?.values[0]).toBe(
-        formatProspectusFinancialPercentFromRatio(calculateReturnOnEquity(15, 500))
+        formatProspectusFinancialPercentFromRatio(computeReturnOnEquity(15, 500))
       );
 
       const published = buildProspectusPageTwo(
@@ -411,7 +411,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
         published.financialComparisonMetrics.rows.find((r) => r.key === "netProfitMargin")?.values[2]
       ).toBe(formatProspectusFinancialPercentFromRatio(calculateProfitMargin(15, 100)));
       expect(published.financialComparisonMetrics.rows.find((r) => r.key === "roe")?.values[2]).toBe(
-        formatProspectusFinancialPercentFromRatio(calculateReturnOnEquity(15, 500))
+        formatProspectusFinancialPercentFromRatio(computeReturnOnEquity(15, 500))
       );
     });
 

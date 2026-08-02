@@ -253,6 +253,9 @@ function financialRecordToInput(fs: Record<string, unknown>): FinancialStatement
     bsslltd: toNum(fs.bsslltd),
     bsclstd: toNum(fs.bsclstd),
     bsqpuc: toNum(fs.bsqpuc),
+    networth: fs.networth == null || fs.networth === "" ? undefined : toNum(fs.networth),
+    totass: fs.totass == null || fs.totass === "" ? undefined : toNum(fs.totass),
+    totlib: fs.totlib == null || fs.totlib === "" ? undefined : toNum(fs.totlib),
     turnover: toNum(fs.turnover),
     plnpat: toNum(fs.plnpat),
   };

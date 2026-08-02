@@ -12,6 +12,8 @@ import {
   resolveFinancialSummaryCtosReturnOnEquityPercent,
   resolveFinancialSummaryIssuerReturnOnEquityRatio,
   resolveFinancialSummaryProfitMarginRatio,
+  computeColumnMetrics,
+  financialFormToBsPl,
 } from "@cashsouk/types";
 
 describe("computeTurnoverGrowth", () => {
@@ -223,6 +225,63 @@ describe("resolveFinancialSummaryCtosReturnOnEquityPercent", () => {
         computedNetWorth: null,
       })
     ).toBeCloseTo(-25);
+  });
+});
+
+describe("financialFormToBsPl + computeColumnMetrics ROE", () => {
+  it("maps equity from networth, never bsqpuc", () => {
+    const { bs } = financialFormToBsPl({
+      plnpat: 100,
+      turnover: 1000,
+      bsqpuc: 200,
+      networth: 500,
+      bscatot: 100,
+      curlib: 50,
+    });
+    expect(bs.equity).toBe(500);
+  });
+
+  it("uses PAT ÷ Net Worth for return_of_equity (20%, not 50% via Paid-Up)", () => {
+    const { bs, pl } = financialFormToBsPl({
+      plnpat: 100,
+      turnover: 1000,
+      bsqpuc: 200,
+      networth: 500,
+      totass: 700,
+      totlib: 200,
+      bscatot: 100,
+      curlib: 50,
+    });
+    const metrics = computeColumnMetrics(bs, pl, null);
+    expect(metrics.return_of_equity).toBeCloseTo(0.2);
+    expect(metrics.return_of_equity).not.toBeCloseTo(0.5);
+  });
+
+  it("falls back to totass − totlib when networth missing", () => {
+    const { bs, pl } = financialFormToBsPl({
+      plnpat: 100,
+      turnover: 1000,
+      bsqpuc: 200,
+      totass: 700,
+      totlib: 200,
+      bscatot: 100,
+      curlib: 50,
+    });
+    expect(bs.equity).toBeNull();
+    const metrics = computeColumnMetrics(bs, pl, null);
+    expect(metrics.networth).toBe(500);
+    expect(metrics.return_of_equity).toBeCloseTo(0.2);
+  });
+
+  it("returns null ROE when Net Worth is zero", () => {
+    const { bs, pl } = financialFormToBsPl({
+      plnpat: 100,
+      turnover: 1000,
+      networth: 0,
+      bscatot: 100,
+      curlib: 50,
+    });
+    expect(computeColumnMetrics(bs, pl, null).return_of_equity).toBeNull();
   });
 });
 
