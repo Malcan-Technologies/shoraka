@@ -37,7 +37,85 @@ export function statusLabel(status: LegalDocumentVersionStatus): string {
 }
 
 export function websiteVisibilityLabel(visible: boolean): string {
-  return visible ? "On website" : "Hidden";
+  return visible ? "Public" : "Private";
+}
+
+export type LegalBadgeVariant = "success" | "secondary" | "muted" | "warning" | "info" | "outline";
+
+export function legalStatusBadgeVariant(
+  status: LegalDocumentVersionStatus
+): LegalBadgeVariant {
+  if (status === "PUBLISHED") return "success";
+  if (status === "DRAFT") return "secondary";
+  return "muted";
+}
+
+export function onboardingBadgeVariant(required: boolean): LegalBadgeVariant {
+  return required ? "warning" : "secondary";
+}
+
+export function onboardingBadgeLabel(required: boolean): string {
+  return required ? "Required" : "Optional";
+}
+
+export function websiteBadgeVariant(visible: boolean): LegalBadgeVariant {
+  return visible ? "info" : "secondary";
+}
+
+export type LegalRowMenuAction =
+  | "view"
+  | "download"
+  | "edit"
+  | "replaceDraft"
+  | "uploadNew"
+  | "history"
+  | "archive";
+
+export type LegalRowActions = {
+  showPublishButton: boolean;
+  menu: LegalRowMenuAction[];
+};
+
+/** Centralized row-action visibility by current document status. */
+export function getLegalDocumentRowActions(
+  status: LegalDocumentVersionStatus,
+  options: { hasCurrentVersion: boolean; hasDraft: boolean }
+): LegalRowActions {
+  const { hasCurrentVersion, hasDraft } = options;
+
+  if (status === "DRAFT") {
+    return {
+      showPublishButton: hasDraft,
+      menu: [
+        ...(hasCurrentVersion ? (["view"] as LegalRowMenuAction[]) : []),
+        "edit",
+        ...(hasDraft ? (["replaceDraft"] as LegalRowMenuAction[]) : []),
+        "history",
+        ...(hasCurrentVersion ? (["archive"] as LegalRowMenuAction[]) : []),
+      ],
+    };
+  }
+
+  if (status === "PUBLISHED") {
+    return {
+      showPublishButton: false,
+      menu: [
+        ...(hasCurrentVersion ? (["view", "download"] as LegalRowMenuAction[]) : []),
+        "edit",
+        "uploadNew",
+        "history",
+        ...(hasCurrentVersion ? (["archive"] as LegalRowMenuAction[]) : []),
+      ],
+    };
+  }
+
+  return {
+    showPublishButton: false,
+    menu: [
+      ...(hasCurrentVersion ? (["view"] as LegalRowMenuAction[]) : []),
+      "history",
+    ],
+  };
 }
 
 export function formatLegalFileSize(bytes: number): string {
