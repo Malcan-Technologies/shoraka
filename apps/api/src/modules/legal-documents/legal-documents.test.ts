@@ -274,6 +274,7 @@ describe("legal document acceptance service", () => {
       id: "org2",
       owner_user_id: "u2",
       tnc_accepted: true,
+      onboarding_status: "COMPLETED",
     });
     jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
       publishedVersion({
@@ -303,6 +304,7 @@ describe("legal document acceptance service", () => {
       id: "org2",
       owner_user_id: "u2",
       tnc_accepted: true,
+      onboarding_status: "COMPLETED",
     });
     jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
       publishedVersion({
@@ -362,6 +364,7 @@ describe("legal document acceptance service", () => {
       id: "org1",
       owner_user_id: "u1",
       tnc_accepted: true,
+      onboarding_status: "COMPLETED",
     });
     jest
       .spyOn(legalDocumentRepository, "findPublishedReacceptanceByTypeAndAudiences")
@@ -391,6 +394,7 @@ describe("legal document acceptance service", () => {
       id: "org1",
       owner_user_id: "u1",
       tnc_accepted: true,
+      onboarding_status: "COMPLETED",
     });
 
     jest
@@ -430,6 +434,52 @@ describe("legal document acceptance service", () => {
       "NEW_UTILISATION",
     ]);
     expect(compliance.tncAccepted).toBe(true);
+    expect(compliance.onboardingComplete).toBe(true);
+  });
+
+  it("does not pending-reaccept for incomplete organizations even when tnc_accepted", async () => {
+    (prisma.issuerOrganization.findFirst as jest.Mock).mockResolvedValue({
+      id: "org-new",
+      owner_user_id: "u1",
+      tnc_accepted: true,
+      onboarding_status: "IN_PROGRESS",
+    });
+    jest
+      .spyOn(legalDocumentRepository, "findPublishedReacceptanceByTypeAndAudiences")
+      .mockResolvedValue(
+        publishedVersion({
+          id: "doc-v2",
+          version: 2,
+          reacceptance_required: true,
+        }) as never
+      );
+    (prisma.legalDocumentAcceptance.findFirst as jest.Mock).mockResolvedValue(null);
+    jest.spyOn(legalDocumentRepository, "findPublishedByTypeAndAudiences").mockResolvedValue(null);
+
+    const pending = await legalDocumentAcceptanceService.getPendingReacceptanceDocuments(
+      "u1",
+      "org-new",
+      "ISSUER"
+    );
+    expect(pending).toEqual([]);
+
+    const compliance = await legalDocumentAcceptanceService.getComplianceStatus(
+      "u1",
+      "org-new",
+      "ISSUER"
+    );
+    expect(compliance.onboardingComplete).toBe(false);
+    expect(compliance.hasPendingReacceptance).toBe(false);
+    expect(compliance.blockedActions).toEqual([]);
+
+    await expect(
+      legalDocumentAcceptanceService.assertNoPendingReacceptance(
+        "u1",
+        "org-new",
+        "ISSUER",
+        "NEW_FINANCING_APPLICATION"
+      )
+    ).resolves.toBeUndefined();
   });
 
   it("blocks new issuer transactions while pending reacceptance", async () => {
@@ -437,6 +487,7 @@ describe("legal document acceptance service", () => {
       id: "org1",
       owner_user_id: "u1",
       tnc_accepted: true,
+      onboarding_status: "COMPLETED",
     });
     jest
       .spyOn(legalDocumentRepository, "findPublishedReacceptanceByTypeAndAudiences")
@@ -468,7 +519,10 @@ describe("legal document acceptance service", () => {
         "ISSUER",
         "NEW_FINANCING_APPLICATION"
       )
-    ).rejects.toMatchObject({ code: "LEGAL_REACCEPTANCE_REQUIRED" });
+    ).rejects.toMatchObject({
+      code: "LEGAL_REACCEPTANCE_REQUIRED",
+      message: "Accept the latest legal documents before starting a new financing transaction.",
+    });
   });
 
   it("blocks new investor investments while pending reacceptance", async () => {
@@ -476,6 +530,7 @@ describe("legal document acceptance service", () => {
       id: "org2",
       owner_user_id: "u2",
       tnc_accepted: true,
+      onboarding_status: "COMPLETED",
     });
     jest
       .spyOn(legalDocumentRepository, "findPublishedReacceptanceByTypeAndAudiences")
@@ -507,7 +562,10 @@ describe("legal document acceptance service", () => {
         "INVESTOR",
         "NEW_INVESTMENT"
       )
-    ).rejects.toMatchObject({ code: "LEGAL_REACCEPTANCE_REQUIRED" });
+    ).rejects.toMatchObject({
+      code: "LEGAL_REACCEPTANCE_REQUIRED",
+      message: "Accept the latest legal documents before starting a new investment transaction.",
+    });
   });
 
   it("removes transaction blocks after org acceptance", async () => {
@@ -515,6 +573,7 @@ describe("legal document acceptance service", () => {
       id: "org1",
       owner_user_id: "u1",
       tnc_accepted: true,
+      onboarding_status: "COMPLETED",
     });
     jest
       .spyOn(legalDocumentRepository, "findPublishedReacceptanceByTypeAndAudiences")

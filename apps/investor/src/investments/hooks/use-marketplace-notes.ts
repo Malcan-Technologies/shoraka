@@ -116,7 +116,11 @@ export function useCommitInvestment() {
         investorOrganizationId,
         prospectusAcknowledged: true,
       });
-      if (!response.success) throw new Error(response.error.message);
+      if (!response.success) {
+        const err = new Error(response.error.message) as Error & { code?: string };
+        err.code = response.error.code;
+        throw err;
+      }
       return response.data;
     },
     onSuccess: (_data, variables) => {

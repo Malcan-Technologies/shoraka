@@ -3,7 +3,6 @@
 import { Suspense, startTransition, useMemo } from "react";
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useAuth } from "../lib/auth";
 import {
   useOrganization,
@@ -26,6 +25,7 @@ import {
   useHeader,
   welcomeBackTitle,
 } from "@cashsouk/ui";
+import { InvestNowButton } from "../components/invest-now-button";
 
 function InvestorDashboardContent() {
   const { setTitle } = useHeader();
@@ -191,12 +191,7 @@ function InvestorDashboardContent() {
             }
             action={
               allStepsComplete ? (
-                <Button asChild className="h-11 shrink-0 gap-2 rounded-xl font-semibold">
-                  <Link href="/marketplace">
-                    <PlusIcon className="h-4 w-4" />
-                    Invest now
-                  </Link>
-                </Button>
+                <InvestNowButton className="h-11 shrink-0 gap-2 rounded-xl font-semibold" />
               ) : (
                 <Button disabled className="h-11 shrink-0 gap-2 rounded-xl font-semibold opacity-50">
                   <PlusIcon className="h-4 w-4" />
