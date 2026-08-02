@@ -70,7 +70,6 @@ import {
   XMarkIcon,
   FunnelIcon,
   EyeIcon,
-  ArrowDownTrayIcon,
   PencilSquareIcon,
   ArrowUpTrayIcon,
   ArchiveBoxIcon,
@@ -97,13 +96,14 @@ import {
   formatLegalDate,
   formatLegalFileSize,
   latestDraftVersion,
-  latestPublishedVersion,
   matchesClientFilters,
   nextCreateOrchestrationAfterDefinition,
+  OPERATIONAL_AUDIENCES,
   resetCreateOrchestration,
   shouldSkipDefinitionCreate,
   statusLabel,
   validateLegalPdfFile,
+  websiteVisibilityLabel,
   type CreateOrchestrationState,
 } from "../../lib/legal-documents-admin";
 
@@ -114,13 +114,6 @@ const LEGAL_TYPES = LEGAL_DOCUMENT_TYPES.map((value) => ({
   value,
   label: LEGAL_DOCUMENT_TYPE_LABELS[value],
 }));
-
-const AUDIENCES: { value: LegalDocumentAudience; label: string }[] = [
-  { value: "PUBLIC", label: audienceLabel("PUBLIC") },
-  { value: "ISSUER", label: audienceLabel("ISSUER") },
-  { value: "INVESTOR", label: audienceLabel("INVESTOR") },
-  { value: "BOTH", label: audienceLabel("BOTH") },
-];
 
 type ListResponse = {
   documents: LegalDocumentDefinitionResponse[];
@@ -134,13 +127,12 @@ type ListResponse = {
 
 const emptyCreateForm = () => ({
   type: "PDPA_NOTICE_AND_CONSENT" as LegalDocumentType,
-  title: "",
+  title: LEGAL_DOCUMENT_TYPE_LABELS.PDPA_NOTICE_AND_CONSENT,
   description: "",
   audience: LEGAL_DOCUMENT_DEFAULT_AUDIENCE.PDPA_NOTICE_AND_CONSENT,
   requiredForOnboarding: true,
   publicVisibility: false,
   file: null as File | null,
-  versionNote: "1",
 });
 
 export default function LegalDocumentsPage() {
@@ -151,8 +143,6 @@ export default function LegalDocumentsPage() {
 
   const [page, setPage] = React.useState(1);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [typeFilter, setTypeFilter] = React.useState("all");
-  const [audienceFilter, setAudienceFilter] = React.useState("all");
   const [statusFilter, setStatusFilter] = React.useState("all");
 
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
@@ -186,7 +176,6 @@ export default function LegalDocumentsPage() {
     publicVisibility: false,
   });
   const [versionFile, setVersionFile] = React.useState<File | null>(null);
-  const [versionLabel, setVersionLabel] = React.useState("");
 
   const apiClient = React.useMemo(
     () => createApiClient(API_URL, getAccessToken),
@@ -194,14 +183,12 @@ export default function LegalDocumentsPage() {
   );
 
   const { data, isLoading } = useQuery({
-    queryKey: ["admin", "legal-documents", page, typeFilter, searchQuery, audienceFilter],
+    queryKey: ["admin", "legal-documents", page, searchQuery],
     queryFn: async () => {
       const params = new URLSearchParams({
         page: String(page),
         pageSize: String(ITEMS_PER_PAGE),
       });
-      if (typeFilter !== "all") params.set("type", typeFilter);
-      if (audienceFilter !== "all") params.set("audience", audienceFilter);
       if (searchQuery) params.set("search", searchQuery);
       const result = await apiClient.get<ListResponse>(
         `/v1/admin/legal-documents?${params.toString()}`
@@ -223,12 +210,7 @@ export default function LegalDocumentsPage() {
   );
   const totalCount = data?.pagination.totalCount ?? 0;
   const totalPages = data?.pagination.totalPages ?? 0;
-
-  const hasActiveFilters =
-    Boolean(searchQuery) ||
-    typeFilter !== "all" ||
-    audienceFilter !== "all" ||
-    statusFilter !== "all";
+  const hasActiveFilters = Boolean(searchQuery) || statusFilter !== "all";
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin", "legal-documents"] });
@@ -236,8 +218,6 @@ export default function LegalDocumentsPage() {
 
   const clearFilters = () => {
     setSearchQuery("");
-    setTypeFilter("all");
-    setAudienceFilter("all");
     setStatusFilter("all");
     setPage(1);
   };
@@ -311,8 +291,8 @@ export default function LegalDocumentsPage() {
 
       await uploadDraftVersion(definitionId, pdfCheck.file);
 
-      toast.success("Legal document saved as draft", {
-        description: `"${definitionTitle}" is ready to review and publish.`,
+      toast.success("Saved as draft", {
+        description: `"${definitionTitle}" is ready to publish when you are.`,
       });
       setCreateDialogOpen(false);
       setCreateForm(emptyCreateForm());
@@ -322,7 +302,7 @@ export default function LegalDocumentsPage() {
       const message = error instanceof Error ? error.message : "An error occurred";
       toast.error("Save failed", {
         description: definitionCreatedInAttempt
-          ? `${message} The document definition was saved — choose the PDF again and retry Save as Draft.`
+          ? `${message} Details were saved — choose the PDF again and retry.`
           : message,
       });
     } finally {
@@ -347,7 +327,7 @@ export default function LegalDocumentsPage() {
       if (!result.success) {
         throw new Error(result.error?.message || "Failed to update document");
       }
-      toast.success("Details updated");
+      toast.success("Settings updated");
       setEditDialogOpen(false);
       setSelectedDefinition(null);
       invalidate();
@@ -384,13 +364,12 @@ export default function LegalDocumentsPage() {
       }
 
       const versionNumber = await uploadDraftVersion(selectedDefinition.id, pdfCheck.file);
-      toast.success(uploadMode === "replace" ? "Draft PDF replaced" : "New draft version saved", {
+      toast.success("Draft PDF saved", {
         description: `"${selectedDefinition.title}" v${versionNumber} saved as draft.`,
       });
       setUploadDialogOpen(false);
       setSelectedDefinition(null);
       setVersionFile(null);
-      setVersionLabel("");
       invalidate();
     } catch (error) {
       toast.error("Upload failed", {
@@ -412,10 +391,10 @@ export default function LegalDocumentsPage() {
       if (!result.success) {
         throw new Error(result.error?.message || "Failed to publish version");
       }
-      toast.success("Version published", {
+      toast.success("Published", {
         description: reacceptanceRequired
-          ? `"${selectedDefinition.title}" published. Existing applicable users must accept before new transactions.`
-          : `"${selectedDefinition.title}" published. Only new or incomplete users must accept this version.`,
+          ? `"${selectedDefinition.title}" is live. Existing users must accept again before new transactions.`
+          : `"${selectedDefinition.title}" is live for new or incomplete onboarding.`,
       });
       setPublishDialogOpen(false);
       setSelectedDefinition(null);
@@ -441,7 +420,7 @@ export default function LegalDocumentsPage() {
       if (!result.success) {
         throw new Error(result.error?.message || "Failed to archive version");
       }
-      toast.success("Version archived", {
+      toast.success("Archived", {
         description: `"${selectedDefinition.title}" v${selectedVersion.version} archived.`,
       });
       setArchiveConfirmOpen(false);
@@ -455,10 +434,7 @@ export default function LegalDocumentsPage() {
     }
   };
 
-  const handleViewOrDownload = async (
-    version: LegalDocumentVersionSummary,
-    mode: "view" | "download"
-  ) => {
+  const handleViewPdf = async (version: LegalDocumentVersionSummary) => {
     try {
       const result = await apiClient.get<{ downloadUrl: string }>(
         `/v1/admin/legal-documents/versions/${version.id}/download`
@@ -467,11 +443,8 @@ export default function LegalDocumentsPage() {
         throw new Error(result.error?.message || "PDF unavailable");
       }
       window.open(result.data.downloadUrl, "_blank", "noopener,noreferrer");
-      if (mode === "download") {
-        // Presigned URL opens in a new tab; browser handles download disposition from storage.
-      }
     } catch (error) {
-      toast.error(mode === "view" ? "Unable to open PDF" : "Download failed", {
+      toast.error("Unable to open PDF", {
         description: error instanceof Error ? error.message : `Could not open ${version.fileName}`,
       });
     }
@@ -489,7 +462,10 @@ export default function LegalDocumentsPage() {
     setEditForm({
       title: doc.title,
       description: doc.description || "",
-      audience: doc.audience,
+      audience:
+        doc.audience === "PUBLIC"
+          ? "BOTH"
+          : doc.audience,
       requiredForOnboarding: doc.requiredForOnboarding,
       publicVisibility: doc.publicVisibility,
     });
@@ -501,8 +477,6 @@ export default function LegalDocumentsPage() {
     setUploadMode(mode);
     setVersionFile(null);
     setUploadFileError(null);
-    const nextVersion = Math.max(0, ...(doc.versions ?? []).map((v) => v.version)) + 1;
-    setVersionLabel(String(nextVersion));
     if (mode === "replace" && latestDraftVersion(doc)) {
       setReplaceConfirmOpen(true);
     } else {
@@ -536,7 +510,7 @@ export default function LegalDocumentsPage() {
 
   React.useEffect(() => {
     setPage(1);
-  }, [searchQuery, typeFilter, audienceFilter, statusFilter]);
+  }, [searchQuery, statusFilter]);
 
   return (
     <RequirePermission permission="document_management.view">
@@ -552,15 +526,14 @@ export default function LegalDocumentsPage() {
 
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
           <div className="w-full space-y-6 px-2 py-8 md:px-4">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
               <div>
                 <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Legal Documents</h1>
                 <p className="mt-1 text-[15px] leading-7 text-muted-foreground">
-                  Manage onboarding and public legal documents
+                  PDFs for onboarding acceptance and optional website links
                 </p>
               </div>
               <Button
-                variant="action"
                 onClick={openCreateDialog}
                 disabled={!canManage}
                 title={!canManage ? "You do not have permission to perform this action." : undefined}
@@ -574,62 +547,12 @@ export default function LegalDocumentsPage() {
               <div className="relative min-w-[200px] flex-1">
                 <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Search legal documents..."
+                  placeholder="Search by title…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="h-11 rounded-xl pl-9"
                 />
               </div>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-11 gap-2 rounded-xl">
-                    <FunnelIcon className="h-4 w-4" />
-                    Document Type
-                    {typeFilter !== "all" ? (
-                      <Badge variant="secondary" className="ml-1">
-                        1
-                      </Badge>
-                    ) : null}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64">
-                  <DropdownMenuLabel>Document Type</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup value={typeFilter} onValueChange={setTypeFilter}>
-                    <DropdownMenuRadioItem value="all">All Types</DropdownMenuRadioItem>
-                    {LEGAL_TYPES.map((type) => (
-                      <DropdownMenuRadioItem key={type.value} value={type.value}>
-                        {type.label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-11 gap-2 rounded-xl">
-                    <FunnelIcon className="h-4 w-4" />
-                    Audience
-                    {audienceFilter !== "all" ? (
-                      <Badge variant="secondary" className="ml-1">
-                        1
-                      </Badge>
-                    ) : null}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>Audience</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup value={audienceFilter} onValueChange={setAudienceFilter}>
-                    <DropdownMenuRadioItem value="all">All Audiences</DropdownMenuRadioItem>
-                    {AUDIENCES.map((item) => (
-                      <DropdownMenuRadioItem key={item.value} value={item.value}>
-                        {item.label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -643,10 +566,10 @@ export default function LegalDocumentsPage() {
                     ) : null}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuContent align="end" className="w-44">
                   <DropdownMenuLabel>Status</DropdownMenuLabel>
                   <DropdownMenuRadioGroup value={statusFilter} onValueChange={setStatusFilter}>
-                    <DropdownMenuRadioItem value="all">All Statuses</DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
                     <DropdownMenuRadioItem value="DRAFT">Draft</DropdownMenuRadioItem>
                     <DropdownMenuRadioItem value="PUBLISHED">Published</DropdownMenuRadioItem>
                     <DropdownMenuRadioItem value="ARCHIVED">Archived</DropdownMenuRadioItem>
@@ -680,57 +603,32 @@ export default function LegalDocumentsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[300px]">Document</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Audience</TableHead>
-                    <TableHead>Version</TableHead>
+                    <TableHead className="w-[340px]">Document</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Onboarding</TableHead>
-                    <TableHead>Public</TableHead>
+                    <TableHead>Who must accept</TableHead>
+                    <TableHead>Website</TableHead>
                     <TableHead>Updated</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
+                    Array.from({ length: 4 }).map((_, i) => (
                       <TableRow key={i}>
-                        <TableCell>
-                          <Skeleton className="h-5 w-48" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="h-5 w-24" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="h-5 w-20" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="h-5 w-12" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="h-5 w-16" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="h-5 w-16" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="h-5 w-10" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="h-5 w-24" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="ml-auto h-8 w-24" />
-                        </TableCell>
+                        {Array.from({ length: 6 }).map((__, j) => (
+                          <TableCell key={j}>
+                            <Skeleton className="h-5 w-full" />
+                          </TableCell>
+                        ))}
                       </TableRow>
                     ))
                   ) : documents.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
+                      <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
                         <DocumentIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
                         <p>No legal documents yet</p>
                         <p className="mt-1 text-sm">
-                          Add the first legal document to prepare onboarding and public legal access.
+                          Add a PDF for onboarding, and optionally link it on the website.
                         </p>
                       </TableCell>
                     </TableRow>
@@ -739,7 +637,6 @@ export default function LegalDocumentsPage() {
                       const current = documentCurrentVersion(doc);
                       const status = documentCurrentStatus(doc);
                       const draft = latestDraftVersion(doc);
-                      const published = latestPublishedVersion(doc);
                       return (
                         <TableRow
                           key={doc.id}
@@ -751,28 +648,18 @@ export default function LegalDocumentsPage() {
                                 <DocumentIcon className="h-5 w-5 text-primary" />
                               </div>
                               <div className="min-w-0">
-                                <p className="truncate text-sm font-medium" title={doc.title}>
+                                <p className="truncate font-medium" title={doc.title}>
                                   {doc.title}
                                 </p>
-                                <p
-                                  className="truncate text-xs text-muted-foreground"
-                                  title={current?.fileName}
-                                >
-                                  {current?.fileName ?? "No PDF yet"}
+                                <p className="truncate text-xs text-muted-foreground">
+                                  {LEGAL_DOCUMENT_TYPE_LABELS[doc.type]}
+                                  {current ? ` · v${current.version}` : ""}
+                                  {doc.requiredForOnboarding ? " · Onboarding" : ""}
                                 </p>
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="text-sm">
-                            <Badge variant="outline">
-                              {LEGAL_DOCUMENT_TYPE_LABELS[doc.type] || doc.type}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-sm">{audienceLabel(doc.audience)}</TableCell>
-                          <TableCell className="text-sm">
-                            {current ? `v${current.version}` : "—"}
-                          </TableCell>
-                          <TableCell className="text-sm">
+                          <TableCell>
                             <Badge
                               variant={
                                 status === "PUBLISHED"
@@ -785,43 +672,23 @@ export default function LegalDocumentsPage() {
                               {statusLabel(status)}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-sm">
-                            {doc.requiredForOnboarding ? (
-                              <Badge variant="secondary">Required</Badge>
-                            ) : (
-                              <span className="text-muted-foreground">Optional</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            {doc.publicVisibility ? (
-                              <Badge variant="secondary">Yes</Badge>
-                            ) : (
-                              <span className="text-muted-foreground">No</span>
-                            )}
+                          <TableCell className="text-sm">{audienceLabel(doc.audience)}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {websiteVisibilityLabel(doc.publicVisibility)}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {formatLegalDate(doc.updatedAt)}
                           </TableCell>
                           <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
+                            <div className="flex items-center justify-end gap-1">
                               {current ? (
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => void handleViewOrDownload(current, "view")}
+                                  onClick={() => void handleViewPdf(current)}
                                   title="View PDF"
                                 >
                                   <EyeIcon className="h-4 w-4" />
-                                </Button>
-                              ) : null}
-                              {published ? (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => void handleViewOrDownload(published, "download")}
-                                  title="Download PDF"
-                                >
-                                  <ArrowDownTrayIcon className="h-4 w-4" />
                                 </Button>
                               ) : null}
                               <Button
@@ -837,11 +704,7 @@ export default function LegalDocumentsPage() {
                                 size="sm"
                                 onClick={() => openEditDialog(doc)}
                                 disabled={!canManage}
-                                title={
-                                  !canManage
-                                    ? "You do not have permission to perform this action."
-                                    : "Edit details"
-                                }
+                                title="Edit settings"
                               >
                                 <PencilSquareIcon className="h-4 w-4" />
                               </Button>
@@ -852,24 +715,15 @@ export default function LegalDocumentsPage() {
                                   openUploadDialog(doc, draft ? "replace" : "new")
                                 }
                                 disabled={!canManage}
-                                title={
-                                  !canManage
-                                    ? "You do not have permission to perform this action."
-                                    : draft
-                                      ? "Replace PDF"
-                                      : "Upload new version"
-                                }
+                                title={draft ? "Replace draft PDF" : "Upload new PDF"}
                               >
                                 <ArrowUpTrayIcon className="h-4 w-4" />
                               </Button>
                               {draft ? (
                                 <Button
-                                  variant="ghost"
                                   size="sm"
                                   onClick={() => openPublishDialog(doc, draft)}
                                   disabled={!canManage}
-                                  className="text-primary"
-                                  title="Publish"
                                 >
                                   Publish
                                 </Button>
@@ -880,11 +734,7 @@ export default function LegalDocumentsPage() {
                                   size="sm"
                                   onClick={() => openArchiveConfirm(doc, current)}
                                   disabled={!canManage}
-                                  title={
-                                    !canManage
-                                      ? "You do not have permission to perform this action."
-                                      : "Archive"
-                                  }
+                                  title="Archive"
                                   className="text-muted-foreground hover:text-foreground"
                                 >
                                   <ArchiveBoxIcon className="h-4 w-4" />
@@ -928,7 +778,7 @@ export default function LegalDocumentsPage() {
           </div>
         </div>
 
-        {/* Add Legal Document */}
+        {/* Add */}
         <Dialog
           open={createDialogOpen}
           onOpenChange={(open) => {
@@ -946,18 +796,18 @@ export default function LegalDocumentsPage() {
             <DialogHeader>
               <DialogTitle>Add Legal Document</DialogTitle>
               <DialogDescription>
-                Create the legal document and upload its first PDF version.
+                Create the document and upload its first PDF as a draft.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               {createOrchestration.definitionId ? (
                 <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
-                  Document details were saved. Choose the PDF again and click Save as Draft to finish
-                  without creating a duplicate.
+                  Details were saved. Choose the PDF again and click Save as Draft.
                 </div>
               ) : null}
+
               <div className="space-y-2">
-                <Label htmlFor="legal-type">Document Type</Label>
+                <Label htmlFor="legal-type">Document type</Label>
                 <Select
                   value={createForm.type}
                   disabled={Boolean(createOrchestration.definitionId)}
@@ -967,7 +817,7 @@ export default function LegalDocumentsPage() {
                       ...prev,
                       type,
                       audience: LEGAL_DOCUMENT_DEFAULT_AUDIENCE[type],
-                      title: prev.title || LEGAL_DOCUMENT_TYPE_LABELS[type],
+                      title: LEGAL_DOCUMENT_TYPE_LABELS[type],
                     }));
                   }}
                 >
@@ -983,6 +833,7 @@ export default function LegalDocumentsPage() {
                   </SelectContent>
                 </Select>
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="legal-title">Title</Label>
                 <Input
@@ -992,8 +843,9 @@ export default function LegalDocumentsPage() {
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, title: e.target.value }))}
                 />
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="legal-description">Description</Label>
+                <Label htmlFor="legal-description">Description (optional)</Label>
                 <Textarea
                   id="legal-description"
                   value={createForm.description}
@@ -1001,11 +853,12 @@ export default function LegalDocumentsPage() {
                   onChange={(e) =>
                     setCreateForm((prev) => ({ ...prev, description: e.target.value }))
                   }
-                  rows={3}
+                  rows={2}
                 />
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="legal-audience">Audience</Label>
+                <Label htmlFor="legal-audience">Who must accept</Label>
                 <Select
                   value={createForm.audience}
                   disabled={Boolean(createOrchestration.definitionId)}
@@ -1020,19 +873,23 @@ export default function LegalDocumentsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {AUDIENCES.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
+                    {OPERATIONAL_AUDIENCES.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {audienceLabel(value)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                <p className="text-xs text-muted-foreground">
+                  Which portal users see this during onboarding.
+                </p>
               </div>
+
               <div className="flex items-start justify-between gap-4">
                 <div className="pr-4">
-                  <Label htmlFor="legal-onboarding">Required for onboarding</Label>
+                  <Label htmlFor="legal-onboarding">Required in onboarding</Label>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    New users must accept this document before continuing onboarding.
+                    New users must accept before they can finish onboarding.
                   </p>
                 </div>
                 <Switch
@@ -1044,15 +901,16 @@ export default function LegalDocumentsPage() {
                   }
                 />
               </div>
+
               <div className="flex items-start justify-between gap-4">
                 <div className="pr-4">
-                  <Label htmlFor="legal-public">Publicly visible</Label>
+                  <Label htmlFor="legal-website">Show on website</Label>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Published versions can be opened without logging in through the public website.
+                    After publish, show a link in the public footer (no login needed).
                   </p>
                 </div>
                 <Switch
-                  id="legal-public"
+                  id="legal-website"
                   checked={createForm.publicVisibility}
                   disabled={Boolean(createOrchestration.definitionId)}
                   onCheckedChange={(checked) =>
@@ -1060,8 +918,9 @@ export default function LegalDocumentsPage() {
                   }
                 />
               </div>
+
               <div className="space-y-2">
-                <Label htmlFor="legal-pdf">PDF File</Label>
+                <Label htmlFor="legal-pdf">PDF file</Label>
                 <Input
                   id="legal-pdf"
                   type="file"
@@ -1083,19 +942,9 @@ export default function LegalDocumentsPage() {
                     {createFileError}
                   </p>
                 ) : null}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="legal-version">Version</Label>
-                <Input
-                  id="legal-version"
-                  value={createForm.versionNote}
-                  onChange={(e) =>
-                    setCreateForm((prev) => ({ ...prev, versionNote: e.target.value }))
-                  }
-                  placeholder="1"
-                />
                 <p className="text-xs text-muted-foreground">
-                  Informational only. The system assigns the next version number on save.
+                  Version numbers are assigned automatically (v1, v2, …). You cannot set them
+                  manually.
                 </p>
               </div>
             </div>
@@ -1110,10 +959,7 @@ export default function LegalDocumentsPage() {
               >
                 Cancel
               </Button>
-              <Button
-                onClick={() => void handleCreateDocument()}
-                disabled={saving || !canManage}
-              >
+              <Button onClick={() => void handleCreateDocument()} disabled={saving || !canManage}>
                 {saving ? (
                   <>
                     <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" />
@@ -1127,12 +973,14 @@ export default function LegalDocumentsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit details */}
+        {/* Edit settings */}
         <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>Edit Details</DialogTitle>
-              <DialogDescription>Update the document metadata.</DialogDescription>
+              <DialogTitle>Edit settings</DialogTitle>
+              <DialogDescription>
+                Change title and access. To change the PDF file, use Upload.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
@@ -1144,18 +992,18 @@ export default function LegalDocumentsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-description">Description</Label>
+                <Label htmlFor="edit-description">Description (optional)</Label>
                 <Textarea
                   id="edit-description"
                   value={editForm.description}
                   onChange={(e) =>
                     setEditForm((prev) => ({ ...prev, description: e.target.value }))
                   }
-                  rows={3}
+                  rows={2}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-audience">Audience</Label>
+                <Label htmlFor="edit-audience">Who must accept</Label>
                 <Select
                   value={editForm.audience}
                   onValueChange={(value) =>
@@ -1169,9 +1017,9 @@ export default function LegalDocumentsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {AUDIENCES.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
+                    {OPERATIONAL_AUDIENCES.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {audienceLabel(value)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1179,9 +1027,9 @@ export default function LegalDocumentsPage() {
               </div>
               <div className="flex items-start justify-between gap-4">
                 <div className="pr-4">
-                  <Label htmlFor="edit-onboarding">Required for onboarding</Label>
+                  <Label htmlFor="edit-onboarding">Required in onboarding</Label>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    New users must accept this document before continuing onboarding.
+                    New users must accept before they can finish onboarding.
                   </p>
                 </div>
                 <Switch
@@ -1194,13 +1042,13 @@ export default function LegalDocumentsPage() {
               </div>
               <div className="flex items-start justify-between gap-4">
                 <div className="pr-4">
-                  <Label htmlFor="edit-public">Publicly visible</Label>
+                  <Label htmlFor="edit-website">Show on website</Label>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Published versions can be opened without logging in through the public website.
+                    After publish, show a link in the public footer (no login needed).
                   </p>
                 </div>
                 <Switch
-                  id="edit-public"
+                  id="edit-website"
                   checked={editForm.publicVisibility}
                   onCheckedChange={(checked) =>
                     setEditForm((prev) => ({ ...prev, publicVisibility: checked }))
@@ -1213,28 +1061,28 @@ export default function LegalDocumentsPage() {
                 Cancel
               </Button>
               <Button onClick={() => void handleEditDefinition()} disabled={saving || !canManage}>
-                {saving ? "Saving..." : "Save Changes"}
+                {saving ? "Saving..." : "Save"}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        {/* Upload / replace version */}
+        {/* Upload PDF */}
         <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[480px]">
             <DialogHeader>
               <DialogTitle>
-                {uploadMode === "replace" ? "Replace Draft PDF" : "Upload New Version"}
+                {uploadMode === "replace" ? "Replace draft PDF" : "Upload new PDF"}
               </DialogTitle>
               <DialogDescription>
                 {selectedDefinition
-                  ? `Save a draft PDF for “${selectedDefinition.title}”.`
-                  : "Upload a draft PDF version."}
+                  ? `Upload a PDF for “${selectedDefinition.title}”. It saves as a draft; publish when ready.`
+                  : "Upload a PDF draft."}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="upload-pdf">PDF File</Label>
+                <Label htmlFor="upload-pdf">PDF file</Label>
                 <Input
                   id="upload-pdf"
                   type="file"
@@ -1256,16 +1104,8 @@ export default function LegalDocumentsPage() {
                     {uploadFileError}
                   </p>
                 ) : null}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="upload-version">Version</Label>
-                <Input
-                  id="upload-version"
-                  value={versionLabel}
-                  onChange={(e) => setVersionLabel(e.target.value)}
-                />
                 <p className="text-xs text-muted-foreground">
-                  Informational only. The system assigns the next version number on save.
+                  The next version number is assigned automatically.
                 </p>
               </div>
             </div>
@@ -1277,10 +1117,7 @@ export default function LegalDocumentsPage() {
               >
                 Cancel
               </Button>
-              <Button
-                onClick={() => void handleUploadVersion()}
-                disabled={uploading || !canManage}
-              >
+              <Button onClick={() => void handleUploadVersion()} disabled={uploading || !canManage}>
                 {uploading ? (
                   <>
                     <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" />
@@ -1305,7 +1142,7 @@ export default function LegalDocumentsPage() {
             }
           }}
         >
-          <DialogContent className="sm:max-w-[480px]">
+          <DialogContent className="sm:max-w-[460px]">
             <DialogHeader>
               <DialogTitle>
                 {selectedDefinition && selectedVersion
@@ -1317,25 +1154,25 @@ export default function LegalDocumentsPage() {
                   : "Publish version?"}
               </DialogTitle>
               <DialogDescription>
-                This version will become the current version shown to applicable users.
+                This becomes the live version for the users who must accept it.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 py-4">
               <p className="text-sm font-medium">
-                Require existing users to accept this version again?
+                Ask existing users to accept this version again?
               </p>
               <label className="flex cursor-pointer items-start gap-2">
                 <input
                   type="radio"
                   name="reacceptance"
-                  className="mt-1"
+                  className="mt-1 accent-primary"
                   checked={!reacceptanceRequired}
                   onChange={() => setReacceptanceRequired(false)}
                 />
                 <span className="text-sm">
                   <span className="font-medium">No</span>
                   <span className="mt-0.5 block text-muted-foreground">
-                    Only new or incomplete users must accept this version.
+                    Only new or incomplete users must accept.
                   </span>
                 </span>
               </label>
@@ -1343,15 +1180,14 @@ export default function LegalDocumentsPage() {
                 <input
                   type="radio"
                   name="reacceptance"
-                  className="mt-1"
+                  className="mt-1 accent-primary"
                   checked={reacceptanceRequired}
                   onChange={() => setReacceptanceRequired(true)}
                 />
                 <span className="text-sm">
                   <span className="font-medium">Yes</span>
                   <span className="mt-0.5 block text-muted-foreground">
-                    Existing applicable users must accept this version before starting new
-                    transactions.
+                    Existing users must accept before new transactions.
                   </span>
                 </span>
               </label>
@@ -1367,15 +1203,12 @@ export default function LegalDocumentsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Replace confirm */}
         <AlertDialog open={replaceConfirmOpen} onOpenChange={setReplaceConfirmOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Replace draft PDF?</AlertDialogTitle>
               <AlertDialogDescription>
-                {selectedDefinition
-                  ? `The current draft for “${selectedDefinition.title}” will be archived, then your new PDF will be saved as a draft.`
-                  : "The current draft will be archived before uploading the new PDF."}
+                The current draft will be archived, then your new PDF will be saved as a draft.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -1392,7 +1225,6 @@ export default function LegalDocumentsPage() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Archive confirm */}
         <AlertDialog open={archiveConfirmOpen} onOpenChange={setArchiveConfirmOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -1403,8 +1235,8 @@ export default function LegalDocumentsPage() {
               </AlertDialogTitle>
               <AlertDialogDescription>
                 {selectedVersion?.status === "PUBLISHED"
-                  ? "This is the current published version. Archiving it removes it as the live version for applicable users until another version is published."
-                  : "Archived versions stay in history and are no longer active drafts."}
+                  ? "This removes the live published version until you publish another draft."
+                  : "This draft will no longer be available to publish."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -1416,15 +1248,14 @@ export default function LegalDocumentsPage() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* Version history */}
         <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
           <SheetContent className="w-full overflow-y-auto sm:max-w-md">
             <SheetHeader>
-              <SheetTitle>Version History</SheetTitle>
+              <SheetTitle>Version history</SheetTitle>
               <SheetDescription>
                 {selectedDefinition
-                  ? `Versions for “${selectedDefinition.title}”.`
-                  : "Legal document versions"}
+                  ? `PDF versions for “${selectedDefinition.title}”. Numbers are automatic.`
+                  : "PDF versions"}
               </SheetDescription>
             </SheetHeader>
             <div className="mt-6 space-y-3">
@@ -1438,7 +1269,7 @@ export default function LegalDocumentsPage() {
                     <div key={version.id} className="rounded-lg border p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium">Version {version.version}</p>
+                          <p className="text-sm font-medium">v{version.version}</p>
                           <p className="mt-0.5 truncate text-xs text-muted-foreground">
                             {version.fileName}
                           </p>
@@ -1464,27 +1295,18 @@ export default function LegalDocumentsPage() {
                           <div>Archived {formatLegalDate(version.archivedAt)}</div>
                         ) : null}
                         <div>
-                          Re-acceptance required: {version.reacceptanceRequired ? "Yes" : "No"}
+                          Re-accept asked: {version.reacceptanceRequired ? "Yes" : "No"}
                         </div>
                       </div>
-                      <div className="mt-2 flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => void handleViewOrDownload(version, "view")}
-                          title="View"
-                        >
-                          <EyeIcon className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => void handleViewOrDownload(version, "download")}
-                          title="Download"
-                        >
-                          <ArrowDownTrayIcon className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="mt-2"
+                        onClick={() => void handleViewPdf(version)}
+                      >
+                        <EyeIcon className="mr-1 h-4 w-4" />
+                        View PDF
+                      </Button>
                     </div>
                   ))
               )}
