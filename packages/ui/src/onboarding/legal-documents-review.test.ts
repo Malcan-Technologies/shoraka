@@ -44,38 +44,39 @@ describe("legal documents review modes and copy", () => {
 
   it("centralizes type-specific checkbox wording", () => {
     expect(legalDocumentCheckboxWording("TERMS_OF_USE")).toBe(
-      "I have read and agree to the Terms of Use."
+      "I have read and agree to these terms."
     );
     expect(legalDocumentCheckboxWording("PDPA_NOTICE_AND_CONSENT")).toBe(
-      "I have read the PDPA Notice and consent to the handling of my personal data as described."
+      "I have read the privacy notice and consent to the handling of my personal data as described."
     );
     expect(legalDocumentCheckboxWording("RISK_STATEMENT")).toBe(
-      "I have read and understood the Risk Statement."
+      "I have read and understood the risks described in this document."
     );
     expect(legalDocumentCheckboxWording("ISSUER_WARNING_STATEMENT")).toBe(
-      "I have read and understood the Issuer Warning Statement."
+      "I have read and understood this warning statement."
     );
     expect(legalDocumentCheckboxWording("INVESTOR_WARNING_STATEMENT")).toBe(
-      "I have read and understood the Investor Warning Statement."
+      "I have read and understood this warning statement."
     );
     expect(legalDocumentCheckboxWording("ISSUER_AGREEMENT")).toBe(
-      "I have read and agree to the Issuer Agreement."
+      "I have read and agree to this agreement."
     );
     expect(legalDocumentCheckboxWording("INVESTOR_AGREEMENT")).toBe(
-      "I have read and agree to the Investor Agreement."
+      "I have read and agree to this agreement."
     );
     expect(LEGAL_DOCUMENT_CHECKBOX_WORDING.RISK_STATEMENT).toBe(
       legalDocumentCheckboxWording("RISK_STATEMENT")
     );
   });
 
-  it("hides version numbers and simplifies open helper text", () => {
+  it("hides version numbers and simplifies review helper text", () => {
     expect(checklistSource).not.toContain("Version {");
-    expect(checklistSource).toContain("Open PDF");
+    expect(checklistSource).toContain("Review document");
+    expect(checklistSource).not.toContain("Open PDF");
     expect(legalChecklistStatusLabel("not_opened")).toBe(
-      "Open this document before accepting."
+      "Review the document to enable acceptance."
     );
-    expect(legalChecklistStatusLabel("opened")).toBeNull();
+    expect(legalChecklistStatusLabel("opened")).toBe("Ready to accept.");
     expect(legalChecklistStatusLabel("accepted")).toBe("Accepted");
   });
 

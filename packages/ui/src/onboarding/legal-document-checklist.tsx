@@ -22,13 +22,13 @@ export type LegalChecklistDocRow = {
   showCheckbox: boolean;
 };
 
-/** Only show helper text before the PDF is opened. Unlocking the checkbox is enough after. */
+/** Short status under each acceptance checkbox. */
 export function legalChecklistStatusLabel(
   status: LegalChecklistDocStatus
-): string | null {
+): string {
   if (status === "accepted") return "Accepted";
-  if (status === "not_opened") return "Open this document before accepting.";
-  return null;
+  if (status === "opened") return "Ready to accept.";
+  return "Review the document to enable acceptance.";
 }
 
 export function LegalDocumentChecklistShell({
@@ -132,7 +132,7 @@ export function LegalDocumentChecklistRows({
                 onClick={() => onOpen(row.id)}
               >
                 <DocumentTextIcon className="size-4" aria-hidden />
-                {row.opening ? "Opening…" : "Open PDF"}
+                {row.opening ? "Opening…" : "Review document"}
               </Button>
             </div>
 
@@ -158,22 +158,20 @@ export function LegalDocumentChecklistRows({
                   </Label>
                 </div>
 
-                {helper ? (
-                  <p
-                    className={cn(
-                      "mt-2 text-sm",
-                      row.status === "accepted"
-                        ? "inline-flex items-center gap-1.5 text-foreground"
-                        : "text-muted-foreground"
-                    )}
-                    role="status"
-                  >
-                    {row.status === "accepted" ? (
-                      <CheckCircleIcon className="size-4 text-primary" aria-hidden />
-                    ) : null}
-                    {helper}
-                  </p>
-                ) : null}
+                <p
+                  className={cn(
+                    "mt-2 text-sm",
+                    row.status === "accepted"
+                      ? "inline-flex items-center gap-1.5 text-foreground"
+                      : "text-muted-foreground"
+                  )}
+                  role="status"
+                >
+                  {row.status === "accepted" ? (
+                    <CheckCircleIcon className="size-4 text-primary" aria-hidden />
+                  ) : null}
+                  {helper}
+                </p>
               </>
             ) : null}
           </li>
