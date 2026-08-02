@@ -670,7 +670,8 @@ export default function LegalDocumentsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[280px]">Document</TableHead>
+                    <TableHead className="w-[300px]">Document</TableHead>
+                    <TableHead>Type</TableHead>
                     <TableHead>Version</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Applies to</TableHead>
@@ -684,7 +685,7 @@ export default function LegalDocumentsPage() {
                   {isLoading ? (
                     Array.from({ length: 4 }).map((_, i) => (
                       <TableRow key={i}>
-                        {Array.from({ length: 8 }).map((__, j) => (
+                        {Array.from({ length: 9 }).map((__, j) => (
                           <TableCell key={j}>
                             <Skeleton className="h-5 w-full" />
                           </TableCell>
@@ -693,7 +694,7 @@ export default function LegalDocumentsPage() {
                     ))
                   ) : documents.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="py-12 text-center text-muted-foreground">
+                      <TableCell colSpan={9} className="py-12 text-center text-muted-foreground">
                         <DocumentIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
                         <p>No legal documents yet</p>
                         <p className="mt-1 text-sm">
@@ -798,11 +799,19 @@ export default function LegalDocumentsPage() {
                                 <p className="truncate font-medium" title={doc.title}>
                                   {doc.title}
                                 </p>
-                                <p className="truncate text-xs text-muted-foreground">
-                                  {LEGAL_DOCUMENT_TYPE_LABELS[doc.type]}
+                                <p
+                                  className="truncate text-xs text-muted-foreground"
+                                  title={current?.fileName ?? undefined}
+                                >
+                                  {current?.fileName ?? "No PDF yet"}
                                 </p>
                               </div>
                             </div>
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            <Badge variant="outline">
+                              {LEGAL_DOCUMENT_TYPE_LABELS[doc.type]}
+                            </Badge>
                           </TableCell>
                           <TableCell className="text-sm tabular-nums">
                             {current ? `v${current.version}` : "—"}
