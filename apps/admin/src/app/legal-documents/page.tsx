@@ -98,11 +98,9 @@ import {
   latestPublishedVersion,
   matchesClientFilters,
   nextCreateOrchestrationAfterDefinition,
-  nextCreateOrchestrationAfterVersion,
   OPERATIONAL_AUDIENCES,
   resetCreateOrchestration,
   shouldSkipDefinitionCreate,
-  shouldSkipVersionUpload,
   statusLabel,
   validateLegalPdfFile,
   websiteVisibilityLabel,
@@ -210,7 +208,6 @@ export default function LegalDocumentsPage() {
     React.useState<LegalDocumentVersionSummary | null>(null);
   const [uploadMode, setUploadMode] = React.useState<"new" | "replace">("new");
   const [reacceptanceRequired, setReacceptanceRequired] = React.useState(false);
-  const [createReacceptanceRequired, setCreateReacceptanceRequired] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [publishing, setPublishing] = React.useState(false);
@@ -321,30 +318,25 @@ export default function LegalDocumentsPage() {
     }
   };
 
-  const handleCreateDocument = async (mode: "draft" | "publish") => {
+  const handleCreateDocument = async () => {
     if (!createForm.title.trim()) {
       toast.error("Title is required");
       return;
     }
-    const needsPdf = !shouldSkipVersionUpload(createOrchestration);
-    if (needsPdf) {
-      const pdfCheck = validateLegalPdfFile(createForm.file);
-      if (!pdfCheck.ok) {
-        setCreateFileError(pdfCheck.error);
-        return;
-      }
+    const pdfCheck = validateLegalPdfFile(createForm.file);
+    if (!pdfCheck.ok) {
+      setCreateFileError(pdfCheck.error);
+      return;
     }
     setCreateFileError(null);
     setSaving(true);
 
     let orchestration = createOrchestration;
     let definitionCreated = Boolean(orchestration.definitionId);
-    let versionCreated = Boolean(orchestration.versionId);
 
     try {
       let definitionId = orchestration.definitionId;
       let definitionTitle = orchestration.definitionTitle ?? createForm.title.trim();
-      let versionId = orchestration.versionId;
 
       if (!shouldSkipDefinitionCreate(orchestration)) {
         const result = await apiClient.post<{ document: LegalDocumentDefinitionResponse }>(
@@ -365,50 +357,21 @@ export default function LegalDocumentsPage() {
         throw new Error("Legal document was not created");
       }
 
-      if (!shouldSkipVersionUpload(orchestration)) {
-        const pdfCheck = validateLegalPdfFile(createForm.file);
-        if (!pdfCheck.ok) {
-          setCreateFileError(pdfCheck.error);
-          throw new Error(pdfCheck.error);
-        }
-        const uploaded = await uploadDraftVersion(definitionId, pdfCheck.file);
-        orchestration = nextCreateOrchestrationAfterVersion(orchestration, uploaded.versionId);
-        setCreateOrchestration(orchestration);
-        versionId = uploaded.versionId;
-        versionCreated = true;
-      }
+      await uploadDraftVersion(definitionId, pdfCheck.file);
 
-      if (mode === "publish") {
-        if (!versionId) {
-          throw new Error("Draft version was not created");
-        }
-        await publishVersionById(versionId, createReacceptanceRequired);
-        toast.success("Published", {
-          description: createReacceptanceRequired
-            ? `"${definitionTitle}" is live. Existing users must accept again before new transactions.`
-            : `"${definitionTitle}" is live for new or incomplete onboarding.`,
-        });
-      } else {
-        toast.success("Saved as draft", {
-          description: `"${definitionTitle}" is ready to review and publish when you are.`,
-        });
-      }
-
+      toast.success("Saved as draft", {
+        description: `"${definitionTitle}" is ready to review and publish when you are.`,
+      });
       setCreateDialogOpen(false);
       setCreateForm(emptyCreateForm());
       setCreateOrchestration(resetCreateOrchestration());
-      setCreateReacceptanceRequired(false);
       invalidate();
     } catch (error) {
       const message = error instanceof Error ? error.message : "An error occurred";
-      let hint = message;
-      if (versionCreated) {
-        hint = `${message} The PDF draft was saved — retry Publish Now to finish without uploading again.`;
-      } else if (definitionCreated) {
-        hint = `${message} Document details were saved — choose the PDF again and retry.`;
-      }
-      toast.error(mode === "publish" ? "Publish failed" : "Save failed", {
-        description: hint,
+      toast.error("Save failed", {
+        description: definitionCreated
+          ? `${message} Details were saved — choose the PDF again and retry Save as Draft.`
+          : message,
       });
     } finally {
       setSaving(false);
@@ -556,7 +519,6 @@ export default function LegalDocumentsPage() {
     setCreateForm(emptyCreateForm());
     setCreateFileError(null);
     setCreateOrchestration(resetCreateOrchestration());
-    setCreateReacceptanceRequired(false);
     setCreateDialogOpen(true);
   };
 
@@ -705,7 +667,7 @@ export default function LegalDocumentsPage() {
                   <TableRow>
                     <TableHead className="w-[340px]">Document</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Who must accept</TableHead>
+                    <TableHead>Applies to</TableHead>
                     <TableHead>Website</TableHead>
                     <TableHead>Updated</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -908,36 +870,29 @@ export default function LegalDocumentsPage() {
             if (!open && !saving) {
               setCreateForm(emptyCreateForm());
               setCreateFileError(null);
-              setCreateReacceptanceRequired(false);
               if (!shouldSkipDefinitionCreate(createOrchestration)) {
                 setCreateOrchestration(resetCreateOrchestration());
               }
             }
           }}
         >
-          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[540px]">
+          <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[520px]">
             <DialogHeader>
               <DialogTitle>Add Legal Document</DialogTitle>
-              <DialogDescription>
-                Create the document, upload the PDF, then save as draft or publish now.
-              </DialogDescription>
+              <DialogDescription>Upload a PDF and save it as a draft.</DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-2">
-              {createOrchestration.versionId ? (
+            <div className="space-y-3 py-2">
+              {createOrchestration.definitionId ? (
                 <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
-                  Draft PDF is ready. Click Publish Now to finish, or Cancel to leave it as draft.
-                </div>
-              ) : createOrchestration.definitionId ? (
-                <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
-                  Document details were saved. Choose the PDF again and continue.
+                  Details were saved. Choose the PDF again and click Save as Draft.
                 </div>
               ) : null}
 
               <section className="space-y-3 rounded-lg border p-4">
-                <h3 className="text-sm font-semibold">Document details</h3>
+                <h3 className="text-sm font-semibold">Basic information</h3>
                 <div className="space-y-2">
-                  <Label htmlFor="legal-type">Document type</Label>
+                  <Label htmlFor="legal-type">Type</Label>
                   <Select
                     value={createForm.type}
                     disabled={Boolean(createOrchestration.definitionId)}
@@ -977,7 +932,7 @@ export default function LegalDocumentsPage() {
                   <Label htmlFor="legal-description">Description</Label>
                   <Textarea
                     id="legal-description"
-                    placeholder="Briefly explain what this document covers"
+                    placeholder="Briefly describe what this document covers"
                     value={createForm.description}
                     disabled={Boolean(createOrchestration.definitionId)}
                     onChange={(e) =>
@@ -989,9 +944,9 @@ export default function LegalDocumentsPage() {
               </section>
 
               <section className="space-y-3 rounded-lg border p-4">
-                <h3 className="text-sm font-semibold">Access and requirements</h3>
+                <h3 className="text-sm font-semibold">Access</h3>
                 <div className="space-y-2">
-                  <Label htmlFor="legal-audience">Who must accept</Label>
+                  <Label htmlFor="legal-audience">Applies to</Label>
                   <Select
                     value={createForm.audience}
                     disabled={Boolean(createOrchestration.definitionId)}
@@ -1014,14 +969,14 @@ export default function LegalDocumentsPage() {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    Select which portal users this document applies to.
+                    Select which portal users this applies to.
                   </p>
                 </div>
                 <div className="flex items-start justify-between gap-4">
                   <div className="pr-4">
-                    <Label htmlFor="legal-onboarding">Required in onboarding</Label>
+                    <Label htmlFor="legal-onboarding">Required during onboarding</Label>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      New users must accept this document before completing onboarding.
+                      New users must accept this before completing onboarding.
                     </p>
                   </div>
                   <Switch
@@ -1035,9 +990,9 @@ export default function LegalDocumentsPage() {
                 </div>
                 <div className="flex items-start justify-between gap-4">
                   <div className="pr-4">
-                    <Label htmlFor="legal-website">Show on website</Label>
+                    <Label htmlFor="legal-website">Show on public website</Label>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Published versions will appear as public PDF links without login.
+                      After publishing, users can open the PDF without logging in.
                     </p>
                   </div>
                   <Switch
@@ -1052,14 +1007,13 @@ export default function LegalDocumentsPage() {
               </section>
 
               <section className="space-y-3 rounded-lg border p-4">
-                <h3 className="text-sm font-semibold">PDF</h3>
+                <h3 className="text-sm font-semibold">File</h3>
                 <div className="space-y-2">
                   <Label htmlFor="legal-pdf">PDF file</Label>
                   <Input
                     id="legal-pdf"
                     type="file"
                     accept="application/pdf,.pdf"
-                    disabled={Boolean(createOrchestration.versionId)}
                     onChange={(e) => {
                       const file = e.target.files?.[0] ?? null;
                       setCreateForm((prev) => ({ ...prev, file }));
@@ -1078,56 +1032,31 @@ export default function LegalDocumentsPage() {
                     </p>
                   ) : null}
                   <p className="text-xs text-muted-foreground">
-                    Version numbers are assigned automatically (v1, v2, …).
+                    PDF only. Version numbers are assigned automatically.
                   </p>
                 </div>
-              </section>
-
-              <section className="space-y-3 rounded-lg border p-4">
-                <div>
-                  <h3 className="text-sm font-semibold">Publishing</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Used when you click Publish Now. Ignored for Save as Draft.
-                  </p>
-                </div>
-                <ReacceptanceOptions
-                  name="create-reacceptance"
-                  value={createReacceptanceRequired}
-                  onChange={setCreateReacceptanceRequired}
-                />
               </section>
             </div>
 
-            <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+            <DialogFooter>
               <Button
                 variant="outline"
                 onClick={() => {
                   setCreateDialogOpen(false);
                   setCreateOrchestration(resetCreateOrchestration());
-                  setCreateReacceptanceRequired(false);
                 }}
                 disabled={saving}
               >
                 Cancel
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => void handleCreateDocument("draft")}
-                disabled={saving || !canManage}
-              >
-                {saving ? "Saving..." : "Save as Draft"}
-              </Button>
-              <Button
-                onClick={() => void handleCreateDocument("publish")}
-                disabled={saving || !canManage}
-              >
+              <Button onClick={() => void handleCreateDocument()} disabled={saving || !canManage}>
                 {saving ? (
                   <>
                     <ArrowPathIcon className="mr-2 h-4 w-4 animate-spin" />
-                    Publishing...
+                    Saving...
                   </>
                 ) : (
-                  "Publish Now"
+                  "Save as Draft"
                 )}
               </Button>
             </DialogFooter>
@@ -1164,7 +1093,7 @@ export default function LegalDocumentsPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-audience">Who must accept</Label>
+                <Label htmlFor="edit-audience">Applies to</Label>
                 <Select
                   value={editForm.audience}
                   onValueChange={(value) =>
@@ -1188,9 +1117,9 @@ export default function LegalDocumentsPage() {
               </div>
               <div className="flex items-start justify-between gap-4">
                 <div className="pr-4">
-                  <Label htmlFor="edit-onboarding">Required in onboarding</Label>
+                  <Label htmlFor="edit-onboarding">Required during onboarding</Label>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    New users must accept this document before completing onboarding.
+                    New users must accept this before completing onboarding.
                   </p>
                 </div>
                 <Switch
@@ -1203,9 +1132,9 @@ export default function LegalDocumentsPage() {
               </div>
               <div className="flex items-start justify-between gap-4">
                 <div className="pr-4">
-                  <Label htmlFor="edit-website">Show on website</Label>
+                  <Label htmlFor="edit-website">Show on public website</Label>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Published versions will appear as public PDF links without login.
+                    After publishing, users can open the PDF without logging in.
                   </p>
                 </div>
                 <Switch
@@ -1305,7 +1234,7 @@ export default function LegalDocumentsPage() {
                   : "Publish version?"}
               </DialogTitle>
               <DialogDescription>
-                This becomes the live version for the users who must accept it.
+                This version will become live for the users it applies to.
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">
