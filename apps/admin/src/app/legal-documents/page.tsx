@@ -72,7 +72,6 @@ import {
   ArchiveBoxIcon,
   ArrowUpTrayIcon,
   ArrowDownTrayIcon,
-  EyeIcon,
   CheckCircleIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
@@ -100,7 +99,6 @@ import {
   getLegalDocumentRowActions,
   hasLegalVersionHistory,
   latestDraftVersion,
-  latestPublishedVersion,
   legalDocumentDisplayName,
   legalStatusBadgeVariant,
   matchesClientFilters,
@@ -499,21 +497,25 @@ export default function LegalDocumentsPage() {
     }
   };
 
-  const handleViewOrDownload = async (
-    version: LegalDocumentVersionSummary,
-    _mode: "view" | "download"
-  ) => {
+  const handleDownload = async (version: LegalDocumentVersionSummary) => {
     try {
-      const result = await apiClient.get<{ downloadUrl: string }>(
+      const result = await apiClient.get<{ downloadUrl: string; fileName?: string }>(
         `/v1/admin/legal-documents/versions/${version.id}/download`
       );
       if (!result.success) {
         throw new Error(result.error?.message || "PDF unavailable");
       }
-      window.open(result.data.downloadUrl, "_blank", "noopener,noreferrer");
+      const link = document.createElement("a");
+      link.href = result.data.downloadUrl;
+      link.download = result.data.fileName || version.fileName;
+      link.target = "_blank";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch (error) {
-      toast.error("Unable to open PDF", {
-        description: error instanceof Error ? error.message : `Could not open ${version.fileName}`,
+      toast.error("Download failed", {
+        description:
+          error instanceof Error ? error.message : `Could not download ${version.fileName}`,
       });
     }
   };
@@ -702,7 +704,6 @@ export default function LegalDocumentsPage() {
                       const current = documentCurrentVersion(doc);
                       const status = documentCurrentStatus(doc);
                       const draft = latestDraftVersion(doc);
-                      const published = latestPublishedVersion(doc);
                       const actions = getLegalDocumentRowActions(status, {
                         hasCurrentVersion: Boolean(current),
                         hasDraft: Boolean(draft),
@@ -713,28 +714,14 @@ export default function LegalDocumentsPage() {
 
                       const renderIconAction = (action: LegalRowIconAction) => {
                         switch (action) {
-                          case "view":
+                          case "download":
                             return current ? (
                               <Button
                                 key={action}
                                 variant="ghost"
                                 size="sm"
-                                title="View PDF"
-                                onClick={() => void handleViewOrDownload(current, "view")}
-                              >
-                                <EyeIcon className="h-4 w-4" />
-                              </Button>
-                            ) : null;
-                          case "download":
-                            return published || current ? (
-                              <Button
-                                key={action}
-                                variant="ghost"
-                                size="sm"
-                                title="Download PDF"
-                                onClick={() =>
-                                  void handleViewOrDownload(published ?? current!, "download")
-                                }
+                                title="Download"
+                                onClick={() => void handleDownload(current)}
                               >
                                 <ArrowDownTrayIcon className="h-4 w-4" />
                               </Button>
@@ -1381,9 +1368,9 @@ export default function LegalDocumentsPage() {
                         variant="ghost"
                         size="sm"
                         className="mt-2"
-                        onClick={() => void handleViewOrDownload(version, "view")}
+                        onClick={() => void handleDownload(version)}
                       >
-                        View PDF
+                        Download
                       </Button>
                     </div>
                   ))

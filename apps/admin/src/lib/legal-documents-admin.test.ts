@@ -221,7 +221,7 @@ describe("legal-documents-admin helpers", () => {
       hasDraft: true,
     });
     expect(draftActions.showPublishButton).toBe(true);
-    expect(draftActions.icons).toEqual(["view", "edit", "replaceDraft", "archive"]);
+    expect(draftActions.icons).toEqual(["download", "edit", "replaceDraft", "archive"]);
     expect(draftActions.icons).not.toContain("uploadNew");
 
     const publishedActions = getLegalDocumentRowActions("PUBLISHED", {
@@ -229,13 +229,7 @@ describe("legal-documents-admin helpers", () => {
       hasDraft: false,
     });
     expect(publishedActions.showPublishButton).toBe(false);
-    expect(publishedActions.icons).toEqual([
-      "view",
-      "download",
-      "edit",
-      "uploadNew",
-      "archive",
-    ]);
+    expect(publishedActions.icons).toEqual(["download", "edit", "uploadNew", "archive"]);
     expect(publishedActions.icons).not.toContain("replaceDraft");
 
     const archivedActions = getLegalDocumentRowActions("ARCHIVED", {
@@ -243,7 +237,7 @@ describe("legal-documents-admin helpers", () => {
       hasDraft: false,
     });
     expect(archivedActions.showPublishButton).toBe(false);
-    expect(archivedActions.icons).toEqual(["view"]);
+    expect(archivedActions.icons).toEqual(["download"]);
   });
 
   it("shows version history only when more than one version exists", () => {
