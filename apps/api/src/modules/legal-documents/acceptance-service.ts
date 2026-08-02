@@ -4,6 +4,8 @@ import {
   LEGAL_DOCUMENT_TYPE_LABELS,
   getRequiredLegalTypesForAudience,
   isLegalDocumentType,
+  legalDocumentSlugToType,
+  legalDocumentTypeToSlug,
   type LegalAcceptanceAudience,
   type LegalAcceptanceStatus,
   type LegalAcceptanceStatusResponse,
@@ -502,17 +504,24 @@ export class LegalDocumentAcceptanceService {
       throw new AppError(404, "NOT_FOUND", "Published document version not found");
     }
 
-    const parent = version.legal_document;
-    const isPublic =
-      parent.public_visibility ||
-      parent.audience === "PUBLIC" ||
-      parent.audience === "BOTH";
-
-    if (!isPublic) {
+    if (!version.legal_document.public_visibility) {
       throw new AppError(404, "NOT_FOUND", "Published document version not found");
     }
 
     return this.getPublishedDownloadUrl(versionId);
+  }
+
+  async getPublicViewUrl(versionId: string) {
+    const version = await legalDocumentRepository.findVersionById(versionId);
+    if (!version || version.status !== "PUBLISHED") {
+      throw new AppError(404, "NOT_FOUND", "Published document version not found");
+    }
+
+    if (!version.legal_document.public_visibility) {
+      throw new AppError(404, "NOT_FOUND", "Published document version not found");
+    }
+
+    return this.getPublishedViewUrl(versionId);
   }
 
   async listPublicPublishedDocuments(): Promise<PublicLegalDocumentResponse[]> {
@@ -526,18 +535,37 @@ export class LegalDocumentAcceptanceService {
       }
     }
 
-    return [...byType.values()].map((row) => {
-      const type = row.legal_document.type as LegalDocumentType;
-      return {
-        legalDocumentId: row.legal_document_id,
-        legalDocumentVersionId: row.id,
-        type,
-        title: row.legal_document.title || LEGAL_DOCUMENT_TYPE_LABELS[type],
-        version: row.version,
-        file_name: row.file_name,
-        published_at: row.published_at?.toISOString() ?? null,
-      };
-    });
+    return [...byType.values()].map((row) => this.toPublicResponse(row));
+  }
+
+  async getPublicDocumentBySlug(slug: string): Promise<PublicLegalDocumentResponse> {
+    const type = legalDocumentSlugToType(slug);
+    if (!type) {
+      throw new AppError(404, "NOT_FOUND", "Legal document not found");
+    }
+
+    const row = await legalDocumentRepository.findPublicPublishedByType(type);
+    if (!row) {
+      throw new AppError(404, "NOT_FOUND", "Legal document not found");
+    }
+
+    return this.toPublicResponse(row);
+  }
+
+  private toPublicResponse(row: VersionWithDocument): PublicLegalDocumentResponse {
+    const type = row.legal_document.type as LegalDocumentType;
+    return {
+      legalDocumentId: row.legal_document_id,
+      legalDocumentVersionId: row.id,
+      type,
+      slug: legalDocumentTypeToSlug(type),
+      title: row.legal_document.title || LEGAL_DOCUMENT_TYPE_LABELS[type],
+      description: row.legal_document.description,
+      audience: row.legal_document.audience,
+      version: row.version,
+      file_name: row.file_name,
+      published_at: row.published_at?.toISOString() ?? null,
+    };
   }
 
   private assertDocumentAudience(

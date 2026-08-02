@@ -636,3 +636,95 @@ describe("legal document definition schema", () => {
     ).toThrow();
   });
 });
+
+describe("public legal documents", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("lists only published versions with public_visibility=true", async () => {
+    jest.spyOn(legalDocumentRepository, "findPublicPublishedVersions").mockResolvedValue([
+      {
+        id: "ver-public",
+        legal_document_id: "ld1",
+        version: 2,
+        status: "PUBLISHED",
+        file_name: "terms.pdf",
+        published_at: new Date("2026-08-01T00:00:00.000Z"),
+        legal_document: {
+          id: "ld1",
+          type: "TERMS_OF_USE",
+          title: "Terms of Use",
+          description: "Public terms",
+          audience: "BOTH",
+          public_visibility: true,
+        },
+      },
+    ] as never);
+
+    const docs = await legalDocumentAcceptanceService.listPublicPublishedDocuments();
+    expect(docs).toHaveLength(1);
+    expect(docs[0]).toMatchObject({
+      type: "TERMS_OF_USE",
+      slug: "terms-of-use",
+      description: "Public terms",
+      audience: "BOTH",
+    });
+    expect(docs[0]).not.toHaveProperty("s3_key");
+    expect(docs[0]).not.toHaveProperty("s3Key");
+  });
+
+  it("resolves public document by slug", async () => {
+    jest.spyOn(legalDocumentRepository, "findPublicPublishedByType").mockResolvedValue({
+      id: "ver-pdpa",
+      legal_document_id: "ld2",
+      version: 1,
+      status: "PUBLISHED",
+      file_name: "pdpa.pdf",
+      published_at: new Date("2026-08-01T00:00:00.000Z"),
+      legal_document: {
+        id: "ld2",
+        type: "PDPA_NOTICE_AND_CONSENT",
+        title: "PDPA Notice and Consent",
+        description: null,
+        audience: "BOTH",
+        public_visibility: true,
+      },
+    } as never);
+
+    const doc = await legalDocumentAcceptanceService.getPublicDocumentBySlug(
+      "pdpa-notice-and-consent"
+    );
+    expect(doc.legalDocumentVersionId).toBe("ver-pdpa");
+    expect(doc.slug).toBe("pdpa-notice-and-consent");
+  });
+
+  it("rejects public download when public_visibility is false", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue({
+      id: "ver-private",
+      status: "PUBLISHED",
+      legal_document: {
+        public_visibility: false,
+        audience: "ISSUER",
+      },
+    } as never);
+
+    await expect(
+      legalDocumentAcceptanceService.getPublicDownloadUrl("ver-private")
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("rejects draft versions from public download", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue({
+      id: "ver-draft",
+      status: "DRAFT",
+      legal_document: {
+        public_visibility: true,
+      },
+    } as never);
+
+    await expect(
+      legalDocumentAcceptanceService.getPublicDownloadUrl("ver-draft")
+    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+  });
+});

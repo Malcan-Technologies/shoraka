@@ -273,15 +273,26 @@ export class LegalDocumentRepository {
       where: {
         status: "PUBLISHED",
         legal_document: {
-          OR: [
-            { public_visibility: true },
-            { audience: { in: ["PUBLIC", "BOTH"] } },
-          ],
+          public_visibility: true,
         },
       },
       include: { legal_document: true },
       orderBy: [{ legal_document: { type: "asc" } }, { version: "desc" }],
     })) as VersionWithDocument[];
+  }
+
+  async findPublicPublishedByType(type: string) {
+    return (await prisma.legalDocumentVersion.findFirst({
+      where: {
+        status: "PUBLISHED",
+        legal_document: {
+          type: type as never,
+          public_visibility: true,
+        },
+      },
+      include: { legal_document: true },
+      orderBy: { version: "desc" },
+    })) as VersionWithDocument | null;
   }
 }
 

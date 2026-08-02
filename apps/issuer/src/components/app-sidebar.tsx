@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Logo } from "@cashsouk/ui";
+import { Logo, CashSoukSidebarFooter } from "@cashsouk/ui";
 import {
   useOrganization,
   isAddingNewOrganizationRoute,
@@ -309,6 +309,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
+        <CashSoukSidebarFooter variant="issuer" />
         <NavUser />
       </SidebarFooter>
       <SidebarRail />

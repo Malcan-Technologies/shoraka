@@ -849,7 +849,7 @@ export default function LegalDocumentsPage() {
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label htmlFor="legal-public-visibility">Public visibility</Label>
+                <Label htmlFor="legal-public-visibility">Publicly visible</Label>
                 <Switch
                   id="legal-public-visibility"
                   checked={createForm.publicVisibility}
@@ -938,7 +938,7 @@ export default function LegalDocumentsPage() {
                 />
               </div>
               <div className="flex items-center justify-between">
-                <Label>Public visibility</Label>
+                <Label>Publicly visible</Label>
                 <Switch
                   checked={editForm.publicVisibility}
                   onCheckedChange={(checked) =>
