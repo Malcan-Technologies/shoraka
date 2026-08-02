@@ -1,9 +1,11 @@
 import type { LegalDocumentDefinitionResponse } from "@cashsouk/types";
+import { LEGAL_DOCUMENT_TYPE_LABELS } from "@cashsouk/types";
 import {
   audienceLabel,
   buildCreateDefinitionPayload,
   buildPublishDialogTitle,
   documentCurrentStatus,
+  formatLegalDate,
   getLegalDocumentRowActions,
   latestDraftVersion,
   legalStatusBadgeVariant,
@@ -48,6 +50,29 @@ describe("legal-documents-admin helpers", () => {
     expect(websiteVisibilityLabel(false)).toBe("Private");
     expect(OPERATIONAL_AUDIENCES).not.toContain("PUBLIC");
     expect(statusLabel("DRAFT")).toBe("Draft");
+  });
+
+  it("maps type enums to human labels and formats full date-time", () => {
+    expect(LEGAL_DOCUMENT_TYPE_LABELS.PDPA_NOTICE_AND_CONSENT).toBe(
+      "PDPA Notice and Consent"
+    );
+    expect(LEGAL_DOCUMENT_TYPE_LABELS.TERMS_OF_USE).toBe("Terms of Use");
+    const formatted = formatLegalDate("2026-07-29T01:44:00.000Z");
+    expect(formatted).toMatch(/29/);
+    expect(formatted).toMatch(/Jul/);
+    expect(formatted).toMatch(/2026/);
+    expect(formatted).toMatch(/\d{1,2}:\d{2}/);
+  });
+
+  it("uses semantic badge variants for status, onboarding, and website", () => {
+    expect(legalStatusBadgeVariant("PUBLISHED")).toBe("success");
+    expect(legalStatusBadgeVariant("DRAFT")).toBe("secondary");
+    expect(legalStatusBadgeVariant("ARCHIVED")).toBe("muted");
+    expect(onboardingBadgeVariant(true)).toBe("warning");
+    expect(onboardingBadgeVariant(false)).toBe("secondary");
+    expect(onboardingBadgeLabel(true)).toBe("Required");
+    expect(websiteBadgeVariant(true)).toBe("info");
+    expect(websiteBadgeVariant(false)).toBe("secondary");
   });
 
   it("builds create payload with onboarding and website toggles", () => {
