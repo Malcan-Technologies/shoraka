@@ -184,6 +184,29 @@ export class LegalDocumentRepository {
     })) as VersionWithDocument;
   }
 
+  async replaceDraftFile(
+    versionId: string,
+    input: {
+      s3Key: string;
+      fileName: string;
+      contentType: string;
+      fileSize: number;
+      fileHash?: string | null;
+    }
+  ) {
+    return (await prisma.legalDocumentVersion.update({
+      where: { id: versionId },
+      data: {
+        s3_key: input.s3Key,
+        file_name: input.fileName,
+        content_type: input.contentType,
+        file_size: input.fileSize,
+        file_hash: input.fileHash ?? null,
+      },
+      include: { legal_document: true },
+    })) as VersionWithDocument;
+  }
+
   async publishVersion(
     versionId: string,
     legalDocumentId: string,

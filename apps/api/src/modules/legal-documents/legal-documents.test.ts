@@ -638,6 +638,56 @@ describe("legal document acceptance service", () => {
     ).rejects.toMatchObject({ code: "NEWER_PUBLISHED_EXISTS" });
   });
 
+  it("replaces draft PDF in place without creating a new version number", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+      publishedVersion({
+        id: "ver2",
+        version: 2,
+        status: "DRAFT",
+        published_at: null,
+        published_by: null,
+        file_name: "old.pdf",
+      }) as never
+    );
+    jest.spyOn(legalDocumentRepository, "replaceDraftFile").mockResolvedValue(
+      publishedVersion({
+        id: "ver2",
+        version: 2,
+        status: "DRAFT",
+        published_at: null,
+        published_by: null,
+        file_name: "fixed.pdf",
+        s3_key: "legal-documents/new-key.pdf",
+      }) as never
+    );
+    jest.spyOn(documentLogRepository, "create").mockResolvedValue({} as never);
+
+    const replaced = await legalDocumentService.replaceDraftFile(
+      "ver2",
+      {
+        s3Key: "legal-documents/new-key.pdf",
+        fileName: "fixed.pdf",
+        contentType: "application/pdf",
+        fileSize: 1200,
+      },
+      "admin1",
+      mockReq
+    );
+
+    expect(replaced.version).toBe(2);
+    expect(replaced.fileName).toBe("fixed.pdf");
+    expect(replaced.status).toBe("DRAFT");
+    expect(documentLogRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "LEGAL_VERSION_UPDATED",
+        metadata: expect.objectContaining({
+          replaced_in_place: true,
+          version: 2,
+        }),
+      })
+    );
+  });
+
   it("archives published version and leaves no automatic fallback", async () => {
     jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
       publishedVersion({

@@ -71,6 +71,17 @@ export const updateVersionSchema = z.object({
 
 export type UpdateVersionInput = z.infer<typeof updateVersionSchema>;
 
+/** Replace the PDF file on an existing Draft version (same version number). */
+export const replaceDraftFileSchema = z.object({
+  s3Key: z.string().min(1),
+  fileName: z.string().min(1).max(255),
+  contentType: z.literal("application/pdf"),
+  fileSize: z.number().int().positive(),
+  fileHash: z.string().min(1).max(128).optional(),
+});
+
+export type ReplaceDraftFileInput = z.infer<typeof replaceDraftFileSchema>;
+
 export const publishVersionSchema = z.object({
   reacceptanceRequired: z.boolean().optional().default(false),
 });
