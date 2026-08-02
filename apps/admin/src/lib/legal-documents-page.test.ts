@@ -63,7 +63,11 @@ describe("Admin Legal Documents page UX", () => {
     expect(source).toContain("Upload new version");
   });
 
-  it("archive confirmation warns when no published version would remain", () => {
+  it("replaces draft PDF in place and archives with no-fallback warning", () => {
+    expect(source).toContain("replaceDraftPdfInPlace");
+    expect(source).toContain("Version number unchanged");
+    expect(source).toContain("The version number stays the same");
+    expect(source).not.toContain("The current draft will be archived, then your new PDF");
     expect(source).toContain("buildArchiveDialogCopy");
     expect(source).toContain("isOnlyActivePublishedVersion");
     expect(source).toContain("legalRowVersionLabel");

@@ -213,7 +213,6 @@ export default function LegalDocumentsPage() {
   const [publishDialogOpen, setPublishDialogOpen] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = React.useState(false);
-  const [replaceConfirmOpen, setReplaceConfirmOpen] = React.useState(false);
 
   const [selectedDefinition, setSelectedDefinition] =
     React.useState<LegalDocumentDefinitionResponse | null>(null);
@@ -312,6 +311,44 @@ export default function LegalDocumentsPage() {
     );
     if (!confirmResult.success) {
       throw new Error(confirmResult.error?.message || "Failed to save draft version");
+    }
+    return {
+      versionNumber: confirmResult.data.version.version,
+      versionId: confirmResult.data.version.id,
+    };
+  };
+
+  /** Replace PDF on an existing Draft — same version number. */
+  const replaceDraftPdfInPlace = async (
+    versionId: string,
+    file: File
+  ): Promise<{ versionNumber: number; versionId: string }> => {
+    const uploadUrlResult = await apiClient.post<{
+      uploadUrl: string;
+      s3Key: string;
+      version: number;
+    }>(`/v1/admin/legal-documents/versions/${versionId}/upload-url`, {
+      fileName: file.name,
+      contentType: "application/pdf",
+      fileSize: file.size,
+    });
+    if (!uploadUrlResult.success) {
+      throw new Error(uploadUrlResult.error?.message || "Failed to get upload URL");
+    }
+
+    await uploadFileToS3(uploadUrlResult.data.uploadUrl, file);
+
+    const confirmResult = await apiClient.post<{ version: LegalDocumentVersionResponse }>(
+      `/v1/admin/legal-documents/versions/${versionId}/replace-file`,
+      {
+        s3Key: uploadUrlResult.data.s3Key,
+        fileName: file.name,
+        contentType: "application/pdf",
+        fileSize: file.size,
+      }
+    );
+    if (!confirmResult.success) {
+      throw new Error(confirmResult.error?.message || "Failed to replace draft PDF");
     }
     return {
       versionNumber: confirmResult.data.version.version,
@@ -427,21 +464,19 @@ export default function LegalDocumentsPage() {
     try {
       if (uploadMode === "replace") {
         const draft = latestDraftVersion(selectedDefinition);
-        if (draft) {
-          const archiveResult = await apiClient.post(
-            `/v1/admin/legal-documents/versions/${draft.id}/archive`,
-            {}
-          );
-          if (!archiveResult.success) {
-            throw new Error(archiveResult.error?.message || "Failed to archive previous draft");
-          }
+        if (!draft) {
+          throw new Error("No draft version to replace");
         }
+        const replaced = await replaceDraftPdfInPlace(draft.id, pdfCheck.file);
+        toast.success("Draft PDF replaced.", {
+          description: `v${replaced.versionNumber} updated. Version number unchanged.`,
+        });
+      } else {
+        const uploaded = await uploadDraftVersion(selectedDefinition.id, pdfCheck.file);
+        toast.success("New draft version created.", {
+          description: `v${uploaded.versionNumber} saved as draft.`,
+        });
       }
-
-      const uploaded = await uploadDraftVersion(selectedDefinition.id, pdfCheck.file);
-      toast.success("New draft version created.", {
-        description: `v${uploaded.versionNumber} saved as draft.`,
-      });
       setUploadDialogOpen(false);
       setSelectedDefinition(null);
       setVersionFile(null);
@@ -567,11 +602,7 @@ export default function LegalDocumentsPage() {
     setUploadMode(mode);
     setVersionFile(null);
     setUploadFileError(null);
-    if (mode === "replace" && latestDraftVersion(doc)) {
-      setReplaceConfirmOpen(true);
-    } else {
-      setUploadDialogOpen(true);
-    }
+    setUploadDialogOpen(true);
   };
 
   const openPublishDialog = (
@@ -1237,7 +1268,9 @@ export default function LegalDocumentsPage() {
               </DialogTitle>
               <DialogDescription>
                 {selectedDefinition
-                  ? `Upload a PDF for “${legalDocumentDisplayName(selectedDefinition.type)}”. It saves as a draft.`
+                  ? uploadMode === "replace"
+                    ? `Replace the PDF for “${legalDocumentDisplayName(selectedDefinition.type)}”. The version number stays the same.`
+                    : `Upload a PDF for “${legalDocumentDisplayName(selectedDefinition.type)}”. It saves as a new draft version.`
                   : "Upload a PDF draft."}
               </DialogDescription>
             </DialogHeader>
@@ -1324,28 +1357,6 @@ export default function LegalDocumentsPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-
-        <AlertDialog open={replaceConfirmOpen} onOpenChange={setReplaceConfirmOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Replace draft PDF?</AlertDialogTitle>
-              <AlertDialogDescription>
-                The current draft will be archived, then your new PDF will be saved as a draft.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => {
-                  setReplaceConfirmOpen(false);
-                  setUploadDialogOpen(true);
-                }}
-              >
-                Continue
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
 
         <AlertDialog open={archiveConfirmOpen} onOpenChange={setArchiveConfirmOpen}>
           <AlertDialogContent>

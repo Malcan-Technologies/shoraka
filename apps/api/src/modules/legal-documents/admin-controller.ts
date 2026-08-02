@@ -7,6 +7,7 @@ import {
   createVersionSchema,
   listLegalDocumentsQuerySchema,
   publishVersionSchema,
+  replaceDraftFileSchema,
   requestVersionUploadUrlSchema,
   updateLegalDocumentSchema,
   updateVersionSchema,
@@ -77,6 +78,69 @@ router.patch(
       }
       const validated = updateVersionSchema.parse(req.body);
       const version = await legalDocumentService.updateDraftVersion(
+        req.params.versionId,
+        validated,
+        req.user.user_id,
+        req
+      );
+      res.json({
+        success: true,
+        data: { version },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(
+        error instanceof AppError
+          ? error
+          : error instanceof Error
+            ? new AppError(400, "VALIDATION_ERROR", error.message)
+            : error
+      );
+    }
+  }
+);
+
+router.post(
+  "/versions/:versionId/upload-url",
+  requirePermission("document_management.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+      const validated = requestVersionUploadUrlSchema.parse(req.body);
+      const result = await legalDocumentService.requestDraftReplaceUploadUrl(
+        req.params.versionId,
+        validated,
+        req.user.user_id
+      );
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(
+        error instanceof AppError
+          ? error
+          : error instanceof Error
+            ? new AppError(400, "VALIDATION_ERROR", error.message)
+            : error
+      );
+    }
+  }
+);
+
+router.post(
+  "/versions/:versionId/replace-file",
+  requirePermission("document_management.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+      const validated = replaceDraftFileSchema.parse(req.body);
+      const version = await legalDocumentService.replaceDraftFile(
         req.params.versionId,
         validated,
         req.user.user_id,

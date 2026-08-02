@@ -19,6 +19,7 @@ import type {
   ListLegalDocumentsQuery,
   PublishVersionInput,
   RequestVersionUploadUrlInput,
+  ReplaceDraftFileInput,
   UpdateLegalDocumentInput,
   UpdateVersionInput,
 } from "./schemas";
@@ -316,6 +317,131 @@ export class LegalDocumentService {
         version: existing.version,
         file_hash: updated.file_hash,
       }
+    );
+
+    return toVersionResponse(updated);
+  }
+
+  /**
+   * Replace the PDF on an existing Draft in place.
+   * Keeps the same version number — does not create a new legal version.
+   */
+  async requestDraftReplaceUploadUrl(
+    versionId: string,
+    input: RequestVersionUploadUrlInput,
+    adminUserId: string
+  ) {
+    const existing = await legalDocumentRepository.findVersionById(versionId);
+    if (!existing) {
+      throw new AppError(404, "NOT_FOUND", "Legal document version not found");
+    }
+    if (existing.status !== "DRAFT") {
+      throw new AppError(
+        400,
+        "INVALID_STATUS",
+        "Only draft versions can have their PDF replaced in place"
+      );
+    }
+
+    const validation = validateSiteDocument({
+      contentType: input.contentType,
+      fileSize: input.fileSize,
+    });
+    if (!validation.valid) {
+      throw new AppError(400, "VALIDATION_ERROR", validation.error!);
+    }
+
+    const extension = getFileExtension(input.fileName);
+    if (extension !== "pdf") {
+      throw new AppError(400, "VALIDATION_ERROR", "Only PDF files are allowed");
+    }
+
+    const s3Key = generateLegalDocumentKey({
+      type: existing.legal_document.type,
+      version: existing.version,
+      cuid: this.generateCuid(),
+      extension,
+    });
+
+    const { uploadUrl, expiresIn } = await generatePresignedUploadUrl({
+      key: s3Key,
+      contentType: input.contentType,
+      contentLength: input.fileSize,
+    });
+
+    logger.info(
+      {
+        legalDocumentId: existing.legal_document_id,
+        versionId,
+        version: existing.version,
+        s3Key,
+        adminUserId,
+      },
+      "Generated legal document draft replace upload URL"
+    );
+
+    return {
+      uploadUrl,
+      s3Key,
+      expiresIn,
+      version: existing.version,
+    };
+  }
+
+  async replaceDraftFile(
+    versionId: string,
+    input: ReplaceDraftFileInput,
+    adminUserId: string,
+    req: Request
+  ) {
+    const existing = await legalDocumentRepository.findVersionById(versionId);
+    if (!existing) {
+      throw new AppError(404, "NOT_FOUND", "Legal document version not found");
+    }
+    if (existing.status !== "DRAFT") {
+      throw new AppError(
+        400,
+        "INVALID_STATUS",
+        "Only draft versions can have their PDF replaced in place"
+      );
+    }
+    if (!input.s3Key.startsWith("legal-documents/")) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid S3 key for legal document");
+    }
+
+    const updated = await legalDocumentRepository.replaceDraftFile(versionId, {
+      s3Key: input.s3Key,
+      fileName: input.fileName,
+      contentType: input.contentType,
+      fileSize: input.fileSize,
+      fileHash: input.fileHash ?? null,
+    });
+
+    await this.logEvent(
+      req,
+      adminUserId,
+      existing.legal_document_id,
+      "LEGAL_VERSION_UPDATED",
+      {
+        legal_document_id: existing.legal_document_id,
+        legal_document_version_id: versionId,
+        type: existing.legal_document.type,
+        version: existing.version,
+        file_name: updated.file_name,
+        file_hash: updated.file_hash,
+        s3_key: updated.s3_key,
+        previous_file_name: existing.file_name,
+        replaced_in_place: true,
+      }
+    );
+
+    logger.info(
+      {
+        legalDocumentId: existing.legal_document_id,
+        versionId,
+        version: existing.version,
+      },
+      "Legal document draft PDF replaced in place"
     );
 
     return toVersionResponse(updated);
