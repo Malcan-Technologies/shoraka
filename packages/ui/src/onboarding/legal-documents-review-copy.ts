@@ -17,9 +17,10 @@ export function legalDocumentsReviewCopy(mode: LegalDocumentsReviewMode): {
 } {
   if (mode === "reacceptance") {
     return {
-      title: "Review legal documents",
-      description: "Review and accept the documents below before starting new transactions.",
-      buttonLabel: "Accept documents",
+      title: "Updated legal documents",
+      description:
+        "Some legal documents have been updated. Please review and accept them before starting new transactions. Your account remains active.",
+      buttonLabel: "Accept updated documents",
       nonOwnerDescription:
         "Your organization owner must accept these documents before new transactions can begin.",
     };

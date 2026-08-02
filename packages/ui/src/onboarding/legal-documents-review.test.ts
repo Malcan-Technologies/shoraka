@@ -34,9 +34,10 @@ describe("legal documents review modes and copy", () => {
         "Your organization owner must accept these documents before onboarding can continue.",
     });
     expect(legalDocumentsReviewCopy("reacceptance")).toEqual({
-      title: "Review legal documents",
-      description: "Review and accept the documents below before starting new transactions.",
-      buttonLabel: "Accept documents",
+      title: "Updated legal documents",
+      description:
+        "Some legal documents have been updated. Please review and accept them before starting new transactions. Your account remains active.",
+      buttonLabel: "Accept updated documents",
       nonOwnerDescription:
         "Your organization owner must accept these documents before new transactions can begin.",
     });
