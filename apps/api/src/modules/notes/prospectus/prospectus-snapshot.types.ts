@@ -61,13 +61,18 @@ export interface ProspectusPage2FinancialRawSnapshot {
   /** Flat CTOS / reported Total Liabilities — preferred when present (Application Financial Summary). */
   totlib: string | number | null;
   /**
-   * Flat CTOS profit margin — percent points (e.g. 12.6 = 12.6%).
-   * Preferred over recompute when present (Application Financial Summary).
+   * Net Worth — ROE fallback denominator (PAT ÷ Net Worth).
+   * Never use Paid-Up Capital (`bsqpuc`) for Prospectus ROE.
+   */
+  networth: string | number | null;
+  /**
+   * Flat CTOS profit margin — percent points (PBT Margin).
+   * Frozen for audit; Prospectus Net Profit Margin never uses this field.
    */
   profit_margin: string | number | null;
   /**
    * Flat CTOS return on equity — percent points.
-   * Preferred over recompute when present (Application Financial Summary).
+   * Preferred over recompute when present (Prospectus ROE).
    */
   return_on_equity: string | number | null;
   /** Flat CTOS current ratio — plain multiple. Preferred when present. */

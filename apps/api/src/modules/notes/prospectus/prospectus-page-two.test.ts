@@ -1,7 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NoteStatus } from "@prisma/client";
-import { MARKETPLACE_MIN_COMMIT_MYR } from "@cashsouk/types";
+import {
+  calculateProfitMargin,
+  computeReturnOnEquity,
+  MARKETPLACE_MIN_COMMIT_MYR,
+} from "@cashsouk/types";
 import { AppError } from "../../../lib/http/error-handler";
 import { formatProspectusMoneyMyr } from "./prospectus-main-financial-terms";
 import { PROSPECTUS_DATA_NOT_AVAILABLE } from "./prospectus-note-identity.types";
@@ -11,6 +15,10 @@ import {
   buildProspectusPageTwo,
   mapProspectusPageTwoDataToInput,
 } from "./prospectus-page-two-mapper";
+import {
+  buildProspectusFinancialComparisonMetrics,
+  formatProspectusFinancialPercentFromRatio,
+} from "./prospectus-financial-comparison-metrics";
 import {
   isProspectusNotePublished,
   loadProspectusPageTwoData,
@@ -270,6 +278,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
         bsclstd: 300_000,
         totass: 8_400_000,
         totlib: 3_100_000,
+        networth: null,
         profit_margin: null,
         return_on_equity: null,
         currat: null,
@@ -304,9 +313,202 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(parsed?.financial_comparison.selected_years[0]?.raw_financials.plnpbt).toBeNull();
       expect(parsed?.financial_comparison.selected_years[0]?.raw_financials.bsfatot).toBeNull();
       expect(parsed?.financial_comparison.selected_years[0]?.raw_financials.bsclbank).toBeNull();
+      expect(parsed?.financial_comparison.selected_years[0]?.raw_financials.networth).toBeNull();
       expect(parsed?.financial_comparison.selected_years[0]?.raw_financials.profit_margin).toBeNull();
       expect(parsed?.financial_comparison.selected_years[0]?.raw_financials.return_on_equity).toBeNull();
       expect(parsed?.financial_comparison.selected_years[0]?.raw_financials.currat).toBeNull();
+    });
+
+    it("freezes corrected NPM/ROE inputs; published HTML ignores later CTOS changes", () => {
+      const frozen = buildProspectusPage2Snapshot({
+        financialStatements: {
+          questionnaire: { financial_year_end: "2027-12-31" },
+          unaudited_by_year: {},
+        },
+        ctosFinancials: [
+          {
+            financial_year: 2024,
+            dates: { pldd: "2024-12-31", bsdd: null },
+            account: {
+              turnover: 100,
+              plnpat: 15,
+              profit_margin: 20,
+              networth: 500,
+              bsqpuc: 200,
+              return_on_equity: null,
+              bscatot: 1,
+              curlib: 1,
+            },
+          },
+        ],
+        now: new Date("2026-07-19T12:00:00.000Z"),
+      }).financial_comparison;
+
+      const raw = frozen.selected_years[0]?.raw_financials;
+      expect(raw?.turnover).toBe(100);
+      expect(raw?.plnpat).toBe(15);
+      expect(raw?.profit_margin).toBe(20);
+      expect(raw?.networth).toBe(500);
+      expect(raw?.bsqpuc).toBe(200);
+
+      const previewSource = buildFinancialComparisonSourceFromFrozen(frozen);
+      const previewMetrics = buildProspectusFinancialComparisonMetrics({ source: previewSource });
+      expect(previewMetrics.rows.find((r) => r.key === "netProfitMargin")?.values[0]).toBe(
+        formatProspectusFinancialPercentFromRatio(calculateProfitMargin(15, 100))
+      );
+      expect(previewMetrics.rows.find((r) => r.key === "roe")?.values[0]).toBe(
+        formatProspectusFinancialPercentFromRatio(computeReturnOnEquity(15, 500))
+      );
+
+      const published = buildProspectusPageTwo(
+        mapProspectusPageTwoDataToInput({
+          note: baseNote({
+            status: NoteStatus.PUBLISHED,
+            published_at: new Date("2026-07-01T00:00:00.000Z"),
+            prospectus_snapshot: {
+              page_1: frozenPage1,
+              page_2: { financial_comparison: frozen },
+            },
+          }),
+          liveFinancialStatements: {
+            questionnaire: { financial_year_end: "2027-12-31" },
+            unaudited_by_year: {
+              "2024": {
+                turnover: 999,
+                plnpat: 1,
+                profit_margin: 99,
+                networth: 1,
+                bsqpuc: 1,
+                bscatot: 1,
+                curlib: 1,
+              },
+            },
+          },
+          liveCtosFinancials: [
+            {
+              financial_year: 2024,
+              dates: { pldd: "2024-12-31", bsdd: null },
+              account: {
+                turnover: 999,
+                plnpat: 1,
+                profit_margin: 99,
+                networth: 1,
+                bsqpuc: 1,
+              },
+            },
+          ],
+        })
+      );
+
+      expect(published.financialComparisonSource.years.map((y) => y.year)).toEqual([
+        2022, 2023, 2024,
+      ]);
+      const fy2024 = published.financialComparisonSource.years.find((y) => y.year === 2024);
+      expect(fy2024?.rawFinancials.turnover).toBe(100);
+      expect(fy2024?.rawFinancials.plnpat).toBe(15);
+      expect(fy2024?.rawFinancials.networth).toBe(500);
+      expect(
+        published.financialComparisonMetrics.rows.find((r) => r.key === "netProfitMargin")?.values[2]
+      ).toBe(formatProspectusFinancialPercentFromRatio(calculateProfitMargin(15, 100)));
+      expect(published.financialComparisonMetrics.rows.find((r) => r.key === "roe")?.values[2]).toBe(
+        formatProspectusFinancialPercentFromRatio(computeReturnOnEquity(15, 500))
+      );
+    });
+
+    it("freezes totass/totlib for ROE fallback; published HTML ignores later CTOS changes", () => {
+      const frozen = buildProspectusPage2Snapshot({
+        financialStatements: {
+          questionnaire: { financial_year_end: "2027-12-31" },
+          unaudited_by_year: {},
+        },
+        ctosFinancials: [
+          {
+            financial_year: 2024,
+            dates: { pldd: "2024-12-31", bsdd: null },
+            account: {
+              turnover: 100,
+              plnpat: 100,
+              return_on_equity: null,
+              networth: null,
+              totass: 700,
+              totlib: 200,
+              bsqpuc: 200,
+              bscatot: 1,
+              curlib: 1,
+            },
+          },
+        ],
+        now: new Date("2026-07-19T12:00:00.000Z"),
+      }).financial_comparison;
+
+      const raw = frozen.selected_years[0]?.raw_financials;
+      expect(raw?.plnpat).toBe(100);
+      expect(raw?.return_on_equity).toBeNull();
+      expect(raw?.networth).toBeNull();
+      expect(raw?.totass).toBe(700);
+      expect(raw?.totlib).toBe(200);
+      expect(raw?.bsqpuc).toBe(200);
+
+      const previewSource = buildFinancialComparisonSourceFromFrozen(frozen);
+      const previewMetrics = buildProspectusFinancialComparisonMetrics({ source: previewSource });
+      const expectedRoe = formatProspectusFinancialPercentFromRatio(
+        computeReturnOnEquity(100, 500)
+      );
+      expect(previewMetrics.rows.find((r) => r.key === "roe")?.values[0]).toBe(expectedRoe);
+      expect(previewMetrics.rows.find((r) => r.key === "roe")?.values[0]).not.toBe(
+        formatProspectusFinancialPercentFromRatio(computeReturnOnEquity(100, 200))
+      );
+
+      const published = buildProspectusPageTwo(
+        mapProspectusPageTwoDataToInput({
+          note: baseNote({
+            status: NoteStatus.PUBLISHED,
+            published_at: new Date("2026-07-01T00:00:00.000Z"),
+            prospectus_snapshot: {
+              page_1: frozenPage1,
+              page_2: { financial_comparison: frozen },
+            },
+          }),
+          liveFinancialStatements: {
+            questionnaire: { financial_year_end: "2027-12-31" },
+            unaudited_by_year: {
+              "2024": {
+                turnover: 999,
+                plnpat: 1,
+                networth: 1,
+                totass: 1,
+                totlib: 1,
+                bsqpuc: 1,
+                bscatot: 1,
+                curlib: 1,
+              },
+            },
+          },
+          liveCtosFinancials: [
+            {
+              financial_year: 2024,
+              dates: { pldd: "2024-12-31", bsdd: null },
+              account: {
+                turnover: 999,
+                plnpat: 1,
+                networth: 1,
+                totass: 1,
+                totlib: 1,
+                bsqpuc: 1,
+                return_on_equity: 99,
+              },
+            },
+          ],
+        })
+      );
+
+      const fy2024 = published.financialComparisonSource.years.find((y) => y.year === 2024);
+      expect(fy2024?.rawFinancials.totass).toBe(700);
+      expect(fy2024?.rawFinancials.totlib).toBe(200);
+      expect(fy2024?.rawFinancials.networth).toBeNull();
+      expect(published.financialComparisonMetrics.rows.find((r) => r.key === "roe")?.values[2]).toBe(
+        expectedRoe
+      );
     });
 
     it("creates a valid empty Page 2 snapshot when financials are missing", () => {

@@ -306,7 +306,7 @@ Formulas:
 - `turnover_growth = (targetTurnover - priorTurnover) / priorTurnover`
   - only if prior year is exactly targetYear - 1
 - `profit_margin = plnpat / turnover`
-- `return_on_equity = plnpat / equity(bsqpuc)`
+- `return_on_equity = plnpat / networth` (prefer CTOS flat `return_on_equity` when present; never Paid-Up Capital)
 - `current_ratio = bscatot / curlib`
 - `working_capital = bscatot - curlib`
 

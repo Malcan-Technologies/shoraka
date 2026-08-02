@@ -25,6 +25,7 @@ function yearBlock(input: {
     plnpat: 1_000_000,
     plnpbt: 1_200_000,
     bsqpuc: 2_000_000,
+    networth: 2_000_000,
   };
 }
 

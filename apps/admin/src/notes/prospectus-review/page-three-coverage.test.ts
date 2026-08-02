@@ -6,7 +6,13 @@ jest.mock("@cashsouk/config", () => ({
     })}`,
 }));
 
-import { resolveApplicationFinancialTotalLiabilities, type NoteDetail } from "@cashsouk/types";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import {
+  resolveApplicationFinancialCurrentRatio,
+  resolveApplicationFinancialTotalLiabilities,
+  type NoteDetail,
+} from "@cashsouk/types";
 import {
   buildBalanceSheetResolvedRows,
   buildCoverageResolvedRows,
@@ -115,6 +121,7 @@ const yearRaw: import("@cashsouk/types").ProspectusFrozenFinancialRaw = {
   bsqpuc: 500_000,
   totass: null,
   totlib: null,
+  networth: 500_000,
   profit_margin: null,
   return_on_equity: null,
   currat: null,
@@ -277,6 +284,7 @@ describe("page three coverage verification", () => {
         bsqpuc: null,
         totass: null,
         totlib: null,
+        networth: null,
         profit_margin: null,
         return_on_equity: null,
         currat: null,
@@ -378,6 +386,39 @@ describe("page three coverage verification", () => {
     expect(rows.find((r) => r.label === "Return on Equity")?.value).toBe("15.2%");
   });
 
+  it("uses resolveApplicationFinancialCurrentRatio (prefer currat, else CA÷CL)", () => {
+    const withFlat = buildBalanceSheetResolvedRows(
+      { ...yearRaw, currat: 1.75, bscatot: 400_000, curlib: 150_000 },
+      undefined
+    );
+    expect(withFlat.find((r) => r.label === "Current Ratio")?.value).toBe("1.75x");
+    expect(
+      resolveApplicationFinancialCurrentRatio({
+        currat: 1.75,
+        bscatot: 400_000,
+        curlib: 150_000,
+      })
+    ).toBe(1.75);
+
+    const recomputed = buildBalanceSheetResolvedRows(
+      { ...yearRaw, currat: null, bscatot: 400_000, curlib: 200_000 },
+      undefined
+    );
+    expect(recomputed.find((r) => r.label === "Current Ratio")?.value).toBe("2x");
+
+    const zeroLiabilities = buildBalanceSheetResolvedRows(
+      { ...yearRaw, currat: null, bscatot: 400_000, curlib: 0 },
+      undefined
+    );
+    expect(zeroLiabilities.find((r) => r.label === "Current Ratio")?.value).toBe("—");
+
+    const zeroAssets = buildBalanceSheetResolvedRows(
+      { ...yearRaw, currat: null, bscatot: 0, curlib: 100_000 },
+      undefined
+    );
+    expect(zeroAssets.find((r) => r.label === "Current Ratio")?.value).toBe("0x");
+  });
+
   it("uses frozen year order without independent Application selection", () => {
     expect(selectPageThreeYears(sampleFrozenYears)).toEqual(["2022", "2023", "2024"]);
     expect(selectPageThreeYears([frozenYear(2021), frozenYear(2023)])).toEqual([
@@ -416,6 +457,7 @@ describe("page three coverage verification", () => {
       bsqpuc: null,
       totass: null,
       totlib: null,
+      networth: null,
       profit_margin: null,
       return_on_equity: null,
       currat: null,

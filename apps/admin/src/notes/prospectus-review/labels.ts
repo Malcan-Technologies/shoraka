@@ -45,14 +45,14 @@ export function formatProspectusReviewStatus(
 
 /**
  * Shared Prospectus status pill tone.
- * Only "Approved" uses the green success badge; Draft / Published keep plain outline.
+ * Approved and Published use the green success badge; Draft stays plain outline.
  */
 export function prospectusReviewStatusBadgeClassName(
   status: ProspectusReviewStatus,
   notePublished = false
 ): string | undefined {
   const label = formatProspectusReviewStatus(status, notePublished);
-  if (label === "Approved") {
+  if (label === "Approved" || label === "Published") {
     return workflowBadgeClassName("success");
   }
   return undefined;

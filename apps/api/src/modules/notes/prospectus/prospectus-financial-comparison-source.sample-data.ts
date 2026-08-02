@@ -36,7 +36,7 @@ function ctosYear(
       plnpbt: null,
       plnetdiv: null,
       plyear: null,
-      networth: null,
+      networth: 2_000_000,
       turnover_growth: null,
       profit_margin: null,
       return_on_equity: null,

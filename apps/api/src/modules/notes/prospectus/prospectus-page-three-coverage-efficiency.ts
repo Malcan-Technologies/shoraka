@@ -132,7 +132,9 @@ export function numericValueForCoverageRow(
       return resolveApplicationFinancialReturnOnEquityRatio({
         return_on_equity: fieldFromRaw(raw, "return_on_equity"),
         plnpat: fieldFromRaw(raw, "plnpat"),
-        bsqpuc: fieldFromRaw(raw, "bsqpuc"),
+        networth: fieldFromRaw(raw, "networth"),
+        totass: fieldFromRaw(raw, "totass"),
+        totlib: fieldFromRaw(raw, "totlib"),
       });
     default: {
       const _exhaustive: never = key;
@@ -182,7 +184,9 @@ function valueForRow(
         resolveApplicationFinancialReturnOnEquityRatio({
           return_on_equity: fieldFromRaw(raw, "return_on_equity"),
           plnpat: fieldFromRaw(raw, "plnpat"),
-          bsqpuc: fieldFromRaw(raw, "bsqpuc"),
+          networth: fieldFromRaw(raw, "networth"),
+          totass: fieldFromRaw(raw, "totass"),
+          totlib: fieldFromRaw(raw, "totlib"),
         })
       );
     }

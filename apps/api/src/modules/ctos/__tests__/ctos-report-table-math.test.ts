@@ -9,6 +9,11 @@ import {
   resolveApplicationFinancialReturnOnEquityRatio,
   resolveApplicationFinancialTotalAssets,
   resolveApplicationFinancialTotalLiabilities,
+  resolveFinancialSummaryCtosReturnOnEquityPercent,
+  resolveFinancialSummaryIssuerReturnOnEquityRatio,
+  resolveFinancialSummaryProfitMarginRatio,
+  computeColumnMetrics,
+  financialFormToBsPl,
 } from "@cashsouk/types";
 
 describe("computeTurnoverGrowth", () => {
@@ -50,6 +55,233 @@ describe("computeProfitMargin", () => {
 
   it("returns pat/turnover when valid", () => {
     expect(computeProfitMargin(50, 200)).toBeCloseTo(0.25);
+  });
+});
+
+describe("resolveFinancialSummaryProfitMarginRatio", () => {
+  it("uses plnpat/turnover (15%)", () => {
+    expect(
+      resolveFinancialSummaryProfitMarginRatio({ plnpat: 15, turnover: 100 })
+    ).toBeCloseTo(0.15);
+  });
+
+  it("ignores PBT and never uses CTOS profit_margin semantics", () => {
+    // Even if a caller had PBT 20 vs PAT 15, this helper only sees plnpat.
+    expect(
+      resolveFinancialSummaryProfitMarginRatio({ plnpat: 15, turnover: 100 })
+    ).toBeCloseTo(0.15);
+    expect(
+      resolveFinancialSummaryProfitMarginRatio({ plnpat: 15, turnover: 100 })
+    ).not.toBeCloseTo(0.2);
+  });
+
+  it("returns null for zero or missing turnover", () => {
+    expect(resolveFinancialSummaryProfitMarginRatio({ plnpat: 15, turnover: 0 })).toBeNull();
+    expect(resolveFinancialSummaryProfitMarginRatio({ plnpat: 15, turnover: null })).toBeNull();
+  });
+
+  it("returns 0 when PAT is zero and turnover is valid", () => {
+    expect(resolveFinancialSummaryProfitMarginRatio({ plnpat: 0, turnover: 100 })).toBe(0);
+  });
+
+  it("preserves negative PAT", () => {
+    expect(
+      resolveFinancialSummaryProfitMarginRatio({ plnpat: -25, turnover: 100 })
+    ).toBeCloseTo(-0.25);
+  });
+});
+
+describe("resolveFinancialSummaryIssuerReturnOnEquityRatio", () => {
+  it("uses PAT / Net Worth (20%)", () => {
+    expect(
+      resolveFinancialSummaryIssuerReturnOnEquityRatio({ plnpat: 100, netWorth: 500 })
+    ).toBeCloseTo(0.2);
+  });
+
+  it("does not use Paid-Up Capital as denominator", () => {
+    // Paid-up 200 would wrongly yield 50%; Net Worth 500 yields 20%.
+    expect(
+      resolveFinancialSummaryIssuerReturnOnEquityRatio({ plnpat: 100, netWorth: 500 })
+    ).toBeCloseTo(0.2);
+    expect(
+      resolveFinancialSummaryIssuerReturnOnEquityRatio({ plnpat: 100, netWorth: 500 })
+    ).not.toBeCloseTo(0.5);
+  });
+
+  it("returns null for zero or missing Net Worth", () => {
+    expect(
+      resolveFinancialSummaryIssuerReturnOnEquityRatio({ plnpat: 100, netWorth: 0 })
+    ).toBeNull();
+    expect(
+      resolveFinancialSummaryIssuerReturnOnEquityRatio({ plnpat: 100, netWorth: null })
+    ).toBeNull();
+  });
+
+  it("returns 0 when PAT is zero and Net Worth is valid", () => {
+    expect(
+      resolveFinancialSummaryIssuerReturnOnEquityRatio({ plnpat: 0, netWorth: 500 })
+    ).toBe(0);
+  });
+
+  it("preserves negative values", () => {
+    expect(
+      resolveFinancialSummaryIssuerReturnOnEquityRatio({ plnpat: -50, netWorth: 200 })
+    ).toBeCloseTo(-0.25);
+    expect(
+      resolveFinancialSummaryIssuerReturnOnEquityRatio({ plnpat: 50, netWorth: -200 })
+    ).toBeCloseTo(-0.25);
+  });
+});
+
+describe("resolveFinancialSummaryCtosReturnOnEquityPercent", () => {
+  it("prefers flat CTOS return_on_equity as percent points (20%)", () => {
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: 20,
+        plnpat: 100,
+        networth: 500,
+        computedNetWorth: 500,
+      })
+    ).toBe(20);
+  });
+
+  it("falls back to PAT / Net Worth when flat ROE missing (20%)", () => {
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: 500,
+        computedNetWorth: null,
+      })
+    ).toBeCloseTo(20);
+  });
+
+  it("ignores Paid-Up Capital and uses Net Worth (20%, not 50%)", () => {
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: 500,
+        computedNetWorth: 200,
+      })
+    ).toBeCloseTo(20);
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: 500,
+        computedNetWorth: 200,
+      })
+    ).not.toBeCloseTo(50);
+  });
+
+  it("uses computed Net Worth when CTOS networth is missing", () => {
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: null,
+        computedNetWorth: 500,
+      })
+    ).toBeCloseTo(20);
+  });
+
+  it("returns null when Net Worth is zero", () => {
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: 0,
+        computedNetWorth: 500,
+      })
+    ).toBeNull();
+  });
+
+  it("returns 0 when PAT is zero and Net Worth is valid", () => {
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: null,
+        plnpat: 0,
+        networth: 500,
+        computedNetWorth: null,
+      })
+    ).toBe(0);
+  });
+
+  it("preserves negative arithmetic", () => {
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: null,
+        plnpat: -50,
+        networth: 200,
+        computedNetWorth: null,
+      })
+    ).toBeCloseTo(-25);
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: null,
+        plnpat: 50,
+        networth: -200,
+        computedNetWorth: null,
+      })
+    ).toBeCloseTo(-25);
+  });
+});
+
+describe("financialFormToBsPl + computeColumnMetrics ROE", () => {
+  it("maps equity from networth, never bsqpuc", () => {
+    const { bs } = financialFormToBsPl({
+      plnpat: 100,
+      turnover: 1000,
+      bsqpuc: 200,
+      networth: 500,
+      bscatot: 100,
+      curlib: 50,
+    });
+    expect(bs.equity).toBe(500);
+  });
+
+  it("uses PAT ÷ Net Worth for return_of_equity (20%, not 50% via Paid-Up)", () => {
+    const { bs, pl } = financialFormToBsPl({
+      plnpat: 100,
+      turnover: 1000,
+      bsqpuc: 200,
+      networth: 500,
+      totass: 700,
+      totlib: 200,
+      bscatot: 100,
+      curlib: 50,
+    });
+    const metrics = computeColumnMetrics(bs, pl, null);
+    expect(metrics.return_of_equity).toBeCloseTo(0.2);
+    expect(metrics.return_of_equity).not.toBeCloseTo(0.5);
+  });
+
+  it("falls back to totass − totlib when networth missing", () => {
+    const { bs, pl } = financialFormToBsPl({
+      plnpat: 100,
+      turnover: 1000,
+      bsqpuc: 200,
+      totass: 700,
+      totlib: 200,
+      bscatot: 100,
+      curlib: 50,
+    });
+    expect(bs.equity).toBeNull();
+    const metrics = computeColumnMetrics(bs, pl, null);
+    expect(metrics.networth).toBe(500);
+    expect(metrics.return_of_equity).toBeCloseTo(0.2);
+  });
+
+  it("returns null ROE when Net Worth is zero", () => {
+    const { bs, pl } = financialFormToBsPl({
+      plnpat: 100,
+      turnover: 1000,
+      networth: 0,
+      bscatot: 100,
+      curlib: 50,
+    });
+    expect(computeColumnMetrics(bs, pl, null).return_of_equity).toBeNull();
   });
 });
 
@@ -172,60 +404,203 @@ describe("computeNetWorth", () => {
 });
 
 describe("resolveApplicationFinancialProfitMarginRatio", () => {
-  it("prefers CTOS flat percent points and converts to ratio", () => {
+  it("uses PAT / Turnover (15%)", () => {
     expect(
       resolveApplicationFinancialProfitMarginRatio({
-        profit_margin: 12.6,
-        plnpat: 1,
+        plnpat: 15,
         turnover: 100,
       })
-    ).toBeCloseTo(0.126);
+    ).toBeCloseTo(0.15);
   });
 
-  it("recomputes with missing→0 when flat absent", () => {
+  it("ignores CTOS profit_margin (PBT Margin) and still uses PAT / Turnover", () => {
     expect(
       resolveApplicationFinancialProfitMarginRatio({
-        profit_margin: null,
-        plnpat: null,
-        turnover: 200,
+        profit_margin: 20,
+        plnpat: 15,
+        turnover: 100,
       })
-    ).toBe(0);
+    ).toBeCloseTo(0.15);
+  });
+
+  it("returns null for zero or missing turnover", () => {
     expect(
-      resolveApplicationFinancialProfitMarginRatio({
-        profit_margin: null,
-        plnpat: 50,
-        turnover: 0,
-      })
+      resolveApplicationFinancialProfitMarginRatio({ plnpat: 15, turnover: 0 })
     ).toBeNull();
+    expect(
+      resolveApplicationFinancialProfitMarginRatio({ plnpat: 15, turnover: null })
+    ).toBeNull();
+  });
+
+  it("returns 0 when PAT is zero and turnover is valid", () => {
+    expect(
+      resolveApplicationFinancialProfitMarginRatio({ plnpat: 0, turnover: 100 })
+    ).toBe(0);
+  });
+
+  it("preserves negative PAT", () => {
+    expect(
+      resolveApplicationFinancialProfitMarginRatio({ plnpat: -25, turnover: 100 })
+    ).toBeCloseTo(-0.25);
   });
 });
 
 describe("resolveApplicationFinancialReturnOnEquityRatio", () => {
-  it("prefers CTOS flat percent points and converts to ratio", () => {
+  it("prefers direct return_on_equity when present (20%)", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: 20,
+        plnpat: 100,
+        networth: 500,
+        totass: 700,
+        totlib: 200,
+      })
+    ).toBeCloseTo(0.2);
+  });
+
+  it("uses PAT / Net Worth (20%) when flat ROE absent", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: 500,
+        totass: 700,
+        totlib: 200,
+      })
+    ).toBeCloseTo(0.2);
+  });
+
+  it("derives Net Worth from totass − totlib when direct networth missing", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: null,
+        totass: 700,
+        totlib: 200,
+      })
+    ).toBeCloseTo(0.2);
+  });
+
+  it("does not use Paid-Up Capital as denominator", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: null,
+        totass: 700,
+        totlib: 200,
+      })
+    ).toBeCloseTo(0.2);
+    // bsqpuc=200 would wrongly yield 50% — must not be used
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: null,
+        totass: 700,
+        totlib: 200,
+      })
+    ).not.toBeCloseTo(0.5);
+  });
+
+  it("prefers CTOS flat return_on_equity when present", () => {
     expect(
       resolveApplicationFinancialReturnOnEquityRatio({
         return_on_equity: 8.5,
         plnpat: 1,
-        bsqpuc: 100,
+        networth: 100,
       })
     ).toBeCloseTo(0.085);
   });
 
-  it("recomputes with missing→0 when flat absent", () => {
+  it("returns null for zero or missing resolved Net Worth", () => {
     expect(
       resolveApplicationFinancialReturnOnEquityRatio({
         return_on_equity: null,
-        plnpat: null,
-        bsqpuc: 2_000_000,
+        plnpat: 100,
+        networth: 0,
+        totass: 700,
+        totlib: 200,
+      })
+    ).toBeNull();
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: null,
+        totass: 200,
+        totlib: 200,
+      })
+    ).toBeNull();
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: null,
+        totass: null,
+        totlib: null,
+      })
+    ).toBeNull();
+  });
+
+  it("returns null when one of totass or totlib is missing and networth absent", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: null,
+        totass: 700,
+        totlib: null,
+      })
+    ).toBeNull();
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: null,
+        totass: null,
+        totlib: 200,
+      })
+    ).toBeNull();
+  });
+
+  it("returns 0 when PAT is zero and resolved Net Worth is valid", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 0,
+        networth: 500,
       })
     ).toBe(0);
     expect(
       resolveApplicationFinancialReturnOnEquityRatio({
         return_on_equity: null,
-        plnpat: 100,
-        bsqpuc: 0,
+        plnpat: 0,
+        networth: null,
+        totass: 700,
+        totlib: 200,
       })
-    ).toBeNull();
+    ).toBe(0);
+  });
+
+  it("preserves negative values", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: -50,
+        networth: 200,
+      })
+    ).toBeCloseTo(-0.25);
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 50,
+        networth: null,
+        totass: 100,
+        totlib: 300,
+      })
+    ).toBeCloseTo(-0.25);
   });
 });
 
