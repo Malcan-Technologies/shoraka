@@ -8,6 +8,7 @@ import type { ProspectusFinancialComparisonSource } from "./prospectus-financial
 import {
   PROSPECTUS_INCOME_TREND_INSIGHT_MESSAGES,
   type ProspectusIncomeTrendInsight,
+  type ProspectusIncomeTrendInsightTone,
   type ProspectusIncomeTrendState,
 } from "./prospectus-income-trend-insight.types";
 import { computeProspectusTrendDirection } from "./prospectus-trend-direction";
@@ -64,6 +65,19 @@ function messageForStates(
   return PROSPECTUS_INCOME_TREND_INSIGHT_MESSAGES.mixed;
 }
 
+function toneForStates(
+  revenueState: ProspectusIncomeTrendState,
+  profitState: ProspectusIncomeTrendState
+): ProspectusIncomeTrendInsightTone {
+  if (revenueState === "consistent_up" && profitState === "consistent_up") {
+    return "positive";
+  }
+  if (revenueState === "consistent_down" && profitState === "consistent_down") {
+    return "negative";
+  }
+  return "neutral";
+}
+
 /**
  * Builds the always-visible Income Statement insight from the same selected years
  * as Page 3 Income Statement (turnover + plnpat only).
@@ -75,6 +89,7 @@ export function buildProspectusIncomeTrendInsight(
   if (years.length !== 3 || years.some((year) => year.isPlaceholder === true)) {
     return {
       message: PROSPECTUS_INCOME_TREND_INSIGHT_MESSAGES.unavailable,
+      tone: "neutral",
       revenueState: "unavailable",
       profitState: "unavailable",
     };
@@ -88,6 +103,7 @@ export function buildProspectusIncomeTrendInsight(
 
   return {
     message: messageForStates(revenueState, profitState),
+    tone: toneForStates(revenueState, profitState),
     revenueState,
     profitState,
   };

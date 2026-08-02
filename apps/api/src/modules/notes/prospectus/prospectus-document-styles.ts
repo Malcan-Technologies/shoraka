@@ -374,6 +374,12 @@ table{width:100%;border-collapse:collapse;font-size:8px}th{background:var(--pros
 .prospectus-income-trend-insight{background:var(--light-green);border-radius:7px;padding:9px;display:flex;align-items:center;gap:8px;margin-top:8px;font-size:8px;color:var(--prospectus-text);line-height:1.35}
 .prospectus-income-trend-insight .icon{width:30px;height:30px;background:#1dbb3d;color:#fff;border-radius:50%;padding:5px;box-sizing:border-box;flex:none}
 .prospectus-income-trend-insight .insight-message{flex:1;min-width:0}
+.prospectus-income-trend-insight--positive{background:var(--light-green);color:var(--prospectus-text)}
+.prospectus-income-trend-insight--positive .icon{background:#1dbb3d;color:#fff}
+.prospectus-income-trend-insight--negative{background:#f6e4e3;color:var(--prospectus-text)}
+.prospectus-income-trend-insight--negative .icon{background:#ce201d;color:#fff}
+.prospectus-income-trend-insight--neutral{background:#efefef;color:var(--prospectus-text)}
+.prospectus-income-trend-insight--neutral .icon{background:#7a7a7a;color:#fff}
 .trend-cell{text-align:center;vertical-align:middle;line-height:1}
 .trend-cell .trend-icon{width:15px;height:15px;display:inline-block;vertical-align:middle}
 .trend-cell.trend-favourable{color:var(--prospectus-positive)}

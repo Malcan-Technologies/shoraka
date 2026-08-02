@@ -9,6 +9,9 @@ export type ProspectusIncomeTrendState =
   | "neutral_or_mixed"
   | "unavailable";
 
+/** Visual tone for the insight card — derived from states, never from message text. */
+export type ProspectusIncomeTrendInsightTone = "positive" | "negative" | "neutral";
+
 export const PROSPECTUS_INCOME_TREND_INSIGHT_MESSAGES = {
   both_up:
     "Revenue and profit show consistent growth over the past three financial years.",
@@ -29,6 +32,7 @@ export type ProspectusIncomeTrendInsightMessage =
 
 export interface ProspectusIncomeTrendInsight {
   message: ProspectusIncomeTrendInsightMessage;
+  tone: ProspectusIncomeTrendInsightTone;
   /** Internal classification — not shown in investor UI. */
   revenueState: ProspectusIncomeTrendState;
   /** Internal classification — not shown in investor UI. */
