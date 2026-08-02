@@ -33,6 +33,7 @@ import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { getPortalFromRole } from "../../lib/role-detector";
 import { AuthRepository } from "../auth/repository";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
+import { legalDocumentAcceptanceService } from "../site-documents/acceptance-service";
 import { sendEmail } from "../../lib/email/ses-client";
 import { sendOnboardingEmail } from "../../lib/email/ses";
 import { organizationInvitationTemplate } from "../../lib/email/templates";
@@ -703,7 +704,8 @@ export class OrganizationService {
   }
 
   /**
-   * Accept Terms and Conditions for an organization
+   * Accept Terms and Conditions for an organization.
+   * When published onboarding legal PDFs exist, all required versions must already be ACCEPTED.
    */
   async acceptTnc(
     req: Request,
@@ -720,6 +722,21 @@ export class OrganizationService {
         403,
         "FORBIDDEN",
         "Only the organization owner can accept Terms and Conditions"
+      );
+    }
+
+    const audience = portalType === "investor" ? "INVESTOR" : "ISSUER";
+    const legalStatus = await legalDocumentAcceptanceService.hasCompletedRequiredAcceptances(
+      userId,
+      organizationId,
+      audience
+    );
+
+    if (legalStatus.hasRequiredDocuments && !legalStatus.allAccepted) {
+      throw new AppError(
+        400,
+        "LEGAL_DOCUMENTS_REQUIRED",
+        "All required legal documents must be accepted before continuing"
       );
     }
 
@@ -780,6 +797,7 @@ export class OrganizationService {
           organizationType: organization.type,
           organizationName: organization.name,
           role,
+          legalDocumentsRequired: legalStatus.hasRequiredDocuments,
         },
       });
 

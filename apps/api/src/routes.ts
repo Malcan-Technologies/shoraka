@@ -10,6 +10,8 @@ import { regTankAdminRouter } from "./modules/regtank/admin-controller";
 import { siteDocumentAdminRouter } from "./modules/site-documents/admin-controller";
 import { siteDocumentUserRouter } from "./modules/site-documents/user-controller";
 import { documentLogRouter } from "./modules/site-documents/log-controller";
+import { legalDocumentUserRouter } from "./modules/site-documents/legal-user-controller";
+import { legalDocumentPublicRouter } from "./modules/site-documents/legal-public-controller";
 import { productLogRouter } from "./modules/products/log/controller";
 import { productsRouter } from "./modules/products/controller";
 import { issuerCatalogRouter } from "./modules/products/issuer-catalog-controller";
@@ -171,10 +173,12 @@ export function registerRoutes(app: Application): void {
 
   // Public marketplace preview for landing pages (read-only)
   v1Router.use("/public/marketplace", publicMarketplaceRouter);
+  v1Router.use("/public/legal-documents", legalDocumentPublicRouter);
   v1Router.use("/ekyc", ekycRouter);
 
   // Site documents routes (authenticated users)
   v1Router.use("/documents", requireAuth, siteDocumentUserRouter);
+  v1Router.use("/legal-documents", requireAuth, legalDocumentUserRouter);
 
   // Activity routes
   v1Router.use("/activities", requireAuth, activityRouter);

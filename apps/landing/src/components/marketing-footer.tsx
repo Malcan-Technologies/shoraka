@@ -131,6 +131,12 @@ export function MarketingFooter() {
               </Link>
 
               <Link
+                href="/legal"
+                className="rounded-sm text-primary-foreground outline-none ring-offset-primary hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary-foreground/60 focus-visible:ring-offset-2"
+              >
+                Legal documents
+              </Link>
+              <Link
                 href="#"
                 className="rounded-sm text-primary-foreground outline-none ring-offset-primary hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary-foreground/60 focus-visible:ring-offset-2"
               >
@@ -173,10 +179,10 @@ export function MarketingFooter() {
             <p className="mt-3 text-sm leading-6 text-primary-foreground/80">
               We care about your data in our{" "}
               <Link
-                href="#"
+                href="/legal"
                 className="font-medium text-primary-foreground underline underline-offset-4 hover:opacity-90"
               >
-                privacy policy
+                PDPA notice
               </Link>
               .
             </p>
