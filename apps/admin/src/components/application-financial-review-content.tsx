@@ -34,6 +34,7 @@ import {
   computeHasPendingDirectorShareholder,
   normalizeFinancialStatementsQuestionnaire,
   normalizeDirectorShareholderIdKey,
+  resolveFinancialSummaryCtosReturnOnEquityPercent,
   resolveFinancialSummaryIssuerReturnOnEquityRatio,
   resolveFinancialSummaryProfitMarginRatio,
   type ApplicationPersonRow,
@@ -605,8 +606,20 @@ export function ApplicationFinancialReviewContent({
       }
       case "return_of_equity": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
-        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "return_on_equity")) {
-          return formatNumber(toNum(fs.return_on_equity), 2) + "%";
+        if (specCol.kind === "ctos") {
+          const row = byYear.get(specCol.year);
+          const percent = resolveFinancialSummaryCtosReturnOnEquityPercent({
+            return_on_equity:
+              fs && ctosFlatNumericPresent(fs, "return_on_equity")
+                ? toNum(fs.return_on_equity)
+                : null,
+            plnpat: row?.account.plnpat ?? null,
+            networth:
+              fs && ctosFlatNumericPresent(fs, "networth") ? toNum(fs.networth) : null,
+            computedNetWorth: computed?.networth ?? null,
+          });
+          if (percent == null) return "N/A";
+          return formatNumber(percent, 2) + "%";
         }
         if (!computed || computed.return_of_equity == null) return "N/A";
         return formatNumber(computed.return_of_equity * 100, 2) + "%";

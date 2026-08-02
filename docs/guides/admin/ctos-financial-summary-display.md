@@ -23,7 +23,7 @@ Implementations live in `packages/types/src/ctos-report-table-math.ts` and are w
 | **Net worth** (`networth`) | `totass - totlib` after applying the two rules above (`computeNetWorth`). |
 | **Turnover growth** | `(turnover_this_column - turnover_previous_column) / turnover_previous_column` only if the previous column’s year is exactly one calendar year before this column’s year (`computeTurnoverGrowth`). |
 | **Profit margin** | Always `plnpat / turnover` when turnover ≠ 0 (`computeProfitMargin` / `resolveFinancialSummaryProfitMarginRatio`). **Do not** use CTOS `profit_margin` (that field is PBT Margin). UI shows ratio × 100 as a percent. |
-| **Return on equity** | CTOS column: prefer flat `return_on_equity` when present. Issuer column: `plnpat / networth` (`resolveFinancialSummaryIssuerReturnOnEquityRatio`). UI shows ratio × 100 as a percent. |
+| **Return on equity** | CTOS column: prefer flat `return_on_equity` when present; else `plnpat / networth` (`resolveFinancialSummaryCtosReturnOnEquityPercent`), using CTOS `networth` or computed `totass − totlib`. Never Paid-Up Capital. Issuer column: `plnpat / networth` (`resolveFinancialSummaryIssuerReturnOnEquityRatio`). UI shows percent points. |
 | **Current ratio** | `bscatot / curlib` when current liabilities ≠ 0 (`computeCurrentRatio`). |
 | **Working capital** | `bscatot - curlib` (`computeWorkingCapital`). |
 

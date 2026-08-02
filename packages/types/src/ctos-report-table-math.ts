@@ -127,13 +127,33 @@ export function resolveFinancialSummaryProfitMarginRatio(input: {
 
 /**
  * Financial Summary issuer-submitted Return of Equity: PAT ÷ Net Worth as a decimal ratio.
- * CTOS column keeps preferring flat `return_on_equity` in Admin UI.
  */
 export function resolveFinancialSummaryIssuerReturnOnEquityRatio(input: {
   plnpat: number | null;
   netWorth: number | null;
 }): number | null {
   return computeReturnOnEquity(input.plnpat, input.netWorth);
+}
+
+/**
+ * Financial Summary CTOS Return of Equity as percent points for display (e.g. 20 → "20%").
+ * Prefer flat CTOS `return_on_equity` when present; else PAT ÷ Net Worth × 100.
+ * Net Worth: CTOS `networth` when present, else computed `totass − totlib`.
+ * Never uses Paid-Up Capital (`bsqpuc`).
+ */
+export function resolveFinancialSummaryCtosReturnOnEquityPercent(input: {
+  return_on_equity: number | null;
+  plnpat: number | null;
+  networth: number | null;
+  computedNetWorth: number | null;
+}): number | null {
+  if (isFinitePresent(input.return_on_equity)) {
+    return input.return_on_equity;
+  }
+  const netWorth = isFinitePresent(input.networth) ? input.networth : input.computedNetWorth;
+  const ratio = computeReturnOnEquity(input.plnpat, netWorth);
+  if (ratio == null) return null;
+  return ratio * 100;
 }
 
 /**

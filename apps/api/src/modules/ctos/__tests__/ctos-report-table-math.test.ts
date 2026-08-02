@@ -9,6 +9,7 @@ import {
   resolveApplicationFinancialReturnOnEquityRatio,
   resolveApplicationFinancialTotalAssets,
   resolveApplicationFinancialTotalLiabilities,
+  resolveFinancialSummaryCtosReturnOnEquityPercent,
   resolveFinancialSummaryIssuerReturnOnEquityRatio,
   resolveFinancialSummaryProfitMarginRatio,
 } from "@cashsouk/types";
@@ -127,6 +128,101 @@ describe("resolveFinancialSummaryIssuerReturnOnEquityRatio", () => {
     expect(
       resolveFinancialSummaryIssuerReturnOnEquityRatio({ plnpat: 50, netWorth: -200 })
     ).toBeCloseTo(-0.25);
+  });
+});
+
+describe("resolveFinancialSummaryCtosReturnOnEquityPercent", () => {
+  it("prefers flat CTOS return_on_equity as percent points (20%)", () => {
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: 20,
+        plnpat: 100,
+        networth: 500,
+        computedNetWorth: 500,
+      })
+    ).toBe(20);
+  });
+
+  it("falls back to PAT / Net Worth when flat ROE missing (20%)", () => {
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: 500,
+        computedNetWorth: null,
+      })
+    ).toBeCloseTo(20);
+  });
+
+  it("ignores Paid-Up Capital and uses Net Worth (20%, not 50%)", () => {
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: 500,
+        computedNetWorth: 200,
+      })
+    ).toBeCloseTo(20);
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: 500,
+        computedNetWorth: 200,
+      })
+    ).not.toBeCloseTo(50);
+  });
+
+  it("uses computed Net Worth when CTOS networth is missing", () => {
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: null,
+        computedNetWorth: 500,
+      })
+    ).toBeCloseTo(20);
+  });
+
+  it("returns null when Net Worth is zero", () => {
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: 0,
+        computedNetWorth: 500,
+      })
+    ).toBeNull();
+  });
+
+  it("returns 0 when PAT is zero and Net Worth is valid", () => {
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: null,
+        plnpat: 0,
+        networth: 500,
+        computedNetWorth: null,
+      })
+    ).toBe(0);
+  });
+
+  it("preserves negative arithmetic", () => {
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: null,
+        plnpat: -50,
+        networth: 200,
+        computedNetWorth: null,
+      })
+    ).toBeCloseTo(-25);
+    expect(
+      resolveFinancialSummaryCtosReturnOnEquityPercent({
+        return_on_equity: null,
+        plnpat: 50,
+        networth: -200,
+        computedNetWorth: null,
+      })
+    ).toBeCloseTo(-25);
   });
 });
 
