@@ -10,16 +10,26 @@ describe("portal compact legal sidebar/footer wiring", () => {
     join(__dirname, "hooks/use-compact-portal-legal-links.ts"),
     "utf8"
   );
+  const linksSource = readFileSync(
+    join(__dirname, "lib/compact-portal-legal-links.ts"),
+    "utf8"
+  );
 
-  it("uses the shared availability-aware hook", () => {
+  it("uses the shared availability-aware hook and opens PDFs via public API", () => {
     expect(footerSource).toContain("useCompactPortalLegalLinks");
+    expect(footerSource).toContain("openPublicLegalPdf");
     expect(hookSource).toContain("/v1/public/legal-documents");
     expect(hookSource).toContain("buildCompactPortalLegalLinks");
-    expect(hookSource).toContain("permanentCompactPortalLegalLinks");
+    expect(linksSource).toContain("/v1/public/legal-documents/versions/");
+    expect(linksSource).toContain("/view");
+    expect(linksSource).toContain("/download");
   });
 
-  it("opens links on the landing origin", () => {
-    expect(footerSource).toContain("NEXT_PUBLIC_LANDING_URL");
+  it("does not navigate to /legal or /legal/[slug]", () => {
+    expect(footerSource).not.toContain('"/legal"');
+    expect(footerSource).not.toContain("/legal/");
+    expect(footerSource).not.toContain("NEXT_PUBLIC_LANDING_URL");
+    expect(footerSource).not.toContain("Legal Documents");
   });
 
   it("does not hard-code conditional legal paths in the footer component", () => {

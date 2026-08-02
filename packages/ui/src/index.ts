@@ -154,13 +154,23 @@ export {
 } from "./cashsouk-sidebar-footer";
 export {
   buildCompactPortalLegalLinks,
+  buildLandingFooterLegalLinks,
+  buildPublicLegalPdfLinks,
   permanentCompactPortalLegalLinks,
+  COMPACT_PORTAL_LEGAL_LINK_TYPES,
   CONDITIONAL_COMPACT_LEGAL_LINKS,
+  openPublicLegalPdf,
+  publicLegalViewApiPath,
+  publicLegalDownloadApiPath,
   type CompactPortalLegalLink,
+  type PublicLegalPdfLink,
 } from "./lib/compact-portal-legal-links";
 export {
   useCompactPortalLegalLinks,
+  useLandingFooterLegalLinks,
+  usePublicLegalDocuments,
   clearPublicLegalDocumentsCache,
+  loadPublicLegalDocuments,
 } from "./hooks/use-compact-portal-legal-links";
 export {
   HelpArticleView,

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
-export default function TermsRedirectPage() {
-  redirect("/legal");
+/** Legacy route; legal PDFs open from footer/sidebar via the public API. */
+export default function PrivacyRedirectPage() {
+  redirect("/");
 }

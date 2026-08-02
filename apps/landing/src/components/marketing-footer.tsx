@@ -4,13 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import {
-  LEGAL_DOCUMENT_TYPE_LABELS,
-  LEGAL_DOCUMENT_TYPE_SLUGS,
-  PUBLIC_FOOTER_LEGAL_TYPES,
-  type LegalDocumentType,
-  type PublicLegalDocumentResponse,
-} from "@cashsouk/types";
-import {
   Button,
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +11,8 @@ import {
   DropdownMenuTrigger,
   Input,
   Logo,
+  openPublicLegalPdf,
+  useLandingFooterLegalLinks,
 } from "@cashsouk/ui";
 import {
   BuildingLibraryIcon,
@@ -29,8 +24,6 @@ import {
   RectangleStackIcon,
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 /** Prefer env config; fall back to existing site placeholders only (do not invent new corporate data). */
 const COMPANY = {
@@ -55,28 +48,7 @@ const SOCIAL_LINKS = [
 
 export function MarketingFooter() {
   const year = new Date().getFullYear();
-  const [availableTypes, setAvailableTypes] = React.useState<Set<LegalDocumentType>>(
-    () => new Set()
-  );
-
-  React.useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const res = await fetch(`${API_URL}/v1/public/legal-documents`);
-        const json = await res.json();
-        if (!json.success || cancelled) return;
-        const docs = (json.data.documents ?? []) as PublicLegalDocumentResponse[];
-        setAvailableTypes(new Set(docs.map((doc) => doc.type)));
-      } catch {
-        // Keep footer usable even if legal API is temporarily unavailable.
-      }
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { links: legalLinks } = useLandingFooterLegalLinks();
 
   const onNewsletterSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -138,7 +110,10 @@ export function MarketingFooter() {
                 </a>
               </p>
               <p>
-                <a href={`tel:${COMPANY.phone.replace(/\s+/g, "")}`} className="underline-offset-4 hover:underline">
+                <a
+                  href={`tel:${COMPANY.phone.replace(/\s+/g, "")}`}
+                  className="underline-offset-4 hover:underline"
+                >
                   {COMPANY.phone}
                 </a>
               </p>
@@ -158,9 +133,6 @@ export function MarketingFooter() {
               </Link>
               <Link href="/get-started" className="hover:opacity-90">
                 Start investing
-              </Link>
-              <Link href="/legal" className="hover:opacity-90">
-                Legal documents
               </Link>
             </nav>
 
@@ -185,19 +157,21 @@ export function MarketingFooter() {
               Legal
             </p>
             <nav className="mt-4 flex flex-col gap-3 text-[15px] font-medium" aria-label="Footer legal">
-              {PUBLIC_FOOTER_LEGAL_TYPES.map((type) => {
-                if (!availableTypes.has(type)) return null;
-                return (
-                  <Link
-                    key={type}
-                    href={`/legal/${LEGAL_DOCUMENT_TYPE_SLUGS[type]}`}
-                    className="hover:opacity-90"
-                  >
-                    {LEGAL_DOCUMENT_TYPE_LABELS[type]}
-                  </Link>
-                );
-              })}
-              {availableTypes.size === 0 ? (
+              {legalLinks.map((link) => (
+                <button
+                  key={link.versionId}
+                  type="button"
+                  className="text-left hover:opacity-90"
+                  onClick={() => {
+                    void openPublicLegalPdf(link.versionId, "view").catch(() => {
+                      toast.error("Unable to open this legal document right now.");
+                    });
+                  }}
+                >
+                  {link.label}
+                </button>
+              ))}
+              {legalLinks.length === 0 ? (
                 <span className="text-primary-foreground/70">No public legal documents yet</span>
               ) : null}
             </nav>

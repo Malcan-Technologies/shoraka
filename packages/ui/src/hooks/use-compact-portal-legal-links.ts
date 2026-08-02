@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import type { PublicLegalDocumentResponse } from "@cashsouk/types";
 import {
   buildCompactPortalLegalLinks,
-  permanentCompactPortalLegalLinks,
-  type CompactPortalLegalLink,
+  buildLandingFooterLegalLinks,
+  type PublicLegalPdfLink,
 } from "../lib/compact-portal-legal-links";
 
 type CacheEntry = {
@@ -19,7 +19,9 @@ function apiBaseUrl(): string {
   return (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
 }
 
-async function loadPublicLegalDocuments(apiUrl: string): Promise<PublicLegalDocumentResponse[]> {
+export async function loadPublicLegalDocuments(
+  apiUrl = apiBaseUrl()
+): Promise<PublicLegalDocumentResponse[]> {
   const existing = cacheByApiUrl.get(apiUrl);
   if (existing?.data) return existing.data;
   if (existing?.promise) return existing.promise;
@@ -52,34 +54,51 @@ export function clearPublicLegalDocumentsCache(): void {
   cacheByApiUrl.clear();
 }
 
-/**
- * Shared public legal list for portal sidebar/footer links.
- * Does not toast on failure. While loading / on error, only permanent Legal Documents is returned.
- */
-export function useCompactPortalLegalLinks(): {
-  links: CompactPortalLegalLink[];
+export function usePublicLegalDocuments(): {
+  documents: PublicLegalDocumentResponse[];
   loading: boolean;
 } {
-  const [links, setLinks] = useState<CompactPortalLegalLink[]>(() =>
-    permanentCompactPortalLegalLinks()
-  );
+  const [documents, setDocuments] = useState<PublicLegalDocumentResponse[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    const apiUrl = apiBaseUrl();
-
     setLoading(true);
-    void loadPublicLegalDocuments(apiUrl).then((documents) => {
+    void loadPublicLegalDocuments().then((docs) => {
       if (cancelled) return;
-      setLinks(buildCompactPortalLegalLinks(documents));
+      setDocuments(docs);
       setLoading(false);
     });
-
     return () => {
       cancelled = true;
     };
   }, []);
 
-  return { links, loading };
+  return { documents, loading };
+}
+
+/**
+ * Shared public legal PDF links for portal sidebar/footer.
+ * While loading / on error, returns no links (section can hide).
+ */
+export function useCompactPortalLegalLinks(): {
+  links: PublicLegalPdfLink[];
+  loading: boolean;
+} {
+  const { documents, loading } = usePublicLegalDocuments();
+  return {
+    links: buildCompactPortalLegalLinks(documents),
+    loading,
+  };
+}
+
+export function useLandingFooterLegalLinks(): {
+  links: PublicLegalPdfLink[];
+  loading: boolean;
+} {
+  const { documents, loading } = usePublicLegalDocuments();
+  return {
+    links: buildLandingFooterLegalLinks(documents),
+    loading,
+  };
 }
