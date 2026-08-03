@@ -33,13 +33,11 @@ describe("receipt-purpose", () => {
     );
   });
 
-  it("uses finance-friendly related reference labels", () => {
+  it("uses finance-friendly related reference labels (not Curlec dep_/fee_/pf_)", () => {
     expect(
       getReceiptRelatedReferenceLabel(GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE)
     ).toBe("Application Reference");
-    expect(getReceiptRelatedReferenceLabel(GatewayPaymentPurpose.INVESTOR_DEPOSIT)).toBe(
-      "Deposit Reference"
-    );
+    expect(getReceiptRelatedReferenceLabel(GatewayPaymentPurpose.INVESTOR_DEPOSIT)).toBeNull();
     expect(
       getReceiptRelatedReferenceLabel(GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE)
     ).toBe("Issuer Reference");

@@ -24,8 +24,8 @@ describe("receipt-html-template", () => {
     paymentDateLabel: "03 Aug 2026, 09:55:00 AM",
     curlecPaymentId: "pay_123",
     curlecOrderId: "order_123",
-    relatedReferenceLabel: "Deposit Reference",
-    relatedReference: "dep_abc",
+    relatedReferenceLabel: null,
+    relatedReference: null,
     walletCreditStatus: "Credited",
   });
 
@@ -35,10 +35,10 @@ describe("receipt-html-template", () => {
     expect(html).toContain("Investor Deposit");
     expect(html).toContain("RM 1,000.00");
     expect(html).toContain("TOTAL PAID");
-    expect(html).toContain("Deposit Reference");
-    expect(html).toContain("dep_abc");
     expect(html).toContain("Curlec Payment ID");
     expect(html).toContain("Curlec Order ID");
+    expect(html).not.toContain("Deposit Reference");
+    expect(html).not.toContain("dep_");
     expect(html).toContain("Wallet Credit Status");
     expect(html).toContain("Credited");
     expect(html).toContain("This is a computer-generated receipt");

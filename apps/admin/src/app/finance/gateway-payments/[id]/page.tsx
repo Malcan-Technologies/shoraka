@@ -342,12 +342,17 @@ export default function GatewayPaymentDetailPage() {
                               {payment.receipt.curlecPaymentId ?? "—"}
                             </p>
                           </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">
-                              {payment.receipt.relatedReferenceLabel ?? "Related reference"}
-                            </p>
-                            <p className="font-mono text-sm">{payment.receipt.relatedReference}</p>
-                          </div>
+                          {payment.receipt.relatedReferenceLabel &&
+                          payment.receipt.relatedReference ? (
+                            <div>
+                              <p className="text-xs text-muted-foreground">
+                                {payment.receipt.relatedReferenceLabel}
+                              </p>
+                              <p className="font-mono text-sm">
+                                {payment.receipt.relatedReference}
+                              </p>
+                            </div>
+                          ) : null}
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <Button

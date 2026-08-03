@@ -231,7 +231,11 @@ export async function getGatewayPaymentDetail(
           status: payment.receipt.status,
           hasPdf: Boolean(payment.receipt.pdf_s3_key),
           paymentDate: payment.receipt.payment_date.toISOString(),
-          relatedReference: payment.receipt.related_reference,
+          relatedReference:
+            payment.receipt.related_reference?.trim() &&
+            getReceiptRelatedReferenceLabel(payment.receipt.payment_purpose)
+              ? payment.receipt.related_reference
+              : null,
           relatedReferenceLabel: getReceiptRelatedReferenceLabel(
             payment.receipt.payment_purpose
           ),

@@ -120,7 +120,7 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
   payerEmail: string | null;
   payerPhone: string | null;
   relatedEntityId: string;
-  relatedReference: string;
+  relatedReference: string | null;
   walletCredited: boolean;
 } {
   if (payment.purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT) {
@@ -130,23 +130,16 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
     }
     const companyName = buildCompanyName(org);
     const personName = resolveInvestorExpectedName(org);
-    const metadataReceipt =
-      payment.metadata &&
-      typeof payment.metadata === "object" &&
-      !Array.isArray(payment.metadata) &&
-      typeof (payment.metadata as { receipt?: unknown }).receipt === "string"
-        ? (payment.metadata as { receipt: string }).receipt.trim()
-        : null;
 
-    // Deposit Reference = Curlec order receipt string when present; never label curlec_payment_id as deposit ref.
-    // COMPLETED is only set after wallet credit + ledger in creditCompletedDeposit (same transaction).
+    // Do not surface Curlec order receipt strings (dep_…). Gateway refs on the PDF are
+    // Curlec Order ID / Curlec Payment ID only. COMPLETED means wallet already credited.
     return {
       payerName: payment.payer_name ?? personName,
       payerCompanyName: companyName,
       payerEmail: org.owner?.email ?? null,
       payerPhone: org.phone_number ?? org.owner?.phone ?? null,
       relatedEntityId: org.id,
-      relatedReference: metadataReceipt || payment.id,
+      relatedReference: null,
       walletCredited: payment.status === GatewayPaymentStatus.COMPLETED,
     };
   }
@@ -168,6 +161,7 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
       payerEmail: org.owner?.email ?? null,
       payerPhone: org.phone_number ?? org.owner?.phone ?? null,
       relatedEntityId: org.id,
+      // Issuer org identity — not the Curlec order receipt (fee_…).
       relatedReference: org.registration_number?.trim() || org.name?.trim() || org.id,
       walletCredited: false,
     };
@@ -195,7 +189,7 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
     payerEmail: org?.owner?.email ?? null,
     payerPhone: org?.phone_number ?? org?.owner?.phone ?? null,
     relatedEntityId: application.id,
-    // Temporary until standardized application references exist — do not invent another system.
+    // Application id — not the Curlec order receipt (pf_…).
     relatedReference: application.id,
     walletCredited: false,
   };
@@ -296,7 +290,7 @@ async function createPendingReceiptRow(
           curlec_order_id: payment.curlec_order_id,
           related_entity_type: relatedEntityType,
           related_entity_id: snapshot.relatedEntityId,
-          related_reference: snapshot.relatedReference,
+          related_reference: snapshot.relatedReference ?? "",
           wallet_credited: snapshot.walletCredited,
           status: GatewayPaymentReceiptStatus.PENDING,
         },
@@ -390,7 +384,7 @@ async function generatePdfForExistingReceipt(
       curlecPaymentId: receipt.curlec_payment_id,
       curlecOrderId: receipt.curlec_order_id,
       relatedReferenceLabel: getReceiptRelatedReferenceLabel(receipt.payment_purpose),
-      relatedReference: receipt.related_reference,
+      relatedReference: receipt.related_reference?.trim() || null,
       walletCreditStatus:
         receipt.payment_purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT &&
         receipt.wallet_credited

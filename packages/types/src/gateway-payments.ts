@@ -80,8 +80,8 @@ export interface GatewayPaymentReceiptSummaryDto {
   status: GatewayPaymentReceiptStatus;
   hasPdf: boolean;
   paymentDate: string;
-  relatedReference: string;
-  relatedReferenceLabel?: string;
+  relatedReference: string | null;
+  relatedReferenceLabel?: string | null;
   amount: number;
   currency: string;
   payerName: string | null;

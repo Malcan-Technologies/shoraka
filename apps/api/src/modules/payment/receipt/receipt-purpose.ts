@@ -32,17 +32,18 @@ export function getReceiptRelatedEntityType(
   }
 }
 
-/** Visible PDF/admin label for the related-reference field (not a new reference system). */
+/** Visible PDF/admin label for optional related-reference (never Curlec dep_/fee_/pf_ receipts). */
 export function getReceiptRelatedReferenceLabel(
   purpose: GatewayPaymentPurpose
-): string {
+): string | null {
   switch (purpose) {
     case GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE:
       return "Issuer Reference";
     case GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE:
       return "Application Reference";
     case GatewayPaymentPurpose.INVESTOR_DEPOSIT:
-      return "Deposit Reference";
+      // Investor deposits use Curlec Order ID / Payment ID only.
+      return null;
     default: {
       const _exhaustive: never = purpose;
       return _exhaustive;

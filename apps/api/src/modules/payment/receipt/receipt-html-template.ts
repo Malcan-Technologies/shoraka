@@ -16,8 +16,8 @@ export type ReceiptPdfTemplateData = {
   paymentDateLabel: string;
   curlecPaymentId: string | null;
   curlecOrderId: string;
-  relatedReferenceLabel: string;
-  relatedReference: string;
+  relatedReferenceLabel: string | null;
+  relatedReference: string | null;
   walletCreditStatus: string | null;
 };
 
@@ -65,7 +65,9 @@ export function buildPaymentReceiptHtml(data: ReceiptPdfTemplateData): string {
     row("Payment Date and Time", data.paymentDateLabel),
     row("Curlec Payment ID", data.curlecPaymentId),
     row("Curlec Order ID", data.curlecOrderId),
-    row(data.relatedReferenceLabel, data.relatedReference),
+    data.relatedReferenceLabel && data.relatedReference
+      ? row(data.relatedReferenceLabel, data.relatedReference)
+      : "",
     data.walletCreditStatus ? row("Wallet Credit Status", data.walletCreditStatus) : "",
   ].join("");
 

@@ -66,7 +66,7 @@ function mapReceipt(receipt: {
     curlecOrderId: receipt.curlec_order_id,
     relatedEntityType: receipt.related_entity_type,
     relatedEntityId: receipt.related_entity_id,
-    relatedReference: receipt.related_reference,
+    relatedReference: receipt.related_reference?.trim() || null,
     relatedReferenceLabel: getReceiptRelatedReferenceLabel(receipt.payment_purpose),
     walletCredited: receipt.wallet_credited,
     hasPdf: Boolean(receipt.pdf_s3_key),
