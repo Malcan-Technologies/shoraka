@@ -44,6 +44,13 @@ describe("receipt-html-template", () => {
     expect(html).toContain("This is a computer-generated receipt");
   });
 
+  it("embeds CashSouk branding in the header", () => {
+    expect(html).toContain("brand-logo");
+    expect(html).toContain("data:image/svg+xml;base64,");
+    expect(html).toContain("#8A0304");
+    expect(html).toContain("CashSouk Sdn Bhd");
+  });
+
   it("does not include repayment-only fields", () => {
     expect(html).not.toContain("instalment");
     expect(html).not.toContain("late fee");
