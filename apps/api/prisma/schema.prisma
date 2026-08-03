@@ -1288,7 +1288,7 @@ model GatewayPaymentReceipt {
   @@index([payment_date])
   @@index([payer_name])
   @@index([payer_company_name])
-  @@index([related_entity_type, related_entity_id])
+  @@index([related_entity_type, related_entity_id], map: "gateway_payment_receipts_related_entity_type_related_entity_idx")
   @@map("gateway_payment_receipts")
 }
 

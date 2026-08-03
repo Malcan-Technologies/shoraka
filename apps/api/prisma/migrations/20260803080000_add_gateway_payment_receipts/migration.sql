@@ -70,7 +70,7 @@ CREATE INDEX "gateway_payment_receipts_payer_name_idx" ON "gateway_payment_recei
 CREATE INDEX "gateway_payment_receipts_payer_company_name_idx" ON "gateway_payment_receipts"("payer_company_name");
 
 -- CreateIndex
-CREATE INDEX "gateway_payment_receipts_related_entity_type_related_entity_id_idx" ON "gateway_payment_receipts"("related_entity_type", "related_entity_id");
+CREATE INDEX "gateway_payment_receipts_related_entity_type_related_entity_idx" ON "gateway_payment_receipts"("related_entity_type", "related_entity_id");
 
 -- AddForeignKey
 ALTER TABLE "gateway_payment_receipts" ADD CONSTRAINT "gateway_payment_receipts_gateway_payment_id_fkey" FOREIGN KEY ("gateway_payment_id") REFERENCES "gateway_payments"("id") ON DELETE CASCADE ON UPDATE CASCADE;
