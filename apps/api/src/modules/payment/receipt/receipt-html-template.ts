@@ -6,6 +6,7 @@
 import {
   getProspectusOfficialLogoDataUri,
 } from "../../notes/prospectus/prospectus-header-logo";
+import { PROSPECTUS_HEADER_TAGLINE } from "../../notes/prospectus/prospectus-static-copy";
 import type { ReceiptMerchantDetails } from "./receipt-merchant-config";
 
 export type ReceiptPdfTemplateData = {
@@ -148,11 +149,12 @@ export function buildPaymentReceiptHtml(data: ReceiptPdfTemplateData): string {
       margin: 0 0 10px;
     }
 
-    .merchant-legal {
-      font-size: 12.5px;
-      font-weight: 700;
-      color: #18181b;
-      margin: 0 0 4px;
+    .brand-tagline {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      color: #6F4924;
+      margin: 0 0 8px;
     }
 
     .merchant-line {
@@ -308,7 +310,7 @@ export function buildPaymentReceiptHtml(data: ReceiptPdfTemplateData): string {
     <div class="header">
       <div class="brand-block">
         ${buildBrandMarkHtml()}
-        <div class="merchant-legal">${escapeHtml(data.merchant.legalName)}</div>
+        <div class="brand-tagline">${escapeHtml(PROSPECTUS_HEADER_TAGLINE)}</div>
         ${merchantExtra}
       </div>
       <div class="title-card">

@@ -48,7 +48,8 @@ describe("receipt-html-template", () => {
     expect(html).toContain("brand-logo");
     expect(html).toContain("data:image/svg+xml;base64,");
     expect(html).toContain("#8A0304");
-    expect(html).toContain("CashSouk Sdn Bhd");
+    expect(html).toContain("Invest in Growth. Earn with Purpose.");
+    expect(html).not.toContain('class="merchant-legal"');
   });
 
   it("does not include repayment-only fields", () => {
@@ -65,7 +66,7 @@ describe("receipt-html-template", () => {
       receiptDateLabel: "date",
       merchant: {
         legalName: "CashSouk <script>",
-        registrationNumber: null,
+        registrationNumber: "REG<script>",
         licenceNumber: null,
         address: null,
         telephone: null,
@@ -88,7 +89,7 @@ describe("receipt-html-template", () => {
       walletCreditStatus: null,
     });
 
-    expect(escaped).toContain("CashSouk &lt;script&gt;");
+    expect(escaped).toContain("REG&lt;script&gt;");
     expect(escaped).toContain("&lt;b&gt;Ali&lt;/b&gt;");
     expect(escaped).not.toContain("<script>");
   });
