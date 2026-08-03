@@ -95,15 +95,22 @@ export function AcceptanceDocumentsConfig({
     const next = items.filter((_, i) => i !== index);
     setItems(next);
     persist(next);
-    setPendingFiles((prev) => {
-      const out: Record<number, File> = {};
-      for (const [k, v] of Object.entries(prev)) {
-        const ki = Number(k);
-        if (ki < index) out[ki] = v;
-        else if (ki > index) out[ki - 1] = v;
-      }
-      return out;
-    });
+
+    // Reindex local pending files and mirror into the parent map so Save
+    // does not upload stale acceptance_documents_${index} slots.
+    const reindexed: Record<number, File> = {};
+    for (const [k, v] of Object.entries(pendingFiles)) {
+      const ki = Number(k);
+      if (ki < index) reindexed[ki] = v;
+      else if (ki > index) reindexed[ki - 1] = v;
+    }
+    for (const ki of Object.keys(pendingFiles).map(Number)) {
+      onPendingTemplateChange?.(ki, null);
+    }
+    for (const [k, v] of Object.entries(reindexed)) {
+      onPendingTemplateChange?.(Number(k), v);
+    }
+    setPendingFiles(reindexed);
   };
 
   const handleTemplateSelect = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {

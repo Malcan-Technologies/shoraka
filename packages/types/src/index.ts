@@ -253,6 +253,17 @@ export interface Application {
   supporting_documents?: JsonValue | null;
   /** Offer-acceptance uploads (e.g. Board Resolution); separate from supporting_documents. */
   acceptance_documents?: JsonValue | null;
+  /** Present on GET /applications/:id when review rows are loaded. */
+  application_review_items?: Array<{
+    item_type: string;
+    item_id: string;
+    status: string;
+  }>;
+  application_review_remarks?: Array<{
+    scope: string;
+    scope_key: string;
+    remark: string;
+  }>;
   declarations?: JsonValue | null;
   review_and_submit?: JsonValue | null;
   created_at: string;

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { AMENDMENT_CALLOUT_CONTENT } from "./amendment-callout-styles";
+import { AMENDMENT_CALLOUT_CONTENT, AMENDMENT_INLINE_FEEDBACK_LIST } from "./amendment-callout-styles";
 
 const DEFAULT_MAX_ITEMS = 6;
 
@@ -12,6 +12,8 @@ type AmendmentExpandableBulletListProps = {
   maxItemsWhenCollapsed?: number;
   /** When false, all lines render and no toggle is shown (e.g. modal uses outer scroll). */
   collapsible?: boolean;
+  /** Smaller type for inline field remarks (parent row already highlighted). */
+  compact?: boolean;
   listClassName?: string;
   itemClassName?: string;
   emptyFallback?: string;
@@ -21,6 +23,7 @@ export function AmendmentExpandableBulletList({
   lines,
   maxItemsWhenCollapsed = DEFAULT_MAX_ITEMS,
   collapsible = true,
+  compact = false,
   listClassName,
   itemClassName,
   emptyFallback = "No details provided.",
@@ -40,8 +43,9 @@ export function AmendmentExpandableBulletList({
     <div className="min-w-0">
       <ul
         className={cn(
-          AMENDMENT_CALLOUT_CONTENT,
-          "list-disc space-y-1.5 pl-4 text-foreground",
+          compact ? AMENDMENT_INLINE_FEEDBACK_LIST : AMENDMENT_CALLOUT_CONTENT,
+          compact ? "list-disc space-y-0.5 pl-4" : "list-disc space-y-1.5 pl-4 text-foreground",
+          !compact && "text-foreground",
           isEmpty && "text-muted-foreground",
           listClassName
         )}
@@ -55,7 +59,10 @@ export function AmendmentExpandableBulletList({
       {needsToggle ? (
         <button
           type="button"
-          className="mt-2 text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded"
+          className={cn(
+            "font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded",
+            compact ? "mt-1 text-xs" : "mt-2 text-sm"
+          )}
           onClick={() => setExpanded((e) => !e)}
           aria-expanded={expanded}
         >

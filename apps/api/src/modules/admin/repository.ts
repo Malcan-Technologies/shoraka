@@ -2898,6 +2898,21 @@ export class AdminRepository {
   }
 
   /**
+   * Mark a committed REQUEST_AMENDMENT remark (immediate acceptance change, not draft buffer).
+   */
+  async markReviewRemarkSubmitted(applicationId: string, scope: string, scopeKey: string) {
+    return prisma.applicationReviewRemark.updateMany({
+      where: {
+        application_id: applicationId,
+        scope,
+        scope_key: scopeKey,
+        action_type: "REQUEST_AMENDMENT",
+      },
+      data: { submitted_at: new Date() },
+    });
+  }
+
+  /**
    * Remove draft amendment (delete remark, caller must revert item/section status)
    */
   async removeDraftAmendment(applicationId: string, scope: string, scopeKey: string) {

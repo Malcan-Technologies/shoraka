@@ -29,6 +29,7 @@ import { createApiClient, getLiveSigningEnvelopeRefetchInterval, useAuthToken, u
 import { useAcceptInvoiceOffer, useRejectContractOffer, useRejectInvoiceOffer, useApplication } from "@/hooks/use-applications";
 import { SupportingDocumentsStep } from "@/app/(application-flow)/applications/steps/supporting-documents-step";
 import { SupportingDocumentsSkeleton } from "@/app/(application-flow)/applications/components/supporting-documents-skeleton";
+import { AcceptanceDocumentChangesRequestedBanner } from "@/app/(application-flow)/applications/components/amendments/acceptance-document-change-callout";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import {
@@ -769,6 +770,48 @@ export function ReviewOfferModal({
         (invoice as { offer_details?: Record<string, unknown> } | undefined)?.offer_details);
   const od = offerDetails as Record<string, unknown> | null | undefined;
   const acceptanceStatus = resolveOfferAcceptanceStatus(offerDetails);
+  const isAcceptanceChangesRequested = acceptanceStatus === "CHANGES_REQUESTED";
+
+  type ReviewItemRow = { item_type: string; item_id: string; status: string };
+  type ReviewRemarkRow = { scope?: string; scope_key?: string; remark?: string };
+
+  const acceptanceChangeRemarks = React.useMemo(() => {
+    if (!isAcceptanceChangesRequested || !applicationRecord) return [];
+    const remarks =
+      (applicationRecord as { application_review_remarks?: ReviewRemarkRow[] })
+        .application_review_remarks ?? [];
+    return remarks
+      .filter(
+        (r) => r.scope === "item" && r.scope_key?.startsWith("acceptance_documents:")
+      )
+      .map((r) => ({
+        scope: "item" as const,
+        scope_key: r.scope_key ?? "",
+        remark: r.remark ?? "",
+      }));
+  }, [applicationRecord, isAcceptanceChangesRequested]);
+
+  const acceptanceFlaggedItems = React.useMemo(() => {
+    if (!isAcceptanceChangesRequested || !applicationRecord) return undefined;
+    const items =
+      (applicationRecord as { application_review_items?: ReviewItemRow[] })
+        .application_review_items ?? [];
+    const set = new Set<string>();
+    for (const item of items) {
+      if (
+        item.item_type === "document" &&
+        item.status === "AMENDMENT_REQUESTED" &&
+        item.item_id.startsWith("acceptance_documents:")
+      ) {
+        set.add(item.item_id);
+      }
+    }
+    if (set.size === 0) return undefined;
+    return new Map<string, Set<string>>([["acceptance_documents", set]]);
+  }, [applicationRecord, isAcceptanceChangesRequested]);
+
+  const acceptanceFlaggedCount = acceptanceFlaggedItems?.get("acceptance_documents")?.size ?? 0;
+
   const phaseDeadline = React.useMemo(
     () => getOfferPhaseDeadlineDisplay(offerDetails),
     [offerDetails]
@@ -2174,6 +2217,9 @@ export function ReviewOfferModal({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {usesAcceptanceFlow && isAcceptanceChangesRequested && acceptanceFlaggedCount > 0 ? (
+                <AcceptanceDocumentChangesRequestedBanner flaggedCount={acceptanceFlaggedCount} />
+              ) : null}
               {signersLocked ? (
                 <p className="text-sm text-muted-foreground">
                   Documents are locked for review after signing emails were sent. Void the package to
@@ -2190,6 +2236,9 @@ export function ReviewOfferModal({
                   onDataChange={handlePostDocsDataChange}
                   readOnly={signersLocked}
                   documentRowLayout="stacked"
+                  isAcceptanceChangeMode={isAcceptanceChangesRequested}
+                  amendmentRemarks={acceptanceChangeRemarks}
+                  flaggedItems={acceptanceFlaggedItems}
                 />
               ) : null}
               {!signersLocked && !isLoadingFrozenProductWorkflow && !postDocsReady ? (
@@ -2633,7 +2682,7 @@ export function ReviewOfferModal({
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium text-muted-foreground">
-                      {useSigningStepper ? "Signing progress" : "Offer progress"}
+                      Progress
                     </CardTitle>
                   </CardHeader>
                   <CardContent>

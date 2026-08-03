@@ -51,6 +51,12 @@ import {
   assertSigningDeadlineOpen,
   signingDeadlinePatchOnApprove,
 } from "../../lib/phase-deadlines";
+import {
+  assertAcceptanceDocumentIndexEditableInChangesRequested,
+  collectFlaggedAcceptanceDocumentIndices,
+  findAcceptanceDocumentIndexForS3Key,
+  findChangedAcceptanceDocumentIndices,
+} from "./acceptance-document-issuer-lock";
 import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
 import {
   upsertLatestOrganizationFinancialStatementsFromApplication,
@@ -523,6 +529,51 @@ export class ApplicationService {
         "Post-application documents are locked after the signing package is sent. Void the package to make changes."
       );
     }
+  }
+
+  private resolveOfferAcceptancePhase(
+    application: Application | null
+  ): string | null | undefined {
+    if (!application) return null;
+    const contract = (application as { contract?: { offer_details?: unknown } | null }).contract;
+    const invoices =
+      (application as { invoices?: { contract_id?: string | null; offer_details?: unknown }[] })
+        .invoices ?? [];
+    const standaloneInvoiceOffer = invoices.find(
+      (invoice) => !invoice.contract_id && invoice.offer_details
+    );
+    const offer =
+      (contract?.offer_details as Record<string, unknown> | null) ??
+      (standaloneInvoiceOffer?.offer_details as Record<string, unknown> | null) ??
+      null;
+    return getOfferAcceptanceFromOfferDetails(offer)?.status ?? null;
+  }
+
+  private getFlaggedAcceptanceDocumentIndices(application: Application | null): Set<number> {
+    const reviewItems = (
+      application as {
+        application_review_items?: {
+          item_type: string;
+          item_id: string;
+          status: string;
+        }[];
+      } | null
+    )?.application_review_items;
+    return collectFlaggedAcceptanceDocumentIndices(reviewItems);
+  }
+
+  private async verifyAcceptanceDocumentIndexEditable(
+    application: Application | null,
+    acceptanceDocIndex: number
+  ): Promise<void> {
+    await this.verifyAcceptanceDocumentsEditable(application);
+    if (this.resolveOfferAcceptancePhase(application) !== "CHANGES_REQUESTED") {
+      return;
+    }
+    assertAcceptanceDocumentIndexEditableInChangesRequested(
+      acceptanceDocIndex,
+      this.getFlaggedAcceptanceDocumentIndices(application)
+    );
   }
 
   private async verifyAcceptanceDocumentsEditable(
@@ -1098,6 +1149,20 @@ export class ApplicationService {
       }
     }
 
+    if (fieldName === "acceptance_documents") {
+      if (this.resolveOfferAcceptancePhase(application) === "CHANGES_REQUESTED") {
+        const changedIndices = findChangedAcceptanceDocumentIndices(
+          (application as { acceptance_documents?: unknown }).acceptance_documents,
+          input.data
+        );
+        const flagged = this.getFlaggedAcceptanceDocumentIndices(application);
+        for (const idx of changedIndices) {
+          assertAcceptanceDocumentIndexEditableInChangesRequested(idx, flagged);
+        }
+      }
+      return this.repository.update(id, updateData);
+    }
+
     if (fieldName === "supporting_documents") {
       const existingKeys = this.extractS3KeysFromSupportingDocuments(application.supporting_documents);
       const incomingKeys = this.extractS3KeysFromSupportingDocuments(input.data);
@@ -1349,7 +1414,7 @@ export class ApplicationService {
       if (!row) {
         throw new AppError(400, "VALIDATION_ERROR", "Invalid acceptance document slot");
       }
-      await this.verifyAcceptanceDocumentsEditable(application);
+      await this.verifyAcceptanceDocumentIndexEditable(application, params.acceptanceDocIndex!);
     } else if (isSupportingDocsWorkflowUpload) {
       workflow = await this.getProductWorkflowForApplication(application);
       this.verifyApplicationEditable(application);
@@ -1447,7 +1512,18 @@ export class ApplicationService {
       const acceptanceKeys = this.extractS3KeysFromAcceptanceDocuments(
         (application as { acceptance_documents?: unknown }).acceptance_documents
       );
-      if (!supportingKeys.has(s3Key) && !acceptanceKeys.has(s3Key)) {
+      const isAcceptanceKey = acceptanceKeys.has(s3Key);
+      if (isAcceptanceKey) {
+        await this.verifyAcceptanceDocumentsEditable(application);
+        const idx = findAcceptanceDocumentIndexForS3Key(
+          (application as { acceptance_documents?: unknown }).acceptance_documents,
+          s3Key
+        );
+        if (idx !== null) {
+          await this.verifyAcceptanceDocumentIndexEditable(application, idx);
+        }
+      }
+      if (!supportingKeys.has(s3Key) && !isAcceptanceKey) {
         throw new AppError(
           403,
           "EDIT_NOT_ALLOWED",

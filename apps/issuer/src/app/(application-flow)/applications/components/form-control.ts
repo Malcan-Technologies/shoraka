@@ -91,6 +91,30 @@ export const applicationFlowAmendmentTargetSurfaceClassName = cn(
   "border border-primary/35 bg-primary/[0.07] ring-1 ring-inset ring-primary/20"
 );
 
+/** Flagged acceptance doc with a new file selected but not yet saved to the server. */
+export const applicationFlowAmendmentPendingTableRowClassName = cn(
+  "text-foreground",
+  "bg-amber-500/[0.08] hover:bg-amber-500/[0.1] ring-1 ring-inset ring-amber-600/25",
+  "[&>td]:bg-amber-500/[0.08] hover:[&>td]:bg-amber-500/[0.1]"
+);
+
+export const applicationFlowAmendmentPendingSurfaceClassName = cn(
+  "text-foreground",
+  "border border-amber-600/30 bg-amber-500/[0.08] ring-1 ring-inset ring-amber-600/20"
+);
+
+/** Flagged acceptance doc replaced — ready to resubmit. */
+export const applicationFlowAmendmentResolvedTableRowClassName = cn(
+  "text-foreground",
+  "bg-emerald-500/[0.08] hover:bg-emerald-500/[0.1] ring-1 ring-inset ring-emerald-600/25",
+  "[&>td]:bg-emerald-500/[0.08] hover:[&>td]:bg-emerald-500/[0.1]"
+);
+
+export const applicationFlowAmendmentResolvedSurfaceClassName = cn(
+  "text-foreground",
+  "border border-emerald-600/30 bg-emerald-500/[0.08] ring-1 ring-inset ring-emerald-600/20"
+);
+
 /** Section title (h2/h3) — contract-details pattern. */
 export const applicationFlowSectionTitleClassName =
   "text-base font-semibold text-foreground";

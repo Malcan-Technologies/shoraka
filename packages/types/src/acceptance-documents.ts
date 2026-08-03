@@ -171,8 +171,36 @@ export function acceptanceDocumentsReady(
   return true;
 }
 
-function slugForDocName(name: string): string {
+export function slugForAcceptanceDocName(name: string): string {
   return name.replace(/[^a-z0-9]+/gi, "_").slice(0, 32) || "doc";
+}
+
+/** @deprecated use slugForAcceptanceDocName */
+function slugForDocName(name: string): string {
+  return slugForAcceptanceDocName(name);
+}
+
+/** Item review keys: `acceptance_documents:<index>:<slug>`. */
+export function isAcceptanceDocumentItemId(itemId: string): boolean {
+  return itemId.startsWith("acceptance_documents:");
+}
+
+export function parseAcceptanceDocumentItemIndex(itemId: string): number | null {
+  if (!isAcceptanceDocumentItemId(itemId)) return null;
+  const idx = Number.parseInt(itemId.split(":")[1] ?? "", 10);
+  return Number.isFinite(idx) ? idx : null;
+}
+
+/** Match admin item scope_key to an issuer acceptance row (slug suffix may differ). */
+export function acceptanceDocScopeKeyMatchesRow(
+  scopeKey: string,
+  documentIndex: number,
+  slug: string
+): boolean {
+  const sk = scopeKey.trim().toLowerCase();
+  const exact = `acceptance_documents:${documentIndex}:${slug}`.toLowerCase();
+  if (sk === exact) return true;
+  return sk.startsWith(`acceptance_documents:${documentIndex}:`);
 }
 
 /** Review item scope keys for acceptance docs that have uploads: acceptance_documents:<index>:<slug> */

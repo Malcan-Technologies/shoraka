@@ -9770,6 +9770,9 @@ export class AdminService {
       ReviewStepStatus.AMENDMENT_REQUESTED,
       reviewerUserId
     );
+    // Clear stale draft rows before persisting the committed remark — running after upsert
+    // would delete the remark we just wrote (removeDraftAmendment targets submitted_at=null).
+    await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
     await repository.upsertReviewRemark(
       applicationId,
       "item",
@@ -9778,6 +9781,9 @@ export class AdminService {
       remark,
       reviewerUserId
     );
+    if (isAcceptanceDoc) {
+      await repository.markReviewRemarkSubmitted(applicationId, "item", itemId);
+    }
     await this.logReviewActivity(
       applicationId,
       "item",
@@ -9788,8 +9794,6 @@ export class AdminService {
       remark,
       logContext
     );
-
-    await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
 
     if (itemType === "invoice") {
       const invoiceId = this.resolveInvoiceIdFromScopeKey(
