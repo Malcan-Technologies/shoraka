@@ -11,6 +11,7 @@ import {
   type SigningCloudEncryptedResponse,
 } from "../../lib/signingcloud/crypto";
 import { logger } from "../../lib/logger";
+import { validateSigningRedirectUrl } from "../../lib/signing/redirect-url";
 
 const PDF_PAGE_HEIGHT_PT = 841.89;
 
@@ -134,17 +135,7 @@ export async function uploadPdfToSigningCloudMultiSigner(params: {
  * http through if your tenant allows it.
  */
 export function sanitizeSigningCloudBackUrl(url: string | null | undefined): string | null {
-  if (!url?.trim()) return null;
-  const trimmed = url.trim();
-  try {
-    const u = new URL(trimmed);
-    const allowHttp = process.env.SIGNINGCLOUD_ALLOW_HTTP_BACK_URL === "true";
-    if (u.protocol === "https:") return u.toString();
-    if (u.protocol === "http:" && allowHttp) return u.toString();
-  } catch {
-    return null;
-  }
-  return null;
+  return validateSigningRedirectUrl(url);
 }
 
 /** Default 25m — SigningCloud tokens are ~30m; refresh before expiry. Override with SIGNINGCLOUD_ACCESS_TOKEN_TTL_MS. */

@@ -373,7 +373,87 @@ export class SigningRepository {
         where: { envelope_id: envelopeId, status: { notIn: ["COMPLETED"] } },
         data: { status: "VOIDED" },
       }),
+      prisma.signingRecipient.updateMany({
+        where: {
+          envelope_id: envelopeId,
+          status: { notIn: ["SIGNED", "DECLINED"] },
+        },
+        data: { status: "DECLINED", declined_at: new Date() },
+      }),
+      prisma.signingAssignment.updateMany({
+        where: {
+          envelope_id: envelopeId,
+          status: { notIn: ["SIGNED", "DECLINED"] },
+        },
+        data: { status: "DECLINED" },
+      }),
     ]);
+  }
+
+  async updateEnvelopeStatusIfCurrent(
+    envelopeId: string,
+    expectedStatus: SigningEnvelopeWithGraph["status"],
+    nextStatus: SigningEnvelopeWithGraph["status"],
+    completed: boolean
+  ): Promise<boolean> {
+    const result = await prisma.signingEnvelope.updateMany({
+      where: { id: envelopeId, status: expectedStatus },
+      data: {
+        status: nextStatus,
+        ...(completed ? { completed_at: new Date() } : {}),
+      },
+    });
+    return result.count > 0;
+  }
+
+  async findRecipientByReturnSessionId(returnSessionId: string): Promise<{
+    recipientId: string;
+    envelope: SigningEnvelopeWithGraph;
+  } | null> {
+    const recipient = await prisma.signingRecipient.findFirst({
+      where: {
+        metadata: {
+          path: ["last_signing_session", "returnSessionId"],
+          equals: returnSessionId,
+        },
+      },
+      include: {
+        envelope: { include: GRAPH_INCLUDE },
+      },
+    });
+    if (!recipient) return null;
+    return {
+      recipientId: recipient.id,
+      envelope: recipient.envelope as SigningEnvelopeWithGraph,
+    };
+  }
+
+  async setRecipientEmailDeliveryStatus(
+    recipientId: string,
+    status: "sent" | "failed",
+    errorMessage?: string | null
+  ): Promise<void> {
+    const existing = await prisma.signingRecipient.findUnique({
+      where: { id: recipientId },
+      select: { metadata: true },
+    });
+    const base =
+      existing?.metadata && typeof existing.metadata === "object" && !Array.isArray(existing.metadata)
+        ? { ...(existing.metadata as Record<string, unknown>) }
+        : {};
+    await prisma.signingRecipient.update({
+      where: { id: recipientId },
+      data: {
+        metadata: {
+          ...base,
+          email_delivery: {
+            status,
+            at: new Date().toISOString(),
+            ...(errorMessage ? { error: errorMessage.slice(0, 500) } : {}),
+          },
+        },
+      },
+    });
   }
 
   async touchRecipientReminder(recipientId: string): Promise<void> {

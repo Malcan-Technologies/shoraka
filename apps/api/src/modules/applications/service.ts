@@ -1797,37 +1797,39 @@ export class ApplicationService {
       allDocKeys,
       reviewItems
     );
-    for (const itemId of docKeys) {
-      await tx.applicationReviewItem.upsert({
-        where: {
-          application_id_item_type_item_id: {
+    await Promise.all(
+      docKeys.map(async (itemId) => {
+        await tx.applicationReviewItem.upsert({
+          where: {
+            application_id_item_type_item_id: {
+              application_id: applicationId,
+              item_type: "document",
+              item_id: itemId,
+            },
+          },
+          create: {
             application_id: applicationId,
             item_type: "document",
             item_id: itemId,
+            status: ReviewStepStatus.PENDING,
+            reviewer_user_id: null,
+            reviewed_at: null,
           },
-        },
-        create: {
-          application_id: applicationId,
-          item_type: "document",
-          item_id: itemId,
-          status: ReviewStepStatus.PENDING,
-          reviewer_user_id: null,
-          reviewed_at: null,
-        },
-        update: {
-          status: ReviewStepStatus.PENDING,
-          reviewer_user_id: null,
-          reviewed_at: null,
-        },
-      });
-      await tx.applicationReviewRemark.deleteMany({
-        where: {
-          application_id: applicationId,
-          scope: "item",
-          scope_key: itemId,
-        },
-      });
-    }
+          update: {
+            status: ReviewStepStatus.PENDING,
+            reviewer_user_id: null,
+            reviewed_at: null,
+          },
+        });
+        await tx.applicationReviewRemark.deleteMany({
+          where: {
+            application_id: applicationId,
+            scope: "item",
+            scope_key: itemId,
+          },
+        });
+      })
+    );
     if (allDocKeys.length === 0 && !workflowHasAcceptanceDocuments(workflow)) {
       return;
     }

@@ -42,6 +42,14 @@ function mapDocument(doc: SigningDocument): SigningDocumentDto {
   };
 }
 
+function readEmailDeliveryStatus(metadata: unknown): "sent" | "failed" | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const delivery = (metadata as Record<string, unknown>).email_delivery;
+  if (!delivery || typeof delivery !== "object") return null;
+  const status = (delivery as Record<string, unknown>).status;
+  return status === "sent" || status === "failed" ? status : null;
+}
+
 function mapRecipient(
   recipient: SigningRecipient,
   kycStatus: SigningKycStatus = "PENDING"
@@ -56,6 +64,7 @@ function mapRecipient(
     status: recipient.status,
     kyc_status: kycStatus,
     completed_at: recipient.completed_at ? recipient.completed_at.toISOString() : null,
+    email_delivery_status: readEmailDeliveryStatus(recipient.metadata),
   };
 }
 

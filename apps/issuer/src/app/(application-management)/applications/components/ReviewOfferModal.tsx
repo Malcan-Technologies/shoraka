@@ -76,6 +76,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SigningProgressMatrix } from "@/components/signing/signing-progress-matrix";
 import { SigningProgressStepper, type SigningOfferStep } from "@/components/signing/signing-progress-stepper";
 import {
+  compareSigningOfferStepOrder,
   getCurrentSigningOfferStepId,
   buildAcceptanceDocumentsStepConfig,
   getSigningOfferSteps,
@@ -874,6 +875,8 @@ export function ReviewOfferModal({
   const [isSyncingSigning, setIsSyncingSigning] = React.useState(false);
   // Viewed step stickiness (D-05–D-07): domain progress stays in currentSigningStepId.
   const [viewedStepId, setViewedStepId] = React.useState<SigningOfferStepId | null>(null);
+  /** When true, the user picked an earlier step in the sidebar — do not auto-advance the main panel. */
+  const viewStepPinnedRef = React.useRef(false);
   const isOtherDeclineReason = selectedDeclineReason === OTHER_ISSUER_DECLINE_REASON_VALUE;
 
   React.useEffect(() => {
@@ -1282,7 +1285,8 @@ export function ReviewOfferModal({
         return;
       }
       await invalidateOfferAcceptanceQueries();
-      setViewedStepId(null);
+      viewStepPinnedRef.current = false;
+      setViewedStepId("awaiting_review");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not submit offer acceptance");
     } finally {
@@ -1400,6 +1404,8 @@ export function ReviewOfferModal({
     setAcceptSigningLoading(true);
     try {
       await sendSigningPackage();
+      viewStepPinnedRef.current = false;
+      setViewedStepId("signing");
     } catch (e) {
       const err = getApiErrorDetails(e, "Could not send signing package");
       toast.error("Could not send signing package", {
@@ -1585,6 +1591,7 @@ export function ReviewOfferModal({
   // D-06: recompute viewed step on each open/reopen (applicationId change), never restore prior session.
   React.useEffect(() => {
     setViewedStepId(null);
+    viewStepPinnedRef.current = false;
     postDocsSaveRef.current = undefined;
     setPostDocsState({ areAllFilesUploaded: false, hasPendingChanges: false });
   }, [applicationId]);
@@ -1611,10 +1618,18 @@ export function ReviewOfferModal({
     envelopeCompleted,
   ]);
 
-  // D-13: if domain retreats (e.g. required doc removed), snap viewed step back — never auto-advance (D-14).
+  // Snap viewed step when domain retreats, or auto-advance when domain moves forward (e.g. after Confirm).
   React.useEffect(() => {
     if (viewedStepId == null) return;
     if (!isSigningOfferStepReachable(viewedStepId, currentSigningStepId, stepShellInput)) {
+      setViewedStepId(currentSigningStepId);
+      viewStepPinnedRef.current = false;
+      return;
+    }
+    if (
+      !viewStepPinnedRef.current &&
+      compareSigningOfferStepOrder(currentSigningStepId, viewedStepId, stepShellInput) > 0
+    ) {
       setViewedStepId(currentSigningStepId);
     }
   }, [viewedStepId, currentSigningStepId, stepShellInput]);
@@ -1650,22 +1665,30 @@ export function ReviewOfferModal({
     async (targetStepId: SigningOfferStepId) => {
       if (targetStepId === displaySigningStepId) return;
       if (displaySigningStepId !== "documents" || signersLocked) {
+        viewStepPinnedRef.current =
+          compareSigningOfferStepOrder(targetStepId, currentSigningStepId, stepShellInput) < 0;
         setViewedStepId(targetStepId);
         return;
       }
       if (deferAcceptanceDocsUntilSubmit) {
+        viewStepPinnedRef.current =
+          compareSigningOfferStepOrder(targetStepId, currentSigningStepId, stepShellInput) < 0;
         setViewedStepId(targetStepId);
         return;
       }
       const saved = await ensurePostApplicationDocumentsSaved();
       if (!saved) return;
+      viewStepPinnedRef.current =
+        compareSigningOfferStepOrder(targetStepId, currentSigningStepId, stepShellInput) < 0;
       setViewedStepId(targetStepId);
     },
     [
+      currentSigningStepId,
       deferAcceptanceDocsUntilSubmit,
       displaySigningStepId,
       ensurePostApplicationDocumentsSaved,
       signersLocked,
+      stepShellInput,
     ]
   );
 
@@ -1673,6 +1696,8 @@ export function ReviewOfferModal({
   const handleSigningStepSelect = (stepId: SigningOfferStepId) => {
     if (stepId === displaySigningStepId) return;
     if (!isSigningOfferStepReachable(stepId, currentSigningStepId, stepShellInput)) return;
+    viewStepPinnedRef.current =
+      compareSigningOfferStepOrder(stepId, currentSigningStepId, stepShellInput) < 0;
     void navigateFromUploadDocuments(stepId);
   };
 

@@ -5,6 +5,7 @@ import { runCtosKybRetryJob } from "./ctos-kyb-retry";
 import { runNoteListingExpiryJob } from "./note-listing-expiry";
 import { runSigningEnvelopeExpiryJob } from "./signing-envelope-expiry";
 import { runAcceptanceSigningExpiryJob } from "./acceptance-signing-expiry";
+import { runSigningReconcileJob } from "./signing-reconcile";
 import { runGatewayStuckOrderPollerJob } from "./gateway-stuck-order-poller";
 import { runGatewaySettlementReconForConfiguredAccounts } from "./gateway-settlement-recon";
 import { JOB_LOCK_KEYS, withAdvisoryLock } from "./with-advisory-lock";
@@ -124,6 +125,17 @@ export function initJobs() {
     } catch (error) {
       logger.error({ error }, "Failed to run gateway settlement recon job");
     }
+  });
+
+  // Reconcile signing envelopes missing PDFs and stale trust-return sessions.
+  cron.schedule("*/30 * * * *", async () => {
+    await withAdvisoryLock(JOB_LOCK_KEYS.SIGNING_RECONCILE, async () => {
+      try {
+        await runSigningReconcileJob();
+      } catch (error) {
+        logger.error({ error }, "Failed to run signing reconcile job");
+      }
+    });
   });
 
   logger.info("Background jobs initialized");

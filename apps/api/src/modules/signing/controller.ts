@@ -4,6 +4,7 @@
 import { Request, Response, NextFunction, Router } from "express";
 import { z } from "zod";
 import { requireAuth, requirePermission } from "../../lib/auth/middleware";
+import { externalSigningRateLimiter } from "../../lib/http/rate-limit";
 import { AppError } from "../../lib/http/error-handler";
 import { signingService } from "./service";
 import { ActivityPortal } from "../applications/logs/types";
@@ -191,9 +192,16 @@ async function startExternalSigning(req: Request, res: Response, next: NextFunct
       await signingService.startRecipientSigningForExternalToken({
         accessToken: req.params.accessToken,
         documentId: body.documentId,
-        redirectUrl: body.redirectUrl ?? null,
       })
     );
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function confirmSigningReturn(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(res, await signingService.confirmRecipientSignedForReturnSession(req.params.returnSessionId));
   } catch (e) {
     next(e);
   }
@@ -307,6 +315,7 @@ export function createSigningAdminRouter(): Router {
 
 export function createSigningRouter(): Router {
   const router = Router();
+  router.use("/external", externalSigningRateLimiter);
   router.get("/external/:accessToken", getExternalEnvelope);
   router.post("/external/:accessToken/verify", verifyExternalAccessCode);
   router.post("/external/:accessToken/reset-access", resetExternalAccessGate);
@@ -314,6 +323,7 @@ export function createSigningRouter(): Router {
   router.post("/external/:accessToken/start-signing", startExternalSigning);
   router.post("/external/:accessToken/confirm-signed", confirmExternalSigned);
   router.post("/external/:accessToken/sync-from-provider", syncExternalFromProvider);
+  router.post("/return/:returnSessionId/confirm", externalSigningRateLimiter, confirmSigningReturn);
   router.post("/applications/:applicationId/envelopes", requireAuth, createIssuerEnvelope);
   router.get(
     "/applications/:applicationId/product-workflow",

@@ -30,10 +30,11 @@ import {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const ISSUER_ORIGIN =
   typeof window !== "undefined" ? window.location.origin : process.env.NEXT_PUBLIC_ISSUER_URL ?? "";
+const TOKEN_FOR_RETURN_PREFIX = "signing:tokenForReturn:";
 
 /** Marks that this tab just left for SigningCloud; cleared after return handling. */
-function pendingConfirmStorageKey(accessToken: string): string {
-  return `signing:pendingConfirm:${accessToken}`;
+function pendingConfirmStorageKey(returnSessionId: string): string {
+  return `signing:pendingConfirm:${returnSessionId}`;
 }
 
 type Step = "access-code" | "ekyc" | "sign" | "done" | "closed";
@@ -54,6 +55,22 @@ function getErrorMessage(response: unknown, fallback: string): string {
   return fallback;
 }
 
+function isClosedPackageResponse(response: unknown): boolean {
+  if (
+    response &&
+    typeof response === "object" &&
+    "success" in response &&
+    response.success === false &&
+    "error" in response &&
+    response.error &&
+    typeof response.error === "object"
+  ) {
+    const code = (response.error as { code?: unknown }).code;
+    if (code === "SIGNING_ENVELOPE_CLOSED") return true;
+  }
+  return getErrorMessage(response, "").toLowerCase().includes("signing package is closed");
+}
+
 export default function ExternalSigningPage() {
   const params = useParams<{ token: string }>();
   const token = params.token;
@@ -71,8 +88,10 @@ export default function ExternalSigningPage() {
     documentId: string;
     documentName: string;
   } | null>(null);
-  const [isPollingReturn, setIsPollingReturn] = React.useState(false);
   const returnHandledRef = React.useRef(false);
+  const ekycStartAttemptedRef = React.useRef(false);
+  const ekycStartFailuresRef = React.useRef(0);
+  const MAX_EKYC_START_FAILURES = 3;
 
   const applySession = React.useCallback(
     (
@@ -114,6 +133,12 @@ export default function ExternalSigningPage() {
   const fetchSession = React.useCallback(async (): Promise<ExternalSigningSessionDto | null> => {
     const response = await apiClient.getExternalSigningEnvelope(token);
     if (!response.success) {
+      if (isClosedPackageResponse(response)) {
+        setError(null);
+        setSession(null);
+        setStep("closed");
+        return null;
+      }
       setError(getErrorMessage(response, "This signing link is not available."));
       setSession(null);
       return null;
@@ -134,84 +159,34 @@ export default function ExternalSigningPage() {
     }
   }, [applySession, fetchSession]);
 
-  // On mount: return from SigningCloud → confirm-signed; otherwise sync from provider then load.
+  // On mount: sync from provider so progress catches up (return confirm runs on /signing/return).
   React.useEffect(() => {
     if (returnHandledRef.current) return;
     returnHandledRef.current = true;
 
-    const storageKey = pendingConfirmStorageKey(token);
-    let pendingDoc: { documentId: string; documentName: string } | null = null;
-    try {
-      const raw = sessionStorage.getItem(storageKey);
-      if (raw) {
-        const parsed = JSON.parse(raw) as { documentId?: string; documentName?: string };
-        if (parsed.documentId) {
-          pendingDoc = {
-            documentId: parsed.documentId,
-            documentName: parsed.documentName?.trim() || "Document",
-          };
-        }
-        sessionStorage.removeItem(storageKey);
-      }
-    } catch {
-      sessionStorage.removeItem(storageKey);
-    }
-
-    if (!pendingDoc) {
-      // Revisit: pull live SigningCloud statuses so progress catches up without sessionStorage.
-      setIsLoading(true);
-      apiClient
-        .syncExternalSigningFromProvider(token)
-        .then((response) => {
-          if (response.success) {
-            applySession(response.data);
-            return null;
-          }
-          return fetchSession();
-        })
-        .then((data) => {
-          if (data) applySession(data);
-        })
-        .catch(() => {
-          setError("This signing link is not available.");
-        })
-        .finally(() => setIsLoading(false));
-      return;
-    }
-
-    setJustSigned(pendingDoc);
     setIsLoading(true);
-    setIsPollingReturn(true);
-
-    const finish = (data: ExternalSigningSessionDto | null) => {
-      setIsPollingReturn(false);
-      setIsLoading(false);
-      if (!data) {
-        setStep("done");
-        return;
-      }
-      applySession(data, { preferDone: true, signedDoc: pendingDoc });
-    };
-
-    // Sync from SigningCloud Get Document Detail (per-signer signstate), then show terminal.
     apiClient
-      .confirmExternalEnvelopeSigned(token, { documentId: pendingDoc.documentId })
+      .syncExternalSigningFromProvider(token)
       .then((response) => {
         if (response.success) {
-          finish(response.data);
-          return;
+          applySession(response.data);
+          return null;
         }
-        // Confirm/sync failed — still show terminal; fall back to session read.
-        fetchSession()
-          .then((data) => finish(data))
-          .catch(() => finish(null));
+        if (isClosedPackageResponse(response)) {
+          setError(null);
+          setStep("closed");
+          return null;
+        }
+        return fetchSession();
+      })
+      .then((data) => {
+        if (data) applySession(data);
       })
       .catch(() => {
-        fetchSession()
-          .then((data) => finish(data))
-          .catch(() => finish(null));
-      });
-  }, [apiClient, applySession, fetchSession, loadSession, token]);
+        setError("This signing link is not available.");
+      })
+      .finally(() => setIsLoading(false));
+  }, [apiClient, applySession, fetchSession, token]);
 
   const recipient = session?.envelope.recipients.find(
     (item) => item.id === session.recipient_id
@@ -299,8 +274,18 @@ export default function ExternalSigningPage() {
   };
 
   React.useEffect(() => {
-    if (step !== "ekyc" || ekycCaptureUrl || isSubmitting) return;
-    startEkyc().catch(() => undefined);
+    if (step !== "ekyc" || ekycCaptureUrl || isSubmitting || ekycStartAttemptedRef.current) return;
+    ekycStartAttemptedRef.current = true;
+    startEkyc()
+      .catch((e) => {
+        ekycStartFailuresRef.current += 1;
+        ekycStartAttemptedRef.current = false;
+        if (ekycStartFailuresRef.current >= MAX_EKYC_START_FAILURES) {
+          setError(
+            e instanceof Error ? e.message : "Could not start identity verification after several attempts."
+          );
+        }
+      });
   }, [step, ekycCaptureUrl, isSubmitting]);
 
   React.useEffect(() => {
@@ -339,38 +324,28 @@ export default function ExternalSigningPage() {
     setIsSubmitting(true);
     setError(null);
     try {
-      try {
-        sessionStorage.setItem(
-          pendingConfirmStorageKey(token),
-          JSON.stringify({
-            documentId: pendingAssignment.document.id,
-            documentName: pendingAssignment.document.name,
-          })
-        );
-      } catch {
-        // sessionStorage may be unavailable; return UX falls back to normal load.
-      }
-
       const response = await apiClient.startExternalEnvelopeSigning(token, {
         documentId: pendingAssignment.document.id,
-        redirectUrl: window.location.href,
       });
       if (response.success && response.data.signingUrl) {
+        const returnSessionId = response.data.returnSessionId;
+        try {
+          sessionStorage.setItem(
+            pendingConfirmStorageKey(returnSessionId),
+            JSON.stringify({
+              documentId: pendingAssignment.document.id,
+              documentName: pendingAssignment.document.name,
+            })
+          );
+          sessionStorage.setItem(`${TOKEN_FOR_RETURN_PREFIX}${returnSessionId}`, token);
+        } catch {
+          // sessionStorage may be unavailable; return UX falls back to normal load.
+        }
         window.location.assign(response.data.signingUrl);
         return;
       }
-      try {
-        sessionStorage.removeItem(pendingConfirmStorageKey(token));
-      } catch {
-        // ignore
-      }
       setError(getErrorMessage(response, "Could not start signing."));
     } catch (e) {
-      try {
-        sessionStorage.removeItem(pendingConfirmStorageKey(token));
-      } catch {
-        // ignore
-      }
       setError(e instanceof Error ? e.message : "Could not start signing.");
     } finally {
       setIsSubmitting(false);
@@ -482,6 +457,10 @@ export default function ExternalSigningPage() {
                 Try again
               </Button>
             </>
+          ) : step === "closed" && !session ? (
+            <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+              You can close this page.
+            </div>
           ) : (
             <>
               {error ? (
@@ -584,9 +563,6 @@ export default function ExternalSigningPage() {
                       ? "You still have another document to sign in this package."
                       : "You can close this page."}
                   </div>
-                  {isPollingReturn ? (
-                    <p className="text-center text-xs text-muted-foreground">Updating status…</p>
-                  ) : null}
                   {hasMoreToSign ? (
                     <Button
                       type="button"

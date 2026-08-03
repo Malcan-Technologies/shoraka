@@ -822,6 +822,8 @@ export interface SigningRecipientDto {
   status: SigningRecipientStatus;
   kyc_status: SigningKycStatus;
   completed_at: string | null;
+  /** Present for issuer/admin views after send — tracks invitation email delivery. */
+  email_delivery_status?: "sent" | "failed" | null;
 }
 
 export interface SigningEnvelopeDto {

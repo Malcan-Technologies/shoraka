@@ -159,7 +159,7 @@ async function loadOfferSentRows(): Promise<OfferRow[]> {
   `);
 
   return [
-    ...contracts.map((c) => ({
+    ...(contracts ?? []).map((c) => ({
       kind: "contract" as const,
       id: c.id,
       application_id: c.application_id,
@@ -168,7 +168,82 @@ async function loadOfferSentRows(): Promise<OfferRow[]> {
       product_version: c.product_version,
       financing_structure: c.financing_structure,
     })),
-    ...invoices.map((i) => ({
+    ...(invoices ?? []).map((i) => ({
+      kind: "invoice" as const,
+      id: i.id,
+      application_id: i.application_id,
+      offer_details: i.offer_details,
+      product_id: i.product_id,
+      product_version: i.product_version,
+      financing_structure: i.financing_structure,
+      contract_id: i.contract_id,
+    })),
+  ];
+}
+
+/** Transitional path for offers sent before offer_acceptance was stamped. */
+async function loadLegacyOfferSentRows(): Promise<OfferRow[]> {
+  const contracts = await prisma.$queryRaw<
+    {
+      id: string;
+      offer_details: Prisma.JsonValue;
+      application_id: string;
+      product_id: string | null;
+      product_version: number | null;
+      financing_structure: Prisma.JsonValue | null;
+    }[]
+  >(Prisma.sql`
+    SELECT c.id,
+           c.offer_details,
+           a.id as application_id,
+           a.financing_type->>'product_id' as product_id,
+           a.product_version,
+           a.financing_structure
+    FROM contracts c
+    INNER JOIN applications a ON a.contract_id = c.id
+    WHERE c.status::text = 'OFFER_SENT'
+      AND c.offer_details IS NOT NULL
+      AND c.offer_details->'offer_acceptance' IS NULL
+      AND c.offer_details->>'expires_at' IS NOT NULL
+  `);
+
+  const invoices = await prisma.$queryRaw<
+    {
+      id: string;
+      offer_details: Prisma.JsonValue;
+      application_id: string;
+      contract_id: string | null;
+      product_id: string | null;
+      product_version: number | null;
+      financing_structure: Prisma.JsonValue | null;
+    }[]
+  >(Prisma.sql`
+    SELECT i.id,
+           i.offer_details,
+           i.application_id,
+           i.contract_id,
+           a.financing_type->>'product_id' as product_id,
+           a.product_version,
+           a.financing_structure
+    FROM invoices i
+    INNER JOIN applications a ON a.id = i.application_id
+    WHERE i.status::text = 'OFFER_SENT'
+      AND i.offer_details IS NOT NULL
+      AND i.offer_details->'offer_acceptance' IS NULL
+      AND i.offer_details->>'expires_at' IS NOT NULL
+  `);
+
+  return [
+    ...(contracts ?? []).map((c) => ({
+      kind: "contract" as const,
+      id: c.id,
+      application_id: c.application_id,
+      offer_details: c.offer_details,
+      product_id: c.product_id,
+      product_version: c.product_version,
+      financing_structure: c.financing_structure,
+    })),
+    ...(invoices ?? []).map((i) => ({
       kind: "invoice" as const,
       id: i.id,
       application_id: i.application_id,
@@ -513,67 +588,100 @@ export async function runAcceptanceSigningExpiryJob(): Promise<AcceptanceSigning
     const now = new Date();
     const reminderHour = await loadOfferDeadlineReminderHour();
     const rows = await loadOfferSentRows();
+    const rowErrors: string[] = [];
 
     for (const row of rows) {
-      const offer = (row.offer_details as Record<string, unknown> | null) ?? null;
-      if (!offer) continue;
-      const acceptance = getOfferAcceptanceFromOfferDetails(offer);
-      if (!acceptance) continue;
+      try {
+        const offer = (row.offer_details as Record<string, unknown> | null) ?? null;
+        if (!offer) continue;
+        const acceptance = getOfferAcceptanceFromOfferDetails(offer);
+        if (!acceptance) continue;
 
-      const workflow = await loadWorkflowForApplication(row);
+        const workflow = await loadWorkflowForApplication(row);
 
-      await processRemindersForRow({
-        row,
-        acceptance,
-        offer,
-        workflow,
-        now,
-        reminderHour,
-        result,
-      });
-
-      const freshOffer =
-        row.kind === "contract"
-          ? await prisma.contract.findUnique({
-              where: { id: row.id },
-              select: { offer_details: true, status: true },
-            })
-          : await prisma.invoice.findUnique({
-              where: { id: row.id },
-              select: { offer_details: true, status: true },
-            });
-      if (!freshOffer || freshOffer.status !== "OFFER_SENT" || !freshOffer.offer_details) continue;
-      const freshAcceptance = parseOfferAcceptanceDetails(
-        (freshOffer.offer_details as Record<string, unknown>).offer_acceptance
-      );
-      if (!freshAcceptance) continue;
-
-      if (
-        ACCEPTANCE_ACTIVE.has(freshAcceptance.status) &&
-        typeof freshAcceptance.acceptance_expires_at === "string" &&
-        isPhaseDeadlineExpired(freshAcceptance.acceptance_expires_at, now)
-      ) {
-        await expireOffer({
+        await processRemindersForRow({
           row,
-          systemUserId: result.systemUserId ?? SYSTEM_USER_ID,
-          clock: "acceptance",
+          acceptance,
+          offer,
+          workflow,
+          now,
+          reminderHour,
           result,
         });
-        continue;
-      }
 
-      if (
-        SIGNING_ACTIVE.has(freshAcceptance.status) &&
-        typeof freshAcceptance.signing_expires_at === "string" &&
-        isPhaseDeadlineExpired(freshAcceptance.signing_expires_at, now)
-      ) {
+        const freshOffer =
+          row.kind === "contract"
+            ? await prisma.contract.findUnique({
+                where: { id: row.id },
+                select: { offer_details: true, status: true },
+              })
+            : await prisma.invoice.findUnique({
+                where: { id: row.id },
+                select: { offer_details: true, status: true },
+              });
+        if (!freshOffer || freshOffer.status !== "OFFER_SENT" || !freshOffer.offer_details) continue;
+        const freshAcceptance = parseOfferAcceptanceDetails(
+          (freshOffer.offer_details as Record<string, unknown>).offer_acceptance
+        );
+        if (!freshAcceptance) continue;
+
+        if (
+          ACCEPTANCE_ACTIVE.has(freshAcceptance.status) &&
+          typeof freshAcceptance.acceptance_expires_at === "string" &&
+          isPhaseDeadlineExpired(freshAcceptance.acceptance_expires_at, now)
+        ) {
+          await expireOffer({
+            row,
+            systemUserId: result.systemUserId ?? SYSTEM_USER_ID,
+            clock: "acceptance",
+            result,
+          });
+          continue;
+        }
+
+        if (
+          SIGNING_ACTIVE.has(freshAcceptance.status) &&
+          typeof freshAcceptance.signing_expires_at === "string" &&
+          isPhaseDeadlineExpired(freshAcceptance.signing_expires_at, now)
+        ) {
+          await expireOffer({
+            row,
+            systemUserId: result.systemUserId ?? SYSTEM_USER_ID,
+            clock: "signing",
+            result,
+          });
+        }
+      } catch (rowErr) {
+        const message = rowErr instanceof Error ? rowErr.message : String(rowErr);
+        rowErrors.push(`${row.kind}:${row.id}: ${message}`);
+        logger.error({ err: rowErr, row }, "Acceptance/signing expiry row failed");
+      }
+    }
+
+    const legacyRows = await loadLegacyOfferSentRows();
+    for (const row of legacyRows) {
+      try {
+        const offer = (row.offer_details as Record<string, unknown> | null) ?? null;
+        if (!offer) continue;
+        const expiresAt =
+          typeof offer.expires_at === "string" ? offer.expires_at : null;
+        if (!expiresAt || !isPhaseDeadlineExpired(expiresAt, now)) continue;
+
         await expireOffer({
           row,
           systemUserId: result.systemUserId ?? SYSTEM_USER_ID,
           clock: "signing",
           result,
         });
+      } catch (rowErr) {
+        const message = rowErr instanceof Error ? rowErr.message : String(rowErr);
+        rowErrors.push(`legacy:${row.kind}:${row.id}: ${message}`);
+        logger.error({ err: rowErr, row }, "Legacy offer expiry row failed");
       }
+    }
+
+    if (rowErrors.length > 0) {
+      result.error = rowErrors.join("; ");
     }
 
     if (
@@ -594,7 +702,6 @@ export async function runAcceptanceSigningExpiryJob(): Promise<AcceptanceSigning
   } catch (err) {
     result.error = err instanceof Error ? err.message : String(err);
     logger.error({ err, result }, "Acceptance/signing expiry job failed");
-    throw err;
   }
 
   return result;

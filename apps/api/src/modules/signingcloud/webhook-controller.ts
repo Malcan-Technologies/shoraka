@@ -1,3 +1,4 @@
+import * as crypto from "crypto";
 import { Router, Request, Response, NextFunction } from "express";
 import express from "express";
 import { signingService } from "../signing/service";
@@ -7,41 +8,65 @@ import {
   decryptSigningCloudResponse,
   type SigningCloudEncryptedResponse,
 } from "../../lib/signingcloud/crypto";
+import { signingCloudWebhookRateLimiter } from "../../lib/http/rate-limit";
 import { logger } from "../../lib/logger";
 
 const router = Router();
+router.use(signingCloudWebhookRateLimiter);
 router.use(express.urlencoded({ extended: true, limit: "2mb" }));
 router.use(express.json({ limit: "2mb" }));
 
-function tryDecryptWebhookBody(body: unknown): unknown {
-  if (!body || typeof body !== "object") return body;
-  const b = body as Record<string, unknown>;
-  if (typeof b.data !== "string" || typeof b.mac !== "string") {
-    return body;
+function looksEncrypted(body: unknown): body is SigningCloudEncryptedResponse {
+  return (
+    !!body &&
+    typeof body === "object" &&
+    typeof (body as Record<string, unknown>).data === "string" &&
+    typeof (body as Record<string, unknown>).mac === "string"
+  );
+}
+
+type DecryptWebhookResult =
+  | { kind: "plaintext"; value: unknown }
+  | { kind: "decrypted"; value: Record<string, unknown> }
+  | { kind: "reject" };
+
+function decryptWebhookBody(body: unknown): DecryptWebhookResult {
+  if (!looksEncrypted(body)) {
+    return { kind: "plaintext", value: body };
   }
+
   const cfg = readSigningCloudConfigFromEnv();
   if (!cfg) {
-    return body;
+    logger.warn("SigningCloud webhook: encrypted body but provider is not configured");
+    return { kind: "reject" };
   }
+
   try {
-    return decryptSigningCloudResponse<Record<string, unknown>>(
+    const decrypted = decryptSigningCloudResponse<Record<string, unknown>>(
       body as SigningCloudEncryptedResponse,
       cfg.apiSecret
     );
+    return { kind: "decrypted", value: decrypted };
   } catch (e) {
-    logger.warn({ err: e }, "SigningCloud webhook: could not decrypt envelope");
-    return body;
+    logger.warn({ err: e }, "SigningCloud webhook: MAC verification failed");
+    return { kind: "reject" };
   }
+}
+
+const CONTRACTNUM_NESTED_KEYS = ["data", "Data", "payload", "Payload", "contractInfo", "body", "Body"];
+
+function readContractnumField(obj: Record<string, unknown>): string | null {
+  for (const key of Object.keys(obj)) {
+    const kl = key.toLowerCase();
+    if (kl !== "contractnum" && kl !== "contractnumber") continue;
+    const v = obj[key];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return null;
 }
 
 function extractContractnumDeep(value: unknown, depth = 0): string | null {
   if (depth > 14) return null;
-
-  if (typeof value === "string") {
-    const t = value.trim();
-    if (t.length >= 8) return t;
-    return null;
-  }
 
   if (!value || typeof value !== "object") return null;
 
@@ -54,25 +79,12 @@ function extractContractnumDeep(value: unknown, depth = 0): string | null {
   }
 
   const o = value as Record<string, unknown>;
-  for (const key of Object.keys(o)) {
-    const kl = key.toLowerCase();
-    if (kl === "contractnum" || kl === "contractnumber") {
-      const v = o[key];
-      if (typeof v === "string" && v.trim()) return v.trim();
-    }
-  }
+  const direct = readContractnumField(o);
+  if (direct) return direct;
 
-  const nestedKeys = ["data", "Data", "payload", "Payload", "contractInfo", "body", "Body"];
-  for (const nk of nestedKeys) {
-    if (nk in o) {
-      const hit = extractContractnumDeep(o[nk], depth + 1);
-      if (hit) return hit;
-    }
-  }
-
-  for (const key of Object.keys(o)) {
-    if (nestedKeys.includes(key)) continue;
-    const hit = extractContractnumDeep(o[key], depth + 1);
+  for (const nk of CONTRACTNUM_NESTED_KEYS) {
+    if (!(nk in o)) continue;
+    const hit = extractContractnumDeep(o[nk], depth + 1);
     if (hit) return hit;
   }
 
@@ -80,8 +92,12 @@ function extractContractnumDeep(value: unknown, depth = 0): string | null {
 }
 
 function extractContractnumFromRequest(body: unknown, query: Request["query"]): string | null {
-  const normalized = tryDecryptWebhookBody(body);
-  const fromBody = extractContractnumDeep(normalized);
+  const decrypted = decryptWebhookBody(body);
+  if (decrypted.kind === "reject") {
+    throw new AppError(400, "BAD_REQUEST", "Invalid webhook payload");
+  }
+
+  const fromBody = extractContractnumDeep(decrypted.value);
   if (fromBody) return fromBody;
 
   const q = query ?? {};
@@ -93,15 +109,31 @@ function extractContractnumFromRequest(body: unknown, query: Request["query"]): 
   return qNum || null;
 }
 
+function verifyWebhookSecret(req: Request): void {
+  const secret = process.env.SIGNINGCLOUD_WEBHOOK_SECRET?.trim();
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new AppError(500, "INTERNAL_ERROR", "Webhook secret is not configured");
+    }
+    return;
+  }
+
+  const hdr = req.headers["x-signingcloud-secret"];
+  const provided = typeof hdr === "string" ? hdr : Array.isArray(hdr) ? hdr[0] : "";
+  if (!provided) {
+    throw new AppError(401, "UNAUTHORIZED", "Invalid webhook secret");
+  }
+
+  const expected = Buffer.from(secret, "utf8");
+  const actual = Buffer.from(provided, "utf8");
+  if (expected.length !== actual.length || !crypto.timingSafeEqual(expected, actual)) {
+    throw new AppError(401, "UNAUTHORIZED", "Invalid webhook secret");
+  }
+}
+
 async function webhookHandler(req: Request, res: Response, next: NextFunction) {
   try {
-    const secret = process.env.SIGNINGCLOUD_WEBHOOK_SECRET?.trim();
-    if (secret) {
-      const hdr = req.headers["x-signingcloud-secret"];
-      if (hdr !== secret) {
-        throw new AppError(401, "UNAUTHORIZED", "Invalid webhook secret");
-      }
-    }
+    verifyWebhookSecret(req);
 
     const contractnum = extractContractnumFromRequest(req.body, req.query);
 
@@ -136,6 +168,5 @@ async function webhookHandler(req: Request, res: Response, next: NextFunction) {
 }
 
 router.post("/callback", webhookHandler);
-router.get("/callback", webhookHandler);
 
 export const signingCloudWebhookRouter = router;

@@ -2,6 +2,7 @@
  * Zod request schemas for the signing envelope endpoints.
  */
 import { z } from "zod";
+import { validateSigningRedirectUrl } from "../../lib/signing/redirect-url";
 
 const recipientBindingSchema = z.object({
   role_key: z.string().min(1),
@@ -10,17 +11,6 @@ const recipientBindingSchema = z.object({
   application_guarantor_id: z.string().nullish(),
   /** Required for issuer directors; omitted for third-party roles (self-declare on the link). */
   ic_number: z.string().nullish(),
-});
-
-export const createEnvelopeSchema = z.object({
-  applicationId: z.string().min(1),
-  title: z.string().min(1),
-  contractId: z.string().nullish(),
-  invoiceId: z.string().nullish(),
-  productVersion: z.number().int().nullish(),
-  templateConfig: z.unknown(),
-  bindings: z.array(recipientBindingSchema).min(1),
-  expiresAt: z.string().datetime().nullish(),
 });
 
 export const createIssuerEnvelopeSchema = z.object({
@@ -37,7 +27,13 @@ export const voidEnvelopeSchema = z.object({
 
 export const startExternalSigningSchema = z.object({
   documentId: z.string().min(1),
-  redirectUrl: z.string().url().nullish(),
+  redirectUrl: z
+    .string()
+    .url()
+    .refine((url) => validateSigningRedirectUrl(url) != null, {
+      message: "redirectUrl must match ISSUER_URL origin",
+    })
+    .nullish(),
 });
 
 /** Signer returned from SigningCloud via backUrl — mark their assignment signed. */
@@ -54,5 +50,4 @@ export const recipientEkycSessionSchema = z.object({
   force: z.boolean().optional(),
 });
 
-export type CreateEnvelopeBody = z.infer<typeof createEnvelopeSchema>;
 export type CreateIssuerEnvelopeBody = z.infer<typeof createIssuerEnvelopeSchema>;

@@ -107,6 +107,8 @@ describe("runAcceptanceSigningExpiryJob", () => {
           financing_structure: { structure_type: "new_contract" },
         },
       ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     (prisma.contract.findUnique as jest.Mock).mockResolvedValue({
       offer_details: offerDetails,
@@ -163,7 +165,9 @@ describe("runAcceptanceSigningExpiryJob", () => {
           product_version: 1,
           financing_structure: { structure_type: "invoice_only" },
         },
-      ]);
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
     (prisma.invoice.findUnique as jest.Mock).mockResolvedValue({
       offer_details: offerDetails,
       status: "OFFER_SENT",
@@ -223,6 +227,8 @@ describe("runAcceptanceSigningExpiryJob", () => {
           financing_structure: { structure_type: "new_contract" },
         },
       ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
     (prisma.contract.findUnique as jest.Mock).mockResolvedValue({
       offer_details: signingOffer,

@@ -111,12 +111,15 @@ export function resolveAcceptanceDocumentReviewKeysToResetOnSubmit(
   if (offerAcceptanceStatus !== "CHANGES_REQUESTED") {
     return allDocKeys;
   }
-  return (reviewItems ?? [])
-    .filter(
-      (item) =>
-        item.item_type === "document" &&
-        item.status === "AMENDMENT_REQUESTED" &&
-        isAcceptanceDocumentItemId(item.item_id)
-    )
-    .map((item) => item.item_id);
+  const amendmentKeys = new Set(
+    (reviewItems ?? [])
+      .filter(
+        (item) =>
+          item.item_type === "document" &&
+          item.status === "AMENDMENT_REQUESTED" &&
+          isAcceptanceDocumentItemId(item.item_id)
+      )
+      .map((item) => item.item_id)
+  );
+  return allDocKeys.filter((key) => amendmentKeys.has(key));
 }

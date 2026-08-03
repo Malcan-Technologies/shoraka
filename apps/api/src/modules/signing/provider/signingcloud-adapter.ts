@@ -23,6 +23,7 @@ import type {
   ProviderSignerStatus,
 } from "./adapter";
 import { normalizeSigningEmail } from "@cashsouk/types";
+import { logger } from "../../../lib/logger";
 
 function requireConfig(): SigningCloudEnvConfig {
   const cfg = readSigningCloudConfigFromEnv();
@@ -43,7 +44,17 @@ function bufferFromHexPdfData(raw: Record<string, unknown>): Buffer {
   if (!hex) {
     throw new Error("SigningCloud file response missing pdfdata");
   }
-  return Buffer.from(hex, "hex");
+  if (hex.length % 2 !== 0) {
+    throw new Error("SigningCloud pdfdata hex length is not even");
+  }
+  const buffer = Buffer.from(hex, "hex");
+  if (buffer.length !== hex.length / 2) {
+    throw new Error("SigningCloud pdfdata contains invalid hex characters");
+  }
+  if (buffer.length < 4 || buffer.subarray(0, 4).toString("ascii") !== "%PDF") {
+    throw new Error("SigningCloud pdfdata is not a valid PDF");
+  }
+  return buffer;
 }
 
 /** SigningCloud signstate: 0 pending, 1 signed, 2 rejected (also accepts string labels). */
@@ -57,6 +68,9 @@ function mapSignState(value: unknown): ProviderSignerStatus {
   const n = typeof value === "number" ? value : Number(value);
   if (n === 1) return "SIGNED";
   if (n === 2) return "REJECTED";
+  if (Number.isFinite(n) && n !== 0) {
+    logger.warn({ signState: value }, "SigningCloud returned unknown signstate");
+  }
   return "PENDING";
 }
 

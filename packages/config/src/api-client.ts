@@ -2478,11 +2478,21 @@ export class ApiClient {
   /** External no-auth recipient: start their signing session by secure token. */
   async startExternalEnvelopeSigning(
     accessToken: string,
-    input: { documentId: string; redirectUrl?: string }
-  ): Promise<ApiResponse<{ signingUrl: string }> | ApiError> {
-    return this.post<{ signingUrl: string }>(
+    input: { documentId: string }
+  ): Promise<ApiResponse<{ signingUrl: string; returnSessionId: string }> | ApiError> {
+    return this.post<{ signingUrl: string; returnSessionId: string }>(
       `/v1/signing/external/${accessToken}/start-signing`,
       input
+    );
+  }
+
+  /** External no-auth recipient: confirm signing after SigningCloud return (no token in URL). */
+  async confirmSigningReturnSession(
+    returnSessionId: string
+  ): Promise<ApiResponse<ExternalSigningSessionDto> | ApiError> {
+    return this.post<ExternalSigningSessionDto>(
+      `/v1/signing/return/${returnSessionId}/confirm`,
+      {}
     );
   }
 

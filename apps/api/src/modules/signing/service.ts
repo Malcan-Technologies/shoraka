@@ -64,7 +64,7 @@ import {
   type SigningApplicationContext,
   type SigningRepository,
 } from "./repository";
-import { mapSigningEnvelopeToDtoWithEkyc, type SigningEnvelopeWithGraph } from "./mapper";
+import { mapSigningEnvelopeToDto, mapSigningEnvelopeToDtoWithEkyc, type SigningEnvelopeWithGraph } from "./mapper";
 import { SigningCloudProvider } from "./provider/signingcloud-adapter";
 import type { SigningProvider } from "./provider/adapter";
 import {
@@ -73,6 +73,7 @@ import {
   assertProvidedIcCompatibleWithEmailEkyc,
 } from "../ekyc/service";
 import { generateSigningAccessToken } from "./token";
+import { buildSigningReturnUrl, validateSigningRedirectUrl } from "../../lib/signing/redirect-url";
 
 const EXTERNAL_ACCESS_TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 /** Trust-return from SigningCloud backUrl is only valid shortly after start-signing. */
@@ -82,6 +83,7 @@ const CLOSED_ENVELOPE_STATUSES = ["VOIDED", "DECLINED", "EXPIRED", "COMPLETED"] 
 type RecipientSigningSessionMeta = {
   documentId: string;
   startedAt: string;
+  returnSessionId: string;
 };
 
 function readRecipientSigningSession(metadata: unknown): RecipientSigningSessionMeta | null {
@@ -90,9 +92,15 @@ function readRecipientSigningSession(metadata: unknown): RecipientSigningSession
   if (!session || typeof session !== "object") return null;
   const documentId = (session as Record<string, unknown>).documentId;
   const startedAt = (session as Record<string, unknown>).startedAt;
+  const returnSessionId = (session as Record<string, unknown>).returnSessionId;
   if (typeof documentId !== "string" || !documentId.trim()) return null;
   if (typeof startedAt !== "string" || !startedAt.trim()) return null;
-  return { documentId: documentId.trim(), startedAt: startedAt.trim() };
+  if (typeof returnSessionId !== "string" || !returnSessionId.trim()) return null;
+  return {
+    documentId: documentId.trim(),
+    startedAt: startedAt.trim(),
+    returnSessionId: returnSessionId.trim(),
+  };
 }
 
 function mergeRecipientSigningSession(
@@ -167,6 +175,23 @@ function readUploadedS3Key(doc: unknown): string | null {
   return null;
 }
 
+function findApplicationCategoryByKey(
+  appCategories: unknown[],
+  categoryKey: string
+): Record<string, unknown> | undefined {
+  for (const cat of appCategories) {
+    if (!cat || typeof cat !== "object") continue;
+    const key =
+      typeof (cat as Record<string, unknown>).key === "string"
+        ? String((cat as Record<string, unknown>).key)
+        : typeof (cat as Record<string, unknown>).category_key === "string"
+          ? String((cat as Record<string, unknown>).category_key)
+          : null;
+    if (key === categoryKey) return cat as Record<string, unknown>;
+  }
+  return undefined;
+}
+
 function resolveIssuerUploadS3Keys(
   workflow: unknown[],
   applicationSupportingDocuments: unknown,
@@ -186,18 +211,14 @@ function resolveIssuerUploadS3Keys(
   }
   if (!config) return keys;
 
-  const groups = Object.entries(config).filter(
-    ([key, value]) => key !== "enabled_categories" && Array.isArray(value)
-  );
   const appCategories = unwrapSupportingDocumentCategories(applicationSupportingDocuments);
 
   for (const ref of refs) {
     const [categoryKey, docIndexRaw] = ref.step_key.split(":");
     const docIndex = Number.parseInt(docIndexRaw ?? "", 10);
     if (!categoryKey || Number.isNaN(docIndex)) continue;
-    const groupIndex = groups.findIndex(([key]) => key === categoryKey);
-    if (groupIndex < 0) continue;
-    const appCat = appCategories[groupIndex] as Record<string, unknown> | undefined;
+    if (!(categoryKey in config) || !Array.isArray(config[categoryKey])) continue;
+    const appCat = findApplicationCategoryByKey(appCategories, categoryKey);
     const appDocs = appCat?.documents;
     const appDoc = Array.isArray(appDocs) ? appDocs[docIndex] : undefined;
     const s3Key = readUploadedS3Key(appDoc);
@@ -931,7 +952,7 @@ export class SigningService {
     return { buffer, filename: `${safeName}.pdf` };
   }
 
-  private async requireExternalTokenSession(accessToken: string): Promise<{
+  private async resolveExternalTokenSession(accessToken: string): Promise<{
     envelope: SigningEnvelopeWithGraph;
     recipientId: string;
     recipient: SigningEnvelopeWithGraph["recipients"][number];
@@ -950,10 +971,23 @@ export class SigningService {
     ) {
       throw new AppError(410, "SIGNING_LINK_EXPIRED", "This signing link has expired.");
     }
-    if (isClosedEnvelopeStatus(resolved.envelope.status)) {
+    return { ...resolved, recipient };
+  }
+
+  private assertExternalEnvelopeOpen(envelope: SigningEnvelopeWithGraph): void {
+    if (isClosedEnvelopeStatus(envelope.status)) {
       throw new AppError(409, "SIGNING_ENVELOPE_CLOSED", "This signing package is closed.");
     }
-    return { ...resolved, recipient };
+  }
+
+  private async requireExternalTokenSession(accessToken: string): Promise<{
+    envelope: SigningEnvelopeWithGraph;
+    recipientId: string;
+    recipient: SigningEnvelopeWithGraph["recipients"][number];
+  }> {
+    const resolved = await this.resolveExternalTokenSession(accessToken);
+    this.assertExternalEnvelopeOpen(resolved.envelope);
+    return resolved;
   }
 
   private async mapExternalSession(
@@ -966,8 +1000,26 @@ export class SigningService {
       email: recipient.email,
       icNumber: recipient.ic_number,
     });
+
+    const recipientDocumentIds = new Set(
+      envelope.assignments
+        .filter((assignment) => assignment.recipient_id === recipient.id)
+        .map((assignment) => assignment.document_id)
+    );
+
+    const envelopeDto = recipient.access_code_verified_at
+      ? await mapSigningEnvelopeToDtoWithEkyc(envelope)
+      : mapSigningEnvelopeToDto({
+          ...envelope,
+          documents: envelope.documents.filter((document) => recipientDocumentIds.has(document.id)),
+          recipients: envelope.recipients.filter((item) => item.id === recipient.id),
+          assignments: envelope.assignments.filter(
+            (assignment) => assignment.recipient_id === recipient.id
+          ),
+        });
+
     return {
-      envelope: await mapSigningEnvelopeToDtoWithEkyc(envelope),
+      envelope: envelopeDto,
       recipient_id: recipient.id,
       access_verified: recipient.access_code_verified_at != null,
       kyc_required: recipient.kyc_required,
@@ -977,22 +1029,8 @@ export class SigningService {
   }
 
   async getEnvelopeForExternalToken(accessToken: string): Promise<ExternalSigningSessionDto> {
-    const resolved = await this.repo.findEnvelopeByRecipientAccessToken(accessToken);
-    if (!resolved) {
-      throw new AppError(404, "SIGNING_LINK_NOT_FOUND", "Signing link not found.");
-    }
-    const recipient = resolved.envelope.recipients.find((item) => item.id === resolved.recipientId);
-    if (!recipient) {
-      throw new AppError(403, "SIGNING_LINK_INVALID", "Signing link is not valid for this recipient.");
-    }
-    if (
-      recipient.access_token_expires_at &&
-      recipient.access_token_expires_at.getTime() < Date.now()
-    ) {
-      throw new AppError(410, "SIGNING_LINK_EXPIRED", "This signing link has expired.");
-    }
-    const packageClosed = isClosedEnvelopeStatus(resolved.envelope.status);
-    return this.mapExternalSession(resolved.envelope, recipient, packageClosed);
+    const { envelope, recipient } = await this.resolveExternalTokenSession(accessToken);
+    return this.mapExternalSession(envelope, recipient, isClosedEnvelopeStatus(envelope.status));
   }
 
   async verifyExternalAccessCode(
@@ -1146,6 +1184,9 @@ export class SigningService {
     );
 
     for (const document of [...envelope.documents].sort((a, b) => a.order - b.order)) {
+      if (document.provider_contract_ref) {
+        continue;
+      }
       const docAssignments = envelope.assignments.filter((a) => a.document_id === document.id);
       if (docAssignments.length === 0) continue;
 
@@ -1214,16 +1255,31 @@ export class SigningService {
     }
 
     const expiresAt = new Date(Date.now() + EXTERNAL_ACCESS_TOKEN_TTL_MS);
+    let allEmailsDelivered = true;
     for (const recipient of envelope.recipients) {
       const accessToken = generateSigningAccessToken();
       await this.repo.setRecipientAccessToken(recipient.id, accessToken, expiresAt);
-      await this.sendSigningEmail({
+      const delivered = await this.sendSigningEmail({
         envelope,
         recipientEmail: recipient.email,
         recipientName: recipient.name,
         accessToken,
         isReminder: false,
       });
+      await this.repo.setRecipientEmailDeliveryStatus(
+        recipient.id,
+        delivered ? "sent" : "failed",
+        delivered ? null : "Email delivery failed"
+      );
+      if (!delivered) allEmailsDelivered = false;
+    }
+
+    if (!allEmailsDelivered) {
+      throw new AppError(
+        502,
+        "SIGNING_EMAIL_DELIVERY_FAILED",
+        "One or more signing invitation emails could not be delivered. The package was not marked as sent."
+      );
     }
 
     await this.repo.markEnvelopeSent(id);
@@ -1423,12 +1479,16 @@ export class SigningService {
     recipientId: string;
     documentId: string;
     redirectUrl?: string | null;
-  }): Promise<{ signingUrl: string }> {
+    returnSessionId?: string;
+  }): Promise<{ signingUrl: string; returnSessionId?: string }> {
     const envelope = await this.requireEnvelope(input.envelopeId);
     const document = envelope.documents.find((d) => d.id === input.documentId);
     const recipient = envelope.recipients.find((r) => r.id === input.recipientId);
     if (!document || !recipient) {
       throw new AppError(404, "SIGNING_ASSIGNMENT_NOT_FOUND", "Document or recipient not found.");
+    }
+    if (isClosedEnvelopeStatus(envelope.status)) {
+      throw new AppError(409, "SIGNING_ENVELOPE_CLOSED", "This signing package is closed.");
     }
     await this.assertRecipientCanSign(recipient);
     const assignment = envelope.assignments.find(
@@ -1453,36 +1513,55 @@ export class SigningService {
         "SigningCloud callUrl omitted: API_PUBLIC_URL / API_URL is not set"
       );
     }
+
+    let redirectUrl = input.redirectUrl ?? null;
+    let returnSessionId = input.returnSessionId;
+    if (returnSessionId) {
+      redirectUrl = buildSigningReturnUrl(returnSessionId);
+    } else if (redirectUrl) {
+      redirectUrl = validateSigningRedirectUrl(redirectUrl);
+    }
+
     const session = await this.provider.startSignerSession({
       providerRef: document.provider_contract_ref,
       signerEmail: recipient.email,
-      redirectUrl: input.redirectUrl ?? null,
+      redirectUrl,
       callbackUrl,
     });
+
+    const signingSession: RecipientSigningSessionMeta = {
+      documentId: document.id,
+      startedAt: new Date().toISOString(),
+      returnSessionId: returnSessionId ?? generateSigningAccessToken(),
+    };
     await prisma.signingRecipient.update({
       where: { id: recipient.id },
       data: {
-        metadata: mergeRecipientSigningSession(recipient.metadata, {
-          documentId: document.id,
-          startedAt: new Date().toISOString(),
-        }),
+        metadata: mergeRecipientSigningSession(recipient.metadata, signingSession),
       },
     });
-    return session;
+    return {
+      signingUrl: session.signingUrl,
+      returnSessionId: signingSession.returnSessionId,
+    };
   }
 
   async startRecipientSigningForExternalToken(input: {
     accessToken: string;
     documentId: string;
-    redirectUrl?: string | null;
-  }): Promise<{ signingUrl: string }> {
+  }): Promise<{ signingUrl: string; returnSessionId: string }> {
     const { envelope, recipientId } = await this.requireExternalTokenSession(input.accessToken);
-    return this.startRecipientSigning({
+    const returnSessionId = generateSigningAccessToken();
+    const result = await this.startRecipientSigning({
       envelopeId: envelope.id,
       recipientId,
       documentId: input.documentId,
-      redirectUrl: input.redirectUrl ?? null,
+      returnSessionId,
     });
+    return {
+      signingUrl: result.signingUrl,
+      returnSessionId: result.returnSessionId ?? returnSessionId,
+    };
   }
 
   /**
@@ -1495,9 +1574,24 @@ export class SigningService {
     accessToken: string;
     documentId: string;
   }): Promise<ExternalSigningSessionDto> {
-    const resolved = await this.repo.findEnvelopeByRecipientAccessToken(input.accessToken);
+    const { envelope, recipientId, recipient } = await this.requireExternalTokenSession(
+      input.accessToken
+    );
+    return this.confirmRecipientSigned({
+      envelope,
+      recipientId,
+      recipient,
+      documentId: input.documentId,
+      accessToken: input.accessToken,
+    });
+  }
+
+  async confirmRecipientSignedForReturnSession(
+    returnSessionId: string
+  ): Promise<ExternalSigningSessionDto> {
+    const resolved = await this.repo.findRecipientByReturnSessionId(returnSessionId);
     if (!resolved) {
-      throw new AppError(404, "SIGNING_LINK_NOT_FOUND", "Signing link not found.");
+      throw new AppError(404, "SIGNING_RETURN_NOT_FOUND", "Signing return session not found.");
     }
     const recipient = resolved.envelope.recipients.find((item) => item.id === resolved.recipientId);
     if (!recipient) {
@@ -1509,17 +1603,42 @@ export class SigningService {
     ) {
       throw new AppError(410, "SIGNING_LINK_EXPIRED", "This signing link has expired.");
     }
-    await this.assertRecipientCanSign(recipient);
 
-    const document = resolved.envelope.documents.find((d) => d.id === input.documentId);
+    if (isClosedEnvelopeStatus(resolved.envelope.status)) {
+      return this.mapExternalSession(resolved.envelope, recipient, true);
+    }
+
+    const sessionMeta = readRecipientSigningSession(recipient.metadata);
+    if (!sessionMeta || sessionMeta.returnSessionId !== returnSessionId) {
+      throw new AppError(404, "SIGNING_RETURN_NOT_FOUND", "Signing return session not found.");
+    }
+
+    return this.confirmRecipientSigned({
+      envelope: resolved.envelope,
+      recipientId: resolved.recipientId,
+      recipient,
+      documentId: sessionMeta.documentId,
+    });
+  }
+
+  private async confirmRecipientSigned(input: {
+    envelope: SigningEnvelopeWithGraph;
+    recipientId: string;
+    recipient: SigningEnvelopeWithGraph["recipients"][number];
+    documentId: string;
+    accessToken?: string;
+  }): Promise<ExternalSigningSessionDto> {
+    await this.assertRecipientCanSign(input.recipient);
+
+    const document = input.envelope.documents.find((d) => d.id === input.documentId);
     if (!document) {
       throw new AppError(404, "SIGNING_DOCUMENT_NOT_FOUND", "Document not found.");
     }
 
-    const assignment = resolved.envelope.assignments.find(
+    const assignment = input.envelope.assignments.find(
       (item) =>
         item.document_id === document.id &&
-        item.recipient_id === resolved.recipientId &&
+        item.recipient_id === input.recipientId &&
         item.action === "SIGN"
     );
     if (!assignment) {
@@ -1530,18 +1649,19 @@ export class SigningService {
       );
     }
 
-    if (!isClosedEnvelopeStatus(resolved.envelope.status)) {
-      await this.syncEnvelopeFromProvider(resolved.envelope.id);
+    if (!isClosedEnvelopeStatus(input.envelope.status)) {
+      await this.syncEnvelopeFromProvider(input.envelope.id);
     }
 
-    const afterSync = await this.requireEnvelope(resolved.envelope.id);
+    const afterSync = await this.requireEnvelope(input.envelope.id);
     const syncedAssignment = afterSync.assignments.find((item) => item.id === assignment.id);
     if (
+      !isClosedEnvelopeStatus(afterSync.status) &&
       syncedAssignment &&
       syncedAssignment.status !== "SIGNED" &&
       syncedAssignment.status !== "DECLINED"
     ) {
-      const session = readRecipientSigningSession(recipient.metadata);
+      const session = readRecipientSigningSession(input.recipient.metadata);
       const startedAtMs = session?.startedAt ? Date.parse(session.startedAt) : NaN;
       const sessionIsFresh =
         session?.documentId === document.id &&
@@ -1550,21 +1670,21 @@ export class SigningService {
 
       if (sessionIsFresh) {
         await this.repo.markAssignmentSigned(assignment.id);
-        await this.rollupEnvelope(resolved.envelope.id);
+        await this.rollupEnvelope(input.envelope.id);
         logger.info(
           {
-            envelopeId: resolved.envelope.id,
+            envelopeId: input.envelope.id,
             documentId: document.id,
-            recipientId: resolved.recipientId,
+            recipientId: input.recipientId,
           },
           "Signing assignment confirmed via signer return after recent start-signing (provider detail did not mark SIGNED)"
         );
       } else {
         logger.info(
           {
-            envelopeId: resolved.envelope.id,
+            envelopeId: input.envelope.id,
             documentId: document.id,
-            recipientId: resolved.recipientId,
+            recipientId: input.recipientId,
             hasSession: Boolean(session),
           },
           "Skipping trust-return: no recent start-signing session for this document"
@@ -1572,21 +1692,31 @@ export class SigningService {
       }
     }
 
-    return this.getEnvelopeForExternalToken(input.accessToken);
+    if (input.accessToken) {
+      return this.getEnvelopeForExternalToken(input.accessToken);
+    }
+    return this.mapExternalSession(
+      await this.requireEnvelope(input.envelope.id),
+      afterSync.recipients.find((item) => item.id === input.recipientId)!,
+      isClosedEnvelopeStatus(afterSync.status)
+    );
   }
 
   /** External signer: refresh assignment statuses from SigningCloud document detail. */
   async syncEnvelopeFromProviderForExternalToken(
     accessToken: string
   ): Promise<ExternalSigningSessionDto> {
-    const resolved = await this.repo.findEnvelopeByRecipientAccessToken(accessToken);
-    if (!resolved) {
-      throw new AppError(404, "SIGNING_LINK_NOT_FOUND", "Signing link not found.");
+    const { envelope, recipient } = await this.resolveExternalTokenSession(accessToken);
+    if (!isClosedEnvelopeStatus(envelope.status)) {
+      await this.syncEnvelopeFromProvider(envelope.id);
     }
-    if (!isClosedEnvelopeStatus(resolved.envelope.status)) {
-      await this.syncEnvelopeFromProvider(resolved.envelope.id);
-    }
-    return this.getEnvelopeForExternalToken(accessToken);
+    const refreshed = await this.requireEnvelope(envelope.id);
+    const updatedRecipient = refreshed.recipients.find((item) => item.id === recipient.id)!;
+    return this.mapExternalSession(
+      refreshed,
+      updatedRecipient,
+      isClosedEnvelopeStatus(refreshed.status)
+    );
   }
 
   /** Issuer: refresh assignment statuses from SigningCloud document detail. */
@@ -1609,11 +1739,14 @@ export class SigningService {
    * and update assignments by email. Fetches signed PDFs when a document is complete.
    */
   async syncEnvelopeFromProvider(envelopeId: string): Promise<void> {
-    const envelope = await this.requireEnvelope(envelopeId);
+    let envelope = await this.requireEnvelope(envelopeId);
     let assignmentsChanged = false;
+    let detailAttempts = 0;
+    let detailFailures = 0;
 
     for (const document of envelope.documents) {
       if (!document.provider_contract_ref || document.status === "VOIDED") continue;
+      detailAttempts += 1;
 
       let details;
       try {
@@ -1621,6 +1754,7 @@ export class SigningService {
           providerRef: document.provider_contract_ref,
         });
       } catch (err) {
+        detailFailures += 1;
         logger.warn(
           { err, envelopeId, documentId: document.id },
           "SigningCloud getContractDetails failed during sync"
@@ -1629,6 +1763,7 @@ export class SigningService {
       }
 
       if (details.signers.length === 0) {
+        detailFailures += 1;
         logger.warn(
           {
             envelopeId,
@@ -1676,10 +1811,11 @@ export class SigningService {
 
     if (assignmentsChanged) {
       await this.rollupEnvelope(envelopeId);
+      envelope = await this.requireEnvelope(envelopeId);
     }
 
-    const refreshed = await this.requireEnvelope(envelopeId);
-    for (const document of refreshed.documents) {
+    let pdfFailures = 0;
+    for (const document of envelope.documents) {
       if (!document.provider_contract_ref || document.signed_s3_key) continue;
       if (document.status !== "COMPLETED") continue;
 
@@ -1687,7 +1823,7 @@ export class SigningService {
         const { pdfBuffer, sha256 } = await this.provider.fetchSignedDocument({
           providerRef: document.provider_contract_ref,
         });
-        const s3Key = `applications/${refreshed.application_id}/signing/${refreshed.id}/${document.id}.pdf`;
+        const s3Key = `applications/${envelope.application_id}/signing/${envelope.id}/${document.id}.pdf`;
         await putS3ObjectBuffer({ key: s3Key, body: pdfBuffer, contentType: "application/pdf" });
         await this.repo.recordSignedDocument(document.id, s3Key, sha256, "COMPLETED");
         logger.info(
@@ -1695,6 +1831,7 @@ export class SigningService {
           "Stored signed PDF after provider detail sync"
         );
       } catch (err) {
+        pdfFailures += 1;
         logger.warn(
           { err, envelopeId, documentId: document.id },
           "Failed to fetch signed PDF during provider sync"
@@ -1702,19 +1839,40 @@ export class SigningService {
       }
     }
 
-    // Offer finalization runs inside rollup when status first becomes COMPLETED.
-    // If PDF arrived after that rollup, finalize now.
-    const afterPdf = await this.requireEnvelope(envelopeId);
-    if (afterPdf.status === "COMPLETED") {
-      await this.finalizeCompletedEnvelopeOffer(afterPdf);
+    if (envelope.status === "COMPLETED") {
+      envelope = await this.requireEnvelope(envelopeId);
+      await this.finalizeCompletedEnvelopeOffer(envelope);
     }
 
-    logger.info({ envelopeId, assignmentsChanged }, "Synced signing envelope from provider");
+    if (detailAttempts > 0 && detailFailures === detailAttempts) {
+      throw new AppError(
+        502,
+        "SIGNING_PROVIDER_SYNC_FAILED",
+        "Could not sync signing status from the provider."
+      );
+    }
+
+    if (detailFailures > 0 || pdfFailures > 0) {
+      logger.warn(
+        { envelopeId, detailFailures, pdfFailures, assignmentsChanged },
+        "Partial failure syncing signing envelope from provider"
+      );
+    } else {
+      logger.info({ envelopeId, assignmentsChanged }, "Synced signing envelope from provider");
+    }
   }
 
   async applyProviderContractSigned(providerContractRef: string): Promise<{ skipped: boolean }> {
     const envelope = await this.repo.findByDocumentProviderRef(providerContractRef);
     if (!envelope) return { skipped: true };
+
+    if (isClosedEnvelopeStatus(envelope.status)) {
+      logger.info(
+        { envelopeId: envelope.id, providerContractRef, status: envelope.status },
+        "Ignoring SigningCloud webhook for closed envelope"
+      );
+      return { skipped: true };
+    }
 
     await this.syncEnvelopeFromProvider(envelope.id);
     logger.info(
@@ -1753,11 +1911,20 @@ export class SigningService {
 
     const nextEnvelopeStatus = rollupEnvelopeStatus(assignmentInputs);
     if (nextEnvelopeStatus !== envelope.status) {
-      await this.repo.updateEnvelopeStatus(
+      const updated = await this.repo.updateEnvelopeStatusIfCurrent(
         envelopeId,
+        envelope.status,
         nextEnvelopeStatus,
         nextEnvelopeStatus === "COMPLETED"
       );
+      if (!updated) {
+        logger.info(
+          { envelopeId, expectedStatus: envelope.status, nextEnvelopeStatus },
+          "Skipped envelope rollup — status changed concurrently"
+        );
+        return;
+      }
+
       if (nextEnvelopeStatus === "COMPLETED") {
         if (envelope.created_by_user_id) {
           await this.logSigningPackageActivity({
@@ -1847,9 +2014,15 @@ export class SigningService {
 
   async remindRecipient(envelopeId: string, recipientId: string): Promise<void> {
     const envelope = await this.requireEnvelope(envelopeId);
+    if (isClosedEnvelopeStatus(envelope.status)) {
+      throw new AppError(409, "SIGNING_ENVELOPE_CLOSED", "This signing package is closed.");
+    }
     const recipient = envelope.recipients.find((r) => r.id === recipientId);
     if (!recipient) {
       throw new AppError(404, "SIGNING_RECIPIENT_NOT_FOUND", "Recipient not found.");
+    }
+    if (recipient.status === "SIGNED" || recipient.status === "DECLINED") {
+      throw new AppError(409, "SIGNING_RECIPIENT_CLOSED", "This recipient has already finished signing.");
     }
     const accessToken = generateSigningAccessToken();
     await this.repo.setRecipientAccessToken(
@@ -1857,13 +2030,25 @@ export class SigningService {
       accessToken,
       new Date(Date.now() + EXTERNAL_ACCESS_TOKEN_TTL_MS)
     );
-    await this.sendSigningEmail({
+    const delivered = await this.sendSigningEmail({
       envelope,
       recipientEmail: recipient.email,
       recipientName: recipient.name,
       accessToken,
       isReminder: true,
     });
+    await this.repo.setRecipientEmailDeliveryStatus(
+      recipient.id,
+      delivered ? "sent" : "failed",
+      delivered ? null : "Reminder email delivery failed"
+    );
+    if (!delivered) {
+      throw new AppError(
+        502,
+        "SIGNING_EMAIL_DELIVERY_FAILED",
+        "Could not deliver the signing reminder email."
+      );
+    }
     await this.repo.touchRecipientReminder(recipientId);
   }
 
@@ -1880,14 +2065,14 @@ export class SigningService {
     recipientName: string;
     accessToken: string;
     isReminder: boolean;
-  }): Promise<void> {
+  }): Promise<boolean> {
     const signingUrl = buildExternalSigningUrl(input.accessToken);
     if (!signingUrl) {
       logger.warn(
         { envelopeId: input.envelope.id, recipientEmail: input.recipientEmail },
         "Skipping signing email because ISSUER_URL is not configured"
       );
-      return;
+      return false;
     }
 
     try {
@@ -1905,11 +2090,13 @@ export class SigningService {
         `,
         text: `Hi ${input.recipientName || "there"},\n\nYou have been asked to sign ${title}.\n\nOpen your secure signing link: ${signingUrl}\n\nThis link is unique to you. You will be asked to confirm your IC number before signing.`,
       });
+      return true;
     } catch (error) {
       logger.error(
         { error, envelopeId: input.envelope.id, recipientEmail: input.recipientEmail },
         "Failed to send signing email"
       );
+      return false;
     }
   }
 }
