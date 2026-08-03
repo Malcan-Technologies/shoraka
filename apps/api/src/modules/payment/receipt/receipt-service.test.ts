@@ -97,7 +97,10 @@ function createDbMock(overrides?: {
     gatewayPaymentReceipt: {
       findUnique: jest.fn(async () => existing),
       findMany: jest.fn(async () => []),
-      create: jest.fn(async () => receiptRow),
+      create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({
+        ...receiptRow,
+        ...data,
+      })),
       update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({
         ...receiptRow,
         ...existing,
@@ -108,7 +111,10 @@ function createDbMock(overrides?: {
       const tx = {
         gatewayPaymentReceipt: {
           findUnique: jest.fn(async () => existing),
-          create: jest.fn(async () => receiptRow),
+          create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({
+            ...receiptRow,
+            ...data,
+          })),
         },
         $queryRaw: jest.fn(async () => [{ last_value: 1 }]),
       };
@@ -231,6 +237,123 @@ describe("generateGatewayPaymentReceipt", () => {
         }),
       })
     );
+  });
+
+  it("snapshots investor company name from onboarding businessName only", async () => {
+    const db = createDbMock({
+      payment: {
+        id: "pay_1",
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        status: GatewayPaymentStatus.COMPLETED,
+        amount: { toNumber: () => 100 },
+        currency: "MYR",
+        method: "fpx",
+        payer_name: "FPX PAYER",
+        curlec_payment_id: "pay_curlec_1",
+        curlec_order_id: "order_1",
+        updated_at: new Date("2026-08-03T02:00:00.000Z"),
+        metadata: null,
+        issuer_organization: null,
+        application: null,
+        investor_organization: {
+          id: "inv_1",
+          type: OrganizationType.COMPANY,
+          name: "Org Name Fallback Sdn Bhd",
+          registration_number: null,
+          first_name: null,
+          middle_name: null,
+          last_name: null,
+          phone_number: "012",
+          legal_name_on_id: null,
+          corporate_onboarding_data: {
+            basicInfo: { businessName: "Onboarding Business Sdn Bhd" },
+          },
+          owner: { email: "inv@example.com", phone: "012" },
+        },
+      },
+    });
+
+    await generateGatewayPaymentReceipt("pay_1", db as never);
+    const html = (renderReceiptHtmlToPdfBuffer as jest.Mock).mock.calls[0][0] as string;
+    expect(html).toContain("Onboarding Business Sdn Bhd");
+    expect(html).not.toContain("Org Name Fallback Sdn Bhd");
+  });
+
+  it("does not use org.name for receipt company when businessName is missing", async () => {
+    const db = createDbMock({
+      payment: {
+        id: "pay_1",
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        status: GatewayPaymentStatus.COMPLETED,
+        amount: { toNumber: () => 100 },
+        currency: "MYR",
+        method: "fpx",
+        payer_name: "FPX PAYER",
+        curlec_payment_id: "pay_curlec_1",
+        curlec_order_id: "order_1",
+        updated_at: new Date("2026-08-03T02:00:00.000Z"),
+        metadata: null,
+        issuer_organization: null,
+        application: null,
+        investor_organization: {
+          id: "inv_1",
+          type: OrganizationType.COMPANY,
+          name: "Malcan Ventures Sdn Bhd",
+          registration_number: null,
+          first_name: null,
+          middle_name: null,
+          last_name: null,
+          phone_number: "012",
+          legal_name_on_id: null,
+          corporate_onboarding_data: { basicInfo: {} },
+          owner: { email: "inv@example.com", phone: "012" },
+        },
+      },
+    });
+
+    await generateGatewayPaymentReceipt("pay_1", db as never);
+    const html = (renderReceiptHtmlToPdfBuffer as jest.Mock).mock.calls[0][0] as string;
+    expect(html).not.toContain("Malcan Ventures Sdn Bhd");
+    expect(html).not.toContain(">Company<");
+  });
+
+  it("keeps personal investor receipt company name empty", async () => {
+    const db = createDbMock({
+      payment: {
+        id: "pay_1",
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        status: GatewayPaymentStatus.COMPLETED,
+        amount: { toNumber: () => 100 },
+        currency: "MYR",
+        method: "fpx",
+        payer_name: "ALI BIN ABU",
+        curlec_payment_id: "pay_curlec_1",
+        curlec_order_id: "order_1",
+        updated_at: new Date("2026-08-03T02:00:00.000Z"),
+        metadata: null,
+        issuer_organization: null,
+        application: null,
+        investor_organization: {
+          id: "inv_1",
+          type: OrganizationType.PERSONAL,
+          name: "Display Name",
+          registration_number: null,
+          first_name: "Ali",
+          middle_name: null,
+          last_name: "Abu",
+          phone_number: "012",
+          legal_name_on_id: "Ali Bin Abu",
+          corporate_onboarding_data: null,
+          owner: { email: "inv@example.com", phone: "012" },
+        },
+      },
+    });
+
+    await generateGatewayPaymentReceipt("pay_1", db as never);
+    const html = (renderReceiptHtmlToPdfBuffer as jest.Mock).mock.calls[0][0] as string;
+    expect(html).toContain("ALI BIN ABU");
+    expect(html).not.toContain("Display Name");
+    expect(html).not.toContain(">Company<");
   });
 
   it("allows first PDF generation for a refunded receipt that never got a PDF", async () => {

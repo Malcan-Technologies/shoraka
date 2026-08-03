@@ -30,7 +30,6 @@ function buildCompanyName(org: {
   corporate_onboarding_data: unknown;
 }): string | null {
   if (org.type !== OrganizationType.COMPANY) return null;
-  if (org.name?.trim()) return org.name.trim();
   const data = org.corporate_onboarding_data;
   if (data && typeof data === "object" && !Array.isArray(data)) {
     const businessName = (data as { basicInfo?: { businessName?: string } }).basicInfo
@@ -149,7 +148,7 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
     if (!org) {
       throw new Error("Issuer fee receipt is missing issuer organization");
     }
-    const companyName = buildCompanyName(org) ?? org.name?.trim() ?? null;
+    const companyName = buildCompanyName(org);
     const personName = [org.first_name, org.middle_name, org.last_name]
       .map((p) => p?.trim())
       .filter(Boolean)
@@ -173,9 +172,7 @@ function resolvePayerSnapshot(payment: PaymentForReceipt): {
     throw new Error("Processing fee receipt is missing application");
   }
 
-  const companyName = org
-    ? buildCompanyName(org) ?? org.name?.trim() ?? null
-    : null;
+  const companyName = org ? buildCompanyName(org) : null;
   const personName = org
     ? [org.first_name, org.middle_name, org.last_name]
         .map((p) => p?.trim())
