@@ -22,7 +22,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@cashsouk/ui";
+import { Skeleton, StatusBadge } from "@cashsouk/ui";
+import { getOrganizationOnboardingPresentation } from "@/lib/organization-status";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -42,7 +43,6 @@ import {
   PhoneIcon,
   IdentificationIcon,
   DocumentTextIcon,
-  CheckCircleIcon,
   ClockIcon,
   UsersIcon,
   BanknotesIcon,
@@ -774,17 +774,17 @@ export function OrganizationDetailDialog({
                     <div>
                       <div className="text-xs text-muted-foreground">Onboarding Status</div>
                       <div className="mt-1">
-                        {org.onboardingStatus === "COMPLETED" ? (
-                          <Badge className="bg-emerald-500 text-white">
-                            <CheckCircleIcon className="h-3 w-3 mr-1" />
-                            Completed
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary">
-                            <ClockIcon className="h-3 w-3 mr-1" />
-                            {org.onboardingStatus}
-                          </Badge>
-                        )}
+                        {(() => {
+                          const onboardingPresentation = getOrganizationOnboardingPresentation(
+                            org.onboardingStatus
+                          );
+                          return (
+                            <StatusBadge
+                              label={onboardingPresentation.label}
+                              status={onboardingPresentation.status}
+                            />
+                          );
+                        })()}
                       </div>
                     </div>
                     {/* Sophisticated Investor Status - only for investor portal */}
@@ -800,14 +800,9 @@ export function OrganizationDetailDialog({
                             disabled={updateSophisticatedMutation.isPending}
                           />
                           {org.isSophisticatedInvestor ? (
-                            <Badge className="bg-violet-500 text-white">
-                              <CheckCircleIcon className="h-3 w-3 mr-1" />
-                              Yes
-                            </Badge>
+                            <StatusBadge label="Yes" status="completed" />
                           ) : (
-                            <Badge variant="outline" className="text-muted-foreground">
-                              No
-                            </Badge>
+                            <StatusBadge label="No" status="neutral" />
                           )}
                         </div>
                         {org.sophisticatedInvestorReason && (

@@ -9,13 +9,10 @@ import {
   ArrowsRightLeftIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
-import { Skeleton } from "@cashsouk/ui";
+import { Skeleton, useHeader } from "@cashsouk/ui";
 import type { PendingServiceFeeTrusteeLetterItem } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import {
   Table,
   TableBody,
@@ -47,6 +44,12 @@ function formatTrusteeInstructionStatus(item: PendingServiceFeeTrusteeLetterItem
 }
 
 export default function ServiceFeeTrusteeLettersPage() {
+  const { setTitle } = useHeader();
+  React.useEffect(() => {
+    setTitle("Settlement Trustee Letters");
+    return () => setTitle("");
+  }, [setTitle]);
+
   const { data, isLoading, error, refetch, isFetching } = usePendingServiceFeeTrusteeLetters();
   const items = data?.items ?? [];
 
@@ -56,39 +59,33 @@ export default function ServiceFeeTrusteeLettersPage() {
   return (
     <RequirePermission permission="service_fee.view">
       <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Settlement Trustee Letters</h1>
-        <div className="ml-auto flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="h-8 w-8 p-0"
-            title="Refresh"
-          >
-            <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-          </Button>
-          <SystemHealthIndicator />
-        </div>
-      </header>
-      <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto">
         <div className="w-full space-y-8 px-4 py-10 md:px-6 md:py-12 lg:px-8">
           <section className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <ArrowsRightLeftIcon className="h-5 w-5 text-primary" />
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <ArrowsRightLeftIcon className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold">Settlement Trustee Letters</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Posted settlements stay here until the settlement trustee instruction is marked
+                    complete (PDF, submitted, and closed out). Use section 3 on each note&apos;s
+                    settlement panel to run the workflow.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-semibold">Settlement Trustee Letters</h2>
-                <p className="text-sm text-muted-foreground">
-                  Posted settlements stay here until the settlement trustee instruction is marked
-                  complete (PDF, submitted, and closed out). Use section 3 on each note&apos;s
-                  settlement panel to run the workflow.
-                </p>
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void refetch()}
+                disabled={isFetching}
+                className="h-8 w-8 shrink-0 p-0"
+                title="Refresh"
+              >
+                <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+              </Button>
             </div>
 
             {error ? (

@@ -38,9 +38,7 @@ export interface OnboardingStatusCardProps {
   organization: Organization;
   /** Which portal this dashboard belongs to — drives the stepper shape (fee step, deposit step, etc). */
   portal: PortalType;
-  userName?: string;
-  /** Tagline shown under the welcome heading (portal-specific copy only, no business logic). */
-  subtitle: string;
+  /** Optional action shown above the stepper (PageShell owns the welcome heading). */
   actionButton?: React.ReactNode;
 }
 
@@ -53,8 +51,6 @@ export interface OnboardingStatusCardProps {
 export function OnboardingStatusCard({
   organization,
   portal,
-  userName,
-  subtitle,
   actionButton,
 }: OnboardingStatusCardProps) {
   const { refreshAmlStatus, refreshOrganizations } = useOrganization();
@@ -132,9 +128,6 @@ export function OnboardingStatusCard({
     return null;
   }
 
-  const displayName =
-    userName || (organization.type === "PERSONAL" ? "Personal Account" : organization.name || "Company Account");
-
   const refreshButton = (
     <Button
       variant="outline"
@@ -151,15 +144,9 @@ export function OnboardingStatusCard({
 
   return (
     <div className="w-full">
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <h2 className="text-2xl md:text-3xl font-bold text-foreground">
-            Welcome back, {displayName}!
-          </h2>
-          <p className="text-muted-foreground mt-1">{subtitle}</p>
-        </div>
-        {actionButton}
-      </div>
+      {actionButton ? (
+        <div className="mb-6 flex justify-end">{actionButton}</div>
+      ) : null}
 
       <OnboardingStepper steps={steps} />
 

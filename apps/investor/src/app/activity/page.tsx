@@ -5,7 +5,7 @@ import { getFilterableActivityDomains, type GetActivitiesParams } from "@cashsou
 import { useActivities } from "../../hooks/use-activities";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
-import { ActivityItem, Badge, Skeleton, ActivityToolbar, useHeader } from "@cashsouk/ui";
+import { ActivityItem, Skeleton, ActivityToolbar, useHeader } from "@cashsouk/ui";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 
 export default function ActivityPage() {
@@ -73,11 +73,6 @@ export default function ActivityPage() {
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7 px-0">
             <div className="flex items-center gap-2">
               <CardTitle className="text-2xl font-bold">Activities</CardTitle>
-              {pagination && (
-                <Badge variant="secondary" className="rounded-full bg-muted text-muted-foreground font-normal hover:bg-muted">
-                  {pagination.total}
-                </Badge>
-              )}
             </div>
           </CardHeader>
           <CardContent className="p-0 space-y-6">

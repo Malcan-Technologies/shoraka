@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAdminNotifications } from "@cashsouk/config";
 import { usePermissions } from "../../../hooks/use-permissions";
 import type {
@@ -28,10 +28,7 @@ import {
   SelectValue,
 } from "../../../components/ui/select";
 import { Badge } from "../../../components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
-import { SidebarTrigger } from "../../../components/ui/sidebar";
-import { Separator } from "../../../components/ui/separator";
-import { SystemHealthIndicator } from "../../../components/system-health-indicator";
+import { Tabs, TabsContent, TabsList, TabsTrigger, useHeader } from "@cashsouk/ui";
 import { toast } from "sonner";
 import {
   Send,
@@ -145,6 +142,12 @@ function getTargetBadge(targetType: string) {
 }
 
 export default function NotificationsAdminPage() {
+  const { setTitle: setHeaderTitle } = useHeader();
+  useEffect(() => {
+    setHeaderTitle("Notification Management");
+    return () => setHeaderTitle("");
+  }, [setHeaderTitle]);
+
   const { can } = usePermissions();
   const canManage = can("notifications.manage");
   const [page, setPage] = useState(1);
@@ -354,15 +357,7 @@ export default function NotificationsAdminPage() {
 
   return (
     <RequirePermission permission="notifications.view">
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Notification Management</h1>
-        <div className="ml-auto">
-          <SystemHealthIndicator />
-        </div>
-      </header>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+            <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="w-full px-2 md:px-4 py-8 space-y-6">
           <p className="text-muted-foreground -mt-4">
             Manage system-wide notification settings and send custom alerts.
@@ -872,7 +867,7 @@ export default function NotificationsAdminPage() {
               className="gap-2 h-11 rounded-xl"
             >
               <RotateCcw className={`h-4 w-4 ${isLoadingLogs ? "animate-spin" : ""}`} />
-              Reload
+              Refresh
             </Button>
 
             <Badge variant="secondary" className="h-11 px-4 rounded-xl text-sm font-normal">

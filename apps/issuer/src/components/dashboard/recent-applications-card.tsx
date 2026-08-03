@@ -6,22 +6,27 @@ import { Card } from "@cashsouk/ui";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useApplicationsData } from "@/app/(application-management)/applications/use-applications-data";
-import type { NormalizedApplication } from "@/app/(application-management)/applications/status";
+import {
+  countIssuerApplicationsNeedingAction,
+  isIssuerApplicationActionable,
+  type NormalizedApplication,
+} from "@/app/(application-management)/applications/status";
+import {
+  actionsRequiredLabel,
+  issuerApplicationActionHref,
+} from "@/lib/issuer-pending-actions";
 import { RecentSectionHeader } from "@/components/dashboard/recent-section-header";
 
 const MAX_ROWS = 4;
-
-function isActionable(app: NormalizedApplication): boolean {
-  return app.cardStatus.showMakeAmendments || app.cardStatus.showReviewOffer;
-}
 
 function statusLabel(app: NormalizedApplication): string {
   return app.cardStatus.displayLabel;
 }
 
 function statusTone(app: NormalizedApplication): string {
-  if (app.cardStatus.showMakeAmendments) return "border-amber-500/30 bg-amber-50 text-amber-800";
-  if (app.cardStatus.showReviewOffer) return "border-emerald-500/30 bg-emerald-50 text-emerald-800";
+  if (isIssuerApplicationActionable(app)) {
+    return "border-status-action-text/30 bg-status-action-bg text-status-action-text";
+  }
   return "border-border bg-muted text-muted-foreground";
 }
 
@@ -35,44 +40,45 @@ export function RecentApplicationsCard() {
   const prioritized = applications
     .slice()
     .sort((a, b) => {
-      const ai = isActionable(a) ? 0 : 1;
-      const bi = isActionable(b) ? 0 : 1;
+      const ai = isIssuerApplicationActionable(a) ? 0 : 1;
+      const bi = isIssuerApplicationActionable(b) ? 0 : 1;
       if (ai !== bi) return ai - bi;
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     });
 
   const visible = prioritized.slice(0, MAX_ROWS);
-  const actionableCount = applications.filter(isActionable).length;
+  const actionableCount = countIssuerApplicationsNeedingAction(applications);
 
   return (
-    <Card className="bg-muted/50 shadow-none">
+    <Card className={cn("flex h-full flex-col")}>
       <RecentSectionHeader
         title="Recent applications"
         countBadge={
           actionableCount > 0 ? (
-            <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
-              {actionableCount} action{actionableCount === 1 ? "" : "s"} required
+            <Badge className="bg-status-action-bg text-status-action-text hover:bg-status-action-bg">
+              {actionsRequiredLabel(actionableCount)}
             </Badge>
           ) : null
         }
         viewAllHref="/applications"
       />
-      <div className="px-5 pb-5 pt-4 md:px-6 md:pb-6 md:pt-5">
+      <div className="flex flex-1 flex-col px-5 pb-5 pt-4 md:px-6 md:pb-6 md:pt-5">
         {isLoading ? (
-          <p className="py-4 text-[17px] leading-7 text-muted-foreground">Loading...</p>
+          <p className="py-4 text-[17px] leading-7 text-muted-foreground">Loading…</p>
         ) : visible.length === 0 ? (
           <p className="py-4 text-[17px] leading-7 text-muted-foreground">
             No applications yet.{" "}
-            <Link href="/applications/new" className="font-medium text-primary underline-offset-4 hover:underline">
+            <Link
+              href="/applications/new"
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
               Apply for financing
             </Link>
           </p>
         ) : (
           <ul className="divide-y divide-border rounded-xl border border-border bg-background">
             {visible.map((app) => {
-              const href = app.cardStatus.showMakeAmendments
-                ? `/applications/edit/${app.id}`
-                : "/applications";
+              const href = issuerApplicationActionHref(app);
               return (
                 <li key={app.id}>
                   <Link

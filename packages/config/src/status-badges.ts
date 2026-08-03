@@ -1,13 +1,12 @@
 /**
  * Centralized status badge config. Colors grouped by meaning:
- * - action: Draft, Amendment Requested — user must act
- * - submitted: Submitted, Resubmitted — waiting for admin pickup
- * - in-progress: Under Review, Contract/Invoice Pending/Sent, Offer Sent — admin processing / awaiting issuer
- * - success: Approved, Completed, Contract Accepted — done
- * - rejected: Rejected — admin / platform negative outcome
- * - withdrawn: User withdrew (issuer UI); distinct from Declined (user declined an offer)
- * - declined: Issuer declined an offer (issuer UI; same red styling as Rejected)
- * - neutral: Pending, Archived — inactive
+ * - action (yellow): viewer must act — Draft, Amendment Requested; issuer badge key offer_sent
+ * - submitted (blue): waiting on the other side — Submitted, Resubmitted
+ * - in-progress (indigo): being worked on — Under Review, Contract/Invoice Pending/Sent;
+ *   admin OFFER_SENT (waiting on issuer) also uses this from the admin POV
+ * - success (green): positive outcome — Approved, Contract Accepted, Completed
+ * - rejected (red): negative outcome — Rejected, Declined, Offer Expired, Withdrawn
+ * - neutral (slate): inactive / terminal closed — Pending, Archived
  */
 
 import { WithdrawReason, formatWithdrawLabel } from "@cashsouk/types";
@@ -275,11 +274,31 @@ const BADGE_KEY_PRESENTATION: Record<string, StatusPresentation> = {
   under_review: { ...STATUS_PRESENTATION.UNDER_REVIEW, label: "Under Review" } as StatusPresentation,
   amendment_requested: { ...STATUS_PRESENTATION.AMENDMENT_REQUESTED, label: "Action Required" } as StatusPresentation,
   resubmitted: { ...STATUS_PRESENTATION.RESUBMITTED, label: "Resubmitted" } as StatusPresentation,
-  offer_sent: { ...STATUS_PRESENTATION.OFFER_SENT, label: "Offer Received" } as StatusPresentation,
+  // Issuer-facing: offer needs their response (yellow/action). Admin still uses STATUS_PRESENTATION.OFFER_SENT (in-progress).
+  offer_sent: {
+    label: "Offer Received",
+    badgeClass: GROUP.action,
+    iconClass: "text-amber-600 dark:text-amber-400",
+    dotClass: DOT.action,
+    variant: "action",
+  } as StatusPresentation,
   accepted: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
   approved: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
-  completed: { ...STATUS_PRESENTATION.COMPLETED, label: "Completed" } as StatusPresentation,
-  withdrawn: { ...STATUS_PRESENTATION.WITHDRAWN, label: "Withdrawn" } as StatusPresentation,
+  // Issuer terminal closed → slate/neutral (admin COMPLETED stays success green via STATUS_PRESENTATION).
+  completed: {
+    label: "Completed",
+    badgeClass: GROUP.neutral,
+    iconClass: "text-slate-600 dark:text-slate-400",
+    dotClass: DOT.neutral,
+    variant: "neutral",
+  } as StatusPresentation,
+  withdrawn: {
+    label: "Withdrawn",
+    badgeClass: GROUP.neutral,
+    iconClass: "text-slate-600 dark:text-slate-400",
+    dotClass: DOT.neutral,
+    variant: "withdrawn",
+  } as StatusPresentation,
   declined: { ...STATUS_PRESENTATION.DECLINED, label: "Declined" } as StatusPresentation,
   offer_expired: { ...STATUS_PRESENTATION.OFFER_EXPIRED, label: "Offer Expired" } as StatusPresentation,
   rejected: { ...STATUS_PRESENTATION.REJECTED, label: "Rejected" } as StatusPresentation,

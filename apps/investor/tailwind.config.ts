@@ -19,18 +19,39 @@ const config: Config = {
         sm: 'calc(var(--radius) - 4px)'
       },
       boxShadow: {
-        brand: '0 10px 20px -10px rgba(138, 3, 4, 0.35)'
+        brand: 'var(--shadow-brand)'
       },
       colors: {
-        /** Matches @cashsouk/styles status tokens — required for SoukscoreRiskRatingBadge etc. */
+        /** Status tokens: CSS vars from @cashsouk/styles (light/dark via .dark). */
         status: {
-          action: { bg: "#FEFCE8", text: "#CA8A04" },
-          submitted: { bg: "#EFF6FF", text: "#2563EB" },
-          "in-progress": { bg: "#EEF2FF", text: "#4F46E5" },
-          success: { bg: "#D1FAE5", text: "#047857" },
-          completed: { bg: "#E0F2FE", text: "#0369A1" },
-          rejected: { bg: "#FEF2F2", text: "#DC2626" },
-          neutral: { bg: "#F1F5F9", text: "#475569" },
+          action: {
+            bg: "hsl(var(--status-action-bg))",
+            text: "hsl(var(--status-action-text))",
+          },
+          submitted: {
+            bg: "hsl(var(--status-submitted-bg))",
+            text: "hsl(var(--status-submitted-text))",
+          },
+          "in-progress": {
+            bg: "hsl(var(--status-in-progress-bg))",
+            text: "hsl(var(--status-in-progress-text))",
+          },
+          success: {
+            bg: "hsl(var(--status-success-bg))",
+            text: "hsl(var(--status-success-text))",
+          },
+          completed: {
+            bg: "hsl(var(--status-completed-bg))",
+            text: "hsl(var(--status-completed-text))",
+          },
+          rejected: {
+            bg: "hsl(var(--status-rejected-bg))",
+            text: "hsl(var(--status-rejected-text))",
+          },
+          neutral: {
+            bg: "hsl(var(--status-neutral-bg))",
+            text: "hsl(var(--status-neutral-text))",
+          },
         },
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',

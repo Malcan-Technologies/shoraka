@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useHeader } from "@cashsouk/ui";
+
+import { useState, useCallback, useEffect } from "react";
 import { useAuthToken } from "@cashsouk/config";
-import { SidebarTrigger } from "../../components/ui/sidebar";
 import { Separator } from "../../components/ui/separator";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
@@ -19,6 +20,12 @@ interface ErrorStats {
 }
 
 export default function TestErrorsPage() {
+  const { setTitle } = useHeader();
+  useEffect(() => {
+    setTitle("Error Testing Page (Temporary)");
+    return () => setTitle("");
+  }, [setTitle]);
+
   const { getAccessToken } = useAuthToken();
 
   const [isRunning, setIsRunning] = useState(false);
@@ -302,12 +309,7 @@ export default function TestErrorsPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Error Testing Page (Temporary)</h1>
-      </header>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+            <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="space-y-6">
           <Card className="border-destructive/50 bg-destructive/5">
             <CardHeader>

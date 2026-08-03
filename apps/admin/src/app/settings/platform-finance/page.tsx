@@ -10,13 +10,10 @@ import type {
   TrusteeAccountDetails,
   TrusteeLetterConfig,
 } from "@cashsouk/types";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
+import { Tabs, TabsContent, TabsList, TabsTrigger, useHeader } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useS3ViewUrl } from "@/hooks/use-s3";
@@ -118,6 +115,12 @@ function AccountFields({
 }
 
 export default function PlatformFinanceSettingsPage() {
+  const { setTitle } = useHeader();
+  React.useEffect(() => {
+    setTitle("Platform Finance Settings");
+    return () => setTitle("");
+  }, [setTitle]);
+
   const { can } = usePermissions();
   const canManage = can("platform_settings.manage");
   const { getAccessToken } = useAuthToken();
@@ -361,15 +364,7 @@ export default function PlatformFinanceSettingsPage() {
   return (
     <RequirePermission permission="platform_settings.view">
       <>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <h1 className="text-lg font-semibold">Platform Finance Settings</h1>
-          <div className="ml-auto">
-            <SystemHealthIndicator />
-          </div>
-        </header>
-
+        
         <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
           <Tabs defaultValue="late-payment" className="space-y-6">
             <TabsList className="grid h-auto w-full max-w-[760px] grid-cols-1 gap-2 md:grid-cols-4">

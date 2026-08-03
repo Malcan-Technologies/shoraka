@@ -36,7 +36,7 @@ import {
  * 1. Load all available products from API
  * 2. User selects one product
  * 3. Click "Continue" creates application in DB
- * 4. Redirect to /applications/edit/{id}?step=2
+ * 4. Redirect to /applications/{id}/edit?step=2
  */
 export default function NewApplicationPage() {
   const router = useRouter();
@@ -287,7 +287,7 @@ export default function NewApplicationPage() {
 
       // Clear unsaved and go to step 2 (next step after selecting product)
       setHasUnsavedChanges(false);
-      router.push(`/applications/edit/${application.id}?step=2`);
+      router.push(`/applications/${application.id}/edit?step=2`);
     } catch {
       // Error already shown by mutation hook
     }

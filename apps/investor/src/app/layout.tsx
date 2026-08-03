@@ -5,8 +5,8 @@ import { Inter } from "next/font/google";
 import "@cashsouk/styles/globals.css";
 import "./globals.css";
 import { AppSidebar } from "../components/app-sidebar";
+import { InvestorHeaderChrome } from "../components/investor-header-chrome";
 import { CashSoukPortalFooter, Header, SidebarInset, SidebarProvider } from "@cashsouk/ui";
-import { InvestorHeaderActions } from "../components/investor-header-actions";
 import { Toaster } from "../components/ui/sonner";
 import { Providers } from "../lib/providers";
 import { AuthGuard } from "../components/auth-guard";
@@ -35,8 +35,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthGuard>
             <SidebarProvider>
               <AppSidebar />
-              <SidebarInset>
-                <Header rightContent={<InvestorHeaderActions />} />
+              <SidebarInset className="min-w-0 overflow-x-hidden">
+                <Header rightContent={<InvestorHeaderChrome />} />
                 <div className="flex min-h-0 flex-1 flex-col">{children}</div>
                 <CashSoukPortalFooter variant="investor" />
               </SidebarInset>

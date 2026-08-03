@@ -1,10 +1,11 @@
 "use client";
 
 /**
- * Dev-only page: status badge examples and reference.
+ * Dev-only page: status badge examples, status tokens, and Stage A primitives harness.
  * URL: /dev/status-examples
  */
 
+import * as React from "react";
 import { notFound } from "next/navigation";
 import {
   getStatusPresentation,
@@ -13,6 +14,25 @@ import {
   API_STATUS_TO_BADGE_KEY,
 } from "@cashsouk/config";
 import { WithdrawReason } from "@cashsouk/types";
+import {
+  PageShell,
+  ListToolbar,
+  FilterChips,
+  DataTable,
+  EmptyState,
+  LoadingState,
+  Pagination,
+  StatusBadge,
+  STATUS_TOKEN_KEYS,
+  DetailHeader,
+  DetailSection,
+  ConfirmDialog,
+  StickyFormFooter,
+  KeyValueGrid,
+  Button,
+  type FilterChip,
+  type StatusToken,
+} from "@cashsouk/ui";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { APPLICATION_STATUS_PRIORITY } from "@/app/(application-management)/applications/status";
@@ -24,10 +44,36 @@ const ALL_WITHDRAWN_REASONS: (WithdrawReason | undefined)[] = [
   ...Object.values(WithdrawReason),
 ];
 
-function Section({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
+const STATUS_MEANING: Record<StatusToken, string> = {
+  action: "Yellow — pending your response",
+  submitted: "Blue — pending the other side",
+  "in-progress": "Indigo — being worked on",
+  success: "Green — good / active positive",
+  completed: "Sky — finished positive",
+  rejected: "Red — bad / failed / expired",
+  neutral: "Slate — terminal closed / inactive",
+};
+
+type DemoRow = { id: string; customer: string; amount: string; status: StatusToken };
+
+const DEMO_ROWS: DemoRow[] = [
+  { id: "A3F91C2B", customer: "Acme Sdn Bhd", amount: "RM 250,000", status: "success" },
+  { id: "C1D88A05", customer: "Perdana Corp", amount: "RM 112,000", status: "in-progress" },
+  { id: "B7E02F11", customer: "Sunrise Trading", amount: "RM 48,500", status: "action" },
+];
+
+function Section({
+  title,
+  children,
+  className,
+}: {
+  title: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <section className={cn("rounded-xl border bg-card p-5 shadow-sm", className)}>
-      <h2 className="text-base font-semibold mb-3">{title}</h2>
+      <h2 className="mb-3 text-base font-semibold">{title}</h2>
       {children}
     </section>
   );
@@ -51,10 +97,258 @@ function BadgeItem({
   return (
     <div className="flex flex-col items-start gap-0.5">
       <Badge variant="outline" className={cn(BADGE_BASE, badgeClass)}>
-        {!noDot && <span className={cn("mr-1.5 h-1.5 w-1.5 rounded-full shrink-0", dotClass)} aria-hidden />}
+        {!noDot && <span className={cn("mr-1.5 h-1.5 w-1.5 shrink-0 rounded-full", dotClass)} aria-hidden />}
         {label}
       </Badge>
-      {!noMeta && meta && <span className="text-[10px] font-mono text-muted-foreground">{meta}</span>}
+      {!noMeta && meta && <span className="font-mono text-[10px] text-muted-foreground">{meta}</span>}
+    </div>
+  );
+}
+
+function PrimitivesHarness() {
+  const [search, setSearch] = React.useState("");
+  const [page, setPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(10);
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [chipIds, setChipIds] = React.useState<
+    Array<{ id: string; label: string }>
+  >([
+    { id: "status", label: "Status: Offer received" },
+    { id: "range", label: "Last 30 days" },
+  ]);
+
+  const appliedFilters: FilterChip[] = chipIds.map((chip) => ({
+    id: chip.id,
+    label: chip.label,
+    onRemove: () => setChipIds((prev) => prev.filter((c) => c.id !== chip.id)),
+  }));
+
+  return (
+    <div className="space-y-6">
+      <Section title="Status tokens (StatusBadge)">
+        <p className="mb-3 text-sm text-muted-foreground">
+          Consumes <code className="text-xs">status.*</code> tokens with light/dark pairs from{" "}
+          <code className="text-xs">packages/styles</code>.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          {STATUS_TOKEN_KEYS.map((token) => (
+            <div key={token} className="flex flex-col items-start gap-1">
+              <StatusBadge status={token} label={token} />
+              <span className="max-w-[12rem] text-[11px] text-muted-foreground">
+                {STATUS_MEANING[token]}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+          <p className="text-sm font-medium text-destructive">
+            Destructive sample (distinct from primary)
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button variant="default" size="sm" className="rounded-xl">
+              Apply for financing
+            </Button>
+            <Button variant="destructive" size="sm" className="rounded-xl">
+              Withdraw application
+            </Button>
+          </div>
+        </div>
+      </Section>
+
+      <Section title="PageShell">
+        <PageShell
+          title="Applications"
+          description="Track financing requests and respond when an offer needs your attention."
+          breadcrumb={<span>Home / Applications</span>}
+          action={
+            <Button size="sm" className="rounded-xl">
+              Apply for financing
+            </Button>
+          }
+        />
+      </Section>
+
+      <Section title="ListToolbar + FilterChips">
+        <ListToolbar
+          searchValue={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search by ID, customer, invoice…"
+          filterGroups={
+            <Button variant="outline" size="sm" className="h-11 rounded-xl">
+              Status
+            </Button>
+          }
+          appliedFilters={appliedFilters}
+          onClearFilters={() => setChipIds([])}
+          onReload={() => undefined}
+          countLabel="12 applications"
+        />
+        <div className="mt-3">
+          <FilterChips
+            chips={[
+              {
+                id: "demo",
+                label: "Standalone chip",
+                onRemove: () => undefined,
+              },
+            ]}
+          />
+        </div>
+      </Section>
+
+      <Section title="DataTable">
+        <DataTable
+          rows={DEMO_ROWS}
+          getRowKey={(row) => row.id}
+          columns={[
+            {
+              id: "id",
+              header: "ID",
+              sticky: true,
+              cell: (row) => <span className="font-mono text-sm">#{row.id}</span>,
+            },
+            {
+              id: "customer",
+              header: "Customer",
+              cell: (row) => row.customer,
+            },
+            {
+              id: "amount",
+              header: "Amount",
+              align: "right",
+              cell: (row) => <span className="tabular-nums">{row.amount}</span>,
+            },
+            {
+              id: "status",
+              header: "Status",
+              cell: (row) => <StatusBadge status={row.status} label={row.status} />,
+            },
+          ]}
+        />
+      </Section>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <Section title="EmptyState — no-data">
+          <EmptyState
+            variant="no-data"
+            action={
+              <Button size="sm" className="rounded-xl">
+                Apply for financing
+              </Button>
+            }
+          />
+        </Section>
+        <Section title="EmptyState — no-results">
+          <EmptyState
+            variant="no-results"
+            action={
+              <Button variant="outline" size="sm" className="rounded-xl">
+                Clear filters
+              </Button>
+            }
+          />
+        </Section>
+      </div>
+
+      <Section title="LoadingState">
+        <div className="space-y-6">
+          <LoadingState variant="list" rows={2} />
+          <LoadingState variant="cards" rows={3} />
+        </div>
+      </Section>
+
+      <Section title="Pagination">
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={48}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
+          itemLabel="applications"
+        />
+      </Section>
+
+      <Section title="DetailHeader + DetailSection + KeyValueGrid">
+        <DetailHeader
+          breadcrumb={<span>Applications › #A3F91C2B</span>}
+          title="Application #A3F91C2B"
+          status={<StatusBadge status="action" label="Offer received" />}
+          facts="Acme Sdn Bhd · Contract financing · submitted 12 Mar 2026"
+          actions={
+            <>
+              <div className="rounded-xl bg-status-action-bg p-0.5">
+                <Button size="sm" className="rounded-xl">
+                  Review offer
+                </Button>
+              </div>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="rounded-xl"
+                onClick={() => setConfirmOpen(true)}
+              >
+                Withdraw
+              </Button>
+            </>
+          }
+        />
+        <div className="mt-6 space-y-6">
+          <DetailSection title="Summary" description="Key facts for this application.">
+            <KeyValueGrid
+              items={[
+                { label: "Customer", value: "Acme Sdn Bhd" },
+                { label: "Contract value", value: "RM 250,000", tabular: true },
+                { label: "Financing applied", value: "RM 200,000", tabular: true },
+                { label: "Submitted", value: "12 Mar 2026" },
+              ]}
+            />
+          </DetailSection>
+        </div>
+      </Section>
+
+      <Section title="StickyFormFooter">
+        <div className="relative overflow-hidden rounded-xl border">
+          <div className="h-24 bg-muted/30 p-4 text-sm text-muted-foreground">
+            Form content (scrollable area)
+          </div>
+          <StickyFormFooter
+            saveState="unsaved"
+            back={
+              <Button variant="outline" size="sm" className="rounded-xl">
+                Back
+              </Button>
+            }
+            primary={
+              <Button size="sm" className="rounded-xl">
+                Save and continue
+              </Button>
+            }
+          />
+        </div>
+      </Section>
+
+      <Section title="ConfirmDialog">
+        <Button
+          variant="destructive"
+          size="sm"
+          className="rounded-xl"
+          onClick={() => setConfirmOpen(true)}
+        >
+          Open destructive confirm
+        </Button>
+        <ConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          variant="destructive"
+          title="Withdraw application?"
+          description="This cannot be undone. You will need to submit a new application if you change your mind."
+          confirmText="Withdraw application"
+          onConfirm={() => setConfirmOpen(false)}
+        />
+      </Section>
     </div>
   );
 }
@@ -66,24 +360,29 @@ export default function StatusExamplesPage() {
 
   return (
     <div className="min-h-screen bg-background p-6 md:p-8">
-      <div className="mx-auto max-w-4xl space-y-6">
+      <div className="mx-auto w-full max-w-6xl space-y-6">
         <header>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Status Badge Reference</h1>
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+            Status Badge &amp; Primitives Reference
+          </h1>
           <p className="mt-1 text-[15px] text-muted-foreground">
-            Dev-only. Admin: raw labels. Issuer: collapsed (e.g. Contract Pending → Under Review). Archived never shown in admin or issuer listing.
+            Dev-only. Status presentations plus Stage A shared primitives from{" "}
+            <code className="text-xs">@cashsouk/ui</code>.
           </p>
         </header>
 
+        <PrimitivesHarness />
+
         <div className="grid gap-6 md:grid-cols-2">
           <Section title="DB → Display (all)">
-            <p className="text-sm text-muted-foreground mb-3">
+            <p className="mb-3 text-sm text-muted-foreground">
               All API statuses. Admin shows these; issuer collapses some.
             </p>
-            <div className="overflow-x-auto -mx-1">
+            <div className="-mx-1 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b text-left sticky top-0 bg-card">
-                    <th className="py-2 font-medium font-mono text-xs">DB</th>
+                  <tr className="sticky top-0 border-b bg-card text-left">
+                    <th className="py-2 font-mono text-xs font-medium">DB</th>
                     <th className="py-2 font-medium">Display</th>
                   </tr>
                 </thead>
@@ -106,16 +405,14 @@ export default function StatusExamplesPage() {
           </Section>
 
           <Section title="List priority (issuer)">
-            <p className="text-sm text-muted-foreground mb-3">
-              Lower = higher in list.
-            </p>
+            <p className="mb-3 text-sm text-muted-foreground">Lower = higher in list.</p>
             <div className="flex flex-wrap gap-2">
               {Object.entries(APPLICATION_STATUS_PRIORITY)
                 .sort(([, a], [, b]) => a - b)
                 .map(([badgeKey, priority]) => (
                   <span
                     key={badgeKey}
-                    className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 text-xs font-mono"
+                    className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 font-mono text-xs"
                   >
                     <span className="text-muted-foreground">{priority}</span>
                     {badgeKey}
@@ -126,7 +423,7 @@ export default function StatusExamplesPage() {
         </div>
 
         <Section title="Badges — Admin view (all)">
-          <p className="text-sm text-muted-foreground mb-3">
+          <p className="mb-3 text-sm text-muted-foreground">
             Raw labels: Contract Pending, Contract Sent, Invoice Pending, etc.
           </p>
           <div className="flex flex-wrap gap-3">
@@ -151,7 +448,7 @@ export default function StatusExamplesPage() {
         </Section>
 
         <Section title="Badges — Issuer view (all)">
-          <p className="text-sm text-muted-foreground mb-3">
+          <p className="mb-3 text-sm text-muted-foreground">
             DB received → issuer shows. CONTRACT_PENDING, CONTRACT_SENT, etc. → Under Review.
           </p>
           <div className="flex flex-wrap gap-3">
@@ -182,13 +479,13 @@ export default function StatusExamplesPage() {
         </Section>
 
         <Section title="WITHDRAWN — admin vs issuer (by withdraw_reason)">
-          <p className="text-sm text-muted-foreground mb-3">
+          <p className="mb-3 text-sm text-muted-foreground">
             Same DB status; admin keeps long labels. Issuer shows Declined for OFFER_REJECTED, Withdrawn for
             USER_CANCELLED, Offer Expired for OFFER_EXPIRED.
           </p>
           <div className="space-y-4">
             <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-2">Admin</p>
+              <p className="mb-2 text-xs font-semibold text-muted-foreground">Admin</p>
               <div className="flex flex-wrap gap-3">
                 {ALL_WITHDRAWN_REASONS.map((reason) => {
                   const pres = getStatusPresentation("WITHDRAWN", reason);
@@ -207,10 +504,12 @@ export default function StatusExamplesPage() {
               </div>
             </div>
             <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-2">Issuer</p>
+              <p className="mb-2 text-xs font-semibold text-muted-foreground">Issuer</p>
               <div className="flex flex-wrap gap-3">
                 {ALL_WITHDRAWN_REASONS.map((reason) => {
-                  const pres = getStatusPresentation("WITHDRAWN", reason, { issuerWithdrawPresentation: true });
+                  const pres = getStatusPresentation("WITHDRAWN", reason, {
+                    issuerWithdrawPresentation: true,
+                  });
                   const rkey = reason ?? "default";
                   const meta = reason ? `WITHDRAWN + ${reason}` : "WITHDRAWN (default)";
                   return (

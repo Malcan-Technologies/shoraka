@@ -41,16 +41,16 @@ export function AmendmentRemarkCard({ remarks, showDefaultIntro = true }: Amendm
 
   return (
     <div
-      className={`${AMENDMENT_CALLOUT_ROOT} border-primary/55 bg-primary/10 text-foreground`}
+      className={`${AMENDMENT_CALLOUT_ROOT} border-status-rejected-text/40 bg-status-rejected-bg text-foreground`}
     >
       <div
-        className={`${AMENDMENT_CALLOUT_ICON_WRAP} bg-primary/20 border-primary/45`}
+        className={`${AMENDMENT_CALLOUT_ICON_WRAP} border-status-rejected-text/40 bg-status-rejected-bg`}
         aria-hidden
       >
-        <ExclamationTriangleIcon className="h-5 w-5 text-primary" />
+        <ExclamationTriangleIcon className="h-5 w-5 text-status-rejected-text" />
       </div>
       <div className={AMENDMENT_CALLOUT_BODY}>
-        <p className={`${AMENDMENT_CALLOUT_TITLE} text-primary`}>Amendment required</p>
+        <p className={`${AMENDMENT_CALLOUT_TITLE} text-status-rejected-text`}>Amendment required</p>
         <AmendmentExpandableBulletList lines={lines} />
       </div>
     </div>

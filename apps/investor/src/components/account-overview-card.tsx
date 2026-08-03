@@ -131,7 +131,7 @@ export function AccountOverviewCard({ isDisabled = false }: AccountOverviewCardP
     : [{ name: "placeholder", value: 1, fill: "var(--color-placeholder)" }];
 
   return (
-    <Card className={cn("w-full bg-muted/50", isDisabled && "opacity-50 pointer-events-none")}>
+    <Card className={cn("w-full", isDisabled && "opacity-50 pointer-events-none")}>
       <CardHeader className="flex flex-row items-center justify-between pb-4">
         <CardTitle className="text-xl font-semibold">Account Overview</CardTitle>
       </CardHeader>
@@ -155,7 +155,7 @@ export function AccountOverviewCard({ isDisabled = false }: AccountOverviewCardP
                   innerRadius="55%"
                   outerRadius="95%"
                   strokeWidth={3}
-                  stroke="hsl(var(--background))"
+                  stroke="hsl(var(--card))"
                 >
                   <Label
                     content={({ viewBox }) => {

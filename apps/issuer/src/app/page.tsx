@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { useEffect, useMemo, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../lib/auth";
 import {
@@ -12,30 +12,47 @@ import {
 } from "@cashsouk/config";
 import { checkAndRedirectForPendingInvitation } from "../lib/invitation-redirect";
 import { Button } from "../components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { PlusIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { DirectorShareholderAlertCard } from "../components/director-shareholder-alert-card";
 import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboarding-status-card";
-import { AccountOverviewCard } from "../components/account-overview-card";
-import { RepaymentPerformanceCard } from "../components/repayment-performance-card";
 import { RecentApplicationsCard } from "../components/dashboard/recent-applications-card";
 import { RecentFinancingCard } from "../components/dashboard/recent-financing-card";
-import { RecentNotesCard } from "../components/dashboard/recent-notes-card";
-import { useHeader } from "@cashsouk/ui";
+import { NextActionBanner } from "../components/dashboard/next-action-banner";
+import { IssuerActivityList } from "../components/activity/issuer-activity-list";
+import { AccountOverviewCard } from "../components/account-overview-card";
+import { RepaymentPerformanceCard } from "../components/repayment-performance-card";
+import { PageShell, welcomeBackTitle } from "@cashsouk/ui";
 import { useIssuerDashboard } from "../hooks/use-issuer-dashboard";
+import { useApplicationsData } from "./(application-management)/applications/use-applications-data";
+import { buildIssuerFinancingPendingAction } from "@/lib/issuer-financing-actionable";
+import {
+  buildIssuerApplicationsPendingAction,
+  pickIssuerDashboardPendingAction,
+} from "@/lib/issuer-pending-actions";
+import { useIssuerNotes } from "@/notes/hooks/use-issuer-notes";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
 
+function onboardingStepCta(stepId: string | undefined): { href: string; label: string } | null {
+  switch (stepId) {
+    case "tnc":
+      return { href: "/onboarding/terms", label: "Continue agreement" };
+    case "fee":
+      return { href: "/onboarding/fee", label: "Pay onboarding fee" };
+    case "verify":
+      return { href: "/onboarding/verify", label: "Continue onboarding" };
+    default:
+      return null;
+  }
+}
+
 function IssuerDashboardContent() {
-  const { setTitle } = useHeader();
-
-  // Set header title
-  useEffect(() => {
-    setTitle("Dashboard");
-  }, [setTitle]);
-
   const { isAuthenticated } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const activeTab = searchParams.get("tab") === "activity" ? "activity" : "overview";
   const {
     activeOrganization,
     isLoading: isOrgLoading,
@@ -49,6 +66,8 @@ function IssuerDashboardContent() {
   );
 
   const { data: issuerDashboard } = useIssuerDashboard(activeOrganization?.id);
+  const { data: notesData } = useIssuerNotes();
+  const { applications } = useApplicationsData();
 
   const orgDisplayName = useMemo(() => {
     if (!activeOrganization) return "";
@@ -66,7 +85,6 @@ function IssuerDashboardContent() {
     [issuerDashboard?.user.displayName, orgDisplayName]
   );
 
-  // Determine whether the dashboard can be shown (derived, no setState needed)
   const canShowDashboard = useMemo(() => {
     if (!isAuthenticated || isOrgLoading) return false;
     if (organizations.length === 0) return false;
@@ -80,7 +98,6 @@ function IssuerDashboardContent() {
     return ["approval", "deposit", "completed", "rejected"].includes(step);
   }, [isAuthenticated, isOrgLoading, organizations, activeOrganization]);
 
-  // Side-effect only: redirects that need router.push
   useEffect(() => {
     if (!isAuthenticated || isOrgLoading) return;
 
@@ -109,146 +126,179 @@ function IssuerDashboardContent() {
     hasRedirected.current = false;
   }, [isAuthenticated, isOrgLoading, activeOrganization, organizations, router]);
 
-  // Show loading while checking auth or onboarding
+  const handleTabChange = (value: string) => {
+    if (value === "activity") {
+      router.replace("/?tab=activity", { scroll: false });
+    } else {
+      router.replace("/", { scroll: false });
+    }
+  };
+
   if (isAuthenticated === null || isOrgLoading || !canShowDashboard) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="space-y-4 text-center">
+          <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-primary" />
           <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>
     );
   }
 
-  // If not authenticated, redirect will happen in useAuth hook
   if (!isAuthenticated) {
     return null;
   }
 
-  // Determine current onboarding step
   const steps = activeOrganization ? getOnboardingSteps(activeOrganization) : [];
   const allStepsComplete = activeOrganization ? steps.every((step) => step.isCompleted) : false;
   const currentStep = steps.find((step) => step.isCurrent);
+  const onboardingCta = onboardingStepCta(currentStep?.id);
 
-  // Check if user needs to complete specific steps
   const isAwaitingApproval = currentStep?.id === "approval";
   const isRejected = activeOrganization?.onboardingStatus === "REJECTED";
   const isAccountEnabled = activeOrganization?.onboardingStatus === "COMPLETED";
 
+  const applicationsPendingAction = isAccountEnabled
+    ? buildIssuerApplicationsPendingAction(applications)
+    : null;
+  const financingPendingAction = isAccountEnabled
+    ? buildIssuerFinancingPendingAction({
+        contracts: issuerDashboard?.contracts ?? [],
+        invoices: issuerDashboard?.invoices ?? [],
+        notes: notesData?.notes ?? [],
+      })
+    : null;
+  const dashboardPendingAction = pickIssuerDashboardPendingAction({
+    applications: applicationsPendingAction,
+    financing: financingPendingAction,
+  });
+
+  const nextAction = (() => {
+    if (!allStepsComplete && onboardingCta && currentStep) {
+      return {
+        title: `Next: ${currentStep.label}`,
+        description: "Finish this step to unlock financing applications.",
+        href: onboardingCta.href,
+        ctaLabel: onboardingCta.label,
+        tone: "action" as const,
+      };
+    }
+    if (dashboardPendingAction) {
+      return {
+        title: dashboardPendingAction.title,
+        description: dashboardPendingAction.description,
+        href: dashboardPendingAction.href,
+        ctaLabel: dashboardPendingAction.ctaLabel,
+        tone: dashboardPendingAction.tone,
+      };
+    }
+    return null;
+  })();
+
   return (
-    <>
-      <div className={cn(issuerMainContentClassName, issuerPageGutterClassName, "gap-6 md:gap-8")}>
-        <div className="space-y-8">
-          {activeOrganization?.type === "COMPANY" ? (
-            <DirectorShareholderAlertCard
-              visiblePeople={visiblePeopleForDsAlert}
-              enabled={activeOrganization.onboardingStatus === "COMPLETED"}
-            />
-          ) : null}
-          {/* Onboarding Status Section - shown when not all steps are complete */}
-          {activeOrganization && !allStepsComplete && (
-            <section className="space-y-6">
-              <OnboardingStatusCard
-                organization={activeOrganization}
-                userName={displayName}
-                actionButton={
-                  <Button disabled className="gap-2 opacity-50 cursor-not-allowed">
-                    <PlusIcon className="h-4 w-4" />
-                    Get Financed
-                  </Button>
-                }
+    <div className={cn(issuerMainContentClassName, issuerPageGutterClassName, "gap-6 md:gap-8")}>
+      <PageShell
+        title={welcomeBackTitle(displayName)}
+        description={
+          allStepsComplete
+            ? "Manage your financing from here."
+            : "Complete onboarding to unlock financing applications."
+        }
+        action={
+          !allStepsComplete && onboardingCta ? (
+            <Button asChild className="h-11 shrink-0 gap-2 rounded-xl font-semibold">
+              <Link href={onboardingCta.href}>
+                <PlusIcon className="h-4 w-4" />
+                {onboardingCta.label}
+              </Link>
+            </Button>
+          ) : null
+        }
+      >
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+          <TabsList className="h-11 w-full justify-start rounded-xl bg-muted p-1 sm:w-auto">
+            <TabsTrigger value="overview" className="rounded-lg px-4">
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="activity" className="rounded-lg px-4">
+              Activity
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="overview" className="mt-6 space-y-8">
+            {activeOrganization?.type === "COMPANY" ? (
+              <DirectorShareholderAlertCard
+                visiblePeople={visiblePeopleForDsAlert}
+                enabled={activeOrganization.onboardingStatus === "COMPLETED"}
               />
+            ) : null}
 
-              {/* Step-specific cards */}
+            {nextAction ? (
+              <NextActionBanner
+                title={nextAction.title}
+                description={nextAction.description}
+                href={nextAction.href}
+                ctaLabel={nextAction.ctaLabel}
+                tone={nextAction.tone}
+              />
+            ) : null}
 
-              {isAwaitingApproval && (
-                <div className="rounded-xl border bg-card p-6">
-                  <h3 className="text-lg font-semibold mb-2">Awaiting Approval</h3>
-                  <p className="text-muted-foreground">
-                    Your account is currently under review. You will be notified once the approval
-                    process is complete.
-                  </p>
-                </div>
-              )}
+            {activeOrganization && !allStepsComplete ? (
+              <section className="space-y-6">
+                <OnboardingStatusCard organization={activeOrganization} />
 
-              {activeOrganization?.onboardingStatus === "PENDING_AMENDMENT" && (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-50 p-6">
-                  <h3 className="text-lg font-semibold mb-2">Amendment in Progress</h3>
-                  <p className="text-muted-foreground">
-                    Your onboarding was sent back for amendment. Please complete the updated
-                    RegTank submission. Once submitted, our team will review it again.
-                  </p>
-                </div>
-              )}
-
-              {isRejected && (
-                <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-6">
-                  <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10">
-                        <ExclamationTriangleIcon className="h-5 w-5 text-destructive" />
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-destructive mb-2">
-                        Onboarding Rejected
-                      </h3>
-                      <p className="text-muted-foreground">
-                        Your onboarding application has been rejected. If you believe this was a
-                        mistake, please contact our support team to request a review of your
-                        application.
-                      </p>
-                      <p className="text-sm text-muted-foreground mt-3">
-                        Email:{" "}
-                        <a
-                          href="mailto:support@cashsouk.my"
-                          className="text-primary hover:underline"
-                        >
-                          support@cashsouk.my
-                        </a>
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* Dashboard preview — greyed out until onboarding is fully complete */}
-          {(allStepsComplete || isAwaitingApproval || isRejected) && (
-            <>
-              {allStepsComplete && (
-                <section className="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="text-2xl font-bold tracking-tight md:text-3xl">Welcome back, {displayName}!</h2>
-                    </div>
-                    <p className="mt-1 text-[17px] leading-7 text-muted-foreground">
-                      Manage your financing applications from this dashboard.
+                {isAwaitingApproval ? (
+                  <div className="rounded-xl border bg-card p-6">
+                    <h3 className="mb-2 text-lg font-semibold">Awaiting approval</h3>
+                    <p className="text-muted-foreground">
+                      Your account is under review. You will be notified once approval is complete.
                     </p>
                   </div>
-                  <Button
-                    asChild
-                    className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95"
-                  >
-                    <Link href="/applications/new">
-                      <PlusIcon className="h-4 w-4" />
-                      Apply for financing
-                    </Link>
-                  </Button>
-                </section>
-              )}
+                ) : null}
 
-              <div
-                className={cn(
-                  "space-y-8",
-                  !isAccountEnabled && "pointer-events-none select-none opacity-60"
-                )}
-                inert={!isAccountEnabled ? true : undefined}
-              >
+                {activeOrganization?.onboardingStatus === "PENDING_AMENDMENT" ? (
+                  <div className="rounded-xl border border-status-action-text/30 bg-status-action-bg p-6">
+                    <h3 className="mb-2 text-lg font-semibold">Changes requested</h3>
+                    <p className="text-muted-foreground">
+                      Your onboarding was sent back for updates. Complete the updated submission so
+                      our team can review it again.
+                    </p>
+                  </div>
+                ) : null}
+
+                {isRejected ? (
+                  <div className="rounded-xl border border-destructive/50 bg-destructive/5 p-6">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
+                        <ExclamationTriangleIcon className="h-5 w-5 text-destructive" />
+                      </div>
+                      <div>
+                        <h3 className="mb-2 text-lg font-semibold text-destructive">
+                          Onboarding rejected
+                        </h3>
+                        <p className="text-muted-foreground">
+                          Your onboarding application was rejected. If you believe this was a
+                          mistake, contact support to request a review.
+                        </p>
+                        <p className="mt-3 text-sm text-muted-foreground">
+                          Email:{" "}
+                          <a
+                            href="mailto:support@cashsouk.my"
+                            className="text-primary hover:underline"
+                          >
+                            support@cashsouk.my
+                          </a>
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+            ) : null}
+
+            {isAccountEnabled ? (
+              <div className="space-y-8">
                 <AccountOverviewCard
-                  isDisabled={!isAccountEnabled}
                   successRate={issuerDashboard?.overview.successRatePercent ?? null}
                   activeFinancing={issuerDashboard?.overview.activeFinancingAmount ?? null}
                   pastFinancing={issuerDashboard?.overview.pastFinancingAmount ?? null}
@@ -256,27 +306,26 @@ function IssuerDashboardContent() {
                   completedNotes={issuerDashboard?.overview.completedNotesCount ?? null}
                 />
                 <RepaymentPerformanceCard
-                  isDisabled={!isAccountEnabled}
                   onTimeRate={issuerDashboard?.repaymentPerformance.onTimePercent ?? null}
                   pastDueCount={issuerDashboard?.repaymentPerformance.pastDueCount ?? null}
                   lateRepaymentsLastSixMonthsCount={
                     issuerDashboard?.repaymentPerformance.lateRepaymentsLastSixMonthsCount ?? null
                   }
                 />
-
-                {isAccountEnabled ? (
-                  <>
-                    <RecentApplicationsCard />
-                    <RecentFinancingCard organizationId={activeOrganization?.id} />
-                    <RecentNotesCard />
-                  </>
-                ) : null}
+                <div className="grid grid-cols-1 items-stretch gap-6 lg:grid-cols-2">
+                  <RecentApplicationsCard />
+                  <RecentFinancingCard organizationId={activeOrganization?.id} />
+                </div>
               </div>
-            </>
-          )}
-        </div>
-      </div>
-    </>
+            ) : null}
+          </TabsContent>
+
+          <TabsContent value="activity" className="mt-6">
+            <IssuerActivityList embedded />
+          </TabsContent>
+        </Tabs>
+      </PageShell>
+    </div>
   );
 }
 
@@ -284,9 +333,9 @@ export default function IssuerDashboardPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center space-y-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="space-y-4 text-center">
+            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-primary" />
             <p className="text-muted-foreground">Loading...</p>
           </div>
         </div>

@@ -4,7 +4,6 @@ import * as React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { SidebarTrigger } from "../../components/ui/sidebar";
 import { Separator } from "../../components/ui/separator";
 import {
   Card,
@@ -29,7 +28,8 @@ import { Badge } from "../../components/ui/badge";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Skeleton } from "@cashsouk/ui";
+import { Skeleton, portalContentMaxWidthClassName, useHeader } from "@cashsouk/ui";
+import { cn } from "@/lib/utils";
 import { CURRENT_USER_QUERY_KEY } from "../../hooks/use-current-user";
 import { getAdminRoleDisplayInfo } from "../../components/admin-role-metadata";
 import {
@@ -93,13 +93,8 @@ interface MeResponse {
 function AccountPageSkeleton() {
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Account</h1>
-      </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="max-w-2xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
+        <div className={cn(portalContentMaxWidthClassName, "space-y-6 px-2 py-8 md:px-4")}>
           {/* Account Information Skeleton */}
           <Card>
             <CardHeader>
@@ -196,6 +191,12 @@ function AccountPageSkeleton() {
 }
 
 export default function AccountPage() {
+  const { setTitle } = useHeader();
+  React.useEffect(() => {
+    setTitle("Account");
+    return () => setTitle("");
+  }, [setTitle]);
+
   const queryClient = useQueryClient();
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
@@ -304,13 +305,8 @@ export default function AccountPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Account</h1>
-      </header>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="max-w-2xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
+            <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+        <div className={cn(portalContentMaxWidthClassName, "space-y-6 px-2 py-8 md:px-4")}>
           {/* Account Info Card */}
           <Card>
             <CardHeader>

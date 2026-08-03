@@ -4,15 +4,16 @@ import * as React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDownIcon, ChevronRightIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
+import { ChevronDownIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import {
-  useHeader,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
   Badge,
+  DetailHeader,
+  LoadingState,
   NoteStatusBadge,
   NOTE_STATUS_BADGE_TONE_CLASS,
   SoukscoreRiskRatingBadge,
@@ -65,7 +66,11 @@ import {
   type NoteSettlementPoolSummary,
 } from "@cashsouk/types";
 import { issuerFieldChromeClassName } from "@/lib/issuer-input-chrome";
-import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
+import {
+  issuerContentMaxWidthClassName,
+  issuerMainContentClassName,
+  issuerPageGutterClassName,
+} from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
 
 const MONEY_TOLERANCE = 0.005;
@@ -310,7 +315,6 @@ function BucketPayoutCard({
 export default function IssuerNoteDetailPage() {
   const params = useParams<{ id: string }>();
   const noteId = params.id;
-  const { setTitle } = useHeader();
   const { data: note, isLoading, error } = useIssuerNote(noteId);
   const { data: instructions } = useIssuerNotePaymentInstructions(noteId);
   const submitPayment = useSubmitIssuerPayment(noteId);
@@ -325,10 +329,6 @@ export default function IssuerNoteDetailPage() {
   const [paymentDialogOpen, setPaymentDialogOpen] = React.useState(false);
   const [paymentAdviceStep, setPaymentAdviceStep] = React.useState<PaymentAdviceStep>("source");
   const [paymentConfirmed, setPaymentConfirmed] = React.useState(false);
-
-  React.useEffect(() => {
-    setTitle("Note Detail");
-  }, [setTitle]);
 
   const openPaymentDialog = () => {
     setPaymentDialogOpen(true);
@@ -449,11 +449,22 @@ export default function IssuerNoteDetailPage() {
     }
   };
 
-  if (isLoading) return <div className="p-4 text-muted-foreground">Loading note...</div>;
+  if (isLoading) {
+    return (
+      <div className={cn(issuerMainContentClassName, issuerPageGutterClassName)}>
+        <LoadingState variant="detail" />
+      </div>
+    );
+  }
   if (error || !note) {
     return (
-      <div className="p-4 text-destructive">
-        {error instanceof Error ? error.message : "Note not found"}
+      <div className={cn(issuerMainContentClassName, issuerPageGutterClassName)}>
+        <div className="rounded-lg border border-destructive/30 p-4 text-sm text-destructive">
+          {error instanceof Error ? error.message : "Note not found"}
+        </div>
+        <Button asChild variant="outline" className="mt-4 rounded-xl">
+          <Link href="/financing?tab=notes">Back to Financing</Link>
+        </Button>
       </div>
     );
   }
@@ -510,10 +521,11 @@ export default function IssuerNoteDetailPage() {
   const contractTitleRaw =
     contractDetailsRecord?.title ?? contractDetailsRecord?.contract_title ?? null;
   const contractTitleLabel = typeof contractTitleRaw === "string" ? contractTitleRaw.trim() : "";
-  const hasSourceCrumb = Boolean(note.sourceContractId || note.sourceInvoiceId);
-  const invoiceFinancingHref = invoiceNumberLabel
-    ? `/financing?tab=invoices&search=${encodeURIComponent(invoiceNumberLabel)}`
-    : "/financing?tab=invoices";
+  const invoiceDetailHref = note.sourceInvoiceId
+    ? `/financing/invoices/${note.sourceInvoiceId}`
+    : invoiceNumberLabel
+      ? `/financing?tab=invoices&search=${encodeURIComponent(invoiceNumberLabel)}`
+      : "/financing?tab=invoices";
   const isSettled = note.servicingStatus === "SETTLED" || settlementSummary?.status === "POSTED";
   const paymentBlockedReason = isSettled
     ? "This note has been settled. Payment is closed and no further issuer payment confirmation is needed."
@@ -534,68 +546,75 @@ export default function IssuerNoteDetailPage() {
 
   return (
     <div className={issuerMainContentClassName}>
-      <div className={cn("mx-auto w-full max-w-6xl space-y-6", issuerPageGutterClassName)}>
-        {hasSourceCrumb ? (
-          <nav
-            aria-label="Source"
-            className="flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground"
-          >
-            <Link
-              href="/financing"
-              className="font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              Financing
-            </Link>
-            {note.sourceContractId ? (
-              <>
-                <ChevronRightIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                <Link
-                  href={`/financing/contracts/${note.sourceContractId}`}
-                  className="font-medium text-primary underline-offset-4 hover:underline"
-                >
-                  {contractTitleLabel ? `Contract: ${contractTitleLabel}` : "Contract"}
-                </Link>
-              </>
-            ) : null}
-            {note.sourceInvoiceId ? (
-              <>
-                <ChevronRightIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                {note.sourceContractId ? (
-                  <span className="font-medium text-muted-foreground">
-                    {invoiceNumberLabel ? `Invoice: ${invoiceNumberLabel}` : "Invoice"}
-                  </span>
-                ) : (
+      <div className={cn(issuerContentMaxWidthClassName, "space-y-6", issuerPageGutterClassName)}>
+        <DetailHeader
+          breadcrumb={
+            <nav className="flex flex-wrap items-center gap-1.5">
+              <Link
+                href="/financing?tab=notes"
+                className="hover:text-foreground hover:underline"
+              >
+                Financing
+              </Link>
+              <span aria-hidden>›</span>
+              <Link
+                href="/financing?tab=notes"
+                className="hover:text-foreground hover:underline"
+              >
+                Notes
+              </Link>
+              <span aria-hidden>›</span>
+              <span className="text-foreground">
+                {note.noteReference || note.title}
+              </span>
+            </nav>
+          }
+          title={note.title}
+          status={
+            <NoteStatusBadge
+              note={note}
+              className="max-w-[48%] shrink-0 self-start text-xs font-semibold"
+            />
+          }
+          facts={
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span>{note.noteReference}</span>
+              {note.sourceContractId ? (
+                <>
+                  <span aria-hidden>·</span>
                   <Link
-                    href={invoiceFinancingHref}
-                    className="font-medium text-primary underline-offset-4 hover:underline"
+                    href={`/financing/contracts/${note.sourceContractId}`}
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    {contractTitleLabel ? `Contract: ${contractTitleLabel}` : "Contract"}
+                  </Link>
+                </>
+              ) : null}
+              {note.sourceInvoiceId || invoiceNumberLabel ? (
+                <>
+                  <span aria-hidden>·</span>
+                  <Link
+                    href={invoiceDetailHref}
+                    className="text-primary underline-offset-4 hover:underline"
                   >
                     {invoiceNumberLabel ? `Invoice: ${invoiceNumberLabel}` : "Invoice"}
                   </Link>
-                )}
-              </>
-            ) : null}
-            <ChevronRightIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span className="font-medium text-foreground">Note</span>
-          </nav>
-        ) : null}
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-              <DocumentTextIcon className="h-5 w-5 text-primary" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">
-                Note Detail
-              </div>
-              <h1 className="truncate text-2xl font-semibold">{note.title}</h1>
-              <p className="mt-1 text-muted-foreground">{note.noteReference}</p>
-            </div>
-          </div>
-          <NoteStatusBadge
-            note={note}
-            className="max-w-[48%] shrink-0 self-start text-xs font-semibold"
-          />
-        </div>
+                </>
+              ) : null}
+              {note.sourceApplicationId ? (
+                <>
+                  <span aria-hidden>·</span>
+                  <Link
+                    href={`/applications/${note.sourceApplicationId}`}
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    Application
+                  </Link>
+                </>
+              ) : null}
+            </span>
+          }
+        />
 
         <Card className="rounded-2xl">
           <CardContent className="space-y-5 p-5">

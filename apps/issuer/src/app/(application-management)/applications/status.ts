@@ -381,6 +381,24 @@ export function countPendingIssuerOfferReviewsAcross(
   return apps.reduce((sum, app) => sum + countPendingIssuerOfferReviewItems(app), 0);
 }
 
+/** True when the issuer still needs to act (offer response and/or amendments). */
+export function isIssuerApplicationActionable(app: NormalizedApplication): boolean {
+  const key = (app.cardStatus.badgeKey ?? "").toLowerCase();
+  if (key === "amendment_requested" || key === "offer_sent") return true;
+  if (app.cardStatus.showMakeAmendments || app.cardStatus.showReviewOffer) return true;
+  if (countPendingIssuerOfferReviewItems(app) > 0) return true;
+  return app.invoices.some((inv) => {
+    const s = String(inv.status ?? "").toUpperCase();
+    return inv.canReviewOffer || s === "AMENDMENT_REQUESTED";
+  });
+}
+
+export function countIssuerApplicationsNeedingAction(
+  apps: readonly NormalizedApplication[]
+): number {
+  return apps.reduce((sum, app) => sum + (isIssuerApplicationActionable(app) ? 1 : 0), 0);
+}
+
 /**
  * Urgency-based sort order. Lower = higher in list.
  * UX order: 1) Needs action, 2) In progress, 3) Draft, 4) Success, 5) Closed.

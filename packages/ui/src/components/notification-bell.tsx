@@ -49,7 +49,11 @@ export function NotificationBell() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative h-10 w-10 rounded-lg border border-border bg-card shadow-sm hover:bg-accent/50"
+        >
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
             <Badge

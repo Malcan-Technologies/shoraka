@@ -1,17 +1,9 @@
 "use client";
 
+import { useHeader } from "@cashsouk/ui";
+
 import * as React from "react";
 import Link from "next/link";
-import { SidebarTrigger } from "../../../components/ui/sidebar";
-import { Separator } from "../../../components/ui/separator";
-import { SystemHealthIndicator } from "../../../components/system-health-indicator";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "../../../components/ui/breadcrumb";
 import { Button } from "../../../components/ui/button";
 import { InviteAdminDialog } from "../../../components/invite-admin-dialog";
 import { AdminUsersTable } from "../../../components/admin-users-table";
@@ -32,6 +24,12 @@ import type { AdminRoleKey, AdminUser } from "@cashsouk/types";
 const ITEMS_PER_PAGE = 10;
 
 export default function RolesPage() {
+  const { setTitle } = useHeader();
+  React.useEffect(() => {
+    setTitle("Roles");
+    return () => setTitle("");
+  }, [setTitle]);
+
   const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedRoles, setSelectedRoles] = React.useState<AdminRoleKey[]>([]);
@@ -104,25 +102,7 @@ export default function RolesPage() {
 
   return (
     <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbPage>Settings</BreadcrumbPage>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>Roles</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        <div className="ml-auto">
-          <SystemHealthIndicator />
-        </div>
-      </header>
-
+      
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <RequirePermission permission="roles.view">
         <div className="w-full px-2 md:px-4 py-8 space-y-6">
@@ -165,7 +145,7 @@ export default function RolesPage() {
                 className="gap-2 h-11 rounded-xl"
               >
                 <ArrowPathIcon className={`h-4 w-4 ${invitationsLoading || isInvitationsSpinning ? "animate-spin" : ""}`} />
-                Reload
+                Refresh
               </Button>
             </div>
             <PendingInvitationsTable
@@ -196,7 +176,7 @@ export default function RolesPage() {
               onStatusesChange={setSelectedStatuses}
               totalCount={data?.pagination.totalCount || 0}
               onClearFilters={handleClearFilters}
-              onReload={handleReload}
+              onRefresh={handleReload}
               isLoading={isLoading}
             />
             <AdminUsersTable

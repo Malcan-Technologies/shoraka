@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FileText, MoreVertical, Info } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { DocumentTextIcon, EllipsisVerticalIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
+import { StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,12 +12,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Badge } from "@/components/ui/badge";
 import type { IssuerDashboardContract } from "@/types/issuer-dashboard";
 import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
+import { financingOfferHref } from "@/lib/financing-offer-href";
 import type { OfferStatus } from "@/lib/offer-utils";
+import { cn } from "@/lib/utils";
+import { FinancingDonut } from "./financing-donut";
+import { FinancingKpiTile } from "./financing-kpi-strip";
 import {
   EM_DASH,
+  FINANCING_ATTENTION_SURFACE,
+  FINANCING_OFFER_ATTENTION_SURFACE,
   IssuerFinancingStatusBadge,
   LabelValue,
   displayCell,
@@ -25,37 +30,22 @@ import {
   formatMoney,
 } from "./utils";
 
-function offerBadge(offerStatus: OfferStatus) {
+function OfferStatusBadge({ offerStatus }: { offerStatus: OfferStatus }) {
   if (!offerStatus) return null;
   if (offerStatus === "Offer expired") {
-    return <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-100">Offer expired</Badge>;
+    return <StatusBadge label="Offer expired" status="rejected" />;
   }
-  return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Offer received</Badge>;
-}
-
-function ReviewOfferButton({ show, onClick }: { show: boolean; onClick?: () => void }) {
-  if (!show) return null;
-  return (
-    <Button
-      type="button"
-      size="sm"
-      variant="reviewOffer"
-      className="rounded-xl"
-      onClick={onClick}
-    >
-      Review offer
-    </Button>
-  );
+  return <StatusBadge label="Offer received" status="action" />;
 }
 
 export function DashboardContractCard({
   row,
   offerStatus,
-  onReviewOffer,
 }: {
   row: IssuerDashboardContract;
   offerStatus: OfferStatus;
-  onReviewOffer: () => void;
+  /** @deprecated Offer review navigates to the application Offer tab. */
+  onReviewOffer?: () => void;
 }) {
   const router = useRouter();
   const actionRequiredApplicationIds = row.actionRequiredApplicationIds ?? [];
@@ -78,24 +68,46 @@ export function DashboardContractCard({
         : EM_DASH;
 
   const stats = row.invoiceStats;
+  const showReviewOffer = offerStatus === "Offer received";
+  const attentionSurface = showReviewOffer
+    ? FINANCING_OFFER_ATTENTION_SURFACE
+    : showActionRequired
+      ? FINANCING_ATTENTION_SURFACE
+      : null;
 
   return (
-    <Card className="min-w-0 max-w-full rounded-xl border border-border bg-muted/50 shadow-none">
-      <div className="space-y-3 px-4 py-4 md:px-5">
+    <article
+      className={cn(
+        "min-w-0 max-w-full rounded-2xl border p-4 shadow-sm md:p-5",
+        attentionSurface ?? "border-border bg-card"
+      )}
+    >
+      <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <DocumentTextIcon className="h-5 w-5 shrink-0 text-muted-foreground" />
             <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
               <p className="min-w-0 max-w-full truncate leading-5">
                 <span className="text-sm font-normal leading-5 text-foreground">Contract: </span>
-                <span className="text-sm font-semibold leading-5 text-foreground">{displayCell(row.title)}</span>
+                <Link
+                  href={`/financing/contracts/${row.id}`}
+                  className="text-sm font-semibold leading-5 text-foreground underline-offset-4 hover:underline"
+                >
+                  {displayCell(row.title)}
+                </Link>
               </p>
               <IssuerFinancingStatusBadge kind={resolveIssuerContractDashboardBadge(row.contractStatus)} />
-              {offerBadge(offerStatus)}
+              <OfferStatusBadge offerStatus={offerStatus} />
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <ReviewOfferButton show={offerStatus === "Offer received"} onClick={onReviewOffer} />
+            {showReviewOffer ? (
+              <div className="rounded-xl bg-status-action-bg p-0.5">
+                <Button size="sm" className="rounded-xl" asChild>
+                  <Link href={financingOfferHref(row.applicationId)}>Review offer</Link>
+                </Button>
+              </div>
+            ) : null}
             {showActionRequired ? (
               <TooltipProvider>
                 <Tooltip>
@@ -104,7 +116,7 @@ export function DashboardContractCard({
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="h-8 rounded-lg border-amber-500/30 bg-amber-50 px-3 text-xs font-medium text-amber-800 hover:bg-amber-50"
+                      className="h-8 rounded-lg border-status-action-text/30 bg-status-action-bg px-3 text-xs font-medium text-status-action-text hover:bg-status-action-bg"
                       onClick={() =>
                         router.push(
                           `/applications?applicationIds=${encodeURIComponent(
@@ -124,77 +136,84 @@ export function DashboardContractCard({
                 </Tooltip>
               </TooltipProvider>
             ) : null}
+            <Button size="sm" variant="outline" className="rounded-xl" asChild>
+              <Link href={`/financing/contracts/${row.id}`}>View details</Link>
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                  <MoreVertical className="h-4 w-4" />
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" aria-label="More actions">
+                  <EllipsisVerticalIcon className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem asChild>
-                  <Link href={`/financing/contracts/${row.id}`}>View details</Link>
+                  <Link href={`/applications/${row.applicationId}`}>View application</Link>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 pl-3 sm:pl-4">
-          <div className="grid grid-cols-1 items-start gap-x-6 gap-y-3 md:grid-cols-2">
-            <div className="min-w-0 space-y-2">
-              <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
-              <LabelValue label="Contract period">{contractPeriod}</LabelValue>
-              <LabelValue label="Active notes">{String(row.activeNotesCount)}</LabelValue>
-              <p className="text-[17px] leading-7 text-foreground">
-                <span className="font-normal text-muted-foreground">Invoices: </span>
-                <span className="font-medium tabular-nums text-foreground">{stats.total}</span>
-              </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
+          <div className="flex shrink-0 items-center justify-center sm:w-[11rem] sm:justify-start">
+            <FinancingDonut
+              size="lg"
+              centerLabel="Utilised"
+              percent={approvedNum != null && approvedNum > 0 ? utilisationPct : null}
+            />
+          </div>
+
+          <div className="min-w-0 flex-1 space-y-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <FinancingKpiTile
+                label="Utilised"
+                value={formatMoney(row.utilizedFacilityAmount)}
+              />
+              <FinancingKpiTile
+                label="Approved"
+                value={formatMoney(row.approvedFacilityAmount)}
+              />
             </div>
-            <div className="min-w-0 w-full space-y-2">
-              <div className="h-3 w-full overflow-hidden rounded-full border border-border bg-foreground/35 dark:bg-muted shadow-sm">
-                <div
-                  className="h-3 rounded-full bg-foreground"
-                  style={{ width: `${Math.min(100, Math.max(0, utilisationPct))}%` }}
-                />
-              </div>
-              <div className="flex justify-between gap-6 sm:gap-8">
-                <div className="min-w-0">
-                  <p className="text-[17px] font-semibold tabular-nums leading-7 text-foreground">
-                    {formatMoney(row.utilizedFacilityAmount)}
-                  </p>
-                  <p className="text-sm font-normal leading-6 text-muted-foreground">(Utilised facility)</p>
-                </div>
-                <div className="min-w-0 text-right">
-                  <p className="text-[17px] font-semibold tabular-nums leading-7 text-foreground">
-                    {formatMoney(row.approvedFacilityAmount)}
-                  </p>
-                  <p className="text-sm font-normal leading-6 text-muted-foreground">(Approved facility)</p>
-                </div>
-              </div>
-              {row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null ? (
-                <p className="text-sm leading-6 text-muted-foreground">
-                  Facility fee collected:{" "}
-                  <span className="font-medium tabular-nums text-foreground">
-                    {formatMoney(row.facilityFeePaidAmount)} / {formatMoney(row.facilityFeeCapAmount)} cap
-                  </span>
-                  <span className="ml-1 inline-flex items-center align-middle">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-[260px] whitespace-normal break-words bg-popover px-2 py-1.5 text-popover-foreground shadow-md">
-                          Shows the total facility fee collected so far for this contract. Facility fee is deducted from each invoice financing disbursement until the cap is reached.
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </span>
+
+            <div className="grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-2">
+              <div className="min-w-0 space-y-2">
+                <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
+                <LabelValue label="Contract period">{contractPeriod}</LabelValue>
+                <LabelValue label="Active notes">{String(row.activeNotesCount)}</LabelValue>
+                <p className="text-[17px] leading-7 text-foreground">
+                  <span className="font-normal text-muted-foreground">Invoices: </span>
+                  <span className="font-medium tabular-nums text-foreground">{stats.total}</span>
                 </p>
-              ) : null}
+              </div>
+              <div className="min-w-0 space-y-2">
+                {row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null ? (
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    Facility fee collected:{" "}
+                    <span className="font-medium tabular-nums text-foreground">
+                      {formatMoney(row.facilityFeePaidAmount)} /{" "}
+                      {formatMoney(row.facilityFeeCapAmount)} cap
+                    </span>
+                    <span className="ml-1 inline-flex items-center align-middle">
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <InformationCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[260px] whitespace-normal break-words bg-popover px-2 py-1.5 text-popover-foreground shadow-md">
+                            Shows the total facility fee collected so far for this contract.
+                            Facility fee is deducted from each invoice financing disbursement until
+                            the cap is reached.
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </span>
+                  </p>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </Card>
+    </article>
   );
 }

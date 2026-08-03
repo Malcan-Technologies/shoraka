@@ -524,12 +524,7 @@ export class ApplicationService {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
 
-    /** Archived applications must not be accessible through the edit flow. */
-    const status = (application as { status?: string }).status;
-    if (status === "ARCHIVED") {
-      throw new AppError(403, "EDIT_NOT_ALLOWED", "Application cannot be edited in its current status");
-    }
-
+    // ARCHIVED apps remain readable on the detail page; edit/mutations enforce status separately.
     return application;
   }
 

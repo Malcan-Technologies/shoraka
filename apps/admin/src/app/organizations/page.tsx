@@ -1,94 +1,114 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { SidebarTrigger } from "../../components/ui/sidebar";
-import { Separator } from "../../components/ui/separator";
-import { SystemHealthIndicator } from "../../components/system-health-indicator";
-import { OrganizationsTable } from "../../components/organizations-table";
-import { OrganizationsTableToolbar } from "../../components/organizations-table-toolbar";
-import { useOrganizations } from "../../hooks/use-organizations";
-import { RequirePermission } from "../../components/require-permission";
-import { Badge } from "../../components/ui/badge";
-import {
-  BanknotesIcon,
-  BuildingOffice2Icon,
-} from "@heroicons/react/24/outline";
+import { Skeleton, Tabs, TabsContent, TabsList, TabsTrigger, useHeader } from "@cashsouk/ui";
 import type {
   GetOrganizationsParams,
-  OrganizationTypeEnum,
   OnboardingStatusEnum,
+  OrganizationTypeEnum,
 } from "@cashsouk/types";
+import { OrganizationsTable } from "../../components/organizations-table";
+import { OrganizationsTableToolbar } from "../../components/organizations-table-toolbar";
+import { RequirePermission } from "../../components/require-permission";
+import { useOrganizations } from "../../hooks/use-organizations";
 
-export default function OrganizationsPage() {
+const ORG_TABS = [
+  { id: "issuer", label: "Issuers" },
+  { id: "investor", label: "Investors" },
+] as const;
+
+type OrgTabId = (typeof ORG_TABS)[number]["id"];
+
+function isOrgTabId(value: string | null): value is OrgTabId {
+  return ORG_TABS.some((tab) => tab.id === value);
+}
+
+function OrganizationsPageFallback() {
+  return (
+    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      <div className="w-full space-y-6 px-2 py-8 md:px-4">
+        <Skeleton className="h-11 w-full" />
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-64 w-full rounded-2xl" />
+      </div>
+    </div>
+  );
+}
+
+function OrganizationsPageContent() {
+  const { setTitle } = useHeader();
+  React.useEffect(() => {
+    setTitle("Organizations");
+    return () => setTitle("");
+  }, [setTitle]);
+
   const queryClient = useQueryClient();
-  
-  // Shared filters for both tables
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const requestedTab = searchParams.get("tab");
+  const activeTab: OrgTabId = isOrgTabId(requestedTab) ? requestedTab : "issuer";
+
+  React.useEffect(() => {
+    if (requestedTab === activeTab) return;
+    router.replace(`${pathname}?tab=${activeTab}`);
+  }, [activeTab, requestedTab, pathname, router]);
+
   const [searchQuery, setSearchQuery] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState("all");
   const [onboardingStatusFilter, setOnboardingStatusFilter] = React.useState("COMPLETED");
-  
-  // Separate pagination for each table
   const [investorPage, setInvestorPage] = React.useState(1);
   const [issuerPage, setIssuerPage] = React.useState(1);
-  const pageSize = 10;
+  const pageSize = 20;
 
-  // Build API params for investor organizations
-  const investorParams = React.useMemo(() => {
-    const params: GetOrganizationsParams = {
-      page: investorPage,
-      pageSize,
-      portal: "investor",
-    };
+  const buildParams = React.useCallback(
+    (portal: OrgTabId, page: number): GetOrganizationsParams => {
+      const params: GetOrganizationsParams = {
+        page,
+        pageSize,
+        portal,
+      };
 
-    if (searchQuery) {
-      params.search = searchQuery;
-    }
+      if (searchQuery) {
+        params.search = searchQuery;
+      }
 
-    if (typeFilter !== "all") {
-      params.type = typeFilter as OrganizationTypeEnum;
-    }
+      if (typeFilter !== "all") {
+        params.type = typeFilter as OrganizationTypeEnum;
+      }
 
-    if (onboardingStatusFilter !== "all") {
-      params.onboardingStatus = onboardingStatusFilter as OnboardingStatusEnum;
-    }
+      if (onboardingStatusFilter !== "all") {
+        params.onboardingStatus = onboardingStatusFilter as OnboardingStatusEnum;
+      }
 
-    return params;
-  }, [investorPage, pageSize, searchQuery, typeFilter, onboardingStatusFilter]);
+      return params;
+    },
+    [pageSize, searchQuery, typeFilter, onboardingStatusFilter]
+  );
 
-  // Build API params for issuer organizations
-  const issuerParams = React.useMemo(() => {
-    const params: GetOrganizationsParams = {
-      page: issuerPage,
-      pageSize,
-      portal: "issuer",
-    };
+  const investorParams = React.useMemo(
+    () => buildParams("investor", investorPage),
+    [buildParams, investorPage]
+  );
+  const issuerParams = React.useMemo(
+    () => buildParams("issuer", issuerPage),
+    [buildParams, issuerPage]
+  );
 
-    if (searchQuery) {
-      params.search = searchQuery;
-    }
-
-    if (typeFilter !== "all") {
-      params.type = typeFilter as OrganizationTypeEnum;
-    }
-
-    if (onboardingStatusFilter !== "all") {
-      params.onboardingStatus = onboardingStatusFilter as OnboardingStatusEnum;
-    }
-
-    return params;
-  }, [issuerPage, pageSize, searchQuery, typeFilter, onboardingStatusFilter]);
-
-  const { 
-    data: investorData, 
-    isLoading: investorLoading, 
-    error: investorError 
+  const {
+    data: investorData,
+    isLoading: investorLoading,
+    error: investorError,
   } = useOrganizations(investorParams);
 
-  const { 
-    data: issuerData, 
-    isLoading: issuerLoading, 
-    error: issuerError 
+  const {
+    data: issuerData,
+    isLoading: issuerLoading,
+    error: issuerError,
   } = useOrganizations(issuerParams);
 
   const handleReload = () => {
@@ -103,106 +123,58 @@ export default function OrganizationsPage() {
     setIssuerPage(1);
   };
 
-  // Reset pagination when filters change
   React.useEffect(() => {
     setInvestorPage(1);
     setIssuerPage(1);
   }, [searchQuery, typeFilter, onboardingStatusFilter]);
 
+  const handleTabChange = (value: string) => {
+    if (!isOrgTabId(value)) return;
+    router.replace(`${pathname}?tab=${value}`);
+  };
+
   const investorOrganizations = investorData?.organizations || [];
   const totalInvestorOrganizations = investorData?.pagination.totalCount || 0;
-
   const issuerOrganizations = issuerData?.organizations || [];
   const totalIssuerOrganizations = issuerData?.pagination.totalCount || 0;
 
-  const totalOrganizations = totalInvestorOrganizations + totalIssuerOrganizations;
+  const activeTotal =
+    activeTab === "issuer" ? totalIssuerOrganizations : totalInvestorOrganizations;
+  const activeLoading = activeTab === "issuer" ? issuerLoading : investorLoading;
 
   return (
-    <RequirePermission permission="organizations.view">
-      <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Organizations</h1>
-        <div className="ml-auto">
-          <SystemHealthIndicator />
-        </div>
-      </header>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="w-full px-2 md:px-4 py-8 space-y-8">
-          {/* Shared Toolbar */}
-          <OrganizationsTableToolbar
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            typeFilter={typeFilter}
-            onTypeFilterChange={setTypeFilter}
-            onboardingStatusFilter={onboardingStatusFilter}
-            onOnboardingStatusFilterChange={setOnboardingStatusFilter}
-            totalCount={totalOrganizations}
-            filteredCount={totalOrganizations}
-            onClearFilters={handleClearFilters}
-            onReload={handleReload}
-            isLoading={investorLoading || issuerLoading}
-          />
+    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      <div className="w-full space-y-6 px-2 py-8 md:px-4">
+        <OrganizationsTableToolbar
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          typeFilter={typeFilter}
+          onTypeFilterChange={setTypeFilter}
+          onboardingStatusFilter={onboardingStatusFilter}
+          onOnboardingStatusFilterChange={setOnboardingStatusFilter}
+          totalCount={activeTotal}
+          filteredCount={activeTotal}
+          onClearFilters={handleClearFilters}
+          onRefresh={handleReload}
+          isLoading={activeLoading}
+        />
 
-          {/* Investor Organizations Section */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <BanknotesIcon className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold">Investor Organizations</h2>
-                <p className="text-sm text-muted-foreground">
-                  Manage investor accounts and sophisticated investor classifications
-                </p>
-              </div>
-              <Badge variant="secondary" className="ml-auto">
-                {totalInvestorOrganizations} {totalInvestorOrganizations === 1 ? "organization" : "organizations"}
-              </Badge>
-            </div>
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+          <TabsList className="flex h-auto w-fit max-w-full flex-wrap justify-start">
+            {ORG_TABS.map((tab) => (
+              <TabsTrigger key={tab.id} value={tab.id}>
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-            {investorError && (
-              <div className="text-center py-8 text-destructive">
-                Error loading investor organizations:{" "}
-                {investorError instanceof Error ? investorError.message : "Unknown error"}
-              </div>
-            )}
-
-            <OrganizationsTable
-              portal="investor"
-              organizations={investorOrganizations}
-              loading={investorLoading}
-              currentPage={investorPage}
-              pageSize={pageSize}
-              totalOrganizations={totalInvestorOrganizations}
-              onPageChange={setInvestorPage}
-            />
-          </section>
-
-          {/* Issuer Organizations Section */}
-          <section className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10">
-                <BuildingOffice2Icon className="h-5 w-5 text-accent" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold">Issuer Organizations</h2>
-                <p className="text-sm text-muted-foreground">
-                  Manage issuer accounts and business entities
-                </p>
-              </div>
-              <Badge variant="secondary" className="ml-auto">
-                {totalIssuerOrganizations} {totalIssuerOrganizations === 1 ? "organization" : "organizations"}
-              </Badge>
-            </div>
-
-            {issuerError && (
-              <div className="text-center py-8 text-destructive">
+          <TabsContent value="issuer" className="mt-0 space-y-4">
+            {issuerError ? (
+              <div className="py-8 text-center text-destructive">
                 Error loading issuer organizations:{" "}
                 {issuerError instanceof Error ? issuerError.message : "Unknown error"}
               </div>
-            )}
+            ) : null}
 
             <OrganizationsTable
               portal="issuer"
@@ -213,10 +185,38 @@ export default function OrganizationsPage() {
               totalOrganizations={totalIssuerOrganizations}
               onPageChange={setIssuerPage}
             />
-          </section>
-        </div>
+          </TabsContent>
+
+          <TabsContent value="investor" className="mt-0 space-y-4">
+            {investorError ? (
+              <div className="py-8 text-center text-destructive">
+                Error loading investor organizations:{" "}
+                {investorError instanceof Error ? investorError.message : "Unknown error"}
+              </div>
+            ) : null}
+
+            <OrganizationsTable
+              portal="investor"
+              organizations={investorOrganizations}
+              loading={investorLoading}
+              currentPage={investorPage}
+              pageSize={pageSize}
+              totalOrganizations={totalInvestorOrganizations}
+              onPageChange={setInvestorPage}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
-      </>
+    </div>
+  );
+}
+
+export default function OrganizationsPage() {
+  return (
+    <RequirePermission permission="organizations.view">
+      <Suspense fallback={<OrganizationsPageFallback />}>
+        <OrganizationsPageContent />
+      </Suspense>
     </RequirePermission>
   );
 }

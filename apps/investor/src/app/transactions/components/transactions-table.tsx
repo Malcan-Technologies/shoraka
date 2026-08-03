@@ -118,7 +118,7 @@ function FilterButton({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="h-10 gap-2 rounded-xl">
+        <Button variant="outline" className="h-10 gap-2 rounded-xl bg-card">
           <FunnelIcon className="h-4 w-4" />
           {label}
           {activeCount > 0 ? (
@@ -208,12 +208,6 @@ export function TransactionsTable({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
           <h2 className="text-xl font-semibold">Transactions</h2>
-          <Badge
-            variant="secondary"
-            className="rounded-full bg-muted text-muted-foreground font-normal hover:bg-muted"
-          >
-            {totalCount}
-          </Badge>
         </div>
         <div className="flex flex-wrap gap-2">
           <FilterButton label="Transaction type" activeCount={typeActive}>

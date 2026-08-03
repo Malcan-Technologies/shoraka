@@ -1,25 +1,24 @@
 "use client";
 
+import { useEffect } from "react";
+
+import { useHeader } from "@cashsouk/ui";
+
 import { DocumentCheckIcon } from "@heroicons/react/24/outline";
 import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { RequirePermission } from "@/components/require-permission";
 
 export default function ApplicationsPage() {
+  const { setTitle } = useHeader();
+  useEffect(() => {
+    setTitle("Applications");
+    return () => setTitle("");
+  }, [setTitle]);
+
   return (
     <RequirePermission permission="applications.view">
       <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Applications</h1>
-        <div className="ml-auto">
-          <SystemHealthIndicator />
-        </div>
-      </header>
-
+      
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="w-full px-2 py-8 md:px-4">
           <Card className="rounded-2xl border-dashed">

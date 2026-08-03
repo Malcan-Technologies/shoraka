@@ -1,14 +1,13 @@
 "use client";
 
+import { useHeader } from "@cashsouk/ui";
+
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import type { GetAdminNotesParams, NoteListItem, NoteStatus } from "@cashsouk/types";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { NotesTable } from "@/notes/components/notes-table";
 import {
   NOTE_STATUS_FILTER_ACTIVE_LOANS,
@@ -20,6 +19,12 @@ import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
 
 export default function NotesPage() {
+  const { setTitle } = useHeader();
+  React.useEffect(() => {
+    setTitle("Notes");
+    return () => setTitle("");
+  }, [setTitle]);
+
   const { can } = usePermissions();
   const canCreate = can("notes.create");
   const router = useRouter();
@@ -111,15 +116,7 @@ export default function NotesPage() {
   return (
     <RequirePermission permission="notes.view">
       <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Notes</h1>
-        <div className="ml-auto">
-          <SystemHealthIndicator />
-        </div>
-      </header>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+            <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="w-full space-y-8 px-2 py-8 md:px-4">
           <section className="space-y-4">
             <div className="flex items-center gap-3">
@@ -146,7 +143,7 @@ export default function NotesPage() {
               status={status}
               onStatusChange={handleStatusChange}
               onClearFilters={handleClearFilters}
-              onReload={handleReload}
+              onRefresh={handleReload}
               totalCount={totalNotes}
               isLoading={isLoading}
               featuredOnly={featuredOnly}

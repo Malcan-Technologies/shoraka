@@ -103,7 +103,7 @@ export function deriveNoteStatus(input: NoteStatusInput): DerivedNoteStatus {
     return { label: "Settled", tone: "success", icon: CheckBadgeIcon };
   }
   if (input.status === "ARREARS" || input.servicingStatus === "ARREARS") {
-    return { label: "Arrears", tone: "warning", icon: ExclamationTriangleIcon };
+    return { label: "Arrears", tone: "destructive", icon: ExclamationTriangleIcon };
   }
   if (input.status === "ACTIVE") {
     if (input.hasPostedSettlement && input.pendingResidual) {

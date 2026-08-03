@@ -10,7 +10,7 @@ interface HeaderContextType {
 const HeaderContext = createContext<HeaderContextType | undefined>(undefined);
 
 export function HeaderProvider({ children }: { children: ReactNode }) {
-  const [title, setTitle] = useState("Dashboard");
+  const [title, setTitle] = useState("");
 
   return (
     <HeaderContext.Provider value={{ title, setTitle }}>

@@ -29,7 +29,7 @@ const chartConfig = {
   },
   success: {
     label: "Success",
-    color: "hsl(var(--foreground))",
+    color: "hsl(var(--primary))",
   },
   remaining: {
     label: "Remaining",
@@ -89,9 +89,11 @@ export function AccountOverviewCard({
     completedNotes != null && Number.isFinite(completedNotes) ? String(completedNotes) : EM;
 
   return (
-    <Card className={cn("w-full bg-muted/50 shadow-none", isDisabled && "pointer-events-none opacity-50")}>
+    <Card className={cn("w-full", isDisabled && "pointer-events-none opacity-50")}>
       <CardHeader className="pb-3">
-        <CardTitle className="text-xl font-semibold tracking-tight text-foreground">Account Overview</CardTitle>
+        <CardTitle className="text-xl font-semibold tracking-tight text-foreground">
+          Your financing at a glance
+        </CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-5">
@@ -153,7 +155,7 @@ export function AccountOverviewCard({
           </div>
 
           <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="flex flex-col rounded-xl border border-border bg-background px-4 py-4 shadow-none md:px-5 md:py-5">
+            <div className="flex flex-col rounded-xl border border-border bg-muted/30 px-4 py-4 md:px-5 md:py-5">
               <div className="mb-4 flex items-center gap-2 border-b border-border pb-3">
                 <BanknotesIcon className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
                 <h3 className="text-lg font-semibold leading-7 text-foreground">Financing</h3>
@@ -164,7 +166,7 @@ export function AccountOverviewCard({
               </div>
             </div>
 
-            <div className="flex flex-col rounded-xl border border-border bg-background px-4 py-4 shadow-none md:px-5 md:py-5">
+            <div className="flex flex-col rounded-xl border border-border bg-muted/30 px-4 py-4 md:px-5 md:py-5">
               <div className="mb-4 flex items-center gap-2 border-b border-border pb-3">
                 <DocumentTextIcon className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
                 <h3 className="text-lg font-semibold leading-7 text-foreground">Notes</h3>

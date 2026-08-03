@@ -1,12 +1,41 @@
 import React from "react";
-import { Badge } from "@/components/ui/badge";
-import { formatMoneyDisplay } from "@cashsouk/ui";
+import { StatusBadge, formatMoneyDisplay, type StatusToken } from "@cashsouk/ui";
 import {
   getIssuerFinancingStatusPresentation,
   type IssuerFinancingStatusKind,
 } from "@/lib/issuer-dashboard-labels";
 
 export const EM_DASH = "\u2014";
+
+/** Soft surface for financing cards that need issuer action (yellow wash, not full badge fill). */
+export const FINANCING_ATTENTION_SURFACE =
+  "border-status-action-text/15 bg-[hsl(var(--status-action-bg)/0.45)]";
+/** Soft red wash for notes in arrears — stronger urgency than amber attention. */
+export const FINANCING_ARREARS_SURFACE =
+  "border-status-rejected-text/25 bg-[hsl(var(--status-rejected-bg)/0.55)]";
+/** @deprecated Alias — offers use the same action (yellow) surface as amendments. */
+export const FINANCING_OFFER_ATTENTION_SURFACE = FINANCING_ATTENTION_SURFACE;
+
+export function financingKindToStatusToken(kind: IssuerFinancingStatusKind): StatusToken {
+  switch (kind) {
+    case "draft":
+    case "action_required":
+      return "action";
+    case "pending_approval":
+      return "submitted";
+    case "in_progress":
+      return "in-progress";
+    case "funded":
+    case "active":
+      return "success";
+    case "completed":
+      return "neutral";
+    case "unsuccessful":
+      return "rejected";
+    default:
+      return "neutral";
+  }
+}
 
 export function displayCell(value: unknown): string {
   if (value === null || value === undefined) return EM_DASH;
@@ -73,11 +102,7 @@ export function LabelValue({
 
 export function IssuerFinancingStatusBadge({ kind }: { kind: IssuerFinancingStatusKind }) {
   const p = getIssuerFinancingStatusPresentation(kind);
-  return (
-    <Badge variant={p.variant} className={p.className}>
-      {p.label}
-    </Badge>
-  );
+  return <StatusBadge label={p.label} status={financingKindToStatusToken(kind)} />;
 }
 
 const FUNDING_STATUS_PREFIX = "Funding status ";

@@ -40,16 +40,16 @@ export function InvoiceErrorCard({ groups = [], errors = [] }: InvoiceErrorCardP
 
   return (
     <div
-      className={`${AMENDMENT_CALLOUT_ROOT} mb-6 border-primary/55 bg-primary/10 text-foreground`}
+      className={`${AMENDMENT_CALLOUT_ROOT} mb-6 border-status-rejected-text/40 bg-status-rejected-bg text-foreground`}
     >
       <div
-        className={`${AMENDMENT_CALLOUT_ICON_WRAP} bg-primary/20 border-primary/45`}
+        className={`${AMENDMENT_CALLOUT_ICON_WRAP} border-status-rejected-text/40 bg-status-rejected-bg`}
         aria-hidden
       >
-        <ExclamationTriangleIcon className="h-5 w-5 text-primary" />
+        <ExclamationTriangleIcon className="h-5 w-5 text-status-rejected-text" />
       </div>
       <div className={`${AMENDMENT_CALLOUT_BODY} flex-1`}>
-        <p className={`${AMENDMENT_CALLOUT_TITLE} text-primary`}>
+        <p className={`${AMENDMENT_CALLOUT_TITLE} text-status-rejected-text`}>
           Amendments required (invoices)
         </p>
         <div className={`${AMENDMENT_CALLOUT_CONTENT} space-y-3 text-foreground`}>

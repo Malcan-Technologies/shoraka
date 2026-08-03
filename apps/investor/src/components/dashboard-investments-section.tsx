@@ -239,13 +239,13 @@ export function InvestorInvestmentsList({
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search by note, product, issuer, or industry"
-                className="h-11 rounded-xl pl-9"
+                className="h-11 rounded-xl bg-card pl-9"
               />
             </div>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-11 gap-2 rounded-xl">
+                <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
                   <FunnelIcon className="h-4 w-4" />
                   Status
                   {statusFilter !== "all" ? (
@@ -279,7 +279,7 @@ export function InvestorInvestmentsList({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-11 gap-2 rounded-xl">
+                <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
                   <FunnelIcon className="h-4 w-4" />
                   Industry
                   {industryFilter !== "all" ? (
@@ -316,7 +316,7 @@ export function InvestorInvestmentsList({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-11 gap-2 rounded-xl">
+                <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
                   <FunnelIcon className="h-4 w-4" />
                   Risk score
                   {riskFilter !== "all" ? (
@@ -350,7 +350,7 @@ export function InvestorInvestmentsList({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-11 gap-2 rounded-xl">
+                <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
                   <FunnelIcon className="h-4 w-4" />
                   Profit
                   {profitFilter !== "all" ? (
@@ -382,7 +382,7 @@ export function InvestorInvestmentsList({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-11 gap-2 rounded-xl">
+                <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
                   <FunnelIcon className="h-4 w-4" />
                   Tenor
                   {tenorFilter !== "all" ? (
@@ -422,12 +422,12 @@ export function InvestorInvestmentsList({
               variant="outline"
               onClick={handleReload}
               disabled={isLoading || reloadSpin}
-              className="h-11 gap-2 rounded-xl"
+              className="h-11 gap-2 rounded-xl bg-card"
             >
               <ArrowPathIcon
                 className={`h-4 w-4 ${isLoading || reloadSpin ? "animate-spin" : ""}`}
               />
-              Reload
+              Refresh
             </Button>
             <Badge
               variant="secondary"
@@ -473,7 +473,7 @@ export function InvestorInvestmentsList({
               <InvestmentPositionCard
                 key={note.id}
                 note={note}
-                className={cn(showStatusFilter && "h-full bg-muted/50")}
+                className={cn(showStatusFilter && "h-full")}
               />
             ))}
           </div>

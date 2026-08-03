@@ -105,7 +105,8 @@ describe("resolveProspectusStatusCard", () => {
     const model = resolveProspectusStatusCard(
       baseNote({
         prospectus: {
-          status: "READY_FOR_REVIEW",
+          // Legacy raw status; API normalizes to DRAFT but card must still emphasize.
+          status: "READY_FOR_REVIEW" as "DRAFT" | "APPROVED" | "PUBLISHED",
           displayStatus: "Draft",
           contentVersion: 1,
           lastSavedAt: null,

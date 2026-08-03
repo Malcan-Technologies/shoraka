@@ -151,10 +151,10 @@ export function ProductsList() {
           onClick={() => invalidateProducts()}
           disabled={isPending}
           className="gap-2 h-11 rounded-xl"
-          aria-label="Reload list"
+          aria-label="Refresh list"
         >
           <ArrowPathIcon className={`h-4 w-4 ${isPending ? "animate-spin" : ""}`} />
-          Reload
+          Refresh
         </Button>
         <Badge variant="secondary" className="h-11 px-4 rounded-xl text-sm">
           {totalCount} {totalCount === 1 ? "product" : "products"}

@@ -1,0 +1,1156 @@
+"use client";
+
+/**
+ * Offer review UI for contract or invoice offers.
+ * - mode="modal": full dialog (financing pages + legacy hosts)
+ * - mode="inline": page/tab embed; eKYC steps still open in a modal (identity ceremony)
+ *
+ * Accept / decline / eKYC / SigningCloud behaviour is unchanged from ReviewOfferModal.
+ */
+
+import * as React from "react";
+import { QRCodeSVG } from "qrcode.react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ISSUER_OFFER_DECLINE_REASONS,
+  OTHER_ISSUER_DECLINE_REASON_VALUE,
+  resolveIssuerOfferDeclineReason,
+} from "@/lib/issuer-offer-decline-reasons";
+import { useContract } from "@/hooks/use-contracts";
+import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
+import { useAcceptInvoiceOffer, useRejectContractOffer, useRejectInvoiceOffer } from "@/hooks/use-applications";
+import { format } from "date-fns";
+import { formatCurrency } from "@cashsouk/config";
+import {
+  ArrowDownTrayIcon,
+  ArrowLeftIcon,
+  CheckIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+} from "@heroicons/react/24/solid";
+import { toast } from "sonner";
+import type { NormalizedInvoice } from "../status";
+import type { ApiError } from "@cashsouk/types";
+import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
+import { Input } from "@/components/ui/input";
+import { useEkycFlow } from "./use-ekyc-flow";
+import { cn } from "@/lib/utils";
+
+const PLATFORM_FEE_TOOLTIP =
+  "Deducted from disbursement when funding closes, applied as a percentage of the funded amount.";
+
+const PROFIT_RATE_TOOLTIP =
+  "Profit per annum (%). Deducted during settlement when calculating the residual refund to the issuer.";
+
+const CONTRACT_FACILITY_FEE_RATE_TOOLTIP =
+  "Facility fee is deducted from each invoice financing disbursement under this contract.";
+
+const CONTRACT_FACILITY_FEE_CAP_TOOLTIP =
+  "Maximum total facility fee that can be collected for this contract.";
+
+export type OfferReviewPanelProps = {
+  type: "contract" | "invoice";
+  applicationId: string;
+  /** Application's issuer org — preferred over active org from context for eKYC session create. */
+  issuerOrganizationId?: string;
+  contractId?: string;
+  invoice?: NormalizedInvoice | null;
+  requiresInvoiceSigning?: boolean;
+  /** Called after decline/accept-without-signing, or when modal dismisses. */
+  onClose?: () => void;
+  /** modal = Dialog shell (financing). inline = embed on application detail Offer tab. */
+  mode?: "modal" | "inline";
+  className?: string;
+};
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const DECLINE_CONTEXT_MAX = 200;
+
+function formatDateOrDash(value: string | null | undefined): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return format(d, "d MMM yyyy");
+}
+
+function getApiErrorDetails(
+  response: ApiError | Error | unknown,
+  fallback: string
+): { code: string | null; message: string } {
+  if (
+    response &&
+    typeof response === "object" &&
+    "success" in response &&
+    response.success === false &&
+    "error" in response &&
+    response.error &&
+    typeof response.error === "object"
+  ) {
+    const error = response.error as { code?: string; message?: string };
+    return {
+      code: typeof error.code === "string" ? error.code : null,
+      message: typeof error.message === "string" ? error.message : fallback,
+    };
+  }
+
+  if (response instanceof Error) {
+    const maybeCode =
+      "code" in response && typeof response.code === "string" ? response.code : null;
+    return {
+      code: maybeCode,
+      message: response.message || fallback,
+    };
+  }
+
+  return {
+    code: null,
+    message: fallback,
+  };
+}
+
+/** Offer terms + accept/decline; eKYC remains a modal ceremony. */
+export function OfferReviewPanel({
+  type,
+  applicationId,
+  issuerOrganizationId: issuerOrganizationIdProp,
+  contractId,
+  invoice,
+  requiresInvoiceSigning = true,
+  onClose,
+  mode = "modal",
+  className,
+}: OfferReviewPanelProps) {
+  const { getAccessToken } = useAuthToken();
+  const { activeOrganization } = useOrganization();
+  const issuerOrganizationId = issuerOrganizationIdProp ?? activeOrganization?.id;
+  const apiClient = React.useMemo(
+    () => createApiClient(API_URL, getAccessToken),
+    [getAccessToken]
+  );
+  const ekyc = useEkycFlow({
+    apiClient,
+    apiBaseUrl: API_URL,
+    issuerOrganizationId,
+  });
+
+  const shouldLoadContract = !!contractId;
+  const { data: contractRecord, isLoading: isLoadingContract } = useContract(
+    shouldLoadContract && contractId ? contractId : ""
+  );
+
+  const rejectContract = useRejectContractOffer();
+  const rejectInvoice = useRejectInvoiceOffer();
+  const acceptInvoice = useAcceptInvoiceOffer();
+
+  const offerDetails =
+    type === "contract"
+      ? (contractRecord as { offer_details?: Record<string, unknown> } | null)?.offer_details
+      : (invoice as { offer_details?: Record<string, unknown> } | undefined)?.offer_details;
+  const od = offerDetails as Record<string, unknown> | null | undefined;
+
+  const isLoading = shouldLoadContract ? isLoadingContract : false;
+
+  const [downloading, setDownloading] = React.useState(false);
+  const [acceptSigningLoading, setAcceptSigningLoading] = React.useState(false);
+  const [acceptOverrideLoading, setAcceptOverrideLoading] = React.useState(false);
+  const [rejectionReason, setRejectionReason] = React.useState("");
+  const [selectedDeclineReason, setSelectedDeclineReason] = React.useState("");
+  const [isRejectMode, setIsRejectMode] = React.useState(false);
+  const [modalStep, setModalStep] = React.useState<"review" | "ekyc-confirm" | "ekyc">("review");
+  const [confirmedName, setConfirmedName] = React.useState<string | null>(null);
+  const [icNumberInput, setIcNumberInput] = React.useState("");
+  const [isContinuingToSigning, setIsContinuingToSigning] = React.useState(false);
+  const isOtherDeclineReason = selectedDeclineReason === OTHER_ISSUER_DECLINE_REASON_VALUE;
+  const isSigningOverrideEnabled = process.env.NODE_ENV !== "production";
+
+  const offerIdentityKey = `${type}:${contractId ?? ""}:${invoice?.id ?? ""}`;
+
+  // Safety net when hosts reuse the panel without a remount key.
+  React.useEffect(() => {
+    setDownloading(false);
+    setAcceptSigningLoading(false);
+    setAcceptOverrideLoading(false);
+    setRejectionReason("");
+    setSelectedDeclineReason("");
+    setIsRejectMode(false);
+    setModalStep("review");
+    setConfirmedName(null);
+    setIcNumberInput("");
+    setIsContinuingToSigning(false);
+  }, [offerIdentityKey]);
+
+  const contractDetails = (contractRecord as { contract_details?: Record<string, unknown> } | null)?.contract_details;
+  const contractName =
+    type === "contract"
+      ? (contractDetails?.title ?? contractDetails?.contract_title
+          ? String(contractDetails.title ?? contractDetails.contract_title)
+          : "—")
+      : invoice?.number ?? "Invoice financing";
+
+  /** Contract end date from contract_details.end_date; invoice uses offer expiry. */
+  const contractEndDate =
+    type === "contract" && contractDetails?.end_date
+      ? formatDateOrDash(String(contractDetails.end_date))
+      : null;
+  const contractStartDate =
+    type === "contract" && contractDetails?.start_date ? formatDateOrDash(String(contractDetails.start_date)) : null;
+  const contractValueNumber =
+    type === "contract" &&
+    contractDetails != null &&
+    (contractDetails.contract_value != null || contractDetails.value != null)
+      ? (() => {
+          const raw = contractDetails.contract_value ?? contractDetails.value;
+          const n = Number(raw);
+          return Number.isFinite(n) ? n : null;
+        })()
+      : null;
+
+  const invoiceMaturityDate =
+    type === "invoice" && invoice?.maturityDate ? formatDateOrDash(String(invoice.maturityDate)) : null;
+
+  const requestedFacilityNumber =
+    type === "contract" && od?.requested_facility != null && Number.isFinite(Number(od.requested_facility))
+      ? Number(od.requested_facility)
+      : null;
+
+  const requestedFinancingNumber =
+    type === "invoice" && od?.requested_amount != null && Number.isFinite(Number(od.requested_amount))
+      ? Number(od.requested_amount)
+      : null;
+  const offeredValue =
+    type === "contract"
+      ? od?.offered_facility != null
+        ? formatCurrency(Number(od.offered_facility))
+        : "—"
+      : od?.offered_amount != null
+        ? formatCurrency(Number(od.offered_amount))
+        : "—";
+
+  const expiresAt = od?.expires_at
+    ? format(new Date(String(od.expires_at)), "d MMM yyyy")
+    : "—";
+  const dateLabel =
+    type === "contract"
+      ? contractEndDate
+        ? "Contract end date"
+        : "Expires"
+      : "Expires";
+  const dateValue = type === "contract" && contractEndDate ? contractEndDate : expiresAt;
+
+  const profitRateDisplay =
+    od?.offered_profit_rate_percent != null &&
+    Number.isFinite(Number(od.offered_profit_rate_percent))
+      ? `${Number(od.offered_profit_rate_percent)}%`
+      : "—";
+
+  const facilityFeeRatePercentNumber =
+    type === "contract" &&
+    od?.facility_fee_rate_percent != null &&
+    Number.isFinite(Number(od.facility_fee_rate_percent))
+      ? Number(od.facility_fee_rate_percent)
+      : null;
+
+  const offeredFacilityNumber =
+    type === "contract" &&
+    od?.offered_facility != null &&
+    Number.isFinite(Number(od.offered_facility))
+      ? Number(od.offered_facility)
+      : null;
+
+  const maximumFacilityFeeNumber =
+    facilityFeeRatePercentNumber != null && offeredFacilityNumber != null
+      ? offeredFacilityNumber * (facilityFeeRatePercentNumber / 100)
+      : null;
+
+  const isContractLinkedInvoice = type === "invoice" && !!contractId;
+
+  const approvedFacilityAmountNumber =
+    isContractLinkedInvoice && contractDetails?.approved_facility != null
+      ? Number(contractDetails.approved_facility)
+      : null;
+
+  const contractFacilityFeeRatePercentNumber =
+    isContractLinkedInvoice && contractDetails?.facility_fee_rate_percent != null
+      ? Number(contractDetails.facility_fee_rate_percent)
+      : null;
+
+  const contractFacilityFeePaidAmountNumber =
+    isContractLinkedInvoice && contractDetails?.facility_fee_paid_amount != null
+      ? Number(contractDetails.facility_fee_paid_amount)
+      : null;
+
+  const facilityFeeRemainingAmountNumber =
+    approvedFacilityAmountNumber != null &&
+    contractFacilityFeeRatePercentNumber != null &&
+    contractFacilityFeePaidAmountNumber != null &&
+    Number.isFinite(approvedFacilityAmountNumber) &&
+    Number.isFinite(contractFacilityFeeRatePercentNumber) &&
+    Number.isFinite(contractFacilityFeePaidAmountNumber) &&
+    contractFacilityFeeRatePercentNumber > 0
+      ? Math.max(
+          0,
+          (approvedFacilityAmountNumber * contractFacilityFeeRatePercentNumber) / 100 -
+            contractFacilityFeePaidAmountNumber
+        )
+      : null;
+
+  const invoiceFinancingAmountNumber =
+    type === "invoice" && od?.offered_amount != null ? Number(od.offered_amount) : null;
+
+  const invoicePlatformFeeRatePercentNumber =
+    type === "invoice" && od?.platform_fee_rate_percent != null ? Number(od.platform_fee_rate_percent) : null;
+
+  const expectedFacilityFeeNumber =
+    isContractLinkedInvoice &&
+    facilityFeeRemainingAmountNumber != null &&
+    invoiceFinancingAmountNumber != null &&
+    contractFacilityFeeRatePercentNumber != null &&
+    Number.isFinite(invoiceFinancingAmountNumber) &&
+    Number.isFinite(contractFacilityFeeRatePercentNumber)
+      ? Math.min(
+          (invoiceFinancingAmountNumber * contractFacilityFeeRatePercentNumber) / 100,
+          facilityFeeRemainingAmountNumber
+        )
+      : null;
+
+  const expectedPlatformFeeNumber =
+    invoiceFinancingAmountNumber != null &&
+    invoicePlatformFeeRatePercentNumber != null &&
+    Number.isFinite(invoiceFinancingAmountNumber) &&
+    Number.isFinite(invoicePlatformFeeRatePercentNumber)
+      ? (invoiceFinancingAmountNumber * invoicePlatformFeeRatePercentNumber) / 100
+      : null;
+
+  const facilityFeeEstimatedTooltip =
+    expectedFacilityFeeNumber != null && expectedFacilityFeeNumber > 0
+      ? "Deducted from disbursement when funding closes. For contract financing, this is collected progressively until the facility fee cap is reached."
+      : "Deducted from disbursement when funding closes. For contract financing, this is collected progressively until the facility fee cap is reached. No facility fee applies here because the cap has already been reached.";
+
+  const summarySecondLabel = type === "contract" ? "Approved facility:" : "Invoice value:";
+  const summarySecondValue =
+    type === "contract"
+      ? offeredValue
+      : invoice?.value != null && Number.isFinite(invoice.value)
+        ? formatCurrency(invoice.value)
+        : "—";
+
+  const summaryThirdLabel = type === "contract" ? `${dateLabel}:` : "Profit rate (p.a.):";
+  const summaryThirdValue = type === "contract" ? dateValue : profitRateDisplay;
+
+  const handleDownload = async () => {
+    if (type === "invoice" && !invoice?.id) {
+      toast.error("Cannot download", {
+        description: "Invoice ID is missing. Please refresh and try again.",
+      });
+      return;
+    }
+    setDownloading(true);
+    try {
+      const blob =
+        type === "contract"
+          ? await apiClient.getContractOfferLetterBlob(applicationId)
+          : await apiClient.getInvoiceOfferLetterBlob(applicationId, invoice!.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download =
+        type === "contract"
+          ? `contract-offer-${contractId}.pdf`
+          : `invoice-offer-${invoice?.id ?? "letter"}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error("Failed to download offer letter", {
+        description: e instanceof Error ? e.message : "Unknown error",
+      });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const resolvedDeclineReason = resolveIssuerOfferDeclineReason(selectedDeclineReason, rejectionReason);
+
+  const handleReject = async () => {
+    if (!resolvedDeclineReason) return;
+    if (type === "contract") {
+      try {
+        await rejectContract.mutateAsync({ applicationId, reason: resolvedDeclineReason });
+        toast.success("Offer declined");
+        onClose?.();
+      } catch {
+        // toast handled by hook
+      }
+    } else {
+      if (!invoice?.id) return;
+      try {
+        await rejectInvoice.mutateAsync({
+          applicationId,
+          invoiceId: invoice.id,
+          reason: resolvedDeclineReason,
+        });
+        toast.success("Offer declined");
+        onClose?.();
+      } catch {
+        // toast handled by hook
+      }
+    }
+  };
+
+  const startSigningFlow = React.useCallback(async (): Promise<string> => {
+    if (type === "contract") {
+      const res = await apiClient.startContractOfferSigning(applicationId);
+      if (res.success && res.data?.signingUrl) {
+        return res.data.signingUrl;
+      }
+
+      const err = getApiErrorDetails(res, "Failed to start signing");
+      const error = new Error(err.message) as Error & { code?: string | null };
+      error.code = err.code;
+      throw error;
+    }
+
+    if (!invoice?.id) {
+      throw new Error("Invoice ID is missing. Please refresh and try again.");
+    }
+
+    const res = await apiClient.startInvoiceOfferSigning(applicationId, invoice.id);
+    if (res.success && res.data?.signingUrl) {
+      return res.data.signingUrl;
+    }
+
+    const err = getApiErrorDetails(res, "Failed to start signing");
+    const error = new Error(err.message) as Error & { code?: string | null };
+    error.code = err.code;
+    throw error;
+  }, [apiClient, applicationId, invoice?.id, type]);
+
+  const handleAccept = async () => {
+    setAcceptSigningLoading(true);
+    try {
+      const invoiceId = invoice?.id;
+
+      if (type === "invoice" && !invoiceId) {
+        return;
+      }
+
+      if (type === "invoice" && !requiresInvoiceSigning) {
+        await acceptInvoice.mutateAsync({ applicationId, invoiceId: invoiceId! });
+        toast.success("Offer accepted");
+        onClose?.();
+        return;
+      }
+
+      const signingUrl = await startSigningFlow();
+      window.location.assign(signingUrl);
+    } catch (e) {
+      const err = getApiErrorDetails(e, "Could not start signing");
+      if (err.code === "EKYC_REQUIRED") {
+        ekyc.reset();
+        setConfirmedName(null);
+        setIcNumberInput("");
+        setModalStep("ekyc-confirm");
+        toast.info("Identity verification required", {
+          description: "Confirm your MyKad details, then scan the QR code with your phone.",
+        });
+        return;
+      }
+
+      toast.error("Could not start signing", {
+        description: err.message,
+      });
+    } finally {
+      setAcceptSigningLoading(false);
+    }
+  };
+
+  const handleContinueToSigning = async () => {
+    setIsContinuingToSigning(true);
+    try {
+      const signingUrl = await startSigningFlow();
+      window.location.assign(signingUrl);
+    } catch (error) {
+      const err = getApiErrorDetails(error, "Could not continue to signing");
+      toast.error("Could not continue to signing", {
+        description: err.message,
+      });
+    } finally {
+      setIsContinuingToSigning(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (!ekyc.identityPreview || modalStep !== "ekyc-confirm") {
+      return;
+    }
+
+    if (confirmedName === null) {
+      setConfirmedName(ekyc.identityPreview.name);
+    }
+  }, [confirmedName, ekyc.identityPreview, modalStep]);
+
+  const handleLookupEkycIdentity = async () => {
+    const normalizedIc = icNumberInput.replace(/\D/g, "");
+    if (normalizedIc.length !== 12) {
+      toast.error("Enter a valid 12-digit MyKad IC number.");
+      return;
+    }
+
+    const ok = await ekyc.loadIdentityPreview(normalizedIc);
+    if (!ok) {
+      return;
+    }
+
+    setConfirmedName(null);
+  };
+
+  const handleConfirmEkycIdentity = () => {
+    const name = (confirmedName ?? "").trim();
+    const icNumber = icNumberInput.replace(/\D/g, "");
+
+    if (!name) {
+      toast.error("Enter your full name exactly as shown on your MyKad.");
+      return;
+    }
+
+    if (icNumber.length !== 12) {
+      toast.error("Enter a valid 12-digit MyKad IC number.");
+      return;
+    }
+
+    if (!ekyc.identityPreview) {
+      toast.error("Look up your IC number before continuing.");
+      return;
+    }
+
+    ekyc.setConfirmedIdentity({ name, icNumber });
+    setModalStep("ekyc");
+  };
+
+  React.useEffect(() => {
+    // Auto-create once per eKYC step visit; do not retry in a loop after failure.
+    if (
+      modalStep !== "ekyc" ||
+      !issuerOrganizationId ||
+      !ekyc.confirmedIdentity ||
+      ekyc.captureUrl ||
+      ekyc.isGenerating ||
+      ekyc.status === "error" ||
+      ekyc.status === "failed" ||
+      ekyc.status === "verified"
+    ) {
+      return;
+    }
+
+    ekyc.generateSession().catch(() => undefined);
+  }, [
+    ekyc.captureUrl,
+    ekyc.confirmedIdentity,
+    ekyc.generateSession,
+    ekyc.isGenerating,
+    ekyc.status,
+    issuerOrganizationId,
+    modalStep,
+  ]);
+
+  const handleAcceptOverride = async () => {
+    setAcceptOverrideLoading(true);
+    try {
+      if (type === "contract") {
+        const res = await apiClient.acceptContractOffer(applicationId, { skipSigning: true });
+        if (!res.success) {
+          const err = res as ApiError;
+          throw new Error(err.error?.message ?? "Failed to accept contract offer");
+        }
+      } else {
+        if (!invoice?.id) return;
+        const res = await apiClient.acceptInvoiceOffer(applicationId, invoice.id, {
+          skipSigning: true,
+        });
+        if (!res.success) {
+          const err = res as ApiError;
+          throw new Error(err.error?.message ?? "Failed to accept invoice offer");
+        }
+      }
+
+      toast.success("Offer accepted (signing skipped)");
+      onClose?.();
+    } catch (e) {
+      toast.error("Could not accept offer without signing", {
+        description: e instanceof Error ? e.message : "Unknown error",
+      });
+    } finally {
+      setAcceptOverrideLoading(false);
+    }
+  };
+
+  const isPending =
+    acceptSigningLoading ||
+    acceptOverrideLoading ||
+    isContinuingToSigning ||
+    acceptInvoice.isPending ||
+    rejectContract.isPending ||
+    rejectInvoice.isPending;
+  const confirmDeclineDisabled =
+    isPending ||
+    !selectedDeclineReason ||
+    (isOtherDeclineReason && rejectionReason.trim() === "");
+
+  const canDownload =
+    type === "contract" || (type === "invoice" && !!invoice?.id);
+
+  const isEkycStep = modalStep === "ekyc-confirm" || modalStep === "ekyc";
+  const dialogOpen = mode === "modal" || isEkycStep;
+
+  const stepDescription =
+    modalStep === "ekyc-confirm"
+      ? "Enter your MyKad IC number, confirm your name, then scan the QR code."
+      : modalStep === "ekyc"
+        ? "Scan the QR code on your phone to complete identity verification."
+        : "Review the financing offer and accept or decline.";
+
+  const innerContent = isLoading ? (
+    <p className="text-sm text-muted-foreground py-8">Loading offer...</p>
+  ) : (
+          <>
+            {modalStep === "ekyc-confirm" ? (
+              <div className="space-y-5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setModalStep("review");
+                  }}
+                  className="h-auto w-fit px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
+                >
+                  <ArrowLeftIcon className="mr-2 h-4 w-4" />
+                  Back to offer
+                </Button>
+
+                <div className="space-y-2">
+                  <p className="text-base font-semibold text-foreground">Confirm your identity</p>
+                  <p className="text-sm text-muted-foreground">
+                    Enter your MyKad IC number to find your registration details, then confirm your
+                    full name before scanning the QR code on your phone.
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="ekyc-ic-number">IC number</Label>
+                    <Input
+                      id="ekyc-ic-number"
+                      value={icNumberInput}
+                      onChange={(event) => {
+                        setIcNumberInput(event.target.value);
+                        setConfirmedName(null);
+                        ekyc.reset();
+                      }}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="901212101234"
+                      className="rounded-xl tabular-nums"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      We match this against directors and shareholders registered for your organization.
+                    </p>
+                  </div>
+
+                  {ekyc.previewError ? (
+                    <p className="text-sm text-destructive">{ekyc.previewError}</p>
+                  ) : null}
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full rounded-xl"
+                    disabled={ekyc.isLoadingPreview}
+                    onClick={() => {
+                      handleLookupEkycIdentity().catch(() => undefined);
+                    }}
+                  >
+                    {ekyc.isLoadingPreview ? "Looking up..." : "Look up my details"}
+                  </Button>
+
+                  {ekyc.identityPreview ? (
+                    <div className="space-y-2">
+                      <Label htmlFor="ekyc-confirmed-name">Full name (as on MyKad)</Label>
+                      <Input
+                        id="ekyc-confirmed-name"
+                        value={confirmedName ?? ""}
+                        onChange={(event) => {
+                          setConfirmedName(event.target.value);
+                        }}
+                        autoComplete="name"
+                        className="rounded-xl"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Edit if needed so it matches your MyKad exactly.
+                      </p>
+                    </div>
+                  ) : null}
+
+                  <Button
+                    type="button"
+                    className="w-full rounded-xl"
+                    disabled={!ekyc.identityPreview || ekyc.isLoadingPreview}
+                    onClick={handleConfirmEkycIdentity}
+                  >
+                    Continue to QR scan
+                  </Button>
+                </div>
+              </div>
+            ) : modalStep === "ekyc" ? (
+              <div className="space-y-5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setModalStep("ekyc-confirm");
+                  }}
+                  className="h-auto w-fit px-0 text-muted-foreground hover:bg-transparent hover:text-foreground"
+                >
+                  <ArrowLeftIcon className="mr-2 h-4 w-4" />
+                  Edit MyKad details
+                </Button>
+
+                <div className="text-center space-y-2">
+                  <p className="text-base font-semibold text-foreground">Identity verification</p>
+                  {ekyc.status === "verified" ? (
+                    <p className="text-sm text-muted-foreground">
+                      Your identity has been verified. Continue to signing when you are ready.
+                    </p>
+                  ) : ekyc.status === "failed" ? (
+                    <p className="text-sm text-muted-foreground">
+                      We could not verify your identity. Check that your full name matches your MyKad
+                      exactly, capture a clear photo of your IC, and scan again. Contact support if your
+                      IC number on file is incorrect.
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Scan with your phone to verify your identity before signing.
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex flex-col items-center gap-4 py-2">
+                  {ekyc.status === "verified" ? (
+                    <div className="flex w-full max-w-xs flex-col items-center gap-4 text-center">
+                      <CheckCircleIcon className="h-16 w-16 text-primary" aria-hidden="true" />
+                      <p className="text-sm font-medium text-foreground">Identity verified</p>
+                      <Button
+                        type="button"
+                        className="w-full rounded-xl"
+                        onClick={() => {
+                          handleContinueToSigning().catch(() => undefined);
+                        }}
+                        disabled={isContinuingToSigning}
+                      >
+                        {isContinuingToSigning ? "Opening signing..." : "Continue to signing"}
+                      </Button>
+                    </div>
+                  ) : ekyc.status === "failed" ? (
+                    <div className="flex w-full max-w-xs flex-col items-center gap-4 text-center">
+                      <XCircleIcon className="h-16 w-16 text-destructive" aria-hidden="true" />
+                      <p className="text-sm text-destructive">
+                        {ekyc.error ||
+                          "We could not verify your identity. Check that your full name matches your MyKad exactly, capture a clear photo of your IC, and scan again."}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          ekyc.reset();
+                          setModalStep("ekyc-confirm");
+                        }}
+                        disabled={ekyc.isGenerating}
+                        className="w-full max-w-xs rounded-xl"
+                      >
+                        Edit details and try again
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                  {ekyc.captureUrl && ekyc.status !== "error" ? (
+                    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm">
+                      <QRCodeSVG value={ekyc.captureUrl} size={220} />
+                    </div>
+                  ) : ekyc.status === "error" ? null : (
+                    <div className="flex h-[252px] w-[252px] items-center justify-center">
+                      <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    </div>
+                  )}
+
+                  {ekyc.status === "error" ? (
+                    <div className="flex w-full max-w-xs flex-col items-center gap-2 text-center">
+                      <p className="text-sm text-destructive">
+                        {ekyc.error || "Identity verification failed."}
+                      </p>
+                      {ekyc.requiresSupport ? (
+                        <p className="text-sm text-muted-foreground">
+                          Email{" "}
+                          <a
+                            href="mailto:support@cashsouk.my"
+                            className="font-medium text-foreground underline underline-offset-2"
+                          >
+                            support@cashsouk.my
+                          </a>{" "}
+                          and we&apos;ll help you continue.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {ekyc.isPendingStale && ekyc.status === "pending" ? (
+                    <p className="text-center text-sm text-muted-foreground max-w-xs">
+                      Still waiting on your phone. Complete verification on your phone, or go back and
+                      try accepting the offer again if it is stuck.
+                    </p>
+                  ) : null}
+
+                  {ekyc.status === "error" && !isContinuingToSigning && !ekyc.requiresSupport ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        ekyc.generateSession({ force: true }).catch(() => undefined);
+                      }}
+                      disabled={ekyc.isGenerating}
+                      className="w-full max-w-xs rounded-xl"
+                    >
+                      {ekyc.isGenerating ? "Generating..." : "New QR"}
+                    </Button>
+                  ) : null}
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <>
+            <div className="flex flex-col items-center text-center mb-6">
+              <div
+                className="w-[74px] h-[74px] rounded-full flex items-center justify-center mb-4 shadow-none"
+                style={{ background: "#ececec", boxShadow: "none", filter: "none" }}
+              >
+                <div
+                  className="w-[66px] h-[66px] rounded-full flex items-center justify-center shadow-none"
+                  style={{ background: "#c4c4c4", boxShadow: "none", filter: "none" }}
+                >
+                  <div
+                    className="w-14 h-14 rounded-full flex items-center justify-center shadow-none"
+                    style={{ background: "#000000", boxShadow: "none", filter: "none" }}
+                  >
+                    <CheckIcon className="h-7 w-7 text-white" />
+                  </div>
+                </div>
+              </div>
+              <p className="text-base font-semibold text-foreground">
+                Congratulations! Your {type === "contract" ? "contract" : "invoice"} financing request
+              </p>
+              <p className="text-3xl sm:text-4xl font-extrabold text-status-success-text tracking-tight mt-2">
+                {offeredValue}
+              </p>
+              <p className="text-base font-semibold text-foreground mt-1">
+                has been approved
+              </p>
+            </div>
+
+            {type === "contract" ? (
+              <>
+                <dl className="grid grid-cols-[1fr_auto] gap-x-6 gap-y-3 text-sm py-4 border-y border-border">
+                  <dt className="text-muted-foreground font-medium">Contract name:</dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">
+                    {contractName}
+                  </dd>
+
+                  {contractValueNumber != null ? (
+                    <>
+                      <dt className="text-muted-foreground font-medium">Contract value:</dt>
+                      <dd className="font-medium text-foreground text-right tabular-nums">
+                        {formatCurrency(contractValueNumber)}
+                      </dd>
+                    </>
+                  ) : null}
+
+                  {requestedFacilityNumber != null ? (
+                    <>
+                      <dt className="text-muted-foreground font-medium">Requested facility:</dt>
+                      <dd className="font-medium text-foreground text-right tabular-nums">
+                        {formatCurrency(requestedFacilityNumber)}
+                      </dd>
+                    </>
+                  ) : null}
+
+                  <dt className="text-muted-foreground font-medium">Contract period:</dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">
+                    {contractStartDate != null && contractEndDate != null ? `${contractStartDate} – ${contractEndDate}` : "—"}
+                  </dd>
+
+                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
+                    Facility fee rate:
+                    <InfoTooltip content={CONTRACT_FACILITY_FEE_RATE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+                  </dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">
+                    {facilityFeeRatePercentNumber != null ? `${facilityFeeRatePercentNumber}%` : "—"}
+                  </dd>
+
+                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
+                    Facility fee cap:
+                    <InfoTooltip content={CONTRACT_FACILITY_FEE_CAP_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+                  </dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">
+                    {maximumFacilityFeeNumber != null ? formatCurrency(maximumFacilityFeeNumber) : "—"}
+                  </dd>
+                </dl>
+              </>
+            ) : (
+              <>
+                <dl
+                  className="grid grid-cols-[1fr_auto] gap-x-6 gap-y-3 text-sm py-4 border-y border-border"
+                >
+                  <dt className="text-muted-foreground font-medium">Invoice number:</dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">{contractName}</dd>
+
+                  <dt className="text-muted-foreground font-medium">{summarySecondLabel}</dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">{summarySecondValue}</dd>
+
+                  {requestedFinancingNumber != null ? (
+                    <>
+                      <dt className="text-muted-foreground font-medium">Requested financing:</dt>
+                      <dd className="font-medium text-foreground text-right tabular-nums">
+                        {formatCurrency(requestedFinancingNumber)}
+                      </dd>
+                    </>
+                  ) : null}
+
+                  {invoiceMaturityDate != null ? (
+                    <>
+                      <dt className="text-muted-foreground font-medium">Maturity date</dt>
+                      <dd className="font-medium text-foreground text-right tabular-nums">{invoiceMaturityDate}</dd>
+                    </>
+                  ) : null}
+
+                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
+                    {summaryThirdLabel}
+                    <InfoTooltip content={PROFIT_RATE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+                  </dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">{summaryThirdValue}</dd>
+
+                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
+                    Platform fee
+                    <InfoTooltip content={PLATFORM_FEE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
+                  </dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">
+                    {expectedPlatformFeeNumber != null ? formatCurrency(expectedPlatformFeeNumber) : "—"}
+                  </dd>
+
+                  <dt className="text-muted-foreground font-medium inline-flex items-center gap-1.5">
+                    Estimated facility fee
+                    <InfoTooltip content={facilityFeeEstimatedTooltip} iconClassName="h-3.5 w-3.5 shrink-0" />
+                  </dt>
+                  <dd className="font-medium text-foreground text-right tabular-nums">
+                    {expectedFacilityFeeNumber != null ? formatCurrency(expectedFacilityFeeNumber) : "—"}
+                  </dd>
+                </dl>
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={!canDownload || downloading}
+              className="w-full min-h-[56px] rounded-xl border border-border bg-muted/30 hover:bg-muted/50 flex items-center justify-center gap-3 px-4 py-3 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-4"
+            >
+              <span className="rounded-lg border border-border bg-card p-2">
+                <ArrowDownTrayIcon className="h-5 w-5 text-foreground" />
+              </span>
+              <span className="text-base font-semibold text-foreground">
+                {downloading ? "Downloading…" : "Download offer letter"}
+              </span>
+            </button>
+
+            <div className="grid grid-cols-2 gap-4 mt-6">
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() =>
+                  setIsRejectMode((prev) => {
+                    if (prev) {
+                      setRejectionReason("");
+                      setSelectedDeclineReason("");
+                    }
+                    return !prev;
+                  })
+                }
+                disabled={isPending}
+                className={
+                  isRejectMode
+                    ? "h-12 rounded-xl border-[#f0caca] bg-[#f9e2e2] text-[#CE2922] hover:bg-[#f5d5d5]"
+                    : "h-12 rounded-xl border-border bg-[#e9edf2] text-foreground hover:bg-[#dde4eb]"
+                }
+              >
+                Decline offer
+              </Button>
+              <Button
+                size="lg"
+                onClick={handleAccept}
+                disabled={isPending}
+                className="h-12 rounded-xl bg-green-600 hover:bg-green-700 text-white shadow-sm"
+              >
+                {type === "invoice" && !requiresInvoiceSigning ? "Accept offer" : "Accept and sign offer"}
+              </Button>
+            </div>
+            {isSigningOverrideEnabled && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAcceptOverride}
+                disabled={isPending}
+                className="mt-3 h-9 rounded-xl border-dashed border-amber-300 text-amber-700 hover:bg-amber-50"
+              >
+                Accept without signing (local override)
+              </Button>
+            )}
+
+            {isRejectMode && (
+              <div className="mt-6 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="decline-primary-reason" className="block text-base font-semibold text-foreground">
+                    Reason (required)
+                  </Label>
+                  <Select
+                    value={selectedDeclineReason}
+                    onValueChange={(value) => {
+                      setSelectedDeclineReason(value);
+                      if (value !== OTHER_ISSUER_DECLINE_REASON_VALUE) {
+                        setRejectionReason("");
+                      }
+                    }}
+                    disabled={isPending}
+                  >
+                    <SelectTrigger
+                      id="decline-primary-reason"
+                      className="h-12 rounded-xl border-border bg-[#f9fafb] focus:ring-4 focus:ring-primary/10"
+                    >
+                      <SelectValue placeholder="Select a primary reason" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ISSUER_OFFER_DECLINE_REASONS.map((reason) => (
+                        <SelectItem key={reason} value={reason}>
+                          {reason}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value={OTHER_ISSUER_DECLINE_REASON_VALUE}>
+                        Other (manual reason)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rejection-reason" className="block text-base font-semibold text-foreground">
+                    {isOtherDeclineReason
+                      ? "Additional context (required)"
+                      : "Additional context (optional)"}
+                  </Label>
+                  <TextareaWithCharCount
+                    id="rejection-reason"
+                    placeholder={
+                      isOtherDeclineReason
+                        ? "Enter the primary reason and any details."
+                        : "Add any extra details (optional)."
+                    }
+                    value={rejectionReason}
+                    onChange={(e) =>
+                      setRejectionReason(e.target.value.slice(0, DECLINE_CONTEXT_MAX))
+                    }
+                    rows={4}
+                    className="min-h-[92px] resize-none rounded-xl border-border bg-[#f9fafb] px-4 py-3.5 focus:border-primary/35 focus:bg-background focus:outline-none focus:ring-4 focus:ring-primary/10"
+                    maxLength={DECLINE_CONTEXT_MAX}
+                    countLabel={`${rejectionReason.length}/${DECLINE_CONTEXT_MAX} characters`}
+                    disabled={isPending}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div
+              className={`mt-6 flex gap-3 ${isRejectMode ? "flex-row flex-wrap items-center justify-between" : "flex-wrap items-center justify-center"}`}
+            >
+              <p
+                className={`text-sm text-muted-foreground ${isRejectMode ? "flex-1 min-w-0 text-left" : "text-center flex-1 min-w-0"}`}
+              >
+                {isRejectMode ? (
+                  <>
+                    Please respond to this offer by
+                    <br />
+                    {expiresAt}.
+                  </>
+                ) : (
+                  <>Please respond to this offer by {expiresAt}.</>
+                )}
+              </p>
+              {isRejectMode && (
+                <Button
+                  size="sm"
+                  onClick={handleReject}
+                  disabled={confirmDeclineDisabled}
+                  className="inline-flex h-9 min-h-[36px] items-center justify-center gap-2 rounded-xl border border-[#e3e8ee] bg-[#edf1f5] px-3.5 text-[15px] font-medium text-[#444] hover:bg-[#e6ebf0]"
+                >
+                  <CheckCircleIcon className="h-4 w-4" />
+                  Confirm decline
+                </Button>
+              )}
+            </div>
+              </>
+            )}
+          </>
+  );
+
+  const showInlineReview = mode === "inline" && (modalStep === "review" || isLoading);
+
+  return (
+    <>
+      {showInlineReview ? (
+        <div
+          className={cn(
+            "mx-auto w-full max-w-xl rounded-2xl border border-border bg-card p-6 shadow-sm",
+            className
+          )}
+        >
+          {innerContent}
+        </div>
+      ) : null}
+
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          if (open) return;
+          if (mode === "modal") {
+            onClose?.();
+            return;
+          }
+          setModalStep("review");
+        }}
+      >
+        <DialogContent className="sm:max-w-[520px] gap-0 rounded-xl border-border p-6">
+          <DialogTitle className="sr-only">
+            Financing offer approved — Review and respond
+          </DialogTitle>
+          <DialogDescription className="sr-only">{stepDescription}</DialogDescription>
+          {mode === "modal" || isEkycStep ? innerContent : null}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

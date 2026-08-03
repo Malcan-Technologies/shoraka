@@ -102,7 +102,7 @@ export function ActivityToolbar({
           placeholder="Search activities..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 h-11 rounded-xl"
+          className="h-11 rounded-xl bg-card pl-9"
         />
       </div>
 
@@ -111,7 +111,7 @@ export function ActivityToolbar({
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
-              className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"
+              className="h-11 gap-2 rounded-xl bg-card focus-visible:ring-1 focus-visible:ring-offset-0"
             >
               <FunnelIcon className="h-4 w-4" />
               Domain
@@ -151,7 +151,7 @@ export function ActivityToolbar({
           <DropdownMenuTrigger asChild>
             <Button
               variant="outline"
-              className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"
+              className="h-11 gap-2 rounded-xl bg-card focus-visible:ring-1 focus-visible:ring-offset-0"
             >
               <FunnelIcon className="h-4 w-4" />
               Date Range
@@ -196,10 +196,11 @@ export function ActivityToolbar({
             variant="outline"
             onClick={handleReload}
             disabled={isLoading || isSpinning}
-            className="h-11 w-11 p-0 rounded-xl bg-background sm:w-auto sm:px-3 sm:gap-2 focus-visible:ring-1 focus-visible:ring-offset-0"
+            className="h-11 w-11 rounded-xl bg-card p-0 focus-visible:ring-1 focus-visible:ring-offset-0 sm:w-auto sm:gap-2 sm:px-3"
+            aria-label="Refresh"
           >
             <ArrowPathIcon className={`h-4 w-4 ${isLoading || isSpinning ? "animate-spin" : ""}`} />
-            <span className="hidden sm:inline">Reload</span>
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
         )}
 

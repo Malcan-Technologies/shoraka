@@ -5,7 +5,7 @@
  * WHY: Full-page placeholder while route or product is unresolved; must not mimic one step (e.g. contract grid).
  * INPUT: progress row as children from parent.
  * OUTPUT: Generic title skeleton + neutral content blocks; works for any step shape.
- * WHERE USED: applications/edit/[id] loading shell, blocked flow, Suspense fallback.
+ * WHERE USED: applications/[id]/edit loading shell, blocked flow, Suspense fallback.
  */
 import * as React from "react";
 import { Skeleton } from "@/components/ui/skeleton";

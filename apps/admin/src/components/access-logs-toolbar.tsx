@@ -48,7 +48,7 @@ interface AccessLogsToolbarProps {
   filteredCount: number;
   onClearFilters: () => void;
   exportFilters?: Omit<ExportAccessLogsParams, "format" | "page" | "pageSize">;
-  onReload?: () => void;
+  onRefresh?: () => void;
   isLoading?: boolean;
   allowedEventTypes?: EventType[];
 }
@@ -66,7 +66,7 @@ export function AccessLogsToolbar({
   filteredCount,
   onClearFilters,
   exportFilters,
-  onReload,
+  onRefresh,
   isLoading = false,
   allowedEventTypes,
 }: AccessLogsToolbarProps) {
@@ -89,9 +89,9 @@ export function AccessLogsToolbar({
     dateRangeFilter !== "all",
   ].filter(Boolean).length;
 
-  const handleReload = () => {
+  const handleRefresh = () => {
     setIsSpinning(true);
-    onReload?.();
+    onRefresh?.();
     // Keep spinning for at least 500ms for visual feedback
     setTimeout(() => setIsSpinning(false), 500);
   };
@@ -160,15 +160,15 @@ export function AccessLogsToolbar({
         </Button>
       )}
 
-      {onReload && (
+      {onRefresh && (
         <Button
           variant="outline"
-          onClick={handleReload}
+          onClick={handleRefresh}
           disabled={isLoading || isSpinning}
           className="gap-2 h-11 rounded-xl"
         >
           <ArrowPathIcon className={`h-4 w-4 ${isLoading || isSpinning ? "animate-spin" : ""}`} />
-          Reload
+          Refresh
         </Button>
       )}
 

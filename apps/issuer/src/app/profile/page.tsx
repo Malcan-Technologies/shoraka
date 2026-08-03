@@ -35,13 +35,20 @@ import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { DirectorShareholderAlertCard } from "../../components/director-shareholder-alert-card";
 import { CorporateInfoCard } from "../../components/corporate-info-card";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
-import { ConfirmDialog } from "../../components/confirm-dialog";
 import { TransferOwnershipDialog } from "../../components/transfer-ownership-dialog";
 import { toast } from "sonner";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
-import { useHeader, DirectorShareholdersUnifiedSection } from "@cashsouk/ui";
-import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
+import {
+  ConfirmDialog,
+  PageShell,
+  DirectorShareholdersUnifiedSection,
+} from "@cashsouk/ui";
+import {
+  issuerContentMaxWidthClassName,
+  issuerMainContentClassName,
+  issuerPageGutterClassName,
+} from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
 import {
   issuerFieldChromeClassName,
@@ -162,61 +169,50 @@ function MemberCard({ member, ownerId }: { member: OrganizationMember; ownerId?:
 }
 
 function ProfileSkeleton() {
-  const { setTitle } = useHeader();
-
-  React.useEffect(() => {
-    setTitle("Profile");
-  }, [setTitle]);
-
   return (
-    <>
-      <div className={issuerMainContentClassName}>
-        <div className={cn("max-w-4xl mx-auto w-full space-y-6", issuerPageGutterClassName)}>
+    <div className={issuerMainContentClassName}>
+      <div className={cn(issuerContentMaxWidthClassName, "space-y-6", issuerPageGutterClassName)}>
+        <PageShell title="Organisation" description="Company details, members, and documents.">
           <Skeleton className="h-10 w-64" />
           <Skeleton className="h-5 w-96" />
-          <div className="space-y-4 mt-8">
+          <div className="mt-8 space-y-4">
             <Skeleton className="h-24 w-full rounded-xl" />
             <Skeleton className="h-24 w-full rounded-xl" />
           </div>
-        </div>
+        </PageShell>
       </div>
-    </>
+    </div>
   );
 }
 
 function NoOrganizationState({ showOnboardingPrompt = true }: { showOnboardingPrompt?: boolean }) {
   const router = useRouter();
-  const { setTitle } = useHeader();
-
-  React.useEffect(() => {
-    setTitle("Profile");
-  }, [setTitle]);
 
   return (
-    <>
-      <div className={issuerMainContentClassName}>
-        <div className={cn("max-w-4xl mx-auto w-full", issuerPageGutterClassName)}>
+    <div className={issuerMainContentClassName}>
+      <div className={cn(issuerContentMaxWidthClassName, issuerPageGutterClassName)}>
+        <PageShell title="Organisation" description="Company details, members, and documents.">
           <div className="rounded-xl border bg-card p-8 text-center opacity-60">
-            <div className="flex justify-center mb-4">
-              <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
+            <div className="mb-4 flex justify-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
                 <UserIcon className="h-8 w-8 text-muted-foreground" />
               </div>
             </div>
-            <h2 className="text-xl font-semibold text-muted-foreground mb-2">
-              No Profile Selected
+            <h2 className="mb-2 text-xl font-semibold text-muted-foreground">
+              No organisation selected
             </h2>
-            <p className="text-muted-foreground mb-6">
-              Create or select an profile to view profile details and members.
+            <p className="mb-6 text-muted-foreground">
+              Create or select an organisation to view details and members.
             </p>
             {showOnboardingPrompt && (
               <Button variant="outline" onClick={() => router.push("/onboarding/account")}>
-                Create Profile
+                Create organisation
               </Button>
             )}
           </div>
-        </div>
+        </PageShell>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -377,12 +373,6 @@ function DocumentsTabContent({ apiClient }: { apiClient: ReturnType<typeof creat
 }
 
 export default function ProfilePage() {
-  const { setTitle } = useHeader();
-
-  React.useEffect(() => {
-    setTitle("Profile");
-  }, [setTitle]);
-
   const { isAuthenticated } = useAuth();
   const { getAccessToken } = useAuthToken();
   const {
@@ -586,6 +576,7 @@ export default function ProfilePage() {
 
   React.useEffect(() => {
     if (!focusDirectors) return;
+    setActiveTab("profile");
     const el = directorsSectionRef.current;
     if (!el) return;
     const t = window.setTimeout(() => {
@@ -820,42 +811,44 @@ export default function ProfilePage() {
     : orgData?.corporateOnboardingData?.basicInfo?.businessName || accountName;
 
   return (
-    <>
-      <div className={issuerMainContentClassName}>
-        <div className={cn("max-w-4xl mx-auto w-full space-y-6", issuerPageGutterClassName)}>
-          {/* Page Header */}
-          <div className="flex items-start justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-                <AccountIcon className="h-7 w-7" />
-              </div>
-              <div>
-                <h1 className="text-2xl md:text-3xl font-bold tracking-tight">{displayName}</h1>
-                <p className="text-muted-foreground mt-1">
-                  {isPersonal ? "Issuer (Individual)" : accountName}
-                </p>
-              </div>
-            </div>
+    <div className={issuerMainContentClassName}>
+      <div className={cn(issuerContentMaxWidthClassName, "space-y-6", issuerPageGutterClassName)}>
+        <PageShell
+          title="Organisation"
+          description="Company details, members, banking, and documents."
+          action={
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="gap-2 h-11 rounded-xl"
+                className="h-11 gap-2 rounded-xl"
               >
                 <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
               {process.env.NODE_ENV === "development" && (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={() => setDevViewAsMember((prev) => !prev)}
-      className="h-9 rounded-xl"
-    >
-      {devViewAsMember ? "Exit Member View" : "View as Member"}
-    </Button>
-  )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDevViewAsMember((prev) => !prev)}
+                  className="h-9 rounded-xl"
+                >
+                  {devViewAsMember ? "Exit Member View" : "View as Member"}
+                </Button>
+              )}
+            </div>
+          }
+        >
+          <div className="flex items-start gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <AccountIcon className="h-7 w-7" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold tracking-tight md:text-3xl">{displayName}</h2>
+              <p className="mt-1 text-muted-foreground">
+                {isPersonal ? "Issuer (Individual)" : accountName}
+              </p>
             </div>
           </div>
 
@@ -868,7 +861,7 @@ export default function ProfilePage() {
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-3 h-12 rounded-xl bg-muted p-1">
+            <TabsList className="grid h-12 w-full grid-cols-2 rounded-xl bg-muted p-1 sm:grid-cols-4">
               <TabsTrigger value="profile" className="rounded-lg data-[state=active]:bg-background">
                 Profile
               </TabsTrigger>
@@ -881,6 +874,9 @@ export default function ProfilePage() {
               >
                 Documents
               </TabsTrigger>
+              <TabsTrigger value="members" className="rounded-lg data-[state=active]:bg-background">
+                Members
+              </TabsTrigger>
             </TabsList>
 
             {/* Profile Tab */}
@@ -890,9 +886,9 @@ export default function ProfilePage() {
                 <div className="rounded-xl border bg-card">
                   <div className="flex items-center justify-between p-6 border-b">
                     <div>
-                      <h2 className="text-lg font-semibold">Personal info</h2>
+                      <h2 className="text-lg font-semibold">Your details</h2>
                       <p className="text-sm text-muted-foreground">
-                        Your KYC-verified personal details
+                        Identity details verified during onboarding
                       </p>
                     </div>
                     <Badge
@@ -972,8 +968,8 @@ export default function ProfilePage() {
               {!isPersonal && orgData?.corporateOnboardingData?.personInCharge && (
                 <div className="rounded-xl border bg-card">
                   <div className="p-6 border-b">
-                    <h2 className="text-lg font-semibold">Person in Charge</h2>
-                    <p className="text-sm text-muted-foreground">Primary business contact details</p>
+                    <h2 className="text-lg font-semibold">Person in charge</h2>
+                    <p className="text-sm text-muted-foreground">Main contact for this business</p>
                   </div>
                   <div className="p-6 grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
@@ -1013,23 +1009,23 @@ export default function ProfilePage() {
                         Ensure your primary address is up to date
                       </p>
                     </div>
-                    {!isEditingProfile && (
+                    {!isEditingProfile && effectiveIsAdmin ? (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => effectiveIsAdmin && setIsEditingProfile(true)}
-                        className={`gap-2 rounded-xl ${!effectiveIsAdmin ? "invisible pointer-events-none" : ""}`}
+                        onClick={() => setIsEditingProfile(true)}
+                        className="gap-2 rounded-xl"
                       >
                         <PencilIcon className="h-4 w-4" />
                         Edit
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                   <div className="p-6 space-y-4">
                     <div className="space-y-2">
                       <Label className="flex items-center gap-2">
                         <MapPinIcon className="h-4 w-4" />
-                        Full Address
+                        Full address
                       </Label>
                       <Textarea
                         placeholder="Enter your full address"
@@ -1073,25 +1069,25 @@ export default function ProfilePage() {
                     <div>
                       <h2 className="text-lg font-semibold">Addresses</h2>
                       <p className="text-sm text-muted-foreground">
-                        Business and registered addresses
+                        Where your business operates and is registered
                       </p>
                     </div>
-                    {!isEditingAddresses && (
+                    {!isEditingAddresses && effectiveIsAdmin ? (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => effectiveIsAdmin && setIsEditingAddresses(true)}
-                        className={`gap-2 rounded-xl ${!effectiveIsAdmin ? "invisible pointer-events-none" : ""}`}
+                        onClick={() => setIsEditingAddresses(true)}
+                        className="gap-2 rounded-xl"
                       >
                         <PencilIcon className="h-4 w-4" />
                         Edit
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                   <div className="p-6 space-y-4">
                     {/* Business Address */}
                     <div className="space-y-4 pt-2">
-                      <h3 className="text-sm font-semibold">Business Address</h3>
+                      <h3 className="text-sm font-semibold">Business address</h3>
                       {!isEditingAddresses ? (
                         <p className="text-sm text-muted-foreground">
                           {formatAddressDisplay(orgData?.corporateOnboardingData?.addresses?.business)}
@@ -1153,7 +1149,7 @@ export default function ProfilePage() {
                     {/* Registered Address */}
                     <div className="space-y-4 pt-4 border-t">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-semibold">Registered Address</h3>
+                        <h3 className="text-sm font-semibold">Registered address</h3>
                         {isEditingAddresses && (
                           <div className="flex items-center gap-2">
                             <Checkbox
@@ -1262,20 +1258,20 @@ export default function ProfilePage() {
                   <div>
                     <h2 className="text-lg font-semibold">Contact details</h2>
                     <p className="text-sm text-muted-foreground">
-                      Manage your phone number and email address
+                      Phone number and email for this organisation
                     </p>
                   </div>
-                  {!isEditingProfile && (
+                  {!isEditingProfile && effectiveIsAdmin ? (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => effectiveIsAdmin && setIsEditingProfile(true)}
-                      className={`gap-2 rounded-xl ${!effectiveIsAdmin ? "invisible pointer-events-none" : ""}`}
+                      onClick={() => setIsEditingProfile(true)}
+                      className="gap-2 rounded-xl"
                     >
                       <PencilIcon className="h-4 w-4" />
                       Edit
                     </Button>
-                  )}
+                  ) : null}
                 </div>
                 <div className="p-6 space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -1367,222 +1363,6 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              {/* 5. Members Section */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold">
-                    {isPersonal ? "Account Holder" : "Organization Members"} (
-                    {activeOrganization.members?.length || 0})
-                  </h2>
-                  {!isPersonal && isCurrentUserAdmin && (
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setInviteDialogOpen(true)}
-                        className="gap-2 rounded-xl"
-                      >
-                        <UserPlusIcon className="h-4 w-4" />
-                        Invite Member
-                      </Button>
-                      {activeOrganization.isOwner && activeOrganization.members && activeOrganization.members.length > 1 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setTransferOwnershipOpen(true)}
-                          disabled={isTransferringOwnership}
-                          className="gap-2 rounded-xl text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-200"
-                        >
-                          <ArrowPathIcon className="h-4 w-4" />
-                          Transfer Ownership
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                </div>
-                {activeOrganization.members && activeOrganization.members.length > 0 ? (
-                  <div className="grid gap-3">
-                    {activeOrganization.members.map((member) => {
-                      const isCurrentUser = currentUser && member.id === currentUser.userId;
-                      const canManageMembers = !isPersonal && isCurrentUserAdmin && !isCurrentUser;
-                      const isOwner = activeOrganization.isOwner && isCurrentUser;
-                      const canLeave = !isPersonal && isCurrentUser && !isOwner;
-                      const memberName = [member.firstName, member.lastName].filter(Boolean).join(" ") || member.email;
-
-                      return (
-                        <div key={member.id} className="flex items-center gap-4 p-4 rounded-xl border bg-card transition-none">
-                          <div className="flex-1">
-                            <MemberCard member={member} ownerId={activeOrganization.ownerId} />
-                          </div>
-                          {canManageMembers && (
-                            <div className="flex items-center gap-2 ml-auto">
-                              {member.role === "ORGANIZATION_MEMBER" ? (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    setConfirmDialog({
-                                      open: true,
-                                      type: "promote",
-                                      memberId: member.id,
-                                      memberName,
-                                      memberRole: member.role,
-                                    })
-                                  }
-                                  disabled={isChangingRole}
-                                  className="gap-1"
-                                  title="Promote to Admin"
-                                >
-                                  <ArrowUpIcon className="h-4 w-4" />
-                                </Button>
-                              ) : (
-                                // Only show demote button if not demoting yourself
-                                !isCurrentUser && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() =>
-                                      setConfirmDialog({
-                                        open: true,
-                                        type: "demote",
-                                        memberId: member.id,
-                                        memberName,
-                                        memberRole: member.role,
-                                      })
-                                    }
-                                    disabled={isChangingRole}
-                                    className="gap-1"
-                                    title="Demote to Member"
-                                  >
-                                    <ArrowDownIcon className="h-4 w-4" />
-                                  </Button>
-                                )
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  setConfirmDialog({
-                                    open: true,
-                                    type: "remove",
-                                    memberId: member.id,
-                                    memberName,
-                                  })
-                                }
-                                disabled={isRemoving}
-                                className="gap-1 text-destructive hover:text-destructive"
-                                title="Remove Member"
-                              >
-                                <TrashIcon className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          )}
-                          {canLeave && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                setConfirmDialog({
-                                  open: true,
-                                  type: "leave",
-                                })
-                              }
-                              disabled={isLeaving}
-                              className="gap-1 text-destructive hover:text-destructive ml-auto"
-                              title="Leave Organization"
-                            >
-                              Leave
-                            </Button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
-                    <p>No members found</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Pending Invitations Section - Only for COMPANY accounts and admins */}
-              {!isPersonal && isCurrentUserAdmin && invitations.length > 0 && (
-                <div className="rounded-xl border bg-card">
-                  <div className="flex items-center justify-between p-6 border-b">
-                    <div>
-                      <h2 className="text-lg font-semibold">Pending Invitations</h2>
-                      <p className="text-sm text-muted-foreground">
-                        Invitations awaiting acceptance
-                      </p>
-                    </div>
-                  </div>
-                  <div className="p-6 space-y-3">
-                    {invitations.map((invitation) => {
-                      const isPlaceholderEmail =
-                        invitation.email.startsWith("invitation-") &&
-                        invitation.email.includes("@cashsouk.com");
-                      return (
-                        <div
-                          key={invitation.id}
-                          className="flex items-center justify-between p-3 rounded-lg border bg-muted/30"
-                        >
-                          <div>
-                            <p className="font-medium">
-                              {isPlaceholderEmail ? "Link-based invitation" : invitation.email}
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              {invitation.role === "ORGANIZATION_ADMIN" ? "Admin" : "Member"} •
-                              Expires {new Date(invitation.expiresAt).toLocaleDateString()}
-                            </p>
-                          </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              const portalUrl = process.env.NEXT_PUBLIC_ISSUER_PORTAL_URL || "http://localhost:3001";
-                              const inviteLink = `${portalUrl}/accept-invitation?token=${invitation.token}`;
-                              navigator.clipboard.writeText(inviteLink);
-                              toast.success("Invitation link copied to clipboard");
-                            }}
-                            className="gap-1"
-                          >
-                            <ClipboardIcon className="h-4 w-4" />
-                            Copy Link
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => resend(invitation.id)}
-                            className="gap-1"
-                          >
-                            Resend
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => revoke(invitation.id)}
-                            className="gap-1 text-destructive"
-                          >
-                            Revoke
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Invite Member Dialog */}
-              {/* Invite Member Dialog - only mount for org admins to avoid 403 on invitations API */}
-              {activeOrganization?.id && isCurrentUserAdmin && (
-                <InviteMemberDialog
-                  organizationId={activeOrganization.id}
-                  open={inviteDialogOpen}
-                  onOpenChange={setInviteDialogOpen}
-                />
-              )}
             </TabsContent>
 
             {/* Banking Tab */}
@@ -1590,22 +1370,22 @@ export default function ProfilePage() {
               <div className="rounded-xl border bg-card">
                 <div className="flex items-center justify-between p-6 border-b">
                   <div>
-                    <h2 className="text-lg font-semibold">Banking details</h2>
+                    <h2 className="text-lg font-semibold">Bank account</h2>
                     <p className="text-sm text-muted-foreground">
-                      View or update your bank account information
+                      Where disbursements and payouts are sent
                     </p>
                   </div>
-                  {!isEditingBanking && effectiveIsAdmin && (
+                  {!isEditingBanking && effectiveIsAdmin ? (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => effectiveIsAdmin && setIsEditingBanking(true)}
-                      className={`gap-2 rounded-xl ${!effectiveIsAdmin ? "invisible pointer-events-none" : ""}`}
+                      onClick={() => setIsEditingBanking(true)}
+                      className="gap-2 rounded-xl"
                     >
                       <PencilIcon className="h-4 w-4" />
                       Edit
                     </Button>
-                  )}
+                  ) : null}
                 </div>
                 <div className="p-6 space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -1710,11 +1490,236 @@ export default function ProfilePage() {
             <TabsContent value="documents" className="space-y-6 mt-6">
               <DocumentsTabContent apiClient={apiClient} />
             </TabsContent>
+
+            {/* Members Tab */}
+            <TabsContent value="members" className="mt-6 space-y-6">
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold">
+                      {isPersonal ? "Account holder" : "Team members"}
+                    </h2>
+                    <p className="text-sm text-muted-foreground">
+                      {isPersonal
+                        ? "People with access to this account"
+                        : `${activeOrganization.members?.length || 0} people with access to this organisation`}
+                    </p>
+                  </div>
+                  {!isPersonal && isCurrentUserAdmin ? (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setInviteDialogOpen(true)}
+                        className="gap-2 rounded-xl"
+                      >
+                        <UserPlusIcon className="h-4 w-4" />
+                        Invite member
+                      </Button>
+                      {activeOrganization.isOwner &&
+                      activeOrganization.members &&
+                      activeOrganization.members.length > 1 ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setTransferOwnershipOpen(true)}
+                          disabled={isTransferringOwnership}
+                          className="gap-2 rounded-xl border-status-action-text/30 text-status-action-text hover:bg-status-action-bg"
+                        >
+                          <ArrowPathIcon className="h-4 w-4" />
+                          Transfer ownership
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+                {activeOrganization.members && activeOrganization.members.length > 0 ? (
+                  <div className="grid gap-3">
+                    {activeOrganization.members.map((member) => {
+                      const isCurrentUser = currentUser && member.id === currentUser.userId;
+                      const canManageMembers = !isPersonal && isCurrentUserAdmin && !isCurrentUser;
+                      const isOwner = activeOrganization.isOwner && isCurrentUser;
+                      const canLeave = !isPersonal && isCurrentUser && !isOwner;
+                      const memberName =
+                        [member.firstName, member.lastName].filter(Boolean).join(" ") ||
+                        member.email;
+
+                      return (
+                        <div
+                          key={member.id}
+                          className="flex items-center gap-4 rounded-xl border bg-card p-4 transition-none"
+                        >
+                          <div className="flex-1">
+                            <MemberCard member={member} ownerId={activeOrganization.ownerId} />
+                          </div>
+                          {canManageMembers ? (
+                            <div className="ml-auto flex items-center gap-2">
+                              {member.role === "ORGANIZATION_MEMBER" ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    setConfirmDialog({
+                                      open: true,
+                                      type: "promote",
+                                      memberId: member.id,
+                                      memberName,
+                                      memberRole: member.role,
+                                    })
+                                  }
+                                  disabled={isChangingRole}
+                                  className="gap-1"
+                                >
+                                  <ArrowUpIcon className="h-4 w-4" />
+                                  Make admin
+                                </Button>
+                              ) : !isCurrentUser ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() =>
+                                    setConfirmDialog({
+                                      open: true,
+                                      type: "demote",
+                                      memberId: member.id,
+                                      memberName,
+                                      memberRole: member.role,
+                                    })
+                                  }
+                                  disabled={isChangingRole}
+                                  className="gap-1"
+                                >
+                                  <ArrowDownIcon className="h-4 w-4" />
+                                  Make member
+                                </Button>
+                              ) : null}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() =>
+                                  setConfirmDialog({
+                                    open: true,
+                                    type: "remove",
+                                    memberId: member.id,
+                                    memberName,
+                                  })
+                                }
+                                disabled={isRemoving}
+                                className="gap-1 text-destructive hover:text-destructive"
+                              >
+                                <TrashIcon className="h-4 w-4" />
+                                Remove
+                              </Button>
+                            </div>
+                          ) : null}
+                          {canLeave ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setConfirmDialog({
+                                  open: true,
+                                  type: "leave",
+                                })
+                              }
+                              disabled={isLeaving}
+                              className="ml-auto gap-1 text-destructive hover:text-destructive"
+                            >
+                              Leave
+                            </Button>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed bg-card p-8 text-center text-muted-foreground">
+                    <p>No members yet</p>
+                  </div>
+                )}
+              </div>
+
+              {!isPersonal && isCurrentUserAdmin && invitations.length > 0 ? (
+                <div className="rounded-xl border bg-card">
+                  <div className="flex items-center justify-between border-b p-6">
+                    <div>
+                      <h2 className="text-lg font-semibold">Pending invitations</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Waiting for people to accept
+                      </p>
+                    </div>
+                  </div>
+                  <div className="space-y-3 p-6">
+                    {invitations.map((invitation) => {
+                      const isPlaceholderEmail =
+                        invitation.email.startsWith("invitation-") &&
+                        invitation.email.includes("@cashsouk.com");
+                      return (
+                        <div
+                          key={invitation.id}
+                          className="flex items-center justify-between rounded-lg border bg-muted/30 p-3"
+                        >
+                          <div>
+                            <p className="font-medium">
+                              {isPlaceholderEmail ? "Link-based invitation" : invitation.email}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {invitation.role === "ORGANIZATION_ADMIN" ? "Admin" : "Member"} ·
+                              Expires {new Date(invitation.expiresAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                const portalUrl =
+                                  process.env.NEXT_PUBLIC_ISSUER_PORTAL_URL ||
+                                  "http://localhost:3001";
+                                const inviteLink = `${portalUrl}/accept-invitation?token=${invitation.token}`;
+                                navigator.clipboard.writeText(inviteLink);
+                                toast.success("Invitation link copied to clipboard");
+                              }}
+                              className="gap-1"
+                            >
+                              <ClipboardIcon className="h-4 w-4" />
+                              Copy link
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => resend(invitation.id)}
+                              className="gap-1"
+                            >
+                              Resend
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => revoke(invitation.id)}
+                              className="gap-1 text-destructive"
+                            >
+                              Revoke
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              {activeOrganization?.id && isCurrentUserAdmin ? (
+                <InviteMemberDialog
+                  organizationId={activeOrganization.id}
+                  open={inviteDialogOpen}
+                  onOpenChange={setInviteDialogOpen}
+                />
+              ) : null}
+            </TabsContent>
           </Tabs>
-        </div>
+        </PageShell>
       </div>
-
-
 
       {/* Confirmation Dialogs */}
       {confirmDialog.type === "remove" && confirmDialog.memberId && (
@@ -1723,8 +1728,8 @@ export default function ProfilePage() {
           onOpenChange={(open) =>
             setConfirmDialog({ ...confirmDialog, open })
           }
-          title="Remove Member"
-          description={`Are you sure you want to remove ${confirmDialog.memberName} from this organization? This action cannot be undone.`}
+          title="Remove member"
+          description={`Are you sure you want to remove ${confirmDialog.memberName} from this organisation? This cannot be undone.`}
           confirmText="Remove"
           cancelText="Cancel"
           variant="destructive"
@@ -1744,8 +1749,8 @@ export default function ProfilePage() {
           onOpenChange={(open) =>
             setConfirmDialog({ ...confirmDialog, open })
           }
-          title="Leave Organization"
-          description="Are you sure you want to leave this organization? You will lose access to all organization data and will need to be re-invited to regain access."
+          title="Leave organisation"
+          description="Are you sure you want to leave this organisation? You will lose access and need a new invitation to return."
           confirmText="Leave"
           cancelText="Cancel"
           variant="destructive"
@@ -1767,9 +1772,9 @@ export default function ProfilePage() {
           onOpenChange={(open) =>
             setConfirmDialog({ ...confirmDialog, open })
           }
-          title="Promote to Admin"
-          description={`Are you sure you want to promote ${confirmDialog.memberName} to Organization Admin? They will be able to manage members and organization settings.`}
-          confirmText="Promote"
+          title="Make admin"
+          description={`Give ${confirmDialog.memberName} admin access? They will be able to manage members and organisation settings.`}
+          confirmText="Make admin"
           cancelText="Cancel"
           variant="default"
           onConfirm={async () => {
@@ -1788,9 +1793,9 @@ export default function ProfilePage() {
           onOpenChange={(open) =>
             setConfirmDialog({ ...confirmDialog, open })
           }
-          title="Demote to Member"
-          description={`Are you sure you want to demote ${confirmDialog.memberName} to Organization Member? They will lose admin privileges.`}
-          confirmText="Demote"
+          title="Make member"
+          description={`Change ${confirmDialog.memberName} to a regular member? They will lose admin privileges.`}
+          confirmText="Make member"
           cancelText="Cancel"
           variant="default"
           onConfirm={async () => {
@@ -1817,6 +1822,6 @@ export default function ProfilePage() {
           isLoading={isTransferringOwnership}
         />
       )}
-    </>
+    </div>
   );
 }

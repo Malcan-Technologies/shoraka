@@ -1,10 +1,9 @@
 "use client";
 
+import { useHeader } from "@cashsouk/ui";
+
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { SidebarTrigger } from "../../components/ui/sidebar";
-import { Separator } from "../../components/ui/separator";
-import { SystemHealthIndicator } from "../../components/system-health-indicator";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
@@ -107,6 +106,12 @@ function getDocumentTypeLabel(type: SiteDocumentType): string {
 const ITEMS_PER_PAGE = 10;
 
 export default function DocumentsPage() {
+  const { setTitle } = useHeader();
+  React.useEffect(() => {
+    setTitle("Site Documents");
+    return () => setTitle("");
+  }, [setTitle]);
+
   const { can } = usePermissions();
   const canManage = can("document_management.manage");
   const queryClient = useQueryClient();
@@ -354,15 +359,7 @@ export default function DocumentsPage() {
   return (
     <RequirePermission permission="document_management.view">
       <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Site Documents</h1>
-        <div className="ml-auto">
-          <SystemHealthIndicator />
-        </div>
-      </header>
-
+      
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="w-full px-2 md:px-4 py-8 space-y-6">
           {/* Page Header */}
@@ -466,7 +463,7 @@ export default function DocumentsPage() {
               className="gap-2 h-11 rounded-xl"
             >
               <ArrowPathIcon className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-              Reload
+              Refresh
             </Button>
 
             <Badge variant="secondary" className="h-11 px-4 rounded-xl text-sm">

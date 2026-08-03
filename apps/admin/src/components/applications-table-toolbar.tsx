@@ -9,7 +9,7 @@ interface ApplicationsTableToolbarProps {
   totalCount: number;
   filteredCount: number;
   onClearFilters: () => void;
-  onReload?: () => void;
+  onRefresh?: () => void;
   isLoading?: boolean;
 }
 
@@ -37,7 +37,7 @@ export function ApplicationsTableToolbar({
   totalCount,
   filteredCount,
   onClearFilters,
-  onReload,
+  onRefresh,
   isLoading = false,
 }: ApplicationsTableToolbarProps) {
   return (
@@ -53,7 +53,7 @@ export function ApplicationsTableToolbar({
       itemLabelSingular="application"
       itemLabelPlural="applications"
       onClearFilters={onClearFilters}
-      onReload={onReload}
+      onRefresh={onRefresh}
       isLoading={isLoading}
     />
   );

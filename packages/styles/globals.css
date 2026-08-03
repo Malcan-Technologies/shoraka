@@ -21,12 +21,31 @@
     
     --muted: 210 20% 96%;
     --muted-foreground: 215 16% 45%;
-    --destructive: 359.6 95.7% 27.6%;
+    /* Distinct from --primary (brand red asserts; destructive warns) */
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 359.6 95.7% 42.6%;
     --radius: 0.8rem;
+    /* Primary CTA glow — overridden per portal theme when needed */
+    --shadow-brand: 0 10px 20px -10px rgba(138, 3, 4, 0.35);
+
+    /* Status meaning tokens — light */
+    --status-action-bg: 54 96% 95%;
+    --status-action-text: 45 93% 40%;
+    --status-submitted-bg: 214 100% 97%;
+    --status-submitted-text: 221 83% 53%;
+    --status-in-progress-bg: 226 100% 97%;
+    --status-in-progress-text: 239 84% 59%;
+    --status-success-bg: 152 76% 90%;
+    --status-success-text: 161 94% 24%;
+    --status-completed-bg: 204 94% 94%;
+    --status-completed-text: 200 98% 32%;
+    --status-rejected-bg: 0 86% 97%;
+    --status-rejected-text: 0 72% 51%;
+    --status-neutral-bg: 210 40% 96%;
+    --status-neutral-text: 215 19% 35%;
 
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
@@ -50,11 +69,28 @@
     --accent-foreground: 0 0% 100%;
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-    --destructive: 359.6 95.7% 47%;
+    /* Lightened for contrast; must stay distinct from --primary */
+    --destructive: 0 72% 61%;
     --destructive-foreground: 0 0% 100%;
     --border: 217.2 32.6% 22%;
     --input: 217.2 32.6% 22%;
     --ring: 359.6 95.7% 62%;
+
+    /* Status meaning tokens — dark */
+    --status-action-bg: 43 50% 12%;
+    --status-action-text: 43 96% 70%;
+    --status-submitted-bg: 217 50% 14%;
+    --status-submitted-text: 213 94% 78%;
+    --status-in-progress-bg: 239 40% 16%;
+    --status-in-progress-text: 234 89% 80%;
+    --status-success-bg: 160 50% 12%;
+    --status-success-text: 152 76% 70%;
+    --status-completed-bg: 200 50% 14%;
+    --status-completed-text: 199 89% 74%;
+    --status-rejected-bg: 0 45% 14%;
+    --status-rejected-text: 0 86% 75%;
+    --status-neutral-bg: 217 25% 18%;
+    --status-neutral-text: 214 20% 75%;
 
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
@@ -104,7 +140,11 @@
   }
 }
 
-/* CashSouk Portal Themes */
+/* CashSouk Portal Themes
+ * Surface tints keep --card pure white so content lifts off chrome.
+ * Issuer = warm brand blush; Investor = sand/earth (premium, conservative);
+ * Admin = cool grey (utilitarian).
+ */
 .theme-user {
   --primary: 359.6 95.7% 27.6%;
   --accent: 2.4 71.7% 47.1%;
@@ -112,21 +152,119 @@
 }
 
 .theme-investor {
-  --primary: 359.6 95.7% 27.6%;
-  --accent: 30.6 25.4% 63.7%;
-  --secondary: 29.6 51.0% 28.8%;
+  /* Premium sandy-earth palette — earth brown asserts; brand red reserved for logo / destructive */
+  --primary: 29.6 51% 28.8%;              /* #6F4924 earth brown */
+  --primary-foreground: 36 40% 98%;       /* cream white */
+  --secondary: 30.6 25.4% 63.7%;          /* #BAA38B sand taupe */
+  --secondary-foreground: 29.6 40% 16%;
+  --accent: 34 32% 91%;                   /* soft cream hover fill */
+  --accent-foreground: 29.6 45% 22%;
+  --ring: 29.6 45% 38%;
+  --shadow-brand: 0 12px 24px -12px rgba(111, 73, 36, 0.32);
+
+  --foreground: 29 28% 14%;
+  --muted-foreground: 30 12% 40%;
+  /* Same surface nesting as issuer: tinted canvas, pure white cards */
+  --background: 36 38% 95.5%;             /* cream canvas */
+  --muted: 33 28% 91.5%;
+  --border: 32 20% 86%;
+  --input: 32 18% 84%;
+  --card: 0 0% 100%;
+  --card-foreground: 29 28% 14%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 29 28% 14%;
+
+  --chart-1: 29.6 51% 35%;
+  --chart-2: 30.6 28% 52%;
+  --chart-3: 36 35% 42%;
+  --chart-4: 25 30% 48%;
+  --chart-5: 40 40% 55%;
 }
 
 .theme-admin {
+  /* Utilitarian cool-grey chrome — brand red asserts; canvas stays neutral */
   --primary: 359.6 95.7% 27.6%;
-  --accent: 217.2 32.6% 22%;
-  --secondary: 210 20% 96%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 12% 93%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --accent: 220 14% 92%;                 /* soft grey hover fill */
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --ring: 359.6 95.7% 42.6%;
+
+  --foreground: 222.2 47.4% 11.2%;
+  --muted-foreground: 215 16% 40%;
+  /* Same nesting as issuer/investor: tinted canvas, pure white cards */
+  --background: 220 16% 96.5%;           /* light cool-grey canvas */
+  --muted: 220 14% 93%;
+  --border: 220 13% 88%;
+  --input: 220 12% 84%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 47.4% 11.2%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 47.4% 11.2%;
 }
 
 .theme-issuer {
   --primary: 359.6 95.7% 27.6%;
   --accent: 2.4 71.7% 47.1%;
   --secondary: 30.6 25.4% 63.7%;
+  /* Soft brand blush (primary red + sand) */
+  --background: 12 32% 97.5%;
+  --muted: 15 22% 94.5%;
+  --border: 18 18% 90%;
+  --card: 0 0% 100%;
+  --popover: 0 0% 100%;
+}
+
+.dark.theme-investor,
+.theme-investor.dark {
+  --primary: 30.6 28% 62%;
+  --primary-foreground: 29 30% 10%;
+  --secondary: 30 18% 28%;
+  --secondary-foreground: 36 30% 92%;
+  --accent: 30 14% 18%;
+  --accent-foreground: 36 30% 92%;
+  --ring: 30.6 28% 55%;
+  --shadow-brand: 0 12px 24px -12px rgba(186, 163, 139, 0.25);
+
+  --foreground: 36 25% 94%;
+  --muted-foreground: 30 12% 68%;
+  --background: 30 16% 7.5%;
+  --muted: 30 12% 14%;
+  --border: 30 10% 18%;
+  --input: 30 10% 20%;
+  --card: 30 14% 10%;
+  --card-foreground: 36 25% 94%;
+  --popover: 30 14% 10%;
+  --popover-foreground: 36 25% 94%;
+
+  --chart-1: 30.6 30% 58%;
+  --chart-2: 36 28% 50%;
+  --chart-3: 25 25% 45%;
+  --chart-4: 40 35% 55%;
+  --chart-5: 29 40% 48%;
+}
+
+.dark.theme-issuer,
+.theme-issuer.dark {
+  --background: 350 18% 7.5%;
+  --muted: 350 14% 13%;
+  --border: 350 12% 18%;
+  --card: 350 16% 9.5%;
+  --popover: 350 16% 9.5%;
+}
+
+.dark.theme-admin,
+.theme-admin.dark {
+  --background: 222 16% 7.5%;
+  --muted: 220 12% 13%;
+  --border: 220 10% 18%;
+  --card: 222 14% 10%;
+  --popover: 222 14% 10%;
+  --accent: 220 12% 16%;
+  --accent-foreground: 210 20% 96%;
+  --secondary: 220 10% 16%;
+  --secondary-foreground: 210 20% 96%;
 }
 
 /* Subtle transitions - excluding transform to prevent popover/tooltip animation issues */

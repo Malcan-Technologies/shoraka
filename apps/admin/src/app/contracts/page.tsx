@@ -1,11 +1,10 @@
 "use client";
 
+import { useHeader } from "@cashsouk/ui";
+
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
-import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { ContractsTable } from "@/contracts/components/contracts-table";
 import { ContractsTableToolbar } from "@/contracts/components/contracts-table-toolbar";
 import { useContracts } from "@/contracts/hooks/use-contracts";
@@ -17,6 +16,12 @@ import { RequirePermission } from "@/components/require-permission";
 const DEFAULT_STATUS_FILTERS = ["SUBMITTED", "OFFER_SENT", "AMENDMENT_REQUESTED"];
 
 export default function ContractsPage() {
+  const { setTitle } = useHeader();
+  React.useEffect(() => {
+    setTitle("Contracts");
+    return () => setTitle("");
+  }, [setTitle]);
+
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -80,15 +85,7 @@ export default function ContractsPage() {
   return (
     <RequirePermission permission="contracts.view">
       <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Contracts</h1>
-        <div className="ml-auto">
-          <SystemHealthIndicator />
-        </div>
-      </header>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+            <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="w-full px-2 md:px-4 py-8 space-y-8">
           <section className="space-y-4">
             <div className="flex items-center gap-3">
@@ -118,7 +115,7 @@ export default function ContractsPage() {
               totalCount={totalContracts}
               filteredCount={totalContracts}
               onClearFilters={handleClearFilters}
-              onReload={handleReload}
+              onRefresh={handleReload}
               isLoading={isLoading}
             />
 

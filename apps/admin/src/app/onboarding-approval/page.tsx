@@ -1,9 +1,8 @@
 "use client";
 
+import { useHeader } from "@cashsouk/ui";
+
 import * as React from "react";
-import { SidebarTrigger } from "../../components/ui/sidebar";
-import { Separator } from "../../components/ui/separator";
-import { SystemHealthIndicator } from "../../components/system-health-indicator";
 import { OnboardingQueueTable } from "../../components/onboarding-queue-table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -39,6 +38,12 @@ type TypeFilter = "all" | OrganizationTypeEnum;
 type StatusFilter = OnboardingApprovalStatusFilter;
 
 export default function OnboardingApprovalPage() {
+  const { setTitle } = useHeader();
+  React.useEffect(() => {
+    setTitle("Onboarding Approval");
+    return () => setTitle("");
+  }, [setTitle]);
+
   const [searchQuery, setSearchQuery] = React.useState("");
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [portalFilter, setPortalFilter] = React.useState<PortalFilter>("all");
@@ -101,20 +106,14 @@ export default function OnboardingApprovalPage() {
   return (
     <RequirePermission permission="onboarding.view">
       <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Onboarding Approval</h1>
-        {statusFilter === "PENDING_ALL" && totalApplications > 0 && (
-          <Badge variant="destructive" className="ml-2">
+                  {statusFilter === "PENDING_ALL" && totalApplications > 0 && (
+        <div className="px-4 pt-4 md:px-6">
+          <Badge variant="destructive">
             {totalApplications} pending
           </Badge>
-        )}
-        <div className="ml-auto">
-          <SystemHealthIndicator />
         </div>
-      </header>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      )}
+<div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="w-full px-2 md:px-4 py-8 space-y-6">
           {/* Description */}
           <div className="rounded-2xl border bg-card p-6">
@@ -288,7 +287,7 @@ export default function OnboardingApprovalPage() {
               <ArrowPathIcon
                 className={`h-4 w-4 ${isLoading || isFetching ? "animate-spin" : ""}`}
               />
-              Reload
+              Refresh
             </Button>
 
             <Badge variant="secondary" className="h-11 px-4 rounded-xl text-sm">

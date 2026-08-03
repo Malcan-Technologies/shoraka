@@ -6,10 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@cashsouk/ui";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { SystemHealthIndicator } from "@/components/system-health-indicator";
+import { Skeleton, useHeader } from "@cashsouk/ui";
 import { useApplicationDetail } from "@/hooks/use-application-detail";
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import { useUpdateApplicationStatus } from "@/hooks/use-update-application-status";
@@ -43,7 +40,7 @@ import {
   type ReviewSectionId,
 } from "@/components/application-review";
 import { useProducts } from "@/hooks/use-products";
-import { productName, resolveDisplayProductForNav } from "@/app/settings/products/product-utils";
+import { resolveDisplayProductForNav } from "@/app/settings/products/product-utils";
 import {
   getReviewTabLabel,
   getTabUnlockTooltip,
@@ -149,6 +146,7 @@ const SECTION_PERMISSION_MAP: Record<string, AdminPermission> = {
 };
 
 export default function DynamicApplicationDetailPage() {
+  const { setTitle } = useHeader();
   const { can } = usePermissions();
   const canAppManage = can("applications.manage");
   const params = useParams();
@@ -178,7 +176,11 @@ export default function DynamicApplicationDetailPage() {
   const currentProduct = productsData?.products
     ? resolveDisplayProductForNav(productsData.products, productKey)
     : undefined;
-  const currentProductName = currentProduct ? productName(currentProduct) : "Applications";
+
+  React.useEffect(() => {
+    setTitle(isLoading ? "Loading..." : `Application ${applicationId.slice(-8).toUpperCase()}`);
+    return () => setTitle("");
+  }, [setTitle, isLoading, applicationId]);
 
   const invoiceRatioLimits = React.useMemo(() => {
     const workflow =
@@ -685,28 +687,14 @@ export default function DynamicApplicationDetailPage() {
   return (
     <RequirePermission permission="applications.view">
       <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/applications/${productKey}`)}
-          className="gap-1.5 -ml-1"
-        >
+      
+            <div className="flex items-center gap-2 px-4 pt-4 md:px-6">
+        <Button variant="ghost" size="sm" onClick={() => router.push(`/applications/${productKey}`)} className="gap-1.5">
           <ArrowLeftIcon className="h-4 w-4" />
-          {currentProductName}
+          Applications
         </Button>
-        <Separator orientation="vertical" className="mx-2 h-4" />
-        <h1 className="text-lg font-semibold truncate">
-          {isLoading ? "Loading..." : `Application ${applicationId.slice(-8).toUpperCase()}`}
-        </h1>
-        <div className="ml-auto">
-          <SystemHealthIndicator />
-        </div>
-      </header>
-
-      <div className="flex-1 overflow-y-auto">
+      </div>
+<div className="flex-1 overflow-y-auto">
         <div className="w-full px-4 md:px-6 lg:px-8 py-10 md:py-12 space-y-6">
           {isLoading && <PageSkeleton />}
 

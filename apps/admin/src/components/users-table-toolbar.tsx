@@ -25,7 +25,7 @@ interface UsersTableToolbarProps {
   totalCount: number;
   filteredCount: number;
   onClearFilters: () => void;
-  onReload?: () => void;
+  onRefresh?: () => void;
   isLoading?: boolean;
 }
 
@@ -41,7 +41,7 @@ export function UsersTableToolbar({
   totalCount,
   filteredCount,
   onClearFilters,
-  onReload,
+  onRefresh,
   isLoading = false,
 }: UsersTableToolbarProps) {
   const [isSpinning, setIsSpinning] = React.useState(false);
@@ -58,9 +58,9 @@ export function UsersTableToolbar({
     issuerOnboardedFilter !== "all",
   ].filter(Boolean).length;
 
-  const handleReload = () => {
+  const handleRefresh = () => {
     setIsSpinning(true);
-    onReload?.();
+    onRefresh?.();
     // Keep spinning for at least 500ms for visual feedback
     setTimeout(() => setIsSpinning(false), 500);
   };
@@ -132,15 +132,15 @@ export function UsersTableToolbar({
         </Button>
       )}
 
-      {onReload && (
+      {onRefresh && (
         <Button
           variant="outline"
-          onClick={handleReload}
+          onClick={handleRefresh}
           disabled={isLoading || isSpinning}
           className="gap-2 h-11 rounded-xl"
         >
           <ArrowPathIcon className={`h-4 w-4 ${isLoading || isSpinning ? "animate-spin" : ""}`} />
-          Reload
+          Refresh
         </Button>
       )}
 

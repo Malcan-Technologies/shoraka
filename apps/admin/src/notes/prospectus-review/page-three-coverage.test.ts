@@ -6,8 +6,6 @@ jest.mock("@cashsouk/config", () => ({
     })}`,
 }));
 
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import {
   resolveApplicationFinancialCurrentRatio,
   resolveApplicationFinancialTotalLiabilities,

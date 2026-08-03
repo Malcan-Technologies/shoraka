@@ -61,7 +61,8 @@ interface ApiReviewRemark {
   remark: string;
 }
 
-interface ApiApplication {
+/** Raw application shape accepted by prepareApplication (list + detail). */
+export interface ApiApplication {
   id: string;
   status?: string;
   financing_structure?: { structure_type?: string } | null;
@@ -72,6 +73,8 @@ interface ApiApplication {
   issuer_organization_id?: string;
   company_details?: Record<string, unknown>;
   review_and_submit?: Record<string, unknown>;
+  supporting_documents?: unknown;
+  financial_statements?: unknown;
   contract?: ApiContract | null;
   invoices?: ApiInvoice[];
   application_review_remarks?: ApiReviewRemark[];

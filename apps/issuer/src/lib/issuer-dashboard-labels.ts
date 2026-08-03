@@ -1,9 +1,14 @@
 import { InvoiceStatus } from "@cashsouk/types";
 import type { IssuerDashboardNote } from "@/types/issuer-dashboard";
 
-/** Issuer financing dashboard (cards + contract detail): only these seven user-facing groups. */
+/**
+ * Issuer financing dashboard groups. Colors via StatusBadge tokens (viewer-centric):
+ * action_required → yellow · pending_approval → blue · funded/active → green ·
+ * unsuccessful → red · completed → slate terminal · in_progress → indigo working.
+ */
 export type IssuerFinancingStatusKind =
   | "draft"
+  | "action_required"
   | "pending_approval"
   | "in_progress"
   | "funded"
@@ -20,7 +25,7 @@ export function formatStatus(raw?: string | null) {
     .join(" ");
 }
 
-/** Badge label + classes for issuer financing summary (dashboard + contract detail header). */
+/** Labels for issuer financing status groups (styling comes from StatusBadge tokens). */
 export function getIssuerFinancingStatusPresentation(kind: IssuerFinancingStatusKind): {
   label: string;
   className: string;
@@ -28,41 +33,52 @@ export function getIssuerFinancingStatusPresentation(kind: IssuerFinancingStatus
 } {
   switch (kind) {
     case "draft":
-      return { label: "Draft", className: "", variant: "secondary" };
+      return {
+        label: "Draft",
+        className: "bg-status-action-bg text-status-action-text hover:bg-status-action-bg",
+        variant: "default",
+      };
+    case "action_required":
+      return {
+        label: "Action required",
+        className: "bg-status-action-bg text-status-action-text hover:bg-status-action-bg",
+        variant: "default",
+      };
     case "pending_approval":
       return {
         label: "Pending approval",
-        className: "bg-amber-100 text-amber-800 hover:bg-amber-100",
+        className: "bg-status-submitted-bg text-status-submitted-text hover:bg-status-submitted-bg",
         variant: "default",
       };
     case "in_progress":
       return {
         label: "In progress",
-        className: "bg-green-100 text-green-700 hover:bg-green-100",
+        className:
+          "bg-status-in-progress-bg text-status-in-progress-text hover:bg-status-in-progress-bg",
         variant: "default",
       };
     case "funded":
       return {
         label: "Funded",
-        className: "bg-blue-100 text-blue-700 hover:bg-blue-100",
+        className: "bg-status-success-bg text-status-success-text hover:bg-status-success-bg",
         variant: "default",
       };
     case "active":
       return {
         label: "Active",
-        className: "bg-green-100 text-green-800 hover:bg-green-100",
+        className: "bg-status-success-bg text-status-success-text hover:bg-status-success-bg",
         variant: "default",
       };
     case "completed":
       return {
         label: "Completed",
-        className: "bg-emerald-100 text-emerald-700 hover:bg-emerald-100",
+        className: "bg-status-neutral-bg text-status-neutral-text hover:bg-status-neutral-bg",
         variant: "default",
       };
     case "unsuccessful":
       return {
         label: "Unsuccessful",
-        className: "bg-red-100 text-red-600 hover:bg-red-100",
+        className: "bg-status-rejected-bg text-status-rejected-text hover:bg-status-rejected-bg",
         variant: "default",
       };
   }
@@ -78,7 +94,8 @@ function norm(s: string | null | undefined): string {
 export function resolveIssuerContractDashboardBadge(contractStatus: string): IssuerFinancingStatusKind {
   const c = norm(contractStatus);
   if (c === "DRAFT") return "draft";
-  if (c === "SUBMITTED" || c === "OFFER_SENT" || c === "AMENDMENT_REQUESTED") return "pending_approval";
+  if (c === "OFFER_SENT" || c === "AMENDMENT_REQUESTED") return "action_required";
+  if (c === "SUBMITTED") return "pending_approval";
   if (c === "APPROVED") return "active";
   if (c === "REJECTED" || c === "WITHDRAWN" || c === "CANCELLED" || c === "EXPIRED") return "unsuccessful";
   return "active";
@@ -112,13 +129,10 @@ export function resolveIssuerInvoiceDashboardBadge(
   if (!note) {
     const inv = norm(invoiceStatus);
     if (inv === InvoiceStatus.DRAFT) return "draft";
-    if (
-      inv === InvoiceStatus.SUBMITTED ||
-      inv === InvoiceStatus.OFFER_SENT ||
-      inv === InvoiceStatus.AMENDMENT_REQUESTED
-    ) {
-      return "pending_approval";
+    if (inv === InvoiceStatus.OFFER_SENT || inv === InvoiceStatus.AMENDMENT_REQUESTED) {
+      return "action_required";
     }
+    if (inv === InvoiceStatus.SUBMITTED) return "pending_approval";
     if (inv === InvoiceStatus.APPROVED) return "in_progress";
     if (
       inv === InvoiceStatus.REJECTED ||

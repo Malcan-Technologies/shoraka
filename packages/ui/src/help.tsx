@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./com
 import { MermaidDiagram } from "./components/mermaid-diagram";
 import { Separator } from "./components/separator";
 import { cn } from "./lib/utils";
+import { portalContentMaxWidthClassName } from "./lib/portal-layout";
 
 export type HelpArticleSummaryViewModel = {
   slug: string;
@@ -124,20 +125,15 @@ const markdownComponents: Components = {
 export function HelpIndexView({ articles, portalLabel, basePath = "/help" }: HelpIndexViewProps) {
   return (
     <div className="flex-1 px-6 py-8 md:px-8 md:py-10">
-      <div className="mx-auto w-full max-w-6xl space-y-8">
+      <div className={cn(portalContentMaxWidthClassName, "space-y-8")}>
         <section className="rounded-3xl border bg-card p-6 shadow-sm md:p-8">
-          <div className="flex max-w-3xl flex-col gap-4">
-            <Badge className="w-fit bg-secondary text-secondary-foreground hover:bg-secondary">
-              Knowledge Base
-            </Badge>
-            <div className="space-y-3">
-              <h1 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">
-                {portalLabel} Help Center
-              </h1>
-              <p className="text-[17px] leading-7 text-muted-foreground">
-                Practical guides for common workflows, review steps, and portal tasks.
-              </p>
-            </div>
+          <div className="max-w-3xl space-y-3">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+              {portalLabel} Help Center
+            </h1>
+            <p className="text-[17px] leading-7 text-muted-foreground">
+              Practical guides for common workflows, review steps, and portal tasks.
+            </p>
           </div>
         </section>
 

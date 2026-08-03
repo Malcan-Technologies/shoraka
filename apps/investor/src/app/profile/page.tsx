@@ -41,7 +41,14 @@ import { TransferOwnershipDialog } from "../../components/transfer-ownership-dia
 import { toast } from "sonner";
 import PhoneInput, { isValidPhoneNumber } from "react-phone-number-input";
 import "react-phone-number-input/style.css";
-import { useHeader, DirectorShareholderAlertCard, INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY, DirectorShareholdersUnifiedSection } from "@cashsouk/ui";
+import {
+  useHeader,
+  DirectorShareholderAlertCard,
+  INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
+  DirectorShareholdersUnifiedSection,
+  portalContentMaxWidthClassName,
+} from "@cashsouk/ui";
+import { cn } from "@/lib/utils";
 import {
   UserIcon,
   BuildingOffice2Icon,
@@ -165,7 +172,7 @@ function ProfileSkeleton() {
   return (
     <>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="max-w-4xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
+        <div className={cn(portalContentMaxWidthClassName, "space-y-6 px-2 py-8 md:px-4")}>
           <Skeleton className="h-10 w-64" />
           <Skeleton className="h-5 w-96" />
           <div className="space-y-4 mt-8">
@@ -189,7 +196,7 @@ function NoOrganizationState({ showOnboardingPrompt = true }: { showOnboardingPr
   return (
     <>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="max-w-4xl mx-auto w-full px-2 md:px-4 py-8">
+        <div className={cn(portalContentMaxWidthClassName, "px-2 py-8 md:px-4")}>
           <div className="rounded-xl border bg-card p-8 text-center opacity-60">
             <div className="flex justify-center mb-4">
               <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center">
@@ -825,7 +832,7 @@ export default function ProfilePage() {
   return (
     <>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="max-w-4xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
+        <div className={cn(portalContentMaxWidthClassName, "space-y-6 px-2 py-8 md:px-4")}>
           {/* Page Header */}
           <div className="flex items-start justify-between">
             <div className="flex items-start gap-4">

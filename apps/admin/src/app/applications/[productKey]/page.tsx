@@ -1,10 +1,9 @@
 "use client";
 
+import { useHeader } from "@cashsouk/ui";
+
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
-import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { ApplicationsTable } from "@/components/applications-table";
 import { ApplicationsTableToolbar } from "@/components/applications-table-toolbar";
 import { useApplications } from "@/hooks/use-applications";
@@ -30,6 +29,7 @@ const DEFAULT_STATUS_FILTERS = [
 ];
 
 export default function DynamicApplicationsPage() {
+  const { setTitle } = useHeader();
   const queryClient = useQueryClient();
   const router = useRouter();
   const params = useParams();
@@ -41,6 +41,11 @@ export default function DynamicApplicationsPage() {
     ? resolveDisplayProductForNav(productsData.products, productKey)
     : undefined;
   const currentProductName = currentProduct ? productName(currentProduct) : "Applications";
+
+  React.useEffect(() => {
+    setTitle(`${currentProductName} Applications`);
+    return () => setTitle("");
+  }, [setTitle, currentProductName]);
 
   // Filters
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -100,15 +105,7 @@ export default function DynamicApplicationsPage() {
   return (
     <RequirePermission permission="applications.view">
       <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">{currentProductName} Applications</h1>
-        <div className="ml-auto">
-          <SystemHealthIndicator />
-        </div>
-      </header>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+            <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="w-full px-2 md:px-4 py-8 space-y-8">
 
           {/* Applications Section */}
@@ -141,7 +138,7 @@ export default function DynamicApplicationsPage() {
               totalCount={totalApplications}
               filteredCount={totalApplications}
               onClearFilters={handleClearFilters}
-              onReload={handleReload}
+              onRefresh={handleReload}
               isLoading={isLoading}
             />
 

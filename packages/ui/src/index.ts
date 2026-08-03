@@ -208,3 +208,35 @@ export type {
   DirectorShareholdersUnifiedSectionProps,
   DirectorShareholderPortal,
 } from "./director-shareholders-unified-section";
+
+export { portalContentMaxWidthClassName } from "./lib/portal-layout";
+
+export { PageShell, welcomeBackTitle } from "./components/page-shell";
+export type { PageShellProps } from "./components/page-shell";
+export { ListToolbar } from "./components/list-toolbar";
+export type { ListToolbarProps } from "./components/list-toolbar";
+export { FilterChips } from "./components/filter-chips";
+export type { FilterChip, FilterChipsProps } from "./components/filter-chips";
+export { DataTable } from "./components/data-table";
+export type { DataTableColumn, DataTableProps } from "./components/data-table";
+export { EmptyState } from "./components/empty-state";
+export type { EmptyStateProps, EmptyStateVariant } from "./components/empty-state";
+export { LoadingState } from "./components/loading-state";
+export type { LoadingStateProps, LoadingStateVariant } from "./components/loading-state";
+export { Pagination } from "./components/pagination";
+export type { PaginationProps } from "./components/pagination";
+export { StatusBadge, STATUS_TOKEN_KEYS } from "./components/status-badge";
+export type { StatusBadgeProps, StatusToken } from "./components/status-badge";
+export { DetailHeader } from "./components/detail-header";
+export type { DetailHeaderProps } from "./components/detail-header";
+export { DetailSection } from "./components/detail-section";
+export type { DetailSectionProps } from "./components/detail-section";
+export { ConfirmDialog } from "./components/confirm-dialog";
+export type { ConfirmDialogProps } from "./components/confirm-dialog";
+export { StickyFormFooter } from "./components/sticky-form-footer";
+export type {
+  StickyFormFooterProps,
+  StickyFormFooterSaveState,
+} from "./components/sticky-form-footer";
+export { KeyValueGrid } from "./components/key-value-grid";
+export type { KeyValueGridProps, KeyValueItem } from "./components/key-value-grid";

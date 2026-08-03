@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getHelpArticle, getHelpArticleParams } from "@cashsouk/help-content";
 import { HelpArticleView } from "@cashsouk/ui";
+import { SetHeaderTitle } from "@/components/set-header-title";
 
 type HelpArticlePageProps = {
   params: Promise<{ slug: string }>;
@@ -35,5 +36,10 @@ export default async function HelpArticlePage({ params }: HelpArticlePageProps) 
     notFound();
   }
 
-  return <HelpArticleView article={article} />;
+  return (
+    <>
+      <SetHeaderTitle title={article.title} />
+      <HelpArticleView article={article} />
+    </>
+  );
 }

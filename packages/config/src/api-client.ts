@@ -214,6 +214,22 @@ type AdminApplicationDetail = Application &
     };
     visible_review_sections?: string[];
   };
+/** Application activity log row from GET /v1/applications/:id/logs */
+export type ApplicationLogEntry = {
+  id: string;
+  event_type: string;
+  activity?: unknown;
+  actor_id?: string | null;
+  user_id?: string | null;
+  metadata?: Record<string, unknown> | null;
+  ip_address?: string | null;
+  created_at: string;
+  remark?: string | null;
+  entityId?: string | null;
+  entity_id?: string | null;
+  review_cycle?: number | null;
+};
+
 type AdminApplicationActionResult = Record<string, unknown>;
 type PendingAmendmentItem = {
   id: string;
@@ -2276,6 +2292,13 @@ export class ApiClient {
 
   async getApplication(id: string): Promise<ApiResponse<Application> | ApiError> {
     return this.get<Application>(`/v1/applications/${id}`);
+  }
+
+  /** Application activity logs (issuer + admin). Requires application access. */
+  async getApplicationLogs(
+    id: string
+  ): Promise<ApiResponse<ApplicationLogEntry[]> | ApiError> {
+    return this.get<ApplicationLogEntry[]>(`/v1/applications/${id}/logs`);
   }
 
   async getApplicationProductVersionCompare(

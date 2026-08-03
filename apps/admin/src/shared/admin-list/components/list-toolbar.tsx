@@ -34,7 +34,7 @@ interface ListToolbarProps {
   itemLabelSingular: string;
   itemLabelPlural: string;
   onClearFilters: () => void;
-  onReload?: () => void;
+  onRefresh?: () => void;
   isLoading?: boolean;
   extraToggleLabel?: string;
   extraToggleChecked?: boolean;
@@ -54,7 +54,7 @@ export function ListToolbar({
   itemLabelSingular,
   itemLabelPlural,
   onClearFilters,
-  onReload,
+  onRefresh,
   isLoading = false,
   extraToggleLabel,
   extraToggleChecked = false,
@@ -66,9 +66,9 @@ export function ListToolbar({
   const hasFilters = searchQuery !== "" || statusFilters.length > 0 || (hasExtraToggle && extraToggleChecked);
   const activeFilterCount = statusFilters.length + (hasExtraToggle && extraToggleChecked ? 1 : 0);
 
-  const handleReload = () => {
+  const handleRefresh = () => {
     setIsSpinning(true);
-    onReload?.();
+    onRefresh?.();
     setTimeout(() => setIsSpinning(false), 500);
   };
 
@@ -150,15 +150,15 @@ export function ListToolbar({
         </Button>
       )}
 
-      {onReload && (
+      {onRefresh && (
         <Button
           variant="outline"
-          onClick={handleReload}
+          onClick={handleRefresh}
           disabled={isLoading || isSpinning}
           className="gap-2 h-11 rounded-xl"
         >
           <ArrowPathIcon className={`h-4 w-4 ${isLoading || isSpinning ? "animate-spin" : ""}`} />
-          Reload
+          Refresh
         </Button>
       )}
 

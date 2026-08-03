@@ -28,6 +28,30 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ["@cashsouk/ui"],
   },
+  async redirects() {
+    return [
+      {
+        source: "/activity",
+        destination: "/?tab=activity",
+        permanent: true,
+      },
+      {
+        source: "/notes",
+        destination: "/financing?tab=notes",
+        permanent: true,
+      },
+      {
+        source: "/notes/:id",
+        destination: "/financing/notes/:id",
+        permanent: true,
+      },
+      {
+        source: "/applications/edit/:id",
+        destination: "/applications/:id/edit",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {

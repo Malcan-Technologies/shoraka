@@ -1,380 +1,299 @@
-# CashSouk Web Platform — Brand & UI Implementation Guide (Cursor Prompt)
+# CashSouk — Brand & UI Reference
+
+Living reference for the CashSouk design system. Read this before adding a screen; extend it when you establish a new pattern.
+
+**Applies to:** `apps/issuer`, `apps/investor`, `apps/admin`, `apps/landing` — one codebase, themed by CSS variables.
+**Source of truth:** `packages/styles/globals.css` (tokens) and `packages/styles/tailwind.config.ts` (theme). Per-app overrides live in `apps/<app>/src/app/globals.css`.
+**Stack:** Next.js + Tailwind + shadcn/ui.
+**Feel:** modern, premium, highly readable. Strong contrast, generous spacing, rounded corners.
 
 ---
 
-## 0) Context & Goals
-- Brand: **CashSouk** (use only the logo palette provided by the client as brand colors).
-- Frontends: **User Portal**, **Investor Portal**, **Admin Portal** — same codebase, themed by CSS variables.
-- Feel: **modern, premium, highly readable**. Typography slightly larger than default (but not oversized). Strong contrast, clean spacing, rounded corners.
-- Tech: Next.js + Tailwind + **shadcn/ui**.
-- Deliverables:
-  1) Color tokens mapped to the logo palette
-  2) CSS variables wired into **shadcn/ui** tokens
-  3) Tailwind theme extension
-  4) Typography scale & spacing rules
-  5) Portal‑specific theme variants
-  6) Component guidelines (buttons, inputs, cards, tables, nav)
-  7) Lintable code changes with example usage
 
----
+## 1. Brand palette
 
-## 1) Brand Palette → Design Tokens
-Use **only** the logo palette as primary/brand colors; pair with neutral grayscale for backgrounds, borders, text.
+Only the logo palette supplies brand colour. Everything else is neutral grayscale.
 
-| Role | Hex | HSL (for shadcn variables) | Notes |
+| Role | Hex | HSL | Notes |
 |---|---|---|---|
-| **Primary / Brand** | `#8A0304` | `359.6 95.7% 27.6%` | Deep corporate red — main brand color for actions & highlights. |
-| **Primary Accent** | `#CE2922` | `2.4 71.7% 47.1%` | Brighter red accent (hover, subtle accents, charts). |
-| **Earth Brown** | `#6F4924` | `29.6 51.0% 28.8%` | Rich brown for headings accents, dividers in premium contexts. |
-| **Sand Taupe** | `#BAA38B` | `30.6 25.4% 63.7%` | Soft premium accent (badges, subtle fills); avoid as body text on white. |
+| **Primary / Brand** | `#8A0304` | `359.6 95.7% 27.6%` | Deep corporate red — primary actions, active nav, key highlights |
+| **Primary Accent** | `#CE2922` | `2.4 71.7% 47.1%` | Brighter red — hover, subtle accents, charts |
+| **Earth Brown** | `#6F4924` | `29.6 51.0% 28.8%` | Heading accents, dividers in premium contexts |
+| **Sand Taupe** | `#BAA38B` | `30.6 25.4% 63.7%` | Soft accent — badges, subtle fills |
 
-> Contrast guidance (vs white background): `#8A0304` = **10.0:1**, `#CE2922` = **5.3:1**, `#6F4924` = **7.9:1**, `#BAA38B` = **2.4:1`** → taupe is for fills/accents, not small text on white.
+Contrast vs white: `#8A0304` = **10.0:1** · `#CE2922` = **5.3:1** · `#6F4924` = **7.9:1** · `#BAA38B` = **2.4:1**.
+Taupe is for fills and accents only — **never small text on white**.
 
-Neutrals (grayscale): use Tailwind’s zinc/neutral scale for backgrounds, borders, and long‑form text (keeps UI legible and modern).
+Neutrals use Tailwind's zinc/neutral scale for backgrounds, borders and long-form text.
+
+**Colour economy:** reds + taupe + neutrals + the status scale (§3). Introduce nothing else except where data visualisation strictly requires it.
 
 ---
 
-## 2) Wire brand into shadcn/ui CSS Variables
-**Edit** `app/globals.css` (or your global stylesheet) and define the tokens below. Keep HSL values; shadcn expects `h s% l%` triplets.
+## 2. Core tokens
+
+Defined in `packages/styles/globals.css`. shadcn expects `h s% l%` triplets.
 
 ```css
-/* Brand tokens + shadcn variables */
 :root {
-  /* Core surfaces */
+  /* Surfaces */
   --background: 0 0% 100%;
   --foreground: 222.2 47.4% 11.2%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 47.4% 11.2%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 47.4% 11.2%;
 
   /* Brand */
   --primary: 359.6 95.7% 27.6%;           /* #8A0304 */
   --primary-foreground: 0 0% 100%;
-
-  /* Accents */
-  --secondary: 30.6 25.4% 63.7%;          /* taupe: #BAA38B */
+  --secondary: 30.6 25.4% 63.7%;          /* taupe #BAA38B */
   --secondary-foreground: 0 0% 15%;
-
-  --accent: 2.4 71.7% 47.1%;              /* bright red accent: #CE2922 */
+  --accent: 2.4 71.7% 47.1%;              /* #CE2922 */
   --accent-foreground: 0 0% 100%;
 
-  /* UI system */
+  /* System */
   --muted: 210 20% 96%;
   --muted-foreground: 215 16% 45%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 222.2 47.4% 11.2%;
-  --card: 0 0% 100%;
-  --card-foreground: 222.2 47.4% 11.2%;
   --border: 214.3 31.8% 91.4%;
   --input: 214.3 31.8% 91.4%;
-  --ring: 359.6 95.7% 42.6%;              /* primary lightened ~+15% L */
-  --radius: 0.8rem;                        /* rounded-xl look */
+  --ring: 359.6 95.7% 42.6%;
+  --radius: 0.8rem;
 
-  /* Optional semantic roles mapped to brand where sensible */
-  --destructive: 359.6 95.7% 27.6%;
+  /* Destructive — MUST NOT equal --primary. See §2.1 */
+  --destructive: 0 72% 51%;               /* #DC2626 — live in packages/styles/globals.css */
   --destructive-foreground: 0 0% 100%;
 }
-
-.dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-
-  --primary: 359.6 95.7% 47%;              /* slightly lighter in dark for contrast */
-  --primary-foreground: 0 0% 100%;
-
-  --secondary: 30.6 25.4% 43%;             /* taupe darker on dark bg */
-  --secondary-foreground: 0 0% 100%;
-
-  --accent: 2.4 71.7% 56%;                 /* brighten for dark mode */
-  --accent-foreground: 0 0% 100%;
-
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --popover: 222.2 84% 4.9%;
-  --popover-foreground: 210 40% 98%;
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 22%;
-  --input: 217.2 32.6% 22%;
-  --ring: 359.6 95.7% 62%;                 /* lighter ring on dark */
-}
 ```
+
+Dark mode lightens brand and destructive for contrast; see `globals.css` for the full `.dark` block. Destructive dark is lightened independently of primary so the two stay distinct.
+
+### 2.1 Destructive is not the brand colour
+
+`--destructive` was historically set to the same value as `--primary`. That makes **"Withdraw application"** and **"Apply for financing"** render identically — the most dangerous action and the most desirable one, indistinguishable.
+
+> **Rule.** Brand red *asserts*. Destructive red *warns*. They must never share a value.
+>
+> Any control that deletes, withdraws, declines, revokes or transfers ownership uses `variant="destructive"` **and** is preceded by a confirmation dialog naming the consequence.
+
+Changing this token affects all four apps. Coordinate before shipping.
 
 ---
 
-## 3) Tailwind Theme Extension
-**Edit** `tailwind.config.ts`:
+## 3. Status colour scale
 
-```ts
-import type { Config } from "tailwindcss"
-import { fontFamily } from "tailwindcss/defaultTheme"
+Defined in `packages/styles/tailwind.config.ts` under `colors.status`. Consumed via `packages/config/src/status-badges.ts`.
 
-const config: Config = {
-  darkMode: ["class"],
-  content: [
-    "./pages/**/*.{ts,tsx}",
-    "./components/**/*.{ts,tsx}",
-    "./app/**/*.{ts,tsx}",
-    "./src/**/*.{ts,tsx}",
-  ],
-  theme: {
-    extend: {
-      colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
-        primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
-        },
-        secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
-        },
-        accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
-        },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
-        },
-        muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
-        },
-        popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
-        },
-        card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
-        },
-      },
-      borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
-      },
-      fontFamily: {
-        sans: ["Inter", ...fontFamily.sans],
-      },
-      boxShadow: {
-        brand: "0 10px 20px -10px rgba(138, 3, 4, 0.35)" /* #8A0304 */,
-      },
-    },
-  },
-  plugins: [require("tailwindcss-animate")],
-}
-export default config
-```
+| Token | bg | text | Meaning (viewer-centric) |
+|---|---|---|---|
+| `status-action` | `#FEFCE8` | `#CA8A04` | Yellow — pending **your** response (offers, amendments, drafts) |
+| `status-submitted` | `#EFF6FF` | `#2563EB` | Blue — pending the **other side** (e.g. issuer waiting on admin) |
+| `status-in-progress` | `#EEF2FF` | `#4F46E5` | Indigo — being worked on (funding open, admin processing) |
+| `status-success` | `#D1FAE5` | `#047857` | Green — good / active positive state |
+| `status-completed` | `#E0F2FE` | `#0369A1` | Sky — finished positive (prefer `neutral` for closed terminal on issuer) |
+| `status-rejected` | `#FEF2F2` | `#DC2626` | Red — bad / failed / declined / expired |
+| `status-neutral` | `#F1F5F9` | `#475569` | Slate/near-black — terminal closed (completed, withdrawn, archived) |
 
-> **Font**: Prefer `Inter` (fallbacks provided). If the repo already has a preferred sans, keep it, but enforce the size rules below.
+> **Rule.** Never hand-write `bg-amber-50 text-amber-800` for a status. Always use a status token, so the meaning stays consistent and dark mode keeps working.
+
+Status is **meaning-first, not colour-first**: pick the token by what the state means to the user, not by the colour you had in mind. A new domain status maps onto an existing token; adding an eighth token needs a good reason.
+
+### 3.1 No hardcoded action colours
+
+Hardcoded hex button variants (`reviewOffer`, `makeAmendments`) are retired. Use a standard button variant (`default` / `action`) placed in a status-toned context — e.g. `bg-status-action-bg` for review-offer and amendments (both need issuer action). The surrounding badge and section carry the meaning; the button does not need raw hex.
 
 ---
 
-## 4) Typography & Spacing
-- **Base body**: `text-[17px]` with `leading-7`. (Slightly larger, highly readable.)
-- **Headings**: weight 700 for `h1/h2`, 600 for `h3/h4`.
-- **Tracking**: slight `tracking-tight` on display headings only.
-- **Max measure**: prose text containers `max-w-[70ch]`.
-- **Whitespace**: default section padding `py-10 md:py-12`, card padding `p-6 md:p-8`, grid gaps `gap-6`.
-- **Radii**: use `rounded-xl`+ globally via `--radius: 0.8rem` (cards/buttons/inputs).
+## 4. Typography
 
-Add/confirm these in `globals.css`:
+Font: **Inter**, with `system-ui, arial` fallbacks.
+
+Headings: `h1` `text-3xl md:text-4xl font-bold tracking-tight` · `h2` `text-2xl md:text-3xl font-bold tracking-tight` · `h3` `text-xl md:text-2xl font-semibold` · `h4` `text-lg md:text-xl font-semibold`.
+`tracking-tight` on display headings only. Prose containers cap at `max-w-[70ch]`.
+
+### 4.1 Three density registers
+
+Portal screens are denser than marketing pages. Pick a register and stay in it — don't invent a size.
+
+| Register | Size / leading | Where |
+|---|---|---|
+| **Prose** | `text-[17px] leading-7` | page copy, descriptions, help articles, empty states |
+| **Data** | `text-[15px] leading-6` | tables, card fields, list rows, form values |
+| **Meta** | `text-[13px] leading-5` | timestamps, fee breakdowns, hints, badge text |
+
+Numeric columns use `tabular-nums` and right-align. Currency shows the symbol left-aligned and the amount right-aligned within the cell so decimal points line up down the column.
+
+### 4.2 Spacing
+
+Section padding `py-10 md:py-12` · card padding `p-6 md:p-8` · grid gaps `gap-6` · radii `rounded-xl` and up, from `--radius: 0.8rem`.
+
+---
+
+## 5. Portal themes
+
+Each portal layout root carries a theme class that re-scopes accent variables.
 
 ```css
-html { scroll-behavior: smooth; }
-body { @apply text-base leading-7 text-foreground bg-background antialiased; }
-h1 { @apply text-3xl md:text-4xl font-bold tracking-tight; }
-h2 { @apply text-2xl md:text-3xl font-bold tracking-tight; }
-h3 { @apply text-xl md:text-2xl font-semibold; }
-h4 { @apply text-lg md:text-xl font-semibold; }
-p, li { @apply text-[17px] leading-7; }
-small { @apply text-sm leading-6; }
-```
-
----
-
-## 5) Three Portal Theme Variants
-We use **CSS variable scopes** to theme by portal. Wrap each portal layout root with a class: `.theme-user`, `.theme-investor`, `.theme-admin`.
-
-```css
-/* USER PORTAL — friendly, brand‑forward */
-.theme-user {
-  --primary: 359.6 95.7% 27.6%; /* deep red */
-  --accent: 2.4 71.7% 47.1%;    /* bright red for hovers/badges */
-  --secondary: 30.6 25.4% 63.7%;/* taupe accents */
-}
-
-/* INVESTOR PORTAL — premium, conservative accents */
+.theme-issuer   { --primary: brand red; --background: 12 32% 97.5%; /* warm blush */ … }
 .theme-investor {
-  --primary: 359.6 95.7% 27.6%;
-  --accent: 30.6 25.4% 63.7%;   /* taupe as primary accent */
-  --secondary: 29.6 51.0% 28.8%;/* earth brown for headings/dividers */
+  --primary: 29.6 51% 28.8%;           /* earth brown #6F4924 — CTAs, active nav, focus */
+  --secondary: 30.6 25.4% 63.7%;       /* sand taupe */
+  --accent: 34 32% 91%;                /* cream hover fill */
+  --background: 36 38% 95.5%;          /* cream canvas */
+  --card: 0 0% 100%;                   /* pure white — same nesting as issuer */
+  --shadow-brand: earth-brown glow;    /* not brand-red */
 }
-
-/* ADMIN PORTAL — neutral, utilitarian */
 .theme-admin {
-  --primary: 359.6 95.7% 27.6%;
-  --accent: 217.2 32.6% 22%;    /* keep accents neutral/dark */
-  --secondary: 210 20% 96%;     /* light gray fills */
+  --primary: brand red;
+  --background: 220 16% 96.5%;         /* cool-grey canvas */
+  --accent: soft grey hover fill;
+  --card: 0 0% 100%;                   /* pure white — same nesting as issuer/investor */
 }
+.theme-user     { --primary: brand red; /* same accents as issuer for the public site */ }
 ```
 
-**Next.js example** (`app/(user)/layout.tsx` etc.):
+All three portals share the same nesting: **tinted canvas (`--background`) + pure white cards (`--card`)**. Header and sidebar sit on the tinted chrome; header controls (org switcher, avatar) use `bg-card` so they read as white chips. Investor **does not use brand red for UI chrome** — only the logo and `destructive` / status-rejected keep warning reds.
+
+| Class | Applied by |
+|---|---|
+| `.theme-issuer` | `apps/issuer` |
+| `.theme-investor` | `apps/investor` |
+| `.theme-admin` | `apps/admin` |
+| `.theme-user` | `apps/landing` — currently identical to `.theme-issuer` accents; kept separate so the public site can diverge |
 
 ```tsx
-export default function Layout({ children }: { children: React.ReactNode }) {
-  return <div className="theme-user">{children}</div>
-}
+// apps/issuer/src/app/layout.tsx
+<html lang="en" className="theme-issuer">
 ```
+
+Issuer is brand-forward and friendly (red asserts, blush canvas). Investor is premium and conservative (cream canvas, earth-brown primary, sand taupe secondary). Admin is utilitarian — cool-grey canvas, white cards, brand red for primary actions / active nav; reserve destructive red for warnings.
 
 ---
 
-## 6) Component Guidelines (shadcn/ui)
+## 6. Component guidelines
 
 ### Buttons
-- **Primary**: brand red bg, white text, bold label, soft shadow.
-- **Secondary**: taupe fill or outline with brand ring on focus.
-- **Ghost**: minimal text button; hover uses `accent` underline/fg.
+- **Primary** — `bg-primary text-primary-foreground shadow-brand hover:opacity-95` (issuer: brand red; investor: earth brown)
+- **Secondary** — taupe fill (`bg-secondary`), or outline with a focus ring
+- **Outline** — `border border-input bg-card hover:bg-accent`
+- **Ghost** — minimal; hover uses `accent`
+- **Destructive** — `bg-destructive`; always paired with confirmation (§2.1). Never restyle destructive to match portal primary.
 
-```tsx
-import { Button } from "@/components/ui/button"
+One primary button per view. If two things look equally primary, neither is.
 
-/* tailwind classes for variants (if extending) */
-const primary = "bg-primary text-primary-foreground shadow-brand hover:opacity-95"
-const secondary = "bg-secondary text-secondary-foreground hover:opacity-95"
-const outline = "border border-input bg-background hover:bg-muted"
-const ghost = "hover:bg-muted"
-
-<Button className={primary}>Continue</Button>
-<Button className={secondary}>Later</Button>
-<Button variant="outline" className={outline}>Details</Button>
-<Button variant="ghost" className={ghost}>Learn more</Button>
-```
-
-### Inputs / Selects / Textareas
-- Height `h-11`, padding `px-4`, radius `rounded-xl`.
-- Focus ring uses brand: `focus-visible:ring-2 focus-visible:ring-primary`.
-
-```tsx
-<input className="h-11 px-4 rounded-xl border bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" />
-```
+### Inputs, selects, textareas
+Height `h-11`, padding `px-4`, `rounded-xl`, focus `focus-visible:ring-2 focus-visible:ring-primary`. Labels sit above; helper and error text below at Meta size. **Disabled controls state why** — visible helper text, not a `title` attribute (`title` is invisible to touch and to screen readers).
 
 ### Cards
-- Padding `p-6 md:p-8`, radius `rounded-2xl`, subtle shadow `shadow-sm md:shadow`.
-- Headers may use earth‑brown divider: `border-b border-[hsl(29.6_51%_28.8%/0.12)]`.
+Padding `p-6 md:p-8`, `rounded-2xl`, `shadow-sm md:shadow`. Header dividers may use earth brown at low alpha: `border-b border-[hsl(29.6_51%_28.8%/0.12)]`.
 
 ### Tables
-- Dense but readable: `text-[15px]` body; header `text-sm font-semibold`.
-- Zebra rows: `odd:bg-muted/40` and `hover:bg-muted`.
-- Numeric columns right‑aligned; status chips use `accent` or `secondary` fills.
+Data register (§4.1); header `text-sm font-semibold`. Zebra `odd:bg-muted/40`, `hover:bg-muted`. Numeric right-aligned. Status chips use status tokens. Below `md`, collapse rows to stacked blocks rather than forcing horizontal scroll.
 
 ### Navigation
-- Topbar height `h-16`; logo left, actions right.
-- Active state: underline + `text-primary` or bottom bar `bg-primary` 2px.
+Topbar `h-16`, logo left, actions right. Active state: `text-primary` plus a 2px `bg-primary` bottom bar. Sidebar groups get a labelled separator once there are more than five items.
 
-### Badges/Chips
-- Default fill taupe (`bg-secondary text-secondary-foreground`).
-- For notices: use `accent` with white text; avoid overusing bright reds for non‑critical info.
+### Badges & chips
+Default fill taupe (`bg-secondary text-secondary-foreground`). Status badges use §3 tokens. Reserve bright red for genuinely critical information.
 
----
-
-## 7) Example: Navbar + Page Shell
-```tsx
-export function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-dvh bg-background text-foreground">
-      <header className="h-16 border-b">
-        <div className="mx-auto flex h-full max-w-7xl items-center justify-between px-6">
-          <div className="flex items-center gap-3">
-            {/* Logo */}
-            <div className="size-9 rounded-md bg-primary/90" />
-            <span className="text-lg font-bold">CashSouk</span>
-          </div>
-          <nav className="flex items-center gap-6">
-            <a className="text-[15px] hover:text-primary">Dashboard</a>
-            <a className="text-[15px] hover:text-primary">Portfolio</a>
-            <a className="text-[15px] hover:text-primary">Settings</a>
-          </nav>
-        </div>
-      </header>
-      <main className="mx-auto max-w-7xl px-6 py-10 md:py-12">{children}</main>
-    </div>
-  )
-}
-```
+**A badge is not a button.** Don't size a non-interactive count to `h-11` beside real buttons — it invites clicks that do nothing.
 
 ---
 
-## 8) Accessibility & Quality
-- Minimum color contrast **AA** for text (brand red on white is safe; avoid taupe on white for small text).
-- Targets ≥ 44×44px; focus ring always visible (`--ring`).
-- Motion: prefer subtle transitions (150–200ms, `ease-out`).
+## 7. Layout patterns
+
+Each has one shared implementation. Use it rather than rebuilding.
+
+| Pattern | Rule |
+|---|---|
+| **Page shell** | Owns title, description, breadcrumb, primary action. **One title per page** — if the chrome header shows it, the body must not repeat it |
+| **Content width** | Centered (non-full-bleed) pages use `portalContentMaxWidthClassName` from `@cashsouk/ui` — `max-w-6xl`, same as the Help Center index. Full-bleed lists, dashboards, and wide tables stay full width. |
+| **List toolbar** | Search · filter groups · applied-filter chips · clear · refresh · count. Same order everywhere. Filter/refresh controls use `bg-card` (white) so they lift off the tinted canvas. Applied filters stay visible as chips after the menu closes |
+| **Empty state** | Icon + one sentence + one action. `no-data` ("nothing yet, here's how to start") and `no-results` ("filters matched nothing, clear them") are different messages |
+| **Loading** | Skeletons shaped like the real content. Never a bare `"Loading…"` string |
+| **Pagination** | Page size, `Showing X–Y of Z`, prev/next. Same component on every list |
+| **Detail page** | Breadcrumb › title + status › key facts › action cluster › tabbed sections |
+| **Destructive confirm** | Names the object and the consequence; confirm button is `destructive`; irreversible actions say so |
+| **Sticky form footer** | Back left, primary right, save state in between. Never scrolls away on long forms |
+
+### 7.1 Surface nesting
+
+> **Rule.** Maximum two nested surfaces: `page → card`, or `page → panel → row`.
+>
+> A card never contains another card. A table is never inside a card inside a panel — promote it to the page.
+
+Deep nesting is what forces sticky-column width arithmetic and horizontal scrollbars inside cards. If a table doesn't fit, the problem is usually the wrappers, not the table.
+
+---
+
+## 8. Accessibility & motion
+
+- **AA contrast minimum** for text. Brand red on white is safe; taupe on white is not.
+- Touch targets ≥ 44×44px.
+- Focus ring always visible, driven by `--ring`. Never `outline: none` without a replacement.
+- Icon-only buttons need `aria-label`.
+- Disabled reasons are visible text, not tooltips.
+- Colour is never the only signal — pair it with a label, icon or position.
+- Motion: 150–200ms `ease-out`. Transition colour, background, border and opacity; avoid transitioning `transform` globally (it fights popover and tooltip animations).
 
 ```css
-* { @apply transition-[color,background,border,opacity,transform] duration-200 ease-out; }
+* { @apply transition-[color,background,border,opacity] duration-200 ease-out; }
 ```
 
 ---
 
-## 9) Apply Changes — Checklist for Cursor
-1. Update `app/globals.css` with the **:root**, `.dark`, and theme classes.
-2. Update `tailwind.config.ts` with color maps, fonts, radii, and shadows.
-3. Ensure `Inter` is installed or use an existing sans fallback.
-4. Sweep components to:
-   - Replace hard‑coded colors with `bg-primary`, `text-foreground`, etc.
-   - Enforce input/button heights & radii.
-   - Use `accent`/`secondary` fills for badges and highlights.
-5. Add portal wrappers (`.theme-user`, `.theme-investor`, `.theme-admin`) to their layouts.
-6. Run type‑check & lint; fix any classname conflicts.
-7. Produce example pages for each portal demonstrating the styles.
+## 9. Examples
 
----
-
-## 10) Quick Demo Snippets
-
-**Badge**
+**Status badge**
 ```tsx
-<span className="inline-flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
-  New
+<span className="inline-flex items-center rounded-full border border-transparent bg-status-action-bg px-3 py-1 text-[13px] font-semibold text-status-action-text">
+  Action required
 </span>
 ```
 
-**CTA**
+**Primary CTA**
 ```tsx
-<Button className="bg-primary text-primary-foreground shadow-brand hover:opacity-95">
-  Get started
+<Button className="h-11 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95">
+  Apply for financing
 </Button>
+```
+
+**Destructive with confirmation**
+```tsx
+<Button variant="destructive" onClick={() => setConfirmOpen(true)}>
+  Withdraw application
+</Button>
+
+<ConfirmDialog
+  open={confirmOpen}
+  title="Withdraw application?"
+  description="This cannot be undone. The application and any pending offer will be closed."
+  confirmText="Withdraw"
+  variant="destructive"
+/>
 ```
 
 **Investor tone block**
 ```tsx
 <div className="theme-investor rounded-2xl border bg-card p-8">
-  <h3 className="text-2xl font-semibold">Q4 Performance</h3>
+  <h3 className="text-2xl font-semibold">Q4 performance</h3>
   <p className="mt-2 text-[17px] leading-7 text-muted-foreground">
-    Year‑to‑date returns are above benchmark; see the full report.
+    Year-to-date returns are above benchmark; see the full report.
   </p>
   <div className="mt-6 flex gap-3">
-    <Button className="bg-primary text-primary-foreground">View report</Button>
-    <Button variant="outline" className="border-input">Download</Button>
+    <Button className="shadow-brand">View report</Button>
+    <Button variant="secondary">Download</Button>
   </div>
 </div>
 ```
 
 ---
 
-## 11) Notes & Constraints
-- Keep the UI **color economy** tight: red(s) + taupe + neutrals. Introduce additional colors only for data viz when strictly necessary.
-- Use brand color for **links on hover** (not always on default) to reduce visual noise.
-- Admin pages should lean on neutrals; reserve red for confirmations/errors.
-- Respect the brand logo clear‑space and do not alter/crop the logo files.
+## 10. Extending this document
 
----
+1. Prefer an existing token over a new one. Reach for raw hex only when nothing fits — then add a token instead.
+2. When you establish a pattern a second screen will need, document it in §7 and build it in `packages/ui`.
+3. Changing a token in `packages/styles` affects four apps. Say so in the PR description.
+4. Do not alter or crop the logo files, and respect their clear space.
 
-## 12) What to Commit
-- `app/globals.css`
-- `tailwind.config.ts`
-- Any component overrides created/updated
-- A short `BRANDING.md` summarizing the tokens and how to apply portal themes
+**Related:** [docs/issuer-portal-redesign-plan.md](docs/issuer-portal-redesign-plan.md) — issuer portal redesign plan.

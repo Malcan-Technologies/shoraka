@@ -9,7 +9,7 @@ interface ContractsTableToolbarProps {
   totalCount: number;
   filteredCount: number;
   onClearFilters: () => void;
-  onReload?: () => void;
+  onRefresh?: () => void;
   isLoading?: boolean;
 }
 
@@ -30,7 +30,7 @@ export function ContractsTableToolbar({
   totalCount,
   filteredCount,
   onClearFilters,
-  onReload,
+  onRefresh,
   isLoading = false,
 }: ContractsTableToolbarProps) {
   return (
@@ -46,7 +46,7 @@ export function ContractsTableToolbar({
       itemLabelSingular="contract"
       itemLabelPlural="contracts"
       onClearFilters={onClearFilters}
-      onReload={onReload}
+      onRefresh={onRefresh}
       isLoading={isLoading}
     />
   );

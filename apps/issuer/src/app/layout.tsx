@@ -5,6 +5,7 @@ import { Inter } from "next/font/google";
 import "@cashsouk/styles/globals.css";
 import "./globals.css";
 import { AppSidebar } from "../components/app-sidebar";
+import { IssuerHeaderChrome } from "../components/issuer-header-chrome";
 import { CashSoukPortalFooter, Header, SidebarInset, SidebarProvider } from "@cashsouk/ui";
 import { Toaster } from "../components/ui/sonner";
 import { Providers } from "../lib/providers";
@@ -35,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <SidebarProvider>
               <AppSidebar />
               <SidebarInset className="min-w-0 overflow-x-hidden">
-                <Header />
+                <Header title="" rightContent={<IssuerHeaderChrome />} />
                 <div className="flex min-h-0 flex-1 flex-col">{children}</div>
                 <CashSoukPortalFooter variant="issuer" />
               </SidebarInset>
