@@ -10,4 +10,6 @@ export * from "./hooks/use-notifications";
 export * from "./review-refresh-policy";
 export * from "./status-badges";
 export * from "./curlec-checkout";
+export * from "./curlec-checkout-contact";
+export * from "./curlec-checkout-payer";
 export * from "./onboarding-flow";

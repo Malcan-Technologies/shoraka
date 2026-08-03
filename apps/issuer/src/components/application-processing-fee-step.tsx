@@ -4,9 +4,9 @@ import * as React from "react";
 import { ExclamationCircleIcon } from "@heroicons/react/24/outline";
 import {
   buildApplicationProcessingFeeCallbackUrl,
-  createApiClient,
   formatCurrency,
   openCurlecFpxCheckout,
+  resolvePortalCheckoutPayer,
   useAuthToken,
   useOrganization,
 } from "@cashsouk/config";
@@ -26,17 +26,6 @@ import {
 } from "@/components/payment-under-review-notice";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
-function resolveCheckoutContact(
-  organization: { name?: string | null } | null | undefined,
-  fallbackName?: string
-) {
-  return {
-    email: "",
-    contact: "+60000000000",
-    name: organization?.name?.trim() || fallbackName || undefined,
-  };
-}
 
 interface ApplicationProcessingFeeStepProps {
   applicationId: string;
@@ -78,25 +67,12 @@ export function ApplicationProcessingFeeStep({
     checkoutOpenInFlightRef.current = true;
     setIsOpeningCheckout(true);
 
-    let checkoutContact = resolveCheckoutContact(activeOrganization);
-
     try {
-      if (!checkoutContact.email) {
-        const apiClient = createApiClient(API_URL, getAccessToken);
-        const me = await apiClient.get<{
-          user: { email: string; first_name?: string; last_name?: string };
-        }>("/v1/auth/me");
-        if (me.success && me.data.user.email) {
-          checkoutContact = {
-            email: me.data.user.email,
-            contact: checkoutContact.contact || "+60000000000",
-            name:
-              checkoutContact.name ??
-              ([me.data.user.first_name, me.data.user.last_name].filter(Boolean).join(" ") ||
-                "Applicant"),
-          };
-        }
-      }
+      const checkoutContact = await resolvePortalCheckoutPayer({
+        apiUrl: API_URL,
+        getAccessToken,
+        organization: activeOrganization,
+      });
 
       if (!checkoutContact.email) {
         setError("We could not find an email address for this account");
@@ -134,7 +110,7 @@ export function ApplicationProcessingFeeStep({
         amountMyr: normalizeProcessingFeeAmount(resolvedFee.amount) ?? resolvedFee.amount,
         callbackUrl,
         description: "Application processing fee",
-        prefillName: checkoutContact.name,
+        prefillName: checkoutContact.name ?? "Applicant",
         prefillEmail: checkoutContact.email,
         prefillContact: checkoutContact.contact,
         onDismiss: () => setIsOpeningCheckout(false),

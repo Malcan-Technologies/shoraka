@@ -116,10 +116,35 @@ export type OpenCurlecFpxCheckoutInput = {
   callbackUrl: string;
   description?: string;
   prefillName?: string;
-  prefillEmail: string;
-  prefillContact: string;
+  prefillEmail?: string;
+  prefillContact?: string;
   onDismiss?: () => void;
 };
+
+function buildCheckoutPrefill(input: OpenCurlecFpxCheckoutInput):
+  | {
+      name?: string;
+      email?: string;
+      contact?: string;
+    }
+  | undefined {
+  const prefill: {
+    name?: string;
+    email?: string;
+    contact?: string;
+  } = {};
+
+  const name = input.prefillName?.trim();
+  if (name) prefill.name = name;
+
+  const email = input.prefillEmail?.trim();
+  if (email) prefill.email = email;
+
+  const contact = input.prefillContact?.trim();
+  if (contact) prefill.contact = contact;
+
+  return Object.keys(prefill).length > 0 ? prefill : undefined;
+}
 
 /**
  * Curlec Standard Checkout (official web integration).
@@ -133,6 +158,7 @@ export async function openCurlecFpxCheckout(input: OpenCurlecFpxCheckoutInput): 
   }
 
   const amountSen = Math.round(input.amountMyr * 100);
+  const prefill = buildCheckoutPrefill(input);
 
   const checkout = new window.Razorpay({
     key: input.keyId,
@@ -143,11 +169,7 @@ export async function openCurlecFpxCheckout(input: OpenCurlecFpxCheckoutInput): 
     order_id: input.orderId,
     callback_url: input.callbackUrl,
     redirect: true,
-    prefill: {
-      name: input.prefillName,
-      email: input.prefillEmail,
-      contact: input.prefillContact,
-    },
+    ...(prefill ? { prefill } : {}),
     config: {
       display: {
         blocks: {

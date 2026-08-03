@@ -867,9 +867,18 @@ importers:
         specifier: ^19.0.0
         version: 19.2.3
     devDependencies:
+      '@types/jest':
+        specifier: ^29.5.11
+        version: 29.5.14
       '@types/react':
         specifier: ^19.2.7
         version: 19.2.7
+      jest:
+        specifier: ^29.7.0
+        version: 29.7.0(@types/node@20.19.24)
+      ts-jest:
+        specifier: ^29.1.1
+        version: 29.4.5(@babel/core@7.28.5)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.28.5))(jest-util@29.7.0)(jest@29.7.0(@types/node@20.19.24))(typescript@5.9.3)
       typescript:
         specifier: ^5.3.3
         version: 5.9.3

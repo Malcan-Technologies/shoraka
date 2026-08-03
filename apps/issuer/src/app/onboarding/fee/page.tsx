@@ -5,9 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   buildIssuerOnboardingFeeCallbackUrl,
-  createApiClient,
   getOnboardingStepperSteps,
   openCurlecFpxCheckout,
+  resolvePortalCheckoutPayer,
   useAuthToken,
   useOrganization,
 } from "@cashsouk/config";
@@ -39,29 +39,6 @@ import type { IssuerOnboardingFeeResponse } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const CHECKOUT_OPEN_TIMEOUT_MS = 20_000;
-
-function resolveCheckoutContact(
-  activeOrganization: ReturnType<typeof useOrganization>["activeOrganization"]
-) {
-  if (!activeOrganization) {
-    return { email: "", contact: "", name: undefined as string | undefined };
-  }
-
-  const member =
-    activeOrganization.members.find((entry) => entry.role === "ORGANIZATION_ADMIN") ??
-    activeOrganization.members[0];
-
-  const name =
-    activeOrganization.firstName && activeOrganization.lastName
-      ? `${activeOrganization.firstName} ${activeOrganization.lastName}`
-      : (activeOrganization.name ?? undefined);
-
-  return {
-    email: member?.email ?? "",
-    contact: activeOrganization.phoneNumber?.trim() || "+60000000000",
-    name,
-  };
-}
 
 export default function OnboardingFeePage() {
   const router = useRouter();
@@ -175,24 +152,12 @@ export default function OnboardingFeePage() {
     checkoutOpenInFlightRef.current = true;
     setIsOpeningCheckout(true);
 
-    let checkoutContact = resolveCheckoutContact(activeOrganization);
     try {
-      if (!checkoutContact.email) {
-        const apiClient = createApiClient(API_URL, getAccessToken);
-        const me = await apiClient.get<{
-          user: { email: string; first_name?: string; last_name?: string };
-        }>("/v1/auth/me");
-        if (me.success && me.data.user.email) {
-          checkoutContact = {
-            email: me.data.user.email,
-            contact: checkoutContact.contact || "+60000000000",
-            name:
-              checkoutContact.name ??
-              ([me.data.user.first_name, me.data.user.last_name].filter(Boolean).join(" ") ||
-                companyName),
-          };
-        }
-      }
+      const checkoutContact = await resolvePortalCheckoutPayer({
+        apiUrl: API_URL,
+        getAccessToken,
+        organization: activeOrganization,
+      });
 
       if (!checkoutContact.email) {
         toast.error("We could not find an email address for this account");
@@ -237,7 +202,7 @@ export default function OnboardingFeePage() {
           amountMyr: fee.amount,
           callbackUrl,
           description: "Issuer onboarding fee",
-          prefillName: checkoutContact.name,
+          prefillName: checkoutContact.name ?? companyName,
           prefillEmail: checkoutContact.email,
           prefillContact: checkoutContact.contact,
           onDismiss: resetPayFlowState,
