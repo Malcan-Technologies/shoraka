@@ -369,7 +369,7 @@ export function WorkingAreaPageTwo({
       {tab === "financial" ? (
         <div role="tabpanel" data-prospectus-financial-comparison>
           <ProspectusSectionShell
-            title="3-Year Financial Comparison"
+            title="3-Year Financial Comparison (MYR mil.)"
             icon={TableCellsIcon}
             missingCount={financialMissing}
           >

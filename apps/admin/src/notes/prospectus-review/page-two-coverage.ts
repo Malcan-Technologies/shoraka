@@ -131,6 +131,13 @@ function metricForYear(
           networth: parseMoney(raw.networth),
           totass: parseMoney(raw.totass),
           totlib: parseMoney(raw.totlib),
+          bsfatot: parseMoney(raw.bsfatot),
+          othass: parseMoney(raw.othass),
+          bscatot: parseMoney(raw.bscatot),
+          bsclbank: parseMoney(raw.bsclbank),
+          curlib: parseMoney(raw.curlib),
+          bsslltd: parseMoney(raw.bsslltd),
+          bsclstd: parseMoney(raw.bsclstd),
         })
       );
     }
