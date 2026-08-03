@@ -3,10 +3,8 @@
 import * as React from "react";
 import { QuickActionCard, type QuickActionCardProps } from "./quick-action-card";
 import { QuickActionsSummaryBanner } from "./quick-actions-summary-banner";
-import { Button } from "./ui/button";
 import {
   ArrowDownTrayIcon,
-  ArrowPathIcon,
   ArrowUpTrayIcon,
   ArrowsRightLeftIcon,
   BanknotesIcon,
@@ -38,8 +36,6 @@ import { cn } from "@/lib/utils";
 
 interface QuickActionsSectionProps {
   loading?: boolean;
-  onRefresh?: () => void;
-  isRefreshing?: boolean;
 }
 
 type QueueAction = Omit<QuickActionCardProps, "caughtUp"> & {
@@ -47,7 +43,11 @@ type QueueAction = Omit<QuickActionCardProps, "caughtUp"> & {
   isLoading: boolean;
 };
 
-function urgencyVariant(count: number, urgentAt: number, warnAt: number): QuickActionCardProps["variant"] {
+function urgencyVariant(
+  count: number,
+  urgentAt: number,
+  warnAt: number
+): QuickActionCardProps["variant"] {
   if (count > urgentAt) return "urgent";
   if (count > warnAt) return "warning";
   return "default";
@@ -79,11 +79,7 @@ function bannerDescription(queues: QueueAction[]): string {
   return `${queues.length} queues need attention`;
 }
 
-export function QuickActionsSection({
-  loading = false,
-  onRefresh,
-  isRefreshing = false,
-}: QuickActionsSectionProps) {
+export function QuickActionsSection({ loading = false }: QuickActionsSectionProps) {
   const { can } = usePermissions();
   const canOnboarding = can("onboarding.view");
   const canApplications = can("applications.view");
@@ -98,12 +94,14 @@ export function QuickActionsSection({
   const { data: pendingCountData, isLoading: isPendingCountLoading } = usePendingApprovalCount({
     enabled: canOnboarding,
   });
-  const { data: noteActionCountData, isLoading: isNoteActionCountLoading } = useNoteActionRequiredCount({
-    enabled: canNotes,
-  });
-  const { data: pendingRepaymentsData, isLoading: isPendingRepaymentsLoading } = usePendingRepayments({
-    enabled: canRepayments,
-  });
+  const { data: noteActionCountData, isLoading: isNoteActionCountLoading } =
+    useNoteActionRequiredCount({
+      enabled: canNotes,
+    });
+  const { data: pendingRepaymentsData, isLoading: isPendingRepaymentsLoading } =
+    usePendingRepayments({
+      enabled: canRepayments,
+    });
   const { data: pendingIssuerPayoutsData, isLoading: isPendingIssuerPayoutsLoading } =
     usePendingIssuerPayouts({ enabled: canDisbursements });
   const { data: pendingInvestorWithdrawalsData, isLoading: isPendingInvestorWithdrawalsLoading } =
@@ -321,9 +319,7 @@ export function QuickActionsSection({
   ]);
 
   const loadingActions = actions.filter((action) => action.isLoading);
-  const needsAttention = actions.filter(
-    (action) => !action.isLoading && (action.count ?? 0) > 0
-  );
+  const needsAttention = actions.filter((action) => !action.isLoading && (action.count ?? 0) > 0);
   const caughtUp = actions.filter((action) => !action.isLoading && (action.count ?? 0) === 0);
   const [caughtUpOpen, setCaughtUpOpen] = React.useState(false);
   const totalOpenItems = needsAttention.reduce((sum, action) => sum + (action.count ?? 0), 0);
@@ -332,25 +328,11 @@ export function QuickActionsSection({
 
   return (
     <section className="space-y-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight text-primary md:text-2xl">
-            Quick Actions
-          </h2>
-          <p className="text-sm text-muted-foreground">Tasks that need your attention</p>
-        </div>
-        {onRefresh && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            className="h-8 w-8 shrink-0 p-0"
-            title="Refresh quick actions"
-          >
-            <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-          </Button>
-        )}
+      <div>
+        <h2 className="text-xl font-semibold tracking-tight text-primary md:text-2xl">
+          Quick Actions
+        </h2>
+        <p className="text-sm text-muted-foreground">Tasks that need your attention</p>
       </div>
 
       {actions.length === 0 ? (

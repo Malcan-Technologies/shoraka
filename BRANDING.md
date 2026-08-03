@@ -17,7 +17,7 @@ Only the logo palette supplies brand colour. Everything else is neutral grayscal
 | Role | Hex | HSL | Notes |
 |---|---|---|---|
 | **Primary / Brand** | `#8A0304` | `359.6 95.7% 27.6%` | Deep corporate red — primary actions, active nav, key highlights |
-| **Primary Accent** | `#CE2922` | `2.4 71.7% 47.1%` | Brighter red — hover, subtle accents, charts |
+| **Primary Accent** | `#CE2922` | `2.4 71.7% 47.1%` | Brighter red — charts / rare emphasis; **not** issuer page chrome (use whisper-red `--accent`) |
 | **Earth Brown** | `#6F4924` | `29.6 51.0% 28.8%` | Heading accents, dividers in premium contexts |
 | **Sand Taupe** | `#BAA38B` | `30.6 25.4% 63.7%` | Soft accent — badges, subtle fills |
 
@@ -49,7 +49,8 @@ Defined in `packages/styles/globals.css`. shadcn expects `h s% l%` triplets.
   --primary-foreground: 0 0% 100%;
   --secondary: 30.6 25.4% 63.7%;          /* taupe #BAA38B */
   --secondary-foreground: 0 0% 15%;
-  --accent: 2.4 71.7% 47.1%;              /* #CE2922 */
+  /* Default fallback; portals override --accent to a soft hover/selection fill (see §5) */
+  --accent: 2.4 71.7% 47.1%;              /* Primary Accent #CE2922 — not for issuer hover chrome */
   --accent-foreground: 0 0% 100%;
 
   /* System */
@@ -134,25 +135,32 @@ Section padding `py-10 md:py-12` · card padding `p-6 md:p-8` · grid gaps `gap-
 Each portal layout root carries a theme class that re-scopes accent variables.
 
 ```css
-.theme-issuer   { --primary: brand red; --background: 12 32% 97.5%; /* warm blush */ … }
+.theme-issuer {
+  --primary: brand red;                 /* CTAs / key asserts only */
+  --accent: 8 14% 94.5%;                /* whisper-red hover/selection — matches sidebar-accent */
+  --accent-foreground: warm near-black; /* readable on soft fill */
+  --background: 8 10% 98%;              /* near-neutral warm canvas (header uses this too) */
+}
 .theme-investor {
   --primary: 29.6 51% 28.8%;           /* earth brown #6F4924 — CTAs, active nav, focus */
   --secondary: 30.6 25.4% 63.7%;       /* sand taupe */
-  --accent: 34 32% 91%;                /* cream hover fill */
-  --background: 36 38% 95.5%;          /* cream canvas */
-  --card: 0 0% 100%;                   /* pure white — same nesting as issuer */
+  --accent: 34 12% 94.5%;              /* whisper-cream hover/selection */
+  --background: 36 10% 98%;            /* near-neutral warm canvas */
+  --card: 0 0% 100%;
   --shadow-brand: earth-brown glow;    /* not brand-red */
 }
 .theme-admin {
-  --primary: brand red;
-  --background: 220 16% 96.5%;         /* cool-grey canvas */
-  --accent: soft grey hover fill;
-  --card: 0 0% 100%;                   /* pure white — same nesting as issuer/investor */
+  --primary: brand red;               /* CTAs / key asserts only */
+  --accent: 220 8% 94.5%;             /* whisper-grey hover/selection */
+  --background: 220 8% 98%;           /* near-neutral cool canvas */
+  --card: 0 0% 100%;
 }
-.theme-user     { --primary: brand red; /* same accents as issuer for the public site */ }
+.theme-user     { --primary: brand red; /* landing; may diverge from issuer accent treatment */ }
 ```
 
-All three portals share the same nesting: **tinted canvas (`--background`) + pure white cards (`--card`)**. Header and sidebar sit on the tinted chrome; header controls (org switcher, avatar) use `bg-card` so they read as white chips. Investor **does not use brand red for UI chrome** — only the logo and `destructive` / status-rejected keep warning reds.
+All three portals share the same nesting: **tinted canvas (`--background`) + pure white cards (`--card`)**. Header and sidebar sit on the tinted chrome; chip-style header controls (org switcher, notifications) use `bg-card`. The header avatar fills its allocated space with no card chrome. Investor **does not use brand red for UI chrome** — only the logo and `destructive` / status-rejected keep warning reds.
+
+**Portal chrome rule:** Canvas, header (`bg-background`), and sidebar use **low-saturation “whisper” tints** (issuer warm red, investor cream, admin cool grey) — never strong washes. `--accent` / `--sidebar-accent` stay in the same family for hover/selection. Solid primary colours are for CTAs and asserts, not page chrome.
 
 | Class | Applied by |
 |---|---|
@@ -166,7 +174,7 @@ All three portals share the same nesting: **tinted canvas (`--background`) + pur
 <html lang="en" className="theme-issuer">
 ```
 
-Issuer is brand-forward and friendly (red asserts, blush canvas). Investor is premium and conservative (cream canvas, earth-brown primary, sand taupe secondary). Admin is utilitarian — cool-grey canvas, white cards, brand red for primary actions / active nav; reserve destructive red for warnings.
+Issuer is brand-forward and friendly (red asserts on CTAs; whisper-red chrome). Investor is premium and conservative (earth-brown CTAs; whisper-cream chrome). Admin is utilitarian (brand-red CTAs; whisper-grey chrome). Across all three, page chrome stays subtle; reserve saturated colour for actions, not canvas/sidebar/header.
 
 ---
 
@@ -207,7 +215,7 @@ Each has one shared implementation. Use it rather than rebuilding.
 | Pattern | Rule |
 |---|---|
 | **Page shell** | Owns title, description, breadcrumb, primary action. **One title per page** — if the chrome header shows it, the body must not repeat it |
-| **Content width** | Centered (non-full-bleed) pages use `portalContentMaxWidthClassName` from `@cashsouk/ui` — `max-w-6xl`, same as the Help Center index. Full-bleed lists, dashboards, and wide tables stay full width. |
+| **Content width** | Centered (non-full-bleed) pages use `portalContentMaxWidthClassName` from `@cashsouk/ui` — `max-w-6xl`. Help Center is a full-bleed docs shell (sidebar + scrollable main). Full-bleed lists, dashboards, and wide tables stay full width. |
 | **List toolbar** | Search · filter groups · applied-filter chips · clear · refresh · count. Same order everywhere. Filter/refresh controls use `bg-card` (white) so they lift off the tinted canvas. Applied filters stay visible as chips after the menu closes |
 | **Empty state** | Icon + one sentence + one action. `no-data` ("nothing yet, here's how to start") and `no-results` ("filters matched nothing, clear them") are different messages |
 | **Loading** | Skeletons shaped like the real content. Never a bare `"Loading…"` string |

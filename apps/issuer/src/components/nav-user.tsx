@@ -112,7 +112,7 @@ export function NavUser({ variant = "sidebar" }: NavUserProps) {
 
   if (isLoading) {
     if (isHeader) {
-      return <Skeleton className="h-10 w-10 rounded-lg border border-border bg-card shadow-sm" />;
+      return <Skeleton className="h-10 w-10 rounded-lg" />;
     }
     return (
       <SidebarMenu>
@@ -135,12 +135,12 @@ export function NavUser({ variant = "sidebar" }: NavUserProps) {
         <DropdownMenuTrigger asChild>
           <button
             type="button"
-            className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card shadow-sm outline-none ring-offset-background transition-colors hover:bg-accent/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             aria-label="Account menu"
           >
-            <Avatar className="h-7 w-7 rounded-md">
+            <Avatar className="h-10 w-10 rounded-lg">
               <AvatarImage src={user.avatar} alt={user.name} />
-              <AvatarFallback className="rounded-md text-xs">{initials}</AvatarFallback>
+              <AvatarFallback className="rounded-lg text-sm">{initials}</AvatarFallback>
             </Avatar>
           </button>
         </DropdownMenuTrigger>

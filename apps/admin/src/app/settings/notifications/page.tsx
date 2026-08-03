@@ -806,7 +806,7 @@ export default function NotificationsAdminPage() {
                   setLogSearchQuery(e.target.value);
                   setPage(1);
                 }}
-                className="pl-9 h-11 rounded-xl"
+                className="h-11 rounded-xl bg-card pl-9"
               />
             </div>
 
@@ -817,7 +817,7 @@ export default function NotificationsAdminPage() {
                 setPage(1);
               }}
             >
-              <SelectTrigger className="w-[180px] h-11 rounded-xl">
+              <SelectTrigger className="h-11 w-[180px] rounded-xl bg-card">
                 <div className="flex items-center gap-2 overflow-hidden">
                   <Filter className="h-4 w-4 shrink-0" />
                   <div className="truncate">
@@ -842,7 +842,7 @@ export default function NotificationsAdminPage() {
                 setPage(1);
               }}
             >
-              <SelectTrigger className="w-[180px] h-11 rounded-xl">
+              <SelectTrigger className="h-11 w-[180px] rounded-xl bg-card">
                 <div className="flex items-center gap-2 overflow-hidden">
                   <Users className="h-4 w-4 shrink-0" />
                   <div className="truncate">
@@ -864,7 +864,7 @@ export default function NotificationsAdminPage() {
               variant="outline"
               onClick={() => refetchLogs()}
               disabled={isLoadingLogs}
-              className="gap-2 h-11 rounded-xl"
+              className="h-11 gap-2 rounded-xl bg-card"
             >
               <RotateCcw className={`h-4 w-4 ${isLoadingLogs ? "animate-spin" : ""}`} />
               Refresh

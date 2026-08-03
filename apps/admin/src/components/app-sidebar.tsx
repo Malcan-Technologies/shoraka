@@ -19,8 +19,6 @@ import {
   DocumentDuplicateIcon,
   QuestionMarkCircleIcon,
   BanknotesIcon,
-  ArrowDownTrayIcon,
-  ArrowUpTrayIcon,
   ArrowsRightLeftIcon,
   CreditCardIcon,
 } from "@heroicons/react/24/outline";
@@ -57,6 +55,7 @@ import {
   usePendingServiceFeeTrusteeLetters,
 } from "@/notes/hooks/use-notes";
 import {
+  type ApplicationNavGroup,
   activeProductPendingActionTotal,
   applicationsSidebarProductLabel,
   buildApplicationSidebarGroups,
@@ -89,6 +88,101 @@ function ApplicationNavSectionHeader({
   );
 }
 
+function ApplicationInactiveNavSection({
+  groups,
+  pathname,
+  linkClassName,
+}: {
+  groups: ApplicationNavGroup[];
+  pathname: string;
+  linkClassName: string;
+}) {
+  const pendingTotal = groups.reduce((sum, group) => sum + group.pendingActionCount, 0);
+  const pathActive = groups.some(
+    (group) => pathname === group.queuePath || pathname.startsWith(`${group.queuePath}/`)
+  );
+  const [open, setOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (pathActive) setOpen(true);
+  }, [pathActive, pathname]);
+
+  if (groups.length === 0) return null;
+
+  return (
+    <Collapsible
+      asChild
+      open={open}
+      onOpenChange={setOpen}
+      className="group/inactive-apps"
+    >
+      <li className="list-none">
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex w-full min-w-0 items-center gap-1.5 px-2 pb-1 pt-4 text-[11px] font-semibold leading-none tracking-wide text-muted-foreground hover:text-sidebar-foreground"
+            aria-label={`Inactive products, ${groups.length} listed`}
+          >
+            <span className="truncate uppercase">Inactive</span>
+            <span className="font-medium tabular-nums text-sidebar-foreground/50 dark:text-sidebar-foreground/45">
+              {groups.length}
+            </span>
+            {pendingTotal > 0 ? (
+              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-md bg-muted px-1 text-xs font-medium tabular-nums text-muted-foreground">
+                {pendingTotal}
+              </span>
+            ) : null}
+            <ChevronRight
+              className={cn(
+                "size-3.5 shrink-0 transition-transform duration-200 group-data-[state=open]/inactive-apps:rotate-90",
+                pendingTotal > 0 ? "" : "ml-auto"
+              )}
+            />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <ul className="flex min-w-0 flex-col gap-0 py-0">
+            {groups.map((group) => {
+              const label = applicationsSidebarProductLabel(group.productTitle);
+              return (
+                <SidebarMenuSubItem key={group.baseKey} className="pl-2">
+                  <SidebarMenuSubButton
+                    asChild
+                    size="sm"
+                    isActive={
+                      pathname === group.queuePath || pathname.startsWith(`${group.queuePath}/`)
+                    }
+                    className={linkClassName}
+                  >
+                    <Link
+                      href={group.queuePath}
+                      title={`${label} (inactive)`}
+                      className="flex min-w-0 flex-row items-center gap-2"
+                    >
+                      <span
+                        className="mt-px size-1.5 shrink-0 self-center rounded-full bg-muted-foreground/35"
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1 truncate leading-tight text-muted-foreground">
+                        {label}
+                      </span>
+                      {group.pendingActionCount > 0 && (
+                        <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-muted px-1 text-xs font-medium tabular-nums text-muted-foreground">
+                          {group.pendingActionCount}
+                        </span>
+                      )}
+                    </Link>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              );
+            })}
+          </ul>
+        </CollapsibleContent>
+      </li>
+    </Collapsible>
+  );
+}
+
 type BadgeKey =
   | "onboardingApproval"
   | "noteActions"
@@ -102,7 +196,6 @@ type BadgeKey =
 type NavLinkItem = {
   title: string;
   url: string;
-  icon: React.ComponentType<{ className?: string }>;
   badgeKey?: BadgeKey;
   canShow: boolean;
 };
@@ -140,35 +233,30 @@ const navLifecycleConfig = [
 const moneyMovementItems: Array<{
   title: string;
   url: string;
-  icon: React.ComponentType<{ className?: string }>;
   badgeKey: BadgeKey;
   permission: "repayments" | "serviceFee" | "disbursements" | "investorWithdrawals";
 }> = [
   {
     title: "Repayments",
     url: "/finance/repayments",
-    icon: ArrowDownTrayIcon,
     badgeKey: "pendingRepayments",
     permission: "repayments",
   },
   {
     title: "Settlements",
     url: "/finance/service-fee-trustee-letters",
-    icon: ArrowsRightLeftIcon,
     badgeKey: "pendingServiceFeeTrusteeLetters",
     permission: "serviceFee",
   },
   {
     title: "Issuer Payouts",
     url: "/finance/issuer-payouts",
-    icon: ArrowUpTrayIcon,
     badgeKey: "pendingIssuerPayouts",
     permission: "disbursements",
   },
   {
     title: "Investor Withdrawals",
     url: "/finance/investor-withdrawals",
-    icon: ArrowUpTrayIcon,
     badgeKey: "pendingInvestorWithdrawals",
     permission: "investorWithdrawals",
   },
@@ -177,21 +265,18 @@ const moneyMovementItems: Array<{
 const gatewayItems: Array<{
   title: string;
   url: string;
-  icon: React.ComponentType<{ className?: string }>;
   badgeKey: BadgeKey;
   permission: "gatewayPayments" | "reconciliation";
 }> = [
   {
     title: "Gateway Payments",
     url: "/finance/gateway-payments",
-    icon: BanknotesIcon,
     badgeKey: "gatewayPaymentExceptions",
     permission: "gatewayPayments",
   },
   {
     title: "Reconciliation",
     url: "/finance/reconciliation",
-    icon: ArrowsRightLeftIcon,
     badgeKey: "gatewayReconExceptions",
     permission: "reconciliation",
   },
@@ -268,7 +353,6 @@ function FinanceCollapsibleGroup({
         <CollapsibleContent>
           <SidebarMenuSub>
             {visibleItems.map((item) => {
-              const Icon = item.icon;
               const badgeCount = item.badgeKey ? badges[item.badgeKey] || 0 : 0;
               return (
                 <SidebarMenuSubItem key={item.title}>
@@ -277,7 +361,6 @@ function FinanceCollapsibleGroup({
                     isActive={pathname === item.url || pathname.startsWith(`${item.url}/`)}
                   >
                     <Link href={item.url}>
-                      <Icon className="h-4 w-4" />
                       <span>{item.title}</span>
                       {badgeCount > 0 ? (
                         <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-md bg-primary px-1 text-xs font-medium tabular-nums text-primary-foreground">
@@ -383,7 +466,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const moneyMovementNav: NavLinkItem[] = moneyMovementItems.map((item) => ({
     title: item.title,
     url: item.url,
-    icon: item.icon,
     badgeKey: item.badgeKey,
     canShow: permissionFlags[item.permission],
   }));
@@ -391,7 +473,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const gatewayNav: NavLinkItem[] = gatewayItems.map((item) => ({
     title: item.title,
     url: item.url,
-    icon: item.icon,
     badgeKey: item.badgeKey,
     canShow: permissionFlags[item.permission],
   }));
@@ -581,51 +662,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                     </li>
                                   )}
 
-                                  {inactiveGroups.length > 0 && (
-                                    <>
-                                      <li className="list-none px-0 pt-4">
-                                        <ApplicationNavSectionHeader
-                                          kind="inactive"
-                                          count={inactiveGroups.length}
-                                        />
-                                      </li>
-                                      {inactiveGroups.map((g) => {
-                                        const label = applicationsSidebarProductLabel(g.productTitle);
-                                        return (
-                                          <SidebarMenuSubItem key={g.baseKey} className="pl-2">
-                                            <SidebarMenuSubButton
-                                              asChild
-                                              size="sm"
-                                              isActive={
-                                                pathname === g.queuePath ||
-                                                pathname.startsWith(`${g.queuePath}/`)
-                                              }
-                                              className={applicationSubLinkClass}
-                                            >
-                                              <Link
-                                                href={g.queuePath}
-                                                title={`${label} (inactive)`}
-                                                className="flex min-w-0 flex-row items-center gap-2"
-                                              >
-                                                <span
-                                                  className="mt-px size-1.5 shrink-0 self-center rounded-full bg-muted-foreground/35"
-                                                  aria-hidden
-                                                />
-                                                <span className="min-w-0 flex-1 truncate leading-tight text-muted-foreground">
-                                                  {label}
-                                                </span>
-                                                {g.pendingActionCount > 0 && (
-                                                  <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-muted px-1 text-xs font-medium tabular-nums text-muted-foreground">
-                                                    {g.pendingActionCount}
-                                                  </span>
-                                                )}
-                                              </Link>
-                                            </SidebarMenuSubButton>
-                                          </SidebarMenuSubItem>
-                                        );
-                                      })}
-                                    </>
-                                  )}
+                                  <ApplicationInactiveNavSection
+                                    groups={inactiveGroups}
+                                    pathname={pathname}
+                                    linkClassName={applicationSubLinkClass}
+                                  />
                                 </SidebarMenuSub>
                               );
                             })()}

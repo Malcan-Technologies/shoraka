@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getHelpArticle, getHelpArticleParams } from "@cashsouk/help-content";
+import { getHelpArticle, getHelpArticleParams, getHelpArticles } from "@cashsouk/help-content";
 import { HelpArticleView } from "@cashsouk/ui";
 
 type HelpArticlePageProps = {
@@ -35,5 +35,7 @@ export default async function HelpArticlePage({ params }: HelpArticlePageProps) 
     notFound();
   }
 
-  return <HelpArticleView article={article} />;
+  const articles = getHelpArticles("investor");
+
+  return <HelpArticleView article={article} articles={articles} portalLabel="Investor" />;
 }

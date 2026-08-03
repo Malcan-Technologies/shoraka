@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getHelpArticle, getHelpArticleParams } from "@cashsouk/help-content";
+import { getHelpArticle, getHelpArticleParams, getHelpArticles } from "@cashsouk/help-content";
 import { HelpArticleView } from "@cashsouk/ui";
 import { SetHeaderTitle } from "@/components/set-header-title";
 
@@ -36,10 +36,12 @@ export default async function HelpArticlePage({ params }: HelpArticlePageProps) 
     notFound();
   }
 
+  const articles = getHelpArticles("admin");
+
   return (
     <>
       <SetHeaderTitle title={article.title} />
-      <HelpArticleView article={article} />
+      <HelpArticleView article={article} articles={articles} portalLabel="Admin" />
     </>
   );
 }

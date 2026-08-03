@@ -142,8 +142,8 @@
 
 /* CashSouk Portal Themes
  * Surface tints keep --card pure white so content lifts off chrome.
- * Issuer = warm brand blush; Investor = sand/earth (premium, conservative);
- * Admin = cool grey (utilitarian).
+ * Chrome (canvas/header/sidebar) stays low-saturation “whisper” tints.
+ * Issuer = whisper-red; Investor = whisper-cream/earth; Admin = whisper-grey.
  */
 .theme-user {
   --primary: 359.6 95.7% 27.6%;
@@ -152,23 +152,23 @@
 }
 
 .theme-investor {
-  /* Premium sandy-earth palette — earth brown asserts; brand red reserved for logo / destructive */
+  /* Premium sandy-earth — earth brown asserts; brand red reserved for logo / destructive */
   --primary: 29.6 51% 28.8%;              /* #6F4924 earth brown */
   --primary-foreground: 36 40% 98%;       /* cream white */
   --secondary: 30.6 25.4% 63.7%;          /* #BAA38B sand taupe */
   --secondary-foreground: 29.6 40% 16%;
-  --accent: 34 32% 91%;                   /* soft cream hover fill */
-  --accent-foreground: 29.6 45% 22%;
+  --accent: 34 12% 94.5%;                 /* whisper-cream hover/selection */
+  --accent-foreground: 29.6 35% 24%;
   --ring: 29.6 45% 38%;
   --shadow-brand: 0 12px 24px -12px rgba(111, 73, 36, 0.32);
 
   --foreground: 29 28% 14%;
-  --muted-foreground: 30 12% 40%;
-  /* Same surface nesting as issuer: tinted canvas, pure white cards */
-  --background: 36 38% 95.5%;             /* cream canvas */
-  --muted: 33 28% 91.5%;
-  --border: 32 20% 86%;
-  --input: 32 18% 84%;
+  --muted-foreground: 30 10% 40%;
+  /* Near-neutral warm canvas — subtle cream, not a strong sand wash */
+  --background: 36 10% 98%;
+  --muted: 34 10% 95.5%;
+  --border: 32 8% 90%;
+  --input: 32 8% 86%;
   --card: 0 0% 100%;
   --card-foreground: 29 28% 14%;
   --popover: 0 0% 100%;
@@ -182,22 +182,22 @@
 }
 
 .theme-admin {
-  /* Utilitarian cool-grey chrome — brand red asserts; canvas stays neutral */
+  /* Utilitarian cool-grey — brand red asserts; chrome stays whisper-neutral */
   --primary: 359.6 95.7% 27.6%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 220 12% 93%;
+  --secondary: 220 8% 94%;
   --secondary-foreground: 222.2 47.4% 11.2%;
-  --accent: 220 14% 92%;                 /* soft grey hover fill */
-  --accent-foreground: 222.2 47.4% 11.2%;
+  --accent: 220 8% 94.5%;                /* whisper-grey hover fill */
+  --accent-foreground: 222.2 40% 18%;
   --ring: 359.6 95.7% 42.6%;
 
   --foreground: 222.2 47.4% 11.2%;
-  --muted-foreground: 215 16% 40%;
-  /* Same nesting as issuer/investor: tinted canvas, pure white cards */
-  --background: 220 16% 96.5%;           /* light cool-grey canvas */
-  --muted: 220 14% 93%;
-  --border: 220 13% 88%;
-  --input: 220 12% 84%;
+  --muted-foreground: 215 12% 40%;
+  /* Near-neutral cool canvas — subtle grey, not a strong tint */
+  --background: 220 8% 98%;
+  --muted: 220 8% 95.5%;
+  --border: 220 6% 90%;
+  --input: 220 6% 86%;
   --card: 0 0% 100%;
   --card-foreground: 222.2 47.4% 11.2%;
   --popover: 0 0% 100%;
@@ -205,13 +205,17 @@
 }
 
 .theme-issuer {
-  --primary: 359.6 95.7% 27.6%;
-  --accent: 2.4 71.7% 47.1%;
+  --primary: 359.6 95.7% 27.6%;           /* brand red — CTAs / key asserts only */
+  --primary-foreground: 0 0% 100%;
+  /* Whisper-red hover/selection — pairs with issuer sidebar-accent */
+  --accent: 8 14% 94.5%;
+  --accent-foreground: 0 35% 28%;
   --secondary: 30.6 25.4% 63.7%;
-  /* Soft brand blush (primary red + sand) */
-  --background: 12 32% 97.5%;
-  --muted: 15 22% 94.5%;
-  --border: 18 18% 90%;
+  --secondary-foreground: 0 0% 15%;
+  /* Near-neutral warm canvas — subtle red, not a strong blush */
+  --background: 8 10% 98%;
+  --muted: 8 10% 95.5%;
+  --border: 10 8% 90%;
   --card: 0 0% 100%;
   --popover: 0 0% 100%;
 }
@@ -220,22 +224,22 @@
 .theme-investor.dark {
   --primary: 30.6 28% 62%;
   --primary-foreground: 29 30% 10%;
-  --secondary: 30 18% 28%;
+  --secondary: 30 14% 26%;
   --secondary-foreground: 36 30% 92%;
-  --accent: 30 14% 18%;
-  --accent-foreground: 36 30% 92%;
+  --accent: 30 8% 14%;
+  --accent-foreground: 36 25% 94%;
   --ring: 30.6 28% 55%;
   --shadow-brand: 0 12px 24px -12px rgba(186, 163, 139, 0.25);
 
   --foreground: 36 25% 94%;
-  --muted-foreground: 30 12% 68%;
-  --background: 30 16% 7.5%;
-  --muted: 30 12% 14%;
-  --border: 30 10% 18%;
-  --input: 30 10% 20%;
-  --card: 30 14% 10%;
+  --muted-foreground: 30 8% 68%;
+  --background: 30 8% 7.5%;
+  --muted: 30 8% 12.5%;
+  --border: 30 6% 17%;
+  --input: 30 6% 19%;
+  --card: 30 8% 9.5%;
   --card-foreground: 36 25% 94%;
-  --popover: 30 14% 10%;
+  --popover: 30 8% 9.5%;
   --popover-foreground: 36 25% 94%;
 
   --chart-1: 30.6 30% 58%;
@@ -247,24 +251,27 @@
 
 .dark.theme-issuer,
 .theme-issuer.dark {
-  --background: 350 18% 7.5%;
-  --muted: 350 14% 13%;
-  --border: 350 12% 18%;
-  --card: 350 16% 9.5%;
-  --popover: 350 16% 9.5%;
+  --background: 350 10% 7.5%;
+  --muted: 350 8% 12.5%;
+  --border: 350 8% 17%;
+  --card: 350 10% 9.5%;
+  --popover: 350 10% 9.5%;
+  /* Match issuer sidebar dark accent — low-sat warm surface */
+  --accent: 350 10% 13%;
+  --accent-foreground: 30 10% 96%;
 }
 
 .dark.theme-admin,
 .theme-admin.dark {
-  --background: 222 16% 7.5%;
-  --muted: 220 12% 13%;
-  --border: 220 10% 18%;
-  --card: 222 14% 10%;
-  --popover: 222 14% 10%;
-  --accent: 220 12% 16%;
-  --accent-foreground: 210 20% 96%;
-  --secondary: 220 10% 16%;
-  --secondary-foreground: 210 20% 96%;
+  --background: 222 8% 7.5%;
+  --muted: 220 6% 12.5%;
+  --border: 220 6% 17%;
+  --card: 222 8% 9.5%;
+  --popover: 222 8% 9.5%;
+  --accent: 220 6% 14%;
+  --accent-foreground: 210 16% 96%;
+  --secondary: 220 6% 15%;
+  --secondary-foreground: 210 16% 96%;
 }
 
 /* Subtle transitions - excluding transform to prevent popover/tooltip animation issues */

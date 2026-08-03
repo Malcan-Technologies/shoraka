@@ -157,13 +157,13 @@ export function ProductLogsPanel() {
             placeholder="Search by admin name or email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-11 rounded-xl"
+            className="h-11 rounded-xl bg-card pl-9"
           />
         </div>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-2 h-11 rounded-xl">
+            <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
               <FunnelIcon className="h-4 w-4" />
               Filters
               {(eventTypeFilter !== "all" || dateRangeFilter !== "all") && (
@@ -209,7 +209,7 @@ export function ProductLogsPanel() {
           variant="outline"
           onClick={handleReload}
           disabled={isLoading}
-          className="gap-2 h-11 rounded-xl"
+          className="h-11 gap-2 rounded-xl bg-card"
         >
           <ArrowPathIcon className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
           Refresh
@@ -217,7 +217,7 @@ export function ProductLogsPanel() {
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-2 h-11 rounded-xl">
+            <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
               <ArrowDownTrayIcon className="h-4 w-4" />
               Export
             </Button>

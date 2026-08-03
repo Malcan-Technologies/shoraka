@@ -152,13 +152,13 @@ export default function OnboardingApprovalPage() {
                 placeholder="Search by name, email, or company..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 h-11 rounded-xl"
+                className="h-11 rounded-xl bg-card pl-9"
               />
             </div>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2 h-11 rounded-xl">
+                <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
                   <FunnelIcon className="h-4 w-4" />
                   Portal
                   {portalFilter !== "all" && (
@@ -189,7 +189,7 @@ export default function OnboardingApprovalPage() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2 h-11 rounded-xl">
+                <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
                   <FunnelIcon className="h-4 w-4" />
                   Type
                   {typeFilter !== "all" && (
@@ -220,7 +220,7 @@ export default function OnboardingApprovalPage() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2 h-11 rounded-xl">
+                <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
                   <FunnelIcon className="h-4 w-4" />
                   Status
                   {statusFilter !== "PENDING_ALL" && (
@@ -282,7 +282,7 @@ export default function OnboardingApprovalPage() {
               variant="outline"
               onClick={handleReload}
               disabled={isLoading || isFetching}
-              className="gap-2 h-11 rounded-xl"
+              className="h-11 gap-2 rounded-xl bg-card"
             >
               <ArrowPathIcon
                 className={`h-4 w-4 ${isLoading || isFetching ? "animate-spin" : ""}`}

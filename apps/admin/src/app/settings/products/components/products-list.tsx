@@ -131,7 +131,7 @@ export function ProductsList() {
             placeholder="Search by name..."
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="pl-9 h-11 rounded-xl"
+            className="h-11 rounded-xl bg-card pl-9"
             aria-label="Search products by name"
           />
         </div>
@@ -150,7 +150,7 @@ export function ProductsList() {
           variant="outline"
           onClick={() => invalidateProducts()}
           disabled={isPending}
-          className="gap-2 h-11 rounded-xl"
+          className="h-11 gap-2 rounded-xl bg-card"
           aria-label="Refresh list"
         >
           <ArrowPathIcon className={`h-4 w-4 ${isPending ? "animate-spin" : ""}`} />
