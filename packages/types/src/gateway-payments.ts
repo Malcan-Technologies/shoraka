@@ -87,6 +87,7 @@ export interface GatewayPaymentReceiptSummaryDto {
   payerName: string | null;
   payerCompanyName: string | null;
   curlecPaymentId: string | null;
+  curlecOrderId: string | null;
 }
 
 export interface GatewayPaymentReceiptDto extends GatewayPaymentReceiptSummaryDto {
@@ -95,7 +96,6 @@ export interface GatewayPaymentReceiptDto extends GatewayPaymentReceiptSummaryDt
   payerEmail: string | null;
   payerPhone: string | null;
   paymentMethod: string | null;
-  curlecOrderId: string;
   relatedEntityType: string;
   relatedEntityId: string;
   walletCredited: boolean;

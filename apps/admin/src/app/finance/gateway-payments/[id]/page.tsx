@@ -41,6 +41,39 @@ function DetailSkeleton() {
   );
 }
 
+const RECEIPT_STATUS_LABEL: Record<string, string> = {
+  PENDING: "Preparing PDF",
+  GENERATED: "Ready",
+  FAILED: "PDF failed",
+  REFUNDED: "Refunded",
+};
+
+function receiptStatusVariant(status: string) {
+  if (status === "GENERATED") return "default" as const;
+  if (status === "FAILED") return "destructive" as const;
+  if (status === "REFUNDED") return "secondary" as const;
+  return "outline" as const;
+}
+
+function ReceiptField({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
+      <p className={mono ? "break-all font-mono text-sm text-foreground" : "text-[17px] leading-7 text-foreground"}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
 export default function GatewayPaymentDetailPage() {
   const { setTitle } = useHeader();
   React.useEffect(() => {
@@ -296,65 +329,73 @@ export default function GatewayPaymentDetailPage() {
                 ) : null}
 
                 <Card className="rounded-2xl">
-                  <CardHeader>
-                    <CardTitle>Receipt</CardTitle>
+                  <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+                    <div>
+                      <CardTitle>Receipt</CardTitle>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Official Cashsouk payment receipt for finance records.
+                      </p>
+                    </div>
+                    {payment.receipt ? (
+                      <Badge variant={receiptStatusVariant(payment.receipt.status)}>
+                        {RECEIPT_STATUS_LABEL[payment.receipt.status] ?? payment.receipt.status}
+                      </Badge>
+                    ) : null}
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-6">
                     {!payment.receipt ? (
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-[17px] leading-7 text-muted-foreground">
                         No receipt yet. Receipts are created after a payment is successfully
                         completed.
                       </p>
                     ) : (
                       <>
-                        <div className="grid gap-4 md:grid-cols-2">
-                          <div>
-                            <p className="text-xs text-muted-foreground">Receipt number</p>
-                            <p className="font-mono text-sm">{payment.receipt.receiptNumber}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Status</p>
-                            <p>{payment.receipt.status}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Payer / company</p>
-                            <p>
-                              {payment.receipt.payerCompanyName ||
-                                payment.receipt.payerName ||
-                                "—"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Purpose</p>
-                            <p>{payment.receipt.purposeLabel}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Amount</p>
-                            <p>{formatCurrency(payment.receipt.amount)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Payment date</p>
-                            <p>{formatDate(payment.receipt.paymentDate)}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Curlec payment ID</p>
-                            <p className="font-mono text-sm">
-                              {payment.receipt.curlecPaymentId ?? "—"}
-                            </p>
-                          </div>
+                        <div className="grid gap-5 md:grid-cols-2">
+                          <ReceiptField
+                            label="Receipt number"
+                            value={payment.receipt.receiptNumber}
+                            mono
+                          />
+                          <ReceiptField
+                            label="Purpose"
+                            value={payment.receipt.purposeLabel}
+                          />
+                          <ReceiptField
+                            label="Payer / company"
+                            value={
+                              payment.receipt.payerCompanyName ||
+                              payment.receipt.payerName ||
+                              "—"
+                            }
+                          />
+                          <ReceiptField
+                            label="Amount"
+                            value={formatCurrency(payment.receipt.amount)}
+                          />
+                          <ReceiptField
+                            label="Payment date"
+                            value={formatDate(payment.receipt.paymentDate)}
+                          />
+                          <ReceiptField
+                            label="Curlec order ID"
+                            value={payment.receipt.curlecOrderId ?? "—"}
+                            mono
+                          />
+                          <ReceiptField
+                            label="Curlec payment ID"
+                            value={payment.receipt.curlecPaymentId ?? "—"}
+                            mono
+                          />
                           {payment.receipt.relatedReferenceLabel &&
                           payment.receipt.relatedReference ? (
-                            <div>
-                              <p className="text-xs text-muted-foreground">
-                                {payment.receipt.relatedReferenceLabel}
-                              </p>
-                              <p className="font-mono text-sm">
-                                {payment.receipt.relatedReference}
-                              </p>
-                            </div>
+                            <ReceiptField
+                              label={payment.receipt.relatedReferenceLabel}
+                              value={payment.receipt.relatedReference}
+                              mono
+                            />
                           ) : null}
                         </div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-2 border-t pt-4">
                           <Button
                             variant="outline"
                             onClick={() => void handleOpenReceiptPdf("view")}

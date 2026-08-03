@@ -244,6 +244,7 @@ export async function getGatewayPaymentDetail(
           payerName: payment.receipt.payer_name,
           payerCompanyName: payment.receipt.payer_company_name,
           curlecPaymentId: payment.receipt.curlec_payment_id,
+          curlecOrderId: payment.receipt.curlec_order_id,
         }
       : null,
   };
