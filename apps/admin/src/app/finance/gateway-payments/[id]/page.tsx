@@ -6,10 +6,19 @@ import * as React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeftIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowLeftIcon,
+  ArrowPathIcon,
+  BanknotesIcon,
+} from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { ApplicationReviewRemarkDialog } from "@/components/application-review-remark-dialog";
-import { formatDate, PURPOSE_LABEL, STATUS_LABEL, statusVariant } from "@/components/gateway-payments-table";
+import {
+  formatDate,
+  PURPOSE_LABEL,
+  STATUS_LABEL,
+  statusVariant,
+} from "@/components/gateway-payments-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,16 +40,6 @@ import {
   useRetryGatewayPaymentRefund,
 } from "@/hooks/use-gateway-payments";
 
-function DetailSkeleton() {
-  return (
-    <div className="space-y-6">
-      <Skeleton className="h-24 w-full rounded-2xl" />
-      <Skeleton className="h-56 w-full rounded-2xl" />
-      <Skeleton className="h-56 w-full rounded-2xl" />
-    </div>
-  );
-}
-
 const RECEIPT_STATUS_LABEL: Record<string, string> = {
   PENDING: "Preparing PDF",
   GENERATED: "Ready",
@@ -49,13 +48,27 @@ const RECEIPT_STATUS_LABEL: Record<string, string> = {
 };
 
 function receiptStatusVariant(status: string) {
-  if (status === "GENERATED") return "default" as const;
+  if (status === "GENERATED") return "success" as const;
   if (status === "FAILED") return "destructive" as const;
   if (status === "REFUNDED") return "secondary" as const;
+  if (status === "PENDING") return "warning" as const;
   return "outline" as const;
 }
 
-function ReceiptField({
+function formatEventType(type: string) {
+  return type
+    .toLowerCase()
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function formatStatusLabel(status: string | null | undefined) {
+  if (!status) return null;
+  return STATUS_LABEL[status] ?? status;
+}
+
+function DetailField({
   label,
   value,
   mono = false,
@@ -66,10 +79,29 @@ function ReceiptField({
 }) {
   return (
     <div className="space-y-1">
-      <p className="text-[13px] font-medium text-muted-foreground">{label}</p>
-      <p className={mono ? "break-all font-mono text-sm text-foreground" : "text-[17px] leading-7 text-foreground"}>
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p
+        className={
+          mono
+            ? "break-all font-mono text-sm font-medium text-foreground"
+            : "text-base font-medium text-foreground"
+        }
+      >
         {value}
       </p>
+    </div>
+  );
+}
+
+function DetailSkeleton() {
+  return (
+    <div className="space-y-6">
+      <Skeleton className="h-28 w-full rounded-2xl" />
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Skeleton className="h-72 rounded-2xl lg:col-span-2" />
+        <Skeleton className="h-72 rounded-2xl" />
+      </div>
+      <Skeleton className="h-56 rounded-2xl" />
     </div>
   );
 }
@@ -85,7 +117,9 @@ export default function GatewayPaymentDetailPage() {
   const id = typeof params?.id === "string" ? params.id : null;
   const { can } = usePermissions();
   const canManage = can("gateway_payments.manage");
-  const disabledReason = !canManage ? "You do not have permission to perform this action." : undefined;
+  const disabledReason = !canManage
+    ? "You do not have permission to perform this action."
+    : undefined;
 
   const { data: payment, isLoading, error, refetch, isFetching } = useGatewayPayment(id);
   const retryRefund = useRetryGatewayPaymentRefund();
@@ -108,7 +142,9 @@ export default function GatewayPaymentDetailPage() {
   const showRetryRefund = payment?.status === "HELD";
   const showInitiateRefund =
     payment?.status === "COMPLETED" && payment.purpose === "INVESTOR_DEPOSIT";
-  const showActionsCard = Boolean(showReviewNameCheck || showRetryRefund || showInitiateRefund);
+  const showActionsCard = Boolean(
+    showReviewNameCheck || showRetryRefund || showInitiateRefund
+  );
 
   const handleRetryRefund = async () => {
     if (!id) return;
@@ -201,261 +237,355 @@ export default function GatewayPaymentDetailPage() {
             {isLoading ? (
               <DetailSkeleton />
             ) : error || !payment ? (
-              <Card className="rounded-2xl">
+              <Card className="rounded-2xl shadow-sm">
                 <CardContent className="py-8 text-destructive">
                   Failed to load gateway payment.
                 </CardContent>
               </Card>
             ) : (
               <>
-                <Card className="rounded-2xl">
-                  <CardHeader className="flex flex-row items-start justify-between gap-4">
-                    <div>
-                      <CardTitle>{formatCurrency(payment.amount)}</CardTitle>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <Badge variant={statusVariant(payment.status)}>
-                          {STATUS_LABEL[payment.status] ?? payment.status}
-                        </Badge>
-                        <Badge variant="outline">{PURPOSE_LABEL[payment.purpose] ?? payment.purpose}</Badge>
-                        <Badge
-                          variant="outline"
-                          className={getGatewayAccountBadgeClassName(payment.gatewayAccount)}
-                        >
-                          {getGatewayAccountLabel(payment.gatewayAccount)}
-                        </Badge>
+                <Card className="rounded-2xl shadow-sm">
+                  <CardContent className="p-6">
+                    <div className="flex flex-wrap items-start gap-4">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                        <BanknotesIcon className="h-5 w-5 text-primary" />
                       </div>
-                      <p className="mt-2 text-sm text-muted-foreground">
-                        {getGatewayAccountDescription(payment.gatewayAccount)}
-                      </p>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <p className="text-xs text-muted-foreground">Organization</p>
-                      <p>{payment.investorOrganizationName ?? "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Expected payer</p>
-                      <p>{payment.expectedPayerName ?? "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">FPX payer name</p>
-                      <p>{payment.payerName ?? "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Curlec order</p>
-                      <p className="font-mono text-sm">{payment.curlecOrderId}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Curlec payment</p>
-                      <p className="font-mono text-sm">{payment.curlecPaymentId ?? "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Settlement ID</p>
-                      <p className="font-mono text-sm">{payment.settlementId ?? "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Bank</p>
-                      <p>{payment.bankCode ?? "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Refund reference</p>
-                      <p className="font-mono text-sm">{payment.refundReference ?? "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Created</p>
-                      <p>{formatDate(payment.createdAt)}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Updated</p>
-                      <p>{formatDate(payment.updatedAt)}</p>
-                    </div>
-                    {payment.refundedAt ? (
-                      <div>
-                        <p className="text-xs text-muted-foreground">Refunded</p>
-                        <p>{formatDate(payment.refundedAt)}</p>
+                      <div className="min-w-0 flex-1 space-y-3">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Amount paid</p>
+                          <p className="text-2xl font-semibold tracking-tight text-foreground">
+                            {formatCurrency(payment.amount)}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant={statusVariant(payment.status)}>
+                            {STATUS_LABEL[payment.status] ?? payment.status}
+                          </Badge>
+                          <Badge variant="outline">
+                            {PURPOSE_LABEL[payment.purpose] ?? payment.purpose}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={getGatewayAccountBadgeClassName(payment.gatewayAccount)}
+                          >
+                            {getGatewayAccountLabel(payment.gatewayAccount)}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {getGatewayAccountDescription(payment.gatewayAccount)}
+                        </p>
                       </div>
-                    ) : null}
+                    </div>
+
+                    <div className="mt-6 grid gap-4 border-t pt-6 sm:grid-cols-2 lg:grid-cols-4">
+                      <DetailField
+                        label="Organization"
+                        value={payment.investorOrganizationName ?? "—"}
+                      />
+                      <DetailField label="Currency" value={payment.currency} />
+                      <DetailField label="Created" value={formatDate(payment.createdAt)} />
+                      <DetailField label="Updated" value={formatDate(payment.updatedAt)} />
+                    </div>
                   </CardContent>
                 </Card>
 
-                {showActionsCard ? (
-                  <Card className="rounded-2xl">
-                    <CardHeader>
-                      <CardTitle>Actions</CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex flex-wrap gap-2">
-                      {showReviewNameCheck ? (
-                        <>
-                          <Button
-                            onClick={() => void handleApproveNameCheck()}
-                            disabled={!canManage || isPending}
-                            title={disabledReason}
-                          >
-                            Approve name check
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            onClick={() => void handleRejectNameCheck()}
-                            disabled={!canManage || isPending}
-                            title={disabledReason}
-                          >
-                            Reject name check
-                          </Button>
-                        </>
-                      ) : null}
-                      {showRetryRefund ? (
-                        <Button
-                          variant="destructive"
-                          onClick={() => void handleRetryRefund()}
-                          disabled={!canManage || isPending}
-                          title={disabledReason}
-                        >
-                          Retry auto-refund
-                        </Button>
-                      ) : null}
-                      {showInitiateRefund ? (
-                        <Button
-                          variant="destructive"
-                          onClick={() => setShowRefundDialog(true)}
-                          disabled={!canManage || isPending}
-                          title={disabledReason}
-                        >
-                          Initiate refund
-                        </Button>
-                      ) : null}
-                    </CardContent>
-                  </Card>
-                ) : null}
+                <div className="grid gap-6 lg:grid-cols-3">
+                  <div className="space-y-6 lg:col-span-2">
+                    <Card className="rounded-2xl shadow-sm">
+                      <CardHeader>
+                        <CardTitle>Payment details</CardTitle>
+                      </CardHeader>
+                      <CardContent className="grid gap-5 sm:grid-cols-2">
+                        <DetailField
+                          label="Expected payer"
+                          value={payment.expectedPayerName ?? "—"}
+                        />
+                        <DetailField
+                          label="FPX payer name"
+                          value={payment.payerName ?? "—"}
+                        />
+                        <DetailField
+                          label="Payment method"
+                          value={payment.method ?? "—"}
+                        />
+                        <DetailField label="Bank" value={payment.bankCode ?? "—"} />
+                        <DetailField
+                          label="Curlec order ID"
+                          value={payment.curlecOrderId}
+                          mono
+                        />
+                        <DetailField
+                          label="Curlec payment ID"
+                          value={payment.curlecPaymentId ?? "—"}
+                          mono
+                        />
+                        <DetailField
+                          label="Settlement ID"
+                          value={payment.settlementId ?? "—"}
+                          mono
+                        />
+                        <DetailField
+                          label="Refund reference"
+                          value={payment.refundReference ?? "—"}
+                          mono
+                        />
+                        {payment.nameCheckResult ? (
+                          <DetailField
+                            label="Name check result"
+                            value={payment.nameCheckResult}
+                          />
+                        ) : null}
+                        {payment.nameCheckAt ? (
+                          <DetailField
+                            label="Name check at"
+                            value={formatDate(payment.nameCheckAt)}
+                          />
+                        ) : null}
+                        {payment.refundedAt ? (
+                          <DetailField
+                            label="Refunded at"
+                            value={formatDate(payment.refundedAt)}
+                          />
+                        ) : null}
+                        {payment.refundNotes ? (
+                          <DetailField label="Refund notes" value={payment.refundNotes} />
+                        ) : null}
+                      </CardContent>
+                    </Card>
 
-                <Card className="rounded-2xl">
-                  <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-                    <div>
-                      <CardTitle>Receipt</CardTitle>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Official Cashsouk payment receipt for finance records.
-                      </p>
-                    </div>
-                    {payment.receipt ? (
-                      <Badge variant={receiptStatusVariant(payment.receipt.status)}>
-                        {RECEIPT_STATUS_LABEL[payment.receipt.status] ?? payment.receipt.status}
-                      </Badge>
-                    ) : null}
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {!payment.receipt ? (
-                      <p className="text-[17px] leading-7 text-muted-foreground">
-                        No receipt yet. Receipts are created after a payment is successfully
-                        completed.
-                      </p>
-                    ) : (
-                      <>
-                        <div className="grid gap-5 md:grid-cols-2">
-                          <ReceiptField
-                            label="Receipt number"
-                            value={payment.receipt.receiptNumber}
-                            mono
-                          />
-                          <ReceiptField
-                            label="Purpose"
-                            value={payment.receipt.purposeLabel}
-                          />
-                          <ReceiptField
-                            label="Payer / company"
-                            value={
-                              payment.receipt.payerCompanyName ||
-                              payment.receipt.payerName ||
-                              "—"
-                            }
-                          />
-                          <ReceiptField
-                            label="Amount"
-                            value={formatCurrency(payment.receipt.amount)}
-                          />
-                          <ReceiptField
-                            label="Payment date"
-                            value={formatDate(payment.receipt.paymentDate)}
-                          />
-                          <ReceiptField
-                            label="Curlec order ID"
-                            value={payment.receipt.curlecOrderId ?? "—"}
-                            mono
-                          />
-                          <ReceiptField
-                            label="Curlec payment ID"
-                            value={payment.receipt.curlecPaymentId ?? "—"}
-                            mono
-                          />
-                          {payment.receipt.relatedReferenceLabel &&
-                          payment.receipt.relatedReference ? (
-                            <ReceiptField
-                              label={payment.receipt.relatedReferenceLabel}
-                              value={payment.receipt.relatedReference}
-                              mono
-                            />
-                          ) : null}
+                    <Card className="rounded-2xl shadow-sm">
+                      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+                        <div className="space-y-1">
+                          <CardTitle>Receipt</CardTitle>
+                          <p className="text-sm text-muted-foreground">
+                            Official Cashsouk payment receipt for finance records.
+                          </p>
                         </div>
-                        <div className="flex flex-wrap gap-2 border-t pt-4">
-                          <Button
-                            variant="outline"
-                            onClick={() => void handleOpenReceiptPdf("view")}
-                            disabled={!payment.receipt.hasPdf || isPending}
-                          >
-                            View PDF
-                          </Button>
-                          <Button
-                            variant="outline"
-                            onClick={() => void handleOpenReceiptPdf("download")}
-                            disabled={!payment.receipt.hasPdf || isPending}
-                          >
-                            Download PDF
-                          </Button>
-                          {canManage &&
-                          (payment.receipt.status === "PENDING" ||
-                            payment.receipt.status === "FAILED") ? (
-                            <Button
-                              onClick={() => void handleRetryReceipt()}
-                              disabled={isPending}
-                              title={disabledReason}
-                            >
-                              Retry generation
-                            </Button>
-                          ) : null}
-                        </div>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className="rounded-2xl">
-                  <CardHeader>
-                    <CardTitle>Event trail</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {payment.events.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No events recorded yet.</p>
-                    ) : (
-                      payment.events.map((event) => (
-                        <div key={event.id} className="border-b pb-3 last:border-0 last:pb-0">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <p className="font-medium">{event.type.replace(/_/g, " ")}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {formatDate(event.createdAt)}
+                        {payment.receipt ? (
+                          <Badge variant={receiptStatusVariant(payment.receipt.status)}>
+                            {RECEIPT_STATUS_LABEL[payment.receipt.status] ??
+                              payment.receipt.status}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">Not created</Badge>
+                        )}
+                      </CardHeader>
+                      <CardContent className="space-y-6">
+                        {!payment.receipt ? (
+                          <div className="rounded-xl border border-dashed bg-muted/30 px-4 py-6">
+                            <p className="text-base text-muted-foreground">
+                              No receipt yet. A receipt is created after this payment is
+                              successfully completed.
                             </p>
                           </div>
-                          {event.fromStatus && event.toStatus ? (
+                        ) : (
+                          <>
+                            <div className="grid gap-5 sm:grid-cols-2">
+                              <DetailField
+                                label="Receipt number"
+                                value={payment.receipt.receiptNumber}
+                                mono
+                              />
+                              <DetailField
+                                label="Purpose"
+                                value={payment.receipt.purposeLabel}
+                              />
+                              <DetailField
+                                label="Payer / company"
+                                value={
+                                  payment.receipt.payerCompanyName ||
+                                  payment.receipt.payerName ||
+                                  "—"
+                                }
+                              />
+                              <DetailField
+                                label="Amount"
+                                value={formatCurrency(payment.receipt.amount)}
+                              />
+                              <DetailField
+                                label="Payment date"
+                                value={formatDate(payment.receipt.paymentDate)}
+                              />
+                              <DetailField
+                                label="Curlec order ID"
+                                value={payment.receipt.curlecOrderId ?? "—"}
+                                mono
+                              />
+                              <DetailField
+                                label="Curlec payment ID"
+                                value={payment.receipt.curlecPaymentId ?? "—"}
+                                mono
+                              />
+                              {payment.receipt.relatedReferenceLabel &&
+                              payment.receipt.relatedReference ? (
+                                <DetailField
+                                  label={payment.receipt.relatedReferenceLabel}
+                                  value={payment.receipt.relatedReference}
+                                  mono
+                                />
+                              ) : null}
+                            </div>
+
+                            <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:flex-wrap sm:items-center">
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  variant="outline"
+                                  onClick={() => void handleOpenReceiptPdf("view")}
+                                  disabled={!payment.receipt.hasPdf || isPending}
+                                  title={
+                                    payment.receipt.hasPdf
+                                      ? undefined
+                                      : "PDF is not ready yet"
+                                  }
+                                >
+                                  View PDF
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => void handleOpenReceiptPdf("download")}
+                                  disabled={!payment.receipt.hasPdf || isPending}
+                                  title={
+                                    payment.receipt.hasPdf
+                                      ? undefined
+                                      : "PDF is not ready yet"
+                                  }
+                                >
+                                  Download PDF
+                                </Button>
+                                {canManage &&
+                                (payment.receipt.status === "PENDING" ||
+                                  payment.receipt.status === "FAILED") ? (
+                                  <Button
+                                    onClick={() => void handleRetryReceipt()}
+                                    disabled={isPending}
+                                    title={disabledReason}
+                                  >
+                                    Retry generation
+                                  </Button>
+                                ) : null}
+                              </div>
+                              {!payment.receipt.hasPdf ? (
+                                <p className="text-sm text-muted-foreground">
+                                  {payment.receipt.status === "FAILED"
+                                    ? "PDF generation failed. Retry to create the receipt file."
+                                    : "PDF is still being prepared."}
+                                </p>
+                              ) : null}
+                            </div>
+                          </>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="space-y-6">
+                    {showActionsCard ? (
+                      <Card className="rounded-2xl shadow-sm">
+                        <CardHeader>
+                          <CardTitle>Actions</CardTitle>
+                          <p className="text-sm text-muted-foreground">
+                            Manage name checks and refunds for this payment.
+                          </p>
+                        </CardHeader>
+                        <CardContent className="flex flex-col gap-2">
+                          {showReviewNameCheck ? (
+                            <>
+                              <Button
+                                className="w-full"
+                                onClick={() => void handleApproveNameCheck()}
+                                disabled={!canManage || isPending}
+                                title={disabledReason}
+                              >
+                                Approve name check
+                              </Button>
+                              <Button
+                                className="w-full"
+                                variant="destructive"
+                                onClick={() => void handleRejectNameCheck()}
+                                disabled={!canManage || isPending}
+                                title={disabledReason}
+                              >
+                                Reject name check
+                              </Button>
+                            </>
+                          ) : null}
+                          {showRetryRefund ? (
+                            <Button
+                              className="w-full"
+                              variant="destructive"
+                              onClick={() => void handleRetryRefund()}
+                              disabled={!canManage || isPending}
+                              title={disabledReason}
+                            >
+                              Retry auto-refund
+                            </Button>
+                          ) : null}
+                          {showInitiateRefund ? (
+                            <Button
+                              className="w-full"
+                              variant="destructive"
+                              onClick={() => setShowRefundDialog(true)}
+                              disabled={!canManage || isPending}
+                              title={disabledReason}
+                            >
+                              Initiate refund
+                            </Button>
+                          ) : null}
+                        </CardContent>
+                      </Card>
+                    ) : null}
+
+                    <Card className="rounded-2xl shadow-sm">
+                      <CardHeader>
+                        <CardTitle>Event trail</CardTitle>
+                        <p className="text-sm text-muted-foreground">
+                          Status changes and admin actions for this payment.
+                        </p>
+                      </CardHeader>
+                      <CardContent>
+                        {payment.events.length === 0 ? (
+                          <div className="rounded-xl border border-dashed bg-muted/30 px-4 py-6">
                             <p className="text-sm text-muted-foreground">
-                              {event.fromStatus} → {event.toStatus}
+                              No events recorded yet.
                             </p>
-                          ) : null}
-                          {event.reason ? (
-                            <p className="mt-1 text-sm">{event.reason}</p>
-                          ) : null}
-                        </div>
-                      ))
-                    )}
-                  </CardContent>
-                </Card>
+                          </div>
+                        ) : (
+                          <ol className="relative space-y-0 border-l border-border pl-5">
+                            {payment.events.map((event) => {
+                              const fromLabel = formatStatusLabel(event.fromStatus);
+                              const toLabel = formatStatusLabel(event.toStatus);
+                              return (
+                                <li key={event.id} className="relative pb-6 last:pb-0">
+                                  <span className="absolute -left-[1.45rem] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-primary" />
+                                  <div className="space-y-1">
+                                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                                      <p className="text-base font-medium text-foreground">
+                                        {formatEventType(event.type)}
+                                      </p>
+                                      <p className="text-sm text-muted-foreground">
+                                        {formatDate(event.createdAt)}
+                                      </p>
+                                    </div>
+                                    {fromLabel && toLabel ? (
+                                      <p className="text-sm text-muted-foreground">
+                                        {fromLabel}
+                                        <span className="mx-1.5 text-muted-foreground/70">→</span>
+                                        {toLabel}
+                                      </p>
+                                    ) : null}
+                                    {event.reason ? (
+                                      <p className="text-sm text-foreground/90">{event.reason}</p>
+                                    ) : null}
+                                  </div>
+                                </li>
+                              );
+                            })}
+                          </ol>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
               </>
             )}
           </div>

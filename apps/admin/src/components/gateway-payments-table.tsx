@@ -59,10 +59,11 @@ type GatewayFilter = (typeof FILTER_OPTIONS)[number]["value"];
 type GatewayAccountFilter = CurlecGatewayAccount | "ALL";
 
 function statusVariant(status: string) {
-  if (status === "COMPLETED") return "default" as const;
-  if (status === "HELD") return "destructive" as const;
-  if (status === "NAME_CHECK_PENDING") return "secondary" as const;
-  if (status === "REFUNDED" || status === "REFUND_INITIATED") return "secondary" as const;
+  if (status === "COMPLETED") return "success" as const;
+  if (status === "HELD" || status === "FAILED") return "destructive" as const;
+  if (status === "NAME_CHECK_PENDING") return "warning" as const;
+  if (status === "REFUND_INITIATED" || status === "REFUNDED") return "secondary" as const;
+  if (status === "PAID") return "info" as const;
   return "outline" as const;
 }
 
