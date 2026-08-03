@@ -87,7 +87,7 @@
  *   Add "PENDING_DISBURSEMENT" in the right place in the array.
  */
 
-import { WithdrawReason } from "@cashsouk/types";
+import { offerAcceptanceAllowsIssuerReviewCta, WithdrawReason } from "@cashsouk/types";
 import {
   getStatusPresentationByBadgeKey,
   getStatusColorAndLabel,
@@ -369,16 +369,39 @@ export function getCardStatus(input: {
   if (contractOfferSent || anyInvoiceOfferSent) {
     const issuerMustActOnOffer =
       acceptanceStatus === "PENDING_ISSUER" || acceptanceStatus === "CHANGES_REQUESTED";
-    const adminReviewOrSigning =
-      acceptanceStatus === "PENDING_ADMIN_REVIEW" ||
+    const issuerSigningPhase =
       acceptanceStatus === "APPROVED_FOR_SIGNING" ||
-      acceptanceStatus === "SIGNING_IN_PROGRESS" ||
+      acceptanceStatus === "SIGNING_IN_PROGRESS";
+    const showContractReviewOffer =
+      contractOfferSent && offerAcceptanceAllowsIssuerReviewCta(acceptanceStatus);
+
+    if (issuerMustActOnOffer) {
+      return {
+        badgeKey: "offer_sent",
+        displayLabel: "Offer Received",
+        showReviewOffer: showContractReviewOffer,
+        showMakeAmendments: false,
+      };
+    }
+
+    // Step 3: issuer must open Review Offer for signers / envelope — keep Under Review badge.
+    if (issuerSigningPhase) {
+      return {
+        badgeKey: "under_review",
+        displayLabel: "Under Review",
+        showReviewOffer: showContractReviewOffer,
+        showMakeAmendments: false,
+      };
+    }
+
+    const awaitingAdminOrDone =
+      acceptanceStatus === "PENDING_ADMIN_REVIEW" ||
       acceptanceStatus === "COMPLETED" ||
       app === "CONTRACT_ACCEPTED" ||
       app === "INVOICE_ACCEPTED" ||
       app === "SIGNING_PENDING";
 
-    if (adminReviewOrSigning && !issuerMustActOnOffer) {
+    if (awaitingAdminOrDone) {
       return {
         badgeKey: "under_review",
         displayLabel: "Under Review",
@@ -386,10 +409,11 @@ export function getCardStatus(input: {
         showMakeAmendments: false,
       };
     }
+
     return {
       badgeKey: "offer_sent",
       displayLabel: "Offer Received",
-      showReviewOffer: contractOfferSent,
+      showReviewOffer: showContractReviewOffer,
       showMakeAmendments: false,
     };
   }

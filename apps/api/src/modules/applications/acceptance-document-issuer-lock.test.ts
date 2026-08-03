@@ -4,6 +4,7 @@ import {
   collectFlaggedAcceptanceDocumentIndices,
   findAcceptanceDocumentIndexForS3Key,
   findChangedAcceptanceDocumentIndices,
+  resolveAcceptanceDocumentReviewKeysToResetOnSubmit,
 } from "./acceptance-document-issuer-lock";
 
 describe("acceptance-document-issuer-lock", () => {
@@ -94,6 +95,54 @@ describe("acceptance-document-issuer-lock", () => {
       };
       expect(findAcceptanceDocumentIndexForS3Key(data, "a/two.pdf")).toBe(2);
       expect(findAcceptanceDocumentIndexForS3Key(data, "missing.pdf")).toBeNull();
+    });
+  });
+
+  describe("resolveAcceptanceDocumentReviewKeysToResetOnSubmit", () => {
+    const allKeys = [
+      "acceptance_documents:0:letter_of_offer",
+      "acceptance_documents:1:board_resolution",
+    ];
+    const reviewItems = [
+      {
+        item_type: "document",
+        item_id: "acceptance_documents:0:letter_of_offer",
+        status: "APPROVED",
+      },
+      {
+        item_type: "document",
+        item_id: "acceptance_documents:1:board_resolution",
+        status: "AMENDMENT_REQUESTED",
+      },
+    ];
+
+    it("resets all upload keys on first submit (PENDING_ISSUER)", () => {
+      expect(
+        resolveAcceptanceDocumentReviewKeysToResetOnSubmit("PENDING_ISSUER", allKeys, reviewItems)
+      ).toEqual(allKeys);
+    });
+
+    it("resets only AMENDMENT_REQUESTED acceptance keys from CHANGES_REQUESTED", () => {
+      expect(
+        resolveAcceptanceDocumentReviewKeysToResetOnSubmit(
+          "CHANGES_REQUESTED",
+          allKeys,
+          reviewItems
+        )
+      ).toEqual(["acceptance_documents:1:board_resolution"]);
+    });
+
+    it("ignores supporting-doc amendment items on selective reset", () => {
+      expect(
+        resolveAcceptanceDocumentReviewKeysToResetOnSubmit("CHANGES_REQUESTED", allKeys, [
+          ...reviewItems,
+          {
+            item_type: "document",
+            item_id: "supporting_documents:kyc:0:nric",
+            status: "AMENDMENT_REQUESTED",
+          },
+        ])
+      ).toEqual(["acceptance_documents:1:board_resolution"]);
     });
   });
 });

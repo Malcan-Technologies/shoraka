@@ -26,12 +26,6 @@ function getUserId(req: Request): string {
   return req.user.user_id;
 }
 
-function isDevSigningBypassRequested(req: Request): boolean {
-  if (process.env.NODE_ENV === "production") return false;
-  const parsed = z.object({ skipSigning: z.boolean().optional() }).safeParse(req.body ?? {});
-  return parsed.success && parsed.data.skipSigning === true;
-}
-
 
 /**
  * Create a new application
@@ -369,9 +363,7 @@ export function createApplicationRouter(): Router {
       try {
         const { id } = applicationIdParamSchema.parse(req.params);
         const userId = getUserId(req);
-        // Dev/local-only escape hatch so QA can accept without external webhook/signing flow.
-        const skipSigning = isDevSigningBypassRequested(req);
-        if (readSigningCloudConfigFromEnv() && !skipSigning) {
+        if (readSigningCloudConfigFromEnv()) {
           throw new AppError(
             400,
             "USE_SIGNING_FLOW",
@@ -381,9 +373,7 @@ export function createApplicationRouter(): Router {
         const data = await applicationService.respondToContractOffer(
           id,
           "accept",
-          userId,
-          undefined,
-          { allowDevSigningBypass: skipSigning }
+          userId
         );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
@@ -428,9 +418,7 @@ export function createApplicationRouter(): Router {
         const { id } = applicationIdParamSchema.parse(req.params);
         const invoiceId = z.string().cuid().parse(req.params.invoiceId);
         const userId = getUserId(req);
-        // Dev/local-only escape hatch so QA can accept without external webhook/signing flow.
-        const skipSigning = isDevSigningBypassRequested(req);
-        if (readSigningCloudConfigFromEnv() && !skipSigning) {
+        if (readSigningCloudConfigFromEnv()) {
           // Contract-linked + contract envelope COMPLETED may accept without an envelope.
           // Invoice-only / incomplete contract signing still require the signing flow.
           await applicationService.assertInvoiceOfferAcceptAllowed(id, invoiceId, userId);
@@ -439,9 +427,7 @@ export function createApplicationRouter(): Router {
           id,
           invoiceId,
           "accept",
-          userId,
-          undefined,
-          { allowDevSigningBypass: skipSigning }
+          userId
         );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {

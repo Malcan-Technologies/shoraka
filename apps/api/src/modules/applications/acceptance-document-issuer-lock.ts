@@ -97,3 +97,26 @@ export function assertAcceptanceDocumentIndexEditableInChangesRequested(
     "This acceptance document cannot be edited until CashSouk requests a change on it"
   );
 }
+
+/**
+ * Keys to reset to PENDING on Step 1 submit.
+ * First submit (`PENDING_ISSUER`): all uploaded acceptance review keys.
+ * Resubmit from `CHANGES_REQUESTED`: only items still `AMENDMENT_REQUESTED` (approved stay approved).
+ */
+export function resolveAcceptanceDocumentReviewKeysToResetOnSubmit(
+  offerAcceptanceStatus: string | null | undefined,
+  allDocKeys: string[],
+  reviewItems: AcceptanceReviewItemRow[] | null | undefined
+): string[] {
+  if (offerAcceptanceStatus !== "CHANGES_REQUESTED") {
+    return allDocKeys;
+  }
+  return (reviewItems ?? [])
+    .filter(
+      (item) =>
+        item.item_type === "document" &&
+        item.status === "AMENDMENT_REQUESTED" &&
+        isAcceptanceDocumentItemId(item.item_id)
+    )
+    .map((item) => item.item_id);
+}

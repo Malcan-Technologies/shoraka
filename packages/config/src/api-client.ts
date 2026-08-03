@@ -2518,12 +2518,9 @@ export class ApiClient {
   }
 
   async acceptContractOffer(
-    applicationId: string,
-    options?: { skipSigning?: boolean }
+    applicationId: string
   ): Promise<ApiResponse<Application> | ApiError> {
-    return this.post<Application>(`/v1/applications/${applicationId}/offers/contracts/accept`, {
-      ...(options?.skipSigning ? { skipSigning: true } : {}),
-    });
+    return this.post<Application>(`/v1/applications/${applicationId}/offers/contracts/accept`, {});
   }
 
   async rejectContractOffer(
@@ -2547,14 +2544,11 @@ export class ApiClient {
 
   async acceptInvoiceOffer(
     applicationId: string,
-    invoiceId: string,
-    options?: { skipSigning?: boolean }
+    invoiceId: string
   ): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(
       `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/accept`,
-      {
-        ...(options?.skipSigning ? { skipSigning: true } : {}),
-      }
+      {}
     );
   }
 

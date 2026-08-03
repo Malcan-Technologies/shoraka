@@ -139,7 +139,7 @@ Requires auth; user must be member or owner of the application’s issuer organi
 - **POST /v1/applications/:id/offers/contracts/accept**
 - **POST /v1/applications/:id/offers/contracts/reject**
 
-When SigningCloud is configured, contract accept goes through the signing envelope (auto-accept on `COMPLETED`). Non-production clients may pass `{ skipSigning: true }` to bypass for local QA.
+When SigningCloud is configured, contract accept goes through the signing envelope (auto-accept on `COMPLETED`).
 
 ### Invoice offer
 
@@ -152,7 +152,6 @@ When SigningCloud is configured, contract accept goes through the signing envelo
 | Contract-linked (`contract_id` set) | Direct Accept/Decline after contract envelope `COMPLETED`; no invoice envelope. Before that → `CONTRACT_SIGNING_INCOMPLETE` (or UI blocks Accept) |
 | Creating an envelope for a contract-linked invoice | `400 CONTRACT_LINKED_INVOICE_NO_PACKAGE` |
 
-Non-production `{ skipSigning: true }` bypass applies the same as contract.
 ### Errors
 
 - `400 INVALID_STATE` — No pending offer, no contract/invoice, or no `offer_details`.

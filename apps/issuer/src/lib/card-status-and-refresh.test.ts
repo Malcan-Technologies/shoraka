@@ -54,7 +54,7 @@ describe("getCardStatus offer awaiting review", () => {
     expect(result.showReviewOffer).toBe(true);
   });
 
-  it("shows Under Review during SIGNING_PENDING while entity stays OFFER_SENT", () => {
+  it("shows Under Review + Review Offer during SIGNING_PENDING (Step 3)", () => {
     const result = getCardStatus({
       applicationStatus: "SIGNING_PENDING",
       contractStatus: "OFFER_SENT",
@@ -63,10 +63,10 @@ describe("getCardStatus offer awaiting review", () => {
     });
     expect(result.badgeKey).toBe("under_review");
     expect(result.displayLabel).toBe("Under Review");
-    expect(result.showReviewOffer).toBe(false);
+    expect(result.showReviewOffer).toBe(true);
   });
 
-  it("shows Under Review during SIGNING_IN_PROGRESS", () => {
+  it("shows Under Review + Review Offer during SIGNING_IN_PROGRESS", () => {
     const result = getCardStatus({
       applicationStatus: "SIGNING_PENDING",
       contractStatus: "OFFER_SENT",
@@ -74,7 +74,7 @@ describe("getCardStatus offer awaiting review", () => {
       offerAcceptanceStatus: "SIGNING_IN_PROGRESS",
     });
     expect(result.badgeKey).toBe("under_review");
-    expect(result.showReviewOffer).toBe(false);
+    expect(result.showReviewOffer).toBe(true);
   });
 
   it("keeps Offer Received for CHANGES_REQUESTED (issuer must re-submit)", () => {
@@ -88,7 +88,7 @@ describe("getCardStatus offer awaiting review", () => {
     expect(result.showReviewOffer).toBe(true);
   });
 
-  it("shows Under Review for invoice-only signing phase", () => {
+  it("keeps card Review Offer off for invoice-only signing (row CTA handles it)", () => {
     const result = getCardStatus({
       applicationStatus: "SIGNING_PENDING",
       contractStatus: null,

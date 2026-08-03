@@ -56,6 +56,7 @@ import {
   collectFlaggedAcceptanceDocumentIndices,
   findAcceptanceDocumentIndexForS3Key,
   findChangedAcceptanceDocumentIndices,
+  resolveAcceptanceDocumentReviewKeysToResetOnSubmit,
 } from "./acceptance-document-issuer-lock";
 import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
 import {
@@ -1767,9 +1768,9 @@ export class ApplicationService {
   }
 
   /**
-   * Reset acceptance-doc review items + section to PENDING on (re)submit, so a resubmitted
-   * offer acceptance cannot reuse stale admin review decisions from a prior cycle.
-   * Mirrors AdminService.resetAcceptanceReviewForNewOfferInTx.
+   * Reset acceptance-doc review items + section to PENDING on (re)submit.
+   * From CHANGES_REQUESTED: only AMENDMENT_REQUESTED items (approved stay approved).
+   * From PENDING_ISSUER: initialize/reset all uploaded acceptance keys.
    */
   private async resetAcceptanceDocumentsReviewInTx(
     tx: Prisma.TransactionClient,
@@ -1777,11 +1778,24 @@ export class ApplicationService {
     application: {
       acceptance_documents?: unknown;
     },
-    workflow: unknown[]
+    workflow: unknown[],
+    offerAcceptanceStatus: string | null | undefined
   ): Promise<void> {
-    const docKeys = collectAcceptanceDocumentReviewKeys(
+    const allDocKeys = collectAcceptanceDocumentReviewKeys(
       workflow,
       application.acceptance_documents
+    );
+    const reviewItems =
+      offerAcceptanceStatus === "CHANGES_REQUESTED"
+        ? await tx.applicationReviewItem.findMany({
+            where: { application_id: applicationId, item_type: "document" },
+            select: { item_type: true, item_id: true, status: true },
+          })
+        : [];
+    const docKeys = resolveAcceptanceDocumentReviewKeysToResetOnSubmit(
+      offerAcceptanceStatus,
+      allDocKeys,
+      reviewItems
     );
     for (const itemId of docKeys) {
       await tx.applicationReviewItem.upsert({
@@ -1806,8 +1820,15 @@ export class ApplicationService {
           reviewed_at: null,
         },
       });
+      await tx.applicationReviewRemark.deleteMany({
+        where: {
+          application_id: applicationId,
+          scope: "item",
+          scope_key: itemId,
+        },
+      });
     }
-    if (docKeys.length === 0 && !workflowHasAcceptanceDocuments(workflow)) {
+    if (allDocKeys.length === 0 && !workflowHasAcceptanceDocuments(workflow)) {
       return;
     }
     await tx.applicationReview.upsert({
@@ -1905,7 +1926,13 @@ export class ApplicationService {
         where: { id: contractId },
         data: { offer_details: updatedOffer as Prisma.InputJsonValue },
       });
-      await this.resetAcceptanceDocumentsReviewInTx(tx, applicationId, application, workflow);
+      await this.resetAcceptanceDocumentsReviewInTx(
+        tx,
+        applicationId,
+        application,
+        workflow,
+        acceptance?.status
+      );
     });
 
     const contractNumber = (
@@ -2052,7 +2079,13 @@ export class ApplicationService {
         where: { id: invoiceId },
         data: { offer_details: updatedOffer as Prisma.InputJsonValue },
       });
-      await this.resetAcceptanceDocumentsReviewInTx(tx, applicationId, application, workflow);
+      await this.resetAcceptanceDocumentsReviewInTx(
+        tx,
+        applicationId,
+        application,
+        workflow,
+        acceptance?.status
+      );
     });
 
     const invWithDetails = (
@@ -2115,19 +2148,17 @@ export class ApplicationService {
   }
 
   /**
-   * Phased offer products must complete via envelope (or non-prod skipSigning bypass).
+   * Phased offer products must complete via envelope.
    * Prevents silent direct accept when SigningCloud env is missing/misconfigured.
    */
   private async assertPhasedOfferDirectAcceptBlocked(params: {
     application: Application;
     action: "accept" | "reject";
     signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
-    allowDevSigningBypass?: boolean;
     invoiceId?: string;
   }): Promise<void> {
     if (params.action !== "accept") return;
     if (params.signingCompletion) return;
-    if (params.allowDevSigningBypass) return;
 
     const workflow = await this.getProductWorkflowForApplication(params.application);
     if (!workflowUsesOfferAcceptanceFlow(workflow)) return;
@@ -2165,7 +2196,6 @@ export class ApplicationService {
     rejectionReason?: string,
     options?: {
       signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
-      allowDevSigningBypass?: boolean;
     }
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
@@ -2182,7 +2212,6 @@ export class ApplicationService {
       application,
       action,
       signingCompletion: options?.signingCompletion,
-      allowDevSigningBypass: options?.allowDevSigningBypass,
     });
     const contractId = application.contract_id;
 
@@ -2503,7 +2532,6 @@ export class ApplicationService {
     rejectionReason?: string,
     options?: {
       signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
-      allowDevSigningBypass?: boolean;
     }
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
@@ -2522,7 +2550,6 @@ export class ApplicationService {
       application,
       action,
       signingCompletion: options?.signingCompletion,
-      allowDevSigningBypass: options?.allowDevSigningBypass,
       invoiceId,
     });
 

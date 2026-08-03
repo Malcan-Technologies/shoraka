@@ -2,6 +2,8 @@
 
 This guide explains how the amendment flow works when an application is in `AMENDMENT_REQUESTED` status. It covers the database structure, API behavior, and how the frontend displays and locks steps based on reviewer remarks.
 
+Post-offer **Acceptance document Request change** (phase `CHANGES_REQUESTED`, not underwriting `AMENDMENT_REQUESTED`) is documented in [offer-acceptance-and-signing-phases.md](./offer-acceptance-and-signing-phases.md).
+
 ---
 
 ## Overview

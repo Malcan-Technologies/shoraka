@@ -64,7 +64,6 @@ import {
   getOfferAcceptanceStatusPresentation,
   offerAcceptanceAllowsSigning,
   offerAcceptanceIsStep1Editable,
-  offerAcceptanceIsTerminal,
   type Application,
 } from "@cashsouk/types";
 import {
@@ -841,7 +840,6 @@ export function ReviewOfferModal({
 
   const [downloading, setDownloading] = React.useState(false);
   const [acceptSigningLoading, setAcceptSigningLoading] = React.useState(false);
-  const [acceptOverrideLoading, setAcceptOverrideLoading] = React.useState(false);
   const [rejectionReason, setRejectionReason] = React.useState("");
   const [selectedDeclineReason, setSelectedDeclineReason] = React.useState("");
   const [isRejectMode, setIsRejectMode] = React.useState(false);
@@ -877,7 +875,6 @@ export function ReviewOfferModal({
   // Viewed step stickiness (D-05–D-07): domain progress stays in currentSigningStepId.
   const [viewedStepId, setViewedStepId] = React.useState<SigningOfferStepId | null>(null);
   const isOtherDeclineReason = selectedDeclineReason === OTHER_ISSUER_DECLINE_REASON_VALUE;
-  const isSigningOverrideEnabled = process.env.NODE_ENV !== "production";
 
   React.useEffect(() => {
     if (!useSigningStepper) {
@@ -1499,44 +1496,8 @@ export function ReviewOfferModal({
     }
   };
 
-  const handleAcceptOverride = async () => {
-    if (isPhaseDeadlinePast) {
-      toast.error("This offer has expired.");
-      return;
-    }
-    setAcceptOverrideLoading(true);
-    try {
-      if (type === "contract") {
-        const res = await apiClient.acceptContractOffer(applicationId, { skipSigning: true });
-        if (!res.success) {
-          const err = res as ApiError;
-          throw new Error(err.error?.message ?? "Failed to accept contract offer");
-        }
-      } else {
-        if (!invoice?.id) return;
-        const res = await apiClient.acceptInvoiceOffer(applicationId, invoice.id, {
-          skipSigning: true,
-        });
-        if (!res.success) {
-          const err = res as ApiError;
-          throw new Error(err.error?.message ?? "Failed to accept invoice offer");
-        }
-      }
-
-      toast.success("Offer accepted (signing skipped)");
-      onClose();
-    } catch (e) {
-      toast.error("Could not accept offer without signing", {
-        description: e instanceof Error ? e.message : "Unknown error",
-      });
-    } finally {
-      setAcceptOverrideLoading(false);
-    }
-  };
-
   const isPending =
     acceptSigningLoading ||
-    acceptOverrideLoading ||
     isSavingPostDocs ||
     remindLoading ||
     acceptInvoice.isPending ||
@@ -2774,12 +2735,15 @@ export function ReviewOfferModal({
 
             <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t pt-4">
               {!isPhaseDeadlinePast &&
+              !envelopeCompleted &&
+              displaySigningStepId !== "complete" &&
+              displaySigningStepId !== "awaiting_review" &&
               ((useSigningStepper &&
                 displaySigningStepId !== "rejected" &&
                 displaySigningStepId !== "declined") ||
                 isRejectMode) ? (
                 <Button
-                  variant={isRejectMode ? "outline" : "destructive"}
+                  variant="outline"
                   onClick={() =>
                     setIsRejectMode((prev) => {
                       if (prev) {
@@ -2799,21 +2763,6 @@ export function ReviewOfferModal({
                 Close
               </Button>
             </div>
-
-            {!isPhaseDeadlinePast &&
-            useSigningStepper &&
-            isSigningOverrideEnabled &&
-            !offerAcceptanceIsTerminal(acceptanceStatus) ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleAcceptOverride}
-                disabled={isPending}
-                className="mt-3 h-9 w-full rounded-xl border-dashed border-amber-500/40 text-amber-700 hover:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-950/20"
-              >
-                Accept without signing (local override)
-              </Button>
-            ) : null}
           </>
         )}
       </DialogContent>
