@@ -32,6 +32,9 @@ describe("legal documents review modes and copy", () => {
       buttonLabel: "Accept and Continue",
       nonOwnerDescription:
         "Your organization owner must accept these documents before onboarding can continue.",
+      emptyTitle: "Legal documents unavailable",
+      emptyDescription:
+        "Required legal documents have not been published yet. Onboarding cannot continue until an administrator publishes them. Please try again later or contact support.",
     });
     expect(legalDocumentsReviewCopy("reacceptance")).toEqual({
       title: "Updated legal documents",
@@ -40,7 +43,15 @@ describe("legal documents review modes and copy", () => {
       buttonLabel: "Accept updated documents",
       nonOwnerDescription:
         "Your organization owner must accept these documents before new transactions can begin.",
+      emptyTitle: "No updated documents",
+      emptyDescription: "There are no legal documents waiting for your acceptance.",
     });
+  });
+
+  it("blocks onboarding when no published legal PDFs exist (no markdown T&C fallback)", () => {
+    expect(reviewSource).toContain("LegalDocumentChecklistEmpty");
+    expect(reviewSource).not.toMatch(/\bfallback\b/);
+    expect(legalDocumentsReviewCopy("onboarding").emptyTitle).toBe("Legal documents unavailable");
   });
 
   it("centralizes type-specific checkbox wording", () => {

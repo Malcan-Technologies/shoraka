@@ -2,13 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { getOnboardingRouteForOrg, useOrganization } from "@cashsouk/config";
-import {
-  OnboardingLayout,
-  TermsAcceptanceCard,
-  LegalDocumentsReview,
-} from "@cashsouk/ui";
-import { TERMS_AND_CONDITIONS } from "@/content/terms-and-conditions";
-import { TNC_LAST_UPDATED } from "@/content/tnc-metadata";
+import { OnboardingLayout, LegalDocumentsReview } from "@cashsouk/ui";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -33,16 +27,6 @@ export default function OnboardingTermsPage() {
         mode="onboarding"
         onComplete={() =>
           router.push(getOnboardingRouteForOrg(activeOrganization, "issuer"))
-        }
-        fallback={
-          <TermsAcceptanceCard
-            organizationId={activeOrganization.id}
-            termsMarkdown={TERMS_AND_CONDITIONS}
-            lastUpdated={TNC_LAST_UPDATED}
-            onAccepted={() =>
-              router.push(getOnboardingRouteForOrg(activeOrganization, "issuer"))
-            }
-          />
         }
       />
     </OnboardingLayout>

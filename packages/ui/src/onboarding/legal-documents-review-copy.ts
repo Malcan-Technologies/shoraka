@@ -14,6 +14,8 @@ export function legalDocumentsReviewCopy(mode: LegalDocumentsReviewMode): {
   description: string;
   buttonLabel: string;
   nonOwnerDescription: string;
+  emptyTitle: string;
+  emptyDescription: string;
 } {
   if (mode === "reacceptance") {
     return {
@@ -23,6 +25,8 @@ export function legalDocumentsReviewCopy(mode: LegalDocumentsReviewMode): {
       buttonLabel: "Accept updated documents",
       nonOwnerDescription:
         "Your organization owner must accept these documents before new transactions can begin.",
+      emptyTitle: "No updated documents",
+      emptyDescription: "There are no legal documents waiting for your acceptance.",
     };
   }
 
@@ -32,6 +36,9 @@ export function legalDocumentsReviewCopy(mode: LegalDocumentsReviewMode): {
     buttonLabel: "Accept and Continue",
     nonOwnerDescription:
       "Your organization owner must accept these documents before onboarding can continue.",
+    emptyTitle: "Legal documents unavailable",
+    emptyDescription:
+      "Required legal documents have not been published yet. Onboarding cannot continue until an administrator publishes them. Please try again later or contact support.",
   };
 }
 

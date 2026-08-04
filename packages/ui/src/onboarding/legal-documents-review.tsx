@@ -20,6 +20,7 @@ import {
 import { Button } from "../components/button";
 import { toast } from "sonner";
 import {
+  LegalDocumentChecklistEmpty,
   LegalDocumentChecklistError,
   LegalDocumentChecklistLoading,
   LegalDocumentChecklistRows,
@@ -38,8 +39,6 @@ export interface LegalDocumentsReviewProps {
   apiUrl: string;
   mode: LegalDocumentsReviewMode;
   onComplete?: () => void;
-  /** Onboarding only: shown when no required published PDFs exist. */
-  fallback?: React.ReactNode;
   /** Re-acceptance only: called when there is nothing pending (e.g. redirect home). */
   onEmptyReacceptance?: () => void;
   /**
@@ -115,7 +114,6 @@ export function LegalDocumentsReview({
   apiUrl,
   mode,
   onComplete,
-  fallback,
   onEmptyReacceptance,
   embedInPageShell = false,
 }: LegalDocumentsReviewProps) {
@@ -344,7 +342,13 @@ export function LegalDocumentsReview({
   }
 
   if (mode === "onboarding" && emptyOnboarding) {
-    return <>{fallback}</>;
+    return (
+      <LegalDocumentChecklistEmpty
+        title={copy.emptyTitle}
+        description={copy.emptyDescription}
+        onRetry={() => void loadStatus()}
+      />
+    );
   }
 
   if (mode === "reacceptance" && docs.length === 0) {

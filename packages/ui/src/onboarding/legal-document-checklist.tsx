@@ -104,6 +104,35 @@ export function LegalDocumentChecklistError({
   );
 }
 
+/** Shown when onboarding has no published legal PDFs — never fall back to markdown T&Cs. */
+export function LegalDocumentChecklistEmpty({
+  title,
+  description,
+  onRetry,
+}: {
+  title: string;
+  description: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <LegalDocumentChecklistShell
+      title={title}
+      description={description}
+      footer={
+        onRetry ? (
+          <Button type="button" variant="outline" className="h-11 w-full rounded-xl" onClick={onRetry}>
+            Try again
+          </Button>
+        ) : undefined
+      }
+    >
+      <div className="px-6 py-8 text-[17px] leading-7 text-muted-foreground md:px-8">
+        You cannot continue until the required legal documents are available.
+      </div>
+    </LegalDocumentChecklistShell>
+  );
+}
+
 export function LegalDocumentChecklistRows({
   rows,
   disabled,

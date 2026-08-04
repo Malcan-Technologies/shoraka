@@ -8,7 +8,6 @@ export interface LegalDocumentsAcceptanceProps {
   portalType: PortalType;
   apiUrl: string;
   onAccepted?: () => void;
-  fallback?: React.ReactNode;
 }
 
 /** @deprecated Prefer LegalDocumentsReview with mode="onboarding". */
@@ -17,7 +16,6 @@ export function LegalDocumentsAcceptance({
   portalType,
   apiUrl,
   onAccepted,
-  fallback,
 }: LegalDocumentsAcceptanceProps) {
   return (
     <LegalDocumentsReview
@@ -26,7 +24,6 @@ export function LegalDocumentsAcceptance({
       apiUrl={apiUrl}
       mode="onboarding"
       onComplete={onAccepted}
-      fallback={fallback}
     />
   );
 }
