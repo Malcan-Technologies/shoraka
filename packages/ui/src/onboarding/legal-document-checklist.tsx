@@ -46,9 +46,9 @@ export function LegalDocumentChecklistShell({
   className?: string;
 }) {
   return (
-    <Card className={cn("w-full rounded-xl border bg-card shadow-sm", className)}>
+    <Card className={cn("w-full rounded-2xl border bg-card shadow-sm md:shadow", className)}>
       {title ? (
-        <CardHeader className="space-y-1.5 border-b px-5 py-5 md:px-6">
+        <CardHeader className="space-y-1.5 border-b px-6 py-6 md:px-8">
           <CardTitle className="text-xl font-semibold tracking-tight md:text-2xl">{title}</CardTitle>
           {description ? (
             <p className="text-[17px] leading-7 text-muted-foreground">{description}</p>
@@ -57,7 +57,7 @@ export function LegalDocumentChecklistShell({
       ) : null}
       <CardContent className="p-0">{children}</CardContent>
       {footer ? (
-        <CardFooter className="border-t px-5 py-4 md:px-6">{footer}</CardFooter>
+        <CardFooter className="border-t px-6 py-4 md:px-8">{footer}</CardFooter>
       ) : null}
     </Card>
   );
@@ -72,7 +72,7 @@ export function LegalDocumentChecklistLoading({
 }) {
   return (
     <LegalDocumentChecklistShell title={title} description={description}>
-      <div className="space-y-4 p-5 md:p-6">
+      <div className="space-y-4 p-6 md:p-8">
         <Skeleton className="h-20 w-full" />
         <Skeleton className="h-20 w-full" />
       </div>
@@ -99,7 +99,7 @@ export function LegalDocumentChecklistError({
         </Button>
       }
     >
-      <div className="px-5 py-5 text-[17px] leading-7 text-destructive md:px-6">{error}</div>
+      <div className="px-6 py-5 text-[17px] leading-7 text-destructive md:px-8">{error}</div>
     </LegalDocumentChecklistShell>
   );
 }
@@ -121,7 +121,7 @@ export function LegalDocumentChecklistRows({
         const checkboxId = `legal-checklist-${row.id}`;
         const helper = legalChecklistStatusLabel(row.status);
         return (
-          <li key={row.id} className="px-5 py-5 md:px-6">
+          <li key={row.id} className="px-6 py-5 md:px-8">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <h3 className="text-[17px] font-semibold leading-7 text-foreground">{row.title}</h3>
@@ -163,7 +163,7 @@ export function LegalDocumentChecklistRows({
 
                 <p
                   className={cn(
-                    "mt-2 text-sm",
+                    "mt-2 text-[13px] leading-5",
                     row.status === "accepted"
                       ? "inline-flex items-center gap-1.5 text-foreground"
                       : "text-muted-foreground"

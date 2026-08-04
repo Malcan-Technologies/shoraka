@@ -22,7 +22,7 @@ describe("legal document checklist UI", () => {
     expect(checklistSource).not.toContain("Open PDF");
     expect(checklistSource).not.toContain("Version {");
     expect(checklistSource).toContain("divide-y divide-border");
-    expect(checklistSource).toContain("rounded-xl border bg-card shadow-sm");
+    expect(checklistSource).toContain("rounded-2xl border bg-card shadow-sm");
   });
 
   it("keeps review flow on the shared checklist shell", () => {

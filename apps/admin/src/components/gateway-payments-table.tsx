@@ -109,14 +109,15 @@ export function GatewayPaymentsTable({
                 <p className="mt-1 text-[15px] leading-7 text-muted-foreground">{description}</p>
               </div>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={() => refetch()}
                 disabled={isFetching}
-                className="h-8 w-8 shrink-0 p-0"
+                className="h-11 gap-2 rounded-xl bg-card"
                 title="Refresh"
               >
                 <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+                Refresh
               </Button>
             </div>
 
@@ -126,7 +127,11 @@ export function GatewayPaymentsTable({
                   key={option.value}
                   size="sm"
                   variant={filter === option.value ? "default" : "outline"}
-                  className="h-11 rounded-xl"
+                  className={
+                    filter === option.value
+                      ? "h-11 rounded-xl"
+                      : "h-11 rounded-xl bg-card"
+                  }
                   onClick={() => setFilter(option.value)}
                 >
                   {option.label}
@@ -137,7 +142,9 @@ export function GatewayPaymentsTable({
               <Button
                 size="sm"
                 variant={gatewayAccount === "ALL" ? "default" : "outline"}
-                className="h-11 rounded-xl"
+                className={
+                  gatewayAccount === "ALL" ? "h-11 rounded-xl" : "h-11 rounded-xl bg-card"
+                }
                 onClick={() => setGatewayAccount("ALL")}
               >
                 All Accounts
@@ -147,7 +154,11 @@ export function GatewayPaymentsTable({
                   key={option.value}
                   size="sm"
                   variant={gatewayAccount === option.value ? "default" : "outline"}
-                  className="h-11 rounded-xl"
+                  className={
+                    gatewayAccount === option.value
+                      ? "h-11 rounded-xl"
+                      : "h-11 rounded-xl bg-card"
+                  }
                   onClick={() => setGatewayAccount(option.value)}
                 >
                   {option.label}

@@ -746,13 +746,13 @@ export default function LegalDocumentsPage() {
                   placeholder="Search by type…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-11 rounded-xl pl-9"
+                  className="h-11 rounded-xl bg-card pl-9"
                 />
               </div>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-11 gap-2 rounded-xl">
+                  <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
                     <FunnelIcon className="h-4 w-4" />
                     Status
                     {statusFilter !== "all" ? (
@@ -784,13 +784,16 @@ export default function LegalDocumentsPage() {
                 variant="outline"
                 onClick={() => invalidate()}
                 disabled={isLoading}
-                className="h-11 gap-2 rounded-xl"
+                className="h-11 gap-2 rounded-xl bg-card"
               >
                 <ArrowPathIcon className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
                 Reload
               </Button>
 
-              <Badge variant="secondary" className="h-11 rounded-xl px-4 text-sm">
+              <Badge
+                variant="secondary"
+                className="rounded-xl px-3 py-1 text-[13px] font-medium leading-5"
+              >
                 {totalCount} {totalCount === 1 ? "document" : "documents"}
               </Badge>
             </div>

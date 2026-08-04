@@ -370,7 +370,7 @@ export function LegalDocumentsReview({
       }
     >
       {embedInPageShell && !isOwner ? (
-        <p className="border-b px-5 py-4 text-[17px] leading-7 text-muted-foreground md:px-6">
+        <p className="border-b px-6 py-4 text-[17px] leading-7 text-muted-foreground md:px-8">
           {copy.nonOwnerDescription}
         </p>
       ) : null}
