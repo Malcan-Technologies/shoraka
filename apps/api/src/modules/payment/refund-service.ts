@@ -36,13 +36,13 @@ const REFUND_ELIGIBLE_STATUSES: ReadonlySet<GatewayPaymentStatus> = new Set([
 function refundReasonLabel(reason: AutoRefundReason): string {
   switch (reason) {
     case "NAME_MISMATCH":
-      return "Investor deposit auto-refund: payer name mismatch";
+      return "Auto refund: bank payer name does not match the investor profile.";
     case "NAME_UNAVAILABLE":
-      return "Investor deposit auto-refund: payer name unavailable";
+      return "Auto refund: bank did not return a payer name.";
     case "AMOUNT_MISMATCH":
-      return "Investor deposit auto-refund: captured amount mismatch";
+      return "Auto refund: paid amount does not match the expected amount.";
     case "ADMIN_INITIATED":
-      return "Investor deposit admin-initiated refund";
+      return "Admin started this refund.";
   }
 }
 

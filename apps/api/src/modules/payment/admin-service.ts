@@ -106,7 +106,7 @@ async function getInvestorDepositOrThrow(
     },
     include: {
       investor_organization: true,
-      events: { orderBy: { created_at: "asc" } },
+      events: { orderBy: { created_at: "desc" } },
     },
   });
 
@@ -125,7 +125,7 @@ async function getGatewayPaymentOrThrow(
     where: { id: gatewayPaymentId },
     include: {
       investor_organization: true,
-      events: { orderBy: { created_at: "asc" } },
+      events: { orderBy: { created_at: "desc" } },
       receipt: true,
     },
   });
@@ -401,7 +401,7 @@ export async function rejectNameCheck(
       actorUserId: actor.userId,
       fromStatus: GatewayPaymentStatus.NAME_CHECK_PENDING,
       toStatus: GatewayPaymentStatus.REFUND_INITIATED,
-      reason: "Admin rejected name check",
+      reason: "Admin rejected the name match. A refund was started.",
     });
   });
 
@@ -411,7 +411,7 @@ export async function rejectNameCheck(
       reason: "ADMIN_INITIATED",
       curlecPaymentId: payment.curlec_payment_id,
       actorUserId: actor.userId,
-      adminReason: "Admin rejected name check",
+      adminReason: "Admin rejected the name match. A refund was started.",
     },
     db
   );

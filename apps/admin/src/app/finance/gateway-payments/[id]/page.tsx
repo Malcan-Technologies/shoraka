@@ -9,6 +9,7 @@ import {
   ArrowLeftIcon,
   ArrowPathIcon,
   BanknotesIcon,
+  ClipboardDocumentCheckIcon,
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
@@ -27,7 +28,6 @@ import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
   getGatewayAccountBadgeClassName,
-  getGatewayAccountDescription,
   getGatewayAccountLabel,
 } from "@/lib/gateway-account";
 import {
@@ -42,9 +42,9 @@ import {
 import { cn } from "@/lib/utils";
 
 const RECEIPT_STATUS_LABEL: Record<string, string> = {
-  PENDING: "Preparing PDF",
+  PENDING: "Generating",
   GENERATED: "Ready",
-  FAILED: "PDF failed",
+  FAILED: "Failed",
   REFUNDED: "Refunded",
 };
 
@@ -56,13 +56,185 @@ function receiptStatusVariant(status: string) {
   return "outline" as const;
 }
 
-function formatEventType(type: string) {
+const EVENT_COPY: Record<string, { title: string; description: string }> = {
+  NAME_CHECK: {
+    title: "Name check needed",
+    description:
+      "Payment received, but the bank name could not be matched to the investor profile. Waiting for admin review.",
+  },
+  NAME_CHECK_APPROVED: {
+    title: "Name check approved",
+    description: "Admin confirmed the names match. Deposit was completed and credited.",
+  },
+  NAME_CHECK_REJECTED: {
+    title: "Name check rejected",
+    description: "Admin rejected the name match. A refund was started.",
+  },
+  CAPTURE_MISMATCH: {
+    title: "Amount mismatch",
+    description:
+      "The amount paid does not match what we expected. Payment was held for ops attention.",
+  },
+  EXPIRED: {
+    title: "Checkout expired",
+    description: "The payment link timed out before the customer finished paying.",
+  },
+  OVERRIDE_PROPOSED: {
+    title: "Status override proposed",
+    description: "An admin asked to manually change this payment’s status. Needs another admin to approve.",
+  },
+  OVERRIDE_APPROVED: {
+    title: "Status override approved",
+    description: "Another admin approved the manual status change.",
+  },
+  OVERRIDE_REJECTED: {
+    title: "Status override rejected",
+    description: "Another admin rejected the manual status change. No change was applied.",
+  },
+  REFUND_INITIATED: {
+    title: "Refund started",
+    description: "A refund was sent to Curlec. Waiting for the bank to confirm.",
+  },
+  REFUND_WALLET_REVERSAL_FAILED: {
+    title: "Wallet debit failed after refund",
+    description:
+      "Curlec refunded the money, but removing it from the investor wallet failed. Ops must fix the wallet.",
+  },
+  REFUNDED: {
+    title: "Refund completed",
+    description: "Curlec confirmed the refund. Money was returned to the payer.",
+  },
+};
+
+/** Known machine reason codes → plain English. */
+const REASON_COPY: Record<string, string> = {
+  AMOUNT_MISMATCH: "Paid amount does not match the expected amount.",
+  NAME_MISMATCH: "Bank payer name does not match the investor profile name.",
+  NAME_UNAVAILABLE: "Bank did not return a payer name.",
+  ADMIN_INITIATED: "An admin started this action.",
+};
+
+function looksLikeReasonCode(value: string) {
+  return /^[A-Z][A-Z0-9_]+$/.test(value.trim());
+}
+
+function formatEventTitle(type: string) {
+  if (EVENT_COPY[type]) return EVENT_COPY[type].title;
   return type
     .toLowerCase()
     .split("_")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 }
+
+function formatEventDescription(type: string, reason: string | null) {
+  if (reason) {
+    const trimmed = reason.trim();
+    const mapped = REASON_COPY[trimmed];
+    if (mapped) return mapped;
+    if (!looksLikeReasonCode(trimmed)) return trimmed;
+  }
+  return EVENT_COPY[type]?.description ?? null;
+}
+
+/** Temporary preview: every GatewayPaymentEventType label ops may see. */
+const PREVIEW_TIMELINE_EVENTS: Array<{
+  id: string;
+  type: string;
+  fromStatus: string | null;
+  toStatus: string | null;
+  reason: string | null;
+  createdAt: string;
+}> = [
+  {
+    id: "preview-refunded",
+    type: "REFUNDED",
+    fromStatus: "REFUND_INITIATED",
+    toStatus: "REFUNDED",
+    reason: null,
+    createdAt: "2026-08-03T10:30:00.000Z",
+  },
+  {
+    id: "preview-refund-wallet-failed",
+    type: "REFUND_WALLET_REVERSAL_FAILED",
+    fromStatus: "REFUND_INITIATED",
+    toStatus: "HELD",
+    reason: null,
+    createdAt: "2026-08-03T10:29:00.000Z",
+  },
+  {
+    id: "preview-refund-initiated",
+    type: "REFUND_INITIATED",
+    fromStatus: "COMPLETED",
+    toStatus: "REFUND_INITIATED",
+    reason: "ADMIN_INITIATED",
+    createdAt: "2026-08-03T10:28:00.000Z",
+  },
+  {
+    id: "preview-name-check-rejected",
+    type: "NAME_CHECK_REJECTED",
+    fromStatus: "NAME_CHECK_PENDING",
+    toStatus: "REFUND_INITIATED",
+    reason: null,
+    createdAt: "2026-08-03T10:27:00.000Z",
+  },
+  {
+    id: "preview-name-check-approved",
+    type: "NAME_CHECK_APPROVED",
+    fromStatus: "NAME_CHECK_PENDING",
+    toStatus: "COMPLETED",
+    reason: null,
+    createdAt: "2026-08-03T10:26:00.000Z",
+  },
+  {
+    id: "preview-name-check",
+    type: "NAME_CHECK",
+    fromStatus: "PAID",
+    toStatus: "NAME_CHECK_PENDING",
+    reason: "NAME_UNAVAILABLE",
+    createdAt: "2026-08-03T10:25:00.000Z",
+  },
+  {
+    id: "preview-capture-mismatch",
+    type: "CAPTURE_MISMATCH",
+    fromStatus: "PAID",
+    toStatus: "HELD",
+    reason: "AMOUNT_MISMATCH",
+    createdAt: "2026-08-03T10:24:00.000Z",
+  },
+  {
+    id: "preview-expired",
+    type: "EXPIRED",
+    fromStatus: "CREATED",
+    toStatus: "EXPIRED",
+    reason: null,
+    createdAt: "2026-08-03T10:23:00.000Z",
+  },
+  {
+    id: "preview-override-rejected",
+    type: "OVERRIDE_REJECTED",
+    fromStatus: null,
+    toStatus: null,
+    reason: null,
+    createdAt: "2026-08-03T10:22:00.000Z",
+  },
+  {
+    id: "preview-override-approved",
+    type: "OVERRIDE_APPROVED",
+    fromStatus: null,
+    toStatus: null,
+    reason: null,
+    createdAt: "2026-08-03T10:21:00.000Z",
+  },
+  {
+    id: "preview-override-proposed",
+    type: "OVERRIDE_PROPOSED",
+    fromStatus: null,
+    toStatus: null,
+    reason: null,
+    createdAt: "2026-08-03T10:20:00.000Z",
+  },
+];
 
 function formatStatusLabel(status: string | null | undefined) {
   if (!status) return null;
@@ -159,13 +331,20 @@ export default function GatewayPaymentDetailPage() {
     receiptPdf.isPending ||
     retryReceipt.isPending;
 
-  const showReviewNameCheck = payment?.status === "NAME_CHECK_PENDING";
-  const showRetryRefund = payment?.status === "HELD";
+  const FORCE_GATEWAY_ACTION_PREVIEWS = true;
+
+  const showReviewNameCheck =
+    FORCE_GATEWAY_ACTION_PREVIEWS || payment?.status === "NAME_CHECK_PENDING";
+  const showRetryRefund =
+    FORCE_GATEWAY_ACTION_PREVIEWS || payment?.status === "HELD";
   const showInitiateRefund =
-    payment?.status === "COMPLETED" && payment.purpose === "INVESTOR_DEPOSIT";
-  const hasOpsAction = Boolean(
-    showReviewNameCheck || showRetryRefund || showInitiateRefund
-  );
+    FORCE_GATEWAY_ACTION_PREVIEWS ||
+    (payment?.status === "COMPLETED" && payment.purpose === "INVESTOR_DEPOSIT");
+  const showNameCheckCard = showReviewNameCheck;
+  const showHeldRefundCard = showRetryRefund;
+  const timelineEvents = FORCE_GATEWAY_ACTION_PREVIEWS
+    ? PREVIEW_TIMELINE_EVENTS
+    : (payment?.events ?? []);
 
   const handleRetryRefund = async () => {
     if (!id) return;
@@ -248,10 +427,11 @@ export default function GatewayPaymentDetailPage() {
             size="sm"
             onClick={() => void refetch()}
             disabled={isFetching || isLoading}
-            className="h-8 w-8 p-0"
-            title="Refresh"
+            className="gap-1.5"
+            title="Reload this payment from the server"
           >
             <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+            Refresh
           </Button>
         </div>
 
@@ -316,105 +496,108 @@ export default function GatewayPaymentDetailPage() {
                   </CardContent>
                 </Card>
 
-                {/* Ops / lifecycle card — actions live here, like note lifecycle */}
-                <Card
-                  className={cn(
-                    "rounded-2xl",
-                    hasOpsAction &&
+                {showNameCheckCard ? (
+                  <Card
+                    className={cn(
+                      "rounded-2xl",
                       "border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]"
-                  )}
-                >
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-base">
-                      {showReviewNameCheck
-                        ? "Next action — name check"
-                        : showRetryRefund
-                          ? "Next action — retry refund"
-                          : showInitiateRefund
-                            ? "Available action — refund"
-                            : "Status"}
-                    </CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      {showReviewNameCheck
-                        ? "Compare expected vs FPX payer, then approve or reject."
-                        : showRetryRefund
-                          ? "Auto-refund did not finish. Retry the Curlec refund."
-                          : showInitiateRefund
-                            ? "Deposit is completed. Use only for post-credit corrections."
-                            : getGatewayAccountDescription(payment.gatewayAccount)}
-                    </p>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {showReviewNameCheck ? (
-                      <>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                            <p className="text-xs text-muted-foreground">Expected payer</p>
-                            <p className="mt-1 text-sm font-medium">
-                              {payment.expectedPayerName ?? "—"}
-                            </p>
-                          </div>
-                          <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                            <p className="text-xs text-muted-foreground">FPX payer name</p>
-                            <p className="mt-1 text-sm font-medium">
-                              {payment.payerName ?? "—"}
-                            </p>
-                          </div>
+                    )}
+                  >
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Next action — name check</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Manual review when the automatic name check could not approve this
+                        payment. Approve to credit the deposit, or reject to refund.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                          <p className="text-xs text-muted-foreground">Investor profile name</p>
+                          <p className="mt-1 text-sm font-medium">
+                            {payment.expectedPayerName ?? "—"}
+                          </p>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            onClick={() => void handleApproveNameCheck()}
-                            disabled={!canManage || isPending}
-                            title={disabledReason}
-                          >
-                            Approve name check
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            onClick={() => void handleRejectNameCheck()}
-                            disabled={!canManage || isPending}
-                            title={disabledReason}
-                          >
-                            Reject name check
-                          </Button>
+                        <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                          <p className="text-xs text-muted-foreground">FPX returned name</p>
+                          <p className="mt-1 text-sm font-medium">
+                            {payment.payerName ?? "—"}
+                          </p>
                         </div>
-                      </>
-                    ) : null}
-
-                    {showRetryRefund ? (
-                      <div className="flex flex-wrap items-center gap-3">
-                        {payment.refundNotes ? (
-                          <p className="text-sm text-muted-foreground">{payment.refundNotes}</p>
-                        ) : null}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
                         <Button
-                          variant="destructive"
-                          onClick={() => void handleRetryRefund()}
+                          onClick={() => void handleApproveNameCheck()}
                           disabled={!canManage || isPending}
                           title={disabledReason}
                         >
-                          Retry auto-refund
+                          Approve name check
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={() => void handleRejectNameCheck()}
+                          disabled={!canManage || isPending}
+                          title={disabledReason}
+                        >
+                          Reject name check
                         </Button>
                       </div>
-                    ) : null}
+                    </CardContent>
+                  </Card>
+                ) : null}
 
-                    {showInitiateRefund ? (
+                {showHeldRefundCard ? (
+                  <Card
+                    className={cn(
+                      "rounded-2xl",
+                      "border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]"
+                    )}
+                  >
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Next action — retry refund</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Auto-refund did not finish. Retry the Curlec refund.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {payment.refundNotes ? (
+                        <p className="text-sm text-muted-foreground">{payment.refundNotes}</p>
+                      ) : null}
                       <Button
                         variant="destructive"
-                        onClick={() => setShowRefundDialog(true)}
+                        onClick={() => void handleRetryRefund()}
                         disabled={!canManage || isPending}
                         title={disabledReason}
                       >
+                        Retry auto-refund
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : null}
+
+                {showInitiateRefund ? (
+                  <Card className="rounded-2xl">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Refund</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Initiate a Curlec refund for this completed investor deposit when a
+                        post-credit correction is required.
+                      </p>
+                    </CardHeader>
+                    <CardContent>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowRefundDialog(true)}
+                        disabled={!canManage || isPending}
+                        title={disabledReason}
+                        className="h-9 rounded-xl"
+                      >
                         Initiate refund
                       </Button>
-                    ) : null}
-
-                    {!hasOpsAction ? (
-                      <p className="text-sm text-muted-foreground">
-                        No admin action required for this payment right now.
-                      </p>
-                    ) : null}
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                ) : null}
 
                 {/* Main + side — same grid as note detail */}
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]">
@@ -423,7 +606,8 @@ export default function GatewayPaymentDetailPage() {
                       <CardHeader className="pb-3">
                         <CardTitle className="text-base">Payment details</CardTitle>
                         <p className="text-sm text-muted-foreground">
-                          Gateway identifiers and settlement references.
+                          For investor deposits, compare the investor profile name with the
+                          FPX returned name. Also shows Curlec references.
                         </p>
                       </CardHeader>
                       <CardContent>
@@ -431,11 +615,11 @@ export default function GatewayPaymentDetailPage() {
                           {!showReviewNameCheck ? (
                             <>
                               <DetailRow
-                                label="Expected payer"
+                                label="Investor profile name"
                                 value={payment.expectedPayerName ?? "—"}
                               />
                               <DetailRow
-                                label="FPX payer name"
+                                label="FPX returned name"
                                 value={payment.payerName ?? "—"}
                               />
                             </>
@@ -482,15 +666,140 @@ export default function GatewayPaymentDetailPage() {
                       </CardContent>
                     </Card>
 
+                    {FORCE_GATEWAY_ACTION_PREVIEWS ? (
+                      <>
+                        <Card className="rounded-2xl border-dashed">
+                          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-3">
+                            <div className="space-y-1">
+                              <CardTitle className="flex items-center gap-2 text-base">
+                                <DocumentTextIcon className="h-4 w-4 text-muted-foreground" />
+                                Receipt — not created
+                              </CardTitle>
+                              <p className="text-sm text-muted-foreground">
+                                Preview: before receipt exists.
+                              </p>
+                            </div>
+                            <Badge variant="outline">Not created</Badge>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="rounded-xl border border-dashed bg-muted/20 p-4">
+                              <p className="text-sm font-medium">No receipt yet</p>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                A receipt is created after this payment is successfully
+                                completed.
+                              </p>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        <Card className="rounded-2xl border-dashed">
+                          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-3">
+                            <div className="space-y-1">
+                              <CardTitle className="flex items-center gap-2 text-base">
+                                <DocumentTextIcon className="h-4 w-4 text-muted-foreground" />
+                                Receipt — failed
+                              </CardTitle>
+                              <p className="text-sm text-muted-foreground">
+                                Preview: receipt generation failed; admin can retry.
+                              </p>
+                            </div>
+                            <Badge variant={receiptStatusVariant("FAILED")}>
+                              {RECEIPT_STATUS_LABEL.FAILED}
+                            </Badge>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <dl className="space-y-2.5">
+                              <DetailRow label="Receipt number" value="RCP-PREVIEW-FAILED" mono />
+                              <DetailRow label="Receipt name" value="—" />
+                              <DetailRow label="Receipt company" value="—" />
+                              <DetailRow
+                                label="Payment date"
+                                value={formatDate(payment.createdAt)}
+                              />
+                            </dl>
+                            <div className="flex flex-wrap gap-2 border-t pt-4">
+                              <Button variant="outline" size="sm" disabled>
+                                View PDF
+                              </Button>
+                              <Button variant="outline" size="sm" disabled>
+                                Download PDF
+                              </Button>
+                              <Button size="sm" disabled={!canManage} title={disabledReason}>
+                                Retry
+                              </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Creating the receipt failed (error while building or uploading
+                              the file). Retry runs it again.
+                            </p>
+                          </CardContent>
+                        </Card>
+
+                        <Card className="rounded-2xl border-dashed">
+                          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-3">
+                            <div className="space-y-1">
+                              <CardTitle className="flex items-center gap-2 text-base">
+                                <DocumentTextIcon className="h-4 w-4 text-muted-foreground" />
+                                Receipt — preparing
+                              </CardTitle>
+                              <p className="text-sm text-muted-foreground">
+                                Preview: receipt is still generating.
+                              </p>
+                            </div>
+                            <Badge variant={receiptStatusVariant("PENDING")}>
+                              {RECEIPT_STATUS_LABEL.PENDING}
+                            </Badge>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <dl className="space-y-2.5">
+                              <DetailRow
+                                label="Receipt number"
+                                value="RCP-PREVIEW-PENDING"
+                                mono
+                              />
+                              <DetailRow label="Receipt name" value="—" />
+                              <DetailRow label="Receipt company" value="—" />
+                              <DetailRow
+                                label="Payment date"
+                                value={formatDate(payment.createdAt)}
+                              />
+                            </dl>
+                            <div className="flex flex-wrap gap-2 border-t pt-4">
+                              <Button variant="outline" size="sm" disabled>
+                                View PDF
+                              </Button>
+                              <Button variant="outline" size="sm" disabled>
+                                Download PDF
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={!canManage}
+                                title={disabledReason}
+                              >
+                                Retry
+                              </Button>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Receipt row exists; file is not ready yet. Usually finishes in
+                              the background. Retry if it stays like this.
+                            </p>
+                          </CardContent>
+                        </Card>
+                      </>
+                    ) : null}
+
                     <Card className="rounded-2xl">
                       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-3">
                         <div className="space-y-1">
                           <CardTitle className="flex items-center gap-2 text-base">
                             <DocumentTextIcon className="h-4 w-4 text-muted-foreground" />
                             Receipt
+                            {FORCE_GATEWAY_ACTION_PREVIEWS ? " — live" : ""}
                           </CardTitle>
                           <p className="text-sm text-muted-foreground">
-                            Official Cashsouk payment receipt for finance records.
+                            Names printed on the official receipt (may differ from bank
+                            name check fields above).
                           </p>
                         </div>
                         {payment.receipt ? (
@@ -520,12 +829,12 @@ export default function GatewayPaymentDetailPage() {
                                 mono
                               />
                               <DetailRow
-                                label="Payer / company"
-                                value={
-                                  payment.receipt.payerCompanyName ||
-                                  payment.receipt.payerName ||
-                                  "—"
-                                }
+                                label="Receipt name"
+                                value={payment.receipt.payerName || "—"}
+                              />
+                              <DetailRow
+                                label="Receipt company"
+                                value={payment.receipt.payerCompanyName || "—"}
                               />
                               <DetailRow
                                 label="Payment date"
@@ -562,19 +871,22 @@ export default function GatewayPaymentDetailPage() {
                                 payment.receipt.status === "FAILED") ? (
                                 <Button
                                   size="sm"
+                                  variant={
+                                    payment.receipt.status === "FAILED" ? "default" : "outline"
+                                  }
                                   onClick={() => void handleRetryReceipt()}
                                   disabled={isPending}
                                   title={disabledReason}
                                 >
-                                  Retry generation
+                                  Retry
                                 </Button>
                               ) : null}
                             </div>
                             {!payment.receipt.hasPdf ? (
                               <p className="text-xs text-muted-foreground">
                                 {payment.receipt.status === "FAILED"
-                                  ? "PDF generation failed."
-                                  : "PDF is still being prepared."}
+                                  ? "Creating the receipt failed (error while building or uploading the file). Retry runs it again."
+                                  : "Receipt row exists; file is not ready yet. Usually finishes in the background. Retry if it stays like this."}
                               </p>
                             ) : null}
                           </>
@@ -584,50 +896,76 @@ export default function GatewayPaymentDetailPage() {
                   </div>
 
                   <div className="min-w-0 space-y-6">
-                    <Card className="rounded-2xl">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="text-base">Event trail</CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                          Status changes and admin actions.
+                    <Card className="flex flex-col overflow-hidden rounded-2xl">
+                      <CardHeader className="shrink-0 pb-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <ClipboardDocumentCheckIcon className="h-5 w-5 text-muted-foreground" />
+                            <CardTitle className="text-base font-semibold">
+                              Activity Timeline
+                            </CardTitle>
+                          </div>
+                          {timelineEvents.length > 0 ? (
+                            <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                              {timelineEvents.length}
+                            </Badge>
+                          ) : null}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {FORCE_GATEWAY_ACTION_PREVIEWS
+                            ? "Preview: every gateway event type (newest first)"
+                            : "Status changes and admin actions for this payment"}
                         </p>
                       </CardHeader>
-                      <CardContent>
-                        {payment.events.length === 0 ? (
-                          <div className="rounded-xl border border-dashed bg-muted/20 p-4">
-                            <p className="text-sm text-muted-foreground">
-                              No events recorded yet.
-                            </p>
+                      <CardContent className="min-h-0 overflow-hidden !px-0">
+                        {timelineEvents.length === 0 ? (
+                          <div className="px-6 py-8 text-center text-sm text-muted-foreground">
+                            No activity logs found
                           </div>
                         ) : (
-                          <ol className="relative space-y-0 border-l border-border pl-4">
-                            {payment.events.map((event) => {
-                              const fromLabel = formatStatusLabel(event.fromStatus);
-                              const toLabel = formatStatusLabel(event.toStatus);
-                              return (
-                                <li key={event.id} className="relative pb-5 last:pb-0">
-                                  <span className="absolute -left-[1.2rem] top-1.5 h-2 w-2 rounded-full border-2 border-background bg-primary" />
-                                  <div className="space-y-0.5">
-                                    <p className="text-sm font-medium text-foreground">
-                                      {formatEventType(event.type)}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {formatDate(event.createdAt)}
-                                    </p>
-                                    {fromLabel && toLabel ? (
-                                      <p className="text-xs text-muted-foreground">
-                                        {fromLabel} → {toLabel}
-                                      </p>
-                                    ) : null}
-                                    {event.reason ? (
-                                      <p className="text-xs text-foreground/90">
-                                        {event.reason}
-                                      </p>
-                                    ) : null}
-                                  </div>
-                                </li>
-                              );
-                            })}
-                          </ol>
+                          <div className="px-6 pb-6">
+                            <div className="relative">
+                              <div className="absolute bottom-2 left-[5px] top-2 w-px bg-border" />
+                              <div className="space-y-5">
+                                {timelineEvents.map((event, index) => {
+                                  const fromLabel = formatStatusLabel(event.fromStatus);
+                                  const toLabel = formatStatusLabel(event.toStatus);
+                                  const description = formatEventDescription(
+                                    event.type,
+                                    event.reason
+                                  );
+                                  return (
+                                    <div key={event.id} className="relative flex gap-3 pl-0">
+                                      <div
+                                        className={cn(
+                                          "relative z-10 mt-1.5 h-[11px] w-[11px] shrink-0 rounded-full border-2 border-card bg-primary",
+                                          index === 0 && "ring-2 ring-primary/20"
+                                        )}
+                                      />
+                                      <div className="-mt-0.5 min-w-0 flex-1">
+                                        <p className="text-sm font-medium leading-tight text-foreground">
+                                          {formatEventTitle(event.type)}
+                                        </p>
+                                        <p className="mt-0.5 text-xs text-muted-foreground">
+                                          {formatDate(event.createdAt)}
+                                        </p>
+                                        {fromLabel && toLabel ? (
+                                          <p className="mt-1 text-xs text-muted-foreground">
+                                            {fromLabel} → {toLabel}
+                                          </p>
+                                        ) : null}
+                                        {description ? (
+                                          <p className="mt-1 text-xs leading-5 text-foreground/90">
+                                            {description}
+                                          </p>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
                         )}
                       </CardContent>
                     </Card>
