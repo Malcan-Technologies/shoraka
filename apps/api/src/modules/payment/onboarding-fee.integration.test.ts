@@ -1481,7 +1481,26 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     expect(held.status).not.toBe(GatewayPaymentStatus.COMPLETED);
     expect((held.metadata as Record<string, unknown>).captureMismatch).toMatchObject({
       mismatchType: "CURRENCY_MISMATCH",
+      reason: "Currency mismatch",
+      expectedCurrency: "MYR",
+      actualCurrency: "SGD",
     });
+    expect(held.status).not.toBe(GatewayPaymentStatus.COMPLETED);
+
+    const org = await prisma.issuerOrganization.findUniqueOrThrow({ where: { id: mismatchOrg.id } });
+    expect(org.onboarding_fee_paid_at).toBeNull();
+
+    const refundCalls = (createCurlecClient as jest.Mock).mock.results
+      .map((result) => result.value?.refundPayment)
+      .filter(Boolean);
+    for (const refundPayment of refundCalls) {
+      expect(refundPayment).not.toHaveBeenCalled();
+    }
+
+    const receiptCount = await prisma.gatewayPaymentReceipt.count({
+      where: { gateway_payment_id: created.id },
+    });
+    expect(receiptCount).toBe(0);
   });
 
   it("poll sync completes CREATED fee when Curlec has failed null-fee attempt plus captured payment", async () => {

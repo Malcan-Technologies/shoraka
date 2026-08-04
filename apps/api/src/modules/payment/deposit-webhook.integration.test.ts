@@ -535,6 +535,53 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
     expect(payment.name_check_result).toBe(NameCheckResult.FAIL);
   });
 
+  it("holds deposit on currency mismatch without wallet credit or refund", async () => {
+    if (!migrated) return;
+
+    mockFetchPayment.mockResolvedValue({
+      id: paymentId,
+      amount: 25000,
+      currency: "SGD",
+      status: "captured",
+      method: "fpx",
+      order_id: orderId,
+      acquirer_data: { account_holder_name: "Jane Doe" },
+    });
+
+    const response = await postWebhook(`evt_m5_currency_mismatch_${Date.now()}`, "Jane Doe");
+    expect(response.status).toBe(200);
+
+    const payment = await prisma.gatewayPayment.findUniqueOrThrow({
+      where: { id: gatewayPaymentId },
+    });
+    expect(payment.status).toBe(GatewayPaymentStatus.HELD);
+    expect(payment.metadata).toMatchObject({
+      captureMismatch: {
+        mismatchType: "CURRENCY_MISMATCH",
+        reason: "Currency mismatch",
+        expectedCurrency: "MYR",
+        actualCurrency: "SGD",
+      },
+    });
+    expect(mockRefundPayment).not.toHaveBeenCalled();
+
+    const balanceTxCount = await prisma.investorBalanceTransaction.count({
+      where: { investor_organization_id: orgId },
+    });
+    expect(balanceTxCount).toBe(0);
+
+    const receiptCount = await prisma.gatewayPaymentReceipt.count({
+      where: { gateway_payment_id: gatewayPaymentId },
+    });
+    expect(receiptCount).toBe(0);
+
+    const events = await prisma.gatewayPaymentEvent.findMany({
+      where: { gateway_payment_id: gatewayPaymentId },
+      orderBy: { created_at: "desc" },
+    });
+    expect(events[0]?.reason).toBe("Currency mismatch");
+  });
+
   it("credits only once under concurrent processing", async () => {
     if (!migrated) return;
 

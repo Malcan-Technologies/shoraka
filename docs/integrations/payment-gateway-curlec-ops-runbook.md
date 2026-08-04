@@ -67,11 +67,19 @@ For a mistakenly credited `COMPLETED` investor deposit, use **Initiate refund** 
 
 ## Issuer Fees
 
-Issuer onboarding and application processing fees have **no name check**. Successful captures go to `COMPLETED` with an `OPERATING_ACCOUNT` ledger credit. Same-currency **amount mismatch** on fees auto-refunds (same as deposits): `REFUND_INITIATED` → `REFUNDED`. Currency mismatch stays `HELD` for ops (not auto-refunded). Rejection of onboarding/application after a successful fee payment does not trigger a refund.
+Issuer onboarding and application processing fees have **no name check**. Successful captures go to `COMPLETED` with an `OPERATING_ACCOUNT` ledger credit.
 
-Fee orders are routed to the **Operating** Curlec merchant (`OPERATING`). Historical payments created before account separation were migrated to `OPERATING` because they were created under the Operating Curlec merchant account.
+Same-currency **amount mismatch** auto-refunds (same as deposits): `REFUND_INITIATED` → `REFUNDED`.
 
-If Curlec reports a captured fee but amount/currency/order/ownership validation fails, the payment is moved to `HELD` with `captureMismatch` metadata (never `COMPLETED`, never plain `FAILED`). A second fee order is blocked until finance resolves the held row. Escalate to engineering with the Gateway Payment ID and Curlec payment/order IDs from payment detail metadata/events.
+**Currency mismatch** (all three purposes — deposit, onboarding fee, processing fee):
+
+- status `HELD` / Admin label **Needs attention**
+- no auto-refund
+- no Admin **Retry refund**
+- no wallet credit / no fee-paid flag / no receipt
+- investigate manually outside the auto-refund button
+
+Rejection of onboarding/application after a successful fee payment does not trigger a refund.
 
 ## Account routing
 

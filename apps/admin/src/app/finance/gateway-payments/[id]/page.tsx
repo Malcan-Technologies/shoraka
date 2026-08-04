@@ -71,9 +71,9 @@ const EVENT_COPY: Record<string, { title: string; description: string }> = {
     description: "Admin rejected the name match. A refund was started.",
   },
   CAPTURE_MISMATCH: {
-    title: "Amount mismatch detected",
+    title: "Capture mismatch",
     description:
-      "Curlec captured a different amount than Cashsouk expected. An automatic full refund was started.",
+      "Curlec capture did not match Cashsouk expectations. See the status card for amount or currency details.",
   },
   EXPIRED: {
     title: "Checkout expired",
@@ -179,7 +179,13 @@ function senToDisplayMyr(sen: number) {
   return formatCurrency(sen / 100);
 }
 
-function formatEventTitle(type: string) {
+function formatEventTitle(type: string, reason?: string | null) {
+  if (type === "CAPTURE_MISMATCH" && reason === "Currency mismatch") {
+    return "Currency mismatch detected";
+  }
+  if (type === "CAPTURE_MISMATCH" && reason?.toLowerCase().includes("amount")) {
+    return "Amount mismatch detected";
+  }
   if (EVENT_COPY[type]) return EVENT_COPY[type].title;
   return type
     .toLowerCase()
@@ -189,6 +195,9 @@ function formatEventTitle(type: string) {
 }
 
 function formatEventDescription(type: string, reason: string | null) {
+  if (reason === "Currency mismatch") {
+    return "Curlec currency does not match Cashsouk. Payment was held for manual investigation. No auto-refund.";
+  }
   if (reason) {
     const trimmed = reason.trim();
     const mapped = REASON_COPY[trimmed];
@@ -691,9 +700,8 @@ export default function GatewayPaymentDetailPage() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Currency mismatch</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Curlec currency does not match Cashsouk. This stays in Needs attention
-                        and is not auto-refunded. Ops must handle outside the Admin refund
-                        button.
+                        Curlec currency does not match Cashsouk. Status: Needs attention.
+                        No auto-refund and no Retry refund — investigate manually.
                       </p>
                     </CardHeader>
                     <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -1168,7 +1176,7 @@ export default function GatewayPaymentDetailPage() {
                                       />
                                       <div className="-mt-0.5 min-w-0 flex-1">
                                         <p className="text-sm font-medium leading-tight text-foreground">
-                                          {formatEventTitle(event.type)}
+                                          {formatEventTitle(event.type, event.reason)}
                                         </p>
                                         <p className="mt-0.5 text-xs text-muted-foreground">
                                           {formatDate(event.createdAt)}

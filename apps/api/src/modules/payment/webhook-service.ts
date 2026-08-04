@@ -244,11 +244,12 @@ async function validateCapturedPayment(
 }
 
 /**
- * Issuer fee money was captured at Curlec but failed local validation.
+ * Money was captured at Curlec but failed local validation (e.g. currency mismatch).
  * Claim CREATED/EXPIRED → PAID, then move to HELD with auditable metadata.
- * Never COMPLETED or FAILED — FAILED would allow a second fee order.
+ * Never COMPLETED — and never auto-refund for currency mismatch.
+ * Works for deposits and issuer fees.
  */
-async function holdIssuerFeeCaptureMismatch(
+async function holdGatewayPaymentCaptureMismatch(
   db: PrismaClient,
   payment: GatewayPayment,
   input: {
@@ -301,6 +302,9 @@ async function holdIssuerFeeCaptureMismatch(
         ? claimed.metadata
         : {};
 
+    const reason =
+      input.mismatchType === "CURRENCY_MISMATCH" ? "Currency mismatch" : input.reason;
+
     await tx.gatewayPayment.update({
       where: { id: payment.id },
       data: {
@@ -310,11 +314,12 @@ async function holdIssuerFeeCaptureMismatch(
           ...baseMetadata,
           captureMismatch: {
             mismatchType: input.mismatchType,
-            reason: input.reason,
+            reason,
             gatewayPaymentId: payment.id,
             curlecOrderId: input.curlecOrderId ?? claimed.curlec_order_id,
             curlecPaymentId: input.curlecPaymentId ?? claimed.curlec_payment_id,
             gatewayAccount: claimed.gatewayAccount,
+            purpose: claimed.purpose,
             expectedSen: input.expectedSen ?? null,
             actualSen: input.actualSen ?? null,
             expectedCurrency: input.expectedCurrency ?? null,
@@ -330,12 +335,17 @@ async function holdIssuerFeeCaptureMismatch(
       type: GatewayPaymentEventType.CAPTURE_MISMATCH,
       fromStatus,
       toStatus: GatewayPaymentStatus.HELD,
-      reason: input.reason,
+      reason,
       metadata: {
         mismatchType: input.mismatchType,
         gatewayAccount: claimed.gatewayAccount,
+        purpose: claimed.purpose,
         curlecOrderId: input.curlecOrderId ?? claimed.curlec_order_id,
         curlecPaymentId: input.curlecPaymentId ?? claimed.curlec_payment_id,
+        expectedCurrency: input.expectedCurrency ?? null,
+        actualCurrency: input.actualCurrency ?? null,
+        expectedSen: input.expectedSen ?? null,
+        actualSen: input.actualSen ?? null,
       },
     });
   });
@@ -412,6 +422,25 @@ export async function processInvestorDepositCapture(
     routeGatewayAccount
   );
   if (!isCaptureValid.ok) {
+    if (isCaptureValid.mismatchType === "CURRENCY_MISMATCH") {
+      await holdGatewayPaymentCaptureMismatch(db, payment, {
+        mismatchType: isCaptureValid.mismatchType,
+        reason: isCaptureValid.reason,
+        curlecPaymentId: curlecPayment.id,
+        curlecOrderId: input.orderId,
+        expectedCurrency: isCaptureValid.expectedCurrency,
+        actualCurrency: isCaptureValid.actualCurrency,
+      });
+      logger.warn(
+        {
+          eventId: input.eventId,
+          gatewayPaymentId: payment.id,
+          expectedCurrency: isCaptureValid.expectedCurrency,
+          actualCurrency: isCaptureValid.actualCurrency,
+        },
+        "Investor deposit held due to Curlec currency mismatch"
+      );
+    }
     return;
   }
   const payerName = extractPayerNameFromPayment(curlecPayment);
@@ -767,7 +796,7 @@ export async function processOnboardingFeeCapture(
     routeGatewayAccount
   );
   if (!captureValidation.ok) {
-    await holdIssuerFeeCaptureMismatch(db, payment, {
+    await holdGatewayPaymentCaptureMismatch(db, payment, {
       mismatchType: captureValidation.mismatchType,
       reason: captureValidation.reason,
       curlecPaymentId: curlecPayment.id,
@@ -887,7 +916,7 @@ export async function processProcessingFeeCapture(
     routeGatewayAccount
   );
   if (!captureValidation.ok) {
-    await holdIssuerFeeCaptureMismatch(db, payment, {
+    await holdGatewayPaymentCaptureMismatch(db, payment, {
       mismatchType: captureValidation.mismatchType,
       reason: captureValidation.reason,
       curlecPaymentId: curlecPayment.id,

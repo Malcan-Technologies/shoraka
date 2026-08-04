@@ -834,4 +834,68 @@ describeIntegration("application processing fee (M9)", () => {
       service.resubmitApplication(resubmitApp.id, resubmitUser.user_id)
     ).resolves.toBeDefined();
   });
+
+  it("currency mismatch holds processing fee without completing or refunding", async () => {
+    if (!migrated) return;
+
+    await prisma.gatewayPayment.updateMany({
+      where: {
+        application_id: applicationId,
+        purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
+        status: GatewayPaymentStatus.COMPLETED,
+      },
+      data: { status: GatewayPaymentStatus.FAILED },
+    });
+
+    const created = await createApplicationProcessingFee({ userId }, applicationId, prisma);
+    createdPaymentIds.push(created.id);
+
+    const refundPayment = jest.fn();
+    (createCurlecClient as jest.Mock).mockReturnValueOnce({
+      createOrder: jest.fn(),
+      fetchPayment: jest.fn(async (paymentId: string) => ({
+        id: paymentId,
+        amount: 5000,
+        currency: "SGD",
+        status: "captured",
+        method: "fpx",
+        order_id: created.curlecOrderId,
+      })),
+      fetchOrderPayments: jest.fn(async () => []),
+      refundPayment,
+    });
+
+    await processProcessingFeeCapture(
+      {
+        orderId: created.curlecOrderId,
+        paymentId: `pay_processing_currency_${Date.now()}`,
+        eventId: `evt_processing_currency_${Date.now()}`,
+        routeGatewayAccount: "OPERATING",
+      },
+      prisma
+    );
+
+    const held = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+    expect(held.status).toBe(GatewayPaymentStatus.HELD);
+    expect((held.metadata as Record<string, unknown>).captureMismatch).toMatchObject({
+      mismatchType: "CURRENCY_MISMATCH",
+      reason: "Currency mismatch",
+      expectedCurrency: "MYR",
+      actualCurrency: "SGD",
+    });
+    expect(refundPayment).not.toHaveBeenCalled();
+
+    const paid = await prisma.gatewayPayment.findFirst({
+      where: {
+        id: created.id,
+        status: GatewayPaymentStatus.COMPLETED,
+      },
+    });
+    expect(paid).toBeNull();
+
+    const receiptCount = await prisma.gatewayPaymentReceipt.count({
+      where: { gateway_payment_id: created.id },
+    });
+    expect(receiptCount).toBe(0);
+  });
 });
