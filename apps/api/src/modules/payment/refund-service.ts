@@ -636,8 +636,11 @@ function normalizeCurlecRefundStatus(
 /**
  * Attach a Curlec refund id from refund.created (or recovery).
  * Keeps Curlec as source of truth — does not invent timeouts.
- * If the payment was HELD after a local API failure but Curlec did create the refund,
- * move back to REFUND_INITIATED (Refund pending).
+ *
+ * HELD → REFUND_INITIATED only for an allowlisted recoverable hold:
+ * local Curlec refund-create API failure (`metadata.autoRefundFailed`), where the
+ * remote refund may still have been created. Currency mismatch and wallet-reversal
+ * failure holds must stay HELD.
  */
 export async function adoptGatewayRefundCreated(
   payment: GatewayPayment,
@@ -655,40 +658,123 @@ export async function adoptGatewayRefundCreated(
         data: { refund_reference: input.refundId },
       });
     }
+    // Never overwrite an existing different refund reference.
     return GatewayPaymentStatus.REFUND_INITIATED;
   }
 
-  if (payment.status === GatewayPaymentStatus.HELD) {
-    await db.$transaction(async (tx) => {
-      const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-      if (current.status !== GatewayPaymentStatus.HELD) {
-        return;
-      }
-      assertTransition(current.status, GatewayPaymentStatus.REFUND_INITIATED);
-      await tx.gatewayPayment.update({
-        where: { id: payment.id },
-        data: {
-          status: GatewayPaymentStatus.REFUND_INITIATED,
-          refund_reference: input.refundId,
-        },
-      });
-      await recordGatewayPaymentEvent(tx, {
+  if (payment.status !== GatewayPaymentStatus.HELD) {
+    return payment.status;
+  }
+
+  const metadata = asMetadataObject(payment.metadata);
+
+  if (!isRecoverableRefundCreationHold(metadata)) {
+    logger.info(
+      {
         gatewayPaymentId: payment.id,
-        type: GatewayPaymentEventType.REFUND_INITIATED,
-        fromStatus: GatewayPaymentStatus.HELD,
-        toStatus: GatewayPaymentStatus.REFUND_INITIATED,
-        reason: "Curlec refund.created recovered pending refund",
-        metadata: {
-          refundId: input.refundId,
-          purpose: current.purpose,
-          source: "refund_created_webhook",
-        },
-      });
-    });
-    return GatewayPaymentStatus.REFUND_INITIATED;
+        purpose: payment.purpose,
+        refundId: input.refundId,
+        holdKind: describeHeldKind(metadata),
+      },
+      "refund.created ignored for non-recoverable HELD payment — status unchanged"
+    );
+    return GatewayPaymentStatus.HELD;
   }
 
-  return payment.status;
+  await db.$transaction(async (tx) => {
+    const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    if (current.status !== GatewayPaymentStatus.HELD) {
+      return;
+    }
+
+    const currentMeta = asMetadataObject(current.metadata);
+    if (!isRecoverableRefundCreationHold(currentMeta)) {
+      return;
+    }
+
+    // Do not overwrite a different existing refund reference.
+    if (current.refund_reference && current.refund_reference !== input.refundId) {
+      logger.warn(
+        {
+          gatewayPaymentId: current.id,
+          existingRefundReference: current.refund_reference,
+          incomingRefundId: input.refundId,
+        },
+        "refund.created ignored — existing refund_reference differs"
+      );
+      return;
+    }
+
+    assertTransition(current.status, GatewayPaymentStatus.REFUND_INITIATED);
+    await tx.gatewayPayment.update({
+      where: { id: payment.id },
+      data: {
+        status: GatewayPaymentStatus.REFUND_INITIATED,
+        refund_reference: current.refund_reference ?? input.refundId,
+      },
+    });
+    await recordGatewayPaymentEvent(tx, {
+      gatewayPaymentId: payment.id,
+      type: GatewayPaymentEventType.REFUND_INITIATED,
+      fromStatus: GatewayPaymentStatus.HELD,
+      toStatus: GatewayPaymentStatus.REFUND_INITIATED,
+      reason: "Curlec refund.created recovered pending refund",
+      metadata: {
+        refundId: input.refundId,
+        purpose: current.purpose,
+        source: "refund_created_webhook",
+        recoverableHold: "autoRefundFailed",
+      },
+    });
+  });
+
+  const refreshed = await db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+  return refreshed.status;
+}
+
+function asMetadataObject(metadata: GatewayPayment["metadata"]): Record<string, unknown> {
+  if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
+    return metadata as Record<string, unknown>;
+  }
+  return {};
+}
+
+/**
+ * Explicit allowlist: only holds caused by a failed/uncertain local refund-create call.
+ * Do not infer from free-text error messages.
+ */
+export function isRecoverableRefundCreationHold(metadata: Record<string, unknown>): boolean {
+  if ("refundConfirmedWalletReversalFailed" in metadata) {
+    return false;
+  }
+
+  const captureMismatch = metadata.captureMismatch as { mismatchType?: string } | undefined;
+  if (captureMismatch?.mismatchType === "CURRENCY_MISMATCH") {
+    return false;
+  }
+
+  // Structured marker written by markRefundHeldFallback when Curlec refund API throws.
+  return "autoRefundFailed" in metadata;
+}
+
+function describeHeldKind(metadata: Record<string, unknown>): string {
+  if ("refundConfirmedWalletReversalFailed" in metadata) {
+    return "wallet_reversal_failed";
+  }
+  const captureMismatch = metadata.captureMismatch as { mismatchType?: string } | undefined;
+  if (captureMismatch?.mismatchType === "CURRENCY_MISMATCH") {
+    return "currency_mismatch";
+  }
+  if ("autoRefundFailed" in metadata) {
+    return "auto_refund_failed";
+  }
+  if ("refundFailed" in metadata) {
+    return "refund_failed_webhook";
+  }
+  if (captureMismatch?.mismatchType) {
+    return `capture_mismatch:${captureMismatch.mismatchType}`;
+  }
+  return "unknown_held";
 }
 
 /**
