@@ -9,6 +9,7 @@ import { logger } from "../logger";
 import { recordGatewayPaymentEvent } from "../../modules/payment/gateway-events";
 import { assertTransition } from "../../modules/payment/state";
 import { syncGatewayPaymentFromCurlec } from "../../modules/payment/webhook-service";
+import { recoverHeldAmountMismatchRefunds } from "../../modules/payment/amount-mismatch-service";
 
 const STALE_CREATED_MINUTES = 60;
 const CRON_CORRELATION_ID = "cron:gateway-stuck-order-poller";
@@ -129,7 +130,24 @@ export async function runGatewayStuckOrderPollerJob(
     }
   }
 
-  if (result.scanned > 0) {
+  try {
+    const mismatchRecovery = await recoverHeldAmountMismatchRefunds(db, 50);
+    result.scanned += mismatchRecovery.scanned;
+    result.recovered += mismatchRecovery.recovered;
+    for (const err of mismatchRecovery.errors) {
+      result.errors.push({ gatewayPaymentId: err.id, error: err.error });
+    }
+  } catch (error) {
+    logger.error(
+      {
+        error: error instanceof Error ? error.message : String(error),
+        correlationId: CRON_CORRELATION_ID,
+      },
+      "Stuck-order poller failed recovering held amount-mismatch refunds"
+    );
+  }
+
+  if (result.scanned > 0 || result.errors.length > 0) {
     logger.info(
       {
         scanned: result.scanned,

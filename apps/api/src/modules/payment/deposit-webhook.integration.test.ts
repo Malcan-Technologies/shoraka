@@ -463,7 +463,10 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
         curlecPaymentId: paymentId,
       },
     });
-    expect(mockRefundPayment).toHaveBeenCalledTimes(1);
+    expect(mockRefundPayment).toHaveBeenCalledWith(
+      paymentId,
+      expect.objectContaining({ amountSen: 24999, idempotencyKey: gatewayPaymentId })
+    );
 
     const balanceTxCount = await prisma.investorBalanceTransaction.count({
       where: { investor_organization_id: orgId },

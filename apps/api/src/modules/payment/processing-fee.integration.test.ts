@@ -40,6 +40,12 @@ jest.mock("./curlec-client", () => {
         order_id: null,
       })),
       fetchOrderPayments: jest.fn(async () => []),
+      refundPayment: jest.fn(async () => ({
+        id: `rfnd_test_${Date.now()}`,
+        amount: 5000,
+        currency: "MYR",
+        status: "processed",
+      })),
     })),
   };
 });

@@ -16,7 +16,7 @@ import { debitInvestorBalanceForWithdrawal } from "../notes/investor-balance";
 import { postLedgerEntry } from "../notes/ledger";
 import { createCurlecClient } from "./curlec-client";
 import { recordGatewayPaymentEvent } from "./gateway-events";
-import { myrDecimalToSen } from "./money";
+import { myrDecimalToSen, senToMyrDecimal } from "./money";
 import { markGatewayPaymentReceiptRefunded } from "./receipt/receipt-service";
 import { assertTransition, TERMINAL_GATEWAY_STATUSES } from "./state";
 
@@ -95,26 +95,27 @@ async function markRefundHeldFallback(
   });
 }
 
-export async function initiateInvestorDepositRefund(
+export type InitiateGatewayRefundInput = {
+  reason: AutoRefundReason;
+  curlecPaymentId: string;
+  actorUserId?: string;
+  adminReason?: string;
+  nameCheckResult?: NameCheckResult | null;
+  claimFromCreated?: boolean;
+  /** Integer sen to refund. For amount mismatch must be the captured amount. */
+  amountSen?: number;
+};
+
+/**
+ * Request a Curlec refund for any gateway payment purpose.
+ * Idempotent via Curlec idempotency key = gateway payment id.
+ * On API failure → HELD (Needs attention). On success → REFUND_INITIATED (Refund pending).
+ */
+export async function initiateGatewayPaymentRefund(
   payment: GatewayPayment,
-  input: {
-    reason: AutoRefundReason;
-    curlecPaymentId: string;
-    actorUserId?: string;
-    adminReason?: string;
-    nameCheckResult?: NameCheckResult | null;
-    claimFromCreated?: boolean;
-  },
+  input: InitiateGatewayRefundInput,
   db: PrismaClient = defaultPrisma
 ): Promise<GatewayPaymentStatus> {
-  if (payment.purpose !== GatewayPaymentPurpose.INVESTOR_DEPOSIT) {
-    throw new AppError(
-      422,
-      "INVALID_GATEWAY_PAYMENT",
-      "Refunds are only supported for investor deposits"
-    );
-  }
-
   if (!REFUND_ELIGIBLE_STATUSES.has(payment.status)) {
     if (
       payment.status === GatewayPaymentStatus.REFUND_INITIATED ||
@@ -157,6 +158,17 @@ export async function initiateInvestorDepositRefund(
     );
   }
 
+  const refundAmountSen =
+    input.amountSen !== undefined ? input.amountSen : myrDecimalToSen(payment.amount);
+
+  if (!Number.isInteger(refundAmountSen) || refundAmountSen <= 0) {
+    throw new AppError(
+      422,
+      "INVALID_REFUND_AMOUNT",
+      "Refund amount must be a positive integer sen value"
+    );
+  }
+
   try {
     getCurlecConfig(payment.gatewayAccount);
   } catch {
@@ -170,14 +182,16 @@ export async function initiateInvestorDepositRefund(
   const curlecClient = createCurlecClient({ gatewayAccount: payment.gatewayAccount });
   const notes = input.adminReason?.trim() || refundReasonLabel(input.reason);
   const resolvedNameCheckResult =
-    input.nameCheckResult !== undefined
-      ? input.nameCheckResult
-      : nameCheckResultForReason(input.reason);
+    payment.purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT
+      ? input.nameCheckResult !== undefined
+        ? input.nameCheckResult
+        : nameCheckResultForReason(input.reason)
+      : null;
 
   let refund;
   try {
     refund = await curlecClient.refundPayment(input.curlecPaymentId, {
-      amountSen: myrDecimalToSen(payment.amount),
+      amountSen: refundAmountSen,
       idempotencyKey: payment.id,
       notes,
     });
@@ -187,11 +201,13 @@ export async function initiateInvestorDepositRefund(
       {
         gatewayPaymentId: payment.id,
         gatewayAccount: payment.gatewayAccount,
+        purpose: payment.purpose,
         curlecPaymentId: input.curlecPaymentId,
         reason: input.reason,
+        refundAmountSen,
         error: errorMessage,
       },
-      "Curlec auto-refund API call failed — deposit moved to HELD"
+      "Curlec refund API call failed — payment moved to HELD"
     );
 
     await db.$transaction(async (tx) => {
@@ -223,6 +239,11 @@ export async function initiateInvestorDepositRefund(
 
     assertTransition(current.status, GatewayPaymentStatus.REFUND_INITIATED);
 
+    const baseMetadata =
+      current.metadata && typeof current.metadata === "object" && !Array.isArray(current.metadata)
+        ? (current.metadata as Record<string, unknown>)
+        : {};
+
     await tx.gatewayPayment.update({
       where: { id: payment.id },
       data: {
@@ -232,6 +253,18 @@ export async function initiateInvestorDepositRefund(
         refund_notes: notes,
         name_check_result: resolvedNameCheckResult ?? current.name_check_result,
         name_check_at: resolvedNameCheckResult ? new Date() : current.name_check_at,
+        metadata: {
+          ...baseMetadata,
+          refundAttempt: {
+            amountSen: refundAmountSen,
+            currency: current.currency,
+            reason: input.reason,
+            auto: !input.actorUserId,
+            curlecRefundId: refund.id,
+            requestedAt: new Date().toISOString(),
+            source: input.actorUserId ? "admin_retry" : "automatic",
+          },
+        } as Prisma.InputJsonValue,
       },
     });
 
@@ -246,12 +279,31 @@ export async function initiateInvestorDepositRefund(
         auto: !input.actorUserId,
         refundId: refund.id,
         reason: input.reason,
-          gatewayAccount: payment.gatewayAccount,
+        gatewayAccount: payment.gatewayAccount,
+        purpose: payment.purpose,
+        amountSen: refundAmountSen,
+        source: input.actorUserId ? "admin_retry" : "automatic",
       },
     });
   });
 
   return GatewayPaymentStatus.REFUND_INITIATED;
+}
+
+/** @deprecated Prefer initiateGatewayPaymentRefund — kept for deposit call sites. */
+export async function initiateInvestorDepositRefund(
+  payment: GatewayPayment,
+  input: InitiateGatewayRefundInput,
+  db: PrismaClient = defaultPrisma
+): Promise<GatewayPaymentStatus> {
+  if (payment.purpose !== GatewayPaymentPurpose.INVESTOR_DEPOSIT) {
+    throw new AppError(
+      422,
+      "INVALID_GATEWAY_PAYMENT",
+      "initiateInvestorDepositRefund only supports investor deposits"
+    );
+  }
+  return initiateGatewayPaymentRefund(payment, input, db);
 }
 
 /**
@@ -317,7 +369,7 @@ async function holdForWalletReversalFailure(
   });
 }
 
-export async function completeInvestorDepositRefund(
+export async function completeGatewayPaymentRefund(
   payment: GatewayPayment,
   input: { refundId?: string; actorUserId?: string },
   db: PrismaClient = defaultPrisma
@@ -342,38 +394,43 @@ export async function completeInvestorDepositRefund(
 
       assertTransition(current.status, GatewayPaymentStatus.REFUNDED);
 
-      const hadPriorCredit = await tx.investorBalanceTransaction.findFirst({
-        where: {
-          investor_organization_id: current.investor_organization_id ?? undefined,
-          source: "GATEWAY_DEPOSIT",
-          idempotency_key: `gateway-deposit:balance:${current.id}`,
-        },
-      });
-
-      if (hadPriorCredit && current.investor_organization_id) {
-        const amount = current.amount.toNumber();
-        await debitInvestorBalanceForWithdrawal(tx, {
-          investorOrganizationId: current.investor_organization_id,
-          amount,
-          idempotencyKey: `gateway-deposit:refund:${current.id}`,
-          metadata: {
-            gatewayPaymentId: current.id,
-            refundReference: input.refundId ?? current.refund_reference,
+      if (
+        current.purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT &&
+        current.investor_organization_id
+      ) {
+        const hadPriorCredit = await tx.investorBalanceTransaction.findFirst({
+          where: {
+            investor_organization_id: current.investor_organization_id,
+            source: "GATEWAY_DEPOSIT",
+            idempotency_key: `gateway-deposit:balance:${current.id}`,
           },
         });
 
-        await postLedgerEntry(tx, {
-          accountCode: "INVESTOR_POOL",
-          direction: NoteLedgerDirection.DEBIT,
-          amount,
-          description: "Investor gateway deposit refunded from investor pool",
-          idempotencyKey: `gateway-deposit:refund-ledger:${current.id}`,
-          gatewayPaymentId: current.id,
-          metadata: {
+        if (hadPriorCredit) {
+          const amount = current.amount.toNumber();
+          await debitInvestorBalanceForWithdrawal(tx, {
+            investorOrganizationId: current.investor_organization_id,
+            amount,
+            idempotencyKey: `gateway-deposit:refund:${current.id}`,
+            metadata: {
+              gatewayPaymentId: current.id,
+              refundReference: input.refundId ?? current.refund_reference,
+            },
+          });
+
+          await postLedgerEntry(tx, {
+            accountCode: "INVESTOR_POOL",
+            direction: NoteLedgerDirection.DEBIT,
+            amount,
+            description: "Investor gateway deposit refunded from investor pool",
+            idempotencyKey: `gateway-deposit:refund-ledger:${current.id}`,
             gatewayPaymentId: current.id,
-            refundReference: input.refundId ?? current.refund_reference,
-          },
-        });
+            metadata: {
+              gatewayPaymentId: current.id,
+              refundReference: input.refundId ?? current.refund_reference,
+            },
+          });
+        }
       }
 
       await tx.gatewayPayment.update({
@@ -391,20 +448,38 @@ export async function completeInvestorDepositRefund(
         actorUserId: input.actorUserId,
         fromStatus: GatewayPaymentStatus.REFUND_INITIATED,
         toStatus: GatewayPaymentStatus.REFUNDED,
-        metadata: input.refundId ? { refundId: input.refundId } : undefined,
+        metadata: {
+          refundId: input.refundId ?? current.refund_reference,
+          purpose: current.purpose,
+        },
       });
     });
+
+    const metadata =
+      payment.metadata && typeof payment.metadata === "object" && !Array.isArray(payment.metadata)
+        ? (payment.metadata as Record<string, unknown>)
+        : {};
+    const attempt = metadata.refundAttempt as { amountSen?: number } | undefined;
+    const refundAmount =
+      typeof attempt?.amountSen === "number"
+        ? senToMyrDecimal(attempt.amountSen)
+        : payment.amount;
 
     await markGatewayPaymentReceiptRefunded(
       payment.id,
       {
         refundReference: input.refundId ?? payment.refund_reference,
-        refundAmount: payment.amount,
+        refundAmount,
         refundedAt: new Date(),
       },
       db
     );
   } catch (error) {
+    // Wallet reversal only applies to investor deposits that were credited.
+    if (payment.purpose !== GatewayPaymentPurpose.INVESTOR_DEPOSIT) {
+      throw error;
+    }
+
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorCode =
       error instanceof AppError
@@ -432,6 +507,15 @@ export async function completeInvestorDepositRefund(
       gatewayAccount: payment.gatewayAccount,
     });
   }
+}
+
+/** @deprecated Prefer completeGatewayPaymentRefund */
+export async function completeInvestorDepositRefund(
+  payment: GatewayPayment,
+  input: { refundId?: string; actorUserId?: string },
+  db: PrismaClient = defaultPrisma
+): Promise<void> {
+  return completeGatewayPaymentRefund(payment, input, db);
 }
 
 /**
@@ -486,13 +570,13 @@ export async function retryWalletReversalForConfirmedRefund(
   });
 
   const refreshed = await db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-  await completeInvestorDepositRefund(refreshed, { refundId, actorUserId: input.actorUserId }, db);
+  await completeGatewayPaymentRefund(refreshed, { refundId, actorUserId: input.actorUserId }, db);
 
   const final = await db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
   return final.status;
 }
 
-export async function failInvestorDepositRefund(
+export async function failGatewayPaymentRefund(
   payment: GatewayPayment,
   input: { refundId?: string; errorMessage?: string },
   db: PrismaClient = defaultPrisma
@@ -529,4 +613,13 @@ export async function failInvestorDepositRefund(
       },
     });
   });
+}
+
+/** @deprecated Prefer failGatewayPaymentRefund */
+export async function failInvestorDepositRefund(
+  payment: GatewayPayment,
+  input: { refundId?: string; errorMessage?: string },
+  db: PrismaClient = defaultPrisma
+): Promise<void> {
+  return failGatewayPaymentRefund(payment, input, db);
 }

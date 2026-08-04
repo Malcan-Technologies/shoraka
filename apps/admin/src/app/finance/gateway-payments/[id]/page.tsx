@@ -71,9 +71,9 @@ const EVENT_COPY: Record<string, { title: string; description: string }> = {
     description: "Admin rejected the name match. A refund was started.",
   },
   CAPTURE_MISMATCH: {
-    title: "Amount mismatch",
+    title: "Amount mismatch detected",
     description:
-      "The amount paid does not match what we expected. Payment was held for ops attention.",
+      "Curlec captured a different amount than Cashsouk expected. An automatic full refund was started.",
   },
   EXPIRED: {
     title: "Checkout expired",
@@ -92,8 +92,8 @@ const EVENT_COPY: Record<string, { title: string; description: string }> = {
     description: "Another admin rejected the manual status change. No change was applied.",
   },
   REFUND_INITIATED: {
-    title: "Refund started",
-    description: "A refund was sent to Curlec. Waiting for the bank to confirm.",
+    title: "Automatic refund requested",
+    description: "A full refund was sent to Curlec. Waiting for the bank to confirm.",
   },
   REFUND_WALLET_REVERSAL_FAILED: {
     title: "Wallet debit failed after refund",
@@ -116,6 +116,27 @@ const REASON_COPY: Record<string, string> = {
 
 function looksLikeReasonCode(value: string) {
   return /^[A-Z][A-Z0-9_]+$/.test(value.trim());
+}
+
+function readAmountMismatch(metadata: Record<string, unknown> | null | undefined) {
+  if (!metadata) return null;
+  const raw =
+    (metadata.amountMismatch as Record<string, unknown> | undefined) ??
+    (metadata.captureMismatch as Record<string, unknown> | undefined);
+  if (!raw) return null;
+  const expectedSen = raw.expectedSen;
+  const actualSen = raw.actualSen;
+  if (typeof expectedSen !== "number" || typeof actualSen !== "number") return null;
+  if (expectedSen === actualSen) return null;
+  return {
+    expectedSen,
+    actualSen,
+    curlecPaymentId: typeof raw.curlecPaymentId === "string" ? raw.curlecPaymentId : null,
+  };
+}
+
+function senToDisplayMyr(sen: number) {
+  return formatCurrency(sen / 100);
 }
 
 function formatEventTitle(type: string) {
@@ -331,10 +352,16 @@ export default function GatewayPaymentDetailPage() {
     receiptPdf.isPending ||
     retryReceipt.isPending;
 
-  const FORCE_GATEWAY_ACTION_PREVIEWS = true;
+  const FORCE_GATEWAY_ACTION_PREVIEWS = false;
+
+  const amountMismatch = readAmountMismatch(payment?.metadata ?? null);
 
   const showReviewNameCheck =
     FORCE_GATEWAY_ACTION_PREVIEWS || payment?.status === "NAME_CHECK_PENDING";
+  const showMismatchRefundPending =
+    Boolean(amountMismatch) && payment?.status === "REFUND_INITIATED";
+  const showMismatchRefunded =
+    Boolean(amountMismatch) && payment?.status === "REFUNDED";
   const showRetryRefund =
     FORCE_GATEWAY_ACTION_PREVIEWS || payment?.status === "HELD";
   const showInitiateRefund =
@@ -546,6 +573,85 @@ export default function GatewayPaymentDetailPage() {
                   </Card>
                 ) : null}
 
+                {showMismatchRefundPending && amountMismatch ? (
+                  <Card
+                    className={cn(
+                      "rounded-2xl",
+                      "border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]"
+                    )}
+                  >
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Amount mismatch</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        An automatic full refund has been requested. Status: Refund pending.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                        <p className="text-xs text-muted-foreground">Expected amount</p>
+                        <p className="mt-1 text-sm font-medium">
+                          {senToDisplayMyr(amountMismatch.expectedSen)}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                        <p className="text-xs text-muted-foreground">Captured amount</p>
+                        <p className="mt-1 text-sm font-medium">
+                          {senToDisplayMyr(amountMismatch.actualSen)}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                        <p className="text-xs text-muted-foreground">Refund amount</p>
+                        <p className="mt-1 text-sm font-medium">
+                          {senToDisplayMyr(amountMismatch.actualSen)}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                        <p className="text-xs text-muted-foreground">Curlec refund ID</p>
+                        <p className="mt-1 break-all text-sm font-medium">
+                          {payment.refundReference ?? "—"}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : null}
+
+                {showMismatchRefunded && amountMismatch ? (
+                  <Card className="rounded-2xl">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Refunded</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        The full captured amount was refunded automatically.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                        <p className="text-xs text-muted-foreground">Expected amount</p>
+                        <p className="mt-1 text-sm font-medium">
+                          {senToDisplayMyr(amountMismatch.expectedSen)}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                        <p className="text-xs text-muted-foreground">Captured / refunded</p>
+                        <p className="mt-1 text-sm font-medium">
+                          {senToDisplayMyr(amountMismatch.actualSen)}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                        <p className="text-xs text-muted-foreground">Curlec refund ID</p>
+                        <p className="mt-1 break-all text-sm font-medium">
+                          {payment.refundReference ?? "—"}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                        <p className="text-xs text-muted-foreground">Refund date</p>
+                        <p className="mt-1 text-sm font-medium">
+                          {payment.refundedAt ? formatDate(payment.refundedAt) : "—"}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : null}
+
                 {showHeldRefundCard ? (
                   <Card
                     className={cn(
@@ -554,12 +660,32 @@ export default function GatewayPaymentDetailPage() {
                     )}
                   >
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Next action — retry refund</CardTitle>
+                      <CardTitle className="text-base">
+                        {amountMismatch ? "Refund needs attention" : "Next action — retry refund"}
+                      </CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Auto-refund did not finish. Retry the Curlec refund.
+                        {amountMismatch
+                          ? "The automatic refund could not be completed. Retry only if Curlec has not already refunded."
+                          : "Auto-refund did not finish. Retry the Curlec refund."}
                       </p>
                     </CardHeader>
                     <CardContent className="space-y-4">
+                      {amountMismatch ? (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                            <p className="text-xs text-muted-foreground">Expected amount</p>
+                            <p className="mt-1 text-sm font-medium">
+                              {senToDisplayMyr(amountMismatch.expectedSen)}
+                            </p>
+                          </div>
+                          <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                            <p className="text-xs text-muted-foreground">Captured amount</p>
+                            <p className="mt-1 text-sm font-medium">
+                              {senToDisplayMyr(amountMismatch.actualSen)}
+                            </p>
+                          </div>
+                        </div>
+                      ) : null}
                       {payment.refundNotes ? (
                         <p className="text-sm text-muted-foreground">{payment.refundNotes}</p>
                       ) : null}
@@ -569,7 +695,7 @@ export default function GatewayPaymentDetailPage() {
                         disabled={!canManage || isPending}
                         title={disabledReason}
                       >
-                        Retry auto-refund
+                        Retry refund
                       </Button>
                     </CardContent>
                   </Card>

@@ -40,6 +40,12 @@ jest.mock("./curlec-client", () => {
         order_id: null,
       })),
       fetchOrderPayments: jest.fn(async () => []),
+      refundPayment: jest.fn(async () => ({
+        id: `rfnd_test_${Date.now()}`,
+        amount: 15000,
+        currency: "MYR",
+        status: "processed",
+      })),
     })),
   };
 });
@@ -1168,7 +1174,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     ).rejects.toMatchObject({ statusCode: 402, code: "ONBOARDING_FEE_REQUIRED" });
   });
 
-  it("CREATED amount mismatch moves fee to HELD and blocks a second order", async () => {
+  it("CREATED amount mismatch auto-refunds and blocks a second order while pending", async () => {
     if (!migrated) return;
 
     const suffix = `${Date.now()}`.slice(-4);
@@ -1203,6 +1209,13 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     );
     createdPaymentIds.push(created.id);
 
+    const refundPayment = jest.fn(async () => ({
+      id: `rfnd_mismatch_${Date.now()}`,
+      amount: 99999,
+      currency: "MYR",
+      status: "processed",
+    }));
+
     (createCurlecClient as jest.Mock).mockReturnValueOnce({
       createOrder: jest.fn(),
       fetchPayment: jest.fn(async (paymentId: string) => ({
@@ -1214,6 +1227,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
         order_id: created.curlecOrderId,
       })),
       fetchOrderPayments: jest.fn(async () => []),
+      refundPayment,
     });
 
     await processOnboardingFeeCapture(
@@ -1226,11 +1240,20 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       prisma
     );
 
-    const held = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
-    expect(held.status).toBe(GatewayPaymentStatus.HELD);
-    expect(held.gatewayAccount).toBe("OPERATING");
-    const metadata = held.metadata as Record<string, unknown>;
+    const refunding = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+    expect(refunding.status).toBe(GatewayPaymentStatus.REFUND_INITIATED);
+    expect(refunding.gatewayAccount).toBe("OPERATING");
+    const metadata = refunding.metadata as Record<string, unknown>;
     expect(metadata.captureMismatch).toMatchObject({ mismatchType: "AMOUNT_MISMATCH" });
+    expect(metadata.amountMismatch).toMatchObject({
+      expectedSen: expect.any(Number),
+      actualSen: 99999,
+    });
+    expect((metadata.amountMismatch as { expectedSen: number }).expectedSen).not.toBe(99999);
+    expect(refundPayment).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ amountSen: 99999, idempotencyKey: created.id })
+    );
 
     const status = await getIssuerOnboardingFeeStatus(
       { userId: mismatchUser.user_id },
@@ -1249,7 +1272,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     ).rejects.toMatchObject({ code: "ONBOARDING_FEE_CAPTURE_MISMATCH_HELD" });
   });
 
-  it("EXPIRED late-capture amount mismatch moves fee to HELD", async () => {
+  it("EXPIRED late-capture amount mismatch auto-refunds", async () => {
     if (!migrated) return;
 
     const suffix = `${Date.now()}`.slice(-4);
@@ -1289,6 +1312,13 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       data: { status: GatewayPaymentStatus.EXPIRED },
     });
 
+    const refundPayment = jest.fn(async () => ({
+      id: `rfnd_expired_mismatch_${Date.now()}`,
+      amount: 11111,
+      currency: "MYR",
+      status: "processed",
+    }));
+
     (createCurlecClient as jest.Mock).mockReturnValueOnce({
       createOrder: jest.fn(),
       fetchPayment: jest.fn(async (paymentId: string) => ({
@@ -1300,6 +1330,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
         order_id: created.curlecOrderId,
       })),
       fetchOrderPayments: jest.fn(async () => []),
+      refundPayment,
     });
 
     await processOnboardingFeeCapture(
@@ -1312,9 +1343,79 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       prisma
     );
 
-    const held = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
-    expect(held.status).toBe(GatewayPaymentStatus.HELD);
-    expect((held.metadata as Record<string, unknown>).captureMismatch).toBeTruthy();
+    const refunding = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+    expect(refunding.status).toBe(GatewayPaymentStatus.REFUND_INITIATED);
+    expect((refunding.metadata as Record<string, unknown>).captureMismatch).toBeTruthy();
+    expect(refundPayment).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ amountSen: 11111 })
+    );
+  });
+
+  it("REFUNDED amount-mismatch payment allows a new onboarding fee order", async () => {
+    if (!migrated) return;
+
+    const suffix = `${Date.now()}`.slice(-4);
+    const user = await prisma.user.create({
+      data: {
+        user_id: `R${suffix}`.slice(0, 5),
+        email: `refunded-mismatch-${Date.now()}@example.com`,
+        cognito_sub: `sub-refunded-mismatch-${Date.now()}`,
+        cognito_username: `refunded-mismatch-${Date.now()}`,
+        first_name: "Refunded",
+        last_name: "Issuer",
+        roles: [UserRole.ISSUER],
+        issuer_account: ["COMPANY"],
+      },
+    });
+    createdUserIds.push(user.user_id);
+
+    const org = await prisma.issuerOrganization.create({
+      data: {
+        owner_user_id: user.user_id,
+        type: OrganizationType.COMPANY,
+        name: "Refunded Mismatch Corp",
+        tnc_accepted: true,
+      },
+    });
+    createdOrgIds.push(org.id);
+
+    const first = await createIssuerOnboardingFee(
+      { userId: user.user_id },
+      { issuerOrganizationId: org.id },
+      prisma
+    );
+    createdPaymentIds.push(first.id);
+
+    await prisma.gatewayPayment.update({
+      where: { id: first.id },
+      data: {
+        status: GatewayPaymentStatus.REFUNDED,
+        refunded_at: new Date(),
+        refund_reference: `rfnd_done_${Date.now()}`,
+        metadata: {
+          amountMismatch: {
+            mismatchType: "AMOUNT_MISMATCH",
+            expectedSen: 15000,
+            actualSen: 99999,
+          },
+          captureMismatch: {
+            mismatchType: "AMOUNT_MISMATCH",
+            expectedSen: 15000,
+            actualSen: 99999,
+          },
+        },
+      },
+    });
+
+    const second = await createIssuerOnboardingFee(
+      { userId: user.user_id },
+      { issuerOrganizationId: org.id },
+      prisma
+    );
+    createdPaymentIds.push(second.id);
+    expect(second.id).not.toBe(first.id);
+    expect(second.status).toBe(GatewayPaymentStatus.CREATED);
   });
 
   it("currency mismatch holds issuer fee without completing", async () => {

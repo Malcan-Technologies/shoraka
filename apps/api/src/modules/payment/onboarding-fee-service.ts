@@ -60,7 +60,7 @@ async function findExistingOnboardingFeePayment(
   });
 }
 
-async function findHeldCaptureMismatchOnboardingFee(
+async function findBlockingOnboardingFeePayment(
   db: PrismaClient | Prisma.TransactionClient,
   issuerOrganizationId: string
 ) {
@@ -68,7 +68,9 @@ async function findHeldCaptureMismatchOnboardingFee(
     where: {
       purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
       issuer_organization_id: issuerOrganizationId,
-      status: GatewayPaymentStatus.HELD,
+      status: {
+        in: [GatewayPaymentStatus.HELD, GatewayPaymentStatus.REFUND_INITIATED],
+      },
     },
     orderBy: { created_at: "desc" },
   });
@@ -111,13 +113,15 @@ export async function createIssuerOnboardingFee(
       }
     }
 
-    const heldMismatch = await findHeldCaptureMismatchOnboardingFee(tx, input.issuerOrganizationId);
-    if (heldMismatch) {
+    const blocking = await findBlockingOnboardingFeePayment(tx, input.issuerOrganizationId);
+    if (blocking) {
       throw new AppError(
         409,
         "ONBOARDING_FEE_CAPTURE_MISMATCH_HELD",
-        "A captured onboarding fee payment is under review. Do not create another payment order.",
-        { gatewayPaymentId: heldMismatch.id, status: heldMismatch.status }
+        blocking.status === GatewayPaymentStatus.REFUND_INITIATED
+          ? "A mismatched onboarding fee refund is still pending. Do not create another payment order."
+          : "A captured onboarding fee payment needs attention. Do not create another payment order.",
+        { gatewayPaymentId: blocking.id, status: blocking.status }
       );
     }
 
@@ -188,6 +192,8 @@ export async function getIssuerOnboardingFeeStatus(
     amount,
     latestPayment: latest ? mapGatewayPaymentResponse(latest) : null,
     isPaid: Boolean(issuerOrg.onboarding_fee_paid_at),
-    isUnderReview: latest?.status === GatewayPaymentStatus.HELD,
+    isUnderReview:
+      latest?.status === GatewayPaymentStatus.HELD ||
+      latest?.status === GatewayPaymentStatus.REFUND_INITIATED,
   };
 }

@@ -33,7 +33,7 @@ const STATUS_LABEL: Record<string, string> = {
   NAME_CHECK_PENDING: "Name check pending",
   COMPLETED: "Completed",
   HELD: "Needs attention",
-  REFUND_INITIATED: "Refunding",
+  REFUND_INITIATED: "Refund pending",
   REFUNDED: "Refunded",
   FAILED: "Failed",
   EXPIRED: "Expired",
@@ -49,7 +49,7 @@ const FILTER_OPTIONS = [
   { value: "all", label: "All" },
   { value: "completed", label: "Completed" },
   { value: "review", label: "Review" },
-  { value: "refunding", label: "Refunding" },
+  { value: "refunding", label: "Refund pending" },
   { value: "refunded", label: "Refunded" },
   { value: "needs_attention", label: "Needs attention" },
 ] as const;

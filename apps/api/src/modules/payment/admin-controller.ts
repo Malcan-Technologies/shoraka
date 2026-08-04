@@ -14,7 +14,7 @@ import {
   initiateCompletedDepositRefund,
   listGatewayPayments,
   rejectNameCheck,
-  retryHeldDepositRefund,
+  retryHeldGatewayPaymentRefund,
 } from "./admin-service";
 import {
   gatewayPaymentReceiptIdParamSchema,
@@ -161,7 +161,7 @@ gatewayPaymentsAdminRouter.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = gatewayPaymentIdParamSchema.parse(req.params);
-      send(res, await retryHeldDepositRefund(getActor(req, res), id));
+      send(res, await retryHeldGatewayPaymentRefund(getActor(req, res), id));
     } catch (error) {
       next(error);
     }

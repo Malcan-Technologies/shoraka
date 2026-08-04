@@ -15,6 +15,7 @@ import {
 import { recordGatewayPaymentEvent, mapGatewayPaymentEvent } from "./gateway-events";
 import { ListGatewayPaymentsQuery } from "./admin-schemas";
 import {
+  initiateGatewayPaymentRefund,
   initiateInvestorDepositRefund,
   retryWalletReversalForConfirmedRefund,
 } from "./refund-service";
@@ -250,12 +251,12 @@ export async function getGatewayPaymentDetail(
   };
 }
 
-export async function retryHeldDepositRefund(
+export async function retryHeldGatewayPaymentRefund(
   actor: AdminActorContext,
   gatewayPaymentId: string,
   db: PrismaClient = defaultPrisma
 ) {
-  const payment = await getInvestorDepositOrThrow(db, gatewayPaymentId);
+  const payment = await getGatewayPaymentOrThrow(db, gatewayPaymentId);
 
   if (payment.status !== GatewayPaymentStatus.HELD) {
     throw new AppError(
@@ -270,8 +271,11 @@ export async function retryHeldDepositRefund(
       ? (payment.metadata as Record<string, unknown>)
       : {};
 
-  // Remote refund already confirmed — retry local wallet debit only.
-  if ("refundConfirmedWalletReversalFailed" in metadata) {
+  // Remote refund already confirmed — retry local wallet debit only (deposits).
+  if (
+    payment.purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT &&
+    "refundConfirmedWalletReversalFailed" in metadata
+  ) {
     await retryWalletReversalForConfirmedRefund(payment, { actorUserId: actor.userId }, db);
     return getGatewayPaymentDetail(gatewayPaymentId, db);
   }
@@ -284,18 +288,36 @@ export async function retryHeldDepositRefund(
     );
   }
 
-  await initiateInvestorDepositRefund(
+  const mismatch =
+    (metadata.amountMismatch as { actualSen?: number } | undefined) ??
+    (metadata.captureMismatch as { actualSen?: number } | undefined);
+  const amountSen =
+    typeof mismatch?.actualSen === "number" && Number.isInteger(mismatch.actualSen)
+      ? mismatch.actualSen
+      : undefined;
+
+  await initiateGatewayPaymentRefund(
     payment,
     {
       reason: "ADMIN_INITIATED",
       curlecPaymentId: payment.curlec_payment_id,
       actorUserId: actor.userId,
-      adminReason: "Admin retry refund for held deposit",
+      adminReason: "Admin retry refund for held payment",
+      amountSen,
     },
     db
   );
 
   return getGatewayPaymentDetail(gatewayPaymentId, db);
+}
+
+/** @deprecated Prefer retryHeldGatewayPaymentRefund */
+export async function retryHeldDepositRefund(
+  actor: AdminActorContext,
+  gatewayPaymentId: string,
+  db: PrismaClient = defaultPrisma
+) {
+  return retryHeldGatewayPaymentRefund(actor, gatewayPaymentId, db);
 }
 
 export async function initiateCompletedDepositRefund(
