@@ -112,6 +112,8 @@ const REASON_COPY: Record<string, string> = {
   NAME_MISMATCH: "Bank payer name does not match the investor profile name.",
   NAME_UNAVAILABLE: "Bank did not return a payer name.",
   ADMIN_INITIATED: "An admin started this action.",
+  "Curlec captured currency does not match internal payment currency":
+    "Currency mismatch detected. Payment was held for ops attention.",
 };
 
 function looksLikeReasonCode(value: string) {
@@ -124,6 +126,7 @@ function readAmountMismatch(metadata: Record<string, unknown> | null | undefined
     (metadata.amountMismatch as Record<string, unknown> | undefined) ??
     (metadata.captureMismatch as Record<string, unknown> | undefined);
   if (!raw) return null;
+  if (raw.mismatchType === "CURRENCY_MISMATCH") return null;
   const expectedSen = raw.expectedSen;
   const actualSen = raw.actualSen;
   if (typeof expectedSen !== "number" || typeof actualSen !== "number") return null;
@@ -133,6 +136,43 @@ function readAmountMismatch(metadata: Record<string, unknown> | null | undefined
     actualSen,
     curlecPaymentId: typeof raw.curlecPaymentId === "string" ? raw.curlecPaymentId : null,
   };
+}
+
+function readCurrencyMismatch(metadata: Record<string, unknown> | null | undefined) {
+  if (!metadata) return null;
+  const raw = metadata.captureMismatch as Record<string, unknown> | undefined;
+  if (!raw || raw.mismatchType !== "CURRENCY_MISMATCH") return null;
+  return {
+    expectedCurrency:
+      typeof raw.expectedCurrency === "string" ? raw.expectedCurrency : null,
+    actualCurrency: typeof raw.actualCurrency === "string" ? raw.actualCurrency : null,
+    reason: typeof raw.reason === "string" ? raw.reason : null,
+  };
+}
+
+function readRefundRequestedAt(
+  payment: {
+    metadata: Record<string, unknown> | null;
+    events?: Array<{ type: string; createdAt: string }>;
+  } | null
+) {
+  if (!payment) return null;
+  const attempt = payment.metadata?.refundAttempt as { requestedAt?: string } | undefined;
+  if (typeof attempt?.requestedAt === "string") return attempt.requestedAt;
+  const event = payment.events?.find((item) => item.type === "REFUND_INITIATED");
+  return event?.createdAt ?? null;
+}
+
+function formatPendingDuration(fromIso: string) {
+  const start = new Date(fromIso).getTime();
+  if (!Number.isFinite(start)) return null;
+  const minutes = Math.max(0, Math.floor((Date.now() - start) / 60_000));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rem = minutes % 60;
+  if (hours < 48) return rem === 0 ? `${hours} hr` : `${hours} hr ${rem} min`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"}`;
 }
 
 function senToDisplayMyr(sen: number) {
@@ -355,6 +395,18 @@ export default function GatewayPaymentDetailPage() {
   const FORCE_GATEWAY_ACTION_PREVIEWS = false;
 
   const amountMismatch = readAmountMismatch(payment?.metadata ?? null);
+  const currencyMismatch = readCurrencyMismatch(payment?.metadata ?? null);
+  const refundRequestedAt = readRefundRequestedAt(
+    payment
+      ? {
+          metadata: payment.metadata,
+          events: payment.events,
+        }
+      : null
+  );
+  const pendingDuration = refundRequestedAt
+    ? formatPendingDuration(refundRequestedAt)
+    : null;
 
   const showReviewNameCheck =
     FORCE_GATEWAY_ACTION_PREVIEWS || payment?.status === "NAME_CHECK_PENDING";
@@ -362,8 +414,11 @@ export default function GatewayPaymentDetailPage() {
     Boolean(amountMismatch) && payment?.status === "REFUND_INITIATED";
   const showMismatchRefunded =
     Boolean(amountMismatch) && payment?.status === "REFUNDED";
+  const showCurrencyMismatchCard =
+    Boolean(currencyMismatch) && payment?.status === "HELD";
   const showRetryRefund =
-    FORCE_GATEWAY_ACTION_PREVIEWS || payment?.status === "HELD";
+    (FORCE_GATEWAY_ACTION_PREVIEWS || payment?.status === "HELD") &&
+    !showCurrencyMismatchCard;
   const showInitiateRefund =
     FORCE_GATEWAY_ACTION_PREVIEWS ||
     (payment?.status === "COMPLETED" && payment.purpose === "INVESTOR_DEPOSIT");
@@ -583,7 +638,8 @@ export default function GatewayPaymentDetailPage() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Amount mismatch</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        An automatic full refund has been requested. Status: Refund pending.
+                        A full refund has been requested automatically. Status: Refund pending.
+                        Waiting for Curlec — time alone does not change this status.
                       </p>
                     </CardHeader>
                     <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -609,6 +665,48 @@ export default function GatewayPaymentDetailPage() {
                         <p className="text-xs text-muted-foreground">Curlec refund ID</p>
                         <p className="mt-1 break-all text-sm font-medium">
                           {payment.refundReference ?? "—"}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                        <p className="text-xs text-muted-foreground">Refund requested</p>
+                        <p className="mt-1 text-sm font-medium">
+                          {refundRequestedAt ? formatDate(refundRequestedAt) : "—"}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                        <p className="text-xs text-muted-foreground">Pending for</p>
+                        <p className="mt-1 text-sm font-medium">{pendingDuration ?? "—"}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : null}
+
+                {showCurrencyMismatchCard && currencyMismatch ? (
+                  <Card
+                    className={cn(
+                      "rounded-2xl",
+                      "border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]"
+                    )}
+                  >
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Currency mismatch</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Curlec currency does not match Cashsouk. This stays in Needs attention
+                        and is not auto-refunded. Ops must handle outside the Admin refund
+                        button.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                        <p className="text-xs text-muted-foreground">Expected currency</p>
+                        <p className="mt-1 text-sm font-medium">
+                          {currencyMismatch.expectedCurrency ?? "—"}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                        <p className="text-xs text-muted-foreground">Captured currency</p>
+                        <p className="mt-1 text-sm font-medium">
+                          {currencyMismatch.actualCurrency ?? "—"}
                         </p>
                       </div>
                     </CardContent>

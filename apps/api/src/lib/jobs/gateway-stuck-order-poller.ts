@@ -10,6 +10,7 @@ import { recordGatewayPaymentEvent } from "../../modules/payment/gateway-events"
 import { assertTransition } from "../../modules/payment/state";
 import { syncGatewayPaymentFromCurlec } from "../../modules/payment/webhook-service";
 import { recoverHeldAmountMismatchRefunds } from "../../modules/payment/amount-mismatch-service";
+import { reconcilePendingGatewayRefunds } from "../../modules/payment/refund-service";
 
 const STALE_CREATED_MINUTES = 60;
 const CRON_CORRELATION_ID = "cron:gateway-stuck-order-poller";
@@ -144,6 +145,36 @@ export async function runGatewayStuckOrderPollerJob(
         correlationId: CRON_CORRELATION_ID,
       },
       "Stuck-order poller failed recovering held amount-mismatch refunds"
+    );
+  }
+
+  try {
+    const refundRecon = await reconcilePendingGatewayRefunds(db, 50);
+    result.scanned += refundRecon.scanned;
+    result.recovered += refundRecon.refunded;
+    for (const err of refundRecon.errors) {
+      result.errors.push({ gatewayPaymentId: err.id, error: err.error });
+    }
+    if (refundRecon.scanned > 0) {
+      logger.info(
+        {
+          scanned: refundRecon.scanned,
+          refunded: refundRecon.refunded,
+          held: refundRecon.held,
+          pending: refundRecon.pending,
+          errors: refundRecon.errors.length,
+          correlationId: CRON_CORRELATION_ID,
+        },
+        "Reconciled pending gateway refunds against Curlec"
+      );
+    }
+  } catch (error) {
+    logger.error(
+      {
+        error: error instanceof Error ? error.message : String(error),
+        correlationId: CRON_CORRELATION_ID,
+      },
+      "Stuck-order poller failed reconciling pending gateway refunds"
     );
   }
 

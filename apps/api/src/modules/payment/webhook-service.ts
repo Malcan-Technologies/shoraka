@@ -37,6 +37,7 @@ import { handleGatewayPaymentAmountMismatch } from "./amount-mismatch-service";
 import {
   completeGatewayPaymentRefund,
   failGatewayPaymentRefund,
+  adoptGatewayRefundCreated,
   initiateInvestorDepositRefund,
 } from "./refund-service";
 import { assertTransition, TERMINAL_GATEWAY_STATUSES } from "./state";
@@ -566,7 +567,11 @@ export async function processStoredCurlecWebhook(
     throw error;
   }
 
-  if (payload.event === "refund.processed" || payload.event === "refund.failed") {
+  if (
+    payload.event === "refund.created" ||
+    payload.event === "refund.processed" ||
+    payload.event === "refund.failed"
+  ) {
     const refund = extractRefundRefs(payload);
     if (!refund) {
       await markWebhookProcessed(db, eventId, "Missing refund references", routeGatewayAccount);
@@ -607,7 +612,9 @@ export async function processStoredCurlecWebhook(
       return;
     }
 
-    if (payload.event === "refund.processed") {
+    if (payload.event === "refund.created") {
+      await adoptGatewayRefundCreated(payment, { refundId: refund.refundId }, db);
+    } else if (payload.event === "refund.processed") {
       await completeGatewayPaymentRefund(payment, { refundId: refund.refundId }, db);
     } else {
       await failGatewayPaymentRefund(payment, { refundId: refund.refundId }, db);

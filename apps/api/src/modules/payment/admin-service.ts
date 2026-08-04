@@ -280,6 +280,17 @@ export async function retryHeldGatewayPaymentRefund(
     return getGatewayPaymentDetail(gatewayPaymentId, db);
   }
 
+  const captureMismatch = metadata.captureMismatch as
+    | { mismatchType?: string }
+    | undefined;
+  if (captureMismatch?.mismatchType === "CURRENCY_MISMATCH") {
+    throw new AppError(
+      422,
+      "CURRENCY_MISMATCH_NOT_AUTO_REFUNDABLE",
+      "Currency mismatch payments stay in Needs attention. Do not auto-retry Curlec refund from Admin."
+    );
+  }
+
   if (!payment.curlec_payment_id) {
     throw new AppError(
       422,

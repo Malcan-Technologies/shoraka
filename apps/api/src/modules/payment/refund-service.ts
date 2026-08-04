@@ -623,3 +623,154 @@ export async function failInvestorDepositRefund(
 ): Promise<void> {
   return failGatewayPaymentRefund(payment, input, db);
 }
+
+function normalizeCurlecRefundStatus(
+  status: string | undefined | null
+): "processed" | "failed" | "pending" {
+  const value = (status ?? "").toLowerCase();
+  if (value === "processed") return "processed";
+  if (value === "failed") return "failed";
+  return "pending";
+}
+
+/**
+ * Attach a Curlec refund id from refund.created (or recovery).
+ * Keeps Curlec as source of truth — does not invent timeouts.
+ * If the payment was HELD after a local API failure but Curlec did create the refund,
+ * move back to REFUND_INITIATED (Refund pending).
+ */
+export async function adoptGatewayRefundCreated(
+  payment: GatewayPayment,
+  input: { refundId: string },
+  db: PrismaClient = defaultPrisma
+): Promise<GatewayPaymentStatus> {
+  if (payment.status === GatewayPaymentStatus.REFUNDED) {
+    return GatewayPaymentStatus.REFUNDED;
+  }
+
+  if (payment.status === GatewayPaymentStatus.REFUND_INITIATED) {
+    if (!payment.refund_reference) {
+      await db.gatewayPayment.update({
+        where: { id: payment.id },
+        data: { refund_reference: input.refundId },
+      });
+    }
+    return GatewayPaymentStatus.REFUND_INITIATED;
+  }
+
+  if (payment.status === GatewayPaymentStatus.HELD) {
+    await db.$transaction(async (tx) => {
+      const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+      if (current.status !== GatewayPaymentStatus.HELD) {
+        return;
+      }
+      assertTransition(current.status, GatewayPaymentStatus.REFUND_INITIATED);
+      await tx.gatewayPayment.update({
+        where: { id: payment.id },
+        data: {
+          status: GatewayPaymentStatus.REFUND_INITIATED,
+          refund_reference: input.refundId,
+        },
+      });
+      await recordGatewayPaymentEvent(tx, {
+        gatewayPaymentId: payment.id,
+        type: GatewayPaymentEventType.REFUND_INITIATED,
+        fromStatus: GatewayPaymentStatus.HELD,
+        toStatus: GatewayPaymentStatus.REFUND_INITIATED,
+        reason: "Curlec refund.created recovered pending refund",
+        metadata: {
+          refundId: input.refundId,
+          purpose: current.purpose,
+          source: "refund_created_webhook",
+        },
+      });
+    });
+    return GatewayPaymentStatus.REFUND_INITIATED;
+  }
+
+  return payment.status;
+}
+
+/**
+ * Reconcile REFUND_INITIATED rows against Curlec refund status.
+ * Curlec pending → stay pending. No duration-based failure.
+ */
+export async function reconcilePendingGatewayRefunds(
+  db: PrismaClient = defaultPrisma,
+  limit = 50
+): Promise<{
+  scanned: number;
+  refunded: number;
+  held: number;
+  pending: number;
+  errors: Array<{ id: string; error: string }>;
+}> {
+  const pendingRows = await db.gatewayPayment.findMany({
+    where: { status: GatewayPaymentStatus.REFUND_INITIATED },
+    orderBy: { updated_at: "asc" },
+    take: limit,
+  });
+
+  let refunded = 0;
+  let held = 0;
+  let stillPending = 0;
+  const errors: Array<{ id: string; error: string }> = [];
+
+  for (const payment of pendingRows) {
+    try {
+      const curlecClient = createCurlecClient({ gatewayAccount: payment.gatewayAccount });
+      let refundId = payment.refund_reference;
+
+      if (!refundId && payment.curlec_payment_id) {
+        const remoteRefunds = await curlecClient.fetchPaymentRefunds(payment.curlec_payment_id);
+        const match = remoteRefunds[0] ?? null;
+        if (match) {
+          refundId = match.id;
+          await db.gatewayPayment.update({
+            where: { id: payment.id },
+            data: { refund_reference: match.id },
+          });
+        }
+      }
+
+      if (!refundId) {
+        stillPending += 1;
+        continue;
+      }
+
+      const remote = await curlecClient.fetchRefund(refundId);
+      const remoteStatus = normalizeCurlecRefundStatus(remote.status);
+
+      if (remoteStatus === "processed") {
+        await completeGatewayPaymentRefund(payment, { refundId }, db);
+        refunded += 1;
+        continue;
+      }
+
+      if (remoteStatus === "failed") {
+        await failGatewayPaymentRefund(
+          payment,
+          { refundId, errorMessage: "Curlec refund status is failed" },
+          db
+        );
+        held += 1;
+        continue;
+      }
+
+      stillPending += 1;
+    } catch (error) {
+      errors.push({
+        id: payment.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return {
+    scanned: pendingRows.length,
+    refunded,
+    held,
+    pending: stillPending,
+    errors,
+  };
+}

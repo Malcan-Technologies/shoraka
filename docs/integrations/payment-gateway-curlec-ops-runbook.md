@@ -21,7 +21,7 @@ Related docs:
 - Ops confirms the held-deposit and name-check review owner, checker, and expected turnaround time.
 - Confirm with Curlec that production FPX payments return the payer bank account name (used for AML name check).
 - Run one test-mode FPX pass for each path before live cutover: investor deposit success, investor deposit name-mismatch refund, investor deposit name-review path, issuer onboarding fee, and application processing fee.
-- Enable `refund.processed` and `refund.failed` webhook events in the Curlec dashboard.
+- Enable `refund.created`, `refund.processed` and `refund.failed` webhook events in the Curlec dashboard.
 - Remove dev-only recon simulator files before production (see `payment-gateway-curlec-recon-testing.md` §Remove before production).
 
 ## Investor Deposit Outcomes
@@ -67,7 +67,7 @@ For a mistakenly credited `COMPLETED` investor deposit, use **Initiate refund** 
 
 ## Issuer Fees
 
-Issuer onboarding and application processing fees have **no name check** and are **non-refundable** (including if onboarding or the application is later rejected). On successful capture they go straight to `COMPLETED` with an `OPERATING_ACCOUNT` ledger credit.
+Issuer onboarding and application processing fees have **no name check**. Successful captures go to `COMPLETED` with an `OPERATING_ACCOUNT` ledger credit. Same-currency **amount mismatch** on fees auto-refunds (same as deposits): `REFUND_INITIATED` → `REFUNDED`. Currency mismatch stays `HELD` for ops (not auto-refunded). Rejection of onboarding/application after a successful fee payment does not trigger a refund.
 
 Fee orders are routed to the **Operating** Curlec merchant (`OPERATING`). Historical payments created before account separation were migrated to `OPERATING` because they were created under the Operating Curlec merchant account.
 
@@ -122,6 +122,7 @@ Required events for every merchant route:
 - `payment.captured`
 - `order.paid`
 - `payment.failed`
+- `refund.created` (recommended — recovers refund id / pending state)
 - `refund.processed`
 - `refund.failed`
 

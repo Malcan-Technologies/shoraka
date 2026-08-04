@@ -5,6 +5,7 @@ import {
 } from "../../config/curlec";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
+import { z } from "zod";
 import {
   createCurlecOrderInputSchema,
   curlecOrderPaymentsSchema,
@@ -114,6 +115,26 @@ export class CurlecClient {
   async fetchPayment(paymentId: string): Promise<CurlecPayment> {
     const raw = await this.request("GET", `/v1/payments/${encodeURIComponent(paymentId)}`);
     return curlecPaymentSchema.parse(raw);
+  }
+
+  async fetchRefund(refundId: string): Promise<CurlecRefund> {
+    const raw = await this.request("GET", `/v1/refunds/${encodeURIComponent(refundId)}`);
+    return curlecRefundSchema.parse(raw);
+  }
+
+  async fetchPaymentRefunds(paymentId: string): Promise<CurlecRefund[]> {
+    const raw = await this.request(
+      "GET",
+      `/v1/payments/${encodeURIComponent(paymentId)}/refunds`
+    );
+    const parsed = z
+      .object({
+        entity: z.literal("collection").optional(),
+        count: z.number().optional(),
+        items: z.array(curlecRefundSchema),
+      })
+      .parse(raw);
+    return parsed.items;
   }
 
   async fetchOrder(orderId: string): Promise<CurlecOrder> {
