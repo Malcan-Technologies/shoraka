@@ -29,7 +29,6 @@ export const CONTRACT_OFFER_CEREMONY_APPLICATION_STATUSES: readonly ApplicationS
   ApplicationStatus.CONTRACT_SENT,
   ApplicationStatus.CONTRACT_ACCEPTED,
   ApplicationStatus.SIGNING_PENDING,
-  ApplicationStatus.CONTRACT_SIGNED,
   ApplicationStatus.INVOICE_ACCEPTED,
 ];
 
@@ -53,6 +52,8 @@ export function resolveApplicationStatusFromOfferAcceptancePhase(
   offerAcceptanceStatus: OfferAcceptanceStatus | null | undefined,
   options?: {
     entityApproved?: boolean;
+    /** Contract path: invoices present → stay in review; none → COMPLETED (matches admin stage). */
+    invoiceCount?: number;
   }
 ): ApplicationStatus | null {
   if (!offerAcceptanceStatus) return null;
@@ -72,9 +73,11 @@ export function resolveApplicationStatusFromOfferAcceptancePhase(
       return ApplicationStatus.SIGNING_PENDING;
     case "COMPLETED":
       if (options?.entityApproved) {
-        return isInvoiceOnly
-          ? ApplicationStatus.INVOICE_SIGNED
-          : ApplicationStatus.CONTRACT_SIGNED;
+        if (isInvoiceOnly) return ApplicationStatus.COMPLETED;
+        // Align with resolveAdminStageStatus: approved contract + no invoices → COMPLETED.
+        return (options.invoiceCount ?? 0) > 0
+          ? ApplicationStatus.UNDER_REVIEW
+          : ApplicationStatus.COMPLETED;
       }
       return ApplicationStatus.SIGNING_PENDING;
     default:
@@ -87,7 +90,7 @@ export function resolveApplicationStatusAfterCommercialAccept(input: {
   hasOfferAcceptance: boolean;
   action: "accept" | "reject";
   isContractPath: boolean;
-  /** Contract path: invoices present and invoice tab unlocked → INVOICE_PENDING instead of CONTRACT_SIGNED. */
+  /** Contract path: invoices present and invoice tab unlocked → INVOICE_PENDING. */
   invoiceCount?: number;
   isInvoiceTabUnlocked?: boolean;
 }): ApplicationStatus | null {
@@ -96,9 +99,9 @@ export function resolveApplicationStatusAfterCommercialAccept(input: {
     if ((input.invoiceCount ?? 0) > 0 && input.isInvoiceTabUnlocked) {
       return ApplicationStatus.INVOICE_PENDING;
     }
-    return ApplicationStatus.CONTRACT_SIGNED;
+    return ApplicationStatus.UNDER_REVIEW;
   }
-  if (input.isInvoiceOnly) return ApplicationStatus.INVOICE_SIGNED;
+  // Invoice-only: let respondToInvoiceOffer fall back to stage status + computeApplicationStatus.
   return null;
 }
 

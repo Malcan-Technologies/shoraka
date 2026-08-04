@@ -116,6 +116,7 @@ All event types that can appear in `application_logs`. Add new mappings in `admi
 |------------|--------|--------|-------------|
 | `CONTRACT_OFFER_SENT` | admin/service | ADMIN | Admin sends contract offer |
 | `CONTRACT_OFFER_ACCEPTANCE_SUBMITTED` | applications/service | ISSUER | Issuer submits Step 1 acceptance documents |
+| `CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED` | applications/service | ISSUER | Issuer resubmits acceptance docs after `CHANGES_REQUESTED` |
 | `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING` | admin/service, applications/service | ADMIN, ISSUER | Acceptance docs approved; signing unlocked (issuer auto-approve when no docs configured) |
 | `CONTRACT_OFFER_ACCEPTED` | applications/service | ISSUER | Terminal signing success: all signers completed and offer commercially accepted (shown as “Contract Offer Signed”) |
 | `CONTRACT_WITHDRAWN` | applications/service | ISSUER, ADMIN | Issuer rejects offer (terminal withdraw) |
@@ -127,6 +128,7 @@ All event types that can appear in `application_logs`. Add new mappings in `admi
 |------------|--------|--------|-------------|
 | `INVOICE_OFFER_SENT` | admin/service | ADMIN | Admin sends invoice offer |
 | `INVOICE_OFFER_ACCEPTANCE_SUBMITTED` | applications/service | ISSUER | Issuer submits Step 1 acceptance documents |
+| `INVOICE_OFFER_ACCEPTANCE_RESUBMITTED` | applications/service | ISSUER | Issuer resubmits acceptance docs after `CHANGES_REQUESTED` |
 | `INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING` | admin/service, applications/service | ADMIN, ISSUER | Acceptance docs approved; signing unlocked |
 | `INVOICE_OFFER_ACCEPTED` | applications/service | ISSUER | Terminal signing success for invoice-only offers (shown as “Invoice Offer Signed”) |
 | `INVOICE_OFFER_REJECTED` | applications/service | ISSUER | Issuer rejects invoice offer |

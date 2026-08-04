@@ -1,6 +1,6 @@
 /** Pure helpers for resolving the application that originated a contract facility. */
 
-const TERMINAL_ORIGIN_APPLICATION_STATUSES = new Set<string>(["APPROVED", "COMPLETED"]);
+const TERMINAL_ORIGIN_APPLICATION_STATUSES = new Set<string>(["COMPLETED"]);
 
 export type FinancingStructureJson = {
   structure_type?: string | null;

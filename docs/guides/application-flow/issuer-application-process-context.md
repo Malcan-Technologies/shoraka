@@ -223,7 +223,7 @@ Review section policy:
 - Contract review is gated by financial, company, business, and documents approval.
 - Invoice review is gated by financial, company, business, documents, and contract/customer approval.
 - Existing-contract applications treat `contract_details` as approved in the admin UI because the contract facility was approved previously.
-- Final admin approval calls `updateApplicationStatus(..., APPROVED)` and is blocked unless all required review sections are approved.
+- Final application success is `COMPLETED` (there is no application `APPROVED` status). Admin cannot manually approve an application; stage sync and offer/signing flows set stage and terminal statuses.
 
 Review action behavior:
 
@@ -309,11 +309,13 @@ Application statuses include:
 - `CONTRACT_PENDING`
 - `CONTRACT_SENT`
 - `CONTRACT_ACCEPTED`
+- `INVOICE_ACCEPTED`
+- `SIGNING_PENDING`
 - `INVOICE_PENDING`
 - `INVOICES_SENT`
+- `OFFER_EXPIRED`
 - `AMENDMENT_REQUESTED`
 - `RESUBMITTED`
-- `APPROVED`
 - `COMPLETED`
 - `WITHDRAWN`
 - `REJECTED`

@@ -107,7 +107,7 @@ function computeTargetStatus(app: AppRow): ApplicationStatus | null {
 
   if (!offerAcceptanceStatus) {
     if (app.status === ApplicationStatus.CONTRACT_ACCEPTED && contract?.status === ContractStatus.APPROVED) {
-      const base = ApplicationStatus.CONTRACT_SIGNED;
+      const base = ApplicationStatus.UNDER_REVIEW;
       return computeApplicationStatus(contract, invoices, base, { isInvoiceOnly });
     }
     return null;
@@ -121,7 +121,7 @@ function computeTargetStatus(app: AppRow): ApplicationStatus | null {
   let base = resolveApplicationStatusFromOfferAcceptancePhase(
     isInvoiceOnly,
     offerAcceptanceStatus,
-    { entityApproved }
+    { entityApproved, invoiceCount: app.invoices.length }
   );
   if (!base) return null;
 
@@ -130,7 +130,7 @@ function computeTargetStatus(app: AppRow): ApplicationStatus | null {
     entityApproved &&
     (base === ApplicationStatus.CONTRACT_ACCEPTED || base === ApplicationStatus.INVOICE_ACCEPTED)
   ) {
-    base = isInvoiceOnly ? ApplicationStatus.INVOICE_SIGNED : ApplicationStatus.CONTRACT_SIGNED;
+    base = isInvoiceOnly ? ApplicationStatus.COMPLETED : ApplicationStatus.UNDER_REVIEW;
   }
 
   return computeApplicationStatus(contract, invoices, base, { isInvoiceOnly });

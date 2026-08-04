@@ -16,6 +16,7 @@ import { ApplicationLogEventType } from "../../applications/logs/types";
 const CONTRACT_EVENT_TYPES = new Set<string>([
   ApplicationLogEventType.CONTRACT_OFFER_SENT,
   ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_SUBMITTED,
+  ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED,
   ApplicationLogEventType.CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING,
   ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED,
   ApplicationLogEventType.CONTRACT_OFFER_REJECTED,
@@ -26,6 +27,7 @@ const CONTRACT_EVENT_TYPES = new Set<string>([
 const INVOICE_EVENT_TYPES = new Set<string>([
   ApplicationLogEventType.INVOICE_OFFER_SENT,
   ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_SUBMITTED,
+  ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_RESUBMITTED,
   ApplicationLogEventType.INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING,
   ApplicationLogEventType.INVOICE_OFFER_ACCEPTED,
   ApplicationLogEventType.INVOICE_OFFER_REJECTED,
@@ -303,6 +305,10 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         return contractRef
           ? `You submitted acceptance for ${contractRef} and CashSouk is reviewing your documents.`
           : fallbackDescription;
+      case ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED:
+        return contractRef
+          ? `You resubmitted acceptance documents for ${contractRef} after requested changes.`
+          : fallbackDescription;
       case ApplicationLogEventType.CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING:
         return contractRef
           ? `Acceptance for ${contractRef} was approved. You can configure and send the signing package.`
@@ -333,6 +339,10 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       case ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_SUBMITTED:
         return invoiceRef
           ? `You submitted acceptance for ${invoiceRef} and CashSouk is reviewing your documents.`
+          : fallbackDescription;
+      case ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_RESUBMITTED:
+        return invoiceRef
+          ? `You resubmitted acceptance documents for ${invoiceRef} after requested changes.`
           : fallbackDescription;
       case ApplicationLogEventType.INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING:
         return invoiceRef
@@ -508,6 +518,10 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         title: "Contract Acceptance Submitted",
         description: "You submitted offer acceptance documents for CashSouk review.",
       },
+      [ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED]: {
+        title: "Contract Acceptance Resubmitted",
+        description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
+      },
       [ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED]: {
         title: "Contract Offer Signed",
         description: "All signers completed the contract offer signing package.",
@@ -539,6 +553,10 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       [ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_SUBMITTED]: {
         title: "Invoice Acceptance Submitted",
         description: "You submitted offer acceptance documents for CashSouk review.",
+      },
+      [ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_RESUBMITTED]: {
+        title: "Invoice Acceptance Resubmitted",
+        description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
       },
       [ApplicationLogEventType.INVOICE_OFFER_ACCEPTED]: {
         title: "Invoice Offer Signed",
@@ -597,6 +615,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       ApplicationLogEventType.APPLICATION_COMPLETED,
       ApplicationLogEventType.CONTRACT_OFFER_SENT,
       ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_SUBMITTED,
+      ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED,
       ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED,
       ApplicationLogEventType.CONTRACT_OFFER_REJECTED,
       ApplicationLogEventType.CONTRACT_OFFER_RETRACTED,
@@ -605,6 +624,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       ApplicationLogEventType.CONTRACT_WITHDRAWN,
       ApplicationLogEventType.INVOICE_OFFER_SENT,
       ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_SUBMITTED,
+      ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_RESUBMITTED,
       ApplicationLogEventType.INVOICE_OFFER_ACCEPTED,
       ApplicationLogEventType.INVOICE_OFFER_REJECTED,
       ApplicationLogEventType.INVOICE_OFFER_RETRACTED,

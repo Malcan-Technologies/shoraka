@@ -109,8 +109,8 @@ Visible application events match the investor portal:
 - `APPLICATION_REJECTED` -> `Application Rejected`
 - `APPLICATION_WITHDRAWN` -> `Application Closed`
 - `APPLICATION_COMPLETED` -> `Application Completed`
-- contract offer milestones (including `CONTRACT_OFFER_EXPIRED`, `CONTRACT_OFFER_ACCEPTANCE_SUBMITTED`)
-- invoice offer milestones (including `INVOICE_OFFER_EXPIRED`, `INVOICE_OFFER_ACCEPTANCE_SUBMITTED`)
+- contract offer milestones (including `CONTRACT_OFFER_EXPIRED`, `CONTRACT_OFFER_ACCEPTANCE_SUBMITTED`, `CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED`)
+- invoice offer milestones (including `INVOICE_OFFER_EXPIRED`, `INVOICE_OFFER_ACCEPTANCE_SUBMITTED`, `INVOICE_OFFER_ACCEPTANCE_RESUBMITTED`)
 - signing package sent (`SIGNING_PACKAGE_SENT`); terminal success via offer signed events (`CONTRACT_OFFER_ACCEPTED`, `INVOICE_OFFER_ACCEPTED`)
 
 ### Note

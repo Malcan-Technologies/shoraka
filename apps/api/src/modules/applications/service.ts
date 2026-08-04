@@ -117,7 +117,7 @@ function financialToNum(v: unknown): number {
 }
 
 function isFinalApplicationStatus(status: string | null | undefined): boolean {
-  return status === "APPROVED" || status === "FUNDED" || status === "COMPLETED";
+  return status === "FUNDED" || status === "COMPLETED";
 }
 
 /** Business rules for v2 per-year financial blocks (no bsdd). */
@@ -498,9 +498,7 @@ export class ApplicationService {
       status === ApplicationStatus.CONTRACT_ACCEPTED ||
       status === ApplicationStatus.INVOICE_ACCEPTED ||
       status === ApplicationStatus.SIGNING_PENDING ||
-      status === ApplicationStatus.CONTRACT_SIGNED ||
-      status === ApplicationStatus.INVOICE_SIGNED ||
-      status === ApplicationStatus.APPROVED
+      status === ApplicationStatus.COMPLETED
     ) {
       return true;
     }
@@ -1887,6 +1885,7 @@ export class ApplicationService {
 
     const now = new Date().toISOString();
     const nextStatus = resolveStatusAfterOfferAcceptanceSubmit(workflow);
+    let previousAcceptanceStatus: string | null = null;
 
     await prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<
@@ -1901,6 +1900,7 @@ export class ApplicationService {
         throw new AppError(400, "INVALID_STATE", "Contract has no offer details");
       }
       const acceptance = getOfferAcceptanceFromOfferDetails(offer);
+      previousAcceptanceStatus = acceptance?.status ?? null;
       if (!offerAcceptanceIsStep1Editable(acceptance?.status)) {
         throw new AppError(
           400,
@@ -1949,12 +1949,15 @@ export class ApplicationService {
         }
       ).contract?.offer_details ?? null;
 
+    const isAcceptanceResubmit = previousAcceptanceStatus === "CHANGES_REQUESTED";
     await logApplicationActivity({
       userId,
       applicationId,
       entityId: contractId,
       portal: ActivityPortal.ISSUER,
-      eventType: ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_SUBMITTED,
+      eventType: isAcceptanceResubmit
+        ? ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED
+        : ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_SUBMITTED,
       metadata: {
         contract_id: contractId,
         ...(contractNumber != null && String(contractNumber).trim() !== ""
@@ -1962,6 +1965,7 @@ export class ApplicationService {
           : {}),
         offer_acceptance_status: nextStatus,
         submitted_at: now,
+        ...(isAcceptanceResubmit ? { resubmitted_from: "CHANGES_REQUESTED" } : {}),
         ...(offerRecord?.offered_facility != null
           ? { offered_facility: Number(offerRecord.offered_facility) || 0 }
           : {}),
@@ -2040,6 +2044,7 @@ export class ApplicationService {
 
     const now = new Date().toISOString();
     const nextStatus = resolveStatusAfterOfferAcceptanceSubmit(workflow);
+    let previousAcceptanceStatus: string | null = null;
 
     await prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<
@@ -2054,6 +2059,7 @@ export class ApplicationService {
         throw new AppError(400, "INVALID_STATE", "Invoice has no offer details");
       }
       const acceptance = getOfferAcceptanceFromOfferDetails(offer);
+      previousAcceptanceStatus = acceptance?.status ?? null;
       if (!offerAcceptanceIsStep1Editable(acceptance?.status)) {
         throw new AppError(
           400,
@@ -2099,17 +2105,21 @@ export class ApplicationService {
         : undefined;
     const offerRecord = invWithDetails?.offer_details ?? null;
 
+    const isAcceptanceResubmit = previousAcceptanceStatus === "CHANGES_REQUESTED";
     await logApplicationActivity({
       userId,
       applicationId,
       entityId: invoiceId,
       portal: ActivityPortal.ISSUER,
-      eventType: ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_SUBMITTED,
+      eventType: isAcceptanceResubmit
+        ? ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_RESUBMITTED
+        : ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_SUBMITTED,
       metadata: {
         invoice_id: invoiceId,
         ...(invoiceNumber ? { invoice_number: invoiceNumber } : {}),
         offer_acceptance_status: nextStatus,
         submitted_at: now,
+        ...(isAcceptanceResubmit ? { resubmitted_from: "CHANGES_REQUESTED" } : {}),
         ...(offerRecord?.offered_amount != null
           ? { offered_amount: Number(offerRecord.offered_amount) || 0 }
           : {}),

@@ -376,7 +376,6 @@ export const getAdminContractsQuerySchema = z.object({
 export const updateApplicationStatusSchema = z.object({
   status: z.enum([
     ApplicationStatus.UNDER_REVIEW,
-    ApplicationStatus.APPROVED,
     ApplicationStatus.REJECTED,
   ]),
 });

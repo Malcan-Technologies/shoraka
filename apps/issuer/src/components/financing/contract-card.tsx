@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import type { IssuerDashboardContract } from "@/types/issuer-dashboard";
 import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
 import type { OfferStatus } from "@/lib/offer-utils";
+import { getIssuerOfferActionCtaFromOfferDetails } from "@/lib/offer-utils";
 import {
   EM_DASH,
   IssuerFinancingStatusBadge,
@@ -33,17 +34,27 @@ function offerBadge(offerStatus: OfferStatus) {
   return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Offer received</Badge>;
 }
 
-function ReviewOfferButton({ show, onClick }: { show: boolean; onClick?: () => void }) {
+function ReviewOfferButton({
+  show,
+  onClick,
+  label,
+  variant = "reviewOffer",
+}: {
+  show: boolean;
+  onClick?: () => void;
+  label: string;
+  variant?: "reviewOffer" | "makeAmendments";
+}) {
   if (!show) return null;
   return (
     <Button
       type="button"
       size="sm"
-      variant="reviewOffer"
+      variant={variant}
       className="rounded-xl"
       onClick={onClick}
     >
-      Review offer
+      {label}
     </Button>
   );
 }
@@ -53,12 +64,15 @@ export function DashboardContractCard({
   offerStatus,
   onReviewOffer,
   showReviewOffer,
+  offerDetails,
 }: {
   row: IssuerDashboardContract;
   offerStatus: OfferStatus;
   onReviewOffer: () => void;
   /** When omitted, defaults to offer received (legacy). Pass false while acceptance awaits admin. */
   showReviewOffer?: boolean;
+  /** Contract offer_details — used for CHANGES_REQUESTED CTA copy. */
+  offerDetails?: unknown;
 }) {
   const router = useRouter();
   const actionRequiredApplicationIds = row.actionRequiredApplicationIds ?? [];
@@ -74,6 +88,7 @@ export function DashboardContractCard({
       : 0;
   const reviewOfferVisible =
     showReviewOffer ?? offerStatus === "Offer received";
+  const offerActionCta = getIssuerOfferActionCtaFromOfferDetails(offerDetails, { scope: "contract" });
 
   const contractPeriod =
     row.contractStartDate && row.contractEndDate
@@ -100,7 +115,12 @@ export function DashboardContractCard({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <ReviewOfferButton show={reviewOfferVisible} onClick={onReviewOffer} />
+            <ReviewOfferButton
+              show={reviewOfferVisible}
+              onClick={onReviewOffer}
+              label={offerActionCta.label}
+              variant={offerActionCta.buttonVariant}
+            />
             {showActionRequired ? (
               <TooltipProvider>
                 <Tooltip>

@@ -297,11 +297,11 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
       }
 
       // Admin flows
-      if (status === "APPROVED" || status === "REJECTED") {
+      if (status === "REJECTED") {
         await logApplicationActivity({
           userId: callerUserId,
           applicationId: result.id,
-          eventType: status === "APPROVED" ? "APPLICATION_APPROVED" : "APPLICATION_REJECTED",
+          eventType: "APPLICATION_REJECTED",
           reviewCycle: (result as any)?.review_cycle ?? undefined,
           ipAddress: req.ip ?? undefined,
           userAgent:

@@ -101,6 +101,20 @@ Issuer director CTOS RegTank onboarding: after a successful RegTank create call,
 | `MAX_FILE_SIZE_MB`   | Max upload size    | `10`               |
 | `ALLOWED_FILE_TYPES` | Allowed extensions | `pdf,jpg,jpeg,png` |
 
+### SigningCloud
+
+Server-only. All SigningCloud settings use the `SC_*` prefix. Webhook auth uses `SC_WEBHOOK_SECRET` (`x-signingcloud-secret` header on `POST /v1/webhooks/signingcloud/callback`). Required in production (`assertSigningProductionConfig`).
+
+| Variable | Description | Example (Dev) | Example (Prod) |
+|---|---|---|---|
+| `SC_BASE_URL` | SigningCloud API base URL | From tenant dashboard | Secrets Manager (`BACKEND_ENV`) |
+| `SC_API_KEY` | SigningCloud API key | From tenant dashboard | Secrets Manager (`BACKEND_ENV`) |
+| `SC_API_SECRET` | SigningCloud API secret | From tenant dashboard | Secrets Manager (`BACKEND_ENV`) |
+| `SC_WEBHOOK_SECRET` | Shared secret for webhook callback | Local shared value | Secrets Manager (`BACKEND_ENV`) |
+| `API_PUBLIC_URL` | Public API URL (webhook/callUrl) | `http://localhost:4000` | Secrets Manager (`BACKEND_ENV`) |
+
+ECS injects these from `BACKEND_ENV` via `infra/ecs-task-definition-api.json`. Add the JSON key in Secrets Manager before deploying a revision that references it.
+
 ### Payment Gateway (Curlec / Razorpay Malaysia)
 
 Server-only — never expose key secrets or webhook secrets to clients. Loaded by `apps/api/src/config/curlec.ts`.
@@ -268,6 +282,10 @@ export const env = envSchema.parse(process.env);
   │   ├── DATABASE_URL              (SecureString)
   │   ├── JWT_SECRET                (SecureString)
   │   ├── SMTP_PASSWORD             (SecureString)
+  │   ├── SC_BASE_URL                                (SecureString)
+  │   ├── SC_API_KEY                                 (SecureString)
+  │   ├── SC_API_SECRET                              (SecureString)
+  │   ├── SC_WEBHOOK_SECRET                (SecureString)
   │   ├── CURLEC_OPERATING_KEY_ID                    (SecureString)
   │   ├── CURLEC_OPERATING_KEY_SECRET                (SecureString)
   │   ├── CURLEC_OPERATING_WEBHOOK_SECRET            (SecureString)

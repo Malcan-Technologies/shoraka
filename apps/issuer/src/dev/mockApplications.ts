@@ -2,7 +2,7 @@
  * Mock application generator for dev debug mode.
  * Only used when process.env.NODE_ENV === "development".
  * Generates realistic NormalizedApplication cards for testing filters, sorting, and lifecycle UI.
- * Covers all FILTER_STATUSES (draft, submitted, under_review, amendment_requested, offer_sent, accepted,
+ * Covers all FILTER_STATUSES (draft, submitted, under_review, amendment_requested, offer_sent,
  * completed, withdrawn, declined, offer_expired, rejected) and all NormalizedApplication/NormalizedInvoice fields.
  */
 
@@ -87,13 +87,13 @@ const SCENARIOS: Array<{
   /** Action Required — app AMENDMENT_REQUESTED: shows "Make Amendments" on card and in invoice table. */
   { appStatus: "AMENDMENT_REQUESTED", contractStatus: null, invoiceStatuses: ["AMENDMENT_REQUESTED"], type: "Invoice financing", hasContract: false, invoiceCount: 1 },
   { appStatus: "SUBMITTED", contractStatus: "SUBMITTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
-  { appStatus: "APPROVED", contractStatus: "APPROVED", invoiceStatuses: ["APPROVED", "APPROVED"], type: "Contract financing", hasContract: true, invoiceCount: 2 },
+  { appStatus: "COMPLETED", contractStatus: "APPROVED", invoiceStatuses: ["APPROVED", "APPROVED"], type: "Contract financing", hasContract: true, invoiceCount: 2 },
   { appStatus: "COMPLETED", contractStatus: null, invoiceStatuses: ["APPROVED", "REJECTED"], type: "Invoice financing", hasContract: false, invoiceCount: 2 },
   { appStatus: "WITHDRAWN", contractStatus: null, invoiceStatuses: ["WITHDRAWN", "WITHDRAWN"], type: "Invoice financing", hasContract: false, invoiceCount: 2, withdrawReason: WithdrawReason.USER_CANCELLED },
   /** User declined offer — card shows Declined. */
   { appStatus: "WITHDRAWN", contractStatus: null, invoiceStatuses: ["WITHDRAWN"], type: "Invoice financing", hasContract: false, invoiceCount: 1, withdrawReason: WithdrawReason.OFFER_REJECTED },
   { appStatus: "REJECTED", contractStatus: "REJECTED", invoiceStatuses: [], type: "Contract financing", hasContract: true, invoiceCount: 0 },
-  { appStatus: "APPROVED", contractStatus: "APPROVED", invoiceStatuses: [], type: "Contract financing", hasContract: true, invoiceCount: 0, hasExpiry: true },
+  { appStatus: "COMPLETED", contractStatus: "APPROVED", invoiceStatuses: [], type: "Contract financing", hasContract: true, invoiceCount: 0, hasExpiry: true },
   { appStatus: "COMPLETED", contractStatus: null, invoiceStatuses: ["APPROVED"], type: "Invoice financing", hasContract: false, invoiceCount: 1 },
   { appStatus: "DRAFT", contractStatus: "DRAFT", invoiceStatuses: ["DRAFT"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
   { appStatus: "UNDER_REVIEW", contractStatus: "SUBMITTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
@@ -103,7 +103,7 @@ const SCENARIOS: Array<{
   { appStatus: "SUBMITTED", contractStatus: "OFFER_SENT", invoiceStatuses: ["OFFER_SENT", "DRAFT"], type: "Contract financing", hasContract: true, invoiceCount: 2, hasExpiry: true },
   { appStatus: "SUBMITTED", contractStatus: null, invoiceStatuses: ["OFFER_SENT", "SUBMITTED", "DRAFT"], type: "Invoice financing", hasContract: false, invoiceCount: 3, hasExpiry: true },
   { appStatus: "RESUBMITTED", contractStatus: "SUBMITTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
-  { appStatus: "APPROVED", contractStatus: null, invoiceStatuses: ["APPROVED", "APPROVED"], type: "Invoice financing", hasContract: false, invoiceCount: 2 },
+  { appStatus: "COMPLETED", contractStatus: null, invoiceStatuses: ["APPROVED", "APPROVED"], type: "Invoice financing", hasContract: false, invoiceCount: 2 },
   { appStatus: "SUBMITTED", contractStatus: "AMENDMENT_REQUESTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
   { appStatus: "SUBMITTED", contractStatus: null, invoiceStatuses: ["SUBMITTED"], type: "Invoice financing", hasContract: false, invoiceCount: 1, maturityDateNull: true },
 ];

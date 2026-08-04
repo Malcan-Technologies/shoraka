@@ -49,6 +49,10 @@ describe("ApplicationLogAdapter", () => {
       title: "Contract Acceptance Submitted",
       description: "You submitted offer acceptance documents for CashSouk review.",
     });
+    expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED")).toEqual({
+      title: "Contract Acceptance Resubmitted",
+      description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
+    });
     expect(adapter.buildPresentation("SIGNING_PACKAGE_SENT")).toEqual({
       title: "Signing Package Sent",
       description: "The signing package was sent to all required signers.",
@@ -68,7 +72,9 @@ describe("ApplicationLogAdapter", () => {
     expect(eventTypes).toEqual(
       expect.arrayContaining([
         "CONTRACT_OFFER_ACCEPTANCE_SUBMITTED",
+        "CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED",
         "INVOICE_OFFER_ACCEPTANCE_SUBMITTED",
+        "INVOICE_OFFER_ACCEPTANCE_RESUBMITTED",
         "SIGNING_PACKAGE_SENT",
         "CONTRACT_OFFER_ACCEPTED",
         "INVOICE_OFFER_ACCEPTED",

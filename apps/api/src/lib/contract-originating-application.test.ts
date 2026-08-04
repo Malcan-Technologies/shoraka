@@ -10,9 +10,9 @@ describe("contract originating application helpers", () => {
     expect(isNewContractFinancingStructure({ structure_type: "existing_contract" })).toBe(false);
   });
 
-  it("treats APPROVED and COMPLETED as terminal origin statuses", () => {
-    expect(isTerminalOriginatingApplicationStatus("APPROVED")).toBe(true);
+  it("treats only COMPLETED as a terminal origin status", () => {
     expect(isTerminalOriginatingApplicationStatus("COMPLETED")).toBe(true);
+    expect(isTerminalOriginatingApplicationStatus("APPROVED")).toBe(false);
     expect(isTerminalOriginatingApplicationStatus("UNDER_REVIEW")).toBe(false);
   });
 

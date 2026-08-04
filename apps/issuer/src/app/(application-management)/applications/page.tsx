@@ -57,6 +57,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import type { NormalizedApplication, NormalizedInvoice } from "./status";
 import { ScrollableInvoiceTable } from "./components/scrollable-invoice-table";
 import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
+import { getIssuerOfferActionCta } from "@/lib/offer-utils";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
 
@@ -156,6 +157,9 @@ function ApplicationCard({
   );
   const isAwaitingAcceptanceReview =
     String(application.offerAcceptanceStatus ?? "").toUpperCase() === "PENDING_ADMIN_REVIEW";
+  const contractOfferActionCta = getIssuerOfferActionCta(application.offerAcceptanceStatus, {
+    scope: "contract",
+  });
   const shouldStartExpanded =
     application.status === "offer_sent" ||
     isAwaitingAcceptanceReview ||
@@ -236,17 +240,22 @@ function ApplicationCard({
                     <Button
                       type="button"
                       size="sm"
-                      variant="reviewOffer"
+                      variant={contractOfferActionCta.buttonVariant}
                       className="rounded-xl"
                       onClick={(e) => {
                         e.stopPropagation();
                         onReviewContractOffer(application.id, application.contractId!, application.issuerOrganizationId);
                       }}
                     >
-                      Review Contract Financing Offer
+                      {contractOfferActionCta.label}
                     </Button>
+                    {contractOfferActionCta.hint ? (
+                      <p className="max-w-[18rem] text-xs leading-4 text-right text-muted-foreground">
+                        {contractOfferActionCta.hint}
+                      </p>
+                    ) : null}
                     {application.offerPhaseDeadline ? (
-                      <p className="text-xs leading-4 text-right max-w-[14rem] text-muted-foreground">
+                      <p className="whitespace-nowrap text-xs leading-4 text-right text-muted-foreground">
                         {application.offerPhaseDeadline.summary}
                       </p>
                     ) : null}

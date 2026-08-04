@@ -53,8 +53,9 @@
  *   should be able to filter by it.
  *
  * SECTION C — LIST ORDER
- *   getSortOrder uses STATUS[].sortOrder. When we sort the list of cards, we
- *   use this. Lower number = higher in the list.
+ *   Unfiltered list sorts by APPLICATION_STATUS_PRIORITY (badge key), then
+ *   updatedAt newest first. Keep STATUS[].sortOrder in sync with that map.
+ *   Lower number = higher in the list.
  *
  * =============================================================================
  * PART 4 — TO ADD A NEW STATUS (step by step)
@@ -211,24 +212,22 @@ export const STATUS: Record<
   string,
   { label: string; color: string; sortOrder: number }
 > = {
-  rejected: { label: "Rejected", color: statusColorClass("rejected"), sortOrder: 1 },
+  offer_sent: { label: "Offer Received", color: statusColorClass("offer_sent"), sortOrder: 1 },
   amendment_requested: { label: "Action Required", color: statusColorClass("amendment_requested"), sortOrder: 2 },
-  offer_sent: { label: "Offer Received", color: statusColorClass("offer_sent"), sortOrder: 3 },
-  under_review: { label: "Under Review", color: statusColorClass("under_review"), sortOrder: 4 },
+  draft: { label: "Draft", color: statusColorClass("draft"), sortOrder: 3 },
+  resubmitted: { label: "Resubmitted", color: statusColorClass("resubmitted"), sortOrder: 4 },
   submitted: { label: "Submitted", color: statusColorClass("submitted"), sortOrder: 5 },
-  resubmitted: { label: "Resubmitted", color: statusColorClass("resubmitted"), sortOrder: 6 },
-  draft: { label: "Draft", color: statusColorClass("draft"), sortOrder: 7 },
-  accepted: { label: "Approved", color: statusColorClass("accepted"), sortOrder: 8 },
-  approved: { label: "Approved", color: statusColorClass("approved"), sortOrder: 8 },
-  completed: { label: "Completed", color: statusColorClass("completed"), sortOrder: 9 },
-  withdrawn: { label: "Withdrawn", color: statusColorClass("withdrawn"), sortOrder: 10 },
-  declined: { label: "Declined", color: statusColorClass("declined"), sortOrder: 10 },
-  offer_expired: { label: "Offer Expired", color: statusColorClass("offer_expired"), sortOrder: 10 },
+  under_review: { label: "Under Review", color: statusColorClass("under_review"), sortOrder: 6 },
+  offer_expired: { label: "Offer Expired", color: statusColorClass("offer_expired"), sortOrder: 7 },
+  completed: { label: "Completed", color: statusColorClass("completed"), sortOrder: 8 },
+  declined: { label: "Declined", color: statusColorClass("declined"), sortOrder: 9 },
+  withdrawn: { label: "Withdrawn", color: statusColorClass("withdrawn"), sortOrder: 9 },
+  rejected: { label: "Rejected", color: statusColorClass("rejected"), sortOrder: 10 },
   archived: { label: "Archived", color: statusColorClass("archived"), sortOrder: 11 },
 };
 
 export function getSortOrder(status: string): number {
-  return STATUS[status]?.sortOrder ?? 999;
+  return APPLICATION_STATUS_PRIORITY[status] ?? STATUS[status]?.sortOrder ?? 999;
 }
 
 /** Re-export for consumers that need badge key mapping. */
@@ -254,7 +253,6 @@ export const FILTER_STATUSES = [
   "under_review",
   "amendment_requested",
   "offer_sent",
-  "accepted",
   "completed",
   "withdrawn",
   "declined",
@@ -367,9 +365,11 @@ export function getCardStatus(input: {
 
   /** Offer Waiting: contract or any invoice has OFFER_SENT. Card-level Review Offer only for contract offers. */
   if (contractOfferSent || anyInvoiceOfferSent) {
+    // Issuer still owns Step 1 (upload/amend) and Step 3 (signing package) — keep Offer Received
+    // so these cards sort above Under Review in the list.
     const issuerMustActOnOffer =
-      acceptanceStatus === "PENDING_ISSUER" || acceptanceStatus === "CHANGES_REQUESTED";
-    const issuerSigningPhase =
+      acceptanceStatus === "PENDING_ISSUER" ||
+      acceptanceStatus === "CHANGES_REQUESTED" ||
       acceptanceStatus === "APPROVED_FOR_SIGNING" ||
       acceptanceStatus === "SIGNING_IN_PROGRESS";
     const showContractReviewOffer =
@@ -384,22 +384,11 @@ export function getCardStatus(input: {
       };
     }
 
-    // Step 3: issuer must open Review Offer for signers / envelope — keep Under Review badge.
-    if (issuerSigningPhase) {
-      return {
-        badgeKey: "under_review",
-        displayLabel: "Under Review",
-        showReviewOffer: showContractReviewOffer,
-        showMakeAmendments: false,
-      };
-    }
-
     const awaitingAdminOrDone =
       acceptanceStatus === "PENDING_ADMIN_REVIEW" ||
       acceptanceStatus === "COMPLETED" ||
       app === "CONTRACT_ACCEPTED" ||
-      app === "INVOICE_ACCEPTED" ||
-      app === "SIGNING_PENDING";
+      app === "INVOICE_ACCEPTED";
 
     if (awaitingAdminOrDone) {
       return {
@@ -436,18 +425,9 @@ export function getCardStatus(input: {
       showMakeAmendments: false,
     };
   }
-  if (app === "CONTRACT_SIGNED" || app === "INVOICE_SIGNED") {
-    return {
-      badgeKey: "accepted",
-      displayLabel: "Approved",
-      showReviewOffer: false,
-      showMakeAmendments: false,
-    };
-  }
   if (app === "SUBMITTED") return { badgeKey: "submitted", displayLabel: "Submitted", showReviewOffer: false, showMakeAmendments: false };
   if (app === "RESUBMITTED") return { badgeKey: "resubmitted", displayLabel: "Resubmitted", showReviewOffer: false, showMakeAmendments: false };
   if (app === "DRAFT") return { badgeKey: "draft", displayLabel: "Draft", showReviewOffer: false, showMakeAmendments: false };
-  if (app === "APPROVED") return { badgeKey: "accepted", displayLabel: "Approved", showReviewOffer: false, showMakeAmendments: false };
 
   return { badgeKey: "draft", displayLabel: "Draft", showReviewOffer: false, showMakeAmendments: false };
 }
@@ -479,21 +459,22 @@ export function countPendingIssuerOfferReviewsAcross(
 }
 
 /**
- * Urgency-based sort order. Lower = higher in list.
- * UX order: 1) Needs action, 2) In progress, 3) Draft, 4) Success, 5) Closed.
+ * Urgency-based sort order for the unfiltered issuer list. Lower = higher in list.
+ * Tie-break: updatedAt DESC (see use-applications-data sort).
+ * Order: time-sensitive issuer action → other issuer action → draft → waiting →
+ * expired awareness → success → soft close → hard close.
  */
 export const APPLICATION_STATUS_PRIORITY: Record<string, number> = Object.freeze({
-  amendment_requested: 1,
-  offer_sent: 2,
-  under_review: 3,
-  submitted: 4,
-  resubmitted: 5,
-  draft: 6,
-  accepted: 7,
+  offer_sent: 1,
+  amendment_requested: 2,
+  draft: 3,
+  resubmitted: 4,
+  submitted: 5,
+  under_review: 6,
+  offer_expired: 7,
   completed: 8,
-  withdrawn: 9,
   declined: 9,
-  offer_expired: 9,
+  withdrawn: 9,
   rejected: 10,
   archived: 11,
 });

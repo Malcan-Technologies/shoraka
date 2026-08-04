@@ -62,7 +62,7 @@ Application-level status reflects the offer lifecycle overlay (see [status-refer
 - `CONTRACT_SENT` / `INVOICES_SENT` while the issuer must act on Step 1
 - `CONTRACT_ACCEPTED` / `INVOICE_ACCEPTED` while admin reviews acceptance docs
 - `SIGNING_PENDING` while the signing package is in progress
-- `CONTRACT_SIGNED` / `INVOICE_SIGNED` after envelope completion
+- After envelope completion, contract path uses `UNDER_REVIEW` / `INVOICE_PENDING`; invoice-only uses `COMPLETED` when all invoices are terminal.
 
 Entity `contract.status` / `invoice.status` stays `OFFER_SENT` until commercial accept; use both application status and `offer_acceptance.status` for UI.
 

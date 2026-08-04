@@ -16,6 +16,7 @@ import {
   resolveIssuerInvoiceDashboardBadge,
 } from "@/lib/issuer-dashboard-labels";
 import type { OfferStatus } from "@/lib/offer-utils";
+import { getIssuerOfferActionCtaFromOfferDetails } from "@/lib/offer-utils";
 import {
   EM_DASH,
   FundingStatusLine,
@@ -35,17 +36,27 @@ function offerBadge(offerStatus: OfferStatus) {
   return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Offer received</Badge>;
 }
 
-function ReviewOfferButton({ show, onClick }: { show: boolean; onClick?: () => void }) {
+function ReviewOfferButton({
+  show,
+  onClick,
+  label,
+  variant = "reviewOffer",
+}: {
+  show: boolean;
+  onClick?: () => void;
+  label: string;
+  variant?: "reviewOffer" | "makeAmendments";
+}) {
   if (!show) return null;
   return (
     <Button
       type="button"
       size="sm"
-      variant="reviewOffer"
+      variant={variant}
       className="rounded-xl"
       onClick={onClick}
     >
-      Review offer
+      {label}
     </Button>
   );
 }
@@ -152,6 +163,7 @@ export function DashboardInvoiceCard({
   const hideFeesBeforeAcceptance = offerStatus === "Offer received";
   const reviewOfferVisible =
     showReviewOffer ?? offerStatus === "Offer received";
+  const offerActionCta = getIssuerOfferActionCtaFromOfferDetails(offerDetails, { scope: "invoice" });
 
   return (
     <Card className="min-w-0 max-w-full rounded-xl border border-border bg-muted/50 shadow-none">
@@ -171,7 +183,12 @@ export function DashboardInvoiceCard({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <ReviewOfferButton show={reviewOfferVisible} onClick={onReviewOffer} />
+            <ReviewOfferButton
+              show={reviewOfferVisible}
+              onClick={onReviewOffer}
+              label={offerActionCta.label}
+              variant={offerActionCta.buttonVariant}
+            />
             {showActionRequired ? (
               <TooltipProvider>
                 <Tooltip>

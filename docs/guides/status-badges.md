@@ -24,7 +24,7 @@ Indigo (`status.in-progress`) is no longer used for application status badges.
 |-------|---------------------|
 | issuer_action | DRAFT, AMENDMENT_REQUESTED, CONTRACT_SENT, INVOICES_SENT, OFFER_SENT |
 | admin_action | SUBMITTED, RESUBMITTED, UNDER_REVIEW, CONTRACT_PENDING, INVOICE_PENDING, CONTRACT_ACCEPTED, INVOICE_ACCEPTED, SIGNING_PENDING |
-| completed | CONTRACT_SIGNED, INVOICE_SIGNED, APPROVED, COMPLETED |
+| completed | COMPLETED; also APPROVED for section/item/contract/invoice review badges (not ApplicationStatus) |
 | expired_closed | REJECTED, WITHDRAWN, DECLINED, OFFER_EXPIRED |
 | neutral | PENDING, ARCHIVED |
 
@@ -40,6 +40,8 @@ Use `getOfferAcceptancePhaseBadgeClass(status)` from `@cashsouk/config`.
 | expired_closed | REJECTED, DECLINED |
 
 Labels stay in `getOfferAcceptanceStatusPresentation` (`@cashsouk/types`).
+
+**Issuer card override:** application list/card badges map Step 3 (`APPROVED_FOR_SIGNING` / `SIGNING_IN_PROGRESS`) to **Offer Received** (`offer_sent` / issuer_action) so signing work stays high in the filter sort. Admin Acceptance-tab phase badges still use the table above.
 
 ## Signing envelope → group
 
@@ -72,15 +74,12 @@ Use `getSigningEnvelopeBadgeClass(status)` from `@cashsouk/config`.
 | CONTRACT_ACCEPTED | Contract Accepted |
 | INVOICE_ACCEPTED | Invoice Accepted |
 | SIGNING_PENDING | Signing Pending |
-| CONTRACT_SIGNED | Contract Signed |
-| INVOICE_SIGNED | Invoice Signed |
 | INVOICE_PENDING | Invoice Pending |
 | INVOICES_SENT | Invoices Sent |
 | OFFER_EXPIRED | Offer Expired |
 | OFFER_SENT | Offer Sent |
 | AMENDMENT_REQUESTED | Amendment Requested |
 | RESUBMITTED | Resubmitted |
-| APPROVED | Approved |
 | COMPLETED | Completed |
 | REJECTED | Rejected |
 | WITHDRAWN | Withdrawn (or formatWithdrawLabel) |

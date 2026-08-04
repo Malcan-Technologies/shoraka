@@ -56,3 +56,42 @@ export function shouldShowIssuerReviewOfferCta(item: {
   const status = getOfferAcceptanceFromOfferDetails(item.offer_details)?.status ?? null;
   return offerAcceptanceAllowsIssuerReviewCta(status);
 }
+
+export type IssuerOfferActionCta = {
+  label: string;
+  /** Short hint under the card CTA when acceptance docs need re-upload. */
+  buttonVariant: "reviewOffer" | "makeAmendments";
+  isAcceptanceChangesRequested: boolean;
+};
+
+/**
+ * Card / row CTA copy for the Review Offer modal entry point.
+ * CHANGES_REQUESTED keeps the same modal but labels the task as document updates.
+ */
+export function getIssuerOfferActionCta(
+  acceptanceStatus?: string | null,
+  options?: { scope?: "contract" | "invoice" }
+): IssuerOfferActionCta {
+  const phase = String(acceptanceStatus ?? "").toUpperCase();
+  if (phase === "CHANGES_REQUESTED") {
+    return {
+      label: "Update acceptance documents",
+      buttonVariant: "makeAmendments",
+      isAcceptanceChangesRequested: true,
+    };
+  }
+  const scope = options?.scope ?? "invoice";
+  return {
+    label: scope === "contract" ? "Review Contract Financing Offer" : "Review Offer",
+    buttonVariant: "reviewOffer",
+    isAcceptanceChangesRequested: false,
+  };
+}
+
+export function getIssuerOfferActionCtaFromOfferDetails(
+  offerDetails: unknown,
+  options?: { scope?: "contract" | "invoice" }
+): IssuerOfferActionCta {
+  const status = getOfferAcceptanceFromOfferDetails(offerDetails)?.status ?? null;
+  return getIssuerOfferActionCta(status, options);
+}

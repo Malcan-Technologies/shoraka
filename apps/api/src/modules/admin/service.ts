@@ -172,7 +172,7 @@ function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
 }
 
 function isFinalApplicationStatusForAmlGuard(status: string | null | undefined): boolean {
-  return status === "APPROVED" || status === "FUNDED" || status === "COMPLETED";
+  return status === "FUNDED" || status === "COMPLETED";
 }
 
 function guarantorNationalityIso2FromSourceData(sourceData: unknown): string | undefined {
@@ -6432,7 +6432,6 @@ export class AdminService {
     const currentStatus = application.status as ApplicationStatus;
     const allowedTargets = new Set<ApplicationStatus>([
       ApplicationStatus.UNDER_REVIEW,
-      ApplicationStatus.APPROVED,
       ApplicationStatus.REJECTED,
     ]);
     if (!allowedTargets.has(status)) {
@@ -6443,7 +6442,7 @@ export class AdminService {
       );
     }
 
-    if (status === ApplicationStatus.APPROVED || status === ApplicationStatus.REJECTED) {
+    if (status === ApplicationStatus.REJECTED) {
       if (!this.isFinalizable(currentStatus)) {
         throw new AppError(
           400,
@@ -6456,33 +6455,13 @@ export class AdminService {
     if (status === ApplicationStatus.UNDER_REVIEW) {
       if (currentStatus !== ApplicationStatus.AMENDMENT_REQUESTED) {
         const correctionGuidance =
-          currentStatus === ApplicationStatus.APPROVED || currentStatus === ApplicationStatus.REJECTED
+          currentStatus === ApplicationStatus.COMPLETED || currentStatus === ApplicationStatus.REJECTED
             ? ` ${this.getCorrectionFlowGuidance()}`
             : "";
         throw new AppError(
           400,
           "INVALID_STATE",
           `Reset to UNDER_REVIEW is only allowed from AMENDMENT_REQUESTED.${correctionGuidance}`
-        );
-      }
-    }
-
-    if (status === ApplicationStatus.APPROVED) {
-      this.assertFinancialReviewDirectorShareholderAmlApproved(application);
-      const reviews = (application.application_reviews ?? []) as { section: string; status: string }[];
-      const sectionPolicy = await this.getReviewSectionPolicy(application);
-      const reviewStatusBySection = new Map<string, string>();
-      for (const review of reviews) {
-        reviewStatusBySection.set(review.section, review.status);
-      }
-      const notApprovedSections = Array.from(sectionPolicy.requiredSections).filter(
-        (section) => reviewStatusBySection.get(section) !== "APPROVED"
-      );
-      if (notApprovedSections.length > 0) {
-        throw new AppError(
-          400,
-          "INVALID_STATE",
-          `All required review sections must be approved before final approval. Pending: ${notApprovedSections.join(", ")}`
         );
       }
     }
@@ -6500,16 +6479,6 @@ export class AdminService {
         userAgent: logContext?.userAgent ?? undefined,
         deviceInfo: logContext?.deviceInfo ?? undefined,
       });
-    } else if (status === ApplicationStatus.APPROVED) {
-      await logApplicationActivity({
-        userId,
-        applicationId: id,
-        portal: ActivityPortal.ADMIN,
-        eventType: "APPLICATION_APPROVED",
-        ipAddress: logContext?.ipAddress ?? undefined,
-        userAgent: logContext?.userAgent ?? undefined,
-        deviceInfo: logContext?.deviceInfo ?? undefined,
-      });
     } else if (status === ApplicationStatus.REJECTED) {
       await logApplicationActivity({
         userId,
@@ -6522,17 +6491,13 @@ export class AdminService {
       });
     }
 
-    if (status === ApplicationStatus.APPROVED || status === ApplicationStatus.REJECTED) {
+    if (status === ApplicationStatus.REJECTED) {
       try {
-        const typeId =
-          status === ApplicationStatus.APPROVED
-            ? NotificationTypeIds.APPLICATION_APPROVED
-            : NotificationTypeIds.APPLICATION_REJECTED;
         await this.sendIssuerNotification(
           id,
-          typeId,
+          NotificationTypeIds.APPLICATION_REJECTED,
           { applicationId: id },
-          `${status.toLowerCase()}`
+          "rejected"
         );
       } catch (notificationError) {
         logger.error(
@@ -6558,8 +6523,6 @@ export class AdminService {
     ApplicationStatus.CONTRACT_ACCEPTED,
     ApplicationStatus.INVOICE_ACCEPTED,
     ApplicationStatus.SIGNING_PENDING,
-    ApplicationStatus.CONTRACT_SIGNED,
-    ApplicationStatus.INVOICE_SIGNED,
     ApplicationStatus.INVOICE_PENDING,
     ApplicationStatus.INVOICES_SENT,
     ApplicationStatus.OFFER_EXPIRED,
@@ -6703,7 +6666,7 @@ export class AdminService {
           }
           return ApplicationStatus.INVOICES_SENT;
         }
-        if (!isInvoiceTabUnlocked) return ApplicationStatus.CONTRACT_SIGNED;
+        if (!isInvoiceTabUnlocked) return ApplicationStatus.UNDER_REVIEW;
         return ApplicationStatus.INVOICE_PENDING;
       }
       if (isContractTabUnlocked) return ApplicationStatus.CONTRACT_PENDING;
@@ -6730,7 +6693,6 @@ export class AdminService {
     ApplicationStatus.UNDER_REVIEW,
     ApplicationStatus.CONTRACT_PENDING,
     ApplicationStatus.INVOICE_PENDING,
-    ApplicationStatus.CONTRACT_SIGNED,
   ]);
 
   private shouldSyncAdminStageStatus(
@@ -7214,6 +7176,7 @@ export class AdminService {
 
   /** Primary offer (contract, else standalone invoice) acceptance phase status. */
   private getPrimaryOfferAcceptanceStatus(application: {
+    financing_structure?: { structure_type?: string } | null;
     contract?: { offer_details?: unknown } | null;
     invoices?: Array<{ contract_id?: string | null; offer_details?: unknown }>;
   }): string | null {
@@ -7221,6 +7184,7 @@ export class AdminService {
   }
 
   private getPrimaryOfferAcceptanceSubmittedAt(application: {
+    financing_structure?: { structure_type?: string } | null;
     contract?: { offer_details?: unknown } | null;
     invoices?: Array<{ contract_id?: string | null; offer_details?: unknown }>;
   }): string | null {
@@ -7229,9 +7193,14 @@ export class AdminService {
   }
 
   private getPrimaryOfferAcceptance(application: {
+    financing_structure?: { structure_type?: string } | null;
     contract?: { offer_details?: unknown } | null;
     invoices?: Array<{ contract_id?: string | null; offer_details?: unknown }>;
   }) {
+    // Skip stale contract ceremony on existing_contract (same as extractPrimaryOfferAcceptanceStatus).
+    if (isExistingContractFinancing(application.financing_structure)) {
+      return null;
+    }
     return (
       getOfferAcceptanceFromOfferDetails(application.contract?.offer_details) ??
       (application.invoices ?? [])
@@ -7445,7 +7414,10 @@ export class AdminService {
     const resolved = resolveApplicationStatusFromOfferAcceptancePhase(
       isInvoiceOnly,
       offerAcceptanceStatus,
-      { entityApproved }
+      {
+        entityApproved,
+        invoiceCount: refreshed.invoices.length,
+      }
     );
     if (resolved) {
       await prisma.application.update({

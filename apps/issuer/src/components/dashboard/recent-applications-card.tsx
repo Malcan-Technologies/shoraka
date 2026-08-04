@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useApplicationsData } from "@/app/(application-management)/applications/use-applications-data";
 import type { NormalizedApplication } from "@/app/(application-management)/applications/status";
+import { getIssuerOfferActionCta } from "@/lib/offer-utils";
 import { RecentSectionHeader } from "@/components/dashboard/recent-section-header";
 
 const MAX_ROWS = 4;
@@ -21,7 +22,13 @@ function statusLabel(app: NormalizedApplication): string {
 
 function statusTone(app: NormalizedApplication): string {
   if (app.cardStatus.showMakeAmendments) return "border-amber-500/30 bg-amber-50 text-amber-800";
-  if (app.cardStatus.showReviewOffer) return "border-emerald-500/30 bg-emerald-50 text-emerald-800";
+  if (app.cardStatus.showReviewOffer) {
+    const cta = getIssuerOfferActionCta(app.offerAcceptanceStatus);
+    if (cta.isAcceptanceChangesRequested) {
+      return "border-amber-500/30 bg-amber-50 text-amber-800";
+    }
+    return "border-emerald-500/30 bg-emerald-50 text-emerald-800";
+  }
   return "border-border bg-muted text-muted-foreground";
 }
 

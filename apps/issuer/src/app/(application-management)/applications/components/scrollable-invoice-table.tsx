@@ -20,7 +20,7 @@ import {
   getStatusPresentationByBadgeKey,
 } from "@cashsouk/config";
 import type { WithdrawReason } from "@cashsouk/types";
-import { shouldShowIssuerReviewOfferCta, getOfferPhaseDeadlineDisplay } from "@/lib/offer-utils";
+import { shouldShowIssuerReviewOfferCta, getOfferPhaseDeadlineDisplay, getIssuerOfferActionCtaFromOfferDetails } from "@/lib/offer-utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -492,6 +492,9 @@ export function ScrollableInvoiceTable({
                   status: inv.status,
                   offer_details: inv.offer_details,
                 });
+              const invoiceOfferActionCta = getIssuerOfferActionCtaFromOfferDetails(inv.offer_details, {
+                scope: "invoice",
+              });
               const offerDeadline =
                 invStatus === "OFFER_SENT" || invStatus === "OFFER_EXPIRED"
                   ? getOfferPhaseDeadlineDisplay(inv.offer_details)
@@ -650,15 +653,20 @@ export function ScrollableInvoiceTable({
                                 <Button
                                   type="button"
                                   size="sm"
-                                  variant="reviewOffer"
+                                  variant={invoiceOfferActionCta.buttonVariant}
                                   className="h-8 w-full min-w-0 max-w-full text-xs font-medium rounded-xl"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     onReviewInvoiceOffer(application.id, inv, application.issuerOrganizationId);
                                   }}
                                 >
-                                  Review Offer
+                                  {invoiceOfferActionCta.label}
                                 </Button>
+                                {invoiceOfferActionCta.hint ? (
+                                  <p className="text-[11px] leading-4 text-center text-muted-foreground">
+                                    {invoiceOfferActionCta.hint}
+                                  </p>
+                                ) : null}
                                 {offerDeadline ? (
                                   <p className="text-[11px] leading-4 text-center text-muted-foreground">
                                     {offerDeadline.summary}
@@ -668,11 +676,11 @@ export function ScrollableInvoiceTable({
                             ) : (
                               <Button
                                 size="sm"
-                                variant="reviewOffer"
+                                variant={invoiceOfferActionCta.buttonVariant}
                                 className="h-8 w-full min-w-0 max-w-full text-xs font-medium rounded-xl"
                                 disabled
                               >
-                                Review Offer
+                                {invoiceOfferActionCta.label}
                               </Button>
                             ))}
                           {showMakeAmendments && (

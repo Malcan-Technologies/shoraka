@@ -118,13 +118,12 @@ const STATUS_PRESENTATION: Record<string, Omit<StatusPresentation, "label"> & { 
   CONTRACT_ACCEPTED: { ...groupPresentation("admin_action"), label: "Contract Accepted" },
   INVOICE_ACCEPTED: { ...groupPresentation("admin_action"), label: "Invoice Accepted" },
   SIGNING_PENDING: { ...groupPresentation("admin_action"), label: "Signing Pending" },
-  CONTRACT_SIGNED: { ...groupPresentation("completed"), label: "Contract Signed" },
-  INVOICE_SIGNED: { ...groupPresentation("completed"), label: "Invoice Signed" },
   INVOICE_PENDING: { ...groupPresentation("admin_action"), label: "Invoice Pending" },
   INVOICES_SENT: { ...groupPresentation("issuer_action"), label: "Invoices Sent" },
   OFFER_SENT: { ...groupPresentation("issuer_action"), label: "Offer Sent" },
   AMENDMENT_REQUESTED: { ...groupPresentation("issuer_action"), label: "Amendment Requested" },
   RESUBMITTED: { ...groupPresentation("admin_action"), label: "Resubmitted" },
+  /** Section / item / contract / invoice review status (not ApplicationStatus). */
   APPROVED: { ...groupPresentation("completed"), label: "Approved" },
   COMPLETED: { ...groupPresentation("completed"), label: "Completed" },
   REJECTED: { ...groupPresentation("expired_closed"), label: "Rejected" },
@@ -185,15 +184,12 @@ const API_STATUS_TO_BADGE_KEY: Record<string, string> = {
   CONTRACT_ACCEPTED: "under_review",
   INVOICE_ACCEPTED: "under_review",
   SIGNING_PENDING: "under_review",
-  CONTRACT_SIGNED: "accepted",
-  INVOICE_SIGNED: "accepted",
   INVOICE_PENDING: "under_review",
   INVOICES_SENT: "under_review",
   AMENDMENT_REQUESTED: "amendment_requested",
   RESUBMITTED: "resubmitted",
   OFFER_SENT: "offer_sent",
   OFFER_EXPIRED: "offer_expired",
-  APPROVED: "approved",
   COMPLETED: "completed",
   WITHDRAWN: "withdrawn",
   REJECTED: "rejected",
@@ -205,7 +201,8 @@ export { API_STATUS_TO_BADGE_KEY };
 /**
  * Maps API invoice/application status + withdraw reason to issuer card/table badge key.
  * WITHDRAWN + OFFER_REJECTED → declined; OFFER_EXPIRED → offer_expired; else API map.
- * When entity stays OFFER_SENT, offer_acceptance phase can collapse the row to under_review.
+ * When entity stays OFFER_SENT, offer_acceptance phase can collapse the row:
+ * pending admin / completed → under_review; issuer Step 1 + Step 3 stay offer_sent.
  */
 export function resolveIssuerInvoiceStatusBadgeKey(
   status: string | undefined,
@@ -221,13 +218,8 @@ export function resolveIssuerInvoiceStatusBadgeKey(
   }
   if (upper === "OFFER_SENT" && offerAcceptanceStatus) {
     const phase = String(offerAcceptanceStatus).toUpperCase();
-    const issuerMustAct = phase === "PENDING_ISSUER" || phase === "CHANGES_REQUESTED";
-    const adminReviewOrSigning =
-      phase === "PENDING_ADMIN_REVIEW" ||
-      phase === "APPROVED_FOR_SIGNING" ||
-      phase === "SIGNING_IN_PROGRESS" ||
-      phase === "COMPLETED";
-    if (adminReviewOrSigning && !issuerMustAct) {
+    // Waiting on CashSouk review, or ceremony finished while entity is still OFFER_SENT briefly.
+    if (phase === "PENDING_ADMIN_REVIEW" || phase === "COMPLETED") {
       return "under_review";
     }
   }
@@ -244,15 +236,12 @@ export const STATUS_EXAMPLE_KEYS = [
   "CONTRACT_ACCEPTED",
   "INVOICE_ACCEPTED",
   "SIGNING_PENDING",
-  "CONTRACT_SIGNED",
-  "INVOICE_SIGNED",
   "INVOICE_PENDING",
   "INVOICES_SENT",
   "OFFER_SENT",
   "OFFER_EXPIRED",
   "AMENDMENT_REQUESTED",
   "RESUBMITTED",
-  "APPROVED",
   "COMPLETED",
   "REJECTED",
   "WITHDRAWN",
@@ -304,8 +293,6 @@ const BADGE_KEY_PRESENTATION: Record<string, StatusPresentation> = {
   } as StatusPresentation,
   resubmitted: { ...STATUS_PRESENTATION.RESUBMITTED, label: "Resubmitted" } as StatusPresentation,
   offer_sent: { ...STATUS_PRESENTATION.OFFER_SENT, label: "Offer Received" } as StatusPresentation,
-  accepted: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
-  approved: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
   completed: { ...STATUS_PRESENTATION.COMPLETED, label: "Completed" } as StatusPresentation,
   withdrawn: { ...STATUS_PRESENTATION.WITHDRAWN, label: "Withdrawn" } as StatusPresentation,
   declined: { ...STATUS_PRESENTATION.DECLINED, label: "Declined" } as StatusPresentation,

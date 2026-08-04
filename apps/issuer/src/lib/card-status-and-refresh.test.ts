@@ -9,13 +9,7 @@ jest.mock("@cashsouk/config", () => ({
     const upper = String(status ?? "").toUpperCase();
     if (upper === "OFFER_SENT" && offerAcceptanceStatus) {
       const phase = String(offerAcceptanceStatus).toUpperCase();
-      const issuerMustAct = phase === "PENDING_ISSUER" || phase === "CHANGES_REQUESTED";
-      const adminReviewOrSigning =
-        phase === "PENDING_ADMIN_REVIEW" ||
-        phase === "APPROVED_FOR_SIGNING" ||
-        phase === "SIGNING_IN_PROGRESS" ||
-        phase === "COMPLETED";
-      if (adminReviewOrSigning && !issuerMustAct) {
+      if (phase === "PENDING_ADMIN_REVIEW" || phase === "COMPLETED") {
         return "under_review";
       }
     }
@@ -54,26 +48,26 @@ describe("getCardStatus offer awaiting review", () => {
     expect(result.showReviewOffer).toBe(true);
   });
 
-  it("shows Under Review + Review Offer during SIGNING_PENDING (Step 3)", () => {
+  it("shows Offer Received + Review Offer during SIGNING_PENDING (Step 3)", () => {
     const result = getCardStatus({
       applicationStatus: "SIGNING_PENDING",
       contractStatus: "OFFER_SENT",
       invoiceStatuses: [],
       offerAcceptanceStatus: "APPROVED_FOR_SIGNING",
     });
-    expect(result.badgeKey).toBe("under_review");
-    expect(result.displayLabel).toBe("Under Review");
+    expect(result.badgeKey).toBe("offer_sent");
+    expect(result.displayLabel).toBe("Offer Received");
     expect(result.showReviewOffer).toBe(true);
   });
 
-  it("shows Under Review + Review Offer during SIGNING_IN_PROGRESS", () => {
+  it("shows Offer Received + Review Offer during SIGNING_IN_PROGRESS", () => {
     const result = getCardStatus({
       applicationStatus: "SIGNING_PENDING",
       contractStatus: "OFFER_SENT",
       invoiceStatuses: [],
       offerAcceptanceStatus: "SIGNING_IN_PROGRESS",
     });
-    expect(result.badgeKey).toBe("under_review");
+    expect(result.badgeKey).toBe("offer_sent");
     expect(result.showReviewOffer).toBe(true);
   });
 
@@ -95,7 +89,7 @@ describe("getCardStatus offer awaiting review", () => {
       invoiceStatuses: ["OFFER_SENT"],
       offerAcceptanceStatus: "SIGNING_IN_PROGRESS",
     });
-    expect(result.badgeKey).toBe("under_review");
+    expect(result.badgeKey).toBe("offer_sent");
     expect(result.showReviewOffer).toBe(false);
   });
 });
@@ -121,7 +115,7 @@ describe("resolveNormalizedInvoiceBadgeKey", () => {
     ).toBe("offer_sent");
   });
 
-  it("falls back to application offerAcceptanceStatus for OFFER_SENT rows", () => {
+  it("keeps offer_sent for OFFER_SENT rows during signing phases", () => {
     expect(
       resolveNormalizedInvoiceBadgeKey(
         {
@@ -130,7 +124,7 @@ describe("resolveNormalizedInvoiceBadgeKey", () => {
         } as import("@/app/(application-management)/applications/status").NormalizedInvoice,
         { offerAcceptanceStatus: "SIGNING_IN_PROGRESS" }
       )
-    ).toBe("under_review");
+    ).toBe("offer_sent");
   });
 });
 

@@ -215,11 +215,7 @@ export default function StatusExamplesPage() {
               // Dot/colour must match the collapsed badge, not the raw API status
               // (e.g. CONTRACT_SENT → "Under Review" stays blue, not amber).
               const collapsedStatusForDot =
-                badgeKey === "under_review"
-                  ? "UNDER_REVIEW"
-                  : badgeKey === "accepted" || badgeKey === "approved"
-                    ? "APPROVED"
-                    : key;
+                badgeKey === "under_review" ? "UNDER_REVIEW" : key;
               const fullPres = getStatusPresentation(
                 collapsedStatusForDot,
                 key === "WITHDRAWN" ? WithdrawReason.USER_CANCELLED : undefined,

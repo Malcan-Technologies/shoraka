@@ -47,17 +47,24 @@ describe("resolveApplicationStatusFromOfferAcceptancePhase", () => {
     ).toBe(ApplicationStatus.SIGNING_PENDING);
   });
 
-  it("maps completed + entity approved to signed statuses", () => {
+  it("maps completed + entity approved to terminal or review statuses", () => {
     expect(
       resolveApplicationStatusFromOfferAcceptancePhase(false, "COMPLETED", {
         entityApproved: true,
+        invoiceCount: 0,
       })
-    ).toBe(ApplicationStatus.CONTRACT_SIGNED);
+    ).toBe(ApplicationStatus.COMPLETED);
+    expect(
+      resolveApplicationStatusFromOfferAcceptancePhase(false, "COMPLETED", {
+        entityApproved: true,
+        invoiceCount: 2,
+      })
+    ).toBe(ApplicationStatus.UNDER_REVIEW);
     expect(
       resolveApplicationStatusFromOfferAcceptancePhase(true, "COMPLETED", {
         entityApproved: true,
       })
-    ).toBe(ApplicationStatus.INVOICE_SIGNED);
+    ).toBe(ApplicationStatus.COMPLETED);
   });
 
   it("maps PENDING_ISSUER to sent statuses", () => {
@@ -83,7 +90,7 @@ describe("resolveApplicationStatusFromOfferAcceptancePhase", () => {
 });
 
 describe("resolveApplicationStatusAfterCommercialAccept", () => {
-  it("uses signed statuses for phased accept", () => {
+  it("uses stage statuses for phased contract accept", () => {
     expect(
       resolveApplicationStatusAfterCommercialAccept({
         isInvoiceOnly: false,
@@ -91,7 +98,7 @@ describe("resolveApplicationStatusAfterCommercialAccept", () => {
         action: "accept",
         isContractPath: true,
       })
-    ).toBe(ApplicationStatus.CONTRACT_SIGNED);
+    ).toBe(ApplicationStatus.UNDER_REVIEW);
     expect(
       resolveApplicationStatusAfterCommercialAccept({
         isInvoiceOnly: true,
@@ -99,7 +106,7 @@ describe("resolveApplicationStatusAfterCommercialAccept", () => {
         action: "accept",
         isContractPath: false,
       })
-    ).toBe(ApplicationStatus.INVOICE_SIGNED);
+    ).toBeNull();
   });
 
   it("promotes to INVOICE_PENDING when contract path has invoices and invoice tab unlocked", () => {
@@ -115,7 +122,7 @@ describe("resolveApplicationStatusAfterCommercialAccept", () => {
     ).toBe(ApplicationStatus.INVOICE_PENDING);
   });
 
-  it("keeps CONTRACT_SIGNED when invoice tab still locked", () => {
+  it("keeps UNDER_REVIEW when invoice tab still locked", () => {
     expect(
       resolveApplicationStatusAfterCommercialAccept({
         isInvoiceOnly: false,
@@ -125,7 +132,7 @@ describe("resolveApplicationStatusAfterCommercialAccept", () => {
         invoiceCount: 2,
         isInvoiceTabUnlocked: false,
       })
-    ).toBe(ApplicationStatus.CONTRACT_SIGNED);
+    ).toBe(ApplicationStatus.UNDER_REVIEW);
   });
 
   it("returns null for legacy direct accept", () => {

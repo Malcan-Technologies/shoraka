@@ -110,7 +110,7 @@ function extractContractnumFromRequest(body: unknown, query: Request["query"]): 
 }
 
 function verifyWebhookSecret(req: Request): void {
-  const secret = process.env.SIGNINGCLOUD_WEBHOOK_SECRET?.trim();
+  const secret = process.env.SC_WEBHOOK_SECRET?.trim();
   if (!secret) {
     if (process.env.NODE_ENV === "production") {
       throw new AppError(500, "INTERNAL_ERROR", "Webhook secret is not configured");

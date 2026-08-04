@@ -1,5 +1,7 @@
 import { offerAcceptanceAllowsIssuerReviewCta } from "@cashsouk/types";
 import {
+  getIssuerOfferActionCta,
+  getIssuerOfferActionCtaFromOfferDetails,
   getOfferPhaseDeadlineDisplay,
   getOfferStatus,
   getPhaseDeadlineUrgency,
@@ -208,5 +210,30 @@ describe("getOfferPhaseDeadlineDisplay", () => {
         offer_acceptance: { status: "PENDING_ISSUER" },
       })
     ).toBe(null);
+  });
+});
+
+describe("getIssuerOfferActionCta", () => {
+  it("uses Update acceptance documents for CHANGES_REQUESTED", () => {
+    const cta = getIssuerOfferActionCta("CHANGES_REQUESTED", { scope: "contract" });
+    expect(cta.label).toBe("Update acceptance documents");
+    expect(cta.hint).toContain("requested changes");
+    expect(cta.buttonVariant).toBe("makeAmendments");
+    expect(cta.isAcceptanceChangesRequested).toBe(true);
+  });
+
+  it("uses Review Contract Financing Offer for PENDING_ISSUER contract scope", () => {
+    const cta = getIssuerOfferActionCta("PENDING_ISSUER", { scope: "contract" });
+    expect(cta.label).toBe("Review Contract Financing Offer");
+    expect(cta.hint).toBeNull();
+    expect(cta.buttonVariant).toBe("reviewOffer");
+  });
+
+  it("reads phase from offer_details", () => {
+    const cta = getIssuerOfferActionCtaFromOfferDetails(
+      { offer_acceptance: { status: "CHANGES_REQUESTED" } },
+      { scope: "invoice" }
+    );
+    expect(cta.label).toBe("Update acceptance documents");
   });
 });

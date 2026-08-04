@@ -41,7 +41,6 @@ ADMIN PORTAL (Admin actions)
   Action                            Event Type                          Where
   --------------------------------- ----------------------------------- ------
   Reset to under review             APPLICATION_RESET_TO_UNDER_REVIEW    Timeline
-  Approve application               APPLICATION_APPROVED                  Timeline
   Reject application               APPLICATION_REJECTED                   Timeline
   Send amendment request to issuer  AMENDMENTS_SUBMITTED                   Timeline
   Approve section                   SECTION_REVIEWED_APPROVED            Timeline
@@ -58,6 +57,8 @@ ADMIN PORTAL (Admin actions)
   Retract invoice offer             INVOICE_OFFER_RETRACTED              Timeline
   Issuer submits acceptance docs    CONTRACT_OFFER_ACCEPTANCE_SUBMITTED  Timeline
                                     / INVOICE_OFFER_ACCEPTANCE_SUBMITTED
+  Issuer resubmits after changes    CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED Timeline
+                                    / INVOICE_OFFER_ACCEPTANCE_RESUBMITTED
   Admin approves for signing        CONTRACT_ACCEPTANCE_APPROVED_FOR_    Timeline
                                     SIGNING / INVOICE_ACCEPTANCE_
                                     APPROVED_FOR_SIGNING

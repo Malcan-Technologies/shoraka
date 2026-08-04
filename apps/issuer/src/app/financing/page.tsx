@@ -337,6 +337,7 @@ function IssuerFinancingPageContent() {
                         row={c}
                         offerStatus={getOfferStatus(modalContract)}
                         showReviewOffer={shouldShowIssuerReviewOfferCta(modalContract)}
+                        offerDetails={modalContract?.offer_details}
                         onReviewOffer={() =>
                           setOfferModalContext({
                             type: "contract",

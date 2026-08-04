@@ -360,9 +360,7 @@ export class SigningService {
       status === ApplicationStatus.CONTRACT_ACCEPTED ||
       status === ApplicationStatus.INVOICE_ACCEPTED ||
       status === ApplicationStatus.SIGNING_PENDING ||
-      status === ApplicationStatus.CONTRACT_SIGNED ||
-      status === ApplicationStatus.INVOICE_SIGNED ||
-      status === ApplicationStatus.APPROVED
+      status === ApplicationStatus.COMPLETED
     ) {
       return true;
     }

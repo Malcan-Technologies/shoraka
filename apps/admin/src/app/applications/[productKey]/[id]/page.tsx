@@ -235,8 +235,6 @@ export default function DynamicApplicationDetailPage() {
     "CONTRACT_ACCEPTED",
     "INVOICE_ACCEPTED",
     "SIGNING_PENDING",
-    "CONTRACT_SIGNED",
-    "INVOICE_SIGNED",
     "INVOICE_PENDING",
     "INVOICES_SENT",
     "RESUBMITTED",
@@ -244,7 +242,7 @@ export default function DynamicApplicationDetailPage() {
     "OFFER_EXPIRED",
   ];
   const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
-  const isFinalApplicationForAmlGate = ["APPROVED", "FUNDED", "COMPLETED"].includes(
+  const isFinalApplicationForAmlGate = ["FUNDED", "COMPLETED"].includes(
     String(app?.status ?? "")
   );
   const applicationContractId =

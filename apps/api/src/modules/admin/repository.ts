@@ -2046,10 +2046,7 @@ export class AdminRepository {
       ApplicationStatus.INVOICES_SENT,
       ApplicationStatus.AMENDMENT_REQUESTED,
     ];
-    const APPROVED_DONE: ApplicationStatus[] = [
-      ApplicationStatus.APPROVED,
-      ApplicationStatus.COMPLETED,
-    ];
+    const APPROVED_DONE: ApplicationStatus[] = [ApplicationStatus.COMPLETED];
     const TERMINAL: ApplicationStatus[] = [
       ApplicationStatus.WITHDRAWN,
       ApplicationStatus.REJECTED,
