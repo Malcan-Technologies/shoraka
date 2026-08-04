@@ -42,6 +42,11 @@ export interface LegalDocumentsReviewProps {
   fallback?: React.ReactNode;
   /** Re-acceptance only: called when there is nothing pending (e.g. redirect home). */
   onEmptyReacceptance?: () => void;
+  /**
+   * When true, PageShell (or parent) owns the page title — checklist renders as a content panel only.
+   * Use on /legal-updates; keep false for onboarding steps.
+   */
+  embedInPageShell?: boolean;
 }
 
 type LocalDocState = {
@@ -112,6 +117,7 @@ export function LegalDocumentsReview({
   onComplete,
   fallback,
   onEmptyReacceptance,
+  embedInPageShell = false,
 }: LegalDocumentsReviewProps) {
   const { getAccessToken } = useAuthToken();
   const { acceptTnc, refreshOrganizations, activeOrganization } = useOrganization();
@@ -320,14 +326,17 @@ export function LegalDocumentsReview({
 
   if (loading) {
     return (
-      <LegalDocumentChecklistLoading title={copy.title} description="Loading documents…" />
+      <LegalDocumentChecklistLoading
+        title={embedInPageShell ? undefined : copy.title}
+        description={embedInPageShell ? undefined : "Loading documents…"}
+      />
     );
   }
 
   if (error) {
     return (
       <LegalDocumentChecklistError
-        title={copy.title}
+        title={embedInPageShell ? undefined : copy.title}
         error={error}
         onRetry={() => void loadStatus()}
       />
@@ -344,8 +353,10 @@ export function LegalDocumentsReview({
 
   return (
     <LegalDocumentChecklistShell
-      title={copy.title}
-      description={isOwner ? copy.description : copy.nonOwnerDescription}
+      title={embedInPageShell ? undefined : copy.title}
+      description={
+        embedInPageShell ? undefined : isOwner ? copy.description : copy.nonOwnerDescription
+      }
       footer={
         isOwner ? (
           <Button
@@ -358,6 +369,11 @@ export function LegalDocumentsReview({
         ) : undefined
       }
     >
+      {embedInPageShell && !isOwner ? (
+        <p className="border-b px-5 py-4 text-[17px] leading-7 text-muted-foreground md:px-6">
+          {copy.nonOwnerDescription}
+        </p>
+      ) : null}
       <LegalDocumentChecklistRows
         rows={rows}
         disabled={submitting}

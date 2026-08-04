@@ -93,14 +93,14 @@ export function LegalReacceptanceBanner({
     >
       <div
         className={cn(
-          "flex flex-col gap-3 rounded-xl border border-amber-200/80 bg-amber-50/90 px-4 py-3",
-          "text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/25 dark:text-amber-100",
+          "flex flex-col gap-3 rounded-xl border border-status-action-text/30 bg-status-action-bg px-4 py-3",
+          "text-status-action-text",
           "sm:flex-row sm:items-center sm:gap-4"
         )}
       >
         <div className="flex min-w-0 flex-1 items-start gap-3">
           <ExclamationTriangleIcon
-            className="mt-0.5 h-5 w-5 shrink-0 text-amber-700 dark:text-amber-300"
+            className="mt-0.5 h-5 w-5 shrink-0 text-status-action-text"
             aria-hidden
           />
           <div className="min-w-0 space-y-0.5">

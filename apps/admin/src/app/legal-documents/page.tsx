@@ -3,9 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { SidebarTrigger } from "../../components/ui/sidebar";
-import { Separator } from "../../components/ui/separator";
-import { SystemHealthIndicator } from "../../components/system-health-indicator";
+import { useHeader } from "@cashsouk/ui";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
@@ -204,6 +202,12 @@ function ReacceptanceOptions({
 }
 
 export default function LegalDocumentsPage() {
+  const { setTitle } = useHeader();
+  React.useEffect(() => {
+    setTitle("Legal Documents");
+    return () => setTitle("");
+  }, [setTitle]);
+
   const { can } = usePermissions();
   const canManage = can("document_management.manage");
   const { getAccessToken } = useAuthToken();
@@ -715,15 +719,6 @@ export default function LegalDocumentsPage() {
   return (
     <RequirePermission permission="document_management.view">
       <>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <h1 className="text-lg font-semibold">Legal Documents</h1>
-          <div className="ml-auto">
-            <SystemHealthIndicator />
-          </div>
-        </header>
-
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
           <div className="w-full space-y-6 px-2 py-8 md:px-4">
             <div className="flex items-center justify-between gap-4">
@@ -734,6 +729,7 @@ export default function LegalDocumentsPage() {
                 </p>
               </div>
               <Button
+                variant="action"
                 onClick={openCreateDialog}
                 disabled={!canManage}
                 title={!canManage ? "You do not have permission to perform this action." : undefined}

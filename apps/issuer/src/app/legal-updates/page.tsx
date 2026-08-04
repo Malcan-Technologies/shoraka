@@ -3,11 +3,17 @@
 import { useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useOrganization } from "@cashsouk/config";
-import { LegalDocumentsReview, useHeader } from "@cashsouk/ui";
+import {
+  LegalDocumentsReview,
+  PageShell,
+  useHeader,
+  legalDocumentsReviewCopy,
+} from "@cashsouk/ui";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const copy = legalDocumentsReviewCopy("reacceptance");
 
 export default function LegalUpdatesPage() {
   const router = useRouter();
@@ -19,7 +25,9 @@ export default function LegalUpdatesPage() {
   }, [router]);
 
   useEffect(() => {
-    setTitle("Updated legal documents");
+    // PageShell owns the title.
+    setTitle("");
+    return () => setTitle("");
   }, [setTitle]);
 
   if (!activeOrganization) {
@@ -28,14 +36,17 @@ export default function LegalUpdatesPage() {
 
   return (
     <div className={cn(issuerMainContentClassName, issuerPageGutterClassName)}>
-      <LegalDocumentsReview
-        organizationId={activeOrganization.id}
-        portalType="issuer"
-        apiUrl={API_URL}
-        mode="reacceptance"
-        onComplete={() => router.push("/")}
-        onEmptyReacceptance={handleEmpty}
-      />
+      <PageShell title={copy.title} description={copy.description}>
+        <LegalDocumentsReview
+          organizationId={activeOrganization.id}
+          portalType="issuer"
+          apiUrl={API_URL}
+          mode="reacceptance"
+          embedInPageShell
+          onComplete={() => router.push("/")}
+          onEmptyReacceptance={handleEmpty}
+        />
+      </PageShell>
     </div>
   );
 }

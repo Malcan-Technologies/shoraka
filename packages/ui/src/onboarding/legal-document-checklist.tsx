@@ -38,7 +38,8 @@ export function LegalDocumentChecklistShell({
   footer,
   className,
 }: {
-  title: string;
+  /** When omitted, render a content panel without a page-title header (PageShell owns the title). */
+  title?: string;
   description?: string;
   children: ReactNode;
   footer?: ReactNode;
@@ -46,12 +47,14 @@ export function LegalDocumentChecklistShell({
 }) {
   return (
     <Card className={cn("w-full rounded-xl border bg-card shadow-sm", className)}>
-      <CardHeader className="space-y-1.5 border-b px-5 py-5 md:px-6">
-        <CardTitle className="text-xl font-semibold tracking-tight md:text-2xl">{title}</CardTitle>
-        {description ? (
-          <p className="text-[17px] leading-7 text-muted-foreground">{description}</p>
-        ) : null}
-      </CardHeader>
+      {title ? (
+        <CardHeader className="space-y-1.5 border-b px-5 py-5 md:px-6">
+          <CardTitle className="text-xl font-semibold tracking-tight md:text-2xl">{title}</CardTitle>
+          {description ? (
+            <p className="text-[17px] leading-7 text-muted-foreground">{description}</p>
+          ) : null}
+        </CardHeader>
+      ) : null}
       <CardContent className="p-0">{children}</CardContent>
       {footer ? (
         <CardFooter className="border-t px-5 py-4 md:px-6">{footer}</CardFooter>
@@ -64,8 +67,8 @@ export function LegalDocumentChecklistLoading({
   title,
   description,
 }: {
-  title: string;
-  description: string;
+  title?: string;
+  description?: string;
 }) {
   return (
     <LegalDocumentChecklistShell title={title} description={description}>
@@ -82,14 +85,14 @@ export function LegalDocumentChecklistError({
   error,
   onRetry,
 }: {
-  title: string;
+  title?: string;
   error: string;
   onRetry: () => void;
 }) {
   return (
     <LegalDocumentChecklistShell
       title={title}
-      description="Something went wrong while loading the documents."
+      description={title ? "Something went wrong while loading the documents." : undefined}
       footer={
         <Button type="button" variant="outline" onClick={onRetry}>
           Retry

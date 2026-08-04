@@ -73,7 +73,7 @@ describe("LegalReacceptanceBanner copy and layout helpers", () => {
     expect(source).toContain("flex-col gap-3");
     expect(source).toContain("w-full shrink-0 sm:w-auto");
     expect(source).toContain("ExclamationTriangleIcon");
-    expect(source).toContain("rounded-xl border border-amber-200");
+    expect(source).toContain("rounded-xl border border-status-action-text/30 bg-status-action-bg");
   });
 
   it("matches issuer and investor dashboard gutters", () => {
