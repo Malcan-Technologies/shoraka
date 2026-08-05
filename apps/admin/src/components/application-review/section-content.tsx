@@ -15,13 +15,15 @@ import {
 import { FinancialSection } from "./sections/financial-section";
 import { BusinessSection } from "./sections/business-section";
 import { DocumentsSection } from "./sections/documents-section";
+import { AcceptanceSection } from "./sections/acceptance-section";
 import { CompanySection } from "./sections/company-section";
 import { ContractSection } from "./sections/contract-section";
 import { CustomerSection } from "./sections/customer-section";
 import { InvoiceSection } from "./sections/invoice-section";
 import type { ReviewSectionId } from "./section-types";
 import type { ReviewTabDescriptor } from "./review-registry";
-import { isSignedOfferLetterAvailable } from "./offer-signing-availability";
+import { isSignedContractOfferLetterAvailable } from "./offer-signing-availability";
+import { useAdminSigningEnvelopes } from "@/hooks/use-signing-envelopes";
 import type { SoukscoreRiskRating } from "@cashsouk/types";
 
 export interface SectionCommentRecord {
@@ -54,6 +56,7 @@ export type ReviewApplicationView = {
   business_details?: unknown;
   application_guarantors?: unknown;
   supporting_documents?: unknown;
+  acceptance_documents?: unknown;
   financing_type?: unknown;
   financing_structure?: unknown;
   company_details?: unknown;
@@ -61,8 +64,10 @@ export type ReviewApplicationView = {
   financial_statements?: unknown;
   review_and_submit?: unknown;
   contract?: {
+    id?: string;
     contract_details?: unknown;
     customer_details?: unknown;
+    offer_details?: unknown;
     status?: string;
     invoices?: { id: string; application_id: string; details?: unknown; status?: string; offer_details?: unknown }[];
   } | null;
@@ -76,6 +81,14 @@ export type ReviewApplicationView = {
   }[];
   application_review_items?: unknown;
   application_review_remarks?: unknown;
+  inherited_acceptance?: {
+    source_application_id: string;
+    source_product_id: string | null;
+    acceptance_documents: unknown;
+    review_items: { item_type: string; item_id: string; status: string }[];
+    product_workflow: unknown[] | null;
+    product_version: number | null;
+  } | null;
   issuer_organization_id?: string;
   issuer_organization?: {
     id?: string;
@@ -159,13 +172,11 @@ export interface SectionContentProps {
   platformFeeRateCapPercent?: number | null;
   /** Product-level default Facility Fee rate (%). Used only to prefill Contract Offer UI. */
   productDefaultFacilityFeeRatePercent?: number | null;
-  /** Product offer expiry in days. Used for invoice estimates and offer expiry when sending. */
-  offerExpiryDays?: number | null;
   /** Minimum months from today to maturity to enable Send Offer on invoice review. */
   minMonthsReviewToMaturityForOffer?: number | null;
   /** Map of section id to status. Used for contract facility resolution in invoice section. */
   sectionStatusMap?: ReadonlyMap<string, string>;
-  onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => void | Promise<void>;
+  onViewSignedInvoiceOffer?: (invoiceId: string) => void | Promise<void>;
   onViewSignedContractOffer?: () => void | Promise<void>;
   viewSignedOfferLetterPending?: boolean;
   /** When set, sections render read-only before/after comparison grids. */
@@ -176,6 +187,14 @@ export interface SectionContentProps {
   supportingDocumentsStepConfig?: Record<string, unknown> | null;
   /** Stored amendment remarks for resubmit comparison (modal only). */
   resubmitAmendmentRemarks?: Array<{ scope: string; scope_key: string; remark: string }>;
+  /**
+   * Frozen product workflow (application.product_version) for Acceptance acknowledgements
+   * and signing hub. Omit in resubmit comparison (docs-only).
+   */
+  productWorkflow?: unknown;
+  /** When false, Acceptance signing actions (void/remind) are disabled. */
+  canManageSigning?: boolean;
+  productVersion?: number | null;
 }
 
 /** Renders section content by descriptor. Single place to map descriptor → component. */
@@ -211,7 +230,6 @@ export function SectionContent({
   invoiceRatioLimits,
   platformFeeRateCapPercent,
   productDefaultFacilityFeeRatePercent,
-  offerExpiryDays,
   minMonthsReviewToMaturityForOffer,
   sectionStatusMap,
   onViewSignedInvoiceOffer,
@@ -221,7 +239,18 @@ export function SectionContent({
   hideSectionComments = false,
   supportingDocumentsStepConfig = null,
   resubmitAmendmentRemarks,
+  productWorkflow,
+  canManageSigning = true,
+  productVersion = null,
 }: SectionContentProps) {
+  const signingApplicationId =
+    (typeof liveApplicationId === "string" && liveApplicationId) ||
+    (typeof app.id === "string" ? app.id : "");
+  const { data: signingEnvelopes = [] } = useAdminSigningEnvelopes(signingApplicationId);
+  const signedContractOfferLetterAvailable = isSignedContractOfferLetterAvailable({
+    contractId: app.contract?.id,
+    envelopes: signingEnvelopes,
+  });
   const reviewItems =
     (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
   const reviewComments = (app.application_review_remarks as SectionCommentRecord[] | undefined) ?? [];
@@ -371,6 +400,83 @@ export function SectionContent({
           }
         />
       );
+    case "acceptance_documents": {
+      const structureType = (app.financing_structure as { structure_type?: string } | null | undefined)
+        ?.structure_type;
+      const inherited = app.inherited_acceptance ?? null;
+      const isInheritedAcceptance =
+        structureType === "existing_contract" && inherited != null;
+      const acceptanceDocuments = isInheritedAcceptance
+        ? inherited.acceptance_documents
+        : app.acceptance_documents;
+      const acceptanceReviewItems = isInheritedAcceptance
+        ? inherited.review_items
+        : (app.application_review_items as
+            | { item_type: string; item_id: string; status: string }[]
+            | undefined) ?? [];
+      const signingApplicationId = isInheritedAcceptance
+        ? inherited.source_application_id
+        : liveApplicationId;
+      const acceptanceWorkflow = isInheritedAcceptance
+        ? inherited.product_workflow ?? productWorkflow
+        : productWorkflow;
+      const acceptanceProductVersion = isInheritedAcceptance
+        ? inherited.product_version ?? productVersion
+        : productVersion;
+      return (
+        <AcceptanceSection
+          supportingDocuments={acceptanceDocuments}
+          reviewItems={acceptanceReviewItems}
+          isReviewable={isReviewable && !isInheritedAcceptance}
+          approvePending={approveItemPending}
+          isActionLocked={isActionLocked || isInheritedAcceptance}
+          actionLockTooltip={
+            isInheritedAcceptance
+              ? "Acceptance was completed when the linked contract was approved"
+              : actionLockTooltip
+          }
+          viewDocumentPending={viewDocumentPending}
+          onViewDocument={onViewDocument}
+          onDownloadDocument={onDownloadDocument}
+          onDownloadAllDocuments={onDownloadAllDocuments}
+          isDownloadAllPending={downloadAllDocumentsPending}
+          onApproveItem={(id) => onApproveItem(id, "document")}
+          onRejectItem={(id) => onRejectItem(id, "document")}
+          onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "document")}
+          onResetItemToPending={
+            onResetItemToPending && !isInheritedAcceptance
+              ? (id) => onResetItemToPending(id, "document")
+              : undefined
+          }
+          comments={sectionComments}
+          onAddComment={
+            onAddSectionComment && !isInheritedAcceptance
+              ? (comment) => onAddSectionComment(section, comment)
+              : undefined
+          }
+          hideSectionComments={hideSectionComments || !!sectionComparison || isInheritedAcceptance}
+          applicationId={sectionComparison ? undefined : signingApplicationId}
+          workflow={acceptanceWorkflow}
+          people={app.people ?? []}
+          guarantors={app.application_guarantors}
+          contractId={app.contract?.id ?? null}
+          productVersion={acceptanceProductVersion}
+          canManageSigning={canManageSigning && !isInheritedAcceptance}
+          contractOfferDetails={app.contract?.offer_details}
+          invoices={app.invoices ?? []}
+          structureType={structureType}
+          acceptanceReviewMode={isInheritedAcceptance ? "inherited" : "live"}
+          inheritedSourceApplication={
+            isInheritedAcceptance
+              ? {
+                  id: inherited.source_application_id,
+                  productId: inherited.source_product_id,
+                }
+              : undefined
+          }
+        />
+      );
+    }
     case "contract_details": {
       const structureType = (app.financing_structure as { structure_type?: string } | null | undefined)?.structure_type;
       const isInvoiceOnly = structureType === "invoice_only";
@@ -414,6 +520,7 @@ export function SectionContent({
           contractStatus={app.contract?.status}
           customerDetails={app.contract?.customer_details}
           productDefaultFacilityFeeRatePercent={productDefaultFacilityFeeRatePercent}
+          productWorkflow={productWorkflow}
           section={section}
           isReviewable={isReviewable}
           approvePending={approveSectionPending}
@@ -432,9 +539,7 @@ export function SectionContent({
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
           onViewSignedContractOffer={onViewSignedContractOffer}
-          signedContractOfferLetterAvailable={isSignedOfferLetterAvailable(
-            (app.contract as { offer_signing?: unknown } | null | undefined)?.offer_signing
-          )}
+          signedContractOfferLetterAvailable={signedContractOfferLetterAvailable}
           viewSignedOfferLetterPending={viewSignedOfferLetterPending}
           sectionComparison={
             sectionComparison
@@ -493,6 +598,7 @@ export function SectionContent({
           : undefined;
       return (
         <InvoiceSection
+          applicationId={signingApplicationId}
           invoices={mergedInvoices}
           readOnlyInvoiceIds={readOnlyInvoiceIds}
           contractFacility={contractFacility}
@@ -514,8 +620,8 @@ export function SectionContent({
           isSendInvoiceOfferPending={sendInvoiceOfferPending}
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
-          offerExpiryDays={offerExpiryDays}
           minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
+          productWorkflow={productWorkflow}
           onViewSignedInvoiceOffer={onViewSignedInvoiceOffer}
           sectionComparison={
             sectionComparison

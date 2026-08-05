@@ -1,9 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { ApiError, SoukscoreRiskRating } from "@cashsouk/types";
 import { applicationLogsKeys } from "./use-application-logs";
 import { applicationsKeys } from "@/applications/query-keys";
-import { invalidateAdminApplicationNavQueries } from "@/lib/admin-application-nav-cache";
+import {
+  invalidateAdminApplicationDetailQueries,
+  invalidateAdminApplicationNavQueries,
+} from "@/lib/admin-application-nav-cache";
+import { signingKeys } from "./use-signing-envelopes";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -12,6 +17,26 @@ const pendingAmendmentKeys = {
   list: (applicationId: string) =>
     [...pendingAmendmentKeys.all, applicationId] as const,
 };
+
+function invalidateReviewDetailExtras(
+  queryClient: QueryClient,
+  applicationId: string,
+  options?: { includeActionCount?: boolean; includePendingAmendments?: boolean; includeLogs?: boolean }
+): void {
+  invalidateAdminApplicationDetailQueries(queryClient, applicationId, {
+    includeActionCount: options?.includeActionCount,
+  });
+  if (options?.includePendingAmendments !== false) {
+    void queryClient.invalidateQueries({
+      queryKey: pendingAmendmentKeys.list(applicationId),
+    });
+  }
+  if (options?.includeLogs !== false) {
+    void queryClient.invalidateQueries({
+      queryKey: applicationLogsKeys.list(applicationId),
+    });
+  }
+}
 
 export function useApproveReviewSection() {
   const { getAccessToken } = useAuthToken();
@@ -35,13 +60,8 @@ export function useApproveReviewSection() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      invalidateAdminApplicationNavQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
-      queryClient.invalidateQueries({
-        queryKey: pendingAmendmentKeys.list(variables.applicationId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: applicationLogsKeys.list(variables.applicationId),
+      invalidateReviewDetailExtras(queryClient, variables.applicationId, {
+        includeActionCount: true,
       });
     },
   });
@@ -69,13 +89,8 @@ export function useRejectReviewSection() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      invalidateAdminApplicationNavQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
-      queryClient.invalidateQueries({
-        queryKey: pendingAmendmentKeys.list(variables.applicationId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: applicationLogsKeys.list(variables.applicationId),
+      invalidateReviewDetailExtras(queryClient, variables.applicationId, {
+        includeActionCount: true,
       });
     },
   });
@@ -103,8 +118,7 @@ export function useAddSectionComment() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      invalidateAdminApplicationNavQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
+      invalidateAdminApplicationDetailQueries(queryClient, variables.applicationId);
     },
   });
 }
@@ -132,10 +146,7 @@ export function useStartApplicationGuarantorAml() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      invalidateAdminApplicationNavQueries(queryClient);
-      queryClient.invalidateQueries({
-        queryKey: applicationsKeys.detail(variables.applicationId),
-      });
+      invalidateAdminApplicationDetailQueries(queryClient, variables.applicationId);
     },
   });
 }
@@ -160,13 +171,8 @@ export function useResetSectionReviewToPending() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      invalidateAdminApplicationNavQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
-      queryClient.invalidateQueries({
-        queryKey: pendingAmendmentKeys.list(variables.applicationId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: applicationLogsKeys.list(variables.applicationId),
+      invalidateReviewDetailExtras(queryClient, variables.applicationId, {
+        includeActionCount: true,
       });
     },
   });
@@ -201,16 +207,11 @@ export function useApproveReviewItem() {
       return response.data;
     },
     onSuccess: async (_, variables) => {
-      invalidateAdminApplicationNavQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
-      queryClient.invalidateQueries({
-        queryKey: pendingAmendmentKeys.list(variables.applicationId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: applicationLogsKeys.list(variables.applicationId),
+      invalidateReviewDetailExtras(queryClient, variables.applicationId, {
+        includeActionCount: true,
       });
       await queryClient.refetchQueries({
-        queryKey: ["admin", "applications", variables.applicationId],
+        queryKey: applicationsKeys.detail(variables.applicationId),
       });
     },
   });
@@ -240,16 +241,11 @@ export function useRejectReviewItem() {
       return response.data;
     },
     onSuccess: async (_, variables) => {
-      invalidateAdminApplicationNavQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
-      queryClient.invalidateQueries({
-        queryKey: pendingAmendmentKeys.list(variables.applicationId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: applicationLogsKeys.list(variables.applicationId),
+      invalidateReviewDetailExtras(queryClient, variables.applicationId, {
+        includeActionCount: true,
       });
       await queryClient.refetchQueries({
-        queryKey: ["admin", "applications", variables.applicationId],
+        queryKey: applicationsKeys.detail(variables.applicationId),
       });
     },
   });
@@ -281,13 +277,51 @@ export function useResetItemReviewToPending() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      invalidateAdminApplicationNavQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
-      queryClient.invalidateQueries({
-        queryKey: pendingAmendmentKeys.list(variables.applicationId),
+      invalidateReviewDetailExtras(queryClient, variables.applicationId, {
+        includeActionCount: true,
       });
-      queryClient.invalidateQueries({
-        queryKey: applicationLogsKeys.list(variables.applicationId),
+    },
+  });
+}
+
+/** Immediate item amendment / acceptance "Request change" (not the underwriting draft queue). */
+export function useRequestAmendmentReviewItem() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({
+      applicationId,
+      itemType,
+      itemId,
+      remark,
+    }: {
+      applicationId: string;
+      itemType: "invoice" | "document";
+      itemId: string;
+      remark: string;
+    }) => {
+      const response = await apiClient.requestAmendmentReviewItem(
+        applicationId,
+        itemType,
+        itemId,
+        remark
+      );
+      if (!response.success) {
+        throw new Error(
+          (response as ApiError).error?.message ?? "Failed to request document change"
+        );
+      }
+      return response.data;
+    },
+    onSuccess: async (_, variables) => {
+      invalidateReviewDetailExtras(queryClient, variables.applicationId, {
+        includeActionCount: true,
+        includePendingAmendments: false,
+      });
+      await queryClient.refetchQueries({
+        queryKey: applicationsKeys.detail(variables.applicationId),
       });
     },
   });
@@ -303,29 +337,67 @@ export function useSendContractOffer() {
       applicationId,
       offeredFacility,
       facilityFeeRatePercent,
-      expiresAt,
     }: {
       applicationId: string;
       offeredFacility: number;
       facilityFeeRatePercent?: number | null;
-      expiresAt?: string | null;
     }) => {
       const response = await apiClient.sendContractOffer(
         applicationId,
         offeredFacility,
-        facilityFeeRatePercent ?? null,
-        expiresAt
+        facilityFeeRatePercent ?? null
       );
       if (!response.success) {
         throw new Error((response as ApiError).error?.message ?? "Failed to send contract offer");
       }
       return response.data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       invalidateAdminApplicationNavQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
-      queryClient.invalidateQueries({
+      invalidateAdminApplicationDetailQueries(queryClient, variables.applicationId, {
+        includeActionCount: true,
+      });
+      void queryClient.invalidateQueries({
         queryKey: applicationLogsKeys.list(variables.applicationId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: signingKeys.byApplication(variables.applicationId),
+      });
+      await queryClient.refetchQueries({
+        queryKey: applicationsKeys.detail(variables.applicationId),
+      });
+    },
+  });
+}
+
+export function useExtendContractSigningDeadline() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({ applicationId }: { applicationId: string }) => {
+      const response = await apiClient.extendContractSigningDeadline(applicationId);
+      if (!response.success) {
+        throw new Error(
+          (response as ApiError).error?.message ?? "Failed to extend signing deadline"
+        );
+      }
+      return response.data;
+    },
+    onSuccess: async (_, variables) => {
+      invalidateAdminApplicationNavQueries(queryClient);
+      invalidateAdminApplicationDetailQueries(queryClient, variables.applicationId, {
+        includeActionCount: true,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: applicationLogsKeys.list(variables.applicationId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: signingKeys.byApplication(variables.applicationId),
+      });
+      await queryClient.refetchQueries({
+        queryKey: applicationsKeys.detail(variables.applicationId),
       });
     },
   });
@@ -355,10 +427,8 @@ export function usePatchContractCustomerLargePrivate() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      invalidateAdminApplicationNavQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
-      queryClient.invalidateQueries({
-        queryKey: applicationLogsKeys.list(variables.applicationId),
+      invalidateReviewDetailExtras(queryClient, variables.applicationId, {
+        includePendingAmendments: false,
       });
     },
   });
@@ -377,7 +447,6 @@ export function useSendInvoiceOffer() {
       offeredRatioPercent,
       offeredProfitRatePercent,
       platformFeeRatePercent,
-      expiresAt,
       risk_rating,
     }: {
       applicationId: string;
@@ -386,7 +455,6 @@ export function useSendInvoiceOffer() {
       offeredRatioPercent?: number | null;
       offeredProfitRatePercent?: number | null;
       platformFeeRatePercent?: number | null;
-      expiresAt?: string | null;
       risk_rating: SoukscoreRiskRating;
     }) => {
       const response = await apiClient.sendInvoiceOffer(applicationId, invoiceId, {
@@ -394,7 +462,6 @@ export function useSendInvoiceOffer() {
         offeredRatioPercent,
         offeredProfitRatePercent,
         platformFeeRatePercent,
-        expiresAt,
         risk_rating,
       });
       if (!response.success) {
@@ -402,11 +469,58 @@ export function useSendInvoiceOffer() {
       }
       return response.data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       invalidateAdminApplicationNavQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
-      queryClient.invalidateQueries({
+      invalidateAdminApplicationDetailQueries(queryClient, variables.applicationId, {
+        includeActionCount: true,
+      });
+      void queryClient.invalidateQueries({
         queryKey: applicationLogsKeys.list(variables.applicationId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: signingKeys.byApplication(variables.applicationId),
+      });
+      await queryClient.refetchQueries({
+        queryKey: applicationsKeys.detail(variables.applicationId),
+      });
+    },
+  });
+}
+
+export function useExtendInvoiceSigningDeadline() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({
+      applicationId,
+      invoiceId,
+    }: {
+      applicationId: string;
+      invoiceId: string;
+    }) => {
+      const response = await apiClient.extendInvoiceSigningDeadline(applicationId, invoiceId);
+      if (!response.success) {
+        throw new Error(
+          (response as ApiError).error?.message ?? "Failed to extend signing deadline"
+        );
+      }
+      return response.data;
+    },
+    onSuccess: async (_, variables) => {
+      invalidateAdminApplicationNavQueries(queryClient);
+      invalidateAdminApplicationDetailQueries(queryClient, variables.applicationId, {
+        includeActionCount: true,
+      });
+      void queryClient.invalidateQueries({
+        queryKey: applicationLogsKeys.list(variables.applicationId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: signingKeys.byApplication(variables.applicationId),
+      });
+      await queryClient.refetchQueries({
+        queryKey: applicationsKeys.detail(variables.applicationId),
       });
     },
   });
@@ -448,10 +562,8 @@ export function useAddPendingAmendment() {
       return response.data;
     },
     onSuccess: async (_, variables) => {
-      invalidateAdminApplicationNavQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
-      queryClient.invalidateQueries({
-        queryKey: applicationLogsKeys.list(variables.applicationId),
+      invalidateReviewDetailExtras(queryClient, variables.applicationId, {
+        includePendingAmendments: false,
       });
       await queryClient.refetchQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
@@ -507,11 +619,10 @@ export function useRemovePendingAmendment() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
       });
-      invalidateAdminApplicationNavQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
+      invalidateAdminApplicationDetailQueries(queryClient, variables.applicationId);
     },
   });
 }
@@ -532,12 +643,14 @@ export function useSubmitAmendmentRequest() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
       });
       invalidateAdminApplicationNavQueries(queryClient);
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
-      queryClient.invalidateQueries({
+      invalidateAdminApplicationDetailQueries(queryClient, variables.applicationId, {
+        includeActionCount: true,
+      });
+      void queryClient.invalidateQueries({
         queryKey: applicationLogsKeys.list(variables.applicationId),
       });
     },

@@ -1,6 +1,11 @@
 import {
+  getReviewSectionOrder,
+  getReviewSectionPrerequisites,
   getStepKeyFromStepId,
+  isPrerequisiteSectionSatisfied,
   REVIEW_SECTION_ORDER,
+  shouldShowAcceptanceDocumentsReviewSection,
+  workflowUsesOfferAcceptanceFlow,
   type ReviewSection,
 } from "@cashsouk/types";
 
@@ -34,33 +39,21 @@ const REVIEW_TAB_LABELS: Record<string, string> = {
   financial: "Financial",
   business_details: "Business & Guarantor",
   supporting_documents: "Documents",
+  acceptance_documents: "Acceptance",
   contract_details: "Contract",
   invoice_details: "Invoice",
   company_details: "Company",
 };
 
-const REVIEW_TAB_ORDER = [
-  "company_details",
-  "business_details",
-  "supporting_documents",
-  "contract_details",
-  "invoice_details",
-] as const;
-
 /**
- * Prerequisites for each tab.
- * - Contract unlocks when Financial + Company + Business + Documents are approved.
- * - Invoice unlocks when all Contract prerequisites AND Contract section are approved.
- *   (For invoice_only applications, server omits contract_details from prerequisites.)
+ * Prerequisites for each tab (contract / default).
+ * Invoice-only and Acceptance gates come from getReviewSectionPrerequisites(structureType).
+ * Server-provided prerequisites take precedence when present on the application.
  */
-const TAB_PREREQUISITES: Record<string, string[]> = {
-  financial: [],
-  company_details: [],
-  business_details: [],
-  supporting_documents: [],
-  contract_details: ["financial", "company_details", "business_details", "supporting_documents"],
-  invoice_details: ["financial", "company_details", "business_details", "supporting_documents", "contract_details"],
-};
+const TAB_PREREQUISITES: Record<string, string[]> = getReviewSectionPrerequisites() as Record<
+  string,
+  string[]
+>;
 
 /** Human-readable label for a review section or step key. */
 export function getReviewTabLabel(stepKey: string): string {
@@ -69,10 +62,11 @@ export function getReviewTabLabel(stepKey: string): string {
 
 /**
  * Build ordered review tab descriptors from product workflow.
- * Financial tab is always first; step tabs follow REVIEW_TAB_ORDER.
+ * Financial tab is always first; remaining tabs follow structure-aware section order.
  */
 export function getReviewTabDescriptorsFromWorkflow(
-  workflow: unknown[] | null | undefined
+  workflow: unknown[] | null | undefined,
+  structureType?: string | null
 ): ReviewTabDescriptor[] {
   const result: ReviewTabDescriptor[] = [];
 
@@ -103,9 +97,26 @@ export function getReviewTabDescriptorsFromWorkflow(
     });
   }
 
+  if (
+    shouldShowAcceptanceDocumentsReviewSection(
+      structureType,
+      workflowUsesOfferAcceptanceFlow(workflow)
+    )
+  ) {
+    stepTabs.push({
+      id: "acceptance_documents",
+      label: getReviewTabLabel("acceptance_documents"),
+      reviewSection: "acceptance_documents",
+      kind: "acceptance_documents",
+      stepKey: "acceptance_documents",
+      stepId: "acceptance_documents",
+    });
+  }
+
+  const order = getReviewSectionOrder(structureType);
   const orderIndex = (key: string) => {
-    const i = REVIEW_TAB_ORDER.indexOf(key as (typeof REVIEW_TAB_ORDER)[number]);
-    return i === -1 ? REVIEW_TAB_ORDER.length : i;
+    const i = order.indexOf(key as ReviewSection);
+    return i === -1 ? order.length : i;
   };
   stepTabs.sort((a, b) => orderIndex(a.stepKey ?? "") - orderIndex(b.stepKey ?? ""));
 
@@ -113,24 +124,44 @@ export function getReviewTabDescriptorsFromWorkflow(
   return result;
 }
 
+function resolveTabPrerequisites(
+  sectionId: string,
+  prerequisitesBySection?: Record<string, string[]>,
+  structureType?: string | null
+): string[] | undefined {
+  if (prerequisitesBySection != null && sectionId in prerequisitesBySection) {
+    return prerequisitesBySection[sectionId];
+  }
+  if (structureType != null && structureType !== "") {
+    const structured = getReviewSectionPrerequisites(structureType);
+    const fromStructure = structured[sectionId as ReviewSection];
+    if (fromStructure) return fromStructure;
+  }
+  return TAB_PREREQUISITES[sectionId];
+}
+
 /**
  * Check if a tab is unlocked based on section approval status.
  * Sections not in TAB_PREREQUISITES are treated as unlocked.
  * Server-provided prerequisites (when present) take precedence.
+ * Acceptance treats Contract/Invoice OFFER_SENT / OFFER_EXPIRED as satisfying those prereqs.
  */
 export function isTabUnlocked(
   sectionId: string,
   sectionStatusMap: Map<string, string>,
   availableSections?: ReadonlySet<string>,
-  prerequisitesBySection?: Record<string, string[]>
+  prerequisitesBySection?: Record<string, string[]>,
+  structureType?: string | null
 ): boolean {
-  const prereqs = prerequisitesBySection?.[sectionId] ?? TAB_PREREQUISITES[sectionId];
+  const prereqs = resolveTabPrerequisites(sectionId, prerequisitesBySection, structureType);
   if (!prereqs?.length) return true;
   const relevantPrereqs = availableSections
     ? prereqs.filter((prereq) => availableSections.has(prereq))
     : prereqs;
   if (!relevantPrereqs.length) return true;
-  return relevantPrereqs.every((prereq) => sectionStatusMap.get(prereq) === "APPROVED");
+  return relevantPrereqs.every((prereq) =>
+    isPrerequisiteSectionSatisfied(prereq, sectionStatusMap.get(prereq), sectionId)
+  );
 }
 
 /** Human-readable tooltip explaining why a tab is locked. */
@@ -139,16 +170,45 @@ export function getTabUnlockTooltip(
   sectionStatusMap: Map<string, string>,
   availableSections?: ReadonlySet<string>,
   prerequisitesBySection?: Record<string, string[]>,
-  labelOverrides?: Record<string, string>
+  labelOverrides?: Record<string, string>,
+  structureType?: string | null
 ): string {
-  const prereqs = prerequisitesBySection?.[sectionId] ?? TAB_PREREQUISITES[sectionId];
+  const prereqs = resolveTabPrerequisites(sectionId, prerequisitesBySection, structureType);
   if (!prereqs?.length) return "";
   const relevantPrereqs = availableSections
     ? prereqs.filter((prereq) => availableSections.has(prereq))
     : prereqs;
   if (!relevantPrereqs.length) return "";
-  const missing = relevantPrereqs.filter((p) => sectionStatusMap.get(p) !== "APPROVED");
+  const missing = relevantPrereqs.filter(
+    (p) => !isPrerequisiteSectionSatisfied(p, sectionStatusMap.get(p), sectionId)
+  );
   if (missing.length === 0) return "";
+
+  if (sectionId === "acceptance_documents") {
+    const commercialMissing = missing.filter(
+      (p) => p === "contract_details" || p === "invoice_details"
+    );
+    const underwritingMissing = missing.filter(
+      (p) => p !== "contract_details" && p !== "invoice_details"
+    );
+    const parts: string[] = [];
+    if (underwritingMissing.length > 0) {
+      const getLabel = (m: string) => labelOverrides?.[m] ?? REVIEW_TAB_LABELS[m] ?? m;
+      parts.push(`Approve ${underwritingMissing.map(getLabel).join(", ")} section first`);
+    }
+    if (commercialMissing.includes("invoice_details")) {
+      parts.push("Send offer from Invoice first");
+    }
+    if (commercialMissing.includes("contract_details")) {
+      // Invoice-only: contract_details is Customer (manual approve). Contract: Send Offer.
+      const isInvoiceOnly = structureType === "invoice_only";
+      parts.push(
+        isInvoiceOnly ? "Approve Customer section first" : "Send offer from Contract first"
+      );
+    }
+    return parts.join(". ");
+  }
+
   const getLabel = (m: string) => labelOverrides?.[m] ?? REVIEW_TAB_LABELS[m] ?? m;
   const labels = missing.map(getLabel).join(", ");
   return `Approve ${labels} section first`;

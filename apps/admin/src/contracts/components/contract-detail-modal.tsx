@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@cashsouk/ui";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
+import { formatPhaseDeadlineAbsolute } from "@cashsouk/types";
 import { ApplicationStatusBadge } from "@/components/application-review";
 import { formatFileSize } from "@/components/application-review/review-section-styles";
 import {
@@ -18,13 +19,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useContractDetail } from "@/contracts/hooks/use-contract-detail";
-import { useResignContractOffer } from "@/contracts/hooks/use-resign-contract-offer";
-import { OfferSigningPanel } from "@/components/offer-signing-panel";
-import { usePermissions } from "@/hooks/use-permissions";
-import { useAuthToken } from "@cashsouk/config";
-import { toast } from "sonner";
+import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import {
   ArrowTopRightOnSquareIcon,
+  ArrowDownTrayIcon,
   CheckCircleIcon,
   ClockIcon,
   IdentificationIcon,
@@ -66,6 +64,11 @@ function formatValue(key: string, value: unknown): React.ReactNode {
       return formatCurrency(value);
     }
     return value.toLocaleString();
+  }
+  if (key === "acceptance_expires_at" || key === "signing_expires_at") {
+    if (typeof value === "string" && isIsoDate(value)) {
+      return formatPhaseDeadlineAbsolute(value);
+    }
   }
   const lowerKey = key.toLowerCase();
   if ((lowerKey.includes("date") || lowerKey.endsWith("_at") || lowerKey === "updated") && isIsoDate(value)) {
@@ -222,12 +225,9 @@ function ContractDetailSkeleton() {
 }
 
 export function ContractDetailView({ contractId }: ContractDetailViewProps) {
-  const { can } = usePermissions();
-  const canManage = can("contracts.manage");
   const { data, isLoading, error } = useContractDetail(contractId);
-  const resignOffer = useResignContractOffer(contractId);
-  const { getAccessToken } = useAuthToken();
-  const [isOpeningDocument, setIsOpeningDocument] = React.useState(false);
+  const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
+    useAdminS3DocumentViewDownload();
   const contractDetails = (data?.contractDetails ?? null) as Record<string, unknown> | null;
   const customerDetails = (data?.customerDetails ?? null) as Record<string, unknown> | null;
 
@@ -245,40 +245,6 @@ export function ContractDetailView({ contractId }: ContractDetailViewProps) {
     facilityFeeCap != null
       ? `${formatCurrency(facilityFeePaidAmount)} / ${formatCurrency(facilityFeeCap)} cap`
       : null;
-
-  const openDocument = React.useCallback(
-    async (s3Key: string) => {
-      try {
-        setIsOpeningDocument(true);
-        const token = await getAccessToken();
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-        const response = await fetch(`${apiUrl}/v1/s3/view-url`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify({ s3Key }),
-        });
-
-        const result = await response.json();
-        if (!result.success) {
-          throw new Error(result.error?.message || "Failed to open document");
-        }
-
-        const viewUrl = result.data?.viewUrl as string | undefined;
-        if (!viewUrl) {
-          throw new Error("No view URL was returned");
-        }
-        window.open(viewUrl, "_blank", "noopener,noreferrer");
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to open document");
-      } finally {
-        setIsOpeningDocument(false);
-      }
-    },
-    [getAccessToken]
-  );
 
   return (
     <div className="space-y-6">
@@ -485,69 +451,49 @@ export function ContractDetailView({ contractId }: ContractDetailViewProps) {
                     <CardContent className="space-y-3">
                       {(() => {
                         const contractDoc = (contractDetails?.document ?? undefined) as FileDoc | undefined;
-                        const customerDoc = (customerDetails?.document ?? undefined) as FileDoc | undefined;
                         return (
-                          <>
-                            <div className="flex items-center justify-between rounded-xl border bg-background px-4 py-3">
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium">Contract Document</p>
-                                <p className="text-xs text-muted-foreground truncate">{renderFileLabel(contractDoc)}</p>
-                              </div>
-                              {contractDoc?.s3_key && (
+                          <div className="flex items-center justify-between rounded-xl border bg-background px-4 py-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium">Contract Document</p>
+                              <p className="text-xs text-muted-foreground truncate">{renderFileLabel(contractDoc)}</p>
+                            </div>
+                            {contractDoc?.s3_key ? (
+                              <div className="flex flex-wrap items-center gap-2 shrink-0">
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   className="gap-1"
-                                  onClick={() => openDocument(contractDoc.s3_key as string)}
-                                  disabled={isOpeningDocument}
+                                  onClick={() =>
+                                    void handleViewDocument(contractDoc.s3_key as string)
+                                  }
+                                  disabled={viewDocumentPending}
                                 >
                                   <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                                   View
                                 </Button>
-                              )}
-                            </div>
-                            <div className="flex items-center justify-between rounded-xl border bg-background px-4 py-3">
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium">Customer Consent</p>
-                                <p className="text-xs text-muted-foreground truncate">{renderFileLabel(customerDoc)}</p>
-                              </div>
-                              {customerDoc?.s3_key && (
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   className="gap-1"
-                                  onClick={() => openDocument(customerDoc.s3_key as string)}
-                                  disabled={isOpeningDocument}
+                                  onClick={() =>
+                                    void handleDownloadDocument(
+                                      contractDoc.s3_key as string,
+                                      contractDoc.file_name
+                                    )
+                                  }
+                                  disabled={viewDocumentPending}
                                 >
-                                  <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                                  View
+                                  <ArrowDownTrayIcon className="h-4 w-4" />
+                                  Download
                                 </Button>
-                              )}
-                            </div>
-                          </>
+                              </div>
+                            ) : null}
+                          </div>
                         );
                       })()}
                     </CardContent>
                   </Card>
                 </div>
-
-                {data.offerSigning ? (
-                  <OfferSigningPanel
-                    title="Signed contract offer"
-                    description="Review the active signed offer letter or prior archived copies. Request re-sign when the wrong person signed."
-                    signing={data.offerSigning}
-                    onResign={
-                      data.offerSigning.canResign
-                        ? async () => {
-                            await resignOffer.mutateAsync();
-                          }
-                        : undefined
-                    }
-                    resignPending={resignOffer.isPending}
-                    canManage={canManage}
-                  />
-                ) : null}
-
                 <Card className="rounded-2xl shadow-sm">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -563,7 +509,28 @@ export function ContractDetailView({ contractId }: ContractDetailViewProps) {
                         <div className="grid gap-6 lg:grid-cols-2">
                           <div>
                             <DetailRow label="Sent At" value={formatValue("sent_at", data.offerDetails?.sent_at)} />
-                            <DetailRow label="Expires At" value={formatValue("expires_at", data.offerDetails?.expires_at)} />
+                            <DetailRow
+                              label="Accept by"
+                              value={(() => {
+                                const acceptance = data.offerDetails?.offer_acceptance as
+                                  | { acceptance_expires_at?: string | null }
+                                  | undefined;
+                                return acceptance?.acceptance_expires_at
+                                  ? formatValue("acceptance_expires_at", acceptance.acceptance_expires_at)
+                                  : REVIEW_EMPTY_LABEL;
+                              })()}
+                            />
+                            <DetailRow
+                              label="Complete signing by"
+                              value={(() => {
+                                const acceptance = data.offerDetails?.offer_acceptance as
+                                  | { signing_expires_at?: string | null }
+                                  | undefined;
+                                return acceptance?.signing_expires_at
+                                  ? formatValue("signing_expires_at", acceptance.signing_expires_at)
+                                  : REVIEW_EMPTY_LABEL;
+                              })()}
+                            />
                             <DetailRow
                               label="Responded At"
                               value={
@@ -589,6 +556,7 @@ export function ContractDetailView({ contractId }: ContractDetailViewProps) {
                             "version",
                             "sent_at",
                             "expires_at",
+                            "offer_acceptance",
                             "responded_at",
                             "requested_facility",
                             "offered_facility",

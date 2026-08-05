@@ -105,20 +105,4 @@ describe("Offer letter download", () => {
       expect(response.body).toBeInstanceOf(Buffer);
     });
   });
-
-  describe("POST /v1/applications/:id/offers/contracts/start-signing", () => {
-    it("returns signingUrl", async () => {
-      (applicationService.startContractOfferSigning as jest.Mock).mockResolvedValue({
-        signingUrl: "https://sign.example/start",
-      });
-
-      const response = await request(app)
-        .post("/v1/applications/clh8x7y6z5w4v3u2t1s0r9q/offers/contracts/start-signing")
-        .send({});
-
-      expect(response.status).toBe(200);
-      expect(response.body.success).toBe(true);
-      expect(response.body.data.signingUrl).toBe("https://sign.example/start");
-    });
-  });
 });

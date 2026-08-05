@@ -27,7 +27,11 @@ import {
 } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
 import { financingOfferHref } from "@/lib/financing-offer-href";
-import { getOfferStatus } from "@/lib/offer-utils";
+import {
+  getIssuerOfferActionCtaFromOfferDetails,
+  getOfferStatus,
+  shouldShowIssuerReviewOfferCta,
+} from "@/lib/offer-utils";
 import {
   resolveFundingProgressPercent,
   resolveFundingStatusText,
@@ -79,7 +83,10 @@ export default function InvoiceDetailPage() {
   }, [row, invoiceRecord]);
 
   const offerStatus = modalInvoice ? getOfferStatus(modalInvoice) : null;
-  const showReviewOffer = offerStatus === "Offer received";
+  const showReviewOffer = modalInvoice ? shouldShowIssuerReviewOfferCta(modalInvoice) : false;
+  const offerActionCta = modalInvoice
+    ? getIssuerOfferActionCtaFromOfferDetails(modalInvoice.offer_details, { scope: "invoice" })
+    : null;
   const applicationId = row?.applicationId ?? modalInvoice?.application_id ?? "";
   const contractId = row?.contractId ?? modalInvoice?.contract_id ?? null;
 
@@ -278,7 +285,9 @@ export default function InvoiceDetailPage() {
             {showReviewOffer && applicationId ? (
               <div className="rounded-xl bg-status-action-bg p-0.5">
                 <Button className="rounded-xl" asChild>
-                  <Link href={financingOfferHref(applicationId, invoiceId)}>Review offer</Link>
+                  <Link href={financingOfferHref(applicationId, invoiceId)}>
+                    {offerActionCta?.label ?? "Review Offer"}
+                  </Link>
                 </Button>
               </div>
             ) : null}

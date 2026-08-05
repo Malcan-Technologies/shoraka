@@ -53,11 +53,14 @@ export interface EkycSessionStatus {
 export interface EkycMeStatus {
   completed: boolean;
   completedAt: string | null;
+  /** Work email with a verified SigningCloud eKYC row, when any. */
+  verifiedEmail: string | null;
 }
 
-/** On-file MyKad name for the typed IC before eKYC capture. */
+/** On-file MyKad name and work email for the typed IC before eKYC capture. */
 export interface EkycIdentityPreview {
   name: string;
+  email: string;
 }
 
 export interface User {
@@ -171,11 +174,13 @@ export enum ApplicationStatus {
   CONTRACT_PENDING = "CONTRACT_PENDING",
   CONTRACT_SENT = "CONTRACT_SENT",
   CONTRACT_ACCEPTED = "CONTRACT_ACCEPTED",
+  INVOICE_ACCEPTED = "INVOICE_ACCEPTED",
+  SIGNING_PENDING = "SIGNING_PENDING",
   INVOICE_PENDING = "INVOICE_PENDING",
   INVOICES_SENT = "INVOICES_SENT",
+  OFFER_EXPIRED = "OFFER_EXPIRED",
   AMENDMENT_REQUESTED = "AMENDMENT_REQUESTED",
   RESUBMITTED = "RESUBMITTED",
-  APPROVED = "APPROVED",
   COMPLETED = "COMPLETED",
   WITHDRAWN = "WITHDRAWN",
   REJECTED = "REJECTED",
@@ -184,14 +189,11 @@ export enum ApplicationStatus {
 
 export enum WithdrawReason {
   USER_CANCELLED = "USER_CANCELLED",
-  OFFER_EXPIRED = "OFFER_EXPIRED",
   OFFER_REJECTED = "OFFER_REJECTED",
 }
 
 export function formatWithdrawLabel(reason?: WithdrawReason): string {
   switch (reason) {
-    case WithdrawReason.OFFER_EXPIRED:
-      return "Withdrawn (Offer expired)";
     case WithdrawReason.USER_CANCELLED:
       return "Withdrawn (User cancelled)";
     case WithdrawReason.OFFER_REJECTED:
@@ -204,6 +206,7 @@ export function formatWithdrawLabel(reason?: WithdrawReason): string {
 export type ReviewStepStatus =
   | "PENDING"
   | "OFFER_SENT"
+  | "OFFER_EXPIRED"
   | "APPROVED"
   | "REJECTED"
   | "AMENDMENT_REQUESTED"
@@ -245,6 +248,24 @@ export interface Application {
   /** Present when loaded via GET /applications/:id (relational guarantors for hydration). */
   application_guarantors?: unknown[];
   supporting_documents?: JsonValue | null;
+  /** Offer-acceptance uploads (e.g. Board Resolution); separate from supporting_documents. */
+  acceptance_documents?: JsonValue | null;
+  /** Present on GET /applications/:id when review rows are loaded. */
+  application_review_items?: Array<{
+    item_type: string;
+    item_id: string;
+    status: string;
+  }>;
+  application_review_remarks?: Array<{
+    id: string;
+    scope: string;
+    scope_key: string;
+    action_type: string;
+    remark: string;
+    author_user_id: string;
+    created_at: string;
+    author?: { first_name: string; last_name: string };
+  }>;
   declarations?: JsonValue | null;
   review_and_submit?: JsonValue | null;
   created_at: string;
@@ -270,7 +291,6 @@ export interface Product {
   version: number;
   status?: string;
   workflow: JsonValue[];
-  offer_expiry_days?: number | null;
   marketplace_listing_duration_days?: number | null;
   service_fee_rate_percent?: number | null;
   default_facility_fee_rate_percent?: number | null;
@@ -292,6 +312,7 @@ export enum ContractStatus {
   DRAFT = "DRAFT",
   SUBMITTED = "SUBMITTED",
   OFFER_SENT = "OFFER_SENT",
+  OFFER_EXPIRED = "OFFER_EXPIRED",
   APPROVED = "APPROVED",
   REJECTED = "REJECTED",
   AMENDMENT_REQUESTED = "AMENDMENT_REQUESTED",
@@ -302,6 +323,7 @@ export enum InvoiceStatus {
   DRAFT = "DRAFT",
   SUBMITTED = "SUBMITTED",
   OFFER_SENT = "OFFER_SENT",
+  OFFER_EXPIRED = "OFFER_EXPIRED",
   APPROVED = "APPROVED",
   REJECTED = "REJECTED",
   AMENDMENT_REQUESTED = "AMENDMENT_REQUESTED",
@@ -357,12 +379,13 @@ export interface Contract {
 export interface ContractOfferDetails {
   requested_facility: number;
   offered_facility: number;
-  expires_at: string | null;
   sent_at: string | null;
   responded_at: string | null;
   sent_by_user_id: string | null;
   responded_by_user_id: string | null;
   version: number;
+  /** Phased accept → admin review → signing (Option A). Absent on legacy offers. */
+  offer_acceptance?: import("./offer-acceptance").OfferAcceptanceDetails;
 }
 
 export interface InvoiceDetails {
@@ -399,14 +422,16 @@ export interface InvoiceOfferDetails {
   platform_fee_rate_percent?: number | null;
   /** Manual SoukScore placeholder (v1: A | B | C). Present on offers sent after this feature. */
   risk_rating?: import("./invoice-offer-risk-rating").SoukscoreRiskRating | null;
-  expires_at: string | null;
   sent_at: string | null;
   responded_at: string | null;
   sent_by_user_id: string | null;
   responded_by_user_id: string | null;
   version: number;
+  /** Phased accept → admin review → signing (Option A). Absent on legacy offers. */
+  offer_acceptance?: import("./offer-acceptance").OfferAcceptanceDetails;
 }
 
+export * from "./deadline-config";
 export * from "./invoice-offer-risk-rating";
 export * from "./activity-config";
 export * from "./admin";
@@ -417,6 +442,7 @@ export * from "./ctos-report-table-math";
 export * from "./financial-unaudited-ctos-validation";
 export * from "./financial-statement-year-resolution";
 export * from "./review-scope";
+export * from "./contract-originating-application";
 export * from "./resubmit-path-utils";
 export * from "./resubmit-meaningful-field-path";
 export * from "./application-people-display";
@@ -441,7 +467,10 @@ export * from "./prospectus-about-invoice-recommendations";
 export * from "./investor-return-breakdown";
 export * from "./marketplace-note-dates";
 export * from "./prospectus-calendar";
-export * from "./offer-signing";
+export * from "./signing-envelopes";
+export * from "./acceptance-documents";
+export * from "./offer-acceptance";
+export * from "./offer-phase-deadline-display";
 export * from "./guarantors";
 export * from "./company-name-normalization";
 export * from "./gateway-payments";

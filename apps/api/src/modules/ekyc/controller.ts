@@ -1,87 +1,15 @@
 import { Router, type NextFunction, type Request, type Response } from "express";
 import { ZodError } from "zod";
-import { requireAuth } from "../../lib/auth/middleware";
 import { AppError, formatZodMessage } from "../../lib/http/error-handler";
-import {
-  completeBodySchema,
-  failBodySchema,
-  identityPreviewBodySchema,
-  sessionBodySchema,
-  statusQuerySchema,
-} from "./schemas";
-import { ekycService } from "./service";
+import { completeBodySchema, failBodySchema, statusQuerySchema } from "./schemas";
+import { signingService } from "../signing/service";
 
 const router = Router();
-
-function getUserId(req: Request): string {
-  if (!req.user?.user_id) {
-    throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
-  }
-
-  return req.user.user_id;
-}
-
-router.get("/me", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const data = await ekycService.getMeStatus(getUserId(req));
-    res.json({
-      success: true,
-      data,
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    next(error);
-  }
-});
-
-router.post(
-  "/identity-preview",
-  requireAuth,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { issuerOrganizationId, icNumber } = identityPreviewBodySchema.parse(req.body);
-      const data = await ekycService.getIdentityPreview(getUserId(req), issuerOrganizationId, icNumber);
-      res.json({
-        success: true,
-        data,
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      if (error instanceof ZodError) {
-        return next(new AppError(400, "VALIDATION_ERROR", formatZodMessage(error)));
-      }
-      next(error);
-    }
-  }
-);
-
-router.post("/session", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const { issuerOrganizationId, force, confirmedName, icNumber } = sessionBodySchema.parse(req.body);
-    const data = await ekycService.createSession(
-      getUserId(req),
-      issuerOrganizationId,
-      icNumber,
-      confirmedName,
-      { force }
-    );
-    res.json({
-      success: true,
-      data,
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return next(new AppError(400, "VALIDATION_ERROR", formatZodMessage(error)));
-    }
-    next(error);
-  }
-});
 
 router.get("/status", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { token } = statusQuerySchema.parse(req.query);
-    const data = await ekycService.getSessionStatus(token);
+    const data = await signingService.getRecipientEkycStatus(token);
     res.json({
       success: true,
       data,
@@ -97,8 +25,8 @@ router.get("/status", async (req: Request, res: Response, next: NextFunction) =>
 
 router.post("/fail", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { token, reason, code } = failBodySchema.parse(req.body);
-    const data = await ekycService.failSession(token, reason, code);
+    const { token, reason } = failBodySchema.parse(req.body);
+    const data = await signingService.failRecipientEkyc(token, reason);
     res.json({
       success: true,
       data,
@@ -115,7 +43,7 @@ router.post("/fail", async (req: Request, res: Response, next: NextFunction) => 
 router.post("/complete", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { token, result } = completeBodySchema.parse(req.body);
-    const data = await ekycService.completeSession(token, result);
+    const data = await signingService.completeRecipientEkyc(token, result);
     res.json({
       success: true,
       data,

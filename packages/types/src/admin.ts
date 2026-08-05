@@ -1254,7 +1254,6 @@ export interface AdminContractDetail {
   customerDetails: Record<string, unknown> | null;
   applications: AdminContractApplicationSummary[];
   notes: AdminContractNoteSummary[];
-  offerSigning?: import("./offer-signing").OfferSigningAdminView | null;
 }
 
 export interface ApplicationReviewSection {

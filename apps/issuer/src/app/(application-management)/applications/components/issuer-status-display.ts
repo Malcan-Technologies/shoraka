@@ -77,6 +77,20 @@ export function getIssuerPlainStatusLabel(
   }
 }
 
+/** Prefer acceptance-phase wording when it is more specific than the collapsed badge key. */
+export function getIssuerCardStatusLabel(
+  badgeKey: string,
+  options?: {
+    withdrawReason?: WithdrawReason;
+    offerAcceptanceStatus?: string | null;
+  }
+): string {
+  if (String(options?.offerAcceptanceStatus ?? "").toUpperCase() === "CHANGES_REQUESTED") {
+    return "Changes requested";
+  }
+  return getIssuerPlainStatusLabel(badgeKey, options?.withdrawReason);
+}
+
 /** Invoices needing work on the Invoices tab (amendments / rejected). Offer review lives on the Offer tab. */
 export function countInvoicesNeedingAction(
   invoices: Array<{ status?: string }>
@@ -89,15 +103,4 @@ export function countInvoicesNeedingAction(
 
 export function formatApplicationDisplayId(id: string): string {
   return `#${id.slice(-8).toUpperCase()}`;
-}
-
-export function formatSubmittedDate(submittedAt: string | null | undefined): string {
-  if (!submittedAt) return "Not submitted";
-  const d = new Date(submittedAt);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-MY", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
 }

@@ -44,7 +44,7 @@ export const comparisonFileChipRowShellClass =
 
 /**
  * When earlier ≠ later: Before uses status-rejected (red tint); After uses status-action (yellow–amber).
- * Tokens match packages/config status-badges GROUP.rejected / GROUP.action.
+ * Tokens match packages/config status-badges STATUS_BADGE_GROUPS (expired_closed / issuer_action).
  */
 export const comparisonSurfaceChangedBeforeClass =
   "ring-2 ring-status-rejected-text/30 bg-status-rejected-bg dark:ring-red-400/35 dark:bg-red-950/45";

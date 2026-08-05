@@ -16,7 +16,6 @@ describe("Zod fee/rate validation (service fee + facility fee)", () => {
   describe("Product schemas (service_fee_rate_percent + default_facility_fee_rate_percent)", () => {
     const createBase = {
       workflow: [{ config: { category: "CONTRACT_FINANCING" } }],
-      offer_expiry_days: null,
       marketplace_listing_duration_days: null,
     };
 

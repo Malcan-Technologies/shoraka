@@ -43,6 +43,9 @@ import {
   computeNetExpectedReturnRatePercent,
   deriveGrossProfitAndServiceFeeFromNet,
   INVESTOR_RETURN_RATE_DISPLAY_DECIMALS,
+  SIGNING_PACKAGES_WORKFLOW_KEY,
+  SIGNING_TEMPLATE_WORKFLOW_KEY,
+  collectAcceptanceDocumentReviewKeys,
   isNoteFullyFunded,
   isSoukscoreRiskRating,
   maxFundedBeforeMarketplaceCommit,
@@ -50,12 +53,8 @@ import {
   normalizeNoteCapacityAmount,
   NOTE_MONEY_TOLERANCE,
   roundNoteMoney,
+  workflowHasRequiredAcceptanceDocuments,
 } from "@cashsouk/types";
-import { adminResignInvoiceOfferFromNote } from "../admin/offer-resign-service";
-import {
-  buildOfferSigningAdminView,
-  noteAllowsInvoiceResign,
-} from "../signingcloud/offer-signing-admin-view";
 import {
   creditInvestorBalance,
   debitInvestorBalanceForCommit,
@@ -158,6 +157,21 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function workflowHasSigningPackage(workflow: unknown): boolean {
+  if (!Array.isArray(workflow)) return false;
+  for (const step of workflow) {
+    const config = asRecord((step as { config?: unknown }).config);
+    if (!config) continue;
+    if (
+      config[SIGNING_PACKAGES_WORKFLOW_KEY] != null ||
+      config[SIGNING_TEMPLATE_WORKFLOW_KEY] != null
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function findFinancingTypeWorkflowStep(
@@ -1198,6 +1212,88 @@ export class NoteService {
     }
   }
 
+  private async assertPublishSigningPrerequisites(note: {
+    source_application_id: string;
+    source_contract_id: string | null;
+    source_invoice_id: string | null;
+    product_snapshot: Prisma.JsonValue | null;
+  }): Promise<void> {
+    const productSnapshot = asRecord(note.product_snapshot);
+    const productId =
+      typeof productSnapshot?.product_id === "string" && productSnapshot.product_id.trim()
+        ? productSnapshot.product_id.trim()
+        : null;
+    if (!productId) return;
+
+    const product = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { workflow: true },
+    });
+    const workflow = product?.workflow;
+    if (!workflow) return;
+
+    if (workflowHasSigningPackage(workflow)) {
+      const completedEnvelope = await prisma.signingEnvelope.findFirst({
+        where: {
+          application_id: note.source_application_id,
+          status: "COMPLETED",
+          ...(note.source_invoice_id
+            ? { invoice_id: note.source_invoice_id }
+            : note.source_contract_id
+              ? { contract_id: note.source_contract_id }
+              : {}),
+        },
+        select: { id: true },
+      });
+      if (!completedEnvelope) {
+        throw new AppError(
+          409,
+          "SIGNING_ENVELOPE_INCOMPLETE",
+          "The signing package must be completed before this note can be published."
+        );
+      }
+    }
+
+    if (!workflowHasRequiredAcceptanceDocuments(workflow)) return;
+
+    const application = await prisma.application.findUnique({
+      where: { id: note.source_application_id },
+      select: { acceptance_documents: true },
+    });
+    const docKeys = new Set(
+      collectAcceptanceDocumentReviewKeys(
+        workflow,
+        application?.acceptance_documents
+      )
+    );
+    if (docKeys.size === 0) {
+      throw new AppError(
+        409,
+        "POST_APPLICATION_DOCS_NOT_APPROVED",
+        "Acceptance documents must be approved before this note can be published."
+      );
+    }
+
+    const approvedItems = await prisma.applicationReviewItem.findMany({
+      where: {
+        application_id: note.source_application_id,
+        item_type: "document",
+        item_id: { in: [...docKeys] },
+        status: "APPROVED",
+      },
+      select: { item_id: true },
+    });
+    const approvedKeys = new Set(approvedItems.map((item) => item.item_id));
+    const allApproved = [...docKeys].every((key) => approvedKeys.has(key));
+    if (!allApproved) {
+      throw new AppError(
+        409,
+        "POST_APPLICATION_DOCS_NOT_APPROVED",
+        "Acceptance documents must be approved before this note can be published."
+      );
+    }
+  }
+
   async listAdminNotes(params: z.infer<typeof getNotesQuerySchema>) {
     const { notes, totalCount } = await noteRepository.list(params);
     const productIds = notes
@@ -1272,43 +1368,7 @@ export class NoteService {
     });
     const mapped = mapNoteDetail(note, { withdrawals });
 
-    let sourceInvoiceOfferSigning = null;
-    if (note.source_invoice_id) {
-      const invoice = await prisma.invoice.findFirst({
-        where: { id: note.source_invoice_id },
-        select: {
-          offer_signing: true,
-          offer_signing_history: true,
-          offer_details: true,
-        },
-      });
-      if (invoice) {
-        sourceInvoiceOfferSigning = buildOfferSigningAdminView({
-          offerSigning: invoice.offer_signing,
-          offerSigningHistory: invoice.offer_signing_history,
-          offerDetails: (invoice.offer_details as Record<string, unknown> | null) ?? null,
-          primaryApplicationId: note.source_application_id,
-          canResign: noteAllowsInvoiceResign(note.status),
-        });
-      }
-    }
-
-    return {
-      ...mapped,
-      sourceInvoiceOfferSigning,
-    };
-  }
-
-  async resignSourceInvoiceOffer(
-    noteId: string,
-    adminUserId: string,
-    logContext?: {
-      ipAddress?: string | null;
-      userAgent?: string | null;
-      deviceInfo?: string | null;
-    }
-  ) {
-    return adminResignInvoiceOfferFromNote({ noteId, adminUserId, logContext });
+    return mapped;
   }
 
   async listSourceInvoicesForNotes() {
@@ -2393,6 +2453,7 @@ export class NoteService {
         "Only draft or unpublished notes can be published"
       );
     }
+    await this.assertPublishSigningPrerequisites(note);
     const platformFeeRateCapPercent = await this.resolvePlatformFeeRateCapPercent();
     if (
       toNumber(note.platform_fee_rate_percent) > platformFeeRateCapPercent ||
@@ -4895,6 +4956,7 @@ export class NoteService {
       applicationProcessingFeeAmount: toNumber(settings.application_processing_fee_amount),
       investorMinDepositAmount: toNumber(settings.investor_min_deposit_amount),
       investorMaxDepositAmount: toNumber(settings.investor_max_deposit_amount),
+      offerDeadlineReminderHour: settings.offer_deadline_reminder_hour,
       trusteeLetterConfig:
         (settings.trustee_letter_config as TrusteeLetterConfig | null) ?? null,
       platformAccountsConfig:
@@ -4951,6 +5013,7 @@ export class NoteService {
           input.investorMaxDepositAmount != null
             ? money(input.investorMaxDepositAmount)
             : undefined,
+        offer_deadline_reminder_hour: input.offerDeadlineReminderHour,
         trustee_letter_config:
           input.trusteeLetterConfig != null
             ? (input.trusteeLetterConfig as Prisma.InputJsonValue)
@@ -5003,6 +5066,7 @@ export class NoteService {
           input.investorMaxDepositAmount != null
             ? money(input.investorMaxDepositAmount)
             : undefined,
+        offer_deadline_reminder_hour: input.offerDeadlineReminderHour,
         trustee_letter_config:
           input.trusteeLetterConfig != null
             ? (input.trusteeLetterConfig as Prisma.InputJsonValue)

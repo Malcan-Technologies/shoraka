@@ -41,7 +41,6 @@ ADMIN PORTAL (Admin actions)
   Action                            Event Type                          Where
   --------------------------------- ----------------------------------- ------
   Reset to under review             APPLICATION_RESET_TO_UNDER_REVIEW    Timeline
-  Approve application               APPLICATION_APPROVED                  Timeline
   Reject application               APPLICATION_REJECTED                   Timeline
   Send amendment request to issuer  AMENDMENTS_SUBMITTED                   Timeline
   Approve section                   SECTION_REVIEWED_APPROVED            Timeline
@@ -56,6 +55,22 @@ ADMIN PORTAL (Admin actions)
   Send invoice offer                INVOICE_OFFER_SENT                   Timeline
   Retract contract offer            CONTRACT_OFFER_RETRACTED             Timeline
   Retract invoice offer             INVOICE_OFFER_RETRACTED              Timeline
+  Issuer submits acceptance docs    CONTRACT_OFFER_ACCEPTANCE_SUBMITTED  Timeline
+                                    / INVOICE_OFFER_ACCEPTANCE_SUBMITTED
+  Issuer resubmits after changes    CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED Timeline
+                                    / INVOICE_OFFER_ACCEPTANCE_RESUBMITTED
+  Admin approves for signing        CONTRACT_ACCEPTANCE_APPROVED_FOR_    Timeline
+                                    SIGNING / INVOICE_ACCEPTANCE_
+                                    APPROVED_FOR_SIGNING
+  Signing package created           SIGNING_PACKAGE_CREATED              Timeline
+  Signing package sent              SIGNING_PACKAGE_SENT                 Timeline
+  Signing package voided            SIGNING_PACKAGE_VOIDED               Timeline
+  Extend signing deadline           CONTRACT_SIGNING_DEADLINE_EXTENDED   Timeline
+                                    / INVOICE_SIGNING_DEADLINE_EXTENDED
+
+Notes:
+  SIGNING_PACKAGE_COMPLETED is stored for audit but hidden from the timeline UI;
+  completion is shown via CONTRACT_OFFER_ACCEPTED / INVOICE_OFFER_ACCEPTED.
 
 ================================================================================
 SYSTEM (Cron / automatic)
@@ -63,12 +78,16 @@ SYSTEM (Cron / automatic)
 
   Action                        Event Type              Where it shows
   ----------------------------- ----------------------- ------------------
-  Offer expired (cron job)      OFFER_EXPIRED           Activity timeline
+  Acceptance/signing clock expired (hourly job)
+                                CONTRACT_OFFER_EXPIRED /
+                                INVOICE_OFFER_EXPIRED    Activity timeline
+                                offer_expired            Issuer notification
+
+Expiry is durable (not terminal WITHDRAWN): entity → OFFER_EXPIRED, offer_details
+kept; admin Send Offer overwrites terms and returns to OFFER_SENT.
   Last offer accepted          APPLICATION_COMPLETED    Activity timeline
 
-When contract offer expires: CONTRACT_WITHDRAWN
-When invoice offer expires:  INVOICE_WITHDRAWN
-When all withdrawn by cron:  APPLICATION_WITHDRAWN
+See docs/guides/acceptance-signing-expiry-job.md.
 
 ================================================================================
 EVENT TYPE ENUM (ApplicationLogEventType)

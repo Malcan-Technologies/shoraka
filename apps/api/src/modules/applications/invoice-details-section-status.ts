@@ -8,6 +8,7 @@ import type { ReviewStepStatus } from "@cashsouk/types";
  * - All REJECTED → REJECTED
  * - Else any AMENDMENT_REQUESTED → AMENDMENT_REQUESTED
  * - Else any OFFER_SENT → OFFER_SENT
+ * - Else any OFFER_EXPIRED → OFFER_EXPIRED
  * - Else PENDING
  */
 export function computeInvoiceDetailsSectionStatus(
@@ -37,6 +38,9 @@ export function computeInvoiceDetailsSectionStatus(
   }
   if (statuses.some((s) => s === "OFFER_SENT")) {
     return "OFFER_SENT";
+  }
+  if (statuses.some((s) => s === "OFFER_EXPIRED")) {
+    return "OFFER_EXPIRED";
   }
   return "PENDING";
 }

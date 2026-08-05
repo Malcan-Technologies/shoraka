@@ -29,11 +29,36 @@ APPLICATION STATUS
 
   CONTRACT_SENT
     Admin sent contract offer. Issuer must accept or reject.
-    Issuer: yes (shows as Offer Received). Admin: yes.
+    Issuer: yes — Offer Received while PENDING_ISSUER / CHANGES_REQUESTED /
+    APPROVED_FOR_SIGNING / SIGNING_IN_PROGRESS; Under Review while
+    PENDING_ADMIN_REVIEW. Admin: yes.
+
+  OFFER_EXPIRED
+    Contract or invoice offer deadline passed and the expiry job ran.
+    Issuer: yes (shows as Offer Expired). Admin: yes (filterable).
+    Admin can Send Offer again → CONTRACT_SENT / INVOICES_SENT.
 
   CONTRACT_ACCEPTED
-    Issuer accepted contract. Admin still needs to send invoice offers.
+    Issuer submitted Step 1 acceptance documents (phased offer flow).
+    Admin is reviewing acceptance docs. Not signing complete.
     Issuer: yes (shows as Under Review). Admin: yes.
+
+  INVOICE_ACCEPTED
+    Same as CONTRACT_ACCEPTED but invoice-only financing structure.
+    Issuer: yes (shows as Under Review). Admin: yes.
+
+  SIGNING_PENDING
+    Admin approved acceptance docs. Signing package can be created/sent.
+    Issuer: yes (shows as Offer Received — issuer must configure/send signing).
+    Admin: yes.
+
+  Existing contract financing (structure_type = existing_contract):
+    Linked contract is already APPROVED from a prior application. This app skips
+    contract-offer stages (CONTRACT_SENT, CONTRACT_ACCEPTED, SIGNING_PENDING).
+    The Acceptance tab shows a read-only mirror of uploads,
+    signing package, and completed status from the originating new_contract
+    application (contracts.originating_application_id). Status stays UNDER_REVIEW
+    until invoice tab unlocks, then INVOICE_PENDING / INVOICES_SENT as for invoice stages only.
 
   INVOICE_PENDING
     Admin is reviewing. Invoice tab unlocked. Next step: send invoice offers.
@@ -49,10 +74,6 @@ APPLICATION STATUS
 
   RESUBMITTED
     You fixed it and sent it again.
-    Issuer: yes. Admin: yes.
-
-  APPROVED
-    They said yes.
     Issuer: yes. Admin: yes.
 
   COMPLETED
@@ -116,8 +137,9 @@ INVOICE STATUS
 FINAL VS NON-FINAL
 ================================================================================
 
-Final statuses (no more changes): APPROVED, REJECTED, WITHDRAWN
+Final statuses (no more changes): COMPLETED, REJECTED, WITHDRAWN, OFFER_EXPIRED, ARCHIVED
 Non-final (still in progress): DRAFT, SUBMITTED, OFFER_SENT, AMENDMENT_REQUESTED
+(Contract/invoice entity statuses above; application also has stage overlays.)
 
 ================================================================================
 WHAT THE USER SEES (STATUS ALIAS)
@@ -134,15 +156,18 @@ WHAT THE USER SEES (STATUS ALIAS)
   SUBMITTED                   Submitted
   RESUBMITTED                 Resubmitted
   DRAFT                       Draft
-  APPROVED                    Approved
   ARCHIVED                    Archived
+  OFFER_EXPIRED               Offer Expired
 
   Admin-only display labels (application status):
   CONTRACT_PENDING             Contract Pending
   CONTRACT_SENT                Contract Sent
   CONTRACT_ACCEPTED            Contract Accepted
+  INVOICE_ACCEPTED             Invoice Accepted
+  SIGNING_PENDING              Signing Pending
   INVOICE_PENDING              Invoice Pending
   INVOICES_SENT                Invoices Sent
+  OFFER_EXPIRED                Offer Expired
 
 ================================================================================
 ADMIN STAGE STATUS — WHEN AND LOGIC
@@ -154,8 +179,9 @@ ADMIN STAGE STATUS — WHEN AND LOGIC
     When: Contract section is available but offer not sent yet.
     Logic: Contract exists. Contract status is not OFFER_SENT or APPROVED.
            Contract tab is unlocked (prerequisite sections approved).
-    Set by: First admin review action on SUBMITTED/RESUBMITTED app.
-            Or when admin resets contract_details section to PENDING.
+    Set by: Admin stage sync after review approvals unlock the contract tab
+            (SUBMITTED/UNDER_REVIEW → CONTRACT_PENDING). Also when admin resets
+            contract_details section to PENDING.
     Default filter: yes (in admin application queue).
 
   CONTRACT_SENT
@@ -165,20 +191,36 @@ ADMIN STAGE STATUS — WHEN AND LOGIC
     Set by: sendContractOffer (admin service).
     Default filter: no (not in admin application queue by default).
 
+  OFFER_EXPIRED
+    When: Acceptance or signing deadline passed; expiry job ran.
+    Logic: Contract/invoice status -> OFFER_EXPIRED (offer_details kept).
+           Application status -> OFFER_EXPIRED.
+    Set by: acceptance-signing-expiry job.
+    Default filter: no (available in status filter as Offer Expired).
+
   CONTRACT_ACCEPTED
-    When: Issuer accepted contract. Admin still needs to send invoice offers.
-    Logic: Issuer accepts. Contract status -> APPROVED. Application status
-           -> CONTRACT_ACCEPTED (or INVOICE_PENDING if invoice tab unlocked).
-    Set by: respondToContractOffer (applications service).
+    When: Issuer submitted Step 1 acceptance documents (phased offer).
+    Logic: offer_acceptance → PENDING_ADMIN_REVIEW (or CHANGES_REQUESTED).
+           Contract/invoice entity stays OFFER_SENT until signing completes.
+           Application status → CONTRACT_ACCEPTED (INVOICE_ACCEPTED for invoice-only).
+    Set by: submitOfferAcceptance (applications service) / phase sync.
     Default filter: yes.
+
+  INVOICE_ACCEPTED / SIGNING_PENDING
+    When: Invoice-only Step 1 submit, or acceptance approved / signing in progress.
+    See offer-acceptance-and-signing-phases.md.
+    Default filter: yes (in reviewable / action-required sets).
 
   INVOICE_PENDING
     When: Invoice section is available. Not all invoices have offers yet.
-    Logic: Contract is APPROVED. At least one invoice is not OFFER_SENT,
-           APPROVED, REJECTED, or WITHDRAWN. Invoice tab is unlocked.
-    Set by: First admin action after contract accepted. Or when admin sends
-            some invoice offers but not all. Or when admin resets invoice
-            section or invoice item to PENDING.
+    Logic: Contract is APPROVED (or invoice-only). At least one invoice is not
+           OFFER_SENT, APPROVED, REJECTED, or WITHDRAWN. Invoice tab is unlocked.
+    Set by: Admin stage sync when the invoice tab unlocks (UNDER_REVIEW →
+            INVOICE_PENDING for invoice-only; post-sign contract path →
+            INVOICE_PENDING for contract financing). Also when issuer commercially accepts a
+            contract offer while invoices exist and the invoice tab is unlocked.
+            Or when admin sends some invoice offers but not all / resets invoice
+            section to PENDING.
     Default filter: yes.
 
   INVOICES_SENT
@@ -197,11 +239,15 @@ UNDER_REVIEW_CONTRACT_OFFER?
   There is no status called UNDER_REVIEW_CONTRACT_OFFER.
 
   When the contract has OFFER_SENT (admin sent the offer), the application
-  status is CONTRACT_SENT. Issuer sees "Offer Received" on the card.
-  Admin sees "Contract Sent" in the status badge.
+  status is CONTRACT_SENT (or INVOICE_ACCEPTED / SIGNING_PENDING overlays as
+  the phased flow advances). Issuer card shows "Offer Received" while
+  offer_acceptance is PENDING_ISSUER, CHANGES_REQUESTED, APPROVED_FOR_SIGNING,
+  or SIGNING_IN_PROGRESS; "Under Review" while PENDING_ADMIN_REVIEW (or
+  completed). Admin sees the raw application status badge.
 
   Same for invoices: when any invoice has OFFER_SENT, application status
-  can be INVOICES_SENT. Issuer sees "Offer Received". Admin sees "Invoices Sent".
+  can be INVOICES_SENT (or invoice-only phase overlays). Issuer card follows
+  the same offer_acceptance collapse rules.
 
 ================================================================================
 WITHDRAW REASONS
@@ -210,8 +256,10 @@ WITHDRAW REASONS
   USER_CANCELLED
     You clicked cancel.
 
-  OFFER_EXPIRED
-    The offer ran out of time.
+  OFFER_REJECTED
+    Issuer or admin declined the offer.
+
+Offer clock expiry uses entity status OFFER_EXPIRED (not a withdraw reason).
 
 ================================================================================
 END

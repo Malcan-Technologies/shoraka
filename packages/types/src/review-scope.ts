@@ -5,25 +5,149 @@
  * Scope key format:
  * - Section: scope_key = section id (e.g. "supporting_documents")
  * - Supporting documents item: scope_key = "supporting_documents:<category>:<index>:<name>"
+ * - Acceptance documents item: scope_key = "acceptance_documents:<index>:<name>"
  * - Invoice item: scope_key = "invoice_details:<index>:<invoice_number>"
  */
 
-/** Canonical section order for grouping and display. */
+/**
+ * Canonical section order for contract / default flows.
+ * Acceptance sits before Invoice so the facility offer is closed before drawdowns.
+ */
 export const REVIEW_SECTION_ORDER = [
   "financial",
   "company_details",
   "business_details",
   "supporting_documents",
   "contract_details",
+  "acceptance_documents",
   "invoice_details",
 ] as const;
 
 export type ReviewSection = (typeof REVIEW_SECTION_ORDER)[number];
 
+/**
+ * Invoice-only order: Invoice before Acceptance so Send Offer → close primary offer
+ * stays left-to-right (Customer → Invoice → Acceptance).
+ */
+export const REVIEW_SECTION_ORDER_INVOICE_ONLY: readonly ReviewSection[] = [
+  "financial",
+  "company_details",
+  "business_details",
+  "supporting_documents",
+  "contract_details",
+  "invoice_details",
+  "acceptance_documents",
+];
+
+/**
+ * Admin review tab / visible_review_sections order by financing structure.
+ * Unknown / null structure types use the contract default.
+ */
+export function getReviewSectionOrder(
+  structureType?: string | null
+): readonly ReviewSection[] {
+  if (structureType === "invoice_only") {
+    return REVIEW_SECTION_ORDER_INVOICE_ONLY;
+  }
+  return REVIEW_SECTION_ORDER;
+}
+
+/**
+ * Primary offer acceptance (upload → admin review → signing) applies to:
+ * - new_contract: live ceremony on this application
+ * - invoice_only: tied to the standalone invoice offer (not this helper)
+ * Existing contract shows inherited acceptance from the originating new_contract app.
+ */
+export function applicationPrimaryOfferUsesContractAcceptance(
+  structureType?: string | null
+): boolean {
+  return structureType === "new_contract";
+}
+
+/** Existing-contract drawdown apps display acceptance from the originating application. */
+export function isInheritedContractAcceptanceReview(
+  structureType?: string | null | undefined
+): boolean {
+  return structureType === "existing_contract";
+}
+
+/** Admin Acceptance tab visibility (live ceremony or inherited read-only mirror). */
+export function shouldShowAcceptanceDocumentsReviewSection(
+  _structureType: string | null | undefined,
+  usesOfferAcceptanceFlow: boolean
+): boolean {
+  return usesOfferAcceptanceFlow;
+}
+
+/** Underwriting sections that unlock Contract / Customer. */
+const UNDERWRITING_BEFORE_CONTRACT: ReviewSection[] = [
+  "financial",
+  "company_details",
+  "business_details",
+  "supporting_documents",
+];
+
+/**
+ * Prerequisites for the Acceptance tab.
+ * Contract: underwriting + Contract. Invoice-only: underwriting + Customer + Invoice.
+ * Commercial prereqs (Contract / Invoice) are satisfied by OFFER_SENT or APPROVED —
+ * see isPrerequisiteSectionSatisfied (Contract/Invoice cannot be manually approved).
+ */
+export function getAcceptanceDocumentsPrerequisites(
+  structureType?: string | null
+): ReviewSection[] {
+  if (structureType === "invoice_only") {
+    return [...UNDERWRITING_BEFORE_CONTRACT, "contract_details", "invoice_details"];
+  }
+  return [...UNDERWRITING_BEFORE_CONTRACT, "contract_details"];
+}
+
+/**
+ * Whether a prerequisite section's review status unlocks a dependent tab.
+ * Acceptance treats Contract / Invoice as satisfied once the offer is sent
+ * (manual approve is blocked; APPROVED arrives only after issuer accept / signing).
+ */
+export function isPrerequisiteSectionSatisfied(
+  prereqSection: string,
+  status: string | undefined,
+  dependentSection?: string
+): boolean {
+  if (status === "APPROVED") return true;
+  if (
+    dependentSection === "acceptance_documents" &&
+    (prereqSection === "contract_details" || prereqSection === "invoice_details") &&
+    (status === "OFFER_SENT" || status === "OFFER_EXPIRED")
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Default review-section prerequisites by financing structure.
+ * Server may still override; clients use this when API prereqs are absent.
+ */
+export function getReviewSectionPrerequisites(
+  structureType?: string | null
+): Partial<Record<ReviewSection, ReviewSection[]>> {
+  return {
+    financial: [],
+    company_details: [],
+    business_details: [],
+    supporting_documents: [],
+    contract_details: [...UNDERWRITING_BEFORE_CONTRACT],
+    invoice_details: [...UNDERWRITING_BEFORE_CONTRACT, "contract_details"],
+    acceptance_documents: getAcceptanceDocumentsPrerequisites(structureType),
+  };
+}
+
 /** Get the parent section for an item scope_key. */
 export function getSectionForScopeKey(scopeKey: string): ReviewSection {
   if (scopeKey.startsWith("supporting_documents:")) {
     return "supporting_documents";
+  }
+  if (scopeKey.startsWith("acceptance_documents:")) {
+    return "acceptance_documents";
   }
   if (scopeKey.startsWith("invoice_details:")) {
     return "invoice_details";
@@ -57,6 +181,9 @@ export function parseItemScopeKey(scopeKey: string): {
   if (scopeKey.startsWith("supporting_documents:")) {
     return { itemType: "document", itemId: scopeKey };
   }
+  if (scopeKey.startsWith("acceptance_documents:")) {
+    return { itemType: "document", itemId: scopeKey };
+  }
   if (scopeKey.startsWith("invoice_details:")) {
     return { itemType: "invoice", itemId: scopeKey };
   }
@@ -78,13 +205,20 @@ export function getItemIdFromScopeKey(scopeKey: string): string {
  * Check if a scope_key refers to a document item.
  */
 export function isDocumentScopeKey(scopeKey: string): boolean {
-  return scopeKey.startsWith("supporting_documents:");
+  return (
+    scopeKey.startsWith("supporting_documents:") ||
+    scopeKey.startsWith("acceptance_documents:")
+  );
 }
 
-/** Get section sort index for ordering. */
-export function getSectionSortIndex(sectionKey: string): number {
-  const i = REVIEW_SECTION_ORDER.indexOf(sectionKey as ReviewSection);
-  return i === -1 ? REVIEW_SECTION_ORDER.length : i;
+/** Get section sort index for ordering (structure-aware when provided). */
+export function getSectionSortIndex(
+  sectionKey: string,
+  structureType?: string | null
+): number {
+  const order = getReviewSectionOrder(structureType);
+  const i = order.indexOf(sectionKey as ReviewSection);
+  return i === -1 ? order.length : i;
 }
 
 /** Title-case a slug for display (e.g. "p2p_declaration" -> "P2P Declaration"). */
@@ -118,6 +252,9 @@ export function getItemDisplayNameFromScopeKey(scopeKey: string): string {
   if (scopeKey.startsWith("supporting_documents:")) {
     if (lastPart) return toDisplayName(lastPart);
   }
+  if (scopeKey.startsWith("acceptance_documents:")) {
+    if (lastPart) return toDisplayName(lastPart);
+  }
   return "Item";
 }
 
@@ -137,6 +274,7 @@ const ALLOWED_TABS = [
   "contract_details",
   "invoice_details",
   "supporting_documents",
+  "acceptance_documents",
   "business_details",
 ] as const;
 
@@ -210,6 +348,9 @@ export function parseAmendScopeKey(scopeKey: string): ParsedAmendScope {
   // Tab-level: exact matches to allowed tabs
   if (ALLOWED_TABS.includes(scopeKey as any)) {
     parsed = { workflowId: scopeKey, kind: "tab" };
+  } else if (scopeKey.startsWith("acceptance_documents:")) {
+    const itemId = getItemIdFromScopeKey(scopeKey);
+    parsed = { workflowId: "acceptance_documents", kind: "supporting_doc", entityId: itemId };
   } else if (isDocumentScopeKey(scopeKey)) {
     const itemId = getItemIdFromScopeKey(scopeKey);
     parsed = { workflowId: "supporting_documents", kind: "supporting_doc", entityId: itemId };

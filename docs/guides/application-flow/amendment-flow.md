@@ -2,6 +2,8 @@
 
 This guide explains how the amendment flow works when an application is in `AMENDMENT_REQUESTED` status. It covers the database structure, API behavior, and how the frontend displays and locks steps based on reviewer remarks.
 
+Post-offer **Acceptance document Request change** (phase `CHANGES_REQUESTED`, not underwriting `AMENDMENT_REQUESTED`) is documented in [offer-acceptance-and-signing-phases.md](./offer-acceptance-and-signing-phases.md).
+
 ---
 
 ## Overview
@@ -83,13 +85,13 @@ Resubmits the application. The amendments service:
 
 ### Loading Amendment Context
 
-**File:** `apps/issuer/src/app/(application-flow)/applications/edit/[id]/page.tsx`.
+**File:** `apps/issuer/src/app/(application-flow)/applications/[id]/edit/page.tsx`.
 
 When status is `AMENDMENT_REQUESTED`, the edit page fetches `/v1/applications/:id/amendment-context` and stores the result in `amendmentContext` state. The response includes `review_cycle` and `remarks`. A dev-only mock is available when `devPreviewAmendment` is true.
 
 ### Building flaggedSections and flaggedItems
 
-**File:** `apps/issuer/src/app/(application-flow)/applications/edit/[id]/page.tsx`.
+**File:** `apps/issuer/src/app/(application-flow)/applications/[id]/edit/page.tsx`.
 
 From `amendmentContext.remarks`:
 
@@ -100,13 +102,13 @@ Example: `scope_key: "invoice_details:0:Invoice"` adds `"invoice_details:0:Invoi
 
 ### Stepper Red Indicators
 
-**File:** `apps/issuer/src/app/(application-flow)/applications/edit/[id]/page.tsx` (computes `amendmentFlaggedStepKeys`), `apps/issuer/src/app/(application-flow)/applications/components/progress-indicator.tsx` (renders).
+**File:** `apps/issuer/src/app/(application-flow)/applications/[id]/edit/page.tsx` (computes `amendmentFlaggedStepKeys`), `apps/issuer/src/app/(application-flow)/applications/components/progress-indicator.tsx` (renders).
 
 `amendmentFlaggedStepKeys` is the union of all keys in `flaggedSections` and all keys in `flaggedItems`. When in amendment mode, `review_and_submit` is always included. The edit page passes `amendmentFlaggedStepKeys`, `acknowledgedWorkflowIds`, and `stepKeys` to `ProgressIndicator`, which marks flagged steps with a red indicator.
 
 ### Tab Locking
 
-**File:** `apps/issuer/src/app/(application-flow)/applications/edit/[id]/page.tsx`.
+**File:** `apps/issuer/src/app/(application-flow)/applications/[id]/edit/page.tsx`.
 
 `currentStepKey` is derived from the current workflow step via `getStepKeyFromStepId` (e.g. `"contract_details_1"` → `"contract_details"`). `isStepFlagged` is true if `flaggedSections.has(currentStepKey)` or `flaggedItems` has entries for that key. `stepReadOnly = isAmendmentModeEffective && !isStepFlagged`. When `stepReadOnly` is true, the step is read-only and the user can only navigate, not save.
 
@@ -118,7 +120,7 @@ For invoice details, the step uses `flaggedItems.get("invoice_details")` to know
 
 ### Resubmit Button
 
-**File:** `apps/issuer/src/app/(application-flow)/applications/edit/[id]/page.tsx`.
+**File:** `apps/issuer/src/app/(application-flow)/applications/[id]/edit/page.tsx`.
 
 The Resubmit button is enabled when `allAmendmentStepsAcknowledged` is true. That excludes `financial*` and `review_and_submit` from the acknowledgement check. The frontend maps `amendment_acknowledged_workflow_ids` to step keys via `getStepKeyFromStepId` to compute `acknowledgedWorkflowIds`.
 
@@ -132,7 +134,7 @@ The Resubmit button is enabled when `allAmendmentStepsAcknowledged` is true. Tha
 | Amendment logic | `apps/api/src/modules/applications/amendments/service.ts` |
 | Main application service | `apps/api/src/modules/applications/service.ts` |
 | API routes | `apps/api/src/modules/applications/controller.ts` |
-| Edit page (context, flags, locking) | `apps/issuer/src/app/(application-flow)/applications/edit/[id]/page.tsx` |
+| Edit page (context, flags, locking) | `apps/issuer/src/app/(application-flow)/applications/[id]/edit/page.tsx` |
 | Stepper | `apps/issuer/src/app/(application-flow)/applications/components/progress-indicator.tsx` |
 | Amendment remark card | `apps/issuer/src/app/(application-flow)/applications/components/amendments/amendment-remark-card.tsx` |
 | Invoice step | `apps/issuer/src/app/(application-flow)/applications/steps/invoice-details-step.tsx` |

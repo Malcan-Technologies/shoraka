@@ -6,7 +6,16 @@
  */
 
 import { addMonths, isBefore, parseISO, startOfDay, isValid } from "date-fns";
-import { getStepKeyFromStepId } from "@cashsouk/types";
+import {
+  ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY,
+  ACCEPTANCE_DEADLINE_WORKFLOW_KEY,
+  SIGNING_DEADLINE_WORKFLOW_KEY,
+  assertPhaseDeadlineConfigValid,
+  getStepKeyFromStepId,
+  parsePhaseDeadlineConfig,
+  parseSigningPackagesConfig,
+  workflowUsesOfferAcceptanceFlow,
+} from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 
 function getStepId(step: unknown): string {
@@ -70,38 +79,52 @@ const DEFAULT_MAX_FINANCING_RATIO = 80;
  */
 export function applyFinancialDefaults(workflow: unknown[]): void {
   if (!Array.isArray(workflow) || workflow.length === 0) return;
+
   const step = workflow.find((s) => stepIdStartsWith(s, "invoice_details"));
-  if (!step || typeof step !== "object") return;
-  const config = (step as { config?: unknown }).config;
-  if (!config || typeof config !== "object") return;
-  const c = config as Record<string, unknown>;
-  const toNum = (v: unknown): number | null => {
-    if (v == null) return null;
-    if (typeof v === "number" && !Number.isNaN(v)) return v;
-    if (typeof v === "string") {
-      const n = parseInt(v, 10);
-      return !Number.isNaN(n) ? n : null;
+  if (step && typeof step === "object") {
+    const config = (step as { config?: unknown }).config;
+    if (config && typeof config === "object") {
+      const c = config as Record<string, unknown>;
+      const toNum = (v: unknown): number | null => {
+        if (v == null) return null;
+        if (typeof v === "number" && !Number.isNaN(v)) return v;
+        if (typeof v === "string") {
+          const n = parseInt(v, 10);
+          return !Number.isNaN(n) ? n : null;
+        }
+        return null;
+      };
+      if (toNum(c.min_financing_ratio_percent) == null) {
+        c.min_financing_ratio_percent = DEFAULT_MIN_FINANCING_RATIO;
+      }
+      if (toNum(c.max_financing_ratio_percent) == null) {
+        c.max_financing_ratio_percent = DEFAULT_MAX_FINANCING_RATIO;
+      }
     }
-    return null;
-  };
-  if (toNum(c.min_financing_ratio_percent) == null) {
-    c.min_financing_ratio_percent = DEFAULT_MIN_FINANCING_RATIO;
   }
-  if (toNum(c.max_financing_ratio_percent) == null) {
-    c.max_financing_ratio_percent = DEFAULT_MAX_FINANCING_RATIO;
+
+  if (!workflowUsesOfferAcceptanceFlow(workflow)) return;
+  for (const stepRow of workflow) {
+    const sid = (stepRow as { id?: string })?.id ?? "";
+    if (getStepKeyFromStepId(sid) !== "financing_type") continue;
+    const config = (stepRow as { config?: Record<string, unknown> }).config;
+    if (!config || typeof config !== "object") return;
+    if (parsePhaseDeadlineConfig(config[ACCEPTANCE_DEADLINE_WORKFLOW_KEY]) == null) {
+      config[ACCEPTANCE_DEADLINE_WORKFLOW_KEY] = {
+        days: 7,
+        reminders: [{ days_before_expiry: 1 }],
+      };
+    }
+    if (parsePhaseDeadlineConfig(config[SIGNING_DEADLINE_WORKFLOW_KEY]) == null) {
+      config[SIGNING_DEADLINE_WORKFLOW_KEY] = {
+        days: 14,
+        reminders: [{ days_before_expiry: 3 }, { days_before_expiry: 1 }],
+      };
+    }
+    return;
   }
 }
 
-/**
- * Validate offer_expiry_days when provided.
- * Must be integer > 0.
- */
-export function validateOfferExpiry(offerExpiryDays: number | null | undefined): void {
-  if (offerExpiryDays == null) return;
-  if (!Number.isInteger(offerExpiryDays) || offerExpiryDays <= 0) {
-    throw new AppError(400, "VALIDATION_ERROR", "Offer expiry must be greater than 0");
-  }
-}
 
 /**
  * Validate invoice_details financing ratio config from workflow.
@@ -168,9 +191,10 @@ function supportingDocRowHasValidAllowedTypes(row: unknown): boolean {
 }
 
 /**
- * Each supporting-doc row may omit allowed_types (pdf at runtime) or set exactly one of pdf | excel.
+ * Each supporting-doc row may omit allowed_types (pdf at runtime) or set exactly one
+ * of pdf | excel.
  */
-export function validateSupportingDocumentsAllowedTypes(workflow: unknown[]): void {
+export function validateSupportingDocumentsConfig(workflow: unknown[]): void {
   if (!Array.isArray(workflow) || workflow.length === 0) return;
   for (const step of workflow) {
     const sid = (step as { id?: string })?.id ?? "";
@@ -181,7 +205,8 @@ export function validateSupportingDocumentsAllowedTypes(workflow: unknown[]): vo
       if (key === "enabled_categories") continue;
       if (!Array.isArray(value)) continue;
       for (let i = 0; i < value.length; i++) {
-        if (!supportingDocRowHasValidAllowedTypes(value[i])) {
+        const row = value[i];
+        if (!supportingDocRowHasValidAllowedTypes(row)) {
           throw new AppError(
             400,
             "VALIDATION_ERROR",
@@ -194,18 +219,141 @@ export function validateSupportingDocumentsAllowedTypes(workflow: unknown[]): vo
   }
 }
 
+export function validateAcceptanceDocumentsConfig(workflow: unknown[]): void {
+  if (!Array.isArray(workflow) || workflow.length === 0) return;
+  for (const step of workflow) {
+    const sid = (step as { id?: string })?.id ?? "";
+    if (getStepKeyFromStepId(sid) !== "financing_type") continue;
+    const config = (step as { config?: Record<string, unknown> }).config;
+    if (!config || typeof config !== "object") return;
+    const list = config[ACCEPTANCE_DOCUMENTS_WORKFLOW_KEY];
+    if (list === undefined) return;
+    if (!Array.isArray(list)) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Acceptance documents must be an array."
+      );
+    }
+    for (let i = 0; i < list.length; i++) {
+      const row = list[i];
+      const name =
+        row && typeof row === "object" && typeof (row as { name?: unknown }).name === "string"
+          ? String((row as { name: string }).name).trim()
+          : "";
+      if (!name) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          `Acceptance documents (row ${i + 1}): every document must have a name.`
+        );
+      }
+      if (!supportingDocRowHasValidAllowedTypes(row)) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          `Acceptance documents (row ${i + 1}): choose exactly one file type (PDF or Excel), not both.`
+        );
+      }
+    }
+    return;
+  }
+}
+
+function findFinancingTypeConfig(workflow: unknown[]): Record<string, unknown> | null {
+  for (const step of workflow) {
+    const sid = (step as { id?: string })?.id ?? "";
+    if (getStepKeyFromStepId(sid) !== "financing_type") continue;
+    const config = (step as { config?: unknown }).config;
+    return config && typeof config === "object" ? (config as Record<string, unknown>) : null;
+  }
+  return null;
+}
+
+function validateDeadlineField(
+  config: Record<string, unknown>,
+  key: string,
+  label: string,
+  required: boolean
+): void {
+  const raw = config[key];
+  if (raw === undefined || raw === null) {
+    if (required) {
+      throw new AppError(400, "VALIDATION_ERROR", `${label} is required.`);
+    }
+    return;
+  }
+  const parsed = parsePhaseDeadlineConfig(raw);
+  try {
+    assertPhaseDeadlineConfigValid(parsed, label);
+  } catch (err) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      err instanceof Error ? err.message : `${label} is invalid.`
+    );
+  }
+}
+
+/** Require acceptance/signing deadline configs when those flows are configured. */
+export function validatePhaseDeadlineConfigs(workflow: unknown[]): void {
+  if (!Array.isArray(workflow) || workflow.length === 0) return;
+  const config = findFinancingTypeConfig(workflow);
+  if (!config) return;
+
+  const usesAcceptance = workflowUsesOfferAcceptanceFlow(workflow);
+  validateDeadlineField(
+    config,
+    ACCEPTANCE_DEADLINE_WORKFLOW_KEY,
+    "Acceptance deadline",
+    usesAcceptance
+  );
+
+  const signing = parseSigningPackagesConfig(config);
+  const signingEnabled = signing.enabled && signing.documents.length > 0;
+  validateDeadlineField(
+    config,
+    SIGNING_DEADLINE_WORKFLOW_KEY,
+    "Signing deadline",
+    signingEnabled || usesAcceptance
+  );
+}
+
+export const validateSupportingDocumentsAllowedTypes = validateSupportingDocumentsConfig;
+
+export function validateBusinessDetailsGuarantorAgreement(workflow: unknown[]): void {
+  if (!Array.isArray(workflow) || workflow.length === 0) return;
+  for (const step of workflow) {
+    const sid = (step as { id?: string })?.id ?? "";
+    if (getStepKeyFromStepId(sid) !== "business_details") continue;
+    const config = (step as { config?: Record<string, unknown> }).config;
+    if (!config || typeof config !== "object") return;
+    const row = config.guarantor_agreement ?? config.guarantor_agreement_template;
+    if (!row || typeof row !== "object") return;
+    if (config.guarantor_agreement && !supportingDocRowHasValidAllowedTypes(config.guarantor_agreement)) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Guarantor agreement: choose exactly one file type (PDF or Excel), not both."
+      );
+    }
+    return;
+  }
+}
+
 /**
  * Full validation before product create/update.
  */
 export function validateFinancialConfig(params: {
   workflow?: unknown[];
-  offer_expiry_days?: number | null;
 }): void {
-  validateOfferExpiry(params.offer_expiry_days);
   if (params.workflow && params.workflow.length > 0) {
     validateMandatoryWorkflowStepSet(params.workflow);
     validateWorkflowFinancialConfig(params.workflow);
-    validateSupportingDocumentsAllowedTypes(params.workflow);
+    validateSupportingDocumentsConfig(params.workflow);
+    validateAcceptanceDocumentsConfig(params.workflow);
+    validatePhaseDeadlineConfigs(params.workflow);
+    validateBusinessDetailsGuarantorAgreement(params.workflow);
   }
 }
 

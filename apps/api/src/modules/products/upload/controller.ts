@@ -9,6 +9,10 @@ import { requirePermission } from "../../../lib/auth/middleware";
 import { generatePresignedUploadUrl, generateProductS3Key, getFileExtension, parseProductS3Key } from "../../../lib/s3/client";
 import type { ProductRepository } from "../repository";
 import { productUploadImageUrlBodySchema, productUploadTemplateUrlBodySchema } from "../schemas";
+import {
+  isSigningTemplateDocumentCategoryKey,
+  parseSigningPackagesConfig,
+} from "@cashsouk/types";
 
 const PRODUCT_S3_KEY_PREFIX = "products/";
 
@@ -34,13 +38,31 @@ function getExistingTemplateKeyFromWorkflow(
   categoryKey: string,
   templateIndex: number
 ): string | undefined {
+  if (isSigningTemplateDocumentCategoryKey(categoryKey)) {
+    for (const step of workflow) {
+      const config = getConfig(step);
+      const template = parseSigningPackagesConfig(config);
+      const key = template.documents[templateIndex]?.template?.s3_key?.trim();
+      if (key && key.startsWith(PRODUCT_S3_KEY_PREFIX)) return key;
+    }
+    return undefined;
+  }
   if (categoryKey === "guarantor_agreement" && templateIndex === 0) {
     const businessDetails = workflow.find((s) => getStepId(s).startsWith("business_details"));
     if (!businessDetails) return undefined;
     const config = getConfig(businessDetails);
-    const tmpl = config.guarantor_agreement_template as { s3_key?: string } | undefined;
-    const key = tmpl?.s3_key?.trim();
+    const row = config.guarantor_agreement as { template?: { s3_key?: string } } | undefined;
+    const legacy = config.guarantor_agreement_template as { s3_key?: string } | undefined;
+    const key = (row?.template?.s3_key ?? legacy?.s3_key)?.trim();
     return key && key.startsWith(PRODUCT_S3_KEY_PREFIX) ? key : undefined;
+  }
+  if (categoryKey === "acceptance_documents") {
+    const financing = workflow.find((s) => getStepId(s).startsWith("financing_type"));
+    if (!financing) return undefined;
+    const config = getConfig(financing);
+    const list = (config[categoryKey] as Array<{ template?: { s3_key?: string } }>) ?? [];
+    const listKey = list[templateIndex]?.template?.s3_key?.trim();
+    return listKey && listKey.startsWith(PRODUCT_S3_KEY_PREFIX) ? listKey : undefined;
   }
   const supporting = workflow.find((s) => getStepId(s).startsWith("supporting_documents"));
   if (!supporting) return undefined;

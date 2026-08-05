@@ -62,7 +62,7 @@ import {
   issuerFieldFocusClassName,
 } from "@/lib/issuer-input-chrome";
 import { useQueryClient } from "@tanstack/react-query";
-import { useProducts } from "@/hooks/use-products";
+import { useIssuerProducts } from "@/hooks/use-products";
 import {
   applicationFlowAmendmentTargetTableRowClassName,
   applicationFlowLockedTableRowClassName,
@@ -145,9 +145,7 @@ function isApiSuccess<T>(r: ApiResponse<T> | ApiError): r is ApiResponse<T> {
   return r.success === true;
 }
 
-function pickInvoiceWorkflowConfig(product: Product | null): Record<string, unknown> | null {
-  if (!product) return null;
-  const workflow = Array.isArray(product.workflow) ? product.workflow : [];
+function pickInvoiceConfigFromWorkflow(workflow: unknown[]): Record<string, unknown> | null {
   const invoiceStep = workflow.find((step) => {
     if (!step || typeof step !== "object") return false;
     const s = step as { id?: unknown; name?: unknown; config?: unknown };
@@ -180,25 +178,37 @@ function pickInvoiceWorkflowConfig(product: Product | null): Record<string, unkn
   return raw as Record<string, unknown>;
 }
 
+function pickInvoiceWorkflowConfig(product: Product | null): Record<string, unknown> | null {
+  if (!product) return null;
+  const workflow = Array.isArray(product.workflow) ? product.workflow : [];
+  return pickInvoiceConfigFromWorkflow(workflow);
+}
+
 /**
  * Resolve invoice config from product.
- * Product is obtained by:
+ * Prefer frozenWorkflow (application.product_version) when provided; otherwise:
  * 1) looking up application.financing_type.product_id in the provided products array
  * 2) falling back to application.product if present
  */
 function getProductInvoiceConfig(
   application: ApplicationHydrated | null,
-  products: Product[] = []
+  products: Product[] = [],
+  frozenWorkflow?: unknown[] | null
 ): InvoiceConfig | null {
   try {
-    const ft = application?.financing_type as { product_id?: string } | undefined;
-    const productId = ft?.product_id;
-    let product: Product | null = null;
-    if (productId) {
-      product = products.find((p) => p.id === productId) ?? null;
+    let config: Record<string, unknown> | null = null;
+    if (Array.isArray(frozenWorkflow) && frozenWorkflow.length > 0) {
+      config = pickInvoiceConfigFromWorkflow(frozenWorkflow);
+    } else {
+      const ft = application?.financing_type as { product_id?: string } | undefined;
+      const productId = ft?.product_id;
+      let product: Product | null = null;
+      if (productId) {
+        product = products.find((p) => p.id === productId) ?? null;
+      }
+      if (!product && application?.product) product = application.product;
+      config = pickInvoiceWorkflowConfig(product);
     }
-    if (!product && application?.product) product = application.product;
-    const config = pickInvoiceWorkflowConfig(product);
     if (config == null || Object.keys(config).length === 0) return null;
     const minRatio = config.min_financing_ratio_percent;
     const maxRatio = config.max_financing_ratio_percent;
@@ -290,6 +300,10 @@ interface InvoiceDetailsStepProps {
   flaggedSections?: Set<string>;
   flaggedItems?: Map<string, Set<string>>;
   remarks?: InvoiceRemarkItem[];
+  /** Session/DB effective structure; preferred over stale DB when user changed Financing Structure without saving. */
+  effectiveStructureType?: "new_contract" | "existing_contract" | "invoice_only" | null;
+  /** Frozen application.product_version workflow — prefer over live catalog for ratio/maturity limits. */
+  frozenProductWorkflow?: unknown[] | null;
 }
 
 export default function InvoiceDetailsStep({
@@ -299,6 +313,8 @@ export default function InvoiceDetailsStep({
   isAmendmentMode = false,
   flaggedSections,
   remarks = [],
+  effectiveStructureType = null,
+  frozenProductWorkflow = null,
 }: InvoiceDetailsStepProps) {
   const devTools = useDevTools();
 
@@ -315,7 +331,7 @@ export default function InvoiceDetailsStep({
   const [isInitialized, setIsInitialized] = React.useState(false);
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
-  const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
+  const { data: productsData } = useIssuerProducts({ page: 1, pageSize: 100 });
 
   /** Parse remark text: split by /n for bullets, else by newline. Returns trimmed non-empty lines. */
   const parseRemarkBullets = React.useCallback((text: string): string[] => {
@@ -694,7 +710,8 @@ export default function InvoiceDetailsStep({
   const storedAvailableFacility =
     typeof cd?.available_facility === "number" ? cd.available_facility : null;
 
-  const structureType = application?.financing_structure?.structure_type;
+  const structureType =
+    effectiveStructureType ?? application?.financing_structure?.structure_type;
   const hasApprovedFacility = approvedFacility > 0;
 
   let facilityLimit = 0;
@@ -715,12 +732,19 @@ export default function InvoiceDetailsStep({
     !isLoadingInvoices &&
     !isLoadingApplication;
 
-  const isInvoiceOnly = application?.financing_structure?.structure_type === "invoice_only";
-  const isExistingContract = application?.financing_structure?.structure_type === "existing_contract";
+  const isInvoiceOnly = structureType === "invoice_only";
+  const isExistingContract = structureType === "existing_contract";
+
+  /** Invoice-only applications allow only one invoice; existing rows are never removed automatically. */
+  const maxInvoicesReached = isInvoiceOnly && invoices.length >= 1;
 
   let productConfig: InvoiceConfig | null = null;
   try {
-    productConfig = getProductInvoiceConfig(application, productsData?.products || []);
+    productConfig = getProductInvoiceConfig(
+      application,
+      productsData?.products || [],
+      frozenProductWorkflow
+    );
   } catch (error: unknown) {
     validationError = error instanceof Error ? error.message : "Product configuration error";
   }
@@ -793,6 +817,14 @@ export default function InvoiceDetailsStep({
         validationError = `Total financing amount (RM ${formatMoney(amountToCheck)}) exceeds facility limit (RM ${formatMoney(facilityLimit)}).`;
       }
     }
+
+    if (!validationError && isInvoiceOnly) {
+      const nonEmptyInvoiceCount = invoices.filter((inv) => !isRowEmpty(inv)).length;
+      if (nonEmptyInvoiceCount > 1) {
+        validationError =
+          "Invoice-only financing allows one invoice. Remove extra invoices or change financing structure on the previous step.";
+      }
+    }
   }
 
   const saveFunction = async () => {
@@ -817,8 +849,9 @@ export default function InvoiceDetailsStep({
 
     const apiClient = createApiClient(API_URL, getAccessToken);
     const token = await getAccessToken();
-    const structureType = application?.financing_structure?.structure_type;
-    const isInvoiceOnly = structureType === "invoice_only";
+    const saveStructureType =
+      effectiveStructureType ?? application?.financing_structure?.structure_type;
+    const isInvoiceOnly = saveStructureType === "invoice_only";
 
     for (const invoiceId of Object.keys(deletedInvoices)) {
       await apiClient.deleteInvoice(invoiceId);
@@ -1047,9 +1080,7 @@ export default function InvoiceDetailsStep({
           const d = it.details;
           const wr = it.withdraw_reason;
           const withdraw_reason =
-            wr === WithdrawReason.USER_CANCELLED ||
-            wr === WithdrawReason.OFFER_EXPIRED ||
-            wr === WithdrawReason.OFFER_REJECTED
+            wr === WithdrawReason.USER_CANCELLED || wr === WithdrawReason.OFFER_REJECTED
               ? wr
               : undefined;
           return {
@@ -1261,12 +1292,14 @@ export default function InvoiceDetailsStep({
                   Invoices
                 </h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Add invoices below. Rows are local until you Save and Continue.
+                  {maxInvoicesReached
+                    ? "Invoice-only applications allow only one invoice."
+                    : "Add invoices below. Rows are local until you Save and Continue."}
                 </p>
               </div>
               <Button
                 onClick={addInvoice}
-                disabled={readOnly}
+                disabled={readOnly || maxInvoicesReached}
                 className="bg-primary text-primary-foreground shrink-0"
               >
                 Add invoice

@@ -183,6 +183,10 @@
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:SC_API_SECRET::"
         },
         {
+          "name": "SC_WEBHOOK_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:SC_WEBHOOK_SECRET::"
+        },
+        {
           "name": "SHORAKA_BASE_URL",
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:SHORAKA_BASE_URL::"
         },

@@ -1,6 +1,9 @@
 /**
  * PDFKit-based offer letter generator. Produces a sample PDF with Lorem Ipsum content.
- * Used for contract and invoice offer letter downloads.
+ * Used for contract and invoice offer letter downloads and signing envelopes.
+ *
+ * Envelope signing generates one signature block per signatory; coordinates are returned
+ * alongside the PDF so SigningCloud signsets match the rendered layout.
  */
 
 import PDFDocument from "pdfkit";
@@ -11,6 +14,16 @@ const MARGIN = 50;
 const BODY_SIZE = 10;
 const HEADING_SIZE = 11;
 const TITLE_SIZE = 16;
+const PAGE_HEIGHT_PT = 841.89;
+
+/** Signature rectangle — aligned with SigningCloud offer-letter upload defaults. */
+export const OFFER_LETTER_SIGN_FIELD = {
+  left: 140,
+  width: 100,
+  height: 30,
+} as const;
+
+const SIGNATORY_BLOCK_HEIGHT_PT = 78;
 
 const SAMPLE_TEXT =
   "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.";
@@ -20,6 +33,31 @@ const FORMAL_INTRO =
 
 const PLACEHOLDER_INSTITUTION = "[Financial institution name]";
 const PLACEHOLDER_ADDRESSEE = "[Addressee name]";
+
+export type OfferLetterSignatory = {
+  name: string;
+  email?: string;
+};
+
+export type SigningCloudSignField = {
+  fieldtype: "sign";
+  top: number;
+  left: number;
+  height: number;
+  width: number;
+  pageindex: number;
+};
+
+export type GeneratedOfferLetterResult = {
+  pdfBuffer: Buffer;
+  /** One SigningCloud signset per signatory, in signing order. */
+  signsets: SigningCloudSignField[][];
+};
+
+type SignatureLayoutContext = {
+  signsets: SigningCloudSignField[][];
+  getPageIndex: () => number;
+};
 
 function drawTitleRule(doc: PDFDoc): void {
   doc.moveDown(0.2);
@@ -66,22 +104,61 @@ function bodyParagraphs(doc: PDFDoc): void {
   doc.text(SAMPLE_TEXT, { align: "justify" });
 }
 
-function signatureBlock(doc: PDFDoc): void {
+function ensureSignatureBlockFits(doc: PDFDoc): void {
+  if (doc.y + SIGNATORY_BLOCK_HEIGHT_PT <= PAGE_HEIGHT_PT - MARGIN) return;
+  doc.addPage();
+}
+
+function drawSignatureBlocks(
+  doc: PDFDoc,
+  signatories: OfferLetterSignatory[],
+  layout?: SignatureLayoutContext
+): void {
+  const signers =
+    signatories.length > 0
+      ? signatories
+      : [{ name: "_______________________________" }];
+
   doc.moveDown(1);
   doc.font("Helvetica").fontSize(BODY_SIZE).text("Yours faithfully,");
   doc.moveDown(1.25);
   doc.font("Helvetica-Bold").text("For and on behalf of");
   doc.font("Helvetica").text(PLACEHOLDER_INSTITUTION);
   doc.moveDown(1.25);
-  doc.text("Please sign in the place indicated below to acknowledge receipt of this letter.");
+  doc.text(
+    signers.length === 1
+      ? "Please sign in the place indicated below to acknowledge receipt of this letter."
+      : "Please sign in the places indicated below to acknowledge receipt of this letter."
+  );
   doc.moveDown(0.75);
-  doc.text("Authorised signatory");
-  doc.moveDown(0.3);
-  doc.fontSize(8).fillColor("white").text("\\s1\\", { lineGap: 50 });
-  doc
-    .fillColor("black")
-    .fontSize(BODY_SIZE)
-    .text("Printed name: _________________________________    Date: ____________");
+
+  signers.forEach((signatory, index) => {
+    if (layout) ensureSignatureBlockFits(doc);
+
+    const heading =
+      signers.length === 1 ? "Authorised signatory" : `Authorised signatory ${index + 1}`;
+    doc.font("Helvetica-Bold").fontSize(BODY_SIZE).text(heading);
+    doc.font("Helvetica").text(`Name: ${signatory.name.trim() || "_______________________________"}`);
+    doc.moveDown(0.25);
+
+    const fieldTop = Math.round(doc.y);
+    if (layout) {
+      layout.signsets.push([
+        {
+          fieldtype: "sign",
+          top: fieldTop,
+          left: OFFER_LETTER_SIGN_FIELD.left,
+          height: OFFER_LETTER_SIGN_FIELD.height,
+          width: OFFER_LETTER_SIGN_FIELD.width,
+          pageindex: layout.getPageIndex(),
+        },
+      ]);
+    }
+
+    doc.moveDown(1.6);
+    doc.text("Date: ____________");
+    doc.moveDown(0.85);
+  });
 }
 
 export type ContractOfferDetails = {
@@ -111,19 +188,6 @@ export type OfferLetterTerm = {
 function formatAmount(value: number | undefined): string {
   if (value == null) return "—";
   return `RM ${Number(value).toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
-}
-
-function formatDate(value: string | undefined): string {
-  if (!value) return "—";
-  try {
-    return new Date(value).toLocaleDateString("en-MY", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  } catch {
-    return value;
-  }
 }
 
 function formatPercent(value: number | undefined): string {
@@ -172,8 +236,26 @@ export function buildInvoiceOfferLetterTerms(
       value: `${platformFeePct}% of the funded amount, deducted from disbursement proceeds`,
     },
     ...facilityFeeTerms,
-    { label: "This offer expires on", value: formatDate(offer.expires_at) },
   ];
+}
+
+function createTrackedOfferLetterDoc(): { doc: PDFDoc; getPageIndex: () => number } {
+  let pageIndex = 1;
+  const doc = new PDFDocument({ margin: MARGIN });
+  doc.on("pageAdded", () => {
+    pageIndex += 1;
+  });
+  return { doc, getPageIndex: () => pageIndex };
+}
+
+async function pdfBufferFromDoc(doc: PDFDoc): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  return new Promise((resolve, reject) => {
+    doc.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+    doc.end();
+  });
 }
 
 /**
@@ -182,7 +264,9 @@ export function buildInvoiceOfferLetterTerms(
 export function buildContractOfferLetterPdf(
   doc: PDFDoc,
   contractId: string,
-  offer: ContractOfferDetails
+  offer: ContractOfferDetails,
+  signatories: OfferLetterSignatory[] = [],
+  layout?: SignatureLayoutContext
 ): void {
   formalOpen(
     doc,
@@ -206,10 +290,9 @@ export function buildContractOfferLetterPdf(
       "Deducted from issuer disbursement progressively when invoice financing is disbursed"
     );
   }
-  termLine(doc, "This offer expires on", formatDate(offer.expires_at));
   sectionHeading(doc, "General");
   bodyParagraphs(doc);
-  signatureBlock(doc);
+  drawSignatureBlocks(doc, signatories, layout);
 }
 
 /**
@@ -218,7 +301,9 @@ export function buildContractOfferLetterPdf(
 export function buildInvoiceOfferLetterPdf(
   doc: PDFDoc,
   invoiceId: string,
-  offer: InvoiceOfferDetails
+  offer: InvoiceOfferDetails,
+  signatories: OfferLetterSignatory[] = [],
+  layout?: SignatureLayoutContext
 ): void {
   formalOpen(
     doc,
@@ -231,7 +316,70 @@ export function buildInvoiceOfferLetterPdf(
   }
   sectionHeading(doc, "General");
   bodyParagraphs(doc);
-  signatureBlock(doc);
+  drawSignatureBlocks(doc, signatories, layout);
+}
+
+export async function generateContractOfferLetterBuffer(
+  contractId: string,
+  offer: ContractOfferDetails,
+  signatories: OfferLetterSignatory[]
+): Promise<GeneratedOfferLetterResult> {
+  const tracked = createTrackedOfferLetterDoc();
+  const layout: SignatureLayoutContext = {
+    signsets: [],
+    getPageIndex: tracked.getPageIndex,
+  };
+  buildContractOfferLetterPdf(tracked.doc, contractId, offer, signatories, layout);
+  const pdfBuffer = await pdfBufferFromDoc(tracked.doc);
+  return { pdfBuffer, signsets: layout.signsets };
+}
+
+export async function generateInvoiceOfferLetterBuffer(
+  invoiceId: string,
+  offer: InvoiceOfferDetails,
+  signatories: OfferLetterSignatory[]
+): Promise<GeneratedOfferLetterResult> {
+  const tracked = createTrackedOfferLetterDoc();
+  const layout: SignatureLayoutContext = {
+    signsets: [],
+    getPageIndex: tracked.getPageIndex,
+  };
+  buildInvoiceOfferLetterPdf(tracked.doc, invoiceId, offer, signatories, layout);
+  const pdfBuffer = await pdfBufferFromDoc(tracked.doc);
+  return { pdfBuffer, signsets: layout.signsets };
+}
+
+const GUARANTOR_PLACEHOLDER_BODY =
+  "This is a placeholder guarantor agreement document. The final agreement text and commercial terms will be provided in a later release. By signing below, each signatory acknowledges receipt of this placeholder for signing workflow testing.";
+
+export function buildGuarantorAgreementPlaceholderPdf(
+  doc: PDFDoc,
+  signatories: OfferLetterSignatory[] = [],
+  layout?: SignatureLayoutContext
+): void {
+  formalOpen(
+    doc,
+    "GUARANTOR AGREEMENT",
+    "Placeholder agreement for guarantor obligations in respect of the financing facility"
+  );
+  sectionHeading(doc, "Placeholder terms");
+  doc.font("Helvetica").fontSize(BODY_SIZE).text(GUARANTOR_PLACEHOLDER_BODY, { align: "justify" });
+  doc.moveDown(0.5);
+  bodyParagraphs(doc);
+  drawSignatureBlocks(doc, signatories, layout);
+}
+
+export async function generateGuarantorAgreementPlaceholderBuffer(
+  signatories: OfferLetterSignatory[]
+): Promise<GeneratedOfferLetterResult> {
+  const tracked = createTrackedOfferLetterDoc();
+  const layout: SignatureLayoutContext = {
+    signsets: [],
+    getPageIndex: tracked.getPageIndex,
+  };
+  buildGuarantorAgreementPlaceholderPdf(tracked.doc, signatories, layout);
+  const pdfBuffer = await pdfBufferFromDoc(tracked.doc);
+  return { pdfBuffer, signsets: layout.signsets };
 }
 
 /**
@@ -241,7 +389,7 @@ export function generateContractOfferLetterStream(
   contractId: string,
   offer: ContractOfferDetails
 ): PDFDoc {
-  const doc = new PDFDocument({ margin: 50 });
+  const doc = new PDFDocument({ margin: MARGIN });
   buildContractOfferLetterPdf(doc, contractId, offer);
   doc.end();
   return doc;
@@ -254,7 +402,7 @@ export function generateInvoiceOfferLetterStream(
   invoiceId: string,
   offer: InvoiceOfferDetails
 ): PDFDoc {
-  const doc = new PDFDocument({ margin: 50 });
+  const doc = new PDFDocument({ margin: MARGIN });
   buildInvoiceOfferLetterPdf(doc, invoiceId, offer);
   doc.end();
   return doc;

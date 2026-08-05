@@ -109,9 +109,9 @@ Visible application events match the investor portal:
 - `APPLICATION_REJECTED` -> `Application Rejected`
 - `APPLICATION_WITHDRAWN` -> `Application Closed`
 - `APPLICATION_COMPLETED` -> `Application Completed`
-- contract offer milestones
-- invoice offer milestones
-- `OFFER_EXPIRED`
+- contract offer milestones (including `CONTRACT_OFFER_EXPIRED`, `CONTRACT_OFFER_ACCEPTANCE_SUBMITTED`, `CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED`)
+- invoice offer milestones (including `INVOICE_OFFER_EXPIRED`, `INVOICE_OFFER_ACCEPTANCE_SUBMITTED`, `INVOICE_OFFER_ACCEPTANCE_RESUBMITTED`)
+- signing package sent (`SIGNING_PACKAGE_SENT`); terminal success via offer signed events (`CONTRACT_OFFER_ACCEPTED`, `INVOICE_OFFER_ACCEPTED`)
 
 ### Note
 
@@ -130,6 +130,8 @@ These logs still exist as audit records but are intentionally hidden from `/acti
 - onboarding progress noise such as section completion and sub-approval steps
 - application section-level review events
 - application item-level review events
+- admin-only acceptance approval events (`CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING`, `INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING`)
+- signing package created/completed/voided audit rows (`SIGNING_PACKAGE_CREATED`, `SIGNING_PACKAGE_COMPLETED`, `SIGNING_PACKAGE_VOIDED`)
 - internal reset-style status churn that does not help a user understand what changed
 - note operational steps such as Shoraka or trustee processing details
 - note settlement approval workflow internals

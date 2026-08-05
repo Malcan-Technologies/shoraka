@@ -17,6 +17,7 @@ import {
   useResetItemReviewToPending,
   useApproveReviewItem,
   useRejectReviewItem,
+  useRequestAmendmentReviewItem,
   useAddSectionComment,
   useAddPendingAmendment,
   useListPendingAmendments,
@@ -47,7 +48,7 @@ import {
   isTabUnlocked,
 } from "@/components/application-review/review-registry";
 import { getEffectiveReviewTabDescriptors } from "@/lib/effective-review-tab-descriptors";
-import { format, addDays } from "date-fns";
+import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -74,14 +75,23 @@ import {
   useAuthToken,
   readInvoiceMaturityMonthsFromWorkflow,
 } from "@cashsouk/config";
-import { computeHasPendingDirectorShareholder, type ApplicationPersonRow } from "@cashsouk/types";
+import {
+  computeHasPendingDirectorShareholder,
+  getSectionForScopeKey,
+  type ApplicationPersonRow,
+} from "@cashsouk/types";
 import {
   ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL,
   ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT,
 } from "@/lib/admin-director-shareholder-review-message";
 import { ApplicationStatusBadge } from "@/components/application-review";
+import {
+  isSignedContractOfferLetterAvailable,
+  isSignedInvoiceOfferLetterAvailable,
+} from "@/components/application-review/offer-signing-availability";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
+import { useAdminSigningEnvelopes } from "@/hooks/use-signing-envelopes";
 import type { AdminPermission } from "@cashsouk/types";
 import JSZip from "jszip";
 
@@ -141,6 +151,7 @@ const SECTION_PERMISSION_MAP: Record<string, AdminPermission> = {
   company_details: "applications.company.manage",
   business_details: "applications.business_guarantor.manage",
   supporting_documents: "applications.documents.manage",
+  acceptance_documents: "applications.documents.manage",
   contract_details: "applications.contract.manage",
   invoice_details: "applications.invoice.manage",
 };
@@ -169,6 +180,7 @@ export default function DynamicApplicationDetailPage() {
   const platformFeeRateCapPercent = platformFinanceSettings?.platformFeeRateCapPercent ?? 3;
 
   const { data: app, isLoading, error } = useApplicationDetail(applicationId);
+  const { data: signingEnvelopes = [] } = useAdminSigningEnvelopes(applicationId);
   const updateStatus = useUpdateApplicationStatus();
 
   // Fetch products to get the current product name (include deleted/inactive for nav key match)
@@ -182,36 +194,9 @@ export default function DynamicApplicationDetailPage() {
     return () => setTitle("");
   }, [setTitle, isLoading, applicationId]);
 
-  const invoiceRatioLimits = React.useMemo(() => {
-    const workflow =
-      (currentProduct as { workflow?: { id?: string; config?: Record<string, unknown> }[] })
-        ?.workflow ?? [];
-    const invoiceStep = workflow.find(
-      (s: { id?: string; name?: string }) =>
-        s.id?.includes?.("invoice_details") || s.name?.toLowerCase?.().includes?.("invoice")
-    );
-    const config = invoiceStep?.config ?? {};
-    const min =
-      typeof config.min_financing_ratio_percent === "number"
-        ? config.min_financing_ratio_percent
-        : 60;
-    const max =
-      typeof config.max_financing_ratio_percent === "number"
-        ? config.max_financing_ratio_percent
-        : 80;
-    return { min: Math.min(min, max), max: Math.max(min, max) };
-  }, [currentProduct]);
-
-  const offerExpiryDays =
-    (currentProduct as { offer_expiry_days?: number | null })?.offer_expiry_days ?? 7;
   const productDefaultFacilityFeeRatePercent =
     (currentProduct as { default_facility_fee_rate_percent?: number | null })
       ?.default_facility_fee_rate_percent ?? null;
-
-  const minMonthsReviewToMaturityForOffer = React.useMemo(() => {
-    const workflow = (currentProduct as { workflow?: unknown[] })?.workflow ?? [];
-    return readInvoiceMaturityMonthsFromWorkflow(workflow).minMonthsReviewToMaturity;
-  }, [currentProduct]);
 
   const [rejectApplicationDialogOpen, setRejectApplicationDialogOpen] = React.useState(false);
 
@@ -222,6 +207,7 @@ export default function DynamicApplicationDetailPage() {
   const addPendingAmendment = useAddPendingAmendment();
   const approveItem = useApproveReviewItem();
   const rejectItem = useRejectReviewItem();
+  const requestAmendmentReviewItem = useRequestAmendmentReviewItem();
   const addSectionComment = useAddSectionComment();
   const { data: pendingAmendments = [] } = useListPendingAmendments(applicationId);
   const removePendingAmendment = useRemovePendingAmendment();
@@ -249,13 +235,16 @@ export default function DynamicApplicationDetailPage() {
     "CONTRACT_PENDING",
     "CONTRACT_SENT",
     "CONTRACT_ACCEPTED",
+    "INVOICE_ACCEPTED",
+    "SIGNING_PENDING",
     "INVOICE_PENDING",
     "INVOICES_SENT",
     "RESUBMITTED",
     "AMENDMENT_REQUESTED",
+    "OFFER_EXPIRED",
   ];
   const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
-  const isFinalApplicationForAmlGate = ["APPROVED", "FUNDED", "COMPLETED"].includes(
+  const isFinalApplicationForAmlGate = ["FUNDED", "COMPLETED"].includes(
     String(app?.status ?? "")
   );
   const applicationContractId =
@@ -362,30 +351,50 @@ export default function DynamicApplicationDetailPage() {
   );
 
   const handleViewSignedInvoiceOffer = React.useCallback(
-    async (signedOfferLetterS3Key: string) => {
-      if (!signedOfferLetterS3Key) {
+    async (invoiceId: string) => {
+      const signedInvoiceOfferAvailable = isSignedInvoiceOfferLetterAvailable({
+        invoiceId,
+        envelopes: signingEnvelopes,
+      });
+      if (!applicationId || !invoiceId || !signedInvoiceOfferAvailable) {
         toast.error("Signed offer document is unavailable");
         return;
       }
-      await handleViewDocument(signedOfferLetterS3Key);
+      try {
+        const blob = await platformFinanceApiClient.getAdminSignedInvoiceOfferLetterBlob(applicationId, invoiceId);
+        const objectUrl = URL.createObjectURL(blob);
+        window.open(objectUrl, "_blank", "noopener,noreferrer");
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to open signed offer letter");
+      }
     },
-    [handleViewDocument]
+    [platformFinanceApiClient, applicationId, signingEnvelopes]
   );
 
-  const signedContractOfferS3Key = React.useMemo(() => {
-    const signing = (
-      app?.contract as { offer_signing?: { signed_offer_letter_s3_key?: string } } | null | undefined
-    )?.offer_signing;
-    return signing?.signed_offer_letter_s3_key ?? "";
-  }, [app?.contract]);
+  const signedContractOfferAvailable = React.useMemo(
+    () =>
+      isSignedContractOfferLetterAvailable({
+        contractId: (app?.contract as { id?: string } | null | undefined)?.id,
+        envelopes: signingEnvelopes,
+      }),
+    [app?.contract, signingEnvelopes]
+  );
 
   const handleViewSignedContractOffer = React.useCallback(async () => {
-    if (!signedContractOfferS3Key) {
+    if (!applicationId || !signedContractOfferAvailable) {
       toast.error("Signed offer document is unavailable");
       return;
     }
-    await handleViewDocument(signedContractOfferS3Key);
-  }, [handleViewDocument, signedContractOfferS3Key]);
+    try {
+      const blob = await platformFinanceApiClient.getAdminSignedContractOfferLetterBlob(applicationId);
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to open signed offer letter");
+    }
+  }, [platformFinanceApiClient, applicationId, signedContractOfferAvailable]);
 
   const visibleReviewSectionsFromApi = React.useMemo(() => {
     const fromApi = (app as { visible_review_sections?: unknown } | undefined)
@@ -398,10 +407,68 @@ export default function DynamicApplicationDetailPage() {
   const structureType = (app?.financing_structure as { structure_type?: string } | null | undefined)?.structure_type;
   const isInvoiceOnly = structureType === "invoice_only";
 
+  // Prefer frozen product_version workflow from detail; live catalog can drift after re-version.
+  const reviewProductWorkflow = React.useMemo((): unknown[] | undefined => {
+    const frozen = (app as { product_workflow?: unknown } | undefined)?.product_workflow;
+    if (Array.isArray(frozen) && frozen.length > 0) return frozen;
+    const live = (currentProduct as { workflow?: unknown } | undefined)?.workflow;
+    return Array.isArray(live) ? live : undefined;
+  }, [app, currentProduct]);
+
+  const invoiceRatioLimits = React.useMemo(() => {
+    const workflow = (reviewProductWorkflow ?? []) as {
+      id?: string;
+      name?: string;
+      config?: Record<string, unknown>;
+    }[];
+    const invoiceStep = workflow.find(
+      (s) => s.id?.includes?.("invoice_details") || s.name?.toLowerCase?.().includes?.("invoice")
+    );
+    const config = invoiceStep?.config ?? {};
+    const min =
+      typeof config.min_financing_ratio_percent === "number"
+        ? config.min_financing_ratio_percent
+        : 60;
+    const max =
+      typeof config.max_financing_ratio_percent === "number"
+        ? config.max_financing_ratio_percent
+        : 80;
+    return { min: Math.min(min, max), max: Math.max(min, max) };
+  }, [reviewProductWorkflow]);
+
+  const minMonthsReviewToMaturityForOffer = React.useMemo(() => {
+    return readInvoiceMaturityMonthsFromWorkflow(reviewProductWorkflow ?? []).minMonthsReviewToMaturity;
+  }, [reviewProductWorkflow]);
+
   const effectiveTabDescriptors = React.useMemo(
-    () => getEffectiveReviewTabDescriptors(currentProduct?.workflow, app ?? null),
-    [currentProduct?.workflow, app]
+    () => getEffectiveReviewTabDescriptors(reviewProductWorkflow, app ?? null),
+    [reviewProductWorkflow, app]
   );
+  const hasAcceptanceTab = effectiveTabDescriptors.some(
+    (descriptor) => descriptor.reviewSection === "acceptance_documents"
+  );
+
+  const defaultReviewTabId = effectiveTabDescriptors[0]?.id ?? "financial";
+  const [reviewTabValue, setReviewTabValue] = React.useState<string | null>(null);
+  const activeReviewTabId = reviewTabValue ?? defaultReviewTabId;
+
+  React.useEffect(() => {
+    if (
+      reviewTabValue != null &&
+      !effectiveTabDescriptors.some((descriptor) => descriptor.id === reviewTabValue)
+    ) {
+      setReviewTabValue(null);
+    }
+  }, [effectiveTabDescriptors, reviewTabValue]);
+
+  const goToAcceptanceTab = React.useCallback(() => {
+    const acceptanceTab = effectiveTabDescriptors.find(
+      (descriptor) => descriptor.reviewSection === "acceptance_documents"
+    );
+    if (acceptanceTab) {
+      setReviewTabValue(acceptanceTab.id);
+    }
+  }, [effectiveTabDescriptors]);
 
   const isExistingContract = React.useMemo(
     () =>
@@ -434,13 +501,17 @@ export default function DynamicApplicationDetailPage() {
       if (section === "contract_details" && isExistingContract) {
         status = "APPROVED";
       }
+      if (section === "acceptance_documents" && isExistingContract) {
+        status = "APPROVED";
+      }
       return { section, status };
     });
 
     const sectionWithAmendmentFromItems = new Set<string>();
     for (const item of reviewItems) {
       if (item.status === "AMENDMENT_REQUESTED") {
-        const section = item.item_type === "invoice" ? "invoice_details" : "supporting_documents";
+        const section =
+          item.item_type === "invoice" ? "invoice_details" : getSectionForScopeKey(item.item_id);
         sectionWithAmendmentFromItems.add(section);
       }
     }
@@ -548,6 +619,23 @@ export default function DynamicApplicationDetailPage() {
     }
   };
 
+  const handleRequestAcceptanceDocumentChange = async (remark: string) => {
+    const d = noteDialog;
+    if (!d || !("itemType" in d)) return;
+    try {
+      await requestAmendmentReviewItem.mutateAsync({
+        applicationId,
+        itemType: d.itemType,
+        itemId: d.itemId,
+        remark,
+      });
+      toast.success("Change requested — issuer has been notified");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to request change");
+      throw err;
+    }
+  };
+
   const handleAddPendingAmendmentSection = async (remark: string) => {
     const d = noteDialog;
     if (!d || !("section" in d)) return;
@@ -603,6 +691,8 @@ export default function DynamicApplicationDetailPage() {
         }
       } else if (d.action === "reject") {
         await handleRejectItem(remark);
+      } else if (d.itemId.startsWith("acceptance_documents:")) {
+        await handleRequestAcceptanceDocumentChange(remark);
       } else {
         await handleAddPendingAmendmentItem(remark);
       }
@@ -611,6 +701,11 @@ export default function DynamicApplicationDetailPage() {
 
   const noteDialogIsSection = noteDialog && "section" in noteDialog;
   const noteDialogIsApprove = noteDialog?.action === "approve";
+  const noteDialogIsAcceptanceChange =
+    !!noteDialog &&
+    "itemType" in noteDialog &&
+    noteDialog.action === "amend" &&
+    noteDialog.itemId.startsWith("acceptance_documents:");
   const sectionLabel = noteDialogIsSection
     ? noteDialog.section === "contract_details" && isInvoiceOnly
       ? "Customer"
@@ -626,19 +721,25 @@ export default function DynamicApplicationDetailPage() {
         : `Request Amendment for ${sectionLabel}?`
       : noteDialog?.action === "reject"
         ? "Reject item?"
-        : "Request amendment?";
+        : noteDialogIsAcceptanceChange
+          ? "Request change?"
+          : "Request amendment?";
   const noteDialogDescription = noteDialogIsApprove
     ? "Add an optional remark to record your review decision."
-    : noteDialogIsSection
-      ? noteDialog.action === "reject"
-        ? "This will reject the section. A remark is required."
-        : "Add this section to the amendment list. A remark is required. Use the Request Amendment button to review and send all amendments."
-      : "Add this item to the amendment list. A remark is required. Use the Request Amendment button to review and send all amendments.";
+    : noteDialogIsAcceptanceChange
+      ? "The issuer will be notified to update this acceptance document. A remark is required and will be shown to them."
+      : noteDialogIsSection
+        ? noteDialog.action === "reject"
+          ? "This will reject the section. A remark is required."
+          : "Add this section to the amendment list. A remark is required. Use the Request Amendment button to review and send all amendments."
+        : "Add this item to the amendment list. A remark is required. Use the Request Amendment button to review and send all amendments.";
   const noteDialogSubmitLabel = noteDialogIsApprove
     ? "Approve"
     : noteDialog?.action === "reject"
       ? "Reject"
-      : "Add to List";
+      : noteDialogIsAcceptanceChange
+        ? "Request change"
+        : "Add to List";
   const noteDialogCommonReasons =
     noteDialog && noteDialog.action === "reject"
       ? "section" in noteDialog
@@ -652,6 +753,7 @@ export default function DynamicApplicationDetailPage() {
     approveItem.isPending ||
     rejectSection.isPending ||
     addPendingAmendment.isPending ||
+    requestAmendmentReviewItem.isPending ||
     rejectItem.isPending;
 
   const handleConfirmRejectApplication = async () => {
@@ -717,15 +819,6 @@ export default function DynamicApplicationDetailPage() {
                     </div>
                   </div>
                   <ApplicationStatusBadge status={app.status} size="lg" />
-                  {app.processingFeePaid ? (
-                    <span className="shrink-0 inline-flex items-center rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-900 dark:text-emerald-100">
-                      Processing fee paid
-                    </span>
-                  ) : app.status === "DRAFT" ? (
-                    <span className="shrink-0 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:text-amber-100">
-                      Processing fee unpaid
-                    </span>
-                  ) : null}
                   {!isFinalApplicationForAmlGate &&
                   computeHasPendingDirectorShareholder(applicationPeople) ? (
                     <span
@@ -985,23 +1078,29 @@ export default function DynamicApplicationDetailPage() {
                   <ApplicationReviewTabs
                     sections={reviewSections}
                     tabDescriptors={effectiveTabDescriptors}
-                    defaultTabId={effectiveTabDescriptors[0]?.id}
+                    defaultTabId={defaultReviewTabId}
+                    tabValue={activeReviewTabId}
+                    onTabValueChange={setReviewTabValue}
                   >
                     {effectiveTabDescriptors.map((descriptor) => {
                       const applicationWithdrawn = app?.status === "WITHDRAWN";
                       const isContractExistingContract =
                         descriptor.reviewSection === "contract_details" && isExistingContract;
+                      const isAcceptanceExistingContract =
+                        descriptor.reviewSection === "acceptance_documents" && isExistingContract;
                       const sectionPermission = SECTION_PERMISSION_MAP[descriptor.reviewSection];
                       const canManageSection = sectionPermission ? can(sectionPermission) : true;
                       const tabUnlocked = isTabUnlocked(
                         descriptor.reviewSection,
                         sectionStatusMap,
                         availableReviewSections,
-                        tabPrerequisitesFromApi
+                        tabPrerequisitesFromApi,
+                        structureType
                       );
                       const actionLocked =
                         applicationWithdrawn ||
                         isContractExistingContract ||
+                        isAcceptanceExistingContract ||
                         !tabUnlocked ||
                         !canManageSection;
                       const actionLockTooltip = actionLocked
@@ -1011,12 +1110,15 @@ export default function DynamicApplicationDetailPage() {
                             ? "Application withdrawn"
                             : isContractExistingContract
                               ? "Contract was approved in a prior application"
-                              : getTabUnlockTooltip(
+                              : isAcceptanceExistingContract
+                                ? "Acceptance was completed when the linked contract was approved"
+                                : getTabUnlockTooltip(
                                   descriptor.reviewSection,
                                   sectionStatusMap,
                                   availableReviewSections,
                                   tabPrerequisitesFromApi,
-                                  isInvoiceOnly ? { contract_details: "Customer" } : undefined
+                                  isInvoiceOnly ? { contract_details: "Customer" } : undefined,
+                                  structureType
                                 )
                         : undefined;
                       const sectionStatus = sectionStatusMap.get(descriptor.reviewSection);
@@ -1026,6 +1128,13 @@ export default function DynamicApplicationDetailPage() {
                             descriptor={descriptor}
                             app={app}
                             liveApplicationId={applicationId}
+                            productWorkflow={reviewProductWorkflow}
+                            productVersion={
+                              typeof (app as { product_version?: number }).product_version === "number"
+                                ? (app as { product_version: number }).product_version
+                                : null
+                            }
+                            canManageSigning={canAppManage}
                             isReviewable={isReviewable}
                             approveSectionPending={approveSection.isPending}
                             approveItemPending={approveItem.isPending}
@@ -1103,17 +1212,17 @@ export default function DynamicApplicationDetailPage() {
                             }}
                             onSendContractOffer={async ({ offeredFacility, facilityFeeRatePercent }) => {
                               try {
-                                const expiresAt = addDays(
-                                  new Date(),
-                                  offerExpiryDays
-                                ).toISOString();
                                 await sendContractOffer.mutateAsync({
                                   applicationId,
                                   offeredFacility,
                                   facilityFeeRatePercent,
-                                  expiresAt,
                                 });
-                                toast.success("Contract offer sent");
+                                if (hasAcceptanceTab) {
+                                  toast.success("Contract offer sent — continue on Acceptance");
+                                  goToAcceptanceTab();
+                                } else {
+                                  toast.success("Contract offer sent");
+                                }
                               } catch (err) {
                                 toast.error(
                                   err instanceof Error
@@ -1131,10 +1240,6 @@ export default function DynamicApplicationDetailPage() {
                               risk_rating,
                             }) => {
                               try {
-                                const expiresAt = addDays(
-                                  new Date(),
-                                  offerExpiryDays
-                                ).toISOString();
                                 await sendInvoiceOffer.mutateAsync({
                                   applicationId,
                                   invoiceId,
@@ -1142,10 +1247,14 @@ export default function DynamicApplicationDetailPage() {
                                   offeredRatioPercent,
                                   offeredProfitRatePercent,
                                   platformFeeRatePercent,
-                                  expiresAt,
                                   risk_rating,
                                 });
-                                toast.success("Invoice offer sent");
+                                if (isInvoiceOnly && hasAcceptanceTab) {
+                                  toast.success("Invoice offer sent — continue on Acceptance");
+                                  goToAcceptanceTab();
+                                } else {
+                                  toast.success("Invoice offer sent");
+                                }
                               } catch (err) {
                                 toast.error(
                                   err instanceof Error
@@ -1158,7 +1267,6 @@ export default function DynamicApplicationDetailPage() {
                             sendInvoiceOfferPending={sendInvoiceOffer.isPending}
                             invoiceRatioLimits={invoiceRatioLimits}
                             platformFeeRateCapPercent={platformFeeRateCapPercent}
-                            offerExpiryDays={offerExpiryDays}
                             productDefaultFacilityFeeRatePercent={productDefaultFacilityFeeRatePercent}
                             minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
                             onViewSignedInvoiceOffer={handleViewSignedInvoiceOffer}

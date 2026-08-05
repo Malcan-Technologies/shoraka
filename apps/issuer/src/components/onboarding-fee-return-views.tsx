@@ -100,6 +100,33 @@ export function ApplicationSubmittedSuccessView({ onContinue }: { onContinue?: (
   );
 }
 
+/** Shown after issuer submits offer acceptance (Step 1) while CashSouk reviews docs. */
+export function OfferAcceptanceSubmittedSuccessView({
+  onContinue,
+}: {
+  onContinue?: () => void;
+}) {
+  return (
+    <Card className="mx-auto w-full max-w-md rounded-2xl border bg-card shadow-sm">
+      <CardContent className="px-6 py-10 text-center">
+        <StatusIcon icon={CheckIcon} className="bg-emerald-600" />
+        <div className="mt-6 space-y-2">
+          <h2 className="text-lg font-semibold">Documents submitted</h2>
+          <p className="text-sm text-muted-foreground">
+            Your documents have been sent for review. You can track the status from your
+            applications list.
+          </p>
+        </div>
+        {onContinue ? (
+          <Button type="button" variant="action" className="mt-8 h-11 w-full rounded-xl" onClick={onContinue}>
+            Done
+          </Button>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function OnboardingFeeSuccessView({ amount }: { amount: number }) {
   return (
     <Card className="mx-auto w-full max-w-md rounded-2xl border bg-card shadow-sm">

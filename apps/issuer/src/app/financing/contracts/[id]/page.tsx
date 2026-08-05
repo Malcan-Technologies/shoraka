@@ -25,6 +25,11 @@ import {
 } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
 import { financingOfferHref } from "@/lib/financing-offer-href";
+import {
+  getIssuerOfferActionCtaFromOfferDetails,
+  getOfferStatus,
+  shouldShowIssuerReviewOfferCta,
+} from "@/lib/offer-utils";
 import { DashboardInvoiceCard } from "@/components/financing/invoice-card";
 import { FinancingInvoiceFilterToolbar } from "@/components/financing/filter-toolbars";
 import {
@@ -38,7 +43,6 @@ import {
   displayCell,
   formatDate,
 } from "@/components/financing/utils";
-import { getOfferStatus } from "@/lib/offer-utils";
 import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
 function formatMoney(value: unknown) {
@@ -162,8 +166,10 @@ export default function ContractDetailsPage() {
 
   const stats = row.invoiceStats;
   const modalContract = asContractForModal(row.contractForModal);
-  const contractOfferStatus = getOfferStatus(modalContract);
-  const showReviewOffer = contractOfferStatus === "Offer received";
+  const showReviewOffer = shouldShowIssuerReviewOfferCta(modalContract);
+  const offerActionCta = getIssuerOfferActionCtaFromOfferDetails(modalContract.offer_details, {
+    scope: "contract",
+  });
 
   return (
     <div className={shellClass}>
@@ -196,7 +202,7 @@ export default function ContractDetailsPage() {
             {showReviewOffer ? (
               <div className="rounded-xl bg-status-action-bg p-0.5">
                 <Button className="rounded-xl" asChild>
-                  <Link href={financingOfferHref(row.applicationId)}>Review offer</Link>
+                  <Link href={financingOfferHref(row.applicationId)}>{offerActionCta.label}</Link>
                 </Button>
               </div>
             ) : null}

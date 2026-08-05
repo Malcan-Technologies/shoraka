@@ -16,7 +16,7 @@ interface ConfirmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
-  description: string;
+  description: React.ReactNode;
   confirmText?: string;
   cancelText?: string;
   variant?: "default" | "destructive";
@@ -66,7 +66,9 @@ export function ConfirmDialog({
             )}
             <DialogTitle>{title}</DialogTitle>
           </div>
-          <DialogDescription className="pt-2">{description}</DialogDescription>
+          <DialogDescription asChild className="pt-2">
+            <div className="text-sm text-muted-foreground">{description}</div>
+          </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button

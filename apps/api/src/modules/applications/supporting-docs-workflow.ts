@@ -1,4 +1,4 @@
-import { getStepKeyFromStepId } from "@cashsouk/types";
+import { acceptanceDocumentsReady, getStepKeyFromStepId } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { getFileExtension } from "../../lib/s3/client";
 
@@ -31,6 +31,22 @@ export function resolveAllowedTypesFromWorkflowRow(row: unknown): string[] {
   if (filtered.length === 0) return ["pdf"];
   const first = filtered[0];
   return first === "excel" ? ["excel"] : ["pdf"];
+}
+
+/** Allowed upload types for the business-details guarantor agreement row (defaults to PDF). */
+export function getGuarantorAgreementAllowedTypesFromProductWorkflow(workflow: unknown): string[] {
+  if (!Array.isArray(workflow)) {
+    throw new AppError(400, "VALIDATION_ERROR", "Invalid product workflow");
+  }
+  for (const step of workflow) {
+    const sid = (step as { id?: string })?.id ?? "";
+    if (getStepKeyFromStepId(sid) !== "business_details") continue;
+    const config = (step as { config?: Record<string, unknown> }).config;
+    if (!config || typeof config !== "object") break;
+    const row = config.guarantor_agreement ?? config.guarantor_agreement_template;
+    return resolveAllowedTypesFromWorkflowRow(row);
+  }
+  return ["pdf"];
 }
 
 export function getSupportingDocAllowedTypesFromProductWorkflow(
@@ -86,8 +102,20 @@ function unwrapSupportingDocumentCategoriesFromApplication(data: unknown): unkno
   return Array.isArray(categories) ? categories : [];
 }
 
+function getWorkflowDocumentIndex(doc: unknown): number | null {
+  if (!doc || typeof doc !== "object") return null;
+  const raw = (doc as Record<string, unknown>).workflow_document_index;
+  return typeof raw === "number" && Number.isInteger(raw) && raw >= 0 ? raw : null;
+}
+
+function findApplicationSupportingDocument(appDocs: unknown, workflowDocumentIndex: number): unknown {
+  if (!Array.isArray(appDocs)) return undefined;
+  const indexed = appDocs.find((doc) => getWorkflowDocumentIndex(doc) === workflowDocumentIndex);
+  return indexed ?? appDocs[workflowDocumentIndex];
+}
+
 /**
- * On submit/resubmit: each workflow row with required !== false must have at least one uploaded file (s3_key).
+ * On submit/resubmit: each required supporting-document workflow row must have at least one uploaded file (s3_key).
  * Category order matches issuer: Object.entries(config), skipping enabled_categories and non-arrays.
  */
 export function assertRequiredSupportingDocumentsPresent(
@@ -125,10 +153,24 @@ export function assertRequiredSupportingDocumentsPresent(
           ? String((row as Record<string, unknown>).name).trim()
           : "";
       const name = nameRaw || "Document";
-      const appDoc = Array.isArray(appDocs) ? appDocs[docIndex] : undefined;
+      const appDoc = findApplicationSupportingDocument(appDocs, docIndex);
       if (!supportingDocumentRowHasUploadedFile(appDoc)) {
         throw new AppError(400, "VALIDATION_ERROR", `This document is required: ${name}`);
       }
     }
+  }
+}
+
+/** Required acceptance docs must be present on the application acceptance_documents payload. */
+export function assertRequiredAcceptanceDocumentsPresent(
+  workflow: unknown,
+  applicationAcceptanceDocuments?: unknown
+): void {
+  if (!acceptanceDocumentsReady(workflow, applicationAcceptanceDocuments)) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "Required acceptance documents must be uploaded before continuing"
+    );
   }
 }

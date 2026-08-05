@@ -1,15 +1,18 @@
 /**
- * Centralized status badge config. Colors grouped by meaning:
- * - action (yellow): viewer must act — Draft, Amendment Requested; issuer badge key offer_sent
- * - submitted (blue): waiting on the other side — Submitted, Resubmitted
- * - in-progress (indigo): being worked on — Under Review, Contract/Invoice Pending/Sent;
- *   admin OFFER_SENT (waiting on issuer) also uses this from the admin POV
- * - success (green): positive outcome — Approved, Contract Accepted, Completed
- * - rejected (red): negative outcome — Rejected, Declined, Offer Expired, Withdrawn
- * - neutral (slate): inactive / terminal closed — Pending, Archived
+ * Centralized status badge config. Four semantic colour groups (+ neutral):
+ * - issuer_action: Issuer must act (amber — status.action)
+ * - admin_action: Waiting on CashSouk (blue — status.submitted)
+ * - completed: Success / signed (emerald — status.success)
+ * - expired_closed: Negative / closed (red — status.rejected)
+ * - neutral: Inactive (slate — status.neutral)
  */
 
-import { WithdrawReason, formatWithdrawLabel } from "@cashsouk/types";
+import {
+  WithdrawReason,
+  formatWithdrawLabel,
+  type OfferAcceptanceStatus,
+  type SigningEnvelopeStatus,
+} from "@cashsouk/types";
 
 export type StatusPresentationOptions = {
   /**
@@ -19,13 +22,15 @@ export type StatusPresentationOptions = {
   issuerWithdrawPresentation?: boolean;
 };
 
-export type StatusVariant =
-  | "success"
-  | "in_progress"
-  | "action"
-  | "rejected"
-  | "neutral"
-  | "withdrawn";
+export type StatusBadgeGroup =
+  | "issuer_action"
+  | "admin_action"
+  | "completed"
+  | "expired_closed"
+  | "neutral";
+
+/** Semantic variant; withdrawn uses expired_closed styling but distinct for issuer logic. */
+export type StatusVariant = StatusBadgeGroup | "withdrawn";
 
 /** Tailwind classes for badge, icon, dot. Same pattern everywhere. */
 export interface StatusPresentation {
@@ -37,165 +42,128 @@ export interface StatusPresentation {
 }
 
 /** Shared badge classes per group. Dots use brighter fills than label text so small circles stay distinguishable. */
-const GROUP = {
-  action: "border-transparent bg-status-action-bg text-status-action-text dark:bg-amber-950/40 dark:text-amber-300",
-  submitted: "border-transparent bg-status-submitted-bg text-status-submitted-text dark:bg-blue-950/40 dark:text-blue-300",
-  "in-progress": "border-transparent bg-status-in-progress-bg text-status-in-progress-text dark:bg-indigo-950/40 dark:text-indigo-300",
-  success: "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300",
-  rejected: "border-transparent bg-status-rejected-bg text-status-rejected-text dark:bg-red-950/40 dark:text-red-300",
-  neutral: "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300",
-};
-const DOT = {
-  action: "bg-status-action-text",
-  submitted: "bg-status-submitted-text",
-  "in-progress": "bg-status-in-progress-text",
-  success: "bg-emerald-500 dark:bg-emerald-400",
-  rejected: "bg-status-rejected-text",
-  neutral: "bg-slate-400 dark:bg-slate-500",
+export const STATUS_BADGE_GROUPS: Record<
+  StatusBadgeGroup,
+  { badgeClass: string; iconClass: string; dotClass: string; label: string }
+> = {
+  issuer_action: {
+    label: "Issuer action",
+    badgeClass:
+      "border-transparent bg-status-action-bg text-status-action-text dark:bg-amber-950/40 dark:text-amber-300",
+    iconClass: "text-amber-600 dark:text-amber-400",
+    dotClass: "bg-status-action-text",
+  },
+  admin_action: {
+    label: "Admin action",
+    badgeClass:
+      "border-transparent bg-status-submitted-bg text-status-submitted-text dark:bg-blue-950/40 dark:text-blue-300",
+    iconClass: "text-blue-600 dark:text-blue-400",
+    dotClass: "bg-status-submitted-text",
+  },
+  completed: {
+    label: "Completed",
+    badgeClass:
+      "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300",
+    iconClass: "text-emerald-700 dark:text-emerald-400",
+    dotClass: "bg-emerald-500 dark:bg-emerald-400",
+  },
+  expired_closed: {
+    label: "Expired / closed",
+    badgeClass:
+      "border-transparent bg-status-rejected-bg text-status-rejected-text dark:bg-red-950/40 dark:text-red-300",
+    iconClass: "text-red-600 dark:text-red-400",
+    dotClass: "bg-status-rejected-text",
+  },
+  neutral: {
+    label: "Neutral",
+    badgeClass:
+      "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300",
+    iconClass: "text-slate-600 dark:text-slate-400",
+    dotClass: "bg-slate-400 dark:bg-slate-500",
+  },
 };
 
+const GROUP = Object.fromEntries(
+  Object.entries(STATUS_BADGE_GROUPS).map(([key, value]) => [key, value.badgeClass])
+) as Record<StatusBadgeGroup, string>;
+
+const ICON = Object.fromEntries(
+  Object.entries(STATUS_BADGE_GROUPS).map(([key, value]) => [key, value.iconClass])
+) as Record<StatusBadgeGroup, string>;
+
+const DOT = Object.fromEntries(
+  Object.entries(STATUS_BADGE_GROUPS).map(([key, value]) => [key, value.dotClass])
+) as Record<StatusBadgeGroup, string>;
+
+function groupPresentation(
+  group: StatusBadgeGroup,
+  label?: string,
+  variant?: StatusVariant
+): Omit<StatusPresentation, "label"> & { label?: string } {
+  return {
+    label,
+    badgeClass: GROUP[group],
+    iconClass: ICON[group],
+    dotClass: DOT[group],
+    variant: variant ?? group,
+  };
+}
+
 const STATUS_PRESENTATION: Record<string, Omit<StatusPresentation, "label"> & { label?: string }> = {
-  DRAFT: {
-    label: "Draft",
-    badgeClass: GROUP.action,
-    iconClass: "text-amber-600 dark:text-amber-400",
-    dotClass: DOT.action,
-    variant: "action",
-  },
-  SUBMITTED: {
-    label: "Submitted",
-    badgeClass: GROUP.submitted,
-    iconClass: "text-blue-600 dark:text-blue-400",
-    dotClass: DOT.submitted,
-    variant: "in_progress",
-  },
-  UNDER_REVIEW: {
-    label: "Under Review",
-    badgeClass: GROUP["in-progress"],
-    iconClass: "text-indigo-600 dark:text-indigo-400",
-    dotClass: DOT["in-progress"],
-    variant: "in_progress",
-  },
-  CONTRACT_PENDING: {
-    label: "Contract Pending",
-    badgeClass: GROUP["in-progress"],
-    iconClass: "text-indigo-600 dark:text-indigo-400",
-    dotClass: DOT["in-progress"],
-    variant: "in_progress",
-  },
-  CONTRACT_SENT: {
-    label: "Contract Sent",
-    badgeClass: GROUP["in-progress"],
-    iconClass: "text-indigo-600 dark:text-indigo-400",
-    dotClass: DOT["in-progress"],
-    variant: "in_progress",
-  },
-  CONTRACT_ACCEPTED: {
-    label: "Contract Accepted",
-    badgeClass: GROUP.success,
-    iconClass: "text-emerald-700 dark:text-emerald-400",
-    dotClass: DOT.success,
-    variant: "success",
-  },
-  INVOICE_PENDING: {
-    label: "Invoice Pending",
-    badgeClass: GROUP["in-progress"],
-    iconClass: "text-indigo-600 dark:text-indigo-400",
-    dotClass: DOT["in-progress"],
-    variant: "in_progress",
-  },
-  INVOICES_SENT: {
-    label: "Invoices Sent",
-    badgeClass: GROUP["in-progress"],
-    iconClass: "text-indigo-600 dark:text-indigo-400",
-    dotClass: DOT["in-progress"],
-    variant: "in_progress",
-  },
-  OFFER_SENT: {
-    label: "Offer Sent",
-    badgeClass: GROUP["in-progress"],
-    iconClass: "text-indigo-600 dark:text-indigo-400",
-    dotClass: DOT["in-progress"],
-    variant: "in_progress",
-  },
-  AMENDMENT_REQUESTED: {
-    label: "Amendment Requested",
-    badgeClass: GROUP.action,
-    iconClass: "text-amber-600 dark:text-amber-400",
-    dotClass: DOT.action,
-    variant: "action",
-  },
-  RESUBMITTED: {
-    label: "Resubmitted",
-    badgeClass: GROUP.submitted,
-    iconClass: "text-blue-600 dark:text-blue-400",
-    dotClass: DOT.submitted,
-    variant: "in_progress",
-  },
-  APPROVED: {
-    label: "Approved",
-    badgeClass: GROUP.success,
-    iconClass: "text-emerald-700 dark:text-emerald-400",
-    dotClass: DOT.success,
-    variant: "success",
-  },
-  COMPLETED: {
-    label: "Completed",
-    badgeClass: GROUP.success,
-    iconClass: "text-emerald-700 dark:text-emerald-400",
-    dotClass: DOT.success,
-    variant: "success",
-  },
-  REJECTED: {
-    label: "Rejected",
-    badgeClass: GROUP.rejected,
-    iconClass: "text-red-600 dark:text-red-400",
-    dotClass: DOT.rejected,
-    variant: "rejected",
-  },
-  WITHDRAWN: {
-    label: "Withdrawn",
-    badgeClass: GROUP.rejected,
-    iconClass: "text-red-600 dark:text-red-400",
-    dotClass: DOT.rejected,
-    variant: "withdrawn",
-  },
-  DECLINED: {
-    label: "Declined",
-    badgeClass: GROUP.rejected,
-    iconClass: "text-red-600 dark:text-red-400",
-    dotClass: DOT.rejected,
-    variant: "rejected",
-  },
+  DRAFT: { ...groupPresentation("issuer_action"), label: "Draft" },
+  SUBMITTED: { ...groupPresentation("admin_action"), label: "Submitted" },
+  UNDER_REVIEW: { ...groupPresentation("admin_action"), label: "Under Review" },
+  CONTRACT_PENDING: { ...groupPresentation("admin_action"), label: "Contract Pending" },
+  CONTRACT_SENT: { ...groupPresentation("issuer_action"), label: "Contract Sent" },
+  CONTRACT_ACCEPTED: { ...groupPresentation("admin_action"), label: "Contract Accepted" },
+  INVOICE_ACCEPTED: { ...groupPresentation("admin_action"), label: "Invoice Accepted" },
+  SIGNING_PENDING: { ...groupPresentation("admin_action"), label: "Signing Pending" },
+  INVOICE_PENDING: { ...groupPresentation("admin_action"), label: "Invoice Pending" },
+  INVOICES_SENT: { ...groupPresentation("issuer_action"), label: "Invoices Sent" },
+  OFFER_SENT: { ...groupPresentation("issuer_action"), label: "Offer Sent" },
+  AMENDMENT_REQUESTED: { ...groupPresentation("issuer_action"), label: "Amendment Requested" },
+  RESUBMITTED: { ...groupPresentation("admin_action"), label: "Resubmitted" },
+  /** Section / item / contract / invoice review status (not ApplicationStatus). */
+  APPROVED: { ...groupPresentation("completed"), label: "Approved" },
+  COMPLETED: { ...groupPresentation("completed"), label: "Completed" },
+  REJECTED: { ...groupPresentation("expired_closed"), label: "Rejected" },
+  WITHDRAWN: { ...groupPresentation("expired_closed", undefined, "withdrawn"), label: "Withdrawn" },
+  DECLINED: { ...groupPresentation("expired_closed"), label: "Declined" },
   OFFER_EXPIRED: {
+    ...groupPresentation("expired_closed", undefined, "withdrawn"),
     label: "Offer Expired",
-    badgeClass: GROUP.rejected,
-    iconClass: "text-red-600 dark:text-red-400",
-    dotClass: DOT.rejected,
-    variant: "withdrawn",
   },
-  ARCHIVED: {
-    label: "Archived",
-    badgeClass: GROUP.neutral,
-    iconClass: "text-slate-600 dark:text-slate-400",
-    dotClass: DOT.neutral,
-    variant: "neutral",
-  },
-  PENDING: {
-    label: "Pending",
-    badgeClass: GROUP.neutral,
-    iconClass: "text-slate-600 dark:text-slate-400",
-    dotClass: DOT.neutral,
-    variant: "neutral",
-  },
+  ARCHIVED: { ...groupPresentation("neutral"), label: "Archived" },
+  PENDING: { ...groupPresentation("neutral"), label: "Pending" },
 };
 
 const PENDING_FALLBACK: StatusPresentation = {
   label: "Pending",
   badgeClass: GROUP.neutral,
-  iconClass: "text-slate-600 dark:text-slate-400",
+  iconClass: ICON.neutral,
   dotClass: DOT.neutral,
   variant: "neutral",
+};
+
+const OFFER_ACCEPTANCE_PHASE_GROUP: Record<OfferAcceptanceStatus, StatusBadgeGroup> = {
+  PENDING_ISSUER: "issuer_action",
+  CHANGES_REQUESTED: "issuer_action",
+  PENDING_ADMIN_REVIEW: "admin_action",
+  APPROVED_FOR_SIGNING: "admin_action",
+  SIGNING_IN_PROGRESS: "admin_action",
+  COMPLETED: "completed",
+  REJECTED: "expired_closed",
+  DECLINED: "expired_closed",
+};
+
+const SIGNING_ENVELOPE_STATUS_GROUP: Record<SigningEnvelopeStatus, StatusBadgeGroup> = {
+  DRAFT: "neutral",
+  SENT: "issuer_action",
+  IN_PROGRESS: "issuer_action",
+  COMPLETED: "completed",
+  DECLINED: "expired_closed",
+  VOIDED: "expired_closed",
+  EXPIRED: "expired_closed",
 };
 
 function toLabel(status: string): string {
@@ -214,12 +182,14 @@ const API_STATUS_TO_BADGE_KEY: Record<string, string> = {
   CONTRACT_PENDING: "under_review",
   CONTRACT_SENT: "under_review",
   CONTRACT_ACCEPTED: "under_review",
+  INVOICE_ACCEPTED: "under_review",
+  SIGNING_PENDING: "under_review",
   INVOICE_PENDING: "under_review",
   INVOICES_SENT: "under_review",
   AMENDMENT_REQUESTED: "amendment_requested",
   RESUBMITTED: "resubmitted",
   OFFER_SENT: "offer_sent",
-  APPROVED: "approved",
+  OFFER_EXPIRED: "offer_expired",
   COMPLETED: "completed",
   WITHDRAWN: "withdrawn",
   REJECTED: "rejected",
@@ -230,23 +200,33 @@ export { API_STATUS_TO_BADGE_KEY };
 
 /**
  * Maps API invoice/application status + withdraw reason to issuer card/table badge key.
- * WITHDRAWN + OFFER_REJECTED → declined; WITHDRAWN + OFFER_EXPIRED → offer_expired; else API map.
+ * WITHDRAWN + OFFER_REJECTED → declined; OFFER_EXPIRED → offer_expired; else API map.
+ * When entity stays OFFER_SENT, offer_acceptance phase can collapse the row:
+ * pending admin / completed → under_review; issuer Step 1 + Step 3 stay offer_sent.
  */
 export function resolveIssuerInvoiceStatusBadgeKey(
   status: string | undefined,
-  withdrawReason?: WithdrawReason
+  withdrawReason?: WithdrawReason,
+  offerAcceptanceStatus?: string | null
 ): string {
   const upper = String(status ?? "").toUpperCase();
   if (upper === "WITHDRAWN" && withdrawReason === WithdrawReason.OFFER_REJECTED) {
     return "declined";
   }
-  if (upper === "WITHDRAWN" && withdrawReason === WithdrawReason.OFFER_EXPIRED) {
+  if (upper === "OFFER_EXPIRED") {
     return "offer_expired";
+  }
+  if (upper === "OFFER_SENT" && offerAcceptanceStatus) {
+    const phase = String(offerAcceptanceStatus).toUpperCase();
+    // Waiting on CashSouk review, or ceremony finished while entity is still OFFER_SENT briefly.
+    if (phase === "PENDING_ADMIN_REVIEW" || phase === "COMPLETED") {
+      return "under_review";
+    }
   }
   return API_STATUS_TO_BADGE_KEY[upper] ?? (status?.toLowerCase() ?? "draft");
 }
 
-/** All status keys for dev/showcase pages. */
+/** All application status keys for dev/showcase pages. */
 export const STATUS_EXAMPLE_KEYS = [
   "DRAFT",
   "SUBMITTED",
@@ -254,12 +234,14 @@ export const STATUS_EXAMPLE_KEYS = [
   "CONTRACT_PENDING",
   "CONTRACT_SENT",
   "CONTRACT_ACCEPTED",
+  "INVOICE_ACCEPTED",
+  "SIGNING_PENDING",
   "INVOICE_PENDING",
   "INVOICES_SENT",
   "OFFER_SENT",
+  "OFFER_EXPIRED",
   "AMENDMENT_REQUESTED",
   "RESUBMITTED",
-  "APPROVED",
   "COMPLETED",
   "REJECTED",
   "WITHDRAWN",
@@ -267,38 +249,55 @@ export const STATUS_EXAMPLE_KEYS = [
   "PENDING",
 ] as const;
 
+/** Offer acceptance phase keys for dev/showcase pages. */
+export const OFFER_ACCEPTANCE_EXAMPLE_KEYS = [
+  "PENDING_ISSUER",
+  "PENDING_ADMIN_REVIEW",
+  "CHANGES_REQUESTED",
+  "APPROVED_FOR_SIGNING",
+  "SIGNING_IN_PROGRESS",
+  "COMPLETED",
+  "REJECTED",
+  "DECLINED",
+] as const satisfies readonly OfferAcceptanceStatus[];
+
+/** Signing envelope status keys for dev/showcase pages. */
+export const SIGNING_ENVELOPE_EXAMPLE_KEYS = [
+  "DRAFT",
+  "SENT",
+  "IN_PROGRESS",
+  "COMPLETED",
+  "DECLINED",
+  "VOIDED",
+  "EXPIRED",
+] as const satisfies readonly SigningEnvelopeStatus[];
+
+/** Badge class for offer acceptance phase badges (Acceptance tab). */
+export function getOfferAcceptancePhaseBadgeClass(status: OfferAcceptanceStatus): string {
+  return GROUP[OFFER_ACCEPTANCE_PHASE_GROUP[status]];
+}
+
+/** Badge class for signing envelope status badges. */
+export function getSigningEnvelopeBadgeClass(status: SigningEnvelopeStatus): string {
+  return GROUP[SIGNING_ENVELOPE_STATUS_GROUP[status]];
+}
+
 /** Badge key (lowercase) → presentation. For issuer card badges. */
 const BADGE_KEY_PRESENTATION: Record<string, StatusPresentation> = {
   draft: { ...STATUS_PRESENTATION.DRAFT, label: "Draft" } as StatusPresentation,
   submitted: { ...STATUS_PRESENTATION.SUBMITTED, label: "Submitted" } as StatusPresentation,
   under_review: { ...STATUS_PRESENTATION.UNDER_REVIEW, label: "Under Review" } as StatusPresentation,
-  amendment_requested: { ...STATUS_PRESENTATION.AMENDMENT_REQUESTED, label: "Action Required" } as StatusPresentation,
-  resubmitted: { ...STATUS_PRESENTATION.RESUBMITTED, label: "Resubmitted" } as StatusPresentation,
-  // Issuer-facing: offer needs their response (yellow/action). Admin still uses STATUS_PRESENTATION.OFFER_SENT (in-progress).
-  offer_sent: {
-    label: "Offer Received",
-    badgeClass: GROUP.action,
-    iconClass: "text-amber-600 dark:text-amber-400",
-    dotClass: DOT.action,
-    variant: "action",
+  amendment_requested: {
+    ...STATUS_PRESENTATION.AMENDMENT_REQUESTED,
+    label: "Action Required",
   } as StatusPresentation,
+  resubmitted: { ...STATUS_PRESENTATION.RESUBMITTED, label: "Resubmitted" } as StatusPresentation,
+  offer_sent: { ...STATUS_PRESENTATION.OFFER_SENT, label: "Offer Received" } as StatusPresentation,
   accepted: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
   approved: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
-  // Issuer terminal closed → slate/neutral (admin COMPLETED stays success green via STATUS_PRESENTATION).
-  completed: {
-    label: "Completed",
-    badgeClass: GROUP.neutral,
-    iconClass: "text-slate-600 dark:text-slate-400",
-    dotClass: DOT.neutral,
-    variant: "neutral",
-  } as StatusPresentation,
-  withdrawn: {
-    label: "Withdrawn",
-    badgeClass: GROUP.neutral,
-    iconClass: "text-slate-600 dark:text-slate-400",
-    dotClass: DOT.neutral,
-    variant: "withdrawn",
-  } as StatusPresentation,
+  // Issuer card keys: terminal closed states use neutral (matches badgeKeyToStatusToken / BRANDING.md).
+  completed: { ...groupPresentation("neutral"), label: "Completed" } as StatusPresentation,
+  withdrawn: { ...groupPresentation("neutral", undefined, "withdrawn"), label: "Withdrawn" } as StatusPresentation,
   declined: { ...STATUS_PRESENTATION.DECLINED, label: "Declined" } as StatusPresentation,
   offer_expired: { ...STATUS_PRESENTATION.OFFER_EXPIRED, label: "Offer Expired" } as StatusPresentation,
   rejected: { ...STATUS_PRESENTATION.REJECTED, label: "Rejected" } as StatusPresentation,
@@ -319,11 +318,6 @@ export function getStatusPresentationByBadgeKey(
   if (issuer && withdrawReason === WithdrawReason.OFFER_REJECTED) {
     const pres = BADGE_KEY_PRESENTATION.declined;
     return { color: pres.badgeClass, label: "Declined" };
-  }
-
-  if (issuer && withdrawReason === WithdrawReason.OFFER_EXPIRED) {
-    const pres = BADGE_KEY_PRESENTATION.offer_expired;
-    return { color: pres.badgeClass, label: pres.label ?? "Offer Expired" };
   }
 
   if (key === "declined") {
@@ -366,9 +360,6 @@ export function getStatusPresentation(
   if (upper === "WITHDRAWN" && issuer) {
     if (withdrawReason === WithdrawReason.OFFER_REJECTED) {
       return { ...STATUS_PRESENTATION.DECLINED, label: "Declined" } as StatusPresentation;
-    }
-    if (withdrawReason === WithdrawReason.OFFER_EXPIRED) {
-      return { ...STATUS_PRESENTATION.OFFER_EXPIRED, label: "Offer Expired" } as StatusPresentation;
     }
     return { ...STATUS_PRESENTATION.WITHDRAWN, label: "Withdrawn" } as StatusPresentation;
   }

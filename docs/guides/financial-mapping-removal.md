@@ -23,7 +23,7 @@ apps/admin/src/components/application-review-tabs.tsx
 
 ISSUER PORTAL
 
-apps/issuer/src/app/(application-flow)/applications/edit/[id]/page.tsx
+apps/issuer/src/app/(application-flow)/applications/[id]/edit/page.tsx
   Line 262: Change const key = rem.scope_key === "financial" ? "financial_statements" : rem.scope_key; to const key = rem.scope_key;
   Line 277: Change const tabKey = tab === "financial" ? "financial_statements" : tab; to const tabKey = tab;
   Line 713: Change r.scope_key === "financial" && currentStepKey === "financial_statements" to use same name both sides

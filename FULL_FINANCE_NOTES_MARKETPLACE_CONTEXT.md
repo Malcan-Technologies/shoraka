@@ -181,13 +181,9 @@ The signing lifecycle is handled in `apps/api/src/modules/applications/service.t
 - invoice status `InvoiceStatus.APPROVED`
 - application status `ApplicationStatus.COMPLETED`
 
-**Important nuance (DEV escape hatch):**
-In `apps/api/src/modules/applications/controller.ts`, the accept endpoints for contract/invoice can throw `USE_SIGNING_FLOW` when SigningCloud is configured, but there is a dev-only bypass:
-- if a dev bypass flag is requested, the controller calls `respondTo*Offer(..., "accept")` **without** signingCompletion.
-
-**So the “signed offer letter validation” situation is:**
-- In normal SigningCloud flows, a signed PDF is fetched and stored, and `offer_signing` is merged as `status: "signed"` before `InvoiceStatus.APPROVED` / `ContractStatus.APPROVED`.
-- `Note` creation itself does not validate that a signed letter S3 key exists; it relies on the statuses being `APPROVED/COMPLETED`.
+**Important nuance:**
+In normal SigningCloud flows, a signed PDF is fetched and stored, and `offer_signing` is merged as `status: "signed"` before `InvoiceStatus.APPROVED` / `ContractStatus.APPROVED`.
+`Note` creation itself does not validate that a signed letter S3 key exists; it relies on the statuses being `APPROVED/COMPLETED`.
 
 Status: **resolved with a nuance** (SigningCloud finalization enforces signed PDF availability; Note creation does not independently re-check signed content).
 

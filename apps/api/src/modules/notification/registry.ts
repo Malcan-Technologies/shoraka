@@ -1,5 +1,6 @@
 import { PortalType } from "../../lib/http/url-utils";
 import { PortalContext } from "../../lib/http/portal-context";
+import { formatPhaseDeadlineDateDDMMYYYY } from "@cashsouk/types";
 
 /**
  * Registry of all system notification types to ensure type safety
@@ -22,6 +23,8 @@ export const NotificationTypeIds = {
 
   // Issuer application / review lifecycle
   APPLICATION_AMENDMENTS_REQUESTED: 'application_amendments_requested',
+  /** Post-offer acceptance docs: admin requested a specific document change. */
+  ACCEPTANCE_DOCUMENT_CHANGES_REQUESTED: 'acceptance_document_changes_requested',
   APPLICATION_APPROVED: 'application_approved',
   APPLICATION_REJECTED: 'application_rejected',
   CONTRACT_OFFER_SENT: 'contract_offer_sent',
@@ -98,6 +101,9 @@ export interface NotificationPayloads {
     applicationId: string;
     amendmentCount: number;
   };
+  [NotificationTypeIds.ACCEPTANCE_DOCUMENT_CHANGES_REQUESTED]: {
+    applicationId: string;
+  };
   [NotificationTypeIds.APPLICATION_APPROVED]: {
     applicationId: string;
   };
@@ -125,12 +131,15 @@ export interface NotificationPayloads {
     applicationId: string;
     offerType: 'contract' | 'invoice';
     invoiceNumber?: string | null;
+    clock?: 'acceptance' | 'signing';
   };
   [NotificationTypeIds.OFFER_EXPIRY_REMINDER_24H]: {
     applicationId: string;
     offerType: 'contract' | 'invoice';
     invoiceNumber?: string | null;
     expiresAt: string;
+    clock?: 'acceptance' | 'signing';
+    daysBeforeExpiry?: number;
   };
   [NotificationTypeIds.APPLICATION_RESUBMITTED_CONFIRMATION]: {
     applicationId: string;
@@ -287,7 +296,14 @@ export const NOTIFICATION_TEMPLATES: {
     title: 'Amendment Requested',
     message: (data) =>
       `Your application ${getShortApplicationRef(data.applicationId)} requires updates. ${data.amendmentCount} amendment item(s) were requested by the reviewer.`,
-    linkPath: (data) => `/applications/edit/${data.applicationId}`,
+    linkPath: (data) => `/applications/${data.applicationId}/edit`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.ACCEPTANCE_DOCUMENT_CHANGES_REQUESTED]: {
+    title: 'Acceptance Documents Need Updates',
+    message: (data) =>
+      `A reviewer requested updates to acceptance documents on application ${getShortApplicationRef(data.applicationId)}. Open Review Offer to see which files to replace.`,
+    linkPath: () => `/applications`,
     portal: 'issuer',
   },
   [NotificationTypeIds.APPLICATION_APPROVED]: {
@@ -305,14 +321,14 @@ export const NOTIFICATION_TEMPLATES: {
   [NotificationTypeIds.CONTRACT_OFFER_SENT]: {
     title: 'Contract Offer Received',
     message: (data) =>
-      `A contract offer of ${data.offeredFacility.toLocaleString()} has been sent to your application ${getShortApplicationRef(data.applicationId)}.${data.expiresAt ? ` It expires on ${formatDateDDMMYYYY(data.expiresAt)}.` : ''}`,
+      `A contract offer of ${data.offeredFacility.toLocaleString()} has been sent to your application ${getShortApplicationRef(data.applicationId)}.${data.expiresAt ? ` It expires on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.` : ''}`,
     linkPath: () => `/applications`,
     portal: 'issuer',
   },
   [NotificationTypeIds.INVOICE_OFFER_SENT]: {
     title: 'Invoice Offer Received',
     message: (data) =>
-      `An invoice offer${data.invoiceNumber ? ` for invoice ${data.invoiceNumber}` : ''} of RM${data.offeredAmount.toLocaleString()} has been sent.${data.expiresAt ? ` It expires on ${formatDateDDMMYYYY(data.expiresAt)}.` : ''}`,
+      `An invoice offer${data.invoiceNumber ? ` for invoice ${data.invoiceNumber}` : ''} of RM${data.offeredAmount.toLocaleString()} has been sent.${data.expiresAt ? ` It expires on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.` : ''}`,
     linkPath: () => `/applications`,
     portal: 'issuer',
   },
@@ -332,8 +348,18 @@ export const NOTIFICATION_TEMPLATES: {
   },
   [NotificationTypeIds.OFFER_EXPIRY_REMINDER_24H]: {
     title: 'Offer Expiring Soon',
-    message: (data) =>
-      `${data.offerType === 'contract' ? 'Contract' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} expires within 24 hours at ${formatDateDDMMYYYY(data.expiresAt)}.`,
+    message: (data) => {
+      const daysBefore = data.daysBeforeExpiry;
+      const windowLabel =
+        typeof daysBefore === 'number' && Number.isFinite(daysBefore)
+          ? daysBefore <= 0
+            ? 'today'
+            : daysBefore === 1
+              ? 'in 1 day'
+              : `in ${daysBefore} days`
+          : 'soon';
+      return `${data.offerType === 'contract' ? 'Contract' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} expires ${windowLabel} on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.`;
+    },
     linkPath: () => `/applications`,
     portal: 'issuer',
   },

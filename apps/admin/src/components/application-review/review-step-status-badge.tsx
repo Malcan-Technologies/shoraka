@@ -16,6 +16,8 @@ import { getReviewStatusPresentation } from "./status-presentation";
 interface ReviewStepStatusBadgeProps {
   status: string;
   size?: "sm" | "md";
+  /** Override presentation label (e.g. acceptance "Changes Requested"). */
+  label?: string;
 }
 
 const STATUS_CONFIG: Record<
@@ -27,17 +29,22 @@ const STATUS_CONFIG: Record<
   AMENDMENT_REQUESTED: { Icon: ExclamationTriangleIcon },
   PENDING: { Icon: ClockIcon },
   OFFER_SENT: { Icon: PaperAirplaneIcon },
+  OFFER_EXPIRED: { Icon: ClockIcon },
   WITHDRAWN: { Icon: ArchiveBoxIcon },
 };
 
-export function ReviewStepStatusBadge({ status, size = "md" }: ReviewStepStatusBadgeProps) {
+export function ReviewStepStatusBadge({
+  status,
+  size = "md",
+  label,
+}: ReviewStepStatusBadgeProps) {
   const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.PENDING;
   const presentation = getReviewStatusPresentation(status);
   const Icon = config.Icon;
   const isCompact = size === "sm";
   const iconSize = isCompact ? "h-3 w-3" : "h-3.5 w-3.5";
-  const sizeClass = isCompact ? "text-[11px] px-1.5 py-0 shrink-0" : "";
-  const displayText = toTitleCase(presentation.label);
+  const sizeClass = isCompact ? "text-xs px-1.5 py-0 shrink-0" : "";
+  const displayText = toTitleCase(label ?? presentation.label);
 
   return (
     <Badge

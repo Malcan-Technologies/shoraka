@@ -330,9 +330,9 @@ When there are no invoices:
 
 **Why different names?** The API and database use one set of names; we show the user a friendlier one. The config file links them. When you see two names for the same thing, the first is for code, the second is for display.
 
-- badgeKey "sent" (code) maps to label "Offer Received" (what user sees)
+- badgeKey "offer_sent" (code) maps to label "Offer Received" (what user sees)
 - AMENDMENT_REQUESTED (API) becomes "Action Required" on screen
-- badgeKey "accepted" (code) maps to "Approved" (label)
+- Terminal success uses badgeKey "completed" → "Completed" (no application APPROVED / accepted badge)
 
 **Where do statuses come from?** Each application has three places: app, contract, invoices. A card shows one badge. `getCardStatus` in status.ts combines them and returns badgeKey + button flags.
 
@@ -341,42 +341,44 @@ When there are no invoices:
 - Rejected first
 - Then Action Required (when admin asked for changes)
 - Then Offer Received (when there is an offer to review)
-- Then Under Review, Submitted, Draft, Approved last
+- Then Under Review, Submitted, Draft, Completed last
 
 Example: app says SUBMITTED, one invoice says AMENDMENT_REQUESTED. We show "Action Required" because it comes before SUBMITTED. Another: app UNDER_REVIEW, contract OFFER_SENT, invoices DRAFT. We show "Offer Received" because OFFER_SENT beats the rest.
 
 **Many invoices?** If you have 3 invoices with different statuses, we pick the one that wins by the same order. [OFFER_SENT, DRAFT, APPROVED] becomes OFFER_SENT. Then we compare that with the app and contract status.
 
-**Order on the page.** `STATUS[key].sortOrder` in status.ts controls list order. Lower number = higher up. Same status: sort by date (newest first).
+**Order on the page.** Unfiltered list uses `APPLICATION_STATUS_PRIORITY` in status.ts (badge key), then `updatedAt` newest first. Keep `STATUS[].sortOrder` aligned with that map.
 
-**Full priority table (list sort order)** — from `status.ts`:
+**Full priority table (list sort order)** — from `APPLICATION_STATUS_PRIORITY`:
 
-| badgeKey           | Priority | Label           |
-|--------------------|----------|-----------------|
-| rejected           | 1        | Rejected        |
+| badgeKey             | Priority | Label           |
+|----------------------|----------|-----------------|
+| offer_sent           | 1        | Offer Received  |
 | amendment_requested  | 2        | Action Required |
-| sent               | 3        | Offer Received  |
-| under_review       | 4        | Under Review    |
-| submitted          | 5        | Submitted       |
-| resubmitted        | 6        | Resubmitted     |
-| draft              | 7        | Draft           |
-| accepted           | 8        | Approved        |
-| archived           | 10       | Archived        |
+| draft                | 3        | Draft           |
+| resubmitted          | 4        | Resubmitted     |
+| submitted            | 5        | Submitted       |
+| under_review         | 6        | Under Review    |
+| offer_expired        | 7        | Offer Expired   |
+| completed            | 8        | Completed       |
+| declined / withdrawn | 9        | Declined / Withdrawn |
+| rejected             | 10       | Rejected        |
+| archived             | 11       | Archived (hidden from default list) |
 
-`offer_expired` is a display variant of `sent` (same sort position). Archived apps are hidden from the list. Unknown badgeKeys get priority 999 (bottom).
+Archived apps are filtered out of the default list. Unknown badgeKeys get priority 999 (bottom).
 
 **Status resolution order (which wins when combining app + contract + invoices)** — from `getCardStatus` in status.ts:
 
-1. Rejected (app or contract)
-2. Action Required (contract or any invoice AMENDMENT_REQUESTED)
-3. Offer Received (contract or aggregated invoice OFFER_SENT)
-4. Under Review (app UNDER_REVIEW)
+1. Rejected / Completed / Withdrawn / Offer Expired / Archived (terminal app statuses)
+2. Action Required (app, contract, or any invoice AMENDMENT_REQUESTED)
+3. Offer Received or Under Review while OFFER_SENT (depends on offer_acceptance phase:
+   Offer Received for Step 1 + Step 3; Under Review while PENDING_ADMIN_REVIEW)
+4. Under Review (stage statuses: UNDER_REVIEW, CONTRACT_*, INVOICE_*, … — SIGNING_PENDING
+   with an active OFFER_SENT offer usually resolves earlier as Offer Received)
 5. Submitted (app SUBMITTED)
 6. Resubmitted (app RESUBMITTED)
 7. Draft (app DRAFT)
-8. Approved (app APPROVED)
-9. Archived (app ARCHIVED)
-10. Default: Draft
+8. Default: Draft
 
 **Invoice aggregation order** (when multiple invoices have different statuses):
 
@@ -393,7 +395,7 @@ Example: app says SUBMITTED, one invoice says AMENDMENT_REQUESTED. We show "Acti
 - Contract financing: invoices grayed out until contract is approved.
 - Offer expired = we show "Offer expired" and hide the Review button.
 
-**Full example.** API sends: app UNDER_REVIEW, contract OFFER_SENT, invoices DRAFT, OFFER_SENT, APPROVED. We aggregate invoices to OFFER_SENT. We check: Rejected? No. Action Required? No. OFFER_SENT? Yes. We return badgeKey "sent". The page looks up "sent" and gets "Offer Received" (teal). It renders that badge and the Review button. The card appears above Draft or Approved (priority 3).
+**Full example.** API sends: app UNDER_REVIEW, contract OFFER_SENT (PENDING_ISSUER), invoices DRAFT, OFFER_SENT, APPROVED. We check: Rejected? No. Action Required? No. OFFER_SENT + PENDING_ISSUER? Yes. We return badgeKey "offer_sent". The page shows "Offer Received". The card appears above Draft or Completed.
 
 ---
 
@@ -442,8 +444,8 @@ App: DRAFT, Contract: any, Invoices: any
 Result: Badge Draft. Buttons: none.
 
 **Scenario 11**  
-App: APPROVED, Contract: any, Invoices: any  
-Result: Badge Approved. Buttons: none.
+App: COMPLETED, Contract: any, Invoices: any  
+Result: Badge Completed. Buttons: none.
 
 **Scenario 12**  
 App: ARCHIVED, Contract: any, Invoices: any  

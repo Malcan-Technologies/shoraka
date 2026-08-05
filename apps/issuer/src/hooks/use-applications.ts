@@ -1,6 +1,7 @@
 import {
   createApiClient,
-  getReviewRefreshPolicy,
+  getReviewDetailRefreshPolicy,
+  getReviewListRefreshPolicy,
   useAuthToken,
 } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -31,7 +32,7 @@ export function getApiMutationErrorCode(error: unknown): string | null {
 export function useApplication(id: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
-  const refreshPolicy = getReviewRefreshPolicy();
+  const refreshPolicy = getReviewDetailRefreshPolicy();
 
   return useQuery({
     queryKey: ["application", id],
@@ -82,7 +83,7 @@ export function useUpdateApplicationStep() {
     mutationFn: async ({ id, stepData }: { id: string; stepData: UpdateApplicationStepInput }) => {
       const response = await apiClient.updateApplicationStep(id, stepData);
       if (!response.success) {
-        throw new Error(response.error.message);
+        throw new ApiMutationError(response.error.message, response.error.code);
       }
       return response.data;
     },
@@ -92,6 +93,13 @@ export function useUpdateApplicationStep() {
       queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
     },
     onError: (error: Error) => {
+      // Caller maps structured financing-structure codes to specific copy.
+      if (
+        error instanceof ApiMutationError &&
+        (error.code === "STRUCTURE_CHANGE_BLOCKED" || error.code === "MAX_INVOICES_REACHED")
+      ) {
+        return;
+      }
       toast.error("Failed to save progress", {
         description: error.message,
       });
@@ -336,7 +344,7 @@ export function useWithdrawContract() {
 export function useOrganizationApplications(organizationId?: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
-  const refreshPolicy = getReviewRefreshPolicy();
+  const refreshPolicy = getReviewListRefreshPolicy();
 
   return useQuery({
     queryKey: ["applications", organizationId],
@@ -356,7 +364,6 @@ export function useOrganizationApplications(organizationId?: string) {
 export function useIssuerOrganizationLatestFinancialStatements(organizationId?: string, enabled: boolean = true) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
-  const refreshPolicy = getReviewRefreshPolicy();
 
   type LatestOrgFinancialStatementsResponse =
     | {
@@ -380,41 +387,12 @@ export function useIssuerOrganizationLatestFinancialStatements(organizationId?: 
       return response.data;
     },
     enabled: !!organizationId && enabled,
-    ...refreshPolicy,
   });
 }
 
 function getOfferError(res: { success: true } | { success: false; error: { message?: string } }): string {
   if (res.success) return "";
   return res.error?.message ?? "Offer operation failed";
-}
-
-export function useAcceptContractOffer() {
-  const { getAccessToken } = useAuthToken();
-  const apiClient = createApiClient(API_URL, getAccessToken);
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (applicationId: string) => {
-      const res = await apiClient.acceptContractOffer(applicationId);
-      if (!res.success) throw new Error(getOfferError(res));
-      return res.data;
-    },
-    onSuccess: async (data, applicationId) => {
-      queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
-      const organizationId = data?.issuer_organization_id;
-      if (organizationId) {
-        queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
-      }
-      queryClient.invalidateQueries({ queryKey: ["applications"] });
-      await queryClient.refetchQueries({ queryKey: ["applications"] });
-      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard-contract"] });
-    },
-    onError: (error: Error) => {
-      toast.error("Failed to accept offer", { description: error.message });
-    },
-  });
 }
 
 export function useRejectContractOffer() {

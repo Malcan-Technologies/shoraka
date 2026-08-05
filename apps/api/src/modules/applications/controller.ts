@@ -3,6 +3,7 @@
  */
 
 import { Request, Response, NextFunction, Router } from "express";
+import { UserRole } from "@prisma/client";
 import { applicationService } from "./service";
 import {
   createApplicationSchema,
@@ -24,12 +25,6 @@ function getUserId(req: Request): string {
     throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
   }
   return req.user.user_id;
-}
-
-function isDevSigningBypassRequested(req: Request): boolean {
-  if (process.env.NODE_ENV === "production") return false;
-  const parsed = z.object({ skipSigning: z.boolean().optional() }).safeParse(req.body ?? {});
-  return parsed.success && parsed.data.skipSigning === true;
 }
 
 
@@ -180,6 +175,8 @@ const requestUploadUrlSchema = z
     existingS3Key: z.string().optional(),
     supportingDocCategoryKey: z.string().min(1).optional(),
     supportingDocIndex: z.number().int().min(0).optional(),
+    acceptanceDocIndex: z.number().int().min(0).optional(),
+    guarantorAgreementUpload: z.literal(true).optional(),
   })
   .superRefine((data, ctx) => {
     const hasKey = data.supportingDocCategoryKey !== undefined;
@@ -189,6 +186,20 @@ const requestUploadUrlSchema = z
         code: z.ZodIssueCode.custom,
         message: "supportingDocCategoryKey and supportingDocIndex must be provided together",
         path: hasKey ? ["supportingDocIndex"] : ["supportingDocCategoryKey"],
+      });
+    }
+    if (data.acceptanceDocIndex !== undefined && (hasKey || hasIdx)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "acceptanceDocIndex cannot be combined with supporting document slot fields",
+        path: ["acceptanceDocIndex"],
+      });
+    }
+    if (data.guarantorAgreementUpload && (hasKey || hasIdx || data.acceptanceDocIndex !== undefined)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "guarantorAgreementUpload cannot be combined with document slot fields",
+        path: ["guarantorAgreementUpload"],
       });
     }
   });
@@ -211,6 +222,8 @@ async function requestUploadUrl(req: Request, res: Response, next: NextFunction)
       existingS3Key: input.existingS3Key,
       supportingDocCategoryKey: input.supportingDocCategoryKey,
       supportingDocIndex: input.supportingDocIndex,
+      acceptanceDocIndex: input.acceptanceDocIndex,
+      guarantorAgreementUpload: input.guarantorAgreementUpload,
       userId,
     });
 
@@ -251,7 +264,7 @@ async function deleteDocument(req: Request, res: Response, next: NextFunction) {
 }
 
 const updateStatusSchema = z.object({
-  status: z.enum(["DRAFT", "SUBMITTED", "RESUBMITTED", "APPROVED", "REJECTED", "ARCHIVED"]),
+  status: z.enum(["DRAFT", "SUBMITTED", "RESUBMITTED", "REJECTED", "ARCHIVED"]),
 });
 
 /**
@@ -285,11 +298,11 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
       }
 
       // Admin flows
-      if (status === "APPROVED" || status === "REJECTED") {
+      if (status === "REJECTED") {
         await logApplicationActivity({
           userId: callerUserId,
           applicationId: result.id,
-          eventType: status === "APPROVED" ? "APPLICATION_APPROVED" : "APPLICATION_REJECTED",
+          eventType: "APPLICATION_REJECTED",
           reviewCycle: (result as any)?.review_cycle ?? undefined,
           ipAddress: req.ip ?? undefined,
           userAgent:
@@ -317,8 +330,9 @@ async function getApplicationLogsHandler(req: Request, res: Response, next: Next
   try {
     const { id } = applicationIdParamSchema.parse(req.params);
     const userId = getUserId(req);
+    const asAdmin = Boolean(req.user?.roles?.includes(UserRole.ADMIN));
 
-    const logs = await applicationService.getApplicationLogs(id, userId);
+    const logs = await applicationService.getApplicationLogs(id, userId, { asAdmin });
 
     res.json({
       success: true,
@@ -345,80 +359,24 @@ export function createApplicationRouter(): Router {
     requestUploadUrl
   );
   router.post(
-    "/:id/offers/contracts/start-signing",
-    requireAuth,
-    async (req, res, next) => {
-      try {
-        const { id } = applicationIdParamSchema.parse(req.params);
-        const userId = getUserId(req);
-        const data = await applicationService.startContractOfferSigning(id, userId);
-        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
-      } catch (e) {
-        next(e);
-      }
-    }
-  );
-  router.post(
-    "/:id/offers/invoices/:invoiceId/start-signing",
-    requireAuth,
-    async (req, res, next) => {
-      try {
-        const { id } = applicationIdParamSchema.parse(req.params);
-        const invoiceId = z.string().cuid().parse(req.params.invoiceId);
-        const userId = getUserId(req);
-        const data = await applicationService.startInvoiceOfferSigning(id, invoiceId, userId);
-        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
-      } catch (e) {
-        next(e);
-      }
-    }
-  );
-  router.post(
-    "/:id/offers/contracts/finalize-signing",
-    requireAuth,
-    async (req, res, next) => {
-      try {
-        const { id } = applicationIdParamSchema.parse(req.params);
-        const userId = getUserId(req);
-        const data = await applicationService.syncContractOfferSigningAfterReturn(id, userId);
-        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
-      } catch (e) {
-        next(e);
-      }
-    }
-  );
-  router.post(
-    "/:id/offers/invoices/:invoiceId/finalize-signing",
-    requireAuth,
-    async (req, res, next) => {
-      try {
-        const { id } = applicationIdParamSchema.parse(req.params);
-        const invoiceId = z.string().cuid().parse(req.params.invoiceId);
-        const userId = getUserId(req);
-        const data = await applicationService.syncInvoiceOfferSigningAfterReturn(id, invoiceId, userId);
-        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
-      } catch (e) {
-        next(e);
-      }
-    }
-  );
-  router.post(
     "/:id/offers/contracts/accept",
     requireAuth,
     async (req, res, next) => {
       try {
         const { id } = applicationIdParamSchema.parse(req.params);
         const userId = getUserId(req);
-        // Dev/local-only escape hatch so QA can accept without external webhook/signing flow.
-        const skipSigning = isDevSigningBypassRequested(req);
-        if (readSigningCloudConfigFromEnv() && !skipSigning) {
+        if (readSigningCloudConfigFromEnv()) {
           throw new AppError(
             400,
             "USE_SIGNING_FLOW",
-            "Use POST /v1/applications/:id/offers/contracts/start-signing to accept this offer."
+            "Complete signing via the signing envelope before accepting this offer."
           );
         }
-        const data = await applicationService.respondToContractOffer(id, "accept", userId);
+        const data = await applicationService.respondToContractOffer(
+          id,
+          "accept",
+          userId
+        );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
         next(e);
@@ -441,6 +399,20 @@ export function createApplicationRouter(): Router {
     }
   );
   router.post(
+    "/:id/offers/contracts/acceptance",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const userId = getUserId(req);
+        const data = await applicationService.submitContractOfferAcceptance(id, userId);
+        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
+  router.post(
     "/:id/offers/invoices/:invoiceId/accept",
     requireAuth,
     async (req, res, next) => {
@@ -448,16 +420,17 @@ export function createApplicationRouter(): Router {
         const { id } = applicationIdParamSchema.parse(req.params);
         const invoiceId = z.string().cuid().parse(req.params.invoiceId);
         const userId = getUserId(req);
-        // Dev/local-only escape hatch so QA can accept without external webhook/signing flow.
-        const skipSigning = isDevSigningBypassRequested(req);
-        if (readSigningCloudConfigFromEnv() && !skipSigning) {
-          throw new AppError(
-            400,
-            "USE_SIGNING_FLOW",
-            "Use POST /v1/applications/:id/offers/invoices/:invoiceId/start-signing to accept this offer."
-          );
+        if (readSigningCloudConfigFromEnv()) {
+          // Contract-linked + contract envelope COMPLETED may accept without an envelope.
+          // Invoice-only / incomplete contract signing still require the signing flow.
+          await applicationService.assertInvoiceOfferAcceptAllowed(id, invoiceId, userId);
         }
-        const data = await applicationService.respondToInvoiceOffer(id, invoiceId, "accept", userId);
+        const data = await applicationService.respondToInvoiceOffer(
+          id,
+          invoiceId,
+          "accept",
+          userId
+        );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
         next(e);
@@ -474,6 +447,25 @@ export function createApplicationRouter(): Router {
         const { reason } = z.object({ reason: z.string().max(2000).optional() }).parse(req.body ?? {});
         const userId = getUserId(req);
         const data = await applicationService.respondToInvoiceOffer(id, invoiceId, "reject", userId, reason);
+        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
+  router.post(
+    "/:id/offers/invoices/:invoiceId/acceptance",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const invoiceId = z.string().cuid().parse(req.params.invoiceId);
+        const userId = getUserId(req);
+        const data = await applicationService.submitInvoiceOfferAcceptance(
+          id,
+          invoiceId,
+          userId
+        );
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
         next(e);

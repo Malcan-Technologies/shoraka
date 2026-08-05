@@ -22,7 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
 import { useIssuerDashboard } from "@/hooks/use-issuer-dashboard";
-import { useProducts } from "@/hooks/use-products";
+import { useIssuerProducts } from "@/hooks/use-products";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
 import type { IssuerDashboardContract, IssuerDashboardInvoice } from "@/types/issuer-dashboard";
 import { getOfferStatus } from "@/lib/offer-utils";
@@ -186,7 +186,7 @@ function IssuerFinancingPageContent() {
   }, [tab, contractSearch, invoiceSearch, searchFromUrl, replaceFinancingQuery]);
 
   const { data: dashboard, isLoading, isError, error, refetch } = useIssuerDashboard(organizationId);
-  const { data: productsData } = useProducts({ page: 1, pageSize: 100, search: "", activeOnly: true });
+  const { data: productsData } = useIssuerProducts({ page: 1, pageSize: 100, search: "" });
   const products = React.useMemo<Product[]>(() => productsData?.products ?? [], [productsData]);
   const productNameMap = React.useMemo(() => buildProductNameMap(products), [products]);
 

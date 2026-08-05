@@ -16,3 +16,6 @@ export const AMENDMENT_CALLOUT_TITLE =
 
 export const AMENDMENT_CALLOUT_CONTENT =
   "text-sm sm:text-[15px] leading-6 sm:leading-7";
+
+/** Compact remark list under a flagged field (row already carries amendment tint). */
+export const AMENDMENT_INLINE_FEEDBACK_LIST = "text-xs leading-5 text-foreground";

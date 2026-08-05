@@ -4,12 +4,10 @@ import { Suspense } from "react";
 import { Inter } from "next/font/google";
 import "@cashsouk/styles/globals.css";
 import "./globals.css";
-import { AppSidebar } from "../components/app-sidebar";
-import { IssuerHeaderChrome } from "../components/issuer-header-chrome";
-import { CashSoukPortalFooter, Header, SidebarInset, SidebarProvider } from "@cashsouk/ui";
 import { Toaster } from "../components/ui/sonner";
 import { Providers } from "../lib/providers";
 import { AuthGuard } from "../components/auth-guard";
+import { PortalChrome } from "../components/portal-chrome";
 import { OnboardingFeeReturnListener } from "../components/onboarding-fee-return-listener";
 
 const inter = Inter({
@@ -33,14 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="lazyOnload" />
         <Providers>
           <AuthGuard>
-            <SidebarProvider>
-              <AppSidebar />
-              <SidebarInset className="min-w-0 overflow-x-hidden">
-                <Header title="" rightContent={<IssuerHeaderChrome />} />
-                <div className="flex min-h-0 flex-1 flex-col">{children}</div>
-                <CashSoukPortalFooter variant="issuer" />
-              </SidebarInset>
-            </SidebarProvider>
+            <PortalChrome>{children}</PortalChrome>
             <Toaster />
             <Suspense fallback={null}>
               <OnboardingFeeReturnListener />

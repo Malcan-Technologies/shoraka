@@ -10,33 +10,47 @@ export interface ReviewFieldBlockProps {
   children: React.ReactNode;
   /** Optional tooltip shown next to the section title. */
   titleTooltip?: string;
+  /** Optional content after the title (e.g. status badge). */
+  titleAside?: React.ReactNode;
+  /** Optional trailing content on the title row (e.g. Download all). */
+  titleEnd?: React.ReactNode;
 }
 
 /**
  * Section block with header, divider, and content. Matches application flow exactly:
  * business-details/company-details pattern — div with h3 + divider.
  */
-export function ReviewFieldBlock({ title, children, titleTooltip }: ReviewFieldBlockProps) {
+export function ReviewFieldBlock({
+  title,
+  children,
+  titleTooltip,
+  titleAside,
+  titleEnd,
+}: ReviewFieldBlockProps) {
   return (
     <section className="space-y-3">
       <div>
-        <div className="flex items-center gap-2">
-          <h3 className={reviewSectionHeaderClass}>{title}</h3>
-          {titleTooltip ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span
-                  className={fieldTooltipTriggerClassName}
-                  aria-label={`About ${title}`}
-                >
-                  <InformationCircleIcon className="h-4 w-4" aria-hidden />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                {titleTooltip}
-              </TooltipContent>
-            </Tooltip>
-          ) : null}
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <h3 className={reviewSectionHeaderClass}>{title}</h3>
+            {titleTooltip ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    className={fieldTooltipTriggerClassName}
+                    aria-label={`About ${title}`}
+                  >
+                    <InformationCircleIcon className="h-4 w-4" aria-hidden />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
+                  {titleTooltip}
+                </TooltipContent>
+              </Tooltip>
+            ) : null}
+            {titleAside}
+          </div>
+          {titleEnd ? <div className="shrink-0">{titleEnd}</div> : null}
         </div>
         <div className="border-b border-border mt-2 mb-4" />
       </div>

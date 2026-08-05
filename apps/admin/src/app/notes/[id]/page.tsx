@@ -55,8 +55,6 @@ import {
   isSettlementWrappingUp,
 } from "@/notes/utils/settlement-trustee-workflow";
 import { NOTE_WORKFLOW_TAB_BADGE, type SimpleTabStatus } from "@/notes/utils/workflow-status-tokens";
-import { OfferSigningPanel } from "@/components/offer-signing-panel";
-import { useResignNoteInvoiceOffer } from "@/notes/hooks/use-resign-invoice-offer";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -162,7 +160,6 @@ export default function NoteDetailPage() {
     setTitle(note?.noteReference ?? "Note detail");
     return () => setTitle("");
   }, [setTitle, note?.noteReference]);
-  const resignInvoiceOffer = useResignNoteInvoiceOffer(noteId);
   const publishNote = usePublishNote();
   const unpublishNote = useUnpublishNote();
   const closeFunding = useCloseNoteFunding();
@@ -388,22 +385,6 @@ export default function NoteDetailPage() {
 
               <div className="space-y-6">
                 <NoteTermsPanel note={note} />
-                {note.sourceInvoiceOfferSigning ? (
-                  <OfferSigningPanel
-                    title="Signed invoice offer"
-                    description="Review the active signed invoice offer letter from the source application. Request re-sign when the wrong person signed."
-                    signing={note.sourceInvoiceOfferSigning}
-                    onResign={
-                      note.sourceInvoiceOfferSigning.canResign
-                        ? async () => {
-                            await resignInvoiceOffer.mutateAsync();
-                          }
-                        : undefined
-                    }
-                    resignPending={resignInvoiceOffer.isPending}
-                    canManage={canManage}
-                  />
-                ) : null}
               </div>
 
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]">

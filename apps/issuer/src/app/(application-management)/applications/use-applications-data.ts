@@ -23,8 +23,14 @@ import {
   resolveApprovedFacility,
   resolveRequestedFacility,
 } from "@cashsouk/config";
-import { WithdrawReason } from "@cashsouk/types";
+import {
+  WithdrawReason,
+  getOfferAcceptanceFromOfferDetails,
+  offerAcceptanceAllowsIssuerReviewCta,
+  type OfferAcceptanceStatus,
+} from "@cashsouk/types";
 import { useOrganizationApplications } from "@/hooks/use-applications";
+import { getOfferStatus, getOfferPhaseDeadlineDisplay } from "@/lib/offer-utils";
 import { getCardStatus, APPLICATION_STATUS_PRIORITY, type NormalizedApplication, type NormalizedInvoice } from "./status";
 import { numberOrNull } from "@/lib/facility-fee-display";
 
@@ -65,6 +71,7 @@ interface ApiReviewRemark {
 export interface ApiApplication {
   id: string;
   status?: string;
+  financing_type?: { product_id?: string } | Record<string, unknown> | null;
   financing_structure?: { structure_type?: string } | null;
   created_at?: string;
   updated_at?: string;
@@ -97,11 +104,7 @@ function getSignedOfferLetterS3Key(offerSigning: unknown): string | null {
 }
 
 function parseInvoiceWithdrawReason(raw: string | null | undefined): WithdrawReason | undefined {
-  if (
-    raw === WithdrawReason.USER_CANCELLED ||
-    raw === WithdrawReason.OFFER_EXPIRED ||
-    raw === WithdrawReason.OFFER_REJECTED
-  ) {
+  if (raw === WithdrawReason.USER_CANCELLED || raw === WithdrawReason.OFFER_REJECTED) {
     return raw;
   }
   return undefined;
@@ -188,14 +191,17 @@ function prepareInvoice(
   const doc = topLevelDoc ?? detailsDoc;
   const documentS3Key = doc?.s3_key ? String(doc.s3_key) : null;
   const documentName = String(doc?.file_name ?? details.document_name ?? details.document ?? "—");
+  const signedOfferLetterAvailable = isSignedOfferLetterAvailable(api.offer_signing);
   const signedOfferLetterS3Key = getSignedOfferLetterS3Key(api.offer_signing);
-
-  const offerStatus = api.status === "OFFER_SENT" && api.offer_details ? "Offer received" : null;
-  const canReviewOffer = offerStatus === "Offer received" && (
-    structureType === "invoice_only" ||
-    contractStatus === "APPROVED" ||
-    !contractStatus
-  );
+  const offerStatus = getOfferStatus({
+    status: api.status,
+    offer_details: api.offer_details,
+  });
+  const acceptanceStatus = getOfferAcceptanceFromOfferDetails(api.offer_details)?.status ?? null;
+  const canReviewOffer =
+    offerStatus === "Offer received" &&
+    offerAcceptanceAllowsIssuerReviewCta(acceptanceStatus as OfferAcceptanceStatus | null) &&
+    (structureType === "invoice_only" || contractStatus === "APPROVED" || !contractStatus);
 
   const offeredAmount = resolveOfferedAmount(api.offer_details);
   const profitRateVal = resolveOfferedProfitRate(api.offer_details);
@@ -227,8 +233,9 @@ function prepareInvoice(
     status: api.status ?? "DRAFT",
     offerStatus,
     canReviewOffer,
+    offerAcceptanceStatus: acceptanceStatus,
     offer_details: api.offer_details ?? null,
-    signedOfferLetterAvailable: isSignedOfferLetterAvailable(api.offer_signing),
+    signedOfferLetterAvailable,
     signedOfferLetterS3Key,
     withdrawReason: parseInvoiceWithdrawReason(api.withdraw_reason),
     reasonOrRemarks: buildInvoiceReasonOrRemarks(api, invoiceIndex, reviewRemarks),
@@ -245,7 +252,6 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
   const contractWithdraw = (contract as ApiContract)?.withdraw_reason;
   if (
     contractWithdraw === WithdrawReason.USER_CANCELLED ||
-    contractWithdraw === WithdrawReason.OFFER_EXPIRED ||
     contractWithdraw === WithdrawReason.OFFER_REJECTED
   ) {
     withdrawReason = contractWithdraw as WithdrawReason;
@@ -254,19 +260,42 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     const invReason = (withdrawnInv as ApiInvoice)?.withdraw_reason;
     if (
       invReason === WithdrawReason.USER_CANCELLED ||
-      invReason === WithdrawReason.OFFER_EXPIRED ||
       invReason === WithdrawReason.OFFER_REJECTED
     ) {
       withdrawReason = invReason as WithdrawReason;
     }
   }
 
-  const cardStatus = getCardStatus({
+  let primaryOfferAcceptanceStatus: string | null = null;
+  if (contractStatus === "OFFER_SENT" || contractStatus === "OFFER_EXPIRED") {
+    primaryOfferAcceptanceStatus =
+      getOfferAcceptanceFromOfferDetails(contract?.offer_details)?.status ?? null;
+  } else {
+    const invoiceWithOffer = invoices.find((i) => {
+      const s = String(i.status ?? "").toUpperCase();
+      return s === "OFFER_SENT" || s === "OFFER_EXPIRED";
+    });
+    if (invoiceWithOffer) {
+      primaryOfferAcceptanceStatus =
+        getOfferAcceptanceFromOfferDetails(invoiceWithOffer.offer_details)?.status ?? null;
+    }
+  }
+
+  let cardStatus = getCardStatus({
     applicationStatus: api.status ?? "DRAFT",
     contractStatus,
     invoiceStatuses: invoices.map((i) => i.status ?? "DRAFT"),
     withdrawReason,
+    offerAcceptanceStatus: primaryOfferAcceptanceStatus,
   });
+  // Hide Review Offer while acceptance docs await admin; show again on amendment or approval.
+  if (cardStatus.showReviewOffer && contractStatus === "OFFER_SENT") {
+    const acceptanceStatus =
+      getOfferAcceptanceFromOfferDetails(contract?.offer_details)?.status ?? null;
+    if (!offerAcceptanceAllowsIssuerReviewCta(acceptanceStatus as OfferAcceptanceStatus | null)) {
+      cardStatus = { ...cardStatus, showReviewOffer: false };
+    }
+  }
 
   const structureType = (api.financing_structure as { structure_type?: string } | undefined)?.structure_type;
   let type: "Contract financing" | "Invoice financing" | "Generic" = "Generic";
@@ -317,16 +346,10 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
 
   const contractId = (contract as ApiContract & { id?: string })?.id ?? api.contract_id ?? null;
   const issuerOrganizationId = api.issuer_organization_id;
-
-  /** Offer expiry: from contract or first invoice with offer. */
-  let expiresAt: string | null | undefined;
-  const co = contract?.offer_details as { expires_at?: string | null } | undefined;
-  if (co?.expires_at) expiresAt = String(co.expires_at);
-  else {
-    const invWithOffer = invoices.find((i) => i.status === "OFFER_SENT" && i.offer_details);
-    const io = (invWithOffer?.offer_details ?? {}) as { expires_at?: string | null };
-    if (io?.expires_at) expiresAt = String(io.expires_at);
-  }
+  const productId =
+    api.financing_type && typeof api.financing_type === "object"
+      ? String((api.financing_type as Record<string, unknown>).product_id ?? "") || null
+      : null;
 
   const signedContractOfferLetterAvailable = isSignedOfferLetterAvailable(
     (contract as ApiContract | null)?.offer_signing
@@ -335,7 +358,51 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     (contract as ApiContract | null)?.offer_signing
   );
 
+  let expiresAt: string | null | undefined;
+  const co = contract?.offer_details as { expires_at?: string | null } | undefined;
+  if (co?.expires_at) expiresAt = String(co.expires_at);
+  else {
+    const invWithOffer = invoices.find((i) => {
+      const s = String(i.status ?? "").toUpperCase();
+      return s === "OFFER_SENT" || s === "OFFER_EXPIRED";
+    });
+    const io = (invWithOffer?.offer_details ?? {}) as { expires_at?: string | null };
+    if (io?.expires_at) expiresAt = String(io.expires_at);
+  }
+
   const reviewRemarks = readApplicationReviewRemarks(api);
+
+  let offerPhaseDeadline = null as ReturnType<typeof getOfferPhaseDeadlineDisplay>;
+  if (contractStatus === "OFFER_SENT" || contractStatus === "OFFER_EXPIRED") {
+    offerPhaseDeadline = getOfferPhaseDeadlineDisplay(contract?.offer_details);
+  } else {
+    const invoiceWithOffer = invoices.find((i) => {
+      const s = String(i.status ?? "").toUpperCase();
+      return s === "OFFER_SENT" || s === "OFFER_EXPIRED";
+    });
+    if (invoiceWithOffer) {
+      offerPhaseDeadline = getOfferPhaseDeadlineDisplay(invoiceWithOffer.offer_details);
+    }
+  }
+
+  // Past deadline while still OFFER_SENT, or durable OFFER_EXPIRED — same Offer Expired UX.
+  if (offerPhaseDeadline?.isPast || contractStatus === "OFFER_EXPIRED") {
+    cardStatus = {
+      badgeKey: "offer_expired",
+      displayLabel: "Offer Expired",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    };
+  } else if (
+    invoices.some((i) => String(i.status ?? "").toUpperCase() === "OFFER_EXPIRED")
+  ) {
+    cardStatus = {
+      badgeKey: "offer_expired",
+      displayLabel: "Offer Expired",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    };
+  }
 
   return {
     id: api.id,
@@ -358,10 +425,14 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     invoices: invoices.map((inv, idx) => prepareInvoice(inv, contractStatus, structureType, idx, reviewRemarks)),
     contractStatus,
     issuerOrganizationId,
+    productId,
+    supportingDocuments: api.supporting_documents ?? null,
     withdrawReason,
     expiresAt,
     signedContractOfferLetterAvailable,
     signedContractOfferLetterS3Key,
+    offerPhaseDeadline,
+    offerAcceptanceStatus: primaryOfferAcceptanceStatus,
   };
 }
 

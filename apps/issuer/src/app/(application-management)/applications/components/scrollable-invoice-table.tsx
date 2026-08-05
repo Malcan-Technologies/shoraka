@@ -18,9 +18,9 @@ import { EllipsisVerticalIcon, ArrowDownTrayIcon } from "@heroicons/react/24/out
 import {
   formatCurrency,
   getStatusPresentationByBadgeKey,
-  resolveIssuerInvoiceStatusBadgeKey,
 } from "@cashsouk/config";
 import type { WithdrawReason } from "@cashsouk/types";
+import { shouldShowIssuerReviewOfferCta, getOfferPhaseDeadlineDisplay, getIssuerOfferActionCtaFromOfferDetails } from "@/lib/offer-utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -47,6 +47,7 @@ import { FileDisplayBadge } from "@/app/(application-flow)/applications/componen
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import {
   issuerInvoiceCanViewReasonRemarks,
+  resolveNormalizedInvoiceBadgeKey,
   type NormalizedApplication,
   type NormalizedInvoice,
 } from "../status";
@@ -247,7 +248,7 @@ function InvoiceDocumentCell({
       fileName={documentName}
       size="sm"
       truncate
-      className="min-w-0 max-w-full bg-card"
+      className="min-w-0 max-w-full bg-background"
       trailing={
         documentS3Key ? (
           <button
@@ -314,9 +315,19 @@ export function ScrollableInvoiceTable({
   const hasExpandedActionColumn = React.useMemo(() => {
     return application.invoices.some((inv: NormalizedInvoice) => {
       const invStatus = String(inv.status ?? "").toUpperCase();
-      return (
-        application.cardStatus.showMakeAmendments && invStatus === "AMENDMENT_REQUESTED"
-      );
+      const showReviewOffer =
+        invStatus === "OFFER_SENT" &&
+        shouldShowIssuerReviewOfferCta({
+          status: inv.status,
+          offer_details: inv.offer_details,
+        });
+      const isOfferExpired =
+        invStatus === "OFFER_EXPIRED" ||
+        (invStatus === "OFFER_SENT" &&
+          getOfferPhaseDeadlineDisplay(inv.offer_details)?.isPast === true);
+      const showMakeAmendments =
+        application.cardStatus.showMakeAmendments && invStatus === "AMENDMENT_REQUESTED";
+      return showReviewOffer || showMakeAmendments || isOfferExpired;
     });
   }, [application.invoices, application.cardStatus.showMakeAmendments]);
   const actionColWidthPx = hasExpandedActionColumn
@@ -469,9 +480,25 @@ export function ScrollableInvoiceTable({
           ) : (
             application.invoices.map((inv: NormalizedInvoice) => {
               const invStatus = String(inv.status ?? "").toUpperCase();
+              const showReviewOffer =
+                invStatus === "OFFER_SENT" &&
+                shouldShowIssuerReviewOfferCta({
+                  status: inv.status,
+                  offer_details: inv.offer_details,
+                });
+              const invoiceOfferActionCta = getIssuerOfferActionCtaFromOfferDetails(inv.offer_details, {
+                scope: "invoice",
+              });
+              const offerDeadline =
+                invStatus === "OFFER_SENT" || invStatus === "OFFER_EXPIRED"
+                  ? getOfferPhaseDeadlineDisplay(inv.offer_details)
+                  : null;
+              const isOfferExpired =
+                invStatus === "OFFER_EXPIRED" || offerDeadline?.isPast === true;
+              const canReview = inv.canReviewOffer;
               const showMakeAmendments =
                 application.cardStatus.showMakeAmendments && invStatus === "AMENDMENT_REQUESTED";
-              const hasInlineAction = showMakeAmendments;
+              const hasInlineAction = showReviewOffer || showMakeAmendments || isOfferExpired;
               const canWithdrawInvoice = !["APPROVED", "REJECTED", "WITHDRAWN"].includes(invStatus);
               return (
                 <TableRow
@@ -489,12 +516,7 @@ export function ScrollableInvoiceTable({
                       "align-middle text-left whitespace-nowrap text-foreground"
                     )}
                   >
-                    <Link
-                      href={`/financing/invoices/${inv.id}`}
-                      className="font-medium text-primary underline-offset-4 hover:underline"
-                    >
-                      {inv.number}
-                    </Link>
+                    {inv.number}
                   </TableCell>
                   <TableCell
                     className={cn(
@@ -583,7 +605,7 @@ export function ScrollableInvoiceTable({
                   >
                     <span className="inline-block">
                       <InvoiceStatusBadge
-                        badgeKey={resolveIssuerInvoiceStatusBadgeKey(inv.status, inv.withdrawReason)}
+                        badgeKey={resolveNormalizedInvoiceBadgeKey(inv, application)}
                         withdrawReason={inv.withdrawReason}
                       />
                     </span>
@@ -609,19 +631,65 @@ export function ScrollableInvoiceTable({
                     >
                       {hasInlineAction && (
                         <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
-                          {showMakeAmendments && (
-                            <div className="w-full rounded-xl bg-status-action-bg p-0.5">
+                          {isOfferExpired && offerDeadline ? (
+                            <div className="flex w-full min-w-0 flex-col items-center gap-0.5 text-center">
+                              <p className="text-[11px] leading-4 text-destructive">
+                                {offerDeadline.summary}
+                              </p>
+                              <p className="text-[11px] leading-4 text-muted-foreground">
+                                A new offer may appear if resent.
+                              </p>
+                            </div>
+                          ) : null}
+                          {showReviewOffer && canReview ? (
+                            <div className="flex w-full min-w-0 flex-col items-center gap-0.5">
                               <Button
                                 size="sm"
-                                variant="default"
-                                className="h-8 w-full min-w-0 max-w-full text-xs font-medium rounded-xl"
+                                variant={
+                                  invoiceOfferActionCta.buttonVariant === "makeAmendments"
+                                    ? "outline"
+                                    : "default"
+                                }
+                                className={
+                                  invoiceOfferActionCta.buttonVariant === "makeAmendments"
+                                    ? "h-8 w-full min-w-0 max-w-full rounded-xl border-status-action-text/30 bg-status-action-bg px-2 text-xs font-medium text-status-action-text hover:bg-status-action-bg"
+                                    : "h-8 w-full min-w-0 max-w-full rounded-xl text-xs font-medium"
+                                }
                                 asChild
                               >
-                                <Link href={`/applications/${application.id}/edit`}>
-                                  Make Amendments
+                                <Link
+                                  href={`/applications/${application.id}?tab=offer&invoiceId=${inv.id}`}
+                                >
+                                  {invoiceOfferActionCta.label}
                                 </Link>
                               </Button>
+                              {offerDeadline && !offerDeadline.isPast ? (
+                                <p className="text-[11px] leading-4 text-center text-muted-foreground">
+                                  {offerDeadline.summary}
+                                </p>
+                              ) : null}
                             </div>
+                          ) : showReviewOffer ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 w-full min-w-0 max-w-full rounded-xl text-xs font-medium"
+                              disabled
+                            >
+                              {invoiceOfferActionCta.label}
+                            </Button>
+                          ) : null}
+                          {showMakeAmendments && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 w-full min-w-0 max-w-full rounded-xl border-status-action-text/30 bg-status-action-bg text-xs font-medium text-status-action-text hover:bg-status-action-bg"
+                              asChild
+                            >
+                              <Link href={`/applications/${application.id}/edit`}>
+                                Make Amendments
+                              </Link>
+                            </Button>
                           )}
                         </div>
                       )}
@@ -638,7 +706,7 @@ export function ScrollableInvoiceTable({
                         <DropdownMenuContent align="end" className="rounded-xl">
                           {(() => {
                             const showViewSignedInvoice =
-                              !!inv.signedOfferLetterS3Key && onViewSignedInvoiceOffer;
+                              inv.signedOfferLetterAvailable && !!inv.signedOfferLetterS3Key && onViewSignedInvoiceOffer;
                             const showViewReasonRemarks = issuerInvoiceCanViewReasonRemarks(inv);
                             const withdrawInvoiceDisabled =
                               !canWithdrawInvoice ||
@@ -695,16 +763,18 @@ export function ScrollableInvoiceTable({
                                       );
                                     }
                                   }}
+                                  title={
+                                    showViewSignedInvoice
+                                      ? "Withdraw is not available while a signed offer letter is on file"
+                                      : !canWithdrawInvoice
+                                        ? "Cannot withdraw: invoice is already approved, rejected, or withdrawn"
+                                        : isWithdrawInvoicePending
+                                          ? "Withdrawal in progress"
+                                          : undefined
+                                  }
                                 >
                                   {isWithdrawInvoicePending ? "Withdrawing..." : "Withdraw Invoice"}
                                 </DropdownMenuItem>
-                                {withdrawInvoiceDisabled && !isWithdrawInvoicePending ? (
-                                  <p className="max-w-[16rem] px-2 py-1.5 text-xs text-muted-foreground">
-                                    {showViewSignedInvoice
-                                      ? "Withdraw is not available while a signed offer letter is on file."
-                                      : "Cannot withdraw: invoice is already approved, rejected, withdrawn, or has a pending offer."}
-                                  </p>
-                                ) : null}
                               </>
                             );
                           })()}

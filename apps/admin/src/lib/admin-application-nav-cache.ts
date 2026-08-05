@@ -10,3 +10,18 @@ export function invalidateAdminApplicationNavQueries(queryClient: QueryClient): 
   void queryClient.invalidateQueries({ queryKey: applicationsKeys.sidebarAll });
   void queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
 }
+
+/**
+ * Targeted invalidation for the open application detail (and optional action-count badge).
+ * Prefer this over nav spray for section/item review mutations.
+ */
+export function invalidateAdminApplicationDetailQueries(
+  queryClient: QueryClient,
+  applicationId: string,
+  options?: { includeActionCount?: boolean }
+): void {
+  void queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(applicationId) });
+  if (options?.includeActionCount) {
+    void queryClient.invalidateQueries({ queryKey: applicationsKeys.actionCount });
+  }
+}

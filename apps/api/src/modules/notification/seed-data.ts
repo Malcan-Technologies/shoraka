@@ -120,6 +120,18 @@ export const initialNotificationTypes = [
     enabled_email: true,
   },
   {
+    id: "acceptance_document_changes_requested",
+    name: "Acceptance Documents Need Updates",
+    description:
+      "Sent once when a reviewer first requests acceptance-document changes after offer submission (further requests in the same cycle do not re-notify).",
+    category: NotificationCategory.SYSTEM,
+    portal_targets: ISSUER_ONLY,
+    default_priority: NotificationPriority.WARNING,
+    user_configurable: true,
+    enabled_platform: true,
+    enabled_email: false,
+  },
+  {
     id: "application_approved",
     name: "Application Approved",
     description: "Sent when your application is approved.",
@@ -187,8 +199,9 @@ export const initialNotificationTypes = [
   },
   {
     id: "offer_expiry_reminder_24h",
-    name: "Offer Expiry Reminder (24h)",
-    description: "Reminder sent before an offer expires within 24 hours.",
+    name: "Offer Expiry Reminder",
+    description:
+      "Reminder sent before an acceptance or signing deadline (days_before_expiry from product config).",
     category: NotificationCategory.SYSTEM,
     portal_targets: ISSUER_ONLY,
     default_priority: NotificationPriority.INFO,

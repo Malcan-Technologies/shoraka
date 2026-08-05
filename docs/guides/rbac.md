@@ -206,7 +206,7 @@ adminNotesRouter.post("/", requirePermission("notes.create"), handler);
 
 | | |
 |---|---|
-| View + comments | `applications.view` |
+| View + comments + signed offer letter PDFs | `applications.view` |
 | Status change | `applications.manage` |
 | Financial section | `applications.financial.manage` |
 | Company section | `applications.company.manage` |
@@ -229,6 +229,8 @@ invoice_details       → applications.invoice.manage
 ```
 
 Application comments (both view and add) use `applications.view` only. Do not gate comments behind section manage permissions.
+
+Signed contract/invoice offer letter PDFs (`GET .../offers/.../signed-letter`) also use `applications.view` only. Section `.manage` permissions remain for offer mutations (send, extend deadline, etc.).
 
 ### Onboarding
 

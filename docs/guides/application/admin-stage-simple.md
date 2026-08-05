@@ -52,30 +52,34 @@ FILTER ON THE LIST PAGE
 
   On the admin side has these filters:
     DRAFT, SUBMITTED, UNDER_REVIEW, CONTRACT_PENDING, CONTRACT_SENT,
-    CONTRACT_ACCEPTED, INVOICE_PENDING, INVOICES_SENT, AMENDMENT_REQUESTED,
-    RESUBMITTED, APPROVED, REJECTED, WITHDRAWN, ARCHIVED
+    CONTRACT_ACCEPTED, INVOICE_ACCEPTED, SIGNING_PENDING, INVOICE_PENDING,
+    INVOICES_SENT, OFFER_EXPIRED, AMENDMENT_REQUESTED, RESUBMITTED,
+    COMPLETED, REJECTED, WITHDRAWN, ARCHIVED
     Default: SUBMITTED, UNDER_REVIEW, RESUBMITTED, CONTRACT_PENDING,
-    CONTRACT_ACCEPTED, INVOICE_PENDING (CONTRACT_SENT and INVOICES_SENT not
-    in default).
+    CONTRACT_ACCEPTED, INVOICE_ACCEPTED, SIGNING_PENDING, INVOICE_PENDING
+    (CONTRACT_SENT, INVOICES_SENT, OFFER_EXPIRED not in default).
 
   On the admin side each filter is one status. One to one.
     UNDER_REVIEW covers: UNDER_REVIEW
     CONTRACT_PENDING covers: CONTRACT_PENDING
     CONTRACT_SENT covers: CONTRACT_SENT
     CONTRACT_ACCEPTED covers: CONTRACT_ACCEPTED
+    INVOICE_ACCEPTED covers: INVOICE_ACCEPTED
+    SIGNING_PENDING covers: SIGNING_PENDING
     INVOICE_PENDING covers: INVOICE_PENDING
     INVOICES_SENT covers: INVOICES_SENT
 
   On the issuer side has these filters:
     Draft, Submitted, Under Review, Action Required, Offer Received,
-    Approved, Completed, Withdrawn, Rejected
+    Completed, Withdrawn, Declined, Offer Expired, Rejected
 
   On the issuer side Under Review covers:
-    UNDER_REVIEW, CONTRACT_PENDING, CONTRACT_ACCEPTED, INVOICE_PENDING,
-    INVOICES_SENT (when no invoice has an offer pending)
+    UNDER_REVIEW, CONTRACT_PENDING, CONTRACT_SENT / INVOICES_SENT while
+    awaiting admin or signing, CONTRACT_ACCEPTED, INVOICE_ACCEPTED,
+    SIGNING_PENDING, INVOICE_PENDING, INVOICES_SENT (when no issuer action)
 
   On the issuer side Offer Received covers:
-    CONTRACT_SENT, INVOICES_SENT (when any invoice has an offer pending)
+    CONTRACT_SENT / INVOICES_SENT while PENDING_ISSUER or CHANGES_REQUESTED
 
 ================================================================================
 END

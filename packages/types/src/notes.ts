@@ -261,8 +261,6 @@ export interface NoteDetail extends NoteListItem {
   paymasterSnapshot: Record<string, unknown> | null;
   contractSnapshot: Record<string, unknown> | null;
   invoiceSnapshot: Record<string, unknown> | null;
-  /** Live source-invoice offer signing (active + archived); not frozen in invoice_snapshot */
-  sourceInvoiceOfferSigning?: import("./offer-signing").OfferSigningAdminView | null;
   serviceFeeCustomerScope: string | null;
   gracePeriodDays: number;
   arrearsThresholdDays: number;
@@ -635,6 +633,8 @@ export interface PlatformFinanceSetting {
   applicationProcessingFeeAmount: number;
   investorMinDepositAmount: number;
   investorMaxDepositAmount: number;
+  /** Whole hour 0–23 MYT when offer phase deadline reminders are sent. */
+  offerDeadlineReminderHour: number;
   trusteeLetterConfig: TrusteeLetterConfig | null;
   platformAccountsConfig: PlatformAccountsConfig | null;
   ledgerBucketAccountsConfig: LedgerBucketAccountsConfig | null;

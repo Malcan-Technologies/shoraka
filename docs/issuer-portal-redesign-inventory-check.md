@@ -11,13 +11,13 @@ Spot-checked blockers called out in Stage F:
 
 | Check | Status |
 |---|---|
-| List → detail Offer tab (no modal on applications list) | OK — slim card links to `/applications/[id]?tab=offer`; list does not host `ReviewOfferModal` |
+| List → detail Offer tab (no modal on applications list) | OK — slim card links to `/applications/[id]?tab=offer`; live path is `OfferReviewPanel` inline |
 | Withdraw / delete confirms | OK — `ConfirmDialog` on list + detail |
 | Financing Review Offer → application Offer tab | OK — `financingOfferHref()` |
-| Redirects in `next.config` | OK — `/activity`, `/notes`, `/notes/:id`, `/applications/edit/:id` |
+| Redirects in `next.config` | OK — `/activity`, `/notes`, `/notes/:id`, `/applications/edit/:id` → `/applications/[id]/edit` |
 | Members tab on Organisation (`/profile`) | OK |
 | Sidebar: Organisation, My account; no Activity/Notes top-level | OK — Work: Dashboard / Applications / Financing; Settings: Organisation / My account / Help |
-| Signing return on list + detail | OK — `?signing=complete` handlers on both |
+| Signing return | OK — `/signing/return` confirms via `/v1/signing/return/:id/confirm` (no `?signing=complete`) |
 | Invoice detail page with content | OK — `/financing/invoices/[id]` |
 | Draft saved indicator on wizard footer | OK — `StickyFormFooter` + “Draft saved” on edit wizard |
 
@@ -26,7 +26,6 @@ Spot-checked blockers called out in Stage F:
 - **Activity still uses `ActivityToolbar`** (rows 79–84) instead of `ListToolbar` / `DataTable` / shared `Pagination`. Behaviour (search, domain filters, date range, clear/reload, paginated rows) is preserved on Dashboard → Activity tab (`/?tab=activity`).
 - **“Portfolio” in the plan is shipped as “Financing”** at `/financing` (and `/financing/contracts|invoices|notes/[id]`). Nav label and routes use Financing; actions map 1:1 to plan destinations under that name.
 - **Application Invoices tab still uses `ScrollableInvoiceTable`** rather than shared `DataTable` (rows 25–35). Column set, tooltips, row actions, and withdraw confirms are preserved.
-- **Unused modal wrappers remain** (`ReviewOfferModal.tsx`, `components/review-offer-modal.tsx`) but are not wired from list/financing flows; live path is Offer tab + `OfferReviewPanel`.
 
 ## Static clarity (chrome)
 

@@ -563,7 +563,7 @@ Action table (as implemented by the UI for this dashboard component):
 
 Needs code/business confirmation:
 
-- The exact `applications/edit/[id]/page.tsx` gating logic is not copied into this doc yet; the dashboard uses Application-based action ids because the edit page gates by `Application.status`.
+- The exact `applications/[id]/edit/page.tsx` gating logic is not copied into this doc yet; the dashboard uses Application-based action ids because the edit page gates by `Application.status`.
 
 ## 14. Filters mapping
 

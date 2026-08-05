@@ -80,6 +80,8 @@ function getApplicationSectionManagePermission(section: string): AdminPermission
       return "applications.business_guarantor.manage";
     case "supporting_documents":
       return "applications.documents.manage";
+    case "acceptance_documents":
+      return "applications.documents.manage";
     case "contract_details":
       return "applications.contract.manage";
     case "invoice_details":
@@ -2309,7 +2311,7 @@ router.get(
  *         name: status
  *         schema:
  *           type: string
- *           enum: [DRAFT, SUBMITTED, OFFER_SENT, APPROVED, REJECTED, AMENDMENT_REQUESTED]
+ *           enum: [DRAFT, SUBMITTED, OFFER_SENT, OFFER_EXPIRED, APPROVED, REJECTED, AMENDMENT_REQUESTED, WITHDRAWN]
  *       - in: query
  *         name: statuses
  *         schema:
@@ -2346,31 +2348,6 @@ router.get(
       const { id } = req.params;
       const result = await adminService.getContractDetail(id);
 
-      res.json({
-        success: true,
-        data: result,
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-router.post(
-  "/contracts/:id/offers/resign",
-  requirePermission("contracts.manage"),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      if (!req.user?.user_id) {
-        throw new AppError(401, "UNAUTHORIZED", "Authentication required");
-      }
-      const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-      const result = await adminService.resignContractOffer(req.params.id, req.user.user_id, {
-        ipAddress,
-        userAgent,
-        deviceInfo,
-      });
       res.json({
         success: true,
         data: result,
@@ -3233,10 +3210,34 @@ router.post(
         id,
         validated.offeredFacility,
         validated.facilityFeeRatePercent ?? null,
-        validated.expiresAt ?? null,
         req.user.user_id,
         { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/offers/contracts/extend-signing-deadline",
+  requirePermission("applications.contract.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const logCtx = extractRequestMetadata(req);
+      const result = await adminService.extendContractSigningDeadline(id, req.user.user_id, {
+        ipAddress: logCtx.ipAddress,
+        userAgent: logCtx.userAgent,
+        deviceInfo: logCtx.deviceInfo,
+      });
 
       res.json({
         success: true,
@@ -3265,7 +3266,6 @@ router.post(
         validated.offeredRatioPercent ?? null,
         validated.offeredProfitRatePercent ?? null,
         validated.platformFeeRatePercent ?? null,
-        validated.expiresAt ?? null,
         validated.risk_rating,
         req.user.user_id,
         { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
@@ -3282,9 +3282,39 @@ router.post(
   }
 );
 
+router.post(
+  "/applications/:id/offers/invoices/:invoiceId/extend-signing-deadline",
+  requirePermission("applications.invoice.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id, invoiceId } = req.params;
+      const logCtx = extractRequestMetadata(req);
+      const result = await adminService.extendInvoiceSigningDeadline(
+        id,
+        invoiceId,
+        req.user.user_id,
+        {
+          ipAddress: logCtx.ipAddress,
+          userAgent: logCtx.userAgent,
+          deviceInfo: logCtx.deviceInfo,
+        }
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.get(
   "/applications/:id/offers/contracts/signed-letter",
-  requirePermission("applications.contract.manage"),
+  requirePermission("applications.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -3300,7 +3330,7 @@ router.get(
 
 router.get(
   "/applications/:id/offers/invoices/:invoiceId/signed-letter",
-  requirePermission("applications.invoice.manage"),
+  requirePermission("applications.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, invoiceId } = req.params;

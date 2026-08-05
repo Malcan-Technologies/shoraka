@@ -20,6 +20,8 @@ import {
 import { signingCloudWebhookRouter } from "../modules/signingcloud/webhook-controller";
 import { shorakaStpWebhookRouter } from "../modules/shoraka-stp/shoraka-stp-webhook-controller";
 import { curlecWebhookRouter } from "../modules/payment/webhook-controller";
+import { globalRateLimiter } from "../lib/http/rate-limit";
+import { assertSigningProductionConfig } from "../lib/signing/production-config";
 
 function parseAllowedOrigins(): string[] {
   if (!process.env.ALLOWED_ORIGINS) {
@@ -52,6 +54,7 @@ function isDevBrowserOriginAllowed(origin: string): boolean {
 }
 
 export async function createApp(): Promise<Application> {
+  assertSigningProductionConfig();
   const app = express();
 
   // Helmet security headers
@@ -91,6 +94,7 @@ export async function createApp(): Promise<Application> {
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+  app.use(globalRateLimiter);
 
   // Shoraka callback expects normal JSON parsing (signature is verified from parsed body).
   app.use("/v1/webhooks", shorakaStpWebhookRouter);

@@ -10,6 +10,7 @@ import {
   ChevronDownIcon,
   CloudArrowUpIcon,
   ArrowDownTrayIcon,
+  CheckCircleIcon,
   ExclamationTriangleIcon,
   XMarkIcon,
   DocumentIcon,
@@ -23,6 +24,10 @@ import { useAuthToken } from "@cashsouk/config";
 import { SupportingDocumentsSkeleton } from "@/app/(application-flow)/applications/components/supporting-documents-skeleton";
 import { FileDisplayBadge } from "@/app/(application-flow)/applications/components/file-display-badge";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
+import {
+  acceptanceDocScopeKeyMatchesRow,
+  slugForAcceptanceDocName,
+} from "@cashsouk/types";
 import {
   Dialog,
   DialogClose,
@@ -38,7 +43,10 @@ import {
 import { AmendmentExpandableBulletList } from "@/app/(application-flow)/applications/components/amendments/amendment-expandable-bullet-list";
 import { Button } from "@/components/ui/button";
 import {
-  applicationFlowAmendmentTargetSurfaceClassName,
+  applicationFlowAmendmentPendingSurfaceClassName,
+  applicationFlowAmendmentPendingTableRowClassName,
+  applicationFlowAmendmentResolvedSurfaceClassName,
+  applicationFlowAmendmentResolvedTableRowClassName,
   applicationFlowAmendmentTargetTableRowClassName,
   applicationFlowSectionTitleClassName,
   applicationFlowStepOuterClassName,
@@ -167,6 +175,44 @@ function collectS3KeysBySlot(files: Record<string, UploadRecord[]>): Map<string,
   return result;
 }
 
+type AcceptanceFlaggedSlotUpdateState = "unchanged" | "pending" | "updated";
+
+/** Whether a flagged acceptance slot has a new file selected or uploaded since load. */
+function getAcceptanceFlaggedSlotUpdateState(
+  slotKey: string,
+  initialUploaded: Record<string, UploadRecord[]>,
+  currentUploaded: Record<string, UploadRecord[]>,
+  pendingSelected: Record<string, PendingUpload[]>
+): AcceptanceFlaggedSlotUpdateState {
+  if ((pendingSelected[slotKey]?.length ?? 0) > 0) return "pending";
+
+  const currentList = currentUploaded[slotKey] ?? [];
+  if (currentList.some((file) => !file.s3_key?.trim())) return "pending";
+
+  const initialKeys = collectS3KeysBySlot(initialUploaded).get(slotKey) ?? new Set<string>();
+  const currentKeys = collectS3KeysBySlot(currentUploaded).get(slotKey) ?? new Set<string>();
+  if (currentKeys.size !== initialKeys.size) return "updated";
+  for (const key of currentKeys) {
+    if (!initialKeys.has(key)) return "updated";
+  }
+  return "unchanged";
+}
+
+function resolveAcceptanceDocumentRemark(
+  workflowDocumentIndex: number,
+  slug: string,
+  remarks: AmendmentRemarkItem[]
+): string | undefined {
+  const match = remarks.find(
+    (r) =>
+      r.scope === "item" &&
+      r.scope_key &&
+      acceptanceDocScopeKeyMatchesRow(r.scope_key, workflowDocumentIndex, slug)
+  );
+  const text = (match?.remark ?? "").trim();
+  return text || undefined;
+}
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
@@ -189,6 +235,7 @@ export type SupportingCategoryDocument = {
   template?: { s3_key?: string };
   allowedTypes: string[];
   required: boolean;
+  workflowDocumentIndex: number;
 };
 
 export type SupportingCategory = {
@@ -207,6 +254,7 @@ type SavedFileRef = {
 type SavedSupportingDocument = {
   files?: SavedFileRef[];
   file?: SavedFileRef;
+  workflow_document_index?: number;
 };
 
 type SavedSupportingCategory = {
@@ -242,18 +290,26 @@ export function SupportingDocumentsStep({
   stepConfig,
   onDataChange,
   readOnly = false,
+  documentStorage = "supporting_documents",
   amendmentRemarks = [],
   flaggedItems,
+  isAcceptanceChangeMode = false,
+  /** sideBySide = application flow page; stacked = narrow hosts (e.g. Review Offer modal). */
+  documentRowLayout = "sideBySide",
 }: {
   applicationId: string;
   stepConfig?: WorkflowSupportingStepConfig;
   onDataChange?: (data: Record<string, unknown>) => void;
   readOnly?: boolean;
+  documentStorage?: "supporting_documents" | "acceptance_documents";
   amendmentRemarks?: AmendmentRemarkItem[];
   isAmendmentMode?: boolean;
+  isAcceptanceChangeMode?: boolean;
   flaggedSections?: Set<string>;
   flaggedItems?: Map<string, Set<string>>;
+  documentRowLayout?: "sideBySide" | "stacked";
 }) {
+  const isStackedLayout = documentRowLayout === "stacked";
   const devTools = useDevTools();
   const { getAccessToken } = useAuthToken();
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
@@ -334,6 +390,11 @@ export function SupportingDocumentsStep({
     return flaggedItems?.get("supporting_documents") ?? new Set<string>();
   }, [flaggedItems]);
 
+  /** Item set for acceptance_documents in CHANGES_REQUESTED (Review Offer Step 1). */
+  const acceptanceDocItemSet = React.useMemo(() => {
+    return flaggedItems?.get("acceptance_documents") ?? new Set<string>();
+  }, [flaggedItems]);
+
   /** Map scope_key -> remark for item-level amendment text. Supports both rawKey and rawKeyWithDoc formats. */
   const flaggedDocRemarks = React.useMemo(() => {
     const map = new Map<string, string>();
@@ -344,6 +405,26 @@ export function SupportingDocumentsStep({
     }
     return map;
   }, [amendmentRemarks]);
+
+  const acceptanceChangeRemarkItems = React.useMemo((): AmendmentRemarkItem[] => {
+    if (!isAcceptanceChangeMode) return amendmentRemarks;
+    const fromApplication =
+      (
+        application as
+          | {
+              application_review_remarks?: AmendmentRemarkItem[];
+            }
+          | undefined
+      )?.application_review_remarks ?? [];
+    const merged = new Map<string, AmendmentRemarkItem>();
+    for (const remark of [...fromApplication, ...amendmentRemarks]) {
+      if (remark.scope !== "item" || !remark.scope_key?.startsWith("acceptance_documents:")) {
+        continue;
+      }
+      merged.set(remark.scope_key, remark);
+    }
+    return [...merged.values()];
+  }, [amendmentRemarks, application, isAcceptanceChangeMode]);
 
   const categories = React.useMemo((): SupportingCategory[] => {
     const config = stepConfig?.config;
@@ -359,14 +440,16 @@ export function SupportingDocumentsStep({
           .replace(/_/g, " ")
           .replace(/\b\w/g, (c) => c.toUpperCase()),
 
-        documents: (docs as RawWorkflowDoc[]).map((doc) => ({
+        documents: (docs as RawWorkflowDoc[]).map((doc, workflowDocumentIndex) => ({
           title: doc?.name ?? "—",
           allowMultiple: doc?.allow_multiple === true,
           template: doc?.template,
           allowedTypes: resolveIssuerAllowedTypes(doc ?? {}),
           required: doc?.required !== false,
+          workflowDocumentIndex,
         })),
-      }));
+      }))
+      .filter((category) => category.documents.length > 0);
   }, [stepConfig]);
 
 
@@ -379,9 +462,14 @@ export function SupportingDocumentsStep({
     open: boolean;
     documentTitle: string;
     remark: string;
-  }>({ open: false, documentTitle: "", remark: "" });
+    title: string;
+  }>({ open: false, documentTitle: "", remark: "", title: "Amendment required" });
   const [uploadingKeys, setUploadingKeys] = React.useState<Set<string>>(new Set());
   const [initialUploadedFiles, setInitialUploadedFiles] = React.useState<Record<string, UploadRecord[]>>({});
+  /** Snapshot when CHANGES_REQUESTED loads — not reset after in-session S3 upload. */
+  const [acceptanceChangeBaselineFiles, setAcceptanceChangeBaselineFiles] = React.useState<
+    Record<string, UploadRecord[]>
+  >({});
 
   const getUploadMode = React.useCallback(
     (categoryIndex: number, documentIndex: number): UploadMode => {
@@ -400,60 +488,79 @@ export function SupportingDocumentsStep({
       { clientId: string; s3_key: string; file_name: string; file_size: number; uploaded_at: string }[]
     > = new Map()
   ) => {
+    const normalizeSlot = (
+      categoryIndex: number,
+      documentIndex: number,
+      document: { title: string; workflowDocumentIndex: number }
+    ) => {
+      const key = `${categoryIndex}-${documentIndex}`;
+      const mode = getUploadMode(categoryIndex, documentIndex);
+      const existingFiles = files[key] ?? [];
+      const uploadedFromSave = uploadResults.get(key) ?? [];
+      const normalized = existingFiles
+        .map((f) => {
+          const uploadResult = uploadedFromSave.find((r) => r.clientId === f.clientId);
+          const s3_key = uploadResult?.s3_key ?? f.s3_key;
+          const fileName = uploadResult?.file_name ?? f.name;
+          if (!s3_key || !fileName) return null;
+          return {
+            file_name: fileName,
+            file_size: uploadResult?.file_size ?? f.size ?? 0,
+            s3_key,
+            uploaded_at:
+              uploadResult?.uploaded_at ??
+              f.uploadedAt ??
+              new Date().toISOString(),
+          };
+        })
+        .filter(Boolean) as Array<{
+        file_name: string;
+        file_size: number;
+        s3_key: string;
+        uploaded_at: string;
+      }>;
+
+      const base = {
+        title: document.title,
+        workflow_document_index: document.workflowDocumentIndex,
+      } as Record<string, unknown>;
+
+      if (normalized.length === 0) {
+        return base;
+      }
+
+      if (mode === "multiple") {
+        return {
+          ...base,
+          files: normalized,
+        };
+      }
+
+      return {
+        ...base,
+        file: normalized[0],
+      };
+    };
+
+    if (documentStorage === "acceptance_documents") {
+      return {
+        documents: categories.flatMap((category, categoryIndex) =>
+          category.documents.map((document, documentIndex) =>
+            normalizeSlot(categoryIndex, documentIndex, document)
+          )
+        ),
+      };
+    }
+
     return {
       categories: categories.map((category, categoryIndex: number) => ({
         name: category.name,
-        documents: category.documents.map((document, documentIndex: number) => {
-          const key = `${categoryIndex}-${documentIndex}`;
-          const mode = getUploadMode(categoryIndex, documentIndex);
-          const existingFiles = files[key] ?? [];
-          const uploadedFromSave = uploadResults.get(key) ?? [];
-          const normalized = existingFiles
-            .map((f) => {
-              const uploadResult = uploadedFromSave.find((r) => r.clientId === f.clientId);
-              const s3_key = uploadResult?.s3_key ?? f.s3_key;
-              const fileName = uploadResult?.file_name ?? f.name;
-              if (!s3_key || !fileName) return null;
-              return {
-                file_name: fileName,
-                file_size: uploadResult?.file_size ?? f.size ?? 0,
-                s3_key,
-                uploaded_at:
-                  uploadResult?.uploaded_at ??
-                  f.uploadedAt ??
-                  new Date().toISOString(),
-              };
-            })
-            .filter(Boolean) as Array<{
-            file_name: string;
-            file_size: number;
-            s3_key: string;
-            uploaded_at: string;
-          }>;
-
-          const base = {
-            title: document.title,
-          } as Record<string, unknown>;
-
-          if (normalized.length === 0) {
-            return base;
-          }
-
-          if (mode === "multiple") {
-            return {
-              ...base,
-              files: normalized,
-            };
-          }
-
-          return {
-            ...base,
-            file: normalized[0],
-          };
-        }),
+        documents: category.documents.map((document, documentIndex: number) =>
+          normalizeSlot(categoryIndex, documentIndex, document)
+        ),
       })),
     };
-  }, [categories, getUploadMode]);
+  }, [categories, getUploadMode, documentStorage]);
 
   React.useEffect(() => {
     const allExpanded: Record<number, boolean> = {};
@@ -464,72 +571,125 @@ export function SupportingDocumentsStep({
   }, [categories]);
 
   React.useEffect(() => {
-    if (!application?.supporting_documents || categories.length === 0) {
+    if (categories.length === 0) {
       setUploadedFiles({});
       setSelectedFiles({});
       setInitialUploadedFiles({});
-      return;
-    }
-
-    let data: unknown = application.supporting_documents;
-    if (typeof data === "string") {
-      try {
-        data = JSON.parse(data) as unknown;
-      } catch {
-        return;
-      }
-    }
-    if (isRecord(data) && "supporting_documents" in data) {
-      data = data.supporting_documents;
-    }
-
-    if (!isRecord(data) || !Array.isArray(data.categories)) {
+      setAcceptanceChangeBaselineFiles({});
       return;
     }
 
     const loadedFiles: Record<string, UploadRecord[]> = {};
 
-    (data.categories as SavedSupportingCategory[]).forEach((savedCategory) => {
-      const categoryIndex = categories.findIndex(
-        (cat) => cat.name === savedCategory.name
-      );
-      if (categoryIndex === -1) return;
+    const pushNormalized = (
+      key: string,
+      savedDocument: {
+        files?: unknown;
+        file?: unknown;
+        workflow_document_index?: number;
+      }
+    ) => {
+      const list = Array.isArray(savedDocument.files)
+        ? savedDocument.files
+        : savedDocument.file
+          ? [savedDocument.file]
+          : [];
+      const normalized = list
+        .filter(
+          (f): f is SavedFileRef & { s3_key: string; file_name: string } =>
+            isRecord(f) &&
+            typeof f.s3_key === "string" &&
+            typeof f.file_name === "string"
+        )
+        .map((f) => ({
+          name: f.file_name,
+          size: f.file_size ?? 0,
+          uploadedAt: f.uploaded_at ?? new Date().toISOString(),
+          s3_key: f.s3_key,
+        }));
+      if (normalized.length > 0) {
+        loadedFiles[key] = sortUploadRecordsNewestFirst(normalized);
+      }
+    };
 
-      savedCategory.documents.forEach(
-        (savedDocument, documentIndex: number) => {
-
-          const key = `${categoryIndex}-${documentIndex}`;
-
-          const list = Array.isArray(savedDocument.files)
-            ? savedDocument.files
-            : savedDocument.file
-              ? [savedDocument.file]
-              : [];
-          const normalized = list
-            .filter(
-              (f): f is SavedFileRef & { s3_key: string; file_name: string } =>
-                isRecord(f) &&
-                typeof f.s3_key === "string" &&
-                typeof f.file_name === "string"
-            )
-            .map((f) => ({
-              name: f.file_name,
-              size: f.file_size ?? 0,
-              uploadedAt: f.uploaded_at ?? new Date().toISOString(),
-              s3_key: f.s3_key,
-            }));
-          if (normalized.length > 0) {
-            loadedFiles[key] = sortUploadRecordsNewestFirst(normalized);
-          }
+    if (documentStorage === "acceptance_documents") {
+      let data: unknown = (application as { acceptance_documents?: unknown } | undefined)
+        ?.acceptance_documents;
+      if (typeof data === "string") {
+        try {
+          data = JSON.parse(data) as unknown;
+        } catch {
+          data = null;
         }
-      );
-    });
+      }
+      const docs =
+        isRecord(data) && Array.isArray(data.documents)
+          ? (data.documents as Array<{
+              files?: unknown;
+              file?: unknown;
+              workflow_document_index?: number;
+            }>)
+          : [];
 
+      categories.forEach((category, categoryIndex) => {
+        category.documents.forEach((document, documentIndex) => {
+          const key = `${categoryIndex}-${documentIndex}`;
+          const saved =
+            docs.find((d) => d.workflow_document_index === document.workflowDocumentIndex) ??
+            docs[document.workflowDocumentIndex];
+          if (saved) pushNormalized(key, saved);
+        });
+      });
+    } else {
+      if (!application?.supporting_documents) {
+        setUploadedFiles({});
+        setSelectedFiles({});
+        setInitialUploadedFiles({});
+        return;
+      }
+
+      let data: unknown = application.supporting_documents;
+      if (typeof data === "string") {
+        try {
+          data = JSON.parse(data) as unknown;
+        } catch {
+          return;
+        }
+      }
+      if (isRecord(data) && "supporting_documents" in data) {
+        data = data.supporting_documents;
+      }
+
+      if (!isRecord(data) || !Array.isArray(data.categories)) {
+        return;
+      }
+
+      (data.categories as SavedSupportingCategory[]).forEach((savedCategory) => {
+        const categoryIndex = categories.findIndex((cat) => cat.name === savedCategory.name);
+        if (categoryIndex === -1) return;
+        const displayDocs = categories[categoryIndex].documents;
+
+        savedCategory.documents.forEach((savedDocument, savedIndex: number) => {
+          const workflowIdx =
+            typeof savedDocument.workflow_document_index === "number"
+              ? savedDocument.workflow_document_index
+              : savedIndex;
+          const documentIndex = displayDocs.findIndex(
+            (doc) => doc.workflowDocumentIndex === workflowIdx
+          );
+          if (documentIndex === -1) return;
+          pushNormalized(`${categoryIndex}-${documentIndex}`, savedDocument);
+        });
+      });
+    }
 
     setUploadedFiles(loadedFiles);
     setSelectedFiles({});
     setInitialUploadedFiles(loadedFiles);
-  }, [application, categories]);
+    if (isAcceptanceChangeMode && documentStorage === "acceptance_documents") {
+      setAcceptanceChangeBaselineFiles(loadedFiles);
+    }
+  }, [application, categories, documentStorage, isAcceptanceChangeMode]);
 
   const handleFileChange = (categoryIndex: number, documentIndex: number, event: React.ChangeEvent<HTMLInputElement>) => {
     const key = `${categoryIndex}-${documentIndex}`;
@@ -611,6 +771,10 @@ export function SupportingDocumentsStep({
         if (!slotCategory) {
           throw new Error("Invalid category for upload");
         }
+        const slotDocument = slotCategory.documents[slot.documentIndex];
+        if (!slotDocument) {
+          throw new Error("Invalid document for upload");
+        }
 
         for (const pending of pendingUploads) {
           const typedFile = pending.file;
@@ -620,13 +784,22 @@ export function SupportingDocumentsStep({
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
-            body: JSON.stringify({
-              fileName: typedFile.name,
-              contentType: typedFile.type || "application/octet-stream",
-              fileSize: typedFile.size,
-              supportingDocCategoryKey: slotCategory.groupKey,
-              supportingDocIndex: slot.documentIndex,
-            }),
+            body: JSON.stringify(
+              documentStorage === "acceptance_documents"
+                ? {
+                    fileName: typedFile.name,
+                    contentType: typedFile.type || "application/octet-stream",
+                    fileSize: typedFile.size,
+                    acceptanceDocIndex: slotDocument.workflowDocumentIndex,
+                  }
+                : {
+                    fileName: typedFile.name,
+                    contentType: typedFile.type || "application/octet-stream",
+                    fileSize: typedFile.size,
+                    supportingDocCategoryKey: slotCategory.groupKey,
+                    supportingDocIndex: slotDocument.workflowDocumentIndex,
+                  }
+            ),
           });
 
           const urlResult = await urlResponse.json();
@@ -732,6 +905,7 @@ export function SupportingDocumentsStep({
     onDataChange,
     buildDataToSave,
     categories,
+    documentStorage,
   ]);
 
   const uploadFilesRef = React.useRef(uploadFilesToS3);
@@ -907,24 +1081,88 @@ export function SupportingDocumentsStep({
                         Object.keys(stepConfig?.config || {})[categoryIndex] ??
                         "";
                       const slug =
-                        String(document.title ?? "doc")
-                          .replace(/[^a-z0-9]/gi, "_")
-                          .slice(0, 32) || "doc";
+                        documentStorage === "acceptance_documents"
+                          ? slugForAcceptanceDocName(String(document.title ?? "doc"))
+                          : String(document.title ?? "doc")
+                              .replace(/[^a-z0-9]/gi, "_")
+                              .slice(0, 32) || "doc";
                       const acceptAttr = buildAcceptAttr(document.allowedTypes ?? ["pdf"]);
-                      const rawKey = `supporting_documents:${groupKey}:${documentIndex}:${slug}`;
-                      const rawKeyWithDoc = `supporting_documents:doc:${groupKey}:${documentIndex}:${slug}`;
-                      const isItemFlagged = [...supportingDocItemSet].some((key) =>
-                        supportingDocScopeKeyMatchesRow(key, groupKey, documentIndex, slug)
-                      );
-                      const itemRemark =
-                        [...flaggedDocRemarks.entries()].find(([k]) =>
-                          supportingDocScopeKeyMatchesRow(k, groupKey, documentIndex, slug)
-                        )?.[1] ??
-                        flaggedDocRemarks.get(rawKey) ??
-                        flaggedDocRemarks.get(rawKeyWithDoc);
-                      /** Step-level readOnly (e.g. view-only amendment tab) is the only lock; item flags only drive highlights. */
-                      const isEditable = !readOnly;
+                      const workflowDocumentIndex = document.workflowDocumentIndex;
+                      const rawKey = `supporting_documents:${groupKey}:${workflowDocumentIndex}:${slug}`;
+                      const rawKeyWithDoc = `supporting_documents:doc:${groupKey}:${workflowDocumentIndex}:${slug}`;
+                      const isAcceptanceDoc = documentStorage === "acceptance_documents";
+                      const isItemFlagged = isAcceptanceDoc
+                        ? [...acceptanceDocItemSet].some((scopeKey) =>
+                            acceptanceDocScopeKeyMatchesRow(
+                              scopeKey,
+                              workflowDocumentIndex,
+                              slug
+                            )
+                          )
+                        : [...supportingDocItemSet].some((key) =>
+                            supportingDocScopeKeyMatchesRow(
+                              key,
+                              groupKey,
+                              workflowDocumentIndex,
+                              slug
+                            )
+                          );
+                      const itemRemark = isAcceptanceDoc
+                        ? resolveAcceptanceDocumentRemark(
+                            workflowDocumentIndex,
+                            slug,
+                            acceptanceChangeRemarkItems
+                          )
+                        : [...flaggedDocRemarks.entries()].find(([k]) =>
+                            supportingDocScopeKeyMatchesRow(
+                              k,
+                              groupKey,
+                              workflowDocumentIndex,
+                              slug
+                            )
+                          )?.[1] ??
+                          flaggedDocRemarks.get(rawKey) ??
+                          flaggedDocRemarks.get(rawKeyWithDoc);
+                      const isEditable =
+                        !readOnly &&
+                        (!isAcceptanceDoc || !isAcceptanceChangeMode || isItemFlagged);
+                      const flaggedUpdateState =
+                        isAcceptanceDoc && isAcceptanceChangeMode && isItemFlagged
+                          ? getAcceptanceFlaggedSlotUpdateState(
+                              key,
+                              acceptanceChangeBaselineFiles,
+                              uploadedFiles,
+                              selectedFiles
+                            )
+                          : "unchanged";
+                      const flaggedRowHighlightClass =
+                        flaggedUpdateState === "updated"
+                          ? applicationFlowAmendmentResolvedTableRowClassName
+                          : flaggedUpdateState === "pending"
+                            ? applicationFlowAmendmentPendingTableRowClassName
+                            : isItemFlagged
+                              ? applicationFlowAmendmentTargetTableRowClassName
+                              : undefined;
+                      const flaggedFileSurfaceClass =
+                        flaggedUpdateState === "updated"
+                          ? applicationFlowAmendmentResolvedSurfaceClassName
+                          : flaggedUpdateState === "pending"
+                            ? applicationFlowAmendmentPendingSurfaceClassName
+                            : undefined;
                       const isRequired = document.required !== false;
+                      const showViewFeedbackAction = Boolean(
+                        itemRemark &&
+                          isItemFlagged &&
+                          (isAcceptanceDoc ? isAcceptanceChangeMode : true)
+                      );
+                      const feedbackDialogTitle =
+                        isAcceptanceDoc && isAcceptanceChangeMode
+                          ? "Changes requested"
+                          : "Amendment required";
+                      const docActionLinkClass = cn(
+                        supportingDocActionLink,
+                        isStackedLayout && "w-auto shrink-0"
+                      );
 
                       const listExpanded = expandedFileLists[key] ?? false;
                       const filesToShow =
@@ -948,7 +1186,7 @@ export function SupportingDocumentsStep({
                             locked={!isEditable}
                             className={cn(
                               "min-h-9 w-full",
-                              isItemFlagged && isEditable && applicationFlowAmendmentTargetSurfaceClassName
+                              flaggedFileSurfaceClass
                             )}
                             trailing={
                               <button
@@ -977,10 +1215,16 @@ export function SupportingDocumentsStep({
                           key={documentIndex}
                           className={cn(
                             "px-4 py-3.5 sm:px-5 sm:py-4",
-                            isItemFlagged && applicationFlowAmendmentTargetTableRowClassName
+                            flaggedRowHighlightClass
                           )}
                         >
-                          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,17rem)_1fr] lg:gap-x-4 lg:items-start">
+                          <div
+                            className={cn(
+                              "grid grid-cols-1 gap-3",
+                              !isStackedLayout &&
+                                "lg:grid-cols-[minmax(0,17rem)_1fr] lg:gap-x-4 lg:items-start"
+                            )}
+                          >
                             <div className="min-w-0 space-y-1.5">
                               <div>
                                 <h3
@@ -1019,31 +1263,37 @@ export function SupportingDocumentsStep({
                                   )}
                                 </p>
                               </div>
-                              {isItemFlagged && itemRemark ? (
-                                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                                  <ExclamationTriangleIcon
-                                    className="h-3.5 w-3.5 shrink-0 text-primary"
-                                    aria-hidden
-                                  />
-                                  <button
-                                    type="button"
-                                    className="text-xs font-medium text-primary underline-offset-2 hover:underline"
-                                    onClick={() =>
-                                      setFeedbackDialog({
-                                        open: true,
-                                        documentTitle: String(document.title ?? ""),
-                                        remark: itemRemark,
-                                      })
-                                    }
-                                  >
-                                    View feedback
-                                  </button>
+                              {isAcceptanceDoc && isAcceptanceChangeMode && isItemFlagged ? (
+                                <div className="mt-1.5 space-y-1.5">
+                                  {flaggedUpdateState === "updated" ? (
+                                    <div className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-emerald-700">
+                                      <CheckCircleIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                      Document updated
+                                    </div>
+                                  ) : flaggedUpdateState === "pending" ? (
+                                    <div className="flex flex-wrap items-center gap-1.5 text-xs font-medium text-amber-700">
+                                      <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                                      New file selected
+                                    </div>
+                                  ) : null}
                                 </div>
                               ) : null}
                             </div>
 
-                            <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:gap-3 lg:items-start">
-                              <div className="min-w-0 flex-1 flex flex-col gap-2 max-w-[min(100%,26rem)] lg:max-w-[min(100%,28rem)]">
+                            <div
+                              className={cn(
+                                "flex min-w-0 flex-col gap-3",
+                                !isStackedLayout && "lg:flex-row lg:gap-3 lg:items-start"
+                              )}
+                            >
+                              <div
+                                className={cn(
+                                  "min-w-0 flex flex-col gap-2",
+                                  isStackedLayout
+                                    ? "w-full"
+                                    : "flex-1 max-w-[min(100%,26rem)] lg:max-w-[min(100%,28rem)]"
+                                )}
+                              >
                               {fileIsUploading ? (
                                 <p className="text-sm text-muted-foreground">Uploading…</p>
                               ) : hasFiles ? (
@@ -1083,13 +1333,20 @@ export function SupportingDocumentsStep({
                               ) : null}
                               </div>
 
-                            <div className="flex flex-col gap-1 w-full min-w-0 border-t border-border pt-3 lg:self-start lg:border-t-0 lg:pt-0 lg:min-w-[12rem] lg:w-[12rem] lg:shrink-0 lg:border-l lg:border-border lg:pl-3">
+                            <div
+                              className={cn(
+                                "flex w-full min-w-0 border-t border-border pt-3",
+                                isStackedLayout
+                                  ? "flex-row flex-wrap items-center gap-x-4 gap-y-1 border-t-0 pt-0"
+                                  : "flex-col gap-1 lg:self-start lg:border-t-0 lg:pt-0 lg:min-w-[12rem] lg:w-[12rem] lg:shrink-0 lg:border-l lg:border-border lg:pl-3"
+                              )}
+                            >
                               {templateS3Key ? (
                                 <button
                                   type="button"
                                   disabled={!isEditable}
                                   className={cn(
-                                    supportingDocActionLink,
+                                    docActionLinkClass,
                                     isEditable ? supportingDocTemplateOn : supportingDocActionOff
                                   )}
                                   onClick={async () => {
@@ -1114,9 +1371,27 @@ export function SupportingDocumentsStep({
                                 </button>
                               ) : null}
 
+                              {showViewFeedbackAction ? (
+                                <button
+                                  type="button"
+                                  className={cn(docActionLinkClass, supportingDocUploadOn)}
+                                  onClick={() =>
+                                    setFeedbackDialog({
+                                      open: true,
+                                      documentTitle: String(document.title ?? ""),
+                                      remark: itemRemark!,
+                                      title: feedbackDialogTitle,
+                                    })
+                                  }
+                                >
+                                  <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0" />
+                                  View Remarks
+                                </button>
+                              ) : null}
+
                               {fileIsUploading && !hasFiles ? (
                                 <span
-                                  className={cn(supportingDocActionLink, supportingDocActionOff)}
+                                  className={cn(docActionLinkClass, supportingDocActionOff)}
                                 >
                                   <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
                                   Uploading…
@@ -1126,7 +1401,7 @@ export function SupportingDocumentsStep({
                                   <label
                                     htmlFor={`file-${key}`}
                                     className={cn(
-                                      supportingDocActionLink,
+                                      docActionLinkClass,
                                       supportingDocUploadOn
                                     )}
                                   >
@@ -1145,7 +1420,7 @@ export function SupportingDocumentsStep({
                                   </label>
                                 ) : (
                                   <span
-                                    className={cn(supportingDocActionLink, supportingDocActionOff)}
+                                    className={cn(docActionLinkClass, supportingDocActionOff)}
                                   >
                                     <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
                                     {mode === "multiple" ? "Upload files" : "Upload file"}
@@ -1153,10 +1428,41 @@ export function SupportingDocumentsStep({
                                 )
                               ) : null}
 
+                              {mode === "single" && hasFiles ? (
+                                fileIsUploading ? (
+                                  <span
+                                    className={cn(docActionLinkClass, supportingDocActionOff)}
+                                  >
+                                    <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
+                                    Uploading…
+                                  </span>
+                                ) : isEditable ? (
+                                  <label
+                                    htmlFor={`file-${key}-replace`}
+                                    className={cn(
+                                      docActionLinkClass,
+                                      supportingDocUploadOn
+                                    )}
+                                  >
+                                    <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
+                                    Replace file
+                                    <Input
+                                      id={`file-${key}-replace`}
+                                      type="file"
+                                      accept={acceptAttr}
+                                      onChange={(e) =>
+                                        handleFileChange(categoryIndex, documentIndex, e)
+                                      }
+                                      className="hidden"
+                                    />
+                                  </label>
+                                ) : null
+                              ) : null}
+
                               {mode === "multiple" && hasFiles ? (
                                 fileIsUploading ? (
                                   <span
-                                    className={cn(supportingDocActionLink, supportingDocActionOff)}
+                                    className={cn(docActionLinkClass, supportingDocActionOff)}
                                   >
                                     <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
                                     Uploading…
@@ -1165,7 +1471,7 @@ export function SupportingDocumentsStep({
                                   <label
                                     htmlFor={`file-${key}-add`}
                                     className={cn(
-                                      supportingDocActionLink,
+                                      docActionLinkClass,
                                       supportingDocUploadOn
                                     )}
                                   >
@@ -1184,7 +1490,7 @@ export function SupportingDocumentsStep({
                                   </label>
                                 ) : (
                                   <span
-                                    className={cn(supportingDocActionLink, supportingDocActionOff)}
+                                    className={cn(docActionLinkClass, supportingDocActionOff)}
                                   >
                                     <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
                                     Add files
@@ -1217,7 +1523,7 @@ export function SupportingDocumentsStep({
         )}
       >
         <DialogTitle className="sr-only">
-          Amendment required
+          {feedbackDialog.title}
           {feedbackDialog.documentTitle
             ? ` — ${feedbackDialog.documentTitle}`
             : ""}
@@ -1250,7 +1556,7 @@ export function SupportingDocumentsStep({
               </div>
               <div className={cn(AMENDMENT_CALLOUT_BODY, "min-w-0 flex-1")}>
                 <p className={cn(AMENDMENT_CALLOUT_TITLE, "text-primary")}>
-                  Amendment required
+                  {feedbackDialog.title}
                 </p>
                 {feedbackDialog.documentTitle ? (
                   <p className="text-sm text-muted-foreground -mt-0.5">

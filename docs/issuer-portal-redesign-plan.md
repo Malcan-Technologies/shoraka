@@ -104,7 +104,7 @@ Two groups separated by a rule: **Work** (Dashboard, Applications, Portfolio) an
 | `/applications` | reshaped | Slim card list + action queue |
 | `/applications/[id]` | **new** | Application detail — the centrepiece of this redesign |
 | `/applications/new` | kept | Wizard step 1 (financing type) |
-| `/applications/[id]/edit` | **moved** from `/applications/edit/[id]` | Wizard steps 2–n + amendment mode |
+| `/applications/[id]/edit` | **moved** from `/applications/[id]/edit` | Wizard steps 2–n + amendment mode |
 | `/applications/sign/contract/[contractId]` | kept | SigningCloud handoff |
 | `/applications/sign/invoice/[invoiceId]` | kept | SigningCloud handoff |
 | `/portfolio` | **new** | Tabs: Contracts \| Invoices \| Notes (`?tab=`) |
@@ -120,7 +120,7 @@ Two groups separated by a rule: **Work** (Dashboard, Applications, Portfolio) an
 | `/financing` | **redirect** → `/portfolio?tab=contracts` | |
 | `/financing/contracts/[id]` | **redirect** → `/portfolio/contracts/[id]` | |
 | `/notes`, `/notes/[id]` | **redirect** → `/portfolio?tab=notes`, `/portfolio/notes/[id]` | |
-| `/applications/edit/[id]` | **redirect** → `/applications/[id]/edit` | |
+| `/applications/[id]/edit` | **redirect** → `/applications/[id]/edit` | |
 
 All redirects are permanent `next.config.mjs` entries. **Required**, not optional: emails, help articles and admin-side links point at the old URLs.
 
@@ -357,7 +357,7 @@ The contract for this redesign. Every interactive affordance in the portal today
 | 20 | Withdraw disabled when signed offer on file | Preserved — reason shown as visible helper text, not a `title` |
 | 21 | View details / Hide details | Replaced by "View application →" |
 | 22 | Dev Debug Panel (skeleton / mock / reset) | Kept, dev-only, restyled |
-| 23 | Signing-return dialog (`?signing=complete`) | Kept; also handled on detail route |
+| 23 | Signing return | `/signing/return` → `/v1/signing/return/:id/confirm` |
 | 24 | Director/shareholder sticky alert | Kept on list and detail |
 
 ### 6.2 Invoice sub-table → detail Invoices tab

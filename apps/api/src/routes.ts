@@ -20,6 +20,7 @@ import { logger } from "./lib/logger";
 import { createApplicationRouter } from "./modules/applications/controller";
 import { createContractRouter } from "./modules/contracts/controller";
 import { createInvoiceRouter } from "./modules/invoices/controller";
+import { createSigningAdminRouter, createSigningRouter } from "./modules/signing/controller";
 import { activityRouter } from "./modules/activity/controller";
 import { createS3Router } from "./modules/s3/controller";
 import { notificationRouter } from "./modules/notification/controller";
@@ -107,6 +108,10 @@ export function registerRoutes(app: Application): void {
   v1Router.use("/contracts", createContractRouter());
   v1Router.use("/invoices", createInvoiceRouter());
 
+  // Multi-party signing envelopes (issuer reads + sign-my-part). Admin lifecycle
+  // routes are mounted under the ADMIN-gated block below.
+  v1Router.use("/signing", createSigningRouter());
+
   // Products list (admin only) – GET /v1/products, GET /v1/products/:id
   if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {
     v1Router.use("/products", devAuthBypass, requireRole(UserRole.ADMIN), productsRouter);
@@ -124,6 +129,7 @@ export function registerRoutes(app: Application): void {
   if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {
     logger.warn("🔓 DEVELOPMENT MODE: Admin routes using authentication bypass");
     v1Router.use("/admin", devAuthBypass, requireRole(UserRole.ADMIN), adminRouter);
+    v1Router.use("/admin/signing", devAuthBypass, requireRole(UserRole.ADMIN), createSigningAdminRouter());
     v1Router.use("/admin/notes", devAuthBypass, adminNotesRouter);
     v1Router.use("/admin/investments", devAuthBypass, adminInvestmentsRouter);
     v1Router.use("/admin/platform-finance-settings", devAuthBypass, platformFinanceSettingsRouter);
@@ -135,6 +141,7 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin/product-logs", devAuthBypass, requireRole(UserRole.ADMIN), productLogRouter);
   } else {
     v1Router.use("/admin", requireAuth, requireRole(UserRole.ADMIN), adminRouter);
+    v1Router.use("/admin/signing", requireAuth, requireRole(UserRole.ADMIN), createSigningAdminRouter());
     v1Router.use("/admin/notes", requireAuth, adminNotesRouter);
     v1Router.use("/admin/investments", requireAuth, adminInvestmentsRouter);
     v1Router.use("/admin/platform-finance-settings", requireAuth, platformFinanceSettingsRouter);

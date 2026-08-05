@@ -15,7 +15,12 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import type { IssuerDashboardContract } from "@/types/issuer-dashboard";
 import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
 import { financingOfferHref } from "@/lib/financing-offer-href";
-import type { OfferStatus } from "@/lib/offer-utils";
+import {
+  getIssuerOfferActionCtaFromOfferDetails,
+  shouldShowIssuerReviewOfferCta,
+  type OfferStatus,
+} from "@/lib/offer-utils";
+import { asContractForModal } from "@/types/issuer-dashboard";
 import { cn } from "@/lib/utils";
 import { FinancingDonut } from "./financing-donut";
 import { FinancingKpiTile } from "./financing-kpi-strip";
@@ -44,8 +49,6 @@ export function DashboardContractCard({
 }: {
   row: IssuerDashboardContract;
   offerStatus: OfferStatus;
-  /** @deprecated Offer review navigates to the application Offer tab. */
-  onReviewOffer?: () => void;
 }) {
   const router = useRouter();
   const actionRequiredApplicationIds = row.actionRequiredApplicationIds ?? [];
@@ -68,7 +71,13 @@ export function DashboardContractCard({
         : EM_DASH;
 
   const stats = row.invoiceStats;
-  const showReviewOffer = offerStatus === "Offer received";
+  const offerDetails = asContractForModal(row.contractForModal)?.offer_details;
+  const reviewOfferVisible = shouldShowIssuerReviewOfferCta({
+    status: offerStatus === "Offer received" ? "OFFER_SENT" : offerStatus,
+    offer_details: offerDetails,
+  });
+  const showReviewOffer = offerStatus === "Offer received" && reviewOfferVisible;
+  const offerActionCta = getIssuerOfferActionCtaFromOfferDetails(offerDetails, { scope: "contract" });
   const attentionSurface = showReviewOffer
     ? FINANCING_OFFER_ATTENTION_SURFACE
     : showActionRequired
@@ -103,8 +112,17 @@ export function DashboardContractCard({
           <div className="flex shrink-0 items-center gap-2">
             {showReviewOffer ? (
               <div className="rounded-xl bg-status-action-bg p-0.5">
-                <Button size="sm" className="rounded-xl" asChild>
-                  <Link href={financingOfferHref(row.applicationId)}>Review offer</Link>
+                <Button
+                  size="sm"
+                  variant={offerActionCta.buttonVariant === "makeAmendments" ? "outline" : "default"}
+                  className={
+                    offerActionCta.buttonVariant === "makeAmendments"
+                      ? "rounded-xl border-status-action-text/30 bg-status-action-bg text-status-action-text hover:bg-status-action-bg"
+                      : "rounded-xl"
+                  }
+                  asChild
+                >
+                  <Link href={financingOfferHref(row.applicationId)}>{offerActionCta.label}</Link>
                 </Button>
               </div>
             ) : null}

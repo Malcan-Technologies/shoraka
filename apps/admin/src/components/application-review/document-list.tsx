@@ -220,6 +220,59 @@ export function buildCategoryGroups(
   return groups;
 }
 
+/** Flat acceptance_documents payload → one category with acceptance_documents:<index>:<slug> keys. */
+export function buildAcceptanceCategoryGroups(documents: unknown): CategoryGroup[] {
+  if (documents == null || typeof documents !== "object") return [];
+  const root = documents as Record<string, unknown>;
+  const list = Array.isArray(root.documents)
+    ? (root.documents as Record<string, unknown>[])
+    : Array.isArray(documents)
+      ? (documents as Record<string, unknown>[])
+      : [];
+  if (list.length === 0) return [];
+
+  const items: DocItem[] = list.map((d, i) => {
+    const filesArr = Array.isArray(d?.files) ? (d.files as Array<Record<string, unknown>>) : [];
+    const file = (d?.file as Record<string, unknown> | undefined) ?? filesArr[0];
+    const name = String(d?.title ?? d?.name ?? file?.file_name ?? "document");
+    const slug = name.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
+    const idx =
+      typeof d?.workflow_document_index === "number" ? (d.workflow_document_index as number) : i;
+    const files: DocFile[] = [];
+    if (file?.s3_key && typeof file.s3_key === "string") {
+      files.push({
+        label: String(file.file_name ?? name),
+        s3Key: file.s3_key,
+        secondary: formattedFileSize(file),
+      });
+    }
+    for (const f of filesArr) {
+      if (typeof f?.s3_key === "string" && f.s3_key && !files.some((x) => x.s3Key === f.s3_key)) {
+        files.push({
+          label: String(f.file_name ?? name),
+          s3Key: f.s3_key,
+          secondary: formattedFileSize(f),
+        });
+      }
+    }
+    return {
+      key: `acceptance_documents:${idx}:${slug}`,
+      label: name || `Document ${idx + 1}`,
+      s3Key: files[0]?.s3Key,
+      downloadFileName: typeof file?.file_name === "string" ? file.file_name : undefined,
+      files,
+    };
+  });
+
+  return [
+    {
+      categoryKey: "acceptance_documents",
+      categoryLabel: "Acceptance",
+      items,
+    },
+  ];
+}
+
 export interface DocumentListProps {
   documents: unknown;
   reviewItems: { item_type: string; item_id: string; status: string }[];
@@ -238,6 +291,7 @@ export interface DocumentListProps {
   lockItemPrimaryReviewActions?: boolean;
   /** Product supporting_documents step config (for Required/Optional + Single/Multiple hints). */
   supportingDocumentsStepConfig?: Record<string, unknown> | null;
+  documentKind?: "supporting" | "acceptance";
 }
 
 export function DocumentList({
@@ -256,10 +310,14 @@ export function DocumentList({
   actionLockTooltip,
   lockItemPrimaryReviewActions = false,
   supportingDocumentsStepConfig = null,
+  documentKind = "supporting",
 }: DocumentListProps) {
   const categoryGroups = React.useMemo(
-    () => buildCategoryGroups(documents, supportingDocumentsStepConfig),
-    [documents, supportingDocumentsStepConfig]
+    () =>
+      documentKind === "acceptance"
+        ? buildAcceptanceCategoryGroups(documents)
+        : buildCategoryGroups(documents, supportingDocumentsStepConfig),
+    [documents, supportingDocumentsStepConfig, documentKind]
   );
 
   const getItemStatus = (key: string) => {
@@ -270,8 +328,185 @@ export function DocumentList({
   if (totalItems === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        No document entries in supporting documents.
+        {documentKind === "acceptance"
+          ? "No acceptance documents uploaded yet."
+          : "No document entries in supporting documents."}
       </p>
+    );
+  }
+
+  const renderItemActions = ({
+    key,
+    label,
+    s3Key,
+    downloadFileName,
+    files,
+    requirementMeta,
+  }: DocItem) => {
+    const status = getItemStatus(key);
+    const canViewSingle = Boolean(s3Key && onViewDocument);
+    const canViewMultiple = Boolean(onViewDocument && files.length > 1);
+    const canDownloadSingle = Boolean(s3Key && onDownloadDocument);
+    const canDownloadMultiple = Boolean(onDownloadDocument && files.length > 1);
+    return (
+      <>
+        <div className="min-w-0 pr-2">
+          <span className="text-sm font-medium text-foreground">{label}</span>
+          {requirementMeta ? <SupportingDocRequirementBadges meta={requirementMeta} /> : null}
+        </div>
+        <div className="ml-auto flex min-w-0 shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+          {status !== "PENDING" && (
+            <ReviewStepStatusBadge
+              status={status}
+              size="sm"
+              label={
+                documentKind === "acceptance" && status === "AMENDMENT_REQUESTED"
+                  ? "Changes Requested"
+                  : undefined
+              }
+            />
+          )}
+          <div className="flex w-full max-w-[min(22.5rem,calc(100vw-4rem))] gap-2 sm:w-[22.5rem]">
+            {canViewSingle && !canViewMultiple ? (
+              <div className="min-w-0 flex-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={SUPPORTING_DOC_TOOLBAR_BTN_CLASS}
+                  onClick={() => onViewDocument?.(s3Key!)}
+                  disabled={isViewDocumentPending}
+                >
+                  <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" />
+                  View
+                </Button>
+              </div>
+            ) : null}
+            {canViewMultiple ? (
+              <div className="min-w-0 flex-1">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={SUPPORTING_DOC_TOOLBAR_BTN_CLASS}
+                      disabled={isViewDocumentPending}
+                    >
+                      <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" />
+                      View
+                      <ChevronDownIcon className="h-4 w-4 shrink-0" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[220px] rounded-xl">
+                    {files.map((f, fileIndex) => (
+                      <DropdownMenuItem
+                        key={`${f.s3Key}-${fileIndex}`}
+                        onClick={() => onViewDocument?.(f.s3Key)}
+                        className="flex items-center justify-between gap-3 rounded-lg"
+                      >
+                        <span className="truncate min-w-0">{f.label}</span>
+                        <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" />
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ) : null}
+            {canDownloadSingle && !canDownloadMultiple ? (
+              <div className="min-w-0 flex-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={SUPPORTING_DOC_TOOLBAR_BTN_CLASS}
+                  onClick={() => onDownloadDocument?.(s3Key!, downloadFileName)}
+                  disabled={isViewDocumentPending}
+                >
+                  <ArrowDownTrayIcon className="h-4 w-4 shrink-0" />
+                  Download
+                </Button>
+              </div>
+            ) : null}
+            {canDownloadMultiple ? (
+              <div className="min-w-0 flex-1">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={SUPPORTING_DOC_TOOLBAR_BTN_CLASS}
+                      disabled={isViewDocumentPending}
+                    >
+                      <ArrowDownTrayIcon className="h-4 w-4 shrink-0" />
+                      Download
+                      <ChevronDownIcon className="h-4 w-4 shrink-0" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[220px] rounded-xl">
+                    {files.map((f, fileIndex) => (
+                      <DropdownMenuItem
+                        key={`${f.s3Key}-${fileIndex}-download`}
+                        onClick={() => onDownloadDocument?.(f.s3Key, f.label)}
+                        className="flex items-center justify-between gap-3 rounded-lg"
+                      >
+                        <span className="truncate min-w-0">{f.label}</span>
+                        <ArrowDownTrayIcon className="h-4 w-4 shrink-0" />
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            ) : null}
+            {isReviewable ? (
+              <div className="shrink-0">
+                <ItemActionDropdown
+                  itemId={key}
+                  status={status}
+                  isPending={isItemActionPending}
+                  isActionLocked={isActionLocked}
+                  actionLockTooltip={actionLockTooltip}
+                  showApprove={!lockItemPrimaryReviewActions}
+                  showReject={!lockItemPrimaryReviewActions}
+                  showRequestAmendment={
+                    !lockItemPrimaryReviewActions &&
+                    (documentKind !== "acceptance" || status === "PENDING")
+                  }
+                  requestAmendmentLabel={
+                    documentKind === "acceptance" ? "Request change" : "Request Amendment"
+                  }
+                  noActionsTooltip={
+                    lockItemPrimaryReviewActions && status === "PENDING"
+                      ? "Another document was rejected. Clear that rejection or use Set to Pending on it, or reset the whole section."
+                      : undefined
+                  }
+                  onApprove={onApproveItem}
+                  onReject={onRejectItem}
+                  onRequestAmendment={onRequestAmendmentItem}
+                  onResetToPending={onResetItemToPending}
+                />
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </>
+    );
+  };
+
+  // Acceptance: flat review rows (no progress / checkmarks — those live on Financing offer acks).
+  if (documentKind === "acceptance") {
+    const items = categoryGroups.flatMap((group) => group.items);
+
+    return (
+      <div className="overflow-hidden rounded-xl border border-border bg-background">
+        <ul className="divide-y divide-border">
+          {items.map((item) => (
+            <li
+              key={item.key}
+              className="flex min-w-0 items-start gap-3 px-3 py-2.5 sm:items-center"
+            >
+              {renderItemActions(item)}
+            </li>
+          ))}
+        </ul>
+      </div>
     );
   }
 
@@ -292,141 +527,11 @@ export function DocumentList({
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="border-t pl-8 pr-4 py-3 space-y-3 sm:pl-10">
-                {items.map(({ key, label, s3Key, downloadFileName, files, requirementMeta }) => {
-                  const status = getItemStatus(key);
-                  const canViewSingle = Boolean(s3Key && onViewDocument);
-                  const canViewMultiple = Boolean(onViewDocument && files.length > 1);
-                  const canDownloadSingle = Boolean(s3Key && onDownloadDocument);
-                  const canDownloadMultiple = Boolean(onDownloadDocument && files.length > 1);
-                  return (
-                    <div key={key} className="flex min-w-0 items-start gap-3 sm:items-center">
-                      <div className="min-w-0 pr-2">
-                        <span className="text-sm text-foreground">{label}</span>
-                        {requirementMeta ? (
-                          <SupportingDocRequirementBadges meta={requirementMeta} />
-                        ) : null}
-                      </div>
-                      <div className="ml-auto flex min-w-0 shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
-                        {status !== "PENDING" && (
-                          <ReviewStepStatusBadge status={status} size="sm" />
-                        )}
-                        <div className="flex w-full max-w-[min(22.5rem,calc(100vw-4rem))] gap-2 sm:w-[22.5rem]">
-                          {canViewSingle && !canViewMultiple ? (
-                            <div className="min-w-0 flex-1">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className={SUPPORTING_DOC_TOOLBAR_BTN_CLASS}
-                                onClick={() => onViewDocument?.(s3Key!)}
-                                disabled={isViewDocumentPending}
-                              >
-                                <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" />
-                                View
-                              </Button>
-                            </div>
-                          ) : null}
-                          {canViewMultiple ? (
-                            <div className="min-w-0 flex-1">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className={SUPPORTING_DOC_TOOLBAR_BTN_CLASS}
-                                    disabled={isViewDocumentPending}
-                                  >
-                                    <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" />
-                                    View
-                                    <ChevronDownIcon className="h-4 w-4 shrink-0" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="min-w-[220px] rounded-xl">
-                              {files.map((f, fileIndex) => (
-                                <DropdownMenuItem
-                                  key={`${f.s3Key}-${fileIndex}`}
-                                  onClick={() => onViewDocument?.(f.s3Key)}
-                                  className="flex items-center justify-between gap-3 rounded-lg"
-                                >
-                                  <span className="truncate min-w-0">{f.label}</span>
-                                  <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" />
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          ) : null}
-                          {canDownloadSingle && !canDownloadMultiple ? (
-                            <div className="min-w-0 flex-1">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className={SUPPORTING_DOC_TOOLBAR_BTN_CLASS}
-                                onClick={() => onDownloadDocument?.(s3Key!, downloadFileName)}
-                                disabled={isViewDocumentPending}
-                              >
-                                <ArrowDownTrayIcon className="h-4 w-4 shrink-0" />
-                                Download
-                              </Button>
-                            </div>
-                          ) : null}
-                          {canDownloadMultiple ? (
-                            <div className="min-w-0 flex-1">
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className={SUPPORTING_DOC_TOOLBAR_BTN_CLASS}
-                                    disabled={isViewDocumentPending}
-                                  >
-                                    <ArrowDownTrayIcon className="h-4 w-4 shrink-0" />
-                                    Download
-                                    <ChevronDownIcon className="h-4 w-4 shrink-0" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="min-w-[220px] rounded-xl">
-                              {files.map((f, fileIndex) => (
-                                <DropdownMenuItem
-                                  key={`${f.s3Key}-${fileIndex}-download`}
-                                  onClick={() => onDownloadDocument?.(f.s3Key, f.label)}
-                                  className="flex items-center justify-between gap-3 rounded-lg"
-                                >
-                                  <span className="truncate min-w-0">{f.label}</span>
-                                  <ArrowDownTrayIcon className="h-4 w-4 shrink-0" />
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          ) : null}
-                          {isReviewable ? (
-                            <div className="shrink-0">
-                              <ItemActionDropdown
-                                itemId={key}
-                                status={status}
-                                isPending={isItemActionPending}
-                                isActionLocked={isActionLocked}
-                                actionLockTooltip={actionLockTooltip}
-                                showApprove={!lockItemPrimaryReviewActions}
-                                showReject={!lockItemPrimaryReviewActions}
-                                showRequestAmendment={!lockItemPrimaryReviewActions}
-                                noActionsTooltip={
-                                  lockItemPrimaryReviewActions && status === "PENDING"
-                                    ? "Another document was rejected. Clear that rejection or use Set to Pending on it, or reset the whole section."
-                                    : undefined
-                                }
-                                onApprove={onApproveItem}
-                                onReject={onRejectItem}
-                                onRequestAmendment={onRequestAmendmentItem}
-                                onResetToPending={onResetItemToPending}
-                              />
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                {items.map((item) => (
+                  <div key={item.key} className="flex min-w-0 items-start gap-3 sm:items-center">
+                    {renderItemActions(item)}
+                  </div>
+                ))}
               </div>
             </CollapsibleContent>
           </div>

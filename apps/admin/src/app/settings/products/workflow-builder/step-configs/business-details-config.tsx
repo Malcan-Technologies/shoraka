@@ -2,84 +2,110 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { Input } from "../../../../../components/ui/input";
-import { Skeleton } from "../../../../../components/ui/skeleton";
-import { useS3ViewUrl } from "../../../../../hooks/use-s3";
-import { toast } from "sonner";
+import { SECTION_GAP } from "../product-form-input-styles";
+import {
+  parseWorkflowDocumentRowFromUnknown,
+  validateOptionalWorkflowDocumentTemplateFile,
+  WorkflowDocumentRowEditor,
+  type WorkflowDocumentRowShape,
+} from "./workflow-document-row-editor";
 
-const ADMIN_GUARANTOR_TEMPLATE_ACCEPT = "application/pdf,.pdf";
+const DEFAULT_GUARANTOR_AGREEMENT_ROW: WorkflowDocumentRowShape = {
+  name: "Guarantor agreement",
+  allow_multiple: false,
+  allowed_types: ["pdf"],
+  required: false,
+};
 
-const MAX_TEMPLATE_SIZE_BYTES = 5 * 1024 * 1024;
+function readGuarantorAgreementRow(config: unknown): WorkflowDocumentRowShape {
+  const c = config as Record<string, unknown> | undefined;
+  const row = c?.guarantor_agreement;
+  if (row && typeof row === "object") {
+    const parsed = parseWorkflowDocumentRowFromUnknown(row);
+    return {
+      ...DEFAULT_GUARANTOR_AGREEMENT_ROW,
+      ...parsed,
+      name: parsed.name.trim() || DEFAULT_GUARANTOR_AGREEMENT_ROW.name,
+    };
+  }
 
-/** Same as supporting-documents-config optional template links (muted, underline on hover). */
-const templateLinkClass = "shrink-0 hover:underline focus:outline-none";
-const templateRemoveClass = "shrink-0 hover:text-destructive hover:underline focus:outline-none";
-const templateUploadClass =
-  "shrink-0 self-start hover:text-foreground hover:underline focus:outline-none";
+  const legacy = c?.guarantor_agreement_template as Record<string, unknown> | undefined;
+  if (legacy && typeof legacy === "object") {
+    const s3 = typeof legacy.s3_key === "string" ? legacy.s3_key.trim() : "";
+    const file_name = String(legacy.file_name ?? legacy.filename ?? "");
+    const file_size = typeof legacy.file_size === "number" ? legacy.file_size : undefined;
+    return {
+      ...DEFAULT_GUARANTOR_AGREEMENT_ROW,
+      required: Boolean(s3),
+      ...(s3
+        ? {
+            template: {
+              s3_key: s3,
+              file_name: file_name || "template.pdf",
+              ...(typeof file_size === "number" ? { file_size } : {}),
+            },
+          }
+        : {}),
+    };
+  }
 
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  return { ...DEFAULT_GUARANTOR_AGREEMENT_ROW };
 }
 
-function isPdfFile(file: File): boolean {
-  const lower = file.name.toLowerCase();
-  const dot = lower.lastIndexOf(".");
-  const ext = dot >= 0 ? lower.slice(dot + 1) : "";
-  if (ext !== "pdf") return false;
-  const t = file.type?.trim();
-  if (!t) return true;
-  return t === "application/pdf";
+function serializeGuarantorAgreementRow(row: WorkflowDocumentRowShape): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    name: row.name.trim() || DEFAULT_GUARANTOR_AGREEMENT_ROW.name,
+    allow_multiple: row.allow_multiple === true,
+    allowed_types: row.allowed_types?.length ? row.allowed_types : ["pdf"],
+    required: row.required !== false,
+  };
+  if (row.template?.s3_key?.trim()) {
+    payload.template = {
+      s3_key: row.template.s3_key.trim(),
+      file_name: row.template.file_name || "template.pdf",
+      ...(typeof row.template.file_size === "number" ? { file_size: row.template.file_size } : {}),
+    };
+  }
+  return payload;
 }
-
-type GuarantorAgreementTemplate = { s3_key?: string; file_name?: string; file_size?: number };
 
 export interface BusinessDetailsConfigProps {
   config: unknown;
   onChange: (config: unknown) => void;
   onPendingTemplateChange?: (categoryKey: string, index: number, file: File | null) => void;
+  /** Parent-owned pending file (survives step card collapse/remount). */
+  pendingTemplateFile?: File | null;
 }
 
-function readTemplate(config: unknown): GuarantorAgreementTemplate {
-  const c = config as Record<string, unknown> | undefined;
-  const raw = c?.guarantor_agreement_template as Record<string, unknown> | undefined;
-  if (!raw || typeof raw !== "object") return {};
-  const s3 = typeof raw.s3_key === "string" ? raw.s3_key : "";
-  const file_name = String(raw.file_name ?? raw.filename ?? "");
-  const file_size = typeof raw.file_size === "number" ? raw.file_size : undefined;
-  return { s3_key: s3 || undefined, file_name, file_size };
-}
-
-export function BusinessDetailsConfig({ config, onChange, onPendingTemplateChange }: BusinessDetailsConfigProps) {
-  const c = (config as Record<string, unknown>) ?? {};
-  const template = readTemplate(config);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const [pendingFile, setPendingFile] = React.useState<File | null>(null);
-
-  const s3Key = template.s3_key?.trim() || null;
-  const { data: viewUrl, isLoading: viewUrlLoading } = useS3ViewUrl(s3Key);
-  const hasTemplate = Boolean(s3Key);
-  const isUploadingTemplate = false;
+export function BusinessDetailsConfig({
+  config,
+  onChange,
+  onPendingTemplateChange,
+  pendingTemplateFile = null,
+}: BusinessDetailsConfigProps) {
+  const [row, setRow] = React.useState<WorkflowDocumentRowShape>(() => readGuarantorAgreementRow(config));
 
   React.useEffect(() => {
-    if (template.s3_key?.trim()) {
-      setPendingFile(null);
-    }
-  }, [template.s3_key]);
+    setRow(readGuarantorAgreementRow(config));
+  }, [config]);
 
-  const setTemplate = (next: GuarantorAgreementTemplate | null) => {
-    const nextConfig = { ...c };
-    if (next == null || !next.s3_key) {
+  const effectivePendingFile = pendingTemplateFile;
+
+  const persist = React.useCallback(
+    (nextRow: WorkflowDocumentRowShape) => {
+      const base = (config as Record<string, unknown> | undefined) ?? {};
+      const nextConfig = { ...base };
       delete nextConfig.guarantor_agreement_template;
-    } else {
-      nextConfig.guarantor_agreement_template = {
-        s3_key: next.s3_key,
-        file_name: next.file_name ?? "",
-        ...(typeof next.file_size === "number" ? { file_size: next.file_size } : {}),
-      };
-    }
-    onChange(nextConfig);
+      nextConfig.guarantor_agreement = serializeGuarantorAgreementRow(nextRow);
+      onChange(nextConfig);
+    },
+    [config, onChange]
+  );
+
+  const updateRow = (updates: Partial<WorkflowDocumentRowShape>) => {
+    const next = { ...row, ...updates };
+    setRow(next);
+    persist(next);
   };
 
   const clearParentPending = () => onPendingTemplateChange?.("guarantor_agreement", 0, null);
@@ -88,123 +114,33 @@ export function BusinessDetailsConfig({ config, onChange, onPendingTemplateChang
     const file = e.target.files?.[0] ?? null;
     e.target.value = "";
     if (!file) return;
-    if (!isPdfFile(file)) {
-      toast.error("Template must be a PDF file (.pdf)");
-      return;
-    }
-    if (file.size > MAX_TEMPLATE_SIZE_BYTES) {
-      toast.error("Template must be 5MB or less");
-      return;
-    }
-    setPendingFile(file);
+    if (!validateOptionalWorkflowDocumentTemplateFile(file)) return;
     onPendingTemplateChange?.("guarantor_agreement", 0, file);
+    // Keep row settings in step config so Save merges template onto the full row shape.
+    persist(row);
   };
 
   const onTemplateRemove = () => {
-    clearParentPending();
-    setPendingFile(null);
-    if (template.s3_key) {
-      setTemplate(null);
+    if (effectivePendingFile) {
+      clearParentPending();
+      return;
     }
+    updateRow({ template: undefined });
   };
 
   return (
-    <div className="min-w-0 text-sm leading-6">
-      <Input
-        ref={fileInputRef}
-        type="file"
-        accept={ADMIN_GUARANTOR_TEMPLATE_ACCEPT}
-        onChange={onTemplateSelect}
-        disabled={isUploadingTemplate}
-        className="sr-only"
-        tabIndex={hasTemplate || pendingFile ? -1 : undefined}
-      />
-
-      <div className="font-medium text-foreground">Guarantor agreement</div>
-
-      <div className="mt-1 flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1 text-muted-foreground">
-        <span className="shrink-0">Optional template:</span>
-        <div className="flex min-w-0 flex-1 basis-[200px] flex-col gap-0.5">
-          {hasTemplate ? (
-            <>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
-                <span
-                  className="truncate min-w-0 max-w-full sm:max-w-[280px] text-foreground"
-                  title={template.file_name}
-                >
-                  {template.file_name || "template.pdf"}
-                </span>
-                <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 shrink-0">
-                  {viewUrlLoading ? (
-                    <Skeleton className="h-4 w-10 shrink-0" />
-                  ) : viewUrl ? (
-                    <a
-                      href={viewUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={templateLinkClass}
-                    >
-                      View
-                    </a>
-                  ) : null}
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploadingTemplate}
-                    className={templateLinkClass}
-                  >
-                    Change
-                  </button>
-                  <button type="button" onClick={onTemplateRemove} className={templateRemoveClass}>
-                    Remove
-                  </button>
-                </span>
-              </div>
-              {template.file_size != null ? (
-                <p className="m-0 text-xs text-muted-foreground tabular-nums">
-                  {formatFileSize(template.file_size)}
-                </p>
-              ) : null}
-            </>
-          ) : pendingFile ? (
-            <>
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
-                <span
-                  className="truncate min-w-0 max-w-full sm:max-w-[280px] text-foreground"
-                  title={pendingFile.name}
-                >
-                  {pendingFile.name}
-                </span>
-                <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploadingTemplate}
-                    className={templateLinkClass}
-                  >
-                    Change
-                  </button>
-                  <button type="button" onClick={onTemplateRemove} className={templateRemoveClass}>
-                    Remove
-                  </button>
-                </span>
-              </div>
-              <p className="m-0 text-xs text-muted-foreground tabular-nums">
-                {formatFileSize(pendingFile.size)}
-              </p>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploadingTemplate}
-              className={cn(templateUploadClass, "text-left font-normal p-0 h-auto")}
-            >
-              {isUploadingTemplate ? "Uploading…" : "Upload"}
-            </button>
-          )}
-        </div>
-      </div>
+    <div className={cn("min-w-0 pt-2 text-sm leading-6", SECTION_GAP)}>
+      <ul className={cn("flex flex-col", SECTION_GAP)}>
+        <WorkflowDocumentRowEditor
+          item={row}
+          index={0}
+          pendingFile={effectivePendingFile}
+          onUpdate={updateRow}
+          onTemplateSelect={onTemplateSelect}
+          onTemplateRemove={onTemplateRemove}
+          showRemove={false}
+        />
+      </ul>
     </div>
   );
 }

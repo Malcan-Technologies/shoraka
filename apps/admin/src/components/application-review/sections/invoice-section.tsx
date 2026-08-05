@@ -16,6 +16,8 @@ import { formatCurrency, resolveOfferedAmount } from "@cashsouk/config";
 import type { SoukscoreRiskRating } from "@cashsouk/types";
 
 export interface InvoiceSectionProps {
+  /** Live application id — used to resolve signed offer-letter availability from envelopes. */
+  applicationId?: string;
   invoices: {
     id: string;
     details?: unknown;
@@ -41,8 +43,9 @@ export interface InvoiceSectionProps {
   viewDocumentPending: boolean;
   invoiceRatioLimits?: { min: number; max: number };
   platformFeeRateCapPercent?: number | null;
-  offerExpiryDays?: number | null;
   minMonthsReviewToMaturityForOffer?: number | null;
+  /** Frozen product workflow — Send Offer acceptance-deadline preview. */
+  productWorkflow?: unknown;
   onApproveItem: (itemId: string) => Promise<void>;
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
@@ -58,7 +61,7 @@ export interface InvoiceSectionProps {
   isSendInvoiceOfferPending?: boolean;
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
-  onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => void | Promise<void>;
+  onViewSignedInvoiceOffer?: (invoiceId: string) => void | Promise<void>;
   sectionComparison?: {
     beforeInvoices: InvoiceSectionProps["invoices"];
     afterInvoices: InvoiceSectionProps["invoices"];
@@ -109,6 +112,7 @@ function invoiceFinancingRatioDisplay(inv: { details?: unknown } | undefined): s
 }
 
 export function InvoiceSection({
+  applicationId,
   invoices,
   readOnlyInvoiceIds,
   contractFacility,
@@ -122,8 +126,8 @@ export function InvoiceSection({
   viewDocumentPending,
   invoiceRatioLimits,
   platformFeeRateCapPercent,
-  offerExpiryDays,
   minMonthsReviewToMaturityForOffer,
+  productWorkflow,
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
@@ -235,6 +239,7 @@ export function InvoiceSection({
       )}
       {invoices?.length ? (
         <InvoiceList
+          applicationId={applicationId}
           invoices={invoices}
           readOnlyInvoiceIds={readOnlyInvoiceIds}
           reviewItems={reviewItems}
@@ -243,8 +248,8 @@ export function InvoiceSection({
           isViewDocumentPending={viewDocumentPending}
           invoiceRatioLimits={invoiceRatioLimits ?? { min: 60, max: 80 }}
           platformFeeRateCapPercent={platformFeeRateCapPercent}
-          offerExpiryDays={offerExpiryDays}
           minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
+          productWorkflow={productWorkflow}
           isActionLocked={isActionLocked}
           actionLockTooltip={actionLockTooltip}
           onApproveItem={onApproveItem}

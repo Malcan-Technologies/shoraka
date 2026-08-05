@@ -2037,6 +2037,8 @@ export class AdminRepository {
       ApplicationStatus.RESUBMITTED,
       ApplicationStatus.CONTRACT_PENDING,
       ApplicationStatus.CONTRACT_ACCEPTED,
+      ApplicationStatus.INVOICE_ACCEPTED,
+      ApplicationStatus.SIGNING_PENDING,
       ApplicationStatus.INVOICE_PENDING,
     ];
     const CONTRACT_OR_AMENDMENT: ApplicationStatus[] = [
@@ -2044,10 +2046,7 @@ export class AdminRepository {
       ApplicationStatus.INVOICES_SENT,
       ApplicationStatus.AMENDMENT_REQUESTED,
     ];
-    const APPROVED_DONE: ApplicationStatus[] = [
-      ApplicationStatus.APPROVED,
-      ApplicationStatus.COMPLETED,
-    ];
+    const APPROVED_DONE: ApplicationStatus[] = [ApplicationStatus.COMPLETED];
     const TERMINAL: ApplicationStatus[] = [
       ApplicationStatus.WITHDRAWN,
       ApplicationStatus.REJECTED,
@@ -2426,8 +2425,6 @@ export class AdminRepository {
       sourceApplicationId: string;
       sourceInvoiceId: string | null;
     }[];
-    offerSigning: unknown;
-    offerSigningHistory: unknown;
   } | null> {
     const contract = await prisma.contract.findUnique({
       where: { id },
@@ -2439,8 +2436,6 @@ export class AdminRepository {
         updated_at: true,
         contract_details: true,
         offer_details: true,
-        offer_signing: true,
-        offer_signing_history: true,
         customer_details: true,
         issuer_organization: {
           select: {
@@ -2584,8 +2579,6 @@ export class AdminRepository {
         sourceApplicationId: note.source_application_id,
         sourceInvoiceId: note.source_invoice_id,
       })),
-      offerSigning: contract.offer_signing,
-      offerSigningHistory: contract.offer_signing_history,
     };
   }
 
@@ -2898,6 +2891,21 @@ export class AdminRepository {
         submitted_at: null,
       },
       data: { remark, author_user_id: authorUserId, updated_at: new Date() },
+    });
+  }
+
+  /**
+   * Mark a committed REQUEST_AMENDMENT remark (immediate acceptance change, not draft buffer).
+   */
+  async markReviewRemarkSubmitted(applicationId: string, scope: string, scopeKey: string) {
+    return prisma.applicationReviewRemark.updateMany({
+      where: {
+        application_id: applicationId,
+        scope,
+        scope_key: scopeKey,
+        action_type: "REQUEST_AMENDMENT",
+      },
+      data: { submitted_at: new Date() },
     });
   }
 

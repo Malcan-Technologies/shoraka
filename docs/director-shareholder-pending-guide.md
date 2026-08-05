@@ -190,7 +190,7 @@ Main functions and files used for this behavior:
 - `apps/issuer/src/lib/director-shareholder-onboarding-ui.ts`
   - `areDirectorShareholdersReadyForApplicationSubmit`
 
-- `apps/issuer/src/app/(application-flow)/applications/edit/[id]/page.tsx`
+- `apps/issuer/src/app/(application-flow)/applications/[id]/edit/page.tsx`
   - Issuer submit button disable + toast message
 
 - `apps/api/src/modules/applications/director-shareholder-onboarding-guard.ts`

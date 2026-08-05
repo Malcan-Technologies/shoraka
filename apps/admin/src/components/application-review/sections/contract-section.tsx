@@ -20,14 +20,23 @@ import {
 } from "@/components/ui/dialog";
 import { MoneyInput } from "@cashsouk/ui";
 import { formatMoney, parseMoney } from "@cashsouk/ui";
-import { DocumentTextIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
+import {
+  DocumentTextIcon,
+  ArrowTopRightOnSquareIcon,
+  ArrowDownTrayIcon,
+} from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePatchContractCustomerLargePrivate } from "@/hooks/use-application-review-actions";
 import { format } from "date-fns";
 import { formatCurrency, resolveRequestedFacility, resolveOfferedFacility } from "@cashsouk/config";
+import {
+  getOfferPhaseDeadlineDisplay,
+  previewAcceptanceDeadlineFromWorkflow,
+} from "@cashsouk/types";
 import { ReviewSectionCard } from "../review-section-card";
 import { ReviewFieldBlock } from "../review-field-block";
+import { OfferAcceptanceDeadlineConfirmRows } from "../offer-acceptance-deadline-confirm-rows";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 import {
   reviewLabelClass,
@@ -80,6 +89,8 @@ export interface ContractSectionProps {
    * Used only as a prefill when `offer_details.facility_fee_rate_percent` is missing.
    */
   productDefaultFacilityFeeRatePercent?: number | null;
+  /** Frozen product workflow — used for Send Offer acceptance-deadline preview. */
+  productWorkflow?: unknown;
   isSendOfferPending?: boolean;
   onViewDocument?: (s3Key: string) => void;
   onDownloadDocument?: (s3Key: string, fileName?: string) => void;
@@ -123,6 +134,7 @@ export function ContractSection({
   onRequestAmendment,
   onSendOffer,
   productDefaultFacilityFeeRatePercent,
+  productWorkflow,
   isSendOfferPending,
   onViewDocument,
   onDownloadDocument,
@@ -150,7 +162,6 @@ export function ContractSection({
   const cust = liveCustomerDetails;
 
   const contractDoc = cd?.document as FileDoc | undefined;
-  const customerDoc = cust?.document as FileDoc | undefined;
   const requestedFacility = resolveRequestedFacility(cd);
   const contractValue = typeof cd?.value === "number" ? cd.value : 0;
   const persistedOffered = resolveOfferedFacility(offer);
@@ -184,12 +195,15 @@ export function ContractSection({
     }
     return null;
   })();
+  const phaseDeadlineDisplay =
+    contractRowStatus === "OFFER_SENT" || contractRowStatus === "OFFER_EXPIRED"
+      ? getOfferPhaseDeadlineDisplay(offerDetails)
+      : null;
   const isContractOfferSendLocked =
     contractRowStatus === "OFFER_SENT" ||
     contractRowStatus === "WITHDRAWN" ||
     contractRowStatus === "APPROVED" ||
-    contractRowStatus === "REJECTED" ||
-    offerSentAtRaw != null;
+    contractRowStatus === "REJECTED";
   const seedOfferedInput = persistedOffered > 0 ? formatMoney(persistedOffered) : "";
   const [offeredFacilityInput, setOfferedFacilityInput] = React.useState<string>(seedOfferedInput);
   const seedFacilityFeeRatePercent =
@@ -202,6 +216,7 @@ export function ContractSection({
     seedFacilityFeeInput
   );
   const [contractOfferConfirmOpen, setContractOfferConfirmOpen] = React.useState(false);
+  const acceptanceDeadlinePreview = previewAcceptanceDeadlineFromWorkflow(productWorkflow);
 
   React.useEffect(() => {
     setOfferedFacilityInput(persistedOffered > 0 ? formatMoney(persistedOffered) : "");
@@ -450,15 +465,6 @@ export function ContractSection({
               onDownloadDocument={onDownloadDocument}
               viewDocumentPending={viewDocumentPending}
             />
-            <ComparisonDocumentTitleRow
-              title="Customer Consent"
-              beforeFiles={fileDocToComparisonChips(bCust?.document as FileDoc | undefined)}
-              afterFiles={fileDocToComparisonChips(aCust?.document as FileDoc | undefined)}
-              markChanged={isPathChanged("contract")}
-              onViewDocument={onViewDocument}
-              onDownloadDocument={onDownloadDocument}
-              viewDocumentPending={viewDocumentPending}
-            />
           </div>
         </ReviewFieldBlock>
         {!hideSectionComments ? (
@@ -541,6 +547,20 @@ export function ContractSection({
                   </div>
                   {offerTimelineLine ? (
                     <p className="text-xs text-muted-foreground tabular-nums">{offerTimelineLine}</p>
+                  ) : null}
+                  {phaseDeadlineDisplay ? (
+                    <p
+                      className={cn(
+                        "text-xs tabular-nums",
+                        phaseDeadlineDisplay.urgency === "past"
+                          ? "font-medium text-destructive"
+                          : phaseDeadlineDisplay.urgency === "soon"
+                            ? "font-medium text-amber-800"
+                            : "text-muted-foreground"
+                      )}
+                    >
+                      {phaseDeadlineDisplay.summary}
+                    </p>
                   ) : null}
                   {offeredFacilityNotPositive && (
                     <p className="text-sm text-destructive">
@@ -741,36 +761,21 @@ export function ContractSection({
                       View
                     </Button>
                   )}
+                  {contractDoc?.s3_key && onDownloadDocument && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-lg h-9 gap-1"
+                      onClick={() =>
+                        onDownloadDocument(contractDoc.s3_key!, contractDoc.file_name)
+                      }
+                      disabled={viewDocumentPending}
+                    >
+                      <ArrowDownTrayIcon className="h-4 w-4" />
+                      Download
+                    </Button>
+                  )}
                 </div>
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-input bg-background px-4 py-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground">Customer Consent</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {customerDoc?.file_name
-                        ? `${customerDoc.file_name}${
-                            customerDoc.file_size
-                              ? ` (${formatFileSize(customerDoc.file_size)})`
-                              : ""
-                          }`
-                        : REVIEW_EMPTY_LABEL}
-                    </div>
-                  </div>
-                </div>
-                {customerDoc?.s3_key && onViewDocument && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-lg h-9 gap-1 shrink-0"
-                    onClick={() => onViewDocument(customerDoc.s3_key!)}
-                    disabled={viewDocumentPending}
-                  >
-                    <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                    View
-                  </Button>
-                )}
               </div>
             </div>
           </ReviewFieldBlock>
@@ -807,6 +812,9 @@ export function ContractSection({
               <span className="text-muted-foreground">Offered facility</span>
               <span className="font-medium tabular-nums">{formatCurrency(offeredFacility)}</span>
             </div>
+            {acceptanceDeadlinePreview ? (
+              <OfferAcceptanceDeadlineConfirmRows preview={acceptanceDeadlinePreview} />
+            ) : null}
             {offeredExceedsContractValue && (
               <p className="mt-2 text-sm text-destructive">
                 Offered facility cannot exceed contract value.

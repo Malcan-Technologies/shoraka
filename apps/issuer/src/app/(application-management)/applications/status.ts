@@ -53,8 +53,9 @@
  *   should be able to filter by it.
  *
  * SECTION C — LIST ORDER
- *   getSortOrder uses STATUS[].sortOrder. When we sort the list of cards, we
- *   use this. Lower number = higher in the list.
+ *   Unfiltered list sorts by APPLICATION_STATUS_PRIORITY (badge key), then
+ *   updatedAt newest first. Keep STATUS[].sortOrder in sync with that map.
+ *   Lower number = higher in the list.
  *
  * =============================================================================
  * PART 4 — TO ADD A NEW STATUS (step by step)
@@ -87,7 +88,11 @@
  *   Add "PENDING_DISBURSEMENT" in the right place in the array.
  */
 
-import { WithdrawReason } from "@cashsouk/types";
+import {
+  offerAcceptanceAllowsIssuerReviewCta,
+  WithdrawReason,
+  type OfferAcceptanceStatus,
+} from "@cashsouk/types";
 import {
   getStatusPresentationByBadgeKey,
   getStatusColorAndLabel,
@@ -116,13 +121,13 @@ export interface NormalizedInvoice {
   platformFee: string;
   profitRate: string;
   status: string;
-  offerStatus: "Offer received" | null;
+  offerStatus: "Offer received" | "Offer expired" | null;
   canReviewOffer: boolean;
   /** Raw offer details from API for modal display. */
   offer_details?: Record<string, unknown> | null;
-  /** True when SigningCloud signed PDF is stored (offer_signing.status === signed). */
+  /** True when invoice offer was accepted after signing envelope completion. */
   signedOfferLetterAvailable: boolean;
-  /** S3 key for signed offer letter when available. */
+  /** S3 key for invoice signed offer letter when available. */
   signedOfferLetterS3Key: string | null;
   /** When status is WITHDRAWN: distinguishes user decline vs withdraw vs expiry (issuer UI). */
   withdrawReason?: WithdrawReason;
@@ -131,11 +136,30 @@ export interface NormalizedInvoice {
    * Populated from API when available; used only for Rejected / Declined invoice badges.
    */
   reasonOrRemarks?: string | null;
+  /** Offer acceptance phase from invoice offer_details when present. */
+  offerAcceptanceStatus?: string | null;
+}
+
+/** Badge key for an invoice row, accounting for offer_acceptance while entity stays OFFER_SENT. */
+export function resolveNormalizedInvoiceBadgeKey(
+  inv: NormalizedInvoice,
+  application?: Pick<NormalizedApplication, "offerAcceptanceStatus">
+): string {
+  const acceptanceStatus =
+    inv.offerAcceptanceStatus ??
+    (String(inv.status ?? "").toUpperCase() === "OFFER_SENT"
+      ? application?.offerAcceptanceStatus
+      : null);
+  return resolveIssuerInvoiceStatusBadgeKey(
+    inv.status,
+    inv.withdrawReason,
+    acceptanceStatus
+  );
 }
 
 /** True when the invoice badge is Rejected or Declined (issuer can open reason/remarks from the row menu). */
 export function issuerInvoiceCanViewReasonRemarks(inv: NormalizedInvoice): boolean {
-  const badge = resolveIssuerInvoiceStatusBadgeKey(inv.status, inv.withdrawReason);
+  const badge = resolveNormalizedInvoiceBadgeKey(inv);
   return badge === "rejected" || badge === "declined";
 }
 
@@ -163,14 +187,21 @@ export interface NormalizedApplication {
   contractStatus: string | null;
   /** Issuer organization ID for query invalidation. */
   issuerOrganizationId?: string;
+  /** Product ID selected when the application was created. Used to load workflow config for post-offer tasks. */
+  productId?: string | null;
+  supportingDocuments?: unknown;
   /** Withdraw reason when status is withdrawn. From contract or invoice. */
   withdrawReason?: WithdrawReason;
   /** Offer expiry (contract or invoice). ISO string. Used for expiry indicator and filter. */
   expiresAt?: string | null;
-  /** True when contract has a stored signed offer letter PDF. */
+  /** True when contract offer was accepted after signing envelope completion. */
   signedContractOfferLetterAvailable: boolean;
   /** S3 key for contract signed offer letter when available. */
   signedContractOfferLetterS3Key: string | null;
+  /** Active accept/signing deadline for the primary OFFER_SENT offer, if stamped. */
+  offerPhaseDeadline?: import("@/lib/offer-utils").OfferPhaseDeadlineDisplay | null;
+  /** Primary offer acceptance phase (contract or invoice-only offer), when present. */
+  offerAcceptanceStatus?: string | null;
 }
 
 /* =============================================================================
@@ -191,24 +222,22 @@ export const STATUS: Record<
   string,
   { label: string; color: string; sortOrder: number }
 > = {
-  rejected: { label: "Rejected", color: statusColorClass("rejected"), sortOrder: 1 },
+  offer_sent: { label: "Offer Received", color: statusColorClass("offer_sent"), sortOrder: 1 },
   amendment_requested: { label: "Action Required", color: statusColorClass("amendment_requested"), sortOrder: 2 },
-  offer_sent: { label: "Offer Received", color: statusColorClass("offer_sent"), sortOrder: 3 },
-  under_review: { label: "Under Review", color: statusColorClass("under_review"), sortOrder: 4 },
+  draft: { label: "Draft", color: statusColorClass("draft"), sortOrder: 3 },
+  resubmitted: { label: "Resubmitted", color: statusColorClass("resubmitted"), sortOrder: 4 },
   submitted: { label: "Submitted", color: statusColorClass("submitted"), sortOrder: 5 },
-  resubmitted: { label: "Resubmitted", color: statusColorClass("resubmitted"), sortOrder: 6 },
-  draft: { label: "Draft", color: statusColorClass("draft"), sortOrder: 7 },
-  accepted: { label: "Approved", color: statusColorClass("accepted"), sortOrder: 8 },
-  approved: { label: "Approved", color: statusColorClass("approved"), sortOrder: 8 },
-  completed: { label: "Completed", color: statusColorClass("completed"), sortOrder: 9 },
-  withdrawn: { label: "Withdrawn", color: statusColorClass("withdrawn"), sortOrder: 10 },
-  declined: { label: "Declined", color: statusColorClass("declined"), sortOrder: 10 },
-  offer_expired: { label: "Offer Expired", color: statusColorClass("offer_expired"), sortOrder: 10 },
+  under_review: { label: "Under Review", color: statusColorClass("under_review"), sortOrder: 6 },
+  offer_expired: { label: "Offer Expired", color: statusColorClass("offer_expired"), sortOrder: 7 },
+  completed: { label: "Completed", color: statusColorClass("completed"), sortOrder: 8 },
+  declined: { label: "Declined", color: statusColorClass("declined"), sortOrder: 9 },
+  withdrawn: { label: "Withdrawn", color: statusColorClass("withdrawn"), sortOrder: 9 },
+  rejected: { label: "Rejected", color: statusColorClass("rejected"), sortOrder: 10 },
   archived: { label: "Archived", color: statusColorClass("archived"), sortOrder: 11 },
 };
 
 export function getSortOrder(status: string): number {
-  return STATUS[status]?.sortOrder ?? 999;
+  return APPLICATION_STATUS_PRIORITY[status] ?? STATUS[status]?.sortOrder ?? 999;
 }
 
 /** Re-export for consumers that need badge key mapping. */
@@ -234,7 +263,6 @@ export const FILTER_STATUSES = [
   "under_review",
   "amendment_requested",
   "offer_sent",
-  "accepted",
   "completed",
   "withdrawn",
   "declined",
@@ -272,6 +300,10 @@ function hasOfferSent(invoiceStatuses: string[]): boolean {
   return invoiceStatuses.some((s) => String(s ?? "").toUpperCase() === "OFFER_SENT");
 }
 
+function hasOfferExpired(invoiceStatuses: string[]): boolean {
+  return invoiceStatuses.some((s) => String(s ?? "").toUpperCase() === "OFFER_EXPIRED");
+}
+
 /* =============================================================================
    SECTION E — getCardStatus (urgency-driven, application.status is source of truth)
    Priority: 1) Terminal states (app only), 2) Action Required, 3) Offer Waiting, 4) Normal lifecycle.
@@ -283,6 +315,8 @@ export function getCardStatus(input: {
   contractStatus?: string | null;
   invoiceStatuses: string[];
   withdrawReason?: WithdrawReason;
+  /** Primary offer acceptance phase (contract or invoice-only offer). */
+  offerAcceptanceStatus?: string | null;
 }): CardStatusResult {
   const app = String(input.applicationStatus ?? "DRAFT").toUpperCase();
   const contract = input.contractStatus ? String(input.contractStatus).toUpperCase() : null;
@@ -291,6 +325,9 @@ export function getCardStatus(input: {
   const anyInvoiceOfferSent = hasOfferSent(invoiceStatuses);
   const contractAmendmentRequested = contract === "AMENDMENT_REQUESTED";
   const contractOfferSent = contract === "OFFER_SENT";
+  const acceptanceStatus = input.offerAcceptanceStatus
+    ? String(input.offerAcceptanceStatus).toUpperCase()
+    : null;
 
   /** Terminal states: always from application.status. Invoices/contract must NOT override. */
   if (app === "REJECTED") {
@@ -304,10 +341,15 @@ export function getCardStatus(input: {
     if (wr === WithdrawReason.OFFER_REJECTED) {
       return { badgeKey: "declined", displayLabel: "Declined", showReviewOffer: false, showMakeAmendments: false };
     }
-    if (wr === WithdrawReason.OFFER_EXPIRED) {
-      return { badgeKey: "offer_expired", displayLabel: "Offer Expired", showReviewOffer: false, showMakeAmendments: false };
-    }
     return { badgeKey: "withdrawn", displayLabel: "Withdrawn", showReviewOffer: false, showMakeAmendments: false };
+  }
+  if (app === "OFFER_EXPIRED") {
+    return {
+      badgeKey: "offer_expired",
+      displayLabel: "Offer Expired",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    };
   }
   if (app === "ARCHIVED") {
     return { badgeKey: "archived", displayLabel: "Archived", showReviewOffer: false, showMakeAmendments: false };
@@ -321,12 +363,58 @@ export function getCardStatus(input: {
     return { badgeKey: "amendment_requested", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: false };
   }
 
-  /** Offer Waiting: contract or any invoice has OFFER_SENT. Card-level Review Offer only for contract offers. */
+  /** Durable offer expiry (entity status) — same presentation as past-deadline soft window. */
+  if (contract === "OFFER_EXPIRED" || hasOfferExpired(invoiceStatuses)) {
+    return {
+      badgeKey: "offer_expired",
+      displayLabel: "Offer Expired",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    };
+  }
+
+  /** Offer Waiting: contract or any invoice has OFFER_SENT. */
   if (contractOfferSent || anyInvoiceOfferSent) {
+    // Issuer still owns Step 1 (upload/amend) and Step 3 (signing package) — keep Offer Received
+    // so these cards sort above Under Review in the list.
+    const issuerMustActOnOffer =
+      acceptanceStatus === "PENDING_ISSUER" ||
+      acceptanceStatus === "CHANGES_REQUESTED" ||
+      acceptanceStatus === "APPROVED_FOR_SIGNING" ||
+      acceptanceStatus === "SIGNING_IN_PROGRESS";
+    const showReviewOffer =
+      (contractOfferSent || anyInvoiceOfferSent) &&
+      offerAcceptanceAllowsIssuerReviewCta(acceptanceStatus as OfferAcceptanceStatus | null);
+    const changesRequested = acceptanceStatus === "CHANGES_REQUESTED";
+
+    if (issuerMustActOnOffer) {
+      return {
+        badgeKey: "offer_sent",
+        displayLabel: changesRequested ? "Changes Requested" : "Offer Received",
+        showReviewOffer,
+        showMakeAmendments: false,
+      };
+    }
+
+    const awaitingAdminOrDone =
+      acceptanceStatus === "PENDING_ADMIN_REVIEW" ||
+      acceptanceStatus === "COMPLETED" ||
+      app === "CONTRACT_ACCEPTED" ||
+      app === "INVOICE_ACCEPTED";
+
+    if (awaitingAdminOrDone) {
+      return {
+        badgeKey: "under_review",
+        displayLabel: "Under Review",
+        showReviewOffer: false,
+        showMakeAmendments: false,
+      };
+    }
+
     return {
       badgeKey: "offer_sent",
       displayLabel: "Offer Received",
-      showReviewOffer: contractOfferSent,
+      showReviewOffer,
       showMakeAmendments: false,
     };
   }
@@ -337,6 +425,8 @@ export function getCardStatus(input: {
     app === "CONTRACT_PENDING" ||
     app === "CONTRACT_SENT" ||
     app === "CONTRACT_ACCEPTED" ||
+    app === "INVOICE_ACCEPTED" ||
+    app === "SIGNING_PENDING" ||
     app === "INVOICE_PENDING" ||
     app === "INVOICES_SENT"
   ) {
@@ -350,7 +440,6 @@ export function getCardStatus(input: {
   if (app === "SUBMITTED") return { badgeKey: "submitted", displayLabel: "Submitted", showReviewOffer: false, showMakeAmendments: false };
   if (app === "RESUBMITTED") return { badgeKey: "resubmitted", displayLabel: "Resubmitted", showReviewOffer: false, showMakeAmendments: false };
   if (app === "DRAFT") return { badgeKey: "draft", displayLabel: "Draft", showReviewOffer: false, showMakeAmendments: false };
-  if (app === "APPROVED") return { badgeKey: "accepted", displayLabel: "Approved", showReviewOffer: false, showMakeAmendments: false };
 
   return { badgeKey: "draft", displayLabel: "Draft", showReviewOffer: false, showMakeAmendments: false };
 }
@@ -375,12 +464,6 @@ export function countPendingIssuerOfferReviewItems(app: NormalizedApplication): 
   return n;
 }
 
-export function countPendingIssuerOfferReviewsAcross(
-  apps: readonly NormalizedApplication[]
-): number {
-  return apps.reduce((sum, app) => sum + countPendingIssuerOfferReviewItems(app), 0);
-}
-
 /** True when the issuer still needs to act (offer response and/or amendments). */
 export function isIssuerApplicationActionable(app: NormalizedApplication): boolean {
   const key = (app.cardStatus.badgeKey ?? "").toLowerCase();
@@ -400,21 +483,22 @@ export function countIssuerApplicationsNeedingAction(
 }
 
 /**
- * Urgency-based sort order. Lower = higher in list.
- * UX order: 1) Needs action, 2) In progress, 3) Draft, 4) Success, 5) Closed.
+ * Urgency-based sort order for the unfiltered issuer list. Lower = higher in list.
+ * Tie-break: updatedAt DESC (see use-applications-data sort).
+ * Order: time-sensitive issuer action → other issuer action → draft → waiting →
+ * expired awareness → success → soft close → hard close.
  */
 export const APPLICATION_STATUS_PRIORITY: Record<string, number> = Object.freeze({
-  amendment_requested: 1,
-  offer_sent: 2,
-  under_review: 3,
-  submitted: 4,
-  resubmitted: 5,
-  draft: 6,
-  accepted: 7,
+  offer_sent: 1,
+  amendment_requested: 2,
+  draft: 3,
+  resubmitted: 4,
+  submitted: 5,
+  under_review: 6,
+  offer_expired: 7,
   completed: 8,
-  withdrawn: 9,
   declined: 9,
-  offer_expired: 9,
+  withdrawn: 9,
   rejected: 10,
   archived: 11,
 });

@@ -82,6 +82,11 @@ const guarantorAgreementSchema = z
   })
   .strict();
 
+const guarantorAgreementFieldSchema = z.union([
+  guarantorAgreementSchema,
+  z.array(guarantorAgreementSchema).min(1),
+]);
+
 const guarantorIndividualSchema = z.object({
   guarantor_type: z.literal("individual"),
   reference_id: z.string().min(1),
@@ -104,7 +109,7 @@ const guarantorIndividualSchema = z.object({
     .refine((c) => c.length === 2 && isRegtankIso3166Code(c), {
       message: "Nationality must be a valid RegTank ISO 3166 country code",
     }),
-  guarantor_agreement: guarantorAgreementSchema.optional(),
+  guarantor_agreement: guarantorAgreementFieldSchema.optional(),
 });
 
 const guarantorCompanySchema = z.object({
@@ -114,7 +119,7 @@ const guarantorCompanySchema = z.object({
   business_name: z.string().min(1).max(200),
   ssm_number: z.string().min(1).max(50),
   relationship: z.enum([...GUARANTOR_COMPANY_RELATIONSHIPS] as [GuarantorCompanyRelationship, ...GuarantorCompanyRelationship[]]),
-  guarantor_agreement: guarantorAgreementSchema.optional(),
+  guarantor_agreement: guarantorAgreementFieldSchema.optional(),
 });
 
 const guarantorEntrySchema = z.discriminatedUnion("guarantor_type", [

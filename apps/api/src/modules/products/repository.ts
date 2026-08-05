@@ -15,7 +15,6 @@ export interface UpdateProductData {
   workflow?: unknown[];
   /** When true, replace workflow without incrementing version (used only for the first update right after create). */
   completeCreate?: boolean;
-  offer_expiry_days?: number | null;
   marketplace_listing_duration_days?: number | null;
   service_fee_rate_percent?: number | null;
   default_facility_fee_rate_percent?: number | null;
@@ -23,7 +22,6 @@ export interface UpdateProductData {
 
 export interface CreateProductData {
   workflow: unknown[];
-  offer_expiry_days?: number | null;
   marketplace_listing_duration_days?: number | null;
   service_fee_rate_percent?: number | null;
   default_facility_fee_rate_percent?: number | null;
@@ -65,6 +63,28 @@ export class ProductRepository {
     return prisma.product.findUnique({
       where: { id },
     });
+  }
+
+  /**
+   * Resolve the product row for a frozen application.product_version within the same
+   * base_id family as `productId` (includes INACTIVE historical versions).
+   */
+  async findByBaseAndVersion(productId: string, version: number): Promise<Product | null> {
+    const row = await this.findById(productId);
+    if (!row || row.status === "DELETED") return null;
+
+    if (row.version === version) return row;
+
+    const baseId = row.base_id ?? row.id;
+    const byVersion = await prisma.product.findFirst({
+      where: {
+        base_id: baseId,
+        version,
+        status: { not: "DELETED" },
+      },
+      orderBy: { created_at: "desc" },
+    });
+    return byVersion;
   }
 
   /**
@@ -138,7 +158,6 @@ export class ProductRepository {
           workflow: data.workflow as Prisma.InputJsonValue,
           category_display_order: categoryDisplayOrder,
           product_display_order: nextProductOrder,
-          offer_expiry_days: data.offer_expiry_days ?? undefined,
           marketplace_listing_duration_days: data.marketplace_listing_duration_days ?? undefined,
           service_fee_rate_percent:
             data.service_fee_rate_percent != null ? new Prisma.Decimal(data.service_fee_rate_percent) : undefined,
@@ -171,7 +190,6 @@ export class ProductRepository {
               workflow: JSON.parse(JSON.stringify(createdAny.workflow)),
               category_display_order: createdAny.category_display_order ?? null,
               product_display_order: createdAny.product_display_order ?? null,
-              offer_expiry_days: createdAny.offer_expiry_days ?? null,
               marketplace_listing_duration_days: createdAny.marketplace_listing_duration_days ?? null,
               service_fee_rate_percent: createdAny.service_fee_rate_percent ?? null,
               default_facility_fee_rate_percent: createdAny.default_facility_fee_rate_percent ?? null,
@@ -197,7 +215,6 @@ export class ProductRepository {
   async update(id: string, data: UpdateProductData, logContext?: LogContext): Promise<Product> {
     if (
       data.workflow === undefined &&
-      data.offer_expiry_days === undefined &&
       data.marketplace_listing_duration_days === undefined &&
       data.service_fee_rate_percent === undefined &&
       data.default_facility_fee_rate_percent === undefined
@@ -210,10 +227,6 @@ export class ProductRepository {
     }
     const currentWorkflow = current.workflow as unknown;
     const workflowUnchanged = data.workflow === undefined || workflowDeepEqual(data.workflow, currentWorkflow);
-    const currentOfferExpiry = (current as { offer_expiry_days?: number | null }).offer_expiry_days ?? null;
-    const offerExpiryUnchanged =
-      data.offer_expiry_days === undefined ||
-      (data.offer_expiry_days === currentOfferExpiry || (data.offer_expiry_days == null && currentOfferExpiry == null));
     const currentMarketplaceListingDuration = (current as {
       marketplace_listing_duration_days?: number | null;
     }).marketplace_listing_duration_days ?? null;
@@ -240,7 +253,6 @@ export class ProductRepository {
 
     if (
       workflowUnchanged &&
-      offerExpiryUnchanged &&
       marketplaceListingDurationUnchanged &&
       serviceFeeRatePercentUnchanged &&
       defaultFacilityFeeRatePercentUnchanged
@@ -251,8 +263,6 @@ export class ProductRepository {
     /** completeCreate: first update after create (merge image/template keys). In-place update only; no new version row. */
     if (data.completeCreate === true) {
       const workflowPayload = (data.workflow === undefined ? current.workflow : data.workflow) as Prisma.InputJsonValue;
-      const offerExpiryPayload =
-        data.offer_expiry_days !== undefined ? data.offer_expiry_days : (current as { offer_expiry_days?: number | null }).offer_expiry_days ?? null;
       const marketplaceListingDurationPayload =
         data.marketplace_listing_duration_days !== undefined
           ? data.marketplace_listing_duration_days
@@ -261,7 +271,6 @@ export class ProductRepository {
         where: { id },
         data: {
           workflow: workflowPayload,
-          offer_expiry_days: offerExpiryPayload ?? undefined,
           marketplace_listing_duration_days: marketplaceListingDurationPayload ?? undefined,
           service_fee_rate_percent:
             data.service_fee_rate_percent !== undefined
@@ -287,7 +296,6 @@ export class ProductRepository {
           workflow: JSON.parse(JSON.stringify(updatedAny.workflow)),
           category_display_order: updatedAny.category_display_order ?? null,
           product_display_order: updatedAny.product_display_order ?? null,
-          offer_expiry_days: updatedAny.offer_expiry_days ?? null,
             marketplace_listing_duration_days: updatedAny.marketplace_listing_duration_days ?? null,
           service_fee_rate_percent: updatedAny.service_fee_rate_percent ?? null,
             default_facility_fee_rate_percent: updatedAny.default_facility_fee_rate_percent ?? null,
@@ -315,8 +323,6 @@ export class ProductRepository {
 
     const newVersion = current.version + 1;
     const workflowPayload = (data.workflow === undefined ? current.workflow : data.workflow) as Prisma.InputJsonValue;
-    const offerExpiryPayload =
-      data.offer_expiry_days !== undefined ? data.offer_expiry_days : (current as { offer_expiry_days?: number | null }).offer_expiry_days ?? null;
     const marketplaceListingDurationPayload =
       data.marketplace_listing_duration_days !== undefined
         ? data.marketplace_listing_duration_days
@@ -411,7 +417,6 @@ export class ProductRepository {
           workflow: workflowPayload,
           category_display_order: categoryDisplayOrder,
           product_display_order: productDisplayOrder,
-          offer_expiry_days: offerExpiryPayload ?? undefined,
           marketplace_listing_duration_days: marketplaceListingDurationPayload ?? undefined,
           service_fee_rate_percent: serviceFeeRatePercentPayload ?? undefined,
           default_facility_fee_rate_percent: defaultFacilityFeeRatePercentPayload ?? undefined,
@@ -426,7 +431,6 @@ export class ProductRepository {
           workflow: JSON.parse(JSON.stringify(createdAny.workflow)),
           category_display_order: createdAny.category_display_order ?? null,
           product_display_order: createdAny.product_display_order ?? null,
-          offer_expiry_days: createdAny.offer_expiry_days ?? null,
           marketplace_listing_duration_days: createdAny.marketplace_listing_duration_days ?? null,
           service_fee_rate_percent: createdAny.service_fee_rate_percent ?? null,
             default_facility_fee_rate_percent: createdAny.default_facility_fee_rate_percent ?? null,
@@ -467,7 +471,6 @@ export class ProductRepository {
           workflow: JSON.parse(JSON.stringify(currentAny.workflow)),
           category_display_order: currentAny.category_display_order ?? null,
           product_display_order: currentAny.product_display_order ?? null,
-          offer_expiry_days: currentAny.offer_expiry_days ?? null,
           marketplace_listing_duration_days: currentAny.marketplace_listing_duration_days ?? null,
           version: currentAny.version,
           base_id: currentAny.base_id ?? null,

@@ -56,8 +56,8 @@ This guide explains:
 | `contract_offer_sent` | Yes | Admin `sendContractOffer` | Send contract offer from admin application review. |
 | `invoice_offer_sent` | Yes | Admin `sendInvoiceOffer` | Send invoice offer from admin application review. |
 | `offer_retracted_or_reset` | Yes | Admin reset/retract flows | Reset contract/invoice offer to pending after sending it. |
-| `offer_expired` | Yes | Offer expiry job | Create expired offer data and run offer expiry job manually. |
-| `offer_expiry_reminder_24h` | Yes | Offer expiry job (24h window reminder) | Create offer expiring within next 24h, run offer expiry job manually. |
+| `offer_expired` | Yes | Acceptance/signing expiry job (durable `OFFER_EXPIRED`) | `pnpm seed-expired-acceptance-deadline-for-test` then `pnpm run-acceptance-signing-expiry`. |
+| `offer_expiry_reminder_24h` | Yes | Same job (configurable `days_before_expiry`; delivery hour from Platform Finance → Offer Deadlines, default 09:00 MYT) | `pnpm seed-reminder-window-acceptance-deadline-for-test` then `pnpm run-acceptance-signing-expiry`. |
 | `application_resubmitted_confirmation` | Yes | Issuer resubmit flow | In issuer portal, resubmit an amended application. |
 | `application_withdrawn_confirmation` | Yes | Issuer cancellation/offer-reject withdrawal path | Cancel application or reject offer in issuer portal. |
 | `application_completed` | Yes | Issuer offer acceptance completion path | Accept final required offer(s) until application becomes `COMPLETED`. |
@@ -69,26 +69,25 @@ This guide explains:
 Run from repo root:
 
 ```bash
-pnpm --filter @cashsouk/api run run-offer-expiry
+pnpm --filter @cashsouk/api run run-acceptance-signing-expiry
 ```
 
 Notes:
 
 - This command processes both:
-  - expired offer notifications (`offer_expired`)
-  - 24h reminder notifications (`offer_expiry_reminder_24h`)
+  - expired offer notifications (`offer_expired`) after durable `OFFER_EXPIRED`  - configurable reminders (`offer_expiry_reminder_24h` type id; copy uses `daysBeforeExpiry`)
 ## Suggested smoke test checklist
 
 - Issuer app:
   - [ ] Send amendment request -> issuer receives `application_amendments_requested`
   - [ ] Resubmit from issuer -> `application_resubmitted_confirmation`
-  - [ ] Send contract offer -> `contract_offer_sent`
+  - [ ] Send contract offer -> `contract_offer_sent` (includes Accept by when stamped)
   - [ ] Reset/retract contract offer -> `offer_retracted_or_reset`
   - [ ] Approve application -> `application_approved`
   - [ ] Reject application -> `application_rejected`
 - Scheduled:
-  - [ ] Expired offer -> `offer_expired`
-  - [ ] Offer expiring in 24h -> `offer_expiry_reminder_24h`
+  - [ ] Past deadline then job expiry -> `offer_expired` + timeline `*_OFFER_EXPIRED`
+  - [ ] Reminder window -> `offer_expiry_reminder_24h`
 
 ---
 
@@ -100,7 +99,7 @@ Notes:
 - Trigger sources:
   - `apps/api/src/modules/admin/service.ts`
   - `apps/api/src/modules/applications/service.ts`
-  - `apps/api/src/lib/jobs/offer-expiry.ts`
+  - `apps/api/src/lib/jobs/acceptance-signing-expiry.ts`
   - `apps/api/src/modules/auth/service.ts`
   - `apps/api/src/modules/regtank/webhooks/cod-handler.ts`
   - `apps/api/src/modules/regtank/webhooks/individual-onboarding-handler.ts`

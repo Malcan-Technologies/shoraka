@@ -57,6 +57,7 @@ import { Button } from "@/components/ui/button";
 import { formatRemarkAsBullets } from "@/lib/utils";
 import { getReviewTabLabel } from "@/components/application-review/review-registry";
 import { formatCurrency } from "@cashsouk/config";
+import { getItemDisplayNameFromScopeKey, formatPhaseDeadlineAbsolute } from "@cashsouk/types";
 import type {
   ResubmitChangesMetadata,
   ResubmitFieldChangeItem,
@@ -81,41 +82,13 @@ type ActivityMetadata = {
   offered_ratio_percent?: number | null;
   offered_profit_rate_percent?: number | null;
   expires_at?: string | null;
+  acceptance_expires_at?: string | null;
   rejection_reason?: string;
   resubmit_changes?: ResubmitChangesMetadata;
 };
 
 function formatItemLabelFromScopeKey(scopeKey: string): string {
-  if (!scopeKey) return "Item";
-
-  const parts = scopeKey.split(":");
-  const lastPart = parts[parts.length - 1] ?? "";
-
-  if (
-    scopeKey.startsWith("invoice_details:") ||
-    scopeKey.startsWith("invoice:")
-  ) {
-    return lastPart ? `Invoice ${lastPart}` : "Invoice";
-  }
-
-  if (
-    scopeKey.startsWith("supporting_documents:") ||
-    scopeKey.startsWith("document:")
-  ) {
-    if (!lastPart) return "Document";
-    return lastPart
-      .replace(/_/g, " ")
-      .split(" ")
-      .filter(Boolean)
-      .map((word) =>
-        word.length > 1 && word === word.toUpperCase()
-          ? word
-          : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-      )
-      .join(" ");
-  }
-
-  return "Item";
+  return getItemDisplayNameFromScopeKey(scopeKey);
 }
 
 /**
@@ -157,6 +130,7 @@ function formatResubmitTabsOnlyActivity({
     "company_details",
     "business_details",
     "supporting_documents",
+    "acceptance_documents",
     "contract_details",
     "invoice_details",
   ];
@@ -200,6 +174,12 @@ function getEventIcon(eventType: string): React.ReactElement {
       return <ArrowPathIcon className="h-3.5 w-3.5 text-muted-foreground" />;
     case "CONTRACT_OFFER_SENT":
     case "INVOICE_OFFER_SENT":
+    case "CONTRACT_OFFER_ACCEPTANCE_SUBMITTED":
+    case "INVOICE_OFFER_ACCEPTANCE_SUBMITTED":
+    case "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING":
+    case "INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING":
+    case "SIGNING_PACKAGE_CREATED":
+    case "SIGNING_PACKAGE_SENT":
     case "CONTRACT_OFFER_ACCEPTED":
     case "INVOICE_OFFER_ACCEPTED":
       return <PaperAirplaneIcon className="h-3.5 w-3.5 text-blue-500" />;
@@ -211,8 +191,14 @@ function getEventIcon(eventType: string): React.ReactElement {
     case "APPLICATION_WITHDRAWN":
     case "INVOICE_WITHDRAWN":
       return <XCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />;
-    case "OFFER_EXPIRED":
+    case "CONTRACT_OFFER_EXPIRED":
+    case "INVOICE_OFFER_EXPIRED":
       return <ClockIcon className="h-3.5 w-3.5 text-amber-600" />;
+    case "SIGNING_PACKAGE_VOIDED":
+      return <XCircleIcon className="h-3.5 w-3.5 text-amber-600" />;
+    case "CONTRACT_SIGNING_DEADLINE_EXTENDED":
+    case "INVOICE_SIGNING_DEADLINE_EXTENDED":
+      return <ClockIcon className="h-3.5 w-3.5 text-emerald-600" />;
     default:
       return <ClockIcon className="h-3.5 w-3.5 text-muted-foreground" />;
   }
@@ -245,16 +231,26 @@ function getEventLabel(
     APPLICATION_COMPLETED: "Application Completed",
     APPLICATION_RESET_TO_UNDER_REVIEW: "Application Reset to Under Review",
     CONTRACT_OFFER_SENT: "Contract Offer Sent",
-    CONTRACT_OFFER_ACCEPTED: "Contract Offer Accepted",
+    CONTRACT_OFFER_ACCEPTANCE_SUBMITTED: "Contract Offer Acceptance Submitted",
+    CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING: "Contract Acceptance Approved for Signing",
+    CONTRACT_OFFER_ACCEPTED: "Contract Offer Signed",
     CONTRACT_OFFER_REJECTED: "Contract Offer Withdrawn",
     CONTRACT_OFFER_RETRACTED: "Contract Offer Retracted",
+    CONTRACT_OFFER_EXPIRED: "Contract Offer Expired",
+    CONTRACT_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
     CONTRACT_WITHDRAWN: "Contract Offer Withdrawn",
     INVOICE_OFFER_SENT: "Invoice Offer Sent",
-    INVOICE_OFFER_ACCEPTED: "Invoice Offer Accepted",
+    INVOICE_OFFER_ACCEPTANCE_SUBMITTED: "Invoice Offer Acceptance Submitted",
+    INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING: "Invoice Acceptance Approved for Signing",
+    INVOICE_OFFER_ACCEPTED: "Invoice Offer Signed",
     INVOICE_OFFER_REJECTED: "Invoice Offer Rejected",
     INVOICE_OFFER_RETRACTED: "Invoice Offer Retracted",
+    INVOICE_OFFER_EXPIRED: "Invoice Offer Expired",
+    INVOICE_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
     INVOICE_WITHDRAWN: "Invoice Withdrawn",
-    OFFER_EXPIRED: "Offer Expired",
+    SIGNING_PACKAGE_CREATED: "Signing Package Created",
+    SIGNING_PACKAGE_SENT: "Signing Package Sent",
+    SIGNING_PACKAGE_VOIDED: "Signing Package Voided",
     AMENDMENTS_SUBMITTED: "Amendment Request Sent",
   };
   if (eventType === "INVOICE_OFFER_SENT") {
@@ -263,11 +259,17 @@ function getEventLabel(
       ? `Invoice ${invoiceNumber} Offer Sent`
       : "Invoice Offer Sent";
   }
+  if (eventType === "INVOICE_OFFER_ACCEPTANCE_SUBMITTED") {
+    const invoiceNumber = metadata?.invoice_number;
+    return invoiceNumber != null && invoiceNumber !== ""
+      ? `Invoice ${invoiceNumber} Acceptance Submitted`
+      : "Invoice Offer Acceptance Submitted";
+  }
   if (eventType === "INVOICE_OFFER_ACCEPTED") {
     const invoiceNumber = metadata?.invoice_number;
     return invoiceNumber != null && invoiceNumber !== ""
-      ? `Invoice ${invoiceNumber} Offer Accepted`
-      : "Invoice Offer Accepted";
+      ? `Invoice ${invoiceNumber} Offer Signed`
+      : "Invoice Offer Signed";
   }
   if (eventType === "INVOICE_OFFER_REJECTED") {
     const invoiceNumber = metadata?.invoice_number;
@@ -280,6 +282,12 @@ function getEventLabel(
     return invoiceNumber != null && invoiceNumber !== ""
       ? `Invoice ${invoiceNumber} Withdrawn`
       : "Invoice Withdrawn";
+  }
+  if (eventType === "INVOICE_OFFER_EXPIRED") {
+    const invoiceNumber = metadata?.invoice_number;
+    return invoiceNumber != null && invoiceNumber !== ""
+      ? `Invoice ${invoiceNumber} Offer Expired`
+      : "Invoice Offer Expired";
   }
   if (baseLabels[eventType]) return baseLabels[eventType];
 
@@ -330,19 +338,34 @@ function getEventDotColor(eventType: string): string {
     case "INVOICE_OFFER_RETRACTED":
     case "CONTRACT_WITHDRAWN":
       return "bg-muted-foreground";
-    case "OFFER_EXPIRED":
+    case "CONTRACT_OFFER_EXPIRED":
+    case "INVOICE_OFFER_EXPIRED":
       return "bg-amber-500";
+    case "CONTRACT_SIGNING_DEADLINE_EXTENDED":
+    case "INVOICE_SIGNING_DEADLINE_EXTENDED":
+      return "bg-emerald-500";
     case "CONTRACT_OFFER_SENT":
     case "INVOICE_OFFER_SENT":
+    case "CONTRACT_OFFER_ACCEPTANCE_SUBMITTED":
+    case "INVOICE_OFFER_ACCEPTANCE_SUBMITTED":
+    case "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING":
+    case "INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING":
+    case "SIGNING_PACKAGE_CREATED":
+    case "SIGNING_PACKAGE_SENT":
     case "CONTRACT_OFFER_ACCEPTED":
     case "INVOICE_OFFER_ACCEPTED":
       return "bg-blue-500";
+    case "SIGNING_PACKAGE_VOIDED":
+      return "bg-amber-500";
     default:
       return "bg-muted-foreground";
   }
 }
 
 const ACTIVITY_PAGE_SIZE = 10;
+
+/** Audit-only events: still stored in application_logs but hidden from the timeline UI. */
+const TIMELINE_HIDDEN_EVENT_TYPES = new Set(["SIGNING_PACKAGE_COMPLETED"]);
 
 function TimelineSkeleton() {
   return (
@@ -382,7 +405,10 @@ export function AdminActivityTimeline({
    */
   const { data, isLoading, error } = useApplicationLogs(applicationId);
 
-  const logs: ApplicationLogEntry[] = React.useMemo(() => data ?? [], [data]);
+  const logs: ApplicationLogEntry[] = React.useMemo(
+    () => (data ?? []).filter((log) => !TIMELINE_HIDDEN_EVENT_TYPES.has(log.event_type)),
+    [data]
+  );
 
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
   const [comparisonModalOpen, setComparisonModalOpen] = React.useState(false);
@@ -630,6 +656,15 @@ export function AdminActivityTimeline({
                                         <dd className="tabular-nums">{formatCurrency(metadata.requested_facility)}</dd>
                                       </>
                                     )}
+                                    {typeof metadata.acceptance_expires_at === "string" &&
+                                      metadata.acceptance_expires_at && (
+                                      <>
+                                        <dt className="text-muted-foreground">Accept by</dt>
+                                        <dd className="tabular-nums">
+                                          {formatPhaseDeadlineAbsolute(metadata.acceptance_expires_at)}
+                                        </dd>
+                                      </>
+                                    )}
                                   </dl>
                                 )}
                                 {eventType === "INVOICE_OFFER_SENT" && (
@@ -650,6 +685,15 @@ export function AdminActivityTimeline({
                                       <>
                                         <dt className="text-muted-foreground">Profit rate</dt>
                                         <dd className="tabular-nums">{Number(metadata.offered_profit_rate_percent)}%</dd>
+                                      </>
+                                    )}
+                                    {typeof metadata.acceptance_expires_at === "string" &&
+                                      metadata.acceptance_expires_at && (
+                                      <>
+                                        <dt className="text-muted-foreground">Accept by</dt>
+                                        <dd className="tabular-nums">
+                                          {formatPhaseDeadlineAbsolute(metadata.acceptance_expires_at)}
+                                        </dd>
                                       </>
                                     )}
                                   </dl>

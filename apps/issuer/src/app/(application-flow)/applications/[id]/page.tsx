@@ -36,13 +36,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import {
@@ -115,7 +108,6 @@ export default function ApplicationDetailPage() {
     applicationId: string;
     organizationId?: string;
   } | null>(null);
-  const [signingReturnOpen, setSigningReturnOpen] = React.useState(false);
   const [selectedOfferInvoice, setSelectedOfferInvoice] = React.useState<NormalizedInvoice | null>(
     null
   );
@@ -135,7 +127,7 @@ export default function ApplicationDetailPage() {
 
   const pendingOfferCount = application
     ? (application.contractStatus === "OFFER_SENT" ? 1 : 0) +
-      application.invoices.filter((inv) => inv.canReviewOffer).length
+      application.invoices.filter((inv) => inv.status === "OFFER_SENT" || inv.canReviewOffer).length
     : 0;
 
   const [activeTab, setActiveTab] = React.useState<DetailTab>(() =>
@@ -204,16 +196,18 @@ export default function ApplicationDetailPage() {
   }, [application, hasOffer, tabFromUrl, replaceQuery]);
 
   // URL → invoice offer selection. Absent invoiceId means contract offer (when available).
-  // Stale invoiceId (not reviewable) is cleared; fall back to contract or another reviewable invoice.
+  // Keep OFFER_SENT invoices mounted through PENDING_ADMIN_REVIEW (canReviewOffer is false then).
   React.useEffect(() => {
     if (!application) return;
 
-    const firstInvoiceOffer = application.invoices.find((i) => i.canReviewOffer) ?? null;
+    const isOfferInvoice = (inv: NormalizedInvoice) =>
+      inv.status === "OFFER_SENT" || inv.canReviewOffer;
+    const firstInvoiceOffer = application.invoices.find(isOfferInvoice) ?? null;
     const contractOfferAvailable = application.contractStatus === "OFFER_SENT";
 
     if (invoiceIdFromUrl) {
       const inv = application.invoices.find((i) => i.id === invoiceIdFromUrl) ?? null;
-      if (inv?.canReviewOffer) {
+      if (inv && isOfferInvoice(inv)) {
         setStaleOfferUnavailable(false);
         setSelectedOfferInvoice(inv);
         return;
@@ -254,50 +248,6 @@ export default function ApplicationDetailPage() {
     }
     setSelectedOfferInvoice(firstInvoiceOffer);
   }, [application, invoiceIdFromUrl, replaceQuery]);
-
-  React.useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("signing") !== "complete") return;
-
-    const appId = params.get("applicationId") ?? applicationId;
-    const invoiceId = params.get("invoiceId");
-
-    let cancelled = false;
-    const run = async () => {
-      if (appId) {
-        try {
-          if (invoiceId) {
-            await apiClient.finalizeInvoiceOfferSigningAfterReturn(appId, invoiceId);
-          } else {
-            await apiClient.finalizeContractOfferSigningAfterReturn(appId);
-          }
-        } catch {
-          if (!cancelled) {
-            toast.error(
-              "Could not confirm signing with the server. If your offer is still pending, refresh the page or try again shortly."
-            );
-          }
-        }
-      }
-      if (!cancelled) {
-        void queryClient.invalidateQueries({ queryKey: ["applications"] });
-        void queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
-        setSigningReturnOpen(true);
-        const next = new URLSearchParams(window.location.search);
-        next.delete("signing");
-        next.delete("applicationId");
-        next.delete("invoiceId");
-        const qs = next.toString();
-        window.history.replaceState({}, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
-      }
-    };
-
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [apiClient, applicationId, queryClient]);
 
   const handleDocumentDownload = React.useCallback(
     async (s3Key: string) => {
@@ -366,32 +316,39 @@ export default function ApplicationDetailPage() {
     application.signedContractOfferLetterAvailable && !!application.signedContractOfferLetterS3Key;
   const withdrawDisabled = cancelApplication.isPending || showViewSignedContract;
 
+  const isMountedOfferInvoice = (inv: NormalizedInvoice) =>
+    inv.status === "OFFER_SENT" || inv.canReviewOffer;
+
   const reviewableSelectedInvoice =
-    selectedOfferInvoice?.canReviewOffer ? selectedOfferInvoice : null;
+    selectedOfferInvoice && isMountedOfferInvoice(selectedOfferInvoice)
+      ? selectedOfferInvoice
+      : null;
 
   const offerType: "contract" | "invoice" = reviewableSelectedInvoice
     ? "invoice"
     : application.contractStatus === "OFFER_SENT"
       ? "contract"
-      : application.invoices.some((i) => i.canReviewOffer)
+      : application.invoices.some(isMountedOfferInvoice)
         ? "invoice"
         : "contract";
 
   const offerInvoice =
     offerType === "invoice"
       ? reviewableSelectedInvoice ??
-        application.invoices.find((i) => i.canReviewOffer) ??
+        application.invoices.find(isMountedOfferInvoice) ??
         null
       : null;
 
   const canShowContractOfferPanel = application.contractStatus === "OFFER_SENT";
-  const canShowInvoiceOfferPanel = !!offerInvoice?.canReviewOffer;
+  const canShowInvoiceOfferPanel = offerInvoice?.status === "OFFER_SENT";
   const staleInvoiceIdInUrl =
     !!invoiceIdFromUrl &&
-    !application.invoices.some((i) => i.id === invoiceIdFromUrl && i.canReviewOffer);
+    !application.invoices.some((i) => i.id === invoiceIdFromUrl && isMountedOfferInvoice(i));
   const showStaleOfferUnavailable =
     staleOfferUnavailable ||
-    (staleInvoiceIdInUrl && !canShowContractOfferPanel && !application.invoices.some((i) => i.canReviewOffer));
+    (staleInvoiceIdInUrl &&
+      !canShowContractOfferPanel &&
+      !application.invoices.some(isMountedOfferInvoice));
   const offerPanelKey =
     offerType === "contract"
       ? `contract-${application.contractId ?? application.id}`
@@ -1021,24 +978,6 @@ export default function ApplicationDetailPage() {
           setWithdrawInvoicePayload(null);
         }}
       />
-
-      <Dialog open={signingReturnOpen} onOpenChange={setSigningReturnOpen}>
-        <DialogContent className="sm:max-w-md rounded-xl">
-          <DialogHeader>
-            <DialogTitle>Offer approved</DialogTitle>
-            <DialogDescription className="text-[17px] leading-7 text-muted-foreground">
-              Thank you for completing signing. Your offer will show as approved once processing
-              finishes. You can download the signed offer letter from Documents when it becomes
-              available.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end pt-2">
-            <Button type="button" className="rounded-xl" onClick={() => setSigningReturnOpen(false)}>
-              OK
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

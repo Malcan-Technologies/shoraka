@@ -1,9 +1,11 @@
 import cron from "node-cron";
 import { NotificationService } from "../../modules/notification/service";
 import { logger } from "../logger";
-import { runOfferExpiryJob } from "./offer-expiry";
 import { runCtosKybRetryJob } from "./ctos-kyb-retry";
 import { runNoteListingExpiryJob } from "./note-listing-expiry";
+import { runSigningEnvelopeExpiryJob } from "./signing-envelope-expiry";
+import { runAcceptanceSigningExpiryJob } from "./acceptance-signing-expiry";
+import { runSigningReconcileJob } from "./signing-reconcile";
 import { runGatewayStuckOrderPollerJob } from "./gateway-stuck-order-poller";
 import { runGatewaySettlementReconForConfiguredAccounts } from "./gateway-settlement-recon";
 import { JOB_LOCK_KEYS, withAdvisoryLock } from "./with-advisory-lock";
@@ -24,28 +26,6 @@ export function initJobs() {
       logger.info('Daily notification cleanup job completed successfully');
     } catch (error) {
       logger.error({ error }, 'Failed to run daily notification cleanup job');
-    }
-  });
-
-  // Offer expiry: withdraw expired contract/invoice offers. Every hour.
-  cron.schedule("0 * * * *", async () => {
-    logger.info("Starting offer expiry job...");
-    try {
-      const result = await runOfferExpiryJob();
-      if (result.contractsWithdrawn.length > 0 || result.invoicesWithdrawn.length > 0) {
-        logger.info(
-          {
-            contractsWithdrawn: result.contractsWithdrawn.length,
-            invoicesWithdrawn: result.invoicesWithdrawn.length,
-            applicationsUpdated: result.applicationsUpdated.length,
-          },
-          "Offer expiry job completed"
-        );
-      } else {
-        logger.info("Offer expiry job completed (no expired offers found)");
-      }
-    } catch (error) {
-      logger.error({ error }, "Failed to run offer expiry job");
     }
   });
 
@@ -83,6 +63,50 @@ export function initJobs() {
     }
   });
 
+  // Signing envelope expiry: close active envelopes past their explicit expiry timestamp.
+  cron.schedule("0 * * * *", async () => {
+    await withAdvisoryLock(JOB_LOCK_KEYS.SIGNING_ENVELOPE_EXPIRY, async () => {
+      logger.info("Starting signing envelope expiry job...");
+      try {
+        const result = await runSigningEnvelopeExpiryJob();
+        if (result.expiredEnvelopeIds.length > 0) {
+          logger.info(
+            { expiredEnvelopeCount: result.expiredEnvelopeIds.length },
+            "Signing envelope expiry job completed"
+          );
+        }
+      } catch (error) {
+        logger.error({ error }, "Failed to run signing envelope expiry job");
+      }
+    });
+  });
+
+  // Acceptance + signing phase deadlines: reminders and durable OFFER_EXPIRED.
+  cron.schedule("0 * * * *", async () => {
+    await withAdvisoryLock(JOB_LOCK_KEYS.ACCEPTANCE_SIGNING_EXPIRY, async () => {
+      logger.info("Starting acceptance/signing expiry job...");
+      try {
+        const result = await runAcceptanceSigningExpiryJob();
+        if (
+          result.remindersSent > 0 ||
+          result.contractsExpired.length > 0 ||
+          result.invoicesExpired.length > 0
+        ) {
+          logger.info(
+            {
+              remindersSent: result.remindersSent,
+              contractsExpired: result.contractsExpired.length,
+              invoicesExpired: result.invoicesExpired.length,
+            },
+            "Acceptance/signing expiry job completed"
+          );
+        }
+      } catch (error) {
+        logger.error({ error }, "Failed to run acceptance/signing expiry job");
+      }
+    });
+  });
+
   // Gateway stuck-order poller: recover missed webhooks or expire abandoned checkouts.
   cron.schedule("*/15 * * * *", async () => {
     await withAdvisoryLock(JOB_LOCK_KEYS.GATEWAY_STUCK_ORDER_POLLER, async () => {
@@ -101,6 +125,17 @@ export function initJobs() {
     } catch (error) {
       logger.error({ error }, "Failed to run gateway settlement recon job");
     }
+  });
+
+  // Reconcile signing envelopes missing PDFs and stale trust-return sessions.
+  cron.schedule("*/30 * * * *", async () => {
+    await withAdvisoryLock(JOB_LOCK_KEYS.SIGNING_RECONCILE, async () => {
+      try {
+        await runSigningReconcileJob();
+      } catch (error) {
+        logger.error({ error }, "Failed to run signing reconcile job");
+      }
+    });
   });
 
   logger.info("Background jobs initialized");

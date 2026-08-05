@@ -15,6 +15,9 @@ import { ApplicationLogEventType } from "../../applications/logs/types";
 
 const CONTRACT_EVENT_TYPES = new Set<string>([
   ApplicationLogEventType.CONTRACT_OFFER_SENT,
+  ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_SUBMITTED,
+  ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED,
+  ApplicationLogEventType.CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING,
   ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED,
   ApplicationLogEventType.CONTRACT_OFFER_REJECTED,
   ApplicationLogEventType.CONTRACT_OFFER_RETRACTED,
@@ -23,10 +26,20 @@ const CONTRACT_EVENT_TYPES = new Set<string>([
 
 const INVOICE_EVENT_TYPES = new Set<string>([
   ApplicationLogEventType.INVOICE_OFFER_SENT,
+  ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_SUBMITTED,
+  ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_RESUBMITTED,
+  ApplicationLogEventType.INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING,
   ApplicationLogEventType.INVOICE_OFFER_ACCEPTED,
   ApplicationLogEventType.INVOICE_OFFER_REJECTED,
   ApplicationLogEventType.INVOICE_OFFER_RETRACTED,
   ApplicationLogEventType.INVOICE_WITHDRAWN,
+]);
+
+const SIGNING_PACKAGE_EVENT_TYPES = new Set<string>([
+  ApplicationLogEventType.SIGNING_PACKAGE_CREATED,
+  ApplicationLogEventType.SIGNING_PACKAGE_SENT,
+  ApplicationLogEventType.SIGNING_PACKAGE_COMPLETED,
+  ApplicationLogEventType.SIGNING_PACKAGE_VOIDED,
 ]);
 
 export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
@@ -288,9 +301,21 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         return contractRef
           ? `A contract offer for ${contractRef} is ready for your review and response.`
           : fallbackDescription;
+      case ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_SUBMITTED:
+        return contractRef
+          ? `You submitted acceptance for ${contractRef} and CashSouk is reviewing your documents.`
+          : fallbackDescription;
+      case ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED:
+        return contractRef
+          ? `You resubmitted acceptance documents for ${contractRef} after requested changes.`
+          : fallbackDescription;
+      case ApplicationLogEventType.CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING:
+        return contractRef
+          ? `Acceptance for ${contractRef} was approved. You can configure and send the signing package.`
+          : fallbackDescription;
       case ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED:
         return contractRef
-          ? `The offer for ${contractRef} was accepted and your application can move forward.`
+          ? `All signers completed the package for ${contractRef} and the offer is signed.`
           : fallbackDescription;
       case ApplicationLogEventType.CONTRACT_OFFER_REJECTED:
         return contractRef
@@ -311,9 +336,21 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         return invoiceRef
           ? `An invoice offer for ${invoiceRef} is ready for your review and response.`
           : fallbackDescription;
+      case ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_SUBMITTED:
+        return invoiceRef
+          ? `You submitted acceptance for ${invoiceRef} and CashSouk is reviewing your documents.`
+          : fallbackDescription;
+      case ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_RESUBMITTED:
+        return invoiceRef
+          ? `You resubmitted acceptance documents for ${invoiceRef} after requested changes.`
+          : fallbackDescription;
+      case ApplicationLogEventType.INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING:
+        return invoiceRef
+          ? `Acceptance for ${invoiceRef} was approved. You can configure and send the signing package.`
+          : fallbackDescription;
       case ApplicationLogEventType.INVOICE_OFFER_ACCEPTED:
         return invoiceRef
-          ? `The offer for ${invoiceRef} was accepted and funding can continue.`
+          ? `All signers completed the package for ${invoiceRef} and the offer is signed.`
           : fallbackDescription;
       case ApplicationLogEventType.INVOICE_OFFER_REJECTED:
         return invoiceRef
@@ -329,6 +366,14 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         }
         return invoiceRef
           ? `${this.capitalize(invoiceRef)} was withdrawn.`
+          : fallbackDescription;
+      case ApplicationLogEventType.SIGNING_PACKAGE_SENT:
+        return applicationRef
+          ? `The signing package for ${applicationRef} was sent to signers.`
+          : fallbackDescription;
+      case ApplicationLogEventType.SIGNING_PACKAGE_COMPLETED:
+        return applicationRef
+          ? `All signers completed the signing package for ${applicationRef}.`
           : fallbackDescription;
       default:
         return fallbackDescription;
@@ -367,6 +412,13 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       }
       if (invoiceNumber) {
         references.invoiceNumber = invoiceNumber;
+      }
+    }
+
+    if (SIGNING_PACKAGE_EVENT_TYPES.has(record.event_type)) {
+      const envelopeId = this.readDisplayString(metadata.envelope_id) ?? entityId;
+      if (envelopeId) {
+        references.envelopeId = envelopeId;
       }
     }
 
@@ -462,9 +514,17 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         title: "Contract Offer Sent",
         description: "A contract offer is ready for your review and response.",
       },
+      [ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_SUBMITTED]: {
+        title: "Contract Acceptance Submitted",
+        description: "You submitted offer acceptance documents for CashSouk review.",
+      },
+      [ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED]: {
+        title: "Contract Acceptance Resubmitted",
+        description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
+      },
       [ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED]: {
-        title: "Contract Offer Accepted",
-        description: "The contract offer was accepted and your application can move forward.",
+        title: "Contract Offer Signed",
+        description: "All signers completed the contract offer signing package.",
       },
       [ApplicationLogEventType.CONTRACT_OFFER_REJECTED]: {
         title: "Contract Offer Declined",
@@ -474,6 +534,14 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         title: "Contract Offer Retracted",
         description: "The contract offer was withdrawn before it was accepted.",
       },
+      [ApplicationLogEventType.CONTRACT_OFFER_EXPIRED]: {
+        title: "Contract Offer Expired",
+        description: "The contract offer expired. A new offer can be sent from the Contract tab.",
+      },
+      [ApplicationLogEventType.CONTRACT_SIGNING_DEADLINE_EXTENDED]: {
+        title: "Signing Deadline Extended",
+        description: "CashSouk extended the signing deadline so you can complete the signing package.",
+      },
       [ApplicationLogEventType.CONTRACT_WITHDRAWN]: {
         title: "Contract Withdrawn",
         description: "The contract linked to this application was withdrawn.",
@@ -482,9 +550,17 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         title: "Invoice Offer Sent",
         description: "An invoice offer is ready for your review and response.",
       },
+      [ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_SUBMITTED]: {
+        title: "Invoice Acceptance Submitted",
+        description: "You submitted offer acceptance documents for CashSouk review.",
+      },
+      [ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_RESUBMITTED]: {
+        title: "Invoice Acceptance Resubmitted",
+        description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
+      },
       [ApplicationLogEventType.INVOICE_OFFER_ACCEPTED]: {
-        title: "Invoice Offer Accepted",
-        description: "The invoice offer was accepted and funding can continue.",
+        title: "Invoice Offer Signed",
+        description: "All signers completed the invoice offer signing package.",
       },
       [ApplicationLogEventType.INVOICE_OFFER_REJECTED]: {
         title: "Invoice Offer Declined",
@@ -494,17 +570,29 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         title: "Invoice Offer Retracted",
         description: "The invoice offer was withdrawn before it was accepted.",
       },
+      [ApplicationLogEventType.INVOICE_OFFER_EXPIRED]: {
+        title: "Invoice Offer Expired",
+        description: "The invoice offer expired. A new offer can be sent from the Invoice tab.",
+      },
+      [ApplicationLogEventType.INVOICE_SIGNING_DEADLINE_EXTENDED]: {
+        title: "Signing Deadline Extended",
+        description: "CashSouk extended the signing deadline so you can complete the signing package.",
+      },
       [ApplicationLogEventType.INVOICE_WITHDRAWN]: {
         title: "Invoice Withdrawn",
         description: "An invoice linked to this application was withdrawn.",
       },
-      [ApplicationLogEventType.OFFER_EXPIRED]: {
-        title: "Offer Expired",
-        description: "An outstanding offer expired before it was accepted.",
-      },
       [ApplicationLogEventType.AMENDMENTS_SUBMITTED]: {
         title: "Changes Requested",
         description: "We need updates to your application before it can continue.",
+      },
+      [ApplicationLogEventType.SIGNING_PACKAGE_SENT]: {
+        title: "Signing Package Sent",
+        description: "The signing package was sent to all required signers.",
+      },
+      [ApplicationLogEventType.SIGNING_PACKAGE_COMPLETED]: {
+        title: "Signing Package Completed",
+        description: "All required signers completed the signing package.",
       },
     };
 
@@ -526,16 +614,24 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       ApplicationLogEventType.APPLICATION_WITHDRAWN,
       ApplicationLogEventType.APPLICATION_COMPLETED,
       ApplicationLogEventType.CONTRACT_OFFER_SENT,
+      ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_SUBMITTED,
+      ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED,
       ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED,
       ApplicationLogEventType.CONTRACT_OFFER_REJECTED,
       ApplicationLogEventType.CONTRACT_OFFER_RETRACTED,
+      ApplicationLogEventType.CONTRACT_OFFER_EXPIRED,
+      ApplicationLogEventType.CONTRACT_SIGNING_DEADLINE_EXTENDED,
       ApplicationLogEventType.CONTRACT_WITHDRAWN,
       ApplicationLogEventType.INVOICE_OFFER_SENT,
+      ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_SUBMITTED,
+      ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_RESUBMITTED,
       ApplicationLogEventType.INVOICE_OFFER_ACCEPTED,
       ApplicationLogEventType.INVOICE_OFFER_REJECTED,
       ApplicationLogEventType.INVOICE_OFFER_RETRACTED,
+      ApplicationLogEventType.INVOICE_OFFER_EXPIRED,
+      ApplicationLogEventType.INVOICE_SIGNING_DEADLINE_EXTENDED,
       ApplicationLogEventType.INVOICE_WITHDRAWN,
-      ApplicationLogEventType.OFFER_EXPIRED,
+      ApplicationLogEventType.SIGNING_PACKAGE_SENT,
       ApplicationLogEventType.AMENDMENTS_SUBMITTED,
     ];
   }

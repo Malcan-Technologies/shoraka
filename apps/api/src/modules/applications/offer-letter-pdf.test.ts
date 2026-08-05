@@ -1,4 +1,8 @@
-import { buildInvoiceOfferLetterTerms } from "./offer-letter-pdf";
+import {
+  buildInvoiceOfferLetterTerms,
+  generateContractOfferLetterBuffer,
+  generateGuarantorAgreementPlaceholderBuffer,
+} from "./offer-letter-pdf";
 
 describe("buildInvoiceOfferLetterTerms", () => {
   it("includes platform fee line with resolved percentage", async () => {
@@ -48,5 +52,60 @@ describe("buildInvoiceOfferLetterTerms", () => {
       label: "Facility fee cap",
       value: "RM 1,000.00",
     });
+  });
+});
+
+describe("generateContractOfferLetterBuffer", () => {
+  it("returns one signset per signatory in order", async () => {
+    const { signsets } = await generateContractOfferLetterBuffer(
+      "contract-1",
+      { offered_facility: 100_000, expires_at: "2026-12-31T00:00:00.000Z" },
+      [
+        { name: "Director One", email: "d1@co.my" },
+        { name: "Director Two", email: "d2@co.my" },
+      ]
+    );
+
+    expect(signsets).toHaveLength(2);
+    expect(signsets[0]).toEqual([
+      expect.objectContaining({
+        fieldtype: "sign",
+        pageindex: expect.any(Number),
+        top: expect.any(Number),
+        left: 140,
+        height: 30,
+        width: 100,
+      }),
+    ]);
+    expect(signsets[1]).toEqual([
+      expect.objectContaining({
+        fieldtype: "sign",
+        pageindex: expect.any(Number),
+        top: expect.any(Number),
+      }),
+    ]);
+    expect(signsets[0][0].top).not.toBe(signsets[1][0].top);
+  });
+});
+
+describe("generateGuarantorAgreementPlaceholderBuffer", () => {
+  it("returns one signset per signatory in order", async () => {
+    const { signsets, pdfBuffer } = await generateGuarantorAgreementPlaceholderBuffer([
+      { name: "Director One", email: "d1@co.my" },
+      { name: "Guarantor One", email: "g1@co.my" },
+    ]);
+
+    expect(pdfBuffer.length).toBeGreaterThan(0);
+    expect(signsets).toHaveLength(2);
+    expect(signsets[0]).toEqual([
+      expect.objectContaining({
+        fieldtype: "sign",
+        pageindex: expect.any(Number),
+        top: expect.any(Number),
+        left: 140,
+        height: 30,
+        width: 100,
+      }),
+    ]);
   });
 });

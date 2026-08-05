@@ -5,7 +5,7 @@ import { ContractRepository } from "../contracts/repository";
 import { AppError } from "../../lib/http/error-handler";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal } from "../applications/logs/types";
-import { Invoice } from "@prisma/client";
+import { Invoice, Prisma } from "@prisma/client";
 import { ApplicationStatus, ContractStatus, InvoiceStatus, WithdrawReason } from "@cashsouk/types";
 import { computeApplicationStatus } from "../applications/lifecycle";
 import {
@@ -40,7 +40,11 @@ export class InvoiceService {
     const app = await this.applicationRepository.findById(applicationId);
     const productId = (app?.financing_type as { product_id?: string } | null)?.product_id;
     if (!productId) return null;
-    const product = await this.productRepository.findById(productId);
+    const productVersion = (app as { product_version?: number | null } | null)?.product_version;
+    const product =
+      productVersion != null
+        ? await this.productRepository.findByBaseAndVersion(productId, productVersion)
+        : await this.productRepository.findById(productId);
     return product?.workflow ?? null;
   }
 
@@ -145,10 +149,36 @@ export class InvoiceService {
     const s3Key = details?.document?.s3_key;
 
     try {
-      return await this.repository.create({
-        application_id: applicationId,
-        contract_id: contractId,
-        details,
+      const { prisma } = await import("../../lib/prisma");
+      return await prisma.$transaction(async (tx) => {
+        const locked = await tx.$queryRaw<
+          { financing_structure: Prisma.JsonValue | null }[]
+        >`SELECT financing_structure FROM applications WHERE id = ${applicationId} FOR UPDATE`;
+        const lockedApplication = locked[0];
+        const structureType = (
+          lockedApplication?.financing_structure as { structure_type?: string } | null
+        )?.structure_type;
+
+        if (structureType === "invoice_only") {
+          const existingInvoiceCount = await tx.invoice.count({
+            where: { application_id: applicationId },
+          });
+          if (existingInvoiceCount >= 1) {
+            throw new AppError(
+              400,
+              "MAX_INVOICES_REACHED",
+              "Invoice-only applications allow only one invoice."
+            );
+          }
+        }
+
+        return tx.invoice.create({
+          data: {
+            application_id: applicationId,
+            contract_id: contractId,
+            details,
+          },
+        });
       });
     } catch (err) {
       if (s3Key) {

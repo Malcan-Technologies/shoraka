@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ArrowTopRightOnSquareIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
-import { format, addDays, differenceInDays, isValid, min as minDate } from "date-fns";
+import { format } from "date-fns";
 import {
   formatCurrency,
   resolveOfferedAmount,
@@ -12,11 +12,15 @@ import {
   parseInvoiceMaturityDate,
 } from "@cashsouk/config";
 import {
+  getOfferPhaseDeadlineDisplay,
   isSoukscoreRiskRating,
+  previewAcceptanceDeadlineFromWorkflow,
   SOUKSCORE_RISK_RATING_GRADES,
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
+import { cn } from "@/lib/utils";
 import { ItemActionDropdown } from "@/components/application-review/item-action-dropdown";
+import { OfferAcceptanceDeadlineConfirmRows } from "@/components/application-review/offer-acceptance-deadline-confirm-rows";
 import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
 import { REVIEW_EMPTY_LABEL } from "@/components/application-review/review-section-styles";
 import { Button } from "@/components/ui/button";
@@ -53,7 +57,8 @@ import {
   applicationTableExpandableValueClass,
   applicationTableExpandableFieldGapClass,
 } from "@/components/application-review/application-table-styles";
-import { isSignedOfferLetterAvailable } from "@/components/application-review/offer-signing-availability";
+import { isSignedInvoiceOfferLetterAvailable } from "@/components/application-review/offer-signing-availability";
+import { useAdminSigningEnvelopes } from "@/hooks/use-signing-envelopes";
 
 const PROFIT_RATE_OPTIONS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
 
@@ -70,6 +75,8 @@ const invoiceSummaryHeadNumericClass =
   "text-sm font-semibold text-foreground px-3 py-2 text-right tabular-nums";
 
 interface InvoiceReviewListProps {
+  /** Live application id — used to resolve signed offer-letter availability from envelopes. */
+  applicationId?: string;
   invoices: {
     id: string;
     details?: unknown;
@@ -86,10 +93,10 @@ interface InvoiceReviewListProps {
   isViewDocumentPending: boolean;
   invoiceRatioLimits: { min: number; max: number };
   platformFeeRateCapPercent?: number | null;
-  /** Product offer expiry in days. Used for estimated disbursement, period, profit and offer expiry date. */
-  offerExpiryDays?: number | null;
   /** From product workflow: minimum months from today to maturity required to enable Send Offer. */
   minMonthsReviewToMaturityForOffer?: number | null;
+  /** Frozen product workflow — Send Offer acceptance-deadline preview. */
+  productWorkflow?: unknown;
   isActionLocked?: boolean;
   actionLockTooltip?: string;
   onApproveItem: (itemId: string) => Promise<void>;
@@ -107,7 +114,7 @@ interface InvoiceReviewListProps {
   }) => Promise<void>;
   isSendInvoiceOfferPending?: boolean;
   /** Opens signed offer document using the same document view-url flow. */
-  onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => void | Promise<void>;
+  onViewSignedInvoiceOffer?: (invoiceId: string) => void | Promise<void>;
 }
 
 interface InvoiceDetails {
@@ -119,45 +126,6 @@ interface InvoiceDetails {
   document?: {
     file_name?: string;
     s3_key?: string;
-  };
-}
-
-function parseMaturityDate(value: string | undefined): Date | null {
-  if (!value) return null;
-  const parsed = new Date(value);
-  return isValid(parsed) ? parsed : null;
-}
-
-function computeOfferEstimates(
-  offerExpiryDays: number,
-  maturityDateStr: string | undefined,
-  offeredAmount: number
-): {
-  offerExpiryDate: Date;
-  estDisbursementDate: Date;
-  estPeriodDays: number | null;
-  estProfit: number | null;
-} {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const offerExpiryDate = addDays(today, offerExpiryDays);
-  const estDisbursementRaw = addDays(offerExpiryDate, 15);
-  const maturityDate = parseMaturityDate(maturityDateStr);
-  const estDisbursementDate =
-    maturityDate !== null ? minDate([estDisbursementRaw, maturityDate]) : estDisbursementRaw;
-  const estPeriodDays =
-    maturityDate !== null
-      ? Math.max(0, differenceInDays(maturityDate, estDisbursementDate))
-      : null;
-  const estProfit =
-    estPeriodDays !== null && estPeriodDays > 0
-      ? offeredAmount * 0.12 * (estPeriodDays / 365)
-      : null;
-  return {
-    offerExpiryDate,
-    estDisbursementDate,
-    estPeriodDays,
-    estProfit,
   };
 }
 
@@ -193,6 +161,7 @@ function clampPlatformFeePercent(parsed: number, fallback: number, cap: number):
 }
 
 export function InvoiceList({
+  applicationId,
   invoices,
   readOnlyInvoiceIds,
   reviewItems,
@@ -201,8 +170,8 @@ export function InvoiceList({
   isViewDocumentPending,
   invoiceRatioLimits,
   platformFeeRateCapPercent,
-  offerExpiryDays,
   minMonthsReviewToMaturityForOffer,
+  productWorkflow,
   isActionLocked,
   actionLockTooltip,
   onApproveItem,
@@ -215,6 +184,8 @@ export function InvoiceList({
   onViewSignedInvoiceOffer,
 }: InvoiceReviewListProps) {
   const [expandedById, setExpandedById] = React.useState<Record<string, boolean>>({});
+  const { data: signingEnvelopes = [] } = useAdminSigningEnvelopes(applicationId ?? "");
+  const acceptanceDeadlinePreview = previewAcceptanceDeadlineFromWorkflow(productWorkflow);
   const platformFeeCap = React.useMemo(() => {
     const cap = platformFeeRateCapPercent ?? 3;
     return Number.isFinite(cap) && cap >= 0 ? Math.round(cap * 100) / 100 : 3;
@@ -434,22 +405,23 @@ export function InvoiceList({
             const invoiceNo = details?.number ?? idx + 1;
             const scopeKey = buildInvoiceScopeKey(idx, invoiceNo);
             const reviewItemStatus = getItemStatus(inv, reviewItems, scopeKey);
-            const isInvoiceWithdrawn = (inv.status?.toString().toUpperCase() ?? "") === "WITHDRAWN";
-            const status = isInvoiceWithdrawn ? "WITHDRAWN" : reviewItemStatus;
+            const entityStatus = inv.status?.toString().toUpperCase() ?? "";
+            const status =
+              entityStatus === "WITHDRAWN"
+                ? "WITHDRAWN"
+                : entityStatus === "OFFER_EXPIRED"
+                  ? "OFFER_EXPIRED"
+                  : reviewItemStatus;
             /** Admin rejected this invoice in review; offer stays locked until reset to pending. */
             const isAdminRejected = reviewItemStatus === "REJECTED";
             const isRowReadOnly = readOnlyInvoiceIds?.has(inv.id) ?? false;
             const isTabLocked = !!isActionLocked || !isReviewable;
             const isInvoiceFinalizedByIssuer = reviewItemStatus === "APPROVED";
-            const signedOfferAvailable = isSignedOfferLetterAvailable(inv.offer_signing);
-            const signedOfferS3Key =
-              signedOfferAvailable &&
-              inv.offer_signing &&
-              typeof (inv.offer_signing as { signed_offer_letter_s3_key?: unknown })
-                .signed_offer_letter_s3_key === "string"
-                ? (inv.offer_signing as { signed_offer_letter_s3_key: string })
-                    .signed_offer_letter_s3_key
-                : null;
+            const signedOfferAvailable = isSignedInvoiceOfferLetterAvailable({
+              invoiceId: inv.id,
+              envelopes: signingEnvelopes,
+            });
+            const isInvoiceWithdrawn = status === "WITHDRAWN";
             const isRowGreyedOut =
               isRowReadOnly ||
               isTabLocked ||
@@ -458,7 +430,7 @@ export function InvoiceList({
             const showFullActionMenu = isReviewable && !isRowGreyedOut;
             const showSignedOfferOnlyMenu =
               !!onViewSignedInvoiceOffer &&
-              !!signedOfferS3Key &&
+              signedOfferAvailable &&
               !showFullActionMenu;
             const isExpanded = Boolean(expandedById[inv.id]);
             const invoiceValue = toNumber(details?.value);
@@ -535,8 +507,8 @@ export function InvoiceList({
                         onResetToPending={onResetItemToPending}
                         showApprove={false}
                         onViewSignedOffer={
-                          signedOfferS3Key && onViewSignedInvoiceOffer
-                            ? () => void onViewSignedInvoiceOffer(signedOfferS3Key)
+                          signedOfferAvailable && onViewSignedInvoiceOffer
+                            ? () => void onViewSignedInvoiceOffer(inv.id)
                             : undefined
                         }
                       />
@@ -547,8 +519,8 @@ export function InvoiceList({
                         isPending={isItemActionPending}
                         viewSignedOfferOnly
                         onViewSignedOffer={() => {
-                          if (onViewSignedInvoiceOffer && signedOfferS3Key) {
-                            void onViewSignedInvoiceOffer(signedOfferS3Key);
+                          if (onViewSignedInvoiceOffer && signedOfferAvailable) {
+                            void onViewSignedInvoiceOffer(inv.id);
                           }
                         }}
                       />
@@ -565,17 +537,22 @@ export function InvoiceList({
                         <div className={applicationTableExpandableGridClass}>
                             {(() => {
                               const isOfferSent = status === "OFFER_SENT";
+                              const hasOfferSnapshot =
+                                status === "OFFER_SENT" || status === "OFFER_EXPIRED";
+                              const phaseDeadlineDisplay = hasOfferSnapshot
+                                ? getOfferPhaseDeadlineDisplay(inv.offer_details)
+                                : null;
                               const offerDetails = inv.offer_details as
                                 | { offered_amount?: number; offered_ratio_percent?: number; offered_profit_rate_percent?: number }
                                 | null
                                 | undefined;
                               const offered = getOffered(inv.id, financingRatio);
-                              const offeredAmount = isOfferSent
+                              const offeredAmount = hasOfferSnapshot
                                 ? resolveOfferedAmount(offerDetails) || null
                                 : invoiceValue !== null
                                   ? (invoiceValue * offered.ratio) / 100
                                   : null;
-                              const offeredRatio = isOfferSent
+                              const offeredRatio = hasOfferSnapshot
                                 ? (typeof offerDetails?.offered_ratio_percent === "number" &&
                                   Number.isFinite(offerDetails.offered_ratio_percent)
                                     ? offerDetails.offered_ratio_percent
@@ -583,23 +560,14 @@ export function InvoiceList({
                                       ? Math.round((offeredAmount / invoiceValue) * 100)
                                       : offered.ratio)
                                 : offered.ratio;
-                              const offeredProfitRate = isOfferSent
+                              const offeredProfitRate = hasOfferSnapshot
                                 ? resolveOfferedProfitRate(offerDetails) ?? offered.profitRate
                                 : offered.profitRate;
-                              const offeredPlatformFeePercent = isOfferSent
+                              const offeredPlatformFeePercent = hasOfferSnapshot
                                 ? resolveOfferedPlatformFeeRatePercent(
                                     inv.offer_details as Record<string, unknown>
                                   )
                                 : offered.platformFeeRatePercent;
-                              const expiryDays = offerExpiryDays ?? 7;
-                              const estimates =
-                                offeredAmount !== null && offeredAmount > 0 && expiryDays > 0
-                                  ? computeOfferEstimates(
-                                      expiryDays,
-                                      maturityDate,
-                                      offeredAmount
-                                    )
-                                  : null;
                               const reviewDay = new Date();
                               reviewDay.setHours(0, 0, 0, 0);
                               const maturityParsedForOffer = parseInvoiceMaturityDate(
@@ -634,36 +602,6 @@ export function InvoiceList({
                                     </p>
                                     <p className={applicationTableExpandableValueClass}>
                                       {formatDateValue(maturityDate)}
-                                    </p>
-                                  </div>
-                                  {estimates && (
-                                    <div className={invoiceExpandReadonlyFieldBlockClass}>
-                                      <p className={applicationTableExpandableLabelClass}>
-                                        Offer Expiry
-                                      </p>
-                                      <p className={applicationTableExpandableValueClass}>
-                                        {format(estimates.offerExpiryDate, "dd MMM yyyy")}
-                                      </p>
-                                    </div>
-                                  )}
-                                  <div className={invoiceExpandReadonlyFieldBlockClass}>
-                                    <p className={applicationTableExpandableLabelClass}>
-                                      Estimated Disbursement Date
-                                    </p>
-                                    <p className={applicationTableExpandableValueClass}>
-                                      {estimates
-                                        ? format(estimates.estDisbursementDate, "dd MMM yyyy")
-                                        : REVIEW_EMPTY_LABEL}
-                                    </p>
-                                  </div>
-                                  <div className={invoiceExpandReadonlyFieldBlockClass}>
-                                    <p className={applicationTableExpandableLabelClass}>
-                                      Estimated Period (Days)
-                                    </p>
-                                    <p className={applicationTableExpandableValueClass}>
-                                      {estimates != null && estimates.estPeriodDays != null
-                                        ? estimates.estPeriodDays
-                                        : REVIEW_EMPTY_LABEL}
                                     </p>
                                   </div>
                                   <div
@@ -1025,16 +963,6 @@ export function InvoiceList({
                                         </p>
                                       )}
                                   </div>
-                                  <div className={applicationTableExpandableFieldBlockClass}>
-                                    <p className={applicationTableExpandableLabelClass}>
-                                      Estimated Profit
-                                    </p>
-                                    <p className={applicationTableExpandableValueClass}>
-                                      {estimates?.estProfit != null
-                                        ? formatCurrency(estimates.estProfit)
-                                        : REVIEW_EMPTY_LABEL}
-                                    </p>
-                                  </div>
                                 </div>
                                 {!isOfferSent && onSendInvoiceOffer &&
                                   (isAdminRejected ? (
@@ -1129,6 +1057,20 @@ export function InvoiceList({
                                       {isSendInvoiceOfferPending ? "Sending..." : "Send Offer"}
                                     </Button>
                                   ))}
+                                {phaseDeadlineDisplay ? (
+                                  <p
+                                    className={cn(
+                                      "mt-3 text-xs tabular-nums",
+                                      phaseDeadlineDisplay.urgency === "past"
+                                        ? "font-medium text-destructive"
+                                        : phaseDeadlineDisplay.urgency === "soon"
+                                          ? "font-medium text-amber-800"
+                                          : "text-muted-foreground"
+                                    )}
+                                  >
+                                    {phaseDeadlineDisplay.summary}
+                                  </p>
+                                ) : null}
                                 {isOfferSent && onResetItemToPending && (
                                   <Button
                                     type="button"
@@ -1215,6 +1157,13 @@ export function InvoiceList({
                     {invoiceOfferConfirm.risk_rating}
                   </span>
                 </div>
+                {acceptanceDeadlinePreview ? (
+                  <OfferAcceptanceDeadlineConfirmRows
+                    preview={acceptanceDeadlinePreview}
+                    labelClassName="text-sm font-medium text-muted-foreground"
+                    valueClassName="text-[15px] font-medium"
+                  />
+                ) : null}
               </div>
               <DialogFooter className="gap-2 sm:gap-0">
                 <Button

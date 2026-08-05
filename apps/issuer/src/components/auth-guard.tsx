@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useAuth } from "../lib/auth";
+import { isPublicIssuerPath } from "../lib/public-routes";
 
 /**
  * AuthGuard - Ensures user is authenticated before rendering children.
@@ -16,7 +17,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
 
   // OAuth callback must remain reachable without a portal session.
-  const shouldSkipAuthGuard = pathname === "/callback";
+  const shouldSkipAuthGuard = isPublicIssuerPath(pathname);
 
   // Skip auth guard for callback page
   if (shouldSkipAuthGuard) {

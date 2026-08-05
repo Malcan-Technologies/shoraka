@@ -21,14 +21,43 @@ import {
   Prisma,
   ApplicationStatus as DbApplicationStatus,
   ProductStatus,
+  ReviewStepStatus,
 } from "@prisma/client";
 import { requestPresignedUploadUrl, deleteDocumentFromS3 } from "./documents/service";
 import { shouldPreserveApplicationDocumentsInS3 } from "./amendment-preserve-s3";
 import {
   assertRequiredSupportingDocumentsPresent,
+  assertRequiredAcceptanceDocumentsPresent,
   fileNameToSupportingDocTypeToken,
+  getGuarantorAgreementAllowedTypesFromProductWorkflow,
   getSupportingDocAllowedTypesFromProductWorkflow,
 } from "./supporting-docs-workflow";
+import {
+  resolveAcceptanceDocumentAllowedTypes,
+  resolveAcceptanceDocumentsFromWorkflow,
+  collectAcceptanceDocumentReviewKeys,
+  workflowHasAcceptanceDocuments,
+  getOfferAcceptanceFromOfferDetails,
+  offerAcceptanceIsStep1Editable,
+  resolveStatusAfterOfferAcceptanceSubmit,
+  workflowUsesOfferAcceptanceFlow,
+  buildAcknowledgedTermsSnapshot,
+} from "@cashsouk/types";
+import {
+  patchOfferAcceptance,
+} from "./offer-acceptance";
+import {
+  assertAcceptanceDeadlineOpen,
+  assertSigningDeadlineOpen,
+  signingDeadlinePatchOnApprove,
+} from "../../lib/phase-deadlines";
+import {
+  assertAcceptanceDocumentIndexEditableInChangesRequested,
+  collectFlaggedAcceptanceDocumentIndices,
+  findAcceptanceDocumentIndexForS3Key,
+  findChangedAcceptanceDocumentIndices,
+  resolveAcceptanceDocumentReviewKeysToResetOnSubmit,
+} from "./acceptance-document-issuer-lock";
 import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
 import {
   upsertLatestOrganizationFinancialStatementsFromApplication,
@@ -43,7 +72,7 @@ import {
 } from "./amendments/service";
 import { prisma } from "../../lib/prisma";
 import { logApplicationActivity } from "./logs/service";
-import { ActivityPortal } from "./logs/types";
+import { ActivityPortal, ApplicationLogEventType } from "./logs/types";
 import { assertApplicationProcessingFeePaid } from "../payment/processing-fee-service";
 import {
   generateContractOfferLetterStream,
@@ -58,30 +87,20 @@ import {
   ContractStatus,
   InvoiceStatus,
   WithdrawReason,
+  canDirectAcceptInvoice,
   getFinancialYearEndComputationDetails,
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
+  getReviewSectionPrerequisites,
   getStepKeyFromStepId,
   hasActionableDirectorShareholder,
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
-import * as crypto from "crypto";
-import type { Readable } from "stream";
-import { putS3ObjectBuffer, getS3ObjectBuffer } from "../../lib/s3/client";
 import {
-  readSigningCloudConfigFromEnv,
-  getSigningCloudAccessToken,
-  uploadPdfToSigningCloud,
-  startManualSigning,
-  extractSigningUrlFromManualSigningResponse,
-  getContractFileData,
-  pdfBufferFromStream,
-} from "../signingcloud/signingcloud-api";
-import {
-  MIN_SIGNED_PDF_BYTES,
-  resolveSignedPdfFromContractFileResponse,
-} from "../signingcloud/signed-file";
-import type { OfferSigningRecord } from "../signingcloud/types";
+  resolveApplicationStatusAfterCommercialAccept,
+  resolveApplicationStatusAfterOfferAcceptanceSubmit,
+} from "./offer-application-status";
+import { getS3ObjectBuffer } from "../../lib/s3/client";
 import { NotificationService } from "../notification/service";
 import { NotificationTypeIds } from "../notification/registry";
 import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
@@ -90,67 +109,6 @@ import {
 } from "../guarantors/utils";
 import { assertIssuerOrgDirectorShareholderOnboardingReady } from "./director-shareholder-onboarding-guard";
 import { buildAdminPeopleList } from "../admin/build-people-list";
-import { requireCompletedSigningCloudEkycForOrganization } from "../ekyc/service";
-
-/**
- * Return URL after manual signing. Prefer SIGNINGCLOUD_ISSUER_RETURN_URL (full URL to applications page);
- * otherwise ISSUER_URL/applications. Always appends signing + application (and optional invoice) ids.
- */
-function buildIssuerSigningReturnUrl(applicationId: string, invoiceId?: string): string | null {
-  const explicit = process.env.SIGNINGCLOUD_ISSUER_RETURN_URL?.trim();
-  const issuer = process.env.ISSUER_URL?.trim().replace(/\/$/, "") || "";
-  const baseStr = explicit || (issuer ? `${issuer}/applications` : "");
-  if (!baseStr) return null;
-  try {
-    const url = baseStr.includes("://") ? new URL(baseStr) : new URL(`https://${baseStr}`);
-    url.searchParams.set("signing", "complete");
-    url.searchParams.set("applicationId", applicationId);
-    if (invoiceId) url.searchParams.set("invoiceId", invoiceId);
-    return url.toString();
-  } catch {
-    return null;
-  }
-}
-
-/**
- * When an offer already has a pending SigningCloud session, reuse the same uploaded document
- * (same `contractnum`) and only refresh the manual-signing URL — no second upload.
- */
-function canReusePendingOfferSigning(
-  offerSigning: Prisma.JsonValue | null | undefined,
-  signingContractnum: string | null | undefined,
-  signerEmail: string
-): boolean {
-  const cn = signingContractnum?.trim();
-  if (!cn) return false;
-  const os = offerSigning;
-  if (!os || typeof os !== "object" || Array.isArray(os)) return false;
-  const r = os as unknown as OfferSigningRecord;
-  if (r.provider !== "signingcloud" || r.status !== "pending") return false;
-  const a = r.signer_email?.trim().toLowerCase();
-  const b = signerEmail.trim().toLowerCase();
-  return Boolean(a && b && a === b);
-}
-
-function mergeOfferSigningSigned(
-  existing: Prisma.JsonValue | null | undefined,
-  signedOfferLetterS3Key: string,
-  signedFileSha256: string,
-  nowIso: string
-): Prisma.InputJsonValue {
-  const prev =
-    existing && typeof existing === "object" && !Array.isArray(existing)
-      ? (existing as Record<string, unknown>)
-      : {};
-  return {
-    ...prev,
-    provider: "signingcloud",
-    status: "signed",
-    signed_offer_letter_s3_key: signedOfferLetterS3Key,
-    signed_file_sha256: signedFileSha256,
-    completed_at: nowIso,
-  } as Prisma.InputJsonValue;
-}
 
 function financialToNum(v: unknown): number {
   if (typeof v === "number" && !Number.isNaN(v)) return v;
@@ -159,7 +117,7 @@ function financialToNum(v: unknown): number {
 }
 
 function isFinalApplicationStatus(status: string | null | undefined): boolean {
-  return status === "APPROVED" || status === "FUNDED" || status === "COMPLETED";
+  return status === "FUNDED" || status === "COMPLETED";
 }
 
 /** Business rules for v2 per-year financial blocks (no bsdd). */
@@ -236,6 +194,112 @@ export class ApplicationService {
     this.notificationService = new NotificationService();
   }
 
+  /**
+   * Financing structure is the branch point. When the branch changes, clear
+   * path-specific draft invoices / draft holder contracts (and their S3 objects).
+   * Shared approved contracts are only unlinked, never deleted.
+   */
+  private async resetFinancingStructureBranchData(
+    application: Application & {
+      invoices?: Array<{ id: string; status: string; details: unknown }>;
+      status?: string;
+      contract_id?: string | null;
+    }
+  ): Promise<void> {
+    const invoices = application.invoices ?? [];
+    const nonDraftInvoices = invoices.filter((invoice) => invoice.status !== "DRAFT");
+    if (nonDraftInvoices.length > 0) {
+      throw new AppError(
+        400,
+        "STRUCTURE_CHANGE_BLOCKED",
+        "Cannot change financing structure after invoices have progressed beyond draft."
+      );
+    }
+
+    const preserveS3 = shouldPreserveApplicationDocumentsInS3(application.status);
+    const extractDocS3Key = (details: unknown): string | null => {
+      if (!details || typeof details !== "object") return null;
+      const document = (details as { document?: { s3_key?: unknown } }).document;
+      const key = document?.s3_key;
+      return typeof key === "string" && key.trim() ? key.trim() : null;
+    };
+
+    for (const invoice of invoices) {
+      const s3Key = extractDocS3Key(invoice.details);
+      await prisma.invoice.delete({ where: { id: invoice.id } });
+      if (s3Key && !preserveS3) {
+        try {
+          await deleteS3Object(s3Key);
+        } catch (err) {
+          logger.error(
+            { applicationId: application.id, invoiceId: invoice.id, s3Key, err },
+            "Failed to delete invoice S3 object during financing structure reset"
+          );
+        }
+      } else if (s3Key && preserveS3) {
+        logger.info(
+          { applicationId: application.id, invoiceId: invoice.id, s3Key },
+          "Skipped invoice S3 delete during structure reset: AMENDMENT_REQUESTED preserve"
+        );
+      }
+    }
+
+    if (!application.contract_id) return;
+
+    const contract = await this.contractRepository.findById(application.contract_id);
+    await prisma.application.update({
+      where: { id: application.id },
+      data: { contract_id: null },
+    });
+
+    // Approved (existing-contract) links are only disconnected. Draft holder contracts
+    // created in the new_contract / invoice-only path are deleted with their documents.
+    if (!contract || contract.status !== "DRAFT") return;
+
+    const linkedApps =
+      (
+        contract as {
+          applications?: Array<{ id: string }>;
+        }
+      ).applications ?? [];
+    const otherLinkedApps = linkedApps.filter((app) => app.id !== application.id);
+    if (otherLinkedApps.length > 0) {
+      logger.warn(
+        { applicationId: application.id, contractId: contract.id, otherLinkedApps },
+        "Skipped draft contract delete during structure reset: still linked to other applications"
+      );
+      return;
+    }
+
+    const s3Keys = [
+      extractDocS3Key(contract.contract_details),
+      extractDocS3Key(contract.customer_details),
+    ].filter((key): key is string => Boolean(key));
+
+    await this.contractRepository.delete(contract.id);
+
+    if (preserveS3) {
+      for (const s3Key of s3Keys) {
+        logger.info(
+          { applicationId: application.id, contractId: contract.id, s3Key },
+          "Skipped contract S3 delete during structure reset: AMENDMENT_REQUESTED preserve"
+        );
+      }
+      return;
+    }
+
+    for (const s3Key of s3Keys) {
+      try {
+        await deleteS3Object(s3Key);
+      } catch (err) {
+        logger.error(
+          { applicationId: application.id, contractId: contract.id, s3Key, err },
+          "Failed to delete contract S3 object during financing structure reset"
+        );
+      }
+    }
+  }
+
   private async sendIssuerNotification(
     applicationId: string,
     typeId: (typeof NotificationTypeIds)[keyof typeof NotificationTypeIds],
@@ -283,49 +347,6 @@ export class ApplicationService {
   }
 
   /**
-   * Re-fetch manual signing URL for an existing `contractnum`. SigningCloud often rejects a second
-   * `/contract/signature/manual` call while a session is already open; we then fall back to the
-   * last persisted `signing_url` so the issuer can continue with the same document.
-   */
-  private async refreshSigningUrlOrCached(
-    cfg: NonNullable<ReturnType<typeof readSigningCloudConfigFromEnv>>,
-    params: {
-      contractnum: string;
-      signerEmail: string;
-      redirectUrl: string | null;
-      callbackUrl: string | null;
-      cachedSigningUrl?: string | null;
-    }
-  ): Promise<string> {
-    const { contractnum, signerEmail, redirectUrl, callbackUrl, cachedSigningUrl } = params;
-    try {
-      const accessToken = await getSigningCloudAccessToken(cfg);
-      const decryptedManual = await startManualSigning({
-        cfg,
-        accessToken,
-        contractnum,
-        signerEmail,
-        redirectUrl,
-        callbackUrl,
-      });
-      const signingUrl = extractSigningUrlFromManualSigningResponse(decryptedManual);
-      if (signingUrl) {
-        return signingUrl;
-      }
-    } catch (e) {
-      logger.warn(
-        { err: e, contractnumPrefix: contractnum.slice(0, 8) },
-        "SigningCloud manual signing failed on pending-session reuse; will use cached signing_url if available"
-      );
-    }
-    const cached = cachedSigningUrl?.trim();
-    if (cached && /^https?:\/\//i.test(cached)) {
-      return cached;
-    }
-    throw new AppError(502, "SIGNING_PROVIDER_ERROR", "Could not obtain signing URL from provider");
-  }
-
-  /**
    * Extract S3 keys from supporting_documents step data.
    * Handles both { categories: [...] } and { supporting_documents: { categories: [...] } }.
    */
@@ -352,6 +373,26 @@ export class ApplicationService {
             const key = (f as Record<string, unknown>)?.s3_key;
             if (typeof key === "string" && key) keys.add(key);
           }
+        }
+      }
+    }
+    return keys;
+  }
+
+  private extractS3KeysFromAcceptanceDocuments(data: unknown): Set<string> {
+    const keys = new Set<string>();
+    if (!data || typeof data !== "object") return keys;
+    const root = data as Record<string, unknown>;
+    const docs = Array.isArray(root.documents) ? root.documents : Array.isArray(data) ? data : [];
+    for (const doc of docs) {
+      const record = doc as Record<string, unknown>;
+      const file = record?.file as Record<string, unknown> | undefined;
+      if (typeof file?.s3_key === "string" && file.s3_key) keys.add(file.s3_key);
+      const files = record?.files;
+      if (Array.isArray(files)) {
+        for (const f of files) {
+          const key = (f as Record<string, unknown>)?.s3_key;
+          if (typeof key === "string" && key) keys.add(key);
         }
       }
     }
@@ -386,6 +427,7 @@ export class ApplicationService {
       "business_details_1": "business_details",
       "financial_statements_1": "financial_statements",
       "supporting_documents_1": "supporting_documents",
+      "acceptance_documents_1": "acceptance_documents",
       "declarations_1": "declarations",
       "review_and_submit_1": "review_and_submit",
     };
@@ -402,6 +444,7 @@ export class ApplicationService {
       business_details: "business_details",
       financial_statements: "financial_statements",
       supporting_documents: "supporting_documents",
+      acceptance_documents: "acceptance_documents",
       declarations: "declarations",
       review_and_submit: "review_and_submit",
     };
@@ -445,6 +488,168 @@ export class ApplicationService {
     }
   }
 
+  private hasOfferBeenSent(application: Application | null): boolean {
+    if (!application) return false;
+    const status = (application as { status?: string }).status;
+    if (
+      status === ApplicationStatus.CONTRACT_SENT ||
+      status === ApplicationStatus.INVOICES_SENT ||
+      status === ApplicationStatus.OFFER_EXPIRED ||
+      status === ApplicationStatus.CONTRACT_ACCEPTED ||
+      status === ApplicationStatus.INVOICE_ACCEPTED ||
+      status === ApplicationStatus.SIGNING_PENDING ||
+      status === ApplicationStatus.COMPLETED
+    ) {
+      return true;
+    }
+    const contract = (application as { contract?: { status?: string } | null }).contract;
+    if (contract?.status === ContractStatus.OFFER_SENT || contract?.status === ContractStatus.OFFER_EXPIRED) {
+      return true;
+    }
+    const invoices = (application as { invoices?: Array<{ status?: string }> }).invoices ?? [];
+    return invoices.some(
+      (invoice) =>
+        invoice.status === InvoiceStatus.OFFER_SENT || invoice.status === InvoiceStatus.OFFER_EXPIRED
+    );
+  }
+
+  private async assertPostApplicationPrepUnlocked(applicationId: string): Promise<void> {
+    const lockedEnvelope = await prisma.signingEnvelope.findFirst({
+      where: {
+        application_id: applicationId,
+        status: { in: ["SENT", "IN_PROGRESS", "COMPLETED"] },
+      },
+      select: { id: true },
+    });
+    if (lockedEnvelope) {
+      throw new AppError(
+        403,
+        "SIGNING_PREP_LOCKED",
+        "Post-application documents are locked after the signing package is sent. Void the package to make changes."
+      );
+    }
+  }
+
+  private resolveOfferAcceptancePhase(
+    application: Application | null
+  ): string | null | undefined {
+    if (!application) return null;
+    const contract = (application as { contract?: { offer_details?: unknown } | null }).contract;
+    const invoices =
+      (application as { invoices?: { contract_id?: string | null; offer_details?: unknown }[] })
+        .invoices ?? [];
+    const standaloneInvoiceOffer = invoices.find(
+      (invoice) => !invoice.contract_id && invoice.offer_details
+    );
+    const offer =
+      (contract?.offer_details as Record<string, unknown> | null) ??
+      (standaloneInvoiceOffer?.offer_details as Record<string, unknown> | null) ??
+      null;
+    return getOfferAcceptanceFromOfferDetails(offer)?.status ?? null;
+  }
+
+  private getFlaggedAcceptanceDocumentIndices(application: Application | null): Set<number> {
+    const reviewItems = (
+      application as {
+        application_review_items?: {
+          item_type: string;
+          item_id: string;
+          status: string;
+        }[];
+      } | null
+    )?.application_review_items;
+    return collectFlaggedAcceptanceDocumentIndices(reviewItems);
+  }
+
+  private async verifyAcceptanceDocumentIndexEditable(
+    application: Application | null,
+    acceptanceDocIndex: number
+  ): Promise<void> {
+    await this.verifyAcceptanceDocumentsEditable(application);
+    if (this.resolveOfferAcceptancePhase(application) !== "CHANGES_REQUESTED") {
+      return;
+    }
+    assertAcceptanceDocumentIndexEditableInChangesRequested(
+      acceptanceDocIndex,
+      this.getFlaggedAcceptanceDocumentIndices(application)
+    );
+  }
+
+  private async verifyAcceptanceDocumentsEditable(
+    application: Application | null
+  ): Promise<void> {
+    if (!this.hasOfferBeenSent(application)) {
+      throw new AppError(
+        403,
+        "EDIT_NOT_ALLOWED",
+        "Acceptance documents can be uploaded after an offer is sent"
+      );
+    }
+    if (!application) return;
+    await this.assertPostApplicationPrepUnlocked(application.id);
+
+    const workflow = await this.getProductWorkflowForApplication(application);
+    if (!workflowUsesOfferAcceptanceFlow(workflow)) return;
+
+    const contract = (application as { contract?: { offer_details?: unknown } | null }).contract;
+    const invoices =
+      (application as { invoices?: { contract_id?: string | null; offer_details?: unknown }[] })
+        .invoices ?? [];
+    const standaloneInvoiceOffer = invoices.find(
+      (invoice) => !invoice.contract_id && invoice.offer_details
+    );
+    const offer =
+      (contract?.offer_details as Record<string, unknown> | null) ??
+      (standaloneInvoiceOffer?.offer_details as Record<string, unknown> | null) ??
+      null;
+
+    const acceptance = offer ? getOfferAcceptanceFromOfferDetails(offer) : null;
+    if (!acceptance) {
+      // Phase missing on a phased product (legacy/repair path) — allow the upload.
+      return;
+    }
+    if (!offerAcceptanceIsStep1Editable(acceptance.status)) {
+      throw new AppError(
+        403,
+        "EDIT_NOT_ALLOWED",
+        "Acceptance documents cannot be edited once the offer acceptance step has moved past issuer review."
+      );
+    }
+  }
+
+  private async verifyApplicationStepEditable(
+    application: Application | null,
+    fieldName: string | null
+  ): Promise<void> {
+    if (!application) return;
+    const status = (application as { status?: string }).status;
+    if (status === ApplicationStatus.DRAFT || status === ApplicationStatus.AMENDMENT_REQUESTED) {
+      return;
+    }
+    if (fieldName === "acceptance_documents") {
+      await this.verifyAcceptanceDocumentsEditable(application);
+      return;
+    }
+    throw new AppError(403, "EDIT_NOT_ALLOWED", "Application cannot be edited in its current status");
+  }
+
+  private async getProductWorkflowForApplication(application: Application | null): Promise<unknown[]> {
+    const productId = (application?.financing_type as { product_id?: string } | null | undefined)
+      ?.product_id;
+    if (!productId || typeof productId !== "string") {
+      throw new AppError(400, "VALIDATION_ERROR", "Application has no product for document upload");
+    }
+    const productVersion = (application as { product_version?: number | null } | null)?.product_version;
+    const product =
+      productVersion != null
+        ? await this.productRepository.findByBaseAndVersion(productId, productVersion)
+        : await this.productRepository.findById(productId);
+    if (!product) {
+      throw new AppError(400, "VALIDATION_ERROR", "Product not found");
+    }
+    return (product.workflow as unknown[]) ?? [];
+  }
+
   /**
    * Verify that user has access to an application
    * User must be either the owner or a member of the organization that owns the application
@@ -485,6 +690,25 @@ export class ApplicationService {
         "You do not have access to this application. You must be a member or owner of the organization."
       );
     }
+  }
+
+  /**
+   * Authorize access to application-scoped S3 objects (uploads, signing PDFs).
+   * Admins may access any application that exists; issuers need org membership.
+   */
+  async assertCanAccessApplicationDocuments(params: {
+    applicationId: string;
+    userId: string;
+    asAdmin?: boolean;
+  }): Promise<void> {
+    if (params.asAdmin) {
+      const application = await this.repository.findById(params.applicationId);
+      if (!application) {
+        throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+      }
+      return;
+    }
+    await this.verifyApplicationAccess(params.applicationId, params.userId);
   }
 
   /**
@@ -615,8 +839,15 @@ export class ApplicationService {
     };
   }
 
-  async getApplicationLogs(id: string, userId: string) {
-    await this.verifyApplicationAccess(id, userId);
+  async getApplicationLogs(id: string, userId: string, options?: { asAdmin?: boolean }) {
+    if (options?.asAdmin) {
+      const application = await this.repository.findById(id);
+      if (!application) {
+        throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+      }
+    } else {
+      await this.verifyApplicationAccess(id, userId);
+    }
 
     const logs = await prisma.applicationLog.findMany({
       where: { application_id: id },
@@ -717,9 +948,9 @@ export class ApplicationService {
     if (!application) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
-    this.verifyApplicationEditable(application);
 
     const fieldName = this.getFieldNameForStepId(input.stepId);
+    await this.verifyApplicationStepEditable(application, fieldName);
     if (!fieldName) {
       // For steps like contract_details and invoice_details that manage their own saves,
       // just update the last_completed_step without saving data to Application
@@ -859,11 +1090,30 @@ export class ApplicationService {
       }
     }
 
-    // Special handling for financing_structure: link existing contract if selected
+    // Special handling for financing_structure: branch reset + link/unlink contract
     if (fieldName === "financing_structure") {
-      const structureData = input.data as any;
+      const structureData = input.data as {
+        structure_type?: string;
+        existing_contract_id?: string | null;
+      };
+      const prevStructure = application.financing_structure as {
+        structure_type?: string;
+        existing_contract_id?: string | null;
+      } | null;
+      const nextType = structureData?.structure_type;
+      const prevType = prevStructure?.structure_type;
+      const structureBranchChanged =
+        Boolean(nextType) &&
+        (prevType !== nextType ||
+          (nextType === "existing_contract" &&
+            (prevStructure?.existing_contract_id ?? null) !==
+              (structureData?.existing_contract_id ?? null)));
+
+      if (structureBranchChanged) {
+        await this.resetFinancingStructureBranchData(application);
+      }
+
       if (structureData?.structure_type === "existing_contract" && structureData?.existing_contract_id) {
-        // Validate the contract before linking
         const contract = await this.contractRepository.findById(structureData.existing_contract_id);
 
         if (!contract) {
@@ -878,25 +1128,14 @@ export class ApplicationService {
           throw new AppError(400, "INVALID_CONTRACT_STATUS", "Only approved contracts can be linked to applications.");
         }
 
-        // Link the existing contract to this application
         updateData.contract = { connect: { id: structureData.existing_contract_id } };
-      } else if (structureData?.structure_type === "invoice_only" || structureData?.structure_type === "new_contract") {
-        // Unlink any contract if invoice-only OR new_contract is selected
-        // This ensures switching from existing_contract → new_contract properly disconnects the FK
+      } else if (
+        structureData?.structure_type === "invoice_only" ||
+        structureData?.structure_type === "new_contract"
+      ) {
+        // Branch reset already removed a draft holder contract; disconnect covers approved links.
         if (application.contract_id) {
           updateData.contract = { disconnect: true };
-        }
-
-        // invoice_only: clear contract_id on draft invoices to prevent inconsistent state
-        if (structureData?.structure_type === "invoice_only") {
-          await prisma.invoice.updateMany({
-            where: {
-              application_id: id,
-              status: "DRAFT",
-              contract_id: { not: null },
-            },
-            data: { contract_id: null },
-          });
         }
       }
     }
@@ -909,6 +1148,20 @@ export class ApplicationService {
       } else {
         updateData.last_completed_step = Math.max(application.last_completed_step, input.stepNumber);
       }
+    }
+
+    if (fieldName === "acceptance_documents") {
+      if (this.resolveOfferAcceptancePhase(application) === "CHANGES_REQUESTED") {
+        const changedIndices = findChangedAcceptanceDocumentIndices(
+          (application as { acceptance_documents?: unknown }).acceptance_documents,
+          input.data
+        );
+        const flagged = this.getFlaggedAcceptanceDocumentIndices(application);
+        for (const idx of changedIndices) {
+          assertAcceptanceDocumentIndexEditableInChangesRequested(idx, flagged);
+        }
+      }
+      return this.repository.update(id, updateData);
     }
 
     if (fieldName === "supporting_documents") {
@@ -1143,19 +1396,46 @@ export class ApplicationService {
     existingS3Key?: string;
     supportingDocCategoryKey?: string;
     supportingDocIndex?: number;
+    acceptanceDocIndex?: number;
+    guarantorAgreementUpload?: boolean;
     userId: string;
   }): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
     await this.verifyApplicationAccess(params.applicationId, params.userId);
     const application = await this.repository.findById(params.applicationId);
-    this.verifyApplicationEditable(application);
+    const isSupportingDocsWorkflowUpload =
+      params.supportingDocCategoryKey !== undefined &&
+      params.supportingDocIndex !== undefined;
+    const isAcceptanceDocUpload = params.acceptanceDocIndex !== undefined;
+    const isGuarantorAgreementUpload = params.guarantorAgreementUpload === true;
+    let workflow: unknown[] | null = null;
+    if (isAcceptanceDocUpload) {
+      workflow = await this.getProductWorkflowForApplication(application);
+      const rows = resolveAcceptanceDocumentsFromWorkflow(workflow);
+      const row = rows[params.acceptanceDocIndex!];
+      if (!row) {
+        throw new AppError(400, "VALIDATION_ERROR", "Invalid acceptance document slot");
+      }
+      await this.verifyAcceptanceDocumentIndexEditable(application, params.acceptanceDocIndex!);
+    } else if (isSupportingDocsWorkflowUpload) {
+      workflow = await this.getProductWorkflowForApplication(application);
+      this.verifyApplicationEditable(application);
+    } else if (isGuarantorAgreementUpload) {
+      workflow = await this.getProductWorkflowForApplication(application);
+      this.verifyApplicationEditable(application);
+    } else {
+      this.verifyApplicationEditable(application);
+    }
 
     if ((application as any).status === "AMENDMENT_REQUESTED") {
       const { allowedSections } = await getAmendmentAllowedSections(params.applicationId);
-      const isSupportingDocsWorkflowUpload =
-        params.supportingDocCategoryKey !== undefined &&
-        params.supportingDocIndex !== undefined;
-      if (isSupportingDocsWorkflowUpload) {
+      if (isAcceptanceDocUpload) {
+        // Acceptance docs are post-offer; amendment locks do not apply.
+      } else if (isSupportingDocsWorkflowUpload) {
         if (!allowedSections.has("supporting_documents")) {
+          throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
+        }
+      } else if (isGuarantorAgreementUpload) {
+        if (!allowedSections.has("business_details")) {
           throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
         }
       } else {
@@ -1169,24 +1449,18 @@ export class ApplicationService {
     }
 
     let allowedTypes: string[];
-    if (
-      params.supportingDocCategoryKey !== undefined &&
-      params.supportingDocIndex !== undefined
-    ) {
-      const ft = application?.financing_type as { product_id?: string } | null | undefined;
-      const productId = ft?.product_id;
-      if (!productId || typeof productId !== "string") {
-        throw new AppError(400, "VALIDATION_ERROR", "Application has no product for document upload");
-      }
-      const product = await this.productRepository.findById(productId);
-      if (!product) {
-        throw new AppError(400, "VALIDATION_ERROR", "Product not found");
-      }
+    if (isAcceptanceDocUpload) {
+      const rows = resolveAcceptanceDocumentsFromWorkflow(workflow ?? []);
+      const row = rows[params.acceptanceDocIndex!];
+      allowedTypes = resolveAcceptanceDocumentAllowedTypes(row ?? {});
+    } else if (isSupportingDocsWorkflowUpload) {
       allowedTypes = getSupportingDocAllowedTypesFromProductWorkflow(
-        product.workflow as unknown[],
-        params.supportingDocCategoryKey,
-        params.supportingDocIndex
+        workflow ?? [],
+        params.supportingDocCategoryKey!,
+        params.supportingDocIndex!
       );
+    } else if (isGuarantorAgreementUpload) {
+      allowedTypes = getGuarantorAgreementAllowedTypesFromProductWorkflow(workflow ?? []);
     } else {
       allowedTypes = ["pdf"];
     }
@@ -1213,19 +1487,53 @@ export class ApplicationService {
   /**
    * Delete an application document from S3.
    * Access and amendment checks performed here; S3 deletion delegated to documents service.
+   * Post-offer supporting-doc removals are allowed while signing prep is unlocked (NAV-03/04).
    */
   async deleteDocument(applicationId: string, s3Key: string, userId: string): Promise<void> {
     await this.verifyApplicationAccess(applicationId, userId);
     const application = await this.repository.findById(applicationId);
-    this.verifyApplicationEditable(application);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
 
-    if ((application as any).status === "AMENDMENT_REQUESTED") {
-      const { allowedSections } = await getAmendmentAllowedSections(applicationId);
-      const canRemoveAppUploadedFile =
-        allowedSections.has("supporting_documents") || allowedSections.has("business_details");
-      if (!canRemoveAppUploadedFile) {
-        throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
+    const status = (application as { status?: string }).status;
+    if (status === ApplicationStatus.DRAFT || status === ApplicationStatus.AMENDMENT_REQUESTED) {
+      if (status === ApplicationStatus.AMENDMENT_REQUESTED) {
+        const { allowedSections } = await getAmendmentAllowedSections(applicationId);
+        const canRemoveAppUploadedFile =
+          allowedSections.has("supporting_documents") || allowedSections.has("business_details");
+        if (!canRemoveAppUploadedFile) {
+          throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
+        }
       }
+    } else if (this.hasOfferBeenSent(application)) {
+      const supportingKeys = this.extractS3KeysFromSupportingDocuments(
+        application.supporting_documents
+      );
+      const acceptanceKeys = this.extractS3KeysFromAcceptanceDocuments(
+        (application as { acceptance_documents?: unknown }).acceptance_documents
+      );
+      const isAcceptanceKey = acceptanceKeys.has(s3Key);
+      if (isAcceptanceKey) {
+        await this.verifyAcceptanceDocumentsEditable(application);
+        const idx = findAcceptanceDocumentIndexForS3Key(
+          (application as { acceptance_documents?: unknown }).acceptance_documents,
+          s3Key
+        );
+        if (idx !== null) {
+          await this.verifyAcceptanceDocumentIndexEditable(application, idx);
+        }
+      }
+      if (!supportingKeys.has(s3Key) && !isAcceptanceKey) {
+        throw new AppError(
+          403,
+          "EDIT_NOT_ALLOWED",
+          "Only uploaded acceptance or supporting documents can be removed after an offer is sent"
+        );
+      }
+      await this.assertPostApplicationPrepUnlocked(applicationId);
+    } else {
+      throw new AppError(403, "EDIT_NOT_ALLOWED", "Application cannot be edited in its current status");
     }
 
     if (shouldPreserveApplicationDocumentsInS3((application as { status?: string })?.status)) {
@@ -1460,8 +1768,441 @@ export class ApplicationService {
   }
 
   /**
-   * Accept or reject a contract offer. Issuer must be a member of the application's organization.
+   * Reset acceptance-doc review items + section to PENDING on (re)submit.
+   * From CHANGES_REQUESTED: only AMENDMENT_REQUESTED items (approved stay approved).
+   * From PENDING_ISSUER: initialize/reset all uploaded acceptance keys.
    */
+  private async resetAcceptanceDocumentsReviewInTx(
+    tx: Prisma.TransactionClient,
+    applicationId: string,
+    application: {
+      acceptance_documents?: unknown;
+    },
+    workflow: unknown[],
+    offerAcceptanceStatus: string | null | undefined
+  ): Promise<void> {
+    const allDocKeys = collectAcceptanceDocumentReviewKeys(
+      workflow,
+      application.acceptance_documents
+    );
+    const reviewItems =
+      offerAcceptanceStatus === "CHANGES_REQUESTED"
+        ? await tx.applicationReviewItem.findMany({
+            where: { application_id: applicationId, item_type: "document" },
+            select: { item_type: true, item_id: true, status: true },
+          })
+        : [];
+    const docKeys = resolveAcceptanceDocumentReviewKeysToResetOnSubmit(
+      offerAcceptanceStatus,
+      allDocKeys,
+      reviewItems
+    );
+    await Promise.all(
+      docKeys.map(async (itemId) => {
+        await tx.applicationReviewItem.upsert({
+          where: {
+            application_id_item_type_item_id: {
+              application_id: applicationId,
+              item_type: "document",
+              item_id: itemId,
+            },
+          },
+          create: {
+            application_id: applicationId,
+            item_type: "document",
+            item_id: itemId,
+            status: ReviewStepStatus.PENDING,
+            reviewer_user_id: null,
+            reviewed_at: null,
+          },
+          update: {
+            status: ReviewStepStatus.PENDING,
+            reviewer_user_id: null,
+            reviewed_at: null,
+          },
+        });
+        await tx.applicationReviewRemark.deleteMany({
+          where: {
+            application_id: applicationId,
+            scope: "item",
+            scope_key: itemId,
+          },
+        });
+      })
+    );
+    if (allDocKeys.length === 0 && !workflowHasAcceptanceDocuments(workflow)) {
+      return;
+    }
+    await tx.applicationReview.upsert({
+      where: {
+        application_id_section: {
+          application_id: applicationId,
+          section: "acceptance_documents",
+        },
+      },
+      create: {
+        application_id: applicationId,
+        section: "acceptance_documents",
+        status: ReviewStepStatus.PENDING,
+        reviewer_user_id: null,
+        reviewed_at: null,
+      },
+      update: {
+        status: ReviewStepStatus.PENDING,
+        reviewer_user_id: null,
+        reviewed_at: null,
+      },
+    });
+  }
+
+  /**
+   * Step 1 of offer acceptance: require acceptance uploads,
+   * then move to PENDING_ADMIN_REVIEW (or APPROVED_FOR_SIGNING when no acceptance docs).
+   */
+  async submitContractOfferAcceptance(
+    applicationId: string,
+    userId: string
+  ): Promise<Application> {
+    await this.verifyApplicationAccess(applicationId, userId);
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+    if (!application.contract_id) {
+      throw new AppError(400, "INVALID_STATE", "Application has no contract");
+    }
+    const workflow = await this.getProductWorkflowForApplication(application);
+    if (!workflowUsesOfferAcceptanceFlow(workflow)) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "This product does not use the offer acceptance flow."
+      );
+    }
+    const contractId = application.contract_id;
+    assertRequiredAcceptanceDocumentsPresent(
+      workflow,
+      (application as { acceptance_documents?: unknown }).acceptance_documents
+    );
+
+    const now = new Date().toISOString();
+    const nextStatus = resolveStatusAfterOfferAcceptanceSubmit(workflow);
+    let previousAcceptanceStatus: string | null = null;
+
+    await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<
+        { status: string; offer_details: Prisma.JsonValue | null }[]
+      >`SELECT status, offer_details FROM contracts WHERE id = ${contractId} FOR UPDATE`;
+      const contract = locked[0];
+      if (!contract || contract.status !== "OFFER_SENT") {
+        throw new AppError(400, "INVALID_STATE", "No pending contract offer to accept");
+      }
+      const offer = (contract.offer_details as Record<string, unknown> | null) ?? null;
+      if (!offer) {
+        throw new AppError(400, "INVALID_STATE", "Contract has no offer details");
+      }
+      const acceptance = getOfferAcceptanceFromOfferDetails(offer);
+      previousAcceptanceStatus = acceptance?.status ?? null;
+      if (!offerAcceptanceIsStep1Editable(acceptance?.status)) {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "Offer acceptance has already been submitted or is not editable."
+        );
+      }
+      assertAcceptanceDeadlineOpen(acceptance);
+      const productVersion =
+        (application as { product_version?: number | null }).product_version ?? null;
+      const updatedOffer = patchOfferAcceptance(offer, {
+        status: nextStatus,
+        acknowledged_terms: buildAcknowledgedTermsSnapshot({
+          offerDetails: offer,
+          productVersion,
+        }),
+        submitted_at: now,
+        reviewed_at: nextStatus === "APPROVED_FOR_SIGNING" ? now : null,
+        reviewed_by_user_id: nextStatus === "APPROVED_FOR_SIGNING" ? userId : null,
+        ...(nextStatus === "APPROVED_FOR_SIGNING"
+          ? signingDeadlinePatchOnApprove(workflow, now, acceptance)
+          : {}),
+      });
+      await tx.contract.update({
+        where: { id: contractId },
+        data: { offer_details: updatedOffer as Prisma.InputJsonValue },
+      });
+      await this.resetAcceptanceDocumentsReviewInTx(
+        tx,
+        applicationId,
+        application,
+        workflow,
+        acceptance?.status
+      );
+    });
+
+    const contractNumber = (
+      application as {
+        contract?: { contract_details?: { number?: string | number } | null } | null;
+      }
+    ).contract?.contract_details?.number;
+    const offerRecord =
+      (
+        application as {
+          contract?: { offer_details?: Record<string, unknown> | null } | null;
+        }
+      ).contract?.offer_details ?? null;
+
+    const isAcceptanceResubmit = previousAcceptanceStatus === "CHANGES_REQUESTED";
+    await logApplicationActivity({
+      userId,
+      applicationId,
+      entityId: contractId,
+      portal: ActivityPortal.ISSUER,
+      eventType: isAcceptanceResubmit
+        ? ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED
+        : ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_SUBMITTED,
+      metadata: {
+        contract_id: contractId,
+        ...(contractNumber != null && String(contractNumber).trim() !== ""
+          ? { contract_number: String(contractNumber).trim() }
+          : {}),
+        offer_acceptance_status: nextStatus,
+        submitted_at: now,
+        ...(isAcceptanceResubmit ? { resubmitted_from: "CHANGES_REQUESTED" } : {}),
+        ...(offerRecord?.offered_facility != null
+          ? { offered_facility: Number(offerRecord.offered_facility) || 0 }
+          : {}),
+        ...(offerRecord?.requested_facility != null
+          ? { requested_facility: Number(offerRecord.requested_facility) || 0 }
+          : {}),
+      },
+    });
+
+    if (nextStatus === "APPROVED_FOR_SIGNING") {
+      await logApplicationActivity({
+        userId,
+        applicationId,
+        entityId: contractId,
+        portal: ActivityPortal.ISSUER,
+        eventType: ApplicationLogEventType.CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING,
+        metadata: {
+          contract_id: contractId,
+          ...(contractNumber != null && String(contractNumber).trim() !== ""
+            ? { contract_number: String(contractNumber).trim() }
+            : {}),
+          auto_approved: true,
+        },
+      });
+    }
+
+    const isInvoiceOnly =
+      (application as { financing_structure?: { structure_type?: string } }).financing_structure
+        ?.structure_type === "invoice_only";
+    const appStatus = resolveApplicationStatusAfterOfferAcceptanceSubmit(
+      isInvoiceOnly,
+      nextStatus
+    );
+    await prisma.application.update({
+      where: { id: applicationId },
+      data: { status: appStatus as DbApplicationStatus },
+    });
+
+    return this.repository.findById(applicationId) as Promise<Application>;
+  }
+
+  async submitInvoiceOfferAcceptance(
+    applicationId: string,
+    invoiceId: string,
+    userId: string
+  ): Promise<Application> {
+    await this.verifyApplicationAccess(applicationId, userId);
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+    const workflow = await this.getProductWorkflowForApplication(application);
+    if (!workflowUsesOfferAcceptanceFlow(workflow)) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "This product does not use the offer acceptance flow."
+      );
+    }
+    const invoices = (application as { invoices?: { id: string; contract_id?: string | null }[] }).invoices ?? [];
+    const invoice = invoices.find((item) => item.id === invoiceId);
+    if (!invoice) {
+      throw new AppError(404, "NOT_FOUND", "Invoice not found");
+    }
+    if (invoice.contract_id) {
+      throw new AppError(
+        400,
+        "CONTRACT_LINKED_INVOICE_NO_PACKAGE",
+        "Contract-linked invoice offers do not use the offer acceptance flow."
+      );
+    }
+    assertRequiredAcceptanceDocumentsPresent(
+      workflow,
+      (application as { acceptance_documents?: unknown }).acceptance_documents
+    );
+
+    const now = new Date().toISOString();
+    const nextStatus = resolveStatusAfterOfferAcceptanceSubmit(workflow);
+    let previousAcceptanceStatus: string | null = null;
+
+    await prisma.$transaction(async (tx) => {
+      const locked = await tx.$queryRaw<
+        { status: string; offer_details: Prisma.JsonValue | null }[]
+      >`SELECT status, offer_details FROM invoices WHERE id = ${invoiceId} AND application_id = ${applicationId} FOR UPDATE`;
+      const row = locked[0];
+      if (!row || row.status !== "OFFER_SENT") {
+        throw new AppError(400, "INVALID_STATE", "No pending invoice offer to accept");
+      }
+      const offer = (row.offer_details as Record<string, unknown> | null) ?? null;
+      if (!offer) {
+        throw new AppError(400, "INVALID_STATE", "Invoice has no offer details");
+      }
+      const acceptance = getOfferAcceptanceFromOfferDetails(offer);
+      previousAcceptanceStatus = acceptance?.status ?? null;
+      if (!offerAcceptanceIsStep1Editable(acceptance?.status)) {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "Offer acceptance has already been submitted or is not editable."
+        );
+      }
+      assertAcceptanceDeadlineOpen(acceptance);
+      const productVersion =
+        (application as { product_version?: number | null }).product_version ?? null;
+      const updatedOffer = patchOfferAcceptance(offer, {
+        status: nextStatus,
+        acknowledged_terms: buildAcknowledgedTermsSnapshot({
+          offerDetails: offer,
+          productVersion,
+        }),
+        submitted_at: now,
+        reviewed_at: nextStatus === "APPROVED_FOR_SIGNING" ? now : null,
+        reviewed_by_user_id: nextStatus === "APPROVED_FOR_SIGNING" ? userId : null,
+        ...(nextStatus === "APPROVED_FOR_SIGNING"
+          ? signingDeadlinePatchOnApprove(workflow, now, acceptance)
+          : {}),
+      });
+      await tx.invoice.update({
+        where: { id: invoiceId },
+        data: { offer_details: updatedOffer as Prisma.InputJsonValue },
+      });
+      await this.resetAcceptanceDocumentsReviewInTx(
+        tx,
+        applicationId,
+        application,
+        workflow,
+        acceptance?.status
+      );
+    });
+
+    const invWithDetails = (
+      application as { invoices?: { id: string; details?: { number?: string | number }; offer_details?: Record<string, unknown> | null }[] }
+    ).invoices?.find((item) => item.id === invoiceId);
+    const invoiceNumber =
+      invWithDetails?.details?.number != null && String(invWithDetails.details.number).trim() !== ""
+        ? String(invWithDetails.details.number).trim()
+        : undefined;
+    const offerRecord = invWithDetails?.offer_details ?? null;
+
+    const isAcceptanceResubmit = previousAcceptanceStatus === "CHANGES_REQUESTED";
+    await logApplicationActivity({
+      userId,
+      applicationId,
+      entityId: invoiceId,
+      portal: ActivityPortal.ISSUER,
+      eventType: isAcceptanceResubmit
+        ? ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_RESUBMITTED
+        : ApplicationLogEventType.INVOICE_OFFER_ACCEPTANCE_SUBMITTED,
+      metadata: {
+        invoice_id: invoiceId,
+        ...(invoiceNumber ? { invoice_number: invoiceNumber } : {}),
+        offer_acceptance_status: nextStatus,
+        submitted_at: now,
+        ...(isAcceptanceResubmit ? { resubmitted_from: "CHANGES_REQUESTED" } : {}),
+        ...(offerRecord?.offered_amount != null
+          ? { offered_amount: Number(offerRecord.offered_amount) || 0 }
+          : {}),
+        ...(offerRecord?.requested_amount != null
+          ? { requested_amount: Number(offerRecord.requested_amount) || 0 }
+          : {}),
+      },
+    });
+
+    if (nextStatus === "APPROVED_FOR_SIGNING") {
+      await logApplicationActivity({
+        userId,
+        applicationId,
+        entityId: invoiceId,
+        portal: ActivityPortal.ISSUER,
+        eventType: ApplicationLogEventType.INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING,
+        metadata: {
+          invoice_id: invoiceId,
+          ...(invoiceNumber ? { invoice_number: invoiceNumber } : {}),
+          auto_approved: true,
+        },
+      });
+    }
+
+    const isInvoiceOnly =
+      (application as { financing_structure?: { structure_type?: string } }).financing_structure
+        ?.structure_type === "invoice_only";
+    const appStatus = resolveApplicationStatusAfterOfferAcceptanceSubmit(
+      isInvoiceOnly,
+      nextStatus
+    );
+    await prisma.application.update({
+      where: { id: applicationId },
+      data: { status: appStatus as DbApplicationStatus },
+    });
+
+    return this.repository.findById(applicationId) as Promise<Application>;
+  }
+
+  /**
+   * Phased offer products must complete via envelope.
+   * Prevents silent direct accept when SigningCloud env is missing/misconfigured.
+   */
+  private async assertPhasedOfferDirectAcceptBlocked(params: {
+    application: Application;
+    action: "accept" | "reject";
+    signingCompletion?: { signedOfferLetterS3Key: string; signedFileSha256: string };
+    invoiceId?: string;
+  }): Promise<void> {
+    if (params.action !== "accept") return;
+    if (params.signingCompletion) return;
+
+    const workflow = await this.getProductWorkflowForApplication(params.application);
+    if (!workflowUsesOfferAcceptanceFlow(workflow)) return;
+
+    if (params.invoiceId) {
+      const invoice = await prisma.invoice.findFirst({
+        where: { id: params.invoiceId, application_id: params.application.id },
+        select: { contract_id: true },
+      });
+      if (invoice?.contract_id) {
+        const completed = await prisma.signingEnvelope.findFirst({
+          where: { contract_id: invoice.contract_id, status: "COMPLETED" },
+          select: { id: true },
+        });
+        if (completed) return;
+        throw new AppError(
+          400,
+          "CONTRACT_SIGNING_INCOMPLETE",
+          "Finish contract signing before accepting this invoice offer."
+        );
+      }
+    }
+
+    throw new AppError(
+      400,
+      "SIGNING_NOT_CONFIGURED",
+      "This offer must be completed through the signing package. Signing is not available — contact CashSouk."
+    );
+  }
+
   async respondToContractOffer(
     applicationId: string,
     action: "accept" | "reject",
@@ -1481,6 +2222,11 @@ export class ApplicationService {
     if (!application.contract_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no contract");
     }
+    await this.assertPhasedOfferDirectAcceptBlocked({
+      application,
+      action,
+      signingCompletion: options?.signingCompletion,
+    });
     const contractId = application.contract_id;
 
     const responseMeta = await prisma.$transaction(async (tx) => {
@@ -1489,9 +2235,9 @@ export class ApplicationService {
           status: string;
           offer_details: Prisma.JsonValue | null;
           contract_details: Prisma.JsonValue | null;
-          offer_signing: Prisma.JsonValue | null;
+          originating_application_id: string | null;
         }[]
-      >`SELECT status, offer_details, contract_details, offer_signing FROM contracts WHERE id = ${contractId} FOR UPDATE`;
+      >`SELECT status, offer_details, contract_details, originating_application_id FROM contracts WHERE id = ${contractId} FOR UPDATE`;
 
       const contract = lockedContractRows[0];
       if (!contract) {
@@ -1507,16 +2253,11 @@ export class ApplicationService {
         throw new AppError(400, "INVALID_STATE", "Contract has no offer details");
       }
 
+      assertAcceptanceDeadlineOpen(getOfferAcceptanceFromOfferDetails(offer));
+      assertSigningDeadlineOpen(getOfferAcceptanceFromOfferDetails(offer));
+
       if (offer.responded_at != null && offer.responded_at !== "") {
         throw new AppError(400, "ALREADY_RESPONDED", "This offer has already been responded to");
-      }
-
-      const expiresAt = offer.expires_at as string | null | undefined;
-      if (expiresAt) {
-        const expiry = new Date(expiresAt);
-        if (expiry < new Date()) {
-          throw new AppError(400, "OFFER_EXPIRED", "This offer has expired");
-        }
       }
 
       const now = new Date().toISOString();
@@ -1530,7 +2271,7 @@ export class ApplicationService {
         ? facilityFeeRatePercentRaw
         : 0;
 
-      const updatedOffer = {
+      let updatedOffer: Record<string, unknown> = {
         ...offer,
         responded_at: now,
         responded_by_user_id: userId,
@@ -1538,6 +2279,11 @@ export class ApplicationService {
           ? { rejection_reason: rejectionReason.trim() }
           : {}),
       };
+      if (getOfferAcceptanceFromOfferDetails(updatedOffer)) {
+        updatedOffer = patchOfferAcceptance(updatedOffer, {
+          status: action === "accept" ? "COMPLETED" : "DECLINED",
+        });
+      }
 
       const cd = (contract.contract_details as Record<string, unknown>) || {};
       const utilizedFacility = typeof cd.utilized_facility === "number" ? cd.utilized_facility : 0;
@@ -1556,26 +2302,16 @@ export class ApplicationService {
           }
           : cd;
 
-      const signingPatch =
-        action === "accept" && options?.signingCompletion
-          ? {
-              offer_signing: mergeOfferSigningSigned(
-                contract.offer_signing,
-                options.signingCompletion.signedOfferLetterS3Key,
-                options.signingCompletion.signedFileSha256,
-                now
-              ),
-            }
-          : {};
-
       await tx.contract.update({
         where: { id: contractId },
         data: {
           status: newStatus,
-          offer_details: updatedOffer,
+          offer_details: updatedOffer as Prisma.InputJsonValue,
           contract_details: mergedDetails as Prisma.InputJsonValue,
-          ...signingPatch,
           ...(action === "reject" && { withdraw_reason: WithdrawReason.OFFER_REJECTED }),
+          ...(action === "accept" && contract.originating_application_id == null
+            ? { originating_application_id: applicationId }
+            : {}),
         },
       });
 
@@ -1597,6 +2333,30 @@ export class ApplicationService {
         },
       });
 
+      // Primary offer ceremony complete → Acceptance section APPROVED (alongside Contract).
+      if (action === "accept" && getOfferAcceptanceFromOfferDetails(offer)) {
+        await tx.applicationReview.upsert({
+          where: {
+            application_id_section: {
+              application_id: applicationId,
+              section: "acceptance_documents",
+            },
+          },
+          create: {
+            application_id: applicationId,
+            section: "acceptance_documents",
+            status: ReviewStepStatus.APPROVED,
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+          update: {
+            status: ReviewStepStatus.APPROVED,
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+        });
+      }
+
       /* --- BEGIN: Recompute and persist application status after contract offer response --- */
       const updatedInvoices = await tx.invoice.findMany({
         where: { application_id: applicationId },
@@ -1604,13 +2364,38 @@ export class ApplicationService {
       const updatedContract = await tx.contract.findUnique({
         where: { id: contractId },
       });
-      const nextReviewStatusBase =
-        action === "accept"
-          ? ApplicationStatus.CONTRACT_ACCEPTED
-          : (application.status as ApplicationStatus);
       const isInvoiceOnly =
         (application as { financing_structure?: { structure_type?: string } }).financing_structure
           ?.structure_type === "invoice_only";
+      const structureType =
+        (application as { financing_structure?: { structure_type?: string } }).financing_structure
+          ?.structure_type ?? null;
+      const hasOfferAcceptance = !!getOfferAcceptanceFromOfferDetails(offer);
+      const sectionReviews = await tx.applicationReview.findMany({
+        where: { application_id: applicationId },
+        select: { section: true, status: true },
+      });
+      const sectionStatusMap = new Map(sectionReviews.map((r) => [r.section, r.status]));
+      // Contract accept just wrote contract_details → APPROVED in this transaction.
+      if (action === "accept") {
+        sectionStatusMap.set("contract_details", ReviewStepStatus.APPROVED);
+      }
+      const invoicePrereqs = getReviewSectionPrerequisites(structureType).invoice_details ?? [];
+      const isInvoiceTabUnlocked =
+        invoicePrereqs.length === 0 ||
+        invoicePrereqs.every((prereq) => sectionStatusMap.get(prereq) === ReviewStepStatus.APPROVED);
+      const phasedAcceptStatus = resolveApplicationStatusAfterCommercialAccept({
+        isInvoiceOnly,
+        hasOfferAcceptance,
+        action,
+        isContractPath: true,
+        invoiceCount: updatedInvoices.length,
+        isInvoiceTabUnlocked,
+      });
+      const nextReviewStatusBase =
+        action === "accept"
+          ? (phasedAcceptStatus ?? ApplicationStatus.CONTRACT_ACCEPTED)
+          : (application.status as ApplicationStatus);
       const appStatus = computeApplicationStatus(
         updatedContract as { status: ContractStatus } | null,
         updatedInvoices.map((i) => ({ status: i.status as InvoiceStatus })),
@@ -1698,6 +2483,61 @@ export class ApplicationService {
   /**
    * Accept or reject an invoice offer. Issuer must be a member of the application's organization.
    */
+  /**
+   * When SigningCloud is configured, invoice accept is allowed without an envelope only for
+   * contract-linked invoices whose contract offer signing package is COMPLETED.
+   * Throws USE_SIGNING_FLOW (invoice-only) or CONTRACT_SIGNING_INCOMPLETE (linked, not done).
+   */
+  async assertInvoiceOfferAcceptAllowed(
+    applicationId: string,
+    invoiceId: string,
+    userId: string
+  ): Promise<void> {
+    // Authz first so eligibility codes cannot leak offer/signing state to strangers.
+    await this.verifyApplicationAccess(applicationId, userId);
+
+    const invoice = await prisma.invoice.findFirst({
+      where: { id: invoiceId, application_id: applicationId },
+      select: { contract_id: true },
+    });
+    if (!invoice) {
+      throw new AppError(404, "NOT_FOUND", "Invoice not found in this application");
+    }
+
+    const invoiceContractId = invoice.contract_id;
+    let hasCompletedContractEnvelope = false;
+    if (invoiceContractId) {
+      const completed = await prisma.signingEnvelope.findFirst({
+        where: { contract_id: invoiceContractId, status: "COMPLETED" },
+        select: { id: true },
+      });
+      hasCompletedContractEnvelope = completed != null;
+    }
+
+    if (
+      canDirectAcceptInvoice({
+        invoiceContractId,
+        hasCompletedContractEnvelope,
+      })
+    ) {
+      return;
+    }
+
+    if (invoiceContractId) {
+      throw new AppError(
+        400,
+        "CONTRACT_SIGNING_INCOMPLETE",
+        "Finish contract signing before accepting this invoice offer."
+      );
+    }
+
+    throw new AppError(
+      400,
+      "USE_SIGNING_FLOW",
+      "Complete signing via the signing envelope before accepting this offer."
+    );
+  }
+
   async respondToInvoiceOffer(
     applicationId: string,
     invoiceId: string,
@@ -1720,6 +2560,12 @@ export class ApplicationService {
     if (!invoice) {
       throw new AppError(404, "NOT_FOUND", "Invoice not found in this application");
     }
+    await this.assertPhasedOfferDirectAcceptBlocked({
+      application,
+      action,
+      signingCompletion: options?.signingCompletion,
+      invoiceId,
+    });
 
     const scopeKey = await this.resolveInvoiceReviewItemKeyById(
       applicationId,
@@ -1728,8 +2574,8 @@ export class ApplicationService {
     );
     const responseMeta = await prisma.$transaction(async (tx) => {
       const lockedInvoiceRows = await tx.$queryRaw<
-        { status: string; offer_details: Prisma.JsonValue | null; offer_signing: Prisma.JsonValue | null }[]
-      >`SELECT status, offer_details, offer_signing FROM invoices WHERE id = ${invoiceId} AND application_id = ${applicationId} FOR UPDATE`;
+        { status: string; offer_details: Prisma.JsonValue | null }[]
+      >`SELECT status, offer_details FROM invoices WHERE id = ${invoiceId} AND application_id = ${applicationId} FOR UPDATE`;
 
       const dbInvoice = lockedInvoiceRows[0];
       if (!dbInvoice) {
@@ -1745,16 +2591,11 @@ export class ApplicationService {
         throw new AppError(400, "INVALID_STATE", "Invoice has no offer details");
       }
 
+      assertAcceptanceDeadlineOpen(getOfferAcceptanceFromOfferDetails(offer));
+      assertSigningDeadlineOpen(getOfferAcceptanceFromOfferDetails(offer));
+
       if (offer.responded_at != null && offer.responded_at !== "") {
         throw new AppError(400, "ALREADY_RESPONDED", "This offer has already been responded to");
-      }
-
-      const expiresAt = offer.expires_at as string | null | undefined;
-      if (expiresAt) {
-        const expiry = new Date(expiresAt);
-        if (expiry < new Date()) {
-          throw new AppError(400, "OFFER_EXPIRED", "This offer has expired");
-        }
       }
 
       const now = new Date().toISOString();
@@ -1763,7 +2604,7 @@ export class ApplicationService {
       const offeredAmount = Number(offer.offered_amount) || 0;
       const requestedAmount = Number(offer.requested_amount) || 0;
 
-      const updatedOffer = {
+      let updatedOffer: Record<string, unknown> = {
         ...offer,
         responded_at: now,
         responded_by_user_id: userId,
@@ -1771,25 +2612,17 @@ export class ApplicationService {
           ? { rejection_reason: rejectionReason.trim() }
           : {}),
       };
-
-      const invoiceSigningPatch =
-        action === "accept" && options?.signingCompletion
-          ? {
-              offer_signing: mergeOfferSigningSigned(
-                dbInvoice.offer_signing,
-                options.signingCompletion.signedOfferLetterS3Key,
-                options.signingCompletion.signedFileSha256,
-                now
-              ),
-            }
-          : {};
+      if (getOfferAcceptanceFromOfferDetails(updatedOffer)) {
+        updatedOffer = patchOfferAcceptance(updatedOffer, {
+          status: action === "accept" ? "COMPLETED" : "DECLINED",
+        });
+      }
 
       await tx.invoice.update({
         where: { id: invoiceId, application_id: applicationId },
         data: {
           status: newStatus,
-          offer_details: updatedOffer,
-          ...invoiceSigningPatch,
+          offer_details: updatedOffer as Prisma.InputJsonValue,
           ...(action === "reject" && { withdraw_reason: WithdrawReason.OFFER_REJECTED }),
         },
       });
@@ -1881,6 +2714,30 @@ export class ApplicationService {
         sectionApproved = true;
       }
 
+      // Invoice-only primary offer ceremony complete → Acceptance section APPROVED.
+      if (action === "accept" && getOfferAcceptanceFromOfferDetails(offer)) {
+        await tx.applicationReview.upsert({
+          where: {
+            application_id_section: {
+              application_id: applicationId,
+              section: "acceptance_documents",
+            },
+          },
+          create: {
+            application_id: applicationId,
+            section: "acceptance_documents",
+            status: ReviewStepStatus.APPROVED,
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+          update: {
+            status: ReviewStepStatus.APPROVED,
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+        });
+      }
+
       /* --- BEGIN: Recompute and persist application status after invoice offer response --- */
       const updatedInvoices = await tx.invoice.findMany({
         where: { application_id: applicationId },
@@ -1899,12 +2756,22 @@ export class ApplicationService {
             InvoiceStatus.REJECTED,
           ].includes(status)
         );
-      const nextReviewStatusBase = allInvoicesOfferedOrResolved
-        ? ApplicationStatus.INVOICES_SENT
-        : ApplicationStatus.INVOICE_PENDING;
       const isInvoiceOnly =
         (application as { financing_structure?: { structure_type?: string } }).financing_structure
           ?.structure_type === "invoice_only";
+      const hasOfferAcceptance = !!getOfferAcceptanceFromOfferDetails(offer);
+      const phasedAcceptStatus = resolveApplicationStatusAfterCommercialAccept({
+        isInvoiceOnly,
+        hasOfferAcceptance,
+        action,
+        isContractPath: false,
+      });
+      const nextReviewStatusBase =
+        action === "accept" && phasedAcceptStatus
+          ? phasedAcceptStatus
+          : allInvoicesOfferedOrResolved
+            ? ApplicationStatus.INVOICES_SENT
+            : ApplicationStatus.INVOICE_PENDING;
       const appStatus = computeApplicationStatus(
         updatedContract as { status: ContractStatus } | null,
         invoiceStatuses.map((status) => ({ status })),
@@ -2012,7 +2879,7 @@ export class ApplicationService {
     if (!contract) {
       throw new AppError(404, "NOT_FOUND", "Contract not found");
     }
-    const allowedStatuses = ["OFFER_SENT", "APPROVED", "REJECTED"] as const;
+    const allowedStatuses = ["OFFER_SENT", "OFFER_EXPIRED", "APPROVED", "REJECTED"] as const;
     if (!allowedStatuses.includes(contract.status as (typeof allowedStatuses)[number])) {
       throw new AppError(400, "INVALID_STATE", "No contract offer to download");
     }
@@ -2022,11 +2889,12 @@ export class ApplicationService {
       throw new AppError(400, "INVALID_STATE", "Contract has no offer details");
     }
 
+    const acceptanceExpiresAt = getOfferAcceptanceFromOfferDetails(offer)?.acceptance_expires_at;
     const offerDetails: ContractOfferDetails = {
       requested_facility: Number(offer.requested_facility) || undefined,
       offered_facility: Number(offer.offered_facility) || undefined,
       facility_fee_rate_percent: Number(offer.facility_fee_rate_percent) || undefined,
-      expires_at: typeof offer.expires_at === "string" ? offer.expires_at : undefined,
+      expires_at: typeof acceptanceExpiresAt === "string" ? acceptanceExpiresAt : undefined,
     };
 
     const stream = generateContractOfferLetterStream(application.contract_id, offerDetails);
@@ -2062,7 +2930,7 @@ export class ApplicationService {
     if (!dbInvoice) {
       throw new AppError(404, "NOT_FOUND", "Invoice not found");
     }
-    const allowedStatuses = ["OFFER_SENT", "APPROVED", "REJECTED"] as const;
+    const allowedStatuses = ["OFFER_SENT", "OFFER_EXPIRED", "APPROVED", "REJECTED"] as const;
     if (!allowedStatuses.includes(dbInvoice.status as (typeof allowedStatuses)[number])) {
       throw new AppError(400, "INVALID_STATE", "No invoice offer to download");
     }
@@ -2090,6 +2958,7 @@ export class ApplicationService {
       }
     }
 
+    const acceptanceExpiresAt = getOfferAcceptanceFromOfferDetails(offer)?.acceptance_expires_at;
     const offerDetails: InvoiceOfferDetails = {
       requested_amount: Number(offer.requested_amount) || undefined,
       offered_amount: Number(offer.offered_amount) || undefined,
@@ -2098,7 +2967,7 @@ export class ApplicationService {
       platform_fee_rate_percent: resolveOfferedPlatformFeeRatePercent(offer),
       facility_fee_rate_percent: facilityFeeRatePercent,
       facility_fee_cap_amount: facilityFeeCapAmount,
-      expires_at: typeof offer.expires_at === "string" ? offer.expires_at : undefined,
+      expires_at: typeof acceptanceExpiresAt === "string" ? acceptanceExpiresAt : undefined,
     };
 
     const stream = generateInvoiceOfferLetterStream(invoiceId, offerDetails);
@@ -2106,545 +2975,91 @@ export class ApplicationService {
     return { stream, filename };
   }
 
-  /**
-   * Start SigningCloud manual signing for a contract offer. Persists pending offer_signing + signing_sc_contractnum.
-   */
-  async startContractOfferSigning(applicationId: string, userId: string): Promise<{ signingUrl: string }> {
-    const cfg = readSigningCloudConfigFromEnv();
-    if (!cfg) {
-      throw new AppError(503, "SIGNING_UNAVAILABLE", "Signing service is not configured");
-    }
-
-    await this.verifyApplicationAccess(applicationId, userId);
-
-    const application = await this.repository.findById(applicationId);
-    if (!application?.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract");
-    }
-
-    const contract = await prisma.contract.findUnique({
-      where: { id: application.contract_id },
-      select: {
-        id: true,
-        status: true,
-        offer_details: true,
-        offer_signing: true,
-        signing_sc_contractnum: true,
+  private async resolveSignedOfferLetterS3KeyFromEnvelope(params: {
+    applicationId: string;
+    contractId?: string | null;
+    invoiceId?: string | null;
+  }): Promise<string> {
+    const envelope = await prisma.signingEnvelope.findFirst({
+      where: {
+        application_id: params.applicationId,
+        status: "COMPLETED",
+        ...(params.contractId ? { contract_id: params.contractId } : {}),
+        ...(params.invoiceId ? { invoice_id: params.invoiceId } : {}),
       },
-    });
-    if (!contract || contract.status !== "OFFER_SENT") {
-      throw new AppError(400, "INVALID_STATE", "No pending contract offer to sign");
-    }
-
-    const offer = contract.offer_details as Record<string, unknown> | null;
-    if (!offer || typeof offer !== "object") {
-      throw new AppError(400, "INVALID_STATE", "Contract has no offer details");
-    }
-    if (offer.responded_at != null && offer.responded_at !== "") {
-      throw new AppError(400, "ALREADY_RESPONDED", "This offer has already been responded to");
-    }
-
-    const { workEmail: signerEmail } = await requireCompletedSigningCloudEkycForOrganization(
-      userId,
-      application.issuer_organization_id
-    );
-
-    if (canReusePendingOfferSigning(contract.offer_signing, contract.signing_sc_contractnum, signerEmail)) {
-      const redirectUrl = buildIssuerSigningReturnUrl(applicationId);
-      const apiPublic = process.env.API_PUBLIC_URL?.trim().replace(/\/$/, "");
-      const callbackUrl =
-        process.env.SIGNINGCLOUD_CALLBACK_URL?.trim() ||
-        (apiPublic ? `${apiPublic}/v1/webhooks/signingcloud/callback` : null);
-      const prev = contract.offer_signing as unknown as OfferSigningRecord;
-      const signingUrl = await this.refreshSigningUrlOrCached(cfg, {
-        contractnum: contract.signing_sc_contractnum!.trim(),
-        signerEmail,
-        redirectUrl,
-        callbackUrl,
-        cachedSigningUrl: prev.signing_url,
-      });
-      const offerSigning: OfferSigningRecord = {
-        ...prev,
-        signing_url: signingUrl,
-        return_url: redirectUrl ?? undefined,
-      };
-      await prisma.contract.update({
-        where: { id: contract.id },
-        data: {
-          offer_signing: offerSigning as unknown as Prisma.InputJsonValue,
+      include: {
+        documents: {
+          where: { source: "GENERATED_OFFER_LETTER" },
+          orderBy: { order: "asc" },
         },
-      });
-      return { signingUrl };
-    }
-
-    const offerDetails: ContractOfferDetails = {
-      requested_facility: Number(offer.requested_facility) || undefined,
-      offered_facility: Number(offer.offered_facility) || undefined,
-      expires_at: typeof offer.expires_at === "string" ? offer.expires_at : undefined,
-    };
-
-    const stream = generateContractOfferLetterStream(contract.id, offerDetails);
-    const pdfBuffer = await pdfBufferFromStream(stream as unknown as Readable);
-
-    const accessToken = await getSigningCloudAccessToken(cfg);
-    const { contractnum } = await uploadPdfToSigningCloud({
-      cfg,
-      accessToken,
-      pdfBuffer,
-      contractName: `Contract offer ${contract.id.slice(-8)}`,
-      signerEmail,
-    });
-
-    const redirectUrl = buildIssuerSigningReturnUrl(applicationId);
-    const apiPublic = process.env.API_PUBLIC_URL?.trim().replace(/\/$/, "");
-    const callbackUrl =
-      process.env.SIGNINGCLOUD_CALLBACK_URL?.trim() ||
-      (apiPublic ? `${apiPublic}/v1/webhooks/signingcloud/callback` : null);
-
-    const decryptedManual = await startManualSigning({
-      cfg,
-      accessToken,
-      contractnum,
-      signerEmail,
-      redirectUrl,
-      callbackUrl,
-    });
-
-    const signingUrl = extractSigningUrlFromManualSigningResponse(decryptedManual);
-    if (!signingUrl) {
-      logger.error({ keys: Object.keys(decryptedManual) }, "SigningCloud manual signing returned no URL");
-      throw new AppError(502, "SIGNING_PROVIDER_ERROR", "Could not obtain signing URL from provider");
-    }
-
-    const now = new Date().toISOString();
-    const offerSigning: OfferSigningRecord = {
-      provider: "signingcloud",
-      status: "pending",
-      initiated_at: now,
-      initiated_by_user_id: userId,
-      signer_email: signerEmail,
-      signing_url: signingUrl,
-      return_url: redirectUrl ?? undefined,
-    };
-
-    await prisma.contract.update({
-      where: { id: contract.id },
-      data: {
-        offer_signing: offerSigning as unknown as Prisma.InputJsonValue,
-        signing_sc_contractnum: contractnum,
       },
+      orderBy: { completed_at: "desc" },
     });
 
-    return { signingUrl };
-  }
-
-  /**
-   * Start SigningCloud manual signing for an invoice offer.
-   */
-  async startInvoiceOfferSigning(
-    applicationId: string,
-    invoiceId: string,
-    userId: string
-  ): Promise<{ signingUrl: string }> {
-    const cfg = readSigningCloudConfigFromEnv();
-    if (!cfg) {
-      throw new AppError(503, "SIGNING_UNAVAILABLE", "Signing service is not configured");
-    }
-
-    await this.verifyApplicationAccess(applicationId, userId);
-
-    const application = await this.repository.findById(applicationId);
-    if (!application) {
-      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
-    }
-
-    const invoices = (application as { invoices?: { id: string }[] }).invoices ?? [];
-    if (!invoices.some((i) => i.id === invoiceId)) {
-      throw new AppError(404, "NOT_FOUND", "Invoice not found in this application");
-    }
-
-    const dbInvoice = await prisma.invoice.findFirst({
-      where: { id: invoiceId, application_id: applicationId },
-      select: {
-        id: true,
-        status: true,
-        offer_details: true,
-        offer_signing: true,
-        signing_sc_contractnum: true,
-      },
-    });
-    if (!dbInvoice || dbInvoice.status !== "OFFER_SENT") {
-      throw new AppError(400, "INVALID_STATE", "No pending invoice offer to sign");
-    }
-
-    const offer = dbInvoice.offer_details as Record<string, unknown> | null;
-    if (!offer || typeof offer !== "object") {
-      throw new AppError(400, "INVALID_STATE", "Invoice has no offer details");
-    }
-    if (offer.responded_at != null && offer.responded_at !== "") {
-      throw new AppError(400, "ALREADY_RESPONDED", "This offer has already been responded to");
-    }
-
-    const { workEmail: signerEmail } = await requireCompletedSigningCloudEkycForOrganization(
-      userId,
-      application.issuer_organization_id
-    );
-
-    if (canReusePendingOfferSigning(dbInvoice.offer_signing, dbInvoice.signing_sc_contractnum, signerEmail)) {
-      const redirectUrl = buildIssuerSigningReturnUrl(applicationId, invoiceId);
-      const apiPublic = process.env.API_PUBLIC_URL?.trim().replace(/\/$/, "");
-      const callbackUrl =
-        process.env.SIGNINGCLOUD_CALLBACK_URL?.trim() ||
-        (apiPublic ? `${apiPublic}/v1/webhooks/signingcloud/callback` : null);
-      const prev = dbInvoice.offer_signing as unknown as OfferSigningRecord;
-      const signingUrl = await this.refreshSigningUrlOrCached(cfg, {
-        contractnum: dbInvoice.signing_sc_contractnum!.trim(),
-        signerEmail,
-        redirectUrl,
-        callbackUrl,
-        cachedSigningUrl: prev.signing_url,
-      });
-      const offerSigning: OfferSigningRecord = {
-        ...prev,
-        signing_url: signingUrl,
-        return_url: redirectUrl ?? undefined,
-      };
-      await prisma.invoice.update({
-        where: { id: invoiceId, application_id: applicationId },
-        data: {
-          offer_signing: offerSigning as unknown as Prisma.InputJsonValue,
-        },
-      });
-      return { signingUrl };
-    }
-
-    const offerDetails: InvoiceOfferDetails = {
-      requested_amount: Number(offer.requested_amount) || undefined,
-      offered_amount: Number(offer.offered_amount) || undefined,
-      offered_ratio_percent: Number(offer.offered_ratio_percent) || undefined,
-      offered_profit_rate_percent: Number(offer.offered_profit_rate_percent) || undefined,
-      platform_fee_rate_percent: resolveOfferedPlatformFeeRatePercent(offer),
-      expires_at: typeof offer.expires_at === "string" ? offer.expires_at : undefined,
-    };
-
-    const stream = generateInvoiceOfferLetterStream(invoiceId, offerDetails);
-    const pdfBuffer = await pdfBufferFromStream(stream as unknown as Readable);
-
-    const accessToken = await getSigningCloudAccessToken(cfg);
-    const { contractnum } = await uploadPdfToSigningCloud({
-      cfg,
-      accessToken,
-      pdfBuffer,
-      contractName: `Invoice offer ${invoiceId.slice(-8)}`,
-      signerEmail,
-    });
-
-    const redirectUrl = buildIssuerSigningReturnUrl(applicationId, invoiceId);
-    const apiPublic = process.env.API_PUBLIC_URL?.trim().replace(/\/$/, "");
-    const callbackUrl =
-      process.env.SIGNINGCLOUD_CALLBACK_URL?.trim() ||
-      (apiPublic ? `${apiPublic}/v1/webhooks/signingcloud/callback` : null);
-
-    const decryptedManual = await startManualSigning({
-      cfg,
-      accessToken,
-      contractnum,
-      signerEmail,
-      redirectUrl,
-      callbackUrl,
-    });
-
-    const signingUrl = extractSigningUrlFromManualSigningResponse(decryptedManual);
-    if (!signingUrl) {
-      logger.error({ keys: Object.keys(decryptedManual) }, "SigningCloud manual signing returned no URL");
-      throw new AppError(502, "SIGNING_PROVIDER_ERROR", "Could not obtain signing URL from provider");
-    }
-
-    const now = new Date().toISOString();
-    const offerSigning: OfferSigningRecord = {
-      provider: "signingcloud",
-      status: "pending",
-      initiated_at: now,
-      initiated_by_user_id: userId,
-      signer_email: signerEmail,
-      signing_url: signingUrl,
-      return_url: redirectUrl ?? undefined,
-    };
-
-    await prisma.invoice.update({
-      where: { id: invoiceId, application_id: applicationId },
-      data: {
-        offer_signing: offerSigning as unknown as Prisma.InputJsonValue,
-        signing_sc_contractnum: contractnum,
-      },
-    });
-
-    return { signingUrl };
-  }
-
-  /**
-   * Webhook: finalize offer after SigningCloud completes signing (download PDF → S3 → accept offer).
-   */
-  async processSigningCloudCallback(contractnum: string): Promise<{ skipped: boolean }> {
-    const cfg = readSigningCloudConfigFromEnv();
-    if (!cfg) {
-      throw new AppError(503, "SIGNING_UNAVAILABLE", "Signing service is not configured");
-    }
-
-    const contractRow = await prisma.contract.findFirst({
-      where: { signing_sc_contractnum: contractnum },
-      select: { id: true, status: true, offer_signing: true },
-    });
-    if (contractRow) {
-      return this.finalizeContractOfferAfterSigningCloud(contractRow.id, contractnum, cfg);
-    }
-
-    const invoiceRow = await prisma.invoice.findFirst({
-      where: { signing_sc_contractnum: contractnum },
-      select: { id: true, application_id: true, status: true, offer_signing: true },
-    });
-    if (invoiceRow) {
-      return this.finalizeInvoiceOfferAfterSigningCloud(
-        invoiceRow.id,
-        invoiceRow.application_id,
-        contractnum,
-        cfg
-      );
-    }
-
-    throw new AppError(404, "NOT_FOUND", "Unknown signing reference");
-  }
-
-  /**
-   * When the issuer returns from SigningCloud, poll the provider and finalize if the webhook did not run
-   * (e.g. callback URL not reachable from SigningCloud).
-   */
-  async syncContractOfferSigningAfterReturn(applicationId: string, userId: string): Promise<{ skipped: boolean }> {
-    if (!readSigningCloudConfigFromEnv()) {
-      throw new AppError(503, "SIGNING_UNAVAILABLE", "Signing service is not configured");
-    }
-
-    await this.verifyApplicationAccess(applicationId, userId);
-
-    const application = await this.repository.findById(applicationId);
-    if (!application?.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract");
-    }
-
-    const contract = await prisma.contract.findUnique({
-      where: { id: application.contract_id },
-      select: { signing_sc_contractnum: true, status: true, offer_signing: true },
-    });
-
-    if (!contract?.signing_sc_contractnum?.trim()) {
-      throw new AppError(400, "INVALID_STATE", "No contract signing session to finalize");
-    }
-
-    const os = contract.offer_signing as Record<string, unknown> | null;
-    if (
-      contract.status === "APPROVED" &&
-      os &&
-      typeof os === "object" &&
-      os.status === "signed" &&
-      typeof os.signed_offer_letter_s3_key === "string"
-    ) {
-      return { skipped: true };
-    }
-
-    return this.processSigningCloudCallback(contract.signing_sc_contractnum.trim());
-  }
-
-  async syncInvoiceOfferSigningAfterReturn(
-    applicationId: string,
-    invoiceId: string,
-    userId: string
-  ): Promise<{ skipped: boolean }> {
-    if (!readSigningCloudConfigFromEnv()) {
-      throw new AppError(503, "SIGNING_UNAVAILABLE", "Signing service is not configured");
-    }
-
-    await this.verifyApplicationAccess(applicationId, userId);
-
-    const invoice = await prisma.invoice.findFirst({
-      where: { id: invoiceId, application_id: applicationId },
-      select: { signing_sc_contractnum: true, status: true, offer_signing: true },
-    });
-
-    if (!invoice?.signing_sc_contractnum?.trim()) {
-      throw new AppError(400, "INVALID_STATE", "No invoice signing session to finalize");
-    }
-
-    const os = invoice.offer_signing as Record<string, unknown> | null;
-    if (
-      invoice.status === "APPROVED" &&
-      os &&
-      typeof os === "object" &&
-      os.status === "signed" &&
-      typeof os.signed_offer_letter_s3_key === "string"
-    ) {
-      return { skipped: true };
-    }
-
-    return this.processSigningCloudCallback(invoice.signing_sc_contractnum.trim());
-  }
-
-  private async fetchSignedOfferPdfFromSigningCloud(
-    contractnum: string,
-    cfg: NonNullable<ReturnType<typeof readSigningCloudConfigFromEnv>>
-  ): Promise<Buffer> {
-    const maxAttempts = 12;
-    const delayMs = 3000;
-    let lastFileTopKeys: string[] = [];
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      if (attempt > 0) {
-        await new Promise((r) => setTimeout(r, delayMs));
-      }
-      const accessToken = await getSigningCloudAccessToken(cfg);
-      const fileData = await getContractFileData({ cfg, accessToken, contractnum });
-      lastFileTopKeys = Object.keys(fileData);
-      const pdfBuf = await resolveSignedPdfFromContractFileResponse(fileData);
-      if (pdfBuf && pdfBuf.length >= MIN_SIGNED_PDF_BYTES) {
-        return pdfBuf;
-      }
-    }
-    logger.error(
-      { contractnum, fileResponseTopLevelKeys: lastFileTopKeys },
-      "Could not extract signed PDF from SigningCloud after retries"
-    );
-    throw new AppError(502, "SIGNING_PROVIDER_ERROR", "Signed document not available yet");
-  }
-
-  private async finalizeContractOfferAfterSigningCloud(
-    contractId: string,
-    contractnum: string,
-    cfg: NonNullable<ReturnType<typeof readSigningCloudConfigFromEnv>>
-  ): Promise<{ skipped: boolean }> {
-    const contract = await prisma.contract.findUnique({
-      where: { id: contractId },
-      select: { id: true, status: true, offer_signing: true },
-    });
-    if (!contract) {
-      throw new AppError(404, "NOT_FOUND", "Contract not found");
-    }
-
-    const os = contract.offer_signing as Record<string, unknown> | null;
-    if (!os || typeof os !== "object") {
-      throw new AppError(400, "INVALID_STATE", "Contract has no signing metadata");
-    }
-
-    if (
-      contract.status === "APPROVED" &&
-      os.status === "signed" &&
-      typeof os.signed_offer_letter_s3_key === "string"
-    ) {
-      return { skipped: true };
-    }
-
-    if (contract.status !== "OFFER_SENT") {
-      throw new AppError(400, "INVALID_STATE", "Contract offer is not awaiting signing");
-    }
-
-    const initiatedBy = typeof os.initiated_by_user_id === "string" ? os.initiated_by_user_id : null;
-    if (!initiatedBy) {
-      throw new AppError(400, "INVALID_STATE", "Missing initiator for signing session");
-    }
-
-    const application = await prisma.application.findFirst({
-      where: { contract_id: contractId },
-      select: { id: true },
-    });
-    if (!application) {
-      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found for contract");
-    }
-
-    const pdfBuf = await this.fetchSignedOfferPdfFromSigningCloud(contractnum, cfg);
-
-    const sha256 = crypto.createHash("sha256").update(pdfBuf).digest("hex");
-    const s3Key = `applications/${application.id}/offer-letters/contract-${Date.now()}.pdf`;
-    await putS3ObjectBuffer({ key: s3Key, body: pdfBuf, contentType: "application/pdf" });
-
-    try {
-      await this.respondToContractOffer(application.id, "accept", initiatedBy, undefined, {
-        signingCompletion: { signedOfferLetterS3Key: s3Key, signedFileSha256: sha256 },
-      });
-    } catch (e) {
-      if (e instanceof AppError && e.code === "ALREADY_RESPONDED") {
-        return { skipped: true };
-      }
-      throw e;
-    }
-
-    return { skipped: false };
-  }
-
-  private async finalizeInvoiceOfferAfterSigningCloud(
-    invoiceId: string,
-    applicationId: string,
-    contractnum: string,
-    cfg: NonNullable<ReturnType<typeof readSigningCloudConfigFromEnv>>
-  ): Promise<{ skipped: boolean }> {
-    const invoice = await prisma.invoice.findUnique({
-      where: { id: invoiceId },
-      select: { id: true, status: true, offer_signing: true },
-    });
-    if (!invoice) {
-      throw new AppError(404, "NOT_FOUND", "Invoice not found");
-    }
-
-    const os = invoice.offer_signing as Record<string, unknown> | null;
-    if (!os || typeof os !== "object") {
-      throw new AppError(400, "INVALID_STATE", "Invoice has no signing metadata");
-    }
-
-    if (
-      invoice.status === "APPROVED" &&
-      os.status === "signed" &&
-      typeof os.signed_offer_letter_s3_key === "string"
-    ) {
-      return { skipped: true };
-    }
-
-    if (invoice.status !== "OFFER_SENT") {
-      throw new AppError(400, "INVALID_STATE", "Invoice offer is not awaiting signing");
-    }
-
-    const initiatedBy = typeof os.initiated_by_user_id === "string" ? os.initiated_by_user_id : null;
-    if (!initiatedBy) {
-      throw new AppError(400, "INVALID_STATE", "Missing initiator for signing session");
-    }
-
-    const pdfBuf = await this.fetchSignedOfferPdfFromSigningCloud(contractnum, cfg);
-
-    const sha256 = crypto.createHash("sha256").update(pdfBuf).digest("hex");
-    const s3Key = `applications/${applicationId}/offer-letters/invoice-${invoiceId}-${Date.now()}.pdf`;
-    await putS3ObjectBuffer({ key: s3Key, body: pdfBuf, contentType: "application/pdf" });
-
-    try {
-      await this.respondToInvoiceOffer(applicationId, invoiceId, "accept", initiatedBy, undefined, {
-        signingCompletion: { signedOfferLetterS3Key: s3Key, signedFileSha256: sha256 },
-      });
-    } catch (e) {
-      if (e instanceof AppError && e.code === "ALREADY_RESPONDED") {
-        return { skipped: true };
-      }
-      throw e;
-    }
-
-    return { skipped: false };
-  }
-
-  private assertHasSignedOfferLetterPdf(os: Record<string, unknown> | null): string {
-    if (!os || typeof os !== "object") {
-      throw new AppError(400, "INVALID_STATE", "No signed offer letter on file");
-    }
-    if (os.status !== "signed") {
-      throw new AppError(400, "INVALID_STATE", "Offer letter is not signed yet");
-    }
-    const key = os.signed_offer_letter_s3_key;
-    if (typeof key !== "string" || !key.trim()) {
+    const signedDocument = envelope?.documents.find((document) => document.signed_s3_key?.trim());
+    const key = signedDocument?.signed_s3_key?.trim();
+    if (!key) {
       throw new AppError(400, "INVALID_STATE", "Signed offer letter is not available");
     }
-    return key.trim();
+    return key;
+  }
+
+
+  async finalizeOfferAfterEnvelopeCompletion(input: {
+    applicationId: string;
+    contractId?: string | null;
+    invoiceId?: string | null;
+    initiatedByUserId: string;
+    signedOfferLetterS3Key: string;
+    signedFileSha256: string;
+  }): Promise<{ skipped: boolean }> {
+    if (!input.invoiceId && !input.contractId) {
+      throw new AppError(400, "INVALID_STATE", "Signing envelope is not linked to an offer.");
+    }
+
+    try {
+      if (input.invoiceId) {
+        await this.respondToInvoiceOffer(
+          input.applicationId,
+          input.invoiceId,
+          "accept",
+          input.initiatedByUserId,
+          undefined,
+          {
+            signingCompletion: {
+              signedOfferLetterS3Key: input.signedOfferLetterS3Key,
+              signedFileSha256: input.signedFileSha256,
+            },
+          }
+        );
+        return { skipped: false };
+      }
+
+      if (input.contractId) {
+        await this.respondToContractOffer(
+          input.applicationId,
+          "accept",
+          input.initiatedByUserId,
+          undefined,
+          {
+            signingCompletion: {
+              signedOfferLetterS3Key: input.signedOfferLetterS3Key,
+              signedFileSha256: input.signedFileSha256,
+            },
+          }
+        );
+        return { skipped: false };
+      }
+    } catch (e) {
+      if (
+        e instanceof AppError &&
+        (e.code === "ALREADY_RESPONDED" || e.code === "INVALID_STATE")
+      ) {
+        return { skipped: true };
+      }
+      throw e;
+    }
+    throw new AppError(400, "INVALID_STATE", "Signing envelope is not linked to an offer.");
   }
 
   /**
@@ -2661,18 +3076,12 @@ export class ApplicationService {
       throw new AppError(400, "INVALID_STATE", "Application has no contract");
     }
 
-    const contract = await prisma.contract.findUnique({
-      where: { id: application.contract_id },
-      select: { id: true, status: true, offer_signing: true },
+    const key = await this.resolveSignedOfferLetterS3KeyFromEnvelope({
+      applicationId,
+      contractId: application.contract_id,
     });
-    if (!contract) {
-      throw new AppError(404, "NOT_FOUND", "Contract not found");
-    }
-
-    const os = contract.offer_signing as Record<string, unknown> | null;
-    const key = this.assertHasSignedOfferLetterPdf(os);
     const buffer = await getS3ObjectBuffer(key);
-    return { buffer, filename: `signed-contract-offer-${contract.id}.pdf` };
+    return { buffer, filename: `signed-contract-offer-${application.contract_id}.pdf` };
   }
 
   /**
@@ -2694,16 +3103,10 @@ export class ApplicationService {
       throw new AppError(404, "NOT_FOUND", "Invoice not found in this application");
     }
 
-    const invoice = await prisma.invoice.findFirst({
-      where: { id: invoiceId, application_id: applicationId },
-      select: { id: true, offer_signing: true },
+    const key = await this.resolveSignedOfferLetterS3KeyFromEnvelope({
+      applicationId,
+      invoiceId,
     });
-    if (!invoice) {
-      throw new AppError(404, "NOT_FOUND", "Invoice not found");
-    }
-
-    const os = invoice.offer_signing as Record<string, unknown> | null;
-    const key = this.assertHasSignedOfferLetterPdf(os);
     const buffer = await getS3ObjectBuffer(key);
     return { buffer, filename: `signed-invoice-offer-${invoiceId}.pdf` };
   }

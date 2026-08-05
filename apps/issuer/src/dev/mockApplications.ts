@@ -2,7 +2,7 @@
  * Mock application generator for dev debug mode.
  * Only used when process.env.NODE_ENV === "development".
  * Generates realistic NormalizedApplication cards for testing filters, sorting, and lifecycle UI.
- * Covers all FILTER_STATUSES (draft, submitted, under_review, amendment_requested, offer_sent, accepted,
+ * Covers all FILTER_STATUSES (draft, submitted, under_review, amendment_requested, offer_sent,
  * completed, withdrawn, declined, offer_expired, rejected) and all NormalizedApplication/NormalizedInvoice fields.
  */
 
@@ -20,7 +20,6 @@ function cuidLike(): string {
 }
 
 function makeInvoice(overrides: Partial<NormalizedInvoice> & { id: string }): NormalizedInvoice {
-  const { signedOfferLetterS3Key, ...restOverrides } = overrides;
   return {
     number: "INV-" + Math.floor(1000 + Math.random() * 9000),
     maturityDate: "2026-06-15",
@@ -36,9 +35,9 @@ function makeInvoice(overrides: Partial<NormalizedInvoice> & { id: string }): No
     offerStatus: null,
     canReviewOffer: false,
     signedOfferLetterAvailable: false,
+    signedOfferLetterS3Key: null,
     reasonOrRemarks: null,
-    ...restOverrides,
-    signedOfferLetterS3Key: signedOfferLetterS3Key ?? null,
+    ...overrides,
   };
 }
 
@@ -89,22 +88,23 @@ const SCENARIOS: Array<{
   /** Action Required — app AMENDMENT_REQUESTED: shows "Make Amendments" on card and in invoice table. */
   { appStatus: "AMENDMENT_REQUESTED", contractStatus: null, invoiceStatuses: ["AMENDMENT_REQUESTED"], type: "Invoice financing", hasContract: false, invoiceCount: 1 },
   { appStatus: "SUBMITTED", contractStatus: "SUBMITTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
-  { appStatus: "APPROVED", contractStatus: "APPROVED", invoiceStatuses: ["APPROVED", "APPROVED"], type: "Contract financing", hasContract: true, invoiceCount: 2 },
+  { appStatus: "COMPLETED", contractStatus: "APPROVED", invoiceStatuses: ["APPROVED", "APPROVED"], type: "Contract financing", hasContract: true, invoiceCount: 2 },
   { appStatus: "COMPLETED", contractStatus: null, invoiceStatuses: ["APPROVED", "REJECTED"], type: "Invoice financing", hasContract: false, invoiceCount: 2 },
   { appStatus: "WITHDRAWN", contractStatus: null, invoiceStatuses: ["WITHDRAWN", "WITHDRAWN"], type: "Invoice financing", hasContract: false, invoiceCount: 2, withdrawReason: WithdrawReason.USER_CANCELLED },
   /** User declined offer — card shows Declined. */
   { appStatus: "WITHDRAWN", contractStatus: null, invoiceStatuses: ["WITHDRAWN"], type: "Invoice financing", hasContract: false, invoiceCount: 1, withdrawReason: WithdrawReason.OFFER_REJECTED },
   { appStatus: "REJECTED", contractStatus: "REJECTED", invoiceStatuses: [], type: "Contract financing", hasContract: true, invoiceCount: 0 },
-  { appStatus: "APPROVED", contractStatus: "APPROVED", invoiceStatuses: [], type: "Contract financing", hasContract: true, invoiceCount: 0, hasExpiry: true },
+  { appStatus: "COMPLETED", contractStatus: "APPROVED", invoiceStatuses: [], type: "Contract financing", hasContract: true, invoiceCount: 0, hasExpiry: true },
   { appStatus: "COMPLETED", contractStatus: null, invoiceStatuses: ["APPROVED"], type: "Invoice financing", hasContract: false, invoiceCount: 1 },
   { appStatus: "DRAFT", contractStatus: "DRAFT", invoiceStatuses: ["DRAFT"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
   { appStatus: "UNDER_REVIEW", contractStatus: "SUBMITTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
   { appStatus: "COMPLETED", contractStatus: "APPROVED", invoiceStatuses: ["APPROVED", "REJECTED"], type: "Contract financing", hasContract: true, invoiceCount: 2 },
-  { appStatus: "WITHDRAWN", contractStatus: null, invoiceStatuses: ["WITHDRAWN"], type: "Invoice financing", hasContract: false, invoiceCount: 1, withdrawReason: WithdrawReason.OFFER_EXPIRED },
+  { appStatus: "CONTRACT_SENT", contractStatus: "OFFER_EXPIRED", invoiceStatuses: [], type: "Contract financing", hasContract: true, invoiceCount: 0 },
+  { appStatus: "WITHDRAWN", contractStatus: null, invoiceStatuses: ["WITHDRAWN"], type: "Invoice financing", hasContract: false, invoiceCount: 1, withdrawReason: WithdrawReason.OFFER_REJECTED },
   { appStatus: "SUBMITTED", contractStatus: "OFFER_SENT", invoiceStatuses: ["OFFER_SENT", "DRAFT"], type: "Contract financing", hasContract: true, invoiceCount: 2, hasExpiry: true },
   { appStatus: "SUBMITTED", contractStatus: null, invoiceStatuses: ["OFFER_SENT", "SUBMITTED", "DRAFT"], type: "Invoice financing", hasContract: false, invoiceCount: 3, hasExpiry: true },
   { appStatus: "RESUBMITTED", contractStatus: "SUBMITTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
-  { appStatus: "APPROVED", contractStatus: null, invoiceStatuses: ["APPROVED", "APPROVED"], type: "Invoice financing", hasContract: false, invoiceCount: 2 },
+  { appStatus: "COMPLETED", contractStatus: null, invoiceStatuses: ["APPROVED", "APPROVED"], type: "Invoice financing", hasContract: false, invoiceCount: 2 },
   { appStatus: "SUBMITTED", contractStatus: "AMENDMENT_REQUESTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
   { appStatus: "SUBMITTED", contractStatus: null, invoiceStatuses: ["SUBMITTED"], type: "Invoice financing", hasContract: false, invoiceCount: 1, maturityDateNull: true },
 ];
@@ -170,8 +170,7 @@ export function generateMockApplications(count: number): NormalizedApplication[]
           profitRate: hasOffer ? `${7 + (j % 3)}%` : "—",
           offer_details: invOfferDetails,
           signedOfferLetterAvailable: invStatus === "APPROVED",
-          signedOfferLetterS3Key:
-            invStatus === "APPROVED" ? `applications/mock/${appId}/offers/invoice-${j + 1}.pdf` : null,
+          signedOfferLetterS3Key: null,
           withdrawReason: invStatus === "WITHDRAWN" ? scenario.withdrawReason : undefined,
           reasonOrRemarks,
         })
@@ -199,13 +198,6 @@ export function generateMockApplications(count: number): NormalizedApplication[]
 
     const hasSubmitted = !["DRAFT", "Generic"].includes(scenario.appStatus) && scenario.type !== "Generic";
     const submittedAt = hasSubmitted ? createdDate.toISOString() : null;
-
-    let expiresAt: string | undefined;
-    if (scenario.hasExpiry) {
-      const exp = new Date(now);
-      exp.setDate(exp.getDate() + (i % 3 === 0 ? 2 : i % 3 === 1 ? 7 : 15));
-      expiresAt = exp.toISOString();
-    }
 
     const contractVal = scenario.hasContract ? 200000 + Math.floor(Math.random() * 300000) : null;
     const facilityApplied = scenario.hasContract ? Math.floor((contractVal ?? 0) * 0.9) : null;
@@ -252,13 +244,9 @@ export function generateMockApplications(count: number): NormalizedApplication[]
       contractStatus: scenario.contractStatus,
       issuerOrganizationId: "org-mock-1",
       withdrawReason: scenario.withdrawReason,
-      expiresAt,
       signedContractOfferLetterAvailable:
         scenario.contractStatus === "APPROVED" && !!scenario.hasContract,
-      signedContractOfferLetterS3Key:
-        scenario.contractStatus === "APPROVED" && !!scenario.hasContract
-          ? `applications/mock/${appId}/offers/contract.pdf`
-          : null,
+      signedContractOfferLetterS3Key: null,
     });
   }
 

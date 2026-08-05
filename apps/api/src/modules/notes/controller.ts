@@ -229,27 +229,6 @@ adminNotesRouter.get(
   }
 );
 
-adminNotesRouter.post(
-  "/:id/offers/invoices/resign",
-  requirePermission("notes.manage"),
-  async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const actor = getActor(req, res, "ADMIN");
-    const { id } = idParamSchema.parse(req.params);
-    send(
-      res,
-      await noteService.resignSourceInvoiceOffer(id, actor.userId, {
-        ipAddress: req.ip ?? null,
-        userAgent: req.get("user-agent") ?? null,
-        deviceInfo: null,
-      })
-    );
-  } catch (error) {
-    next(error);
-  }
-  }
-);
-
 adminNotesRouter.patch(
   "/:id/draft",
   requirePermission("notes.manage"),
