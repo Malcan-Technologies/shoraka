@@ -296,10 +296,12 @@ export class LegalDocumentAcceptanceAdminService {
       include: {
         version: {
           select: {
+            id: true,
             s3_key: true,
             file_name: true,
             content_type: true,
             file_size: true,
+            file_hash: true,
           },
         },
       },
@@ -309,6 +311,7 @@ export class LegalDocumentAcceptanceAdminService {
       throw new AppError(404, "NOT_FOUND", "Legal document acceptance not found");
     }
 
+    // Always the accepted version row — never the currently published version.
     const { downloadUrl, expiresIn } = await generatePresignedDownloadUrl({
       key: row.version.s3_key,
       fileName: row.version.file_name,
@@ -320,6 +323,8 @@ export class LegalDocumentAcceptanceAdminService {
       fileName: row.version.file_name,
       contentType: row.version.content_type,
       fileSize: row.version.file_size,
+      legalDocumentVersionId: row.version.id,
+      documentHash: row.document_hash ?? row.version.file_hash,
     };
   }
 }

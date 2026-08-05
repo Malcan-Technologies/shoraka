@@ -195,6 +195,51 @@ export interface AccountLegalDocumentResponse {
   content_type: string;
 }
 
+/**
+ * Stable SiteDocumentType → LegalDocumentType mapping for Profile → Documents.
+ * Used only for deduplication (LegalDocument wins). Not title/filename based.
+ *
+ * Unmapped site types (guides, OTHER, PLATFORM_AGREEMENT, PRODUCT_TERMS) stay visible
+ * because they have no unambiguous legal counterpart.
+ */
+export const SITE_DOCUMENT_TYPE_SUPERSEDED_BY_LEGAL = {
+  TERMS_AND_CONDITIONS: "TERMS_OF_USE",
+  PRIVACY_POLICY: "PDPA_NOTICE_AND_CONSENT",
+  RISK_DISCLOSURE: "RISK_STATEMENT",
+} as const satisfies Record<string, LegalDocumentType>;
+
+export type SiteDocumentTypeSupersededByLegal =
+  keyof typeof SITE_DOCUMENT_TYPE_SUPERSEDED_BY_LEGAL;
+
+export function legalTypeSupersedingSiteDocumentType(
+  siteType: string
+): LegalDocumentType | null {
+  if (siteType in SITE_DOCUMENT_TYPE_SUPERSEDED_BY_LEGAL) {
+    return SITE_DOCUMENT_TYPE_SUPERSEDED_BY_LEGAL[
+      siteType as SiteDocumentTypeSupersededByLegal
+    ];
+  }
+  return null;
+}
+
+/**
+ * Profile → Documents merge rule:
+ * 1. Include every published LegalDocument with show_in_account (already filtered by API).
+ * 2. Include SiteDocuments with show_in_account unless a LegalDocument of the mapped
+ *    type is already present (LegalDocument takes priority).
+ */
+export function filterSiteDocumentsSupersededByLegal<T extends { type: string }>(
+  siteDocuments: T[],
+  legalDocumentTypes: Iterable<LegalDocumentType>
+): T[] {
+  const presentLegal = new Set(legalDocumentTypes);
+  return siteDocuments.filter((site) => {
+    const legalType = legalTypeSupersedingSiteDocumentType(site.type);
+    if (!legalType) return true;
+    return !presentLegal.has(legalType);
+  });
+}
+
 export type LegalAcceptanceEventStatus = LegalAcceptanceStatus;
 
 export interface LegalDocumentAcceptanceListItem {

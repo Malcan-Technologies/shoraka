@@ -18,7 +18,9 @@ router.get("/account", async (req: Request, res: Response, next: NextFunction) =
 
     const validated = accountLegalDocumentsQuerySchema.parse(req.query);
     const documents = await legalDocumentAcceptanceService.listAccountDocuments(
-      validated.audience
+      req.user,
+      validated.audience,
+      req.activeRole
     );
 
     res.json({

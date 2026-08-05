@@ -52,7 +52,25 @@ CREATE INDEX "legal_document_acceptances_document_type_idx" ON "legal_document_a
 CREATE INDEX "legal_document_acceptances_accepted_at_idx" ON "legal_document_acceptances"("accepted_at");
 CREATE INDEX "legal_document_acceptances_audience_role_idx" ON "legal_document_acceptances"("audience_role");
 
--- At most one ACCEPTED row per organization + version (owner acceptance is org-scoped).
-CREATE UNIQUE INDEX "legal_document_acceptances_org_version_accepted_uidx"
-ON "legal_document_acceptances"("organization_id", "legal_document_version_id")
-WHERE "status" = 'ACCEPTED' AND "organization_id" IS NOT NULL;
+-- At most one ACCEPTED row per organization + version (org-level owner acceptance).
+-- Created only when no historical ACCEPTED duplicates exist. Never delete history to force this.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM "legal_document_acceptances"
+    WHERE "status" = 'ACCEPTED'
+      AND "organization_id" IS NOT NULL
+    GROUP BY "organization_id", "legal_document_version_id"
+    HAVING COUNT(*) > 1
+  ) THEN
+    RAISE NOTICE 'Skipped legal_document_acceptances_org_version_accepted_uidx: historical ACCEPTED duplicates exist';
+    CREATE INDEX IF NOT EXISTS "legal_document_acceptances_org_version_accepted_idx"
+      ON "legal_document_acceptances"("organization_id", "legal_document_version_id")
+      WHERE "status" = 'ACCEPTED' AND "organization_id" IS NOT NULL;
+  ELSE
+    CREATE UNIQUE INDEX IF NOT EXISTS "legal_document_acceptances_org_version_accepted_uidx"
+      ON "legal_document_acceptances"("organization_id", "legal_document_version_id")
+      WHERE "status" = 'ACCEPTED' AND "organization_id" IS NOT NULL;
+  END IF;
+END $$;

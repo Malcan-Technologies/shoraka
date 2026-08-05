@@ -40,7 +40,8 @@ export const updateLegalDocumentSchema = z.object({
 export type UpdateLegalDocumentInput = z.infer<typeof updateLegalDocumentSchema>;
 
 export const accountLegalDocumentsQuerySchema = z.object({
-  audience: z.enum(legalAcceptanceAudiences),
+  /** Optional hint for dual-role users. Must be authorized against the user's roles. */
+  audience: z.enum(legalAcceptanceAudiences).optional(),
 });
 
 export type AccountLegalDocumentsQuery = z.infer<typeof accountLegalDocumentsQuerySchema>;

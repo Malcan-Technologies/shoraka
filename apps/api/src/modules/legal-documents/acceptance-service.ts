@@ -620,8 +620,19 @@ export class LegalDocumentAcceptanceService {
   /**
    * Profile → Documents: only explicitly published versions with show_in_account.
    * No archived/draft fallback.
+   * Audience is authorized from the authenticated user; client hint cannot expand access.
    */
-  async listAccountDocuments(audience: LegalAcceptanceAudience) {
+  async listAccountDocuments(
+    user: { roles: string[]; user_id: string },
+    requestedAudience: LegalAcceptanceAudience | undefined,
+    activeRole?: string
+  ) {
+    const audience = this.resolveAuthorizedAccountAudience(
+      user.roles,
+      requestedAudience,
+      activeRole
+    );
+
     const rows = await legalDocumentRepository.findAccountPublishedVersions(
       audiencesForRole(audience)
     );
@@ -647,6 +658,56 @@ export class LegalDocumentAcceptanceService {
         content_type: row.content_type,
       };
     });
+  }
+
+  /**
+   * Derive account-document audience from authenticated roles.
+   * Client-supplied audience is only a choice among roles the user already has.
+   */
+  resolveAuthorizedAccountAudience(
+    roles: string[],
+    requestedAudience: LegalAcceptanceAudience | undefined,
+    activeRole?: string
+  ): LegalAcceptanceAudience {
+    const portalRoles = roles.filter(
+      (role): role is LegalAcceptanceAudience => role === "ISSUER" || role === "INVESTOR"
+    );
+
+    if (portalRoles.length === 0) {
+      throw new AppError(
+        403,
+        "FORBIDDEN",
+        "Account legal documents are only available to issuer or investor users"
+      );
+    }
+
+    if (requestedAudience) {
+      if (!portalRoles.includes(requestedAudience)) {
+        throw new AppError(
+          403,
+          "FORBIDDEN",
+          "You are not allowed to view legal documents for that portal"
+        );
+      }
+      return requestedAudience;
+    }
+
+    if (activeRole === "ISSUER" || activeRole === "INVESTOR") {
+      if (portalRoles.includes(activeRole)) {
+        return activeRole;
+      }
+    }
+
+    if (portalRoles.includes("ISSUER") && !portalRoles.includes("INVESTOR")) {
+      return "ISSUER";
+    }
+    if (portalRoles.includes("INVESTOR") && !portalRoles.includes("ISSUER")) {
+      return "INVESTOR";
+    }
+
+    // Dual-role without an explicit audience hint: prefer active role already handled;
+    // default to ISSUER then INVESTOR for deterministic behaviour.
+    return portalRoles.includes("ISSUER") ? "ISSUER" : "INVESTOR";
   }
 
   async getPublicDocumentBySlug(slug: string): Promise<PublicLegalDocumentResponse> {

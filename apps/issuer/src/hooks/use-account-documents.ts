@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import type {
-  AccountLegalDocumentResponse,
-  LegalAcceptanceAudience,
-  SiteDocumentResponse,
+import {
+  filterSiteDocumentsSupersededByLegal,
+  type AccountLegalDocumentResponse,
+  type LegalAcceptanceAudience,
+  type SiteDocumentResponse,
 } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -15,6 +16,7 @@ export type UnifiedAccountDocument =
       title: string;
       fileName: string;
       fileSize: number;
+      type: string;
     }
   | {
       source: "LEGAL_DOCUMENT";
@@ -26,7 +28,11 @@ export type UnifiedAccountDocument =
       type: string;
     };
 
-function mergeAccountDocuments(
+/**
+ * LegalDocument takes priority over SiteDocument for the same user-facing class.
+ * Mapping is by stable SiteDocumentType → LegalDocumentType keys, not title/filename.
+ */
+export function mergeAccountDocuments(
   siteDocs: SiteDocumentResponse[],
   legalDocs: AccountLegalDocumentResponse[]
 ): UnifiedAccountDocument[] {
@@ -40,12 +46,18 @@ function mergeAccountDocuments(
     type: doc.type,
   }));
 
-  const site: UnifiedAccountDocument[] = siteDocs.map((doc) => ({
+  const visibleSiteDocs = filterSiteDocumentsSupersededByLegal(
+    siteDocs,
+    legalDocs.map((doc) => doc.type)
+  );
+
+  const site: UnifiedAccountDocument[] = visibleSiteDocs.map((doc) => ({
     source: "SITE_DOCUMENT" as const,
     id: doc.id,
     title: doc.title,
     fileName: doc.file_name,
     fileSize: doc.file_size,
+    type: doc.type,
   }));
 
   return [...legal, ...site];

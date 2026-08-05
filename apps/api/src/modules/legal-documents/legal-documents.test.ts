@@ -937,7 +937,10 @@ describe("public legal documents", () => {
       }),
     ] as never);
 
-    const docs = await legalDocumentAcceptanceService.listAccountDocuments("ISSUER");
+    const docs = await legalDocumentAcceptanceService.listAccountDocuments(
+      { user_id: "u1", roles: ["ISSUER"] },
+      "ISSUER"
+    );
     expect(docs).toHaveLength(1);
     expect(docs[0]).toMatchObject({
       type: "TERMS_OF_USE",
@@ -951,8 +954,55 @@ describe("public legal documents", () => {
       .spyOn(legalDocumentRepository, "findAccountPublishedVersions")
       .mockResolvedValue([] as never);
     await expect(
-      legalDocumentAcceptanceService.listAccountDocuments("INVESTOR")
+      legalDocumentAcceptanceService.listAccountDocuments(
+        { user_id: "u2", roles: ["INVESTOR"] },
+        "INVESTOR"
+      )
     ).resolves.toEqual([]);
+  });
+
+  it("rejects account document audience outside the user portal roles", async () => {
+    await expect(
+      legalDocumentAcceptanceService.listAccountDocuments(
+        { user_id: "u1", roles: ["ISSUER"] },
+        "INVESTOR"
+      )
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("rejects admin-only users from account legal documents", async () => {
+    await expect(
+      legalDocumentAcceptanceService.listAccountDocuments(
+        { user_id: "admin1", roles: ["ADMIN"] },
+        "ISSUER"
+      )
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("issuer account list only requests issuer-applicable audiences", async () => {
+    const spy = jest
+      .spyOn(legalDocumentRepository, "findAccountPublishedVersions")
+      .mockResolvedValue([] as never);
+
+    await legalDocumentAcceptanceService.listAccountDocuments(
+      { user_id: "u1", roles: ["ISSUER"] },
+      "ISSUER"
+    );
+
+    expect(spy).toHaveBeenCalledWith(["ISSUER", "BOTH"]);
+  });
+
+  it("investor account list only requests investor-applicable audiences", async () => {
+    const spy = jest
+      .spyOn(legalDocumentRepository, "findAccountPublishedVersions")
+      .mockResolvedValue([] as never);
+
+    await legalDocumentAcceptanceService.listAccountDocuments(
+      { user_id: "u2", roles: ["INVESTOR"] },
+      "INVESTOR"
+    );
+
+    expect(spy).toHaveBeenCalledWith(["INVESTOR", "BOTH"]);
   });
 
   it("resolves public document by slug", async () => {

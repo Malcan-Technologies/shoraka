@@ -1666,6 +1666,10 @@ model LegalDocumentVersion {
 }
 
 /// Open/accept audit for an exact legal document version.
+/// Acceptance is organization-scoped for portal onboarding/reacceptance:
+/// only the organization owner may accept, and one ACCEPTED row per
+/// (organization_id, legal_document_version_id) is sufficient for the org.
+/// Individual OPENED rows may still exist per user under the composite unique key.
 model LegalDocumentAcceptance {
   id                         String                  @id @default(cuid())
   legal_document_version_id  String
