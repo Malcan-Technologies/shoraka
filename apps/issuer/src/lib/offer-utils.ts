@@ -60,6 +60,7 @@ export function shouldShowIssuerReviewOfferCta(item: {
 export type IssuerOfferActionCta = {
   label: string;
   /** Short hint under the card CTA when acceptance docs need re-upload. */
+  hint: string | null;
   buttonVariant: "reviewOffer" | "makeAmendments";
   isAcceptanceChangesRequested: boolean;
 };
@@ -76,6 +77,7 @@ export function getIssuerOfferActionCta(
   if (phase === "CHANGES_REQUESTED") {
     return {
       label: "Update acceptance documents",
+      hint: "CashSouk requested changes to your acceptance documents.",
       buttonVariant: "makeAmendments",
       isAcceptanceChangesRequested: true,
     };
@@ -83,6 +85,7 @@ export function getIssuerOfferActionCta(
   const scope = options?.scope ?? "invoice";
   return {
     label: scope === "contract" ? "Review Contract Financing Offer" : "Review Offer",
+    hint: null,
     buttonVariant: "reviewOffer",
     isAcceptanceChangesRequested: false,
   };

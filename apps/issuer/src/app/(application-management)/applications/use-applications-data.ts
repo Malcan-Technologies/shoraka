@@ -27,6 +27,7 @@ import {
   WithdrawReason,
   getOfferAcceptanceFromOfferDetails,
   offerAcceptanceAllowsIssuerReviewCta,
+  type OfferAcceptanceStatus,
 } from "@cashsouk/types";
 import { useOrganizationApplications } from "@/hooks/use-applications";
 import { getOfferStatus, getOfferPhaseDeadlineDisplay } from "@/lib/offer-utils";
@@ -42,9 +43,10 @@ interface ApiContract {
   id?: string;
   status?: string;
   withdraw_reason?: string | null;
-  offer_details?: { offered_facility?: number } | null;
+  offer_details?: { expires_at?: string | null; offered_facility?: number } | null;
   contract_details?: Record<string, unknown> | null;
   customer_details?: Record<string, unknown> | null;
+  offer_signing?: unknown;
 }
 
 interface ApiInvoice {
@@ -52,9 +54,10 @@ interface ApiInvoice {
   contract_id?: string | null;
   status?: string;
   withdraw_reason?: string | null;
-  offer_details?: Record<string, unknown> | null;
+  offer_details?: { expires_at?: string | null } | Record<string, unknown> | null;
   details?: Record<string, unknown>;
   document?: Record<string, unknown> | null;
+  offer_signing?: unknown;
 }
 
 interface ApiReviewRemark {
@@ -64,7 +67,8 @@ interface ApiReviewRemark {
   remark: string;
 }
 
-interface ApiApplication {
+/** Raw application shape accepted by prepareApplication (list + detail). */
+export interface ApiApplication {
   id: string;
   status?: string;
   financing_type?: { product_id?: string } | Record<string, unknown> | null;
@@ -75,15 +79,28 @@ interface ApiApplication {
   contract_id?: string;
   issuer_organization_id?: string;
   company_details?: Record<string, unknown>;
-  supporting_documents?: unknown;
   review_and_submit?: Record<string, unknown>;
+  supporting_documents?: unknown;
+  financial_statements?: unknown;
   contract?: ApiContract | null;
   invoices?: ApiInvoice[];
   application_review_remarks?: ApiReviewRemark[];
 }
 
-function isSignedOfferLetterAvailable(status: string | null | undefined): boolean {
-  return (status ?? "").toUpperCase() === "APPROVED";
+function isSignedOfferLetterAvailable(offerSigning: unknown): boolean {
+  if (!offerSigning || typeof offerSigning !== "object") return false;
+  const o = offerSigning as Record<string, unknown>;
+  return (
+    o.status === "signed" &&
+    typeof o.signed_offer_letter_s3_key === "string" &&
+    o.signed_offer_letter_s3_key.length > 0
+  );
+}
+
+function getSignedOfferLetterS3Key(offerSigning: unknown): string | null {
+  if (!offerSigning || typeof offerSigning !== "object") return null;
+  const s3Key = (offerSigning as Record<string, unknown>).signed_offer_letter_s3_key;
+  return typeof s3Key === "string" && s3Key.length > 0 ? s3Key : null;
 }
 
 function parseInvoiceWithdrawReason(raw: string | null | undefined): WithdrawReason | undefined {
@@ -174,7 +191,8 @@ function prepareInvoice(
   const doc = topLevelDoc ?? detailsDoc;
   const documentS3Key = doc?.s3_key ? String(doc.s3_key) : null;
   const documentName = String(doc?.file_name ?? details.document_name ?? details.document ?? "—");
-  const signedOfferLetterAvailable = isSignedOfferLetterAvailable(api.status);
+  const signedOfferLetterAvailable = isSignedOfferLetterAvailable(api.offer_signing);
+  const signedOfferLetterS3Key = getSignedOfferLetterS3Key(api.offer_signing);
   const offerStatus = getOfferStatus({
     status: api.status,
     offer_details: api.offer_details,
@@ -182,7 +200,7 @@ function prepareInvoice(
   const acceptanceStatus = getOfferAcceptanceFromOfferDetails(api.offer_details)?.status ?? null;
   const canReviewOffer =
     offerStatus === "Offer received" &&
-    offerAcceptanceAllowsIssuerReviewCta(acceptanceStatus) &&
+    offerAcceptanceAllowsIssuerReviewCta(acceptanceStatus as OfferAcceptanceStatus | null) &&
     (structureType === "invoice_only" || contractStatus === "APPROVED" || !contractStatus);
 
   const offeredAmount = resolveOfferedAmount(api.offer_details);
@@ -218,6 +236,7 @@ function prepareInvoice(
     offerAcceptanceStatus: acceptanceStatus,
     offer_details: api.offer_details ?? null,
     signedOfferLetterAvailable,
+    signedOfferLetterS3Key,
     withdrawReason: parseInvoiceWithdrawReason(api.withdraw_reason),
     reasonOrRemarks: buildInvoiceReasonOrRemarks(api, invoiceIndex, reviewRemarks),
   };
@@ -273,7 +292,7 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
   if (cardStatus.showReviewOffer && contractStatus === "OFFER_SENT") {
     const acceptanceStatus =
       getOfferAcceptanceFromOfferDetails(contract?.offer_details)?.status ?? null;
-    if (!offerAcceptanceAllowsIssuerReviewCta(acceptanceStatus)) {
+    if (!offerAcceptanceAllowsIssuerReviewCta(acceptanceStatus as OfferAcceptanceStatus | null)) {
       cardStatus = { ...cardStatus, showReviewOffer: false };
     }
   }
@@ -332,7 +351,24 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
       ? String((api.financing_type as Record<string, unknown>).product_id ?? "") || null
       : null;
 
-  const signedContractOfferLetterAvailable = isSignedOfferLetterAvailable(contractStatus);
+  const signedContractOfferLetterAvailable = isSignedOfferLetterAvailable(
+    (contract as ApiContract | null)?.offer_signing
+  );
+  const signedContractOfferLetterS3Key = getSignedOfferLetterS3Key(
+    (contract as ApiContract | null)?.offer_signing
+  );
+
+  let expiresAt: string | null | undefined;
+  const co = contract?.offer_details as { expires_at?: string | null } | undefined;
+  if (co?.expires_at) expiresAt = String(co.expires_at);
+  else {
+    const invWithOffer = invoices.find((i) => {
+      const s = String(i.status ?? "").toUpperCase();
+      return s === "OFFER_SENT" || s === "OFFER_EXPIRED";
+    });
+    const io = (invWithOffer?.offer_details ?? {}) as { expires_at?: string | null };
+    if (io?.expires_at) expiresAt = String(io.expires_at);
+  }
 
   const reviewRemarks = readApplicationReviewRemarks(api);
 
@@ -392,7 +428,9 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     productId,
     supportingDocuments: api.supporting_documents ?? null,
     withdrawReason,
+    expiresAt,
     signedContractOfferLetterAvailable,
+    signedContractOfferLetterS3Key,
     offerPhaseDeadline,
     offerAcceptanceStatus: primaryOfferAcceptanceStatus,
   };

@@ -214,6 +214,22 @@ type AdminApplicationDetail = Application &
     /** Frozen product.workflow for application.product_version (Acceptance / signing). */
     product_workflow?: unknown[] | null;
   };
+/** Application activity log row from GET /v1/applications/:id/logs */
+export type ApplicationLogEntry = {
+  id: string;
+  event_type: string;
+  activity?: unknown;
+  actor_id?: string | null;
+  user_id?: string | null;
+  metadata?: Record<string, unknown> | null;
+  ip_address?: string | null;
+  created_at: string;
+  remark?: string | null;
+  entityId?: string | null;
+  entity_id?: string | null;
+  review_cycle?: number | null;
+};
+
 type AdminApplicationActionResult = Record<string, unknown>;
 type PendingAmendmentItem = {
   id: string;
@@ -2266,6 +2282,13 @@ export class ApiClient {
     return this.get<Application>(`/v1/applications/${id}`);
   }
 
+  /** Application activity logs (issuer + admin). Requires application access. */
+  async getApplicationLogs(
+    id: string
+  ): Promise<ApiResponse<ApplicationLogEntry[]> | ApiError> {
+    return this.get<ApplicationLogEntry[]>(`/v1/applications/${id}/logs`);
+  }
+
   async getApplicationProductVersionCompare(
     applicationId: string
   ): Promise<ApiResponse<ApplicationProductVersionCompare> | ApiError> {
@@ -2523,6 +2546,25 @@ export class ApiClient {
   ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
     return this.post<SigningEnvelopeDto>(
       `/v1/signing/envelopes/${envelopeId}/sync-from-provider`,
+      {}
+    );
+  }
+
+  async finalizeContractOfferSigningAfterReturn(
+    applicationId: string
+  ): Promise<ApiResponse<{ skipped: boolean }> | ApiError> {
+    return this.post<{ skipped: boolean }>(
+      `/v1/applications/${applicationId}/offers/contracts/finalize-signing`,
+      {}
+    );
+  }
+
+  async finalizeInvoiceOfferSigningAfterReturn(
+    applicationId: string,
+    invoiceId: string
+  ): Promise<ApiResponse<{ skipped: boolean }> | ApiError> {
+    return this.post<{ skipped: boolean }>(
+      `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/finalize-signing`,
       {}
     );
   }

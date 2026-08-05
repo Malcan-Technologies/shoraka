@@ -61,7 +61,6 @@ function valueForRow(
     case "net_profit_margin": {
       return formatProspectusFinancialPercentFromRatio(
         resolveApplicationFinancialProfitMarginRatio({
-          profit_margin: fieldFromRaw(raw, "profit_margin"),
           plnpat: fieldFromRaw(raw, "plnpat"),
           turnover: fieldFromRaw(raw, "turnover"),
         })

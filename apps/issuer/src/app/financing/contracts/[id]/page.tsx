@@ -1,16 +1,30 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Card } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { useOrganization } from "@cashsouk/config";
-import { useHeader, formatMoneyDisplay } from "@cashsouk/ui";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  DetailHeader,
+  EmptyState,
+  KeyValueGrid,
+  LoadingState,
+  formatMoneyDisplay,
+} from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { useIssuerDashboardContract } from "@/hooks/use-issuer-dashboard";
-import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
+import {
+  issuerContentMaxWidthClassName,
+  issuerMainContentClassName,
+  issuerPageGutterClassName,
+} from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
+import { financingOfferHref } from "@/lib/financing-offer-href";
 import { DashboardInvoiceCard } from "@/components/financing/invoice-card";
 import { FinancingInvoiceFilterToolbar } from "@/components/financing/filter-toolbars";
 import {
@@ -21,19 +35,12 @@ import {
 import {
   EM_DASH,
   IssuerFinancingStatusBadge,
-  LabelValue,
   displayCell,
   formatDate,
 } from "@/components/financing/utils";
-import { ReviewOfferModal } from "../../../(application-management)/applications/components/ReviewOfferModal";
-import { getOfferStatus, shouldShowIssuerReviewOfferCta } from "@/lib/offer-utils";
+import { getOfferStatus } from "@/lib/offer-utils";
 import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
-import type { Invoice } from "@cashsouk/types";
-import type { NormalizedInvoice } from "../../../(application-management)/applications/status";
-import { Info } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-
 function formatMoney(value: unknown) {
   return formatMoneyDisplay(value, EM_DASH);
 }
@@ -43,44 +50,9 @@ export default function ContractDetailsPage() {
   const contractId = params.id as string;
   const { activeOrganization } = useOrganization();
   const orgId = activeOrganization?.id;
-  const { setTitle } = useHeader();
-  const [offerModalContext, setOfferModalContext] = useState<{
-    applicationId: string;
-    invoice: NormalizedInvoice;
-    productId?: string | null;
-  } | null>(null);
   const [invoiceListFilters, setInvoiceListFilters] = useState<InvoiceFinancingListFiltersState>(
     DEFAULT_INVOICE_FINANCING_LIST_FILTERS
   );
-
-  const toNormalizedInvoiceForOfferModal = (inv: Invoice): NormalizedInvoice => {
-    const invoiceDetails = inv.details;
-    const od = inv.offer_details as Record<string, unknown> | null | undefined;
-    return {
-      id: inv.id,
-      number: invoiceDetails.number,
-      contractId: inv.contract_id ?? null,
-      maturityDate: invoiceDetails.maturity_date ?? null,
-      value: Number.isFinite(invoiceDetails.value as number) ? invoiceDetails.value : null,
-      appliedFinancing: null,
-      document: "—",
-      documentS3Key: null,
-      financingOffered: od?.offered_amount != null ? String(od.offered_amount) : "—",
-      platformFee: "—",
-      profitRate: od?.offered_profit_rate_percent != null ? `${od.offered_profit_rate_percent}%` : "—",
-      status: inv.status,
-      offerStatus: null,
-      canReviewOffer: true,
-      offer_details: od,
-      signedOfferLetterAvailable: false,
-      withdrawReason: undefined,
-      reasonOrRemarks: undefined,
-    };
-  };
-
-  useEffect(() => {
-    setTitle("Contract");
-  }, [setTitle]);
 
   useEffect(() => {
     setInvoiceListFilters({ ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS });
@@ -105,7 +77,11 @@ export default function ContractDetailsPage() {
         ? Math.abs(availableNum)
         : null;
   const availableFacilityDisplay =
-    availableNum != null ? Math.max(0, availableNum) : approvedNum != null && utilizedNum != null ? Math.max(0, approvedNum - utilizedNum) : null;
+    availableNum != null
+      ? Math.max(0, availableNum)
+      : approvedNum != null && utilizedNum != null
+        ? Math.max(0, approvedNum - utilizedNum)
+        : null;
   const utilisationPct =
     approvedNum != null && utilizedNum != null && approvedNum > 0
       ? Math.round((utilizedNum / approvedNum) * 100)
@@ -126,20 +102,28 @@ export default function ContractDetailsPage() {
   const productLabel =
     row?.productName?.trim() ? displayCell(row.productName) : "Contract Financing";
 
-  const shellClass = cn(issuerMainContentClassName, issuerPageGutterClassName);
+  const shellClass = cn(
+    issuerMainContentClassName,
+    issuerPageGutterClassName,
+    issuerContentMaxWidthClassName,
+    "space-y-6"
+  );
 
   if (!orgId) {
     return (
       <div className={shellClass}>
-        <p className="text-[17px] leading-7 text-muted-foreground">Select an organization to view this contract.</p>
+        <EmptyState
+          title="Select an organisation"
+          message="Choose an organisation to view this contract."
+        />
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className={`${shellClass} flex min-h-[240px] items-center justify-center text-[17px] leading-7 text-muted-foreground`}>
-        Loading contract…
+      <div className={shellClass}>
+        <LoadingState variant="detail" />
       </div>
     );
   }
@@ -147,10 +131,15 @@ export default function ContractDetailsPage() {
   if (isError) {
     return (
       <div className={shellClass}>
-        <p className="font-medium text-destructive">Could not load contract</p>
-        <p className="mt-2 text-[17px] leading-7 text-muted-foreground">
-          {error instanceof Error ? error.message : "Unknown error"}
-        </p>
+        <EmptyState
+          title="Could not load contract"
+          message={error instanceof Error ? error.message : "Unknown error"}
+          action={
+            <Button asChild variant="outline" className="rounded-xl">
+              <Link href="/financing?tab=contracts">Back to Financing</Link>
+            </Button>
+          }
+        />
       </div>
     );
   }
@@ -158,152 +147,167 @@ export default function ContractDetailsPage() {
   if (!row) {
     return (
       <div className={shellClass}>
-        <p className="text-[17px] leading-7 text-muted-foreground">Contract not found or you do not have access.</p>
+        <EmptyState
+          title="Contract not found"
+          message="This contract is not available or you do not have access."
+          action={
+            <Button asChild variant="outline" className="rounded-xl">
+              <Link href="/financing?tab=contracts">Back to Financing</Link>
+            </Button>
+          }
+        />
       </div>
     );
   }
 
   const stats = row.invoiceStats;
+  const modalContract = asContractForModal(row.contractForModal);
+  const contractOfferStatus = getOfferStatus(modalContract);
+  const showReviewOffer = contractOfferStatus === "Offer received";
 
   return (
-    <div className={cn(shellClass, "space-y-5 md:space-y-6")}>
-      {offerModalContext && (
-        <ReviewOfferModal
-          type="invoice"
-          applicationId={offerModalContext.applicationId}
-          issuerOrganizationId={activeOrganization?.id}
-          productId={offerModalContext.productId ?? null}
-          contractId={contractId}
-          invoice={offerModalContext.invoice}
-          onClose={() => setOfferModalContext(null)}
-        />
-      )}
-
-      <section className="mb-5 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-bold tracking-tight text-foreground md:text-2xl">
-              {displayCell(row.title)}
-            </h2>
-            <IssuerFinancingStatusBadge kind={resolveIssuerContractDashboardBadge(row.contractStatus)} />
-          </div>
-          <p className="mt-0.5 text-sm leading-6 text-muted-foreground md:text-[15px] md:leading-7">
+    <div className={shellClass}>
+      <DetailHeader
+        breadcrumb={
+          <nav className="flex flex-wrap items-center gap-1.5">
+            <Link
+              href="/financing?tab=contracts"
+              className="hover:text-foreground hover:underline"
+            >
+              Financing
+            </Link>
+            <span aria-hidden>›</span>
+            <span className="text-foreground">Contract {displayCell(row.title)}</span>
+          </nav>
+        }
+        title={displayCell(row.title)}
+        status={
+          <IssuerFinancingStatusBadge
+            kind={resolveIssuerContractDashboardBadge(row.contractStatus)}
+          />
+        }
+        facts={
+          <span>
             {displayCell(row.customerName)} · {contractPeriod}
-          </p>
-        </div>
-        <Button
-          asChild
-          variant="outline"
-          className="h-10 shrink-0 gap-2 rounded-lg border-input px-3 text-sm font-medium focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:rounded-xl sm:px-4"
-        >
-          <Link href="/financing?tab=contracts">Back to Financing</Link>
-        </Button>
-      </section>
-
-      <Card className="rounded-xl border border-border bg-background shadow-none">
-        <div className="space-y-5 px-4 py-4 md:px-5 md:py-5">
-          <div className="flex flex-col gap-2">
-            <div className="grid grid-cols-1 items-start gap-x-6 gap-y-5 md:grid-cols-2">
-              <div className="min-w-0 space-y-2">
-                <LabelValue label="Product">{productLabel}</LabelValue>
-                <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
-                <LabelValue label="Contract period">{contractPeriod}</LabelValue>
+          </span>
+        }
+        actions={
+          <>
+            {showReviewOffer ? (
+              <div className="rounded-xl bg-status-action-bg p-0.5">
+                <Button className="rounded-xl" asChild>
+                  <Link href={financingOfferHref(row.applicationId)}>Review offer</Link>
+                </Button>
               </div>
+            ) : null}
+            <Button variant="outline" className="rounded-xl" asChild>
+              <Link href={`/applications/${row.applicationId}`}>View application</Link>
+            </Button>
+          </>
+        }
+      />
 
-              <div className="min-w-0 w-full space-y-2">
-                <LabelValue label="Available facility" tabular>
-                  {availableFacilityDisplay != null ? formatMoney(availableFacilityDisplay) : EM_DASH}
-                </LabelValue>
-                {overUtilizedAmount != null && overUtilizedAmount > 0 ? (
-                  <p className="text-xs font-medium leading-5 text-muted-foreground">
-                    Facility usage exceeds the approved limit. Please contact support.
-                  </p>
-                ) : null}
-                <div className="h-2 w-full overflow-hidden rounded-full border border-border bg-foreground/35 shadow-sm dark:bg-muted">
-                  <div
-                    className="h-2 rounded-full bg-foreground"
-                    style={{ width: `${Math.min(100, Math.max(0, utilisationPct))}%` }}
-                  />
-                </div>
-                <div className="flex justify-between gap-4 sm:gap-6">
-                  <div className="min-w-0">
-                    <p className="text-base font-semibold tabular-nums leading-7 text-foreground">
-                      {formatMoney(row.utilizedFacilityAmount)}
-                    </p>
-                    <p className="text-xs font-normal leading-5 text-muted-foreground">(Utilised facility)</p>
-                  </div>
-                  <div className="min-w-0 text-right">
-                    <p className="text-base font-semibold tabular-nums leading-7 text-foreground">
-                      {formatMoney(row.approvedFacilityAmount)}
-                    </p>
-                    <p className="text-xs font-normal leading-5 text-muted-foreground">(Approved facility)</p>
-                  </div>
-                </div>
-
-                {row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null ? (
-                  <div className="mt-3 text-sm leading-6 text-muted-foreground">
-                    <p>
-                      Facility fee collected:{" "}
-                      <span className="font-medium tabular-nums text-foreground">
-                        {facilityFeePaidNum != null ? formatMoney(facilityFeePaidNum) : EM_DASH} /{" "}
-                        {facilityFeeCapNum != null ? formatMoney(facilityFeeCapNum) : EM_DASH} cap
-                      </span>
-                      <span className="ml-1 inline-flex items-center align-middle">
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-[240px] whitespace-normal break-words bg-popover px-2 py-1.5 text-popover-foreground shadow-md">
-                              Shows the total facility fee collected so far for this contract. Facility fee is deducted from each invoice financing disbursement until the cap is reached.
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </span>
-                    </p>
-                  </div>
-                ) : null}
-              </div>
+      <Card className="rounded-2xl">
+        <CardHeader>
+          <CardTitle className="text-xl sm:text-2xl">Facility overview</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCell
+              label="Utilised"
+              value={formatMoney(row.utilizedFacilityAmount)}
+            />
+            <MetricCell
+              label="Approved"
+              value={formatMoney(row.approvedFacilityAmount)}
+            />
+            <MetricCell
+              label="Available"
+              value={
+                availableFacilityDisplay != null
+                  ? formatMoney(availableFacilityDisplay)
+                  : EM_DASH
+              }
+            />
+            <MetricCell label="Utilisation" value={`${utilisationPct}%`} />
+          </div>
+          {overUtilizedAmount != null && overUtilizedAmount > 0 ? (
+            <p className="text-xs font-medium leading-5 text-muted-foreground">
+              Facility usage exceeds the approved limit. Please contact support.
+            </p>
+          ) : null}
+          <div>
+            <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+              <span>Facility usage</span>
+              <span>{utilisationPct}%</span>
+            </div>
+            <div className="h-3 w-full overflow-hidden rounded-full border border-border bg-foreground/35 shadow-sm dark:bg-muted">
+              <div
+                className="h-3 rounded-full bg-foreground"
+                style={{ width: `${Math.min(100, Math.max(0, utilisationPct))}%` }}
+              />
             </div>
           </div>
-
-          <Separator />
-
-          <div className="grid grid-cols-1 items-start gap-x-6 gap-y-6 xl:grid-cols-2">
-            <div className="space-y-3">
-              <h3 className="text-base font-semibold leading-7 tracking-tight text-foreground md:text-lg">
-                Total no. of invoices: {stats.total}
-              </h3>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <MetricBox label="Approved" value={`${stats.approved}`} />
-                <MetricBox label="Rejected" value={`${stats.rejected}`} />
-                <MetricBox label="Unfinanced" value={`${stats.unfinanced}`} />
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <h3 className="text-base font-semibold leading-7 tracking-tight text-foreground md:text-lg">
-                Breakdown of approved invoices
-              </h3>
-              <div className="grid grid-cols-1 gap-x-5 gap-y-2 text-sm leading-6 sm:grid-cols-2 md:text-[15px] md:leading-7">
-                <BreakdownItem label="Funding in progress" value={`${stats.fundingInProgress}`} />
-                <BreakdownItem label="Active notes" value={`${stats.activeNotes}`} />
-                <BreakdownItem label="Completed notes" value={`${stats.completedNotes}`} />
-                <BreakdownItem label="Unsuccessful raise" value={`${stats.unsuccessfulRaise}`} />
-                {stats.disputedNotes != null ? (
-                  <BreakdownItem label="Disputed notes" value={`${stats.disputedNotes}`} />
-                ) : null}
-              </div>
-            </div>
-          </div>
-        </div>
+          <KeyValueGrid
+            columns={2}
+            items={[
+              { label: "Product", value: productLabel },
+              { label: "Customer", value: displayCell(row.customerName) },
+              { label: "Contract period", value: contractPeriod },
+              {
+                label: "Facility fee collected",
+                value:
+                  row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null
+                    ? `${facilityFeePaidNum != null ? formatMoney(facilityFeePaidNum) : EM_DASH} / ${
+                        facilityFeeCapNum != null ? formatMoney(facilityFeeCapNum) : EM_DASH
+                      } cap`
+                    : EM_DASH,
+                tabular: true,
+              },
+            ]}
+          />
+          {row.facilityFeeCapAmount != null && row.facilityFeePaidAmount != null ? (
+            <p className="flex items-start gap-1.5 text-sm leading-6 text-muted-foreground">
+              <InformationCircleIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                Facility fee is deducted from each invoice financing disbursement until the cap is
+                reached.
+              </span>
+            </p>
+          ) : null}
+        </CardContent>
       </Card>
 
-      <div className="space-y-4">
-        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-          <h3 className="text-lg font-semibold leading-7 tracking-tight text-foreground md:text-xl">
-            Invoices
-          </h3>
+      <Card className="rounded-2xl">
+        <CardHeader>
+          <CardTitle className="text-xl sm:text-2xl">Invoices ({stats.total})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <MetricBox label="Approved" value={`${stats.approved}`} />
+              <MetricBox label="Rejected" value={`${stats.rejected}`} />
+              <MetricBox label="Unfinanced" value={`${stats.unfinanced}`} />
+            </div>
+            <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-4 text-sm leading-6 md:text-[15px] md:leading-7">
+              <p className="text-base font-semibold text-foreground">
+                Breakdown of approved invoices
+              </p>
+              <BreakdownItem label="Funding in progress" value={`${stats.fundingInProgress}`} />
+              <BreakdownItem label="Active notes" value={`${stats.activeNotes}`} />
+              <BreakdownItem label="Completed notes" value={`${stats.completedNotes}`} />
+              <BreakdownItem label="Unsuccessful raise" value={`${stats.unsuccessfulRaise}`} />
+              {stats.disputedNotes != null ? (
+                <BreakdownItem label="Disputed notes" value={`${stats.disputedNotes}`} />
+              ) : null}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl">
+        <CardHeader className="space-y-3 sm:flex-row sm:items-start sm:justify-between sm:space-y-0 sm:gap-4">
+          <CardTitle className="text-xl sm:text-2xl">Related invoices</CardTitle>
           <FinancingInvoiceFilterToolbar
             rows={invoices}
             value={invoiceListFilters}
@@ -311,56 +315,66 @@ export default function ContractDetailsPage() {
             onClear={() => setInvoiceListFilters({ ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS })}
             hideCustomer
           />
-        </div>
+        </CardHeader>
+        <CardContent>
+          {invoices.length === 0 ? (
+            <EmptyState
+              title="No invoices yet"
+              message="Invoices financed under this contract will appear here."
+            />
+          ) : filteredInvoices.length === 0 ? (
+            <EmptyState
+              variant="no-results"
+              title="No matching invoices"
+              message="Try clearing filters."
+              action={
+                <Button
+                  variant="outline"
+                  className="rounded-xl"
+                  onClick={() =>
+                    setInvoiceListFilters({ ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS })
+                  }
+                >
+                  Clear filters
+                </Button>
+              }
+            />
+          ) : (
+            <div className="space-y-4">
+              {filteredInvoices.map((inv) => (
+                <DashboardInvoiceCard
+                  key={inv.id}
+                  row={inv}
+                  offerStatus={getOfferStatus(asInvoiceForModal(inv.invoiceForModal))}
+                  contractFeeContext={{
+                    facilityFeeRatePercent: (
+                      modalContract.contract_details as Record<string, unknown> | null
+                    )?.facility_fee_rate_percent,
+                    facilityFeeCapAmount: row.facilityFeeCapAmount,
+                    facilityFeePaidAmount: row.facilityFeePaidAmount,
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
-        {invoices.length === 0 ? (
-          <p className="text-[17px] leading-7 text-muted-foreground">No invoices for this contract.</p>
-        ) : filteredInvoices.length === 0 ? (
-          <p className="text-[17px] leading-7 text-muted-foreground">
-            No invoices match these filters.{" "}
-            <button
-              type="button"
-              className="font-medium text-primary underline-offset-4 hover:underline"
-              onClick={() => setInvoiceListFilters({ ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS })}
-            >
-              Clear filters
-            </button>
-          </p>
-        ) : (
-          filteredInvoices.map((inv) => {
-            const modalInvoice = asInvoiceForModal(inv.invoiceForModal) as Invoice;
-            return (
-              <DashboardInvoiceCard
-                key={inv.id}
-                row={inv}
-                offerStatus={getOfferStatus(modalInvoice)}
-                showReviewOffer={shouldShowIssuerReviewOfferCta(modalInvoice)}
-                contractFeeContext={{
-                  facilityFeeRatePercent:
-                    (asContractForModal(row.contractForModal).contract_details as Record<string, unknown> | null)
-                      ?.facility_fee_rate_percent,
-                  facilityFeeCapAmount: row.facilityFeeCapAmount,
-                  facilityFeePaidAmount: row.facilityFeePaidAmount,
-                }}
-                onReviewOffer={() =>
-                  setOfferModalContext({
-                    applicationId: inv.applicationId,
-                    invoice: toNormalizedInvoiceForOfferModal(modalInvoice) as unknown as NormalizedInvoice,
-                    productId: inv.productId ?? row.productId ?? null,
-                  })
-                }
-              />
-            );
-          })
-        )}
-      </div>
+function MetricCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 text-xl font-semibold tabular-nums text-foreground">{value}</div>
     </div>
   );
 }
 
 function MetricBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-border bg-background px-3 py-2.5 shadow-none">
+    <div className="rounded-xl border border-border bg-background px-3 py-2.5 shadow-none">
       <p className="text-xs font-medium leading-5 text-muted-foreground">{label}</p>
       <p className="text-base font-semibold tabular-nums leading-7 text-foreground">{value}</p>
     </div>

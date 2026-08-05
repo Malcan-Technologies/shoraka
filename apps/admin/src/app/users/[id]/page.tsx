@@ -15,9 +15,7 @@ import {
 } from "@heroicons/react/24/outline";
 import type { UserDetailResponse, UserOrganizationSummary, UserRole } from "@cashsouk/types";
 import { toTitleCase } from "@cashsouk/types";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
-import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Skeleton } from "@cashsouk/ui";
+import { Skeleton, useHeader } from "@cashsouk/ui";
 import { EditUserDialog } from "@/components/edit-user-dialog";
 import {
   useUpdateUserId,
@@ -509,6 +507,7 @@ function OrganizationRow({ organization }: { organization: UserOrganizationSumma
 }
 
 export default function UserDetailPage() {
+  const { setTitle } = useHeader();
   const { can } = usePermissions();
   const canManage = can("users.manage");
   const params = useParams();
@@ -592,29 +591,21 @@ export default function UserDetailPage() {
 
   const displayName = user ? `${user.first_name} ${user.last_name}`.trim() || user.email : "User";
 
+  React.useEffect(() => {
+    setTitle(isLoading ? "Loading..." : displayName);
+    return () => setTitle("");
+  }, [setTitle, isLoading, displayName]);
+
   return (
     <RequirePermission permission="users.view">
       <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push("/users")}
-          className="-ml-1 gap-1.5"
-        >
+            <div className="flex items-center gap-2 px-4 pt-4 md:px-6">
+        <Button variant="ghost" size="sm" onClick={() => router.push("/users")} className="gap-1.5">
           <ArrowLeftIcon className="h-4 w-4" />
           Users
         </Button>
-        <Separator orientation="vertical" className="mx-2 h-4" />
-        <h1 className="truncate text-lg font-semibold">{isLoading ? "Loading..." : displayName}</h1>
-        <div className="ml-auto">
-          <SystemHealthIndicator />
-        </div>
-      </header>
-
-      <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 pt-0">
+      </div>
+<div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 pt-0">
         <div className="w-full space-y-6 px-2 py-8 md:px-4">
           {isLoading ? <PageSkeleton /> : null}
 

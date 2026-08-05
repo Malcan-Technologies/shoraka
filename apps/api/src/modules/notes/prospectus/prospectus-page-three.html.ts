@@ -185,7 +185,11 @@ ${cells}
 }
 
 function renderIncome(page: ProspectusPageThree): string {
-  const { incomeStatement } = page;
+  const { incomeStatement, incomeTrendInsight } = page;
+  const insightIcon = renderProspectusHeroicon("income-trend-insight", {
+    className: "icon",
+  });
+  const toneClass = `prospectus-income-trend-insight--${incomeTrendInsight.tone}`;
   return `<section class="card report-box" data-stage="3" data-content-stage="income-statement">
   <h2>${escapeHtml(incomeStatement.sectionHeading)}</h2>
   <table>
@@ -194,6 +198,12 @@ function renderIncome(page: ProspectusPageThree): string {
 ${metricBodyRows(incomeStatement.years, incomeStatement.rows)}
     </tbody>
   </table>
+  <div class="prospectus-income-trend-insight ${toneClass}" data-income-trend-insight="true" data-insight-tone="${escapeHtml(
+    incomeTrendInsight.tone
+  )}">
+    ${insightIcon}
+    <span class="insight-message">${escapeHtml(incomeTrendInsight.message)}</span>
+  </div>
 </section>`;
 }
 

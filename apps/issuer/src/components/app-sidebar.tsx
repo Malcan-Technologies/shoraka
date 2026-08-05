@@ -10,35 +10,46 @@ import {
   useOrganization,
   isAddingNewOrganizationRoute,
   canAccessApplicantAccount,
+  getOnboardingStep,
+  type OnboardingFlowStep,
 } from "@cashsouk/config";
 import {
   HomeIcon,
+  BuildingOffice2Icon,
   UserCircleIcon,
-  ClockIcon,
   DocumentTextIcon,
-  DocumentDuplicateIcon,
   BanknotesIcon,
   QuestionMarkCircleIcon,
+  LockClosedIcon,
+  PlusIcon,
 } from "@heroicons/react/24/outline";
 
-import { NavUser } from "@/components/nav-user";
-import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@cashsouk/ui";
 import { useIssuerPendingOfferReviewCount } from "@/hooks/use-issuer-pending-offer-review-count";
+import { useIssuerFinancingActionableCount } from "@/hooks/use-issuer-financing-actionable-count";
+import { cn } from "@/lib/utils";
 
 function subscribeMounted() {
   return () => undefined;
@@ -52,13 +63,142 @@ function getServerSnapshot() {
   return false;
 }
 
+function unlockTooltipForStep(step: OnboardingFlowStep | null): string {
+  switch (step) {
+    case "account":
+      return "Create your organisation account to unlock this";
+    case "terms":
+      return "Accept the user agreement to unlock this";
+    case "fee":
+      return "Pay the onboarding fee to unlock this";
+    case "verify":
+      return "Complete identity verification to unlock this";
+    case "approval":
+      return "Available after your organisation is approved";
+    default:
+      return "Complete onboarding to unlock this";
+  }
+}
+
+function LockedNavButton({
+  icon: Icon,
+  label,
+  tooltip,
+}: {
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  label: string;
+  tooltip: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        {/* span wrapper so hover works on disabled buttons */}
+        <span className="flex w-full">
+          <SidebarMenuButton disabled className="w-full cursor-not-allowed">
+            <Icon className="h-4 w-4" />
+            <span>{label}</span>
+            <LockClosedIcon className="ml-auto h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          </SidebarMenuButton>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent side="right" align="center">
+        {tooltip}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function ApplyForFinancingCard({
+  locked,
+  lockedTooltip,
+}: {
+  locked: boolean;
+  lockedTooltip: string;
+}) {
+  const { state } = useSidebar();
+  const collapsed = state === "collapsed";
+
+  if (locked) {
+    return (
+      <div className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div
+              className={cn(
+                "rounded-xl border border-dashed border-sidebar-border bg-sidebar-accent/40 p-3",
+                "group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"
+              )}
+            >
+              <div className="space-y-1 group-data-[collapsible=icon]:hidden">
+                <p className="text-sm font-semibold text-sidebar-foreground">
+                  Apply for financing
+                </p>
+                <p className="text-[13px] leading-5 text-muted-foreground">
+                  Available after onboarding is complete.
+                </p>
+              </div>
+              <LockClosedIcon className="hidden h-4 w-4 text-muted-foreground group-data-[collapsible=icon]:block" />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="right" align="center">
+            {lockedTooltip}
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    );
+  }
+
+  const button = (
+    <Button
+      asChild
+      className={cn(
+        "h-10 w-full gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95",
+        "group-data-[collapsible=icon]:size-10 group-data-[collapsible=icon]:p-0"
+      )}
+    >
+      <Link href="/applications/new" aria-label="Apply for financing">
+        <PlusIcon className="h-4 w-4 shrink-0" />
+        <span className="group-data-[collapsible=icon]:hidden">Apply for financing</span>
+      </Link>
+    </Button>
+  );
+
+  return (
+    <div className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+      <div
+        className={cn(
+          "rounded-xl border border-primary/15 bg-primary/5 p-3 shadow-sm",
+          "group-data-[collapsible=icon]:border-0 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:shadow-none"
+        )}
+      >
+        <div className="mb-3 space-y-1 group-data-[collapsible=icon]:hidden">
+          <p className="text-sm font-semibold text-sidebar-foreground">Ready to get funded?</p>
+          <p className="text-[13px] leading-5 text-muted-foreground">
+            Start a new financing application in a few steps.
+          </p>
+        </div>
+        {collapsed ? (
+          <Tooltip>
+            <TooltipTrigger asChild>{button}</TooltipTrigger>
+            <TooltipContent side="right" align="center">
+              Apply for financing
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          button
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { isOnboarded, isPendingApproval, activeOrganization } = useOrganization();
-  const pendingOfferReviewCount = useIssuerPendingOfferReviewCount(activeOrganization?.id);
+  const applicationsActionableCount = useIssuerPendingOfferReviewCount(activeOrganization?.id);
+  const financingActionable = useIssuerFinancingActionableCount(activeOrganization?.id);
   const isOnboardingPage = isAddingNewOrganizationRoute(pathname);
 
-  // Check if organization has a status that allows Account/Profile access
   const allowsAccountAccess = useMemo(
     () => canAccessApplicantAccount(activeOrganization?.onboardingStatus),
     [activeOrganization?.onboardingStatus]
@@ -68,16 +208,39 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // Also disable if active org is not onboarded (except for pending approval states)
   const isDisabled = isOnboardingPage || (!isOnboarded && !isPendingApproval);
   // For pending approval: only dashboard is enabled, other features disabled
-  // BUT allow Account if status is PENDING_AML, PENDING_FINAL_APPROVAL, or COMPLETED
+  // BUT allow Organisation/My account if status is PENDING_AML, PENDING_FINAL_APPROVAL, or COMPLETED
   // EXCEPT when on onboarding page - always disable Account there
-  const isFeaturesDisabled = isOnboardingPage || ((isDisabled || isPendingApproval) && !allowsAccountAccess);
+  const isFeaturesDisabled =
+    isOnboardingPage || ((isDisabled || isPendingApproval) && !allowsAccountAccess);
+
+  const lockedTooltip = useMemo(() => {
+    if (isOnboardingPage) {
+      return "Finish adding your organisation to unlock this";
+    }
+    if (isPendingApproval) {
+      return "Available after your organisation is approved";
+    }
+    const step = getOnboardingStep(activeOrganization, "issuer");
+    return unlockTooltipForStep(step);
+  }, [activeOrganization, isOnboardingPage, isPendingApproval]);
+
+  const organisationLockedTooltip = useMemo(() => {
+    if (isOnboardingPage) {
+      return "Finish adding your organisation to unlock this";
+    }
+    if (isPendingApproval && !allowsAccountAccess) {
+      return "Available after your organisation is approved";
+    }
+    const step = getOnboardingStep(activeOrganization, "issuer");
+    return unlockTooltipForStep(step);
+  }, [activeOrganization, allowsAccountAccess, isOnboardingPage, isPendingApproval]);
+
   const mounted = React.useSyncExternalStore(
     subscribeMounted,
     getClientSnapshot,
     getServerSnapshot
   );
 
-  // Show skeleton while not mounted to prevent hydration mismatch
   if (!mounted) {
     return (
       <Sidebar collapsible="icon" {...props}>
@@ -113,19 +276,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-        <SidebarFooter>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton size="lg" className="cursor-default">
-                <Skeleton className="h-8 w-8 rounded-lg" />
-                <div className="grid flex-1 gap-1 group-data-[collapsible=icon]:hidden">
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="h-3 w-32" />
-                </div>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarFooter>
         <SidebarRail />
       </Sidebar>
     );
@@ -149,23 +299,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </div>
           </div>
         </div>
-        <OrganizationSwitcher />
       </SidebarHeader>
       <SidebarContent>
-        {/* Navigation */}
         <SidebarGroup>
+          <SidebarGroupLabel>Work</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
                 {isDisabled ? (
-                  <SidebarMenuButton
-                    disabled
-                    tooltip="Complete onboarding to access"
-                    className="opacity-50 cursor-not-allowed"
-                  >
-                    <HomeIcon className="h-4 w-4" />
-                    <span>Dashboard</span>
-                  </SidebarMenuButton>
+                  <LockedNavButton
+                    icon={HomeIcon}
+                    label="Dashboard"
+                    tooltip={lockedTooltip}
+                  />
                 ) : (
                   <SidebarMenuButton asChild isActive={pathname === "/"} tooltip="Dashboard">
                     <Link href="/">
@@ -175,28 +321,28 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   </SidebarMenuButton>
                 )}
               </SidebarMenuItem>
+
               <SidebarMenuItem>
                 {isDisabled ? (
-                  <SidebarMenuButton
-                    disabled
-                    tooltip="Complete onboarding to access"
-                    className="opacity-50 cursor-not-allowed"
-                  >
-                    <DocumentTextIcon className="h-4 w-4" />
-                    <span>Applications</span>
-                  </SidebarMenuButton>
+                  <LockedNavButton
+                    icon={DocumentTextIcon}
+                    label="Applications"
+                    tooltip={lockedTooltip}
+                  />
                 ) : (
                   <>
                     <SidebarMenuButton
                       asChild
-                      isActive={pathname === "/applications" || pathname.startsWith("/applications/")}
+                      isActive={
+                        pathname === "/applications" || pathname.startsWith("/applications/")
+                      }
                       tooltip="Applications"
                     >
                       <Link
                         href="/applications"
                         aria-label={
-                          pendingOfferReviewCount > 0
-                            ? `Applications, ${pendingOfferReviewCount} offer${pendingOfferReviewCount === 1 ? "" : "s"} to review`
+                          applicationsActionableCount > 0
+                            ? `Applications, ${applicationsActionableCount} need${applicationsActionableCount === 1 ? "s" : ""} action`
                             : "Applications"
                         }
                       >
@@ -204,100 +350,109 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         <span>Applications</span>
                       </Link>
                     </SidebarMenuButton>
-                    {pendingOfferReviewCount > 0 ? (
+                    {applicationsActionableCount > 0 ? (
                       <SidebarMenuBadge className="bg-primary text-primary-foreground peer-hover/menu-button:text-primary-foreground peer-data-[active=true]/menu-button:text-primary-foreground">
-                        {pendingOfferReviewCount}
+                        {applicationsActionableCount}
                       </SidebarMenuBadge>
                     ) : null}
                   </>
                 )}
               </SidebarMenuItem>
+
               <SidebarMenuItem>
                 {isDisabled ? (
-                  <SidebarMenuButton
-                    disabled
-                    tooltip="Complete onboarding to access"
-                    className="opacity-50 cursor-not-allowed"
-                  >
-                    <BanknotesIcon className="h-4 w-4" />
-                    <span>Financing</span>
-                  </SidebarMenuButton>
+                  <LockedNavButton
+                    icon={BanknotesIcon}
+                    label="Financing"
+                    tooltip={lockedTooltip}
+                  />
                 ) : (
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === "/financing" || pathname.startsWith("/financing/")}
-                    tooltip="Financing"
-                  >
-                    <Link href="/financing">
-                      <BanknotesIcon className="h-4 w-4" />
-                      <span>Financing</span>
-                    </Link>
-                  </SidebarMenuButton>
+                  <>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === "/financing" || pathname.startsWith("/financing/")}
+                      tooltip="Financing"
+                    >
+                      <Link
+                        href="/financing"
+                        aria-label={
+                          financingActionable.total > 0
+                            ? `Financing, ${financingActionable.total} item${financingActionable.total === 1 ? "" : "s"} need action`
+                            : "Financing"
+                        }
+                      >
+                        <BanknotesIcon className="h-4 w-4" />
+                        <span>Financing</span>
+                      </Link>
+                    </SidebarMenuButton>
+                    {financingActionable.total > 0 ? (
+                      <SidebarMenuBadge className="bg-primary text-primary-foreground peer-hover/menu-button:text-primary-foreground peer-data-[active=true]/menu-button:text-primary-foreground">
+                        {financingActionable.total}
+                      </SidebarMenuBadge>
+                    ) : null}
+                  </>
                 )}
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                {isDisabled ? (
-                  <SidebarMenuButton
-                    disabled
-                    tooltip="Complete onboarding to access"
-                    className="opacity-50 cursor-not-allowed"
-                  >
-                    <DocumentDuplicateIcon className="h-4 w-4" />
-                    <span>Notes</span>
-                  </SidebarMenuButton>
-                ) : (
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === "/notes" || pathname.startsWith("/notes/")}
-                    tooltip="Notes"
-                  >
-                    <Link href="/notes">
-                      <DocumentDuplicateIcon className="h-4 w-4" />
-                      <span>Notes</span>
-                    </Link>
-                  </SidebarMenuButton>
-                )}
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                {isDisabled ? (
-                  <SidebarMenuButton
-                    disabled
-                    tooltip="Complete onboarding to access"
-                    className="opacity-50 cursor-not-allowed"
-                  >
-                    <ClockIcon className="h-4 w-4" />
-                    <span>Activity</span>
-                  </SidebarMenuButton>
-                ) : (
-                  <SidebarMenuButton asChild isActive={pathname === "/activity"} tooltip="Activity">
-                    <Link href="/activity">
-                      <ClockIcon className="h-4 w-4" />
-                      <span>Activity</span>
-                    </Link>
-                  </SidebarMenuButton>
-                )}
-              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <div className="px-2">
+          <Separator className="my-2" />
+        </div>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Settings</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
               <SidebarMenuItem>
                 {isFeaturesDisabled ? (
-                  <SidebarMenuButton
-                    disabled
-                    tooltip={isPendingApproval ? "Pending approval" : "Complete onboarding to access"}
-                    className="opacity-50 cursor-not-allowed"
-                  >
-                    <UserCircleIcon className="h-4 w-4" />
-                    <span>Profile</span>
-                  </SidebarMenuButton>
+                  <LockedNavButton
+                    icon={BuildingOffice2Icon}
+                    label="Organisation"
+                    tooltip={organisationLockedTooltip}
+                  />
                 ) : (
-                  <SidebarMenuButton asChild isActive={pathname === "/profile"} tooltip="Profile">
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === "/profile" || pathname.startsWith("/profile/")}
+                    tooltip="Organisation"
+                  >
                     <Link href="/profile">
-                      <UserCircleIcon className="h-4 w-4" />
-                      <span>Profile</span>
+                      <BuildingOffice2Icon className="h-4 w-4" />
+                      <span>Organisation</span>
                     </Link>
                   </SidebarMenuButton>
                 )}
               </SidebarMenuItem>
+
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/help" || pathname.startsWith("/help/")} tooltip="Help">
+                {isFeaturesDisabled ? (
+                  <LockedNavButton
+                    icon={UserCircleIcon}
+                    label="My account"
+                    tooltip={organisationLockedTooltip}
+                  />
+                ) : (
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === "/account" || pathname.startsWith("/account/")}
+                    tooltip="My account"
+                  >
+                    <Link href="/account">
+                      <UserCircleIcon className="h-4 w-4" />
+                      <span>My account</span>
+                    </Link>
+                  </SidebarMenuButton>
+                )}
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === "/help" || pathname.startsWith("/help/")}
+                  tooltip="Help"
+                >
                   <Link href="/help">
                     <QuestionMarkCircleIcon className="h-4 w-4" />
                     <span>Help</span>
@@ -308,8 +463,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>
-        <NavUser />
+
+      <SidebarFooter className="mt-auto border-t border-sidebar-border pt-2">
+        <ApplyForFinancingCard
+          locked={isDisabled || isPendingApproval}
+          lockedTooltip={lockedTooltip}
+        />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

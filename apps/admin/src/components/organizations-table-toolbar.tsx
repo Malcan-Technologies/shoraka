@@ -28,7 +28,7 @@ interface OrganizationsTableToolbarProps {
   totalCount: number;
   filteredCount: number;
   onClearFilters: () => void;
-  onReload?: () => void;
+  onRefresh?: () => void;
   isLoading?: boolean;
 }
 
@@ -42,7 +42,7 @@ export function OrganizationsTableToolbar({
   totalCount,
   filteredCount,
   onClearFilters,
-  onReload,
+  onRefresh,
   isLoading = false,
 }: OrganizationsTableToolbarProps) {
   const [isSpinning, setIsSpinning] = React.useState(false);
@@ -57,9 +57,9 @@ export function OrganizationsTableToolbar({
     onboardingStatusFilter !== "all",
   ].filter(Boolean).length;
 
-  const handleReload = () => {
+  const handleRefresh = () => {
     setIsSpinning(true);
-    onReload?.();
+    onRefresh?.();
     setTimeout(() => setIsSpinning(false), 500);
   };
 
@@ -71,13 +71,13 @@ export function OrganizationsTableToolbar({
           placeholder="Search by name, registration number, or owner..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 h-11 rounded-xl"
+          className="h-11 rounded-xl bg-card pl-9"
         />
       </div>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="gap-2 h-11 rounded-xl">
+          <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
             <FunnelIcon className="h-4 w-4" />
             Filters
             {activeFilterCount > 0 && (
@@ -125,15 +125,15 @@ export function OrganizationsTableToolbar({
         </Button>
       )}
 
-      {onReload && (
+      {onRefresh && (
         <Button
           variant="outline"
-          onClick={handleReload}
+          onClick={handleRefresh}
           disabled={isLoading || isSpinning}
-          className="gap-2 h-11 rounded-xl"
+          className="h-11 gap-2 rounded-xl bg-card"
         >
           <ArrowPathIcon className={`h-4 w-4 ${isLoading || isSpinning ? "animate-spin" : ""}`} />
-          Reload
+          Refresh
         </Button>
       )}
 

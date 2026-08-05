@@ -2,7 +2,11 @@
 
 import { useEffect } from "react";
 import { NotificationList, useHeader } from "@cashsouk/ui";
-import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
+import {
+  issuerContentMaxWidthClassName,
+  issuerMainContentClassName,
+  issuerPageGutterClassName,
+} from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
 
 export default function NotificationsPage() {
@@ -15,7 +19,7 @@ export default function NotificationsPage() {
   return (
     <>
       <div className={cn(issuerMainContentClassName, issuerPageGutterClassName)}>
-        <div className="mx-auto w-full max-w-4xl">
+        <div className={issuerContentMaxWidthClassName}>
           <NotificationList />
         </div>
       </div>

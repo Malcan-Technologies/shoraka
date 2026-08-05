@@ -31,21 +31,21 @@ export function RepaymentPerformanceCard({
       : em;
 
   return (
-    <Card className={cn("w-full bg-muted/50 shadow-none", isDisabled && "opacity-50 pointer-events-none")}>
+    <Card className={cn("w-full", isDisabled && "opacity-50 pointer-events-none")}>
       <CardHeader className="pb-3">
         <CardTitle className="text-xl font-semibold tracking-tight text-foreground">Repayment Performance</CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <div className="rounded-xl border border-border bg-background p-4">
+          <div className="rounded-xl border border-border bg-muted/30 p-4">
             <p className="text-lg font-semibold tabular-nums text-foreground">{onTimeDisplay}</p>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">On time {onTimePeriod}</p>
           </div>
-          <div className="rounded-xl border border-border bg-background p-4">
+          <div className="rounded-xl border border-border bg-muted/30 p-4">
             <p className="text-lg font-semibold tabular-nums text-foreground">{pastDueDisplay}</p>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">Past due</p>
           </div>
-          <div className="rounded-xl border border-border bg-background p-4">
+          <div className="rounded-xl border border-border bg-muted/30 p-4">
             <p className="text-lg font-semibold tabular-nums text-foreground">{lateDisplay}</p>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">Late {latePeriod}</p>
           </div>

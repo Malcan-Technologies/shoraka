@@ -10,7 +10,16 @@ import type {
   MarketplaceNoteDetail,
   NoteListItem,
 } from "@cashsouk/types";
-import { Badge, Card, CardContent, CardHeader, CardTitle, Skeleton, useHeader } from "@cashsouk/ui";
+import {
+  Badge,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Skeleton,
+  portalContentMaxWidthClassName,
+  useHeader,
+} from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { InvestmentPositionCard } from "@/investments/components/investment-position-card";
@@ -107,7 +116,7 @@ function PositionCardSkeleton() {
 
 function DetailCardSkeleton() {
   return (
-    <Card className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+    <Card className="rounded-3xl border border-border bg-card shadow-sm">
       <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-2">
           <Skeleton className="h-7 w-56 rounded-md" />
@@ -206,8 +215,13 @@ export default function InvestmentDetailPage() {
       marketplaceQuery.error instanceof Error ? marketplaceQuery.error.message : null;
     const message = marketplaceMessage ?? investmentMessage ?? "Note not found";
     return (
-      <div className="flex flex-1 flex-col gap-6 bg-white p-4 md:p-8">
-        <div className="mx-auto w-full max-w-[1240px] rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">
+      <div className="flex flex-1 flex-col gap-6 bg-background p-4 md:p-8">
+        <div
+          className={cn(
+            portalContentMaxWidthClassName,
+            "rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive"
+          )}
+        >
           {message}
         </div>
       </div>
@@ -217,8 +231,8 @@ export default function InvestmentDetailPage() {
   const backHref = !note ? "/investments" : isInvestedView ? "/investments" : "/marketplace";
 
   return (
-    <div className="flex flex-1 flex-col gap-6 bg-white p-4 md:p-8">
-      <div className="mx-auto w-full max-w-[1240px] space-y-6">
+    <div className="flex flex-1 flex-col gap-6 bg-background p-4 md:p-8">
+      <div className={cn(portalContentMaxWidthClassName, "space-y-6")}>
         <div className="flex flex-wrap items-center gap-3">
           <Button asChild variant="ghost" className="-ml-3 w-fit gap-2 text-muted-foreground">
             <Link href={backHref}>
@@ -267,7 +281,7 @@ export default function InvestmentDetailPage() {
         {detailCardLoading ? (
           <DetailCardSkeleton />
         ) : note ? (
-          <Card className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <Card className="rounded-3xl border border-border bg-card shadow-sm">
             <CardHeader
               className={cn(
                 "pb-2",
@@ -280,14 +294,6 @@ export default function InvestmentDetailPage() {
                 <CardTitle className="text-xl font-semibold">
                   {isInvestedView ? "Recent note activity" : "Marketplace details"}
                 </CardTitle>
-                {isInvestedView ? (
-                  <Badge
-                    variant="secondary"
-                    className="rounded-full bg-muted font-normal text-muted-foreground hover:bg-muted"
-                  >
-                    {activityQuery.isPending ? "…" : noteActivity.length}
-                  </Badge>
-                ) : null}
               </div>
               {!isInvestedView ? (
                 <Badge
@@ -303,13 +309,13 @@ export default function InvestmentDetailPage() {
                 activityQuery.isPending ? (
                   <ActivitySkeleton />
                 ) : noteActivity.length > 0 ? (
-                  <div className="overflow-hidden rounded-2xl border border-slate-200">
-                    <div className="hidden grid-cols-[minmax(0,1.2fr)_140px_180px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-medium text-slate-500 md:grid">
+                  <div className="overflow-hidden rounded-2xl border border-border">
+                    <div className="hidden grid-cols-[minmax(0,1.2fr)_140px_180px] gap-4 border-b border-border bg-muted/40 px-4 py-3 text-xs font-medium text-muted-foreground md:grid">
                       <div>Transaction type</div>
                       <div>Amount</div>
                       <div>Time</div>
                     </div>
-                    <div className="divide-y divide-slate-200">
+                    <div className="divide-y divide-border">
                       {noteActivity.map((entry) => {
                         const metadataLines = getActivityMetadataLines(entry);
                         return (
@@ -318,14 +324,14 @@ export default function InvestmentDetailPage() {
                           className="grid gap-2 px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_140px_180px] md:items-center md:gap-4"
                         >
                           <div>
-                            <div className="font-medium text-slate-900">
+                            <div className="font-medium text-foreground">
                               {getActivityLabel(entry)}
                             </div>
-                            <div className="mt-1 text-xs text-slate-500">
+                            <div className="mt-1 text-xs text-muted-foreground">
                               {formatEnumLabel(entry.source)}
                             </div>
                             {metadataLines.length > 0 ? (
-                              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500">
+                              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                                 {metadataLines.map((line) => (
                                   <span key={line}>{line}</span>
                                 ))}
@@ -340,7 +346,7 @@ export default function InvestmentDetailPage() {
                           >
                             {formatSignedCurrency(entry.direction, entry.amount)}
                           </div>
-                          <div className="text-sm text-slate-500">
+                          <div className="text-sm text-muted-foreground">
                             {formatDateTime(entry.postedAt)}
                           </div>
                         </div>
@@ -355,23 +361,23 @@ export default function InvestmentDetailPage() {
                 )
               ) : (
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                  <div className="rounded-2xl border border-border bg-muted/40 p-4">
                     <div className="text-sm text-muted-foreground">Note reference</div>
                     <div className="mt-1 font-semibold text-foreground">{note.noteReference}</div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                  <div className="rounded-2xl border border-border bg-muted/40 p-4">
                     <div className="text-sm text-muted-foreground">Paymaster</div>
                     <div className="mt-1 font-semibold text-foreground">
                       {note.paymasterName ?? "—"}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                  <div className="rounded-2xl border border-border bg-muted/40 p-4">
                     <div className="text-sm text-muted-foreground">Target amount</div>
                     <div className="mt-1 font-semibold text-foreground">
                       {formatCurrency(note.targetAmount)}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+                  <div className="rounded-2xl border border-border bg-muted/40 p-4">
                     <div className="text-sm text-muted-foreground">Published date</div>
                     <div className="mt-1 font-semibold text-foreground">
                       {formatDate(note.publishedAt)}

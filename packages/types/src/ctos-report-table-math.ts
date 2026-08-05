@@ -106,12 +106,54 @@ export function computeProfitMargin(pat: number | null, turnover: number | null)
 }
 
 /**
- * Return on equity: profit after tax divided by equity (paid-up capital). Not if equity is zero or missing.
+ * Return on equity: profit after tax divided by equity denominator. Not if equity is zero or missing.
  */
 export function computeReturnOnEquity(pat: number | null, equity: number | null): number | null {
   if (pat == null || equity == null || !Number.isFinite(pat) || !Number.isFinite(equity)) return null;
   if (equity === 0) return null;
   return pat / equity;
+}
+
+/**
+ * Financial Summary Profit Margin (CTOS + issuer columns): PAT ÷ turnover as a decimal ratio.
+ * Never uses CTOS `profit_margin` (official PBT Margin).
+ */
+export function resolveFinancialSummaryProfitMarginRatio(input: {
+  plnpat: number | null;
+  turnover: number | null;
+}): number | null {
+  return computeProfitMargin(input.plnpat, input.turnover);
+}
+
+/**
+ * Financial Summary issuer-submitted Return of Equity: PAT ÷ Net Worth as a decimal ratio.
+ */
+export function resolveFinancialSummaryIssuerReturnOnEquityRatio(input: {
+  plnpat: number | null;
+  netWorth: number | null;
+}): number | null {
+  return computeReturnOnEquity(input.plnpat, input.netWorth);
+}
+
+/**
+ * Financial Summary CTOS Return of Equity as percent points for display (e.g. 20 → "20%").
+ * Prefer flat CTOS `return_on_equity` when present; else PAT ÷ Net Worth × 100.
+ * Net Worth: CTOS `networth` when present, else computed `totass − totlib`.
+ * Never uses Paid-Up Capital (`bsqpuc`).
+ */
+export function resolveFinancialSummaryCtosReturnOnEquityPercent(input: {
+  return_on_equity: number | null;
+  plnpat: number | null;
+  networth: number | null;
+  computedNetWorth: number | null;
+}): number | null {
+  if (isFinitePresent(input.return_on_equity)) {
+    return input.return_on_equity;
+  }
+  const netWorth = isFinitePresent(input.networth) ? input.networth : input.computedNetWorth;
+  const ratio = computeReturnOnEquity(input.plnpat, netWorth);
+  if (ratio == null) return null;
+  return ratio * 100;
 }
 
 /**
@@ -129,34 +171,41 @@ function isFinitePresent(v: number | null | undefined): v is number {
 }
 
 /**
- * Application Financial Summary profit margin as a decimal ratio (for Prospectus % formatters).
- * Prefer CTOS flat `profit_margin` (already percent points, e.g. 12.6 → ratio 0.126).
- * Else recompute with Application missing→0 coercion (CTOS column metrics path).
+ * Prospectus Net Profit Margin as a decimal ratio: PAT ÷ Turnover.
+ * Never uses CTOS `profit_margin` (official PBT Margin, not PAT margin).
  */
 export function resolveApplicationFinancialProfitMarginRatio(input: {
-  profit_margin: number | null;
   plnpat: number | null;
   turnover: number | null;
+  /** @deprecated Ignored — CTOS profit_margin is PBT Margin, not Net Profit Margin. */
+  profit_margin?: number | null;
 }): number | null {
-  if (isFinitePresent(input.profit_margin)) {
-    return input.profit_margin / 100;
-  }
-  return computeProfitMargin(input.plnpat ?? 0, input.turnover ?? 0);
+  void input.profit_margin;
+  return computeProfitMargin(input.plnpat, input.turnover);
 }
 
 /**
- * Application Financial Summary ROE as a decimal ratio.
- * Prefer CTOS flat `return_on_equity` (percent points) → ratio; else recompute with missing→0.
+ * Prospectus / shared Return on Equity as a decimal ratio.
+ * Prefer CTOS flat `return_on_equity` (percent points) when present;
+ * else PAT ÷ Net Worth, where Net Worth is direct `networth` or else `totass − totlib`.
+ * Never uses Paid-Up Capital (`bsqpuc`) as the denominator.
  */
 export function resolveApplicationFinancialReturnOnEquityRatio(input: {
   return_on_equity: number | null;
   plnpat: number | null;
-  bsqpuc: number | null;
+  networth: number | null;
+  totass?: number | null;
+  totlib?: number | null;
 }): number | null {
   if (isFinitePresent(input.return_on_equity)) {
     return input.return_on_equity / 100;
   }
-  return computeReturnOnEquity(input.plnpat ?? 0, input.bsqpuc ?? 0);
+  const netWorth = isFinitePresent(input.networth)
+    ? input.networth
+    : isFinitePresent(input.totass) && isFinitePresent(input.totlib)
+      ? computeNetWorth(input.totass, input.totlib)
+      : null;
+  return computeReturnOnEquity(input.plnpat, netWorth);
 }
 
 /**
@@ -241,12 +290,15 @@ export function computeColumnMetrics(
   const totass = computeTotalAssets(bs);
   const totlib = computeTotalLiabilities(bs);
   const networth = computeNetWorth(totass, totlib);
+  // ROE denominator: prefer explicit Net Worth on `equity`; else totass − totlib. Never Paid-Up Capital.
+  const roeEquity =
+    bs.equity != null && Number.isFinite(bs.equity) ? bs.equity : networth;
   return {
     totass,
     totlib,
     networth,
     profit_margin: computeProfitMargin(pl.profit_after_tax, pl.revenue),
-    return_of_equity: computeReturnOnEquity(pl.profit_after_tax, bs.equity),
+    return_of_equity: computeReturnOnEquity(pl.profit_after_tax, roeEquity),
     currat: computeCurrentRatio(bs.current_assets, bs.current_liabilities),
     workcap: computeWorkingCapital(bs.current_assets, bs.current_liabilities),
     turnover_growth: turnoverGrowth,
@@ -255,6 +307,7 @@ export function computeColumnMetrics(
 
 /**
  * Maps flat financial statement fields (issuer step) into balance sheet / P&amp;L slices for metrics.
+ * `equity` is Net Worth only (flat `networth`). Never map Paid-Up Capital (`bsqpuc`) here.
  */
 export function financialFormToBsPl(fs: FinancialStatementsInput) {
   const n = (v: number | undefined) => (v == null || Number.isNaN(v) ? null : v);
@@ -264,12 +317,12 @@ export function financialFormToBsPl(fs: FinancialStatementsInput) {
       other_assets: n(fs.othass),
       current_assets: n(fs.bscatot),
       non_current_assets: n(fs.bsclbank),
-      total_assets: null,
+      total_assets: n(fs.totass),
       current_liabilities: n(fs.curlib),
       long_term_liabilities: n(fs.bsslltd),
       non_current_liabilities: n(fs.bsclstd),
-      total_liabilities: null,
-      equity: n(fs.bsqpuc),
+      total_liabilities: n(fs.totlib),
+      equity: n(fs.networth),
     },
     pl: {
       profit_after_tax: n(fs.plnpat),

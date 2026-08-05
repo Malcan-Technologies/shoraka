@@ -2,24 +2,29 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FileText } from "lucide-react";
-import { LinkIcon } from "@heroicons/react/24/outline";
-import { Card } from "@/components/ui/card";
+import { DocumentTextIcon, LinkIcon } from "@heroicons/react/24/outline";
+import { StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { IssuerDashboardInvoice } from "@/types/issuer-dashboard";
 import { asInvoiceForModal } from "@/types/issuer-dashboard";
 import {
-  resolveFundingProgressPercent,
   resolveFundingStatusText,
   resolveIssuerInvoiceDashboardBadge,
 } from "@/lib/issuer-dashboard-labels";
-import type { OfferStatus } from "@/lib/offer-utils";
-import { getIssuerOfferActionCtaFromOfferDetails } from "@/lib/offer-utils";
+import { financingOfferHref } from "@/lib/financing-offer-href";
+import {
+  getIssuerOfferActionCtaFromOfferDetails,
+  shouldShowIssuerReviewOfferCta,
+  type OfferStatus,
+} from "@/lib/offer-utils";
+import { cn } from "@/lib/utils";
+import { FinancingKpiTile } from "./financing-kpi-strip";
+import { FinancingPercentMark } from "./financing-percent-mark";
 import {
   EM_DASH,
-  FundingStatusLine,
+  FINANCING_ATTENTION_SURFACE,
+  FINANCING_OFFER_ATTENTION_SURFACE,
   IssuerFinancingStatusBadge,
   LabelValue,
   displayCell,
@@ -28,37 +33,19 @@ import {
 } from "./utils";
 import { buildInvoiceFeeDisplay, money } from "@/lib/facility-fee-display";
 
-function offerBadge(offerStatus: OfferStatus) {
+function OfferStatusBadge({ offerStatus }: { offerStatus: OfferStatus }) {
   if (!offerStatus) return null;
   if (offerStatus === "Offer expired") {
-    return <Badge className="bg-red-100 text-red-700 hover:bg-red-100">Offer Expired</Badge>;
+    return <StatusBadge label="Offer expired" status="rejected" />;
   }
-  return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Offer received</Badge>;
+  return <StatusBadge label="Offer received" status="action" />;
 }
 
-function ReviewOfferButton({
-  show,
-  onClick,
-  label,
-  variant = "reviewOffer",
-}: {
-  show: boolean;
-  onClick?: () => void;
-  label: string;
-  variant?: "reviewOffer" | "makeAmendments";
-}) {
-  if (!show) return null;
-  return (
-    <Button
-      type="button"
-      size="sm"
-      variant={variant}
-      className="rounded-xl"
-      onClick={onClick}
-    >
-      {label}
-    </Button>
-  );
+function InvoiceScopeBadge({ contractId }: { contractId: string | null }) {
+  if (contractId) {
+    return <StatusBadge label="Under contract" status="completed" />;
+  }
+  return <StatusBadge label="Standalone" status="neutral" />;
 }
 
 function InvoiceFeeSummary({
@@ -87,7 +74,9 @@ function InvoiceFeeSummary({
   const capReached = display.facilityFeeFullyCollected && display.facilityFeeAmount === 0;
 
   const netDisbursed =
-    display.phase === "charged" && display.netDisbursementAmount != null ? money(display.netDisbursementAmount) : "—";
+    display.phase === "charged" && display.netDisbursementAmount != null
+      ? money(display.netDisbursementAmount)
+      : "—";
 
   const platformValue = display.platformFeeAmount != null ? money(display.platformFeeAmount) : "—";
 
@@ -96,37 +85,65 @@ function InvoiceFeeSummary({
       ? `${money(display.facilityFeeAmount)}${capReached ? " (cap reached)" : ""}`
       : "—";
 
-  const facilityLabel = "Facility fee";
-
   return (
     <div className="space-y-1">
       <LabelValue label="Net disbursed" tabular>
         {netDisbursed}
       </LabelValue>
-
       <LabelValue label="Platform fee" tabular>
         {platformValue}
       </LabelValue>
-
-      <LabelValue label={facilityLabel} tabular>
+      <LabelValue label="Facility fee" tabular>
         {facilityValue}
       </LabelValue>
     </div>
   );
 }
 
+function parseAmount(value: unknown): number | null {
+  if (value == null) return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  const cleaned = String(value)
+    .trim()
+    .replace(/^RM\s*/i, "")
+    .replace(/,/g, "");
+  if (!cleaned) return null;
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
+function resolveFinancingPercent(
+  invDetails: { financing_ratio_percent?: number | string } | null | undefined,
+  offerDetails: Record<string, unknown> | null | undefined,
+  invoiceValue: unknown,
+  financingAmount: unknown
+): number | null {
+  const fromDetails = Number(invDetails?.financing_ratio_percent);
+  if (Number.isFinite(fromDetails) && fromDetails > 0) return fromDetails;
+
+  const offered = Number(offerDetails?.offered_ratio_percent);
+  if (Number.isFinite(offered) && offered > 0) return offered;
+
+  const requested = Number(offerDetails?.requested_ratio_percent);
+  if (Number.isFinite(requested) && requested > 0) return requested;
+
+  const invoice = parseAmount(invoiceValue);
+  const financing = parseAmount(financingAmount);
+  if (invoice != null && invoice > 0 && financing != null) {
+    return (financing / invoice) * 100;
+  }
+  return null;
+}
+
 export function DashboardInvoiceCard({
   row,
   offerStatus,
-  onReviewOffer,
-  showReviewOffer,
   contractFeeContext,
 }: {
   row: IssuerDashboardInvoice;
   offerStatus: OfferStatus;
-  onReviewOffer: () => void;
-  /** When omitted, defaults to offer received (legacy). Pass false while acceptance awaits admin. */
-  showReviewOffer?: boolean;
+  /** @deprecated Offer review navigates to the application Offer tab. */
+  onReviewOffer?: () => void;
   contractFeeContext?: {
     facilityFeeRatePercent?: unknown;
     facilityFeeCapAmount?: unknown;
@@ -140,15 +157,17 @@ export function DashboardInvoiceCard({
   const actionRequiredLabel =
     actionRequiredCount === 1 ? "Action required" : `Action required (${actionRequiredCount})`;
   const badgeKind = resolveIssuerInvoiceDashboardBadge(row.note, row.invoiceStatus);
-  const progress = resolveFundingProgressPercent(row.note);
   const fundingLabel = resolveFundingStatusText(row.note);
-  const noteRef = displayCell(row.note?.noteReference);
-  const invDetails = asInvoiceForModal(row.invoiceForModal)?.details;
+  const invoiceModal = asInvoiceForModal(row.invoiceForModal);
+  const invDetails = invoiceModal?.details;
   const maturityRaw = invDetails?.maturity_date ?? row.note?.maturityDate ?? null;
-  const offerDetails = asInvoiceForModal(row.invoiceForModal)?.offer_details as
-    | Record<string, unknown>
-    | null
-    | undefined;
+  const offerDetails = invoiceModal?.offer_details as Record<string, unknown> | null | undefined;
+  const financingPercent = resolveFinancingPercent(
+    invDetails,
+    offerDetails,
+    row.invoiceValue,
+    row.financingAmount
+  );
   const feeDisplay = buildInvoiceFeeDisplay({
     status: row.note?.noteStatus ?? row.invoiceStatus,
     offerDetails,
@@ -161,34 +180,61 @@ export function DashboardInvoiceCard({
   });
   const showFeeSummary = feeDisplay.phase !== "pending" || offerStatus === "Offer received";
   const hideFeesBeforeAcceptance = offerStatus === "Offer received";
-  const reviewOfferVisible =
-    showReviewOffer ?? offerStatus === "Offer received";
+  const reviewOfferVisible = shouldShowIssuerReviewOfferCta({
+    status: offerStatus === "Offer received" ? "OFFER_SENT" : offerStatus,
+    offer_details: offerDetails,
+  });
+  const showReviewOffer = offerStatus === "Offer received" && reviewOfferVisible;
   const offerActionCta = getIssuerOfferActionCtaFromOfferDetails(offerDetails, { scope: "invoice" });
+  const attentionSurface = showReviewOffer
+    ? FINANCING_OFFER_ATTENTION_SURFACE
+    : showActionRequired
+      ? FINANCING_ATTENTION_SURFACE
+      : null;
 
   return (
-    <Card className="min-w-0 max-w-full rounded-xl border border-border bg-muted/50 shadow-none">
-      <div className="space-y-3 px-4 py-4 md:px-5">
+    <article
+      className={cn(
+        "min-w-0 max-w-full rounded-2xl border p-4 shadow-sm md:p-5",
+        attentionSurface ?? "border-border bg-card"
+      )}
+    >
+      <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <FileText className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <DocumentTextIcon className="h-5 w-5 shrink-0 text-muted-foreground" />
             <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
               <p className="min-w-0 max-w-full truncate leading-5">
                 <span className="text-sm font-normal leading-5 text-foreground">Invoice no: </span>
-                <span className="text-sm font-semibold leading-5 text-foreground">
+                <Link
+                  href={`/financing/invoices/${row.id}`}
+                  className="text-sm font-semibold leading-5 text-foreground underline-offset-4 hover:underline"
+                >
                   {displayCell(row.invoiceNumber)}
-                </span>
+                </Link>
               </p>
               <IssuerFinancingStatusBadge kind={badgeKind} />
-              {offerBadge(offerStatus)}
+              <InvoiceScopeBadge contractId={row.contractId} />
+              <OfferStatusBadge offerStatus={offerStatus} />
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <ReviewOfferButton
-              show={reviewOfferVisible}
-              onClick={onReviewOffer}
-              label={offerActionCta.label}
-              variant={offerActionCta.buttonVariant}
-            />
+            {showReviewOffer ? (
+              <div className="rounded-xl bg-status-action-bg p-0.5">
+                <Button
+                  size="sm"
+                  variant={offerActionCta.buttonVariant === "makeAmendments" ? "outline" : "default"}
+                  className={
+                    offerActionCta.buttonVariant === "makeAmendments"
+                      ? "rounded-xl border-status-action-text/30 bg-status-action-bg text-status-action-text hover:bg-status-action-bg"
+                      : "rounded-xl"
+                  }
+                  asChild
+                >
+                  <Link href={financingOfferHref(row.applicationId, row.id)}>{offerActionCta.label}</Link>
+                </Button>
+              </div>
+            ) : null}
             {showActionRequired ? (
               <TooltipProvider>
                 <Tooltip>
@@ -197,7 +243,7 @@ export function DashboardInvoiceCard({
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="h-8 rounded-lg border-amber-500/30 bg-amber-50 px-3 text-xs font-medium text-amber-800 hover:bg-amber-50"
+                      className="h-8 rounded-lg border-status-action-text/30 bg-status-action-bg px-3 text-xs font-medium text-status-action-text hover:bg-status-action-bg"
                       onClick={() =>
                         router.push(
                           `/applications?applicationIds=${encodeURIComponent(
@@ -217,61 +263,72 @@ export function DashboardInvoiceCard({
                 </Tooltip>
               </TooltipProvider>
             ) : null}
+            <Button size="sm" variant="outline" className="rounded-xl" asChild>
+              <Link href={`/financing/invoices/${row.id}`}>View details</Link>
+            </Button>
           </div>
         </div>
 
-        <div className="flex flex-col gap-2 pl-3 sm:pl-4">
-          <div className="grid grid-cols-1 items-start gap-x-6 gap-y-3 md:grid-cols-2">
-            <div className="min-w-0 space-y-2">
-              <p className="text-[17px] leading-7 text-foreground">
-                <span className="font-normal text-muted-foreground">Note no: </span>
-                {row.note?.id && noteRef !== EM_DASH ? (
-                  <Link
-                    href={`/notes/${row.note.id}`}
-                    className="inline-flex min-w-0 max-w-full items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
-                  >
-                    <span className="min-w-0 truncate">{noteRef}</span>
-                    <LinkIcon className="h-4 w-4 shrink-0 text-primary" aria-hidden />
-                  </Link>
-                ) : (
-                  <span className="font-medium text-foreground">{noteRef}</span>
-                )}
-              </p>
-              <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
-            </div>
-            <div className="min-w-0 space-y-2">
-              <LabelValue label="Submission date">{formatDate(row.submissionDate)}</LabelValue>
-              <LabelValue label="Funding deadline">
-                {row.note?.fundingDeadline ? formatDate(row.note.fundingDeadline) : EM_DASH}
-              </LabelValue>
-              <LabelValue label="Maturity date">{formatDate(maturityRaw)}</LabelValue>
-            </div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
+          <div className="flex shrink-0 items-center justify-center sm:w-[11rem] sm:justify-start">
+            <FinancingPercentMark percent={financingPercent} centerLabel="Financed" />
           </div>
 
-          <div className="grid grid-cols-1 items-end gap-x-6 gap-y-3 md:grid-cols-2">
-            <div className="min-w-0 space-y-2">
-              <LabelValue label="Invoice value" tabular>
-                {formatMoney(row.invoiceValue)}
-              </LabelValue>
-              <LabelValue label="Financing amount" tabular>
-                {formatMoney(row.financingAmount)}
-              </LabelValue>
-              {showFeeSummary ? (
-                <InvoiceFeeSummary display={feeDisplay} hideFeeValues={hideFeesBeforeAcceptance} />
-              ) : null}
+          <div className="min-w-0 flex-1 space-y-3">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <FinancingKpiTile label="Invoice value" value={formatMoney(row.invoiceValue)} />
+              <FinancingKpiTile label="Financing" value={formatMoney(row.financingAmount)} />
             </div>
-            <div className="min-w-0 w-full space-y-2">
-              <div className="h-3 w-full overflow-hidden rounded-full border border-border bg-foreground/35 dark:bg-muted shadow-sm">
-                <div
-                  className="h-3 rounded-full bg-foreground"
-                  style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
-                />
+
+            <p className="text-[13px] leading-5 text-muted-foreground">{fundingLabel}</p>
+
+            <div className="grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-2">
+              <div className="min-w-0 space-y-2">
+                <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
+                {row.note?.id ? (
+                  <p className="text-[17px] leading-7 text-foreground">
+                    <span className="font-normal text-muted-foreground">Note: </span>
+                    <Link
+                      href={`/financing/notes/${row.note.id}`}
+                      className="inline-flex min-w-0 max-w-full items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
+                    >
+                      <span className="min-w-0 truncate">View note</span>
+                      <LinkIcon className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                    </Link>
+                  </p>
+                ) : (
+                  <LabelValue label="Note">{EM_DASH}</LabelValue>
+                )}
+                {row.contractId ? (
+                  <p className="text-[17px] leading-7 text-foreground">
+                    <span className="font-normal text-muted-foreground">Contract: </span>
+                    <Link
+                      href={`/financing/contracts/${row.contractId}`}
+                      className="inline-flex min-w-0 max-w-full items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
+                    >
+                      <span className="min-w-0 truncate">View contract</span>
+                      <LinkIcon className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+                    </Link>
+                  </p>
+                ) : null}
+                <LabelValue label="Submission date">{formatDate(row.submissionDate)}</LabelValue>
               </div>
-              <FundingStatusLine text={fundingLabel} />
+              <div className="min-w-0 space-y-2">
+                <LabelValue label="Funding deadline">
+                  {row.note?.fundingDeadline ? formatDate(row.note.fundingDeadline) : EM_DASH}
+                </LabelValue>
+                <LabelValue label="Maturity date">{formatDate(maturityRaw)}</LabelValue>
+                {showFeeSummary ? (
+                  <InvoiceFeeSummary
+                    display={feeDisplay}
+                    hideFeeValues={hideFeesBeforeAcceptance}
+                  />
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </Card>
+    </article>
   );
 }

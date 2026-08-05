@@ -18,7 +18,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Skeleton } from "@cashsouk/ui";
+import { Skeleton, StatusBadge, useHeader } from "@cashsouk/ui";
+import {
+  getOrganizationOnboardingPresentation,
+  getOrganizationTypePresentation,
+} from "@/lib/organization-status";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -34,8 +38,6 @@ import {
   kycAmlScreeningRiskLevelBadgeClass,
   kycAmlScreeningStatusBadgeClass,
 } from "@/lib/kyc-aml-screening-badge-classes";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { OrganizationActivityTimeline } from "@/components/organization-activity-timeline";
 import { OrganizationIssuerCtosReportsCard } from "@/components/organization-issuer-ctos-reports-card";
 import { DirectorShareholderTable } from "@/components/admin/director-shareholder-table";
@@ -817,6 +819,7 @@ function PageSkeleton() {
 }
 
 export default function OrganizationDetailPage() {
+  const { setTitle } = useHeader();
   const { can } = usePermissions();
   const canManage = can("organizations.manage");
   const params = useParams();
@@ -926,30 +929,25 @@ export default function OrganizationDetailPage() {
       : `${org.owner.firstName} ${org.owner.lastName}`;
   }, [org]);
 
+  React.useEffect(() => {
+    setTitle(isLoading ? "Loading..." : displayName);
+    return () => setTitle("");
+  }, [setTitle, isLoading, displayName]);
+
   return (
     <RequirePermission permission="organizations.view">
       <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push("/organizations")}
-          className="gap-1.5 -ml-1"
-        >
-          <ArrowLeftIcon className="h-4 w-4" />
-          Organizations
-        </Button>
-        <Separator orientation="vertical" className="mx-2 h-4" />
-        <h1 className="text-lg font-semibold truncate">
-          {isLoading ? "Loading..." : displayName}
-        </h1>
-        <div className="ml-auto">
-          <SystemHealthIndicator />
+        <div className="flex items-center gap-2 px-4 pt-4 md:px-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => router.push("/organizations")}
+            className="gap-1.5"
+          >
+            <ArrowLeftIcon className="h-4 w-4" />
+            Organizations
+          </Button>
         </div>
-      </header>
-
       <div className="flex flex-1 overflow-hidden">
         {/* Main Content (~67%) */}
         <div className="flex-1 overflow-y-auto">
@@ -979,39 +977,35 @@ export default function OrganizationDetailPage() {
                         </div>
                         <div>
                           <h2 className="text-xl font-bold">{displayName}</h2>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge
-                              variant="outline"
-                              className={
-                                portal === "investor"
-                                  ? "border-primary/30 text-primary text-xs"
-                                  : "border-accent/30 text-accent text-xs"
-                              }
-                            >
-                              {org.portal.charAt(0).toUpperCase() + org.portal.slice(1)}
-                            </Badge>
-                            {org.type === "COMPANY" ? (
-                              <Badge variant="outline" className="border-blue-500/30 text-foreground bg-blue-500/10 text-xs">
-                                <BuildingOffice2Icon className="h-3 w-3 mr-1 text-blue-600" />
-                                Company
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="border-slate-500/30 text-foreground bg-slate-500/10 text-xs">
-                                <UserIcon className="h-3 w-3 mr-1 text-slate-600" />
-                                Personal
-                              </Badge>
-                            )}
-                            {org.onboardingStatus === "COMPLETED" ? (
-                              <Badge className="bg-emerald-500 text-white text-xs">
-                                <CheckCircleIcon className="h-3 w-3 mr-1" />
-                                Onboarded
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-xs">
-                                <ClockIcon className="h-3 w-3 mr-1" />
-                                {toTitleCase(org.onboardingStatus)}
-                              </Badge>
-                            )}
+                          <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <StatusBadge
+                              label={org.portal.charAt(0).toUpperCase() + org.portal.slice(1)}
+                              status={portal === "investor" ? "completed" : "in-progress"}
+                              className="text-xs"
+                            />
+                            {(() => {
+                              const typePresentation = getOrganizationTypePresentation(org.type);
+                              return (
+                                <StatusBadge
+                                  label={typePresentation.label}
+                                  status={typePresentation.status}
+                                  className="text-xs"
+                                />
+                              );
+                            })()}
+                            {(() => {
+                              const onboardingPresentation = getOrganizationOnboardingPresentation(
+                                org.onboardingStatus,
+                                { completedLabel: "Onboarded" }
+                              );
+                              return (
+                                <StatusBadge
+                                  label={onboardingPresentation.label}
+                                  status={onboardingPresentation.status}
+                                  className="text-xs"
+                                />
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -1026,14 +1020,9 @@ export default function OrganizationDetailPage() {
                               title={!canManage ? "You do not have permission to perform this action." : undefined}
                             />
                             {org.isSophisticatedInvestor ? (
-                              <Badge className="bg-violet-500 text-white text-xs">
-                                <CheckCircleIcon className="h-3 w-3 mr-1" />
-                                Yes
-                              </Badge>
+                              <StatusBadge label="Yes" status="completed" className="text-xs" />
                             ) : (
-                              <Badge variant="outline" className="text-muted-foreground text-xs">
-                                No
-                              </Badge>
+                              <StatusBadge label="No" status="neutral" className="text-xs" />
                             )}
                           </div>
                         )}

@@ -74,7 +74,8 @@ export type ProspectusIconName =
   | "disclaimer"
   | "trend-up"
   | "trend-down"
-  | "trend-neutral";
+  | "trend-neutral"
+  | "income-trend-insight";
 
 /**
  * Official Heroicon component map. Do not add custom SVG paths here.
@@ -124,6 +125,7 @@ export const PROSPECTUS_HEROICON_MAP: Record<ProspectusIconName, HeroiconCompone
   "trend-up": ArrowTrendingUpIcon,
   "trend-down": ArrowTrendingDownIcon,
   "trend-neutral": MinusIcon,
+  "income-trend-insight": ChartBarIcon,
 };
 
 /** Distinctive path fragment from BuildingOffice2Icon — used in tests. */

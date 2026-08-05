@@ -1,23 +1,23 @@
 import * as React from "react";
 import Link from "next/link";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@cashsouk/ui";
 import { format, formatDistanceToNow } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import type { OrganizationResponse } from "@cashsouk/types";
 import {
   UserIcon,
   BuildingOffice2Icon,
-  CheckCircleIcon,
-  ClockIcon,
   UsersIcon,
   EyeIcon,
-  StarIcon,
-  XCircleIcon,
-  BanknotesIcon,
 } from "@heroicons/react/24/outline";
 import { cn } from "@/lib/utils";
+import {
+  getOrganizationOnboardingPresentation,
+  getOrganizationRiskPresentation,
+  getOrganizationTypePresentation,
+} from "@/lib/organization-status";
 
 interface OrganizationsTableRowProps {
   organization: OrganizationResponse;
@@ -38,26 +38,31 @@ export function OrganizationsTableRow({
       : `${organization.owner.firstName} ${organization.owner.lastName}`;
   const ownerName = `${organization.owner.firstName} ${organization.owner.lastName}`.trim();
   const ownerHref = `/users/${encodeURIComponent(organization.owner.userId)}`;
+  const typePresentation = getOrganizationTypePresentation(organization.type);
+  const onboardingPresentation = getOrganizationOnboardingPresentation(
+    organization.onboardingStatus
+  );
+  const riskStatus = getOrganizationRiskPresentation(organization.riskLevel);
 
   return (
-    <TableRow className="odd:bg-muted/40 hover:bg-muted">
+    <TableRow className="hover:bg-muted/50">
       {/* Organization */}
       <TableCell className="text-sm min-w-[180px] max-w-[280px]">
         <div className="flex items-start gap-3">
           <div
             className={cn(
-              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg mt-0.5",
-              organization.type === "COMPANY" ? "bg-accent/10" : "bg-muted"
+              "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
+              organization.type === "COMPANY" ? "bg-primary/10" : "bg-muted"
             )}
           >
             {organization.type === "COMPANY" ? (
-              <BuildingOffice2Icon className="h-4 w-4 text-accent" />
+              <BuildingOffice2Icon className="h-4 w-4 text-primary" />
             ) : (
               <UserIcon className="h-4 w-4 text-muted-foreground" />
             )}
           </div>
           <div className="min-w-0">
-            <div className="font-medium truncate" title={displayName}>
+            <div className="truncate font-medium" title={displayName}>
               {organization.type === "COMPANY" ? (
                 displayName
               ) : (
@@ -67,12 +72,18 @@ export function OrganizationsTableRow({
               )}
             </div>
             {organization.registrationNumber && (
-              <div className="text-xs text-muted-foreground truncate" title={`SSM: ${organization.registrationNumber}`}>
+              <div
+                className="truncate text-xs text-muted-foreground"
+                title={`SSM: ${organization.registrationNumber}`}
+              >
                 SSM: {organization.registrationNumber}
               </div>
             )}
             {organization.type === "COMPANY" && (
-              <div className="text-xs text-muted-foreground truncate" title={organization.owner.email}>
+              <div
+                className="truncate text-xs text-muted-foreground"
+                title={organization.owner.email}
+              >
                 Owner:{" "}
                 <Link href={ownerHref} className="hover:text-primary hover:underline">
                   {ownerName || organization.owner.email}
@@ -85,126 +96,64 @@ export function OrganizationsTableRow({
 
       {/* Type */}
       <TableCell>
-        {organization.type === "COMPANY" ? (
-          <Badge variant="outline" className="border-blue-500/30 text-foreground bg-blue-500/10">
-            <BuildingOffice2Icon className="h-3 w-3 mr-1 text-blue-600" />
-            Company
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="border-slate-500/30 text-foreground bg-slate-500/10">
-            <UserIcon className="h-3 w-3 mr-1 text-slate-600" />
-            Personal
-          </Badge>
-        )}
+        <StatusBadge label={typePresentation.label} status={typePresentation.status} />
       </TableCell>
 
       {/* Onboarding Status */}
       <TableCell>
-        {organization.onboardingStatus === "COMPLETED" ? (
-          <Badge variant="outline" className="border-green-500/30 text-foreground bg-green-500/10">
-            <CheckCircleIcon className="h-3 w-3 mr-1 text-green-600" />
-            Completed
-          </Badge>
-        ) : organization.onboardingStatus === "REJECTED" ? (
-          <Badge variant="outline" className="border-red-500/30 text-foreground bg-red-500/10">
-            <XCircleIcon className="h-3 w-3 mr-1 text-red-600" />
-            Rejected
-          </Badge>
-        ) : (
-          <Badge variant="outline" className="border-amber-500/30 text-foreground bg-amber-500/10">
-            <ClockIcon className="h-3 w-3 mr-1 text-amber-600" />
-            {organization.onboardingStatus === "PENDING" && "Not Started"}
-            {organization.onboardingStatus === "IN_PROGRESS" && "In Progress"}
-            {organization.onboardingStatus === "PENDING_APPROVAL" && "Pending Approval"}
-            {organization.onboardingStatus === "PENDING_AML" && "Pending AML"}
-            {organization.onboardingStatus === "PENDING_SSM_REVIEW" && "Pending SSM"}
-            {organization.onboardingStatus === "PENDING_AMENDMENT" && "Amendment in Progress"}
-            {organization.onboardingStatus === "PENDING_FINAL_APPROVAL" && "Pending Final"}
-          </Badge>
-        )}
+        <StatusBadge
+          label={onboardingPresentation.label}
+          status={onboardingPresentation.status}
+        />
       </TableCell>
 
       {/* Risk Score */}
       <TableCell>
         {organization.riskScore ? (
-          <Badge
-            variant="outline"
-            className={cn(
-              "text-foreground",
-              organization.riskLevel?.toLowerCase().includes("low")
-                ? "border-green-500/30 bg-green-500/10"
-                : organization.riskLevel?.toLowerCase().includes("high")
-                  ? "border-red-500/30 bg-red-500/10"
-                  : "border-amber-500/30 bg-amber-500/10"
-            )}
-          >
-            {organization.riskScore}
-          </Badge>
+          <StatusBadge label={String(organization.riskScore)} status={riskStatus} />
         ) : (
-          <span className="text-muted-foreground text-sm">—</span>
+          <span className="text-sm text-muted-foreground">—</span>
         )}
       </TableCell>
 
       {showOnboardingFee && (
         <TableCell>
           {organization.onboardingFeePaid ? (
-            <Badge
-              variant="outline"
-              className="border-emerald-500/30 text-foreground bg-emerald-500/10"
-            >
-              <CheckCircleIcon className="h-3 w-3 mr-1 text-emerald-600" />
-              Paid
-            </Badge>
+            <StatusBadge label="Paid" status="success" />
           ) : (
-            <span className="text-muted-foreground text-sm">Pending</span>
+            <span className="text-sm text-muted-foreground">Pending</span>
           )}
         </TableCell>
       )}
 
-      {/* Sophisticated Investor Status (only for investor portal) */}
       {showSophisticated && (
         <>
-        <TableCell>
-          {organization.isSophisticatedInvestor ? (
-            <Badge
-              variant="outline"
-              className="border-violet-500/30 text-foreground bg-violet-500/10"
-            >
-              <StarIcon className="h-3 w-3 mr-1 text-violet-600" />
-              Yes
-            </Badge>
-          ) : (
-            <span className="text-muted-foreground text-sm">No</span>
-          )}
-        </TableCell>
-          {/* Deposit Received Status (only for investor portal) */}
           <TableCell>
-            {organization.depositReceived ? (
-              <Badge
-                variant="outline"
-                className="border-emerald-500/30 text-foreground bg-emerald-500/10"
-              >
-                <BanknotesIcon className="h-3 w-3 mr-1 text-emerald-600" />
-                Received
-              </Badge>
+            {organization.isSophisticatedInvestor ? (
+              <StatusBadge label="Yes" status="completed" />
             ) : (
-              <span className="text-muted-foreground text-sm">Pending</span>
+              <span className="text-sm text-muted-foreground">No</span>
             )}
           </TableCell>
-          {/* Wallet Balance (only for investor portal) */}
+          <TableCell>
+            {organization.depositReceived ? (
+              <StatusBadge label="Received" status="success" />
+            ) : (
+              <span className="text-sm text-muted-foreground">Pending</span>
+            )}
+          </TableCell>
           <TableCell className="text-right">
             {organization.walletBalance == null ? (
-              <span className="text-muted-foreground text-sm">—</span>
+              <span className="text-sm text-muted-foreground">—</span>
             ) : (
               <span className="text-sm font-medium tabular-nums">
                 {formatCurrency(organization.walletBalance)}
               </span>
             )}
           </TableCell>
-          {/* Active Invested Amount (only for investor portal) */}
           <TableCell className="text-right">
             {organization.investedAmount == null ? (
-              <span className="text-muted-foreground text-sm">—</span>
+              <span className="text-sm text-muted-foreground">—</span>
             ) : (
               <span className="text-sm font-medium tabular-nums">
                 {formatCurrency(organization.investedAmount)}
@@ -240,7 +189,7 @@ export function OrganizationsTableRow({
           onClick={() => onViewDetails?.(organization)}
           className="h-8 px-2"
         >
-          <EyeIcon className="h-4 w-4 mr-1" />
+          <EyeIcon className="mr-1 h-4 w-4" />
           View
         </Button>
       </TableCell>

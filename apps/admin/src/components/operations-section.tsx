@@ -13,7 +13,6 @@ import {
   DocumentTextIcon,
   ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
-import { useTheme } from "next-themes";
 import { cn } from "@/lib/utils";
 import type {
   ApplicationDashboardMetrics,
@@ -49,18 +48,17 @@ const EMPTY_NOTE_METRICS: NoteDashboardMetrics = {
   cancelledOrFailedFunding: 0,
 };
 
-/** Stage palette aligned with BRANDING.md (earth brown, taupe, primary red, success, neutral) */
-const stageBucketPalette = {
-  inFlight: { light: "hsl(29.6 51% 28.8%)", dark: "hsl(29.6 42% 52%)" }, // earth brown
-  done: { light: "hsl(152 36% 36%)", dark: "hsl(152 32% 48%)" }, // success green
-  lost: { light: "hsl(215 16% 60%)", dark: "hsl(215 18% 38%)" }, // neutral
-} as const;
+/** Pipeline buckets mapped to status badge tokens (BRANDING.md §3 / packages/config status-badges). */
+type StatusBucketTone = "in-progress" | "success" | "rejected" | "neutral";
 
-type BucketKey = keyof typeof stageBucketPalette;
+const STATUS_BUCKET_FILL: Record<StatusBucketTone, string> = {
+  "in-progress": "bg-status-in-progress-text",
+  success: "bg-status-success-text",
+  rejected: "bg-status-rejected-text",
+  neutral: "bg-status-neutral-text",
+};
 
-function bucketColor(key: BucketKey, isDark: boolean) {
-  return isDark ? stageBucketPalette[key].dark : stageBucketPalette[key].light;
-}
+type BucketKey = "inFlight" | "done" | "lost";
 
 interface StageMetric {
   key: "onboarding" | "applications" | "contracts" | "notes";
@@ -75,6 +73,8 @@ interface StageMetric {
   inFlightLabel: string;
   doneLabel: string;
   lostLabel: string;
+  /** Terminal/exit bucket tone — rejected for declines, neutral for closed/archived. */
+  lostTone: "rejected" | "neutral";
 }
 
 interface OperationsSectionProps {
@@ -85,40 +85,45 @@ interface OperationsSectionProps {
   notes?: NoteDashboardMetrics;
 }
 
-function StageCard({ stage, isDark, canNavigate }: { stage: StageMetric; isDark: boolean; canNavigate: boolean }) {
+function StageCard({ stage, canNavigate }: { stage: StageMetric; canNavigate: boolean }) {
   const Icon = stage.icon;
   const known = stage.inFlight + stage.done + stage.lost;
-  const segments: { key: BucketKey; label: string; n: number }[] = [
-    { key: "inFlight", label: stage.inFlightLabel, n: stage.inFlight },
-    { key: "done", label: stage.doneLabel, n: stage.done },
-    { key: "lost", label: stage.lostLabel, n: stage.lost },
+  const segments: { key: BucketKey; label: string; n: number; tone: StatusBucketTone }[] = [
+    { key: "inFlight", label: stage.inFlightLabel, n: stage.inFlight, tone: "in-progress" },
+    { key: "done", label: stage.doneLabel, n: stage.done, tone: "success" },
+    { key: "lost", label: stage.lostLabel, n: stage.lost, tone: stage.lostTone },
   ];
 
-  const baseClassName = "group flex h-full flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-  const navClassName = canNavigate ? `${baseClassName} hover:border-primary/40 hover:bg-muted/30` : `${baseClassName} cursor-default`;
+  const baseClassName =
+    "group flex h-full min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  const navClassName = canNavigate
+    ? `${baseClassName} hover:border-primary/40 hover:bg-muted/30`
+    : `${baseClassName} cursor-default`;
 
   const inner = (
     <>
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />
-          {stage.label}
+        <div className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          <span className="truncate">{stage.label}</span>
         </div>
         {stage.actionRequired > 0 ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-status-action-bg px-2 py-0.5 text-[11px] font-semibold text-status-action-text">
             <ExclamationTriangleIcon className="h-3 w-3" aria-hidden />
             {stage.actionRequired}
           </span>
         ) : (
-          <span className="text-[11px] font-medium text-muted-foreground">All clear</span>
+          <span className="shrink-0 text-[11px] font-medium text-muted-foreground">All clear</span>
         )}
       </div>
 
-      <div className="flex items-baseline gap-2">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
         <span className="text-3xl font-bold tabular-nums tracking-tight text-foreground">
           {stage.inFlight}
         </span>
-        <span className="text-xs text-muted-foreground">in flight · {stage.total} total</span>
+        <span className="text-xs text-muted-foreground">
+          in flight · {stage.total} total
+        </span>
       </div>
 
       {known === 0 ? (
@@ -135,12 +140,11 @@ function StageCard({ stage, isDark, canNavigate }: { stage: StageMetric; isDark:
             return (
               <div
                 key={seg.key}
-                className="rounded-sm first:rounded-l-[calc(var(--radius)-2px)] last:rounded-r-[calc(var(--radius)-2px)]"
-                style={{
-                  width: `${pct}%`,
-                  minWidth: "0.25rem",
-                  backgroundColor: bucketColor(seg.key, isDark),
-                }}
+                className={cn(
+                  "min-w-1 rounded-sm first:rounded-l-[calc(var(--radius)-2px)] last:rounded-r-[calc(var(--radius)-2px)]",
+                  STATUS_BUCKET_FILL[seg.tone]
+                )}
+                style={{ width: `${pct}%` }}
                 title={`${seg.label}: ${seg.n} (${Math.round(pct)}%)`}
               />
             );
@@ -148,18 +152,19 @@ function StageCard({ stage, isDark, canNavigate }: { stage: StageMetric; isDark:
         </div>
       )}
 
-      <dl className="grid grid-cols-3 gap-1 text-[11px]">
+      <dl className="space-y-1.5 text-[11px]">
         {segments.map((seg) => (
-          <div key={seg.key} className="flex flex-col">
-            <dt className="flex items-center gap-1 text-muted-foreground">
+          <div key={seg.key} className="flex items-center justify-between gap-3">
+            <dt className="flex min-w-0 items-center gap-1.5 text-muted-foreground">
               <span
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ backgroundColor: bucketColor(seg.key, isDark) }}
+                className={cn("h-1.5 w-1.5 shrink-0 rounded-full", STATUS_BUCKET_FILL[seg.tone])}
                 aria-hidden
               />
-              {seg.label}
+              <span className="truncate" title={seg.label}>
+                {seg.label}
+              </span>
             </dt>
-            <dd className="font-semibold tabular-nums text-foreground">{seg.n}</dd>
+            <dd className="shrink-0 font-semibold tabular-nums text-foreground">{seg.n}</dd>
           </div>
         ))}
       </dl>
@@ -182,12 +187,12 @@ function PipelineSkeleton() {
     <Card className="rounded-2xl shadow-sm">
       <CardHeader>
         <Skeleton className="h-5 w-48" />
-        <Skeleton className="mt-2 h-4 w-72" />
+        <Skeleton className="mt-2 h-4 w-72 max-w-full" />
       </CardHeader>
       <CardContent>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-44 rounded-xl" />
+            <Skeleton key={i} className="h-48 rounded-xl" />
           ))}
         </div>
       </CardContent>
@@ -202,8 +207,6 @@ export function OperationsSection({
   contracts,
   notes,
 }: OperationsSectionProps) {
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
   const { can } = usePermissions();
 
   if (loading) return <PipelineSkeleton />;
@@ -234,6 +237,7 @@ export function OperationsSection({
       inFlightLabel: "In progress",
       doneLabel: "Approved",
       lostLabel: "Rejected/expired",
+      lostTone: "rejected",
     },
     {
       key: "applications",
@@ -248,6 +252,7 @@ export function OperationsSection({
       inFlightLabel: "Active",
       doneLabel: "Approved",
       lostLabel: "Closed",
+      lostTone: "neutral",
     },
     {
       key: "contracts",
@@ -262,6 +267,7 @@ export function OperationsSection({
       inFlightLabel: "Active",
       doneLabel: "Approved",
       lostLabel: "Closed",
+      lostTone: "rejected",
     },
     {
       key: "notes",
@@ -276,6 +282,7 @@ export function OperationsSection({
       inFlightLabel: "Live",
       doneLabel: "Repaid",
       lostLabel: "Distressed/closed",
+      lostTone: "rejected",
     },
   ];
 
@@ -291,19 +298,22 @@ export function OperationsSection({
   return (
     <Card className="rounded-2xl shadow-sm">
       <CardHeader className="pb-2">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <CardTitle className="text-base font-medium">Lifecycle pipeline</CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">
-              Onboarding → Applications → Contracts → Notes
+              <span className="sm:hidden">Pipeline stages from onboarding to notes</span>
+              <span className="hidden sm:inline">
+                Onboarding → Applications → Contracts → Notes
+              </span>
             </p>
           </div>
           <span
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+              "inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
               totalActionRequired > 0
-                ? "bg-primary/10 text-primary"
-                : "bg-muted text-muted-foreground"
+                ? "bg-status-action-bg text-status-action-text"
+                : "bg-status-neutral-bg text-status-neutral-text"
             )}
           >
             <ExclamationTriangleIcon className="h-3.5 w-3.5" aria-hidden />
@@ -312,13 +322,16 @@ export function OperationsSection({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] xl:items-stretch">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1fr)] 2xl:items-stretch">
           {stages.map((stage, i) => (
             <React.Fragment key={stage.key}>
-              <StageCard stage={stage} isDark={isDark} canNavigate={can(stageNavPermissions[stage.key])} />
+              <StageCard
+                stage={stage}
+                canNavigate={can(stageNavPermissions[stage.key])}
+              />
               {i < stages.length - 1 ? (
                 <div
-                  className="hidden items-center justify-center text-muted-foreground xl:flex"
+                  className="hidden items-center justify-center text-muted-foreground 2xl:flex"
                   aria-hidden
                 >
                   <ArrowRightIcon className="h-5 w-5" />

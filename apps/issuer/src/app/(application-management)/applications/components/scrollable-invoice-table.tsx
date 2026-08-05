@@ -282,12 +282,7 @@ function formatDate(date: string | Date | null | undefined): string {
 export type ScrollableInvoiceTableProps = {
   application: NormalizedApplication;
   onDocumentDownload: (s3Key: string) => Promise<void>;
-  onViewSignedInvoiceOffer?: (applicationId: string, invoiceId: string) => Promise<void>;
-  onReviewInvoiceOffer?: (
-    applicationId: string,
-    invoice: NormalizedInvoice,
-    issuerOrganizationId?: string
-  ) => void;
+  onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => Promise<void>;
   onWithdrawInvoice?: (invoiceId: string, applicationId: string, organizationId?: string) => void;
   isWithdrawInvoicePending?: boolean;
 };
@@ -312,7 +307,6 @@ export function ScrollableInvoiceTable({
   application,
   onDocumentDownload,
   onViewSignedInvoiceOffer,
-  onReviewInvoiceOffer,
   onWithdrawInvoice,
   isWithdrawInvoicePending,
 }: ScrollableInvoiceTableProps) {
@@ -647,50 +641,52 @@ export function ScrollableInvoiceTable({
                               </p>
                             </div>
                           ) : null}
-                          {showReviewOffer &&
-                            (canReview && onReviewInvoiceOffer ? (
-                              <>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant={invoiceOfferActionCta.buttonVariant}
-                                  className="h-8 w-full min-w-0 max-w-full text-xs font-medium rounded-xl"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onReviewInvoiceOffer(application.id, inv, application.issuerOrganizationId);
-                                  }}
-                                >
-                                  {invoiceOfferActionCta.label}
-                                </Button>
-                                {invoiceOfferActionCta.hint ? (
-                                  <p className="text-[11px] leading-4 text-center text-muted-foreground">
-                                    {invoiceOfferActionCta.hint}
-                                  </p>
-                                ) : null}
-                                {offerDeadline ? (
-                                  <p className="text-[11px] leading-4 text-center text-muted-foreground">
-                                    {offerDeadline.summary}
-                                  </p>
-                                ) : null}
-                              </>
-                            ) : (
+                          {showReviewOffer && canReview ? (
+                            <div className="flex w-full min-w-0 flex-col items-center gap-0.5">
                               <Button
                                 size="sm"
-                                variant={invoiceOfferActionCta.buttonVariant}
-                                className="h-8 w-full min-w-0 max-w-full text-xs font-medium rounded-xl"
-                                disabled
+                                variant={
+                                  invoiceOfferActionCta.buttonVariant === "makeAmendments"
+                                    ? "outline"
+                                    : "default"
+                                }
+                                className={
+                                  invoiceOfferActionCta.buttonVariant === "makeAmendments"
+                                    ? "h-8 w-full min-w-0 max-w-full rounded-xl border-status-action-text/30 bg-status-action-bg px-2 text-xs font-medium text-status-action-text hover:bg-status-action-bg"
+                                    : "h-8 w-full min-w-0 max-w-full rounded-xl text-xs font-medium"
+                                }
+                                asChild
                               >
-                                {invoiceOfferActionCta.label}
+                                <Link
+                                  href={`/applications/${application.id}?tab=offer&invoiceId=${inv.id}`}
+                                >
+                                  {invoiceOfferActionCta.label}
+                                </Link>
                               </Button>
-                            ))}
+                              {offerDeadline && !offerDeadline.isPast ? (
+                                <p className="text-[11px] leading-4 text-center text-muted-foreground">
+                                  {offerDeadline.summary}
+                                </p>
+                              ) : null}
+                            </div>
+                          ) : showReviewOffer ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 w-full min-w-0 max-w-full rounded-xl text-xs font-medium"
+                              disabled
+                            >
+                              {invoiceOfferActionCta.label}
+                            </Button>
+                          ) : null}
                           {showMakeAmendments && (
                             <Button
                               size="sm"
-                              variant="makeAmendments"
-                              className="h-8 w-full min-w-0 max-w-full text-xs font-medium rounded-xl"
+                              variant="outline"
+                              className="h-8 w-full min-w-0 max-w-full rounded-xl border-status-action-text/30 bg-status-action-bg text-xs font-medium text-status-action-text hover:bg-status-action-bg"
                               asChild
                             >
-                              <Link href={`/applications/edit/${application.id}`}>
+                              <Link href={`/applications/${application.id}/edit`}>
                                 Make Amendments
                               </Link>
                             </Button>
@@ -710,7 +706,7 @@ export function ScrollableInvoiceTable({
                         <DropdownMenuContent align="end" className="rounded-xl">
                           {(() => {
                             const showViewSignedInvoice =
-                              inv.signedOfferLetterAvailable && onViewSignedInvoiceOffer;
+                              inv.signedOfferLetterAvailable && !!inv.signedOfferLetterS3Key && onViewSignedInvoiceOffer;
                             const showViewReasonRemarks = issuerInvoiceCanViewReasonRemarks(inv);
                             const withdrawInvoiceDisabled =
                               !canWithdrawInvoice ||
@@ -724,7 +720,7 @@ export function ScrollableInvoiceTable({
                                       className="cursor-pointer"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        void onViewSignedInvoiceOffer!(application.id, inv.id);
+                                        void onViewSignedInvoiceOffer!(inv.signedOfferLetterS3Key!);
                                       }}
                                     >
                                       View Signed Offer

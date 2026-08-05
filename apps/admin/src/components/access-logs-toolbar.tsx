@@ -48,7 +48,7 @@ interface AccessLogsToolbarProps {
   filteredCount: number;
   onClearFilters: () => void;
   exportFilters?: Omit<ExportAccessLogsParams, "format" | "page" | "pageSize">;
-  onReload?: () => void;
+  onRefresh?: () => void;
   isLoading?: boolean;
   allowedEventTypes?: EventType[];
 }
@@ -66,7 +66,7 @@ export function AccessLogsToolbar({
   filteredCount,
   onClearFilters,
   exportFilters,
-  onReload,
+  onRefresh,
   isLoading = false,
   allowedEventTypes,
 }: AccessLogsToolbarProps) {
@@ -89,9 +89,9 @@ export function AccessLogsToolbar({
     dateRangeFilter !== "all",
   ].filter(Boolean).length;
 
-  const handleReload = () => {
+  const handleRefresh = () => {
     setIsSpinning(true);
-    onReload?.();
+    onRefresh?.();
     // Keep spinning for at least 500ms for visual feedback
     setTimeout(() => setIsSpinning(false), 500);
   };
@@ -104,13 +104,13 @@ export function AccessLogsToolbar({
           placeholder="Search by user name, email, or User ID..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="pl-9 h-11 rounded-xl"
+          className="h-11 rounded-xl bg-card pl-9"
         />
       </div>
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="gap-2 h-11 rounded-xl">
+          <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
             <FunnelIcon className="h-4 w-4" />
             Filters
             {activeFilterCount > 0 && (
@@ -160,15 +160,15 @@ export function AccessLogsToolbar({
         </Button>
       )}
 
-      {onReload && (
+      {onRefresh && (
         <Button
           variant="outline"
-          onClick={handleReload}
+          onClick={handleRefresh}
           disabled={isLoading || isSpinning}
-          className="gap-2 h-11 rounded-xl"
+          className="h-11 gap-2 rounded-xl bg-card"
         >
           <ArrowPathIcon className={`h-4 w-4 ${isLoading || isSpinning ? "animate-spin" : ""}`} />
-          Reload
+          Refresh
         </Button>
       )}
 

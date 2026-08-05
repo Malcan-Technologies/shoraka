@@ -34,6 +34,9 @@ import {
   computeHasPendingDirectorShareholder,
   normalizeFinancialStatementsQuestionnaire,
   normalizeDirectorShareholderIdKey,
+  resolveFinancialSummaryCtosReturnOnEquityPercent,
+  resolveFinancialSummaryIssuerReturnOnEquityRatio,
+  resolveFinancialSummaryProfitMarginRatio,
   type ApplicationPersonRow,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
@@ -227,6 +230,9 @@ function financialRecordToInput(fs: Record<string, unknown>): FinancialStatement
     bsslltd: toNum(fs.bsslltd),
     bsclstd: toNum(fs.bsclstd),
     bsqpuc: toNum(fs.bsqpuc),
+    networth: fs.networth == null || fs.networth === "" ? undefined : toNum(fs.networth),
+    totass: fs.totass == null || fs.totass === "" ? undefined : toNum(fs.totass),
+    totlib: fs.totlib == null || fs.totlib === "" ? undefined : toNum(fs.totlib),
     turnover: toNum(fs.turnover),
     plnpat: toNum(fs.plnpat),
   };
@@ -374,12 +380,11 @@ export function ApplicationFinancialReviewContent({
           bsslltd: ac.bsslltd ?? 0,
           bsclstd: ac.bsclstd ?? 0,
           bsqpuc: ac.bsqpuc ?? 0,
+          networth: ac.networth ?? undefined,
+          totass: ac.totass ?? undefined,
+          totlib: ac.totlib ?? undefined,
           turnover: ac.turnover ?? 0,
           plnpat: ac.plnpat ?? 0,
-        });
-        Object.assign(bs, {
-          total_assets: ac.totass,
-          total_liabilities: ac.totlib,
         });
         return computeColumnMetrics(bs, pl, g);
       }
@@ -390,7 +395,15 @@ export function ApplicationFinancialReviewContent({
       if (!fs) return null;
       const input = financialRecordToInput(fs as Record<string, unknown>);
       const { bs, pl } = financialFormToBsPl(input);
-      return computeColumnMetrics(bs, pl, g);
+      const metrics = computeColumnMetrics(bs, pl, g);
+      // Financial Summary issuer ROE: PAT ÷ Net Worth (not Paid-Up Capital).
+      return {
+        ...metrics,
+        return_of_equity: resolveFinancialSummaryIssuerReturnOnEquityRatio({
+          plnpat: pl.profit_after_tax,
+          netWorth: metrics.networth,
+        }),
+      };
     });
   }, [columns, byYear, turnoverByYear, hasIssuerFinancialData, unauditedByYear]);
 
@@ -460,7 +473,7 @@ export function ApplicationFinancialReviewContent({
     {
       id: "return_of_equity",
       label: COMPUTED_FIELD_LABELS.return_of_equity,
-      formulaHint: "Profit after tax ÷ paid-up capital.",
+      formulaHint: "Profit after tax ÷ net worth.",
     },
     { id: "currat", label: COMPUTED_FIELD_LABELS.currat, formulaHint: "Current assets ÷ current liabilities." },
     { id: "workcap", label: COMPUTED_FIELD_LABELS.workcap, formulaHint: "Current assets − current liabilities." },
@@ -580,16 +593,35 @@ export function ApplicationFinancialReviewContent({
       }
       case "profit_margin": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
-        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "profit_margin")) {
-          return formatNumber(toNum(fs.profit_margin), 2) + "%";
+        // Always PAT ÷ turnover. Never CTOS profit_margin (that is PBT Margin).
+        if (specCol.kind === "ctos") {
+          const row = byYear.get(specCol.year);
+          const ratio = resolveFinancialSummaryProfitMarginRatio({
+            plnpat: row?.account.plnpat ?? null,
+            turnover: row?.account.turnover ?? null,
+          });
+          if (ratio == null) return "N/A";
+          return formatNumber(ratio * 100, 2) + "%";
         }
         if (!computed || computed.profit_margin == null) return "N/A";
         return formatNumber(computed.profit_margin * 100, 2) + "%";
       }
       case "return_of_equity": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
-        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "return_on_equity")) {
-          return formatNumber(toNum(fs.return_on_equity), 2) + "%";
+        if (specCol.kind === "ctos") {
+          const row = byYear.get(specCol.year);
+          const percent = resolveFinancialSummaryCtosReturnOnEquityPercent({
+            return_on_equity:
+              fs && ctosFlatNumericPresent(fs, "return_on_equity")
+                ? toNum(fs.return_on_equity)
+                : null,
+            plnpat: row?.account.plnpat ?? null,
+            networth:
+              fs && ctosFlatNumericPresent(fs, "networth") ? toNum(fs.networth) : null,
+            computedNetWorth: computed?.networth ?? null,
+          });
+          if (percent == null) return "N/A";
+          return formatNumber(percent, 2) + "%";
         }
         if (!computed || computed.return_of_equity == null) return "N/A";
         return formatNumber(computed.return_of_equity * 100, 2) + "%";

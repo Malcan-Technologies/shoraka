@@ -13,16 +13,17 @@ interface HeaderProps {
 
 export function Header({ title: propsTitle, rightContent }: HeaderProps) {
   const { title: contextTitle } = useHeader();
-  const title = propsTitle || contextTitle;
+  // Explicit empty string suppresses the title (page body owns it via PageShell).
+  const title = propsTitle !== undefined ? propsTitle : contextTitle;
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b px-4">
-      <div className="flex items-center gap-2">
+    <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-border/80 bg-background/90 px-4 backdrop-blur-sm supports-[backdrop-filter]:bg-background/75">
+      <div className="flex min-w-0 items-center gap-2">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">{title}</h1>
+        {title ? <h1 className="truncate text-lg font-semibold">{title}</h1> : null}
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex shrink-0 items-center gap-3 sm:gap-4">
         {rightContent ?? <NotificationBell />}
       </div>
     </header>

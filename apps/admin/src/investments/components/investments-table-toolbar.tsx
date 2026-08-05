@@ -15,7 +15,7 @@ interface InvestmentsTableToolbarProps {
   status: string;
   onStatusChange: (value: string) => void;
   onClearFilters: () => void;
-  onReload: () => void;
+  onRefresh: () => void;
   totalCount: number;
   isLoading: boolean;
 }
@@ -26,7 +26,7 @@ export function InvestmentsTableToolbar({
   status,
   onStatusChange,
   onClearFilters,
-  onReload,
+  onRefresh,
   totalCount,
   isLoading,
 }: InvestmentsTableToolbarProps) {
@@ -53,7 +53,7 @@ export function InvestmentsTableToolbar({
       itemLabelSingular="investment"
       itemLabelPlural="investments"
       onClearFilters={onClearFilters}
-      onReload={onReload}
+      onRefresh={onRefresh}
       isLoading={isLoading}
     />
   );

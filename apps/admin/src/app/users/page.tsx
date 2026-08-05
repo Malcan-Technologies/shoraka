@@ -1,10 +1,9 @@
 "use client";
 
+import { useHeader } from "@cashsouk/ui";
+
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { SidebarTrigger } from "../../components/ui/sidebar";
-import { Separator } from "../../components/ui/separator";
-import { SystemHealthIndicator } from "../../components/system-health-indicator";
 import { UsersTable } from "../../components/users-table";
 import { UsersTableToolbar } from "../../components/users-table-toolbar";
 import { useUsers } from "../../hooks/use-users";
@@ -14,6 +13,12 @@ import type { GetUsersParams, UserRole } from "@cashsouk/types";
 // Mock users removed - using API data
 
 export default function UsersPage() {
+  const { setTitle } = useHeader();
+  React.useEffect(() => {
+    setTitle("Users");
+    return () => setTitle("");
+  }, [setTitle]);
+
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [roleFilter, setRoleFilter] = React.useState("all");
@@ -77,15 +82,7 @@ export default function UsersPage() {
   return (
     <RequirePermission permission="users.view">
       <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Users</h1>
-        <div className="ml-auto">
-          <SystemHealthIndicator />
-        </div>
-      </header>
-      <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+            <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="w-full px-2 md:px-4 py-8 space-y-6">
           <UsersTableToolbar
             searchQuery={searchQuery}
@@ -99,7 +96,7 @@ export default function UsersPage() {
             totalCount={totalUsers}
             filteredCount={totalUsers}
             onClearFilters={handleClearFilters}
-            onReload={handleReload}
+            onRefresh={handleReload}
             isLoading={isLoading}
           />
 

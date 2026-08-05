@@ -51,20 +51,15 @@ export function NoteCard({ note, onInvest, onViewProspectus }: NoteCardProps) {
   const riskRatingForBadge = note.riskScore?.trim() ? note.riskScore : null;
 
   return (
-    <Card
-      className={cn(
-        "flex h-full flex-col rounded-2xl border border-slate-200 bg-white shadow-sm",
-        note.isFeatured && "border-slate-200 bg-white"
-      )}
-    >
+    <Card className="flex h-full flex-col rounded-2xl border border-border bg-card shadow-sm">
       <CardContent className="flex flex-1 flex-col p-5">
         <div className="flex min-h-0 flex-1 flex-col gap-4">
           <div className="flex shrink-0 items-start gap-3">
             <div className="min-w-0 flex-1 space-y-1">
-              <h3 className="line-clamp-2 text-lg font-semibold leading-snug tracking-tight text-slate-900">
+              <h3 className="line-clamp-2 text-lg font-semibold leading-snug tracking-tight text-foreground">
                 {textOrDash(formatNoteReferenceDisplay(note.noteCode))}
               </h3>
-              <div className="flex min-h-[2.75rem] flex-col gap-1.5 text-xs text-slate-500 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1">
+              <div className="flex min-h-[2.75rem] flex-col gap-1.5 text-xs text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1">
                 <span className="inline-flex items-center gap-1">
                   <BuildingOffice2Icon className="h-3.5 w-3.5 shrink-0" />
                   {textOrDash(note.industry)}
@@ -78,7 +73,7 @@ export function NoteCard({ note, onInvest, onViewProspectus }: NoteCardProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8 shrink-0 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               aria-label="More note actions"
             >
               <EllipsisVerticalIcon className="h-4 w-4" />
@@ -87,17 +82,17 @@ export function NoteCard({ note, onInvest, onViewProspectus }: NoteCardProps) {
 
           <div className="shrink-0 space-y-2">
             <div className="flex h-5 items-center justify-end">
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-muted-foreground">
                 {note.daysLeft !== null ? `${note.daysLeft} day(s) left` : "-"}
               </span>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
               <div
-                className="h-full rounded-full bg-slate-950 transition-all"
+                className="h-full rounded-full bg-primary transition-all"
                 style={{ width: `${fundingProgress}%` }}
               />
             </div>
-            <div className="flex min-h-10 items-center justify-between gap-2 text-xs font-medium tabular-nums text-slate-700">
+            <div className="flex min-h-10 items-center justify-between gap-2 text-xs font-medium tabular-nums text-foreground">
               <span className="min-w-0 truncate">Funded {formatCurrency(note.fundedAmount)}</span>
               <span className="min-w-0 shrink-0 text-right">Goal {formatCurrency(note.goalAmount)}</span>
             </div>
@@ -105,26 +100,26 @@ export function NoteCard({ note, onInvest, onViewProspectus }: NoteCardProps) {
 
           <div className="grid shrink-0 grid-cols-3 gap-3 items-stretch">
             <div className="flex flex-col text-center">
-              <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">
-                <div className="flex min-h-[4.25rem] flex-1 items-center justify-center px-1.5 text-[clamp(1.5rem,4.5vw,2rem)] font-semibold leading-none tabular-nums text-slate-900">
+              <div className="flex flex-1 flex-col rounded-2xl border border-border bg-muted/30 p-3">
+                <div className="flex min-h-[4.25rem] flex-1 items-center justify-center px-1.5 text-[clamp(1.5rem,4.5vw,2rem)] font-semibold leading-none tabular-nums text-foreground">
                   {formatInvestorReturnRatePercent(note.annualReturn)}
                 </div>
               </div>
-              <div className="mt-1 inline-flex items-center justify-center gap-1 text-[11px] text-slate-500">
+              <div className="mt-1 inline-flex items-center justify-center gap-1 text-[11px] text-muted-foreground">
                 Per annum
                 <MarketplaceReturnRateTooltip />
               </div>
             </div>
             <div className="flex flex-col text-center">
-              <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">
-                <div className="flex min-h-[4.25rem] flex-1 items-center justify-center text-4xl font-semibold leading-none tabular-nums text-slate-900">
+              <div className="flex flex-1 flex-col rounded-2xl border border-border bg-muted/30 p-3">
+                <div className="flex min-h-[4.25rem] flex-1 items-center justify-center text-4xl font-semibold leading-none tabular-nums text-foreground">
                   {note.tenorDays ?? "-"}
                 </div>
               </div>
-              <div className="mt-1 text-[11px] text-slate-500">Days</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">Days</div>
             </div>
             <div className="flex flex-col text-center">
-              <div className="flex flex-1 flex-col rounded-2xl border bg-muted/20 p-3">
+              <div className="flex flex-1 flex-col rounded-2xl border border-border bg-muted/30 p-3">
                 <SoukscoreRiskRatingBadge
                   riskRating={riskRatingForBadge}
                   className={cn(
@@ -133,11 +128,11 @@ export function NoteCard({ note, onInvest, onViewProspectus }: NoteCardProps) {
                   )}
                 />
               </div>
-              <div className="mt-1 text-[11px] text-slate-500">Score</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">Score</div>
             </div>
           </div>
 
-          <div className="mt-auto shrink-0 space-y-2 border-t border-slate-100 pt-4">
+          <div className="mt-auto shrink-0 space-y-2 border-t border-border pt-4">
             <Button
               variant="action"
               size="lg"
@@ -149,7 +144,7 @@ export function NoteCard({ note, onInvest, onViewProspectus }: NoteCardProps) {
             </Button>
             <Button
               variant="ghost"
-              className="h-7 w-full gap-1 text-xs text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+              className="h-7 w-full gap-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               onClick={() => onViewProspectus?.(note)}
             >
               <DocumentTextIcon className="h-3.5 w-3.5" />

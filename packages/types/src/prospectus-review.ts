@@ -280,6 +280,8 @@ export interface ProspectusFrozenFinancialRaw {
   bsslltd: number | null;
   bsclstd: number | null;
   bsqpuc: number | null;
+  /** Net Worth — ROE fallback denominator (never Paid-Up Capital). */
+  networth: number | null;
   totass: number | null;
   totlib: number | null;
   profit_margin: number | null;

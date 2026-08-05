@@ -293,6 +293,8 @@ const BADGE_KEY_PRESENTATION: Record<string, StatusPresentation> = {
   } as StatusPresentation,
   resubmitted: { ...STATUS_PRESENTATION.RESUBMITTED, label: "Resubmitted" } as StatusPresentation,
   offer_sent: { ...STATUS_PRESENTATION.OFFER_SENT, label: "Offer Received" } as StatusPresentation,
+  accepted: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
+  approved: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
   completed: { ...STATUS_PRESENTATION.COMPLETED, label: "Completed" } as StatusPresentation,
   withdrawn: { ...STATUS_PRESENTATION.WITHDRAWN, label: "Withdrawn" } as StatusPresentation,
   declined: { ...STATUS_PRESENTATION.DECLINED, label: "Declined" } as StatusPresentation,

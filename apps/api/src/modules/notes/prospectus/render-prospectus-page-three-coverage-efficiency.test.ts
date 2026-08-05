@@ -4,7 +4,7 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { calculateReturnOnEquity } from "@cashsouk/types";
+import { computeReturnOnEquity } from "@cashsouk/types";
 import {
   buildProspectusFinancialComparisonMetrics,
   formatProspectusFinancialMultiple,
@@ -158,7 +158,7 @@ describe("prospectus Page 3 coverage/efficiency", () => {
     );
     expect(row(page3, "return_on_equity")?.values[0]).toBe(
       formatProspectusFinancialPercentFromRatio(
-        calculateReturnOnEquity(1_200_000, 2_000_000)
+        computeReturnOnEquity(1_200_000, 2_000_000)
       )
     );
 
@@ -167,19 +167,29 @@ describe("prospectus Page 3 coverage/efficiency", () => {
         "2024": {
           return_on_equity: 15.2,
           plnpat: 1,
-          bsqpuc: 100,
+          networth: 100,
+          bsqpuc: 50,
         },
       }),
     });
     expect(row(flat, "return_on_equity")?.values[0]).toBe("15.2%");
 
-    const missingPat = buildProspectusPageThreeCoverageEfficiency({
-      financialSource: sourceFromYears({ "2024": { bsqpuc: 2_000_000 } }),
+    const paidUpIgnored = buildProspectusPageThreeCoverageEfficiency({
+      financialSource: sourceFromYears({
+        "2024": { plnpat: 100, bsqpuc: 200, networth: 500 },
+      }),
     });
-    expect(row(missingPat, "return_on_equity")?.values[0]).toBe("0%");
+    expect(row(paidUpIgnored, "return_on_equity")?.values[0]).toBe(
+      formatProspectusFinancialPercentFromRatio(computeReturnOnEquity(100, 500))
+    );
+
+    const missingPat = buildProspectusPageThreeCoverageEfficiency({
+      financialSource: sourceFromYears({ "2024": { networth: 2_000_000 } }),
+    });
+    expect(row(missingPat, "return_on_equity")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
 
     const zeroEquity = buildProspectusPageThreeCoverageEfficiency({
-      financialSource: sourceFromYears({ "2024": { plnpat: 100, bsqpuc: 0 } }),
+      financialSource: sourceFromYears({ "2024": { plnpat: 100, networth: 0 } }),
     });
     expect(row(zeroEquity, "return_on_equity")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
 
@@ -189,11 +199,12 @@ describe("prospectus Page 3 coverage/efficiency", () => {
     );
     expect(moduleSource).toMatch(/resolveApplicationFinancialReturnOnEquityRatio/);
     expect(moduleSource).not.toMatch(/plnpat\s*\/\s*bsqpuc/);
+    expect(moduleSource).toMatch(/networth/);
   });
 
   it("shows DNA for missing officer and Page 2 values; accepts zero", () => {
     const source = sourceFromYears({
-      "2024": { plnpat: 0, bsqpuc: 2_000_000 },
+      "2024": { plnpat: 0, networth: 2_000_000 },
     });
     const empty = buildProspectusPageThreeCoverageEfficiency({ financialSource: source });
     expect(row(empty, "operating_cash_flow")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);

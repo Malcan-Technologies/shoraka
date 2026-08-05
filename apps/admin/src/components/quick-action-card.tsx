@@ -2,46 +2,53 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Card, CardContent, Skeleton } from "@cashsouk/ui";
+import { Skeleton } from "@cashsouk/ui";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { cn } from "@/lib/utils";
 
-interface QuickActionCardProps {
+export interface QuickActionCardProps {
   title: string;
-  description: string;
+  description?: string;
   count?: number;
   countLabel?: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   variant?: "default" | "warning" | "urgent";
   loading?: boolean;
+  /** When true, show the green “All caught up” treatment instead of a count. */
+  caughtUp?: boolean;
+}
+
+function CountPill({ count }: { count: number }) {
+  return (
+    <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold tabular-nums text-primary-foreground">
+      {count > 99 ? "99+" : count}
+    </span>
+  );
 }
 
 export function QuickActionCard({
   title,
   description,
   count,
-  countLabel = "pending",
   href,
   icon: Icon,
   variant = "default",
   loading = false,
+  caughtUp = false,
 }: QuickActionCardProps) {
   const variantStyles = {
     default: {
-      card: "hover:border-primary/50 hover:shadow-md",
+      row: "border-border hover:border-primary/40 hover:bg-muted/40",
       icon: "bg-muted text-muted-foreground",
-      count: "text-foreground",
     },
     warning: {
-      card: "border-amber-500/30 hover:border-amber-500/50 hover:shadow-md",
+      row: "border-amber-500/30 hover:border-amber-500/50 hover:bg-amber-500/5",
       icon: "bg-amber-500/10 text-amber-600",
-      count: "text-amber-600",
     },
     urgent: {
-      card: "border-primary/30 hover:border-primary/50 hover:shadow-md",
+      row: "border-primary/30 hover:border-primary/50 hover:bg-primary/5",
       icon: "bg-primary/10 text-primary",
-      count: "text-primary",
     },
   };
 
@@ -49,62 +56,54 @@ export function QuickActionCard({
 
   if (loading) {
     return (
-      <Card className="flex h-full min-h-0 w-full flex-col rounded-2xl shadow-sm">
-        <CardContent className="flex flex-1 flex-col p-6">
-          <div className="flex min-h-0 flex-1 gap-4">
-            <Skeleton className="h-12 w-12 flex-shrink-0 rounded-xl" />
-            <div className="flex min-w-0 flex-1 flex-col space-y-2">
-              <Skeleton className="h-5 w-32" />
-              <Skeleton className="h-4 w-48" />
-              <Skeleton className="mt-2 h-8 w-16" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex items-center gap-3 rounded-xl border border-border px-3 py-2.5">
+        <Skeleton className="h-9 w-9 shrink-0 rounded-lg" />
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-3 w-full max-w-[12rem]" />
+        </div>
+        <Skeleton className="h-5 w-7 shrink-0 rounded-full" />
+      </div>
     );
   }
 
   return (
-    <Link href={href} className="group flex h-full min-h-0 w-full rounded-2xl">
-      <Card
+    <Link
+      href={href}
+      title={description}
+      className={cn(
+        "group flex items-center gap-3 rounded-xl border bg-card px-3 py-2.5 transition-colors",
+        styles.row
+      )}
+    >
+      <div
         className={cn(
-          "flex h-full min-h-0 w-full flex-1 flex-col rounded-2xl shadow-sm transition-all duration-200 cursor-pointer",
-          styles.card
+          "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+          styles.icon
         )}
       >
-        <CardContent className="flex flex-1 flex-col p-6">
-          <div className="flex min-h-0 flex-1 gap-4">
-            <div
-              className={cn(
-                "flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl transition-colors",
-                styles.icon
-              )}
-            >
-              <Icon className="h-6 w-6" />
-            </div>
-            <div className="flex min-w-0 flex-1 flex-col">
-              <h3 className="text-base font-semibold text-foreground">{title}</h3>
-              <p className="mt-0.5 flex-1 text-sm text-muted-foreground">{description}</p>
-
-              {count !== undefined && count > 0 && (
-                <div className="mt-3">
-                  <span className={cn("text-2xl font-bold", styles.count)}>{count}</span>
-                  <span className="ml-1.5 text-sm text-muted-foreground">{countLabel}</span>
-                </div>
-              )}
-
-              {count === 0 && (
-                <div className="mt-3">
-                  <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-                    All caught up
-                  </span>
-                </div>
-              )}
-            </div>
-            <ArrowRightIcon className="mt-1 h-5 w-5 flex-shrink-0 self-start text-muted-foreground transition-all group-hover:translate-x-1 group-hover:text-foreground" />
-          </div>
-        </CardContent>
-      </Card>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="min-w-0 truncate text-[15px] font-semibold leading-6 text-foreground">
+            {title}
+          </p>
+          {!caughtUp && count !== undefined && count > 0 ? <CountPill count={count} /> : null}
+        </div>
+        {caughtUp ? (
+          <span className="mt-0.5 inline-flex items-center rounded-md bg-emerald-100 px-1.5 py-0.5 text-[13px] font-medium leading-5 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+            All caught up
+          </span>
+        ) : description ? (
+          <p className="mt-0.5 line-clamp-2 text-[13px] leading-5 text-muted-foreground">
+            {description}
+          </p>
+        ) : (
+          <p className="mt-0.5 text-[13px] leading-5 text-muted-foreground">No open items</p>
+        )}
+      </div>
+      <ArrowRightIcon className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
     </Link>
   );
 }

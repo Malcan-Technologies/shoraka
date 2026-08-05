@@ -182,7 +182,12 @@ function OnboardingStatusBadge({
   );
 }
 
-export function OrganizationSwitcher() {
+type OrganizationSwitcherProps = {
+  /** sidebar: full-width sidebar control. header: compact control for the main header. */
+  variant?: "sidebar" | "header";
+};
+
+export function OrganizationSwitcher({ variant = "sidebar" }: OrganizationSwitcherProps) {
   const router = useRouter();
   const pathname = usePathname();
   const { isMobile } = useSidebar();
@@ -193,6 +198,7 @@ export function OrganizationSwitcher() {
     switchOrganization,
     portalType
   } = useOrganization();
+  const isHeader = variant === "header";
 
   const isOnboardingPage = isAddingNewOrganizationRoute(pathname);
 
@@ -313,7 +319,53 @@ export function OrganizationSwitcher() {
     </>
   );
 
+  const dropdownSide = isHeader ? "bottom" : isMobile ? "bottom" : "right";
+  const dropdownAlign = isHeader ? "end" : "start";
+
+  const wrapTrigger = (trigger: React.ReactNode, menu: React.ReactNode) => {
+    if (isHeader) {
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+          <DropdownMenuContent
+            className="min-w-64 rounded-xl p-2"
+            side={dropdownSide}
+            align={dropdownAlign}
+            sideOffset={8}
+          >
+            {menu}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
+    }
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+            <DropdownMenuContent
+              className="w-[--radix-dropdown-menu-trigger-width] min-w-64 rounded-xl p-2"
+              side={dropdownSide}
+              align={dropdownAlign}
+              sideOffset={4}
+            >
+              {menu}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    );
+  };
+
   if (isLoading) {
+    if (isHeader) {
+      return (
+        <div className="flex h-10 max-w-[14rem] items-center gap-2 rounded-lg border border-border bg-card px-2 shadow-sm">
+          <Skeleton className="h-7 w-7 rounded-md" />
+          <Skeleton className="hidden h-4 w-24 sm:block" />
+        </div>
+      );
+    }
     return (
       <SidebarMenu>
         <SidebarMenuItem>
@@ -331,46 +383,57 @@ export function OrganizationSwitcher() {
 
   // On onboarding page - always show "Adding New Organization" with dropdown to switch back
   if (isOnboardingPage) {
-    return (
-      <SidebarMenu>
-        <SidebarMenuItem>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <SidebarMenuButton
-                size="lg"
-                data-testid="organization-switcher"
-                className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground hover:bg-sidebar-accent/50"
-              >
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                  <Plus className="size-4" />
-                </div>
-                <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
-                  <span className="truncate text-sm font-semibold text-foreground">
-                    Adding New Organization
-                  </span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    Complete onboarding
-                  </span>
-                </div>
-                <ChevronsUpDown className="ml-auto size-4 text-muted-foreground group-data-[collapsible=icon]:hidden" />
-              </SidebarMenuButton>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              className="w-[--radix-dropdown-menu-trigger-width] min-w-64 rounded-xl p-2"
-              side={isMobile ? "bottom" : "right"}
-              align="start"
-              sideOffset={4}
-            >
-              {renderSwitcherDropdownContent(false)}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </SidebarMenuItem>
-      </SidebarMenu>
+    const trigger = isHeader ? (
+      <button
+        type="button"
+        data-testid="organization-switcher"
+        className="flex h-10 max-w-[16rem] items-center gap-2 rounded-lg border border-border bg-card px-2 text-left shadow-sm hover:bg-accent/50"
+      >
+        <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+          <Plus className="size-3.5" />
+        </div>
+        <span className="hidden min-w-0 truncate text-sm font-medium sm:block">
+          Adding organisation
+        </span>
+        <ChevronsUpDown className="ml-auto hidden size-4 shrink-0 text-muted-foreground sm:block" />
+      </button>
+    ) : (
+      <SidebarMenuButton
+        size="lg"
+        data-testid="organization-switcher"
+        className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground hover:bg-sidebar-accent/50"
+      >
+        <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+          <Plus className="size-4" />
+        </div>
+        <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
+          <span className="truncate text-sm font-semibold text-foreground">
+            Adding New Organization
+          </span>
+          <span className="truncate text-xs text-muted-foreground">Complete onboarding</span>
+        </div>
+        <ChevronsUpDown className="ml-auto size-4 text-muted-foreground group-data-[collapsible=icon]:hidden" />
+      </SidebarMenuButton>
     );
+    return wrapTrigger(trigger, renderSwitcherDropdownContent(false));
   }
 
   // No organizations - show create prompt
   if (organizations.length === 0) {
+    if (isHeader) {
+      return (
+        <button
+          type="button"
+          onClick={handleAddOrganization}
+          className="flex h-10 max-w-[16rem] items-center gap-2 rounded-lg border border-dashed border-border bg-card px-2 text-left shadow-sm hover:border-primary/50 hover:bg-primary/5"
+        >
+          <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+            <Plus className="size-3.5" />
+          </div>
+          <span className="hidden truncate text-sm font-medium sm:block">Create account</span>
+        </button>
+      );
+    }
     return (
       <SidebarMenu>
         <SidebarMenuItem>
@@ -394,46 +457,53 @@ export function OrganizationSwitcher() {
     );
   }
 
-  return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              data-testid="organization-switcher"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground hover:bg-sidebar-accent/50"
-            >
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                {activeOrganization ? getOrgIcon(activeOrganization) : <Plus className="size-4" />}
-              </div>
-              <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
-                <span className="truncate text-sm font-semibold text-foreground">
-                  {activeOrganization
-                    ? getOrgDisplayName(activeOrganization)
-                    : "Select Account"}
-                </span>
-                {activeOrganization && (
-                  <OnboardingStatusBadge 
-                    status={activeOrganization.onboardingStatus} 
-                    regtankStatus={activeOrganization.regtankOnboardingStatus || undefined}
-                    size="sm" 
-                  />
-                )}
-              </div>
-              <ChevronsUpDown className="ml-auto size-4 text-muted-foreground group-data-[collapsible=icon]:hidden" />
-            </SidebarMenuButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-[--radix-dropdown-menu-trigger-width] min-w-64 rounded-xl p-2"
-            side={isMobile ? "bottom" : "right"}
-            align="start"
-            sideOffset={4}
-          >
-            {renderSwitcherDropdownContent(true)}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuItem>
-    </SidebarMenu>
+  const trigger = isHeader ? (
+    <button
+      type="button"
+      data-testid="organization-switcher"
+      className="flex h-auto min-h-10 max-w-[18rem] items-center gap-2 rounded-lg border border-border bg-card px-2 py-1.5 text-left shadow-sm hover:bg-accent/50"
+    >
+      <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+        {activeOrganization ? getOrgIcon(activeOrganization) : <Plus className="size-3.5" />}
+      </div>
+      <div className="hidden min-w-0 flex-1 sm:grid">
+        <span className="truncate text-sm font-medium leading-5">
+          {activeOrganization ? getOrgDisplayName(activeOrganization) : "Select account"}
+        </span>
+        {activeOrganization ? (
+          <OnboardingStatusBadge
+            status={activeOrganization.onboardingStatus}
+            regtankStatus={activeOrganization.regtankOnboardingStatus || undefined}
+            size="sm"
+          />
+        ) : null}
+      </div>
+      <ChevronsUpDown className="ml-auto hidden size-4 shrink-0 text-muted-foreground sm:block" />
+    </button>
+  ) : (
+    <SidebarMenuButton
+      size="lg"
+      data-testid="organization-switcher"
+      className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground hover:bg-sidebar-accent/50"
+    >
+      <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        {activeOrganization ? getOrgIcon(activeOrganization) : <Plus className="size-4" />}
+      </div>
+      <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
+        <span className="truncate text-sm font-semibold text-foreground">
+          {activeOrganization ? getOrgDisplayName(activeOrganization) : "Select Account"}
+        </span>
+        {activeOrganization && (
+          <OnboardingStatusBadge
+            status={activeOrganization.onboardingStatus}
+            regtankStatus={activeOrganization.regtankOnboardingStatus || undefined}
+            size="sm"
+          />
+        )}
+      </div>
+      <ChevronsUpDown className="ml-auto size-4 text-muted-foreground group-data-[collapsible=icon]:hidden" />
+    </SidebarMenuButton>
   );
+
+  return wrapTrigger(trigger, renderSwitcherDropdownContent(true));
 }

@@ -35,6 +35,7 @@ function makeInvoice(overrides: Partial<NormalizedInvoice> & { id: string }): No
     offerStatus: null,
     canReviewOffer: false,
     signedOfferLetterAvailable: false,
+    signedOfferLetterS3Key: null,
     reasonOrRemarks: null,
     ...overrides,
   };
@@ -169,6 +170,7 @@ export function generateMockApplications(count: number): NormalizedApplication[]
           profitRate: hasOffer ? `${7 + (j % 3)}%` : "—",
           offer_details: invOfferDetails,
           signedOfferLetterAvailable: invStatus === "APPROVED",
+          signedOfferLetterS3Key: null,
           withdrawReason: invStatus === "WITHDRAWN" ? scenario.withdrawReason : undefined,
           reasonOrRemarks,
         })
@@ -244,6 +246,7 @@ export function generateMockApplications(count: number): NormalizedApplication[]
       withdrawReason: scenario.withdrawReason,
       signedContractOfferLetterAvailable:
         scenario.contractStatus === "APPROVED" && !!scenario.hasContract,
+      signedContractOfferLetterS3Key: null,
     });
   }
 

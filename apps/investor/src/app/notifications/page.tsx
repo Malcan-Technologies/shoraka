@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { NotificationList, useHeader } from "@cashsouk/ui";
+import { NotificationList, portalContentMaxWidthClassName, useHeader } from "@cashsouk/ui";
 
 export default function NotificationsPage() {
   const { setTitle } = useHeader();
@@ -13,7 +13,7 @@ export default function NotificationsPage() {
   return (
     <>
       <div className="flex flex-1 flex-col gap-4 p-4 md:p-8">
-        <div className="mx-auto w-full max-w-4xl">
+        <div className={portalContentMaxWidthClassName}>
           <NotificationList />
         </div>
       </div>

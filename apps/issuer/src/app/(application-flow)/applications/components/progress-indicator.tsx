@@ -189,9 +189,9 @@ export function ProgressIndicator({
                   className={cn(
                     "absolute left-[-50%] w-full z-0 rounded-full",
                     connectorIsRed
-                      ? "bg-destructive"
+                      ? "bg-status-rejected-text"
                       : displayFilled || isClickableFuture
-                        ? "bg-foreground"
+                        ? "bg-primary"
                         : issuerStepperUnvisitedConnectorClassName
                   )}
                   style={{
@@ -209,7 +209,7 @@ export function ProgressIndicator({
                     <div
                       className={cn(
                         "absolute inset-0 rounded-full border-2 z-20",
-                        isFlagged ? "border-destructive" : "border-foreground"
+                        isFlagged ? "border-status-rejected-text" : "border-primary"
                       )}
                     />
                   </>
@@ -221,16 +221,16 @@ export function ProgressIndicator({
                     "relative z-30 flex items-center justify-center rounded-full h-[28px] w-[28px]",
                     displayFilled
                       ? showAcknowledgedFlaggedStyle
-                        ? "border-2 border-destructive bg-destructive scale-100"
+                        ? "border-2 border-status-rejected-text bg-status-rejected-text scale-100"
                         : showFlaggedStyle
-                        ? "border-2 border-destructive bg-destructive scale-100"
-                        : "border-2 border-foreground bg-foreground scale-100"
+                        ? "border-2 border-status-rejected-text bg-status-rejected-text scale-100"
+                        : "border-2 border-primary bg-primary scale-100"
                       : showFlaggedStyle
-                      ? "border-2 border-destructive bg-background scale-95"
+                      ? "border-2 border-status-rejected-text bg-background scale-95"
                         : isLockedUnvisited
                           ? cn(issuerStepperUnvisitedCircleClassName, "scale-95")
                           : isClickableFuture
-                            ? "border-2 border-foreground bg-foreground scale-100"
+                            ? "border-2 border-primary bg-primary scale-100"
                             : cn(issuerStepperUnvisitedCircleClassName, "scale-95")
                   )}
                 >
@@ -239,14 +239,18 @@ export function ProgressIndicator({
                     <CheckIcon
                       className={cn(
                         "relative h-[20px] w-[20px] translate-y-[0.5px]",
-                        showAcknowledgedFlaggedStyle ? "text-destructive-foreground" : "text-background"
+                        showAcknowledgedFlaggedStyle
+                          ? "text-status-rejected-bg"
+                          : "text-primary-foreground"
                       )}
                     />
                   ) : showFlaggedStyle ? (
                     <ExclamationTriangleIcon
                       className={cn(
                         "relative h-[14px] w-[14px]",
-                        displayFilled ? "text-destructive-foreground" : "text-destructive"
+                        displayFilled
+                          ? "text-status-rejected-bg"
+                          : "text-status-rejected-text"
                       )}
                     />
                   ) : (
@@ -254,7 +258,7 @@ export function ProgressIndicator({
                       className={cn(
                         "relative h-[8px] w-[8px] rounded-full",
                         displayFilled || isClickableFuture
-                          ? "bg-background"
+                          ? "bg-primary-foreground"
                           : "bg-input"
                       )}
                     />
@@ -266,11 +270,13 @@ export function ProgressIndicator({
               <span
                 className={cn(
                   "mt-2.5 text-center text-[12px] leading-snug max-w-[90px]",
-                  isActive && isFlagged && !isNotClickable && "font-semibold text-destructive",
+                  isActive && isFlagged && !isNotClickable && "font-semibold text-status-rejected-text",
                   isActive && isFlagged && isNotClickable && "font-medium text-muted-foreground",
                   isActive && !isFlagged && !isNotClickable && "font-medium text-foreground",
                   isActive && !isFlagged && isNotClickable && "font-medium text-muted-foreground",
-                  !isActive && (showFlaggedStyle || showAcknowledgedFlaggedStyle) && "text-destructive",
+                  !isActive &&
+                    (showFlaggedStyle || showAcknowledgedFlaggedStyle) &&
+                    "text-status-rejected-text",
                   !isActive &&
                     displayCompleted &&
                     !showFlaggedStyle &&

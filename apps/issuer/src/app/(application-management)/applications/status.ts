@@ -88,7 +88,11 @@
  *   Add "PENDING_DISBURSEMENT" in the right place in the array.
  */
 
-import { offerAcceptanceAllowsIssuerReviewCta, WithdrawReason } from "@cashsouk/types";
+import {
+  offerAcceptanceAllowsIssuerReviewCta,
+  WithdrawReason,
+  type OfferAcceptanceStatus,
+} from "@cashsouk/types";
 import {
   getStatusPresentationByBadgeKey,
   getStatusColorAndLabel,
@@ -123,6 +127,8 @@ export interface NormalizedInvoice {
   offer_details?: Record<string, unknown> | null;
   /** True when invoice offer was accepted after signing envelope completion. */
   signedOfferLetterAvailable: boolean;
+  /** S3 key for invoice signed offer letter when available. */
+  signedOfferLetterS3Key: string | null;
   /** When status is WITHDRAWN: distinguishes user decline vs withdraw vs expiry (issuer UI). */
   withdrawReason?: WithdrawReason;
   /**
@@ -186,8 +192,12 @@ export interface NormalizedApplication {
   supportingDocuments?: unknown;
   /** Withdraw reason when status is withdrawn. From contract or invoice. */
   withdrawReason?: WithdrawReason;
+  /** Offer expiry (contract or invoice). ISO string. Used for expiry indicator and filter. */
+  expiresAt?: string | null;
   /** True when contract offer was accepted after signing envelope completion. */
   signedContractOfferLetterAvailable: boolean;
+  /** S3 key for contract signed offer letter when available. */
+  signedContractOfferLetterS3Key: string | null;
   /** Active accept/signing deadline for the primary OFFER_SENT offer, if stamped. */
   offerPhaseDeadline?: import("@/lib/offer-utils").OfferPhaseDeadlineDisplay | null;
   /** Primary offer acceptance phase (contract or invoice-only offer), when present. */
@@ -373,7 +383,7 @@ export function getCardStatus(input: {
       acceptanceStatus === "APPROVED_FOR_SIGNING" ||
       acceptanceStatus === "SIGNING_IN_PROGRESS";
     const showContractReviewOffer =
-      contractOfferSent && offerAcceptanceAllowsIssuerReviewCta(acceptanceStatus);
+      contractOfferSent && offerAcceptanceAllowsIssuerReviewCta(acceptanceStatus as OfferAcceptanceStatus | null);
 
     if (issuerMustActOnOffer) {
       return {
@@ -456,6 +466,24 @@ export function countPendingIssuerOfferReviewsAcross(
   apps: readonly NormalizedApplication[]
 ): number {
   return apps.reduce((sum, app) => sum + countPendingIssuerOfferReviewItems(app), 0);
+}
+
+/** True when the issuer still needs to act (offer response and/or amendments). */
+export function isIssuerApplicationActionable(app: NormalizedApplication): boolean {
+  const key = (app.cardStatus.badgeKey ?? "").toLowerCase();
+  if (key === "amendment_requested" || key === "offer_sent") return true;
+  if (app.cardStatus.showMakeAmendments || app.cardStatus.showReviewOffer) return true;
+  if (countPendingIssuerOfferReviewItems(app) > 0) return true;
+  return app.invoices.some((inv) => {
+    const s = String(inv.status ?? "").toUpperCase();
+    return inv.canReviewOffer || s === "AMENDMENT_REQUESTED";
+  });
+}
+
+export function countIssuerApplicationsNeedingAction(
+  apps: readonly NormalizedApplication[]
+): number {
+  return apps.reduce((sum, app) => sum + (isIssuerApplicationActionable(app) ? 1 : 0), 0);
 }
 
 /**

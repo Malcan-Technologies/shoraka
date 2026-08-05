@@ -4,6 +4,7 @@ import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ProcessingFeeReturnDialog } from "@/components/processing-fee-return-dialog";
 import { readIssuerPendingSubmitAfterFee } from "@/hooks/use-application-processing-fee";
+import { parseApplicationIdFromEditPath } from "@/lib/application-processing-fee-routes";
 
 export function ProcessingFeeReturnListener({
   onSubmitAfterPayment,
@@ -17,7 +18,7 @@ export function ProcessingFeeReturnListener({
 
   const urlFeeId = searchParams.get("processingFeeReturn");
   const urlApplicationId =
-    pending?.applicationId ?? pathname.match(/^\/applications\/edit\/([^/]+)/)?.[1] ?? null;
+    pending?.applicationId ?? parseApplicationIdFromEditPath(pathname) ?? null;
 
   // Pin on first render so wizard resume logic cannot strip the param before effects run.
   const pinnedFeeIdRef = React.useRef<string | null>(null);
@@ -38,7 +39,7 @@ export function ProcessingFeeReturnListener({
     pinnedApplicationIdRef.current = null;
     setDismissed(true);
     const destination =
-      pending?.returnTo ?? `/applications/edit/${applicationId}?continue=processingFee`;
+      pending?.returnTo ?? `/applications/${applicationId}/edit?continue=processingFee`;
     router.replace(destination);
   }, [applicationId, pending?.returnTo, router]);
 

@@ -3,7 +3,7 @@ jest.mock("@cashsouk/config", () => ({
   getStatusColorAndLabel: () => ({ color: "bg-mock", label: "Mock" }),
   resolveIssuerInvoiceStatusBadgeKey: (
     status: string | undefined,
-    withdrawReason?: string,
+    _withdrawReason?: string,
     offerAcceptanceStatus?: string | null
   ) => {
     const upper = String(status ?? "").toUpperCase();

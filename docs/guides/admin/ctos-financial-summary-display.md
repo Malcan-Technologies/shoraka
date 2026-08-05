@@ -22,19 +22,20 @@ Implementations live in `packages/types/src/ctos-report-table-math.ts` and are w
 | **Total liabilities** (`totlib`) | Use `totlib` if reported; else sum `curlib + bsslltd + bsclstd` (`computeTotalLiabilities`). |
 | **Net worth** (`networth`) | `totass - totlib` after applying the two rules above (`computeNetWorth`). |
 | **Turnover growth** | `(turnover_this_column - turnover_previous_column) / turnover_previous_column` only if the previous column’s year is exactly one calendar year before this column’s year (`computeTurnoverGrowth`). |
-| **Profit margin** | `plnpat / turnover` when turnover ≠ 0 (`computeProfitMargin`). UI shows ratio × 100 as a percent. |
-| **Return on equity** | `plnpat / bsqpuc` when equity ≠ 0 (`computeReturnOnEquity`). UI shows ratio × 100 as a percent. |
+| **Profit margin** | Always `plnpat / turnover` when turnover ≠ 0 (`computeProfitMargin` / `resolveFinancialSummaryProfitMarginRatio`). **Do not** use CTOS `profit_margin` (that field is PBT Margin). UI shows ratio × 100 as a percent. |
+| **Return on equity** | CTOS column: prefer flat `return_on_equity` when present; else `plnpat / networth` (`resolveFinancialSummaryCtosReturnOnEquityPercent`), using CTOS `networth` or computed `totass − totlib`. Never Paid-Up Capital. Issuer column: `plnpat / networth` (`resolveFinancialSummaryIssuerReturnOnEquityRatio`). UI shows percent points. |
 | **Current ratio** | `bscatot / curlib` when current liabilities ≠ 0 (`computeCurrentRatio`). |
 | **Working capital** | `bscatot - curlib` (`computeWorkingCapital`). |
 
 ## CTOS-supplied ratio fields
 
-When CTOS provides `profit_margin`, `return_on_equity`, `turnover_growth`, `currat`, or `workcap` on `account`, the UI shows those **before** recomputing.
+When CTOS provides `return_on_equity`, `turnover_growth`, `currat`, or `workcap` on `account`, the UI shows those **before** recomputing (except Profit Margin, which never uses CTOS `profit_margin`).
 
-- **`profit_margin`**, **`return_on_equity`**, **`turnover_growth`** in CTOS XML are **already percent-style numbers** (e.g. `12.6` means 12.6%). The admin appends `%` without multiplying by 100.
+- **`return_on_equity`**, **`turnover_growth`** in CTOS XML are **already percent-style numbers** (e.g. `12.6` means 12.6%). The admin appends `%` without multiplying by 100.
 - **Computed** fallbacks (from `computeProfitMargin`, etc.) use **decimal ratios** internally; those rows still use **× 100** before showing `%`.
 - **`currat`** is a plain ratio (e.g. `1.32`), not a percent.
 - **`workcap`** is a currency amount.
+- **`profit_margin`** on the CTOS account JSON is **PBT Margin** and is **ignored** by the Financial Summary Profit Margin row.
 
 ## CTOS director / shareholder position (role cross-check)
 

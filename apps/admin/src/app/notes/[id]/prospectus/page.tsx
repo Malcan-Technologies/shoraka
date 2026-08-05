@@ -4,7 +4,7 @@ import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeftIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
-import { Skeleton } from "@cashsouk/ui";
+import { Skeleton, useHeader } from "@cashsouk/ui";
 import {
   normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
@@ -34,9 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useNoteDetail } from "@/notes/hooks/use-note-detail";
@@ -576,26 +573,14 @@ function ProspectusReviewPageInner() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push(`/notes/${noteId}`)}
-          className="-ml-1 gap-1.5"
-        >
+      
+            <div className="flex items-center gap-2 px-4 pt-4 md:px-6">
+        <Button variant="ghost" size="sm" onClick={() => router.push(`/notes/${noteId}`)} className="gap-1.5">
           <ArrowLeftIcon className="h-4 w-4" />
           Note
         </Button>
-        <Separator orientation="vertical" className="mx-2 h-4" />
-        <h1 className="truncate text-lg font-semibold">Prospectus Review</h1>
-        <div className="ml-auto">
-          <SystemHealthIndicator />
-        </div>
-      </header>
-
-      <div className="flex-1 overflow-y-auto">
+      </div>
+<div className="flex-1 overflow-y-auto">
         <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3">
@@ -835,6 +820,12 @@ function ProspectusReviewPageInner() {
 }
 
 export default function ProspectusReviewPage() {
+  const { setTitle } = useHeader();
+  React.useEffect(() => {
+    setTitle("Prospectus Review");
+    return () => setTitle("");
+  }, [setTitle]);
+
   return (
     <RequirePermission permission="notes.view">
       <ProspectusReviewPageInner />

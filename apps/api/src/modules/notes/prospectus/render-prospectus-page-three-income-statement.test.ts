@@ -272,11 +272,13 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
       PROSPECTUS_DATA_NOT_AVAILABLE
     );
 
-    // Application coerces missing PAT → 0 when recomputing; Prospectus must match.
+    // Missing PAT with valid turnover → unavailable (no missing→0 coercion).
     const missingPat = buildProspectusPageThreeIncomeStatement({
       financialSource: sourceFromYears({ "2024": { turnover: 100 } }),
     });
-    expect(row(missingPat, "net_profit_margin")?.values[0]).toBe("0%");
+    expect(row(missingPat, "net_profit_margin")?.values[0]).toBe(
+      PROSPECTUS_DATA_NOT_AVAILABLE
+    );
 
     const zeroRevenue = buildProspectusPageThreeIncomeStatement({
       financialSource: sourceFromYears({ "2024": { turnover: 0, plnpat: 10 } }),

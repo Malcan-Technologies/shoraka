@@ -53,9 +53,6 @@ import {
   type NoteListItem,
 } from "@cashsouk/types";
 
-const MARKETPLACE_SECONDARY_BUTTON_CLASS =
-  "bg-slate-100 text-slate-700 hover:bg-slate-200";
-
 const MARKETPLACE_LISTINGS_PAGE_SIZE = 9;
 
 function parseMarketplaceListPageParam(value: string | null): number {
@@ -445,7 +442,7 @@ export function MarketplacePage() {
   }
 
   return (
-    <div className="flex-1 bg-white p-4 md:p-8">
+    <div className="flex-1 bg-background p-4 md:p-8">
       <div className="w-full space-y-6">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold">Investment Marketplace</h1>
@@ -482,13 +479,13 @@ export function MarketplacePage() {
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Search by investment notes, industry, or company"
-                  className="h-11 rounded-xl pl-9"
+                  className="h-11 rounded-xl bg-card pl-9"
                 />
               </div>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-11 gap-2 rounded-xl">
+                  <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
                     <FunnelIcon className="h-4 w-4" />
                     Industry
                     {industryFilter !== "all" ? (
@@ -522,7 +519,7 @@ export function MarketplacePage() {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-11 gap-2 rounded-xl">
+                  <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
                     <FunnelIcon className="h-4 w-4" />
                     Risk score
                     {riskFilter !== "all" ? (
@@ -553,7 +550,7 @@ export function MarketplacePage() {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-11 gap-2 rounded-xl">
+                  <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
                     <FunnelIcon className="h-4 w-4" />
                     Profit
                     {profitFilter !== "all" ? (
@@ -582,7 +579,7 @@ export function MarketplacePage() {
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-11 gap-2 rounded-xl">
+                  <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
                     <FunnelIcon className="h-4 w-4" />
                     Tenor
                     {tenorFilter !== "all" ? (
@@ -619,12 +616,12 @@ export function MarketplacePage() {
                 variant="outline"
                 onClick={handleReload}
                 disabled={isLoading || reloadSpin}
-                className="h-11 gap-2 rounded-xl"
+                className="h-11 gap-2 rounded-xl bg-card"
               >
                 <ArrowPathIcon
                   className={`h-4 w-4 ${isLoading || reloadSpin ? "animate-spin" : ""}`}
                 />
-                Reload
+                Refresh
               </Button>
               <Badge
                 variant="secondary"
@@ -639,7 +636,7 @@ export function MarketplacePage() {
         ) : null}
 
         {!isLoading && featuredNotes.length > 0 ? (
-          <section className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:p-6">
+          <section className="space-y-4 rounded-2xl border border-border bg-muted/40 p-4 md:p-6">
             <div>
               <h2 className="text-3xl font-bold tracking-tight text-foreground">Featured investment opportunities</h2>
               <p className="mt-1 text-sm text-muted-foreground">Top picks curated for you</p>
@@ -733,13 +730,13 @@ export function MarketplacePage() {
       </div>
 
       <Dialog open={Boolean(activeNote)} onOpenChange={(open) => !open && closeInvestDialog()}>
-        <DialogContent className="max-w-md rounded-xl border-slate-200 bg-white p-0">
-          <DialogHeader className="space-y-3 border-b border-slate-200 px-4 pb-4 pt-5">
-            <DialogTitle className="text-2xl font-semibold tracking-tight text-slate-900">
+        <DialogContent className="max-w-md rounded-xl border-border bg-card p-0">
+          <DialogHeader className="space-y-3 border-b border-border px-4 pb-4 pt-5">
+            <DialogTitle className="text-2xl font-semibold tracking-tight text-foreground">
               {textOrDash(formatNoteReferenceDisplay(activeNote?.noteCode))}
             </DialogTitle>
             <DialogDescription asChild>
-              <div className="text-xs text-slate-500">
+              <div className="text-xs text-muted-foreground">
                 {textOrDash(activeNote?.industry)} | Product: {textOrDash(activeNote?.productName)}
                 {activeNote?.noteTitle?.trim() ? ` | ${activeNote.noteTitle.trim()}` : ""}
               </div>
@@ -748,7 +745,7 @@ export function MarketplacePage() {
 
           <div className="space-y-4 px-4 pb-4">
             <div className="space-y-2">
-              <Label className="text-xs text-slate-900">
+              <Label className="text-xs text-foreground">
                 Investment amount
               </Label>
               <MoneyInput
@@ -759,7 +756,7 @@ export function MarketplacePage() {
                 }}
                 prefix="RM"
                 placeholder="0.00"
-                inputClassName="h-9 rounded-lg border-slate-200 text-slate-700 focus-visible:ring-slate-300"
+                inputClassName="h-9 rounded-lg border-input text-foreground focus-visible:ring-ring"
               />
               {validationError ? (
                 <p className="text-right text-xs text-destructive">{validationError}</p>
@@ -788,13 +785,13 @@ export function MarketplacePage() {
                 id="terms"
                 checked={agreedToTerms}
                 onCheckedChange={(checked) => setAgreedToTerms(Boolean(checked))}
-                className="mt-0.5 border-slate-300 data-[state=checked]:border-slate-950 data-[state=checked]:bg-slate-950 data-[state=checked]:text-white"
+                className="mt-0.5"
               />
-              <Label htmlFor="terms" className="text-xs font-normal text-slate-500">
+              <Label htmlFor="terms" className="text-xs font-normal text-muted-foreground">
                 I confirm that I have reviewed the{" "}
                 <button
                   type="button"
-                  className="text-slate-900 underline-offset-2 hover:underline"
+                  className="text-foreground underline-offset-2 hover:underline"
                   onClick={() => {
                     if (!activeNote) return;
                     void openMarketplaceProspectus(activeNote.id).catch((err) =>
@@ -807,7 +804,7 @@ export function MarketplacePage() {
                 ,{" "}
                 <a
                   href="/profile?tab=documents"
-                  className="text-slate-900 underline-offset-2 hover:underline"
+                  className="text-foreground underline-offset-2 hover:underline"
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -816,7 +813,7 @@ export function MarketplacePage() {
                 , and{" "}
                 <a
                   href="/profile?tab=documents"
-                  className="text-slate-900 underline-offset-2 hover:underline"
+                  className="text-foreground underline-offset-2 hover:underline"
                   target="_blank"
                   rel="noreferrer"
                 >
@@ -826,11 +823,11 @@ export function MarketplacePage() {
               </Label>
             </div>
 
-            <DialogFooter className="flex-row gap-2 border-t border-slate-200 pt-4 sm:justify-between sm:space-x-0">
+            <DialogFooter className="flex-row gap-2 border-t border-border pt-4 sm:justify-between sm:space-x-0">
               <Button
                 type="button"
-                variant="default"
-                className={`h-9 flex-1 rounded-lg shadow-none ${MARKETPLACE_SECONDARY_BUTTON_CLASS}`}
+                variant="outline"
+                className="h-9 flex-1 rounded-lg"
                 onClick={closeInvestDialog}
               >
                 Cancel
@@ -846,7 +843,7 @@ export function MarketplacePage() {
               </Button>
             </DialogFooter>
 
-            <p className="text-center text-xs text-slate-500">
+            <p className="text-center text-xs text-muted-foreground">
               {activeNote
                 ? `Min. investment : ${formatCurrency(activeNote.minInvestment)} | Max. investment : ${formatCurrency(activeNote.maxInvestment)}`
                 : null}
@@ -856,20 +853,20 @@ export function MarketplacePage() {
       </Dialog>
 
       <Dialog open={isConfirmDialogOpen} onOpenChange={setIsConfirmDialogOpen}>
-        <DialogContent className="max-w-sm rounded-xl border-slate-200 bg-white p-0">
-          <DialogHeader className="border-b border-slate-200 px-4 py-4 text-center">
-            <DialogTitle className="text-xl font-semibold text-slate-900">Confirm investment</DialogTitle>
-            <DialogDescription className="pt-3 text-sm text-slate-700">
+        <DialogContent className="max-w-sm rounded-xl border-border bg-card p-0">
+          <DialogHeader className="border-b border-border px-4 py-4 text-center">
+            <DialogTitle className="text-xl font-semibold text-foreground">Confirm investment</DialogTitle>
+            <DialogDescription className="pt-3 text-sm text-muted-foreground">
               Are you sure you want to invest{" "}
-              <span className="font-semibold">{formatCurrency(parseAmount(investmentAmount))}</span>
+              <span className="font-semibold text-foreground">{formatCurrency(parseAmount(investmentAmount))}</span>
               ?
             </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-2 p-4">
             <Button
               type="button"
-              variant="default"
-              className={`h-9 rounded-lg shadow-none ${MARKETPLACE_SECONDARY_BUTTON_CLASS}`}
+              variant="outline"
+              className="h-9 rounded-lg"
               onClick={() => setIsConfirmDialogOpen(false)}
             >
               Cancel
@@ -900,11 +897,11 @@ export default function InvestmentsPage() {
   }, [setTitle]);
 
   return (
-    <div className="flex-1 bg-white p-4 md:p-8">
+    <div className="flex-1 bg-background p-4 md:p-8">
       <div className="w-full space-y-6">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Your Investments</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Your Investments</h1>
+          <p className="text-sm text-muted-foreground">
             Track all notes you have invested in, sorted by relevance or performance.
           </p>
         </div>

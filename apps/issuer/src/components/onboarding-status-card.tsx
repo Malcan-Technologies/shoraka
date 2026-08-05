@@ -5,16 +5,10 @@ import {
   type OnboardingStatusCardProps as SharedOnboardingStatusCardProps,
 } from "@cashsouk/ui";
 
-type OnboardingStatusCardProps = Omit<SharedOnboardingStatusCardProps, "portal" | "subtitle">;
+type OnboardingStatusCardProps = Omit<SharedOnboardingStatusCardProps, "portal">;
 
 export function OnboardingStatusCard(props: OnboardingStatusCardProps) {
-  return (
-    <SharedOnboardingStatusCard
-      {...props}
-      portal="issuer"
-      subtitle="Apply for financing and manage your financing applications from your dashboard"
-    />
-  );
+  return <SharedOnboardingStatusCard {...props} portal="issuer" />;
 }
 
 export function getOnboardingSteps(organization: Organization) {

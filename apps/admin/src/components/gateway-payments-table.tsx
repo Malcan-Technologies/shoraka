@@ -1,16 +1,16 @@
 "use client";
 
+import { useHeader } from "@cashsouk/ui";
+
 import { format } from "date-fns";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowPathIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import type { CurlecGatewayAccount } from "@cashsouk/types";
 import { formatCurrency } from "@cashsouk/config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -20,7 +20,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { RequirePermission } from "@/components/require-permission";
 import { useGatewayPayments } from "@/hooks/use-gateway-payments";
 import {
@@ -82,6 +81,12 @@ export function GatewayPaymentsTable({
   description,
   initialFilter = "all",
 }: GatewayPaymentsTableProps) {
+  const { setTitle } = useHeader();
+  useEffect(() => {
+    setTitle(title);
+    return () => setTitle("");
+  }, [setTitle, title]);
+
   const [filter, setFilter] = useState<GatewayFilter>(initialFilter);
   const [gatewayAccount, setGatewayAccount] = useState<GatewayAccountFilter>("ALL");
   const { data, isLoading, error, refetch, isFetching } = useGatewayPayments({
@@ -96,31 +101,27 @@ export function GatewayPaymentsTable({
   return (
     <RequirePermission permission="gateway_payments.view">
       <>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <h1 className="text-lg font-semibold">{title}</h1>
-          <div className="ml-auto flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => refetch()}
-              disabled={isFetching}
-              className="h-8 w-8 p-0"
-              title="Refresh"
-            >
-              <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-            </Button>
-            <SystemHealthIndicator />
-          </div>
-        </header>
-
+        
         <div className="flex-1 overflow-y-auto">
           <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
             <Card className="rounded-2xl">
               <CardHeader>
-                <CardTitle>{title}</CardTitle>
-                <p className="text-sm text-muted-foreground">{description}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 space-y-1">
+                    <CardTitle>{title}</CardTitle>
+                    <p className="text-sm text-muted-foreground">{description}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => refetch()}
+                    disabled={isFetching}
+                    className="h-8 w-8 shrink-0 p-0"
+                    title="Refresh"
+                  >
+                    <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+                  </Button>
+                </div>
                 <div className="flex flex-wrap gap-2 pt-2">
                   {FILTER_OPTIONS.map((option) => (
                     <Button

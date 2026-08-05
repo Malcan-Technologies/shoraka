@@ -10,7 +10,7 @@ interface NotesTableToolbarProps {
   status: string;
   onStatusChange: (value: string) => void;
   onClearFilters: () => void;
-  onReload: () => void;
+  onRefresh: () => void;
   totalCount: number;
   isLoading: boolean;
   featuredOnly: boolean;
@@ -23,7 +23,7 @@ export function NotesTableToolbar({
   status,
   onStatusChange,
   onClearFilters,
-  onReload,
+  onRefresh,
   totalCount,
   isLoading,
   featuredOnly,
@@ -58,7 +58,7 @@ export function NotesTableToolbar({
       itemLabelSingular="note"
       itemLabelPlural="notes"
       onClearFilters={onClearFilters}
-      onReload={onReload}
+      onRefresh={onRefresh}
       isLoading={isLoading}
       extraToggleLabel="Featured only"
       extraToggleChecked={featuredOnly}
@@ -66,4 +66,3 @@ export function NotesTableToolbar({
     />
   );
 }
-

@@ -4,14 +4,11 @@ import * as React from "react";
 import { format } from "date-fns";
 import { BanknotesIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
-import { Skeleton } from "@cashsouk/ui";
+import { Skeleton, useHeader } from "@cashsouk/ui";
 import type { NoteLedgerBucketBalance } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import {
   Table,
   TableBody,
@@ -172,6 +169,12 @@ function BucketActivityLog({
 }
 
 export default function BucketBalancesPage() {
+  const { setTitle } = useHeader();
+  React.useEffect(() => {
+    setTitle("Bucket Balances");
+    return () => setTitle("");
+  }, [setTitle]);
+
   const { data, isLoading, error } = useNoteBucketBalances();
   const buckets = React.useMemo(() => data?.buckets ?? [], [data?.buckets]);
   const [selectedBucketCode, setSelectedBucketCode] = React.useState<string | null>(null);
@@ -192,15 +195,7 @@ export default function BucketBalancesPage() {
   return (
     <RequirePermission permission="bucket_balances.view">
       <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Bucket Balances</h1>
-        <div className="ml-auto">
-          <SystemHealthIndicator />
-        </div>
-      </header>
-      <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto">
         <div className="w-full space-y-8 px-4 py-10 md:px-6 md:py-12 lg:px-8">
           <section className="space-y-4">
             <div className="flex items-center gap-3">

@@ -1,18 +1,10 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import Link from "next/link"
-import {
-  BadgeCheck,
-  ChevronsUpDown,
-  LogOut,
-} from "lucide-react"
+import { useState } from "react";
+import Link from "next/link";
+import { BadgeCheck, ChevronsUpDown, LogOut } from "lucide-react";
 
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,25 +13,31 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/ui/sidebar"
-import { Skeleton } from "@cashsouk/ui"
-import { logout } from "../lib/auth"
-import { useAuthToken } from "@cashsouk/config"
-import { useCurrentUser } from "../hooks/use-current-user"
+} from "@/components/ui/sidebar";
+import { Skeleton } from "@cashsouk/ui";
+import { logout } from "../lib/auth";
+import { useAuthToken } from "@cashsouk/config";
+import { useCurrentUser } from "../hooks/use-current-user";
 
-export function NavUser() {
-  const { isMobile } = useSidebar()
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const { getAccessToken, signOut } = useAuthToken()
+type NavUserProps = {
+  /** sidebar: sidebar footer control. header: compact header avatar menu. */
+  variant?: "sidebar" | "header";
+};
 
-  const { data, isLoading } = useCurrentUser()
-  const userData = data?.user
+export function NavUser({ variant = "sidebar" }: NavUserProps) {
+  const { isMobile } = useSidebar();
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const { getAccessToken, signOut } = useAuthToken();
+  const isHeader = variant === "header";
+
+  const { data, isLoading } = useCurrentUser();
+  const userData = data?.user;
 
   const user = {
     name: userData
@@ -47,14 +45,59 @@ export function NavUser() {
       : "Admin",
     email: userData?.email || "",
     avatar: "",
-  }
+  };
+
+  const initials = user.name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   const handleLogout = async () => {
-    setIsLoggingOut(true)
-    await logout(signOut, getAccessToken)
-  }
+    setIsLoggingOut(true);
+    await logout(signOut, getAccessToken);
+  };
+
+  const menuContent = (
+    <>
+      <DropdownMenuLabel className="p-0 font-normal">
+        <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+          <Avatar className="h-8 w-8 rounded-lg">
+            <AvatarImage src={user.avatar} alt={user.name} />
+            <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
+          </Avatar>
+          <div className="grid flex-1 text-left text-sm leading-tight">
+            <span className="truncate font-semibold">{user.name}</span>
+            <span className="truncate text-xs">{user.email}</span>
+          </div>
+        </div>
+      </DropdownMenuLabel>
+      <DropdownMenuSeparator />
+      <DropdownMenuGroup>
+        <DropdownMenuItem asChild className="cursor-pointer">
+          <Link href="/account">
+            <BadgeCheck />
+            Account
+          </Link>
+        </DropdownMenuItem>
+      </DropdownMenuGroup>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        onClick={handleLogout}
+        disabled={isLoggingOut}
+        className="cursor-pointer"
+      >
+        <LogOut />
+        {isLoggingOut ? "Logging out..." : "Log out"}
+      </DropdownMenuItem>
+    </>
+  );
 
   if (isLoading) {
+    if (isHeader) {
+      return <Skeleton className="h-10 w-10 rounded-lg" />;
+    }
     return (
       <SidebarMenu>
         <SidebarMenuItem>
@@ -67,7 +110,34 @@ export function NavUser() {
           </SidebarMenuButton>
         </SidebarMenuItem>
       </SidebarMenu>
-    )
+    );
+  }
+
+  if (isHeader) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg outline-none ring-offset-background transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            aria-label="Account menu"
+          >
+            <Avatar className="h-10 w-10 rounded-lg">
+              <AvatarImage src={user.avatar} alt={user.name} />
+              <AvatarFallback className="rounded-lg text-sm">{initials}</AvatarFallback>
+            </Avatar>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          className="min-w-56 rounded-lg"
+          side="bottom"
+          align="end"
+          sideOffset={8}
+        >
+          {menuContent}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
   }
 
   return (
@@ -81,13 +151,7 @@ export function NavUser() {
             >
               <Avatar className="h-8 w-8 rounded-lg">
                 <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-lg">
-                  {user.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")
-                    .toUpperCase()}
-                </AvatarFallback>
+                <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">{user.name}</span>
@@ -102,46 +166,10 @@ export function NavUser() {
             align="end"
             sideOffset={4}
           >
-            <DropdownMenuLabel className="p-0 font-normal">
-              <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.avatar} alt={user.name} />
-                  <AvatarFallback className="rounded-lg">
-                    {user.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")
-                      .toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">{user.name}</span>
-                  <span className="truncate text-xs">{user.email}</span>
-                </div>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuItem asChild className="cursor-pointer">
-                <Link href="/account">
-                  <BadgeCheck />
-                  Account
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-              className="cursor-pointer"
-            >
-              <LogOut />
-              {isLoggingOut ? "Logging out..." : "Log out"}
-            </DropdownMenuItem>
+            {menuContent}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
     </SidebarMenu>
-  )
+  );
 }
-

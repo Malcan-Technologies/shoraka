@@ -1,5 +1,7 @@
 "use client";
 
+import { useHeader } from "@cashsouk/ui";
+
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -11,9 +13,6 @@ import type {
 } from "@cashsouk/types";
 import { formatCurrency } from "@cashsouk/config";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
-import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { InvestmentsTable } from "@/investments/components/investments-table";
 import { InvestmentsTableToolbar } from "@/investments/components/investments-table-toolbar";
 import {
@@ -23,6 +22,12 @@ import {
 import { RequirePermission } from "@/components/require-permission";
 
 export default function InvestmentsPage() {
+  const { setTitle } = useHeader();
+  React.useEffect(() => {
+    setTitle("Investments");
+    return () => setTitle("");
+  }, [setTitle]);
+
   const router = useRouter();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -85,15 +90,7 @@ export default function InvestmentsPage() {
   return (
     <RequirePermission permission="investments.view">
       <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Investments</h1>
-        <div className="ml-auto">
-          <SystemHealthIndicator />
-        </div>
-      </header>
-
+      
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="w-full space-y-8 px-2 py-8 md:px-4">
           <section className="space-y-4">
@@ -182,7 +179,7 @@ export default function InvestmentsPage() {
               status={status}
               onStatusChange={setStatus}
               onClearFilters={handleClearFilters}
-              onReload={handleReload}
+              onRefresh={handleReload}
               totalCount={totalInvestments}
               isLoading={isLoading}
             />

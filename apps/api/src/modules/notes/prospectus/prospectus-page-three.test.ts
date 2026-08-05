@@ -1,5 +1,5 @@
 import { NoteStatus } from "@prisma/client";
-import { calculateReturnOnEquity, resolveApplicationFinancialTotalAssets } from "@cashsouk/types";
+import { computeReturnOnEquity, resolveApplicationFinancialTotalAssets } from "@cashsouk/types";
 import {
   buildProspectusFinancialComparisonMetrics,
   formatProspectusFinancialPercentFromRatio,
@@ -65,6 +65,7 @@ const liveFinancialStatements = {
       plnpbt: 1_400_000,
       plnpat: 1_200_000,
       bsqpuc: 2_000_000,
+      networth: 2_000_000,
       bsfatot: 1_500_000,
       othass: 1_000_000,
       bscatot: 4_700_000,
@@ -78,6 +79,7 @@ const liveFinancialStatements = {
       plnpbt: 1_700_000,
       plnpat: 1_500_000,
       bsqpuc: 2_200_000,
+      networth: 2_200_000,
       bsfatot: 1_600_000,
       othass: 1_100_000,
       bscatot: 5_200_000,
@@ -91,6 +93,7 @@ const liveFinancialStatements = {
       plnpbt: 2_000_000,
       plnpat: 1_800_000,
       bsqpuc: 2_400_000,
+      networth: 2_400_000,
       bsfatot: 1_700_000,
       othass: 1_200_000,
       bscatot: 5_800_000,
@@ -149,6 +152,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         "bsclstd",
         "totass",
         "totlib",
+        "networth",
         "profit_margin",
         "return_on_equity",
         "currat",
@@ -160,6 +164,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(raw?.bsslltd).toBe(500_000);
       expect(raw?.bsclstd).toBe(200_000);
       expect(raw?.turnover).toBe(13_900_000);
+      expect(raw?.networth).toBe(2_000_000);
       expect(raw).toHaveProperty("totass");
       expect(raw).toHaveProperty("totlib");
 
@@ -355,9 +360,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(row(page.balanceSheet.rows, "total_assets")?.[2]).toBe("5.8");
       expect(row(page.balanceSheet.rows, "total_liabilities")?.[2]).toBe("3.4");
       expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[2]).toBe(
-        formatProspectusFinancialPercentFromRatio(
-          calculateReturnOnEquity(1_800_000, 2_400_000)
-        )
+        PROSPECTUS_DATA_NOT_AVAILABLE
       );
       expect(row(page.balanceSheet.rows, "cash_and_bank")?.[2]).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
@@ -414,7 +417,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(row(page.balanceSheet.rows, "quick_ratio")?.[0]).toBe("1.11x");
       expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[0]).toBe(
         formatProspectusFinancialPercentFromRatio(
-          calculateReturnOnEquity(1_200_000, 2_000_000)
+          computeReturnOnEquity(1_200_000, 2_000_000)
         )
       );
       expect(row(page.coverageEfficiency.rows, "dscr")?.[0]).toBe(
@@ -595,6 +598,12 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(html).toContain('data-meta-key="confidenceGrading"');
 
       expect(html).toContain("3-YEAR INCOME STATEMENT SUMMARY (MYR mil.)");
+      expect(html).toContain("prospectus-income-trend-insight");
+      expect(html).toContain("prospectus-income-trend-insight--positive");
+      expect(html).toContain('data-income-trend-insight="true"');
+      expect(html).toContain(
+        "Revenue and profit show consistent growth over the past three financial years."
+      );
       expect(html).toContain("3-YEAR BALANCE SHEET &amp; LIQUIDITY (MYR mil.)");
       expect(html).toContain("13.9");
       expect(html).toContain("2.1");

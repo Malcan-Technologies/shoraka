@@ -105,7 +105,8 @@ describe("resolveProspectusStatusCard", () => {
     const model = resolveProspectusStatusCard(
       baseNote({
         prospectus: {
-          status: "READY_FOR_REVIEW",
+          // Legacy raw status; API normalizes to DRAFT but card must still emphasize.
+          status: "READY_FOR_REVIEW" as "DRAFT" | "APPROVED" | "PUBLISHED",
           displayStatus: "Draft",
           contentVersion: 1,
           lastSavedAt: null,
@@ -145,7 +146,7 @@ describe("resolveProspectusStatusCard", () => {
     expect(WORKFLOW_STATUS_BADGE.success.badgeClass).toMatch(/success/);
   });
 
-  it("Published uses neutral card, original outline badge, and outline View Prospectus button", () => {
+  it("Published uses neutral card, green success badge, and outline View Prospectus button", () => {
     const model = resolveProspectusStatusCard(
       baseNote({
         status: NoteStatus.PUBLISHED,
@@ -169,7 +170,7 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.primaryLabel).toBe("View Prospectus");
     expect(model.secondaryLabel).toBeNull();
     expect(model.emphasize).toBe(false);
-    expect(model.badgeTone).toBeNull();
+    expect(model.badgeTone).toBe("success");
     expect(model.actionVariant).toBe("outline");
   });
 
@@ -224,7 +225,7 @@ describe("Admin Note Detail prospectus UI cleanup", () => {
     expect(lifecycleSource).toContain("Publish to Marketplace");
   });
 
-  it("maps card emphasis and button variant from status model; only Approved gets success badge tone", () => {
+  it("maps card emphasis and button variant from status model; Approved and Published get success badge tone", () => {
     expect(cardSource).toContain("WORKFLOW_CARD.activeSection");
     expect(cardSource).toContain("model.badgeTone ? workflowBadgeClassName(model.badgeTone)");
     expect(cardSource).toContain("variant={model.actionVariant}");
@@ -242,8 +243,23 @@ describe("Admin Note Detail prospectus UI cleanup", () => {
         },
       })
     );
+    const published = resolveProspectusStatusCard(
+      baseNote({
+        status: NoteStatus.PUBLISHED,
+        publishedAt: new Date().toISOString(),
+        prospectus: {
+          status: "PUBLISHED",
+          displayStatus: "Published",
+          contentVersion: 1,
+          lastSavedAt: null,
+          approvedAt: new Date().toISOString(),
+          publishedAt: new Date().toISOString(),
+        },
+      })
+    );
     const draft = resolveProspectusStatusCard(baseNote());
     expect(approved.badgeTone).toBe("success");
+    expect(published.badgeTone).toBe("success");
     expect(draft.badgeTone).toBeNull();
   });
 });

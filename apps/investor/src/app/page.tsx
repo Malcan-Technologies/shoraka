@@ -22,14 +22,18 @@ import { DashboardInvestmentsSection } from "../components/dashboard-investments
 import {
   DirectorShareholderAlertCard,
   INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
+  PageShell,
   useHeader,
+  welcomeBackTitle,
 } from "@cashsouk/ui";
 
 function InvestorDashboardContent() {
   const { setTitle } = useHeader();
 
   useEffect(() => {
-    setTitle("Dashboard");
+    // PageShell owns the title.
+    setTitle("");
+    return () => setTitle("");
   }, [setTitle]);
 
   const { isAuthenticated } = useAuth();
@@ -177,66 +181,67 @@ function InvestorDashboardContent() {
             </div>
           </div>
         )}
-        <div className="space-y-8 p-2 md:p-4">
-          {activeOrganization?.type === "COMPANY" ? (
-            <DirectorShareholderAlertCard
-              visiblePeople={visiblePeopleForDsAlert}
-              enabled={activeOrganization.onboardingStatus === "COMPLETED"}
-              copy={INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY}
-            />
-          ) : null}
-          {activeOrganization && !allStepsComplete && (
-            <section className="space-y-6">
-              <OnboardingStatusCard
-                organization={activeOrganization}
-                userName={displayName}
-                actionButton={
-                  <Button disabled className="gap-2 opacity-50 cursor-not-allowed">
+        <div className="p-2 md:p-4">
+          <PageShell
+            title={welcomeBackTitle(displayName)}
+            description={
+              allStepsComplete
+                ? "Browse and invest in verified financing opportunities from your dashboard."
+                : "Complete onboarding to start investing."
+            }
+            action={
+              allStepsComplete ? (
+                <Button asChild className="h-11 shrink-0 gap-2 rounded-xl font-semibold">
+                  <Link href="/marketplace">
                     <PlusIcon className="h-4 w-4" />
                     Invest now
-                  </Button>
-                }
-              />
-
-              {needsDeposit && <DepositCard organizationId={activeOrganization.id} />}
-
-              {isAwaitingApproval && (
-                <div className="rounded-xl border bg-card p-6">
-                  <h3 className="text-lg font-semibold mb-2">Awaiting Approval</h3>
-                  <p className="text-muted-foreground">
-                    Your account is currently under review. You will be notified once the approval
-                    process is complete.
-                  </p>
-                </div>
-              )}
-            </section>
-          )}
-
-          {allStepsComplete && (
-            <section className="flex items-start justify-between">
-              <div>
-                <h2 className="text-2xl font-bold mb-2">Welcome back, {displayName}!</h2>
-                <p className="text-[17px] leading-7 text-muted-foreground">
-                  Browse and invest in verified financing opportunities from your dashboard.
-                </p>
-              </div>
-              <Button asChild className="gap-2">
-                <Link href="/marketplace">
+                  </Link>
+                </Button>
+              ) : (
+                <Button disabled className="h-11 shrink-0 gap-2 rounded-xl font-semibold opacity-50">
                   <PlusIcon className="h-4 w-4" />
                   Invest now
-                </Link>
-              </Button>
-            </section>
-          )}
+                </Button>
+              )
+            }
+          >
+            <div className="space-y-8">
+              {activeOrganization?.type === "COMPANY" ? (
+                <DirectorShareholderAlertCard
+                  visiblePeople={visiblePeopleForDsAlert}
+                  enabled={activeOrganization.onboardingStatus === "COMPLETED"}
+                  copy={INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY}
+                />
+              ) : null}
 
-          <AccountOverviewCard isDisabled={!isAccountEnabled} />
+              {activeOrganization && !allStepsComplete ? (
+                <section className="space-y-6">
+                  <OnboardingStatusCard organization={activeOrganization} />
 
-          {isAccountEnabled && (
-            <>
-              <PortfolioOverviewCard />
-              <DashboardInvestmentsSection />
-            </>
-          )}
+                  {needsDeposit && <DepositCard organizationId={activeOrganization.id} />}
+
+                  {isAwaitingApproval && (
+                    <div className="rounded-xl border bg-card p-6">
+                      <h3 className="mb-2 text-lg font-semibold">Awaiting Approval</h3>
+                      <p className="text-muted-foreground">
+                        Your account is currently under review. You will be notified once the
+                        approval process is complete.
+                      </p>
+                    </div>
+                  )}
+                </section>
+              ) : null}
+
+              <AccountOverviewCard isDisabled={!isAccountEnabled} />
+
+              {isAccountEnabled ? (
+                <>
+                  <PortfolioOverviewCard />
+                  <DashboardInvestmentsSection />
+                </>
+              ) : null}
+            </div>
+          </PageShell>
         </div>
       </div>
     </>

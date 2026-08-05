@@ -20,8 +20,8 @@ export function RecentNotesCard() {
   const visible = sorted.slice(0, MAX_ROWS);
 
   return (
-    <Card className="bg-muted/50 shadow-none">
-      <RecentSectionHeader title="Recent notes" viewAllHref="/notes" />
+    <Card>
+      <RecentSectionHeader title="Recent notes" viewAllHref="/financing?tab=notes" />
       <div className="px-5 pb-5 pt-4 md:px-6 md:pb-6 md:pt-5">
         {isLoading ? (
           <p className="py-4 text-[17px] leading-7 text-muted-foreground">Loading...</p>
@@ -34,7 +34,7 @@ export function RecentNotesCard() {
             {visible.map((note) => (
               <li key={note.id}>
                 <Link
-                  href={`/notes/${note.id}`}
+                  href={`/financing/notes/${note.id}`}
                   className="flex items-center gap-3 px-4 py-3 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 >
                   <div className="min-w-0 flex-1">

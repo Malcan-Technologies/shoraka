@@ -13,22 +13,17 @@ import {
   ArrowTrendingUpIcon,
   Cog6ToothIcon,
   ClipboardDocumentListIcon,
-  ShieldCheckIcon,
   CheckBadgeIcon,
   DocumentCheckIcon,
   FolderOpenIcon,
   DocumentDuplicateIcon,
-  CubeIcon,
   QuestionMarkCircleIcon,
   BanknotesIcon,
-  ArrowDownTrayIcon,
-  ArrowUpTrayIcon,
   ArrowsRightLeftIcon,
+  CreditCardIcon,
 } from "@heroicons/react/24/outline";
 
-import { NavUser } from "@/components/nav-user";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Separator } from "@/components/ui/separator";
 import {
   Sidebar,
   SidebarContent,
@@ -60,6 +55,7 @@ import {
   usePendingServiceFeeTrusteeLetters,
 } from "@/notes/hooks/use-notes";
 import {
+  type ApplicationNavGroup,
   activeProductPendingActionTotal,
   applicationsSidebarProductLabel,
   buildApplicationSidebarGroups,
@@ -92,6 +88,118 @@ function ApplicationNavSectionHeader({
   );
 }
 
+function ApplicationInactiveNavSection({
+  groups,
+  pathname,
+  linkClassName,
+}: {
+  groups: ApplicationNavGroup[];
+  pathname: string;
+  linkClassName: string;
+}) {
+  const pendingTotal = groups.reduce((sum, group) => sum + group.pendingActionCount, 0);
+  const pathActive = groups.some(
+    (group) => pathname === group.queuePath || pathname.startsWith(`${group.queuePath}/`)
+  );
+  const [open, setOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (pathActive) setOpen(true);
+  }, [pathActive, pathname]);
+
+  if (groups.length === 0) return null;
+
+  return (
+    <Collapsible
+      asChild
+      open={open}
+      onOpenChange={setOpen}
+      className="group/inactive-apps"
+    >
+      <li className="list-none">
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex w-full min-w-0 items-center gap-1.5 px-2 pb-1 pt-4 text-[11px] font-semibold leading-none tracking-wide text-muted-foreground hover:text-sidebar-foreground"
+            aria-label={`Inactive products, ${groups.length} listed`}
+          >
+            <span className="truncate uppercase">Inactive</span>
+            <span className="font-medium tabular-nums text-sidebar-foreground/50 dark:text-sidebar-foreground/45">
+              {groups.length}
+            </span>
+            {pendingTotal > 0 ? (
+              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-md bg-muted px-1 text-xs font-medium tabular-nums text-muted-foreground">
+                {pendingTotal}
+              </span>
+            ) : null}
+            <ChevronRight
+              className={cn(
+                "size-3.5 shrink-0 transition-transform duration-200 group-data-[state=open]/inactive-apps:rotate-90",
+                pendingTotal > 0 ? "" : "ml-auto"
+              )}
+            />
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <ul className="flex min-w-0 flex-col gap-0 py-0">
+            {groups.map((group) => {
+              const label = applicationsSidebarProductLabel(group.productTitle);
+              return (
+                <SidebarMenuSubItem key={group.baseKey} className="pl-2">
+                  <SidebarMenuSubButton
+                    asChild
+                    size="sm"
+                    isActive={
+                      pathname === group.queuePath || pathname.startsWith(`${group.queuePath}/`)
+                    }
+                    className={linkClassName}
+                  >
+                    <Link
+                      href={group.queuePath}
+                      title={`${label} (inactive)`}
+                      className="flex min-w-0 flex-row items-center gap-2"
+                    >
+                      <span
+                        className="mt-px size-1.5 shrink-0 self-center rounded-full bg-muted-foreground/35"
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1 truncate leading-tight text-muted-foreground">
+                        {label}
+                      </span>
+                      {group.pendingActionCount > 0 && (
+                        <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-muted px-1 text-xs font-medium tabular-nums text-muted-foreground">
+                          {group.pendingActionCount}
+                        </span>
+                      )}
+                    </Link>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              );
+            })}
+          </ul>
+        </CollapsibleContent>
+      </li>
+    </Collapsible>
+  );
+}
+
+type BadgeKey =
+  | "onboardingApproval"
+  | "noteActions"
+  | "pendingRepayments"
+  | "pendingServiceFeeTrusteeLetters"
+  | "pendingIssuerPayouts"
+  | "pendingInvestorWithdrawals"
+  | "gatewayPaymentExceptions"
+  | "gatewayReconExceptions";
+
+type NavLinkItem = {
+  title: string;
+  url: string;
+  badgeKey?: BadgeKey;
+  canShow: boolean;
+};
+
 const navLifecycleConfig = [
   {
     title: "Onboarding Approval",
@@ -122,92 +230,154 @@ const navLifecycleConfig = [
   },
 ] as const;
 
-const navFinance = [
-  {
-    title: "Bucket Balances",
-    url: "/finance/buckets",
-    icon: BanknotesIcon,
-  },
+const moneyMovementItems: Array<{
+  title: string;
+  url: string;
+  badgeKey: BadgeKey;
+  permission: "repayments" | "serviceFee" | "disbursements" | "investorWithdrawals";
+}> = [
   {
     title: "Repayments",
     url: "/finance/repayments",
-    icon: ArrowDownTrayIcon,
-    badgeKey: "pendingRepayments" as const,
+    badgeKey: "pendingRepayments",
+    permission: "repayments",
   },
   {
-    title: "Settlement Trustee",
+    title: "Settlements",
     url: "/finance/service-fee-trustee-letters",
-    icon: ArrowsRightLeftIcon,
-    badgeKey: "pendingServiceFeeTrusteeLetters" as const,
+    badgeKey: "pendingServiceFeeTrusteeLetters",
+    permission: "serviceFee",
   },
   {
     title: "Issuer Payouts",
     url: "/finance/issuer-payouts",
-    icon: ArrowUpTrayIcon,
-    badgeKey: "pendingIssuerPayouts" as const,
+    badgeKey: "pendingIssuerPayouts",
+    permission: "disbursements",
   },
   {
     title: "Investor Withdrawals",
     url: "/finance/investor-withdrawals",
-    icon: ArrowUpTrayIcon,
-    badgeKey: "pendingInvestorWithdrawals" as const,
+    badgeKey: "pendingInvestorWithdrawals",
+    permission: "investorWithdrawals",
   },
+];
+
+const gatewayItems: Array<{
+  title: string;
+  url: string;
+  badgeKey: BadgeKey;
+  permission: "gatewayPayments" | "reconciliation";
+}> = [
   {
     title: "Gateway Payments",
     url: "/finance/gateway-payments",
-    icon: BanknotesIcon,
-    badgeKey: "gatewayPaymentExceptions" as const,
+    badgeKey: "gatewayPaymentExceptions",
+    permission: "gatewayPayments",
   },
   {
     title: "Reconciliation",
     url: "/finance/reconciliation",
-    icon: ArrowsRightLeftIcon,
-    badgeKey: "gatewayReconExceptions" as const,
+    badgeKey: "gatewayReconExceptions",
+    permission: "reconciliation",
   },
+];
+
+const navDirectory = [
+  { title: "Users", url: "/users", icon: UsersIcon },
+  { title: "Organizations", url: "/organizations", icon: BuildingOffice2Icon },
+  { title: "Documents", url: "/documents", icon: FolderOpenIcon },
 ] as const;
 
-const navPlatform = [
-  {
-    title: "Users",
-    url: "/users",
-    icon: UsersIcon,
-  },
-  {
-    title: "Organizations",
-    url: "/organizations",
-    icon: BuildingOffice2Icon,
-  },
-  {
-    title: "Documents",
-    url: "/documents",
-    icon: FolderOpenIcon,
-  },
-  {
-    title: "Help",
-    url: "/help",
-    icon: QuestionMarkCircleIcon,
-  },
-  {
-    title: "Settings",
-    url: "#",
-    icon: Cog6ToothIcon,
-    items: [
-      { title: "General", url: "/settings/general" },
-      { title: "Security", url: "/settings/security" },
-      { title: "Notifications", url: "/settings/notifications" },
-      { title: "Products", url: "/settings/products" },
-      { title: "Platform Finance", url: "/settings/platform-finance" },
-      { title: "Roles", url: "/settings/roles" },
-    ],
-  },
-];
+const navSettings = [
+  { title: "Products", url: "/settings/products" },
+  { title: "Platform Finance", url: "/settings/platform-finance" },
+  { title: "Notifications", url: "/settings/notifications" },
+  { title: "Roles", url: "/settings/roles" },
+] as const;
 
-const navAudit = [
-  { title: "Access Logs", url: "/audit/access-logs", icon: ClipboardDocumentListIcon },
-  { title: "Security Logs", url: "/audit/security-logs", icon: ShieldCheckIcon },
-  { title: "Document Logs", url: "/audit/document-logs", icon: DocumentDuplicateIcon },
-  { title: "Product Logs", url: "/audit/product-logs", icon: CubeIcon },
-];
+function FinanceCollapsibleGroup({
+  title,
+  icon: Icon,
+  items,
+  badges,
+  pathname,
+}: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: NavLinkItem[];
+  badges: Record<string, number>;
+  pathname: string;
+}) {
+  const visibleItems = items.filter((item) => item.canShow);
+  const parentBadge = visibleItems.reduce((sum, item) => {
+    if (!item.badgeKey) return sum;
+    return sum + (badges[item.badgeKey] || 0);
+  }, 0);
+  const pathActive = visibleItems.some(
+    (item) => pathname === item.url || pathname.startsWith(`${item.url}/`)
+  );
+  const forceOpen = pathActive || parentBadge > 0;
+  const [open, setOpen] = React.useState(forceOpen);
+
+  React.useEffect(() => {
+    if (forceOpen) setOpen(true);
+  }, [forceOpen, pathname]);
+
+  if (visibleItems.length === 0) return null;
+
+  return (
+    <Collapsible
+      asChild
+      open={open}
+      onOpenChange={setOpen}
+      className="group/collapsible"
+    >
+      <SidebarMenuItem>
+        <CollapsibleTrigger asChild>
+          <SidebarMenuButton tooltip={title}>
+            <Icon className="h-4 w-4" />
+            <span>{title}</span>
+            {parentBadge > 0 ? (
+              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-md bg-primary px-1 text-xs font-medium tabular-nums text-primary-foreground group-data-[collapsible=icon]:hidden">
+                {parentBadge}
+              </span>
+            ) : null}
+            <ChevronRight
+              className={cn(
+                "transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90",
+                parentBadge > 0 ? "" : "ml-auto"
+              )}
+            />
+          </SidebarMenuButton>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarMenuSub>
+            {visibleItems.map((item) => {
+              const badgeCount = item.badgeKey ? badges[item.badgeKey] || 0 : 0;
+              return (
+                <SidebarMenuSubItem key={item.title}>
+                  <SidebarMenuSubButton
+                    asChild
+                    isActive={pathname === item.url || pathname.startsWith(`${item.url}/`)}
+                  >
+                    <Link href={item.url}>
+                      <span>{item.title}</span>
+                      {badgeCount > 0 ? (
+                        <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-md bg-primary px-1 text-xs font-medium tabular-nums text-primary-foreground">
+                          {badgeCount}
+                        </span>
+                      ) : null}
+                    </Link>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              );
+            })}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
+  );
+}
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
@@ -240,11 +410,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canViewAuditSecurity = can("audit.security.view");
   const canViewAuditDocument = can("audit.document.view");
   const canViewAuditProduct = can("audit.product.view");
+  const canViewAnyAudit =
+    canViewAuditAccess || canViewAuditSecurity || canViewAuditDocument || canViewAuditProduct;
 
   const { data: pendingCountData } = usePendingApprovalCount({ enabled: canViewOnboarding });
   const { data: noteActionCountData } = useNoteActionRequiredCount({ enabled: canViewNotes });
   const { data: pendingRepaymentsData } = usePendingRepayments({ enabled: canViewRepayments });
-  const { data: pendingIssuerPayoutsData } = usePendingIssuerPayouts({ enabled: canViewDisbursements });
+  const { data: pendingIssuerPayoutsData } = usePendingIssuerPayouts({
+    enabled: canViewDisbursements,
+  });
   const { data: pendingInvestorWithdrawalsData } = usePendingInvestorWithdrawals({
     enabled: canViewInvestorWithdrawals,
   });
@@ -269,7 +443,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     enabled: canViewApplications,
   });
 
-  const badges: Record<string, number> = {
+  const badges: Record<BadgeKey, number> = {
     onboardingApproval: pendingCountData?.count || 0,
     noteActions: noteActionCountData?.count || 0,
     pendingRepayments: pendingRepaymentsData?.count || 0,
@@ -279,6 +453,29 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     gatewayPaymentExceptions: gatewayPaymentExceptionsData?.count || 0,
     gatewayReconExceptions: gatewayReconData?.count || 0,
   };
+
+  const permissionFlags = {
+    repayments: canViewRepayments,
+    serviceFee: canViewServiceFee,
+    disbursements: canViewDisbursements,
+    investorWithdrawals: canViewInvestorWithdrawals,
+    gatewayPayments: canViewGatewayPayments,
+    reconciliation: canViewReconciliation,
+  };
+
+  const moneyMovementNav: NavLinkItem[] = moneyMovementItems.map((item) => ({
+    title: item.title,
+    url: item.url,
+    badgeKey: item.badgeKey,
+    canShow: permissionFlags[item.permission],
+  }));
+
+  const gatewayNav: NavLinkItem[] = gatewayItems.map((item) => ({
+    title: item.title,
+    url: item.url,
+    badgeKey: item.badgeKey,
+    canShow: permissionFlags[item.permission],
+  }));
 
   const dynamicNavLifecycle = React.useMemo(() => {
     return navLifecycleConfig.map((item) => {
@@ -305,52 +502,24 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     );
   });
 
-  const hasVisibleFinanceNav = navFinance.some((item) => {
-    return (
-      (item.title === "Bucket Balances" && canViewBucketBalances) ||
-      (item.title === "Repayments" && canViewRepayments) ||
-      (item.title === "Settlement Trustee" && canViewServiceFee) ||
-      (item.title === "Issuer Payouts" && canViewDisbursements) ||
-      (item.title === "Investor Withdrawals" && canViewInvestorWithdrawals) ||
-      (item.title === "Gateway Payments" && canViewGatewayPayments) ||
-      (item.title === "Reconciliation" && canViewReconciliation)
-    );
-  });
+  const hasVisibleFinanceNav =
+    canViewBucketBalances ||
+    moneyMovementNav.some((item) => item.canShow) ||
+    gatewayNav.some((item) => item.canShow);
 
-  const hasVisibleAuditNav = navAudit.some((item) => {
-    return (
-      (item.url === "/audit/access-logs" && canViewAuditAccess) ||
-      (item.url === "/audit/security-logs" && canViewAuditSecurity) ||
-      (item.url === "/audit/document-logs" && canViewAuditDocument) ||
-      (item.url === "/audit/product-logs" && canViewAuditProduct)
-    );
-  });
+  const hasVisibleDirectoryNav = canViewUsers || canViewOrganizations || canViewDocuments;
 
-  const settingsItem = navPlatform.find((i) => i.title === "Settings" && "items" in i);
-  const settingsSubItems =
-    settingsItem && "items" in settingsItem && Array.isArray((settingsItem as any).items)
-      ? (settingsItem as any).items.filter(
-          (subItem: { url: string }) =>
-            (subItem.url !== "/settings/roles" || canViewRoles) &&
-            (subItem.url !== "/settings/notifications" || canViewNotifications) &&
-            (subItem.url !== "/settings/products" || canViewProducts) &&
-            (subItem.url !== "/settings/platform-finance" || canViewPlatformFinance) &&
-            (subItem.url !== "/settings/general" || canViewPlatformFinance) &&
-            (subItem.url !== "/settings/security" || canViewPlatformFinance)
-        )
-      : undefined;
-
-  const hasVisiblePlatformNav = navPlatform.some((item) => {
-    if ("items" in item) {
-      return (item.items?.length ?? 0) > 0 && (settingsSubItems?.length ?? 0) > 0;
-    }
-
-    if (item.title === "Help") return true;
-    if (item.title === "Users") return canViewUsers;
-    if (item.title === "Organizations") return canViewOrganizations;
-    if (item.title === "Documents") return canViewDocuments;
+  const settingsSubItems = navSettings.filter((subItem) => {
+    if (subItem.url === "/settings/roles") return canViewRoles;
+    if (subItem.url === "/settings/notifications") return canViewNotifications;
+    if (subItem.url === "/settings/products") return canViewProducts;
+    if (subItem.url === "/settings/platform-finance") return canViewPlatformFinance;
     return false;
   });
+
+  const hasVisibleSettingsNav = settingsSubItems.length > 0;
+  const hasVisibleUtilityNav = true; // Help always visible
+  const showUtilityGroup = hasVisibleUtilityNav || canViewAnyAudit;
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -391,368 +560,302 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
         {hasVisibleLifecycleNav ? (
           <SidebarGroup>
-            {hasVisibleLifecycleNav ? (
-              <>
-              <SidebarGroupLabel>Lifecycle</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {dynamicNavLifecycle.map((item) => {
-                    const canShow =
-                      (item.title === "Onboarding Approval" && canViewOnboarding) ||
-                      (item.title === "Applications" && canViewApplications) ||
-                      (item.title === "Contracts" && canViewContracts) ||
-                      (item.title === "Notes" && canViewNotes) ||
-                      (item.title === "Investments" && canViewInvestments);
+            <SidebarGroupLabel>Lifecycle</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {dynamicNavLifecycle.map((item) => {
+                  const canShow =
+                    (item.title === "Onboarding Approval" && canViewOnboarding) ||
+                    (item.title === "Applications" && canViewApplications) ||
+                    (item.title === "Contracts" && canViewContracts) ||
+                    (item.title === "Notes" && canViewNotes) ||
+                    (item.title === "Investments" && canViewInvestments);
 
-                    if (!canShow) return null;
+                  if (!canShow) return null;
 
-                    const Icon = item.icon;
-                    const badgeCount = "badgeKey" in item && item.badgeKey ? badges[item.badgeKey] : 0;
+                  const Icon = item.icon;
+                  const badgeCount = "badgeKey" in item && item.badgeKey ? badges[item.badgeKey] : 0;
 
-                    if (item.title === "Applications" && "applicationNavGroups" in item) {
-                      const groups = item.applicationNavGroups ?? [];
-                      const applicationBadgeCount = activeProductPendingActionTotal(groups);
-                      return (
-                        <Collapsible
-                          key={item.title}
-                          asChild
-                          defaultOpen={pathname.startsWith("/applications")}
-                          className="group/collapsible"
-                        >
-                          <SidebarMenuItem>
-                            <CollapsibleTrigger asChild>
-                              <SidebarMenuButton tooltip={item.title}>
-                                <Icon className="h-4 w-4" />
-                                <span>{item.title}</span>
-                                {applicationBadgeCount > 0 && (
-                                  <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-md bg-primary px-1 text-xs font-medium tabular-nums text-primary-foreground group-data-[collapsible=icon]:hidden">
-                                    {applicationBadgeCount}
-                                  </span>
-                                )}
-                                <ChevronRight
-                                  className={cn(
-                                    "transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90",
-                                    applicationBadgeCount > 0 ? "" : "ml-auto"
-                                  )}
-                                />
-                              </SidebarMenuButton>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent>
-                              {(() => {
-                                const activeGroups = groups.filter((g) => !g.isInactive);
-                                const inactiveGroups = groups.filter((g) => g.isInactive);
-
-                                const applicationSubLinkClass =
-                                  "h-auto min-h-7 flex-row items-center gap-2 py-1 font-normal whitespace-normal";
-
-                                return (
-                                  <SidebarMenuSub className="gap-0 py-0">
-                                    <li className="list-none px-0 pt-3">
-                                      <ApplicationNavSectionHeader
-                                        kind="active"
-                                        count={activeGroups.length}
-                                      />
-                                    </li>
-
-                                    {activeGroups.map((g) => {
-                                      const label = applicationsSidebarProductLabel(g.productTitle);
-                                      return (
-                                        <SidebarMenuSubItem key={g.baseKey} className="pl-2">
-                                          <SidebarMenuSubButton
-                                            asChild
-                                            size="sm"
-                                            isActive={
-                                              pathname === g.queuePath ||
-                                              pathname.startsWith(`${g.queuePath}/`)
-                                            }
-                                            className={applicationSubLinkClass}
-                                          >
-                                            <Link
-                                              href={g.queuePath}
-                                              title={`${label} (active)`}
-                                              className="flex min-w-0 flex-row items-center gap-2"
-                                            >
-                                              <span
-                                                className="mt-px size-1.5 shrink-0 self-center rounded-full bg-emerald-500/80 dark:bg-emerald-400/80"
-                                                aria-hidden
-                                              />
-                                              <span className="min-w-0 flex-1 truncate leading-tight text-sidebar-foreground">
-                                                {label}
-                                              </span>
-                                              {g.pendingActionCount > 0 && (
-                                                <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-primary px-1 text-xs font-medium tabular-nums text-primary-foreground">
-                                                  {g.pendingActionCount}
-                                                </span>
-                                              )}
-                                            </Link>
-                                          </SidebarMenuSubButton>
-                                        </SidebarMenuSubItem>
-                                      );
-                                    })}
-
-                                    {activeGroups.length === 0 && (
-                                      <li className="list-none px-2 py-0.5 pl-4 text-xs text-muted-foreground">
-                                        No active products
-                                      </li>
-                                    )}
-
-                                    {inactiveGroups.length > 0 && (
-                                      <>
-                                        <li className="list-none px-0 pt-4">
-                                          <ApplicationNavSectionHeader
-                                            kind="inactive"
-                                            count={inactiveGroups.length}
-                                          />
-                                        </li>
-                                        {inactiveGroups.map((g) => {
-                                          const label = applicationsSidebarProductLabel(g.productTitle);
-                                          return (
-                                            <SidebarMenuSubItem key={g.baseKey} className="pl-2">
-                                              <SidebarMenuSubButton
-                                                asChild
-                                                size="sm"
-                                                isActive={
-                                                  pathname === g.queuePath ||
-                                                  pathname.startsWith(`${g.queuePath}/`)
-                                                }
-                                                className={applicationSubLinkClass}
-                                              >
-                                                <Link
-                                                  href={g.queuePath}
-                                                  title={`${label} (inactive)`}
-                                                  className="flex min-w-0 flex-row items-center gap-2"
-                                                >
-                                                  <span
-                                                    className="mt-px size-1.5 shrink-0 self-center rounded-full bg-muted-foreground/35"
-                                                    aria-hidden
-                                                  />
-                                                  <span className="min-w-0 flex-1 truncate leading-tight text-muted-foreground">
-                                                    {label}
-                                                  </span>
-                                                  {g.pendingActionCount > 0 && (
-                                                    <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-muted px-1 text-xs font-medium tabular-nums text-muted-foreground">
-                                                      {g.pendingActionCount}
-                                                    </span>
-                                                  )}
-                                                </Link>
-                                              </SidebarMenuSubButton>
-                                            </SidebarMenuSubItem>
-                                          );
-                                        })}
-                                      </>
-                                    )}
-                                  </SidebarMenuSub>
-                                );
-                              })()}
-                            </CollapsibleContent>
-                          </SidebarMenuItem>
-                        </Collapsible>
-                      );
-                    }
-
+                  if (item.title === "Applications" && "applicationNavGroups" in item) {
+                    const groups = item.applicationNavGroups ?? [];
+                    const applicationBadgeCount = activeProductPendingActionTotal(groups);
                     return (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton
-                          asChild
-                          isActive={pathname === item.url}
-                          tooltip={item.title}
-                        >
-                          <Link href={item.url}>
-                            <Icon className="h-4 w-4" />
-                            <span>{item.title}</span>
-                          </Link>
-                        </SidebarMenuButton>
-                        {badgeCount > 0 && (
-                          <SidebarMenuBadge className="bg-primary text-primary-foreground peer-hover/menu-button:text-primary-foreground peer-data-[active=true]/menu-button:text-primary-foreground">
-                            {badgeCount}
-                          </SidebarMenuBadge>
-                        )}
-                      </SidebarMenuItem>
+                      <Collapsible
+                        key={item.title}
+                        asChild
+                        defaultOpen={pathname.startsWith("/applications")}
+                        className="group/collapsible"
+                      >
+                        <SidebarMenuItem>
+                          <CollapsibleTrigger asChild>
+                            <SidebarMenuButton tooltip={item.title}>
+                              <Icon className="h-4 w-4" />
+                              <span>{item.title}</span>
+                              {applicationBadgeCount > 0 && (
+                                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-md bg-primary px-1 text-xs font-medium tabular-nums text-primary-foreground group-data-[collapsible=icon]:hidden">
+                                  {applicationBadgeCount}
+                                </span>
+                              )}
+                              <ChevronRight
+                                className={cn(
+                                  "transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90",
+                                  applicationBadgeCount > 0 ? "" : "ml-auto"
+                                )}
+                              />
+                            </SidebarMenuButton>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            {(() => {
+                              const activeGroups = groups.filter((g) => !g.isInactive);
+                              const inactiveGroups = groups.filter((g) => g.isInactive);
+                              const applicationSubLinkClass =
+                                "h-auto min-h-7 flex-row items-center gap-2 py-1 font-normal whitespace-normal";
+
+                              return (
+                                <SidebarMenuSub className="gap-0 py-0">
+                                  <li className="list-none px-0 pt-3">
+                                    <ApplicationNavSectionHeader
+                                      kind="active"
+                                      count={activeGroups.length}
+                                    />
+                                  </li>
+
+                                  {activeGroups.map((g) => {
+                                    const label = applicationsSidebarProductLabel(g.productTitle);
+                                    return (
+                                      <SidebarMenuSubItem key={g.baseKey} className="pl-2">
+                                        <SidebarMenuSubButton
+                                          asChild
+                                          size="sm"
+                                          isActive={
+                                            pathname === g.queuePath ||
+                                            pathname.startsWith(`${g.queuePath}/`)
+                                          }
+                                          className={applicationSubLinkClass}
+                                        >
+                                          <Link
+                                            href={g.queuePath}
+                                            title={`${label} (active)`}
+                                            className="flex min-w-0 flex-row items-center gap-2"
+                                          >
+                                            <span
+                                              className="mt-px size-1.5 shrink-0 self-center rounded-full bg-emerald-500/80 dark:bg-emerald-400/80"
+                                              aria-hidden
+                                            />
+                                            <span className="min-w-0 flex-1 truncate leading-tight text-sidebar-foreground">
+                                              {label}
+                                            </span>
+                                            {g.pendingActionCount > 0 && (
+                                              <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-primary px-1 text-xs font-medium tabular-nums text-primary-foreground">
+                                                {g.pendingActionCount}
+                                              </span>
+                                            )}
+                                          </Link>
+                                        </SidebarMenuSubButton>
+                                      </SidebarMenuSubItem>
+                                    );
+                                  })}
+
+                                  {activeGroups.length === 0 && (
+                                    <li className="list-none px-2 py-0.5 pl-4 text-xs text-muted-foreground">
+                                      No active products
+                                    </li>
+                                  )}
+
+                                  <ApplicationInactiveNavSection
+                                    groups={inactiveGroups}
+                                    pathname={pathname}
+                                    linkClassName={applicationSubLinkClass}
+                                  />
+                                </SidebarMenuSub>
+                              );
+                            })()}
+                          </CollapsibleContent>
+                        </SidebarMenuItem>
+                      </Collapsible>
                     );
-                  })}
-                </SidebarMenu>
-              </SidebarGroupContent>
-              </>
-            ) : null}
+                  }
+
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={pathname === item.url}
+                        tooltip={item.title}
+                      >
+                        <Link href={item.url}>
+                          <Icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                      {badgeCount > 0 && (
+                        <SidebarMenuBadge className="bg-primary text-primary-foreground peer-hover/menu-button:text-primary-foreground peer-data-[active=true]/menu-button:text-primary-foreground">
+                          {badgeCount}
+                        </SidebarMenuBadge>
+                      )}
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
           </SidebarGroup>
         ) : null}
 
         {hasVisibleFinanceNav ? (
           <SidebarGroup>
-            {hasVisibleFinanceNav ? (
-              <>
-              <SidebarGroupLabel>Finance</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {navFinance.map((item) => {
-                    const canShow =
-                      (item.title === "Bucket Balances" && canViewBucketBalances) ||
-                      (item.title === "Repayments" && canViewRepayments) ||
-                      (item.title === "Settlement Trustee" && canViewServiceFee) ||
-                      (item.title === "Issuer Payouts" && canViewDisbursements) ||
-      (item.title === "Investor Withdrawals" && canViewInvestorWithdrawals) ||
-      (item.title === "Gateway Payments" && canViewGatewayPayments) ||
-      (item.title === "Reconciliation" && canViewReconciliation);
+            <SidebarGroupLabel>Finance</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {canViewBucketBalances ? (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={
+                        pathname === "/finance/buckets" ||
+                        pathname.startsWith("/finance/buckets/")
+                      }
+                      tooltip="Bucket Balances"
+                    >
+                      <Link href="/finance/buckets">
+                        <BanknotesIcon className="h-4 w-4" />
+                        <span>Bucket Balances</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ) : null}
 
-                    if (!canShow) return null;
-
-                    const Icon = item.icon;
-                    const badgeCount = "badgeKey" in item && item.badgeKey ? badges[item.badgeKey] : 0;
-                    return (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton
-                          asChild
-                          isActive={pathname === item.url || pathname.startsWith(item.url + "/")}
-                          tooltip={item.title}
-                        >
-                          <Link href={item.url}>
-                            <Icon className="h-4 w-4" />
-                            <span>{item.title}</span>
-                          </Link>
-                        </SidebarMenuButton>
-                        {badgeCount > 0 && (
-                          <SidebarMenuBadge className="bg-primary text-primary-foreground peer-hover/menu-button:text-primary-foreground peer-data-[active=true]/menu-button:text-primary-foreground">
-                            {badgeCount}
-                          </SidebarMenuBadge>
-                        )}
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              </SidebarGroupContent>
-              </>
-            ) : null}
+                <FinanceCollapsibleGroup
+                  title="Money movement"
+                  icon={ArrowsRightLeftIcon}
+                  items={moneyMovementNav}
+                  badges={badges}
+                  pathname={pathname}
+                />
+                <FinanceCollapsibleGroup
+                  title="Payments"
+                  icon={CreditCardIcon}
+                  items={gatewayNav}
+                  badges={badges}
+                  pathname={pathname}
+                />
+              </SidebarMenu>
+            </SidebarGroupContent>
           </SidebarGroup>
         ) : null}
 
-        {hasVisiblePlatformNav ? (
+        {hasVisibleDirectoryNav ? (
           <SidebarGroup>
-            {hasVisiblePlatformNav ? (
-              <>
-              <SidebarGroupLabel>Platform</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {navPlatform.map((item) => {
-                    const Icon = item.icon;
-
-                    if (item.items) {
-                      const filteredSettingsItems = item.items.filter(
-                        (subItem) =>
-                          (subItem.url !== "/settings/roles" || canViewRoles) &&
-                          (subItem.url !== "/settings/notifications" || canViewNotifications) &&
-                          (subItem.url !== "/settings/products" || canViewProducts) &&
-                          (subItem.url !== "/settings/platform-finance" || canViewPlatformFinance) &&
-                          (subItem.url !== "/settings/general" || canViewPlatformFinance) &&
-                          (subItem.url !== "/settings/security" || canViewPlatformFinance)
-                      );
-
-                      if (filteredSettingsItems.length === 0) return null;
-
-                      return (
-                        <Collapsible
-                          key={item.title}
-                          asChild
-                          defaultOpen={pathname.startsWith("/settings")}
-                          className="group/collapsible"
-                        >
-                          <SidebarMenuItem>
-                            <CollapsibleTrigger asChild>
-                              <SidebarMenuButton tooltip={item.title}>
-                                <Icon className="h-4 w-4" />
-                                <span>{item.title}</span>
-                                <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
-                              </SidebarMenuButton>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent>
-                              <SidebarMenuSub>
-                                {filteredSettingsItems.map((subItem) => (
-                                  <SidebarMenuSubItem key={subItem.title}>
-                                    <SidebarMenuSubButton asChild isActive={pathname === subItem.url}>
-                                      <Link href={subItem.url}>
-                                        <span>{subItem.title}</span>
-                                      </Link>
-                                    </SidebarMenuSubButton>
-                                  </SidebarMenuSubItem>
-                                ))}
-                              </SidebarMenuSub>
-                            </CollapsibleContent>
-                          </SidebarMenuItem>
-                        </Collapsible>
-                      );
-                    }
-
-                    const canShow =
-                      (item.title === "Users" && canViewUsers) ||
-                      (item.title === "Organizations" && canViewOrganizations) ||
-                      (item.title === "Documents" && canViewDocuments);
-
-                    if (!canShow && item.title !== "Help") return null;
-
-                    return (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton
-                          asChild
-                          isActive={pathname === item.url || pathname.startsWith(item.url + "/")}
-                          tooltip={item.title}
-                        >
-                          <Link href={item.url}>
-                            <Icon className="h-4 w-4" />
-                            <span>{item.title}</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              </SidebarGroupContent>
-              </>
-            ) : null}
+            <SidebarGroupLabel>Directory</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {navDirectory.map((item) => {
+                  const canShow =
+                    (item.title === "Users" && canViewUsers) ||
+                    (item.title === "Organizations" && canViewOrganizations) ||
+                    (item.title === "Documents" && canViewDocuments);
+                  if (!canShow) return null;
+                  const Icon = item.icon;
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={pathname === item.url || pathname.startsWith(`${item.url}/`)}
+                        tooltip={item.title}
+                      >
+                        <Link href={item.url}>
+                          <Icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
           </SidebarGroup>
         ) : null}
 
-        {hasVisibleAuditNav ? (
+        {hasVisibleSettingsNav ? (
           <SidebarGroup>
-            {hasVisibleAuditNav ? (
-              <>
-              <SidebarGroupLabel>Audit</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {navAudit.map((item) => {
-                    const canShow =
-                      (item.url === "/audit/access-logs" && canViewAuditAccess) ||
-                      (item.url === "/audit/security-logs" && canViewAuditSecurity) ||
-                      (item.url === "/audit/document-logs" && canViewAuditDocument) ||
-                      (item.url === "/audit/product-logs" && canViewAuditProduct);
+            <SidebarGroupLabel>Settings</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <Collapsible
+                  asChild
+                  defaultOpen={pathname.startsWith("/settings")}
+                  className="group/collapsible"
+                >
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton tooltip="Settings">
+                        <Cog6ToothIcon className="h-4 w-4" />
+                        <span>Settings</span>
+                        <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <SidebarMenuSub>
+                        {settingsSubItems.map((subItem) => (
+                          <SidebarMenuSubItem key={subItem.title}>
+                            <SidebarMenuSubButton
+                              asChild
+                              isActive={
+                                pathname === subItem.url ||
+                                pathname.startsWith(`${subItem.url}/`)
+                              }
+                            >
+                              <Link href={subItem.url}>
+                                <span>{subItem.title}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    </CollapsibleContent>
+                  </SidebarMenuItem>
+                </Collapsible>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : null}
 
-                    if (!canShow) return null;
-
-                    const Icon = item.icon;
-                    return (
-                      <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton
-                          asChild
-                          isActive={pathname === item.url}
-                          tooltip={item.title}
-                        >
-                          <Link href={item.url}>
-                            <Icon className="h-4 w-4" />
-                            <span>{item.title}</span>
-                          </Link>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              </SidebarGroupContent>
-              </>
-            ) : null}
+        {showUtilityGroup ? (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === "/help" || pathname.startsWith("/help/")}
+                    tooltip="Help"
+                  >
+                    <Link href="/help">
+                      <QuestionMarkCircleIcon className="h-4 w-4" />
+                      <span>Help</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                {canViewAnyAudit ? (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === "/audit" || pathname.startsWith("/audit/")}
+                      tooltip="Audit"
+                    >
+                      <Link href="/audit">
+                        <ClipboardDocumentListIcon className="h-4 w-4" />
+                        <span>Audit</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ) : null}
+              </SidebarMenu>
+            </SidebarGroupContent>
           </SidebarGroup>
         ) : null}
       </SidebarContent>
-      <SidebarFooter>
-        <NavUser />
+      <SidebarFooter className="mt-auto border-t border-sidebar-border pt-2">
         <div className="group-data-[collapsible=icon]:hidden">
-          <Separator className="my-2" />
           <CashSoukSidebarFooter variant="admin" />
         </div>
       </SidebarFooter>

@@ -21,11 +21,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Switch } from "@/components/ui/switch";
-import { SystemHealthIndicator } from "@/components/system-health-indicator";
-import { Skeleton } from "@cashsouk/ui";
+import { Skeleton, useHeader } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
 import { useNoteDetail } from "@/notes/hooks/use-note-detail";
 import {
@@ -150,6 +147,7 @@ export default function NoteDetailPage() {
     | "late-payment"
     | "ledger"
     | "investors";
+  const { setTitle } = useHeader();
   const { can } = usePermissions();
   const canManage = can("notes.manage");
   const canDisbursement = can("notes.disbursement.manage");
@@ -157,6 +155,12 @@ export default function NoteDetailPage() {
   const router = useRouter();
   const noteId = typeof params.id === "string" ? params.id : "";
   const { data: note, isLoading, error } = useNoteDetail(noteId);
+
+  React.useEffect(() => {
+    setTitle(note?.noteReference ?? "Note detail");
+    return () => setTitle("");
+  }, [setTitle, note?.noteReference]);
+  const resignInvoiceOffer = useResignNoteInvoiceOffer(noteId);
   const publishNote = usePublishNote();
   const unpublishNote = useUnpublishNote();
   const closeFunding = useCloseNoteFunding();
@@ -273,28 +277,14 @@ export default function NoteDetailPage() {
   return (
     <RequirePermission permission="notes.view">
       <>
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => router.push("/notes")}
-          className="-ml-1 gap-1.5"
-        >
+      
+            <div className="flex items-center gap-2 px-4 pt-4 md:px-6">
+        <Button variant="ghost" size="sm" onClick={() => router.push("/notes")} className="gap-1.5">
           <ArrowLeftIcon className="h-4 w-4" />
           Notes
         </Button>
-        <Separator orientation="vertical" className="mx-2 h-4" />
-        <h1 className="truncate text-lg font-semibold">
-          {isLoading ? "Loading..." : (note?.noteReference ?? "Note detail")}
-        </h1>
-        <div className="ml-auto">
-          <SystemHealthIndicator />
-        </div>
-      </header>
-
-      <div className="flex-1 overflow-y-auto">
+      </div>
+<div className="flex-1 overflow-y-auto">
         <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
           {isLoading ? <PageSkeleton /> : null}
 

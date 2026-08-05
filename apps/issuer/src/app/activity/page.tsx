@@ -1,170 +1,17 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { getFilterableActivityDomains, type GetActivitiesParams } from "@cashsouk/types";
-import { useActivities } from "../../hooks/use-activities";
+import { IssuerActivityList } from "@/components/activity/issuer-activity-list";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
-import { Button } from "../../components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
-import { ActivityItem, Badge, Skeleton, ActivityToolbar, useHeader } from "@cashsouk/ui";
-import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 
+/**
+ * Legacy activity page — permanently redirected to /?tab=activity.
+ * Kept so the route module remains valid if the redirect is bypassed in tests.
+ */
 export default function ActivityPage() {
-  const { setTitle } = useHeader();
-  const availableDomains = getFilterableActivityDomains("issuer");
-
-  useEffect(() => {
-    setTitle("Activity");
-  }, [setTitle]);
-
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [domains, setDomains] = useState<NonNullable<GetActivitiesParams["domains"]>>([]);
-  const [dateRange, setDateRange] = useState("all");
-  const [page, setPage] = useState(1);
-  const limit = 10;
-
-  const apiDateRangeByUi: Record<string, GetActivitiesParams["dateRange"] | undefined> = {
-    all: undefined,
-    "24h": "24h",
-    "7d": "7d",
-    "30d": "30d",
-  };
-
-  const handleDomainsChange = useCallback((values: NonNullable<GetActivitiesParams["domains"]>) => {
-    setDomains(values);
-    setPage(1);
-  }, []);
-
-  const handleDateRangeChange = useCallback((value: string) => {
-    setDateRange(value);
-    setPage(1);
-  }, []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(search);
-      setPage(1);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  const { data, isLoading, refetch } = useActivities({
-    page,
-    limit,
-    search: debouncedSearch || undefined,
-    domains: domains.length > 0 ? domains : undefined,
-    dateRange: apiDateRangeByUi[dateRange],
-  });
-
-  const activities = data?.activities || [];
-  const pagination = data?.pagination;
-
-  const handleClearFilters = () => {
-    setSearch("");
-    setDomains([]);
-    setDateRange("all");
-    setPage(1);
-  };
-
   return (
-    <>
-      <div className={cn(issuerMainContentClassName, issuerPageGutterClassName)}>
-        <Card className="border-none shadow-none bg-transparent">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7 px-0">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-2xl font-bold">Activities</CardTitle>
-              {pagination && (
-                <Badge variant="secondary" className="rounded-full bg-muted text-muted-foreground font-normal hover:bg-muted">
-                  {pagination.total}
-                </Badge>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="p-0 space-y-6">
-            <ActivityToolbar
-              searchQuery={search}
-              onSearchChange={setSearch}
-              availableDomains={availableDomains}
-              domainFilters={domains}
-              onDomainFiltersChange={handleDomainsChange}
-              dateRangeFilter={dateRange}
-              onDateRangeFilterChange={handleDateRangeChange}
-              totalCount={pagination?.unfilteredTotal || 0}
-              filteredCount={pagination?.total || 0}
-              onClearFilters={handleClearFilters}
-              onReload={() => refetch()}
-              isLoading={isLoading}
-            />
-
-            <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-              <div className="grid grid-cols-[minmax(0,1fr)_320px] gap-8 px-6 py-3 border-b bg-muted/30 text-sm font-medium text-muted-foreground">
-                <div className="flex-1">Activity</div>
-                <div className="grid grid-cols-[120px_160px] gap-8">
-                  <div>Domain</div>
-                  <div className="text-right">Time</div>
-                </div>
-              </div>
-
-              <div className="divide-y divide-border">
-                {isLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex items-center justify-between py-4 px-6">
-                      <div className="flex flex-col gap-2 flex-1">
-                        <Skeleton className="h-5 w-[200px]" />
-                        <Skeleton className="h-4 w-[300px]" />
-                      </div>
-                      <div className="flex items-center gap-12">
-                        <Skeleton className="h-6 w-[100px] rounded-full" />
-                        <Skeleton className="h-4 w-[140px]" />
-                      </div>
-                    </div>
-                  ))
-                ) : activities.length > 0 ? (
-                  activities.map((activity) => (
-                    <ActivityItem key={activity.id} activity={activity} className="px-6 hover:bg-muted/20" />
-                  ))
-                ) : (
-                  <div className="py-12 text-center text-muted-foreground">
-                    {search ? "No activities found matching your search." : "No activities recorded yet."}
-                  </div>
-                )}
-              </div>
-
-              {pagination && pagination.total > 0 && (
-                <div className="flex items-center justify-between border-t px-6 py-4 bg-white">
-                  <div className="text-sm text-muted-foreground">
-                    Showing {Math.min((page - 1) * limit + 1, pagination.total)}-{Math.min(page * limit, pagination.total)} of{" "}
-                    {pagination.total}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                    >
-                      <ChevronLeftIcon className="h-4 w-4" />
-                    </Button>
-                    <div className="text-sm font-medium">
-                      Page {page} of {pagination.pages}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
-                      disabled={page === pagination.pages}
-                    >
-                      <ChevronRightIcon className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </>
+    <div className={cn(issuerMainContentClassName, issuerPageGutterClassName)}>
+      <IssuerActivityList />
+    </div>
   );
 }

@@ -12,7 +12,7 @@
  * - Consistent skeleton behavior
  * - Minimal useEffect-driven side effects
  *
- * URL Format: /applications/edit/[id]?step=2
+ * URL Format: /applications/[id]/edit?step=2
  * - [id] = application ID
  * - ?step= = which step to show (1-based user numbering)
  *
@@ -72,7 +72,7 @@ import {
   MOCK_DEV_LONG_AMENDMENT_REMARK,
   MOCK_DEV_LONG_SUPPORTING_DOCUMENTS_AMENDMENT_REMARK,
 } from "../../lib/mock-long-amendment-remark";
-import { useHeader } from "@cashsouk/ui";
+import { StickyFormFooter, useHeader, type StickyFormFooterSaveState } from "@cashsouk/ui";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
 import { FinancingStructureStep } from "../../steps/financing-structure-step";
 import { ContractDetailsStep } from "../../steps/contract-details-step";
@@ -94,7 +94,10 @@ import "../../components/dev-tools-registry";
 import { ApplicationProcessingFeeStep } from "@/components/application-processing-fee-step";
 import { ProcessingFeeReturnListener } from "@/components/processing-fee-return-listener";
 import { isIssuerFeeCaptureMismatchHeldError } from "@/components/payment-under-review-notice";
-import { buildEditApplicationStepUrl } from "@/lib/application-processing-fee-routes";
+import {
+  buildEditApplicationStepUrl,
+  parseApplicationIdFromEditPath,
+} from "@/lib/application-processing-fee-routes";
 import {
   issuerProcessingFeeSubmitRef,
   normalizeProcessingFeeAmount,
@@ -746,10 +749,16 @@ function EditApplicationPageBody() {
      ================================================================ */
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
+  const [draftSavedVisible, setDraftSavedVisible] = React.useState(false);
   React.useEffect(() => {
     setHasUnsavedChanges(false);
+    setDraftSavedVisible(false);
     /** Keeps stepDataRef intact. The new step overwrites it when ready. Clearing it caused a race where Save ran before data loaded. */
   }, [stepFromUrl]);
+
+  React.useEffect(() => {
+    if (hasUnsavedChanges) setDraftSavedVisible(false);
+  }, [hasUnsavedChanges]);
 
   // Navigation guard integration
   const pendingNavRef = React.useRef<{ path: string; leavingPage: boolean } | null>(null);
@@ -822,9 +831,11 @@ function EditApplicationPageBody() {
       if (url.origin !== window.location.origin) return true;
       const path = url.pathname + url.search + url.hash;
       const currentUrl = new URL(window.location.href);
+      const currentAppId = parseApplicationIdFromEditPath(currentUrl.pathname);
+      const targetAppId = parseApplicationIdFromEditPath(url.pathname);
+      // Same wizard (new or legacy path) including in-wizard ?step= navigations.
       const sameEditApplication =
-        currentUrl.pathname === url.pathname &&
-        /^\/applications\/edit\/[^/]+$/.test(currentUrl.pathname);
+        currentAppId != null && targetAppId != null && currentAppId === targetAppId;
       const leavingPage = !sameEditApplication;
       void safeNavigate(path, { leavingPage });
       return false;
@@ -1387,10 +1398,10 @@ function EditApplicationPageBody() {
       } else {
         const prevStep = currentStep - 1;
         pendingNavRef.current = {
-          path: `/applications/edit/${applicationId}?step=${prevStep}`,
+          path: `/applications/${applicationId}/edit?step=${prevStep}`,
           leavingPage: false,
         };
-        requestNavigation(`/applications/edit/${applicationId}?step=${prevStep}`);
+        requestNavigation(`/applications/${applicationId}/edit?step=${prevStep}`);
       }
     })();
   };
@@ -1403,7 +1414,7 @@ function EditApplicationPageBody() {
         toast.error("Please complete steps in order");
         return;
       }
-      void safeNavigate(`/applications/edit/${applicationId}?step=${step}`, { leavingPage: false });
+      void safeNavigate(`/applications/${applicationId}/edit?step=${step}`, { leavingPage: false });
     },
     [safeNavigate, applicationId, isAmendmentModeEffective, wizardState]
   );
@@ -1457,7 +1468,7 @@ function EditApplicationPageBody() {
       // Amendment view-only tabs: client navigation only — no saveFunction, no updateStep, no acknowledge, no version API.
       if (isAmendmentModeEffective && !isStepFlagged) {
         const nextStep = getNextAmendmentStepNumber(stepFromUrl);
-        const didNav = await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, {
+        const didNav = await safeNavigate(`/applications/${applicationId}/edit?step=${nextStep}`, {
           leavingPage: false,
           forceSkipGuard: true,
         });
@@ -1581,7 +1592,7 @@ function EditApplicationPageBody() {
           ? getNextAmendmentStepNumber(stepFromUrl)
           : stepFromUrl + 1;
         const didNav = await safeNavigate(
-          `/applications/edit/${applicationId}?step=${navStep}`,
+          `/applications/${applicationId}/edit?step=${navStep}`,
           { leavingPage: false, forceSkipGuard: true }
         );
         if (didNav) {
@@ -1608,7 +1619,7 @@ function EditApplicationPageBody() {
           const navStep = isAmendmentModeEffective
             ? getNextAmendmentStepNumber(stepFromUrl)
             : linearNext;
-          const ok = await safeNavigate(`/applications/edit/${applicationId}?step=${navStep}`, {
+          const ok = await safeNavigate(`/applications/${applicationId}/edit?step=${navStep}`, {
             leavingPage: false,
             forceSkipGuard: true,
           });
@@ -1676,12 +1687,21 @@ function EditApplicationPageBody() {
         : isAmendmentModeEffective
           ? getNextAmendmentStepNumber(stepFromUrl, ackExtra)
           : linearNext;
+      // Persist success owns dirty/saved UI even when step navigation is blocked.
+      setHasUnsavedChanges(false);
+      if (!devPreviewAmendment) {
+        setDraftSavedVisible(true);
+      }
+
       const didNav = await safeNavigate(
-        `/applications/edit/${applicationId}?step=${navigationStep}`,
+        `/applications/${applicationId}/edit?step=${navigationStep}`,
         { leavingPage: false, forceSkipGuard: true }
       );
 
       if (!didNav) {
+        if (!devPreviewAmendment) {
+          toast.success("Saved successfully");
+        }
         return;
       }
 
@@ -1700,8 +1720,6 @@ function EditApplicationPageBody() {
           });
         }
       }
-
-      setHasUnsavedChanges(false);
 
       if (currentStepKey === "financing_structure" && !devPreviewAmendment) {
         sessionStorage.removeItem("cashsouk:financing_structure_override");
@@ -1771,7 +1789,7 @@ function EditApplicationPageBody() {
       if (firstIdx >= 0) targetStep = firstIdx + 1;
       queueMicrotask(() => {
         void navigateWithVersionCheck(
-          `/applications/edit/${applicationId}?step=${targetStep}`,
+          `/applications/${applicationId}/edit?step=${targetStep}`,
           "replace"
         );
       });
@@ -1819,6 +1837,22 @@ function EditApplicationPageBody() {
     previewWizardLoadingShell;
   /** Keep footer visible during loading/block shell; buttons stay disabled so layout does not jump. */
   const footerActionsLocked = useWizardContentShell;
+
+  const footerSaveState: StickyFormFooterSaveState = isSaving
+    ? "saving"
+    : hasUnsavedChanges
+      ? "unsaved"
+      : draftSavedVisible
+        ? "saved"
+        : "idle";
+  const footerSaveStateLabel =
+    footerSaveState === "saved"
+      ? "Draft saved"
+      : footerSaveState === "unsaved"
+        ? "Unsaved changes"
+        : footerSaveState === "saving"
+          ? "Saving…"
+          : "";
 
   /** After resubmit/submit, status leaves DRAFT/AMENDMENT_REQUESTED — stay mounted until navigation finishes. */
   if (isEditBlocked) {
@@ -1955,8 +1989,11 @@ function EditApplicationPageBody() {
 
       {/* Bottom buttons — visible during shell; disabled until route is interactive */}
       {application && !showProcessingFeeStep && !isProcessingFeeFlow ? (
-        <footer className="sticky bottom-0 border-t bg-background">
-          <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 py-3 sm:py-4 flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between">
+        <StickyFormFooter
+          className="border-border"
+          saveState={footerSaveState}
+          saveStateLabel={footerSaveStateLabel}
+          back={
             <Button
               variant="outline"
               onClick={handleBack}
@@ -1967,15 +2004,17 @@ function EditApplicationPageBody() {
                   application?.status === "AMENDMENT_REQUESTED" &&
                   (resubmitMutation.isPending || isSubmittingApplication))
               }
-              className="text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-2 sm:order-1 h-11"
+              className="h-11 rounded-xl px-4 text-sm font-semibold sm:px-6 sm:text-base"
             >
-              <ArrowLeftIcon className="h-4 w-4 mr-2" />
+              <ArrowLeftIcon className="mr-2 h-4 w-4" />
               Back
             </Button>
-
-            <div className="order-1 sm:order-2 flex flex-col items-end gap-1">
+          }
+          primary={
             <Button
-              onClick={isDeclarationsFinalStep ? () => void handleBeginSubmit() : handleSaveAndContinue}
+              onClick={
+                isDeclarationsFinalStep ? () => void handleBeginSubmit() : handleSaveAndContinue
+              }
               disabled={
                 footerActionsLocked ||
                 (isDeclarationsFinalStep
@@ -1998,9 +2037,10 @@ function EditApplicationPageBody() {
                     (!devPreviewAmendment && !isCurrentStepValid) ||
                     !isStepMapped)
               }
-              className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
+              className="h-11 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-brand hover:opacity-95 sm:px-6 sm:text-base"
             >
-              {isDeclarationsFinalStep && (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment)
+              {isDeclarationsFinalStep &&
+              (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment)
                 ? resubmitMutation.isPending || isSubmittingApplication
                   ? "Resubmitting..."
                   : "Resubmit for Review"
@@ -2015,11 +2055,10 @@ function EditApplicationPageBody() {
                     : isAmendmentModeEffective && !isStepFlagged
                       ? "Continue"
                       : "Save and Continue"}
-              <ArrowRightIcon className="h-4 w-4 ml-2" />
+              <ArrowRightIcon className="ml-2 h-4 w-4" />
             </Button>
-            </div>
-          </div>
-        </footer>
+          }
+        />
       ) : null}
 
       <Dialog open={submitConfirmOpen} onOpenChange={setSubmitConfirmOpen}>
