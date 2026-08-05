@@ -1449,6 +1449,131 @@ describeIntegration("issuer onboarding fee (M8)", () => {
     expect(second.status).toBe(GatewayPaymentStatus.CREATED);
   });
 
+  it("external REFUNDED fee keeps org data, blocks eKYB, and repayment resumes same step", async () => {
+    if (!migrated) return;
+
+    const { assertIssuerOnboardingFeePaid } = await import("./onboarding-fee-service");
+    const { completeGatewayPaymentRefund } = await import("./refund-service");
+
+    const suffix = `${Date.now()}`.slice(-4);
+    const user = await prisma.user.create({
+      data: {
+        user_id: `E${suffix}`.slice(0, 5),
+        email: `ext-repay-${Date.now()}@example.com`,
+        cognito_sub: `sub-ext-repay-${Date.now()}`,
+        cognito_username: `ext-repay-${Date.now()}`,
+        first_name: "Ext",
+        last_name: "Repay",
+        roles: [UserRole.ISSUER],
+        issuer_account: ["COMPANY"],
+      },
+    });
+    createdUserIds.push(user.user_id);
+
+    const paidAt = new Date("2026-03-01T12:00:00.000Z");
+    const org = await prisma.issuerOrganization.create({
+      data: {
+        owner_user_id: user.user_id,
+        type: OrganizationType.COMPANY,
+        name: "Ext Repay Corp",
+        tnc_accepted: true,
+        onboarding_fee_paid_at: paidAt,
+        onboarding_status: "IN_PROGRESS",
+      },
+    });
+    createdOrgIds.push(org.id);
+
+    const onboarding = await prisma.regTankOnboarding.create({
+      data: {
+        user_id: user.user_id,
+        issuer_organization_id: org.id,
+        organization_type: OrganizationType.COMPANY,
+        portal_type: "issuer",
+        onboarding_type: "CORPORATE",
+        request_id: `COD_REPAY_${Date.now()}`,
+        reference_id: `REF_REPAY_${Date.now()}`,
+        status: "PENDING",
+        verify_link: "https://example.com/verify",
+        verify_link_expires_at: new Date(Date.now() + 86_400_000),
+      },
+    });
+
+    const payment = await prisma.gatewayPayment.create({
+      data: {
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        organization_type: GatewayOrganizationType.ISSUER,
+        gatewayAccount: "OPERATING",
+        issuer_organization_id: org.id,
+        amount: new Prisma.Decimal("150.000000"),
+        currency: "MYR",
+        status: GatewayPaymentStatus.COMPLETED,
+        curlec_order_id: `order_ext_repay_${Date.now()}`,
+        curlec_payment_id: `pay_ext_repay_${Date.now()}`,
+        idempotency_key: `ext-repay:${Date.now()}`,
+      },
+    });
+    createdPaymentIds.push(payment.id);
+
+    await completeGatewayPaymentRefund(payment, { refundId: `rfnd_repay_${Date.now()}` }, prisma);
+
+    const afterRefund = await prisma.issuerOrganization.findUniqueOrThrow({ where: { id: org.id } });
+    expect(afterRefund.onboarding_fee_paid_at).toBeNull();
+    expect(afterRefund.name).toBe("Ext Repay Corp");
+    expect(afterRefund.tnc_accepted).toBe(true);
+    expect(afterRefund.onboarding_status).toBe("IN_PROGRESS");
+
+    const keptOnboarding = await prisma.regTankOnboarding.findUniqueOrThrow({
+      where: { id: onboarding.id },
+    });
+    expect(keptOnboarding.request_id).toBe(onboarding.request_id);
+    expect(keptOnboarding.status).toBe("PENDING");
+
+    await expect(assertIssuerOnboardingFeePaid(prisma, org.id)).rejects.toMatchObject({
+      code: "ONBOARDING_FEE_REQUIRED",
+    });
+
+    const service = new RegTankService();
+    await expect(
+      service.startCorporateOnboarding(
+        {} as import("express").Request,
+        user.user_id,
+        org.id,
+        "issuer",
+        "Ext Repay Corp"
+      )
+    ).rejects.toMatchObject({ statusCode: 402, code: "ONBOARDING_FEE_REQUIRED" });
+
+    const feeStatus = await getIssuerOnboardingFeeStatus({ userId: user.user_id }, org.id, prisma);
+    expect(feeStatus.requiresRepayment).toBe(true);
+
+    const next = await createIssuerOnboardingFee(
+      { userId: user.user_id },
+      { issuerOrganizationId: org.id },
+      prisma
+    );
+    createdPaymentIds.push(next.id);
+
+    await processOnboardingFeeCapture(
+      {
+        orderId: next.curlecOrderId!,
+        paymentId: `pay_ext_repay_done_${Date.now()}`,
+        eventId: `evt_ext_repay_done_${Date.now()}`,
+        routeGatewayAccount: "OPERATING",
+      },
+      prisma
+    );
+
+    const repaid = await prisma.issuerOrganization.findUniqueOrThrow({ where: { id: org.id } });
+    expect(repaid.onboarding_fee_paid_at).not.toBeNull();
+    expect(repaid.onboarding_status).toBe("IN_PROGRESS");
+    await expect(assertIssuerOnboardingFeePaid(prisma, org.id)).resolves.toBeUndefined();
+
+    const stillSameOnboarding = await prisma.regTankOnboarding.findUniqueOrThrow({
+      where: { id: onboarding.id },
+    });
+    expect(stillSameOnboarding.id).toBe(onboarding.id);
+  });
+
   it("currency mismatch holds issuer fee without completing", async () => {
     if (!migrated) return;
 

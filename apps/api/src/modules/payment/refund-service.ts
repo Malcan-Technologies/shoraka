@@ -19,6 +19,10 @@ import { recordGatewayPaymentEvent } from "./gateway-events";
 import { myrDecimalToSen, senToMyrDecimal } from "./money";
 import { markGatewayPaymentReceiptRefunded } from "./receipt/receipt-service";
 import { assertTransition } from "./state";
+import {
+  clearIssuerOnboardingFeePaidAt,
+  restoreIssuerOnboardingFeePaidAt,
+} from "./onboarding-fee-service";
 
 export type AutoRefundReason =
   | "NAME_MISMATCH"
@@ -267,6 +271,13 @@ export async function initiateGatewayPaymentRefund(
         } as Prisma.InputJsonValue,
       },
     });
+
+    if (
+      current.purpose === GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE &&
+      current.issuer_organization_id
+    ) {
+      await clearIssuerOnboardingFeePaidAt(tx, current.issuer_organization_id);
+    }
 
     await recordGatewayPaymentEvent(tx, {
       gatewayPaymentId: payment.id,
@@ -697,6 +708,8 @@ export type ExternalCurlecRefundMarker = {
   blockedAmount?: number;
   fundsProtected?: boolean;
   intendedAmount?: number;
+  /** Snapshot so refund.failed can restore issuer fee-paid access. */
+  previousOnboardingFeePaidAt?: string | null;
 };
 
 function readExternalCurlecRefundMarker(
@@ -724,6 +737,10 @@ function readExternalCurlecRefundMarker(
     blockedAmount: typeof m.blockedAmount === "number" ? m.blockedAmount : undefined,
     fundsProtected: typeof m.fundsProtected === "boolean" ? m.fundsProtected : undefined,
     intendedAmount: typeof m.intendedAmount === "number" ? m.intendedAmount : undefined,
+    previousOnboardingFeePaidAt:
+      typeof m.previousOnboardingFeePaidAt === "string" || m.previousOnboardingFeePaidAt === null
+        ? (m.previousOnboardingFeePaidAt as string | null)
+        : undefined,
   };
 }
 
@@ -805,6 +822,17 @@ async function adoptExternalCurlecRefundFromCompleted(
       }
     }
 
+    const previousOnboardingFeePaidAt =
+      current.purpose === GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE &&
+      current.issuer_organization_id
+        ? (
+            await tx.issuerOrganization.findUnique({
+              where: { id: current.issuer_organization_id },
+              select: { onboarding_fee_paid_at: true },
+            })
+          )?.onboarding_fee_paid_at?.toISOString() ?? null
+        : undefined;
+
     const externalMarker: ExternalCurlecRefundMarker = {
       source: "CURLEC_PROVIDER",
       refundId: input.refundId,
@@ -818,6 +846,7 @@ async function adoptExternalCurlecRefundFromCompleted(
           ? true
           : blockedAmount + 1e-9 >= intendedAmount,
       intendedAmount,
+      previousOnboardingFeePaidAt,
     };
 
     await tx.gatewayPayment.update({
@@ -831,6 +860,13 @@ async function adoptExternalCurlecRefundFromCompleted(
         } as Prisma.InputJsonValue,
       },
     });
+
+    if (
+      current.purpose === GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE &&
+      current.issuer_organization_id
+    ) {
+      await clearIssuerOnboardingFeePaidAt(tx, current.issuer_organization_id);
+    }
 
     await recordGatewayPaymentEvent(tx, {
       gatewayPaymentId: current.id,
@@ -916,10 +952,7 @@ export async function completeGatewayPaymentRefund(
         current.purpose === GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE &&
         current.issuer_organization_id
       ) {
-        await tx.issuerOrganization.update({
-          where: { id: current.issuer_organization_id },
-          data: { onboarding_fee_paid_at: null },
-        });
+        await clearIssuerOnboardingFeePaidAt(tx, current.issuer_organization_id);
       }
 
       await recordGatewayPaymentEvent(tx, {
@@ -1270,6 +1303,17 @@ export async function failGatewayPaymentRefund(
           } as Prisma.InputJsonValue,
         },
       });
+
+      if (
+        current.purpose === GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE &&
+        current.issuer_organization_id
+      ) {
+        await restoreIssuerOnboardingFeePaidAt(
+          tx,
+          current.issuer_organization_id,
+          external.previousOnboardingFeePaidAt ?? current.created_at
+        );
+      }
 
       await recordGatewayPaymentEvent(tx, {
         gatewayPaymentId: payment.id,

@@ -57,6 +57,7 @@ export default function OnboardingFeePage() {
   const statusQuery = useIssuerOnboardingFeeStatusQuery(activeOrganization?.id);
   const resolvedFee = confirmedFee ?? createFee.data ?? statusQuery.data?.latestPayment ?? null;
   const feeAmount = resolvedFee?.amount ?? statusQuery.data?.amount ?? null;
+  const requiresRepayment = Boolean(statusQuery.data?.requiresRepayment);
   const isUnderReview =
     Boolean(statusQuery.data?.isUnderReview) ||
     resolvedFee?.status === "HELD" ||
@@ -87,14 +88,17 @@ export default function OnboardingFeePage() {
       setError(statusQuery.error instanceof Error ? statusQuery.error.message : "Could not load fee");
     }
 
-    if (statusQuery.data?.latestPayment?.status === "COMPLETED" || statusQuery.data?.isPaid) {
+    if (
+      !requiresRepayment &&
+      (statusQuery.data?.latestPayment?.status === "COMPLETED" || statusQuery.data?.isPaid)
+    ) {
       router.replace("/onboarding/verify");
       return;
     }
 
-    // Keep the issuer on this page while a captured payment is under review.
+    // Keep the issuer on this page while a captured payment is under review or unpaid/refunded.
     setIsBootstrapping(false);
-  }, [activeOrganization, orgLoading, router, statusQuery, suppressBootstrap]);
+  }, [activeOrganization, orgLoading, requiresRepayment, router, statusQuery, suppressBootstrap]);
 
   if (orgLoading || isBootstrapping) {
     return (
@@ -242,12 +246,18 @@ export default function OnboardingFeePage() {
           <div className="w-full space-y-6">
             <div className="space-y-2 text-center">
               <h2 className="text-xl font-semibold">
-                {isUnderReview ? "Onboarding fee" : "Pay onboarding fee"}
+                {isUnderReview
+                  ? "Onboarding fee"
+                  : requiresRepayment
+                    ? "Repay onboarding fee"
+                    : "Pay onboarding fee"}
               </h2>
               <p className="text-[15px] text-muted-foreground">
                 {isUnderReview
                   ? "Your payment is being verified before company verification (eKYB) continues."
-                  : "A one-time fee is required after accepting the user agreement to start company verification (eKYB)."}
+                  : requiresRepayment
+                    ? "Your onboarding fee was refunded. Please make a new payment to continue."
+                    : "A one-time fee is required after accepting the user agreement to start company verification (eKYB)."}
               </p>
             </div>
 
@@ -257,6 +267,15 @@ export default function OnboardingFeePage() {
                   <ExclamationCircleIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-destructive" />
                   <p className="text-sm text-destructive">{error}</p>
                 </div>
+              </div>
+            ) : null}
+
+            {requiresRepayment && !isUnderReview ? (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+                <p className="text-sm text-foreground">
+                  Your onboarding fee was refunded. Please make a new payment to continue. Your
+                  previous onboarding progress is saved.
+                </p>
               </div>
             ) : null}
 
@@ -286,13 +305,19 @@ export default function OnboardingFeePage() {
                     disabled={isOpeningCheckout}
                     onClick={() => void handlePayFee()}
                   >
-                    {isOpeningCheckout ? "Opening checkout..." : "Pay with FPX"}
+                    {isOpeningCheckout
+                      ? "Opening checkout..."
+                      : requiresRepayment
+                        ? "Pay fee again with FPX"
+                        : "Pay with FPX"}
                   </Button>
                 )}
                 <p className="text-center text-xs text-muted-foreground">
                   {isUnderReview
                     ? "No further payment is required while this fee is under review."
-                    : "This fee is non-refundable and unlocks eKYB verification for your company account."}
+                    : requiresRepayment
+                      ? "After payment succeeds, you continue from your saved onboarding step."
+                      : "This fee is non-refundable and unlocks eKYB verification for your company account."}
                 </p>
               </CardContent>
             </Card>

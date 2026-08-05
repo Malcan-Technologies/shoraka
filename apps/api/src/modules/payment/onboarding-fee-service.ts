@@ -76,6 +76,56 @@ async function findBlockingOnboardingFeePayment(
   });
 }
 
+/**
+ * Authoritative gate for issuer onboarding progression (eKYB start/retry, etc.).
+ * Unpaid, refunded, pending-refund, and held fees all block advancement.
+ */
+export async function assertIssuerOnboardingFeePaid(
+  db: PrismaClient | Prisma.TransactionClient,
+  issuerOrganizationId: string
+) {
+  const issuerOrg = await db.issuerOrganization.findUnique({
+    where: { id: issuerOrganizationId },
+    select: { id: true, onboarding_fee_paid_at: true },
+  });
+  if (!issuerOrg) {
+    throw new AppError(404, "ISSUER_ORG_NOT_FOUND", "Issuer organization not found");
+  }
+
+  const blocking = await findBlockingOnboardingFeePayment(db, issuerOrganizationId);
+  if (blocking || !issuerOrg.onboarding_fee_paid_at) {
+    throw new AppError(
+      402,
+      "ONBOARDING_FEE_REQUIRED",
+      "Your onboarding fee was refunded or is unpaid. Please make a new payment to continue."
+    );
+  }
+}
+
+export async function clearIssuerOnboardingFeePaidAt(
+  tx: Prisma.TransactionClient,
+  issuerOrganizationId: string
+) {
+  await tx.issuerOrganization.update({
+    where: { id: issuerOrganizationId },
+    data: { onboarding_fee_paid_at: null },
+  });
+}
+
+export async function restoreIssuerOnboardingFeePaidAt(
+  tx: Prisma.TransactionClient,
+  issuerOrganizationId: string,
+  paidAt?: Date | string | null
+) {
+  await tx.issuerOrganization.update({
+    where: { id: issuerOrganizationId },
+    data: {
+      onboarding_fee_paid_at:
+        paidAt instanceof Date ? paidAt : paidAt ? new Date(paidAt) : new Date(),
+    },
+  });
+}
+
 export async function createIssuerOnboardingFee(
   actor: ActorContext,
   input: CreateIssuerOnboardingFeeInput,
@@ -195,5 +245,8 @@ export async function getIssuerOnboardingFeeStatus(
     isUnderReview:
       latest?.status === GatewayPaymentStatus.HELD ||
       latest?.status === GatewayPaymentStatus.REFUND_INITIATED,
+    requiresRepayment:
+      !issuerOrg.onboarding_fee_paid_at &&
+      latest?.status === GatewayPaymentStatus.REFUNDED,
   };
 }

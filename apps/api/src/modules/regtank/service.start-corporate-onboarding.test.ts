@@ -55,6 +55,19 @@ jest.mock("../../lib/prisma", () => ({
     onboardingLog: {
       create: (...args: unknown[]) => mockOnboardingLogCreate(...args),
     },
+    issuerOrganization: {
+      findUnique: jest.fn(async ({ where }: { where: { id: string } }) => {
+        const org = await mockFindIssuerOrganizationById(where.id);
+        if (!org) return null;
+        return {
+          id: org.id,
+          onboarding_fee_paid_at: org.onboarding_fee_paid_at ?? null,
+        };
+      }),
+    },
+    gatewayPayment: {
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
     $transaction: (...args: unknown[]) => mockPrismaTransaction(...args),
   },
 }));

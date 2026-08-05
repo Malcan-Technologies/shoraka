@@ -38,6 +38,7 @@ import { sendEmail } from "../../lib/email/ses-client";
 import { sendOnboardingEmail } from "../../lib/email/ses";
 import { organizationInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
+import { assertIssuerOnboardingFeePaid } from "../payment/onboarding-fee-service";
 import {
   canManageDirectorShareholder,
   filterVisiblePeopleRows,
@@ -429,6 +430,10 @@ export class OrganizationService {
     // Check if already completed
     if (organization.onboarding_status === OnboardingStatus.COMPLETED) {
       throw new AppError(400, "ALREADY_COMPLETED", "Onboarding is already completed");
+    }
+
+    if (portalType === "issuer") {
+      await assertIssuerOnboardingFeePaid(prisma, organizationId);
     }
 
     logger.info({ organizationId, portalType, userId }, "Completing organization onboarding");

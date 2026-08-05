@@ -103,9 +103,29 @@ describeIntegration("external Curlec refund on COMPLETED payments", () => {
     createdOrgIds.push(issuerOrgId);
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockRefundPayment.mockReset();
     (createCurlecClient as jest.Mock).mockClear();
+    if (!migrated || !issuerOrgId) return;
+    await prisma.gatewayPayment.updateMany({
+      where: {
+        issuer_organization_id: issuerOrgId,
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        status: {
+          in: [
+            GatewayPaymentStatus.CREATED,
+            GatewayPaymentStatus.HELD,
+            GatewayPaymentStatus.REFUND_INITIATED,
+            GatewayPaymentStatus.COMPLETED,
+          ],
+        },
+      },
+      data: { status: GatewayPaymentStatus.FAILED },
+    });
+    await prisma.issuerOrganization.update({
+      where: { id: issuerOrgId },
+      data: { onboarding_fee_paid_at: new Date() },
+    });
   });
 
   afterAll(async () => {
@@ -353,6 +373,213 @@ describeIntegration("external Curlec refund on COMPLETED payments", () => {
     const org = await prisma.issuerOrganization.findUniqueOrThrow({ where: { id: issuerOrgId } });
     expect(org.onboarding_fee_paid_at).toBeNull();
     expect(mockRefundPayment).not.toHaveBeenCalled();
+  });
+
+  it("refund.created on COMPLETED onboarding fee clears paid_at and blocks progression", async () => {
+    if (!migrated) return;
+
+    const paidAt = new Date("2026-01-15T10:00:00.000Z");
+    await prisma.issuerOrganization.update({
+      where: { id: issuerOrgId },
+      data: {
+        onboarding_fee_paid_at: paidAt,
+        name: "Ext Refund Co",
+        tnc_accepted: true,
+      },
+    });
+
+    const payment = await prisma.gatewayPayment.create({
+      data: {
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        organization_type: GatewayOrganizationType.ISSUER,
+        gatewayAccount: CurlecGatewayAccount.OPERATING,
+        issuer_organization_id: issuerOrgId,
+        amount: new Prisma.Decimal("150.000000"),
+        currency: "MYR",
+        status: GatewayPaymentStatus.COMPLETED,
+        curlec_order_id: `order_ext_fee_init_${Date.now()}`,
+        curlec_payment_id: `pay_ext_fee_init_${Date.now()}`,
+        idempotency_key: `ext-fee-init:${Date.now()}`,
+      },
+    });
+    createdPaymentIds.push(payment.id);
+
+    const status = await adoptGatewayRefundCreated(
+      payment,
+      { refundId: "rfnd_ext_fee_init" },
+      prisma
+    );
+    expect(status).toBe(GatewayPaymentStatus.REFUND_INITIATED);
+
+    const org = await prisma.issuerOrganization.findUniqueOrThrow({ where: { id: issuerOrgId } });
+    expect(org.onboarding_fee_paid_at).toBeNull();
+    expect(org.name).toBe("Ext Refund Co");
+    expect(org.tnc_accepted).toBe(true);
+
+    const { assertIssuerOnboardingFeePaid } = await import("./onboarding-fee-service");
+    await expect(assertIssuerOnboardingFeePaid(prisma, issuerOrgId)).rejects.toMatchObject({
+      statusCode: 402,
+      code: "ONBOARDING_FEE_REQUIRED",
+    });
+  });
+
+  it("HELD onboarding fee blocks progression while paid_at may still be set", async () => {
+    if (!migrated) return;
+
+    await prisma.issuerOrganization.update({
+      where: { id: issuerOrgId },
+      data: { onboarding_fee_paid_at: new Date() },
+    });
+
+    const payment = await prisma.gatewayPayment.create({
+      data: {
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        organization_type: GatewayOrganizationType.ISSUER,
+        gatewayAccount: CurlecGatewayAccount.OPERATING,
+        issuer_organization_id: issuerOrgId,
+        amount: new Prisma.Decimal("150.000000"),
+        currency: "MYR",
+        status: GatewayPaymentStatus.HELD,
+        curlec_order_id: `order_ext_fee_held_${Date.now()}`,
+        curlec_payment_id: `pay_ext_fee_held_${Date.now()}`,
+        idempotency_key: `ext-fee-held:${Date.now()}`,
+      },
+    });
+    createdPaymentIds.push(payment.id);
+
+    const { assertIssuerOnboardingFeePaid } = await import("./onboarding-fee-service");
+    await expect(assertIssuerOnboardingFeePaid(prisma, issuerOrgId)).rejects.toMatchObject({
+      code: "ONBOARDING_FEE_REQUIRED",
+    });
+  });
+
+  it("refund.failed after onboarding fee adoption restores paid_at", async () => {
+    if (!migrated) return;
+
+    const paidAt = new Date("2026-02-01T08:00:00.000Z");
+    await prisma.issuerOrganization.update({
+      where: { id: issuerOrgId },
+      data: { onboarding_fee_paid_at: paidAt },
+    });
+
+    const payment = await prisma.gatewayPayment.create({
+      data: {
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        organization_type: GatewayOrganizationType.ISSUER,
+        gatewayAccount: CurlecGatewayAccount.OPERATING,
+        issuer_organization_id: issuerOrgId,
+        amount: new Prisma.Decimal("150.000000"),
+        currency: "MYR",
+        status: GatewayPaymentStatus.COMPLETED,
+        curlec_order_id: `order_ext_fee_fail_${Date.now()}`,
+        curlec_payment_id: `pay_ext_fee_fail_${Date.now()}`,
+        idempotency_key: `ext-fee-fail:${Date.now()}`,
+      },
+    });
+    createdPaymentIds.push(payment.id);
+
+    await adoptGatewayRefundCreated(payment, { refundId: "rfnd_ext_fee_fail" }, prisma);
+    const mid = await prisma.issuerOrganization.findUniqueOrThrow({ where: { id: issuerOrgId } });
+    expect(mid.onboarding_fee_paid_at).toBeNull();
+
+    const adopted = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    await failGatewayPaymentRefund(
+      adopted,
+      { refundId: "rfnd_ext_fee_fail", errorMessage: "provider cancelled" },
+      prisma
+    );
+
+    const restored = await prisma.issuerOrganization.findUniqueOrThrow({
+      where: { id: issuerOrgId },
+    });
+    expect(restored.onboarding_fee_paid_at).not.toBeNull();
+    expect(restored.onboarding_fee_paid_at?.toISOString()).toBe(paidAt.toISOString());
+
+    const { assertIssuerOnboardingFeePaid } = await import("./onboarding-fee-service");
+    await expect(assertIssuerOnboardingFeePaid(prisma, issuerOrgId)).resolves.toBeUndefined();
+  });
+
+  it("duplicate refund.processed on onboarding fee stays idempotent", async () => {
+    if (!migrated) return;
+
+    await prisma.issuerOrganization.update({
+      where: { id: issuerOrgId },
+      data: { onboarding_fee_paid_at: new Date() },
+    });
+
+    const payment = await prisma.gatewayPayment.create({
+      data: {
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        organization_type: GatewayOrganizationType.ISSUER,
+        gatewayAccount: CurlecGatewayAccount.OPERATING,
+        issuer_organization_id: issuerOrgId,
+        amount: new Prisma.Decimal("150.000000"),
+        currency: "MYR",
+        status: GatewayPaymentStatus.COMPLETED,
+        curlec_order_id: `order_ext_fee_dup_${Date.now()}`,
+        curlec_payment_id: `pay_ext_fee_dup_${Date.now()}`,
+        idempotency_key: `ext-fee-dup:${Date.now()}`,
+      },
+    });
+    createdPaymentIds.push(payment.id);
+
+    await completeGatewayPaymentRefund(payment, { refundId: "rfnd_ext_fee_dup" }, prisma);
+    const afterFirst = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    await completeGatewayPaymentRefund(afterFirst, { refundId: "rfnd_ext_fee_dup" }, prisma);
+
+    const afterSecond = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    expect(afterSecond.status).toBe(GatewayPaymentStatus.REFUNDED);
+    const org = await prisma.issuerOrganization.findUniqueOrThrow({ where: { id: issuerOrgId } });
+    expect(org.onboarding_fee_paid_at).toBeNull();
+  });
+
+  it("REFUNDED onboarding fee status requires repayment and still blocks progression", async () => {
+    if (!migrated) return;
+
+    await prisma.issuerOrganization.update({
+      where: { id: issuerOrgId },
+      data: { onboarding_fee_paid_at: null },
+    });
+
+    const refunded = await prisma.gatewayPayment.create({
+      data: {
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        organization_type: GatewayOrganizationType.ISSUER,
+        gatewayAccount: CurlecGatewayAccount.OPERATING,
+        issuer_organization_id: issuerOrgId,
+        amount: new Prisma.Decimal("150.000000"),
+        currency: "MYR",
+        status: GatewayPaymentStatus.REFUNDED,
+        refunded_at: new Date(),
+        curlec_order_id: `order_ext_fee_old_${Date.now()}`,
+        curlec_payment_id: `pay_ext_fee_old_${Date.now()}`,
+        idempotency_key: `ext-fee-old:${Date.now()}`,
+      },
+    });
+    createdPaymentIds.push(refunded.id);
+
+    const {
+      getIssuerOnboardingFeeStatus,
+      assertIssuerOnboardingFeePaid,
+    } = await import("./onboarding-fee-service");
+
+    const owner = await prisma.issuerOrganization.findUniqueOrThrow({
+      where: { id: issuerOrgId },
+      select: { owner_user_id: true },
+    });
+
+    const statusBefore = await getIssuerOnboardingFeeStatus(
+      { userId: owner.owner_user_id },
+      issuerOrgId,
+      prisma
+    );
+    expect(statusBefore.isPaid).toBe(false);
+    expect(statusBefore.requiresRepayment).toBe(true);
+    expect(statusBefore.isUnderReview).toBe(false);
+
+    await expect(assertIssuerOnboardingFeePaid(prisma, issuerOrgId)).rejects.toMatchObject({
+      code: "ONBOARDING_FEE_REQUIRED",
+    });
   });
 
   it("OPERATING and INVESTOR_POOL deposits both adopt external refunds", async () => {
