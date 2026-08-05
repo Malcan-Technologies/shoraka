@@ -410,10 +410,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const canViewAuditAccess = can("audit.access.view");
   const canViewAuditSecurity = can("audit.security.view");
-  const canViewAuditDocument = can("audit.document.view");
   const canViewAuditProduct = can("audit.product.view");
   const canViewAnyAudit =
-    canViewAuditAccess || canViewAuditSecurity || canViewAuditDocument || canViewAuditProduct;
+    canViewAuditAccess || canViewAuditSecurity || canViewAuditProduct;
 
   const { data: pendingCountData } = usePendingApprovalCount({ enabled: canViewOnboarding });
   const { data: noteActionCountData } = useNoteActionRequiredCount({ enabled: canViewNotes });

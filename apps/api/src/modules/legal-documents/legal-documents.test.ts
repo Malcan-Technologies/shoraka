@@ -63,7 +63,7 @@ jest.mock("../../lib/s3/client", () => ({
       `legal-documents/${String(type).toLowerCase()}/v${version}-2026-01-01-${cuid}.${extension}`
   ),
   getFileExtension: jest.fn(() => "pdf"),
-  validateSiteDocument: jest.fn(() => ({ valid: true })),
+  validatePdfUpload: jest.fn(() => ({ valid: true })),
 }));
 
 jest.mock("../../lib/logger", () => ({
@@ -74,9 +74,8 @@ import { prisma } from "../../lib/prisma";
 import { legalDocumentAcceptanceService } from "./acceptance-service";
 import { legalDocumentRepository } from "./repository";
 import { legalDocumentService } from "./service";
-import { documentLogRepository } from "../site-documents/repository";
 import { createLegalDocumentSchema } from "./schemas";
-import { validateSiteDocument } from "../../lib/s3/client";
+import { validatePdfUpload } from "../../lib/s3/client";
 
 const mockReq = {
   headers: {
@@ -124,7 +123,6 @@ function publishedVersion(overrides: Record<string, unknown> = {}) {
 describe("legal document acceptance service", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    jest.spyOn(documentLogRepository, "create").mockResolvedValue({} as never);
     (prisma.user.findUnique as jest.Mock).mockResolvedValue({
       email: "owner@example.com",
       first_name: "Owner",
@@ -642,8 +640,6 @@ describe("legal document acceptance service", () => {
         reacceptance_required: true,
       }) as never
     );
-    jest.spyOn(documentLogRepository, "create").mockResolvedValue({} as never);
-
     await legalDocumentService.publishVersion(
       "ver1",
       { reacceptanceRequired: true },
@@ -653,15 +649,6 @@ describe("legal document acceptance service", () => {
 
     expect(prisma.issuerOrganization.updateMany).not.toHaveBeenCalled();
     expect(prisma.investorOrganization.updateMany).not.toHaveBeenCalled();
-    expect(documentLogRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventType: "LEGAL_VERSION_PUBLISHED",
-        metadata: expect.objectContaining({
-          reacceptance_required: true,
-          legal_document_version_id: "ver1",
-        }),
-      })
-    );
   });
 
   it("restores archived draft to draft", async () => {
@@ -686,16 +673,8 @@ describe("legal document acceptance service", () => {
         archived_by: null,
       }) as never
     );
-    jest.spyOn(documentLogRepository, "create").mockResolvedValue({} as never);
-
     const restored = await legalDocumentService.restoreVersion("ver1", "admin1", mockReq);
     expect(restored.status).toBe("DRAFT");
-    expect(documentLogRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventType: "LEGAL_VERSION_RESTORED",
-        metadata: expect.objectContaining({ restored_as: "DRAFT" }),
-      })
-    );
   });
 
   it("blocks restore of archived published when a newer published exists", async () => {
@@ -744,7 +723,6 @@ describe("legal document acceptance service", () => {
         s3_key: "legal-documents/new-key.pdf",
       }) as never
     );
-    jest.spyOn(documentLogRepository, "create").mockResolvedValue({} as never);
 
     const replaced = await legalDocumentService.replaceDraftFile(
       "ver2",
@@ -761,15 +739,6 @@ describe("legal document acceptance service", () => {
     expect(replaced.version).toBe(2);
     expect(replaced.fileName).toBe("fixed.pdf");
     expect(replaced.status).toBe("DRAFT");
-    expect(documentLogRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventType: "LEGAL_VERSION_UPDATED",
-        metadata: expect.objectContaining({
-          replaced_in_place: true,
-          version: 2,
-        }),
-      })
-    );
   });
 
   it("archives published version and leaves no automatic fallback", async () => {
@@ -791,20 +760,10 @@ describe("legal document acceptance service", () => {
         archived_by: "admin1",
       }) as never
     );
-    jest.spyOn(documentLogRepository, "create").mockResolvedValue({} as never);
     jest.spyOn(legalDocumentRepository, "findPublishedByDocumentId").mockResolvedValue(null);
 
     const archived = await legalDocumentService.archiveVersion("ver2", "admin1", mockReq);
     expect(archived.status).toBe("ARCHIVED");
-    expect(documentLogRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        eventType: "LEGAL_VERSION_ARCHIVED",
-        metadata: expect.objectContaining({
-          previous_status: "PUBLISHED",
-          new_status: "ARCHIVED",
-        }),
-      })
-    );
     const stillPublished = await legalDocumentRepository.findPublishedByDocumentId("ld1");
     expect(stillPublished).toBeNull();
   });
@@ -812,7 +771,7 @@ describe("legal document acceptance service", () => {
 
 describe("legal document upload validation", () => {
   it("rejects non-PDF uploads", async () => {
-    (validateSiteDocument as jest.Mock).mockReturnValueOnce({
+    (validatePdfUpload as jest.Mock).mockReturnValueOnce({
       valid: false,
       error: "Only PDF files are allowed",
     });

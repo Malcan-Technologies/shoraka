@@ -149,7 +149,7 @@ export function useRollbackProductCreate() {
   });
 }
 
-/** Request presigned upload URL for product image. Same pattern as site-documents: then upload to S3 and call confirmProductImage. */
+/** Request presigned upload URL for product image, then upload to S3 and call confirmProductImage. */
 export function useProductImageUploadUrl() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);

@@ -26,7 +26,6 @@ model User {
   access_logs                      AccessLog[]
   sent_admin_invitations           AdminInvitation[]                @relation("SentAdminInvitations")
   admin                            Admin?
-  document_logs                    DocumentLog[]
   legal_document_acceptances       LegalDocumentAcceptance[]
   investments                      Investment[]
   sent_investor_org_invitations    InvestorOrganizationInvitation[] @relation("SentInvestorOrgInvitations")
@@ -940,8 +939,6 @@ model NoteInvestment {
   prospectus_publication_id  String?
   prospectus_content_version Int?
   prospectus_acknowledged_at DateTime?
-  product_terms_ref          String?
-  risk_disclosure_ref        String?
   created_at                 DateTime                   @default(now())
   updated_at                 DateTime                   @updatedAt
   note                       Note                       @relation(fields: [note_id], references: [id], onDelete: Cascade)
@@ -1593,28 +1590,6 @@ model AmlIdentityMapping {
   @@map("aml_identity_mapping")
 }
 
-model SiteDocument {
-  id              String           @id @default(cuid())
-  type            SiteDocumentType
-  title           String
-  description     String?
-  file_name       String
-  s3_key          String           @unique
-  content_type    String
-  file_size       Int
-  version         Int              @default(1)
-  is_active       Boolean          @default(true)
-  show_in_account Boolean          @default(false)
-  uploaded_by     String
-  created_at      DateTime         @default(now())
-  updated_at      DateTime         @updatedAt
-
-  @@index([type, is_active])
-  @@index([is_active, show_in_account])
-  @@index([s3_key])
-  @@map("site_documents")
-}
-
 /// Logical legal document definition (onboarding / public legal PDFs).
 model LegalDocument {
   id                      String                @id @default(cuid())
@@ -1707,26 +1682,6 @@ model LegalDocumentAcceptance {
   @@index([accepted_at])
   @@index([audience_role])
   @@map("legal_document_acceptances")
-}
-
-model DocumentLog {
-  id          String   @id @default(cuid())
-  user_id     String
-  document_id String?
-  event_type  String
-  ip_address  String?
-  user_agent  String?
-  device_info String?
-  metadata    Json?
-  created_at  DateTime @default(now())
-  user        User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-
-  @@index([user_id])
-  @@index([document_id])
-  @@index([event_type])
-  @@index([created_at])
-  @@index([user_id, created_at])
-  @@map("document_logs")
 }
 
 model ProductLog {
@@ -2215,17 +2170,6 @@ enum OrganizationMemberRole {
   OWNER
   DIRECTOR
   MEMBER
-}
-
-enum SiteDocumentType {
-  TERMS_AND_CONDITIONS
-  PRIVACY_POLICY
-  RISK_DISCLOSURE
-  PRODUCT_TERMS
-  PLATFORM_AGREEMENT
-  INVESTOR_GUIDE
-  ISSUER_GUIDE
-  OTHER
 }
 
 enum LegalDocumentType {

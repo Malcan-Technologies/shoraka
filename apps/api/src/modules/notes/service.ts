@@ -2728,24 +2728,6 @@ export class NoteService {
       );
     }
 
-    const [productTerms, riskDisclosure] = await Promise.all([
-      prisma.siteDocument.findFirst({
-        where: { type: "PRODUCT_TERMS", is_active: true },
-        orderBy: { version: "desc" },
-        select: { id: true, version: true },
-      }),
-      prisma.siteDocument.findFirst({
-        where: { type: "RISK_DISCLOSURE", is_active: true },
-        orderBy: { version: "desc" },
-        select: { id: true, version: true },
-      }),
-    ]);
-    const productTermsRef = productTerms
-      ? `${productTerms.id}:v${productTerms.version}`
-      : "PRODUCT_TERMS:unavailable";
-    const riskDisclosureRef = riskDisclosure
-      ? `${riskDisclosure.id}:v${riskDisclosure.version}`
-      : "RISK_DISCLOSURE:unavailable";
     const ackAt = new Date();
 
     const target = normalizeNoteCapacityAmount(toNumber(note.target_amount));
@@ -2827,8 +2809,6 @@ export class NoteService {
           prospectus_publication_id: publication.id,
           prospectus_content_version: publication.content_version,
           prospectus_acknowledged_at: ackAt,
-          product_terms_ref: productTermsRef,
-          risk_disclosure_ref: riskDisclosureRef,
         },
       });
       await debitInvestorBalanceForCommit(tx, {
@@ -2843,8 +2823,6 @@ export class NoteService {
         amount: input.amount,
         prospectusPublicationId: publication.id,
         prospectusAcknowledgedAt: ackAt.toISOString(),
-        productTermsRef,
-        riskDisclosureRef,
       });
       return tx.note.findUniqueOrThrow({ where: { id: noteId }, include: noteInclude });
     });

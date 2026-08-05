@@ -58,7 +58,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
-import { uploadFileToS3 } from "../../hooks/use-site-documents";
+import { uploadFileToS3 } from "@/lib/upload-file-to-s3";
 import {
   DocumentIcon,
   ArrowPathIcon,

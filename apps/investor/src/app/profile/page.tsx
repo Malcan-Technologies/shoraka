@@ -275,16 +275,10 @@ function DocumentsTabContent({ apiClient }: { apiClient: ReturnType<typeof creat
   const { data: documents, isLoading, error } = useAccountDocuments("INVESTOR");
   const [downloadingId, setDownloadingId] = React.useState<string | null>(null);
 
-  const handleDownload = async (doc: {
-    source: "SITE_DOCUMENT" | "LEGAL_DOCUMENT";
-    id: string;
-  }) => {
+  const handleDownload = async (doc: { id: string }) => {
     setDownloadingId(doc.id);
     try {
-      const response =
-        doc.source === "LEGAL_DOCUMENT"
-          ? await apiClient.getLegalDocumentDownloadUrl(doc.id)
-          : await apiClient.getDocumentDownloadUrl(doc.id);
+      const response = await apiClient.getLegalDocumentDownloadUrl(doc.id);
       if (!response.success) {
         throw new Error(response.error.message);
       }

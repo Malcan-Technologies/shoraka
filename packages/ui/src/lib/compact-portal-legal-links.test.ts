@@ -80,7 +80,7 @@ describe("buildCompactPortalLegalLinks", () => {
     expect(links.map((l) => l.label)).toEqual(["Risk Statement"]);
   });
 
-  it("does not create links from SiteDocument-style types", () => {
+  it("does not create links from non-legal document type names", () => {
     const links = buildCompactPortalLegalLinks([
       doc({
         type: "RISK_DISCLOSURE" as never,

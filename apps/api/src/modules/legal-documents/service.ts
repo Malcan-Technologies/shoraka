@@ -7,9 +7,8 @@ import {
   generatePresignedDownloadUrl,
   generatePresignedUploadUrl,
   getFileExtension,
-  validateSiteDocument,
+  validatePdfUpload,
 } from "../../lib/s3/client";
-import { documentLogRepository } from "../site-documents/repository";
 import { resolveActivePublishedByDocumentId } from "./active-published";
 import { legalDocumentRepository, type VersionWithDocument } from "./repository";
 import type {
@@ -217,7 +216,7 @@ export class LegalDocumentService {
       throw new AppError(404, "NOT_FOUND", "Legal document not found");
     }
 
-    const validation = validateSiteDocument({
+    const validation = validatePdfUpload({
       contentType: input.contentType,
       fileSize: input.fileSize,
     });
@@ -356,7 +355,7 @@ export class LegalDocumentService {
       );
     }
 
-    const validation = validateSiteDocument({
+    const validation = validatePdfUpload({
       contentType: input.contentType,
       fileSize: input.fileSize,
     });
@@ -649,7 +648,7 @@ export class LegalDocumentService {
     };
   }
 
-  private async logEvent(
+  private logEvent(
     req: Request,
     userId: string,
     documentId: string,
@@ -657,15 +656,18 @@ export class LegalDocumentService {
     metadata: Record<string, unknown>
   ) {
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-    await documentLogRepository.create({
-      userId,
-      documentId,
-      eventType: eventType as never,
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata,
-    });
+    logger.info(
+      {
+        userId,
+        documentId,
+        eventType,
+        ipAddress,
+        userAgent,
+        deviceInfo,
+        ...metadata,
+      },
+      `Legal document event: ${eventType}`
+    );
   }
 
   private generateCuid(): string {

@@ -49,7 +49,6 @@ export const ADMIN_PERMISSIONS = [
   // Audit (read-only)
   "audit.access.view",
   "audit.security.view",
-  "audit.document.view",
   "audit.product.view",
 
   // Document Management (standalone)
@@ -246,14 +245,13 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
     permissions: pickPermissions(
       "audit.access.view",
       "audit.security.view",
-      "audit.document.view",
       "audit.product.view"
     ),
   },
   {
     key: "documentManagement",
     label: "Document Management",
-    description: "View and manage standalone site documents.",
+    description: "View and manage legal documents.",
     permissions: pickPermissions("document_management.view", "document_management.manage"),
   },
   {

@@ -25,7 +25,6 @@ import {
 } from "../../lib/s3/client";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
-import { documentLogRepository } from "../site-documents/repository";
 import {
   legalDocumentRepository,
   type VersionWithDocument,
@@ -423,25 +422,6 @@ export class LegalDocumentAcceptanceService {
           },
         })) as AcceptanceRow);
 
-    await documentLogRepository.create({
-      userId,
-      documentId: version.legal_document_id,
-      eventType: "LEGAL_DOCUMENT_OPENED" as never,
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        organization_id: organizationId,
-        audience,
-        legal_document_id: version.legal_document_id,
-        legal_document_version_id: versionId,
-        document_type: version.legal_document.type,
-        version: version.version,
-        file_hash: version.file_hash,
-        acceptance_status: "OPENED",
-      },
-    });
-
     logger.info(
       { userId, versionId, organizationId, audience },
       "Legal document open recorded"
@@ -510,25 +490,6 @@ export class LegalDocumentAcceptanceService {
         ...evidence,
       },
     })) as AcceptanceRow;
-
-    await documentLogRepository.create({
-      userId,
-      documentId: version.legal_document_id,
-      eventType: "LEGAL_DOCUMENT_ACCEPTED" as never,
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        organization_id: organizationId,
-        audience,
-        legal_document_id: version.legal_document_id,
-        legal_document_version_id: versionId,
-        document_type: version.legal_document.type,
-        version: version.version,
-        file_hash: version.file_hash,
-        acceptance_status: "ACCEPTED",
-      },
-    });
 
     logger.info(
       { userId, versionId, organizationId, audience },
