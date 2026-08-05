@@ -51,6 +51,7 @@ describe("legal-documents-admin helpers", () => {
     audience: partial.audience ?? "BOTH",
     requiredForOnboarding: partial.requiredForOnboarding ?? true,
     publicVisibility: partial.publicVisibility ?? false,
+    showInAccount: partial.showInAccount ?? false,
     createdAt: partial.createdAt ?? "2026-08-01T00:00:00.000Z",
     updatedAt: partial.updatedAt ?? "2026-08-01T00:00:00.000Z",
     versions: partial.versions,
@@ -195,6 +196,7 @@ describe("legal-documents-admin helpers", () => {
         audience: "BOTH",
         requiredForOnboarding: true,
         publicVisibility: true,
+        showInAccount: true,
       })
     ).toEqual({
       type: "PDPA_NOTICE_AND_CONSENT",
@@ -202,6 +204,7 @@ describe("legal-documents-admin helpers", () => {
       audience: "BOTH",
       requiredForOnboarding: true,
       publicVisibility: true,
+      showInAccount: true,
     });
     expect(
       buildEditDefinitionPayload({
@@ -209,6 +212,7 @@ describe("legal-documents-admin helpers", () => {
         audience: "ISSUER",
         requiredForOnboarding: false,
         publicVisibility: false,
+        showInAccount: false,
       })
     ).toEqual({
       title: "Terms of Use",
@@ -216,6 +220,7 @@ describe("legal-documents-admin helpers", () => {
       audience: "ISSUER",
       requiredForOnboarding: false,
       publicVisibility: false,
+      showInAccount: false,
     });
   });
 

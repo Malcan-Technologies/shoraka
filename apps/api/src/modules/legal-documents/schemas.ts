@@ -23,6 +23,7 @@ export const createLegalDocumentSchema = z.object({
   audience: z.enum(legalDocumentAudiences).default("BOTH"),
   requiredForOnboarding: z.boolean().optional().default(true),
   publicVisibility: z.boolean().optional().default(false),
+  showInAccount: z.boolean().optional().default(false),
 });
 
 export type CreateLegalDocumentInput = z.infer<typeof createLegalDocumentSchema>;
@@ -33,9 +34,48 @@ export const updateLegalDocumentSchema = z.object({
   audience: z.enum(legalDocumentAudiences).optional(),
   requiredForOnboarding: z.boolean().optional(),
   publicVisibility: z.boolean().optional(),
+  showInAccount: z.boolean().optional(),
 });
 
 export type UpdateLegalDocumentInput = z.infer<typeof updateLegalDocumentSchema>;
+
+export const accountLegalDocumentsQuerySchema = z.object({
+  audience: z.enum(legalAcceptanceAudiences),
+});
+
+export type AccountLegalDocumentsQuery = z.infer<typeof accountLegalDocumentsQuerySchema>;
+
+export const listLegalAcceptancesQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(100).default(20),
+  search: z.string().optional(),
+  documentType: z.enum(legalDocumentTypes).optional(),
+  versionNumber: z.coerce.number().int().positive().optional(),
+  audience: z.enum(legalAcceptanceAudiences).optional(),
+  organizationId: z.string().optional(),
+  userEmail: z.string().optional(),
+  status: z.enum(["NOT_OPENED", "OPENED", "ACCEPTED"]).optional(),
+  dateFrom: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim() ? v : undefined)),
+  dateTo: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim() ? v : undefined)),
+  sortBy: z.enum(["accepted_at", "created_at"]).optional().default("accepted_at"),
+  sortOrder: z.enum(["asc", "desc"]).optional().default("desc"),
+});
+
+export type ListLegalAcceptancesQuery = z.infer<typeof listLegalAcceptancesQuerySchema>;
+
+export const exportLegalAcceptancesQuerySchema = listLegalAcceptancesQuerySchema
+  .omit({ page: true, pageSize: true })
+  .extend({
+    format: z.enum(["csv", "json"]).default("csv"),
+  });
+
+export type ExportLegalAcceptancesQuery = z.infer<typeof exportLegalAcceptancesQuerySchema>;
 
 export const listLegalDocumentsQuerySchema = z.object({
   page: z.coerce.number().int().positive().default(1),

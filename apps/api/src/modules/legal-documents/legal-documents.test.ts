@@ -32,8 +32,12 @@ jest.mock("../../lib/prisma", () => ({
   prisma: {
     issuerOrganization: { findFirst: jest.fn(), updateMany: jest.fn() },
     investorOrganization: { findFirst: jest.fn(), updateMany: jest.fn() },
+    user: { findUnique: jest.fn() },
     legalDocumentAcceptance: {
       findFirst: jest.fn(),
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      count: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
     },
@@ -109,6 +113,7 @@ function publishedVersion(overrides: Record<string, unknown> = {}) {
       audience: "BOTH",
       required_for_onboarding: true,
       public_visibility: true,
+      show_in_account: false,
       created_at: new Date(),
       updated_at: new Date(),
     },
@@ -120,6 +125,11 @@ describe("legal document acceptance service", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.spyOn(documentLogRepository, "create").mockResolvedValue({} as never);
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+      email: "owner@example.com",
+      first_name: "Owner",
+      last_name: "User",
+    });
   });
 
   it("does not return draft documents to users", async () => {
@@ -215,6 +225,7 @@ describe("legal document acceptance service", () => {
           audience: "BOTH",
           required_for_onboarding: true,
           public_visibility: true,
+          show_in_account: false,
           created_at: new Date(),
           updated_at: new Date(),
         },
@@ -242,6 +253,20 @@ describe("legal document acceptance service", () => {
       "ISSUER"
     );
     expect(first.status).toBe("ACCEPTED");
+    expect(prisma.legalDocumentAcceptance.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "ACCEPTED",
+          document_hash: "hash2",
+          legal_document_id: "ld1",
+          document_type: "TERMS_OF_USE",
+          version_number: 2,
+          user_email_snapshot: "owner@example.com",
+          acknowledgement_text: expect.stringContaining("agree"),
+          ip_address: "203.0.113.10",
+        }),
+      })
+    );
 
     const second = await legalDocumentAcceptanceService.recordAccepted(
       mockReq,
@@ -828,6 +853,21 @@ describe("legal document definition schema", () => {
 
     expect(parsed.requiredForOnboarding).toBe(true);
     expect(parsed.publicVisibility).toBe(false);
+    expect(parsed.showInAccount).toBe(false);
+  });
+
+  it("accepts independent showInAccount from onboarding and public visibility", () => {
+    const parsed = createLegalDocumentSchema.parse({
+      type: "TERMS_OF_USE",
+      title: "Terms of Use",
+      audience: "BOTH",
+      requiredForOnboarding: true,
+      publicVisibility: false,
+      showInAccount: true,
+    });
+    expect(parsed.requiredForOnboarding).toBe(true);
+    expect(parsed.publicVisibility).toBe(false);
+    expect(parsed.showInAccount).toBe(true);
   });
 
   it("does not map RISK_DISCLOSURE to RISK_STATEMENT", () => {
@@ -876,6 +916,43 @@ describe("public legal documents", () => {
     });
     expect(docs[0]).not.toHaveProperty("s3_key");
     expect(docs[0]).not.toHaveProperty("s3Key");
+  });
+
+  it("lists account documents only when show_in_account and published", async () => {
+    jest.spyOn(legalDocumentRepository, "findAccountPublishedVersions").mockResolvedValue([
+      publishedVersion({
+        id: "ver-acc",
+        legal_document: {
+          id: "ld1",
+          type: "TERMS_OF_USE",
+          title: "Terms of Use",
+          description: null,
+          audience: "BOTH",
+          required_for_onboarding: false,
+          public_visibility: false,
+          show_in_account: true,
+          created_at: new Date(),
+          updated_at: new Date(),
+        },
+      }),
+    ] as never);
+
+    const docs = await legalDocumentAcceptanceService.listAccountDocuments("ISSUER");
+    expect(docs).toHaveLength(1);
+    expect(docs[0]).toMatchObject({
+      type: "TERMS_OF_USE",
+      legalDocumentVersionId: "ver-acc",
+      title: "Terms of Use",
+    });
+  });
+
+  it("does not list account documents when none are show_in_account published", async () => {
+    jest
+      .spyOn(legalDocumentRepository, "findAccountPublishedVersions")
+      .mockResolvedValue([] as never);
+    await expect(
+      legalDocumentAcceptanceService.listAccountDocuments("INVESTOR")
+    ).resolves.toEqual([]);
   });
 
   it("resolves public document by slug", async () => {

@@ -154,6 +154,7 @@ export {
 } from "./cashsouk-sidebar-footer";
 export {
   buildCompactPortalLegalLinks,
+  buildPortalFooterLegalLinks,
   buildLandingFooterLegalLinks,
   buildPublicLegalPdfLinks,
   permanentCompactPortalLegalLinks,

@@ -66,6 +66,7 @@ function toDocumentResponse(doc: {
   audience: string;
   required_for_onboarding: boolean;
   public_visibility: boolean;
+  show_in_account: boolean;
   created_at: Date;
   updated_at: Date;
   versions?: Array<Parameters<typeof toVersionSummary>[0]>;
@@ -78,6 +79,7 @@ function toDocumentResponse(doc: {
     audience: doc.audience,
     requiredForOnboarding: doc.required_for_onboarding,
     publicVisibility: doc.public_visibility,
+    showInAccount: doc.show_in_account,
     createdAt: doc.created_at.toISOString(),
     updatedAt: doc.updated_at.toISOString(),
     versions: (doc.versions ?? []).map(toVersionSummary),
@@ -96,6 +98,7 @@ function toVersionResponse(version: VersionWithDocument) {
     audience: version.legal_document.audience,
     requiredForOnboarding: version.legal_document.required_for_onboarding,
     publicVisibility: version.legal_document.public_visibility,
+    showInAccount: version.legal_document.show_in_account,
   };
 }
 
@@ -132,6 +135,7 @@ export class LegalDocumentService {
       audience: document.audience,
       required_for_onboarding: document.required_for_onboarding,
       public_visibility: document.public_visibility,
+      show_in_account: document.show_in_account,
     });
 
     logger.info({ legalDocumentId: document.id, type: document.type }, "Legal document created");
@@ -175,6 +179,15 @@ export class LegalDocumentService {
       changes.public_visibility = {
         from: existing.public_visibility,
         to: input.publicVisibility,
+      };
+    }
+    if (
+      input.showInAccount !== undefined &&
+      input.showInAccount !== existing.show_in_account
+    ) {
+      changes.show_in_account = {
+        from: existing.show_in_account,
+        to: input.showInAccount,
       };
     }
 

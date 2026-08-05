@@ -2,6 +2,7 @@ import type { PublicLegalDocumentResponse } from "@cashsouk/types";
 import {
   buildCompactPortalLegalLinks,
   buildLandingFooterLegalLinks,
+  buildPortalFooterLegalLinks,
   permanentCompactPortalLegalLinks,
   publicLegalDownloadApiPath,
   publicLegalViewApiPath,
@@ -180,5 +181,54 @@ describe("public legal PDF API paths", () => {
       "https://api.example.com/v1/public/legal-documents/versions/abc/download"
     );
     expect(publicLegalViewApiPath("abc", "https://api.example.com")).not.toMatch(/s3/i);
+  });
+});
+
+describe("buildPortalFooterLegalLinks", () => {
+  it("shows audience-applicable published public docs for issuer", () => {
+    const links = buildPortalFooterLegalLinks(
+      [
+        doc({
+          type: "TERMS_OF_USE",
+          slug: "terms-of-use",
+          title: "Terms of Use",
+          audience: "BOTH",
+          legalDocumentVersionId: "v-terms",
+        }),
+        doc({
+          type: "ISSUER_AGREEMENT",
+          slug: "issuer-agreement",
+          title: "Issuer Agreement",
+          audience: "ISSUER",
+          legalDocumentVersionId: "v-issuer",
+        }),
+        doc({
+          type: "INVESTOR_AGREEMENT",
+          slug: "investor-agreement",
+          title: "Investor Agreement",
+          audience: "INVESTOR",
+          legalDocumentVersionId: "v-investor",
+        }),
+      ],
+      "ISSUER"
+    );
+    expect(links.map((l) => l.type)).toEqual(["TERMS_OF_USE", "ISSUER_AGREEMENT"]);
+    expect(links.map((l) => l.versionId)).toEqual(["v-terms", "v-issuer"]);
+  });
+
+  it("hides investor-only docs from issuer footer", () => {
+    const links = buildPortalFooterLegalLinks(
+      [
+        doc({
+          type: "INVESTOR_WARNING_STATEMENT",
+          slug: "investor-warning-statement",
+          title: "Investor Warning Statement",
+          audience: "INVESTOR",
+          legalDocumentVersionId: "v-warn",
+        }),
+      ],
+      "ISSUER"
+    );
+    expect(links).toEqual([]);
   });
 });

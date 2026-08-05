@@ -147,6 +147,7 @@ export interface LegalDocumentDefinitionResponse {
   audience: LegalDocumentAudience;
   requiredForOnboarding: boolean;
   publicVisibility: boolean;
+  showInAccount: boolean;
   createdAt: string;
   updatedAt: string;
   versions?: LegalDocumentVersionSummary[];
@@ -179,6 +180,52 @@ export interface LegalDocumentVersionResponse extends LegalDocumentVersionSummar
   audience: LegalDocumentAudience;
   requiredForOnboarding: boolean;
   publicVisibility: boolean;
+  showInAccount: boolean;
+}
+
+/** Published legal document shown on Profile → Documents (show_in_account). */
+export interface AccountLegalDocumentResponse {
+  legalDocumentId: string;
+  legalDocumentVersionId: string;
+  type: LegalDocumentType;
+  title: string;
+  version: number;
+  file_name: string;
+  file_size: number;
+  content_type: string;
+}
+
+export type LegalAcceptanceEventStatus = LegalAcceptanceStatus;
+
+export interface LegalDocumentAcceptanceListItem {
+  id: string;
+  acceptedAt: string | null;
+  openedAt: string | null;
+  createdAt: string;
+  status: LegalAcceptanceStatus;
+  documentType: LegalDocumentType | null;
+  documentTitle: string;
+  versionNumber: number | null;
+  legalDocumentVersionId: string;
+  legalDocumentId: string | null;
+  fileName: string | null;
+  documentHash: string | null;
+  organizationId: string | null;
+  organizationName: string | null;
+  organizationType: LegalAcceptanceAudience;
+  userId: string;
+  userName: string | null;
+  userEmail: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  deviceInfo: string | null;
+  acknowledgementText: string | null;
+}
+
+export interface LegalDocumentAcceptanceDetail extends LegalDocumentAcceptanceListItem {
+  versionStatus: LegalDocumentVersionStatus | null;
+  contentType: string | null;
+  fileSize: number | null;
 }
 
 export interface RequiredLegalDocumentResponse {

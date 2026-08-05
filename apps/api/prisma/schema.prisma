@@ -1624,12 +1624,15 @@ model LegalDocument {
   audience                LegalDocumentAudience @default(BOTH)
   required_for_onboarding Boolean               @default(true)
   public_visibility       Boolean               @default(false)
+  /// When true, the active published version appears on Profile → Documents.
+  show_in_account         Boolean               @default(false)
   created_at              DateTime              @default(now())
   updated_at              DateTime              @updatedAt
   versions                LegalDocumentVersion[]
 
   @@index([audience])
   @@index([required_for_onboarding])
+  @@index([show_in_account])
   @@map("legal_documents")
 }
 
@@ -1666,6 +1669,12 @@ model LegalDocumentVersion {
 model LegalDocumentAcceptance {
   id                         String                  @id @default(cuid())
   legal_document_version_id  String
+  /// Snapshot of definition id at open/accept (survives later config changes).
+  legal_document_id          String?
+  /// Snapshot of document type at open/accept.
+  document_type              LegalDocumentType?
+  /// Snapshot of version number at open/accept.
+  version_number             Int?
   user_id                    String
   organization_id            String?
   audience_role              LegalAcceptanceAudience
@@ -1673,8 +1682,13 @@ model LegalDocumentAcceptance {
   opened_at                  DateTime?
   accepted_at                DateTime?
   document_hash              String?
+  /// Exact acknowledgement wording shown when the user accepted.
+  acknowledgement_text       String?
   ip_address                 String?
   user_agent                 String?
+  device_info                String?
+  user_email_snapshot        String?
+  user_name_snapshot         String?
   created_at                 DateTime                @default(now())
   updated_at                 DateTime                @updatedAt
   user                       User                    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
@@ -1685,6 +1699,9 @@ model LegalDocumentAcceptance {
   @@index([organization_id])
   @@index([legal_document_version_id])
   @@index([organization_id, status])
+  @@index([document_type])
+  @@index([accepted_at])
+  @@index([audience_role])
   @@map("legal_document_acceptances")
 }
 

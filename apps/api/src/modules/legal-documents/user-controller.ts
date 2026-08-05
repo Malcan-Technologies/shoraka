@@ -3,11 +3,39 @@ import { AppError } from "../../lib/http/error-handler";
 import { legalDocumentAcceptanceService } from "./acceptance-service";
 import {
   acceptLegalDocumentSchema,
+  accountLegalDocumentsQuerySchema,
   openLegalDocumentSchema,
   requiredLegalDocumentsQuerySchema,
 } from "./schemas";
 
 const router = Router();
+
+router.get("/account", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user) {
+      throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+    }
+
+    const validated = accountLegalDocumentsQuerySchema.parse(req.query);
+    const documents = await legalDocumentAcceptanceService.listAccountDocuments(
+      validated.audience
+    );
+
+    res.json({
+      success: true,
+      data: { documents },
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(
+      error instanceof AppError
+        ? error
+        : error instanceof Error
+          ? new AppError(400, "VALIDATION_ERROR", error.message)
+          : error
+    );
+  }
+});
 
 router.get("/required", async (req: Request, res: Response, next: NextFunction) => {
   try {

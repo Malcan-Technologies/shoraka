@@ -46,6 +46,10 @@ export function websiteVisibilityLabel(visible: boolean): string {
   return visible ? "Public" : "Private";
 }
 
+export function accountVisibilityLabel(visible: boolean): string {
+  return visible ? "In account" : "Hidden";
+}
+
 export type LegalBadgeVariant = "success" | "secondary" | "muted" | "warning" | "info" | "outline";
 
 export function legalStatusBadgeVariant(
@@ -65,6 +69,10 @@ export function onboardingBadgeLabel(required: boolean): string {
 }
 
 export function websiteBadgeVariant(visible: boolean): LegalBadgeVariant {
+  return visible ? "info" : "secondary";
+}
+
+export function accountBadgeVariant(visible: boolean): LegalBadgeVariant {
   return visible ? "info" : "secondary";
 }
 
@@ -308,6 +316,7 @@ export function createFormDefaultsForAvailableTypes(
   audience: LegalDocumentAudience;
   requiredForOnboarding: boolean;
   publicVisibility: boolean;
+  showInAccount: boolean;
   file: File | null;
 } | null {
   const type = available[0];
@@ -317,6 +326,7 @@ export function createFormDefaultsForAvailableTypes(
     audience: LEGAL_DOCUMENT_DEFAULT_AUDIENCE[type],
     requiredForOnboarding: true,
     publicVisibility: false,
+    showInAccount: false,
     file: null,
   };
 }
@@ -346,6 +356,7 @@ export type CreateLegalDocumentFormValues = {
   audience: LegalDocumentAudience;
   requiredForOnboarding: boolean;
   publicVisibility: boolean;
+  showInAccount: boolean;
 };
 
 /** Fixed display name from legal type (Admin no longer edits title/description). */
@@ -360,6 +371,7 @@ export function buildCreateDefinitionPayload(form: CreateLegalDocumentFormValues
     audience: form.audience,
     requiredForOnboarding: form.requiredForOnboarding,
     publicVisibility: form.publicVisibility,
+    showInAccount: form.showInAccount,
   };
 }
 
@@ -369,6 +381,7 @@ export function buildEditDefinitionPayload(form: {
   audience: LegalDocumentAudience;
   requiredForOnboarding: boolean;
   publicVisibility: boolean;
+  showInAccount: boolean;
 }) {
   return {
     title: legalDocumentDisplayName(form.type),
@@ -376,6 +389,7 @@ export function buildEditDefinitionPayload(form: {
     audience: form.audience,
     requiredForOnboarding: form.requiredForOnboarding,
     publicVisibility: form.publicVisibility,
+    showInAccount: form.showInAccount,
   };
 }
 

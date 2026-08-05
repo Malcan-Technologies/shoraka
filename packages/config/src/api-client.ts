@@ -2101,6 +2101,27 @@ export class ApiClient {
     return this.get<{ documents: SiteDocumentResponse[] }>(`/v1/documents/account`);
   }
 
+  async getAccountLegalDocuments(
+    audience: "ISSUER" | "INVESTOR"
+  ): Promise<
+    | ApiResponse<{
+        documents: import("@cashsouk/types").AccountLegalDocumentResponse[];
+      }>
+    | ApiError
+  > {
+    return this.get<{
+      documents: import("@cashsouk/types").AccountLegalDocumentResponse[];
+    }>(`/v1/legal-documents/account?audience=${audience}`);
+  }
+
+  async getLegalDocumentDownloadUrl(
+    versionId: string
+  ): Promise<ApiResponse<DownloadUrlResponse> | ApiError> {
+    return this.get<DownloadUrlResponse>(
+      `/v1/legal-documents/versions/${versionId}/download`
+    );
+  }
+
   async getDocumentDownloadUrl(id: string): Promise<ApiResponse<DownloadUrlResponse> | ApiError> {
     return this.get<DownloadUrlResponse>(`/v1/documents/${id}/download`);
   }

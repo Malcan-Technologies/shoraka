@@ -5,8 +5,10 @@ import type { PublicLegalDocumentResponse } from "@cashsouk/types";
 import {
   buildCompactPortalLegalLinks,
   buildLandingFooterLegalLinks,
+  buildPortalFooterLegalLinks,
   type PublicLegalPdfLink,
 } from "../lib/compact-portal-legal-links";
+import type { LegalAcceptanceAudience } from "@cashsouk/types";
 
 type CacheEntry = {
   promise?: Promise<PublicLegalDocumentResponse[]>;
@@ -80,14 +82,19 @@ export function usePublicLegalDocuments(): {
 /**
  * Shared public legal PDF links for portal sidebar/footer.
  * While loading / on error, returns no links (section can hide).
+ * Pass portal audience so issuer/investor only see applicable docs.
  */
-export function useCompactPortalLegalLinks(): {
+export function useCompactPortalLegalLinks(
+  portal?: LegalAcceptanceAudience
+): {
   links: PublicLegalPdfLink[];
   loading: boolean;
 } {
   const { documents, loading } = usePublicLegalDocuments();
   return {
-    links: buildCompactPortalLegalLinks(documents),
+    links: portal
+      ? buildPortalFooterLegalLinks(documents, portal)
+      : buildCompactPortalLegalLinks(documents),
     loading,
   };
 }

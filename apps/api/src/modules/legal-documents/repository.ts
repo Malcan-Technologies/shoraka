@@ -17,6 +17,7 @@ export type LegalDocumentRow = {
   audience: "PUBLIC" | "ISSUER" | "INVESTOR" | "BOTH";
   required_for_onboarding: boolean;
   public_visibility: boolean;
+  show_in_account: boolean;
   created_at: Date;
   updated_at: Date;
 };
@@ -109,6 +110,7 @@ export class LegalDocumentRepository {
         audience: input.audience,
         required_for_onboarding: input.requiredForOnboarding ?? true,
         public_visibility: input.publicVisibility ?? false,
+        show_in_account: input.showInAccount ?? false,
       },
       include: {
         versions: true,
@@ -128,6 +130,9 @@ export class LegalDocumentRepository {
         }),
         ...(input.publicVisibility !== undefined && {
           public_visibility: input.publicVisibility,
+        }),
+        ...(input.showInAccount !== undefined && {
+          show_in_account: input.showInAccount,
         }),
       },
       include: {
@@ -384,6 +389,23 @@ export class LegalDocumentRepository {
       include: { legal_document: true },
       orderBy: { version: "desc" },
     })) as VersionWithDocument | null;
+  }
+
+  /** Published versions flagged for Profile → Documents for the given audiences. */
+  async findAccountPublishedVersions(
+    audiences: Array<"PUBLIC" | "ISSUER" | "INVESTOR" | "BOTH">
+  ) {
+    return (await prisma.legalDocumentVersion.findMany({
+      where: {
+        status: "PUBLISHED",
+        legal_document: {
+          show_in_account: true,
+          audience: { in: audiences },
+        },
+      },
+      include: { legal_document: true },
+      orderBy: [{ legal_document: { type: "asc" } }, { version: "desc" }],
+    })) as VersionWithDocument[];
   }
 }
 

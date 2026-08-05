@@ -120,6 +120,8 @@ import {
   shouldSkipDefinitionCreate,
   statusLabel,
   validateLegalPdfFile,
+  accountBadgeVariant,
+  accountVisibilityLabel,
   websiteBadgeVariant,
   websiteVisibilityLabel,
   type CreateOrchestrationState,
@@ -149,6 +151,7 @@ const emptyCreateForm = () => ({
   audience: LEGAL_DOCUMENT_DEFAULT_AUDIENCE.PDPA_NOTICE_AND_CONSENT,
   requiredForOnboarding: true,
   publicVisibility: false,
+  showInAccount: false,
   file: null as File | null,
 });
 
@@ -243,6 +246,7 @@ export default function LegalDocumentsPage() {
     audience: "BOTH" as LegalDocumentAudience,
     requiredForOnboarding: true,
     publicVisibility: false,
+    showInAccount: false,
   });
   const [versionFile, setVersionFile] = React.useState<File | null>(null);
 
@@ -493,6 +497,7 @@ export default function LegalDocumentsPage() {
           audience: editForm.audience,
           requiredForOnboarding: editForm.requiredForOnboarding,
           publicVisibility: editForm.publicVisibility,
+          showInAccount: editForm.showInAccount,
         })
       );
       if (!result.success) {
@@ -676,6 +681,7 @@ export default function LegalDocumentsPage() {
       audience: doc.audience === "PUBLIC" ? "BOTH" : doc.audience,
       requiredForOnboarding: doc.requiredForOnboarding,
       publicVisibility: doc.publicVisibility,
+      showInAccount: doc.showInAccount,
     });
     setEditDialogOpen(true);
   };
@@ -808,6 +814,7 @@ export default function LegalDocumentsPage() {
                     <TableHead>Audience</TableHead>
                     <TableHead>Onboarding</TableHead>
                     <TableHead>Website</TableHead>
+                    <TableHead>Account</TableHead>
                     <TableHead>Re-accept</TableHead>
                     <TableHead>Updated</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -817,7 +824,7 @@ export default function LegalDocumentsPage() {
                   {isLoading ? (
                     Array.from({ length: 4 }).map((_, i) => (
                       <TableRow key={i}>
-                        {Array.from({ length: 9 }).map((__, j) => (
+                        {Array.from({ length: 10 }).map((__, j) => (
                           <TableCell key={j}>
                             <Skeleton className="h-5 w-full" />
                           </TableCell>
@@ -1008,6 +1015,11 @@ export default function LegalDocumentsPage() {
                           <TableCell>
                             <Badge variant={websiteBadgeVariant(doc.publicVisibility)}>
                               {websiteVisibilityLabel(doc.publicVisibility)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={accountBadgeVariant(doc.showInAccount)}>
+                              {accountVisibilityLabel(doc.showInAccount)}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -1226,6 +1238,22 @@ export default function LegalDocumentsPage() {
                     }
                   />
                 </div>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="pr-4">
+                    <Label htmlFor="legal-account">Show in account</Label>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      After publishing, show this document on Profile → Documents.
+                    </p>
+                  </div>
+                  <Switch
+                    id="legal-account"
+                    checked={createForm.showInAccount}
+                    disabled={Boolean(createOrchestration.definitionId)}
+                    onCheckedChange={(checked) =>
+                      setCreateForm((prev) => ({ ...prev, showInAccount: checked }))
+                    }
+                  />
+                </div>
               </section>
 
               <section className="space-y-3 rounded-lg border p-4">
@@ -1361,6 +1389,21 @@ export default function LegalDocumentsPage() {
                   checked={editForm.publicVisibility}
                   onCheckedChange={(checked) =>
                     setEditForm((prev) => ({ ...prev, publicVisibility: checked }))
+                  }
+                />
+              </div>
+              <div className="flex items-start justify-between gap-4">
+                <div className="pr-4">
+                  <Label htmlFor="edit-account">Show in account</Label>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    After publishing, show this document on Profile → Documents.
+                  </p>
+                </div>
+                <Switch
+                  id="edit-account"
+                  checked={editForm.showInAccount}
+                  onCheckedChange={(checked) =>
+                    setEditForm((prev) => ({ ...prev, showInAccount: checked }))
                   }
                 />
               </div>

@@ -43,13 +43,49 @@ type AcceptanceRow = {
   organization_id: string | null;
   audience_role: LegalAcceptanceAudience;
   legal_document_version_id: string;
+  legal_document_id: string | null;
+  document_type: LegalDocumentType | null;
+  version_number: number | null;
   document_hash: string | null;
+  acknowledgement_text: string | null;
   status: LegalAcceptanceStatus;
   opened_at: Date | null;
   accepted_at: Date | null;
   ip_address: string | null;
   user_agent: string | null;
+  device_info: string | null;
+  user_email_snapshot: string | null;
+  user_name_snapshot: string | null;
 };
+
+async function loadUserSnapshot(userId: string): Promise<{
+  email: string | null;
+  name: string | null;
+}> {
+  const user = await prisma.user.findUnique({
+    where: { user_id: userId },
+    select: { email: true, first_name: true, last_name: true },
+  });
+  if (!user) return { email: null, name: null };
+  const name = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
+  return { email: user.email, name: name || null };
+}
+
+function evidenceSnapshot(version: VersionWithDocument, user: {
+  email: string | null;
+  name: string | null;
+}) {
+  const type = version.legal_document.type as LegalDocumentType;
+  return {
+    legal_document_id: version.legal_document_id,
+    document_type: type,
+    version_number: version.version,
+    document_hash: version.file_hash,
+    acknowledgement_text: LEGAL_DOCUMENT_CHECKBOX_WORDING[type],
+    user_email_snapshot: user.email,
+    user_name_snapshot: user.name,
+  };
+}
 
 function audiencesForRole(role: LegalAcceptanceAudience): LegalDocumentAudience[] {
   return role === "ISSUER" ? ["ISSUER", "BOTH"] : ["INVESTOR", "BOTH"];
@@ -353,6 +389,8 @@ export class LegalDocumentAcceptanceService {
 
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
     const existing = await findUserAcceptance(userId, organizationId, versionId);
+    const userSnapshot = await loadUserSnapshot(userId);
+    const evidence = evidenceSnapshot(version, userSnapshot);
 
     if (existing?.status === "ACCEPTED" || existing?.status === "OPENED") {
       return existing;
@@ -366,6 +404,8 @@ export class LegalDocumentAcceptanceService {
             opened_at: new Date(),
             ip_address: ipAddress,
             user_agent: userAgent,
+            device_info: deviceInfo,
+            ...evidence,
           },
         })) as AcceptanceRow)
       : ((await prisma.legalDocumentAcceptance.create({
@@ -374,11 +414,12 @@ export class LegalDocumentAcceptanceService {
             organization_id: organizationId,
             audience_role: audience,
             legal_document_version_id: versionId,
-            document_hash: version.file_hash,
             status: "OPENED",
             opened_at: new Date(),
             ip_address: ipAddress,
             user_agent: userAgent,
+            device_info: deviceInfo,
+            ...evidence,
           },
         })) as AcceptanceRow);
 
@@ -442,6 +483,8 @@ export class LegalDocumentAcceptanceService {
 
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
     const existing = await findUserAcceptance(userId, organizationId, versionId);
+    const userSnapshot = await loadUserSnapshot(userId);
+    const evidence = evidenceSnapshot(version, userSnapshot);
 
     if (existing?.status === "ACCEPTED") {
       return existing;
@@ -461,9 +504,10 @@ export class LegalDocumentAcceptanceService {
         status: "ACCEPTED",
         accepted_at: new Date(),
         opened_at: existing.opened_at ?? new Date(),
-        document_hash: version.file_hash,
         ip_address: ipAddress,
         user_agent: userAgent,
+        device_info: deviceInfo,
+        ...evidence,
       },
     })) as AcceptanceRow;
 
@@ -571,6 +615,38 @@ export class LegalDocumentAcceptanceService {
     }
 
     return [...byType.values()].map((row) => this.toPublicResponse(row));
+  }
+
+  /**
+   * Profile → Documents: only explicitly published versions with show_in_account.
+   * No archived/draft fallback.
+   */
+  async listAccountDocuments(audience: LegalAcceptanceAudience) {
+    const rows = await legalDocumentRepository.findAccountPublishedVersions(
+      audiencesForRole(audience)
+    );
+    const byType = new Map<string, VersionWithDocument>();
+
+    for (const row of rows) {
+      if (!isLegalDocumentType(row.legal_document.type)) continue;
+      if (!byType.has(row.legal_document.type)) {
+        byType.set(row.legal_document.type, row);
+      }
+    }
+
+    return [...byType.values()].map((row) => {
+      const type = row.legal_document.type as LegalDocumentType;
+      return {
+        legalDocumentId: row.legal_document_id,
+        legalDocumentVersionId: row.id,
+        type,
+        title: row.legal_document.title || LEGAL_DOCUMENT_TYPE_LABELS[type],
+        version: row.version,
+        file_name: row.file_name,
+        file_size: row.file_size,
+        content_type: row.content_type,
+      };
+    });
   }
 
   async getPublicDocumentBySlug(slug: string): Promise<PublicLegalDocumentResponse> {

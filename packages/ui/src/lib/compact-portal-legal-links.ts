@@ -1,6 +1,8 @@
 import {
   LEGAL_DOCUMENT_TYPE_LABELS,
   PUBLIC_FOOTER_LEGAL_TYPES,
+  type LegalAcceptanceAudience,
+  type LegalDocumentAudience,
   type LegalDocumentType,
   type PublicLegalDocumentResponse,
 } from "@cashsouk/types";
@@ -37,6 +39,14 @@ function indexByType(documents: PublicLegalDocumentResponse[]) {
   return byType;
 }
 
+function audiencesForPortal(
+  portal: LegalAcceptanceAudience
+): LegalDocumentAudience[] {
+  return portal === "ISSUER"
+    ? ["PUBLIC", "ISSUER", "BOTH"]
+    : ["PUBLIC", "INVESTOR", "BOTH"];
+}
+
 export function buildPublicLegalPdfLinks(
   documents: PublicLegalDocumentResponse[],
   types: ReadonlyArray<{ type: LegalDocumentType; label: string }>
@@ -56,6 +66,25 @@ export function buildPublicLegalPdfLinks(
   }
 
   return links;
+}
+
+/**
+ * Authenticated portal footer: published + public_visibility docs that apply
+ * to the portal audience. Labels come from legal document type.
+ */
+export function buildPortalFooterLegalLinks(
+  documents: PublicLegalDocumentResponse[],
+  portal: LegalAcceptanceAudience
+): PublicLegalPdfLink[] {
+  const allowed = new Set(audiencesForPortal(portal));
+  const filtered = documents.filter((doc) => allowed.has(doc.audience));
+  return buildPublicLegalPdfLinks(
+    filtered,
+    PUBLIC_FOOTER_LEGAL_TYPES.map((type) => ({
+      type,
+      label: LEGAL_DOCUMENT_TYPE_LABELS[type],
+    }))
+  );
 }
 
 /** Compact issuer/investor links (Terms, PDPA, Risk Statement). */
