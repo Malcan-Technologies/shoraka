@@ -28,14 +28,14 @@ import {
 } from "@/lib/gateway-account";
 
 const STATUS_LABEL: Record<string, string> = {
-  CREATED: "Created",
+  CREATED: "Awaiting payment",
   PAID: "Paid",
   NAME_CHECK_PENDING: "Name check pending",
   COMPLETED: "Completed",
   HELD: "Needs attention",
   REFUND_INITIATED: "Refund pending",
   REFUNDED: "Refunded",
-  FAILED: "Failed",
+  FAILED: "Payment failed",
   EXPIRED: "Expired",
 };
 

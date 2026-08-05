@@ -109,24 +109,24 @@ export function GatewayPaymentShowcaseControls({
         </div>
 
         <div className="rounded-xl border bg-background/80 p-3 text-sm">
-          <p className="font-medium">Why actions show / hide</p>
+          <p className="font-medium">Why actions show or hide</p>
           <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
             <li>
-              Name check: {visibility.showNameCheckCard ? "visible" : "hidden"} — status
-              NAME_CHECK_PENDING
+              Name check: {visibility.showNameCheckCard ? "visible" : "hidden"} — when status
+              is name check pending
             </li>
             <li>
-              Initiate refund: {visibility.showInitiateRefund ? "visible" : "hidden"} —
-              COMPLETED + INVESTOR_DEPOSIT
+              Start refund: {visibility.showInitiateRefund ? "visible" : "hidden"} — completed
+              investor deposit only
             </li>
             <li>
-              Retry refund: {visibility.showRetryRefund ? "visible" : "hidden"} — HELD and
-              not currency/wallet cards
+              Retry refund: {visibility.showRetryRefund ? "visible" : "hidden"} — needs
+              attention, and not a currency or wallet-balance issue
             </li>
             <li>
-              Retry wallet reversal:{" "}
-              {visibility.showWalletReversalCard ? "visible" : "hidden"} — HELD +
-              refundConfirmedWalletReversalFailed
+              Retry wallet update:{" "}
+              {visibility.showWalletReversalCard ? "visible" : "hidden"} — refund completed
+              but wallet balance was not updated
             </li>
             <li>
               Amount mismatch pending:{" "}
@@ -136,8 +136,8 @@ export function GatewayPaymentShowcaseControls({
               Currency mismatch: {visibility.showCurrencyMismatchCard ? "visible" : "hidden"}
             </li>
             <li>
-              Effective canManage: {canManageEffective ? "yes" : "no"} (disabled buttons
-              when no)
+              Manage permission: {canManageEffective ? "yes" : "no"} (buttons disabled when
+              no)
             </li>
           </ul>
           {scenario.notes.length > 0 ? (

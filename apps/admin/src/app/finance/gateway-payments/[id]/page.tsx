@@ -44,6 +44,12 @@ import {
   getGatewayPaymentDetailVisibility,
   readRefundRequestedAt,
 } from "./gateway-payment-detail-model";
+import {
+  GATEWAY_PAYMENT_COPY,
+  formatGatewayEventDescription,
+  formatGatewayEventTitle,
+  formatGatewayPaymentFailureReason,
+} from "./gateway-payment-copy";
 // TEMPORARY GATEWAY PAYMENT SHOWCASE — Remove after UI review (see gateway-payment-showcase/REMOVAL.md)
 import {
   GatewayPaymentShowcaseControls,
@@ -55,9 +61,9 @@ import {
 } from "./gateway-payment-showcase";
 
 const RECEIPT_STATUS_LABEL: Record<string, string> = {
-  PENDING: "Generating",
+  PENDING: "Being prepared",
   GENERATED: "Ready",
-  FAILED: "Failed",
+  FAILED: "Could not be prepared",
   REFUNDED: "Refunded",
 };
 
@@ -67,70 +73,6 @@ function receiptStatusVariant(status: string) {
   if (status === "REFUNDED") return "secondary" as const;
   if (status === "PENDING") return "warning" as const;
   return "outline" as const;
-}
-
-const EVENT_COPY: Record<string, { title: string; description: string }> = {
-  NAME_CHECK: {
-    title: "Name check needed",
-    description:
-      "Payment received, but the bank name could not be matched to the investor profile. Waiting for admin review.",
-  },
-  NAME_CHECK_APPROVED: {
-    title: "Name check approved",
-    description: "Admin confirmed the names match. Deposit was completed and credited.",
-  },
-  NAME_CHECK_REJECTED: {
-    title: "Name check rejected",
-    description: "Admin rejected the name match. A refund was started.",
-  },
-  CAPTURE_MISMATCH: {
-    title: "Capture mismatch",
-    description:
-      "Curlec capture did not match Cashsouk expectations. See the status card for amount or currency details.",
-  },
-  EXPIRED: {
-    title: "Checkout expired",
-    description: "The payment link timed out before the customer finished paying.",
-  },
-  OVERRIDE_PROPOSED: {
-    title: "Status override proposed",
-    description: "An admin asked to manually change this payment’s status. Needs another admin to approve.",
-  },
-  OVERRIDE_APPROVED: {
-    title: "Status override approved",
-    description: "Another admin approved the manual status change.",
-  },
-  OVERRIDE_REJECTED: {
-    title: "Status override rejected",
-    description: "Another admin rejected the manual status change. No change was applied.",
-  },
-  REFUND_INITIATED: {
-    title: "Automatic refund requested",
-    description: "A full refund was sent to Curlec. Waiting for the bank to confirm.",
-  },
-  REFUND_WALLET_REVERSAL_FAILED: {
-    title: "Wallet debit failed after refund",
-    description:
-      "Curlec refunded the money, but Cashsouk could not reverse the investor wallet credit. Funds should be blocked until reversal succeeds.",
-  },
-  REFUNDED: {
-    title: "Refund completed",
-    description: "Curlec confirmed the refund. Money was returned to the payer.",
-  },
-};
-
-/** Known machine reason codes → plain English. */
-const REASON_COPY: Record<string, string> = {
-  AMOUNT_MISMATCH: "Paid amount does not match the expected amount.",
-  NAME_MISMATCH: "Bank payer name does not match the investor profile name.",
-  NAME_UNAVAILABLE: "Bank did not return a payer name.",
-  ADMIN_INITIATED: "An admin started this action.",
-  "Curlec captured currency does not match internal payment currency":
-    "Currency mismatch detected. Payment was held for ops attention.",
-};
-
-function looksLikeReasonCode(value: string) {
-  return /^[A-Z][A-Z0-9_]+$/.test(value.trim());
 }
 
 function formatPendingDuration(fromIso: string) {
@@ -147,34 +89,6 @@ function formatPendingDuration(fromIso: string) {
 
 function senToDisplayMyr(sen: number) {
   return formatCurrency(sen / 100);
-}
-
-function formatEventTitle(type: string, reason?: string | null) {
-  if (type === "CAPTURE_MISMATCH" && reason === "Currency mismatch") {
-    return "Currency mismatch detected";
-  }
-  if (type === "CAPTURE_MISMATCH" && reason?.toLowerCase().includes("amount")) {
-    return "Amount mismatch detected";
-  }
-  if (EVENT_COPY[type]) return EVENT_COPY[type].title;
-  return type
-    .toLowerCase()
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
-function formatEventDescription(type: string, reason: string | null) {
-  if (reason === "Currency mismatch") {
-    return "Curlec currency does not match Cashsouk. Payment was held for manual investigation. No auto-refund.";
-  }
-  if (reason) {
-    const trimmed = reason.trim();
-    const mapped = REASON_COPY[trimmed];
-    if (mapped) return mapped;
-    if (!looksLikeReasonCode(trimmed)) return trimmed;
-  }
-  return EVENT_COPY[type]?.description ?? null;
 }
 
 function formatStatusLabel(status: string | null | undefined) {
@@ -339,8 +253,8 @@ export default function GatewayPaymentDetailPage() {
       await retryRefund.mutateAsync(id);
       toast.success(
         showWalletReversalCard
-          ? "Wallet reversal retry submitted"
-          : "Refund retry submitted to Curlec"
+          ? GATEWAY_PAYMENT_COPY.toasts.walletUpdateRetried
+          : GATEWAY_PAYMENT_COPY.toasts.refundRetried
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Refund retry failed");
@@ -356,7 +270,7 @@ export default function GatewayPaymentDetailPage() {
     if (!id) return;
     try {
       await initiateRefund.mutateAsync({ id, reason });
-      toast.success("Refund initiated via Curlec");
+      toast.success(GATEWAY_PAYMENT_COPY.toasts.refundStarted);
       setShowRefundDialog(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Refund initiation failed");
@@ -371,7 +285,7 @@ export default function GatewayPaymentDetailPage() {
     if (!id) return;
     try {
       await approveNameCheck.mutateAsync(id);
-      toast.success("Name check approved — deposit credited");
+      toast.success(GATEWAY_PAYMENT_COPY.toasts.nameCheckApproved);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Name check approval failed");
     }
@@ -385,7 +299,7 @@ export default function GatewayPaymentDetailPage() {
     if (!id) return;
     try {
       await rejectNameCheck.mutateAsync(id);
-      toast.success("Name check rejected — refund initiated");
+      toast.success(GATEWAY_PAYMENT_COPY.toasts.nameCheckRejected);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Name check rejection failed");
     }
@@ -415,7 +329,7 @@ export default function GatewayPaymentDetailPage() {
     if (!receiptId || !id) return;
     try {
       await retryReceipt.mutateAsync({ receiptId, gatewayPaymentId: id });
-      toast.success("Receipt generation retried");
+      toast.success(GATEWAY_PAYMENT_COPY.toasts.receiptRetried);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Receipt retry failed");
     }
@@ -518,14 +432,14 @@ export default function GatewayPaymentDetailPage() {
                 {/* Metrics strip — same as note detail */}
                 <Card className="rounded-2xl">
                   <CardContent className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-6">
-                    <Metric label="Amount paid">{formatCurrency(payment.amount)}</Metric>
-                    <Metric label="Currency">{payment.currency}</Metric>
-                    <Metric label="Method">{payment.method ?? "—"}</Metric>
-                    <Metric label="Bank">{payment.bankCode ?? "—"}</Metric>
-                    <Metric label="Created">
+                    <Metric label={GATEWAY_PAYMENT_COPY.metrics.amountPaid}>{formatCurrency(payment.amount)}</Metric>
+                    <Metric label={GATEWAY_PAYMENT_COPY.metrics.currency}>{payment.currency}</Metric>
+                    <Metric label={GATEWAY_PAYMENT_COPY.metrics.method}>{payment.method ?? "—"}</Metric>
+                    <Metric label={GATEWAY_PAYMENT_COPY.metrics.bank}>{payment.bankCode ?? "—"}</Metric>
+                    <Metric label={GATEWAY_PAYMENT_COPY.metrics.created}>
                       <span className="text-base">{formatDate(payment.createdAt)}</span>
                     </Metric>
-                    <Metric label="Updated">
+                    <Metric label={GATEWAY_PAYMENT_COPY.metrics.updated}>
                       <span className="text-base">{formatDate(payment.updatedAt)}</span>
                     </Metric>
                   </CardContent>
@@ -539,22 +453,21 @@ export default function GatewayPaymentDetailPage() {
                     )}
                   >
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Next action — name check</CardTitle>
+                      <CardTitle className="text-base">{GATEWAY_PAYMENT_COPY.nameCheck.title}</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Manual review when the automatic name check could not approve this
-                        payment. Approve to credit the deposit, or reject to refund.
+                        {GATEWAY_PAYMENT_COPY.nameCheck.description}
                       </p>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                          <p className="text-xs text-muted-foreground">Investor profile name</p>
+                          <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.nameCheck.profileName}</p>
                           <p className="mt-1 text-sm font-medium">
                             {payment.expectedPayerName ?? "—"}
                           </p>
                         </div>
                         <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                          <p className="text-xs text-muted-foreground">FPX returned name</p>
+                          <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.nameCheck.bankName}</p>
                           <p className="mt-1 text-sm font-medium">
                             {payment.payerName ?? "—"}
                           </p>
@@ -566,7 +479,7 @@ export default function GatewayPaymentDetailPage() {
                           disabled={!canManage || isPending}
                           title={disabledReason}
                         >
-                          Approve name check
+                          {GATEWAY_PAYMENT_COPY.nameCheck.approve}
                         </Button>
                         <Button
                           variant="destructive"
@@ -574,7 +487,7 @@ export default function GatewayPaymentDetailPage() {
                           disabled={!canManage || isPending}
                           title={disabledReason}
                         >
-                          Reject name check
+                          {GATEWAY_PAYMENT_COPY.nameCheck.reject}
                         </Button>
                       </div>
                     </CardContent>
@@ -589,45 +502,44 @@ export default function GatewayPaymentDetailPage() {
                     )}
                   >
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Amount mismatch</CardTitle>
+                      <CardTitle className="text-base">{GATEWAY_PAYMENT_COPY.amountMismatch.title}</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        A full refund has been requested automatically. Status: Refund pending.
-                        Waiting for Curlec — time alone does not change this status.
+                        {GATEWAY_PAYMENT_COPY.amountMismatch.pendingDescription}
                       </p>
                     </CardHeader>
                     <CardContent className="grid gap-3 sm:grid-cols-2">
                       <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                        <p className="text-xs text-muted-foreground">Expected amount</p>
+                        <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.amountMismatch.expectedAmount}</p>
                         <p className="mt-1 text-sm font-medium">
                           {senToDisplayMyr(amountMismatch.expectedSen)}
                         </p>
                       </div>
                       <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                        <p className="text-xs text-muted-foreground">Captured amount</p>
+                        <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.amountMismatch.amountReceived}</p>
                         <p className="mt-1 text-sm font-medium">
                           {senToDisplayMyr(amountMismatch.actualSen)}
                         </p>
                       </div>
                       <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                        <p className="text-xs text-muted-foreground">Refund amount</p>
+                        <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.amountMismatch.refundAmount}</p>
                         <p className="mt-1 text-sm font-medium">
                           {senToDisplayMyr(amountMismatch.actualSen)}
                         </p>
                       </div>
                       <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                        <p className="text-xs text-muted-foreground">Curlec refund ID</p>
+                        <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.amountMismatch.refundReference}</p>
                         <p className="mt-1 break-all text-sm font-medium">
                           {payment.refundReference ?? "—"}
                         </p>
                       </div>
                       <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                        <p className="text-xs text-muted-foreground">Refund requested</p>
+                        <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.amountMismatch.refundRequested}</p>
                         <p className="mt-1 text-sm font-medium">
                           {refundRequestedAt ? formatDate(refundRequestedAt) : "—"}
                         </p>
                       </div>
                       <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                        <p className="text-xs text-muted-foreground">Pending for</p>
+                        <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.amountMismatch.refundPendingFor}</p>
                         <p className="mt-1 text-sm font-medium">{pendingDuration ?? "—"}</p>
                       </div>
                     </CardContent>
@@ -642,21 +554,20 @@ export default function GatewayPaymentDetailPage() {
                     )}
                   >
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Currency mismatch</CardTitle>
+                      <CardTitle className="text-base">{GATEWAY_PAYMENT_COPY.currencyMismatch.title}</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Curlec currency does not match Cashsouk. Status: Needs attention.
-                        No auto-refund and no Retry refund — investigate manually.
+                        {GATEWAY_PAYMENT_COPY.currencyMismatch.description}
                       </p>
                     </CardHeader>
                     <CardContent className="grid gap-3 sm:grid-cols-2">
                       <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                        <p className="text-xs text-muted-foreground">Expected currency</p>
+                        <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.currencyMismatch.expectedCurrency}</p>
                         <p className="mt-1 text-sm font-medium">
                           {currencyMismatch.expectedCurrency ?? "—"}
                         </p>
                       </div>
                       <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                        <p className="text-xs text-muted-foreground">Captured currency</p>
+                        <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.currencyMismatch.paymentCurrency}</p>
                         <p className="mt-1 text-sm font-medium">
                           {currencyMismatch.actualCurrency ?? "—"}
                         </p>
@@ -670,30 +581,30 @@ export default function GatewayPaymentDetailPage() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Refunded</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        The full captured amount was refunded automatically.
+                        {GATEWAY_PAYMENT_COPY.amountMismatch.refundedDescription}
                       </p>
                     </CardHeader>
                     <CardContent className="grid gap-3 sm:grid-cols-2">
                       <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                        <p className="text-xs text-muted-foreground">Expected amount</p>
+                        <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.amountMismatch.expectedAmount}</p>
                         <p className="mt-1 text-sm font-medium">
                           {senToDisplayMyr(amountMismatch.expectedSen)}
                         </p>
                       </div>
                       <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                        <p className="text-xs text-muted-foreground">Captured / refunded</p>
+                        <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.amountMismatch.amountReceivedRefunded}</p>
                         <p className="mt-1 text-sm font-medium">
                           {senToDisplayMyr(amountMismatch.actualSen)}
                         </p>
                       </div>
                       <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                        <p className="text-xs text-muted-foreground">Curlec refund ID</p>
+                        <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.amountMismatch.refundReference}</p>
                         <p className="mt-1 break-all text-sm font-medium">
                           {payment.refundReference ?? "—"}
                         </p>
                       </div>
                       <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                        <p className="text-xs text-muted-foreground">Refund date</p>
+                        <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.amountMismatch.refundDate}</p>
                         <p className="mt-1 text-sm font-medium">
                           {payment.refundedAt ? formatDate(payment.refundedAt) : "—"}
                         </p>
@@ -714,13 +625,19 @@ export default function GatewayPaymentDetailPage() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Needs attention</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Curlec refund completed, but the investor wallet could not be corrected.
+                        {walletReversalFailure.fundsProtected === false &&
+                        walletReversalFailure.blockedAmount != null &&
+                        walletReversalFailure.intendedReversalAmount != null &&
+                        walletReversalFailure.blockedAmount + 1e-9 <
+                          walletReversalFailure.intendedReversalAmount
+                          ? GATEWAY_PAYMENT_COPY.walletNeedsAttention.descriptionPartial
+                          : GATEWAY_PAYMENT_COPY.walletNeedsAttention.description}
                       </p>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                          <p className="text-xs text-muted-foreground">Refunded amount</p>
+                          <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.walletNeedsAttention.refundAmount}</p>
                           <p className="mt-1 text-sm font-medium">
                             {walletReversalFailure.intendedReversalAmount != null
                               ? formatCurrency(walletReversalFailure.intendedReversalAmount)
@@ -728,7 +645,7 @@ export default function GatewayPaymentDetailPage() {
                           </p>
                         </div>
                         <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                          <p className="text-xs text-muted-foreground">Wallet amount blocked</p>
+                          <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.walletNeedsAttention.amountUnavailable}</p>
                           <p className="mt-1 text-sm font-medium">
                             {walletReversalFailure.blockedAmount != null
                               ? formatCurrency(walletReversalFailure.blockedAmount)
@@ -736,19 +653,19 @@ export default function GatewayPaymentDetailPage() {
                           </p>
                         </div>
                         <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                          <p className="text-xs text-muted-foreground">Original wallet credit</p>
+                          <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.walletNeedsAttention.originalDepositReference}</p>
                           <p className="mt-1 break-all text-sm font-medium">
                             {walletReversalFailure.originalWalletCreditKey ?? "—"}
                           </p>
                         </div>
                         <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                          <p className="text-xs text-muted-foreground">Curlec refund ID</p>
+                          <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.amountMismatch.refundReference}</p>
                           <p className="mt-1 break-all text-sm font-medium">
                             {walletReversalFailure.refundId ?? payment.refundReference ?? "—"}
                           </p>
                         </div>
                         <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                          <p className="text-xs text-muted-foreground">Last retry</p>
+                          <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.walletNeedsAttention.lastUpdateAttempt}</p>
                           <p className="mt-1 text-sm font-medium">
                             {walletReversalFailure.lastAttemptAt
                               ? formatDate(walletReversalFailure.lastAttemptAt)
@@ -756,11 +673,12 @@ export default function GatewayPaymentDetailPage() {
                           </p>
                         </div>
                         <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                          <p className="text-xs text-muted-foreground">Failure reason</p>
+                          <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.walletNeedsAttention.reason}</p>
                           <p className="mt-1 text-sm font-medium">
-                            {walletReversalFailure.error ??
-                              walletReversalFailure.failureCategory ??
-                              "—"}
+                            {formatGatewayPaymentFailureReason(
+                              walletReversalFailure.error,
+                              walletReversalFailure.failureCategory
+                            )}
                           </p>
                         </div>
                       </div>
@@ -773,8 +691,8 @@ export default function GatewayPaymentDetailPage() {
                         )}
                       >
                         {walletReversalFailure.fundsProtected
-                          ? "Funds protected: Yes"
-                          : "Funds protected: No — urgent review required"}
+                          ? GATEWAY_PAYMENT_COPY.walletNeedsAttention.fundsSecuredYes
+                          : GATEWAY_PAYMENT_COPY.walletNeedsAttention.fundsSecuredNo}
                       </p>
                       <Button
                         variant="destructive"
@@ -782,7 +700,7 @@ export default function GatewayPaymentDetailPage() {
                         disabled={!canManage || isPending}
                         title={disabledReason}
                       >
-                        Retry wallet reversal
+                        {GATEWAY_PAYMENT_COPY.walletNeedsAttention.retryButton}
                       </Button>
                     </CardContent>
                   </Card>
@@ -797,25 +715,27 @@ export default function GatewayPaymentDetailPage() {
                   >
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">
-                        {amountMismatch ? "Refund needs attention" : "Next action — retry refund"}
+                        {amountMismatch
+                          ? GATEWAY_PAYMENT_COPY.heldRefund.titleMismatch
+                          : GATEWAY_PAYMENT_COPY.heldRefund.titleDefault}
                       </CardTitle>
                       <p className="text-sm text-muted-foreground">
                         {amountMismatch
-                          ? "The automatic refund could not be completed. Retry only if Curlec has not already refunded."
-                          : "Auto-refund did not finish. Retry the Curlec refund."}
+                          ? GATEWAY_PAYMENT_COPY.amountMismatch.heldDescription
+                          : GATEWAY_PAYMENT_COPY.heldRefund.descriptionDefault}
                       </p>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {amountMismatch ? (
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                            <p className="text-xs text-muted-foreground">Expected amount</p>
+                            <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.amountMismatch.expectedAmount}</p>
                             <p className="mt-1 text-sm font-medium">
                               {senToDisplayMyr(amountMismatch.expectedSen)}
                             </p>
                           </div>
                           <div className="rounded-xl border bg-background/80 px-3 py-2.5">
-                            <p className="text-xs text-muted-foreground">Captured amount</p>
+                            <p className="text-xs text-muted-foreground">{GATEWAY_PAYMENT_COPY.amountMismatch.amountReceived}</p>
                             <p className="mt-1 text-sm font-medium">
                               {senToDisplayMyr(amountMismatch.actualSen)}
                             </p>
@@ -831,7 +751,7 @@ export default function GatewayPaymentDetailPage() {
                         disabled={!canManage || isPending}
                         title={disabledReason}
                       >
-                        Retry refund
+                        {GATEWAY_PAYMENT_COPY.heldRefund.retryButton}
                       </Button>
                     </CardContent>
                   </Card>
@@ -840,10 +760,11 @@ export default function GatewayPaymentDetailPage() {
                 {showInitiateRefund ? (
                   <Card className="rounded-2xl">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Refund</CardTitle>
+                      <CardTitle className="text-base">
+                        {GATEWAY_PAYMENT_COPY.initiateRefund.title}
+                      </CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        Initiate a Curlec refund for this completed investor deposit when a
-                        post-credit correction is required.
+                        {GATEWAY_PAYMENT_COPY.initiateRefund.description}
                       </p>
                     </CardHeader>
                     <CardContent>
@@ -855,7 +776,7 @@ export default function GatewayPaymentDetailPage() {
                         title={disabledReason}
                         className="h-9 rounded-xl"
                       >
-                        Initiate refund
+                        {GATEWAY_PAYMENT_COPY.initiateRefund.button}
                       </Button>
                     </CardContent>
                   </Card>
@@ -866,10 +787,11 @@ export default function GatewayPaymentDetailPage() {
                   <div className="min-w-0 space-y-6">
                     <Card className="rounded-2xl">
                       <CardHeader className="pb-3">
-                        <CardTitle className="text-base">Payment details</CardTitle>
+                        <CardTitle className="text-base">
+                          {GATEWAY_PAYMENT_COPY.paymentDetails.title}
+                        </CardTitle>
                         <p className="text-sm text-muted-foreground">
-                          For investor deposits, compare the investor profile name with the
-                          FPX returned name. Also shows Curlec references.
+                          {GATEWAY_PAYMENT_COPY.paymentDetails.description}
                         </p>
                       </CardHeader>
                       <CardContent>
@@ -877,52 +799,52 @@ export default function GatewayPaymentDetailPage() {
                           {!showReviewNameCheck ? (
                             <>
                               <DetailRow
-                                label="Investor profile name"
+                                label={GATEWAY_PAYMENT_COPY.paymentDetails.profileName}
                                 value={payment.expectedPayerName ?? "—"}
                               />
                               <DetailRow
-                                label="FPX returned name"
+                                label={GATEWAY_PAYMENT_COPY.paymentDetails.bankName}
                                 value={payment.payerName ?? "—"}
                               />
                             </>
                           ) : null}
                           <DetailRow
-                            label="Curlec order"
+                            label={GATEWAY_PAYMENT_COPY.paymentDetails.orderReference}
                             value={payment.curlecOrderId}
                             mono
                           />
                           <DetailRow
-                            label="Curlec payment"
+                            label={GATEWAY_PAYMENT_COPY.paymentDetails.paymentReference}
                             value={payment.curlecPaymentId ?? "—"}
                             mono
                           />
                           <DetailRow
-                            label="Settlement"
+                            label={GATEWAY_PAYMENT_COPY.paymentDetails.settlement}
                             value={payment.settlementId ?? "—"}
                             mono
                           />
                           <DetailRow
-                            label="Refund reference"
+                            label={GATEWAY_PAYMENT_COPY.paymentDetails.refundReference}
                             value={payment.refundReference ?? "—"}
                             mono
                           />
                           {payment.nameCheckResult ? (
-                            <DetailRow label="Name check" value={payment.nameCheckResult} />
+                            <DetailRow label={GATEWAY_PAYMENT_COPY.paymentDetails.nameCheck} value={payment.nameCheckResult} />
                           ) : null}
                           {payment.nameCheckAt ? (
                             <DetailRow
-                              label="Name check at"
+                              label={GATEWAY_PAYMENT_COPY.paymentDetails.nameCheckAt}
                               value={formatDate(payment.nameCheckAt)}
                             />
                           ) : null}
                           {payment.refundedAt ? (
                             <DetailRow
-                              label="Refunded at"
+                              label={GATEWAY_PAYMENT_COPY.paymentDetails.refundedAt}
                               value={formatDate(payment.refundedAt)}
                             />
                           ) : null}
                           {payment.refundNotes && !showRetryRefund ? (
-                            <DetailRow label="Refund notes" value={payment.refundNotes} />
+                            <DetailRow label={GATEWAY_PAYMENT_COPY.paymentDetails.refundNotes} value={payment.refundNotes} />
                           ) : null}
                         </dl>
                       </CardContent>
@@ -933,11 +855,10 @@ export default function GatewayPaymentDetailPage() {
                         <div className="space-y-1">
                           <CardTitle className="flex items-center gap-2 text-base">
                             <DocumentTextIcon className="h-4 w-4 text-muted-foreground" />
-                            Receipt
+                            {GATEWAY_PAYMENT_COPY.receipt.title}
                           </CardTitle>
                           <p className="text-sm text-muted-foreground">
-                            Names printed on the official receipt (may differ from bank
-                            name check fields above).
+                            {GATEWAY_PAYMENT_COPY.receipt.description}
                           </p>
                         </div>
                         {payment.receipt ? (
@@ -946,36 +867,37 @@ export default function GatewayPaymentDetailPage() {
                               payment.receipt.status}
                           </Badge>
                         ) : (
-                          <Badge variant="outline">Not created</Badge>
+                          <Badge variant="outline">{GATEWAY_PAYMENT_COPY.receipt.notCreated}</Badge>
                         )}
                       </CardHeader>
                       <CardContent className="space-y-4">
                         {!payment.receipt ? (
                           <div className="rounded-xl border border-dashed bg-muted/20 p-4">
-                            <p className="text-sm font-medium">No receipt yet</p>
+                            <p className="text-sm font-medium">
+                              {GATEWAY_PAYMENT_COPY.receipt.noneYetTitle}
+                            </p>
                             <p className="mt-1 text-xs text-muted-foreground">
-                              A receipt is created after this payment is successfully
-                              completed.
+                              {GATEWAY_PAYMENT_COPY.receipt.noneYetDescription}
                             </p>
                           </div>
                         ) : (
                           <>
                             <dl className="space-y-2.5">
                               <DetailRow
-                                label="Receipt number"
+                                label={GATEWAY_PAYMENT_COPY.receipt.receiptNumber}
                                 value={payment.receipt.receiptNumber}
                                 mono
                               />
                               <DetailRow
-                                label="Receipt name"
+                                label={GATEWAY_PAYMENT_COPY.receipt.receiptName}
                                 value={payment.receipt.payerName || "—"}
                               />
                               <DetailRow
-                                label="Receipt company"
+                                label={GATEWAY_PAYMENT_COPY.receipt.receiptCompany}
                                 value={payment.receipt.payerCompanyName || "—"}
                               />
                               <DetailRow
-                                label="Payment date"
+                                label={GATEWAY_PAYMENT_COPY.receipt.paymentDate}
                                 value={formatDate(payment.receipt.paymentDate)}
                               />
                               {payment.receipt.relatedReferenceLabel &&
@@ -994,7 +916,7 @@ export default function GatewayPaymentDetailPage() {
                                 onClick={() => void handleOpenReceiptPdf("view")}
                                 disabled={!payment.receipt.hasPdf || isPending}
                               >
-                                View PDF
+                                {GATEWAY_PAYMENT_COPY.receipt.view}
                               </Button>
                               <Button
                                 variant="outline"
@@ -1002,7 +924,7 @@ export default function GatewayPaymentDetailPage() {
                                 onClick={() => void handleOpenReceiptPdf("download")}
                                 disabled={!payment.receipt.hasPdf || isPending}
                               >
-                                Download PDF
+                                {GATEWAY_PAYMENT_COPY.receipt.download}
                               </Button>
                               {canManage &&
                               (payment.receipt.status === "PENDING" ||
@@ -1016,15 +938,15 @@ export default function GatewayPaymentDetailPage() {
                                   disabled={isPending}
                                   title={disabledReason}
                                 >
-                                  Retry
+                                  {GATEWAY_PAYMENT_COPY.receipt.retry}
                                 </Button>
                               ) : null}
                             </div>
                             {!payment.receipt.hasPdf ? (
                               <p className="text-xs text-muted-foreground">
                                 {payment.receipt.status === "FAILED"
-                                  ? "Creating the receipt failed (error while building or uploading the file). Retry runs it again."
-                                  : "Receipt row exists; file is not ready yet. Usually finishes in the background. Retry if it stays like this."}
+                                  ? GATEWAY_PAYMENT_COPY.receipt.failedDescription
+                                  : GATEWAY_PAYMENT_COPY.receipt.pendingDescription}
                               </p>
                             ) : null}
                           </>
@@ -1040,7 +962,7 @@ export default function GatewayPaymentDetailPage() {
                           <div className="flex items-center gap-2">
                             <ClipboardDocumentCheckIcon className="h-5 w-5 text-muted-foreground" />
                             <CardTitle className="text-base font-semibold">
-                              Activity Timeline
+                              {GATEWAY_PAYMENT_COPY.activity.title}
                             </CardTitle>
                           </div>
                           {timelineEvents.length > 0 ? (
@@ -1050,13 +972,13 @@ export default function GatewayPaymentDetailPage() {
                           ) : null}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Status changes and admin actions for this payment
+                          {GATEWAY_PAYMENT_COPY.activity.description}
                         </p>
                       </CardHeader>
                       <CardContent className="min-h-0 overflow-hidden !px-0">
                         {timelineEvents.length === 0 ? (
                           <div className="px-6 py-8 text-center text-sm text-muted-foreground">
-                            No activity logs found
+                            {GATEWAY_PAYMENT_COPY.activity.empty}
                           </div>
                         ) : (
                           <div className="px-6 pb-6">
@@ -1066,7 +988,7 @@ export default function GatewayPaymentDetailPage() {
                                 {timelineEvents.map((event, index) => {
                                   const fromLabel = formatStatusLabel(event.fromStatus);
                                   const toLabel = formatStatusLabel(event.toStatus);
-                                  const description = formatEventDescription(
+                                  const description = formatGatewayEventDescription(
                                     event.type,
                                     event.reason
                                   );
@@ -1080,7 +1002,7 @@ export default function GatewayPaymentDetailPage() {
                                       />
                                       <div className="-mt-0.5 min-w-0 flex-1">
                                         <p className="text-sm font-medium leading-tight text-foreground">
-                                          {formatEventTitle(event.type, event.reason)}
+                                          {formatGatewayEventTitle(event.type, event.reason)}
                                         </p>
                                         <p className="mt-0.5 text-xs text-muted-foreground">
                                           {formatDate(event.createdAt)}
@@ -1115,9 +1037,9 @@ export default function GatewayPaymentDetailPage() {
         <ApplicationReviewRemarkDialog
           open={showRefundDialog}
           onOpenChange={setShowRefundDialog}
-          title="Initiate refund"
-          description="This will call the Curlec Refund API for a completed investor deposit. Use only for post-credit corrections."
-          submitLabel="Initiate refund"
+          title={GATEWAY_PAYMENT_COPY.initiateRefund.dialogTitle}
+          description={GATEWAY_PAYMENT_COPY.initiateRefund.dialogDescription}
+          submitLabel={GATEWAY_PAYMENT_COPY.initiateRefund.dialogSubmit}
           variant="destructive"
           onConfirm={handleInitiateRefund}
           isPending={isPending}
