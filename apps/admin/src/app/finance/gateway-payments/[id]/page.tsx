@@ -46,9 +46,11 @@ import {
 } from "./gateway-payment-detail-model";
 import {
   GATEWAY_PAYMENT_COPY,
+  formatAmountMismatchDescription,
   formatGatewayEventDescription,
   formatGatewayEventTitle,
   formatGatewayPaymentFailureReason,
+  hasUncertainAmountMismatchRefund,
 } from "./gateway-payment-copy";
 // TEMPORARY GATEWAY PAYMENT SHOWCASE — Remove after UI review (see gateway-payment-showcase/REMOVAL.md)
 import {
@@ -504,7 +506,13 @@ export default function GatewayPaymentDetailPage() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">{GATEWAY_PAYMENT_COPY.amountMismatch.title}</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        {GATEWAY_PAYMENT_COPY.amountMismatch.pendingDescription}
+                        {formatAmountMismatchDescription({
+                          expectedSen: amountMismatch.expectedSen,
+                          receivedSen: amountMismatch.actualSen,
+                          refundSen: amountMismatch.actualSen,
+                          state: "pending",
+                          formatSen: senToDisplayMyr,
+                        })}
                       </p>
                     </CardHeader>
                     <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -581,7 +589,13 @@ export default function GatewayPaymentDetailPage() {
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base">Refunded</CardTitle>
                       <p className="text-sm text-muted-foreground">
-                        {GATEWAY_PAYMENT_COPY.amountMismatch.refundedDescription}
+                        {formatAmountMismatchDescription({
+                          expectedSen: amountMismatch.expectedSen,
+                          receivedSen: amountMismatch.actualSen,
+                          refundSen: amountMismatch.actualSen,
+                          state: "completed",
+                          formatSen: senToDisplayMyr,
+                        })}
                       </p>
                     </CardHeader>
                     <CardContent className="grid gap-3 sm:grid-cols-2">
@@ -721,7 +735,15 @@ export default function GatewayPaymentDetailPage() {
                       </CardTitle>
                       <p className="text-sm text-muted-foreground">
                         {amountMismatch
-                          ? GATEWAY_PAYMENT_COPY.amountMismatch.heldDescription
+                          ? formatAmountMismatchDescription({
+                              expectedSen: amountMismatch.expectedSen,
+                              receivedSen: amountMismatch.actualSen,
+                              refundSen: amountMismatch.actualSen,
+                              state: hasUncertainAmountMismatchRefund(payment.metadata)
+                                ? "uncertain"
+                                : "failed",
+                              formatSen: senToDisplayMyr,
+                            })
                           : GATEWAY_PAYMENT_COPY.heldRefund.descriptionDefault}
                       </p>
                     </CardHeader>

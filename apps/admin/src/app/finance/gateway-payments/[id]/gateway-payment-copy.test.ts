@@ -1,7 +1,9 @@
 import {
+  formatAmountMismatchDescription,
   formatGatewayEventDescription,
   formatGatewayEventTitle,
   formatGatewayPaymentFailureReason,
+  hasUncertainAmountMismatchRefund,
 } from "./gateway-payment-copy";
 
 describe("gateway payment admin copy", () => {
@@ -35,5 +37,60 @@ describe("gateway payment admin copy", () => {
         "External Curlec refund detected on completed payment"
       )
     ).toBe("A refund was detected from Curlec on a completed payment.");
+  });
+
+  it("builds amount mismatch descriptions from real sen amounts", () => {
+    const formatSen = (sen: number) => `RM${(sen / 100).toFixed(2)}`;
+
+    expect(
+      formatAmountMismatchDescription({
+        expectedSen: 15000,
+        receivedSen: 99999,
+        state: "pending",
+        formatSen,
+      })
+    ).toBe(
+      "RM999.99 was received instead of RM150.00. A full refund of RM999.99 has been requested and is waiting for Curlec’s confirmation."
+    );
+
+    expect(
+      formatAmountMismatchDescription({
+        expectedSen: 15000,
+        receivedSen: 99999,
+        state: "completed",
+        formatSen,
+      })
+    ).toBe(
+      "RM999.99 was received instead of RM150.00. A full refund of RM999.99 has been completed."
+    );
+
+    expect(
+      formatAmountMismatchDescription({
+        expectedSen: 10000,
+        receivedSen: 15000,
+        state: "failed",
+        formatSen,
+      })
+    ).toBe(
+      "RM150.00 was received instead of RM100.00. A full refund of RM150.00 could not be completed and requires attention."
+    );
+
+    expect(
+      formatAmountMismatchDescription({
+        expectedSen: 10000,
+        receivedSen: 15000,
+        state: "uncertain",
+        formatSen,
+      })
+    ).toBe(
+      "RM150.00 was received instead of RM100.00. A full refund of RM150.00 was requested, but the result has not yet been confirmed."
+    );
+  });
+
+  it("detects uncertain refund request from autoRefundFailed metadata", () => {
+    expect(hasUncertainAmountMismatchRefund({ autoRefundFailed: { at: "now" } })).toBe(
+      true
+    );
+    expect(hasUncertainAmountMismatchRefund({})).toBe(false);
   });
 });

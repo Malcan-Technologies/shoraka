@@ -43,6 +43,48 @@ export function formatGatewayPaymentFailureReason(
   return raw;
 }
 
+export type AmountMismatchRefundState =
+  | "pending"
+  | "completed"
+  | "failed"
+  | "uncertain";
+
+/**
+ * Amount mismatch card description with the real expected / received / refund amounts.
+ * Pass the same money formatter used by the detail page (sen → display string).
+ */
+export function formatAmountMismatchDescription(input: {
+  expectedSen: number;
+  receivedSen: number;
+  refundSen?: number;
+  state: AmountMismatchRefundState;
+  formatSen: (sen: number) => string;
+}): string {
+  const amountReceived = input.formatSen(input.receivedSen);
+  const expectedAmount = input.formatSen(input.expectedSen);
+  const refundAmount = input.formatSen(input.refundSen ?? input.receivedSen);
+  const lead = `${amountReceived} was received instead of ${expectedAmount}.`;
+
+  switch (input.state) {
+    case "pending":
+      return `${lead} A full refund of ${refundAmount} has been requested and is waiting for Curlec’s confirmation.`;
+    case "completed":
+      return `${lead} A full refund of ${refundAmount} has been completed.`;
+    case "uncertain":
+      return `${lead} A full refund of ${refundAmount} was requested, but the result has not yet been confirmed.`;
+    case "failed":
+    default:
+      return `${lead} A full refund of ${refundAmount} could not be completed and requires attention.`;
+  }
+}
+
+export function hasUncertainAmountMismatchRefund(
+  metadata: Record<string, unknown> | null | undefined
+): boolean {
+  if (!metadata) return false;
+  return Boolean(metadata.autoRefundFailed);
+}
+
 export const GATEWAY_PAYMENT_COPY = {
   metrics: {
     amountPaid: "Amount paid",
@@ -65,11 +107,6 @@ export const GATEWAY_PAYMENT_COPY = {
 
   amountMismatch: {
     title: "Amount mismatch",
-    pendingDescription:
-      "The amount received does not match the amount expected by Cashsouk. A full refund has been requested. Waiting for Curlec to confirm the result.",
-    refundedDescription: "The full amount received was refunded.",
-    heldDescription:
-      "The amount received does not match the amount expected by Cashsouk. The refund could not be completed. You can retry the refund if Curlec has not already refunded this payment.",
     expectedAmount: "Expected amount",
     amountReceived: "Amount received",
     refundAmount: "Refund amount",
