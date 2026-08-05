@@ -3,7 +3,7 @@
 import { useHeader } from "@cashsouk/ui";
 
 import * as React from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   ArrowLeftIcon,
@@ -40,6 +40,19 @@ import {
   useRetryGatewayPaymentRefund,
 } from "@/hooks/use-gateway-payments";
 import { cn } from "@/lib/utils";
+import {
+  getGatewayPaymentDetailVisibility,
+  readRefundRequestedAt,
+} from "./gateway-payment-detail-model";
+// TEMPORARY GATEWAY PAYMENT SHOWCASE — Remove after UI review (see gateway-payment-showcase/REMOVAL.md)
+import {
+  GatewayPaymentShowcaseControls,
+  PREVIEW_ONLY_TOAST,
+  getShowcaseScenario,
+  isGatewayPaymentShowcaseEnabled,
+  type ShowcasePermissionMode,
+  type ShowcaseScenarioId,
+} from "./gateway-payment-showcase";
 
 const RECEIPT_STATUS_LABEL: Record<string, string> = {
   PENDING: "Generating",
@@ -120,72 +133,6 @@ function looksLikeReasonCode(value: string) {
   return /^[A-Z][A-Z0-9_]+$/.test(value.trim());
 }
 
-function readAmountMismatch(metadata: Record<string, unknown> | null | undefined) {
-  if (!metadata) return null;
-  const raw =
-    (metadata.amountMismatch as Record<string, unknown> | undefined) ??
-    (metadata.captureMismatch as Record<string, unknown> | undefined);
-  if (!raw) return null;
-  if (raw.mismatchType === "CURRENCY_MISMATCH") return null;
-  const expectedSen = raw.expectedSen;
-  const actualSen = raw.actualSen;
-  if (typeof expectedSen !== "number" || typeof actualSen !== "number") return null;
-  if (expectedSen === actualSen) return null;
-  return {
-    expectedSen,
-    actualSen,
-    curlecPaymentId: typeof raw.curlecPaymentId === "string" ? raw.curlecPaymentId : null,
-  };
-}
-
-function readCurrencyMismatch(metadata: Record<string, unknown> | null | undefined) {
-  if (!metadata) return null;
-  const raw = metadata.captureMismatch as Record<string, unknown> | undefined;
-  if (!raw || raw.mismatchType !== "CURRENCY_MISMATCH") return null;
-  return {
-    expectedCurrency:
-      typeof raw.expectedCurrency === "string" ? raw.expectedCurrency : null,
-    actualCurrency: typeof raw.actualCurrency === "string" ? raw.actualCurrency : null,
-    reason: typeof raw.reason === "string" ? raw.reason : null,
-  };
-}
-
-function readWalletReversalFailure(metadata: Record<string, unknown> | null | undefined) {
-  if (!metadata) return null;
-  const raw = metadata.refundConfirmedWalletReversalFailed as Record<string, unknown> | undefined;
-  if (!raw || typeof raw !== "object") return null;
-  return {
-    refundId: typeof raw.refundId === "string" ? raw.refundId : null,
-    intendedReversalAmount:
-      typeof raw.intendedReversalAmount === "number" ? raw.intendedReversalAmount : null,
-    blockedAmount: typeof raw.blockedAmount === "number" ? raw.blockedAmount : null,
-    fundsProtected: typeof raw.fundsProtected === "boolean" ? raw.fundsProtected : null,
-    fundsBlocked: typeof raw.fundsBlocked === "boolean" ? raw.fundsBlocked : null,
-    originalWalletCreditKey:
-      typeof raw.originalWalletCreditKey === "string"
-        ? raw.originalWalletCreditKey
-        : typeof raw.originalWalletCreditId === "string"
-          ? raw.originalWalletCreditId
-          : null,
-    lastAttemptAt: typeof raw.lastAttemptAt === "string" ? raw.lastAttemptAt : null,
-    failureCategory: typeof raw.failureCategory === "string" ? raw.failureCategory : null,
-    error: typeof raw.error === "string" ? raw.error : null,
-  };
-}
-
-function readRefundRequestedAt(
-  payment: {
-    metadata: Record<string, unknown> | null;
-    events?: Array<{ type: string; createdAt: string }>;
-  } | null
-) {
-  if (!payment) return null;
-  const attempt = payment.metadata?.refundAttempt as { requestedAt?: string } | undefined;
-  if (typeof attempt?.requestedAt === "string") return attempt.requestedAt;
-  const event = payment.events?.find((item) => item.type === "REFUND_INITIATED");
-  return event?.createdAt ?? null;
-}
-
 function formatPendingDuration(fromIso: string) {
   const start = new Date(fromIso).getTime();
   if (!Number.isFinite(start)) return null;
@@ -229,105 +176,6 @@ function formatEventDescription(type: string, reason: string | null) {
   }
   return EVENT_COPY[type]?.description ?? null;
 }
-
-/** Temporary preview: every GatewayPaymentEventType label ops may see. */
-const PREVIEW_TIMELINE_EVENTS: Array<{
-  id: string;
-  type: string;
-  fromStatus: string | null;
-  toStatus: string | null;
-  reason: string | null;
-  createdAt: string;
-}> = [
-  {
-    id: "preview-refunded",
-    type: "REFUNDED",
-    fromStatus: "REFUND_INITIATED",
-    toStatus: "REFUNDED",
-    reason: null,
-    createdAt: "2026-08-03T10:30:00.000Z",
-  },
-  {
-    id: "preview-refund-wallet-failed",
-    type: "REFUND_WALLET_REVERSAL_FAILED",
-    fromStatus: "REFUND_INITIATED",
-    toStatus: "HELD",
-    reason: null,
-    createdAt: "2026-08-03T10:29:00.000Z",
-  },
-  {
-    id: "preview-refund-initiated",
-    type: "REFUND_INITIATED",
-    fromStatus: "COMPLETED",
-    toStatus: "REFUND_INITIATED",
-    reason: "ADMIN_INITIATED",
-    createdAt: "2026-08-03T10:28:00.000Z",
-  },
-  {
-    id: "preview-name-check-rejected",
-    type: "NAME_CHECK_REJECTED",
-    fromStatus: "NAME_CHECK_PENDING",
-    toStatus: "REFUND_INITIATED",
-    reason: null,
-    createdAt: "2026-08-03T10:27:00.000Z",
-  },
-  {
-    id: "preview-name-check-approved",
-    type: "NAME_CHECK_APPROVED",
-    fromStatus: "NAME_CHECK_PENDING",
-    toStatus: "COMPLETED",
-    reason: null,
-    createdAt: "2026-08-03T10:26:00.000Z",
-  },
-  {
-    id: "preview-name-check",
-    type: "NAME_CHECK",
-    fromStatus: "PAID",
-    toStatus: "NAME_CHECK_PENDING",
-    reason: "NAME_UNAVAILABLE",
-    createdAt: "2026-08-03T10:25:00.000Z",
-  },
-  {
-    id: "preview-capture-mismatch",
-    type: "CAPTURE_MISMATCH",
-    fromStatus: "PAID",
-    toStatus: "HELD",
-    reason: "AMOUNT_MISMATCH",
-    createdAt: "2026-08-03T10:24:00.000Z",
-  },
-  {
-    id: "preview-expired",
-    type: "EXPIRED",
-    fromStatus: "CREATED",
-    toStatus: "EXPIRED",
-    reason: null,
-    createdAt: "2026-08-03T10:23:00.000Z",
-  },
-  {
-    id: "preview-override-rejected",
-    type: "OVERRIDE_REJECTED",
-    fromStatus: null,
-    toStatus: null,
-    reason: null,
-    createdAt: "2026-08-03T10:22:00.000Z",
-  },
-  {
-    id: "preview-override-approved",
-    type: "OVERRIDE_APPROVED",
-    fromStatus: null,
-    toStatus: null,
-    reason: null,
-    createdAt: "2026-08-03T10:21:00.000Z",
-  },
-  {
-    id: "preview-override-proposed",
-    type: "OVERRIDE_PROPOSED",
-    fromStatus: null,
-    toStatus: null,
-    reason: null,
-    createdAt: "2026-08-03T10:20:00.000Z",
-  },
-];
 
 function formatStatusLabel(status: string | null | undefined) {
   if (!status) return null;
@@ -390,15 +238,43 @@ function DetailRow({
 export default function GatewayPaymentDetailPage() {
   const { setTitle } = useHeader();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const params = useParams<{ id: string }>();
   const id = typeof params?.id === "string" ? params.id : null;
   const { can } = usePermissions();
-  const canManage = can("gateway_payments.manage");
+
+  // TEMPORARY GATEWAY PAYMENT SHOWCASE — Remove after UI review
+  const showcaseEnabled = isGatewayPaymentShowcaseEnabled(searchParams);
+  const [scenarioId, setScenarioId] = React.useState<ShowcaseScenarioId>("completed-deposit");
+  const [permissionMode, setPermissionMode] =
+    React.useState<ShowcasePermissionMode>("real");
+  const showcaseScenario = React.useMemo(
+    () => (showcaseEnabled ? getShowcaseScenario(scenarioId) : null),
+    [showcaseEnabled, scenarioId]
+  );
+
+  const canManageReal = can("gateway_payments.manage");
+  const canManage =
+    showcaseEnabled && permissionMode === "manage"
+      ? true
+      : showcaseEnabled && permissionMode === "view-only"
+        ? false
+        : canManageReal;
   const disabledReason = !canManage
     ? "You do not have permission to perform this action."
     : undefined;
 
-  const { data: payment, isLoading, error, refetch, isFetching } = useGatewayPayment(id);
+  const {
+    data: apiPayment,
+    isLoading: apiLoading,
+    error: apiError,
+    refetch,
+    isFetching,
+  } = useGatewayPayment(showcaseEnabled ? null : id);
+  const payment = showcaseEnabled ? showcaseScenario?.payment ?? null : apiPayment ?? null;
+  const isLoading = showcaseEnabled ? false : apiLoading;
+  const error = showcaseEnabled ? null : apiError;
+
   const retryRefund = useRetryGatewayPaymentRefund();
   const initiateRefund = useInitiateGatewayPaymentRefund();
   const approveNameCheck = useApproveGatewayNameCheck();
@@ -424,11 +300,12 @@ export default function GatewayPaymentDetailPage() {
     receiptPdf.isPending ||
     retryReceipt.isPending;
 
-  const FORCE_GATEWAY_ACTION_PREVIEWS = false;
-
-  const amountMismatch = readAmountMismatch(payment?.metadata ?? null);
-  const currencyMismatch = readCurrencyMismatch(payment?.metadata ?? null);
-  const walletReversalFailure = readWalletReversalFailure(payment?.metadata ?? null);
+  const visibility = payment
+    ? getGatewayPaymentDetailVisibility(payment)
+    : null;
+  const amountMismatch = visibility?.amountMismatch ?? null;
+  const currencyMismatch = visibility?.currencyMismatch ?? null;
+  const walletReversalFailure = visibility?.walletReversalFailure ?? null;
   const refundRequestedAt = readRefundRequestedAt(
     payment
       ? {
@@ -441,30 +318,22 @@ export default function GatewayPaymentDetailPage() {
     ? formatPendingDuration(refundRequestedAt)
     : null;
 
-  const showReviewNameCheck =
-    FORCE_GATEWAY_ACTION_PREVIEWS || payment?.status === "NAME_CHECK_PENDING";
-  const showMismatchRefundPending =
-    Boolean(amountMismatch) && payment?.status === "REFUND_INITIATED";
-  const showMismatchRefunded =
-    Boolean(amountMismatch) && payment?.status === "REFUNDED";
-  const showCurrencyMismatchCard =
-    Boolean(currencyMismatch) && payment?.status === "HELD";
-  const showWalletReversalCard =
-    Boolean(walletReversalFailure) && payment?.status === "HELD";
-  const showRetryRefund =
-    (FORCE_GATEWAY_ACTION_PREVIEWS || payment?.status === "HELD") &&
-    !showCurrencyMismatchCard &&
-    !showWalletReversalCard;
-  const showInitiateRefund =
-    FORCE_GATEWAY_ACTION_PREVIEWS ||
-    (payment?.status === "COMPLETED" && payment.purpose === "INVESTOR_DEPOSIT");
-  const showNameCheckCard = showReviewNameCheck;
-  const showHeldRefundCard = showRetryRefund;
-  const timelineEvents = FORCE_GATEWAY_ACTION_PREVIEWS
-    ? PREVIEW_TIMELINE_EVENTS
-    : (payment?.events ?? []);
+  const showReviewNameCheck = Boolean(visibility?.showReviewNameCheck);
+  const showMismatchRefundPending = Boolean(visibility?.showMismatchRefundPending);
+  const showMismatchRefunded = Boolean(visibility?.showMismatchRefunded);
+  const showCurrencyMismatchCard = Boolean(visibility?.showCurrencyMismatchCard);
+  const showWalletReversalCard = Boolean(visibility?.showWalletReversalCard);
+  const showRetryRefund = Boolean(visibility?.showRetryRefund);
+  const showInitiateRefund = Boolean(visibility?.showInitiateRefund);
+  const showNameCheckCard = Boolean(visibility?.showNameCheckCard);
+  const showHeldRefundCard = Boolean(visibility?.showHeldRefundCard);
+  const timelineEvents = payment?.events ?? [];
 
   const handleRetryRefund = async () => {
+    if (showcaseEnabled) {
+      toast.message(PREVIEW_ONLY_TOAST);
+      return;
+    }
     if (!id) return;
     try {
       await retryRefund.mutateAsync(id);
@@ -479,6 +348,11 @@ export default function GatewayPaymentDetailPage() {
   };
 
   const handleInitiateRefund = async (reason: string) => {
+    if (showcaseEnabled) {
+      toast.message(PREVIEW_ONLY_TOAST);
+      setShowRefundDialog(false);
+      return;
+    }
     if (!id) return;
     try {
       await initiateRefund.mutateAsync({ id, reason });
@@ -490,6 +364,10 @@ export default function GatewayPaymentDetailPage() {
   };
 
   const handleApproveNameCheck = async () => {
+    if (showcaseEnabled) {
+      toast.message(PREVIEW_ONLY_TOAST);
+      return;
+    }
     if (!id) return;
     try {
       await approveNameCheck.mutateAsync(id);
@@ -500,6 +378,10 @@ export default function GatewayPaymentDetailPage() {
   };
 
   const handleRejectNameCheck = async () => {
+    if (showcaseEnabled) {
+      toast.message(PREVIEW_ONLY_TOAST);
+      return;
+    }
     if (!id) return;
     try {
       await rejectNameCheck.mutateAsync(id);
@@ -510,6 +392,10 @@ export default function GatewayPaymentDetailPage() {
   };
 
   const handleOpenReceiptPdf = async (mode: "view" | "download") => {
+    if (showcaseEnabled) {
+      toast.message(PREVIEW_ONLY_TOAST);
+      return;
+    }
     const receiptId = payment?.receipt?.id;
     if (!receiptId) return;
     try {
@@ -521,6 +407,10 @@ export default function GatewayPaymentDetailPage() {
   };
 
   const handleRetryReceipt = async () => {
+    if (showcaseEnabled) {
+      toast.message(PREVIEW_ONLY_TOAST);
+      return;
+    }
     const receiptId = payment?.receipt?.id;
     if (!receiptId || !id) return;
     try {
@@ -547,18 +437,41 @@ export default function GatewayPaymentDetailPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => void refetch()}
-            disabled={isFetching || isLoading}
+            onClick={() => {
+              if (showcaseEnabled) {
+                toast.message(PREVIEW_ONLY_TOAST);
+                return;
+              }
+              void refetch();
+            }}
+            disabled={showcaseEnabled ? false : isFetching || isLoading}
             className="gap-1.5"
-            title="Reload this payment from the server"
+            title={
+              showcaseEnabled
+                ? "Showcase mode — refresh is preview only"
+                : "Reload this payment from the server"
+            }
           >
-            <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+            <ArrowPathIcon
+              className={`h-4 w-4 ${!showcaseEnabled && isFetching ? "animate-spin" : ""}`}
+            />
             Refresh
           </Button>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
+            {showcaseEnabled && showcaseScenario ? (
+              <GatewayPaymentShowcaseControls
+                scenarioId={scenarioId}
+                onScenarioChange={setScenarioId}
+                permissionMode={permissionMode}
+                onPermissionModeChange={setPermissionMode}
+                scenario={showcaseScenario}
+                canManageEffective={canManage}
+              />
+            ) : null}
+
             {isLoading ? <PageSkeleton /> : null}
 
             {error || (!isLoading && !payment) ? (
@@ -1015,136 +928,12 @@ export default function GatewayPaymentDetailPage() {
                       </CardContent>
                     </Card>
 
-                    {FORCE_GATEWAY_ACTION_PREVIEWS ? (
-                      <>
-                        <Card className="rounded-2xl border-dashed">
-                          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-3">
-                            <div className="space-y-1">
-                              <CardTitle className="flex items-center gap-2 text-base">
-                                <DocumentTextIcon className="h-4 w-4 text-muted-foreground" />
-                                Receipt — not created
-                              </CardTitle>
-                              <p className="text-sm text-muted-foreground">
-                                Preview: before receipt exists.
-                              </p>
-                            </div>
-                            <Badge variant="outline">Not created</Badge>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="rounded-xl border border-dashed bg-muted/20 p-4">
-                              <p className="text-sm font-medium">No receipt yet</p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                A receipt is created after this payment is successfully
-                                completed.
-                              </p>
-                            </div>
-                          </CardContent>
-                        </Card>
-
-                        <Card className="rounded-2xl border-dashed">
-                          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-3">
-                            <div className="space-y-1">
-                              <CardTitle className="flex items-center gap-2 text-base">
-                                <DocumentTextIcon className="h-4 w-4 text-muted-foreground" />
-                                Receipt — failed
-                              </CardTitle>
-                              <p className="text-sm text-muted-foreground">
-                                Preview: receipt generation failed; admin can retry.
-                              </p>
-                            </div>
-                            <Badge variant={receiptStatusVariant("FAILED")}>
-                              {RECEIPT_STATUS_LABEL.FAILED}
-                            </Badge>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <dl className="space-y-2.5">
-                              <DetailRow label="Receipt number" value="RCP-PREVIEW-FAILED" mono />
-                              <DetailRow label="Receipt name" value="—" />
-                              <DetailRow label="Receipt company" value="—" />
-                              <DetailRow
-                                label="Payment date"
-                                value={formatDate(payment.createdAt)}
-                              />
-                            </dl>
-                            <div className="flex flex-wrap gap-2 border-t pt-4">
-                              <Button variant="outline" size="sm" disabled>
-                                View PDF
-                              </Button>
-                              <Button variant="outline" size="sm" disabled>
-                                Download PDF
-                              </Button>
-                              <Button size="sm" disabled={!canManage} title={disabledReason}>
-                                Retry
-                              </Button>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              Creating the receipt failed (error while building or uploading
-                              the file). Retry runs it again.
-                            </p>
-                          </CardContent>
-                        </Card>
-
-                        <Card className="rounded-2xl border-dashed">
-                          <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-3">
-                            <div className="space-y-1">
-                              <CardTitle className="flex items-center gap-2 text-base">
-                                <DocumentTextIcon className="h-4 w-4 text-muted-foreground" />
-                                Receipt — preparing
-                              </CardTitle>
-                              <p className="text-sm text-muted-foreground">
-                                Preview: receipt is still generating.
-                              </p>
-                            </div>
-                            <Badge variant={receiptStatusVariant("PENDING")}>
-                              {RECEIPT_STATUS_LABEL.PENDING}
-                            </Badge>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <dl className="space-y-2.5">
-                              <DetailRow
-                                label="Receipt number"
-                                value="RCP-PREVIEW-PENDING"
-                                mono
-                              />
-                              <DetailRow label="Receipt name" value="—" />
-                              <DetailRow label="Receipt company" value="—" />
-                              <DetailRow
-                                label="Payment date"
-                                value={formatDate(payment.createdAt)}
-                              />
-                            </dl>
-                            <div className="flex flex-wrap gap-2 border-t pt-4">
-                              <Button variant="outline" size="sm" disabled>
-                                View PDF
-                              </Button>
-                              <Button variant="outline" size="sm" disabled>
-                                Download PDF
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={!canManage}
-                                title={disabledReason}
-                              >
-                                Retry
-                              </Button>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              Receipt row exists; file is not ready yet. Usually finishes in
-                              the background. Retry if it stays like this.
-                            </p>
-                          </CardContent>
-                        </Card>
-                      </>
-                    ) : null}
-
                     <Card className="rounded-2xl">
                       <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-3">
                         <div className="space-y-1">
                           <CardTitle className="flex items-center gap-2 text-base">
                             <DocumentTextIcon className="h-4 w-4 text-muted-foreground" />
                             Receipt
-                            {FORCE_GATEWAY_ACTION_PREVIEWS ? " — live" : ""}
                           </CardTitle>
                           <p className="text-sm text-muted-foreground">
                             Names printed on the official receipt (may differ from bank
@@ -1261,9 +1050,7 @@ export default function GatewayPaymentDetailPage() {
                           ) : null}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {FORCE_GATEWAY_ACTION_PREVIEWS
-                            ? "Preview: every gateway event type (newest first)"
-                            : "Status changes and admin actions for this payment"}
+                          Status changes and admin actions for this payment
                         </p>
                       </CardHeader>
                       <CardContent className="min-h-0 overflow-hidden !px-0">
