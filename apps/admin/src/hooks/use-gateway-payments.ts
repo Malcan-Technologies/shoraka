@@ -165,7 +165,6 @@ export function useRetryGatewayPaymentReceipt() {
   return useMutation({
     mutationFn: async ({
       receiptId,
-      gatewayPaymentId,
     }: {
       receiptId: string;
       gatewayPaymentId: string;
