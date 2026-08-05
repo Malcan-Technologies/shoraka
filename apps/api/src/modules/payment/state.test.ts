@@ -35,6 +35,24 @@ describe("gateway payment state transitions", () => {
     );
   });
 
+  it("allows COMPLETED → REFUND_INITIATED for refund start", () => {
+    expect(
+      isTransitionAllowed(GatewayPaymentStatus.COMPLETED, GatewayPaymentStatus.REFUND_INITIATED)
+    ).toBe(true);
+  });
+
+  it("allows COMPLETED → REFUNDED for external Curlec refund confirmation", () => {
+    expect(isTransitionAllowed(GatewayPaymentStatus.COMPLETED, GatewayPaymentStatus.REFUNDED)).toBe(
+      true
+    );
+  });
+
+  it("allows REFUND_INITIATED → COMPLETED when external provider refund fails", () => {
+    expect(
+      isTransitionAllowed(GatewayPaymentStatus.REFUND_INITIATED, GatewayPaymentStatus.COMPLETED)
+    ).toBe(true);
+  });
+
   it("allows HELD → REFUNDED after confirmed-refund wallet reversal", () => {
     expect(isTransitionAllowed(GatewayPaymentStatus.HELD, GatewayPaymentStatus.REFUNDED)).toBe(true);
   });

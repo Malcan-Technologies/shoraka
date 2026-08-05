@@ -18,7 +18,7 @@ import { createCurlecClient } from "./curlec-client";
 import { recordGatewayPaymentEvent } from "./gateway-events";
 import { myrDecimalToSen, senToMyrDecimal } from "./money";
 import { markGatewayPaymentReceiptRefunded } from "./receipt/receipt-service";
-import { assertTransition, TERMINAL_GATEWAY_STATUSES } from "./state";
+import { assertTransition } from "./state";
 
 export type AutoRefundReason =
   | "NAME_MISMATCH"
@@ -372,6 +372,7 @@ async function holdForWalletReversalFailure(
 
     const baseMetadata = asMetadataObject(current.metadata);
     const prior = readWalletReversalFailureMarker(baseMetadata);
+    const external = readExternalCurlecRefundMarker(baseMetadata);
     const intendedAmount = current.amount.toNumber();
     const credit = current.investor_organization_id
       ? await tx.investorBalanceTransaction.findFirst({
@@ -383,7 +384,10 @@ async function holdForWalletReversalFailure(
         })
       : null;
 
-    const priorKeys = prior?.holdIdempotencyKeys ?? [];
+    const priorKeys = uniqueStrings([
+      ...(prior?.holdIdempotencyKeys ?? []),
+      ...(external?.holdIdempotencyKeys ?? []),
+    ]);
     const blockedSoFar = await sumHoldAmounts(tx, priorKeys);
     const shortfall = Math.max(0, intendedAmount - blockedSoFar);
     const holdKeys = [...priorKeys];
@@ -626,7 +630,11 @@ async function applyInvestorDepositWalletReversal(
 
   const metadata = asMetadataObject(current.metadata);
   const marker = readWalletReversalFailureMarker(metadata);
-  const holdKeys = marker?.holdIdempotencyKeys ?? [];
+  const external = readExternalCurlecRefundMarker(metadata);
+  const holdKeys = uniqueStrings([
+    ...(marker?.holdIdempotencyKeys ?? []),
+    ...(external?.holdIdempotencyKeys ?? []),
+  ]);
 
   if (!existingDebit) {
     for (const holdKey of holdKeys) {
@@ -675,6 +683,176 @@ function canCompleteConfirmedRefund(payment: GatewayPayment): boolean {
   return "refundConfirmedWalletReversalFailed" in asMetadataObject(payment.metadata);
 }
 
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values.filter(Boolean))];
+}
+
+export type ExternalCurlecRefundMarker = {
+  source: "CURLEC_PROVIDER";
+  refundId: string;
+  gatewayPaymentId: string;
+  detectedAt: string;
+  detectedOnEvent: "refund.created" | "refund.processed" | "refund.failed";
+  holdIdempotencyKeys?: string[];
+  blockedAmount?: number;
+  fundsProtected?: boolean;
+  intendedAmount?: number;
+};
+
+function readExternalCurlecRefundMarker(
+  metadata: Record<string, unknown>
+): ExternalCurlecRefundMarker | null {
+  const raw = metadata.externalCurlecRefund;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const m = raw as Record<string, unknown>;
+  if (m.source !== "CURLEC_PROVIDER") return null;
+  if (typeof m.refundId !== "string" || !m.refundId) return null;
+  return {
+    source: "CURLEC_PROVIDER",
+    refundId: m.refundId,
+    gatewayPaymentId: typeof m.gatewayPaymentId === "string" ? m.gatewayPaymentId : "",
+    detectedAt: typeof m.detectedAt === "string" ? m.detectedAt : "",
+    detectedOnEvent:
+      m.detectedOnEvent === "refund.created" ||
+      m.detectedOnEvent === "refund.processed" ||
+      m.detectedOnEvent === "refund.failed"
+        ? m.detectedOnEvent
+        : "refund.created",
+    holdIdempotencyKeys: Array.isArray(m.holdIdempotencyKeys)
+      ? m.holdIdempotencyKeys.filter((k): k is string => typeof k === "string")
+      : [],
+    blockedAmount: typeof m.blockedAmount === "number" ? m.blockedAmount : undefined,
+    fundsProtected: typeof m.fundsProtected === "boolean" ? m.fundsProtected : undefined,
+    intendedAmount: typeof m.intendedAmount === "number" ? m.intendedAmount : undefined,
+  };
+}
+
+/**
+ * Provider-side (Curlec dashboard) refund detected while payment is still COMPLETED.
+ * Adopts refund id, marks external source, and for deposits immediately blocks wallet cash.
+ */
+async function adoptExternalCurlecRefundFromCompleted(
+  payment: GatewayPayment,
+  input: {
+    refundId: string;
+    detectedOnEvent: "refund.created" | "refund.processed";
+    actorUserId?: string;
+  },
+  db: PrismaClient
+): Promise<GatewayPayment> {
+  if (payment.status !== GatewayPaymentStatus.COMPLETED) {
+    return payment;
+  }
+
+  await db.$transaction(async (tx) => {
+    const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    if (current.status !== GatewayPaymentStatus.COMPLETED) {
+      return;
+    }
+
+    if (current.refund_reference && current.refund_reference !== input.refundId) {
+      logger.warn(
+        {
+          gatewayPaymentId: current.id,
+          existingRefundReference: current.refund_reference,
+          incomingRefundId: input.refundId,
+        },
+        "External Curlec refund ignored — existing refund_reference differs"
+      );
+      return;
+    }
+
+    assertTransition(current.status, GatewayPaymentStatus.REFUND_INITIATED);
+
+    const baseMetadata = asMetadataObject(current.metadata);
+    const intendedAmount = current.amount.toNumber();
+    const holdKeys: string[] = [];
+    let blockedAmount = 0;
+
+    if (
+      current.purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT &&
+      current.investor_organization_id
+    ) {
+      const holdKey = refundWalletHoldKey(current.id);
+      const blockResult = await blockInvestorBalanceForGatewayRefundHold(tx, {
+        investorOrganizationId: current.investor_organization_id,
+        maxAmount: intendedAmount,
+        idempotencyKey: holdKey,
+        metadata: {
+          gatewayPaymentId: current.id,
+          refundReference: input.refundId,
+          kind: "gateway_deposit_refund_hold",
+          source: "external_curlec_refund",
+        },
+      });
+      blockedAmount = blockResult.blockedAmount;
+      if (blockedAmount > 0) {
+        holdKeys.push(holdKey);
+        await recordGatewayPaymentEvent(tx, {
+          gatewayPaymentId: current.id,
+          type: GatewayPaymentEventType.REFUND_INITIATED,
+          actorUserId: input.actorUserId,
+          fromStatus: GatewayPaymentStatus.COMPLETED,
+          toStatus: GatewayPaymentStatus.REFUND_INITIATED,
+          reason: "Wallet funds blocked after external Curlec refund detected",
+          metadata: {
+            event: "wallet_funds_blocked",
+            blockedAmount,
+            holdIdempotencyKey: holdKey,
+            refundId: input.refundId,
+          },
+        });
+      }
+    }
+
+    const externalMarker: ExternalCurlecRefundMarker = {
+      source: "CURLEC_PROVIDER",
+      refundId: input.refundId,
+      gatewayPaymentId: current.id,
+      detectedAt: new Date().toISOString(),
+      detectedOnEvent: input.detectedOnEvent,
+      holdIdempotencyKeys: holdKeys,
+      blockedAmount,
+      fundsProtected:
+        current.purpose !== GatewayPaymentPurpose.INVESTOR_DEPOSIT
+          ? true
+          : blockedAmount + 1e-9 >= intendedAmount,
+      intendedAmount,
+    };
+
+    await tx.gatewayPayment.update({
+      where: { id: current.id },
+      data: {
+        status: GatewayPaymentStatus.REFUND_INITIATED,
+        refund_reference: current.refund_reference ?? input.refundId,
+        metadata: {
+          ...baseMetadata,
+          externalCurlecRefund: externalMarker,
+        } as Prisma.InputJsonValue,
+      },
+    });
+
+    await recordGatewayPaymentEvent(tx, {
+      gatewayPaymentId: current.id,
+      type: GatewayPaymentEventType.REFUND_INITIATED,
+      actorUserId: input.actorUserId,
+      fromStatus: GatewayPaymentStatus.COMPLETED,
+      toStatus: GatewayPaymentStatus.REFUND_INITIATED,
+      reason: "External Curlec refund detected on completed payment",
+      metadata: {
+        event: "external_curlec_refund_detected",
+        refundId: input.refundId,
+        purpose: current.purpose,
+        detectedOnEvent: input.detectedOnEvent,
+        fundsProtected: externalMarker.fundsProtected ?? null,
+        blockedAmount,
+      },
+    });
+  });
+
+  return db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+}
+
 export async function completeGatewayPaymentRefund(
   payment: GatewayPayment,
   input: { refundId?: string; actorUserId?: string },
@@ -684,14 +862,29 @@ export async function completeGatewayPaymentRefund(
     return;
   }
 
-  if (!canCompleteConfirmedRefund(payment)) {
+  let working = payment;
+
+  // Provider refund confirmed while still COMPLETED — adopt + protect first.
+  if (working.status === GatewayPaymentStatus.COMPLETED && input.refundId) {
+    working = await adoptExternalCurlecRefundFromCompleted(
+      working,
+      {
+        refundId: input.refundId,
+        detectedOnEvent: "refund.processed",
+        actorUserId: input.actorUserId,
+      },
+      db
+    );
+  }
+
+  if (!canCompleteConfirmedRefund(working)) {
     return;
   }
 
   try {
     let completed = false;
     await db.$transaction(async (tx) => {
-      const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+      const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: working.id } });
       if (current.status === GatewayPaymentStatus.REFUNDED) {
         return;
       }
@@ -704,10 +897,13 @@ export async function completeGatewayPaymentRefund(
       await applyInvestorDepositWalletReversal(tx, current, input);
 
       const baseMetadata = asMetadataObject(current.metadata);
-      const { refundConfirmedWalletReversalFailed: _drop, ...restMetadata } = baseMetadata;
+      const {
+        refundConfirmedWalletReversalFailed: _drop,
+        ...restMetadata
+      } = baseMetadata;
 
       await tx.gatewayPayment.update({
-        where: { id: payment.id },
+        where: { id: working.id },
         data: {
           status: GatewayPaymentStatus.REFUNDED,
           refunded_at: new Date(),
@@ -716,8 +912,18 @@ export async function completeGatewayPaymentRefund(
         },
       });
 
+      if (
+        current.purpose === GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE &&
+        current.issuer_organization_id
+      ) {
+        await tx.issuerOrganization.update({
+          where: { id: current.issuer_organization_id },
+          data: { onboarding_fee_paid_at: null },
+        });
+      }
+
       await recordGatewayPaymentEvent(tx, {
-        gatewayPaymentId: payment.id,
+        gatewayPaymentId: working.id,
         type: GatewayPaymentEventType.REFUNDED,
         actorUserId: input.actorUserId,
         fromStatus: current.status,
@@ -726,6 +932,7 @@ export async function completeGatewayPaymentRefund(
           refundId: input.refundId ?? current.refund_reference,
           purpose: current.purpose,
           event: "wallet_reversal_completed",
+          externalCurlecRefund: Boolean(readExternalCurlecRefundMarker(baseMetadata)),
         },
       });
       completed = true;
@@ -735,7 +942,7 @@ export async function completeGatewayPaymentRefund(
       return;
     }
 
-    const refreshed = await db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    const refreshed = await db.gatewayPayment.findUniqueOrThrow({ where: { id: working.id } });
     const metadata = asMetadataObject(refreshed.metadata);
     const attempt = metadata.refundAttempt as { amountSen?: number } | undefined;
     const refundAmount =
@@ -753,7 +960,7 @@ export async function completeGatewayPaymentRefund(
       db
     );
   } catch (error) {
-    if (payment.purpose !== GatewayPaymentPurpose.INVESTOR_DEPOSIT) {
+    if (working.purpose !== GatewayPaymentPurpose.INVESTOR_DEPOSIT) {
       throw error;
     }
 
@@ -767,8 +974,8 @@ export async function completeGatewayPaymentRefund(
 
     logger.error(
       {
-        gatewayPaymentId: payment.id,
-        gatewayAccount: payment.gatewayAccount,
+        gatewayPaymentId: working.id,
+        gatewayAccount: working.gatewayAccount,
         refundId: input.refundId,
         error: errorMessage,
         errorCode,
@@ -776,12 +983,12 @@ export async function completeGatewayPaymentRefund(
       "Investor deposit refund confirmed remotely but wallet reversal failed — moved to HELD"
     );
 
-    await holdForWalletReversalFailure(db, payment.id, {
+    await holdForWalletReversalFailure(db, working.id, {
       refundId: input.refundId,
       actorUserId: input.actorUserId,
       errorMessage,
       errorCode,
-      gatewayAccount: payment.gatewayAccount,
+      gatewayAccount: working.gatewayAccount,
     });
   }
 }
@@ -959,7 +1166,51 @@ export async function failGatewayPaymentRefund(
   input: { refundId?: string; errorMessage?: string },
   db: PrismaClient = defaultPrisma
 ): Promise<void> {
-  if (TERMINAL_GATEWAY_STATUSES.has(payment.status) && payment.status !== GatewayPaymentStatus.REFUND_INITIATED) {
+  if (payment.status === GatewayPaymentStatus.REFUNDED) {
+    return;
+  }
+
+  // Provider refund failed while Cashsouk still shows COMPLETED — record only, no wallet change.
+  if (payment.status === GatewayPaymentStatus.COMPLETED) {
+    await db.$transaction(async (tx) => {
+      const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+      if (current.status !== GatewayPaymentStatus.COMPLETED) {
+        return;
+      }
+      const baseMetadata = asMetadataObject(current.metadata);
+      await tx.gatewayPayment.update({
+        where: { id: payment.id },
+        data: {
+          metadata: {
+            ...baseMetadata,
+            externalCurlecRefundFailed: {
+              source: "CURLEC_PROVIDER",
+              refundId: input.refundId ?? null,
+              error: sanitizeFailureMessage(
+                input.errorMessage ?? "Curlec refund.failed webhook"
+              ),
+              at: new Date().toISOString(),
+            },
+          } as Prisma.InputJsonValue,
+        },
+      });
+      await recordGatewayPaymentEvent(tx, {
+        gatewayPaymentId: payment.id,
+        type: GatewayPaymentEventType.REFUND_WALLET_REVERSAL_FAILED,
+        fromStatus: GatewayPaymentStatus.COMPLETED,
+        toStatus: GatewayPaymentStatus.COMPLETED,
+        reason: "External Curlec refund failed — completed payment unchanged",
+        metadata: {
+          event: "external_curlec_refund_failed",
+          refundId: input.refundId ?? null,
+          purpose: current.purpose,
+        },
+      });
+    });
+    return;
+  }
+
+  if (payment.status !== GatewayPaymentStatus.REFUND_INITIATED) {
     return;
   }
 
@@ -969,12 +1220,73 @@ export async function failGatewayPaymentRefund(
       return;
     }
 
-    assertTransition(current.status, GatewayPaymentStatus.HELD);
+    const baseMetadata = asMetadataObject(current.metadata);
+    const external = readExternalCurlecRefundMarker(baseMetadata);
 
-    const baseMetadata =
-      current.metadata && typeof current.metadata === "object" && !Array.isArray(current.metadata)
-        ? current.metadata
-        : {};
+    // External dashboard refund cancelled/failed after local adoption — restore COMPLETED
+    // and release any temporary wallet holds. Do not leave funds blocked.
+    if (external) {
+      assertTransition(current.status, GatewayPaymentStatus.COMPLETED);
+
+      if (
+        current.purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT &&
+        current.investor_organization_id
+      ) {
+        for (const holdKey of external.holdIdempotencyKeys ?? []) {
+          await releaseInvestorBalanceGatewayRefundHold(tx, {
+            investorOrganizationId: current.investor_organization_id,
+            holdIdempotencyKey: holdKey,
+            releaseIdempotencyKey: refundWalletHoldReleaseKey(holdKey),
+            metadata: {
+              gatewayPaymentId: current.id,
+              event: "wallet_funds_released_from_block",
+              reason: "external_curlec_refund_failed",
+            },
+          });
+        }
+      }
+
+      const {
+        externalCurlecRefund: _dropExternal,
+        refundConfirmedWalletReversalFailed: _dropFailure,
+        ...rest
+      } = baseMetadata;
+
+      await tx.gatewayPayment.update({
+        where: { id: payment.id },
+        data: {
+          status: GatewayPaymentStatus.COMPLETED,
+          refund_reference: null,
+          metadata: {
+            ...rest,
+            externalCurlecRefundFailed: {
+              source: "CURLEC_PROVIDER",
+              refundId: input.refundId ?? external.refundId,
+              error: sanitizeFailureMessage(
+                input.errorMessage ?? "Curlec refund.failed webhook"
+              ),
+              at: new Date().toISOString(),
+            },
+          } as Prisma.InputJsonValue,
+        },
+      });
+
+      await recordGatewayPaymentEvent(tx, {
+        gatewayPaymentId: payment.id,
+        type: GatewayPaymentEventType.REFUND_INITIATED,
+        fromStatus: GatewayPaymentStatus.REFUND_INITIATED,
+        toStatus: GatewayPaymentStatus.COMPLETED,
+        reason: "External Curlec refund failed — restored completed payment and released holds",
+        metadata: {
+          event: "external_curlec_refund_failed_restored",
+          refundId: input.refundId ?? external.refundId,
+          purpose: current.purpose,
+        },
+      });
+      return;
+    }
+
+    assertTransition(current.status, GatewayPaymentStatus.HELD);
 
     await tx.gatewayPayment.update({
       where: { id: payment.id },
@@ -1019,6 +1331,9 @@ function normalizeCurlecRefundStatus(
  * local Curlec refund-create API failure (`metadata.autoRefundFailed`), where the
  * remote refund may still have been created. Currency mismatch and wallet-reversal
  * failure holds must stay HELD.
+ *
+ * COMPLETED → REFUND_INITIATED for external Curlec dashboard refunds, with immediate
+ * wallet protection for investor deposits.
  */
 export async function adoptGatewayRefundCreated(
   payment: GatewayPayment,
@@ -1038,6 +1353,15 @@ export async function adoptGatewayRefundCreated(
     }
     // Never overwrite an existing different refund reference.
     return GatewayPaymentStatus.REFUND_INITIATED;
+  }
+
+  if (payment.status === GatewayPaymentStatus.COMPLETED) {
+    const adopted = await adoptExternalCurlecRefundFromCompleted(
+      payment,
+      { refundId: input.refundId, detectedOnEvent: "refund.created" },
+      db
+    );
+    return adopted.status;
   }
 
   if (payment.status !== GatewayPaymentStatus.HELD) {
