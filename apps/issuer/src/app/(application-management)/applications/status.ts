@@ -373,7 +373,7 @@ export function getCardStatus(input: {
     };
   }
 
-  /** Offer Waiting: contract or any invoice has OFFER_SENT. Card-level Review Offer only for contract offers. */
+  /** Offer Waiting: contract or any invoice has OFFER_SENT. */
   if (contractOfferSent || anyInvoiceOfferSent) {
     // Issuer still owns Step 1 (upload/amend) and Step 3 (signing package) — keep Offer Received
     // so these cards sort above Under Review in the list.
@@ -382,14 +382,16 @@ export function getCardStatus(input: {
       acceptanceStatus === "CHANGES_REQUESTED" ||
       acceptanceStatus === "APPROVED_FOR_SIGNING" ||
       acceptanceStatus === "SIGNING_IN_PROGRESS";
-    const showContractReviewOffer =
-      contractOfferSent && offerAcceptanceAllowsIssuerReviewCta(acceptanceStatus as OfferAcceptanceStatus | null);
+    const showReviewOffer =
+      (contractOfferSent || anyInvoiceOfferSent) &&
+      offerAcceptanceAllowsIssuerReviewCta(acceptanceStatus as OfferAcceptanceStatus | null);
+    const changesRequested = acceptanceStatus === "CHANGES_REQUESTED";
 
     if (issuerMustActOnOffer) {
       return {
         badgeKey: "offer_sent",
-        displayLabel: "Offer Received",
-        showReviewOffer: showContractReviewOffer,
+        displayLabel: changesRequested ? "Changes Requested" : "Offer Received",
+        showReviewOffer,
         showMakeAmendments: false,
       };
     }
@@ -412,7 +414,7 @@ export function getCardStatus(input: {
     return {
       badgeKey: "offer_sent",
       displayLabel: "Offer Received",
-      showReviewOffer: showContractReviewOffer,
+      showReviewOffer,
       showMakeAmendments: false,
     };
   }
@@ -460,12 +462,6 @@ export function countPendingIssuerOfferReviewItems(app: NormalizedApplication): 
     }
   }
   return n;
-}
-
-export function countPendingIssuerOfferReviewsAcross(
-  apps: readonly NormalizedApplication[]
-): number {
-  return apps.reduce((sum, app) => sum + countPendingIssuerOfferReviewItems(app), 0);
 }
 
 /** True when the issuer still needs to act (offer response and/or amendments). */

@@ -395,34 +395,6 @@ function getOfferError(res: { success: true } | { success: false; error: { messa
   return res.error?.message ?? "Offer operation failed";
 }
 
-export function useAcceptContractOffer() {
-  const { getAccessToken } = useAuthToken();
-  const apiClient = createApiClient(API_URL, getAccessToken);
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (applicationId: string) => {
-      const res = await apiClient.acceptContractOffer(applicationId);
-      if (!res.success) throw new Error(getOfferError(res));
-      return res.data;
-    },
-    onSuccess: async (data, applicationId) => {
-      queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
-      const organizationId = data?.issuer_organization_id;
-      if (organizationId) {
-        queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
-      }
-      queryClient.invalidateQueries({ queryKey: ["applications"] });
-      await queryClient.refetchQueries({ queryKey: ["applications"] });
-      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
-      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard-contract"] });
-    },
-    onError: (error: Error) => {
-      toast.error("Failed to accept offer", { description: error.message });
-    },
-  });
-}
-
 export function useRejectContractOffer() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);

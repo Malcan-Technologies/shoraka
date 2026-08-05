@@ -3,6 +3,7 @@
  */
 
 import { Request, Response, NextFunction, Router } from "express";
+import { UserRole } from "@prisma/client";
 import { applicationService } from "./service";
 import {
   createApplicationSchema,
@@ -263,7 +264,7 @@ async function deleteDocument(req: Request, res: Response, next: NextFunction) {
 }
 
 const updateStatusSchema = z.object({
-  status: z.enum(["DRAFT", "SUBMITTED", "RESUBMITTED", "APPROVED", "REJECTED", "ARCHIVED"]),
+  status: z.enum(["DRAFT", "SUBMITTED", "RESUBMITTED", "REJECTED", "ARCHIVED"]),
 });
 
 /**
@@ -329,8 +330,9 @@ async function getApplicationLogsHandler(req: Request, res: Response, next: Next
   try {
     const { id } = applicationIdParamSchema.parse(req.params);
     const userId = getUserId(req);
+    const asAdmin = Boolean(req.user?.roles?.includes(UserRole.ADMIN));
 
-    const logs = await applicationService.getApplicationLogs(id, userId);
+    const logs = await applicationService.getApplicationLogs(id, userId, { asAdmin });
 
     res.json({
       success: true,

@@ -20,6 +20,9 @@ import { RecentSectionHeader } from "@/components/dashboard/recent-section-heade
 const MAX_ROWS = 4;
 
 function statusLabel(app: NormalizedApplication): string {
+  if (String(app.offerAcceptanceStatus ?? "").toUpperCase() === "CHANGES_REQUESTED") {
+    return "Changes requested";
+  }
   return app.cardStatus.displayLabel;
 }
 

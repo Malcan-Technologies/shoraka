@@ -32,7 +32,7 @@ There is **no payment gateway code today**. Key existing pieces the integration 
 | Investor deposit UI (placeholders) | `apps/investor/src/components/deposit-card.tsx` (onboarding, disabled "Coming Soon"), `apps/investor/src/app/transactions/page.tsx` + `transactions/components/deposit-dialog.tsx` (Bank Transfer/FPX buttons fake success) |
 | Investor onboarding steps | `getOnboardingStepperSteps` in `packages/config/src/onboarding-flow.ts`; dashboard card in `apps/investor/src/components/onboarding-status-card.tsx` — step 5 "Deposit" keyed off `depositReceived`. Deposit is a post-`COMPLETED` activation step, not part of the admin onboarding state machine |
 | Issuer onboarding entry | `/onboarding/account` → route steps (`/onboarding/terms`, `/onboarding/fee`, `/onboarding/verify`); legacy `/onboarding-start` redirects to account step |
-| Application submit | `PATCH /v1/applications/:id/status` → `ApplicationService.updateApplicationStatus` (`apps/api/src/modules/applications/service.ts`), `DRAFT → SUBMITTED`; issuer UI submit at `apps/issuer/src/app/(application-flow)/applications/edit/[id]/page.tsx` |
+| Application submit | `PATCH /v1/applications/:id/status` → `ApplicationService.updateApplicationStatus` (`apps/api/src/modules/applications/service.ts`), `DRAFT → SUBMITTED`; issuer UI submit at `apps/issuer/src/app/(application-flow)/applications/[id]/edit/page.tsx` |
 | Webhook pattern to copy | RegTank webhooks (`apps/api/src/modules/regtank/webhooks/`) and Shoraka STP webhook controller |
 | Background jobs | `node-cron` only (`apps/api/src/lib/jobs/index.ts`) — recon jobs follow this pattern |
 | Env validation | `apps/api/src/config/env.ts` (zod) + `env-templates/api.env.*` + SSM paths in `docs/guides/environment-variables.md` |

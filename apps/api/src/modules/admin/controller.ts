@@ -3314,7 +3314,7 @@ router.post(
 
 router.get(
   "/applications/:id/offers/contracts/signed-letter",
-  requirePermission("applications.contract.manage"),
+  requirePermission("applications.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
@@ -3330,7 +3330,7 @@ router.get(
 
 router.get(
   "/applications/:id/offers/invoices/:invoiceId/signed-letter",
-  requirePermission("applications.invoice.manage"),
+  requirePermission("applications.view"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id, invoiceId } = req.params;

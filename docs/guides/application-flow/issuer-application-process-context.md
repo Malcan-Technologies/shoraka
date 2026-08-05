@@ -46,13 +46,12 @@ Implementation implication:
 
 Issuer app:
 
-- `apps/issuer/src/app/(application-management)/applications/page.tsx` - issuer applications dashboard, offer return handling, offer finalization after SigningCloud redirect.
+- `apps/issuer/src/app/(application-management)/applications/page.tsx` - issuer applications dashboard.
 - `apps/issuer/src/app/(application-management)/applications/use-applications-data.ts` - application list hydration and dashboard data shaping.
 - `apps/issuer/src/app/(application-management)/applications/status.ts` - issuer card status and badge mapping.
-- `apps/issuer/src/app/(application-management)/applications/components/ReviewOfferModal.tsx` - primary offer review modal with SigningCloud start-signing flow.
-- `apps/issuer/src/components/review-offer-modal.tsx` - dashboard offer modal used by the home financing section.
+- `apps/issuer/src/app/(application-management)/applications/components/OfferReviewPanel.tsx` - inline offer review on the application Offer tab (SigningCloud).
 - `apps/issuer/src/app/(application-flow)/applications/new/page.tsx` - product selection and draft application creation.
-- `apps/issuer/src/app/(application-flow)/applications/edit/[id]/page.tsx` - main application wizard, amendment handling, product version guard handling, step gating.
+- `apps/issuer/src/app/(application-flow)/applications/[id]/edit/page.tsx` - main application wizard, amendment handling, product version guard handling, step gating.
 - `apps/issuer/src/app/(application-flow)/applications/steps/*.tsx` - step-specific forms.
 - `apps/issuer/src/hooks/use-applications.ts` - application queries, step save, status updates, resubmit, offer actions.
 - `apps/issuer/src/hooks/use-contracts.ts` - contract queries and mutations.

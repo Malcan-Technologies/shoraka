@@ -295,8 +295,9 @@ const BADGE_KEY_PRESENTATION: Record<string, StatusPresentation> = {
   offer_sent: { ...STATUS_PRESENTATION.OFFER_SENT, label: "Offer Received" } as StatusPresentation,
   accepted: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
   approved: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
-  completed: { ...STATUS_PRESENTATION.COMPLETED, label: "Completed" } as StatusPresentation,
-  withdrawn: { ...STATUS_PRESENTATION.WITHDRAWN, label: "Withdrawn" } as StatusPresentation,
+  // Issuer card keys: terminal closed states use neutral (matches badgeKeyToStatusToken / BRANDING.md).
+  completed: { ...groupPresentation("neutral"), label: "Completed" } as StatusPresentation,
+  withdrawn: { ...groupPresentation("neutral", undefined, "withdrawn"), label: "Withdrawn" } as StatusPresentation,
   declined: { ...STATUS_PRESENTATION.DECLINED, label: "Declined" } as StatusPresentation,
   offer_expired: { ...STATUS_PRESENTATION.OFFER_EXPIRED, label: "Offer Expired" } as StatusPresentation,
   rejected: { ...STATUS_PRESENTATION.REJECTED, label: "Rejected" } as StatusPresentation,

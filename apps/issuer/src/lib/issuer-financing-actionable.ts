@@ -1,6 +1,9 @@
 import type { NoteListItem } from "@cashsouk/types";
 import { isNoteFullySettled } from "@cashsouk/ui";
-import { getOfferStatus } from "@/lib/offer-utils";
+import {
+  getIssuerOfferActionCtaFromOfferDetails,
+  shouldShowIssuerReviewOfferCta,
+} from "@/lib/offer-utils";
 import {
   asContractForModal,
   asInvoiceForModal,
@@ -8,19 +11,16 @@ import {
   type IssuerDashboardInvoice,
 } from "@/types/issuer-dashboard";
 import { financingOfferHref } from "@/lib/financing-offer-href";
-
-function actionsRequiredLabel(count: number): string {
-  return `${count} action${count === 1 ? "" : "s"} required`;
-}
+import { actionsRequiredLabel } from "@/lib/issuer-pending-actions";
 
 export function isIssuerContractActionable(contract: IssuerDashboardContract): boolean {
   if ((contract.actionRequiredApplicationIds ?? []).length > 0) return true;
-  return getOfferStatus(asContractForModal(contract.contractForModal)) === "Offer received";
+  return shouldShowIssuerReviewOfferCta(asContractForModal(contract.contractForModal));
 }
 
 export function isIssuerInvoiceActionable(invoice: IssuerDashboardInvoice): boolean {
   if ((invoice.actionRequiredApplicationIds ?? []).length > 0) return true;
-  return getOfferStatus(asInvoiceForModal(invoice.invoiceForModal)) === "Offer received";
+  return shouldShowIssuerReviewOfferCta(asInvoiceForModal(invoice.invoiceForModal));
 }
 
 /** Formal arrears status (stronger than late / past-due attention). */
@@ -83,7 +83,7 @@ export type IssuerFinancingPendingAction = {
 };
 
 function contractActionHref(contract: IssuerDashboardContract): string {
-  if (getOfferStatus(asContractForModal(contract.contractForModal)) === "Offer received") {
+  if (shouldShowIssuerReviewOfferCta(asContractForModal(contract.contractForModal))) {
     return financingOfferHref(contract.applicationId);
   }
   const ids = contract.actionRequiredApplicationIds ?? [];
@@ -95,7 +95,7 @@ function contractActionHref(contract: IssuerDashboardContract): string {
 }
 
 function invoiceActionHref(invoice: IssuerDashboardInvoice): string {
-  if (getOfferStatus(asInvoiceForModal(invoice.invoiceForModal)) === "Offer received") {
+  if (shouldShowIssuerReviewOfferCta(asInvoiceForModal(invoice.invoiceForModal))) {
     return financingOfferHref(invoice.applicationId, invoice.id);
   }
   const ids = invoice.actionRequiredApplicationIds ?? [];
@@ -132,20 +132,26 @@ export function buildIssuerFinancingPendingAction(input: {
       : "Open Financing to clear items that need your response.";
 
   const singles = [
-    ...actionableContracts.map((c) => ({
-      href: contractActionHref(c),
-      ctaLabel:
-        getOfferStatus(asContractForModal(c.contractForModal)) === "Offer received"
-          ? "Review offer"
+    ...actionableContracts.map((c) => {
+      const modal = asContractForModal(c.contractForModal);
+      const reviewVisible = shouldShowIssuerReviewOfferCta(modal);
+      return {
+        href: contractActionHref(c),
+        ctaLabel: reviewVisible
+          ? getIssuerOfferActionCtaFromOfferDetails(modal.offer_details, { scope: "contract" }).label
           : "Make changes",
-    })),
-    ...actionableInvoices.map((i) => ({
-      href: invoiceActionHref(i),
-      ctaLabel:
-        getOfferStatus(asInvoiceForModal(i.invoiceForModal)) === "Offer received"
-          ? "Review offer"
+      };
+    }),
+    ...actionableInvoices.map((i) => {
+      const modal = asInvoiceForModal(i.invoiceForModal);
+      const reviewVisible = shouldShowIssuerReviewOfferCta(modal);
+      return {
+        href: invoiceActionHref(i),
+        ctaLabel: reviewVisible
+          ? getIssuerOfferActionCtaFromOfferDetails(modal.offer_details, { scope: "invoice" }).label
           : "Make changes",
-    })),
+      };
+    }),
     ...actionableNotes.map((n) => ({
       href: `/financing/notes/${n.id}`,
       ctaLabel: "View note",

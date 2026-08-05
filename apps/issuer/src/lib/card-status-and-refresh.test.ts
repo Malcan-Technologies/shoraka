@@ -71,7 +71,7 @@ describe("getCardStatus offer awaiting review", () => {
     expect(result.showReviewOffer).toBe(true);
   });
 
-  it("keeps Offer Received for CHANGES_REQUESTED (issuer must re-submit)", () => {
+  it("shows Changes Requested for CHANGES_REQUESTED (issuer must re-submit)", () => {
     const result = getCardStatus({
       applicationStatus: "CONTRACT_SENT",
       contractStatus: "OFFER_SENT",
@@ -79,10 +79,11 @@ describe("getCardStatus offer awaiting review", () => {
       offerAcceptanceStatus: "CHANGES_REQUESTED",
     });
     expect(result.badgeKey).toBe("offer_sent");
+    expect(result.displayLabel).toBe("Changes Requested");
     expect(result.showReviewOffer).toBe(true);
   });
 
-  it("keeps card Review Offer off for invoice-only signing (row CTA handles it)", () => {
+  it("shows card Review Offer for invoice-only signing", () => {
     const result = getCardStatus({
       applicationStatus: "SIGNING_PENDING",
       contractStatus: null,
@@ -90,7 +91,7 @@ describe("getCardStatus offer awaiting review", () => {
       offerAcceptanceStatus: "SIGNING_IN_PROGRESS",
     });
     expect(result.badgeKey).toBe("offer_sent");
-    expect(result.showReviewOffer).toBe(false);
+    expect(result.showReviewOffer).toBe(true);
   });
 });
 

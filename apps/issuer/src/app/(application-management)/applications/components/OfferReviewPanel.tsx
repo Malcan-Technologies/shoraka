@@ -5,9 +5,9 @@
  * letter, accept, decline, or step through the SigningCloud signing package.
  * CashSouk brand styling per BRANDING.md. Contract end date uses contract_details.end_date.
  *
- * - mode="modal" (default): full Dialog shell (financing pages + legacy hosts).
- * - mode="inline": embeds on the application detail Offer tab without the outer Dialog;
+ * - mode="inline" (default): embeds on the application detail Offer tab without the outer Dialog;
  *   the awaiting-review success view and confirm dialogs render inline/standalone.
+ * - mode="modal": full Dialog shell (legacy hosts only).
  */
 
 import * as React from "react";
@@ -638,7 +638,7 @@ export function OfferReviewPanel({
   invoice,
   requiresInvoiceSigning: _unusedRequiresInvoiceSigning,
   onClose,
-  mode = "modal",
+  mode = "inline",
   className,
 }: OfferReviewPanelProps) {
   // productId/requiresInvoiceSigning kept in props for callers; signing/post-docs use frozen application workflow.

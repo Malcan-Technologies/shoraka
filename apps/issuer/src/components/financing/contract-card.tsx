@@ -49,8 +49,6 @@ export function DashboardContractCard({
 }: {
   row: IssuerDashboardContract;
   offerStatus: OfferStatus;
-  /** @deprecated Offer review navigates to the application Offer tab. */
-  onReviewOffer?: () => void;
 }) {
   const router = useRouter();
   const actionRequiredApplicationIds = row.actionRequiredApplicationIds ?? [];

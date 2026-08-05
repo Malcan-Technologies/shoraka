@@ -142,8 +142,6 @@ export function DashboardInvoiceCard({
 }: {
   row: IssuerDashboardInvoice;
   offerStatus: OfferStatus;
-  /** @deprecated Offer review navigates to the application Offer tab. */
-  onReviewOffer?: () => void;
   contractFeeContext?: {
     facilityFeeRatePercent?: unknown;
     facilityFeeCapAmount?: unknown;

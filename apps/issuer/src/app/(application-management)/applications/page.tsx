@@ -34,13 +34,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import {
@@ -90,7 +83,6 @@ export default function ApplicationsPage() {
   const [applicationIdsFilter, setApplicationIdsFilter] = React.useState<string[]>([]);
   const [page, setPage] = React.useState(1);
   const [perPage, setPerPage] = React.useState(10);
-  const [signingReturnDialogOpen, setSigningReturnDialogOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (typeof window === "undefined") return;
@@ -189,8 +181,9 @@ export default function ApplicationsPage() {
       const nowTime = now.getTime();
       const cutoffTime = cutoff.getTime();
       list = list.filter((a) => {
-        if (!a.expiresAt) return false;
-        const exp = new Date(a.expiresAt).getTime();
+        const iso = a.offerPhaseDeadline?.iso ?? a.expiresAt;
+        if (!iso || a.offerPhaseDeadline?.isPast) return false;
+        const exp = new Date(iso).getTime();
         return exp > nowTime && exp <= cutoffTime;
       });
     }
@@ -337,45 +330,6 @@ export default function ApplicationsPage() {
     () => createApiClient(undefined, getAccessToken),
     [getAccessToken]
   );
-
-  React.useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("signing") !== "complete") return;
-
-    const applicationId = params.get("applicationId");
-    const invoiceId = params.get("invoiceId");
-
-    let cancelled = false;
-    const run = async () => {
-      if (applicationId) {
-        try {
-          if (invoiceId) {
-            await apiClient.finalizeInvoiceOfferSigningAfterReturn(applicationId, invoiceId);
-          } else {
-            await apiClient.finalizeContractOfferSigningAfterReturn(applicationId);
-          }
-        } catch {
-          if (!cancelled) {
-            toast.error(
-              "Could not confirm signing with the server. If your offer is still pending, refresh the page or try again shortly."
-            );
-          }
-        }
-      }
-      if (!cancelled) {
-        void queryClient.invalidateQueries({ queryKey: ["applications"] });
-        setSigningReturnDialogOpen(true);
-        const path = window.location.pathname;
-        window.history.replaceState({}, "", path);
-      }
-    };
-
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [queryClient, apiClient]);
 
   const handleDocumentDownload = React.useCallback(
     async (s3Key: string) => {
@@ -769,28 +723,6 @@ export default function ApplicationsPage() {
             onConfirm={handleWithdrawApplicationConfirm}
             isLoading={cancelApplication.isPending}
           />
-
-          <Dialog open={signingReturnDialogOpen} onOpenChange={setSigningReturnDialogOpen}>
-            <DialogContent className="sm:max-w-md rounded-xl">
-              <DialogHeader>
-                <DialogTitle>Offer approved</DialogTitle>
-                <DialogDescription className="text-[17px] leading-7 text-muted-foreground">
-                  Thank you for completing signing. Your offer will show as approved once processing
-                  finishes. You can download the signed offer letter from the application when it
-                  becomes available.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="flex justify-end pt-2">
-                <Button
-                  type="button"
-                  className="rounded-xl"
-                  onClick={() => setSigningReturnDialogOpen(false)}
-                >
-                  OK
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
         </PageShell>
       </div>
     </div>

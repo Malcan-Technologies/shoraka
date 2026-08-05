@@ -839,8 +839,15 @@ export class ApplicationService {
     };
   }
 
-  async getApplicationLogs(id: string, userId: string) {
-    await this.verifyApplicationAccess(id, userId);
+  async getApplicationLogs(id: string, userId: string, options?: { asAdmin?: boolean }) {
+    if (options?.asAdmin) {
+      const application = await this.repository.findById(id);
+      if (!application) {
+        throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+      }
+    } else {
+      await this.verifyApplicationAccess(id, userId);
+    }
 
     const logs = await prisma.applicationLog.findMany({
       where: { application_id: id },

@@ -296,7 +296,7 @@ export const NOTIFICATION_TEMPLATES: {
     title: 'Amendment Requested',
     message: (data) =>
       `Your application ${getShortApplicationRef(data.applicationId)} requires updates. ${data.amendmentCount} amendment item(s) were requested by the reviewer.`,
-    linkPath: (data) => `/applications/edit/${data.applicationId}`,
+    linkPath: (data) => `/applications/${data.applicationId}/edit`,
     portal: 'issuer',
   },
   [NotificationTypeIds.ACCEPTANCE_DOCUMENT_CHANGES_REQUESTED]: {

@@ -7176,7 +7176,7 @@ export class AdminService {
 
   /** Primary offer (contract, else standalone invoice) acceptance phase status. */
   private getPrimaryOfferAcceptanceStatus(application: {
-    financing_structure?: { structure_type?: string } | null;
+    financing_structure?: unknown;
     contract?: { offer_details?: unknown } | null;
     invoices?: Array<{ contract_id?: string | null; offer_details?: unknown }>;
   }): string | null {
@@ -7184,7 +7184,7 @@ export class AdminService {
   }
 
   private getPrimaryOfferAcceptanceSubmittedAt(application: {
-    financing_structure?: { structure_type?: string } | null;
+    financing_structure?: unknown;
     contract?: { offer_details?: unknown } | null;
     invoices?: Array<{ contract_id?: string | null; offer_details?: unknown }>;
   }): string | null {
@@ -7193,7 +7193,7 @@ export class AdminService {
   }
 
   private getPrimaryOfferAcceptance(application: {
-    financing_structure?: { structure_type?: string } | null;
+    financing_structure?: unknown;
     contract?: { offer_details?: unknown } | null;
     invoices?: Array<{ contract_id?: string | null; offer_details?: unknown }>;
   }) {

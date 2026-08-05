@@ -2550,25 +2550,6 @@ export class ApiClient {
     );
   }
 
-  async finalizeContractOfferSigningAfterReturn(
-    applicationId: string
-  ): Promise<ApiResponse<{ skipped: boolean }> | ApiError> {
-    return this.post<{ skipped: boolean }>(
-      `/v1/applications/${applicationId}/offers/contracts/finalize-signing`,
-      {}
-    );
-  }
-
-  async finalizeInvoiceOfferSigningAfterReturn(
-    applicationId: string,
-    invoiceId: string
-  ): Promise<ApiResponse<{ skipped: boolean }> | ApiError> {
-    return this.post<{ skipped: boolean }>(
-      `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/finalize-signing`,
-      {}
-    );
-  }
-
   async acceptContractOffer(
     applicationId: string
   ): Promise<ApiResponse<Application> | ApiError> {

@@ -160,7 +160,6 @@ export default function NoteDetailPage() {
     setTitle(note?.noteReference ?? "Note detail");
     return () => setTitle("");
   }, [setTitle, note?.noteReference]);
-  const resignInvoiceOffer = useResignNoteInvoiceOffer(noteId);
   const publishNote = usePublishNote();
   const unpublishNote = useUnpublishNote();
   const closeFunding = useCloseNoteFunding();

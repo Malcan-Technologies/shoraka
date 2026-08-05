@@ -87,7 +87,7 @@ async function resetFinancialReviewAfterCtosUpdateIfNeeded(params: {
       status: ReviewStepStatus.APPROVED,
       application: {
         issuer_organization_id: params.issuerOrganizationId,
-        status: { notIn: ["APPROVED", "COMPLETED"] },
+        status: { notIn: ["COMPLETED"] },
       },
     },
     select: { application_id: true, application: { select: { status: true } } },

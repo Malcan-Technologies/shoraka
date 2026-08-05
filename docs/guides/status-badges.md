@@ -28,6 +28,8 @@ Indigo (`status.in-progress`) is no longer used for application status badges.
 | expired_closed | REJECTED, WITHDRAWN, DECLINED, OFFER_EXPIRED |
 | neutral | PENDING, ARCHIVED |
 
+Issuer **card badge keys** `completed` / `withdrawn` use the **neutral** group (terminal closed), matching `badgeKeyToStatusToken` and `BRANDING.md`. Raw application status `COMPLETED` / `WITHDRAWN` still use completed / expired_closed for admin and non-card surfaces.
+
 ## Offer acceptance phase → group
 
 Use `getOfferAcceptancePhaseBadgeClass(status)` from `@cashsouk/config`.

@@ -257,9 +257,14 @@ export interface Application {
     status: string;
   }>;
   application_review_remarks?: Array<{
+    id: string;
     scope: string;
     scope_key: string;
+    action_type: string;
     remark: string;
+    author_user_id: string;
+    created_at: string;
+    author?: { first_name: string; last_name: string };
   }>;
   declarations?: JsonValue | null;
   review_and_submit?: JsonValue | null;

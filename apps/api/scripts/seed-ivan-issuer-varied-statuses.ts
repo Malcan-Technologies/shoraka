@@ -64,7 +64,7 @@ const SPECS: SeedSpec[] = [
   { key: "offer_sent", status: "SUBMITTED", structure: "new_contract", contractStatus: "OFFER_SENT", invoiceStatus: "OFFER_SENT", invoiceCount: 2, submitted: true, daysAgo: 6, withOfferDetails: true },
   { key: "contract_pending", status: "CONTRACT_PENDING", structure: "new_contract", contractStatus: "APPROVED", invoiceStatus: "SUBMITTED", invoiceCount: 1, submitted: true, daysAgo: 7 },
   { key: "invoices_sent", status: "INVOICES_SENT", structure: "invoice_only", contractStatus: "SUBMITTED", invoiceStatus: "OFFER_SENT", invoiceCount: 3, submitted: true, daysAgo: 8, withOfferDetails: true },
-  { key: "approved", status: "APPROVED", structure: "new_contract", contractStatus: "APPROVED", invoiceStatus: "APPROVED", invoiceCount: 2, submitted: true, daysAgo: 10 },
+  { key: "approved", status: "COMPLETED", structure: "new_contract", contractStatus: "APPROVED", invoiceStatus: "APPROVED", invoiceCount: 2, submitted: true, daysAgo: 10 },
   { key: "completed", status: "COMPLETED", structure: "invoice_only", contractStatus: "APPROVED", invoiceStatus: "APPROVED", invoiceCount: 2, submitted: true, daysAgo: 14 },
   { key: "withdrawn", status: "WITHDRAWN", structure: "new_contract", contractStatus: "WITHDRAWN", invoiceStatus: "WITHDRAWN", invoiceCount: 1, submitted: true, daysAgo: 12 },
   { key: "rejected", status: "REJECTED", structure: "new_contract", contractStatus: "REJECTED", invoiceStatus: "REJECTED", invoiceCount: 1, submitted: true, daysAgo: 15 },

@@ -21,7 +21,7 @@ import {
   badgeKeyToStatusToken,
   countInvoicesNeedingAction,
   formatApplicationDisplayId,
-  getIssuerPlainStatusLabel,
+  getIssuerCardStatusLabel,
 } from "./issuer-status-display";
 
 /** Soft card wash (≈45% of badge fill) so attention reads without overpowering content. */
@@ -63,14 +63,15 @@ export function ApplicationSlimCard({
   const displayId = formatApplicationDisplayId(application.id);
   const statusToken = badgeKeyToStatusToken(cardStatus.badgeKey);
   const needsAttention = isIssuerApplicationActionable(application);
-  const statusLabel = getIssuerPlainStatusLabel(
-    cardStatus.badgeKey,
-    cardStatus.badgeKey === "withdrawn" ||
+  const statusLabel = getIssuerCardStatusLabel(cardStatus.badgeKey, {
+    withdrawReason:
+      cardStatus.badgeKey === "withdrawn" ||
       cardStatus.badgeKey === "declined" ||
       cardStatus.badgeKey === "offer_expired"
-      ? application.withdrawReason
-      : undefined
-  );
+        ? application.withdrawReason
+        : undefined,
+    offerAcceptanceStatus: application.offerAcceptanceStatus,
+  });
   const invoicesNeedingAction = countInvoicesNeedingAction(application.invoices);
   const invoiceCount = application.invoices.length;
   const subStatus =
@@ -104,6 +105,7 @@ export function ApplicationSlimCard({
     );
   } else if (cardStatus.showReviewOffer) {
     const offerActionCta = getIssuerOfferActionCta(application.offerAcceptanceStatus);
+    const deadlineSummary = application.offerPhaseDeadline?.summary;
     primary = (
       <div className="flex flex-col items-end gap-1">
         <div className="rounded-xl bg-status-action-bg p-0.5">
@@ -120,10 +122,13 @@ export function ApplicationSlimCard({
             <Link href={`/applications/${application.id}?tab=offer`}>{offerActionCta.label}</Link>
           </Button>
         </div>
-        {application.expiresAt ? (
-          <span className="text-xs text-muted-foreground">
-            Offer valid until {format(new Date(application.expiresAt), "d MMM yyyy")}
+        {offerActionCta.hint ? (
+          <span className="max-w-[14rem] text-right text-xs text-muted-foreground">
+            {offerActionCta.hint}
           </span>
+        ) : null}
+        {deadlineSummary ? (
+          <span className="text-xs text-muted-foreground">{deadlineSummary}</span>
         ) : null}
       </div>
     );

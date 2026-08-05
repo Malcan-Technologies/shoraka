@@ -18,9 +18,10 @@ const OFFERABLE_OR_RESOLVED_INVOICE_STATUSES = new Set([
 ]);
 
 export function isExistingContractFinancing(
-  financingStructure?: { structure_type?: string } | null
+  financingStructure?: unknown
 ): boolean {
-  return financingStructure?.structure_type === "existing_contract";
+  if (!financingStructure || typeof financingStructure !== "object") return false;
+  return (financingStructure as { structure_type?: unknown }).structure_type === "existing_contract";
 }
 
 /** Application statuses that imply a new-contract offer ceremony (not valid for existing_contract). */

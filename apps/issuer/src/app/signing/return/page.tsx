@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createApiClient } from "@cashsouk/config";
 import {
@@ -52,7 +53,21 @@ function readPendingSignedDocument(returnSessionId: string): { documentName: str
   }
 }
 
-export default function SigningReturnPage() {
+function SigningReturnLoading() {
+  return (
+    <main className="flex min-h-screen items-start justify-center bg-background px-4 py-10 sm:items-center">
+      <Card className="mx-auto w-full max-w-md rounded-2xl shadow-sm">
+        <CardContent className="space-y-4 pt-6">
+          <Skeleton className="h-8 w-2/3" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+        </CardContent>
+      </Card>
+    </main>
+  );
+}
+
+function SigningReturnContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const returnSessionId = searchParams.get("rs")?.trim() ?? "";
@@ -161,15 +176,13 @@ export default function SigningReturnPage() {
     );
   }
 
+  return <SigningReturnLoading />;
+}
+
+export default function SigningReturnPage() {
   return (
-    <main className="flex min-h-screen items-start justify-center bg-background px-4 py-10 sm:items-center">
-      <Card className="mx-auto w-full max-w-md rounded-2xl shadow-sm">
-        <CardContent className="space-y-4 pt-6">
-          <Skeleton className="h-8 w-2/3" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-5/6" />
-        </CardContent>
-      </Card>
-    </main>
+    <Suspense fallback={<SigningReturnLoading />}>
+      <SigningReturnContent />
+    </Suspense>
   );
 }
