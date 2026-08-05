@@ -705,6 +705,13 @@ export interface OrganizationDetailResponse {
       email?: string | null;
       contactNumber?: string | null;
     };
+    /** Editable org contact for applications; seeded from personInCharge at COD */
+    contactPerson?: {
+      name?: string | null;
+      position?: string | null;
+      email?: string | null;
+      contact?: string | null;
+    };
   };
 
   // Corporate entities (directors, shareholders, corporate shareholders) — COMPANY only

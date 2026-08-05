@@ -501,7 +501,39 @@ async function getOrganization(
                 email?: string | null;
                 contactNumber?: string | null;
               };
+              contactPerson?: {
+                name?: string | null;
+                position?: string | null;
+                email?: string | null;
+                contact?: string | null;
+              };
             };
+
+            const resolvedContactPerson = (() => {
+              const existing = data.contactPerson;
+              const hasExisting = !!(
+                existing?.name?.trim() ||
+                existing?.email?.trim() ||
+                existing?.position?.trim() ||
+                existing?.contact?.trim()
+              );
+              if (hasExisting && existing) {
+                return {
+                  name: existing.name || undefined,
+                  position: existing.position || undefined,
+                  email: existing.email || undefined,
+                  contact: existing.contact || undefined,
+                };
+              }
+              const pic = data.personInCharge;
+              if (!pic) return undefined;
+              return {
+                name: pic.name || undefined,
+                position: pic.position || undefined,
+                email: pic.email || undefined,
+                contact: pic.contactNumber || undefined,
+              };
+            })();
 
             return {
               basicInfo: data.basicInfo
@@ -540,6 +572,7 @@ async function getOrganization(
                     contactNumber: data.personInCharge.contactNumber || undefined,
                   }
                 : undefined,
+              contactPerson: resolvedContactPerson,
             };
           })(),
           corporateEntities: org.corporate_entities

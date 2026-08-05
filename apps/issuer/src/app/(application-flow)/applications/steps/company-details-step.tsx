@@ -12,7 +12,7 @@
  */
 
 import * as React from "react";
-import { useOrganization, createApiClient, useAuthToken, type OrganizationMember } from "@cashsouk/config";
+import { useOrganization } from "@cashsouk/config";
 import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
   filterVisiblePeopleRows,
@@ -44,7 +44,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PencilIcon } from "@heroicons/react/24/outline";
+import { InformationCircleIcon, PencilIcon } from "@heroicons/react/24/outline";
+import Link from "next/link";
 import {
   Dialog,
   DialogContent,
@@ -54,7 +55,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { useQueryClient, useQuery } from "@tanstack/react-query";
 import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { cn } from "@/lib/utils";
@@ -70,6 +70,13 @@ import {
 } from "@/app/(application-flow)/applications/components/form-control";
 import { CompanyDetailsSkeleton } from "@/app/(application-flow)/applications/components/company-details-skeleton";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
+import {
+  AMENDMENT_CALLOUT_BODY,
+  AMENDMENT_CALLOUT_CONTENT,
+  AMENDMENT_CALLOUT_ICON_WRAP,
+  AMENDMENT_CALLOUT_ROOT,
+  AMENDMENT_CALLOUT_TITLE,
+} from "@/app/(application-flow)/applications/components/amendments/amendment-callout-styles";
 
 interface CompanyDetailsStepProps {
   applicationId: string;
@@ -206,39 +213,14 @@ const labelClassNameEditable = formLabelClassName;
 export function CompanyDetailsStep({
   applicationId,
   onDataChange,
-  readOnly = false,
 }: CompanyDetailsStepProps) {
   const { activeOrganization } = useOrganization();
   const organizationId = activeOrganization?.id;
-  const { getAccessToken } = useAuthToken();
-  const queryClient = useQueryClient();
 
   const devTools = useDevTools();
 
-  const apiClient = React.useMemo(
-    () => createApiClient(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", getAccessToken),
-    [getAccessToken]
-  );
-
-  // Fetch current user to derive organization edit permission
-  const { data: currentUser } = useQuery({
-    queryKey: ["current-user"],
-    queryFn: async () => {
-      const result = await apiClient.get<{ userId: string }>("/v1/auth/me");
-      if (!result.success) throw new Error(result.error.message);
-      return result.data;
-    },
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const canEditOrganization = React.useMemo(() => {
-    if (!activeOrganization || !currentUser) return false;
-    if (activeOrganization.isOwner) return true;
-    const currentUserMember = activeOrganization.members?.find((m: OrganizationMember) => m.id === currentUser.userId);
-    return currentUserMember?.role === "ORGANIZATION_ADMIN";
-  }, [activeOrganization, currentUser]);
-
-  const effectiveCanEdit = readOnly ? false : canEditOrganization;
+  // Company details are view-only; updates happen on the organisation profile
+  const effectiveCanEdit = false;
 
   /* ================================================================
      DATA LOADING HOOKS
@@ -265,6 +247,30 @@ export function CompanyDetailsStep({
     [entitiesData?.directorShareholderListSource, entitiesData?.ctosDirectorShareholderWarning]
   );
 
+  const resolveOrgContactPerson = React.useCallback(() => {
+    const contact = corporateInfo?.contactPerson;
+    if (
+      contact?.name?.trim() ||
+      contact?.email?.trim() ||
+      contact?.position?.trim() ||
+      contact?.contact?.trim()
+    ) {
+      return {
+        name: contact.name || "",
+        email: contact.email || "",
+        position: contact.position || "",
+        contact: contact.contact || "",
+      };
+    }
+    const pic = corporateInfo?.personInCharge;
+    return {
+      name: pic?.name || "",
+      email: pic?.email || "",
+      position: pic?.position || "",
+      contact: pic?.contactNumber || "",
+    };
+  }, [corporateInfo]);
+
   /* ================================================================
      LOCAL FORM STATE - Single source of truth
      ================================================================ */
@@ -284,30 +290,22 @@ export function CompanyDetailsStep({
 
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({});
   const [isEditAddressOpen, setIsEditAddressOpen] = React.useState(false);
-
-  /* ================================================================
-     INITIAL STATE TRACKING - For change detection
-     ================================================================ */
-
-  const initialStateRef = React.useRef<FormState | null>(null);
+  const [hasHydrated, setHasHydrated] = React.useState(false);
 
   /* ================================================================
      DETERMINISTIC HYDRATION - Run once after all data loads
      ================================================================ */
 
-  const hasHydratedRef = React.useRef(false);
-
   React.useEffect(() => {
-    if (hasHydratedRef.current) return;
+    if (hasHydrated) return;
     if (!application || !organizationId) return;
     if (isLoadingData) return;
 
-    // Hydrate from all sources
-    const savedContactPerson = (application?.company_details as Record<string, unknown> | undefined)?.contact_person as Record<string, unknown> | undefined;
     const basicInfo = corporateInfo?.basicInfo;
     const businessAddress = corporateInfo?.addresses?.business;
     const registeredAddress = corporateInfo?.addresses?.registered;
     const bankDetails = (bankAccountDetails as Record<string, unknown> | null) || null;
+    const orgContact = resolveOrgContactPerson();
 
     const hydratedState: FormState = {
       industry: basicInfo?.industry || "",
@@ -316,24 +314,49 @@ export function CompanyDetailsStep({
       registeredAddress: (registeredAddress as Record<string, unknown>) || null,
       bankName: getBankField(bankDetails, "Bank"),
       bankAccountNumber: getBankField(bankDetails, "Bank account number"),
-      contactPersonName: (savedContactPerson?.name as string) || "",
-      contactPersonEmail: (savedContactPerson?.email as string) || "",
-      contactPersonPosition: (savedContactPerson?.position as string) || "",
-      contactPersonContact: (savedContactPerson?.contact as string) || "",
+      contactPersonName: orgContact.name,
+      contactPersonEmail: orgContact.email,
+      contactPersonPosition: orgContact.position,
+      contactPersonContact: orgContact.contact,
     };
 
     setFormState(hydratedState);
-    initialStateRef.current = hydratedState;
+    setHasHydrated(true);
+  }, [application, organizationId, isLoadingData, corporateInfo, bankAccountDetails, resolveOrgContactPerson, hasHydrated]);
 
-    hasHydratedRef.current = true;
-  }, [application, organizationId, isLoadingData, corporateInfo, bankAccountDetails]);
+  // Keep display in sync with live organisation profile (step is read-only)
+  React.useEffect(() => {
+    if (!hasHydrated) return;
+    if (isLoadingData) return;
+
+    const basicInfo = corporateInfo?.basicInfo;
+    const businessAddress = corporateInfo?.addresses?.business;
+    const registeredAddress = corporateInfo?.addresses?.registered;
+    const bankDetails = (bankAccountDetails as Record<string, unknown> | null) || null;
+    const orgContact = resolveOrgContactPerson();
+
+    const next: FormState = {
+      industry: basicInfo?.industry || "",
+      numberOfEmployees: (basicInfo?.numberOfEmployees?.toString() || ""),
+      businessAddress: (businessAddress as Record<string, unknown>) || null,
+      registeredAddress: (registeredAddress as Record<string, unknown>) || null,
+      bankName: getBankField(bankDetails, "Bank"),
+      bankAccountNumber: getBankField(bankDetails, "Bank account number"),
+      contactPersonName: orgContact.name,
+      contactPersonEmail: orgContact.email,
+      contactPersonPosition: orgContact.position,
+      contactPersonContact: orgContact.contact,
+    };
+
+    setFormState(next);
+  }, [corporateInfo, bankAccountDetails, isLoadingData, resolveOrgContactPerson, hasHydrated]);
 
   /* ================================================================
      DEV TOOLS AUTO FILL (company_details)
      ================================================================ */
   React.useEffect(() => {
     if (!devTools) return;
-    if (!hasHydratedRef.current) return;
+    if (!hasHydrated) return;
 
     const usingSingleAutoFill = devTools?.autoFillData?.stepKey === "company_details";
     const data = usingSingleAutoFill
@@ -377,7 +400,7 @@ export function CompanyDetailsStep({
     // - "Fill Entire Application" uses `autoFillDataMap`
     if (usingSingleAutoFill) devTools.clearAutoFill();
     else devTools.clearAutoFillForStep("company_details");
-  }, [devTools?.autoFillData, devTools?.autoFillDataMap, devTools]);
+  }, [devTools?.autoFillData, devTools?.autoFillDataMap, devTools, hasHydrated]);
 
   /* ================================================================
      VALIDATION - Pure function, no side effects
@@ -387,22 +410,22 @@ export function CompanyDetailsStep({
     const errors: string[] = [];
     const fieldErrors: Record<string, string> = {};
 
-    // Contact person validation
+    // Contact person validation (sourced from organisation profile)
     if (!formState.contactPersonName?.trim()) {
-      errors.push("Applicant name is required");
-      fieldErrors.contactPersonName = "Required";
+      errors.push("Contact details incomplete — update your company profile");
+      fieldErrors.contactPersonName = "Update on company profile";
     }
     if (!formState.contactPersonEmail?.trim()) {
-      errors.push("Applicant email is required");
-      fieldErrors.contactPersonEmail = "Required";
+      errors.push("Contact details incomplete — update your company profile");
+      fieldErrors.contactPersonEmail = "Update on company profile";
     }
     if (!formState.contactPersonPosition?.trim()) {
-      errors.push("Applicant position is required");
-      fieldErrors.contactPersonPosition = "Required";
+      errors.push("Contact details incomplete — update your company profile");
+      fieldErrors.contactPersonPosition = "Update on company profile";
     }
     if (!formState.contactPersonContact?.trim()) {
-      errors.push("Applicant contact is required");
-      fieldErrors.contactPersonContact = "Required";
+      errors.push("Contact details incomplete — update your company profile");
+      fieldErrors.contactPersonContact = "Update on company profile";
     }
 
     // Address validation
@@ -465,97 +488,24 @@ export function CompanyDetailsStep({
     setFieldErrors(nextFieldErrors);
 
     if (errors.length > 0) {
-      toast.error("Please fix the highlighted fields");
+      toast.error("Please update incomplete company details on your profile");
       throw new Error("VALIDATION_COMPANY_REQUIRED_FIELDS");
     }
 
     if (!organizationId) throw new Error("Organization ID required");
 
-    try {
-      const updates: Record<string, unknown> = {};
+    setFieldErrors({});
 
-      if (formState.industry) updates.industry = formState.industry;
-      if (formState.numberOfEmployees) {
-        updates.numberOfEmployees = Number.parseInt(
-          formState.numberOfEmployees,
-          10
-        );
-      }
-
-      updates.businessAddress = formState.businessAddress;
-      updates.registeredAddress = formState.registeredAddress;
-
-      // ONLY PATCH IF ADMIN / OWNER
-      if (effectiveCanEdit) {
-        // PATCH corporate info
-        if (Object.keys(updates).length > 0) {
-          const result = await apiClient.patch(
-            `/v1/organizations/issuer/${organizationId}/corporate-info`,
-            updates
-          );
-          if (!result.success) throw new Error(result.error.message);
-        }
-
-        // PATCH banking
-        const bankAccountDetailsPayload = {
-          content: [
-            {
-              cn: false,
-              fieldName: "Bank",
-              fieldType: "picklist",
-              fieldValue: formState.bankName ?? "",
-            },
-            {
-              cn: false,
-              fieldName: "Bank account number",
-              fieldType: "number",
-              fieldValue: formState.bankAccountNumber ?? "",
-            },
-          ],
-          displayArea: "Operational Information",
-        };
-
-        const result = await apiClient.patch(
-          `/v1/organizations/issuer/${organizationId}`,
-          {
-            bankAccountDetails: bankAccountDetailsPayload,
-          }
-        );
-
-        if (!result.success) throw new Error(result.error.message);
-
-        // Invalidate ONLY if patch happened
-        queryClient.invalidateQueries({
-          queryKey: ["corporate-info", organizationId],
-        });
-        queryClient.invalidateQueries({
-          queryKey: ["organization-detail", organizationId],
-        });
-      }
-
-      setFieldErrors({});
-
-      // Always return contact person (application-level)
-      return {
-        contact_person: {
-          name: formState.contactPersonName.trim(),
-          email: formState.contactPersonEmail.trim(),
-          position: formState.contactPersonPosition.trim(),
-          contact: formState.contactPersonContact.trim(),
-        },
-      };
-    } catch (error) {
-      toast.error("Something went wrong. Please try again.");
-      throw error;
-    }
-  }, [
-    formState,
-    organizationId,
-    apiClient,
-    queryClient,
-    validateAll,
-    effectiveCanEdit,
-  ]);
+    // Snapshot contact person from live org profile onto the application
+    return {
+      contact_person: {
+        name: formState.contactPersonName.trim(),
+        email: formState.contactPersonEmail.trim(),
+        position: formState.contactPersonPosition.trim(),
+        contact: formState.contactPersonContact.trim(),
+      },
+    };
+  }, [formState, organizationId, validateAll]);
 
   /* ================================================================
      VALIDITY CHECK - Compute from current state
@@ -578,13 +528,10 @@ export function CompanyDetailsStep({
   }, [formState]);
 
   /* ================================================================
-     CHANGE DETECTION - Real pending changes logic
+     CHANGE DETECTION - Step is read-only (profile is source of truth)
      ================================================================ */
 
-  const hasPendingChanges = React.useMemo(() => {
-    if (!initialStateRef.current) return false;
-    return JSON.stringify(formState) !== JSON.stringify(initialStateRef.current);
-  }, [formState]);
+  const hasPendingChanges = false;
 
   /* ================================================================
      NOTIFY PARENT - One effect, stable dependencies
@@ -610,7 +557,7 @@ export function CompanyDetailsStep({
      RENDER
      ================================================================ */
 
-  if (isLoadingData || !hasHydratedRef.current || devTools?.showSkeletonDebug) {
+  if (isLoadingData || !hasHydrated || devTools?.showSkeletonDebug) {
     return <CompanyDetailsSkeleton />;
   }
 
@@ -634,6 +581,30 @@ export function CompanyDetailsStep({
   return (
     <>
       <div className={applicationFlowStepOuterClassName}>
+        <div
+          className={`${AMENDMENT_CALLOUT_ROOT} border-status-neutral-text/30 bg-status-neutral-bg text-foreground`}
+          role="status"
+        >
+          <div
+            className={`${AMENDMENT_CALLOUT_ICON_WRAP} border-status-neutral-text/30 bg-status-neutral-bg`}
+            aria-hidden
+          >
+            <InformationCircleIcon className="h-5 w-5 text-status-neutral-text" />
+          </div>
+          <div className={AMENDMENT_CALLOUT_BODY}>
+            <p className={`${AMENDMENT_CALLOUT_TITLE} text-foreground`}>
+              Company details are view-only
+            </p>
+            <p className={`${AMENDMENT_CALLOUT_CONTENT} text-muted-foreground`}>
+              These details come from your company profile. If anything needs to be updated, please edit your{" "}
+              <Link href="/profile?focus=contact" className="font-medium text-foreground underline underline-offset-2">
+                company profile
+              </Link>{" "}
+              and return here.
+            </p>
+          </div>
+        </div>
+
         {/* Company Info Section */}
         <div className="space-y-3">
           <div>

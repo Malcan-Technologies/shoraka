@@ -79,6 +79,26 @@ export const bankAccountDetailsSchema = z
     }
   );
 
+const contactPersonSchema = z.object({
+  name: z.string().max(255).optional().nullable(),
+  position: z.string().max(255).optional().nullable(),
+  email: z
+    .string()
+    .max(255)
+    .optional()
+    .nullable()
+    .refine((val) => !val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val), {
+      message: "Invalid email",
+    }),
+  contact: z
+    .string()
+    .refine((val) => !val || isValidPhoneNumber(val), {
+      message: "Invalid phone number format",
+    })
+    .optional()
+    .nullable(),
+});
+
 // Update organization profile schema (for editable fields only)
 export const updateOrganizationProfileSchema = z.object({
   phoneNumber: z
@@ -90,6 +110,7 @@ export const updateOrganizationProfileSchema = z.object({
     .nullable(),
   address: z.string().max(500).optional().nullable(),
   bankAccountDetails: bankAccountDetailsSchema.optional().nullable(),
+  contactPerson: contactPersonSchema.optional().nullable(),
 });
 
 // Invite member schema (email is optional for link-based invitations)

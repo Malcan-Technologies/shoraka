@@ -42,6 +42,18 @@ export function useCorporateInfo(organizationId: string | undefined) {
             business?: Address;
             registered?: Address;
           };
+          contactPerson?: {
+            name?: string | null;
+            position?: string | null;
+            email?: string | null;
+            contact?: string | null;
+          };
+          personInCharge?: {
+            name?: string | null;
+            position?: string | null;
+            email?: string | null;
+            contactNumber?: string | null;
+          };
         };
         bankAccountDetails?: unknown;
       }>(`/v1/organizations/issuer/${organizationId}`);

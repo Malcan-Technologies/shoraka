@@ -276,11 +276,20 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               basicContent.find((f: any) => f.fieldName === "Contact Number (Person in charge)")?.fieldValue || null,
           };
 
+          // Editable Contact details (applications source of truth), seeded from KYC Person in charge
+          const contactPerson = {
+            name: personInCharge.name,
+            position: personInCharge.position,
+            email: personInCharge.email,
+            contact: personInCharge.contactNumber,
+          };
+
           return {
             basicInfo,
             entityCriteria,
             addresses,
             personInCharge,
+            contactPerson,
           };
         };
 

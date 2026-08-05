@@ -644,7 +644,7 @@ export class OrganizationService {
 
   /**
    * Update editable profile fields for an organization
-   * Only allows updating: phoneNumber, address, bankAccountDetails
+   * Only allows updating: phoneNumber, address, bankAccountDetails, contactPerson
    */
   async updateOrganizationProfile(
     userId: string,
@@ -682,6 +682,16 @@ export class OrganizationService {
 
     if (input.bankAccountDetails !== undefined) {
       updateData.bank_account_details = input.bankAccountDetails ?? null;
+    }
+
+    if (input.contactPerson !== undefined) {
+      const existingData =
+        ((organization as { corporate_onboarding_data?: Record<string, unknown> | null })
+          .corporate_onboarding_data as Record<string, unknown> | null) || {};
+      updateData.corporate_onboarding_data = {
+        ...existingData,
+        contactPerson: input.contactPerson,
+      };
     }
 
     // Update the organization

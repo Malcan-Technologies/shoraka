@@ -752,17 +752,19 @@ export class OrganizationRepository {
 
       const existingData = (existing?.corporate_onboarding_data as any) || {};
       const existingAddresses = existingData.addresses || {};
-      
+
+      // Preserve personInCharge, contactPerson, and other COD fields
       const mergedData = {
+        ...existingData,
         basicInfo: { ...existingData.basicInfo, ...corporateData.basicInfo },
         addresses: {
           // Merge business address if provided, otherwise keep existing
-          business: data.businessAddress !== undefined 
-            ? data.businessAddress 
+          business: data.businessAddress !== undefined
+            ? data.businessAddress
             : (existingAddresses.business || existingAddresses.businessAddress || null),
           // Merge registered address if provided, otherwise keep existing
-          registered: data.registeredAddress !== undefined 
-            ? data.registeredAddress 
+          registered: data.registeredAddress !== undefined
+            ? data.registeredAddress
             : (existingAddresses.registered || existingAddresses.registeredAddress || null),
         },
       };
@@ -779,17 +781,19 @@ export class OrganizationRepository {
 
       const existingData = (existing?.corporate_onboarding_data as any) || {};
       const existingAddresses = existingData.addresses || {};
-      
+
+      // Preserve personInCharge, contactPerson, and other COD fields
       const mergedData = {
+        ...existingData,
         basicInfo: { ...existingData.basicInfo, ...corporateData.basicInfo },
         addresses: {
           // Merge business address if provided, otherwise keep existing
-          business: data.businessAddress !== undefined 
-            ? data.businessAddress 
+          business: data.businessAddress !== undefined
+            ? data.businessAddress
             : (existingAddresses.business || existingAddresses.businessAddress || null),
           // Merge registered address if provided, otherwise keep existing
-          registered: data.registeredAddress !== undefined 
-            ? data.registeredAddress 
+          registered: data.registeredAddress !== undefined
+            ? data.registeredAddress
             : (existingAddresses.registered || existingAddresses.registeredAddress || null),
         },
       };

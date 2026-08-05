@@ -220,6 +220,12 @@ export interface UpdateOrganizationProfileInput {
   phoneNumber?: string | null;
   address?: string | null;
   bankAccountDetails?: BankAccountDetails | null;
+  contactPerson?: {
+    name?: string | null;
+    position?: string | null;
+    email?: string | null;
+    contact?: string | null;
+  } | null;
 }
 
 export interface CreateOrganizationInput {

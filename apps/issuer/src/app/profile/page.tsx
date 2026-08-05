@@ -468,6 +468,12 @@ export default function ProfilePage() {
   const [phoneNumber, setPhoneNumber] = React.useState<string | undefined>(undefined);
   const [address, setAddress] = React.useState("");
 
+  // Editable Contact details (company applications source of truth)
+  const [contactName, setContactName] = React.useState("");
+  const [contactEmail, setContactEmail] = React.useState("");
+  const [contactPosition, setContactPosition] = React.useState("");
+  const [contactPhone, setContactPhone] = React.useState<string | undefined>(undefined);
+
   // Form states for banking (matches RegTank format values)
   const [bankName, setBankName] = React.useState("");
   const [accountNumber, setAccountNumber] = React.useState("");
@@ -550,6 +556,12 @@ export default function ProfilePage() {
             email?: string | null;
             contactNumber?: string | null;
           };
+          contactPerson?: {
+            name?: string | null;
+            position?: string | null;
+            email?: string | null;
+            contact?: string | null;
+          };
         };
         corporateEntities?: {
           directors?: Array<Record<string, unknown>>;
@@ -571,8 +583,10 @@ export default function ProfilePage() {
 
   const searchParams = useSearchParams();
   const focusDirectors = searchParams.get("focus") === "directors";
+  const focusContact = searchParams.get("focus") === "contact";
   const focusedPersonKey = searchParams.get("person");
   const directorsSectionRef = React.useRef<HTMLDivElement>(null);
+  const contactSectionRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
     if (!focusDirectors) return;
@@ -585,11 +599,37 @@ export default function ProfilePage() {
     return () => window.clearTimeout(t);
   }, [focusDirectors, orgData, activeOrganization?.id]);
 
+  React.useEffect(() => {
+    if (!focusContact) return;
+    setActiveTab("profile");
+    const el = contactSectionRef.current;
+    if (!el) return;
+    const t = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [focusContact, orgData, activeOrganization?.id]);
+
   // Initialize form values when orgData loads
   React.useEffect(() => {
     if (orgData) {
       setPhoneNumber(orgData.phoneNumber || undefined);
       setAddress(orgData.address || "");
+
+      const contact =
+        orgData.corporateOnboardingData?.contactPerson ??
+        (orgData.corporateOnboardingData?.personInCharge
+          ? {
+              name: orgData.corporateOnboardingData.personInCharge.name,
+              email: orgData.corporateOnboardingData.personInCharge.email,
+              position: orgData.corporateOnboardingData.personInCharge.position,
+              contact: orgData.corporateOnboardingData.personInCharge.contactNumber,
+            }
+          : null);
+      setContactName(contact?.name || "");
+      setContactEmail(contact?.email || "");
+      setContactPosition(contact?.position || "");
+      setContactPhone(contact?.contact || undefined);
 
       // Extract values from RegTank format
       setBankName(getBankField(orgData.bankAccountDetails, "Bank"));
@@ -641,14 +681,39 @@ export default function ProfilePage() {
   };
 
   const handleSaveProfile = () => {
-    if (phoneNumber && !isValidPhoneNumber(phoneNumber)) {
+    if (isPersonal) {
+      if (phoneNumber && !isValidPhoneNumber(phoneNumber)) {
+        toast.error("Invalid phone number format");
+        return;
+      }
+
+      updateProfileMutation.mutate({
+        phoneNumber: phoneNumber || null,
+        address: address.trim() || null,
+      });
+      return;
+    }
+
+    if (!contactName.trim() || !contactEmail.trim() || !contactPosition.trim() || !contactPhone) {
+      toast.error("Please fill in all contact details");
+      return;
+    }
+    if (!isValidPhoneNumber(contactPhone)) {
       toast.error("Invalid phone number format");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) {
+      toast.error("Invalid email address");
       return;
     }
 
     updateProfileMutation.mutate({
-      phoneNumber: phoneNumber || null,
-      address: address.trim() || null,
+      contactPerson: {
+        name: contactName.trim(),
+        email: contactEmail.trim(),
+        position: contactPosition.trim(),
+        contact: contactPhone,
+      },
     });
   };
 
@@ -670,6 +735,21 @@ export default function ProfilePage() {
     if (orgData) {
       setPhoneNumber(orgData.phoneNumber || undefined);
       setAddress(orgData.address || "");
+
+      const contact =
+        orgData.corporateOnboardingData?.contactPerson ??
+        (orgData.corporateOnboardingData?.personInCharge
+          ? {
+              name: orgData.corporateOnboardingData.personInCharge.name,
+              email: orgData.corporateOnboardingData.personInCharge.email,
+              position: orgData.corporateOnboardingData.personInCharge.position,
+              contact: orgData.corporateOnboardingData.personInCharge.contactNumber,
+            }
+          : null);
+      setContactName(contact?.name || "");
+      setContactEmail(contact?.email || "");
+      setContactPosition(contact?.position || "");
+      setContactPhone(contact?.contact || undefined);
     }
     setIsEditingProfile(false);
   };
@@ -1253,12 +1333,14 @@ export default function ProfilePage() {
               )}
 
               {/* 3. Contact Details Section (Editable) */}
-              <div className="rounded-xl border bg-card">
+              <div ref={contactSectionRef} className="scroll-mt-24 rounded-xl border bg-card">
                 <div className="flex items-center justify-between p-6 border-b">
                   <div>
                     <h2 className="text-lg font-semibold">Contact details</h2>
                     <p className="text-sm text-muted-foreground">
-                      Phone number and email for this organisation
+                      {isPersonal
+                        ? "Phone number and email for this organisation"
+                        : "Applicant contact used on applications. Seeded from onboarding; edit here to update."}
                     </p>
                   </div>
                   {!isEditingProfile && effectiveIsAdmin ? (
@@ -1274,46 +1356,110 @@ export default function ProfilePage() {
                   ) : null}
                 </div>
                 <div className="p-6 space-y-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <PhoneIcon className="h-4 w-4" />
-                        Phone number
-                      </Label>
-                      {isEditingProfile ? (
-                        <PhoneInput
-                          international
-                          defaultCountry="MY"
-                          value={phoneNumber}
-                          onChange={setPhoneNumber}
-                          className={cn(
-                            issuerFieldChromeClassName,
-                            issuerFieldFocusWithinOpenClassName,
-                            "h-11 px-4 transition-none [&_*]:transition-none [&>input]:border-0 [&>input]:bg-transparent [&>input]:text-sm [&>input]:focus-visible:outline-none [&>input]:focus-visible:ring-0 [&_*]:focus-visible:outline-none [&_*]:focus-visible:ring-0"
-                          )}
-                        />
-                      ) : (
+                  {isPersonal ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          <PhoneIcon className="h-4 w-4" />
+                          Phone number
+                        </Label>
+                        {isEditingProfile ? (
+                          <PhoneInput
+                            international
+                            defaultCountry="MY"
+                            value={phoneNumber}
+                            onChange={setPhoneNumber}
+                            className={cn(
+                              issuerFieldChromeClassName,
+                              issuerFieldFocusWithinOpenClassName,
+                              "h-11 px-4 transition-none [&_*]:transition-none [&>input]:border-0 [&>input]:bg-transparent [&>input]:text-sm [&>input]:focus-visible:outline-none [&>input]:focus-visible:ring-0 [&_*]:focus-visible:outline-none [&_*]:focus-visible:ring-0"
+                            )}
+                          />
+                        ) : (
+                          <Input
+                            value={phoneNumber || "—"}
+                            disabled
+                            className={formInputDisabledClassName}
+                          />
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          <EnvelopeIcon className="h-4 w-4" />
+                          Email
+                        </Label>
                         <Input
-                          value={phoneNumber || "—"}
+                          value={
+                            activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)?.email || "—"
+                          }
                           disabled
                           className={formInputDisabledClassName}
                         />
-                      )}
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <EnvelopeIcon className="h-4 w-4" />
-                        Email
-                      </Label>
-                      <Input
-                        value={
-                          activeOrganization.members?.find((m) => m.id === activeOrganization.ownerId)?.email || "—"
-                        }
-                        disabled
-                        className={formInputDisabledClassName}
-                      />
+                  ) : (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>Name</Label>
+                        <Input
+                          value={contactName}
+                          onChange={(e) => setContactName(e.target.value)}
+                          disabled={!isEditingProfile}
+                          placeholder="eg. John Doe"
+                          className={!isEditingProfile ? formInputDisabledClassName : ""}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Position</Label>
+                        <Input
+                          value={contactPosition}
+                          onChange={(e) => setContactPosition(e.target.value)}
+                          disabled={!isEditingProfile}
+                          placeholder="eg. CFO"
+                          className={!isEditingProfile ? formInputDisabledClassName : ""}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          <EnvelopeIcon className="h-4 w-4" />
+                          Email
+                        </Label>
+                        <Input
+                          type="email"
+                          value={contactEmail}
+                          onChange={(e) => setContactEmail(e.target.value)}
+                          disabled={!isEditingProfile}
+                          placeholder="eg. name@company.com"
+                          className={!isEditingProfile ? formInputDisabledClassName : ""}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="flex items-center gap-2">
+                          <PhoneIcon className="h-4 w-4" />
+                          Contact number
+                        </Label>
+                        {isEditingProfile ? (
+                          <PhoneInput
+                            international
+                            defaultCountry="MY"
+                            value={contactPhone}
+                            onChange={setContactPhone}
+                            className={cn(
+                              issuerFieldChromeClassName,
+                              issuerFieldFocusWithinOpenClassName,
+                              "h-11 px-4 transition-none [&_*]:transition-none [&>input]:border-0 [&>input]:bg-transparent [&>input]:text-sm [&>input]:focus-visible:outline-none [&>input]:focus-visible:ring-0 [&_*]:focus-visible:outline-none [&_*]:focus-visible:ring-0"
+                            )}
+                          />
+                        ) : (
+                          <Input
+                            value={contactPhone || "—"}
+                            disabled
+                            className={formInputDisabledClassName}
+                          />
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {isEditingProfile && (
                     <div className="flex justify-end gap-2 pt-4">
