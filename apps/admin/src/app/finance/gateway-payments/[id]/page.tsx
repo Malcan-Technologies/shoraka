@@ -340,43 +340,43 @@ export default function GatewayPaymentDetailPage() {
   return (
     <RequirePermission permission="gateway_payments.view">
       <>
-        <div className="flex items-center gap-2 px-4 pt-4 md:px-6">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push("/finance/gateway-payments")}
-            className="gap-1.5"
-          >
-            <ArrowLeftIcon className="h-4 w-4" />
-            Gateway Payments
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              if (showcaseEnabled) {
-                toast.message(PREVIEW_ONLY_TOAST);
-                return;
-              }
-              void refetch();
-            }}
-            disabled={showcaseEnabled ? false : isFetching || isLoading}
-            className="gap-1.5"
-            title={
-              showcaseEnabled
-                ? "Showcase mode — refresh is preview only"
-                : "Reload this payment from the server"
-            }
-          >
-            <ArrowPathIcon
-              className={`h-4 w-4 ${!showcaseEnabled && isFetching ? "animate-spin" : ""}`}
-            />
-            Refresh
-          </Button>
-        </div>
-
         <div className="flex-1 overflow-y-auto">
           <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.push("/finance/gateway-payments")}
+                className="gap-1.5"
+              >
+                <ArrowLeftIcon className="h-4 w-4" />
+                Gateway Payments
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (showcaseEnabled) {
+                    toast.message(PREVIEW_ONLY_TOAST);
+                    return;
+                  }
+                  void refetch();
+                }}
+                disabled={showcaseEnabled ? false : isFetching || isLoading}
+                className="h-8 w-8 p-0"
+                title={
+                  showcaseEnabled
+                    ? "Showcase mode — refresh is preview only"
+                    : "Reload this payment from the server"
+                }
+                aria-label="Refresh"
+              >
+                <ArrowPathIcon
+                  className={`h-4 w-4 ${!showcaseEnabled && isFetching ? "animate-spin" : ""}`}
+                />
+              </Button>
+            </div>
+
             {showcaseEnabled && showcaseScenario ? (
               <GatewayPaymentShowcaseControls
                 scenarioId={scenarioId}
