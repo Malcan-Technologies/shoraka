@@ -133,6 +133,20 @@ describeIntegration("issuer onboarding fee (M8)", () => {
         order_id: null,
       })),
       fetchOrderPayments: jest.fn(async () => []),
+      // Amount-mismatch auto-refund and wallet-reversal recovery create a second client.
+      refundPayment: jest.fn(async () => ({
+        id: `rfnd_default_${Date.now()}`,
+        amount: 15000,
+        currency: "MYR",
+        status: "processed",
+      })),
+      fetchRefund: jest.fn(async (refundId: string) => ({
+        id: refundId,
+        amount: 15000,
+        currency: "MYR",
+        status: "processed",
+      })),
+      fetchPaymentRefunds: jest.fn(async () => []),
     };
   }
 
@@ -1216,7 +1230,8 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       status: "processed",
     }));
 
-    (createCurlecClient as jest.Mock).mockReturnValueOnce({
+    // Capture path + refund initiation each create their own Curlec client.
+    const mismatchClient = {
       createOrder: jest.fn(),
       fetchPayment: jest.fn(async (paymentId: string) => ({
         id: paymentId,
@@ -1228,7 +1243,10 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       })),
       fetchOrderPayments: jest.fn(async () => []),
       refundPayment,
-    });
+    };
+    (createCurlecClient as jest.Mock)
+      .mockReturnValueOnce(mismatchClient)
+      .mockReturnValueOnce(mismatchClient);
 
     await processOnboardingFeeCapture(
       {
@@ -1319,7 +1337,7 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       status: "processed",
     }));
 
-    (createCurlecClient as jest.Mock).mockReturnValueOnce({
+    const mismatchClient = {
       createOrder: jest.fn(),
       fetchPayment: jest.fn(async (paymentId: string) => ({
         id: paymentId,
@@ -1331,7 +1349,10 @@ describeIntegration("issuer onboarding fee (M8)", () => {
       })),
       fetchOrderPayments: jest.fn(async () => []),
       refundPayment,
-    });
+    };
+    (createCurlecClient as jest.Mock)
+      .mockReturnValueOnce(mismatchClient)
+      .mockReturnValueOnce(mismatchClient);
 
     await processOnboardingFeeCapture(
       {

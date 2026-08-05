@@ -21,6 +21,8 @@ const ALLOWED_TRANSITIONS: Record<GatewayPaymentStatus, GatewayPaymentStatus[]> 
   [GatewayPaymentStatus.HELD]: [
     GatewayPaymentStatus.COMPLETED,
     GatewayPaymentStatus.REFUND_INITIATED,
+    // Confirmed Curlec refund + successful wallet reversal (skip REFUND_INITIATED hop).
+    GatewayPaymentStatus.REFUNDED,
   ],
   [GatewayPaymentStatus.COMPLETED]: [GatewayPaymentStatus.REFUND_INITIATED],
   [GatewayPaymentStatus.REFUND_INITIATED]: [

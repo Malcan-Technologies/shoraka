@@ -185,6 +185,12 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
     await prisma.investorBalance.deleteMany({
       where: { investor_organization_id: orgId },
     });
+    await prisma.gatewayPaymentReceipt.deleteMany({
+      where: { gateway_payment_id: gatewayPaymentId },
+    });
+    await prisma.gatewayPaymentEvent.deleteMany({
+      where: { gateway_payment_id: gatewayPaymentId },
+    });
     if (createdEventIds.length > 0) {
       await prisma.gatewayWebhookEvent.deleteMany({
         where: { event_id: { in: createdEventIds } },
@@ -538,6 +544,7 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
   it("holds deposit on currency mismatch without wallet credit or refund", async () => {
     if (!migrated) return;
 
+    // Do not use postWebhook() — it always resets the Curlec fetch mock to MYR.
     mockFetchPayment.mockResolvedValue({
       id: paymentId,
       amount: 25000,
@@ -548,7 +555,13 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
       acquirer_data: { account_holder_name: "Jane Doe" },
     });
 
-    const response = await postWebhook(`evt_m5_currency_mismatch_${Date.now()}`, "Jane Doe");
+    const eventId = `evt_m5_currency_mismatch_${Date.now()}`;
+    createdEventIds.push(eventId);
+    const app = buildTestApp();
+    const response = await signedWebhookRequest(app, {
+      eventId,
+      rawBody: buildCapturePayload(orderId, paymentId),
+    });
     expect(response.status).toBe(200);
 
     const payment = await prisma.gatewayPayment.findUniqueOrThrow({

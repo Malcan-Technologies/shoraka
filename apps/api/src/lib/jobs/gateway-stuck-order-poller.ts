@@ -10,7 +10,10 @@ import { recordGatewayPaymentEvent } from "../../modules/payment/gateway-events"
 import { assertTransition } from "../../modules/payment/state";
 import { syncGatewayPaymentFromCurlec } from "../../modules/payment/webhook-service";
 import { recoverHeldAmountMismatchRefunds } from "../../modules/payment/amount-mismatch-service";
-import { reconcilePendingGatewayRefunds } from "../../modules/payment/refund-service";
+import {
+  reconcilePendingGatewayRefunds,
+  recoverFailedWalletReversals,
+} from "../../modules/payment/refund-service";
 
 const STALE_CREATED_MINUTES = 60;
 const CRON_CORRELATION_ID = "cron:gateway-stuck-order-poller";
@@ -175,6 +178,35 @@ export async function runGatewayStuckOrderPollerJob(
         correlationId: CRON_CORRELATION_ID,
       },
       "Stuck-order poller failed reconciling pending gateway refunds"
+    );
+  }
+
+  try {
+    const walletRecovery = await recoverFailedWalletReversals(db, 50);
+    result.scanned += walletRecovery.scanned;
+    result.recovered += walletRecovery.recovered;
+    for (const err of walletRecovery.errors) {
+      result.errors.push({ gatewayPaymentId: err.id, error: err.error });
+    }
+    if (walletRecovery.scanned > 0) {
+      logger.info(
+        {
+          scanned: walletRecovery.scanned,
+          recovered: walletRecovery.recovered,
+          stillHeld: walletRecovery.stillHeld,
+          errors: walletRecovery.errors.length,
+          correlationId: CRON_CORRELATION_ID,
+        },
+        "Recovered failed wallet reversals after confirmed Curlec refunds"
+      );
+    }
+  } catch (error) {
+    logger.error(
+      {
+        error: error instanceof Error ? error.message : String(error),
+        correlationId: CRON_CORRELATION_ID,
+      },
+      "Stuck-order poller failed recovering wallet reversals"
     );
   }
 

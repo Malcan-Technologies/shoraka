@@ -12,7 +12,7 @@ import { getCurlecConfig } from "../../config/curlec";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma as defaultPrisma } from "../../lib/prisma";
-import { debitInvestorBalanceForWithdrawal } from "../notes/investor-balance";
+import { debitInvestorBalanceForGatewayRefund, blockInvestorBalanceForGatewayRefundHold, releaseInvestorBalanceGatewayRefundHold } from "../notes/investor-balance";
 import { postLedgerEntry } from "../notes/ledger";
 import { createCurlecClient } from "./curlec-client";
 import { recordGatewayPaymentEvent } from "./gateway-events";
@@ -308,8 +308,8 @@ export async function initiateInvestorDepositRefund(
 
 /**
  * Curlec has already confirmed the refund. Local wallet debit failed (usually
- * insufficient available balance). Do not leave the row in REFUND_INITIATED —
- * move to HELD with recovery metadata so admin can retry wallet reversal only.
+ * insufficient available balance). Immediately block whatever is still available,
+ * move to HELD with recovery metadata, and leave the row for automatic/admin retry.
  */
 async function holdForWalletReversalFailure(
   db: PrismaClient,
@@ -324,16 +324,135 @@ async function holdForWalletReversalFailure(
 ): Promise<void> {
   await db.$transaction(async (tx) => {
     const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: paymentId } });
-    if (current.status !== GatewayPaymentStatus.REFUND_INITIATED) {
+    if (current.status === GatewayPaymentStatus.REFUNDED) {
+      return;
+    }
+    if (
+      current.status !== GatewayPaymentStatus.REFUND_INITIATED &&
+      current.status !== GatewayPaymentStatus.HELD
+    ) {
       return;
     }
 
-    assertTransition(current.status, GatewayPaymentStatus.HELD);
+    const existingRefundDebit = await tx.investorBalanceTransaction.findUnique({
+      where: { idempotency_key: refundWalletDebitKey(current.id) },
+    });
+    if (existingRefundDebit) {
+      // Lost-response recovery: permanent debit already exists — finish as REFUNDED.
+      assertTransition(current.status, GatewayPaymentStatus.REFUNDED);
+      const baseMetadata = asMetadataObject(current.metadata);
+      const { refundConfirmedWalletReversalFailed: _drop, ...rest } = baseMetadata;
+      await tx.gatewayPayment.update({
+        where: { id: paymentId },
+        data: {
+          status: GatewayPaymentStatus.REFUNDED,
+          refunded_at: new Date(),
+          refund_reference: input.refundId ?? current.refund_reference,
+          metadata: rest as Prisma.InputJsonValue,
+        },
+      });
+      await recordGatewayPaymentEvent(tx, {
+        gatewayPaymentId: paymentId,
+        type: GatewayPaymentEventType.REFUNDED,
+        actorUserId: input.actorUserId,
+        fromStatus: current.status,
+        toStatus: GatewayPaymentStatus.REFUNDED,
+        reason: "Wallet reversal already present — completed after prior failure path",
+        metadata: {
+          refundId: input.refundId ?? current.refund_reference,
+          purpose: current.purpose,
+        },
+      });
+      return;
+    }
 
-    const baseMetadata =
-      current.metadata && typeof current.metadata === "object" && !Array.isArray(current.metadata)
-        ? current.metadata
-        : {};
+    if (current.status === GatewayPaymentStatus.REFUND_INITIATED) {
+      assertTransition(current.status, GatewayPaymentStatus.HELD);
+    }
+
+    const baseMetadata = asMetadataObject(current.metadata);
+    const prior = readWalletReversalFailureMarker(baseMetadata);
+    const intendedAmount = current.amount.toNumber();
+    const credit = current.investor_organization_id
+      ? await tx.investorBalanceTransaction.findFirst({
+          where: {
+            investor_organization_id: current.investor_organization_id,
+            source: "GATEWAY_DEPOSIT",
+            idempotency_key: `gateway-deposit:balance:${current.id}`,
+          },
+        })
+      : null;
+
+    const priorKeys = prior?.holdIdempotencyKeys ?? [];
+    const blockedSoFar = await sumHoldAmounts(tx, priorKeys);
+    const shortfall = Math.max(0, intendedAmount - blockedSoFar);
+    const holdKeys = [...priorKeys];
+    let newlyBlocked = 0;
+
+    if (
+      shortfall > 0 &&
+      current.investor_organization_id &&
+      current.purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT
+    ) {
+      const holdKey =
+        holdKeys.length === 0
+          ? refundWalletHoldKey(current.id)
+          : refundWalletHoldKey(current.id, holdKeys.length + 1);
+      const blockResult = await blockInvestorBalanceForGatewayRefundHold(tx, {
+        investorOrganizationId: current.investor_organization_id,
+        maxAmount: shortfall,
+        idempotencyKey: holdKey,
+        metadata: {
+          gatewayPaymentId: current.id,
+          refundReference: input.refundId ?? current.refund_reference,
+          kind: "gateway_deposit_refund_hold",
+        },
+      });
+      newlyBlocked = blockResult.blockedAmount;
+      if (newlyBlocked > 0 && !holdKeys.includes(holdKey)) {
+        holdKeys.push(holdKey);
+      }
+      if (newlyBlocked > 0) {
+        await recordGatewayPaymentEvent(tx, {
+          gatewayPaymentId: paymentId,
+          type: GatewayPaymentEventType.REFUND_WALLET_REVERSAL_FAILED,
+          actorUserId: input.actorUserId,
+          fromStatus: current.status,
+          toStatus:
+            current.status === GatewayPaymentStatus.REFUND_INITIATED
+              ? GatewayPaymentStatus.HELD
+              : current.status,
+          reason: "Wallet funds blocked pending refund reversal retry",
+          metadata: {
+            event: "wallet_funds_blocked",
+            blockedAmount: newlyBlocked,
+            holdIdempotencyKey: holdKey,
+            refundId: input.refundId ?? current.refund_reference,
+          },
+        });
+      }
+    }
+
+    const totalBlocked = blockedSoFar + newlyBlocked;
+    const failureCategory = failureCategoryFromCode(input.errorCode);
+    const marker: WalletReversalFailureMarker = {
+      refundId: input.refundId ?? current.refund_reference ?? null,
+      gatewayPaymentId: current.id,
+      originalWalletCreditId: credit?.id ?? prior?.originalWalletCreditId ?? null,
+      originalWalletCreditKey: `gateway-deposit:balance:${current.id}`,
+      intendedReversalAmount: intendedAmount,
+      currency: current.currency,
+      failureCode: input.errorCode ?? null,
+      failureCategory,
+      lastAttemptAt: new Date().toISOString(),
+      attemptCount: (prior?.attemptCount ?? 0) + 1,
+      fundsBlocked: totalBlocked > 0,
+      fundsProtected: totalBlocked + 1e-9 >= intendedAmount,
+      blockedAmount: totalBlocked,
+      holdIdempotencyKeys: holdKeys,
+      gatewayAccount: input.gatewayAccount,
+      error: sanitizeFailureMessage(input.errorMessage),
+    };
 
     await tx.gatewayPayment.update({
       where: { id: paymentId },
@@ -342,13 +461,7 @@ async function holdForWalletReversalFailure(
         refund_reference: input.refundId ?? current.refund_reference,
         metadata: {
           ...baseMetadata,
-          refundConfirmedWalletReversalFailed: {
-            refundId: input.refundId ?? current.refund_reference ?? null,
-            error: input.errorMessage,
-            errorCode: input.errorCode ?? null,
-            gatewayAccount: input.gatewayAccount,
-            at: new Date().toISOString(),
-          },
+          refundConfirmedWalletReversalFailed: marker,
         } as Prisma.InputJsonValue,
       },
     });
@@ -357,16 +470,209 @@ async function holdForWalletReversalFailure(
       gatewayPaymentId: paymentId,
       type: GatewayPaymentEventType.REFUND_WALLET_REVERSAL_FAILED,
       actorUserId: input.actorUserId,
-      fromStatus: GatewayPaymentStatus.REFUND_INITIATED,
+      fromStatus: current.status,
       toStatus: GatewayPaymentStatus.HELD,
-      reason: input.errorMessage,
+      reason: marker.error,
       metadata: {
-        refundId: input.refundId ?? current.refund_reference,
+        event: "wallet_reversal_failed",
+        refundId: marker.refundId,
         gatewayAccount: input.gatewayAccount,
-        errorCode: input.errorCode ?? null,
+        failureCode: marker.failureCode,
+        failureCategory: marker.failureCategory,
+        blockedAmount: marker.blockedAmount,
+        fundsProtected: marker.fundsProtected,
+        attemptCount: marker.attemptCount,
       },
     });
   });
+}
+
+function refundWalletDebitKey(paymentId: string) {
+  return `gateway-deposit:refund:${paymentId}`;
+}
+
+function refundWalletHoldKey(paymentId: string, index?: number) {
+  return index && index > 1
+    ? `gateway-deposit:refund-hold:${paymentId}:${index}`
+    : `gateway-deposit:refund-hold:${paymentId}`;
+}
+
+function refundWalletHoldReleaseKey(holdKey: string) {
+  return `gateway-deposit:refund-hold-release:${holdKey}`;
+}
+
+export type WalletReversalFailureMarker = {
+  refundId: string | null;
+  gatewayPaymentId: string;
+  originalWalletCreditId: string | null;
+  originalWalletCreditKey: string;
+  intendedReversalAmount: number;
+  currency: string;
+  failureCode: string | null;
+  failureCategory: "INSUFFICIENT_BALANCE" | "ACCOUNTING_CONFLICT" | "UNKNOWN";
+  lastAttemptAt: string;
+  attemptCount: number;
+  fundsBlocked: boolean;
+  fundsProtected: boolean;
+  blockedAmount: number;
+  holdIdempotencyKeys: string[];
+  gatewayAccount: GatewayPayment["gatewayAccount"] | string;
+  error: string;
+};
+
+function readWalletReversalFailureMarker(
+  metadata: Record<string, unknown>
+): WalletReversalFailureMarker | null {
+  const raw = metadata.refundConfirmedWalletReversalFailed;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const m = raw as Record<string, unknown>;
+  const holdKeys = Array.isArray(m.holdIdempotencyKeys)
+    ? m.holdIdempotencyKeys.filter((k): k is string => typeof k === "string")
+    : typeof m.holdIdempotencyKey === "string"
+      ? [m.holdIdempotencyKey]
+      : [];
+  return {
+    refundId: typeof m.refundId === "string" ? m.refundId : null,
+    gatewayPaymentId: typeof m.gatewayPaymentId === "string" ? m.gatewayPaymentId : "",
+    originalWalletCreditId:
+      typeof m.originalWalletCreditId === "string" ? m.originalWalletCreditId : null,
+    originalWalletCreditKey:
+      typeof m.originalWalletCreditKey === "string"
+        ? m.originalWalletCreditKey
+        : "",
+    intendedReversalAmount:
+      typeof m.intendedReversalAmount === "number" ? m.intendedReversalAmount : 0,
+    currency: typeof m.currency === "string" ? m.currency : "MYR",
+    failureCode: typeof m.failureCode === "string" ? m.failureCode : null,
+    failureCategory:
+      m.failureCategory === "INSUFFICIENT_BALANCE" ||
+      m.failureCategory === "ACCOUNTING_CONFLICT" ||
+      m.failureCategory === "UNKNOWN"
+        ? m.failureCategory
+        : "UNKNOWN",
+    lastAttemptAt: typeof m.lastAttemptAt === "string" ? m.lastAttemptAt : "",
+    attemptCount: typeof m.attemptCount === "number" ? m.attemptCount : 0,
+    fundsBlocked: Boolean(m.fundsBlocked),
+    fundsProtected: Boolean(m.fundsProtected),
+    blockedAmount: typeof m.blockedAmount === "number" ? m.blockedAmount : 0,
+    holdIdempotencyKeys: holdKeys,
+    gatewayAccount: (m.gatewayAccount as GatewayPayment["gatewayAccount"]) ?? "INVESTOR_POOL",
+    error: typeof m.error === "string" ? m.error : "Wallet reversal failed",
+  };
+}
+
+function failureCategoryFromCode(
+  code: string | undefined
+): WalletReversalFailureMarker["failureCategory"] {
+  if (code === "INSUFFICIENT_INVESTOR_BALANCE") return "INSUFFICIENT_BALANCE";
+  if (code === "INVALID_GATEWAY_TRANSITION" || code === "ACCOUNTING_CONFLICT") {
+    return "ACCOUNTING_CONFLICT";
+  }
+  return "UNKNOWN";
+}
+
+function sanitizeFailureMessage(message: string): string {
+  const trimmed = message.replace(/\s+/g, " ").trim();
+  if (trimmed.length <= 240) return trimmed;
+  return `${trimmed.slice(0, 237)}...`;
+}
+
+async function sumHoldAmounts(
+  tx: Prisma.TransactionClient,
+  holdKeys: string[]
+): Promise<number> {
+  if (holdKeys.length === 0) return 0;
+  const rows = await tx.investorBalanceTransaction.findMany({
+    where: {
+      idempotency_key: { in: holdKeys },
+      direction: "OUT",
+      source: "GATEWAY_DEPOSIT_REFUND_HOLD",
+    },
+    select: { amount: true },
+  });
+  return rows.reduce((sum, row) => sum + row.amount.toNumber(), 0);
+}
+
+/**
+ * Release temporary holds then post the permanent refund debit (idempotent).
+ * Must run inside an open transaction.
+ */
+async function applyInvestorDepositWalletReversal(
+  tx: Prisma.TransactionClient,
+  current: GatewayPayment,
+  input: { refundId?: string }
+): Promise<{ didReverse: boolean }> {
+  if (
+    current.purpose !== GatewayPaymentPurpose.INVESTOR_DEPOSIT ||
+    !current.investor_organization_id
+  ) {
+    return { didReverse: false };
+  }
+
+  const hadPriorCredit = await tx.investorBalanceTransaction.findFirst({
+    where: {
+      investor_organization_id: current.investor_organization_id,
+      source: "GATEWAY_DEPOSIT",
+      idempotency_key: `gateway-deposit:balance:${current.id}`,
+    },
+  });
+  if (!hadPriorCredit) {
+    return { didReverse: false };
+  }
+
+  const existingDebit = await tx.investorBalanceTransaction.findUnique({
+    where: { idempotency_key: refundWalletDebitKey(current.id) },
+  });
+
+  const metadata = asMetadataObject(current.metadata);
+  const marker = readWalletReversalFailureMarker(metadata);
+  const holdKeys = marker?.holdIdempotencyKeys ?? [];
+
+  if (!existingDebit) {
+    for (const holdKey of holdKeys) {
+      await releaseInvestorBalanceGatewayRefundHold(tx, {
+        investorOrganizationId: current.investor_organization_id,
+        holdIdempotencyKey: holdKey,
+        releaseIdempotencyKey: refundWalletHoldReleaseKey(holdKey),
+        metadata: {
+          gatewayPaymentId: current.id,
+          event: "wallet_funds_released_from_block",
+        },
+      });
+    }
+
+    const amount = current.amount.toNumber();
+    await debitInvestorBalanceForGatewayRefund(tx, {
+      investorOrganizationId: current.investor_organization_id,
+      amount,
+      idempotencyKey: refundWalletDebitKey(current.id),
+      metadata: {
+        gatewayPaymentId: current.id,
+        refundReference: input.refundId ?? current.refund_reference,
+      },
+    });
+
+    await postLedgerEntry(tx, {
+      accountCode: "INVESTOR_POOL",
+      direction: NoteLedgerDirection.DEBIT,
+      amount,
+      description: "Investor gateway deposit refunded from investor pool",
+      idempotencyKey: `gateway-deposit:refund-ledger:${current.id}`,
+      gatewayPaymentId: current.id,
+      metadata: {
+        gatewayPaymentId: current.id,
+        refundReference: input.refundId ?? current.refund_reference,
+      },
+    });
+  }
+
+  return { didReverse: true };
+}
+
+function canCompleteConfirmedRefund(payment: GatewayPayment): boolean {
+  if (payment.status === GatewayPaymentStatus.REFUND_INITIATED) return true;
+  if (payment.status !== GatewayPaymentStatus.HELD) return false;
+  return "refundConfirmedWalletReversalFailed" in asMetadataObject(payment.metadata);
 }
 
 export async function completeGatewayPaymentRefund(
@@ -378,60 +684,27 @@ export async function completeGatewayPaymentRefund(
     return;
   }
 
-  if (payment.status !== GatewayPaymentStatus.REFUND_INITIATED) {
+  if (!canCompleteConfirmedRefund(payment)) {
     return;
   }
 
   try {
+    let completed = false;
     await db.$transaction(async (tx) => {
       const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
       if (current.status === GatewayPaymentStatus.REFUNDED) {
         return;
       }
-      if (current.status !== GatewayPaymentStatus.REFUND_INITIATED) {
+      if (!canCompleteConfirmedRefund(current)) {
         return;
       }
 
       assertTransition(current.status, GatewayPaymentStatus.REFUNDED);
 
-      if (
-        current.purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT &&
-        current.investor_organization_id
-      ) {
-        const hadPriorCredit = await tx.investorBalanceTransaction.findFirst({
-          where: {
-            investor_organization_id: current.investor_organization_id,
-            source: "GATEWAY_DEPOSIT",
-            idempotency_key: `gateway-deposit:balance:${current.id}`,
-          },
-        });
+      await applyInvestorDepositWalletReversal(tx, current, input);
 
-        if (hadPriorCredit) {
-          const amount = current.amount.toNumber();
-          await debitInvestorBalanceForWithdrawal(tx, {
-            investorOrganizationId: current.investor_organization_id,
-            amount,
-            idempotencyKey: `gateway-deposit:refund:${current.id}`,
-            metadata: {
-              gatewayPaymentId: current.id,
-              refundReference: input.refundId ?? current.refund_reference,
-            },
-          });
-
-          await postLedgerEntry(tx, {
-            accountCode: "INVESTOR_POOL",
-            direction: NoteLedgerDirection.DEBIT,
-            amount,
-            description: "Investor gateway deposit refunded from investor pool",
-            idempotencyKey: `gateway-deposit:refund-ledger:${current.id}`,
-            gatewayPaymentId: current.id,
-            metadata: {
-              gatewayPaymentId: current.id,
-              refundReference: input.refundId ?? current.refund_reference,
-            },
-          });
-        }
-      }
+      const baseMetadata = asMetadataObject(current.metadata);
+      const { refundConfirmedWalletReversalFailed: _drop, ...restMetadata } = baseMetadata;
 
       await tx.gatewayPayment.update({
         where: { id: payment.id },
@@ -439,6 +712,7 @@ export async function completeGatewayPaymentRefund(
           status: GatewayPaymentStatus.REFUNDED,
           refunded_at: new Date(),
           refund_reference: input.refundId ?? current.refund_reference,
+          metadata: restMetadata as Prisma.InputJsonValue,
         },
       });
 
@@ -446,36 +720,39 @@ export async function completeGatewayPaymentRefund(
         gatewayPaymentId: payment.id,
         type: GatewayPaymentEventType.REFUNDED,
         actorUserId: input.actorUserId,
-        fromStatus: GatewayPaymentStatus.REFUND_INITIATED,
+        fromStatus: current.status,
         toStatus: GatewayPaymentStatus.REFUNDED,
         metadata: {
           refundId: input.refundId ?? current.refund_reference,
           purpose: current.purpose,
+          event: "wallet_reversal_completed",
         },
       });
+      completed = true;
     });
 
-    const metadata =
-      payment.metadata && typeof payment.metadata === "object" && !Array.isArray(payment.metadata)
-        ? (payment.metadata as Record<string, unknown>)
-        : {};
+    if (!completed) {
+      return;
+    }
+
+    const refreshed = await db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    const metadata = asMetadataObject(refreshed.metadata);
     const attempt = metadata.refundAttempt as { amountSen?: number } | undefined;
     const refundAmount =
       typeof attempt?.amountSen === "number"
         ? senToMyrDecimal(attempt.amountSen)
-        : payment.amount;
+        : refreshed.amount;
 
     await markGatewayPaymentReceiptRefunded(
-      payment.id,
+      refreshed.id,
       {
-        refundReference: input.refundId ?? payment.refund_reference,
+        refundReference: input.refundId ?? refreshed.refund_reference,
         refundAmount,
-        refundedAt: new Date(),
+        refundedAt: refreshed.refunded_at ?? new Date(),
       },
       db
     );
   } catch (error) {
-    // Wallet reversal only applies to investor deposits that were credited.
     if (payment.purpose !== GatewayPaymentPurpose.INVESTOR_DEPOSIT) {
       throw error;
     }
@@ -519,12 +796,12 @@ export async function completeInvestorDepositRefund(
 }
 
 /**
- * Admin recovery when Curlec refund already succeeded but wallet debit failed.
+ * Admin or automatic recovery when Curlec refund already succeeded but wallet debit failed.
  * Never calls Curlec again. Idempotent via gateway-deposit:refund:<id>.
  */
 export async function retryWalletReversalForConfirmedRefund(
   payment: GatewayPayment,
-  input: { actorUserId?: string },
+  input: { actorUserId?: string; source?: "admin" | "automatic" },
   db: PrismaClient = defaultPrisma
 ): Promise<GatewayPaymentStatus> {
   if (payment.status === GatewayPaymentStatus.REFUNDED) {
@@ -539,13 +816,8 @@ export async function retryWalletReversalForConfirmedRefund(
     );
   }
 
-  const metadata =
-    payment.metadata && typeof payment.metadata === "object" && !Array.isArray(payment.metadata)
-      ? (payment.metadata as Record<string, unknown>)
-      : {};
-  const reversalFailure = metadata.refundConfirmedWalletReversalFailed as
-    | { refundId?: string | null }
-    | undefined;
+  const metadata = asMetadataObject(payment.metadata);
+  const reversalFailure = readWalletReversalFailureMarker(metadata);
 
   if (!reversalFailure) {
     throw new AppError(
@@ -557,23 +829,129 @@ export async function retryWalletReversalForConfirmedRefund(
 
   const refundId = reversalFailure.refundId ?? payment.refund_reference ?? undefined;
 
-  await db.$transaction(async (tx) => {
-    const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-    if (current.status !== GatewayPaymentStatus.HELD) {
-      return;
+  // Confirm Curlec still shows processed when we have a refund id (best-effort; do not re-refund).
+  if (refundId) {
+    try {
+      const curlecClient = createCurlecClient({ gatewayAccount: payment.gatewayAccount });
+      const remote = await curlecClient.fetchRefund(refundId);
+      if (normalizeCurlecRefundStatus(remote.status) !== "processed") {
+        throw new AppError(
+          422,
+          "GATEWAY_REFUND_NOT_PROCESSED",
+          `Curlec refund ${refundId} is not processed (status: ${remote.status ?? "unknown"})`
+        );
+      }
+    } catch (error) {
+      if (error instanceof AppError && error.code === "GATEWAY_REFUND_NOT_PROCESSED") {
+        throw error;
+      }
+      // If Curlec lookup fails, still allow retry of local wallet only — refund was already confirmed.
+      logger.warn(
+        {
+          gatewayPaymentId: payment.id,
+          refundId,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Could not re-check Curlec refund status before wallet reversal retry — proceeding with local retry"
+      );
     }
-    assertTransition(current.status, GatewayPaymentStatus.REFUND_INITIATED);
-    await tx.gatewayPayment.update({
-      where: { id: payment.id },
-      data: { status: GatewayPaymentStatus.REFUND_INITIATED },
+  }
+
+  await db.$transaction(async (tx) => {
+    await recordGatewayPaymentEvent(tx, {
+      gatewayPaymentId: payment.id,
+      type: GatewayPaymentEventType.REFUND_WALLET_REVERSAL_FAILED,
+      actorUserId: input.actorUserId,
+      fromStatus: GatewayPaymentStatus.HELD,
+      toStatus: GatewayPaymentStatus.HELD,
+      reason:
+        input.source === "automatic"
+          ? "Automatic wallet reversal retry started"
+          : "Admin wallet reversal retry started",
+      metadata: {
+        event:
+          input.source === "automatic"
+            ? "automatic_wallet_reversal_retry_started"
+            : "admin_wallet_reversal_retry_started",
+        refundId: refundId ?? null,
+      },
     });
   });
 
-  const refreshed = await db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
-  await completeGatewayPaymentRefund(refreshed, { refundId, actorUserId: input.actorUserId }, db);
+  await completeGatewayPaymentRefund(
+    payment,
+    { refundId, actorUserId: input.actorUserId },
+    db
+  );
 
   const final = await db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
   return final.status;
+}
+
+/**
+ * Automatic recovery for HELD payments where Curlec refund is confirmed but wallet
+ * reversal failed. Runs on the existing gateway stuck-order poller schedule (15 min).
+ * No invented retry limit — keeps trying while the marker remains.
+ */
+export async function recoverFailedWalletReversals(
+  db: PrismaClient = defaultPrisma,
+  limit = 50
+): Promise<{
+  scanned: number;
+  recovered: number;
+  stillHeld: number;
+  errors: Array<{ id: string; error: string }>;
+}> {
+  const heldRows = await db.gatewayPayment.findMany({
+    where: {
+      status: GatewayPaymentStatus.HELD,
+      purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+    },
+    orderBy: { updated_at: "asc" },
+    take: limit * 3,
+  });
+
+  const eligible = heldRows
+    .filter((row) => "refundConfirmedWalletReversalFailed" in asMetadataObject(row.metadata))
+    .slice(0, limit);
+
+  let recovered = 0;
+  let stillHeld = 0;
+  const errors: Array<{ id: string; error: string }> = [];
+
+  for (const payment of eligible) {
+    try {
+      const metadata = asMetadataObject(payment.metadata);
+      // Currency-mismatch holds must never enter this path (different marker).
+      const captureMismatch = metadata.captureMismatch as { mismatchType?: string } | undefined;
+      if (captureMismatch?.mismatchType === "CURRENCY_MISMATCH") {
+        continue;
+      }
+
+      const status = await retryWalletReversalForConfirmedRefund(
+        payment,
+        { source: "automatic" },
+        db
+      );
+      if (status === GatewayPaymentStatus.REFUNDED) {
+        recovered += 1;
+      } else {
+        stillHeld += 1;
+      }
+    } catch (error) {
+      errors.push({
+        id: payment.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return {
+    scanned: eligible.length,
+    recovered,
+    stillHeld,
+    errors,
+  };
 }
 
 export async function failGatewayPaymentRefund(

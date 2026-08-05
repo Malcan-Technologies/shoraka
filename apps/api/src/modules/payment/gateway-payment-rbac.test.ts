@@ -10,6 +10,7 @@ jest.mock("./admin-service", () => ({
   listGatewayPayments: jest.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 20 })),
   getGatewayPaymentsExceptionCount: jest.fn(async () => ({ count: 0 })),
   getGatewayPaymentDetail: jest.fn(async () => ({ id: "pay_test", status: "COMPLETED" })),
+  retryHeldGatewayPaymentRefund: jest.fn(async () => ({ id: "pay_test", status: "REFUNDING" })),
   retryHeldDepositRefund: jest.fn(async () => ({ id: "pay_test", status: "REFUNDING" })),
   initiateCompletedDepositRefund: jest.fn(async () => ({ id: "pay_test", status: "REFUNDING" })),
   approveNameCheck: jest.fn(async () => ({ id: "pay_test", status: "COMPLETED" })),

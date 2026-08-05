@@ -276,7 +276,11 @@ export async function retryHeldGatewayPaymentRefund(
     payment.purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT &&
     "refundConfirmedWalletReversalFailed" in metadata
   ) {
-    await retryWalletReversalForConfirmedRefund(payment, { actorUserId: actor.userId }, db);
+    await retryWalletReversalForConfirmedRefund(
+      payment,
+      { actorUserId: actor.userId, source: "admin" },
+      db
+    );
     return getGatewayPaymentDetail(gatewayPaymentId, db);
   }
 

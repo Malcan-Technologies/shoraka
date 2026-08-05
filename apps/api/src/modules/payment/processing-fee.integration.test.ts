@@ -134,6 +134,19 @@ describeIntegration("application processing fee (M9)", () => {
         order_id: null,
       })),
       fetchOrderPayments: jest.fn(async () => []),
+      refundPayment: jest.fn(async () => ({
+        id: `rfnd_default_${Date.now()}`,
+        amount: 5000,
+        currency: "MYR",
+        status: "processed",
+      })),
+      fetchRefund: jest.fn(async (refundId: string) => ({
+        id: refundId,
+        amount: 5000,
+        currency: "MYR",
+        status: "processed",
+      })),
+      fetchPaymentRefunds: jest.fn(async () => []),
     };
   }
 
@@ -747,6 +760,11 @@ describeIntegration("application processing fee (M9)", () => {
 
     const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
     expect(updated.status).not.toBe(GatewayPaymentStatus.COMPLETED);
+    // Clear blocking statuses so later shared-application tests can create new orders.
+    await prisma.gatewayPayment.update({
+      where: { id: created.id },
+      data: { status: GatewayPaymentStatus.FAILED },
+    });
   });
 
   it("blocks DRAFT to SUBMITTED without completed processing fee", async () => {
@@ -842,7 +860,13 @@ describeIntegration("application processing fee (M9)", () => {
       where: {
         application_id: applicationId,
         purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
-        status: GatewayPaymentStatus.COMPLETED,
+        status: {
+          in: [
+            GatewayPaymentStatus.COMPLETED,
+            GatewayPaymentStatus.HELD,
+            GatewayPaymentStatus.REFUND_INITIATED,
+          ],
+        },
       },
       data: { status: GatewayPaymentStatus.FAILED },
     });

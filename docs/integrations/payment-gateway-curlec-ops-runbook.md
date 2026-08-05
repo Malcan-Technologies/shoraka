@@ -35,7 +35,7 @@ The wallet is **never** credited unless the name check passes or an admin explic
 | Captured amount ≠ order | `REFUND_INITIATED` → `REFUNDED` | Never credited | None (auto-refund) |
 | Name unavailable or ambiguous (`REVIEW`) | `NAME_CHECK_PENDING` | Never credited | Admin approves (credit) or rejects (auto-refund) |
 | Refund API / webhook failure | `HELD` | Never credited (or debited if post-credit refund) | **Retry auto-refund** on payment detail |
-| Confirmed Curlec refund but wallet debit failed | `HELD` (metadata `refundConfirmedWalletReversalFailed`) | Still credited until fixed | **Retry auto-refund** retries wallet debit only — does not call Curlec again |
+| Confirmed Curlec refund but wallet debit failed | `HELD` (metadata `refundConfirmedWalletReversalFailed`) | Available balance reduced by hold (`GATEWAY_DEPOSIT_REFUND_HOLD`); auto-retry every 15 min via stuck-order poller | **Retry wallet reversal** (wallet debit only — does not call Curlec) |
 
 Normal auto-refund path: `REFUND_INITIATED` → `REFUNDED` via Curlec Refund API + webhooks.
 
@@ -58,8 +58,10 @@ If the Curlec Refund API or `refund.failed` webhook fails after a failed name ch
 If a post-credit refund already succeeded at Curlec but the local wallet debit failed (insufficient available balance):
 
 1. The payment is `HELD` with metadata `refundConfirmedWalletReversalFailed`.
-2. Free or restore available balance as needed, then use **Retry auto-refund**.
-3. That action reverses the wallet only (idempotent key `gateway-deposit:refund:<paymentId>`). It must not create a second Curlec refund.
+2. Remaining available cash is blocked immediately via `GATEWAY_DEPOSIT_REFUND_HOLD` (so it cannot be invested or withdrawn).
+3. The stuck-order poller retries wallet reversal automatically every 15 minutes.
+4. Admin can also use **Retry wallet reversal**. That reverses the wallet only (idempotent key `gateway-deposit:refund:<paymentId>`). It must not create a second Curlec refund.
+5. Status becomes `REFUNDED` only after the permanent wallet debit succeeds; holds are released in the same transaction.
 
 ### Manual post-credit correction (rare)
 

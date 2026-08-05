@@ -98,7 +98,7 @@ const EVENT_COPY: Record<string, { title: string; description: string }> = {
   REFUND_WALLET_REVERSAL_FAILED: {
     title: "Wallet debit failed after refund",
     description:
-      "Curlec refunded the money, but removing it from the investor wallet failed. Ops must fix the wallet.",
+      "Curlec refunded the money, but Cashsouk could not reverse the investor wallet credit. Funds should be blocked until reversal succeeds.",
   },
   REFUNDED: {
     title: "Refund completed",
@@ -147,6 +147,29 @@ function readCurrencyMismatch(metadata: Record<string, unknown> | null | undefin
       typeof raw.expectedCurrency === "string" ? raw.expectedCurrency : null,
     actualCurrency: typeof raw.actualCurrency === "string" ? raw.actualCurrency : null,
     reason: typeof raw.reason === "string" ? raw.reason : null,
+  };
+}
+
+function readWalletReversalFailure(metadata: Record<string, unknown> | null | undefined) {
+  if (!metadata) return null;
+  const raw = metadata.refundConfirmedWalletReversalFailed as Record<string, unknown> | undefined;
+  if (!raw || typeof raw !== "object") return null;
+  return {
+    refundId: typeof raw.refundId === "string" ? raw.refundId : null,
+    intendedReversalAmount:
+      typeof raw.intendedReversalAmount === "number" ? raw.intendedReversalAmount : null,
+    blockedAmount: typeof raw.blockedAmount === "number" ? raw.blockedAmount : null,
+    fundsProtected: typeof raw.fundsProtected === "boolean" ? raw.fundsProtected : null,
+    fundsBlocked: typeof raw.fundsBlocked === "boolean" ? raw.fundsBlocked : null,
+    originalWalletCreditKey:
+      typeof raw.originalWalletCreditKey === "string"
+        ? raw.originalWalletCreditKey
+        : typeof raw.originalWalletCreditId === "string"
+          ? raw.originalWalletCreditId
+          : null,
+    lastAttemptAt: typeof raw.lastAttemptAt === "string" ? raw.lastAttemptAt : null,
+    failureCategory: typeof raw.failureCategory === "string" ? raw.failureCategory : null,
+    error: typeof raw.error === "string" ? raw.error : null,
   };
 }
 
@@ -405,6 +428,7 @@ export default function GatewayPaymentDetailPage() {
 
   const amountMismatch = readAmountMismatch(payment?.metadata ?? null);
   const currencyMismatch = readCurrencyMismatch(payment?.metadata ?? null);
+  const walletReversalFailure = readWalletReversalFailure(payment?.metadata ?? null);
   const refundRequestedAt = readRefundRequestedAt(
     payment
       ? {
@@ -425,9 +449,12 @@ export default function GatewayPaymentDetailPage() {
     Boolean(amountMismatch) && payment?.status === "REFUNDED";
   const showCurrencyMismatchCard =
     Boolean(currencyMismatch) && payment?.status === "HELD";
+  const showWalletReversalCard =
+    Boolean(walletReversalFailure) && payment?.status === "HELD";
   const showRetryRefund =
     (FORCE_GATEWAY_ACTION_PREVIEWS || payment?.status === "HELD") &&
-    !showCurrencyMismatchCard;
+    !showCurrencyMismatchCard &&
+    !showWalletReversalCard;
   const showInitiateRefund =
     FORCE_GATEWAY_ACTION_PREVIEWS ||
     (payment?.status === "COMPLETED" && payment.purpose === "INVESTOR_DEPOSIT");
@@ -441,7 +468,11 @@ export default function GatewayPaymentDetailPage() {
     if (!id) return;
     try {
       await retryRefund.mutateAsync(id);
-      toast.success("Refund retry submitted to Curlec");
+      toast.success(
+        showWalletReversalCard
+          ? "Wallet reversal retry submitted"
+          : "Refund retry submitted to Curlec"
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Refund retry failed");
     }
@@ -754,6 +785,92 @@ export default function GatewayPaymentDetailPage() {
                           {payment.refundedAt ? formatDate(payment.refundedAt) : "—"}
                         </p>
                       </div>
+                    </CardContent>
+                  </Card>
+                ) : null}
+
+                {showWalletReversalCard && walletReversalFailure ? (
+                  <Card
+                    className={cn(
+                      "rounded-2xl",
+                      walletReversalFailure.fundsProtected
+                        ? "border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]"
+                        : "border-destructive/40 bg-destructive/5 shadow-[0_0_0_1px_hsl(var(--destructive)/0.1),0_0_28px_hsl(var(--destructive)/0.12)]"
+                    )}
+                  >
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Needs attention</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Curlec refund completed, but the investor wallet could not be corrected.
+                      </p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                          <p className="text-xs text-muted-foreground">Refunded amount</p>
+                          <p className="mt-1 text-sm font-medium">
+                            {walletReversalFailure.intendedReversalAmount != null
+                              ? formatCurrency(walletReversalFailure.intendedReversalAmount)
+                              : formatCurrency(payment.amount)}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                          <p className="text-xs text-muted-foreground">Wallet amount blocked</p>
+                          <p className="mt-1 text-sm font-medium">
+                            {walletReversalFailure.blockedAmount != null
+                              ? formatCurrency(walletReversalFailure.blockedAmount)
+                              : "—"}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                          <p className="text-xs text-muted-foreground">Original wallet credit</p>
+                          <p className="mt-1 break-all text-sm font-medium">
+                            {walletReversalFailure.originalWalletCreditKey ?? "—"}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                          <p className="text-xs text-muted-foreground">Curlec refund ID</p>
+                          <p className="mt-1 break-all text-sm font-medium">
+                            {walletReversalFailure.refundId ?? payment.refundReference ?? "—"}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                          <p className="text-xs text-muted-foreground">Last retry</p>
+                          <p className="mt-1 text-sm font-medium">
+                            {walletReversalFailure.lastAttemptAt
+                              ? formatDate(walletReversalFailure.lastAttemptAt)
+                              : "—"}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border bg-background/80 px-3 py-2.5">
+                          <p className="text-xs text-muted-foreground">Failure reason</p>
+                          <p className="mt-1 text-sm font-medium">
+                            {walletReversalFailure.error ??
+                              walletReversalFailure.failureCategory ??
+                              "—"}
+                          </p>
+                        </div>
+                      </div>
+                      <p
+                        className={cn(
+                          "text-sm font-medium",
+                          walletReversalFailure.fundsProtected
+                            ? "text-foreground"
+                            : "text-destructive"
+                        )}
+                      >
+                        {walletReversalFailure.fundsProtected
+                          ? "Funds protected: Yes"
+                          : "Funds protected: No — urgent review required"}
+                      </p>
+                      <Button
+                        variant="destructive"
+                        onClick={() => void handleRetryRefund()}
+                        disabled={!canManage || isPending}
+                        title={disabledReason}
+                      >
+                        Retry wallet reversal
+                      </Button>
                     </CardContent>
                   </Card>
                 ) : null}

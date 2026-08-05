@@ -35,6 +35,10 @@ describe("gateway payment state transitions", () => {
     );
   });
 
+  it("allows HELD → REFUNDED after confirmed-refund wallet reversal", () => {
+    expect(isTransitionAllowed(GatewayPaymentStatus.HELD, GatewayPaymentStatus.REFUNDED)).toBe(true);
+  });
+
   it("allows REFUND_INITIATED → REFUNDED | HELD", () => {
     expect(
       isTransitionAllowed(GatewayPaymentStatus.REFUND_INITIATED, GatewayPaymentStatus.REFUNDED)
