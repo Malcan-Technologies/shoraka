@@ -48,6 +48,16 @@ jest.mock("./curlec-client", () => ({
   })),
 }));
 
+// Payment completion fire-and-forgets PDF generation. These tests are not about
+// receipts — mock the scheduler so async PDF work cannot race test cleanup.
+jest.mock("./receipt/receipt-service", () => {
+  const actual = jest.requireActual("./receipt/receipt-service") as Record<string, unknown>;
+  return {
+    ...actual,
+    scheduleGatewayPaymentReceipt: jest.fn(),
+  };
+});
+
 function buildTestApp() {
   const app = express();
   app.use("/v1/webhooks", curlecWebhookRouter);

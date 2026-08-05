@@ -67,6 +67,16 @@ jest.mock("../../config/curlec", () => {
   };
 });
 
+// Fee completion schedules receipt PDF in the background. Mock only the
+// fire-and-forget scheduler so cleanup cannot race PDF updates.
+jest.mock("./receipt/receipt-service", () => {
+  const actual = jest.requireActual("./receipt/receipt-service") as Record<string, unknown>;
+  return {
+    ...actual,
+    scheduleGatewayPaymentReceipt: jest.fn(),
+  };
+});
+
 const prisma = new PrismaClient();
 const describeIntegration = process.env.DATABASE_URL ? describe : describe.skip;
 
