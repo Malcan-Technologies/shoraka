@@ -3,7 +3,7 @@
 import { useHeader } from "@cashsouk/ui";
 
 import * as React from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   ArrowLeftIcon,
@@ -52,15 +52,6 @@ import {
   formatGatewayPaymentFailureReason,
   hasUncertainAmountMismatchRefund,
 } from "./gateway-payment-copy";
-// TEMPORARY GATEWAY PAYMENT SHOWCASE — Remove after UI review (see gateway-payment-showcase/REMOVAL.md)
-import {
-  GatewayPaymentShowcaseControls,
-  PREVIEW_ONLY_TOAST,
-  getShowcaseScenario,
-  isGatewayPaymentShowcaseEnabled,
-  type ShowcasePermissionMode,
-  type ShowcaseScenarioId,
-} from "./gateway-payment-showcase";
 
 const RECEIPT_STATUS_LABEL: Record<string, string> = {
   PENDING: "Being prepared",
@@ -154,42 +145,22 @@ function DetailRow({
 export default function GatewayPaymentDetailPage() {
   const { setTitle } = useHeader();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const params = useParams<{ id: string }>();
   const id = typeof params?.id === "string" ? params.id : null;
   const { can } = usePermissions();
 
-  // TEMPORARY GATEWAY PAYMENT SHOWCASE — Remove after UI review
-  const showcaseEnabled = isGatewayPaymentShowcaseEnabled(searchParams);
-  const [scenarioId, setScenarioId] = React.useState<ShowcaseScenarioId>("completed-deposit");
-  const [permissionMode, setPermissionMode] =
-    React.useState<ShowcasePermissionMode>("real");
-  const showcaseScenario = React.useMemo(
-    () => (showcaseEnabled ? getShowcaseScenario(scenarioId) : null),
-    [showcaseEnabled, scenarioId]
-  );
-
-  const canManageReal = can("gateway_payments.manage");
-  const canManage =
-    showcaseEnabled && permissionMode === "manage"
-      ? true
-      : showcaseEnabled && permissionMode === "view-only"
-        ? false
-        : canManageReal;
+  const canManage = can("gateway_payments.manage");
   const disabledReason = !canManage
     ? "You do not have permission to perform this action."
     : undefined;
 
   const {
-    data: apiPayment,
-    isLoading: apiLoading,
-    error: apiError,
+    data: payment,
+    isLoading,
+    error,
     refetch,
     isFetching,
-  } = useGatewayPayment(showcaseEnabled ? null : id);
-  const payment = showcaseEnabled ? showcaseScenario?.payment ?? null : apiPayment ?? null;
-  const isLoading = showcaseEnabled ? false : apiLoading;
-  const error = showcaseEnabled ? null : apiError;
+  } = useGatewayPayment(id);
 
   const retryRefund = useRetryGatewayPaymentRefund();
   const initiateRefund = useInitiateGatewayPaymentRefund();
@@ -246,10 +217,6 @@ export default function GatewayPaymentDetailPage() {
   const timelineEvents = payment?.events ?? [];
 
   const handleRetryRefund = async () => {
-    if (showcaseEnabled) {
-      toast.message(PREVIEW_ONLY_TOAST);
-      return;
-    }
     if (!id) return;
     try {
       await retryRefund.mutateAsync(id);
@@ -264,11 +231,6 @@ export default function GatewayPaymentDetailPage() {
   };
 
   const handleInitiateRefund = async (reason: string) => {
-    if (showcaseEnabled) {
-      toast.message(PREVIEW_ONLY_TOAST);
-      setShowRefundDialog(false);
-      return;
-    }
     if (!id) return;
     try {
       await initiateRefund.mutateAsync({ id, reason });
@@ -280,10 +242,6 @@ export default function GatewayPaymentDetailPage() {
   };
 
   const handleApproveNameCheck = async () => {
-    if (showcaseEnabled) {
-      toast.message(PREVIEW_ONLY_TOAST);
-      return;
-    }
     if (!id) return;
     try {
       await approveNameCheck.mutateAsync(id);
@@ -294,10 +252,6 @@ export default function GatewayPaymentDetailPage() {
   };
 
   const handleRejectNameCheck = async () => {
-    if (showcaseEnabled) {
-      toast.message(PREVIEW_ONLY_TOAST);
-      return;
-    }
     if (!id) return;
     try {
       await rejectNameCheck.mutateAsync(id);
@@ -308,10 +262,6 @@ export default function GatewayPaymentDetailPage() {
   };
 
   const handleOpenReceiptPdf = async (mode: "view" | "download") => {
-    if (showcaseEnabled) {
-      toast.message(PREVIEW_ONLY_TOAST);
-      return;
-    }
     const receiptId = payment?.receipt?.id;
     if (!receiptId) return;
     try {
@@ -323,10 +273,6 @@ export default function GatewayPaymentDetailPage() {
   };
 
   const handleRetryReceipt = async () => {
-    if (showcaseEnabled) {
-      toast.message(PREVIEW_ONLY_TOAST);
-      return;
-    }
     const receiptId = payment?.receipt?.id;
     if (!receiptId || !id) return;
     try {
@@ -356,37 +302,18 @@ export default function GatewayPaymentDetailPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  if (showcaseEnabled) {
-                    toast.message(PREVIEW_ONLY_TOAST);
-                    return;
-                  }
                   void refetch();
                 }}
-                disabled={showcaseEnabled ? false : isFetching || isLoading}
+                disabled={isFetching || isLoading}
                 className="h-8 w-8 p-0"
-                title={
-                  showcaseEnabled
-                    ? "Showcase mode — refresh is preview only"
-                    : "Reload this payment from the server"
-                }
+                title="Reload this payment from the server"
                 aria-label="Refresh"
               >
                 <ArrowPathIcon
-                  className={`h-4 w-4 ${!showcaseEnabled && isFetching ? "animate-spin" : ""}`}
+                  className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`}
                 />
               </Button>
             </div>
-
-            {showcaseEnabled && showcaseScenario ? (
-              <GatewayPaymentShowcaseControls
-                scenarioId={scenarioId}
-                onScenarioChange={setScenarioId}
-                permissionMode={permissionMode}
-                onPermissionModeChange={setPermissionMode}
-                scenario={showcaseScenario}
-                canManageEffective={canManage}
-              />
-            ) : null}
 
             {isLoading ? <PageSkeleton /> : null}
 
