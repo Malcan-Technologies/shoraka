@@ -1,26 +1,78 @@
 /**
  * Investment commit must not depend on SiteDocument PRODUCT_TERMS / RISK_DISCLOSURE.
+ * Active invest acknowledgement is Prospectus-only.
  */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 describe("note investment SiteDocument removal", () => {
+  const notesDir = __dirname;
+  const serviceSource = readFileSync(join(notesDir, "service.ts"), "utf8");
+  const schemasSource = readFileSync(join(notesDir, "schemas.ts"), "utf8");
+  const investorInvestPage = readFileSync(
+    join(notesDir, "../../../../investor/src/app/investments/page.tsx"),
+    "utf8"
+  );
+  const prospectusFooter = readFileSync(
+    join(notesDir, "prospectus/prospectus-footer.html.ts"),
+    "utf8"
+  );
+
   it("notes service commit path no longer references SiteDocument or product_terms_ref", () => {
-    const fs = require("node:fs") as typeof import("node:fs");
-    const path = require("node:path") as typeof import("node:path");
-    const source = fs.readFileSync(
-      path.join(__dirname, "service.ts"),
+    expect(serviceSource).not.toMatch(/siteDocument/i);
+    expect(serviceSource).not.toMatch(/PRODUCT_TERMS/);
+    expect(serviceSource).not.toMatch(/RISK_DISCLOSURE/);
+    expect(serviceSource).not.toMatch(/product_terms_ref/);
+    expect(serviceSource).not.toMatch(/risk_disclosure_ref/);
+    expect(serviceSource).not.toMatch(/productTermsRef/);
+    expect(serviceSource).not.toMatch(/riskDisclosureRef/);
+  });
+
+  it("PROSPECTUS_ACK_REQUIRED message mentions Prospectus only", () => {
+    expect(serviceSource).toMatch(
+      /"Confirm that you have reviewed the Prospectus\."/
+    );
+    expect(serviceSource).not.toMatch(
+      /Confirm that you have reviewed the Prospectus, Product Terms/
+    );
+    expect(serviceSource).toMatch(/prospectusAcknowledged !== true/);
+  });
+
+  it("createInvestment schema comment and field are prospectus-only", () => {
+    expect(schemasSource).toMatch(
+      /\/\*\* Required acknowledgement that the Prospectus was reviewed\. \*\//
+    );
+    expect(schemasSource).toMatch(/prospectusAcknowledged:\s*z\.literal\(true\)/);
+    expect(schemasSource).not.toMatch(/Product Terms/);
+    expect(schemasSource).not.toMatch(/Risk Disclosure/);
+    expect(schemasSource).not.toMatch(/product_terms_ref/);
+    expect(schemasSource).not.toMatch(/risk_disclosure_ref/);
+  });
+
+  it("investor invest dialog shows Prospectus acknowledgement only", () => {
+    expect(investorInvestPage).toMatch(
+      /I confirm that I have reviewed the[\s\S]*Prospectus[\s\S]*\./
+    );
+    expect(investorInvestPage).not.toMatch(/Product Terms/);
+    expect(investorInvestPage).not.toMatch(/Risk Disclosure Statement/);
+    expect(investorInvestPage).not.toMatch(/href="\/profile\?tab=documents"/);
+  });
+
+  it("marketplace commit hook still sends prospectusAcknowledged only", () => {
+    const hook = readFileSync(
+      join(notesDir, "../../../../investor/src/investments/hooks/use-marketplace-notes.ts"),
       "utf8"
     );
-    expect(source).not.toMatch(/siteDocument/i);
-    expect(source).not.toMatch(/PRODUCT_TERMS/);
-    expect(source).not.toMatch(/RISK_DISCLOSURE/);
-    expect(source).not.toMatch(/product_terms_ref/);
-    expect(source).not.toMatch(/risk_disclosure_ref/);
+    expect(hook).toMatch(/prospectusAcknowledged:\s*true/);
+    expect(hook).not.toMatch(/productTerms/);
+    expect(hook).not.toMatch(/riskDisclosure/);
+    expect(hook).not.toMatch(/PRODUCT_TERMS/);
+    expect(hook).not.toMatch(/RISK_DISCLOSURE/);
   });
 
   it("prisma schema no longer defines SiteDocument or DocumentLog", () => {
-    const fs = require("node:fs") as typeof import("node:fs");
-    const path = require("node:path") as typeof import("node:path");
-    const schema = fs.readFileSync(
-      path.join(__dirname, "../../../prisma/schema.prisma"),
+    const schema = readFileSync(
+      join(notesDir, "../../../prisma/schema.prisma"),
       "utf8"
     );
     expect(schema).not.toMatch(/model SiteDocument/);
@@ -31,5 +83,11 @@ describe("note investment SiteDocument removal", () => {
     expect(schema).toMatch(/model LegalDocument/);
     expect(schema).toMatch(/model LegalDocumentVersion/);
     expect(schema).toMatch(/model LegalDocumentAcceptance/);
+  });
+
+  it("prospectus footer Product Terms / Risk Disclosure wording remains unchanged", () => {
+    expect(prospectusFooter).toContain(
+      "Investors are advised to read and understand the Product Terms and Risk Disclosure Statement before investing."
+    );
   });
 });
