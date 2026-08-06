@@ -43,7 +43,7 @@ import {
   useProductImageUploadUrl,
   useProductTemplateUploadUrl,
 } from "../hooks/use-products";
-import { uploadFileToS3 } from "../../../../hooks/use-site-documents";
+import { uploadFileToS3 } from "@/lib/upload-file-to-s3";
 import { stepDisplayName, getDefaultWorkflowSteps, getRequiredFirstAndLastSteps, type WorkflowStepShape } from "../product-utils";
 import { getStepKeyFromStepId, STEP_KEY_DISPLAY, STEPS_WITHOUT_CONFIG } from "./workflow-registry";
 import { enforceDeclarationsLastAndDropReview } from "@cashsouk/types";

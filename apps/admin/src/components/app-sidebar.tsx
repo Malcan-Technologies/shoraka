@@ -15,7 +15,8 @@ import {
   ClipboardDocumentListIcon,
   CheckBadgeIcon,
   DocumentCheckIcon,
-  FolderOpenIcon,
+  ClipboardDocumentCheckIcon,
+  ScaleIcon,
   DocumentDuplicateIcon,
   QuestionMarkCircleIcon,
   BanknotesIcon,
@@ -285,7 +286,8 @@ const gatewayItems: Array<{
 const navDirectory = [
   { title: "Users", url: "/users", icon: UsersIcon },
   { title: "Organizations", url: "/organizations", icon: BuildingOffice2Icon },
-  { title: "Documents", url: "/documents", icon: FolderOpenIcon },
+  { title: "Legal Documents", url: "/legal-documents", icon: ScaleIcon },
+  { title: "Legal Acceptances", url: "/legal-document-acceptances", icon: ClipboardDocumentCheckIcon },
 ] as const;
 
 const navSettings = [
@@ -408,10 +410,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const canViewAuditAccess = can("audit.access.view");
   const canViewAuditSecurity = can("audit.security.view");
-  const canViewAuditDocument = can("audit.document.view");
   const canViewAuditProduct = can("audit.product.view");
   const canViewAnyAudit =
-    canViewAuditAccess || canViewAuditSecurity || canViewAuditDocument || canViewAuditProduct;
+    canViewAuditAccess || canViewAuditSecurity || canViewAuditProduct;
 
   const { data: pendingCountData } = usePendingApprovalCount({ enabled: canViewOnboarding });
   const { data: noteActionCountData } = useNoteActionRequiredCount({ enabled: canViewNotes });
@@ -752,7 +753,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   const canShow =
                     (item.title === "Users" && canViewUsers) ||
                     (item.title === "Organizations" && canViewOrganizations) ||
-                    (item.title === "Documents" && canViewDocuments);
+                    (item.title === "Legal Documents" && canViewDocuments) ||
+                    (item.title === "Legal Acceptances" && canViewDocuments);
                   if (!canShow) return null;
                   const Icon = item.icon;
                   return (

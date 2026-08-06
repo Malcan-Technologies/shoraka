@@ -186,8 +186,10 @@ export function resolveApplicationFinancialProfitMarginRatio(input: {
 
 /**
  * Prospectus / shared Return on Equity as a decimal ratio.
+ * Same behaviour as Admin Financial Summary:
  * Prefer CTOS flat `return_on_equity` (percent points) when present;
- * else PAT ÷ Net Worth, where Net Worth is direct `networth` or else `totass − totlib`.
+ * else PAT ÷ Net Worth, where Net Worth is direct `networth` or else
+ * resolved Total Assets − Total Liabilities (flat totals or component sums, 0-default).
  * Never uses Paid-Up Capital (`bsqpuc`) as the denominator.
  */
 export function resolveApplicationFinancialReturnOnEquityRatio(input: {
@@ -196,16 +198,34 @@ export function resolveApplicationFinancialReturnOnEquityRatio(input: {
   networth: number | null;
   totass?: number | null;
   totlib?: number | null;
+  bsfatot?: number | null;
+  othass?: number | null;
+  bscatot?: number | null;
+  bsclbank?: number | null;
+  curlib?: number | null;
+  bsslltd?: number | null;
+  bsclstd?: number | null;
 }): number | null {
   if (isFinitePresent(input.return_on_equity)) {
     return input.return_on_equity / 100;
   }
-  const netWorth = isFinitePresent(input.networth)
-    ? input.networth
-    : isFinitePresent(input.totass) && isFinitePresent(input.totlib)
-      ? computeNetWorth(input.totass, input.totlib)
-      : null;
-  return computeReturnOnEquity(input.plnpat, netWorth);
+  if (isFinitePresent(input.networth)) {
+    return computeReturnOnEquity(input.plnpat, input.networth);
+  }
+  const totass = resolveApplicationFinancialTotalAssets({
+    totass: input.totass ?? null,
+    bsfatot: input.bsfatot ?? null,
+    othass: input.othass ?? null,
+    bscatot: input.bscatot ?? null,
+    bsclbank: input.bsclbank ?? null,
+  });
+  const totlib = resolveApplicationFinancialTotalLiabilities({
+    totlib: input.totlib ?? null,
+    curlib: input.curlib ?? null,
+    bsslltd: input.bsslltd ?? null,
+    bsclstd: input.bsclstd ?? null,
+  });
+  return computeReturnOnEquity(input.plnpat, computeNetWorth(totass, totlib));
 }
 
 /**

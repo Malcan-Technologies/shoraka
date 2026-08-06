@@ -7,7 +7,7 @@ import {
   RegTankWebhookPayload,
   PortalType,
 } from "./types";
-import { OnboardingStatus, OrganizationType, UserRole, Prisma, IssuerOrganization } from "@prisma/client";
+import { OnboardingStatus, OrganizationType, UserRole, Prisma } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
@@ -18,6 +18,7 @@ import { getRegTankConfig } from "../../config/regtank";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
 import { normalizeRawStatus } from "@cashsouk/types";
 import { decideIndividualApprovedOutcome } from "./helpers/individual-onboarding-transition";
+import { assertIssuerOnboardingFeePaid } from "../payment/onboarding-fee-service";
 
 type StartPersonalOnboardingResult = {
   verifyLink: string;
@@ -1430,14 +1431,7 @@ export class RegTankService {
     }
 
     if (portalType === "issuer") {
-      const issuerOrg = organization as IssuerOrganization;
-      if (!issuerOrg.onboarding_fee_paid_at) {
-        throw new AppError(
-          402,
-          "ONBOARDING_FEE_REQUIRED",
-          "Issuer onboarding fee must be paid before starting eKYB"
-        );
-      }
+      await assertIssuerOnboardingFeePaid(prisma, organizationId);
     }
 
     if (portalType === "investor" && !organization.tnc_accepted) {
@@ -3310,6 +3304,10 @@ export class RegTankService {
 
     if (!organization || organization.owner_user_id !== userId) {
       throw new AppError(403, "FORBIDDEN", "Only the organization owner can retry onboarding");
+    }
+
+    if (portalType === "issuer") {
+      await assertIssuerOnboardingFeePaid(prisma, organizationId);
     }
 
     // Get user email for restart (required for corporate onboarding)

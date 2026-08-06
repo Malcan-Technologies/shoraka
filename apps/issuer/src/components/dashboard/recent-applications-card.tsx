@@ -16,6 +16,7 @@ import {
   issuerApplicationActionHref,
 } from "@/lib/issuer-pending-actions";
 import { RecentSectionHeader } from "@/components/dashboard/recent-section-header";
+import { ApplyForFinancingButton } from "@/components/apply-for-financing-button";
 
 const MAX_ROWS = 4;
 
@@ -71,12 +72,11 @@ export function RecentApplicationsCard() {
         ) : visible.length === 0 ? (
           <p className="py-4 text-[17px] leading-7 text-muted-foreground">
             No applications yet.{" "}
-            <Link
-              href="/applications/new"
-              className="font-medium text-primary underline-offset-4 hover:underline"
-            >
-              Apply for financing
-            </Link>
+            <ApplyForFinancingButton
+              variant="link"
+              showIcon={false}
+              className="inline h-auto p-0 text-[17px] font-medium leading-7"
+            />
           </p>
         ) : (
           <ul className="divide-y divide-border rounded-xl border border-border bg-background">

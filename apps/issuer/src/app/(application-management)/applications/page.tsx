@@ -3,9 +3,7 @@
 /** Slim applications list — detail lives at /applications/[id]. */
 
 import * as React from "react";
-import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { PlusIcon } from "@heroicons/react/24/outline";
 import {
   ConfirmDialog,
   EmptyState,
@@ -25,6 +23,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ApplyForFinancingButton } from "@/components/apply-for-financing-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -428,15 +427,7 @@ export default function ApplicationsPage() {
           title="Applications"
           description="Track financing applications, respond to offers, and finish drafts."
           action={
-            <Button
-              asChild
-              className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95"
-            >
-              <Link href="/applications/new">
-                <PlusIcon className="h-4 w-4" />
-                Apply for financing
-              </Link>
-            </Button>
+            <ApplyForFinancingButton className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95" />
           }
         >
           <div className="space-y-6">
@@ -619,9 +610,7 @@ export default function ApplicationsPage() {
                 }
                 action={
                   totalCount === 0 ? (
-                    <Button asChild className="rounded-xl">
-                      <Link href="/applications/new">Apply for financing</Link>
-                    </Button>
+                    <ApplyForFinancingButton showIcon={false} className="rounded-xl" />
                   ) : (
                     <Button variant="outline" className="rounded-xl" onClick={clearAllFilters}>
                       Clear filters

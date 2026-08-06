@@ -145,7 +145,7 @@ export const createInvestmentSchema = z.object({
       message: "Investment amount must have at most 2 decimal places",
     }),
   investorOrganizationId: z.string().min(1),
-  /** Required acknowledgement that Prospectus / Product Terms / Risk Disclosure were reviewed. */
+  /** Required acknowledgement that the Prospectus was reviewed. */
   prospectusAcknowledged: z.literal(true),
 });
 

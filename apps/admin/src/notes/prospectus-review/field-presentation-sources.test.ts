@@ -24,7 +24,10 @@ describe("prospectus field presentation — hidden sources", () => {
 
   it("does not show reused source as visible table metric text", () => {
     expect(sharedTable).not.toMatch(/spec\.mode === "reused"[\s\S]{0,120}\(\{spec\.source\}\)/);
-    expect(sharedTable).toContain('title={spec.mode === "reused" ? spec.source : undefined}');
+    // Tooltip-only: reused source stays on title (with placeholder branch), not cell body text.
+    expect(sharedTable).toMatch(
+      /title=\{\s*header\.isPlaceholder[\s\S]*spec\.mode === "reused"[\s\S]*spec\.source/
+    );
   });
 
   it("shows full Risk Rating Scale on Page 2 Risk Information without Scale Version", () => {

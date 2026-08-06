@@ -25,6 +25,7 @@ import {
 } from "@prisma/client";
 import { requestPresignedUploadUrl, deleteDocumentFromS3 } from "./documents/service";
 import { shouldPreserveApplicationDocumentsInS3 } from "./amendment-preserve-s3";
+import { legalDocumentAcceptanceService } from "../legal-documents/acceptance-service";
 import {
   assertRequiredSupportingDocumentsPresent,
   assertRequiredAcceptanceDocumentsPresent,
@@ -714,7 +715,14 @@ export class ApplicationService {
   /**
    * Create a new application
    */
-  async createApplication(input: CreateApplicationInput): Promise<Application> {
+  async createApplication(input: CreateApplicationInput, userId: string): Promise<Application> {
+    await legalDocumentAcceptanceService.assertNoPendingReacceptance(
+      userId,
+      input.issuerOrganizationId,
+      "ISSUER",
+      "NEW_FINANCING_APPLICATION"
+    );
+
     const product = await this.productRepository.findById(input.productId);
     if (!product) {
       throw new AppError(404, "PRODUCT_NOT_FOUND", "Product not found");
@@ -1560,6 +1568,14 @@ export class ApplicationService {
     this.verifyApplicationEditable(application);
 
     const currentStatus = application.status as string;
+    if (status === "SUBMITTED" && currentStatus === "DRAFT") {
+      await legalDocumentAcceptanceService.assertNoPendingReacceptance(
+        userId,
+        application.issuer_organization_id,
+        "ISSUER",
+        "NEW_FINANCING_APPLICATION"
+      );
+    }
     if (status === "RESUBMITTED" && currentStatus !== "AMENDMENT_REQUESTED") {
       throw new AppError(
         400,

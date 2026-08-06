@@ -133,6 +133,29 @@ describe("CurlecClient", () => {
     );
   });
 
+  it("fetches a refund by id", async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          id: "rfnd_lookup",
+          amount: 25000,
+          payment_id: "pay_lookup",
+          status: "pending",
+        }),
+    });
+
+    const client = new CurlecClient(testConfig);
+    const refund = await client.fetchRefund("rfnd_lookup");
+
+    expect(refund.status).toBe("pending");
+    expect(global.fetch).toHaveBeenCalledWith(
+      "https://api.razorpay.com/v1/refunds/rfnd_lookup",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
+
   it("throws AppError when Curlec returns non-2xx", async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,

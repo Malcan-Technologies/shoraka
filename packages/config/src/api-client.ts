@@ -43,20 +43,7 @@ import type {
   GetAdminContractsParams,
   AdminContractsResponse,
   AdminContractDetail,
-  GetSiteDocumentsParams,
-  SiteDocumentsResponse,
-  SiteDocumentResponse,
-  RequestUploadUrlInput,
-  RequestUploadUrlResponse,
-  CreateSiteDocumentInput,
-  UpdateSiteDocumentInput,
-  RequestReplaceUrlInput,
-  RequestReplaceUrlResponse,
-  ConfirmReplaceInput,
   DownloadUrlResponse,
-  GetDocumentLogsParams,
-  DocumentLogsResponse,
-  ExportDocumentLogsParams,
   GetProductLogsParams,
   ProductLogsResponse,
   ExportProductLogsParams,
@@ -137,6 +124,9 @@ import type {
   GatewayPaymentDetailDto,
   GatewayPaymentListResponse,
   GatewayPaymentPendingCountResponse,
+  GatewayPaymentReceiptDto,
+  GatewayPaymentReceiptListResponse,
+  GatewayPaymentReceiptPdfUrlResponse,
   CurlecGatewayAccount,
   GatewayReconExceptionDto,
   GatewayReconExceptionListResponse,
@@ -990,6 +980,63 @@ export class ApiClient {
 
   async getAdminGatewayPayment(id: string): Promise<ApiResponse<GatewayPaymentDetailDto> | ApiError> {
     return this.get<GatewayPaymentDetailDto>(`/v1/admin/gateway-payments/${id}`);
+  }
+
+  async listAdminGatewayPaymentReceipts(params?: {
+    page?: number;
+    pageSize?: number;
+    receiptNumber?: string;
+    payer?: string;
+    purpose?: string;
+    status?: string;
+    from?: string;
+    to?: string;
+  }): Promise<ApiResponse<GatewayPaymentReceiptListResponse> | ApiError> {
+    const search = new URLSearchParams();
+    if (params?.page) search.set("page", String(params.page));
+    if (params?.pageSize) search.set("pageSize", String(params.pageSize));
+    if (params?.receiptNumber) search.set("receiptNumber", params.receiptNumber);
+    if (params?.payer) search.set("payer", params.payer);
+    if (params?.purpose) search.set("purpose", params.purpose);
+    if (params?.status) search.set("status", params.status);
+    if (params?.from) search.set("from", params.from);
+    if (params?.to) search.set("to", params.to);
+    const qs = search.toString();
+    return this.get<GatewayPaymentReceiptListResponse>(
+      `/v1/admin/gateway-payments/receipts${qs ? `?${qs}` : ""}`
+    );
+  }
+
+  async getAdminGatewayPaymentReceipt(
+    id: string
+  ): Promise<ApiResponse<GatewayPaymentReceiptDto> | ApiError> {
+    return this.get<GatewayPaymentReceiptDto>(`/v1/admin/gateway-payments/receipts/${id}`);
+  }
+
+  async getAdminGatewayPaymentReceiptByPaymentId(
+    gatewayPaymentId: string
+  ): Promise<ApiResponse<GatewayPaymentReceiptDto> | ApiError> {
+    return this.get<GatewayPaymentReceiptDto>(
+      `/v1/admin/gateway-payments/${gatewayPaymentId}/receipt`
+    );
+  }
+
+  async getAdminGatewayPaymentReceiptPdfUrl(
+    id: string,
+    mode: "view" | "download" = "view"
+  ): Promise<ApiResponse<GatewayPaymentReceiptPdfUrlResponse> | ApiError> {
+    return this.get<GatewayPaymentReceiptPdfUrlResponse>(
+      `/v1/admin/gateway-payments/receipts/${id}/pdf?mode=${mode}`
+    );
+  }
+
+  async retryAdminGatewayPaymentReceipt(
+    id: string
+  ): Promise<ApiResponse<GatewayPaymentReceiptDto> | ApiError> {
+    return this.post<GatewayPaymentReceiptDto>(
+      `/v1/admin/gateway-payments/receipts/${id}/retry`,
+      {}
+    );
   }
 
   async retryAdminGatewayPaymentRefund(
@@ -1952,143 +1999,25 @@ export class ApiClient {
     return response.blob();
   }
 
-  // Admin - Site Documents
-  async getSiteDocuments(
-    params: GetSiteDocumentsParams
-  ): Promise<ApiResponse<SiteDocumentsResponse> | ApiError> {
-    const queryParams = new URLSearchParams();
-    queryParams.append("page", String(params.page));
-    queryParams.append("pageSize", String(params.pageSize));
-    if (params.type) queryParams.append("type", params.type);
-    if (params.includeInactive !== undefined)
-      queryParams.append("includeInactive", String(params.includeInactive));
-    if (params.search) queryParams.append("search", params.search);
-
-    return this.get<SiteDocumentsResponse>(`/v1/admin/site-documents?${queryParams.toString()}`);
+  async getAccountLegalDocuments(
+    audience: "ISSUER" | "INVESTOR"
+  ): Promise<
+    | ApiResponse<{
+        documents: import("@cashsouk/types").AccountLegalDocumentResponse[];
+      }>
+    | ApiError
+  > {
+    return this.get<{
+      documents: import("@cashsouk/types").AccountLegalDocumentResponse[];
+    }>(`/v1/legal-documents/account?audience=${audience}`);
   }
 
-  async getSiteDocument(
-    id: string
-  ): Promise<ApiResponse<{ document: SiteDocumentResponse }> | ApiError> {
-    return this.get<{ document: SiteDocumentResponse }>(`/v1/admin/site-documents/${id}`);
-  }
-
-  async requestSiteDocumentUploadUrl(
-    data: RequestUploadUrlInput
-  ): Promise<ApiResponse<RequestUploadUrlResponse> | ApiError> {
-    return this.post<RequestUploadUrlResponse>(`/v1/admin/site-documents/upload-url`, data);
-  }
-
-  async createSiteDocument(
-    data: CreateSiteDocumentInput
-  ): Promise<ApiResponse<{ document: SiteDocumentResponse }> | ApiError> {
-    return this.post<{ document: SiteDocumentResponse }>(`/v1/admin/site-documents`, data);
-  }
-
-  async updateSiteDocument(
-    id: string,
-    data: UpdateSiteDocumentInput
-  ): Promise<ApiResponse<{ document: SiteDocumentResponse }> | ApiError> {
-    return this.patch<{ document: SiteDocumentResponse }>(`/v1/admin/site-documents/${id}`, data);
-  }
-
-  async requestSiteDocumentReplaceUrl(
-    id: string,
-    data: RequestReplaceUrlInput
-  ): Promise<ApiResponse<RequestReplaceUrlResponse> | ApiError> {
-    return this.post<RequestReplaceUrlResponse>(`/v1/admin/site-documents/${id}/replace-url`, data);
-  }
-
-  async confirmSiteDocumentReplace(
-    id: string,
-    data: ConfirmReplaceInput
-  ): Promise<ApiResponse<{ document: SiteDocumentResponse }> | ApiError> {
-    return this.post<{ document: SiteDocumentResponse }>(
-      `/v1/admin/site-documents/${id}/replace`,
-      data
-    );
-  }
-
-  async deleteSiteDocument(id: string): Promise<ApiResponse<{ message: string }> | ApiError> {
-    return this.delete<{ message: string }>(`/v1/admin/site-documents/${id}`);
-  }
-
-  async restoreSiteDocument(
-    id: string
-  ): Promise<ApiResponse<{ document: SiteDocumentResponse }> | ApiError> {
-    return this.post<{ document: SiteDocumentResponse }>(
-      `/v1/admin/site-documents/${id}/restore`,
-      {}
-    );
-  }
-
-  async getAdminDocumentDownloadUrl(
-    id: string
+  async getLegalDocumentDownloadUrl(
+    versionId: string
   ): Promise<ApiResponse<DownloadUrlResponse> | ApiError> {
-    return this.get<DownloadUrlResponse>(`/v1/admin/site-documents/${id}/download`);
-  }
-
-  // User - Site Documents (authenticated users)
-  async getActiveDocuments(): Promise<
-    ApiResponse<{ documents: SiteDocumentResponse[] }> | ApiError
-  > {
-    return this.get<{ documents: SiteDocumentResponse[] }>(`/v1/documents`);
-  }
-
-  async getAccountDocuments(): Promise<
-    ApiResponse<{ documents: SiteDocumentResponse[] }> | ApiError
-  > {
-    return this.get<{ documents: SiteDocumentResponse[] }>(`/v1/documents/account`);
-  }
-
-  async getDocumentDownloadUrl(id: string): Promise<ApiResponse<DownloadUrlResponse> | ApiError> {
-    return this.get<DownloadUrlResponse>(`/v1/documents/${id}/download`);
-  }
-
-  // Admin - Document Logs
-  async getDocumentLogs(
-    params: GetDocumentLogsParams
-  ): Promise<ApiResponse<DocumentLogsResponse> | ApiError> {
-    const queryParams = new URLSearchParams();
-    queryParams.append("page", String(params.page));
-    queryParams.append("pageSize", String(params.pageSize));
-    if (params.search) queryParams.append("search", params.search);
-    if (params.eventType) queryParams.append("eventType", params.eventType);
-    if (params.dateRange) queryParams.append("dateRange", params.dateRange);
-
-    return this.get<DocumentLogsResponse>(`/v1/admin/document-logs?${queryParams.toString()}`);
-  }
-
-  async exportDocumentLogs(params: ExportDocumentLogsParams): Promise<Blob> {
-    const queryParams = new URLSearchParams();
-    if (params.search) queryParams.append("search", params.search);
-    if (params.eventType) queryParams.append("eventType", params.eventType);
-    if (params.eventTypes && params.eventTypes.length > 0)
-      queryParams.append("eventTypes", params.eventTypes.join(","));
-    if (params.dateRange) queryParams.append("dateRange", params.dateRange);
-    queryParams.append("format", params.format || "json");
-
-    const url = `${this.baseUrl}/v1/admin/document-logs/export?${queryParams.toString()}`;
-    const authToken = await this.getAuthToken();
-
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    };
-    if (authToken) {
-      headers["Authorization"] = `Bearer ${authToken}`;
-    }
-
-    const response = await fetch(url, {
-      method: "GET",
-      credentials: "include",
-      headers,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Export failed: ${response.statusText}`);
-    }
-
-    return response.blob();
+    return this.get<DownloadUrlResponse>(
+      `/v1/legal-documents/versions/${versionId}/download`
+    );
   }
 
   // Admin - Product Logs

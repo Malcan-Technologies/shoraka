@@ -492,7 +492,6 @@ describe("resolveApplicationFinancialReturnOnEquityRatio", () => {
         totlib: 200,
       })
     ).toBeCloseTo(0.2);
-    // bsqpuc=200 would wrongly yield 50% — must not be used
     expect(
       resolveApplicationFinancialReturnOnEquityRatio({
         return_on_equity: null,
@@ -514,7 +513,7 @@ describe("resolveApplicationFinancialReturnOnEquityRatio", () => {
     ).toBeCloseTo(0.085);
   });
 
-  it("returns null for zero or missing resolved Net Worth", () => {
+  it("returns null for explicit zero Net Worth even when totals differ", () => {
     expect(
       resolveApplicationFinancialReturnOnEquityRatio({
         return_on_equity: null,
@@ -533,18 +532,28 @@ describe("resolveApplicationFinancialReturnOnEquityRatio", () => {
         totlib: 200,
       })
     ).toBeNull();
+  });
+
+  it("derives Net Worth from asset/liability components like Admin Financial Summary", () => {
     expect(
       resolveApplicationFinancialReturnOnEquityRatio({
         return_on_equity: null,
-        plnpat: 100,
+        plnpat: 112000,
         networth: null,
         totass: null,
         totlib: null,
+        bsfatot: 485000,
+        othass: 42500,
+        bscatot: 318000,
+        bsclbank: 55000,
+        curlib: 165000,
+        bsslltd: 95000,
+        bsclstd: 28000,
       })
-    ).toBeNull();
+    ).toBeCloseTo(112000 / 612500);
   });
 
-  it("returns null when one of totass or totlib is missing and networth absent", () => {
+  it("zero-defaults a missing total side when resolving from components (Admin parity)", () => {
     expect(
       resolveApplicationFinancialReturnOnEquityRatio({
         return_on_equity: null,
@@ -553,7 +562,7 @@ describe("resolveApplicationFinancialReturnOnEquityRatio", () => {
         totass: 700,
         totlib: null,
       })
-    ).toBeNull();
+    ).toBeCloseTo(100 / 700);
     expect(
       resolveApplicationFinancialReturnOnEquityRatio({
         return_on_equity: null,
@@ -561,6 +570,18 @@ describe("resolveApplicationFinancialReturnOnEquityRatio", () => {
         networth: null,
         totass: null,
         totlib: 200,
+      })
+    ).toBeCloseTo(100 / -200);
+  });
+
+  it("returns null when resolved Net Worth is zero (no balance sheet signal)", () => {
+    expect(
+      resolveApplicationFinancialReturnOnEquityRatio({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: null,
+        totass: null,
+        totlib: null,
       })
     ).toBeNull();
   });

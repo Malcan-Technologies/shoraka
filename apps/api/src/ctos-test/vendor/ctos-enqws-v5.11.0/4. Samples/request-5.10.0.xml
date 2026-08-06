@@ -1,0 +1,36 @@
+<batch output="0" no="0009" xmlns="http://ws.cmctos.com.my/ctosnet/request">
+  <company_code>UATMAYBANK</company_code>
+  <account_no>UATMAYBANK</account_no>
+  <user_id>uatmaybank</user_id>
+  <record_total>1</record_total>
+  <records>
+    <type code="">I</type>
+    <ic_lc/>
+    <nic_br>760528913130</nic_br>
+    <name>asasas</name>
+    <mphone_nos>
+      <mphone_no/>
+    </mphone_nos>
+    <ref_no/>
+    <dist_code>testing_Dist_Code</dist_code>
+    <purpose code="200">Credit evaluation/account opening on subject/directors/shareholder with consent /due diligence on AMLA compliance</purpose>
+    <state code=""/>
+    <country code=""/>
+    <include_consent>0</include_consent>
+    <include_ctos>1</include_ctos>
+    <include_trex>1</include_trex>
+    <include_ccris sum="1">1</include_ccris>
+    <include_dcheq>1</include_dcheq>
+    <include_ccris_supp>1</include_ccris_supp>
+    <include_fico>1</include_fico>
+    <include_sfi>0</include_sfi>
+    <include_ssm>0</include_ssm>
+	<include_ssm_retention>0</include_ssm_retention>
+    <include_angkasa>1</include_angkasa>
+    <include_ie>1</include_ie>
+	<include_ci>1</include_ci>
+	<include_etr_plus>1</include_etr_plus>
+	<include_analytical_product>TS</include_analytical_product>
+	<include_analytical_product>EWI</include_analytical_product>
+  </records>
+</batch>

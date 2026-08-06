@@ -340,7 +340,7 @@ export const PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_FIELD_SOURCES: Record<
   return_on_equity: {
     label: "Return on Equity",
     canonicalSource:
-      "resolveApplicationFinancialReturnOnEquityRatio(return_on_equity | plnpat/networth | plnpat/(totass-totlib))",
+      "resolveApplicationFinancialReturnOnEquityRatio(return_on_equity | plnpat/networth | plnpat/(resolved totass−totlib from flat or components))",
     availability: "calculated",
     surface: "canva",
     possibleAlternatives: "plnpat/bsqpuc (Paid-Up Capital) — not used",

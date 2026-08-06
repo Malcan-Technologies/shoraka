@@ -33,7 +33,7 @@ The API is the real security boundary. Frontend gating is for navigation and UX 
 - Use dotted keys: `module.action` or `module.domain.action`
 - Use `service_fee` (singular), not `service_fees`
 - Use `platform_settings` for admin platform finance settings, not `platform_settings.finance`
-- Use `document_management` for the standalone Document Management page
+- Use `document_management` for Legal Documents and Legal Acceptances admin pages
 - Use `disbursements` for issuer payouts / issuer money out
 - Use `withdrawals` only if a standalone investor withdrawal admin page exists
 - Use `settlements` only if a standalone settlement page exists
@@ -167,8 +167,8 @@ adminNotesRouter.post("/", requirePermission("notes.create"), handler);
 | `apps/api/src/modules/admin/controller.ts` | Dashboard, Users, Organizations, Roles, Audit, Onboarding, Applications, Contracts |
 | `apps/api/src/modules/notes/controller.ts` | Notes, Bucket Balances, Repayments, Platform Finance Settings, Investments, Disbursements |
 | `apps/api/src/modules/notification/controller.ts` | Notifications |
-| `apps/api/src/modules/site-documents/admin-controller.ts` | Document Management |
-| `apps/api/src/modules/site-documents/log-controller.ts` | Document audit logs |
+| `apps/api/src/modules/legal-documents/admin-controller.ts` | Legal Documents management |
+| `apps/api/src/modules/legal-documents/acceptance-admin-controller.ts` | Legal Acceptances reporting |
 | `apps/api/src/modules/products/controller.ts` | Product Settings |
 | `apps/api/src/modules/products/log/controller.ts` | Product audit logs |
 | `apps/api/src/modules/products/upload/controller.ts` | Product uploads |
@@ -301,21 +301,42 @@ Do not block any notification tab behind `notifications.manage`.
 |---|---|
 | Access Logs | `audit.access.view` |
 | Security Logs | `audit.security.view` |
-| Document Logs | `audit.document.view` |
 | Product Logs | `audit.product.view` |
-| Backend | `apps/api/src/modules/admin/controller.ts` |
-| Frontend pages | `apps/admin/src/app/audit/*/page.tsx` |
-| Notes | All audit pages are read-only. Search/filter/export use same view permission. |
+| Backend | `apps/api/src/modules/admin/controller.ts`, product log controller |
+| Frontend page | `apps/admin/src/app/audit/page.tsx` (tabs: Access, Security, Products) |
+| Notes | Audit pages are read-only. Search/filter/export use the same view permission. There is no Document Logs tab. |
 
-### Document Management
+### Legal Documents
 
 | | |
 |---|---|
 | View | `document_management.view` |
-| Mutations (Upload, Edit, Replace, Archive, Restore) | `document_management.manage` |
-| Backend | `apps/api/src/modules/site-documents/admin-controller.ts` |
-| Frontend page | `apps/admin/src/app/documents/page.tsx` |
-| Notes | Documents inside Notes or Applications use the parent module's permission, not `document_management.*` |
+| Mutations (create, upload, replace draft, publish, archive, restore, configuration) | `document_management.manage` |
+| Backend | `apps/api/src/modules/legal-documents/admin-controller.ts` |
+| Frontend page | `apps/admin/src/app/legal-documents/page.tsx` (`/legal-documents`) |
+| Manages | `LegalDocument` definitions; `LegalDocumentVersion` records; draft / published / archived lifecycle; audience; onboarding visibility; public visibility; show-in-account visibility |
+| Notes | Application supporting documents and note attachments use parent module permissions (`applications.*` / `notes.*`), not `document_management.*`. |
+
+### Legal Acceptances
+
+| | |
+|---|---|
+| View (list, detail, export, exact-version download) | `document_management.view` |
+| Mutations | None — records are immutable (no update/delete API) |
+| Backend | `apps/api/src/modules/legal-documents/acceptance-admin-controller.ts` |
+| Frontend page | `apps/admin/src/app/legal-document-acceptances/page.tsx` (`/legal-document-acceptances`) |
+| Shows | Accepted document type; exact version; file hash; organization; accepting user; timestamp; IP; user agent; acknowledgement wording; exact accepted PDF download |
+| Notes | Evidence comes from `LegalDocumentAcceptance` only. There is no DocumentLog / SiteDocument audit trail. |
+
+### Removed (do not use)
+
+These systems and permissions no longer exist:
+
+- `SiteDocument` / `SiteDocumentType` / site document catalog
+- `DocumentLog` / Document Logs admin UI
+- Admin page `/documents`
+- APIs `/v1/documents`, `/v1/admin/site-documents`, `/v1/admin/document-logs`
+- Permission `audit.document.view`
 
 ### Investments
 
@@ -426,13 +447,18 @@ Do not require any section manage permission for comments.
 - Only mutation controls require `notifications.manage`
 - Never block entire tabs behind `notifications.manage`
 
-### Documents inside Notes or Applications
+### Legal documents vs documents inside Notes or Applications
+
+Legal Documents and Legal Acceptances use `document_management.view` / `document_management.manage` at:
+
+- `/legal-documents`
+- `/legal-document-acceptances`
 
 Documents inside a Note Detail page follow `notes.view` for read-only viewing, or the relevant `notes.<domain>.manage` if the document action is part of a note workflow.
 
 Documents inside an Application Review section follow `applications.view` for read-only viewing, or `applications.<section>.manage` if the document action is a section workflow step.
 
-The `document_management.*` permissions apply only to the standalone Document Management page at `/documents`.
+Do not use `document_management.*` for Notes or Application Review attachments.
 
 ### Settings > General and Settings > Security
 
@@ -499,7 +525,8 @@ The following permissions are **not** in this list because they have active back
 - [ ] Application section Approve/Reject/Request Amendment disabled
 - [ ] Note lifecycle action buttons and Featured toggle disabled
 - [ ] "Turn Into Note" button disabled
-- [ ] Documents Upload/Edit/Replace/Archive/Restore disabled
+- [ ] Legal Documents Upload/Edit/Publish/Archive controls disabled without `document_management.manage`
+- [ ] Legal Acceptances remains readable with `document_management.view` and has no edit/delete controls
 - [ ] Roles page and Permission Configuration visible and read-only
 - [ ] Notifications page visible; Add Missing Types / toggles / Send disabled
 
@@ -526,10 +553,10 @@ The following permissions are **not** in this list because they have active back
 
 ### Role with `audit.access.view` only
 
-- [ ] Only Access Logs sidebar item visible under Audit section
+- [ ] Only Access Logs tab visible under Audit
 - [ ] Access Logs page loads correctly
-- [ ] Security Logs, Document Logs, Product Logs sidebar items hidden
-- [ ] Direct URL to hidden audit pages shows Access Denied
+- [ ] Security Logs and Product Logs tabs hidden or Access Denied
+- [ ] No Document Logs tab exists
 
 ---
 
@@ -544,6 +571,7 @@ The following permissions are **not** in this list because they have active back
 - **Do not rename `service_fee` to `service_fees`** — the catalog uses singular
 - **Do not rename `platform_settings`** to `platform_settings.finance` or any variant
 - **Do not use `document_management.*`** for documents inside Notes or Application Review — use the parent module's permission
+- **Do not reintroduce SiteDocument, DocumentLog, `/documents`, or `audit.document.view`** — those systems were removed
 - **Do not remove the `requireRole(UserRole.ADMIN)` base gate** from sub-routers without ensuring all child routes have their own `requirePermission` guard
 
 ---

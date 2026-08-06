@@ -11,6 +11,8 @@ import {
   DropdownMenuTrigger,
   Input,
   Logo,
+  openPublicLegalPdf,
+  useLandingFooterLegalLinks,
 } from "@cashsouk/ui";
 import {
   BuildingLibraryIcon,
@@ -22,6 +24,17 @@ import {
   RectangleStackIcon,
   UserGroupIcon,
 } from "@heroicons/react/24/outline";
+
+/** Prefer env config; fall back to existing site placeholders only (do not invent new corporate data). */
+const COMPANY = {
+  legalName: process.env.NEXT_PUBLIC_COMPANY_LEGAL_NAME || "Shoraka Sdn. Bhd.",
+  brandName: process.env.NEXT_PUBLIC_COMPANY_BRAND_NAME || "CashSouk",
+  registrationNumber:
+    process.env.NEXT_PUBLIC_COMPANY_REGISTRATION_NUMBER || "201612345678",
+  address: process.env.NEXT_PUBLIC_COMPANY_ADDRESS || "",
+  email: process.env.NEXT_PUBLIC_COMPANY_EMAIL || "hello@cashsouk.com",
+  phone: process.env.NEXT_PUBLIC_COMPANY_PHONE || "+60 3-1234 5678",
+};
 
 const SOCIAL_LINKS = [
   { href: "#", label: "X (Twitter)", Icon: ChatBubbleLeftRightIcon },
@@ -35,6 +48,7 @@ const SOCIAL_LINKS = [
 
 export function MarketingFooter() {
   const year = new Date().getFullYear();
+  const { links: legalLinks } = useLandingFooterLegalLinks();
 
   const onNewsletterSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -77,7 +91,7 @@ export function MarketingFooter() {
       </div>
 
       <div className="border-b border-primary-foreground/15">
-        <div className="mx-auto grid max-w-7xl gap-10 px-6 py-10 md:py-12 lg:grid-cols-2 lg:gap-14">
+        <div className="mx-auto grid max-w-7xl gap-10 px-6 py-10 md:py-12 lg:grid-cols-3 lg:gap-14">
           <div>
             <Link href="/" className="inline-flex items-center gap-3">
               <Logo className="brightness-0 invert" size={44} />
@@ -86,75 +100,85 @@ export function MarketingFooter() {
               Building the future of decentralized business finance. Secure, transparent, and built
               for everyone.
             </p>
-            <nav
-              className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 text-[15px] font-medium"
-              aria-label="Footer"
-            >
-              <DropdownMenu>
-                <DropdownMenuTrigger className="inline-flex items-center gap-1 rounded-sm text-primary-foreground outline-none ring-offset-primary transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary-foreground/60 focus-visible:ring-offset-2">
-                  Invest
-                  <ChevronDownIcon className="size-4" aria-hidden />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="min-w-[12rem]">
-                  <DropdownMenuItem asChild>
-                    <Link href="/marketplace">Marketplace</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/get-started">Browse opportunities</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/get-started">How investing works</Link>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger className="inline-flex items-center gap-1 rounded-sm text-primary-foreground outline-none ring-offset-primary transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary-foreground/60 focus-visible:ring-offset-2">
-                  Finance
-                  <ChevronDownIcon className="size-4" aria-hidden />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="min-w-[12rem]">
-                  <DropdownMenuItem asChild>
-                    <Link href="/get-started">Apply for financing</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/get-started">For businesses</Link>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              <Link
-                href="/marketplace"
-                className="rounded-sm text-primary-foreground outline-none ring-offset-primary hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary-foreground/60 focus-visible:ring-offset-2"
-              >
-                Marketplace
-              </Link>
-
-              <Link
-                href="#"
-                className="rounded-sm text-primary-foreground outline-none ring-offset-primary hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary-foreground/60 focus-visible:ring-offset-2"
-              >
-                About us
-              </Link>
-              <Link
-                href="#"
-                className="rounded-sm text-primary-foreground outline-none ring-offset-primary hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary-foreground/60 focus-visible:ring-offset-2"
-              >
-                Blog
-              </Link>
-              <Link
-                href="mailto:hello@cashsouk.com"
-                className="rounded-sm text-primary-foreground outline-none ring-offset-primary hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary-foreground/60 focus-visible:ring-offset-2"
-              >
-                Contact us
-              </Link>
-            </nav>
+            <div className="mt-6 space-y-1 text-sm leading-6 text-primary-foreground/85">
+              <p className="font-medium text-primary-foreground">{COMPANY.legalName}</p>
+              <p>Registration No. {COMPANY.registrationNumber}</p>
+              {COMPANY.address ? <p>{COMPANY.address}</p> : null}
+              <p>
+                <a href={`mailto:${COMPANY.email}`} className="underline-offset-4 hover:underline">
+                  {COMPANY.email}
+                </a>
+              </p>
+              <p>
+                <a
+                  href={`tel:${COMPANY.phone.replace(/\s+/g, "")}`}
+                  className="underline-offset-4 hover:underline"
+                >
+                  {COMPANY.phone}
+                </a>
+              </p>
+            </div>
           </div>
 
-          <div className="lg:justify-self-end lg:text-left">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-primary-foreground/70">
+              Explore
+            </p>
+            <nav className="mt-4 flex flex-col gap-3 text-[15px] font-medium" aria-label="Footer explore">
+              <Link href="/marketplace" className="hover:opacity-90">
+                Marketplace
+              </Link>
+              <Link href="/get-started" className="hover:opacity-90">
+                Apply for financing
+              </Link>
+              <Link href="/get-started" className="hover:opacity-90">
+                Start investing
+              </Link>
+            </nav>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger className="mt-6 inline-flex items-center gap-1 rounded-sm text-[15px] font-medium text-primary-foreground outline-none ring-offset-primary transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary-foreground/60 focus-visible:ring-offset-2">
+                More
+                <ChevronDownIcon className="size-4" aria-hidden />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-[12rem]">
+                <DropdownMenuItem asChild>
+                  <Link href="/get-started">How investing works</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/get-started">For businesses</Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-primary-foreground/70">
+              Legal
+            </p>
+            <nav className="mt-4 flex flex-col gap-3 text-[15px] font-medium" aria-label="Footer legal">
+              {legalLinks.map((link) => (
+                <button
+                  key={link.versionId}
+                  type="button"
+                  className="text-left hover:opacity-90"
+                  onClick={() => {
+                    void openPublicLegalPdf(link.versionId, "view").catch(() => {
+                      toast.error("Unable to open this legal document right now.");
+                    });
+                  }}
+                >
+                  {link.label}
+                </button>
+              ))}
+              {legalLinks.length === 0 ? (
+                <span className="text-primary-foreground/70">No public legal documents yet</span>
+              ) : null}
+            </nav>
+
             <form
               onSubmit={onNewsletterSubmit}
-              className="flex max-w-md flex-col gap-3 sm:flex-row sm:items-stretch lg:ml-auto"
+              className="mt-8 flex max-w-md flex-col gap-3 sm:flex-row sm:items-stretch"
             >
               <Input
                 type="email"
@@ -170,23 +194,13 @@ export function MarketingFooter() {
                 Subscribe
               </Button>
             </form>
-            <p className="mt-3 text-sm leading-6 text-primary-foreground/80">
-              We care about your data in our{" "}
-              <Link
-                href="#"
-                className="font-medium text-primary-foreground underline underline-offset-4 hover:opacity-90"
-              >
-                privacy policy
-              </Link>
-              .
-            </p>
           </div>
         </div>
       </div>
 
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-6 px-6 py-8 sm:flex-row">
         <p className="text-sm text-primary-foreground/80">
-          © {year} CashSouk. All rights reserved.
+          © {year} {COMPANY.brandName}. All rights reserved.
         </p>
         <ul className="flex flex-wrap items-center justify-center gap-5" aria-label="Social links">
           {SOCIAL_LINKS.map(({ href, label, Icon }) => (
@@ -194,7 +208,7 @@ export function MarketingFooter() {
               <Link
                 href={href}
                 aria-label={label}
-                className="text-primary-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground/50 focus-visible:ring-offset-2 focus-visible:ring-offset-primary rounded-sm"
+                className="rounded-sm text-primary-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-foreground/50 focus-visible:ring-offset-2 focus-visible:ring-offset-primary"
               >
                 <Icon className="size-6" aria-hidden />
               </Link>

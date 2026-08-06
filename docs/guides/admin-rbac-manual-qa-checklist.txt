@@ -50,7 +50,7 @@ Assign these permissions to the test users. Use exactly what is listed below (no
 [ ] Assign:
   - `audit.access.view`
 [ ] Ensure:
-  - no `audit.security.view`, `audit.document.view`, `audit.product.view`
+  - no `audit.security.view`, `audit.product.view`
 
 === 9) Finance Viewer (view permissions only) ===
 -
@@ -249,18 +249,24 @@ Explicit permission coverage:
   [ ] Missing permission => not visible or Access Denied
 [ ] Repeat spot checks for:
   [ ] `audit.security.view`
-  [ ] `audit.document.view`
   [ ] `audit.product.view`
+[ ] Confirm Document Logs / `audit.document.view` do not exist
 
-=== Document Management ===
-[ ] Standalone Document Management:
+=== Legal Documents ===
+[ ] `/legal-documents`:
   [ ] `document_management.view` required to access
-  [ ] `document_management.manage` required for Upload/Edit/Replace/Archive/Restore
+  [ ] `document_management.manage` required for create/upload/replace/publish/archive/restore/config
 [ ] Confirm documents inside Notes/Application follow parent permissions (no standalone `document_management.*` requirement for those embedded flows).
 
 Explicit permission coverage:
 [ ] `document_management.view`
 [ ] `document_management.manage`
+
+=== Legal Acceptances ===
+[ ] `/legal-document-acceptances`:
+  [ ] `document_management.view` required to list/detail/export/download
+  [ ] No update/delete actions available
+  [ ] Missing permission => not visible or Access Denied
 
 === Finance ===
 [ ] Investments page:
@@ -327,7 +333,8 @@ For each test role, paste these into the browser address bar. Confirm the expect
 [ ] `/settings/notifications`
 [ ] `/audit/access-logs`
 [ ] `/audit/security-logs`
-[ ] `/documents`
+[ ] `/legal-documents`
+[ ] `/legal-document-acceptances`
 [ ] `/finance/buckets`
 [ ] `/settings/products`
 [ ] `/settings/platform-finance`

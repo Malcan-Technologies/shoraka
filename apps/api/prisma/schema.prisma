@@ -26,7 +26,7 @@ model User {
   access_logs                      AccessLog[]
   sent_admin_invitations           AdminInvitation[]                @relation("SentAdminInvitations")
   admin                            Admin?
-  document_logs                    DocumentLog[]
+  legal_document_acceptances       LegalDocumentAcceptance[]
   investments                      Investment[]
   sent_investor_org_invitations    InvestorOrganizationInvitation[] @relation("SentInvestorOrgInvitations")
   investor_organizations           InvestorOrganization[]
@@ -939,8 +939,6 @@ model NoteInvestment {
   prospectus_publication_id  String?
   prospectus_content_version Int?
   prospectus_acknowledged_at DateTime?
-  product_terms_ref          String?
-  risk_disclosure_ref        String?
   created_at                 DateTime                   @default(now())
   updated_at                 DateTime                   @updatedAt
   note                       Note                       @relation(fields: [note_id], references: [id], onDelete: Cascade)
@@ -1232,6 +1230,7 @@ model GatewayPayment {
   application              Application?            @relation(fields: [application_id], references: [id], onDelete: Cascade)
   events                   GatewayPaymentEvent[]
   recon_exceptions         GatewayReconException[]
+  receipt                  GatewayPaymentReceipt?
 
   @@index([status, created_at])
   @@index([purpose])
@@ -1245,6 +1244,58 @@ model GatewayPayment {
   @@unique([gatewayAccount, curlec_order_id])
   @@unique([gatewayAccount, curlec_payment_id])
   @@map("gateway_payments")
+}
+
+/// Official finance receipt PDF for a completed Curlec gateway payment (one per payment).
+model GatewayPaymentReceipt {
+  id                   String                        @id @default(cuid())
+  receipt_number       String                        @unique
+  gateway_payment_id   String                        @unique
+  payment_purpose      GatewayPaymentPurpose
+  purpose_label        String
+  payer_name           String?
+  payer_company_name   String?
+  payer_email          String?
+  payer_phone          String?
+  amount               Decimal                       @db.Decimal(18, 6)
+  currency             String                        @default("MYR")
+  payment_method       String?
+  payment_date         DateTime
+  curlec_payment_id    String?
+  curlec_order_id      String
+  related_entity_type  String
+  related_entity_id    String
+  related_reference    String
+  wallet_credited      Boolean                       @default(false)
+  pdf_s3_key           String?
+  status               GatewayPaymentReceiptStatus   @default(PENDING)
+  generation_error     String?
+  generated_at         DateTime?
+  refund_reference     String?
+  refund_amount        Decimal?                      @db.Decimal(18, 6)
+  refunded_at          DateTime?
+  merchant_snapshot    Json?
+  created_at           DateTime                      @default(now())
+  updated_at           DateTime                      @updatedAt
+  gateway_payment      GatewayPayment                @relation(fields: [gateway_payment_id], references: [id], onDelete: Cascade)
+
+  @@unique([curlec_payment_id])
+  @@index([payment_purpose])
+  @@index([status])
+  @@index([payment_date])
+  @@index([payer_name])
+  @@index([payer_company_name])
+  @@index([related_entity_type, related_entity_id], map: "gateway_payment_receipts_related_entity_type_related_entity_idx")
+  @@map("gateway_payment_receipts")
+}
+
+/// Daily running sequence for RCP-YYYYMMDD-NNN receipt numbers (Asia/Kuala_Lumpur date).
+model ReceiptDailyCounter {
+  date_key   String   @id
+  last_value Int      @default(0)
+  updated_at DateTime @updatedAt
+
+  @@map("receipt_daily_counters")
 }
 
 /// Durable checkpoint for a Curlec order-create attempt. Written before the
@@ -1539,46 +1590,98 @@ model AmlIdentityMapping {
   @@map("aml_identity_mapping")
 }
 
-model SiteDocument {
-  id              String           @id @default(cuid())
-  type            SiteDocumentType
-  title           String
-  description     String?
-  file_name       String
-  s3_key          String           @unique
-  content_type    String
-  file_size       Int
-  version         Int              @default(1)
-  is_active       Boolean          @default(true)
-  show_in_account Boolean          @default(false)
-  uploaded_by     String
-  created_at      DateTime         @default(now())
-  updated_at      DateTime         @updatedAt
+/// Logical legal document definition (onboarding / public legal PDFs).
+model LegalDocument {
+  id                      String                @id @default(cuid())
+  type                    LegalDocumentType     @unique
+  title                   String
+  description             String?
+  audience                LegalDocumentAudience @default(BOTH)
+  required_for_onboarding Boolean               @default(true)
+  public_visibility       Boolean               @default(false)
+  /// When true, the active published version appears on Profile → Documents.
+  show_in_account         Boolean               @default(false)
+  created_at              DateTime              @default(now())
+  updated_at              DateTime              @updatedAt
+  versions                LegalDocumentVersion[]
 
-  @@index([type, is_active])
-  @@index([is_active, show_in_account])
-  @@index([s3_key])
-  @@map("site_documents")
+  @@index([audience])
+  @@index([required_for_onboarding])
+  @@index([show_in_account])
+  @@map("legal_documents")
 }
 
-model DocumentLog {
-  id          String   @id @default(cuid())
-  user_id     String
-  document_id String?
-  event_type  String
-  ip_address  String?
-  user_agent  String?
-  device_info String?
-  metadata    Json?
-  created_at  DateTime @default(now())
-  user        User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+/// One uploaded PDF version of a legal document.
+model LegalDocumentVersion {
+  id                     String                     @id @default(cuid())
+  legal_document_id      String
+  version                Int
+  status                 LegalDocumentVersionStatus @default(DRAFT)
+  s3_key                 String                     @unique
+  file_name              String
+  content_type           String                     @default("application/pdf")
+  file_size              Int
+  file_hash              String?
+  reacceptance_required  Boolean                    @default(false)
+  uploaded_by            String
+  published_by           String?
+  published_at           DateTime?
+  archived_by            String?
+  archived_at            DateTime?
+  created_at             DateTime                   @default(now())
+  updated_at             DateTime                   @updatedAt
+  legal_document         LegalDocument              @relation(fields: [legal_document_id], references: [id], onDelete: Cascade)
+  acceptances            LegalDocumentAcceptance[]
 
+  @@unique([legal_document_id, version])
+  @@index([legal_document_id, status])
+  @@index([status, reacceptance_required])
+  /// Partial unique index (SQL migration): at most one PUBLISHED per legal_document_id.
+  @@map("legal_document_versions")
+}
+
+/// Open/accept audit for an exact legal document version.
+/// Acceptance is organization-scoped for portal onboarding/reacceptance:
+/// only the organization owner may accept, and one ACCEPTED row per
+/// (organization_id, legal_document_version_id) is sufficient for the org.
+/// Individual OPENED rows may still exist per user under the composite unique key.
+model LegalDocumentAcceptance {
+  id                         String                  @id @default(cuid())
+  legal_document_version_id  String
+  /// Snapshot of definition id at open/accept (survives later config changes).
+  legal_document_id          String?
+  /// Snapshot of document type at open/accept.
+  document_type              LegalDocumentType?
+  /// Snapshot of version number at open/accept.
+  version_number             Int?
+  user_id                    String
+  organization_id            String?
+  audience_role              LegalAcceptanceAudience
+  status                     LegalAcceptanceStatus   @default(NOT_OPENED)
+  opened_at                  DateTime?
+  accepted_at                DateTime?
+  document_hash              String?
+  /// Exact acknowledgement wording shown when the user accepted.
+  acknowledgement_text       String?
+  ip_address                 String?
+  user_agent                 String?
+  device_info                String?
+  user_email_snapshot        String?
+  user_name_snapshot         String?
+  created_at                 DateTime                @default(now())
+  updated_at                 DateTime                @updatedAt
+  user                       User                    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  version                    LegalDocumentVersion    @relation(fields: [legal_document_version_id], references: [id], onDelete: Restrict)
+
+  @@unique([user_id, organization_id, legal_document_version_id])
   @@index([user_id])
-  @@index([document_id])
-  @@index([event_type])
-  @@index([created_at])
-  @@index([user_id, created_at])
-  @@map("document_logs")
+  @@index([organization_id])
+  @@index([legal_document_version_id])
+  @@index([organization_id, status])
+  @@index([document_type])
+  @@index([accepted_at])
+  @@index([audience_role])
+  @@map("legal_document_acceptances")
 }
 
 model ProductLog {
@@ -1897,6 +2000,8 @@ enum InvestorBalanceTransactionDirection {
 enum InvestorBalanceTransactionSource {
   MANUAL_TOPUP
   GATEWAY_DEPOSIT
+  GATEWAY_DEPOSIT_REFUND
+  GATEWAY_DEPOSIT_REFUND_HOLD
   NOTE_INVESTMENT_COMMIT
   NOTE_INVESTMENT_RELEASE
   INVESTOR_WITHDRAWAL_REQUEST
@@ -1906,6 +2011,13 @@ enum GatewayPaymentPurpose {
   INVESTOR_DEPOSIT
   ISSUER_ONBOARDING_FEE
   APPLICATION_PROCESSING_FEE
+}
+
+enum GatewayPaymentReceiptStatus {
+  PENDING
+  GENERATED
+  FAILED
+  REFUNDED
 }
 
 enum GatewayOrganizationType {
@@ -2060,15 +2172,38 @@ enum OrganizationMemberRole {
   MEMBER
 }
 
-enum SiteDocumentType {
-  TERMS_AND_CONDITIONS
-  PRIVACY_POLICY
-  RISK_DISCLOSURE
-  PRODUCT_TERMS
-  PLATFORM_AGREEMENT
-  INVESTOR_GUIDE
-  ISSUER_GUIDE
-  OTHER
+enum LegalDocumentType {
+  PDPA_NOTICE_AND_CONSENT
+  TERMS_OF_USE
+  RISK_STATEMENT
+  ISSUER_WARNING_STATEMENT
+  INVESTOR_WARNING_STATEMENT
+  ISSUER_AGREEMENT
+  INVESTOR_AGREEMENT
+}
+
+enum LegalDocumentAudience {
+  PUBLIC
+  ISSUER
+  INVESTOR
+  BOTH
+}
+
+enum LegalDocumentVersionStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum LegalAcceptanceAudience {
+  ISSUER
+  INVESTOR
+}
+
+enum LegalAcceptanceStatus {
+  NOT_OPENED
+  OPENED
+  ACCEPTED
 }
 
 enum ApplicationStatus {

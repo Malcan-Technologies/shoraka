@@ -7,9 +7,10 @@ import { adminRouter } from "./modules/admin/controller";
 import { createOrganizationRouter } from "./modules/organization/controller";
 import { regTankRouter } from "./modules/regtank/controller";
 import { regTankAdminRouter } from "./modules/regtank/admin-controller";
-import { siteDocumentAdminRouter } from "./modules/site-documents/admin-controller";
-import { siteDocumentUserRouter } from "./modules/site-documents/user-controller";
-import { documentLogRouter } from "./modules/site-documents/log-controller";
+import { legalDocumentAdminRouter } from "./modules/legal-documents/admin-controller";
+import { legalDocumentAcceptanceAdminRouter } from "./modules/legal-documents/acceptance-admin-controller";
+import { legalDocumentUserRouter } from "./modules/legal-documents/user-controller";
+import { legalDocumentPublicRouter } from "./modules/legal-documents/public-controller";
 import { productLogRouter } from "./modules/products/log/controller";
 import { productsRouter } from "./modules/products/controller";
 import { issuerCatalogRouter } from "./modules/products/issuer-catalog-controller";
@@ -136,8 +137,8 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin/withdrawals", devAuthBypass, withdrawalsRouter);
     v1Router.use("/admin/gateway-payments", devAuthBypass, gatewayPaymentsAdminRouter);
     v1Router.use("/admin/gateway-recon", devAuthBypass, gatewayReconAdminRouter);
-    v1Router.use("/admin/site-documents", devAuthBypass, requireRole(UserRole.ADMIN), siteDocumentAdminRouter);
-    v1Router.use("/admin/document-logs", devAuthBypass, requireRole(UserRole.ADMIN), documentLogRouter);
+    v1Router.use("/admin/legal-documents", devAuthBypass, requireRole(UserRole.ADMIN), legalDocumentAdminRouter);
+    v1Router.use("/admin/legal-document-acceptances", devAuthBypass, requireRole(UserRole.ADMIN), legalDocumentAcceptanceAdminRouter);
     v1Router.use("/admin/product-logs", devAuthBypass, requireRole(UserRole.ADMIN), productLogRouter);
   } else {
     v1Router.use("/admin", requireAuth, requireRole(UserRole.ADMIN), adminRouter);
@@ -148,8 +149,8 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin/withdrawals", requireAuth, withdrawalsRouter);
     v1Router.use("/admin/gateway-payments", requireAuth, gatewayPaymentsAdminRouter);
     v1Router.use("/admin/gateway-recon", requireAuth, gatewayReconAdminRouter);
-    v1Router.use("/admin/site-documents", requireAuth, requireRole(UserRole.ADMIN), siteDocumentAdminRouter);
-    v1Router.use("/admin/document-logs", requireAuth, requireRole(UserRole.ADMIN), documentLogRouter);
+    v1Router.use("/admin/legal-documents", requireAuth, requireRole(UserRole.ADMIN), legalDocumentAdminRouter);
+    v1Router.use("/admin/legal-document-acceptances", requireAuth, requireRole(UserRole.ADMIN), legalDocumentAcceptanceAdminRouter);
     v1Router.use("/admin/product-logs", requireAuth, requireRole(UserRole.ADMIN), productLogRouter);
   }
 
@@ -171,10 +172,10 @@ export function registerRoutes(app: Application): void {
 
   // Public marketplace preview for landing pages (read-only)
   v1Router.use("/public/marketplace", publicMarketplaceRouter);
+  v1Router.use("/public/legal-documents", legalDocumentPublicRouter);
   v1Router.use("/ekyc", ekycRouter);
 
-  // Site documents routes (authenticated users)
-  v1Router.use("/documents", requireAuth, siteDocumentUserRouter);
+  v1Router.use("/legal-documents", requireAuth, legalDocumentUserRouter);
 
   // Activity routes
   v1Router.use("/activities", requireAuth, activityRouter);

@@ -29,6 +29,16 @@ jest.mock("./curlec-client", () => ({
   })),
 }));
 
+// Name-check approval schedules receipt PDF asynchronously. These admin tests
+// do not cover receipts — avoid racing afterAll payment deletes.
+jest.mock("./receipt/receipt-service", () => {
+  const actual = jest.requireActual("./receipt/receipt-service") as Record<string, unknown>;
+  return {
+    ...actual,
+    scheduleGatewayPaymentReceipt: jest.fn(),
+  };
+});
+
 async function gatewayTablesMigrated(): Promise<boolean> {
   try {
     await prisma.$queryRaw`SELECT 1 FROM gateway_payments LIMIT 1`;

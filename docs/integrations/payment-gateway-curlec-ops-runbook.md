@@ -21,7 +21,7 @@ Related docs:
 - Ops confirms the held-deposit and name-check review owner, checker, and expected turnaround time.
 - Confirm with Curlec that production FPX payments return the payer bank account name (used for AML name check).
 - Run one test-mode FPX pass for each path before live cutover: investor deposit success, investor deposit name-mismatch refund, investor deposit name-review path, issuer onboarding fee, and application processing fee.
-- Enable `refund.processed` and `refund.failed` webhook events in the Curlec dashboard.
+- Enable `refund.created`, `refund.processed` and `refund.failed` webhook events in the Curlec dashboard.
 - Remove dev-only recon simulator files before production (see `payment-gateway-curlec-recon-testing.md` §Remove before production).
 
 ## Investor Deposit Outcomes
@@ -35,7 +35,7 @@ The wallet is **never** credited unless the name check passes or an admin explic
 | Captured amount ≠ order | `REFUND_INITIATED` → `REFUNDED` | Never credited | None (auto-refund) |
 | Name unavailable or ambiguous (`REVIEW`) | `NAME_CHECK_PENDING` | Never credited | Admin approves (credit) or rejects (auto-refund) |
 | Refund API / webhook failure | `HELD` | Never credited (or debited if post-credit refund) | **Retry auto-refund** on payment detail |
-| Confirmed Curlec refund but wallet debit failed | `HELD` (metadata `refundConfirmedWalletReversalFailed`) | Still credited until fixed | **Retry auto-refund** retries wallet debit only — does not call Curlec again |
+| Confirmed Curlec refund but wallet debit failed | `HELD` (metadata `refundConfirmedWalletReversalFailed`) | Available balance reduced by hold (`GATEWAY_DEPOSIT_REFUND_HOLD`); auto-retry every 15 min via stuck-order poller | **Retry wallet reversal** (wallet debit only — does not call Curlec) |
 
 Normal auto-refund path: `REFUND_INITIATED` → `REFUNDED` via Curlec Refund API + webhooks.
 
@@ -58,8 +58,10 @@ If the Curlec Refund API or `refund.failed` webhook fails after a failed name ch
 If a post-credit refund already succeeded at Curlec but the local wallet debit failed (insufficient available balance):
 
 1. The payment is `HELD` with metadata `refundConfirmedWalletReversalFailed`.
-2. Free or restore available balance as needed, then use **Retry auto-refund**.
-3. That action reverses the wallet only (idempotent key `gateway-deposit:refund:<paymentId>`). It must not create a second Curlec refund.
+2. Remaining available cash is blocked immediately via `GATEWAY_DEPOSIT_REFUND_HOLD` (so it cannot be invested or withdrawn).
+3. The stuck-order poller retries wallet reversal automatically every 15 minutes.
+4. Admin can also use **Retry wallet reversal**. That reverses the wallet only (idempotent key `gateway-deposit:refund:<paymentId>`). It must not create a second Curlec refund.
+5. Status becomes `REFUNDED` only after the permanent wallet debit succeeds; holds are released in the same transaction.
 
 ### Manual post-credit correction (rare)
 
@@ -67,11 +69,19 @@ For a mistakenly credited `COMPLETED` investor deposit, use **Initiate refund** 
 
 ## Issuer Fees
 
-Issuer onboarding and application processing fees have **no name check** and are **non-refundable** (including if onboarding or the application is later rejected). On successful capture they go straight to `COMPLETED` with an `OPERATING_ACCOUNT` ledger credit.
+Issuer onboarding and application processing fees have **no name check**. Successful captures go to `COMPLETED` with an `OPERATING_ACCOUNT` ledger credit.
 
-Fee orders are routed to the **Operating** Curlec merchant (`OPERATING`). Historical payments created before account separation were migrated to `OPERATING` because they were created under the Operating Curlec merchant account.
+Same-currency **amount mismatch** auto-refunds (same as deposits): `REFUND_INITIATED` → `REFUNDED`.
 
-If Curlec reports a captured fee but amount/currency/order/ownership validation fails, the payment is moved to `HELD` with `captureMismatch` metadata (never `COMPLETED`, never plain `FAILED`). A second fee order is blocked until finance resolves the held row. Escalate to engineering with the Gateway Payment ID and Curlec payment/order IDs from payment detail metadata/events.
+**Currency mismatch** (all three purposes — deposit, onboarding fee, processing fee):
+
+- status `HELD` / Admin label **Needs attention**
+- no auto-refund
+- no Admin **Retry refund**
+- no wallet credit / no fee-paid flag / no receipt
+- investigate manually outside the auto-refund button
+
+Rejection of onboarding/application after a successful fee payment does not trigger a refund.
 
 ## Account routing
 
@@ -122,6 +132,7 @@ Required events for every merchant route:
 - `payment.captured`
 - `order.paid`
 - `payment.failed`
+- `refund.created` (recommended — recovers refund id / pending state)
 - `refund.processed`
 - `refund.failed`
 

@@ -1,7 +1,13 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { CashSoukPortalFooter, Header, SidebarInset, SidebarProvider } from "@cashsouk/ui";
+import {
+  CashSoukPortalFooter,
+  Header,
+  LegalReacceptanceBanner,
+  SidebarInset,
+  SidebarProvider,
+} from "@cashsouk/ui";
 import { AppSidebar } from "./app-sidebar";
 import { IssuerHeaderChrome } from "./issuer-header-chrome";
 import { isPublicIssuerPath } from "../lib/public-routes";
@@ -19,6 +25,7 @@ export function PortalChrome({ children }: { children: React.ReactNode }) {
       <AppSidebar />
       <SidebarInset className="min-w-0 overflow-x-hidden">
         <Header title="" rightContent={<IssuerHeaderChrome />} />
+        <LegalReacceptanceBanner portalType="issuer" />
         <div className="flex min-h-0 flex-1 flex-col">{children}</div>
         <CashSoukPortalFooter variant="issuer" />
       </SidebarInset>
