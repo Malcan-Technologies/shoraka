@@ -153,6 +153,27 @@ export {
   type SidebarFooterVariant,
 } from "./cashsouk-sidebar-footer";
 export {
+  buildCompactPortalLegalLinks,
+  buildPortalFooterLegalLinks,
+  buildLandingFooterLegalLinks,
+  buildPublicLegalPdfLinks,
+  permanentCompactPortalLegalLinks,
+  COMPACT_PORTAL_LEGAL_LINK_TYPES,
+  CONDITIONAL_COMPACT_LEGAL_LINKS,
+  openPublicLegalPdf,
+  publicLegalViewApiPath,
+  publicLegalDownloadApiPath,
+  type CompactPortalLegalLink,
+  type PublicLegalPdfLink,
+} from "./lib/compact-portal-legal-links";
+export {
+  useCompactPortalLegalLinks,
+  useLandingFooterLegalLinks,
+  usePublicLegalDocuments,
+  clearPublicLegalDocumentsCache,
+  loadPublicLegalDocuments,
+} from "./hooks/use-compact-portal-legal-links";
+export {
   HelpArticleView,
   HelpIndexView,
   type HelpArticleSummaryViewModel,
@@ -194,12 +215,30 @@ export type {
 export {
   OnboardingStepper,
   TermsAcceptanceCard,
+  LegalDocumentsAcceptance,
+  LegalDocumentsReview,
+  LegalReacceptancePanel,
+  LegalReacceptanceBanner,
+  resolveLegalDocumentsReviewMode,
+  legalDocumentsReviewCopy,
+  useLegalReacceptanceGate,
+  LEGAL_REACCEPTANCE_REDIRECT,
+  legalReacceptanceInterceptMessage,
   IdentityVerifyStep,
   OnboardingLayout,
   OnboardingStatusCard,
   getOnboardingSteps,
 } from "./onboarding";
-export type { OnboardingStepperStep, OnboardingStatusCardProps, OnboardingStep } from "./onboarding";
+export type {
+  OnboardingStepperStep,
+  OnboardingStatusCardProps,
+  OnboardingStep,
+  LegalDocumentsAcceptanceProps,
+  LegalDocumentsReviewProps,
+  LegalDocumentsReviewMode,
+  LegalReacceptancePanelProps,
+  LegalReacceptanceGateState,
+} from "./onboarding";
 export {
   DirectorShareholdersUnifiedSection,
   directorShareholderOrgApiBase,

@@ -3,7 +3,11 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { Label, MoneyInput } from "@cashsouk/ui";
-import { useOrganization, type Organization } from "@cashsouk/config";
+import {
+  resolvePortalCheckoutPayer,
+  useAuthToken,
+  useOrganization,
+} from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import {
   clearInvestorDepositIntent,
@@ -17,6 +21,8 @@ import {
   openCurlecFpxCheckout,
 } from "@/lib/curlec-checkout";
 import { parseMoneyAmount } from "@/app/transactions/components/transaction-utils";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 interface InvestorDepositFormProps {
   investorOrganizationId: string | undefined;
@@ -33,27 +39,6 @@ function formatDepositLimit(amount: number) {
   return Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
 }
 
-function resolveCheckoutContact(activeOrganization: Organization | null) {
-  if (!activeOrganization) {
-    return { email: "", contact: "", name: undefined as string | undefined };
-  }
-
-  const member =
-    activeOrganization.members.find((entry) => entry.role === "ORGANIZATION_ADMIN") ??
-    activeOrganization.members[0];
-
-  const name =
-    activeOrganization.firstName && activeOrganization.lastName
-      ? `${activeOrganization.firstName} ${activeOrganization.lastName}`
-      : activeOrganization.name ?? undefined;
-
-  return {
-    email: member?.email ?? "",
-    contact: activeOrganization.phoneNumber?.trim() || "+60000000000",
-    name,
-  };
-}
-
 export function InvestorDepositForm({
   investorOrganizationId,
   amount,
@@ -64,6 +49,7 @@ export function InvestorDepositForm({
   disabled = false,
   onStarted,
 }: InvestorDepositFormProps) {
+  const { getAccessToken } = useAuthToken();
   const { activeOrganization } = useOrganization();
   const createDeposit = useCreateInvestorDepositMutation();
   const depositLimitsQuery = useInvestorDepositLimitsQuery();
@@ -72,12 +58,15 @@ export function InvestorDepositForm({
   const minAmount = depositLimitsQuery.data?.minAmount;
   const maxAmount = depositLimitsQuery.data?.maxAmount;
 
-  async function openCheckout(created: {
-    id: string;
-    curlecKeyId: string;
-    curlecOrderId: string;
-    amount: number;
-  }, checkoutContact: { email: string; contact: string; name?: string }) {
+  async function openCheckout(
+    created: {
+      id: string;
+      curlecKeyId: string;
+      curlecOrderId: string;
+      amount: number;
+    },
+    payer: { email: string; contact?: string; name?: string }
+  ) {
     onStarted?.();
     setIsOpeningCheckout(true);
     const callbackUrl = buildDepositCallbackUrl(created.id, returnTo);
@@ -87,9 +76,9 @@ export function InvestorDepositForm({
       amountMyr: created.amount,
       callbackUrl,
       description: "Investor deposit",
-      prefillName: checkoutContact.name,
-      prefillEmail: checkoutContact.email,
-      prefillContact: checkoutContact.contact,
+      prefillName: payer.name,
+      prefillEmail: payer.email,
+      prefillContact: payer.contact,
       onDismiss: () => setIsOpeningCheckout(false),
     });
   }
@@ -116,8 +105,12 @@ export function InvestorDepositForm({
       return;
     }
 
-    const checkoutContact = resolveCheckoutContact(activeOrganization);
-    if (!checkoutContact.email) {
+    const payer = await resolvePortalCheckoutPayer({
+      apiUrl: API_URL,
+      getAccessToken,
+      organization: activeOrganization,
+    });
+    if (!payer.email) {
       toast.error("We could not find an email address for this account");
       return;
     }
@@ -131,7 +124,7 @@ export function InvestorDepositForm({
         amount: parsed,
         depositIntentId,
       });
-      await openCheckout(created, checkoutContact);
+      await openCheckout(created, { email: payer.email, contact: payer.contact, name: payer.name });
     } catch (error) {
       if (isDepositIntentTerminalError(error)) {
         try {
@@ -142,7 +135,11 @@ export function InvestorDepositForm({
             amount: parsed,
             depositIntentId: freshIntentId,
           });
-          await openCheckout(created, checkoutContact);
+          await openCheckout(created, {
+            email: payer.email,
+            contact: payer.contact,
+            name: payer.name,
+          });
           return;
         } catch (retryError) {
           setIsOpeningCheckout(false);

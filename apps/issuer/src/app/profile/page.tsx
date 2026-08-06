@@ -267,13 +267,13 @@ function formatFileSize(bytes: number): string {
 
 // Documents Tab Content Component
 function DocumentsTabContent({ apiClient }: { apiClient: ReturnType<typeof createApiClient> }) {
-  const { data: documents, isLoading, error } = useAccountDocuments();
+  const { data: documents, isLoading, error } = useAccountDocuments("ISSUER");
   const [downloadingId, setDownloadingId] = React.useState<string | null>(null);
 
-  const handleDownload = async (documentId: string) => {
-    setDownloadingId(documentId);
+  const handleDownload = async (doc: { id: string }) => {
+    setDownloadingId(doc.id);
     try {
-      const response = await apiClient.getDocumentDownloadUrl(documentId);
+      const response = await apiClient.getLegalDocumentDownloadUrl(doc.id);
       if (!response.success) {
         throw new Error(response.error.message);
       }
@@ -327,44 +327,42 @@ function DocumentsTabContent({ apiClient }: { apiClient: ReturnType<typeof creat
           </div>
         ) : (
           <>
-            {documents.map(
-              (doc: { id: string; title: string; file_name: string; file_size: number }) => (
-                <div
-                  key={doc.id}
-                  className="flex items-center justify-between p-4 rounded-xl border bg-muted/30"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                      <DocumentTextIcon className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{doc.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatFileSize(doc.file_size)} • {doc.file_name}
-                      </p>
-                    </div>
+            {documents.map((doc) => (
+              <div
+                key={`${doc.source}-${doc.id}`}
+                className="flex items-center justify-between p-4 rounded-xl border bg-muted/30"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                    <DocumentTextIcon className="h-6 w-6 text-primary" />
                   </div>
-                  <Button
-                    variant="default"
-                    className="gap-2 rounded-xl"
-                    onClick={() => handleDownload(doc.id)}
-                    disabled={downloadingId === doc.id}
-                  >
-                    {downloadingId === doc.id ? (
-                      <>
-                        <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                        Downloading...
-                      </>
-                    ) : (
-                      <>
-                        Download
-                        <ArrowDownTrayIcon className="h-4 w-4" />
-                      </>
-                    )}
-                  </Button>
+                  <div>
+                    <p className="font-medium">{doc.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {formatFileSize(doc.fileSize)} • {doc.fileName}
+                    </p>
+                  </div>
                 </div>
-              )
-            )}
+                <Button
+                  variant="default"
+                  className="gap-2 rounded-xl"
+                  onClick={() => handleDownload(doc)}
+                  disabled={downloadingId === doc.id}
+                >
+                  {downloadingId === doc.id ? (
+                    <>
+                      <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                      Downloading...
+                    </>
+                  ) : (
+                    <>
+                      Download
+                      <ArrowDownTrayIcon className="h-4 w-4" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            ))}
           </>
         )}
       </div>

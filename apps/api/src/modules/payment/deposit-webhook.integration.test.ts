@@ -48,6 +48,16 @@ jest.mock("./curlec-client", () => ({
   })),
 }));
 
+// Payment completion fire-and-forgets PDF generation. These tests are not about
+// receipts — mock the scheduler so async PDF work cannot race test cleanup.
+jest.mock("./receipt/receipt-service", () => {
+  const actual = jest.requireActual("./receipt/receipt-service") as Record<string, unknown>;
+  return {
+    ...actual,
+    scheduleGatewayPaymentReceipt: jest.fn(),
+  };
+});
+
 function buildTestApp() {
   const app = express();
   app.use("/v1/webhooks", curlecWebhookRouter);
@@ -184,6 +194,12 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
     });
     await prisma.investorBalance.deleteMany({
       where: { investor_organization_id: orgId },
+    });
+    await prisma.gatewayPaymentReceipt.deleteMany({
+      where: { gateway_payment_id: gatewayPaymentId },
+    });
+    await prisma.gatewayPaymentEvent.deleteMany({
+      where: { gateway_payment_id: gatewayPaymentId },
     });
     if (createdEventIds.length > 0) {
       await prisma.gatewayWebhookEvent.deleteMany({
@@ -463,7 +479,10 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
         curlecPaymentId: paymentId,
       },
     });
-    expect(mockRefundPayment).toHaveBeenCalledTimes(1);
+    expect(mockRefundPayment).toHaveBeenCalledWith(
+      paymentId,
+      expect.objectContaining({ amountSen: 24999, idempotencyKey: gatewayPaymentId })
+    );
 
     const balanceTxCount = await prisma.investorBalanceTransaction.count({
       where: { investor_organization_id: orgId },
@@ -530,6 +549,60 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
     });
     expect(payment.status).toBe(GatewayPaymentStatus.HELD);
     expect(payment.name_check_result).toBe(NameCheckResult.FAIL);
+  });
+
+  it("holds deposit on currency mismatch without wallet credit or refund", async () => {
+    if (!migrated) return;
+
+    // Do not use postWebhook() — it always resets the Curlec fetch mock to MYR.
+    mockFetchPayment.mockResolvedValue({
+      id: paymentId,
+      amount: 25000,
+      currency: "SGD",
+      status: "captured",
+      method: "fpx",
+      order_id: orderId,
+      acquirer_data: { account_holder_name: "Jane Doe" },
+    });
+
+    const eventId = `evt_m5_currency_mismatch_${Date.now()}`;
+    createdEventIds.push(eventId);
+    const app = buildTestApp();
+    const response = await signedWebhookRequest(app, {
+      eventId,
+      rawBody: buildCapturePayload(orderId, paymentId),
+    });
+    expect(response.status).toBe(200);
+
+    const payment = await prisma.gatewayPayment.findUniqueOrThrow({
+      where: { id: gatewayPaymentId },
+    });
+    expect(payment.status).toBe(GatewayPaymentStatus.HELD);
+    expect(payment.metadata).toMatchObject({
+      captureMismatch: {
+        mismatchType: "CURRENCY_MISMATCH",
+        reason: "Currency mismatch",
+        expectedCurrency: "MYR",
+        actualCurrency: "SGD",
+      },
+    });
+    expect(mockRefundPayment).not.toHaveBeenCalled();
+
+    const balanceTxCount = await prisma.investorBalanceTransaction.count({
+      where: { investor_organization_id: orgId },
+    });
+    expect(balanceTxCount).toBe(0);
+
+    const receiptCount = await prisma.gatewayPaymentReceipt.count({
+      where: { gateway_payment_id: gatewayPaymentId },
+    });
+    expect(receiptCount).toBe(0);
+
+    const events = await prisma.gatewayPaymentEvent.findMany({
+      where: { gateway_payment_id: gatewayPaymentId },
+      orderBy: { created_at: "desc" },
+    });
+    expect(events[0]?.reason).toBe("Currency mismatch");
   });
 
   it("credits only once under concurrent processing", async () => {

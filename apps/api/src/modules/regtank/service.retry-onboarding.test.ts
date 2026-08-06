@@ -48,6 +48,15 @@ jest.mock("../../lib/prisma", () => ({
     user: {
       findUnique: (...args: unknown[]) => mockUserFindUnique(...args),
     },
+    issuerOrganization: {
+      findUnique: jest.fn().mockResolvedValue({
+        id: "org-company-iss",
+        onboarding_fee_paid_at: new Date("2026-01-01T00:00:00.000Z"),
+      }),
+    },
+    gatewayPayment: {
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
     onboardingLog: {
       create: jest.fn(),
     },

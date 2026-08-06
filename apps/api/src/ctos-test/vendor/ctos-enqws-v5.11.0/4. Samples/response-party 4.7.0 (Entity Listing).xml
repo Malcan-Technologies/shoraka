@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<report xmlns="http://ws.cmctos.com.my/ctosnet/party" version="4.13.0">
+	<company_code>XMLUAT</company_code>
+	<account_no>XMLUAT</account_no>
+	<user_id>XMLUAT</user_id>
+	<date>2018-07-24</date>
+	<time>18:43:04</time>
+	<status code="2">MULTIPLE ENTITIES</status>
+	<records>
+		<type code="">B</type>
+		<ic_lc/>
+		<nic_br>000939101P</nic_br>
+		<name>XANTE TECHNOLOGIES</name>
+	</records>
+	<entities>
+		<subject seq="1">
+			<type>B</type>
+			<ic_lc/>
+			<nic_br>000939101P</nic_br>
+			<name>XANTE TECHNOLOGIES</name>
+			<entity key="4487481" status="" code="021">
+				<id_no1>000939101P</id_no1>
+				<id_no2/>
+				<ent_name>XANTE TECHNOLOGIES</ent_name>
+				<industry>627100</industry>
+				<nationality>MY</nationality>
+				<date_br>16/06/1993</date_br>
+				<registered/>
+				<member/>
+				<corp_status/>
+				<industry_sector code=""/>
+				<residency_status/>
+			</entity>
+			<entity key="8889585" status="Pending Verification" code="021">
+				<id_no1>000939101P</id_no1>
+				<id_no2/>
+				<ent_name>XANTE TECHNOLOGIES</ent_name>
+				<industry/>
+				<nationality>MY</nationality>
+				<date_br>14/06/1993</date_br>
+				<registered>N</registered>
+				<member/>
+				<corp_status/>
+				<industry_sector code=""/>
+				<residency_status/>
+			</entity>
+			<entity key="8899468" status="Pending Verification" code="021">
+				<id_no1>000939101P</id_no1>
+				<id_no2/>
+				<ent_name>XANTE TECHNOLOGIES</ent_name>
+				<industry/>
+				<nationality>MY</nationality>
+				<date_br>22/07/1993</date_br>
+				<registered>N</registered>
+				<member/>
+				<corp_status/>
+				<industry_sector code=""/>
+				<residency_status/>
+			</entity>
+			<entity key="9928337" status="Pending Verification" code="022">
+				<id_no1>000939101P</id_no1>
+				<id_no2/>
+				<ent_name>XANTE TECHNOLOGIES</ent_name>
+				<industry/>
+				<nationality>MY</nationality>
+				<date_br>03/03/2011</date_br>
+				<registered/>
+				<member/>
+				<corp_status/>
+				<industry_sector code=""/>
+				<residency_status/>
+			</entity>
+		</subject>
+	</entities>
+</report>

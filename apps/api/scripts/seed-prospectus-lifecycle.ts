@@ -357,50 +357,6 @@ async function ensureSharedActors() {
     },
   });
 
-  for (const doc of [
-    {
-      id: `${PREFIX}_product_terms`,
-      type: "PRODUCT_TERMS" as const,
-      title: "Lifecycle Seed Product Terms",
-      file_name: "product-terms-lifecycle.pdf",
-      s3_key: "seed/lifecycle-prospectus/product-terms-v1.pdf",
-    },
-    {
-      id: `${PREFIX}_risk_disclosure`,
-      type: "RISK_DISCLOSURE" as const,
-      title: "Lifecycle Seed Risk Disclosure",
-      file_name: "risk-disclosure-lifecycle.pdf",
-      s3_key: "seed/lifecycle-prospectus/risk-disclosure-v1.pdf",
-    },
-  ]) {
-    await prisma.siteDocument.upsert({
-      where: { id: doc.id },
-      update: {
-        type: doc.type,
-        title: doc.title,
-        file_name: doc.file_name,
-        s3_key: doc.s3_key,
-        content_type: "application/pdf",
-        file_size: 1024,
-        is_active: true,
-        uploaded_by: adminUserId,
-      },
-      create: {
-        id: doc.id,
-        type: doc.type,
-        title: doc.title,
-        description: "Lifecycle prospectus seed placeholder document.",
-        file_name: doc.file_name,
-        s3_key: doc.s3_key,
-        content_type: "application/pdf",
-        file_size: 1024,
-        version: 1,
-        is_active: true,
-        uploaded_by: adminUserId,
-      },
-    });
-  }
-
   return { adminUserId, issuerUserId, investorUserId };
 }
 

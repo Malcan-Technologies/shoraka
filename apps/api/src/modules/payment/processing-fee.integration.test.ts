@@ -40,6 +40,12 @@ jest.mock("./curlec-client", () => {
         order_id: null,
       })),
       fetchOrderPayments: jest.fn(async () => []),
+      refundPayment: jest.fn(async () => ({
+        id: `rfnd_test_${Date.now()}`,
+        amount: 5000,
+        currency: "MYR",
+        status: "processed",
+      })),
     })),
   };
 });
@@ -58,6 +64,16 @@ jest.mock("../../config/curlec", () => {
       apiBaseUrl: "https://api.razorpay.com",
       environment: "sandbox" as const,
     })),
+  };
+});
+
+// Fee completion schedules receipt PDF in the background. Mock only the
+// fire-and-forget scheduler so cleanup cannot race PDF updates.
+jest.mock("./receipt/receipt-service", () => {
+  const actual = jest.requireActual("./receipt/receipt-service") as Record<string, unknown>;
+  return {
+    ...actual,
+    scheduleGatewayPaymentReceipt: jest.fn(),
   };
 });
 
@@ -128,6 +144,19 @@ describeIntegration("application processing fee (M9)", () => {
         order_id: null,
       })),
       fetchOrderPayments: jest.fn(async () => []),
+      refundPayment: jest.fn(async () => ({
+        id: `rfnd_default_${Date.now()}`,
+        amount: 5000,
+        currency: "MYR",
+        status: "processed",
+      })),
+      fetchRefund: jest.fn(async (refundId: string) => ({
+        id: refundId,
+        amount: 5000,
+        currency: "MYR",
+        status: "processed",
+      })),
+      fetchPaymentRefunds: jest.fn(async () => []),
     };
   }
 
@@ -741,6 +770,11 @@ describeIntegration("application processing fee (M9)", () => {
 
     const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
     expect(updated.status).not.toBe(GatewayPaymentStatus.COMPLETED);
+    // Clear blocking statuses so later shared-application tests can create new orders.
+    await prisma.gatewayPayment.update({
+      where: { id: created.id },
+      data: { status: GatewayPaymentStatus.FAILED },
+    });
   });
 
   it("blocks DRAFT to SUBMITTED without completed processing fee", async () => {
@@ -827,5 +861,75 @@ describeIntegration("application processing fee (M9)", () => {
     await expect(
       service.resubmitApplication(resubmitApp.id, resubmitUser.user_id)
     ).resolves.toBeDefined();
+  });
+
+  it("currency mismatch holds processing fee without completing or refunding", async () => {
+    if (!migrated) return;
+
+    await prisma.gatewayPayment.updateMany({
+      where: {
+        application_id: applicationId,
+        purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
+        status: {
+          in: [
+            GatewayPaymentStatus.COMPLETED,
+            GatewayPaymentStatus.HELD,
+            GatewayPaymentStatus.REFUND_INITIATED,
+          ],
+        },
+      },
+      data: { status: GatewayPaymentStatus.FAILED },
+    });
+
+    const created = await createApplicationProcessingFee({ userId }, applicationId, prisma);
+    createdPaymentIds.push(created.id);
+
+    const refundPayment = jest.fn();
+    (createCurlecClient as jest.Mock).mockReturnValueOnce({
+      createOrder: jest.fn(),
+      fetchPayment: jest.fn(async (paymentId: string) => ({
+        id: paymentId,
+        amount: 5000,
+        currency: "SGD",
+        status: "captured",
+        method: "fpx",
+        order_id: created.curlecOrderId,
+      })),
+      fetchOrderPayments: jest.fn(async () => []),
+      refundPayment,
+    });
+
+    await processProcessingFeeCapture(
+      {
+        orderId: created.curlecOrderId,
+        paymentId: `pay_processing_currency_${Date.now()}`,
+        eventId: `evt_processing_currency_${Date.now()}`,
+        routeGatewayAccount: "OPERATING",
+      },
+      prisma
+    );
+
+    const held = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: created.id } });
+    expect(held.status).toBe(GatewayPaymentStatus.HELD);
+    expect((held.metadata as Record<string, unknown>).captureMismatch).toMatchObject({
+      mismatchType: "CURRENCY_MISMATCH",
+      reason: "Currency mismatch",
+      expectedCurrency: "MYR",
+      actualCurrency: "SGD",
+    });
+    expect(refundPayment).not.toHaveBeenCalled();
+
+    const paid = await prisma.gatewayPayment.findFirst({
+      where: {
+        id: created.id,
+        status: GatewayPaymentStatus.COMPLETED,
+      },
+    });
+    expect(paid).toBeNull();
+
+    const receiptCount = await prisma.gatewayPaymentReceipt.count({
+      where: { gateway_payment_id: created.id },
+    });
+    expect(receiptCount).toBe(0);
   });
 });

@@ -8,7 +8,6 @@
  * - Issuer org + application/contract/invoice
  * - Unpublished Note DEMO-PROSPECTUS-001 (Prospectus DRAFT)
  * - One REPAID + one ACTIVE historical Note (track record)
- * - PRODUCT_TERMS + RISK_DISCLOSURE site documents
  *
  * Usage:
  *   pnpm --filter @cashsouk/api seed:prospectus-demo
@@ -77,9 +76,6 @@ const PROFIT_RATE = 10;
 const PLATFORM_FEE = 1.5;
 const SERVICE_FEE = 15;
 const RISK_RATING = "C";
-
-const SITE_DOC_PRODUCT = "seed_demo_prospectus_product_terms";
-const SITE_DOC_RISK = "seed_demo_prospectus_risk_disclosure";
 
 function money(value: number): Prisma.Decimal {
   return new Prisma.Decimal(value.toFixed(6));
@@ -818,58 +814,6 @@ async function upsertDraftNote(
   });
 }
 
-async function ensureSiteDocuments(adminUserId: string) {
-  const docs = [
-    {
-      id: SITE_DOC_PRODUCT,
-      type: "PRODUCT_TERMS" as const,
-      title: "Product Terms (Demo)",
-      file_name: "product-terms-demo.pdf",
-      s3_key: `seed/demo-prospectus/product-terms-v1.pdf`,
-    },
-    {
-      id: SITE_DOC_RISK,
-      type: "RISK_DISCLOSURE" as const,
-      title: "Risk Disclosure Statement (Demo)",
-      file_name: "risk-disclosure-demo.pdf",
-      s3_key: `seed/demo-prospectus/risk-disclosure-v1.pdf`,
-    },
-  ];
-
-  for (const doc of docs) {
-    await prisma.siteDocument.upsert({
-      where: { id: doc.id },
-      update: {
-        type: doc.type,
-        title: doc.title,
-        description: "Local Prospectus demo document (placeholder file key).",
-        file_name: doc.file_name,
-        s3_key: doc.s3_key,
-        content_type: "application/pdf",
-        file_size: 1024,
-        version: 1,
-        is_active: true,
-        show_in_account: true,
-        uploaded_by: adminUserId,
-      },
-      create: {
-        id: doc.id,
-        type: doc.type,
-        title: doc.title,
-        description: "Local Prospectus demo document (placeholder file key).",
-        file_name: doc.file_name,
-        s3_key: doc.s3_key,
-        content_type: "application/pdf",
-        file_size: 1024,
-        version: 1,
-        is_active: true,
-        show_in_account: true,
-        uploaded_by: adminUserId,
-      },
-    });
-  }
-}
-
 export async function seedProspectusDemo() {
   if (process.env.NODE_ENV === "production") {
     throw new Error("seed:prospectus-demo is blocked in production");
@@ -907,7 +851,6 @@ export async function seedProspectusDemo() {
   const appInvoice = await ensureApplicationAndInvoice();
   await resetDemoNotes();
   await upsertDraftNote(adminUserId, appInvoice);
-  await ensureSiteDocuments(adminUserId);
 
   const note = await prisma.note.findUniqueOrThrow({
     where: { id: NOTE_ID },

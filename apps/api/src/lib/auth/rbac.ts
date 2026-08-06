@@ -131,10 +131,27 @@ async function backfillGatewayReconciliationPermissions(prisma: PrismaClient): P
   }
 }
 
+async function stripRemovedDocumentAuditPermission(prisma: PrismaClient): Promise<void> {
+  const removed = "audit.document.view";
+  const roles = await prisma.adminRoleConfig.findMany({
+    select: { id: true, permissions: true },
+  });
+
+  for (const role of roles) {
+    const permissions = role.permissions ?? [];
+    if (!permissions.includes(removed)) continue;
+    await prisma.adminRoleConfig.update({
+      where: { id: role.id },
+      data: { permissions: permissions.filter((permission) => permission !== removed) },
+    });
+  }
+}
+
 export async function ensureAdminRoleCatalog(prisma: PrismaClient): Promise<void> {
   if (!syncPromise) {
     syncPromise = (async () => {
       await syncSuperAdminRole(prisma);
+      await stripRemovedDocumentAuditPermission(prisma);
       await backfillInvestorWithdrawalPermissions(prisma);
       await backfillGatewayReconciliationPermissions(prisma);
     })().finally(() => {

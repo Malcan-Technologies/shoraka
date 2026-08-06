@@ -65,19 +65,24 @@ export function extractPaymentFailedRefs(
   return null;
 }
 
-/** Extract refund/payment ids from refund.processed or refund.failed webhooks. */
+/** Extract refund/payment ids from refund.created, refund.processed, or refund.failed. */
 export function extractRefundRefs(
   payload: CurlecWebhookPayload
-): { refundId: string; paymentId: string } | null {
-  if (payload.event !== "refund.processed" && payload.event !== "refund.failed") {
+): { refundId: string; paymentId: string; status?: string } | null {
+  if (
+    payload.event !== "refund.created" &&
+    payload.event !== "refund.processed" &&
+    payload.event !== "refund.failed"
+  ) {
     return null;
   }
 
   const entity = readNestedEntity(payload.payload?.refund);
   const refundId = entity?.id;
   const paymentId = entity?.payment_id;
+  const status = typeof entity?.status === "string" ? entity.status : undefined;
   if (typeof refundId === "string" && typeof paymentId === "string") {
-    return { refundId, paymentId };
+    return { refundId, paymentId, status };
   }
 
   return null;

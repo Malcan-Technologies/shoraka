@@ -64,6 +64,62 @@ export interface GatewayPaymentDetailDto extends GatewayPaymentListItemDto {
   openOverrideReason: string | null;
   metadata: Record<string, unknown> | null;
   events: GatewayPaymentEventDto[];
+  receipt: GatewayPaymentReceiptSummaryDto | null;
+}
+
+export type GatewayPaymentReceiptStatus =
+  | "PENDING"
+  | "GENERATED"
+  | "FAILED"
+  | "REFUNDED";
+
+export interface GatewayPaymentReceiptSummaryDto {
+  id: string;
+  receiptNumber: string;
+  purposeLabel: string;
+  status: GatewayPaymentReceiptStatus;
+  hasPdf: boolean;
+  paymentDate: string;
+  relatedReference: string | null;
+  relatedReferenceLabel?: string | null;
+  amount: number;
+  currency: string;
+  payerName: string | null;
+  payerCompanyName: string | null;
+  curlecPaymentId: string | null;
+  curlecOrderId: string | null;
+}
+
+export interface GatewayPaymentReceiptDto extends GatewayPaymentReceiptSummaryDto {
+  gatewayPaymentId: string;
+  paymentPurpose: GatewayPaymentPurpose;
+  payerEmail: string | null;
+  payerPhone: string | null;
+  paymentMethod: string | null;
+  relatedEntityType: string;
+  relatedEntityId: string;
+  walletCredited: boolean;
+  generationError: string | null;
+  generatedAt: string | null;
+  refundReference: string | null;
+  refundAmount: number | null;
+  refundedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GatewayPaymentReceiptListResponse {
+  items: GatewayPaymentReceiptDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface GatewayPaymentReceiptPdfUrlResponse {
+  url: string;
+  expiresIn: number;
+  fileName: string;
+  mode: "view" | "download";
 }
 
 export interface GatewayPaymentListResponse {

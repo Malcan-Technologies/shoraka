@@ -14,8 +14,19 @@ import {
   initiateCompletedDepositRefund,
   listGatewayPayments,
   rejectNameCheck,
-  retryHeldDepositRefund,
+  retryHeldGatewayPaymentRefund,
 } from "./admin-service";
+import {
+  gatewayPaymentReceiptIdParamSchema,
+  listGatewayPaymentReceiptsQuerySchema,
+} from "./receipt/receipt-admin-schemas";
+import {
+  getGatewayPaymentReceipt,
+  getGatewayPaymentReceiptByPaymentId,
+  getGatewayPaymentReceiptPdfUrl,
+  listGatewayPaymentReceipts,
+  retryGatewayPaymentReceiptGeneration,
+} from "./receipt/receipt-admin-service";
 
 function getActor(req: Request, res: Response) {
   if (!req.user?.user_id) {
@@ -66,6 +77,72 @@ gatewayPaymentsAdminRouter.get(
 );
 
 gatewayPaymentsAdminRouter.get(
+  "/receipts",
+  requirePermission("gateway_payments.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const query = listGatewayPaymentReceiptsQuerySchema.parse(req.query);
+      send(res, await listGatewayPaymentReceipts(query));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+gatewayPaymentsAdminRouter.get(
+  "/receipts/:id",
+  requirePermission("gateway_payments.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = gatewayPaymentReceiptIdParamSchema.parse(req.params);
+      send(res, await getGatewayPaymentReceipt(id));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+gatewayPaymentsAdminRouter.get(
+  "/receipts/:id/pdf",
+  requirePermission("gateway_payments.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = gatewayPaymentReceiptIdParamSchema.parse(req.params);
+      const mode = req.query.mode === "download" ? "download" : "view";
+      send(res, await getGatewayPaymentReceiptPdfUrl(id, mode));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+gatewayPaymentsAdminRouter.post(
+  "/receipts/:id/retry",
+  requirePermission("gateway_payments.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = gatewayPaymentReceiptIdParamSchema.parse(req.params);
+      send(res, await retryGatewayPaymentReceiptGeneration(id));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+gatewayPaymentsAdminRouter.get(
+  "/:id/receipt",
+  requirePermission("gateway_payments.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = gatewayPaymentIdParamSchema.parse(req.params);
+      send(res, await getGatewayPaymentReceiptByPaymentId(id));
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+gatewayPaymentsAdminRouter.get(
   "/:id",
   requirePermission("gateway_payments.view"),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -84,7 +161,7 @@ gatewayPaymentsAdminRouter.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = gatewayPaymentIdParamSchema.parse(req.params);
-      send(res, await retryHeldDepositRefund(getActor(req, res), id));
+      send(res, await retryHeldGatewayPaymentRefund(getActor(req, res), id));
     } catch (error) {
       next(error);
     }

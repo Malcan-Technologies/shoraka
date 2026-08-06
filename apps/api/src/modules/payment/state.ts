@@ -21,11 +21,19 @@ const ALLOWED_TRANSITIONS: Record<GatewayPaymentStatus, GatewayPaymentStatus[]> 
   [GatewayPaymentStatus.HELD]: [
     GatewayPaymentStatus.COMPLETED,
     GatewayPaymentStatus.REFUND_INITIATED,
+    // Confirmed Curlec refund + successful wallet reversal (skip REFUND_INITIATED hop).
+    GatewayPaymentStatus.REFUNDED,
   ],
-  [GatewayPaymentStatus.COMPLETED]: [GatewayPaymentStatus.REFUND_INITIATED],
+  [GatewayPaymentStatus.COMPLETED]: [
+    GatewayPaymentStatus.REFUND_INITIATED,
+    // External Curlec dashboard refund confirmed without a prior local initiate.
+    GatewayPaymentStatus.REFUNDED,
+  ],
   [GatewayPaymentStatus.REFUND_INITIATED]: [
     GatewayPaymentStatus.REFUNDED,
     GatewayPaymentStatus.HELD,
+    // External provider refund failed after local adoption — restore completed deposit/fee.
+    GatewayPaymentStatus.COMPLETED,
   ],
   [GatewayPaymentStatus.REFUNDED]: [],
   [GatewayPaymentStatus.FAILED]: [],

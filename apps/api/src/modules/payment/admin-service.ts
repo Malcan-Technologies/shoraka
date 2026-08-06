@@ -15,9 +15,12 @@ import {
 import { recordGatewayPaymentEvent, mapGatewayPaymentEvent } from "./gateway-events";
 import { ListGatewayPaymentsQuery } from "./admin-schemas";
 import {
+  initiateGatewayPaymentRefund,
   initiateInvestorDepositRefund,
   retryWalletReversalForConfirmedRefund,
 } from "./refund-service";
+import { scheduleGatewayPaymentReceipt } from "./receipt/receipt-service";
+import { getReceiptRelatedReferenceLabel } from "./receipt/receipt-purpose";
 
 export type AdminActorContext = {
   userId: string;
@@ -104,7 +107,7 @@ async function getInvestorDepositOrThrow(
     },
     include: {
       investor_organization: true,
-      events: { orderBy: { created_at: "asc" } },
+      events: { orderBy: { created_at: "desc" } },
     },
   });
 
@@ -123,7 +126,8 @@ async function getGatewayPaymentOrThrow(
     where: { id: gatewayPaymentId },
     include: {
       investor_organization: true,
-      events: { orderBy: { created_at: "asc" } },
+      events: { orderBy: { created_at: "desc" } },
+      receipt: true,
     },
   });
 
@@ -220,15 +224,39 @@ export async function getGatewayPaymentDetail(
         ? (payment.metadata as Record<string, unknown>)
         : null,
     events: payment.events.map(mapGatewayPaymentEvent),
+    receipt: payment.receipt
+      ? {
+          id: payment.receipt.id,
+          receiptNumber: payment.receipt.receipt_number,
+          purposeLabel: payment.receipt.purpose_label,
+          status: payment.receipt.status,
+          hasPdf: Boolean(payment.receipt.pdf_s3_key),
+          paymentDate: payment.receipt.payment_date.toISOString(),
+          relatedReference:
+            payment.receipt.related_reference?.trim() &&
+            getReceiptRelatedReferenceLabel(payment.receipt.payment_purpose)
+              ? payment.receipt.related_reference
+              : null,
+          relatedReferenceLabel: getReceiptRelatedReferenceLabel(
+            payment.receipt.payment_purpose
+          ),
+          amount: decimalToNumber(payment.receipt.amount),
+          currency: payment.receipt.currency,
+          payerName: payment.receipt.payer_name,
+          payerCompanyName: payment.receipt.payer_company_name,
+          curlecPaymentId: payment.receipt.curlec_payment_id,
+          curlecOrderId: payment.receipt.curlec_order_id,
+        }
+      : null,
   };
 }
 
-export async function retryHeldDepositRefund(
+export async function retryHeldGatewayPaymentRefund(
   actor: AdminActorContext,
   gatewayPaymentId: string,
   db: PrismaClient = defaultPrisma
 ) {
-  const payment = await getInvestorDepositOrThrow(db, gatewayPaymentId);
+  const payment = await getGatewayPaymentOrThrow(db, gatewayPaymentId);
 
   if (payment.status !== GatewayPaymentStatus.HELD) {
     throw new AppError(
@@ -243,10 +271,28 @@ export async function retryHeldDepositRefund(
       ? (payment.metadata as Record<string, unknown>)
       : {};
 
-  // Remote refund already confirmed — retry local wallet debit only.
-  if ("refundConfirmedWalletReversalFailed" in metadata) {
-    await retryWalletReversalForConfirmedRefund(payment, { actorUserId: actor.userId }, db);
+  // Remote refund already confirmed — retry local wallet debit only (deposits).
+  if (
+    payment.purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT &&
+    "refundConfirmedWalletReversalFailed" in metadata
+  ) {
+    await retryWalletReversalForConfirmedRefund(
+      payment,
+      { actorUserId: actor.userId, source: "admin" },
+      db
+    );
     return getGatewayPaymentDetail(gatewayPaymentId, db);
+  }
+
+  const captureMismatch = metadata.captureMismatch as
+    | { mismatchType?: string }
+    | undefined;
+  if (captureMismatch?.mismatchType === "CURRENCY_MISMATCH") {
+    throw new AppError(
+      422,
+      "CURRENCY_MISMATCH_NOT_AUTO_REFUNDABLE",
+      "Currency mismatch payments stay in Needs attention. Do not auto-retry Curlec refund from Admin."
+    );
   }
 
   if (!payment.curlec_payment_id) {
@@ -257,18 +303,36 @@ export async function retryHeldDepositRefund(
     );
   }
 
-  await initiateInvestorDepositRefund(
+  const mismatch =
+    (metadata.amountMismatch as { actualSen?: number } | undefined) ??
+    (metadata.captureMismatch as { actualSen?: number } | undefined);
+  const amountSen =
+    typeof mismatch?.actualSen === "number" && Number.isInteger(mismatch.actualSen)
+      ? mismatch.actualSen
+      : undefined;
+
+  await initiateGatewayPaymentRefund(
     payment,
     {
       reason: "ADMIN_INITIATED",
       curlecPaymentId: payment.curlec_payment_id,
       actorUserId: actor.userId,
-      adminReason: "Admin retry refund for held deposit",
+      adminReason: "Admin retry refund for held payment",
+      amountSen,
     },
     db
   );
 
   return getGatewayPaymentDetail(gatewayPaymentId, db);
+}
+
+/** @deprecated Prefer retryHeldGatewayPaymentRefund */
+export async function retryHeldDepositRefund(
+  actor: AdminActorContext,
+  gatewayPaymentId: string,
+  db: PrismaClient = defaultPrisma
+) {
+  return retryHeldGatewayPaymentRefund(actor, gatewayPaymentId, db);
 }
 
 export async function initiateCompletedDepositRefund(
@@ -339,6 +403,8 @@ export async function approveNameCheck(
     });
   });
 
+  scheduleGatewayPaymentReceipt(payment.id, db);
+
   return getGatewayPaymentDetail(gatewayPaymentId, db);
 }
 
@@ -372,7 +438,7 @@ export async function rejectNameCheck(
       actorUserId: actor.userId,
       fromStatus: GatewayPaymentStatus.NAME_CHECK_PENDING,
       toStatus: GatewayPaymentStatus.REFUND_INITIATED,
-      reason: "Admin rejected name check",
+      reason: "Admin rejected the name match. A refund was started.",
     });
   });
 
@@ -382,7 +448,7 @@ export async function rejectNameCheck(
       reason: "ADMIN_INITIATED",
       curlecPaymentId: payment.curlec_payment_id,
       actorUserId: actor.userId,
-      adminReason: "Admin rejected name check",
+      adminReason: "Admin rejected the name match. A refund was started.",
     },
     db
   );

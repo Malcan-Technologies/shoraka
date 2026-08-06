@@ -20,6 +20,8 @@ const mockRefundPayment = jest.fn();
 jest.mock("./curlec-client", () => ({
   createCurlecClient: jest.fn(() => ({
     refundPayment: (...args: unknown[]) => mockRefundPayment(...args),
+    fetchRefund: jest.fn(async () => ({ id: "rfnd_wallet_test", status: "processed" })),
+    fetchPaymentRefunds: jest.fn(async () => []),
   })),
 }));
 
@@ -99,6 +101,9 @@ describeIntegration("refund confirmed + wallet reversal recovery", () => {
           OR: createdPaymentIds.flatMap((id) => [
             { idempotency_key: `gateway-deposit:balance:${id}` },
             { idempotency_key: `gateway-deposit:refund:${id}` },
+            { idempotency_key: `gateway-deposit:refund-hold:${id}` },
+            { idempotency_key: { startsWith: `gateway-deposit:refund-hold:${id}` } },
+            { idempotency_key: { startsWith: `gateway-deposit:refund-hold-release:gateway-deposit:refund-hold:${id}` } },
           ]),
         },
       });
@@ -191,16 +196,36 @@ describeIntegration("refund confirmed + wallet reversal recovery", () => {
     const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
     expect(updated.status).toBe(GatewayPaymentStatus.HELD);
     expect(updated.gatewayAccount).toBe(CurlecGatewayAccount.INVESTOR_POOL);
-    const metadata = updated.metadata as Record<string, unknown>;
-    expect(metadata.refundConfirmedWalletReversalFailed).toMatchObject({
-      refundId: "rfnd_confirmed_1",
-      gatewayAccount: CurlecGatewayAccount.INVESTOR_POOL,
-    });
 
     const refundDebits = await prisma.investorBalanceTransaction.count({
       where: { idempotency_key: `gateway-deposit:refund:${payment.id}` },
     });
     expect(refundDebits).toBe(0);
+
+    const holdDebits = await prisma.investorBalanceTransaction.findMany({
+      where: {
+        investor_organization_id: orgId,
+        source: InvestorBalanceTransactionSource.GATEWAY_DEPOSIT_REFUND_HOLD,
+        idempotency_key: { startsWith: `gateway-deposit:refund-hold:${payment.id}` },
+      },
+    });
+    expect(holdDebits.length).toBe(1);
+    expect(holdDebits[0]?.amount.toNumber()).toBe(10);
+
+    const balance = await prisma.investorBalance.findUniqueOrThrow({
+      where: { investor_organization_id: orgId },
+    });
+    expect(balance.available_amount.toNumber()).toBe(0);
+
+    const metadata = updated.metadata as Record<string, unknown>;
+    expect(metadata.refundConfirmedWalletReversalFailed).toMatchObject({
+      refundId: "rfnd_confirmed_1",
+      gatewayAccount: CurlecGatewayAccount.INVESTOR_POOL,
+      fundsBlocked: true,
+      blockedAmount: 10,
+      fundsProtected: false,
+      intendedReversalAmount: 100,
+    });
   });
 
   it("duplicate completeInvestorDepositRefund does not double debit after recovery", async () => {
@@ -278,6 +303,88 @@ describeIntegration("refund confirmed + wallet reversal recovery", () => {
         where: { idempotency_key: `gateway-deposit:refund:${payment.id}` },
       })
     ).toBe(1);
+  });
+
+  it("blocked hold reduces available balance so further wallet spend cannot use refunded cash", async () => {
+    if (!migrated) return;
+
+    const payment = await seedCompletedDeposit(CurlecGatewayAccount.INVESTOR_POOL, 100);
+    await prisma.gatewayPayment.update({
+      where: { id: payment.id },
+      data: {
+        status: GatewayPaymentStatus.REFUND_INITIATED,
+        refund_reference: "rfnd_block_1",
+      },
+    });
+
+    // Simulate spent funds leaving only RM40 before reversal.
+    await prisma.investorBalance.update({
+      where: { investor_organization_id: orgId },
+      data: { available_amount: new Prisma.Decimal("40.000000") },
+    });
+
+    await completeInvestorDepositRefund(
+      {
+        ...payment,
+        status: GatewayPaymentStatus.REFUND_INITIATED,
+        refund_reference: "rfnd_block_1",
+      },
+      { refundId: "rfnd_block_1" },
+      prisma
+    );
+
+    const balance = await prisma.investorBalance.findUniqueOrThrow({
+      where: { investor_organization_id: orgId },
+    });
+    expect(balance.available_amount.toNumber()).toBe(0);
+
+    await expect(
+      prisma.$transaction(async (tx) => {
+        const { debitInvestorBalanceForCommit } = await import("../notes/investor-balance");
+        await debitInvestorBalanceForCommit(tx, {
+          investorOrganizationId: orgId,
+          amount: 10,
+          noteId: "00000000-0000-4000-8000-000000000001",
+          noteInvestmentId: "00000000-0000-4000-8000-000000000002",
+          idempotencyKey: `test-invest-blocked:${payment.id}`,
+        });
+      })
+    ).rejects.toMatchObject({ code: "INSUFFICIENT_INVESTOR_BALANCE" });
+  });
+
+  it("fee refund completion does not create wallet reversal transactions", async () => {
+    if (!migrated) return;
+
+    const payment = await prisma.gatewayPayment.create({
+      data: {
+        purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+        organization_type: GatewayOrganizationType.ISSUER,
+        gatewayAccount: CurlecGatewayAccount.OPERATING,
+        amount: new Prisma.Decimal("50.000000"),
+        currency: "MYR",
+        status: GatewayPaymentStatus.REFUND_INITIATED,
+        curlec_order_id: `order_fee_${Date.now()}`,
+        curlec_payment_id: `pay_fee_${Date.now()}`,
+        refund_reference: "rfnd_fee_1",
+        idempotency_key: `wallet-fee:${Date.now()}`,
+      },
+    });
+    createdPaymentIds.push(payment.id);
+
+    await completeInvestorDepositRefund(payment, { refundId: "rfnd_fee_1" }, prisma);
+
+    const updated = await prisma.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    expect(updated.status).toBe(GatewayPaymentStatus.REFUNDED);
+    expect(
+      await prisma.investorBalanceTransaction.count({
+        where: {
+          OR: [
+            { idempotency_key: `gateway-deposit:refund:${payment.id}` },
+            { idempotency_key: `gateway-deposit:refund-hold:${payment.id}` },
+          ],
+        },
+      })
+    ).toBe(0);
   });
 
   it("failed remote refund does not debit wallet", async () => {

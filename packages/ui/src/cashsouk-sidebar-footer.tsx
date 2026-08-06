@@ -1,6 +1,9 @@
 "use client";
 
 import { APP_VERSION } from "@cashsouk/config";
+import { toast } from "sonner";
+import { openPublicLegalPdf } from "./lib/compact-portal-legal-links";
+import { useCompactPortalLegalLinks } from "./hooks/use-compact-portal-legal-links";
 
 /**
  * SECTION: CashSouk Footer
@@ -12,21 +15,36 @@ import { APP_VERSION } from "@cashsouk/config";
 export type PortalFooterVariant = "issuer" | "investor";
 export type SidebarFooterVariant = PortalFooterVariant | "admin";
 
-const footerLinks = [
-  { href: "/terms", label: "Terms" },
-  { href: "/privacy", label: "Privacy" },
-  { href: "/support", label: "Support" },
-] as const;
+function PortalLegalFooterLinks({
+  className,
+  portal,
+}: {
+  className: string;
+  portal: PortalFooterVariant;
+}) {
+  const audience = portal === "issuer" ? "ISSUER" : "INVESTOR";
+  const { links } = useCompactPortalLegalLinks(audience);
 
-function FooterLinks({ className }: { className: string }) {
+  if (links.length === 0) {
+    return null;
+  }
+
   return (
     <div className={className}>
-      {footerLinks.map((link, index) => (
-        <span key={link.href} className="inline-flex items-center gap-2">
+      {links.map((link, index) => (
+        <span key={link.versionId} className="inline-flex items-center gap-2">
           {index > 0 ? <span aria-hidden>•</span> : null}
-          <a href={link.href} className="hover:text-foreground">
+          <button
+            type="button"
+            className="hover:text-foreground"
+            onClick={() => {
+              void openPublicLegalPdf(link.versionId, "view").catch(() => {
+                toast.error("Unable to open this legal document right now.");
+              });
+            }}
+          >
             {link.label}
-          </a>
+          </button>
         </span>
       ))}
     </div>
@@ -35,15 +53,15 @@ function FooterLinks({ className }: { className: string }) {
 
 export function CashSoukSidebarFooter({ variant }: { variant: SidebarFooterVariant }) {
   const showContact = variant !== "admin";
+  const portalVariant: PortalFooterVariant | null =
+    variant === "admin" ? null : variant;
 
   return (
     <div className="mt-auto px-4 py-3 text-left text-xs text-muted-foreground">
-      <div className="font-medium text-foreground">
-        CashSouk {APP_VERSION}
-      </div>
+      <div className="font-medium text-foreground">CashSouk {APP_VERSION}</div>
       <div className="mt-1">© 2026 Shoraka Sdn. Bhd.</div>
 
-      {showContact ? (
+      {showContact && portalVariant ? (
         <>
           <div className="mt-1">(SSM No. 201612345678)</div>
 
@@ -51,7 +69,10 @@ export function CashSoukSidebarFooter({ variant }: { variant: SidebarFooterVaria
 
           <div>info@cashsouk.com</div>
 
-          <FooterLinks className="mt-2 flex flex-wrap gap-2" />
+          <PortalLegalFooterLinks
+            portal={portalVariant}
+            className="mt-2 flex flex-wrap gap-2"
+          />
         </>
       ) : null}
     </div>
@@ -77,7 +98,10 @@ export function CashSoukPortalFooter({ variant }: { variant: PortalFooterVariant
           <a href="mailto:info@cashsouk.com" className="hover:text-foreground">
             info@cashsouk.com
           </a>
-          <FooterLinks className="flex flex-wrap items-center justify-end gap-2" />
+          <PortalLegalFooterLinks
+            portal={variant}
+            className="flex flex-wrap items-center justify-end gap-2"
+          />
         </div>
       </div>
     </footer>

@@ -24,7 +24,7 @@ import {
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useS3ViewUrl } from "@/hooks/use-s3";
-import { uploadFileToS3 } from "@/hooks/use-site-documents";
+import { uploadFileToS3 } from "@/lib/upload-file-to-s3";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 

@@ -373,8 +373,8 @@ export async function pendNameCheckReview(
 
   const reason =
     nameCheckResult === NameCheckResult.REVIEW
-      ? "Payer name requires manual review"
-      : "Payer name unavailable — pending manual review";
+      ? "Bank payer name could not be auto-matched. Waiting for admin review."
+      : "Bank did not return a payer name. Waiting for admin review.";
 
   await recordGatewayPaymentEvent(tx, {
     gatewayPaymentId: gatewayPayment.id,

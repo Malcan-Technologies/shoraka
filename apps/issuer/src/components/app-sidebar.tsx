@@ -464,11 +464,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarGroup>
       </SidebarContent>
 
+
       <SidebarFooter className="mt-auto border-t border-sidebar-border pt-2">
         <ApplyForFinancingCard
           locked={isDisabled || isPendingApproval}
           lockedTooltip={lockedTooltip}
         />
+
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

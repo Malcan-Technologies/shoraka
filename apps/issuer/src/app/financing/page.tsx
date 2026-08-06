@@ -2,9 +2,7 @@
 
 import * as React from "react";
 import { Suspense } from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { PlusIcon } from "@heroicons/react/24/outline";
 import { useOrganization } from "@cashsouk/config";
 import {
   EmptyState,
@@ -21,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/issuer-layout";
 import { cn } from "@/lib/utils";
+import { ApplyForFinancingButton } from "@/components/apply-for-financing-button";
 import { useIssuerDashboard } from "@/hooks/use-issuer-dashboard";
 import { useIssuerProducts } from "@/hooks/use-products";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
@@ -343,9 +342,7 @@ function IssuerFinancingPageContent() {
   }, [invoiceSearch, invoiceFilters, productOptions]);
 
   const applyCta = (
-    <Button asChild className="rounded-xl">
-      <Link href="/applications/new">Apply for financing</Link>
-    </Button>
+    <ApplyForFinancingButton showIcon={false} className="rounded-xl" />
   );
 
   const orderedContracts = React.useMemo(() => {
@@ -380,15 +377,7 @@ function IssuerFinancingPageContent() {
           title="Financing"
           description="Your contracts, invoices, and notes across all products."
           action={
-            <Button
-              asChild
-              className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95"
-            >
-              <Link href="/applications/new">
-                <PlusIcon className="h-4 w-4" />
-                Apply for financing
-              </Link>
-            </Button>
+            <ApplyForFinancingButton className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95" />
           }
         >
           {children}

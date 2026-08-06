@@ -8,6 +8,7 @@ import { runAcceptanceSigningExpiryJob } from "./acceptance-signing-expiry";
 import { runSigningReconcileJob } from "./signing-reconcile";
 import { runGatewayStuckOrderPollerJob } from "./gateway-stuck-order-poller";
 import { runGatewaySettlementReconForConfiguredAccounts } from "./gateway-settlement-recon";
+import { runGatewayReceiptRetryJob } from "./gateway-receipt-retry";
 import { JOB_LOCK_KEYS, withAdvisoryLock } from "./with-advisory-lock";
 
 const notificationService = new NotificationService();
@@ -114,6 +115,17 @@ export function initJobs() {
         await runGatewayStuckOrderPollerJob();
       } catch (error) {
         logger.error({ error }, "Failed to run gateway stuck-order poller");
+      }
+    });
+  });
+
+  // Retry PENDING/FAILED gateway payment receipt PDF generation.
+  cron.schedule("*/10 * * * *", async () => {
+    await withAdvisoryLock(JOB_LOCK_KEYS.GATEWAY_RECEIPT_RETRY, async () => {
+      try {
+        await runGatewayReceiptRetryJob();
+      } catch (error) {
+        logger.error({ error }, "Failed to run gateway receipt retry job");
       }
     });
   });

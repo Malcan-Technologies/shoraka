@@ -264,7 +264,7 @@ export async function s3ObjectExists(key: string): Promise<boolean> {
 }
 
 /**
- * Generate a short cuid-like string for S3 keys (same pattern as site-documents).
+ * Generate a short cuid-like string for S3 keys.
  */
 function generateCuidForKey(): string {
   const timestamp = Date.now().toString(36);
@@ -295,7 +295,7 @@ export function parseProductS3Key(key: string): {
 }
 
 /**
- * Generate S3 key for product files (image or document template). Same filename pattern as site-documents.
+ * Generate S3 key for product files (image or document template).
  * Format: products/{productId}/v{version}-{date}-{cuid}.{ext} (e.g. v5-2025-12-31-mjtow2sbsibauldb.pdf)
  * When existingKey is provided and parses successfully, reuses the same date and cuid and only bumps the version (for in-place replace).
  */
@@ -319,18 +319,18 @@ export function generateProductS3Key(params: {
 }
 
 /**
- * Generate S3 key for site documents
- * Format: site-documents/{type}/{version}-{date}-{cuid}.{ext}
+ * Generate S3 key for legal document version PDFs
+ * Format: legal-documents/{type}/{version}-{date}-{cuid}.{ext}
  */
-export function generateSiteDocumentKey(params: {
+export function generateLegalDocumentKey(params: {
   type: string;
   version: number;
   cuid: string;
   extension: string;
 }): string {
-  const date = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+  const date = new Date().toISOString().split("T")[0];
   const typeSlug = params.type.toLowerCase().replace(/_/g, "-");
-  return `site-documents/${typeSlug}/v${params.version}-${date}-${params.cuid}.${params.extension}`;
+  return `legal-documents/${typeSlug}/v${params.version}-${date}-${params.cuid}.${params.extension}`;
 }
 
 /**
@@ -422,9 +422,9 @@ export function generateProductImageKeyWithVersion(params: {
 }
 
 /**
- * Validate file type and size for site documents
+ * Validate file type and size for PDF uploads (legal documents)
  */
-export function validateSiteDocument(params: {
+export function validatePdfUpload(params: {
   contentType: string;
   fileSize: number;
 }): { valid: boolean; error?: string } {

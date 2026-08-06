@@ -214,7 +214,7 @@
  * - Revenue → rawFinancials.turnover → formatProspectusMoneyMyr
  * - Profit After Tax → rawFinancials.plnpat → formatProspectusMoneyMyr
  * - Net Profit Margin → resolveApplicationFinancialProfitMarginRatio(plnpat/turnover)
- * - ROE → resolveApplicationFinancialReturnOnEquityRatio(return_on_equity | plnpat/networth | plnpat/(totass-totlib))
+ * - ROE → resolveApplicationFinancialReturnOnEquityRatio(return_on_equity | plnpat/networth | plnpat/(resolved totass−totlib from flat or components))
  * - Current Ratio → resolveApplicationFinancialCurrentRatio(currat | bscatot/curlib)
  *
  * Officer-configurable when unset → — (no approximation):

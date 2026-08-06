@@ -364,6 +364,13 @@ export function buildCoverageResolvedRows(
           networth: parseNumber(yearRaw.networth),
           totass: parseNumber(yearRaw.totass),
           totlib: parseNumber(yearRaw.totlib),
+          bsfatot: parseNumber(yearRaw.bsfatot),
+          othass: parseNumber(yearRaw.othass),
+          bscatot: parseNumber(yearRaw.bscatot),
+          bsclbank: parseNumber(yearRaw.bsclbank),
+          curlib: parseNumber(yearRaw.curlib),
+          bsslltd: parseNumber(yearRaw.bsslltd),
+          bsclstd: parseNumber(yearRaw.bsclstd),
         })
       ),
     },

@@ -23,6 +23,7 @@ import {
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
+import { legalDocumentAcceptanceService } from "../legal-documents/acceptance-service";
 import {
   generatePresignedUploadUrl,
   generatePresignedViewUrl,
@@ -2013,6 +2014,16 @@ export class NoteService {
       throw new AppError(409, "INVOICE_NOT_APPROVED", "Only approved invoices can become notes");
     }
 
+    const issuerOrgId = invoice.application.issuer_organization_id;
+    if (issuerOrgId) {
+      await legalDocumentAcceptanceService.assertNoPendingReacceptance(
+        actor.userId,
+        issuerOrgId,
+        "ISSUER",
+        "NEW_UTILISATION"
+      );
+    }
+
     return this.createFromInvoiceSource({
       application: invoice.application,
       invoice,
@@ -2037,6 +2048,14 @@ export class NoteService {
     });
 
     if (!source) throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+
+    await legalDocumentAcceptanceService.assertNoPendingReacceptance(
+      actor.userId,
+      source.issuer_organization_id,
+      "ISSUER",
+      "NEW_UTILISATION"
+    );
+
     if (source.status !== ApplicationStatus.COMPLETED) {
       throw new AppError(
         409,
@@ -2648,6 +2667,14 @@ export class NoteService {
     });
     if (!investorOrg)
       throw new AppError(403, "INVESTOR_ORG_FORBIDDEN", "Investor organization not accessible");
+
+    await legalDocumentAcceptanceService.assertNoPendingReacceptance(
+      actor.userId,
+      input.investorOrganizationId,
+      "INVESTOR",
+      "NEW_INVESTMENT"
+    );
+
     if (!investorOrg.deposit_received) {
       throw new AppError(
         403,
@@ -2660,7 +2687,7 @@ export class NoteService {
       throw new AppError(
         422,
         "PROSPECTUS_ACK_REQUIRED",
-        "Confirm that you have reviewed the Prospectus, Product Terms, and Risk Disclosure Statement."
+        "Confirm that you have reviewed the Prospectus."
       );
     }
 
@@ -2701,24 +2728,6 @@ export class NoteService {
       );
     }
 
-    const [productTerms, riskDisclosure] = await Promise.all([
-      prisma.siteDocument.findFirst({
-        where: { type: "PRODUCT_TERMS", is_active: true },
-        orderBy: { version: "desc" },
-        select: { id: true, version: true },
-      }),
-      prisma.siteDocument.findFirst({
-        where: { type: "RISK_DISCLOSURE", is_active: true },
-        orderBy: { version: "desc" },
-        select: { id: true, version: true },
-      }),
-    ]);
-    const productTermsRef = productTerms
-      ? `${productTerms.id}:v${productTerms.version}`
-      : "PRODUCT_TERMS:unavailable";
-    const riskDisclosureRef = riskDisclosure
-      ? `${riskDisclosure.id}:v${riskDisclosure.version}`
-      : "RISK_DISCLOSURE:unavailable";
     const ackAt = new Date();
 
     const target = normalizeNoteCapacityAmount(toNumber(note.target_amount));
@@ -2800,8 +2809,6 @@ export class NoteService {
           prospectus_publication_id: publication.id,
           prospectus_content_version: publication.content_version,
           prospectus_acknowledged_at: ackAt,
-          product_terms_ref: productTermsRef,
-          risk_disclosure_ref: riskDisclosureRef,
         },
       });
       await debitInvestorBalanceForCommit(tx, {
@@ -2816,8 +2823,6 @@ export class NoteService {
         amount: input.amount,
         prospectusPublicationId: publication.id,
         prospectusAcknowledgedAt: ackAt.toISOString(),
-        productTermsRef,
-        riskDisclosureRef,
       });
       return tx.note.findUniqueOrThrow({ where: { id: noteId }, include: noteInclude });
     });

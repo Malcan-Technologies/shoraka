@@ -5,9 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   buildIssuerOnboardingFeeCallbackUrl,
-  createApiClient,
   getOnboardingStepperSteps,
   openCurlecFpxCheckout,
+  resolvePortalCheckoutPayer,
   useAuthToken,
   useOrganization,
 } from "@cashsouk/config";
@@ -40,29 +40,6 @@ import type { IssuerOnboardingFeeResponse } from "@cashsouk/types";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const CHECKOUT_OPEN_TIMEOUT_MS = 20_000;
 
-function resolveCheckoutContact(
-  activeOrganization: ReturnType<typeof useOrganization>["activeOrganization"]
-) {
-  if (!activeOrganization) {
-    return { email: "", contact: "", name: undefined as string | undefined };
-  }
-
-  const member =
-    activeOrganization.members.find((entry) => entry.role === "ORGANIZATION_ADMIN") ??
-    activeOrganization.members[0];
-
-  const name =
-    activeOrganization.firstName && activeOrganization.lastName
-      ? `${activeOrganization.firstName} ${activeOrganization.lastName}`
-      : (activeOrganization.name ?? undefined);
-
-  return {
-    email: member?.email ?? "",
-    contact: activeOrganization.phoneNumber?.trim() || "+60000000000",
-    name,
-  };
-}
-
 export default function OnboardingFeePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -80,6 +57,7 @@ export default function OnboardingFeePage() {
   const statusQuery = useIssuerOnboardingFeeStatusQuery(activeOrganization?.id);
   const resolvedFee = confirmedFee ?? createFee.data ?? statusQuery.data?.latestPayment ?? null;
   const feeAmount = resolvedFee?.amount ?? statusQuery.data?.amount ?? null;
+  const requiresRepayment = Boolean(statusQuery.data?.requiresRepayment);
   const isUnderReview =
     Boolean(statusQuery.data?.isUnderReview) ||
     resolvedFee?.status === "HELD" ||
@@ -110,14 +88,17 @@ export default function OnboardingFeePage() {
       setError(statusQuery.error instanceof Error ? statusQuery.error.message : "Could not load fee");
     }
 
-    if (statusQuery.data?.latestPayment?.status === "COMPLETED" || statusQuery.data?.isPaid) {
+    if (
+      !requiresRepayment &&
+      (statusQuery.data?.latestPayment?.status === "COMPLETED" || statusQuery.data?.isPaid)
+    ) {
       router.replace("/onboarding/verify");
       return;
     }
 
-    // Keep the issuer on this page while a captured payment is under review.
+    // Keep the issuer on this page while a captured payment is under review or unpaid/refunded.
     setIsBootstrapping(false);
-  }, [activeOrganization, orgLoading, router, statusQuery, suppressBootstrap]);
+  }, [activeOrganization, orgLoading, requiresRepayment, router, statusQuery, suppressBootstrap]);
 
   if (orgLoading || isBootstrapping) {
     return (
@@ -175,24 +156,12 @@ export default function OnboardingFeePage() {
     checkoutOpenInFlightRef.current = true;
     setIsOpeningCheckout(true);
 
-    let checkoutContact = resolveCheckoutContact(activeOrganization);
     try {
-      if (!checkoutContact.email) {
-        const apiClient = createApiClient(API_URL, getAccessToken);
-        const me = await apiClient.get<{
-          user: { email: string; first_name?: string; last_name?: string };
-        }>("/v1/auth/me");
-        if (me.success && me.data.user.email) {
-          checkoutContact = {
-            email: me.data.user.email,
-            contact: checkoutContact.contact || "+60000000000",
-            name:
-              checkoutContact.name ??
-              ([me.data.user.first_name, me.data.user.last_name].filter(Boolean).join(" ") ||
-                companyName),
-          };
-        }
-      }
+      const checkoutContact = await resolvePortalCheckoutPayer({
+        apiUrl: API_URL,
+        getAccessToken,
+        organization: activeOrganization,
+      });
 
       if (!checkoutContact.email) {
         toast.error("We could not find an email address for this account");
@@ -237,7 +206,7 @@ export default function OnboardingFeePage() {
           amountMyr: fee.amount,
           callbackUrl,
           description: "Issuer onboarding fee",
-          prefillName: checkoutContact.name,
+          prefillName: checkoutContact.name ?? companyName,
           prefillEmail: checkoutContact.email,
           prefillContact: checkoutContact.contact,
           onDismiss: resetPayFlowState,
@@ -277,12 +246,18 @@ export default function OnboardingFeePage() {
           <div className="w-full space-y-6">
             <div className="space-y-2 text-center">
               <h2 className="text-xl font-semibold">
-                {isUnderReview ? "Onboarding fee" : "Pay onboarding fee"}
+                {isUnderReview
+                  ? "Onboarding fee"
+                  : requiresRepayment
+                    ? "Repay onboarding fee"
+                    : "Pay onboarding fee"}
               </h2>
               <p className="text-[15px] text-muted-foreground">
                 {isUnderReview
                   ? "Your payment is being verified before company verification (eKYB) continues."
-                  : "A one-time fee is required after accepting the user agreement to start company verification (eKYB)."}
+                  : requiresRepayment
+                    ? "Your onboarding fee was refunded. Please make a new payment to continue."
+                    : "A one-time fee is required after accepting the user agreement to start company verification (eKYB)."}
               </p>
             </div>
 
@@ -292,6 +267,15 @@ export default function OnboardingFeePage() {
                   <ExclamationCircleIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-destructive" />
                   <p className="text-sm text-destructive">{error}</p>
                 </div>
+              </div>
+            ) : null}
+
+            {requiresRepayment && !isUnderReview ? (
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+                <p className="text-sm text-foreground">
+                  Your onboarding fee was refunded. Please make a new payment to continue. Your
+                  previous onboarding progress is saved.
+                </p>
               </div>
             ) : null}
 
@@ -321,13 +305,19 @@ export default function OnboardingFeePage() {
                     disabled={isOpeningCheckout}
                     onClick={() => void handlePayFee()}
                   >
-                    {isOpeningCheckout ? "Opening checkout..." : "Pay with FPX"}
+                    {isOpeningCheckout
+                      ? "Opening checkout..."
+                      : requiresRepayment
+                        ? "Pay fee again with FPX"
+                        : "Pay with FPX"}
                   </Button>
                 )}
                 <p className="text-center text-xs text-muted-foreground">
                   {isUnderReview
                     ? "No further payment is required while this fee is under review."
-                    : "This fee is non-refundable and unlocks eKYB verification for your company account."}
+                    : requiresRepayment
+                      ? "After payment succeeds, you continue from your saved onboarding step."
+                      : "This fee is non-refundable and unlocks eKYB verification for your company account."}
                 </p>
               </CardContent>
             </Card>

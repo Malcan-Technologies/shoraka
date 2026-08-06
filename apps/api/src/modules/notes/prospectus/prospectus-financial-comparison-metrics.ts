@@ -198,6 +198,13 @@ function metricValueForYear(
           networth: fieldFromRaw(raw, "networth"),
           totass: fieldFromRaw(raw, "totass"),
           totlib: fieldFromRaw(raw, "totlib"),
+          bsfatot: fieldFromRaw(raw, "bsfatot"),
+          othass: fieldFromRaw(raw, "othass"),
+          bscatot: fieldFromRaw(raw, "bscatot"),
+          bsclbank: fieldFromRaw(raw, "bsclbank"),
+          curlib: fieldFromRaw(raw, "curlib"),
+          bsslltd: fieldFromRaw(raw, "bsslltd"),
+          bsclstd: fieldFromRaw(raw, "bsclstd"),
         })
       );
     }

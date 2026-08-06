@@ -272,17 +272,16 @@ function formatFileSize(bytes: number): string {
 
 // Documents Tab Content Component
 function DocumentsTabContent({ apiClient }: { apiClient: ReturnType<typeof createApiClient> }) {
-  const { data: documents, isLoading, error } = useAccountDocuments();
+  const { data: documents, isLoading, error } = useAccountDocuments("INVESTOR");
   const [downloadingId, setDownloadingId] = React.useState<string | null>(null);
 
-  const handleDownload = async (documentId: string) => {
-    setDownloadingId(documentId);
+  const handleDownload = async (doc: { id: string }) => {
+    setDownloadingId(doc.id);
     try {
-      const response = await apiClient.getDocumentDownloadUrl(documentId);
+      const response = await apiClient.getLegalDocumentDownloadUrl(doc.id);
       if (!response.success) {
         throw new Error(response.error.message);
       }
-      // Open the presigned URL in a new tab to trigger download
       window.open(response.data.downloadUrl, "_blank");
     } catch {
       toast.error("Failed to download document");
@@ -335,7 +334,7 @@ function DocumentsTabContent({ apiClient }: { apiClient: ReturnType<typeof creat
           <>
             {documents.map((doc) => (
               <div
-                key={doc.id}
+                key={`${doc.source}-${doc.id}`}
                 className="flex items-center justify-between p-4 rounded-xl border bg-muted/30"
               >
                 <div className="flex items-center gap-4">
@@ -345,14 +344,14 @@ function DocumentsTabContent({ apiClient }: { apiClient: ReturnType<typeof creat
                   <div>
                     <p className="font-medium">{doc.title}</p>
                     <p className="text-sm text-muted-foreground">
-                      {formatFileSize(doc.file_size)} • {doc.file_name}
+                      {formatFileSize(doc.fileSize)} • {doc.fileName}
                     </p>
                   </div>
                 </div>
                 <Button
                   variant="default"
                   className="gap-2 rounded-xl"
-                  onClick={() => handleDownload(doc.id)}
+                  onClick={() => handleDownload(doc)}
                   disabled={downloadingId === doc.id}
                 >
                   {downloadingId === doc.id ? (

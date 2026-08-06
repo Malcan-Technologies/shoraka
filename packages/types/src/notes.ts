@@ -1044,6 +1044,8 @@ export interface IssuerOnboardingFeeStatusResponse {
   latestPayment: IssuerOnboardingFeeResponse | null;
   isPaid: boolean;
   isUnderReview: boolean;
+  /** True when the latest fee is REFUNDED and a new payment is required to continue. */
+  requiresRepayment: boolean;
 }
 
 export interface CreateApplicationProcessingFeeInput {

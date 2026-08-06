@@ -39,8 +39,41 @@ jest.mock("./curlec-client", () => ({
       method: "fpx",
       order_id: null,
     })),
+    fetchRefund: jest.fn(async (refundId: string) => ({
+      id: refundId,
+      amount: 15000,
+      currency: "MYR",
+      status: "processed",
+    })),
+    fetchPaymentRefunds: jest.fn(async () => []),
+    refundPayment: jest.fn(),
   })),
 }));
+
+// Stuck-order recovery can complete payments and schedule receipt PDFs. This suite
+// is not about receipts — mock the fire-and-forget scheduler to avoid cleanup races.
+jest.mock("./receipt/receipt-service", () => {
+  const actual = jest.requireActual("./receipt/receipt-service") as Record<string, unknown>;
+  return {
+    ...actual,
+    scheduleGatewayPaymentReceipt: jest.fn(),
+  };
+});
+
+// The full poller also retries wallet reversals for any HELD row in the shared DB.
+// Keep that off here so parallel payment suites are not mutated mid-test.
+jest.mock("./refund-service", () => {
+  const actual = jest.requireActual("./refund-service") as Record<string, unknown>;
+  return {
+    ...actual,
+    recoverFailedWalletReversals: jest.fn(async () => ({
+      scanned: 0,
+      recovered: 0,
+      stillHeld: 0,
+      errors: [],
+    })),
+  };
+});
 
 jest.mock("../../config/curlec", () => ({
   getCurlecConfig: jest.fn(() => ({
