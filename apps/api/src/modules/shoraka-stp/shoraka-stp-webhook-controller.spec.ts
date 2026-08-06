@@ -48,7 +48,9 @@ function buildSignatureSource(body: Record<string, unknown>): string {
 }
 
 function makeRes() {
-  const res: Partial<Response> = {};
+  const res: Partial<Response> & { locals: { correlationId: string } } = {
+    locals: { correlationId: "test-correlation-id" },
+  };
   res.status = jest.fn().mockReturnValue(res);
   res.type = jest.fn().mockReturnValue(res);
   res.send = jest.fn();

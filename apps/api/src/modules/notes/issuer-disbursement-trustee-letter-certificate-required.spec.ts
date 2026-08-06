@@ -11,12 +11,19 @@ jest.mock("../../lib/prisma", () => ({
     shorakaTradeOrder: {
       findUnique: jest.fn(),
     },
+    platformFinanceSetting: {
+      upsert: jest.fn(),
+    },
   },
 }));
 
 jest.mock("../../lib/s3/client", () => ({
   generatePresignedViewUrl: jest.fn(),
-  putS3ObjectBuffer: jest.fn(),
+  putS3ObjectBuffer: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock("./trustee-letters/trustee-letter-pdf.renderer", () => ({
+  renderTrusteeLetterPdf: jest.fn().mockResolvedValue(Buffer.from("%PDF-mock")),
 }));
 
 describe("Tawarruq certificate guard (generate-issuer-disbursement trustee letter)", () => {
@@ -33,6 +40,11 @@ describe("Tawarruq certificate guard (generate-issuer-disbursement trustee lette
     jest.clearAllMocks();
 
     jest.spyOn(noteService as any, "mapWithdrawal").mockImplementation((w: unknown) => ({ id: (w as any).id }));
+    jest.spyOn(noteService as any, "getPlatformFinanceSettings").mockResolvedValue({
+      trusteeLetterConfig: null,
+      platformAccountsConfig: null,
+      ledgerBucketAccountsConfig: null,
+    });
   });
 
   it("rejects ISSUER_DISBURSEMENT when Tawarruq Certificate is missing", async () => {

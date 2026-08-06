@@ -359,9 +359,8 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       // Incomplete freeze components → Application zero-default Total Assets = bscatot only.
       expect(row(page.balanceSheet.rows, "total_assets")?.[2]).toBe("5.8");
       expect(row(page.balanceSheet.rows, "total_liabilities")?.[2]).toBe("3.4");
-      expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[2]).toBe(
-        PROSPECTUS_DATA_NOT_AVAILABLE
-      );
+      // Old freeze still has plnpat + bsqpuc → ROE is computed (1.8M / 2.4M = 75%).
+      expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[2]).toBe("75%");
       expect(row(page.balanceSheet.rows, "cash_and_bank")?.[2]).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
       );
