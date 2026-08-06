@@ -2687,7 +2687,7 @@ export class NoteService {
       throw new AppError(
         422,
         "PROSPECTUS_ACK_REQUIRED",
-        "Confirm that you have reviewed the Prospectus."
+        "Confirm that you have reviewed the Prospectus, Product Terms, and Risk Disclosure Statement."
       );
     }
 
