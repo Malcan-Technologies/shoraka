@@ -245,7 +245,7 @@ export class LegalDocumentService {
     });
 
     logger.info(
-      { legalDocumentId, s3Key, version: newVersion, adminUserId },
+      { legalDocumentId, version: newVersion, adminUserId },
       "Generated legal document version upload URL"
     );
 
@@ -386,7 +386,6 @@ export class LegalDocumentService {
         legalDocumentId: existing.legal_document_id,
         versionId,
         version: existing.version,
-        s3Key,
         adminUserId,
       },
       "Generated legal document draft replace upload URL"
@@ -656,6 +655,12 @@ export class LegalDocumentService {
     metadata: Record<string, unknown>
   ) {
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
+    const {
+      s3_key: _s3Key,
+      file_hash: _fileHash,
+      previous_file_name: _previousFileName,
+      ...safeMetadata
+    } = metadata;
     logger.info(
       {
         userId,
@@ -664,7 +669,7 @@ export class LegalDocumentService {
         ipAddress,
         userAgent,
         deviceInfo,
-        ...metadata,
+        ...safeMetadata,
       },
       `Legal document event: ${eventType}`
     );

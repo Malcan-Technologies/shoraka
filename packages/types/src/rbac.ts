@@ -51,7 +51,7 @@ export const ADMIN_PERMISSIONS = [
   "audit.security.view",
   "audit.product.view",
 
-  // Document Management (standalone)
+  // Legal Documents / Legal Acceptances
   "document_management.view",
   "document_management.manage",
 
@@ -250,8 +250,8 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
   },
   {
     key: "documentManagement",
-    label: "Document Management",
-    description: "View and manage legal documents.",
+    label: "Legal Documents",
+    description: "Manage LegalDocument definitions/versions and view Legal Acceptances evidence.",
     permissions: pickPermissions("document_management.view", "document_management.manage"),
   },
   {

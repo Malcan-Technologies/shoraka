@@ -808,24 +808,6 @@ export function MarketplacePage() {
                 >
                   Prospectus
                 </button>
-                ,{" "}
-                <a
-                  href="/profile?tab=documents"
-                  className="text-foreground underline-offset-2 hover:underline"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Product Terms
-                </a>
-                , and{" "}
-                <a
-                  href="/profile?tab=documents"
-                  className="text-foreground underline-offset-2 hover:underline"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Risk Disclosure Statement
-                </a>
                 .
               </Label>
             </div>
