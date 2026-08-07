@@ -21,7 +21,22 @@ Open **Finance → Payments → Gateway Payments**.
 
 Use the search field at the top of the page.
 
-Type a payment, organisation, or reference. Results update automatically.
+You can search by:
+
+- Gateway Payment ID
+- Order reference
+- Payment reference
+- Refund reference
+- Settlement ID
+- Payer name
+- Investor or issuer organisation name
+- Organisation registration number
+- Corporate business name
+- Payment purpose, such as Investor Deposit or Onboarding Fee
+- Gateway account, such as Operating or Investor Pool
+- Exact payment amount, such as 100, RM 100, or MYR 100
+
+Results update automatically as you type.
 
 Clear the search when you want to remove the search text.
 
