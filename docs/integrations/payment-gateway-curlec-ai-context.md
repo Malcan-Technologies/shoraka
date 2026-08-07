@@ -2,7 +2,8 @@
 
 > **Canonical AI context document** for CashSouk Gateway Payments (Curlec money-in).  
 > Audience: developers and future AI assistants. **Not** an Admin end-user help article.  
-> Verified against the codebase as of **2026-08-07**. Prefer this file over chat history.
+> Verified against the codebase as of **2026-08-07**. Prefer this file over chat history.  
+> Webhook section (§14) re-verified line-by-line against `webhook-service.ts` + refund helpers on **2026-08-07**.
 
 **Related docs (do not treat as current implementation truth if they conflict):**
 
@@ -196,30 +197,30 @@ Related: `recoverHeldAmountMismatchRefunds` retries HELD amount-mismatch rows wi
 
 ---
 
-## 7. Currency mismatch
+## 7. Currency / capture validation mismatch
 
 Function: `holdGatewayPaymentCaptureMismatch` (private in `webhook-service.ts`)
 
-- Claim CREATED/EXPIRED → PAID → **HELD**.
-- Metadata `captureMismatch` with `mismatchType: "CURRENCY_MISMATCH"` (also other hold types: `ORDER_MISMATCH`, `PAYMENT_ID_CONFLICT`).
-- **No** automatic Curlec refund.
-- **No** wallet credit / fee completion / normal receipt path.
-- Admin must review; Admin retry-refund for currency mismatch is blocked (`CURRENCY_MISMATCH_NOT_AUTO_REFUNDABLE` in admin retry path).
+Accepted starting states only: `CREATED` | `EXPIRED` | `PAID`. Claims CREATED/EXPIRED → `PAID`, then `PAID` → `HELD`.
+
+Writes metadata `captureMismatch` (`mismatchType`, `reason`, amounts/currencies, ids, `detectedAt`) and `GatewayPaymentEvent` type `CAPTURE_MISMATCH`.
+
+**No** automatic Curlec refund from this hold helper. **No** wallet credit / fee completion / receipt schedule.
+
+| Caller | When hold is used |
+|--------|-------------------|
+| Investor deposit capture | Only `CURRENCY_MISMATCH` from `validateCapturedPayment` (order/payment-id conflicts are skipped without HELD) |
+| Onboarding / processing fee capture | **All** validation failures: `CURRENCY_MISMATCH`, `ORDER_MISMATCH`, `PAYMENT_ID_CONFLICT` |
+
+Admin retry-refund for currency mismatch is blocked (`CURRENCY_MISMATCH_NOT_AUTO_REFUNDABLE`).
+
+Amount mismatch does **not** use this hold helper; it uses `handleGatewayPaymentAmountMismatch` (auto-refund path).
 
 ---
 
 ## 8. Refund lifecycle
 
-### Curlec / webhook events (handled in payment webhook path)
-
-Typical events include:
-
-- `payment.captured` (and related payment events)
-- `refund.created`
-- `refund.processed`
-- `refund.failed`
-
-(Exact handler branching lives in `webhook-service.ts` / refund adoption helpers.)
+Webhook-driven refund adoption details: **§14**.
 
 ### Local refund reasons
 
@@ -231,10 +232,13 @@ Including: `NAME_MISMATCH` | `NAME_UNAVAILABLE` | `AMOUNT_MISMATCH` | `ADMIN_INI
 |----------|------|
 | `initiateGatewayPaymentRefund` / `initiateInvestorDepositRefund` | Start refund |
 | `completeGatewayPaymentRefund` / `completeInvestorDepositRefund` | Confirm refund + side effects |
-| `adoptGatewayRefundCreated` | Adopt `refund.created` (incl. holds) |
+| `adoptGatewayRefundCreated` | Adopt `refund.created` |
+| `adoptExternalCurlecRefundFromCompleted` | COMPLETED → REFUND_INITIATED + protect funds |
+| `failGatewayPaymentRefund` | Handle `refund.failed` |
 | `reconcilePendingGatewayRefunds` | Poll Curlec for pending refunds (batch, default 50) |
 | `retryWalletReversalForConfirmedRefund` | Wallet-only retry after Curlec confirmed |
 | `recoverFailedWalletReversals` | Cron batch wallet recovery (batch 50) |
+| `isRecoverableRefundCreationHold` | Allowlist: HELD with `autoRefundFailed` only |
 
 ### Admin actions — DO NOT CONFUSE
 
@@ -277,21 +281,21 @@ It does **not** call Curlec and does **not** run the 15-minute poller or settlem
 
 ---
 
-## 10. Completed deposit refunded externally
+## 10. Completed payment refunded externally
 
-When Curlec dashboard/provider issues a refund on a completed deposit:
+Driven by `refund.created` / `refund.processed` / `refund.failed` (see **§14.7–14.9**).
 
-1. Webhooks (`refund.created` / processed / failed) adopt via refund service (`adoptGatewayRefundCreated`, etc.).
-2. Metadata may include `externalCurlecRefund` (`source: "CURLEC_PROVIDER"`, refund id, optional `fundsProtected`).
-3. Wallet: protect funds — hold and/or permanent debit:
-   - `GATEWAY_DEPOSIT_REFUND_HOLD` — `blockInvestorBalanceForGatewayRefundHold`
-   - `GATEWAY_DEPOSIT_REFUND` — `debitInvestorBalanceForGatewayRefund`
-4. Insufficient available → failure marker `refundConfirmedWalletReversalFailed` (fields include `fundsProtected`, `fundsBlocked`, `blockedAmount`, `failureCategory`, …).
-5. Status may move `COMPLETED` → `REFUNDED` or through `REFUND_INITIATED` / `HELD` per transitions.
-6. Admin **Retry wallet update** for confirmed-refund wallet failure.
-7. Failure path may set `externalCurlecRefundFailed`.
+Summary:
 
-Idempotency key patterns (refund-service / investor-balance):
+1. `adoptExternalCurlecRefundFromCompleted` → `COMPLETED` → `REFUND_INITIATED`, metadata `externalCurlecRefund` (`source: "CURLEC_PROVIDER"`, refund id, `detectedOnEvent`, optional `fundsProtected` / hold keys / `previousOnboardingFeePaidAt`).
+2. Investor deposits: temporary wallet holds (`GATEWAY_DEPOSIT_REFUND_HOLD`) then permanent debit on processed (`GATEWAY_DEPOSIT_REFUND`).
+3. Onboarding: clear `onboarding_fee_paid_at` on adopt; restore on `refund.failed` restore path.
+4. Processing fee: no `onboarding_fee_paid_at`; completion clears benefit via refunded status / application fee guards (no separate paid-at field in webhook path).
+5. Wallet reversal failure after processed → `HELD` + `refundConfirmedWalletReversalFailed`.
+6. `refund.failed` while still `COMPLETED` (never adopted) → metadata `externalCurlecRefundFailed` only.
+7. `refund.failed` after external adoption (`REFUND_INITIATED` + `externalCurlecRefund`) → restore `COMPLETED`, release holds, restore onboarding paid-at.
+
+Idempotency keys:
 
 - Credit: `gateway-deposit:balance:<paymentId>`
 - Permanent debit: `gateway-deposit:refund:<paymentId>`
@@ -346,20 +350,168 @@ Admin UI labels: View receipt / Download receipt / Retry receipt (`GATEWAY_PAYME
 
 ---
 
-## 14. Webhooks
+## 14. Webhooks (verified against `webhook-service.ts`)
 
-| Method | Path |
-|--------|------|
-| POST | `/v1/webhooks/curlec/operating` |
-| POST | `/v1/webhooks/curlec/investor-pool` |
+**Files:** `webhook-controller.ts`, `webhook-service.ts`, `webhook-schemas.ts`, `curlec-signature.ts`, `refund-service.ts` (refund events)
 
-Files: `webhook-controller.ts`, `webhook-service.ts`, `curlec-signature.ts`
+### 14.1 Routes and account routing
 
-- Raw body required for HMAC.
-- Headers: `x-razorpay-signature`, `x-razorpay-event-id` (Curlec/Razorpay-compatible names).
-- Dedup/audit: `GatewayWebhookEvent` unique on `(gatewayAccount, event_id)`.
-- Test vs live: driven by configured keys / API base URL environment (`sandbox` | `production` on config).
-- Duplicate events: idempotent processing via stored webhook events / payment state guards.
+| Method | Path | Route account |
+|--------|------|---------------|
+| POST | `/v1/webhooks/curlec/operating` | `OPERATING` |
+| POST | `/v1/webhooks/curlec/investor-pool` | `INVESTOR_POOL` |
+
+Mounted with `express.raw({ type: "application/json" })` before JSON body parser.
+
+Pipeline per request:
+
+1. `ingestCurlecWebhook({ rawBody, signature, eventId, gatewayAccount })`
+2. `processStoredCurlecWebhook(eventId, db, gatewayAccount)`
+
+### 14.2 Ingress / HMAC / dedupe (`ingestCurlecWebhook`)
+
+- Requires header `x-razorpay-event-id` (else `400 INVALID_WEBHOOK`).
+- Requires header `x-razorpay-signature` (else `401 INVALID_SIGNATURE`).
+- Secret: account-specific `getCurlecConfig(gatewayAccount).webhookSecret`  
+  (`CURLEC_OPERATING_WEBHOOK_SECRET` or `CURLEC_INVESTOR_POOL_WEBHOOK_SECRET`).
+- Verify: `verifyCurlecWebhookSignature(rawBody, signature, webhookSecret)`.
+- Parse JSON + `curlecWebhookPayloadSchema`.
+- Insert `GatewayWebhookEvent` with `createMany(..., skipDuplicates: true)` unique on `(gatewayAccount, event_id)`.
+- Duplicate insert → returns `{ duplicate: true }` without rewriting payload.
+- **Test vs live:** no separate webhook code paths — whichever credentials / `CURLEC_API_BASE_URL` are configured for that account (`sandbox` | `production` on config object). Wrong-account payment cannot be matched on the other route (lookups always include `gatewayAccount: routeGatewayAccount`).
+
+`processStoredCurlecWebhook`: if `processed_at` already set → **no-op**. Marks `processed_at` via `markWebhookProcessed` (skips for synthetic ids starting with `sync:`).
+
+### 14.3 Events handled
+
+| Event | Handler entry |
+|-------|----------------|
+| `payment.captured` | Capture path (`DEPOSIT_CAPTURE_EVENTS`) |
+| `order.paid` | Same capture path as `payment.captured` |
+| `payment.failed` | `markGatewayPaymentFailedByOrderId` |
+| `refund.created` | `adoptGatewayRefundCreated` |
+| `refund.processed` | `completeGatewayPaymentRefund` |
+| `refund.failed` | `failGatewayPaymentRefund` |
+| Any other event | Mark processed; no payment mutation |
+
+### 14.4 Capture events (`payment.captured` / `order.paid`)
+
+**Lookup:** `curlec_order_id` + `gatewayAccount` = route account.  
+**Payment id:** from payload; if missing (common for `order.paid`), fetch order payments via Curlec client for the **route** account and pick `status === "captured"` else first.
+
+**Dispatch by purpose:** `processGatewayPaymentCapture` → deposit / onboarding / processing handlers.
+
+**Capture skip statuses** (`CAPTURE_SKIP_STATUSES` — mark processed, no mutation):
+
+`COMPLETED` | `HELD` | `NAME_CHECK_PENDING` | `REFUND_INITIATED` | `REFUNDED` | `FAILED`
+
+**Not skipped:** `CREATED`, `EXPIRED`, `PAID` (PAID can re-enter completion logic; side effects rely on idempotent ledger/wallet keys).
+
+**Always fetches live Curlec payment** via `createCurlecClient({ gatewayAccount: payment.gatewayAccount }).fetchPayment(paymentId)` before deciding.
+
+**Validation** (`validateCapturedPayment`):
+
+- Assert route account matches payment account
+- Order id on Curlec payment must match webhook order (else `ORDER_MISMATCH`)
+- Currency must match (else `CURRENCY_MISMATCH`)
+- `curlec_payment_id` must not belong to another row on same account (else `PAYMENT_ID_CONFLICT`)
+
+#### Capture outcome matrix (happy + mismatch)
+
+| Purpose | Starting (processable) | Condition | Status result | Side effects |
+|---------|------------------------|-----------|---------------|--------------|
+| Any | CREATED/EXPIRED → claim | Currency / (fees: order/id conflict) | → `HELD` | `captureMismatch` + `CAPTURE_MISMATCH` event; no refund; no receipt |
+| Deposit | processable | Order / payment-id conflict | unchanged (skip) | Webhook marked with error string; **no HELD** |
+| Any | processable | Amount mismatch | via amount-mismatch service (typically `REFUND_INITIATED` or `HELD` if refund create fails) | Auto full refund of **actual** amount; metadata `amountMismatch` + `captureMismatch`; **no** benefit; no success receipt |
+| Deposit | → PAID | Name PASS | → `COMPLETED` | Wallet `GATEWAY_DEPOSIT`; ledger; schedule receipt |
+| Deposit | → PAID | Name FAIL | → refund path (`REFUND_INITIATED` / later `REFUNDED`/`HELD`) | `initiateInvestorDepositRefund` reason `NAME_MISMATCH`; no credit |
+| Deposit | → PAID | Name REVIEW/unavailable | → `NAME_CHECK_PENDING` | `pendNameCheckReview`; no receipt yet |
+| Onboarding | → PAID | Amount OK | → `COMPLETED` | `onboarding_fee_paid_at`; OPERATING ledger; schedule receipt |
+| Processing | → PAID | Amount OK | → `COMPLETED` | OPERATING ledger; schedule receipt |
+
+Claim helper: `claimCaptureToPaid` only updates rows currently `CREATED` or `EXPIRED`.
+
+### 14.5 `payment.failed`
+
+- Lookup: `curlec_order_id` + route `gatewayAccount` (`extractPaymentFailedRefs`).
+- If missing payment or status ∈ `TERMINAL_GATEWAY_STATUSES` → no status change.
+- If status ≠ `CREATED` → no status change (e.g. **PAID/COMPLETED never regress to FAILED**).
+- If `CREATED` → `FAILED` (`assertTransition`), may set `curlec_payment_id` / `method`.
+- No wallet / fee / receipt changes.
+
+### 14.6 Refund events — lookup
+
+All refund events:
+
+- Extract Curlec `paymentId` + `refundId` via `extractRefundRefs`.
+- Lookup: `curlec_payment_id` + route `gatewayAccount`.
+- Wrong-account hit → log + mark processed with account mismatch; **no mutation**.
+- Missing → mark processed “not found”.
+
+### 14.7 `refund.created` → `adoptGatewayRefundCreated`
+
+| Starting status | Action | Resulting status | Notes |
+|-----------------|--------|------------------|-------|
+| `REFUNDED` | no-op | `REFUNDED` | |
+| `REFUND_INITIATED` | fill `refund_reference` if empty | `REFUND_INITIATED` | Never overwrite different existing refund id |
+| `COMPLETED` | `adoptExternalCurlecRefundFromCompleted` | `REFUND_INITIATED` | Sets `metadata.externalCurlecRefund`; investor: wallet **holds**; onboarding: snapshot `previousOnboardingFeePaidAt` + clear paid-at |
+| `HELD` + `autoRefundFailed` | adopt refund id | `REFUND_INITIATED` | Recoverable hold only (`isRecoverableRefundCreationHold`) |
+| `HELD` + currency mismatch or wallet-reversal-failed | ignore | `HELD` | Explicitly non-recoverable |
+| Other | ignore | unchanged | |
+
+**When REFUND_INITIATED is set:** external COMPLETED adoption; recoverable `autoRefundFailed` HELD; (also set by local `initiate*` paths, not only webhooks).  
+**When it is not:** already REFUNDED/REFUND_INITIATED (idempotent attach); non-recoverable HELD; non-matching statuses.
+
+### 14.8 `refund.processed` → `completeGatewayPaymentRefund`
+
+| Starting status | Action | Result | Side effects |
+|-----------------|--------|--------|--------------|
+| `REFUNDED` | no-op | — | |
+| `COMPLETED` | adopt external first | then complete if eligible | Same as refund.created adoption, then continue |
+| `REFUND_INITIATED` | complete | → `REFUNDED` | Wallet permanent debit (deposit); clear onboarding fee paid-at; mark receipt refunded; clear `refundConfirmedWalletReversalFailed` from metadata on success |
+| `HELD` + `refundConfirmedWalletReversalFailed` | complete | → `REFUNDED` | `canCompleteConfirmedRefund` allowlist |
+| Other HELD / other statuses | no-op | — | |
+
+Investor wallet reversal failure after remote confirm → `holdForWalletReversalFailure` → `HELD` + `refundConfirmedWalletReversalFailed` (may include `fundsProtected`). Non-deposit purposes rethrow.
+
+Idempotency: wallet keys `gateway-deposit:refund:<paymentId>`; early exit if already `REFUNDED`.
+
+### 14.9 `refund.failed` → `failGatewayPaymentRefund`
+
+| Starting status | Action | Result | Side effects |
+|-----------------|--------|--------|--------------|
+| `REFUNDED` | no-op | — | |
+| `COMPLETED` | metadata only | stays `COMPLETED` | `externalCurlecRefundFailed`; activity event; **no wallet change** |
+| `REFUND_INITIATED` + `externalCurlecRefund` | restore | → `COMPLETED` | Release wallet holds; clear refund reference; restore onboarding `onboarding_fee_paid_at` from snapshot; set `externalCurlecRefundFailed` |
+| `REFUND_INITIATED` (local/auto) | hold | → `HELD` | Metadata `refundFailed` |
+| Other | no-op | — | |
+
+### 14.10 State-transition protections (webhook-relevant)
+
+| Attempted regression | Behaviour |
+|----------------------|-----------|
+| `COMPLETED` → `FAILED` | Blocked (`payment.failed` only mutates `CREATED`) |
+| `REFUNDED` → anything via capture | Capture skipped |
+| `HELD` → `COMPLETED` via capture | Capture skipped |
+| `REFUND_INITIATED` → `COMPLETED` via capture | Capture skipped |
+| `REFUND_INITIATED` → `COMPLETED` via `refund.failed` | **Allowed** only when `metadata.externalCurlecRefund` present (restore path) |
+| Capture after already `COMPLETED` | Skip; no second credit (also wallet idempotency keys) |
+
+`assertTransition` still gates every status write.
+
+### 14.11 Idempotency summary
+
+| Repeat scenario | Protection |
+|-----------------|------------|
+| Same webhook `event_id` twice | DB unique + `processed_at` short-circuit |
+| `payment.captured` then `order.paid` | Second event new id; capture skip if already terminal/pending statuses; wallet/ledger idempotency keys |
+| Same `refund.processed` twice | Early `REFUNDED` return; debit idempotency key |
+| `refund.created` while already `REFUND_INITIATED` | Attach missing `refund_reference` only |
+| Poller already completed refund before webhook | `REFUNDED` no-op on webhook |
+
+### 14.12 Sync path (not a Curlec webhook)
+
+`syncGatewayPaymentFromCurlec` (return URL / stuck-order poller) uses synthetic `eventId` `sync:<paymentId>:<curlecPaymentId>`, reuses capture/fail helpers, does not require `GatewayWebhookEvent` row.
 
 ---
 
@@ -522,9 +674,12 @@ Primary models (Prisma):
 Metadata JSON (non-exhaustive, verified keys):
 
 - `captureMismatch`, `amountMismatch`
-- `autoRefundFailed`
-- `refundConfirmedWalletReversalFailed` (may nest `fundsProtected`)
-- `externalCurlecRefund`, `externalCurlecRefundFailed`
+- `autoRefundFailed` (recoverable HELD after local Curlec refund-create failure)
+- `refundFailed` (from `refund.failed` on local `REFUND_INITIATED`)
+- `refundConfirmedWalletReversalFailed` (may nest / include `fundsProtected`, amounts, categories)
+- `externalCurlecRefund` (`source: "CURLEC_PROVIDER"`, …)
+- `externalCurlecRefundFailed`
+- `refundAttempt` (may carry `amountSen` for receipt refund amount)
 
 ---
 
