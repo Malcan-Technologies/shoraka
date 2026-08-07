@@ -3,12 +3,18 @@ import { AppError } from "../../lib/http/error-handler";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { logger } from "../../lib/logger";
 import {
+  deleteS3Object,
   generateLegalDocumentKey,
   generatePresignedDownloadUrl,
   generatePresignedUploadUrl,
   getFileExtension,
   validatePdfUpload,
 } from "../../lib/s3/client";
+import {
+  assertStoredLegalPdf,
+  isLegalDocumentS3Key,
+  sanitizeS3KeyForLog,
+} from "../../lib/s3/legal-document-object";
 import { resolveActivePublishedByDocumentId } from "./active-published";
 import { legalDocumentRepository, type VersionWithDocument } from "./repository";
 import type {
@@ -268,19 +274,42 @@ export class LegalDocumentService {
       throw new AppError(404, "NOT_FOUND", "Legal document not found");
     }
 
-    if (!input.s3Key.startsWith("legal-documents/")) {
+    if (!isLegalDocumentS3Key(input.s3Key)) {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid S3 key for legal document");
+    }
+
+    let verified: { fileHash: string; fileSize: number };
+    try {
+      verified = await assertStoredLegalPdf({
+        s3Key: input.s3Key,
+        claimedFileSize: input.fileSize,
+      });
+    } catch (error) {
+      await this.tryDeleteUnreferencedUpload(input.s3Key, "create-hash-or-validation-failed");
+      throw error;
     }
 
     const latestVersion = await legalDocumentRepository.getLatestVersionNumber(legalDocumentId);
     const newVersion = latestVersion + 1;
 
-    const version = await legalDocumentRepository.createVersion(
-      legalDocumentId,
-      newVersion,
-      input,
-      adminUserId
-    );
+    let version: VersionWithDocument;
+    try {
+      version = await legalDocumentRepository.createVersion(
+        legalDocumentId,
+        newVersion,
+        {
+          s3Key: input.s3Key,
+          fileName: input.fileName,
+          contentType: input.contentType,
+          fileSize: verified.fileSize,
+          fileHash: verified.fileHash,
+        },
+        adminUserId
+      );
+    } catch (error) {
+      await this.tryDeleteUnreferencedUpload(input.s3Key, "create-db-failed");
+      throw error;
+    }
 
     await this.logEvent(req, adminUserId, legalDocumentId, "LEGAL_VERSION_UPLOADED", {
       legal_document_id: legalDocumentId,
@@ -416,16 +445,36 @@ export class LegalDocumentService {
         "Only draft versions can have their PDF replaced in place"
       );
     }
-    if (!input.s3Key.startsWith("legal-documents/")) {
+    if (!isLegalDocumentS3Key(input.s3Key)) {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid S3 key for legal document");
     }
+
+    let verified: { fileHash: string; fileSize: number };
+    try {
+      verified = await assertStoredLegalPdf({
+        s3Key: input.s3Key,
+        claimedFileSize: input.fileSize,
+      });
+    } catch (error) {
+      await this.tryDeleteUnreferencedUpload(input.s3Key, "replace-hash-or-validation-failed");
+      throw error;
+    }
+
+    const oldKey = existing.s3_key;
 
     const updated = await legalDocumentRepository.replaceDraftFile(versionId, {
       s3Key: input.s3Key,
       fileName: input.fileName,
       contentType: input.contentType,
-      fileSize: input.fileSize,
-      fileHash: input.fileHash ?? null,
+      fileSize: verified.fileSize,
+      fileHash: verified.fileHash,
+    });
+
+    await this.safeDeleteReplacedDraftObject({
+      oldKey,
+      newKey: input.s3Key,
+      versionId,
+      versionStatus: existing.status,
     });
 
     await this.logEvent(
@@ -470,6 +519,13 @@ export class LegalDocumentService {
     }
     if (existing.status !== "DRAFT" && existing.status !== "ARCHIVED") {
       throw new AppError(400, "INVALID_STATUS", "Only draft or archived versions can be published");
+    }
+    if (!existing.file_hash) {
+      throw new AppError(
+        400,
+        "HASH_REQUIRED",
+        "Cannot publish a version without a server-generated file hash"
+      );
     }
 
     const reacceptanceRequired = input.reacceptanceRequired ?? false;
@@ -645,6 +701,78 @@ export class LegalDocumentService {
       contentType: version.content_type,
       fileSize: version.file_size,
     };
+  }
+
+  /**
+   * After a successful draft DB update to a new key, delete the previous object
+   * when it is safe. Deletion failure must not roll back the DB update.
+   */
+  private async safeDeleteReplacedDraftObject(params: {
+    oldKey: string;
+    newKey: string;
+    versionId: string;
+    versionStatus: string;
+  }): Promise<void> {
+    const { oldKey, newKey, versionId, versionStatus } = params;
+
+    if (oldKey === newKey) return;
+    if (versionStatus !== "DRAFT") return;
+    if (!isLegalDocumentS3Key(oldKey)) {
+      logger.warn(
+        { keyPreview: sanitizeS3KeyForLog(oldKey), versionId },
+        "Skipped draft S3 cleanup: old key outside legal-documents prefix"
+      );
+      return;
+    }
+
+    const otherRefs = await legalDocumentRepository.countVersionsByS3Key(oldKey, versionId);
+    if (otherRefs > 0) {
+      logger.warn(
+        { keyPreview: sanitizeS3KeyForLog(oldKey), versionId, otherRefs },
+        "Skipped draft S3 cleanup: key still referenced by another version"
+      );
+      return;
+    }
+
+    try {
+      await deleteS3Object(oldKey);
+      logger.info(
+        { keyPreview: sanitizeS3KeyForLog(oldKey), versionId },
+        "Deleted replaced legal-document draft S3 object"
+      );
+    } catch (error) {
+      logger.warn(
+        {
+          keyPreview: sanitizeS3KeyForLog(oldKey),
+          versionId,
+          errName: error instanceof Error ? error.name : "unknown",
+        },
+        "LEGAL_DOCUMENT_DRAFT_S3_CLEANUP_FAILED: DB points to new object; old draft object may be orphaned"
+      );
+    }
+  }
+
+  /** Best-effort delete of an upload that never became a DB reference. */
+  private async tryDeleteUnreferencedUpload(s3Key: string, reason: string): Promise<void> {
+    if (!isLegalDocumentS3Key(s3Key)) return;
+    const refs = await legalDocumentRepository.countVersionsByS3Key(s3Key);
+    if (refs > 0) return;
+    try {
+      await deleteS3Object(s3Key);
+      logger.info(
+        { keyPreview: sanitizeS3KeyForLog(s3Key), reason },
+        "Deleted unreferenced legal-document upload after failed create/replace"
+      );
+    } catch (error) {
+      logger.warn(
+        {
+          keyPreview: sanitizeS3KeyForLog(s3Key),
+          reason,
+          errName: error instanceof Error ? error.name : "unknown",
+        },
+        "LEGAL_DOCUMENT_UPLOAD_ORPHAN_CLEANUP_FAILED"
+      );
+    }
   }
 
   private logEvent(

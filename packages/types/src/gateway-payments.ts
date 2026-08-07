@@ -43,6 +43,8 @@ export interface GatewayPaymentListItemDto {
   nameCheckResult: NameCheckResult | null;
   investorOrganizationId: string | null;
   investorOrganizationName: string | null;
+  issuerOrganizationId: string | null;
+  issuerOrganizationName: string | null;
   curlecOrderId: string;
   curlecPaymentId: string | null;
   settlementId: string | null;

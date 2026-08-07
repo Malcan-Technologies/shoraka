@@ -101,14 +101,13 @@ export const createVersionSchema = z.object({
   fileName: z.string().min(1).max(255),
   contentType: z.literal("application/pdf"),
   fileSize: z.number().int().positive(),
-  fileHash: z.string().min(1).max(128).optional(),
+  // Client fileHash is not accepted — hash is computed server-side from S3 bytes.
 });
 
 export type CreateVersionInput = z.infer<typeof createVersionSchema>;
 
-export const updateVersionSchema = z.object({
-  fileHash: z.string().min(1).max(128).nullable().optional(),
-});
+/** Draft metadata patch — file_hash is never client-writable. */
+export const updateVersionSchema = z.object({}).strict();
 
 export type UpdateVersionInput = z.infer<typeof updateVersionSchema>;
 
@@ -118,7 +117,7 @@ export const replaceDraftFileSchema = z.object({
   fileName: z.string().min(1).max(255),
   contentType: z.literal("application/pdf"),
   fileSize: z.number().int().positive(),
-  fileHash: z.string().min(1).max(128).optional(),
+  // Client fileHash is not accepted — hash is computed server-side from S3 bytes.
 });
 
 export type ReplaceDraftFileInput = z.infer<typeof replaceDraftFileSchema>;
