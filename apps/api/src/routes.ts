@@ -42,6 +42,7 @@ import { issuerOnboardingFeeRouter } from "./modules/payment/onboarding-fee-cont
 import { applicationProcessingFeeRouter } from "./modules/payment/processing-fee-controller";
 import { gatewayPaymentsAdminRouter } from "./modules/payment/admin-controller";
 import { gatewayReconAdminRouter } from "./modules/payment/recon-controller";
+import { contractLooDemoRouter } from "./modules/applications/loo/contract-loo-demo.controller";
 export function registerRoutes(app: Application): void {
   // Swagger API documentation (only in development)
   if (process.env.NODE_ENV !== "production") {
@@ -140,6 +141,13 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin/legal-documents", devAuthBypass, requireRole(UserRole.ADMIN), legalDocumentAdminRouter);
     v1Router.use("/admin/legal-document-acceptances", devAuthBypass, requireRole(UserRole.ADMIN), legalDocumentAcceptanceAdminRouter);
     v1Router.use("/admin/product-logs", devAuthBypass, requireRole(UserRole.ADMIN), productLogRouter);
+    // DEMO: ARF contract LOO merge (wet-ink docx) — not production Send Offer
+    v1Router.use(
+      "/admin/demos/contract-loo",
+      devAuthBypass,
+      requireRole(UserRole.ADMIN),
+      contractLooDemoRouter
+    );
   } else {
     v1Router.use("/admin", requireAuth, requireRole(UserRole.ADMIN), adminRouter);
     v1Router.use("/admin/signing", requireAuth, requireRole(UserRole.ADMIN), createSigningAdminRouter());
@@ -152,6 +160,12 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/admin/legal-documents", requireAuth, requireRole(UserRole.ADMIN), legalDocumentAdminRouter);
     v1Router.use("/admin/legal-document-acceptances", requireAuth, requireRole(UserRole.ADMIN), legalDocumentAcceptanceAdminRouter);
     v1Router.use("/admin/product-logs", requireAuth, requireRole(UserRole.ADMIN), productLogRouter);
+    v1Router.use(
+      "/admin/demos/contract-loo",
+      requireAuth,
+      requireRole(UserRole.ADMIN),
+      contractLooDemoRouter
+    );
   }
 
   if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {

@@ -471,6 +471,7 @@ export * from "./prospectus-calendar";
 export * from "./signing-envelopes";
 export * from "./acceptance-documents";
 export * from "./offer-acceptance";
+export * from "./contract-loo-demo";
 export * from "./offer-phase-deadline-display";
 export * from "./guarantors";
 export * from "./company-name-normalization";

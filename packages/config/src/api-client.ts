@@ -3204,6 +3204,46 @@ export class ApiClient {
       body: JSON.stringify({ s3Key }),
     });
   }
+
+  /** DEMO: default ARF contract LOO merge fixture */
+  async getContractLooDemoFixture(): Promise<
+    ApiResponse<import("@cashsouk/types").ContractLooMergeData> | ApiError
+  > {
+    return this.get<import("@cashsouk/types").ContractLooMergeData>(
+      "/v1/admin/demos/contract-loo/fixture"
+    );
+  }
+
+  /** DEMO: prefill LOO merge fields from a contract id */
+  async getContractLooDemoPrefill(
+    contractId: string
+  ): Promise<ApiResponse<import("@cashsouk/types").ContractLooMergeData> | ApiError> {
+    const q = new URLSearchParams({ contractId });
+    return this.get<import("@cashsouk/types").ContractLooMergeData>(
+      `/v1/admin/demos/contract-loo/prefill?${q.toString()}`
+    );
+  }
+
+  /** DEMO: generate filled ARF LOO .docx (wet-ink; no SigningCloud) */
+  async generateContractLooDemoDocx(
+    data: import("@cashsouk/types").ContractLooMergeData
+  ): Promise<Blob> {
+    const url = `${this.baseUrl}/v1/admin/demos/contract-loo/generate`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = { "Content-Type": "application/json" };
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const response = await fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const msg = await this.parseErrorResponse(response);
+      throw new Error(msg);
+    }
+    return response.blob();
+  }
 }
 
 export function createApiClient(
