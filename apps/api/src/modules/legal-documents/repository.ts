@@ -2,7 +2,6 @@ import { prisma } from "../../lib/prisma";
 import type { Prisma } from "@prisma/client";
 import type {
   CreateLegalDocumentInput,
-  CreateVersionInput,
   ListLegalDocumentsQuery,
   LegalDocumentTypeValue,
   UpdateLegalDocumentInput,
@@ -160,7 +159,13 @@ export class LegalDocumentRepository {
   async createVersion(
     legalDocumentId: string,
     version: number,
-    input: CreateVersionInput,
+    input: {
+      s3Key: string;
+      fileName: string;
+      contentType: string;
+      fileSize: number;
+      fileHash: string;
+    },
     uploadedBy: string
   ) {
     return (await prisma.legalDocumentVersion.create({
@@ -172,19 +177,17 @@ export class LegalDocumentRepository {
         file_name: input.fileName,
         content_type: input.contentType,
         file_size: input.fileSize,
-        file_hash: input.fileHash ?? null,
+        file_hash: input.fileHash,
         uploaded_by: uploadedBy,
       },
       include: { legal_document: true },
     })) as VersionWithDocument;
   }
 
-  async updateDraftVersion(versionId: string, input: UpdateVersionInput) {
-    return (await prisma.legalDocumentVersion.update({
+  async updateDraftVersion(versionId: string, _input: UpdateVersionInput) {
+    // Client-supplied hashes are not authoritative; metadata patches no longer mutate file_hash.
+    return (await prisma.legalDocumentVersion.findUniqueOrThrow({
       where: { id: versionId },
-      data: {
-        ...(input.fileHash !== undefined && { file_hash: input.fileHash }),
-      },
       include: { legal_document: true },
     })) as VersionWithDocument;
   }
@@ -196,7 +199,7 @@ export class LegalDocumentRepository {
       fileName: string;
       contentType: string;
       fileSize: number;
-      fileHash?: string | null;
+      fileHash: string;
     }
   ) {
     return (await prisma.legalDocumentVersion.update({
@@ -206,10 +209,26 @@ export class LegalDocumentRepository {
         file_name: input.fileName,
         content_type: input.contentType,
         file_size: input.fileSize,
-        file_hash: input.fileHash ?? null,
+        file_hash: input.fileHash,
       },
       include: { legal_document: true },
     })) as VersionWithDocument;
+  }
+
+  async countVersionsByS3Key(s3Key: string, excludeVersionId?: string): Promise<number> {
+    return prisma.legalDocumentVersion.count({
+      where: {
+        s3_key: s3Key,
+        ...(excludeVersionId ? { id: { not: excludeVersionId } } : {}),
+      },
+    });
+  }
+
+  async listReferencedS3Keys(): Promise<string[]> {
+    const rows = await prisma.legalDocumentVersion.findMany({
+      select: { s3_key: true },
+    });
+    return rows.map((row) => row.s3_key);
   }
 
   async publishVersion(

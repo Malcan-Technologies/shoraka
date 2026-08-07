@@ -64,6 +64,16 @@ jest.mock("../../lib/s3/client", () => ({
   ),
   getFileExtension: jest.fn(() => "pdf"),
   validatePdfUpload: jest.fn(() => ({ valid: true })),
+  deleteS3Object: jest.fn(async () => undefined),
+}));
+
+jest.mock("../../lib/s3/legal-document-object", () => ({
+  isLegalDocumentS3Key: jest.fn((key: string) => String(key).startsWith("legal-documents/")),
+  sanitizeS3KeyForLog: jest.fn((key: string) => key),
+  assertStoredLegalPdf: jest.fn(async ({ claimedFileSize }) => ({
+    fileHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    fileSize: claimedFileSize ?? 100,
+  })),
 }));
 
 jest.mock("../../lib/logger", () => ({
@@ -75,7 +85,8 @@ import { legalDocumentAcceptanceService } from "./acceptance-service";
 import { legalDocumentRepository } from "./repository";
 import { legalDocumentService } from "./service";
 import { createLegalDocumentSchema } from "./schemas";
-import { validatePdfUpload } from "../../lib/s3/client";
+import { deleteS3Object, validatePdfUpload } from "../../lib/s3/client";
+import { assertStoredLegalPdf } from "../../lib/s3/legal-document-object";
 
 const mockReq = {
   headers: {
@@ -710,6 +721,7 @@ describe("legal document acceptance service", () => {
         published_at: null,
         published_by: null,
         file_name: "old.pdf",
+        s3_key: "legal-documents/old-key.pdf",
       }) as never
     );
     jest.spyOn(legalDocumentRepository, "replaceDraftFile").mockResolvedValue(
@@ -721,8 +733,10 @@ describe("legal document acceptance service", () => {
         published_by: null,
         file_name: "fixed.pdf",
         s3_key: "legal-documents/new-key.pdf",
+        file_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       }) as never
     );
+    jest.spyOn(legalDocumentRepository, "countVersionsByS3Key").mockResolvedValue(0);
 
     const replaced = await legalDocumentService.replaceDraftFile(
       "ver2",
@@ -736,9 +750,224 @@ describe("legal document acceptance service", () => {
       mockReq
     );
 
+    expect(assertStoredLegalPdf).toHaveBeenCalledWith({
+      s3Key: "legal-documents/new-key.pdf",
+      claimedFileSize: 1200,
+    });
+    expect(legalDocumentRepository.replaceDraftFile).toHaveBeenCalledWith(
+      "ver2",
+      expect.objectContaining({
+        s3Key: "legal-documents/new-key.pdf",
+        fileHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        fileSize: 1200,
+      })
+    );
+    expect(deleteS3Object).toHaveBeenCalledWith("legal-documents/old-key.pdf");
     expect(replaced.version).toBe(2);
     expect(replaced.fileName).toBe("fixed.pdf");
     expect(replaced.status).toBe("DRAFT");
+    expect(replaced.fileHash).toBe(
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    );
+  });
+
+  it("does not delete old S3 object when draft replace hash validation fails", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+      publishedVersion({
+        id: "ver2",
+        version: 2,
+        status: "DRAFT",
+        s3_key: "legal-documents/old-key.pdf",
+      }) as never
+    );
+    const replaceSpy = jest.spyOn(legalDocumentRepository, "replaceDraftFile");
+    (assertStoredLegalPdf as jest.Mock).mockRejectedValueOnce({
+      code: "VALIDATION_ERROR",
+      message: "not pdf",
+      statusCode: 400,
+    });
+    jest.spyOn(legalDocumentRepository, "countVersionsByS3Key").mockResolvedValue(0);
+
+    await expect(
+      legalDocumentService.replaceDraftFile(
+        "ver2",
+        {
+          s3Key: "legal-documents/new-key.pdf",
+          fileName: "fixed.pdf",
+          contentType: "application/pdf",
+          fileSize: 1200,
+        },
+        "admin1",
+        mockReq
+      )
+    ).rejects.toMatchObject({ code: "VALIDATION_ERROR" });
+
+    expect(replaceSpy).not.toHaveBeenCalled();
+    expect(deleteS3Object).toHaveBeenCalledWith("legal-documents/new-key.pdf");
+    expect(deleteS3Object).not.toHaveBeenCalledWith("legal-documents/old-key.pdf");
+  });
+
+  it("ignores client hash and stores server hash on createDraftVersion", async () => {
+    jest.spyOn(legalDocumentRepository, "findById").mockResolvedValue({
+      id: "ld1",
+      type: "TERMS_OF_USE",
+      title: "Terms",
+      description: null,
+      audience: "BOTH",
+      required_for_onboarding: true,
+      public_visibility: true,
+      show_in_account: false,
+      created_at: new Date(),
+      updated_at: new Date(),
+    } as never);
+    jest.spyOn(legalDocumentRepository, "getLatestVersionNumber").mockResolvedValue(0);
+    jest.spyOn(legalDocumentRepository, "createVersion").mockResolvedValue(
+      publishedVersion({
+        id: "ver-new",
+        version: 1,
+        status: "DRAFT",
+        published_at: null,
+        published_by: null,
+        file_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        s3_key: "legal-documents/new.pdf",
+      }) as never
+    );
+
+    const created = await legalDocumentService.createDraftVersion(
+      "ld1",
+      {
+        s3Key: "legal-documents/new.pdf",
+        fileName: "terms.pdf",
+        contentType: "application/pdf",
+        fileSize: 500,
+      },
+      "admin1",
+      mockReq
+    );
+
+    expect(assertStoredLegalPdf).toHaveBeenCalled();
+    expect(legalDocumentRepository.createVersion).toHaveBeenCalledWith(
+      "ld1",
+      1,
+      expect.objectContaining({
+        fileHash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        fileSize: 500,
+      }),
+      "admin1"
+    );
+    expect(created.fileHash).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("rejects publish without file hash", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+      publishedVersion({
+        id: "ver2",
+        status: "DRAFT",
+        file_hash: null,
+        published_at: null,
+        published_by: null,
+      }) as never
+    );
+    await expect(
+      legalDocumentService.publishVersion("ver2", { reacceptanceRequired: false }, "admin1", mockReq)
+    ).rejects.toMatchObject({ code: "HASH_REQUIRED" });
+  });
+
+  it("does not delete old object when keys are equal", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+      publishedVersion({
+        id: "ver2",
+        version: 2,
+        status: "DRAFT",
+        s3_key: "legal-documents/same.pdf",
+      }) as never
+    );
+    jest.spyOn(legalDocumentRepository, "replaceDraftFile").mockResolvedValue(
+      publishedVersion({
+        id: "ver2",
+        version: 2,
+        status: "DRAFT",
+        s3_key: "legal-documents/same.pdf",
+        file_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }) as never
+    );
+    jest.spyOn(legalDocumentRepository, "countVersionsByS3Key").mockResolvedValue(0);
+    (deleteS3Object as jest.Mock).mockClear();
+
+    await legalDocumentService.replaceDraftFile(
+      "ver2",
+      {
+        s3Key: "legal-documents/same.pdf",
+        fileName: "same.pdf",
+        contentType: "application/pdf",
+        fileSize: 100,
+      },
+      "admin1",
+      mockReq
+    );
+
+    expect(deleteS3Object).not.toHaveBeenCalled();
+  });
+
+  it("does not delete published object via replace path", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+      publishedVersion({
+        id: "ver2",
+        status: "PUBLISHED",
+        s3_key: "legal-documents/pub.pdf",
+      }) as never
+    );
+    await expect(
+      legalDocumentService.replaceDraftFile(
+        "ver2",
+        {
+          s3Key: "legal-documents/new.pdf",
+          fileName: "n.pdf",
+          contentType: "application/pdf",
+          fileSize: 10,
+        },
+        "admin1",
+        mockReq
+      )
+    ).rejects.toMatchObject({ code: "INVALID_STATUS" });
+    expect(deleteS3Object).not.toHaveBeenCalled();
+  });
+
+  it("keeps DB update when old S3 delete fails", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+      publishedVersion({
+        id: "ver2",
+        version: 2,
+        status: "DRAFT",
+        s3_key: "legal-documents/old-key.pdf",
+      }) as never
+    );
+    jest.spyOn(legalDocumentRepository, "replaceDraftFile").mockResolvedValue(
+      publishedVersion({
+        id: "ver2",
+        version: 2,
+        status: "DRAFT",
+        s3_key: "legal-documents/new-key.pdf",
+        file_name: "fixed.pdf",
+        file_hash: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      }) as never
+    );
+    jest.spyOn(legalDocumentRepository, "countVersionsByS3Key").mockResolvedValue(0);
+    (deleteS3Object as jest.Mock).mockRejectedValueOnce(new Error("s3 down"));
+
+    const replaced = await legalDocumentService.replaceDraftFile(
+      "ver2",
+      {
+        s3Key: "legal-documents/new-key.pdf",
+        fileName: "fixed.pdf",
+        contentType: "application/pdf",
+        fileSize: 1200,
+      },
+      "admin1",
+      mockReq
+    );
+    expect(replaced.fileName).toBe("fixed.pdf");
+    expect(legalDocumentRepository.replaceDraftFile).toHaveBeenCalled();
   });
 
   it("archives published version and leaves no automatic fallback", async () => {

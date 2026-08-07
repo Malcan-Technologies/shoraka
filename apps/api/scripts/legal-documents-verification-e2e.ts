@@ -111,7 +111,6 @@ async function main() {
       fileName: `terms-verify-${stamp}.pdf`,
       contentType: "application/pdf",
       fileSize: 2048,
-      fileHash: `verify-hash-${stamp}`,
     },
     adminUser.user_id,
     mockReq(adminUser.user_id)
@@ -317,7 +316,6 @@ async function main() {
         fileName: `terms-verify-${stamp}-next.pdf`,
         contentType: "application/pdf",
         fileSize: 4096,
-        fileHash: `verify-hash-${stamp}-next`,
       },
       adminUser.user_id,
       mockReq(adminUser.user_id)
