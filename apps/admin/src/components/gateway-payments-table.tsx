@@ -526,7 +526,7 @@ function GatewayPaymentsTableContent({
                     </TableBody>
                   </Table>
                 </div>
-                {!isLoading && total > 0 ? (
+                {!isLoading && items.length > 0 ? (
                   <TablePagination
                     currentPage={currentPage}
                     totalPages={totalPages}
