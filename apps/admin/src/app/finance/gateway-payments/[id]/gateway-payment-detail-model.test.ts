@@ -14,6 +14,8 @@ function base(overrides: Partial<GatewayPaymentDetailDto> = {}): GatewayPaymentD
     nameCheckResult: null,
     investorOrganizationId: "org",
     investorOrganizationName: "Test",
+    issuerOrganizationId: null,
+    issuerOrganizationName: null,
     curlecOrderId: "order",
     curlecPaymentId: "pay",
     settlementId: null,

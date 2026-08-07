@@ -30,8 +30,20 @@ function decimalToNumber(value: Prisma.Decimal): number {
   return value.toNumber();
 }
 
+function buildOrgPersonName(org: {
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string | null;
+}): string | null {
+  const parts = [org.first_name, org.middle_name, org.last_name]
+    .map((part) => part?.trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts.join(" ") : null;
+}
+
 function buildInvestorOrgDisplayName(org: {
   type: string;
+  name: string | null;
   first_name: string | null;
   middle_name: string | null;
   last_name: string | null;
@@ -46,15 +58,157 @@ function buildInvestorOrgDisplayName(org: {
     }
   }
 
-  const parts = [org.first_name, org.middle_name, org.last_name]
-    .map((part) => part?.trim())
-    .filter(Boolean);
-  return parts.length > 0 ? parts.join(" ") : null;
+  return buildOrgPersonName(org) ?? org.name?.trim() ?? null;
+}
+
+function buildIssuerOrgDisplayName(org: {
+  type: string;
+  name: string | null;
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string | null;
+  corporate_onboarding_data: unknown;
+}): string | null {
+  if (org.type === "COMPANY") {
+    const data = org.corporate_onboarding_data;
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      const businessName = (data as { basicInfo?: { businessName?: string } }).basicInfo
+        ?.businessName?.trim();
+      if (businessName) return businessName;
+    }
+    if (org.name?.trim()) return org.name.trim();
+  }
+
+  return buildOrgPersonName(org) ?? org.name?.trim() ?? null;
+}
+
+const PURPOSE_SEARCH_ALIASES: Array<{ purpose: GatewayPaymentPurpose; terms: string[] }> = [
+  {
+    purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+    terms: ["investor deposit", "deposit", "investor_deposit"],
+  },
+  {
+    purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+    terms: [
+      "issuer registration fee",
+      "issuer onboarding",
+      "onboarding fee",
+      "issuer_onboarding_fee",
+    ],
+  },
+  {
+    purpose: GatewayPaymentPurpose.APPLICATION_PROCESSING_FEE,
+    terms: [
+      "application processing fee",
+      "processing fee",
+      "application_processing_fee",
+    ],
+  },
+];
+
+function matchPurposesFromSearch(term: string): GatewayPaymentPurpose[] {
+  const normalized = term.trim().toLowerCase();
+  if (!normalized || normalized.length < 3) return [];
+  return PURPOSE_SEARCH_ALIASES.filter(({ purpose, terms }) => {
+    if (purpose.toLowerCase() === normalized) return true;
+    return terms.some(
+      (alias) => alias === normalized || alias.includes(normalized) || normalized.includes(alias)
+    );
+  }).map(({ purpose }) => purpose);
+}
+
+function matchGatewayAccountsFromSearch(
+  term: string
+): Array<"OPERATING" | "INVESTOR_POOL"> {
+  const normalized = term.trim().toLowerCase();
+  if (!normalized) return [];
+  const matches: Array<"OPERATING" | "INVESTOR_POOL"> = [];
+  if (normalized === "operating" || normalized.includes("operating")) {
+    matches.push("OPERATING");
+  }
+  if (
+    normalized === "pool" ||
+    normalized === "investor_pool" ||
+    normalized.includes("investor pool") ||
+    normalized.includes("investor_pool")
+  ) {
+    matches.push("INVESTOR_POOL");
+  }
+  return matches;
+}
+
+function parseSearchAmount(term: string): Prisma.Decimal | null {
+  const cleaned = term
+    .trim()
+    .replace(/,/g, "")
+    .replace(/^(myr|rm)\s*/i, "")
+    .replace(/\s+/g, "");
+  if (!/^\d+(\.\d{1,6})?$/.test(cleaned)) return null;
+  try {
+    return new Prisma.Decimal(cleaned);
+  } catch {
+    return null;
+  }
+}
+
+function buildOrgNameSearchOr(term: string): Prisma.InvestorOrganizationWhereInput {
+  return {
+    OR: [
+      { name: { contains: term, mode: "insensitive" } },
+      { first_name: { contains: term, mode: "insensitive" } },
+      { middle_name: { contains: term, mode: "insensitive" } },
+      { last_name: { contains: term, mode: "insensitive" } },
+      { registration_number: { contains: term, mode: "insensitive" } },
+      { legal_name_on_id: { contains: term, mode: "insensitive" } },
+    ],
+  };
+}
+
+function buildIssuerOrgNameSearchOr(term: string): Prisma.IssuerOrganizationWhereInput {
+  return {
+    OR: [
+      { name: { contains: term, mode: "insensitive" } },
+      { first_name: { contains: term, mode: "insensitive" } },
+      { middle_name: { contains: term, mode: "insensitive" } },
+      { last_name: { contains: term, mode: "insensitive" } },
+      { registration_number: { contains: term, mode: "insensitive" } },
+    ],
+  };
+}
+
+function buildGatewayPaymentSearchOr(search: string): Prisma.GatewayPaymentWhereInput[] {
+  const term = search.trim();
+  if (!term) return [];
+
+  const or: Prisma.GatewayPaymentWhereInput[] = [
+    { id: { contains: term, mode: "insensitive" } },
+    { curlec_order_id: { contains: term, mode: "insensitive" } },
+    { curlec_payment_id: { contains: term, mode: "insensitive" } },
+    { payer_name: { contains: term, mode: "insensitive" } },
+    { refund_reference: { contains: term, mode: "insensitive" } },
+    { settlement_id: { contains: term, mode: "insensitive" } },
+    { investor_organization: buildOrgNameSearchOr(term) },
+    { issuer_organization: buildIssuerOrgNameSearchOr(term) },
+  ];
+
+  for (const purpose of matchPurposesFromSearch(term)) {
+    or.push({ purpose });
+  }
+  for (const gatewayAccount of matchGatewayAccountsFromSearch(term)) {
+    or.push({ gatewayAccount });
+  }
+
+  const amount = parseSearchAmount(term);
+  if (amount) {
+    or.push({ amount });
+  }
+
+  return or;
 }
 
 function mapListItem(
   payment: Prisma.GatewayPaymentGetPayload<{
-    include: { investor_organization: true };
+    include: { investor_organization: true; issuer_organization: true };
   }>
 ) {
   return {
@@ -70,6 +224,10 @@ function mapListItem(
     investorOrganizationId: payment.investor_organization_id,
     investorOrganizationName: payment.investor_organization
       ? buildInvestorOrgDisplayName(payment.investor_organization)
+      : null,
+    issuerOrganizationId: payment.issuer_organization_id,
+    issuerOrganizationName: payment.issuer_organization
+      ? buildIssuerOrgDisplayName(payment.issuer_organization)
       : null,
     curlecOrderId: payment.curlec_order_id,
     curlecPaymentId: payment.curlec_payment_id,
@@ -126,6 +284,7 @@ async function getGatewayPaymentOrThrow(
     where: { id: gatewayPaymentId },
     include: {
       investor_organization: true,
+      issuer_organization: true,
       events: { orderBy: { created_at: "desc" } },
       receipt: true,
     },
@@ -155,13 +314,8 @@ export async function listGatewayPayments(
   if (query.organizationType) where.organization_type = query.organizationType;
   if (query.gatewayAccount) where.gatewayAccount = query.gatewayAccount;
 
-  if (query.search) {
-    where.OR = [
-      { id: { contains: query.search, mode: "insensitive" } },
-      { curlec_order_id: { contains: query.search, mode: "insensitive" } },
-      { curlec_payment_id: { contains: query.search, mode: "insensitive" } },
-      { payer_name: { contains: query.search, mode: "insensitive" } },
-    ];
+  if (query.search?.trim()) {
+    where.OR = buildGatewayPaymentSearchOr(query.search);
   }
 
   const skip = (query.page - 1) * query.pageSize;
@@ -170,7 +324,7 @@ export async function listGatewayPayments(
     db.gatewayPayment.count({ where }),
     db.gatewayPayment.findMany({
       where,
-      include: { investor_organization: true },
+      include: { investor_organization: true, issuer_organization: true },
       orderBy: { created_at: "desc" },
       skip,
       take: query.pageSize,
