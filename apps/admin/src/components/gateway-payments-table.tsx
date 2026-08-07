@@ -52,6 +52,9 @@ import {
   formatGatewayPaymentDate,
   statusVariant,
 } from "@/lib/gateway-payment-display";
+import { TablePagination } from "@/shared/admin-list/components/table-pagination";
+
+const PAGE_SIZE = 20;
 
 /** API `filter` values — labels match detail page wording. */
 const STATUS_FILTER_OPTIONS = [
@@ -189,6 +192,7 @@ function GatewayPaymentsTableContent({
   );
   const [searchInput, setSearchInput] = useState(qFromUrl);
   const [debouncedSearch, setDebouncedSearch] = useState(qFromUrl.trim());
+  const [currentPage, setCurrentPage] = useState(1);
   const [isSpinning, setIsSpinning] = useState(false);
 
   useEffect(() => {
@@ -208,9 +212,13 @@ function GatewayPaymentsTableContent({
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }, [debouncedSearch, filter, gatewayAccount, pathname, purpose, router]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, filter, gatewayAccount, purpose]);
+
   const { data, isLoading, error, refetch, isFetching } = useGatewayPayments({
-    page: 1,
-    pageSize: 50,
+    page: currentPage,
+    pageSize: PAGE_SIZE,
     gatewayAccount: gatewayAccount === "ALL" ? undefined : gatewayAccount,
     filter: filter === "all" ? undefined : filter,
     purpose: purpose === "all" ? undefined : purpose,
@@ -219,6 +227,15 @@ function GatewayPaymentsTableContent({
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const startIndex = total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const endIndex = Math.min(currentPage * PAGE_SIZE, total);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const activeFilterCount = [
     filter !== "all",
@@ -235,6 +252,7 @@ function GatewayPaymentsTableContent({
     setPurpose("all");
     setSearchInput("");
     setDebouncedSearch("");
+    setCurrentPage(1);
   }, []);
 
   const handleRefresh = () => {
@@ -508,6 +526,16 @@ function GatewayPaymentsTableContent({
                     </TableBody>
                   </Table>
                 </div>
+                {!isLoading && total > 0 ? (
+                  <TablePagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    startIndex={startIndex}
+                    endIndex={endIndex}
+                    totalItems={total}
+                    onPageChange={setCurrentPage}
+                  />
+                ) : null}
               </div>
             )}
           </section>
