@@ -72,6 +72,38 @@ export function parseSearchAmount(term: string): Prisma.Decimal | null {
   }
 }
 
+/**
+ * Displayed corporate org name comes from
+ * `corporate_onboarding_data.basicInfo.businessName` (Json).
+ * Prisma 5 JSON filters are case-sensitive, so we mirror the Notes list pattern:
+ * query the common case variants in one OR clause (still a single SQL query).
+ */
+export function buildCorporateBusinessNameJsonFilters(term: string): Array<{
+  corporate_onboarding_data: {
+    path: string[];
+    string_contains: string;
+  };
+}> {
+  const query = term.trim();
+  if (!query) return [];
+
+  const variants = [
+    ...new Set([
+      query,
+      query.toLowerCase(),
+      query.toUpperCase(),
+      query.replace(/\b\w/g, (char) => char.toUpperCase()),
+    ]),
+  ];
+
+  return variants.map((variant) => ({
+    corporate_onboarding_data: {
+      path: ["basicInfo", "businessName"],
+      string_contains: variant,
+    },
+  }));
+}
+
 function buildOrgNameSearchOr(term: string): Prisma.InvestorOrganizationWhereInput {
   return {
     OR: [
@@ -81,6 +113,7 @@ function buildOrgNameSearchOr(term: string): Prisma.InvestorOrganizationWhereInp
       { last_name: { contains: term, mode: "insensitive" } },
       { registration_number: { contains: term, mode: "insensitive" } },
       { legal_name_on_id: { contains: term, mode: "insensitive" } },
+      ...buildCorporateBusinessNameJsonFilters(term),
     ],
   };
 }
@@ -93,6 +126,7 @@ function buildIssuerOrgNameSearchOr(term: string): Prisma.IssuerOrganizationWher
       { middle_name: { contains: term, mode: "insensitive" } },
       { last_name: { contains: term, mode: "insensitive" } },
       { registration_number: { contains: term, mode: "insensitive" } },
+      ...buildCorporateBusinessNameJsonFilters(term),
     ],
   };
 }

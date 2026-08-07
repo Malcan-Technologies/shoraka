@@ -1,13 +1,34 @@
 import {
   CurlecGatewayAccount,
   GatewayPaymentPurpose,
+  GatewayPaymentStatus,
+  Prisma,
 } from "@prisma/client";
 import {
+  buildCorporateBusinessNameJsonFilters,
   buildGatewayPaymentSearchOr,
   matchGatewayAccountsFromSearch,
   matchPurposesFromSearch,
   parseSearchAmount,
 } from "./gateway-payment-list-search";
+
+function orgBusinessNameFilters(
+  orgClause: Prisma.GatewayPaymentWhereInput | undefined
+): Array<{ path?: string[]; string_contains?: string }> {
+  if (!orgClause || !("investor_organization" in orgClause)) return [];
+  const org = orgClause.investor_organization;
+  if (!org || typeof org !== "object" || !("OR" in org) || !Array.isArray(org.OR)) {
+    return [];
+  }
+  return org.OR.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || !("corporate_onboarding_data" in entry)) {
+      return [];
+    }
+    const json = entry.corporate_onboarding_data;
+    if (!json || typeof json !== "object") return [];
+    return [json as { path?: string[]; string_contains?: string }];
+  });
+}
 
 describe("gateway-payment-list-search", () => {
   describe("parseSearchAmount", () => {
@@ -57,6 +78,79 @@ describe("gateway-payment-list-search", () => {
     });
   });
 
+  describe("corporate businessName search", () => {
+    it("targets corporate_onboarding_data.basicInfo.businessName", () => {
+      const filters = buildCorporateBusinessNameJsonFilters("Acme Trading Sdn Bhd");
+      expect(filters.length).toBeGreaterThan(0);
+      expect(filters[0]?.corporate_onboarding_data.path).toEqual([
+        "basicInfo",
+        "businessName",
+      ]);
+    });
+
+    it("includes exact visible businessName text", () => {
+      const filters = buildCorporateBusinessNameJsonFilters("Acme Trading Sdn Bhd");
+      expect(
+        filters.some((f) => f.corporate_onboarding_data.string_contains === "Acme Trading Sdn Bhd")
+      ).toBe(true);
+    });
+
+    it("supports partial businessName", () => {
+      const filters = buildCorporateBusinessNameJsonFilters("Acme");
+      expect(
+        filters.some((f) => f.corporate_onboarding_data.string_contains === "Acme")
+      ).toBe(true);
+    });
+
+    it("includes case variants for case-insensitive matching on Prisma 5", () => {
+      const filters = buildCorporateBusinessNameJsonFilters("Acme Trading");
+      const values = filters.map((f) => f.corporate_onboarding_data.string_contains);
+      expect(values).toEqual(
+        expect.arrayContaining(["Acme Trading", "acme trading", "ACME TRADING"])
+      );
+    });
+
+    it("returns no JSON filters for blank/missing businessName search", () => {
+      expect(buildCorporateBusinessNameJsonFilters("")).toEqual([]);
+      expect(buildCorporateBusinessNameJsonFilters("   ")).toEqual([]);
+    });
+
+    it("embeds businessName JSON filters in investor and issuer org search", () => {
+      const or = buildGatewayPaymentSearchOr("Acme Trading");
+      const investor = or.find((clause) => "investor_organization" in clause);
+      const issuer = or.find((clause) => "issuer_organization" in clause);
+
+      const investorJson = orgBusinessNameFilters(investor);
+      expect(investorJson.length).toBeGreaterThan(0);
+      expect(investorJson[0]?.path).toEqual(["basicInfo", "businessName"]);
+
+      expect(issuer && "issuer_organization" in issuer).toBe(true);
+      const issuerOrg = issuer?.issuer_organization as { OR?: unknown[] } | undefined;
+      const issuerJson =
+        issuerOrg?.OR?.filter(
+          (entry) =>
+            entry &&
+            typeof entry === "object" &&
+            "corporate_onboarding_data" in entry
+        ) ?? [];
+      expect(issuerJson.length).toBeGreaterThan(0);
+    });
+
+    it("does not invent a match clause for unrelated text beyond normal OR search", () => {
+      const or = buildGatewayPaymentSearchOr("zzzz-no-such-business");
+      const investorJson = orgBusinessNameFilters(
+        or.find((clause) => "investor_organization" in clause)
+      );
+      // Conditions are still emitted; matching rows is a DB concern.
+      // Ensure path is correct and only the search term variants are used.
+      expect(
+        investorJson.every((f) => f.string_contains?.includes("zzzz-no-such-business") ||
+          f.string_contains?.includes("ZZZZ-NO-SUCH-BUSINESS") ||
+          f.string_contains?.includes("Zzzz-No-Such-Business"))
+      ).toBe(true);
+    });
+  });
+
   describe("buildGatewayPaymentSearchOr", () => {
     it("returns empty for blank search", () => {
       expect(buildGatewayPaymentSearchOr("   ")).toEqual([]);
@@ -86,6 +180,29 @@ describe("gateway-payment-list-search", () => {
             clause.purpose === GatewayPaymentPurpose.INVESTOR_DEPOSIT
         )
       ).toBe(true);
+    });
+
+    it("keeps businessName search combinable with status filter (AND at list layer)", () => {
+      const searchOr = buildGatewayPaymentSearchOr("Acme Trading");
+      const where: Prisma.GatewayPaymentWhereInput = {
+        status: { in: [GatewayPaymentStatus.NAME_CHECK_PENDING] },
+        OR: searchOr,
+      };
+      expect(where.status).toEqual({ in: [GatewayPaymentStatus.NAME_CHECK_PENDING] });
+      expect(where.OR?.some((clause) => "investor_organization" in clause)).toBe(true);
+      expect(orgBusinessNameFilters(where.OR?.find((c) => "investor_organization" in c))).not.toHaveLength(
+        0
+      );
+    });
+
+    it("keeps businessName search combinable with account filter (AND at list layer)", () => {
+      const searchOr = buildGatewayPaymentSearchOr("Acme Trading");
+      const where: Prisma.GatewayPaymentWhereInput = {
+        gatewayAccount: CurlecGatewayAccount.OPERATING,
+        OR: searchOr,
+      };
+      expect(where.gatewayAccount).toBe(CurlecGatewayAccount.OPERATING);
+      expect(where.OR?.some((clause) => "issuer_organization" in clause)).toBe(true);
     });
   });
 });
