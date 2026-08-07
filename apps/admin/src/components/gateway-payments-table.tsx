@@ -195,6 +195,23 @@ function GatewayPaymentsTableContent({
   const [currentPage, setCurrentPage] = useState(1);
   const [isSpinning, setIsSpinning] = useState(false);
 
+  // Restore list state when URL changes (shared links / browser back-forward).
+  useEffect(() => {
+    const nextFilter = isGatewayFilter(filterFromUrl) ? filterFromUrl : "all";
+    const nextAccount = isGatewayAccountFilter(accountFromUrl) ? accountFromUrl : "ALL";
+    const nextPurpose = isPurposeFilter(purposeFromUrl) ? purposeFromUrl : "all";
+    const nextQ = qFromUrl;
+
+    setFilter((prev) => (prev === nextFilter ? prev : nextFilter));
+    setGatewayAccount((prev) => (prev === nextAccount ? prev : nextAccount));
+    setPurpose((prev) => (prev === nextPurpose ? prev : nextPurpose));
+    setSearchInput((prev) => (prev === nextQ ? prev : nextQ));
+    setDebouncedSearch((prev) => {
+      const trimmed = nextQ.trim();
+      return prev === trimmed ? prev : trimmed;
+    });
+  }, [accountFromUrl, filterFromUrl, purposeFromUrl, qFromUrl]);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       setDebouncedSearch(searchInput.trim());
@@ -209,8 +226,20 @@ function GatewayPaymentsTableContent({
     if (purpose !== "all") params.set("purpose", purpose);
     if (debouncedSearch) params.set("q", debouncedSearch);
     const qs = params.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [debouncedSearch, filter, gatewayAccount, pathname, purpose, router]);
+    const next = qs ? `${pathname}?${qs}` : pathname;
+    const current = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+    if (next !== current) {
+      router.replace(next, { scroll: false });
+    }
+  }, [
+    debouncedSearch,
+    filter,
+    gatewayAccount,
+    pathname,
+    purpose,
+    router,
+    searchParams,
+  ]);
 
   useEffect(() => {
     setCurrentPage(1);
