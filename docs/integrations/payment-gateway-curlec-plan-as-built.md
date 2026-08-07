@@ -2,12 +2,16 @@
 
 Implementation snapshot (Jul 2026). Compare against the initial plan in `payment-gateway-curlec-plan.md`.
 
+> **Canonical AI / implementation context (preferred for assistants):**  
+> [`payment-gateway-curlec-ai-context.md`](./payment-gateway-curlec-ai-context.md)
+
 Technical reference for the shipped Curlec money-in integration: investor deposits, issuer onboarding fee, application processing fee, AML name checks, auto-refunds, ledger posting, and settlement reconciliation.
 
 - **Initial plan:** `payment-gateway-curlec-plan.md`
 - **Business as-built:** `payment-gateway-curlec-plan-business-as-built.md`
 - **Ops runbook:** `payment-gateway-curlec-ops-runbook.md`
 - **Recon dev testing:** `payment-gateway-curlec-recon-testing.md`
+- **AI context (canonical):** `payment-gateway-curlec-ai-context.md`
 
 ## Implementation status (Jul 2026)
 

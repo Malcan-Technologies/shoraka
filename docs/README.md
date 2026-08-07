@@ -67,6 +67,10 @@ Production deployment and operations:
 Third-party service integrations:
 
 - **[RegTank KYC Integration](./integrations/regtank-kyc-integration.md)** - KYC/KYB onboarding via RegTank
+- **[Curlec Gateway Payments — AI context](./integrations/payment-gateway-curlec-ai-context.md)** - Canonical Curlec money-in implementation reference for developers/AI
+- **[Curlec as-built (Jul 2026)](./integrations/payment-gateway-curlec-plan-as-built.md)** - Earlier as-built snapshot
+- **[Curlec ops runbook](./integrations/payment-gateway-curlec-ops-runbook.md)** - Operations runbook
+- **In-app Admin help:** Gateway Payments (`packages/help-content/markdown/admin-gateway-payments.md`)
 
 ### 🎨 Design
 
