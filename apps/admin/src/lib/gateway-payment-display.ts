@@ -18,15 +18,22 @@ export const PURPOSE_LABEL: Record<string, string> = {
   APPLICATION_PROCESSING_FEE: "Application Processing Fee",
 };
 
-/** Badge variant aligned with detail page status meaning. */
+/**
+ * Badge variant for payment status (list + detail).
+ * PAID is an intermediate Curlec-captured state, not the final Completed success.
+ */
 export function statusVariant(status: string) {
   if (status === "COMPLETED") return "success" as const;
   if (status === "HELD" || status === "FAILED") return "destructive" as const;
-  if (status === "NAME_CHECK_PENDING" || status === "REFUND_INITIATED") {
+  if (
+    status === "NAME_CHECK_PENDING" ||
+    status === "REFUND_INITIATED" ||
+    status === "PAID"
+  ) {
     return "warning" as const;
   }
   if (status === "REFUNDED" || status === "EXPIRED") return "muted" as const;
-  if (status === "CREATED" || status === "PAID") return "info" as const;
+  if (status === "CREATED") return "info" as const;
   return "outline" as const;
 }
 

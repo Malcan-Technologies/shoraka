@@ -30,13 +30,7 @@ export function getGatewayAccountDescription(account: CurlecGatewayAccount): str
   }
 }
 
-export function getGatewayAccountBadgeClassName(account: CurlecGatewayAccount): string {
-  switch (account) {
-    case "OPERATING":
-      return "border-transparent bg-status-submitted-bg text-status-submitted-text hover:bg-status-submitted-bg";
-    case "INVESTOR_POOL":
-      return "border-transparent bg-status-success-bg text-status-success-text hover:bg-status-success-bg";
-    default:
-      return "border-transparent bg-status-neutral-bg text-status-neutral-text hover:bg-status-neutral-bg";
-  }
+/** Subtle secondary badge — keeps status badges as the primary colour signal. */
+export function getGatewayAccountBadgeClassName(_account?: CurlecGatewayAccount): string {
+  return "border-border bg-muted/40 font-normal text-muted-foreground hover:bg-muted/40";
 }

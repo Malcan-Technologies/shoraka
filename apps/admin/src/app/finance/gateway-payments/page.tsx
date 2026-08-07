@@ -4,7 +4,7 @@ export default function GatewayPaymentsPage() {
   return (
     <GatewayPaymentsTable
       title="Gateway Payments"
-      description="Curlec money-in payments across investor deposits and issuer fees. Search by reference, organisation, purpose, or amount."
+      description="Curlec money-in payments across investor deposits and issuer fees."
     />
   );
 }
