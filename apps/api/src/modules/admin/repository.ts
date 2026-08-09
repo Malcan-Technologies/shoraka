@@ -1488,6 +1488,7 @@ export class AdminRepository {
   }): Promise<{
     organizations: {
       id: string;
+      displayReference: string | null;
       portal: "investor" | "issuer";
       type: "PERSONAL" | "COMPANY";
       name: string | null;
@@ -1545,6 +1546,7 @@ export class AdminRepository {
           const term = searchTerms[0];
           where.OR = [
             { name: { contains: term, mode: "insensitive" } },
+            { display_reference: { contains: term, mode: "insensitive" } },
             { registration_number: { contains: term, mode: "insensitive" } },
             { owner: { first_name: { contains: term, mode: "insensitive" } } },
             { owner: { last_name: { contains: term, mode: "insensitive" } } },
@@ -1555,6 +1557,7 @@ export class AdminRepository {
           where.AND = searchTerms.map((term) => ({
             OR: [
               { name: { contains: term, mode: "insensitive" } },
+              { display_reference: { contains: term, mode: "insensitive" } },
               { registration_number: { contains: term, mode: "insensitive" } },
               { owner: { first_name: { contains: term, mode: "insensitive" } } },
               { owner: { last_name: { contains: term, mode: "insensitive" } } },
@@ -1585,6 +1588,7 @@ export class AdminRepository {
     // Fetch from both tables based on portal filter
     let investorOrgs: Array<{
       id: string;
+      display_reference: string | null;
       type: OrganizationType;
       name: string | null;
       registration_number: string | null;
@@ -1601,6 +1605,7 @@ export class AdminRepository {
     }> = [];
     let issuerOrgs: Array<{
       id: string;
+      display_reference: string | null;
       type: OrganizationType;
       name: string | null;
       registration_number: string | null;
@@ -1692,6 +1697,7 @@ export class AdminRepository {
         const orgWithData = org as typeof org & { corporate_onboarding_data?: unknown };
         return {
           id: org.id,
+          displayReference: org.display_reference ?? null,
           portal: "investor" as const,
           type: org.type as "PERSONAL" | "COMPANY",
           name: org.name,
@@ -1729,6 +1735,7 @@ export class AdminRepository {
         const orgWithData = org as typeof org & { corporate_onboarding_data?: unknown };
         return {
           id: org.id,
+          displayReference: org.display_reference ?? null,
           portal: "issuer" as const,
           type: org.type as "PERSONAL" | "COMPANY",
           name: org.name,
@@ -1784,6 +1791,7 @@ export class AdminRepository {
     id: string
   ): Promise<{
     id: string;
+    display_reference: string | null;
     type: OrganizationType;
     name: string | null;
     registration_number: string | null;

@@ -55,6 +55,7 @@ import { RegTankAPIClient } from "../regtank/api-client";
 import { ensureRegTankFormId } from "../regtank/form-id";
 import type { RegTankIndividualOnboardingRequest } from "../regtank/types";
 import { listLatestCtosSubjectReportsForAdminOrg } from "../ctos/ctos-report-service";
+import { allocateDisplayReference } from "../../lib/display-reference";
 
 const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.AWS_REGION || "ap-southeast-5",
@@ -247,38 +248,83 @@ export class OrganizationService {
 
     logger.info({ userId, portalType, orgType, name: input.name }, "Creating organization");
 
-    // Create the organization
-    let organization: InvestorOrganization | IssuerOrganization;
+    const organization = await prisma.$transaction(async (tx) => {
+      if (portalType === "investor") {
+        const created = await this.repository.createInvestorOrganization(
+          {
+            ownerUserId: userId,
+            type: orgType,
+            name: input.name,
+            registrationNumber: input.registrationNumber,
+          },
+          tx
+        );
 
-    if (portalType === "investor") {
-      organization = await this.repository.createInvestorOrganization({
-        ownerUserId: userId,
-        type: orgType,
-        name: input.name,
-        registrationNumber: input.registrationNumber,
-      });
+        await this.repository.addOrganizationMember(
+          {
+            userId,
+            investorOrganizationId: created.id,
+            role: OrganizationMemberRole.ORGANIZATION_ADMIN,
+          },
+          tx
+        );
 
-      // Add owner as member with ORGANIZATION_ADMIN role
-      await this.repository.addOrganizationMember({
-        userId,
-        investorOrganizationId: organization.id,
-        role: OrganizationMemberRole.ORGANIZATION_ADMIN,
-      });
-    } else {
-      organization = await this.repository.createIssuerOrganization({
-        ownerUserId: userId,
-        type: orgType,
-        name: input.name,
-        registrationNumber: input.registrationNumber,
-      });
+        await allocateDisplayReference(
+          {
+            moduleCode: "IVT",
+            referenceDate: created.created_at,
+            entityType: "investor_organization",
+            entityId: created.id,
+            tx,
+          },
+          async (persistTx, reference) => {
+            await persistTx.investorOrganization.update({
+              where: { id: created.id },
+              data: { display_reference: reference },
+            });
+          }
+        );
 
-      // Add owner as member with ORGANIZATION_ADMIN role
-      await this.repository.addOrganizationMember({
-        userId,
-        issuerOrganizationId: organization.id,
-        role: OrganizationMemberRole.ORGANIZATION_ADMIN,
-      });
-    }
+        return tx.investorOrganization.findUniqueOrThrow({ where: { id: created.id } });
+      }
+
+      const created = await this.repository.createIssuerOrganization(
+        {
+          ownerUserId: userId,
+          type: orgType,
+          name: input.name,
+          registrationNumber: input.registrationNumber,
+        },
+        tx
+      );
+
+      await this.repository.addOrganizationMember(
+        {
+          userId,
+          issuerOrganizationId: created.id,
+          role: OrganizationMemberRole.ORGANIZATION_ADMIN,
+        },
+        tx
+      );
+
+      await allocateDisplayReference(
+        {
+          moduleCode: "ISS",
+          referenceDate: created.created_at,
+          entityType: "issuer_organization",
+          entityId: created.id,
+          tx,
+        },
+        async (persistTx, reference) => {
+          await persistTx.issuerOrganization.update({
+            where: { id: created.id },
+            data: { display_reference: reference },
+          });
+        }
+      );
+
+      return tx.issuerOrganization.findUniqueOrThrow({ where: { id: created.id } });
+    });
 
     logger.info(
       { organizationId: organization.id, portalType },

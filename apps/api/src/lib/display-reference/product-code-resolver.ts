@@ -9,6 +9,12 @@ export type ApplicationProductContext = {
   product_version: number | null;
 };
 
+export type NoteProductContext = {
+  id: string;
+  product_snapshot: Prisma.JsonValue | null;
+  source_application_id: string | null;
+};
+
 function asRecord(value: Prisma.JsonValue | null): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -32,6 +38,15 @@ function getSnapshotProductId(context: ApplicationProductContext): string | null
     return null;
   }
   return productId.trim();
+}
+
+function getNoteSnapshotProductCode(context: NoteProductContext): string | null {
+  const productSnapshot = asRecord(context.product_snapshot);
+  const code = productSnapshot?.product_code;
+  if (typeof code !== "string" || code.trim().length === 0) {
+    return null;
+  }
+  return normalizeAndValidateProductCode(code);
 }
 
 async function getProductCodeForVersion(
@@ -84,4 +99,28 @@ export async function resolveApplicationProductCode(
   }
 
   return null;
+}
+
+export async function resolveNoteProductCode(
+  db: Prisma.TransactionClient,
+  context: NoteProductContext
+): Promise<string | null> {
+  const snapshotCode = getNoteSnapshotProductCode(context);
+  if (snapshotCode) {
+    return snapshotCode;
+  }
+
+  if (!context.source_application_id) {
+    return null;
+  }
+
+  const sourceApplication = await db.application.findUnique({
+    where: { id: context.source_application_id },
+    select: { id: true, financing_type: true, product_version: true },
+  });
+  if (!sourceApplication) {
+    return null;
+  }
+
+  return resolveApplicationProductCode(db, sourceApplication);
 }

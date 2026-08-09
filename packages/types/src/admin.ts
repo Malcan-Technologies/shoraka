@@ -433,6 +433,7 @@ export interface OrganizationOwner {
 
 export interface OrganizationResponse {
   id: string;
+  displayReference: string | null;
   portal: PortalType;
   type: OrganizationTypeEnum;
   name: string | null;
@@ -559,6 +560,7 @@ export interface KycResponse {
 
 export interface OrganizationDetailResponse {
   id: string;
+  displayReference: string | null;
   portal: PortalType;
   type: OrganizationTypeEnum;
   name: string | null;

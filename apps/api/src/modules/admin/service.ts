@@ -2420,6 +2420,7 @@ export class AdminService {
   }): Promise<{
     organizations: {
       id: string;
+      displayReference: string | null;
       portal: "investor" | "issuer";
       type: "PERSONAL" | "COMPANY";
       name: string | null;
@@ -2482,6 +2483,7 @@ export class AdminService {
     id: string
   ): Promise<{
     id: string;
+    displayReference: string | null;
     portal: "investor" | "issuer";
     type: "PERSONAL" | "COMPANY";
     name: string | null;
@@ -2757,6 +2759,7 @@ export class AdminService {
 
     return {
       id: org.id,
+      displayReference: org.display_reference ?? null,
       portal,
       type: org.type as "PERSONAL" | "COMPANY",
       name: org.name,
