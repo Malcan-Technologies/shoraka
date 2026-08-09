@@ -159,6 +159,122 @@ describe("legal document acceptance service", () => {
     expect(status.all_accepted).toBe(true);
   });
 
+  it("reports no required documents when nothing is published for onboarding", async () => {
+    jest.spyOn(legalDocumentRepository, "findPublishedByTypeAndAudiences").mockResolvedValue(null);
+    (prisma.issuerOrganization.findFirst as jest.Mock).mockResolvedValue({
+      id: "org1",
+      owner_user_id: "u1",
+      tnc_accepted: false,
+    });
+
+    const status = await legalDocumentAcceptanceService.hasCompletedRequiredAcceptances(
+      "u1",
+      "org1",
+      "ISSUER"
+    );
+
+    expect(status).toEqual({
+      hasRequiredDocuments: false,
+      allAccepted: true,
+    });
+  });
+
+  it("blocks accept-tnc readiness when a required published document is not accepted", async () => {
+    jest
+      .spyOn(legalDocumentRepository, "findPublishedByTypeAndAudiences")
+      .mockImplementation(async (type) =>
+        type === "PDPA_NOTICE_AND_CONSENT" ? (publishedVersion() as never) : null
+      );
+    (prisma.issuerOrganization.findFirst as jest.Mock).mockResolvedValue({
+      id: "org1",
+      owner_user_id: "u1",
+      tnc_accepted: false,
+    });
+    (prisma.legalDocumentAcceptance.findFirst as jest.Mock).mockImplementation(
+      async (args: { where: { status?: string } }) => {
+        if (args.where.status === "ACCEPTED") return null;
+        return { status: "OPENED", opened_at: new Date() };
+      }
+    );
+
+    const status = await legalDocumentAcceptanceService.hasCompletedRequiredAcceptances(
+      "u1",
+      "org1",
+      "ISSUER"
+    );
+
+    expect(status.hasRequiredDocuments).toBe(true);
+    expect(status.allAccepted).toBe(false);
+  });
+
+  it("allows accept-tnc readiness when all currently required published documents are accepted", async () => {
+    jest
+      .spyOn(legalDocumentRepository, "findPublishedByTypeAndAudiences")
+      .mockImplementation(async (type) =>
+        type === "PDPA_NOTICE_AND_CONSENT" ? (publishedVersion() as never) : null
+      );
+    (prisma.issuerOrganization.findFirst as jest.Mock).mockResolvedValue({
+      id: "org1",
+      owner_user_id: "u1",
+      tnc_accepted: false,
+    });
+    (prisma.legalDocumentAcceptance.findFirst as jest.Mock).mockResolvedValue({
+      status: "ACCEPTED",
+      accepted_at: new Date(),
+    });
+
+    const status = await legalDocumentAcceptanceService.hasCompletedRequiredAcceptances(
+      "u1",
+      "org1",
+      "ISSUER"
+    );
+
+    expect(status).toEqual({
+      hasRequiredDocuments: true,
+      allAccepted: true,
+    });
+  });
+
+  it("does not require unpublished or non-required document types for onboarding readiness", async () => {
+    const findPublished = jest
+      .spyOn(legalDocumentRepository, "findPublishedByTypeAndAudiences")
+      .mockImplementation(async (type) =>
+        type === "TERMS_OF_USE"
+          ? (publishedVersion({
+              id: "ver-tou",
+              legal_document: {
+                ...publishedVersion().legal_document,
+                type: "TERMS_OF_USE",
+                title: "Terms",
+              },
+            }) as never)
+          : null
+      );
+    (prisma.investorOrganization.findFirst as jest.Mock).mockResolvedValue({
+      id: "org2",
+      owner_user_id: "u2",
+      tnc_accepted: false,
+    });
+    (prisma.legalDocumentAcceptance.findFirst as jest.Mock).mockResolvedValue({
+      status: "ACCEPTED",
+      accepted_at: new Date(),
+    });
+
+    const status = await legalDocumentAcceptanceService.hasCompletedRequiredAcceptances(
+      "u2",
+      "org2",
+      "INVESTOR"
+    );
+
+    expect(findPublished).toHaveBeenCalled();
+    expect(status).toEqual({
+      hasRequiredDocuments: true,
+      allAccepted: true,
+    });
+    expect(status.hasRequiredDocuments).toBe(true);
+    expect(findPublished.mock.calls.length).toBeGreaterThan(1);
+  });
+
   it("rejects acceptance before open when open-before-accept is required", async () => {
     (prisma.issuerOrganization.findFirst as jest.Mock).mockResolvedValue({
       id: "org1",

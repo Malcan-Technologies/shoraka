@@ -737,7 +737,15 @@ export class OrganizationService {
       audience
     );
 
-    if (legalStatus.hasRequiredDocuments && !legalStatus.allAccepted) {
+    if (!legalStatus.hasRequiredDocuments) {
+      throw new AppError(
+        400,
+        "LEGAL_DOCUMENTS_UNAVAILABLE",
+        "Required legal documents have not been published yet. Onboarding cannot continue until they are available."
+      );
+    }
+
+    if (!legalStatus.allAccepted) {
       throw new AppError(
         400,
         "LEGAL_DOCUMENTS_REQUIRED",
