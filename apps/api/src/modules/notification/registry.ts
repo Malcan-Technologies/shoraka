@@ -1,6 +1,6 @@
 import { PortalType } from "../../lib/http/url-utils";
 import { PortalContext } from "../../lib/http/portal-context";
-import { formatPhaseDeadlineDateDDMMYYYY } from "@cashsouk/types";
+import { formatApplicationNotificationRef, formatPhaseDeadlineDateDDMMYYYY } from "@cashsouk/types";
 
 /**
  * Registry of all system notification types to ensure type safety
@@ -99,24 +99,30 @@ export interface NotificationPayloads {
   };
   [NotificationTypeIds.APPLICATION_AMENDMENTS_REQUESTED]: {
     applicationId: string;
+    displayReference?: string | null;
     amendmentCount: number;
   };
   [NotificationTypeIds.ACCEPTANCE_DOCUMENT_CHANGES_REQUESTED]: {
     applicationId: string;
+    displayReference?: string | null;
   };
   [NotificationTypeIds.APPLICATION_APPROVED]: {
     applicationId: string;
+    displayReference?: string | null;
   };
   [NotificationTypeIds.APPLICATION_REJECTED]: {
     applicationId: string;
+    displayReference?: string | null;
   };
   [NotificationTypeIds.CONTRACT_OFFER_SENT]: {
     applicationId: string;
+    displayReference?: string | null;
     offeredFacility: number;
     expiresAt?: string | null;
   };
   [NotificationTypeIds.INVOICE_OFFER_SENT]: {
     applicationId: string;
+    displayReference?: string | null;
     invoiceId: string;
     invoiceNumber?: string | null;
     offeredAmount: number;
@@ -143,13 +149,16 @@ export interface NotificationPayloads {
   };
   [NotificationTypeIds.APPLICATION_RESUBMITTED_CONFIRMATION]: {
     applicationId: string;
+    displayReference?: string | null;
     reviewCycle: number;
   };
   [NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION]: {
     applicationId: string;
+    displayReference?: string | null;
   };
   [NotificationTypeIds.APPLICATION_COMPLETED]: {
     applicationId: string;
+    displayReference?: string | null;
   };
   [NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
     issuerOrganizationId: string;
@@ -230,8 +239,14 @@ export interface NotificationTemplate<T extends NotificationTypeId> {
   portal?: PortalType | ((data: NotificationPayloads[T]) => PortalType);
 }
 
-function getShortApplicationRef(applicationId: string): string {
-  return `#${applicationId.slice(-8).toUpperCase()}`;
+function getApplicationNotificationRef(data: {
+  applicationId: string;
+  displayReference?: string | null;
+}): string {
+  return formatApplicationNotificationRef({
+    id: data.applicationId,
+    displayReference: data.displayReference,
+  });
 }
 
 function formatDateDDMMYYYY(value: string | Date): string {
@@ -295,33 +310,33 @@ export const NOTIFICATION_TEMPLATES: {
   [NotificationTypeIds.APPLICATION_AMENDMENTS_REQUESTED]: {
     title: 'Amendment Requested',
     message: (data) =>
-      `Your application ${getShortApplicationRef(data.applicationId)} requires updates. ${data.amendmentCount} amendment item(s) were requested by the reviewer.`,
+      `Your application ${getApplicationNotificationRef(data)} requires updates. ${data.amendmentCount} amendment item(s) were requested by the reviewer.`,
     linkPath: (data) => `/applications/${data.applicationId}/edit`,
     portal: 'issuer',
   },
   [NotificationTypeIds.ACCEPTANCE_DOCUMENT_CHANGES_REQUESTED]: {
     title: 'Acceptance Documents Need Updates',
     message: (data) =>
-      `A reviewer requested updates to acceptance documents on application ${getShortApplicationRef(data.applicationId)}. Open Review Offer to see which files to replace.`,
+      `A reviewer requested updates to acceptance documents on application ${getApplicationNotificationRef(data)}. Open Review Offer to see which files to replace.`,
     linkPath: () => `/applications`,
     portal: 'issuer',
   },
   [NotificationTypeIds.APPLICATION_APPROVED]: {
     title: 'Application Approved',
-    message: (data) => `Your application ${getShortApplicationRef(data.applicationId)} has been approved.`,
+    message: (data) => `Your application ${getApplicationNotificationRef(data)} has been approved.`,
     linkPath: () => `/applications`,
     portal: 'issuer',
   },
   [NotificationTypeIds.APPLICATION_REJECTED]: {
     title: 'Application Rejected',
-    message: (data) => `Your application ${getShortApplicationRef(data.applicationId)} has been rejected.`,
+    message: (data) => `Your application ${getApplicationNotificationRef(data)} has been rejected.`,
     linkPath: () => `/applications`,
     portal: 'issuer',
   },
   [NotificationTypeIds.CONTRACT_OFFER_SENT]: {
     title: 'Contract Offer Received',
     message: (data) =>
-      `A contract offer of ${data.offeredFacility.toLocaleString()} has been sent to your application ${getShortApplicationRef(data.applicationId)}.${data.expiresAt ? ` It expires on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.` : ''}`,
+      `A contract offer of ${data.offeredFacility.toLocaleString()} has been sent to your application ${getApplicationNotificationRef(data)}.${data.expiresAt ? ` It expires on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.` : ''}`,
     linkPath: () => `/applications`,
     portal: 'issuer',
   },
@@ -366,19 +381,19 @@ export const NOTIFICATION_TEMPLATES: {
   [NotificationTypeIds.APPLICATION_RESUBMITTED_CONFIRMATION]: {
     title: 'Application Resubmitted',
     message: (data) =>
-      `Your application ${getShortApplicationRef(data.applicationId)} was successfully resubmitted for review (review cycle ${data.reviewCycle}).`,
+      `Your application ${getApplicationNotificationRef(data)} was successfully resubmitted for review (review cycle ${data.reviewCycle}).`,
     linkPath: () => `/applications`,
     portal: 'issuer',
   },
   [NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION]: {
     title: 'Application Withdrawn',
-    message: (data) => `Your application ${getShortApplicationRef(data.applicationId)} has been withdrawn successfully.`,
+    message: (data) => `Your application ${getApplicationNotificationRef(data)} has been withdrawn successfully.`,
     linkPath: (data) => `/applications/${data.applicationId}`,
     portal: 'issuer',
   },
   [NotificationTypeIds.APPLICATION_COMPLETED]: {
     title: 'Application Completed',
-    message: (data) => `Your application ${getShortApplicationRef(data.applicationId)} has been completed successfully.`,
+    message: (data) => `Your application ${getApplicationNotificationRef(data)} has been completed successfully.`,
     linkPath: (data) => `/applications/${data.applicationId}`,
     portal: 'issuer',
   },

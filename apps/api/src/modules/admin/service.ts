@@ -555,6 +555,30 @@ export class AdminService {
     return { deletedRoleKey: role.key as AdminRoleKey };
   }
 
+  private async enrichApplicationNotificationPayload<T extends NotificationTypeId>(
+    applicationId: string,
+    payload: NotificationPayloads[T]
+  ): Promise<NotificationPayloads[T]> {
+    const record = payload as NotificationPayloads[T] & {
+      applicationId?: string;
+      displayReference?: string | null;
+    };
+    if (!record.applicationId) {
+      return payload;
+    }
+    if (typeof record.displayReference === "string" && record.displayReference.trim().length > 0) {
+      return payload;
+    }
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { display_reference: true },
+    });
+    return {
+      ...payload,
+      displayReference: application?.display_reference ?? null,
+    };
+  }
+
   private async sendIssuerNotification<T extends NotificationTypeId>(
     applicationId: string,
     typeId: T,
@@ -580,12 +604,14 @@ export class AdminService {
       ? this.notificationService.sendTypedPlatformOnly.bind(this.notificationService)
       : this.notificationService.sendTyped.bind(this.notificationService);
 
+    const enrichedPayload = await this.enrichApplicationNotificationPayload(applicationId, payload);
+
     const results = await Promise.all(
       recipientUserIds.map((userId) =>
         send(
           userId,
           typeId,
-          payload,
+          enrichedPayload,
           `app:${applicationId}:notif:${String(typeId)}:user:${userId}:${idempotencySuffix}`
         )
       )
@@ -2694,6 +2720,7 @@ export class AdminService {
             orderBy: { created_at: "desc" },
             select: {
               id: true,
+              display_reference: true,
               status: true,
               financing_type: true,
               submitted_at: true,
@@ -2711,6 +2738,7 @@ export class AdminService {
             orderBy: { created_at: "desc" },
             select: {
               id: true,
+              display_reference: true,
               status: true,
               created_at: true,
               updated_at: true,
@@ -2981,6 +3009,7 @@ export class AdminService {
           const financingType = isPlainObjectRecord(app.financing_type) ? app.financing_type : null;
           return {
             id: app.id,
+            displayReference: app.display_reference ?? null,
             status: app.status,
             productId:
               typeof financingType?.product_id === "string" && financingType.product_id.trim().length > 0
@@ -2998,6 +3027,7 @@ export class AdminService {
           const value = Number(details?.value ?? details?.approved_facility ?? 0);
           return {
             id: contract.id,
+            displayReference: contract.display_reference ?? null,
             title: typeof details?.title === "string" ? details.title : null,
             contractNumber: typeof details?.number === "string" ? details.number : null,
             status: contract.status,

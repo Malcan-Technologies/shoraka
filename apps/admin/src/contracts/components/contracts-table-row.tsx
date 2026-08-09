@@ -2,6 +2,7 @@ import * as React from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { formatDistanceToNow } from "date-fns";
 import type { ContractListItem } from "@cashsouk/types";
+import { formatContractReference } from "@cashsouk/types";
 import { BuildingOffice2Icon, DocumentTextIcon, EyeIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { ApplicationStatusBadge } from "@/components/application-review";
@@ -16,8 +17,14 @@ export function ContractsTableRow({ contract, onViewDetails }: ContractsTableRow
   return (
     <TableRow className="odd:bg-muted/40 hover:bg-muted">
       <TableCell className="min-w-0 overflow-hidden truncate font-mono text-xs">
-        <span className="block truncate" title={contract.id}>
-          {contract.id.slice(-8).toUpperCase()}
+        <span
+          className="block truncate"
+          title={contract.displayReference ?? contract.id}
+        >
+          {formatContractReference({
+            displayReference: contract.displayReference,
+            id: contract.id,
+          })}
         </span>
       </TableCell>
 

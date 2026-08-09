@@ -17,6 +17,7 @@ import {
 } from "@/lib/issuer-pending-actions";
 import { RecentSectionHeader } from "@/components/dashboard/recent-section-header";
 import { ApplyForFinancingButton } from "@/components/apply-for-financing-button";
+import { formatApplicationReference } from "@cashsouk/types";
 
 const MAX_ROWS = 4;
 
@@ -35,7 +36,10 @@ function statusTone(app: NormalizedApplication): string {
 }
 
 function displayId(app: NormalizedApplication): string {
-  return "#" + app.id.slice(-8).toUpperCase();
+  return formatApplicationReference({
+    displayReference: app.displayReference,
+    id: app.id,
+  });
 }
 
 export function RecentApplicationsCard() {

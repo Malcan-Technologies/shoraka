@@ -11,6 +11,7 @@ import {
   buildDateFilter,
 } from "./base";
 import type { ActivityReferences } from "@cashsouk/types";
+import { formatApplicationReference } from "@cashsouk/types";
 import { ApplicationLogEventType } from "../../applications/logs/types";
 
 const CONTRACT_EVENT_TYPES = new Set<string>([
@@ -206,7 +207,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       if (!this.readDisplayString(nextMetadata.application_reference)) {
         nextMetadata.application_reference =
           this.readDisplayString(application.display_reference) ??
-          this.formatApplicationReference(application.id);
+          formatApplicationReference({ id: application.id });
       }
 
       if (CONTRACT_EVENT_TYPES.has(record.event_type)) {
@@ -398,7 +399,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
     if (record.application_id) {
       references.applicationId = record.application_id;
       references.applicationReference =
-        applicationReference ?? this.formatApplicationReference(record.application_id);
+        applicationReference ?? formatApplicationReference({ id: record.application_id });
     }
 
     if (CONTRACT_EVENT_TYPES.has(record.event_type)) {
@@ -479,10 +480,6 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
 
   private capitalize(value: string) {
     return value.charAt(0).toUpperCase() + value.slice(1);
-  }
-
-  private formatApplicationReference(applicationId: string) {
-    return `#${applicationId.slice(-8).toUpperCase()}`;
   }
 
   buildPresentation(eventType: string, metadata?: Record<string, unknown>) {

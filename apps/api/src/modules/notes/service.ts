@@ -1417,6 +1417,7 @@ export class NoteService {
         const note = notesByInvoiceId.get(invoice.id) ?? null;
         return {
           invoiceId: invoice.id,
+          displayReference: invoice.display_reference ?? null,
           applicationId: invoice.application_id,
           contractId: invoice.contract_id ?? invoice.application.contract_id,
           issuerOrganizationId: invoice.application.issuer_organization_id,

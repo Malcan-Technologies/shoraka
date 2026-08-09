@@ -47,6 +47,7 @@ import {
   formatMoney,
 } from "@/components/financing/utils";
 import { buildInvoiceFeeDisplay, money } from "@/lib/facility-fee-display";
+import { formatInvoiceReference } from "@cashsouk/types";
 
 export default function InvoiceDetailPage() {
   const params = useParams();
@@ -200,8 +201,17 @@ export default function InvoiceDetailPage() {
     );
   }
 
-  const invoiceNumber =
-    row?.invoiceNumber ?? invDetails?.number ?? invoiceId.slice(0, 8).toUpperCase();
+  const invoiceBusinessNumber =
+    row?.invoiceNumber ?? invDetails?.number ?? null;
+  const cashSoukReference = formatInvoiceReference({
+    displayReference:
+      row?.displayReference ??
+      (invoiceRecord as { displayReference?: string | null } | undefined)?.displayReference ??
+      (invoiceRecord as { display_reference?: string | null } | undefined)?.display_reference ??
+      null,
+    businessNumber: invoiceBusinessNumber != null ? String(invoiceBusinessNumber) : null,
+    id: invoiceId,
+  });
   const customerName = row?.customerName ?? null;
   const hideFeesBeforeAcceptance = offerStatus === "Offer received";
   const showFeesCard =
@@ -220,10 +230,10 @@ export default function InvoiceDetailPage() {
               Financing
             </Link>
             <span aria-hidden>›</span>
-            <span className="text-foreground">Invoice {displayCell(invoiceNumber)}</span>
+            <span className="text-foreground">Invoice {displayCell(invoiceBusinessNumber ?? cashSoukReference)}</span>
           </nav>
         }
-        title={`Invoice ${displayCell(invoiceNumber)}`}
+        title={displayCell(invoiceBusinessNumber ?? cashSoukReference)}
         status={
           <span className="flex flex-wrap items-center gap-2">
             <IssuerFinancingStatusBadge kind={badgeKind} />
@@ -338,7 +348,8 @@ export default function InvoiceDetailPage() {
           </div>
           <KeyValueGrid
             items={[
-              { label: "Invoice number", value: displayCell(invoiceNumber) },
+              { label: "CashSouk Reference", value: displayCell(cashSoukReference) },
+              { label: "Invoice number", value: displayCell(invoiceBusinessNumber) },
               { label: "Customer", value: displayCell(customerName) },
               { label: "Submission date", value: formatDate(row?.submissionDate) },
               {

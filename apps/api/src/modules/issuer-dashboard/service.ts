@@ -60,6 +60,7 @@ export type IssuerDashboardNoteDto = {
 
 export type IssuerDashboardInvoiceDto = {
   id: string;
+  displayReference: string | null;
   applicationId: string;
   productId: string;
   contractId: string | null;
@@ -78,6 +79,7 @@ export type IssuerDashboardInvoiceDto = {
 
 export type IssuerDashboardContractDto = {
   id: string;
+  displayReference: string | null;
   applicationId: string;
   productId: string;
   /** JSON-serialized contract row for issuer offer modal (dates as ISO strings). */
@@ -442,6 +444,7 @@ export class IssuerDashboardService {
 
       contractsOut.push({
         id: c.id,
+        displayReference: c.display_reference ?? null,
         applicationId: primaryApp.id,
         productId,
         contractForModal: jsonForModal(c),
@@ -506,6 +509,7 @@ export class IssuerDashboardService {
 
         invoicesOut.push({
           id: inv.id,
+          displayReference: inv.display_reference ?? null,
           applicationId: app.id,
           productId,
           contractId: inv.contract_id,

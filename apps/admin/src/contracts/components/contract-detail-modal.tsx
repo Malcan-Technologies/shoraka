@@ -7,7 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@cashsouk/ui";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
-import { formatPhaseDeadlineAbsolute } from "@cashsouk/types";
+import { formatPhaseDeadlineAbsolute, formatApplicationReference, formatContractReference } from "@cashsouk/types";
 import { ApplicationStatusBadge } from "@/components/application-review";
 import { formatFileSize } from "@/components/application-review/review-section-styles";
 import {
@@ -267,9 +267,27 @@ export function ContractDetailView({ contractId }: ContractDetailViewProps) {
                         </div>
                         <div>
                           <h2 className="text-xl font-bold">
-                            {data.title || data.contractNumber || data.id.slice(-8).toUpperCase()}
+                            {data.title || "Contract"}
                           </h2>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="mt-1 space-y-0.5 text-sm text-muted-foreground">
+                            <p>
+                              <span className="font-medium text-foreground">CashSouk Reference:</span>{" "}
+                              <span className="font-mono">
+                                {formatContractReference({
+                                  displayReference: data.displayReference,
+                                  businessNumber: data.contractNumber,
+                                  id: data.id,
+                                })}
+                              </span>
+                            </p>
+                            {data.contractNumber ? (
+                              <p>
+                                <span className="font-medium text-foreground">Contract Number:</span>{" "}
+                                {data.contractNumber}
+                              </p>
+                            ) : null}
+                          </div>
+                          <div className="flex items-center gap-2 mt-2">
                             <ApplicationStatusBadge status={data.status} />
                           </div>
                         </div>
@@ -352,7 +370,7 @@ export function ContractDetailView({ contractId }: ContractDetailViewProps) {
                           label="Note ID"
                           value={note.id}
                           href={`/notes/${encodeURIComponent(note.id)}`}
-                          display={`${note.noteReference} (${note.id})`}
+                          display={`${note.noteReference}`}
                         />
                       ))
                     ) : (
@@ -606,8 +624,11 @@ export function ContractDetailView({ contractId }: ContractDetailViewProps) {
                         ) : (
                           data.applications.map((application) => (
                             <TableRow key={application.id} className="odd:bg-muted/40 hover:bg-muted">
-                              <TableCell className="text-sm font-medium pl-6">
-                                {application.id.slice(-8).toUpperCase()}
+                              <TableCell className="text-sm font-medium pl-6 font-mono">
+                                {formatApplicationReference({
+                                  displayReference: application.displayReference,
+                                  id: application.id,
+                                })}
                               </TableCell>
                               <TableCell className="text-sm font-semibold">
                                 {formatCurrency(application.requestedAmount)}

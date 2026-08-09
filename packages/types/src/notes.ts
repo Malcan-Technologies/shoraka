@@ -932,6 +932,7 @@ export interface ExportInvestorBalanceStatementParams {
 
 export interface EligibleNoteInvoice {
   invoiceId: string;
+  displayReference: string | null;
   applicationId: string;
   contractId: string | null;
   issuerOrganizationId: string;

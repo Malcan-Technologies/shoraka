@@ -312,16 +312,38 @@ export class ApplicationService {
     idempotencySuffix: string
   ) {
     const recipientUserIds = await getIssuerRecipientUserIdsForApplication(applicationId);
+    const enrichedPayload = await this.enrichApplicationNotificationPayload(applicationId, payload);
     await Promise.all(
       recipientUserIds.map((userId) =>
         this.notificationService.sendTyped(
           userId,
           typeId as never,
-          payload as never,
+          enrichedPayload as never,
           `app:${applicationId}:notif:${typeId}:user:${userId}:${idempotencySuffix}`
         )
       )
     );
+  }
+
+  private async enrichApplicationNotificationPayload(
+    applicationId: string,
+    payload: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    if (!("applicationId" in payload)) {
+      return payload;
+    }
+    const displayReference = payload.displayReference;
+    if (typeof displayReference === "string" && displayReference.trim().length > 0) {
+      return payload;
+    }
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { display_reference: true },
+    });
+    return {
+      ...payload,
+      displayReference: application?.display_reference ?? null,
+    };
   }
 
   private async syncApplicationGuarantors(

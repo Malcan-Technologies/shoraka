@@ -2462,6 +2462,7 @@ export class AdminRepository {
           orderBy: { created_at: "desc" },
           select: {
             id: true,
+            display_reference: true,
             status: true,
             submitted_at: true,
             updated_at: true,
@@ -2520,6 +2521,7 @@ export class AdminRepository {
 
       return {
         id: application.id,
+        displayReference: application.display_reference ?? null,
         productId:
           typeof (application.financing_type as Record<string, unknown> | null)?.product_id === "string"
             ? ((application.financing_type as Record<string, unknown>).product_id as string)

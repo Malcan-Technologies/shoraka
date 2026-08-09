@@ -19,6 +19,7 @@ import {
   type OfferStatus,
 } from "@/lib/offer-utils";
 import { cn } from "@/lib/utils";
+import { formatInvoiceReference } from "@cashsouk/types";
 import { FinancingKpiTile } from "./financing-kpi-strip";
 import { FinancingPercentMark } from "./financing-percent-mark";
 import {
@@ -178,6 +179,11 @@ export function DashboardInvoiceCard({
   });
   const showFeeSummary = feeDisplay.phase !== "pending" || offerStatus === "Offer received";
   const hideFeesBeforeAcceptance = offerStatus === "Offer received";
+  const cashSoukReference = formatInvoiceReference({
+    displayReference: row.displayReference,
+    businessNumber: row.invoiceNumber,
+    id: row.id,
+  });
   const reviewOfferVisible = shouldShowIssuerReviewOfferCta({
     status: offerStatus === "Offer received" ? "OFFER_SENT" : offerStatus,
     offer_details: offerDetails,
@@ -203,14 +209,19 @@ export function DashboardInvoiceCard({
             <DocumentTextIcon className="h-5 w-5 shrink-0 text-muted-foreground" />
             <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
               <p className="min-w-0 max-w-full truncate leading-5">
-                <span className="text-sm font-normal leading-5 text-foreground">Invoice no: </span>
+                <span className="text-sm font-normal leading-5 text-foreground">Reference: </span>
                 <Link
                   href={`/financing/invoices/${row.id}`}
                   className="text-sm font-semibold leading-5 text-foreground underline-offset-4 hover:underline"
                 >
-                  {displayCell(row.invoiceNumber)}
+                  {displayCell(cashSoukReference)}
                 </Link>
               </p>
+              {row.invoiceNumber ? (
+                <p className="min-w-0 max-w-full truncate text-xs text-muted-foreground">
+                  Invoice no: {displayCell(row.invoiceNumber)}
+                </p>
+              ) : null}
               <IssuerFinancingStatusBadge kind={badgeKind} />
               <InvoiceScopeBadge contractId={row.contractId} />
               <OfferStatusBadge offerStatus={offerStatus} />

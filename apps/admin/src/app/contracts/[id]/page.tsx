@@ -3,23 +3,33 @@
 import { useEffect } from "react";
 
 import { useHeader } from "@cashsouk/ui";
+import { formatContractReference } from "@cashsouk/types";
 
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import { ContractDetailView } from "@/contracts/components/contract-detail-modal";
 import { RequirePermission } from "@/components/require-permission";
+import { useContractDetail } from "@/contracts/hooks/use-contract-detail";
 
 export default function ContractDetailPage() {
   const { setTitle } = useHeader();
   const router = useRouter();
   const params = useParams();
   const contractId = params.id as string;
+  const { data } = useContractDetail(contractId);
 
   useEffect(() => {
-    setTitle(`Contract ${contractId.slice(-8).toUpperCase()}`);
+    const label = data
+      ? formatContractReference({
+          displayReference: data.displayReference,
+          businessNumber: data.contractNumber,
+          id: data.id,
+        })
+      : contractId.slice(-8).toUpperCase();
+    setTitle(`Contract ${label}`);
     return () => setTitle("");
-  }, [setTitle, contractId]);
+  }, [setTitle, contractId, data]);
 
   return (
     <RequirePermission permission="contracts.view">

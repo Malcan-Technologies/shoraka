@@ -25,6 +25,7 @@ export type IssuerDashboardNote = {
 
 export type IssuerDashboardInvoice = {
   id: string;
+  displayReference: string | null;
   applicationId: string;
   productId: string;
   contractId: string | null;
@@ -42,6 +43,7 @@ export type IssuerDashboardInvoice = {
 
 export type IssuerDashboardContract = {
   id: string;
+  displayReference: string | null;
   applicationId: string;
   productId: string;
   contractForModal: unknown;

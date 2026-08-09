@@ -13,6 +13,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import type { WithdrawalStatus } from "@cashsouk/types";
+import { formatWithdrawalReference } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -185,7 +186,10 @@ export default function InvestorWithdrawalsPage() {
                                   href={`/finance/investor-withdrawals/${item.withdrawalId}`}
                                   className="hover:text-primary hover:underline"
                                 >
-                                  {item.withdrawalId.slice(0, 8)}…
+                                  {formatWithdrawalReference({
+                                    displayReference: item.displayReference,
+                                    id: item.withdrawalId,
+                                  })}
                                 </Link>
                               </TableCell>
                               <TableCell>{item.investorOrganizationName ?? "—"}</TableCell>

@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { format, formatDistanceToNowStrict } from "date-fns";
+import { formatSettlementReference } from "@cashsouk/types";
 import {
   ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
@@ -171,8 +172,11 @@ export default function ServiceFeeTrusteeLettersPage() {
                               </TableCell>
                               <TableCell>{item.issuerOrganizationName ?? "—"}</TableCell>
                               <TableCell>
-                                <span className="break-all font-mono text-[11px] text-muted-foreground">
-                                  {item.settlementId}
+                                <span className="font-mono text-[11px] text-muted-foreground">
+                                  {formatSettlementReference({
+                                    displayReference: item.displayReference,
+                                    id: item.settlementId,
+                                  })}
                                 </span>
                               </TableCell>
                               <TableCell className="text-right tabular-nums">
