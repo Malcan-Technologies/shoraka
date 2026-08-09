@@ -5843,6 +5843,7 @@ export class AdminService {
   async listApplications(params: GetAdminApplicationsQuery): Promise<{
     applications: {
       id: string;
+      displayReference: string | null;
       issuerOrganizationName: string | null;
       financingTypeLabel: string;
       financingStructureLabel: string;
@@ -5960,6 +5961,7 @@ export class AdminService {
   async listContracts(params: GetAdminContractsQuery): Promise<{
     contracts: {
       id: string;
+      displayReference: string | null;
       contractNumber: string | null;
       title: string | null;
       issuerOrganizationName: string | null;
@@ -6224,8 +6226,29 @@ export class AdminService {
       });
     }
 
-    return {
+    const contractWithDisplayReference = applicationWithIssuerExtras.contract
+      ? {
+          ...applicationWithIssuerExtras.contract,
+          displayReference: applicationWithIssuerExtras.contract.display_reference ?? null,
+          invoices: (applicationWithIssuerExtras.contract.invoices ?? []).map((invoice) => ({
+            ...invoice,
+            displayReference: invoice.display_reference ?? null,
+          })),
+        }
+      : null;
+    const invoicesWithDisplayReference = (applicationWithIssuerExtras.invoices ?? []).map((invoice) => ({
+      ...invoice,
+      displayReference: invoice.display_reference ?? null,
+    }));
+    const applicationWithDisplayReference = {
       ...applicationWithIssuerExtras,
+      displayReference: applicationWithIssuerExtras.display_reference ?? null,
+      contract: contractWithDisplayReference,
+      invoices: invoicesWithDisplayReference,
+    };
+
+    return {
+      ...applicationWithDisplayReference,
       processingFeePaid,
       people: partyBuild.people,
       directorShareholderListSource: partyBuild.listSource,

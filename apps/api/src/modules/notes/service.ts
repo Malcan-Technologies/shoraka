@@ -164,6 +164,11 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function generateNoteEntityId(): string {
+  const compactUuid = randomUUID().replace(/-/g, "");
+  return `c${compactUuid.slice(0, 24)}`;
+}
+
 function workflowHasSigningPackage(workflow: unknown): boolean {
   if (!Array.isArray(workflow)) return false;
   for (const step of workflow) {
@@ -2204,14 +2209,27 @@ export class NoteService {
 
     const invoiceNumber =
       typeof invoiceDetails.number === "string" ? invoiceDetails.number : invoice.id.slice(-8);
-    const provisionalReference = `PENDING-${application.id.slice(-6).toUpperCase()}-${invoice.id
-      .slice(-6)
-      .toUpperCase()}`;
 
     const note = await prisma
       .$transaction(async (tx) => {
+        const noteId = generateNoteEntityId();
+        const noteCreatedAt = new Date();
+        const canonicalReference = await allocateDisplayReference(
+          {
+            moduleCode: "NOTE",
+            productCode,
+            referenceDate: noteCreatedAt,
+            entityType: "note",
+            entityId: noteId,
+            tx,
+          },
+          async () => undefined
+        );
+
         const created = await tx.note.create({
           data: {
+            id: noteId,
+            created_at: noteCreatedAt,
             source_application_id: application.id,
             source_contract_id: invoice.contract_id ?? application.contract_id,
             source_invoice_id: invoice.id,
@@ -2219,7 +2237,7 @@ export class NoteService {
             title:
               params.title ??
               `Note for invoice ${invoiceNumber} - ${application.issuer_organization.name ?? application.issuer_organization.id}`,
-            note_reference: provisionalReference,
+            note_reference: canonicalReference,
             issuer_snapshot: { ...issuerSnapshot },
             paymaster_snapshot: json(sourceContract?.customer_details),
             product_snapshot: json({
@@ -2288,23 +2306,6 @@ export class NoteService {
           },
           include: noteInclude,
         });
-
-        await allocateDisplayReference(
-          {
-            moduleCode: "NOTE",
-            productCode,
-            referenceDate: created.created_at,
-            entityType: "note",
-            entityId: created.id,
-            tx,
-          },
-          async (persistTx, reference) => {
-            await persistTx.note.update({
-              where: { id: created.id },
-              data: { note_reference: reference },
-            });
-          }
-        );
 
         await tx.notePaymentSchedule.create({
           data: {

@@ -2400,6 +2400,7 @@ export class AdminRepository {
 
   async getContractById(id: string): Promise<{
     id: string;
+    displayReference: string | null;
     contractNumber: string | null;
     title: string | null;
     description: string | null;
@@ -2436,6 +2437,7 @@ export class AdminRepository {
       where: { id },
       select: {
         id: true,
+        display_reference: true,
         issuer_organization_id: true,
         status: true,
         created_at: true,
@@ -2551,6 +2553,7 @@ export class AdminRepository {
 
     return {
       id: contract.id,
+      displayReference: contract.display_reference ?? null,
       contractNumber:
         typeof contractDetails.number === "string" && contractDetails.number.trim().length > 0
           ? contractDetails.number

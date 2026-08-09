@@ -73,10 +73,9 @@ describe("NoteService createFromInvoiceSource display reference", () => {
       maturity_date: new Date("2026-12-10T00:00:00.000Z"),
       target_amount: { toNumber: () => 10000 },
       profit_rate_percent: { toNumber: () => 10 },
-      note_reference: "PENDING-ABCDEF-123456",
+      note_reference: "NOTE-ARF-202608-BX5",
       status: NoteStatus.DRAFT,
     });
-    mockTx.note.update.mockResolvedValue({});
     mockTx.note.findUniqueOrThrow.mockResolvedValue({
       id: "note_1",
       note_reference: "NOTE-ARF-202608-BX5",
@@ -130,11 +129,14 @@ describe("NoteService createFromInvoiceSource display reference", () => {
     });
 
     expect(mockTx.displayReferenceAllocation.create).toHaveBeenCalledTimes(1);
-    expect(mockTx.note.update).toHaveBeenCalledWith(
+    expect(mockTx.note.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { note_reference: expect.stringMatching(/^NOTE-ARF-202608-[A-Z0-9]{3}$/) },
+        data: expect.objectContaining({
+          note_reference: expect.stringMatching(/^NOTE-ARF-202608-[A-Z0-9]{3}$/),
+        }),
       })
     );
+    expect(mockTx.note.update).not.toHaveBeenCalled();
     expect(result.noteReference).toBe("NOTE-ARF-202608-BX5");
   });
 
