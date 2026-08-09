@@ -290,6 +290,7 @@ export interface Product {
   id: string;
   base_id?: string | null;
   product_code?: string | null;
+  product_code_locked?: boolean;
   version: number;
   status?: string;
   workflow: JsonValue[];

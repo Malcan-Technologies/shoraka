@@ -4,6 +4,7 @@ import { AppError } from "../../lib/http/error-handler";
 import { requirePermission } from "../../lib/auth/middleware";
 import { deleteS3Object } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
+import { prisma } from "../../lib/prisma";
 import { ProductRepository } from "./repository";
 import { createProductUploadsRouter } from "./upload/controller";
 import {
@@ -17,9 +18,41 @@ import {
   getProductS3KeysFromWorkflow,
   getReplacedProductS3Keys,
 } from "./log/service";
+import { getLockedProductCodes } from "./product-family";
 
 const router = Router();
 const productRepository = new ProductRepository();
+
+function mapProductResponse(
+  p: Awaited<ReturnType<ProductRepository["findById"]>> & object,
+  lockedCodes: Set<string>
+) {
+  const productCode = (p as { product_code?: string | null }).product_code ?? null;
+  return {
+    id: p!.id,
+    base_id: (p as { base_id?: string | null }).base_id ?? null,
+    version: p!.version,
+    status: (p as { status?: string }).status ?? "ACTIVE",
+    workflow: p!.workflow as unknown[],
+    category_display_order: (p as any).category_display_order ?? null,
+    product_display_order: (p as any).product_display_order ?? null,
+    marketplace_listing_duration_days:
+      (p as { marketplace_listing_duration_days?: number | null }).marketplace_listing_duration_days ??
+      null,
+    service_fee_rate_percent:
+      (p as any).service_fee_rate_percent != null
+        ? (p as any).service_fee_rate_percent.toNumber()
+        : null,
+    default_facility_fee_rate_percent:
+      (p as any).default_facility_fee_rate_percent != null
+        ? (p as any).default_facility_fee_rate_percent.toNumber()
+        : null,
+    product_code: productCode,
+    product_code_locked: productCode ? lockedCodes.has(productCode) : false,
+    created_at: p!.created_at.toISOString(),
+    updated_at: p!.updated_at.toISOString(),
+  };
+}
 
 /**
  * GET /v1/products
@@ -36,32 +69,20 @@ router.get("/", requirePermission("products.view"), async (req: Request, res: Re
         includeDeleted: validated.includeDeleted === true,
       });
 
+      const lockedCodes = await getLockedProductCodes(
+        prisma,
+        products
+          .map((p) => (p as { product_code?: string | null }).product_code)
+          .filter((code): code is string => Boolean(code))
+      );
+
       const pageSize = validated.pageSize;
       const totalPages = Math.ceil(total / pageSize) || 1;
 
       res.json({
         success: true,
         data: {
-          products: products.map((p) => ({
-            id: p.id,
-            base_id: (p as { base_id?: string | null }).base_id ?? null,
-            version: p.version,
-            status: (p as { status?: string }).status ?? "ACTIVE",
-            workflow: p.workflow as unknown[],
-            category_display_order: (p as any).category_display_order ?? null,
-            product_display_order: (p as any).product_display_order ?? null,
-            marketplace_listing_duration_days: (p as any).marketplace_listing_duration_days ?? null,
-            service_fee_rate_percent: (p as any).service_fee_rate_percent != null
-              ? (p as any).service_fee_rate_percent.toNumber()
-              : null,
-            default_facility_fee_rate_percent:
-              (p as any).default_facility_fee_rate_percent != null
-                ? (p as any).default_facility_fee_rate_percent.toNumber()
-                : null,
-            product_code: (p as any).product_code ?? null,
-            created_at: p.created_at.toISOString(),
-            updated_at: p.updated_at.toISOString(),
-          })),
+          products: products.map((p) => mapProductResponse(p, lockedCodes)),
           pagination: {
             page: validated.page,
             pageSize,
@@ -111,23 +132,7 @@ router.post("/", requirePermission("products.manage"), async (req: Request, res:
     );
     res.status(201).json({
       success: true,
-      data: {
-        id: product.id,
-        version: product.version,
-        workflow: product.workflow as unknown[],
-            marketplace_listing_duration_days:
-              (product as { marketplace_listing_duration_days?: number | null })
-                .marketplace_listing_duration_days ?? null,
-        service_fee_rate_percent: (product as any).service_fee_rate_percent
-          ? (product as any).service_fee_rate_percent.toNumber()
-          : null,
-        default_facility_fee_rate_percent: (product as any).default_facility_fee_rate_percent
-          ? (product as any).default_facility_fee_rate_percent.toNumber()
-          : null,
-        product_code: (product as any).product_code ?? null,
-        created_at: product.created_at.toISOString(),
-        updated_at: product.updated_at.toISOString(),
-      },
+      data: mapProductResponse(product, new Set()),
       correlationId: res.locals.correlationId,
     });
   } catch (error) {
@@ -150,25 +155,15 @@ router.get("/:id", requirePermission("products.view"), async (req: Request, res:
       if (!product) {
         throw new AppError(404, "NOT_FOUND", "Product not found");
       }
+      const lockedCodes = await getLockedProductCodes(
+        prisma,
+        [(product as { product_code?: string | null }).product_code].filter(
+          (code): code is string => Boolean(code)
+        )
+      );
       res.json({
         success: true,
-        data: {
-          id: product.id,
-          version: product.version,
-          workflow: product.workflow as unknown[],
-            marketplace_listing_duration_days:
-              (product as { marketplace_listing_duration_days?: number | null })
-                .marketplace_listing_duration_days ?? null,
-          service_fee_rate_percent: (product as any).service_fee_rate_percent
-            ? (product as any).service_fee_rate_percent.toNumber()
-            : null,
-          default_facility_fee_rate_percent: (product as any).default_facility_fee_rate_percent
-            ? (product as any).default_facility_fee_rate_percent.toNumber()
-            : null,
-          product_code: (product as any).product_code ?? null,
-          created_at: product.created_at.toISOString(),
-          updated_at: product.updated_at.toISOString(),
-        },
+        data: mapProductResponse(product, lockedCodes),
         correlationId: res.locals.correlationId,
       });
     } catch (error) {
@@ -228,25 +223,16 @@ router.patch("/:id", requirePermission("products.manage"), async (req: Request, 
       }
     }
 
+    const lockedCodes = await getLockedProductCodes(
+      prisma,
+      [(product as { product_code?: string | null }).product_code].filter(
+        (code): code is string => Boolean(code)
+      )
+    );
+
     res.json({
       success: true,
-      data: {
-        id: product.id,
-        version: product.version,
-        workflow: product.workflow as unknown[],
-        marketplace_listing_duration_days:
-          (product as { marketplace_listing_duration_days?: number | null })
-            .marketplace_listing_duration_days ?? null,
-        service_fee_rate_percent: (product as any).service_fee_rate_percent
-          ? (product as any).service_fee_rate_percent.toNumber()
-          : null,
-        default_facility_fee_rate_percent: (product as any).default_facility_fee_rate_percent
-          ? (product as any).default_facility_fee_rate_percent.toNumber()
-          : null,
-        product_code: (product as any).product_code ?? null,
-        created_at: product.created_at.toISOString(),
-        updated_at: product.updated_at.toISOString(),
-      },
+      data: mapProductResponse(product, lockedCodes),
       correlationId: res.locals.correlationId,
     });
   } catch (error) {

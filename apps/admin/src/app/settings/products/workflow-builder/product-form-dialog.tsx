@@ -120,6 +120,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const [marketplaceListingDurationDays, setMarketplaceListingDurationDays] = useState<string>("14");
   const [serviceFeeRatePercent, setServiceFeeRatePercent] = useState<string>("15");
   const [defaultFacilityFeeRatePercent, setDefaultFacilityFeeRatePercent] = useState<string>("1");
+  const [productCode, setProductCode] = useState<string>("");
   const [activeTab, setActiveTab] = useState("workflow");
   /** In edit mode, workflow as loaded from product (normalized). Used to disable Save when nothing changed. */
   const initialWorkflowRef = useRef<unknown[]>([]);
@@ -182,6 +183,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       setMarketplaceListingDurationDays("");
       setServiceFeeRatePercent("");
       setDefaultFacilityFeeRatePercent("");
+      setProductCode("");
       setActiveTab("workflow");
       initialWorkflowRef.current = [];
       return;
@@ -205,6 +207,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       setServiceFeeRatePercent(serviceFee != null ? String(serviceFee) : "15");
       const defaultFacility = (product as { default_facility_fee_rate_percent?: number | null }).default_facility_fee_rate_percent;
       setDefaultFacilityFeeRatePercent(defaultFacility != null ? String(defaultFacility) : "1");
+      setProductCode((product as { product_code?: string | null }).product_code ?? "");
     } else {
       const [firstStep, lastStep] = getRequiredFirstAndLastSteps();
       setSteps([firstStep, lastStep]);
@@ -212,6 +215,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       setMarketplaceListingDurationDays("14");
       setServiceFeeRatePercent("15");
       setDefaultFacilityFeeRatePercent("1");
+      setProductCode("");
     }
   }, [open, isEdit, product, ensureFirstAndLastPresent, enforceFirstAndLast]);
 
@@ -466,6 +470,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
           marketplace_listing_duration_days: marketplaceListingDurationNum,
           service_fee_rate_percent: serviceFeeRatePercentNum,
           default_facility_fee_rate_percent: defaultFacilityFeeRatePercentNum,
+          product_code: productCode.trim().toUpperCase(),
         });
         productId = created.id;
         createdProductId = productId;
@@ -519,6 +524,11 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
             marketplace_listing_duration_days: marketplaceListingDurationNum,
             service_fee_rate_percent: serviceFeeRatePercentNum,
             default_facility_fee_rate_percent: defaultFacilityFeeRatePercentNum,
+            ...(product.product_code
+              ? {}
+              : productCode.trim()
+                ? { product_code: productCode.trim().toUpperCase() }
+                : {}),
           },
         });
         initialWorkflowRef.current = normalizeWorkflow(payload);
@@ -532,6 +542,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
             marketplace_listing_duration_days: marketplaceListingDurationNum,
             service_fee_rate_percent: serviceFeeRatePercentNum,
             default_facility_fee_rate_percent: defaultFacilityFeeRatePercentNum,
+            product_code: productCode.trim().toUpperCase(),
           },
         });
         toast.success("Product created");
@@ -610,6 +621,22 @@ const defaultFacilityFeeRatePercentError = (() => {
   return null;
 })();
 
+const productCodeError = (() => {
+  const normalized = productCode.trim().toUpperCase();
+  if (!isEdit && normalized.length === 0) {
+    return "Product code is required";
+  }
+  if (normalized.length === 0) return null;
+  if (!/^[A-Z0-9]{2,8}$/.test(normalized)) {
+    return "Product code must be 2-8 uppercase letters or digits (A-Z, 0-9)";
+  }
+  return null;
+})();
+
+const productCodeLocked = Boolean((product as { product_code_locked?: boolean } | undefined)?.product_code_locked);
+const productCodeReadOnly =
+  isEdit && (Boolean(product?.product_code) || productCodeLocked);
+
 const hasChanges = !isEdit
   ? true
   : Boolean(pendingImageFile ?? pendingImageFileRef.current) ||
@@ -620,7 +647,9 @@ const hasChanges = !isEdit
         (product as { service_fee_rate_percent?: number | null }).service_fee_rate_percent !==
           (serviceFeeRatePercent.trim() === "" ? 15 : Number(serviceFeeRatePercent)) ||
         (product as { default_facility_fee_rate_percent?: number | null }).default_facility_fee_rate_percent !==
-          (defaultFacilityFeeRatePercent.trim() === "" ? 1 : Number(defaultFacilityFeeRatePercent))
+          (defaultFacilityFeeRatePercent.trim() === "" ? 1 : Number(defaultFacilityFeeRatePercent)) ||
+        (!product.product_code &&
+          productCode.trim().toUpperCase() !== ((product as { product_code?: string | null }).product_code ?? ""))
       : false) ||
     !isEqual;
 
@@ -934,6 +963,43 @@ const hasChanges = !isEdit
                   <div
                     className={cn(
                       "rounded-xl border bg-card p-4 shrink-0 min-w-0",
+                      productCodeError ? "border-amber-500/70 dark:border-amber-500/50" : "border-border"
+                    )}
+                  >
+                    <div className={cn("grid min-w-0", FIELD_GAP)}>
+                      <Label htmlFor="product-code" className="text-sm font-medium">
+                        Product Code
+                      </Label>
+                      <Input
+                        id="product-code"
+                        type="text"
+                        value={productCode}
+                        onChange={(e) => setProductCode(e.target.value.toUpperCase())}
+                        placeholder="ARF"
+                        className={cn(INPUT_CLASS, "uppercase font-mono")}
+                        readOnly={productCodeReadOnly}
+                        aria-readonly={productCodeReadOnly}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Stable code used in CashSouk reference numbers, e.g. ARF. The code is shared by all
+                        versions of this product and cannot be changed after references have been issued.
+                      </p>
+                      {productCodeLocked && (
+                        <p className="text-xs text-muted-foreground">
+                          This product code is locked because canonical references have already been allocated.
+                        </p>
+                      )}
+                      {isEdit && product?.product_code && !productCodeLocked && (
+                        <p className="text-xs text-muted-foreground">
+                          Product code is inherited by new versions and cannot be changed here.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div
+                    className={cn(
+                      "rounded-xl border bg-card p-4 shrink-0 min-w-0",
                       serviceFeeRatePercentError ||
                         defaultFacilityFeeRatePercentError
                         ? "border-amber-500/70 dark:border-amber-500/50"
@@ -1020,6 +1086,7 @@ const hasChanges = !isEdit
                 ...(defaultFacilityFeeRatePercentError
                   ? ["Offer settings: " + defaultFacilityFeeRatePercentError]
                   : []),
+                ...(productCodeError ? ["Product code: " + productCodeError] : []),
               ];
               if (requiredErrors.length === 0) return null;
 
@@ -1072,6 +1139,7 @@ const hasChanges = !isEdit
                   !!marketplaceListingDurationError ||
                   !!serviceFeeRatePercentError ||
                   !!defaultFacilityFeeRatePercentError ||
+                  !!productCodeError ||
                   (isEdit && !hasChanges)
                 }
               >

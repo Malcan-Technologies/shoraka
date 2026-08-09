@@ -174,6 +174,7 @@ export function ProductsList() {
           <TableHeader>
             <TableRow>
               <TableHead className="w-[300px]">Product</TableHead>
+              <TableHead className="w-[100px]">Code</TableHead>
               <TableHead>Version</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Updated</TableHead>
@@ -191,6 +192,9 @@ export function ProductsList() {
                     <Skeleton className="h-5 w-12" />
                   </TableCell>
                   <TableCell>
+                    <Skeleton className="h-5 w-12" />
+                  </TableCell>
+                  <TableCell>
                     <Skeleton className="h-5 w-24" />
                   </TableCell>
                   <TableCell>
@@ -203,7 +207,7 @@ export function ProductsList() {
               ))
             ) : products.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                   <CubeIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>No products found</p>
                   <p className="text-sm leading-6 mt-1">
@@ -218,6 +222,9 @@ export function ProductsList() {
                     <p className="text-sm font-medium truncate block" title={productName(p)}>
                       {productName(p)}
                     </p>
+                  </TableCell>
+                  <TableCell className="text-sm font-mono uppercase">
+                    {p.product_code ?? "—"}
                   </TableCell>
                   <TableCell className="text-sm">v{p.version}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">
@@ -294,6 +301,7 @@ export function ProductsList() {
           {viewProduct && (
             <div className="grid gap-2 text-sm">
               <p><span className="font-medium text-muted-foreground">Name</span> {productName(viewProduct)}</p>
+              <p><span className="font-medium text-muted-foreground">Code</span> {viewProduct.product_code ?? "—"}</p>
               <p><span className="font-medium text-muted-foreground">Version</span> {viewProduct.version}</p>
               <p><span className="font-medium text-muted-foreground">Created</span> {new Date(viewProduct.created_at).toLocaleString()}</p>
               <p><span className="font-medium text-muted-foreground">Updated</span> {new Date(viewProduct.updated_at).toLocaleString()}</p>
