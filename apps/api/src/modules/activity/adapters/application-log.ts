@@ -174,9 +174,11 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       where: { id: { in: applicationIds } },
       select: {
         id: true,
+        display_reference: true,
         contract_id: true,
         contract: {
           select: {
+            display_reference: true,
             contract_details: true,
           },
         },
@@ -202,7 +204,9 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       );
 
       if (!this.readDisplayString(nextMetadata.application_reference)) {
-        nextMetadata.application_reference = this.formatApplicationReference(application.id);
+        nextMetadata.application_reference =
+          this.readDisplayString(application.display_reference) ??
+          this.formatApplicationReference(application.id);
       }
 
       if (CONTRACT_EVENT_TYPES.has(record.event_type)) {
@@ -211,6 +215,12 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         }
         if (!this.readDisplayString(nextMetadata.contract_number) && contractNumber) {
           nextMetadata.contract_number = contractNumber;
+        }
+        if (!this.readDisplayString(nextMetadata.contract_reference)) {
+          const contractReference = this.readDisplayString(application.contract?.display_reference);
+          if (contractReference) {
+            nextMetadata.contract_reference = contractReference;
+          }
         }
       }
 
@@ -393,7 +403,9 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
 
     if (CONTRACT_EVENT_TYPES.has(record.event_type)) {
       const contractId = this.readDisplayString(metadata.contract_id) ?? entityId;
-      const contractNumber = this.readDisplayString(metadata.contract_number);
+      const contractNumber =
+        this.readDisplayString(metadata.contract_reference) ??
+        this.readDisplayString(metadata.contract_number);
 
       if (contractId) {
         references.contractId = contractId;
@@ -405,7 +417,9 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
 
     if (INVOICE_EVENT_TYPES.has(record.event_type)) {
       const invoiceId = this.readDisplayString(metadata.invoice_id) ?? entityId;
-      const invoiceNumber = this.readDisplayString(metadata.invoice_number);
+      const invoiceNumber =
+        this.readDisplayString(metadata.invoice_reference) ??
+        this.readDisplayString(metadata.invoice_number);
 
       if (invoiceId) {
         references.invoiceId = invoiceId;

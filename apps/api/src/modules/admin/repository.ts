@@ -2147,6 +2147,7 @@ export class AdminRepository {
   async getApplications(params: GetAdminApplicationsQuery): Promise<{
     applications: {
       id: string;
+      displayReference: string | null;
       issuerOrganizationId: string;
       issuerOrganizationName: string | null;
       financingTypeLabel: string;
@@ -2201,6 +2202,7 @@ export class AdminRepository {
     if (search) {
       where.OR = [
         { id: { contains: search, mode: "insensitive" } },
+        { display_reference: { contains: search, mode: "insensitive" } },
         { issuer_organization: { name: { contains: search, mode: "insensitive" } } },
       ];
     }
@@ -2276,6 +2278,7 @@ export class AdminRepository {
 
       return {
         id: app.id,
+        displayReference: app.display_reference ?? null,
         issuerOrganizationId: app.issuer_organization.id,
         issuerOrganizationName: app.issuer_organization.name,
         financingTypeLabel: productLabel,
@@ -2316,6 +2319,7 @@ export class AdminRepository {
   async getContracts(params: GetAdminContractsQuery): Promise<{
     contracts: {
       id: string;
+      displayReference: string | null;
       contractNumber: string | null;
       title: string | null;
       issuerOrganizationName: string | null;
@@ -2341,6 +2345,7 @@ export class AdminRepository {
     if (search) {
       where.OR = [
         { id: { contains: search, mode: "insensitive" } },
+        { display_reference: { contains: search, mode: "insensitive" } },
         {
           contract_details: {
             path: ["number"],
@@ -2375,6 +2380,7 @@ export class AdminRepository {
 
       return {
         id: contract.id,
+        displayReference: contract.display_reference ?? null,
         contractNumber:
           typeof contractDetails.number === "string" && contractDetails.number.trim().length > 0
             ? contractDetails.number

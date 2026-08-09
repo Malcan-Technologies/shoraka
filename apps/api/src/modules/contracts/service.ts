@@ -21,6 +21,10 @@ import {
   deleteS3Object,
 } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
+import {
+  allocateDisplayReference,
+  resolveApplicationProductCode,
+} from "../../lib/display-reference";
 
 export class ContractService {
   private repository: ContractRepository;
@@ -94,7 +98,7 @@ export class ContractService {
   }
 
   async createContract(applicationId: string, userId: string): Promise<Contract> {
-    const application = await this.verifyApplicationAccess(applicationId, userId);
+    await this.verifyApplicationAccess(applicationId, userId);
 
     // Check if contract already exists for this application
     const existingContract = await this.repository.findByApplicationId(applicationId);
@@ -102,17 +106,73 @@ export class ContractService {
       return existingContract;
     }
 
-    const contract = await this.repository.create({
-      issuer_organization_id: application.issuer_organization_id,
-      status: "DRAFT",
-    });
+    return prisma.$transaction(async (tx) => {
+      const lockedApplication = await tx.application.findUnique({
+        where: { id: applicationId },
+        select: {
+          id: true,
+          issuer_organization_id: true,
+          contract_id: true,
+          financing_type: true,
+          product_version: true,
+        },
+      });
+      if (!lockedApplication) {
+        throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+      }
 
-    // Link it to the application
-    await this.applicationRepository.update(applicationId, {
-      contract: { connect: { id: contract.id } },
-    });
+      if (lockedApplication.contract_id) {
+        return tx.contract.findUniqueOrThrow({
+          where: { id: lockedApplication.contract_id },
+        });
+      }
 
-    return contract;
+      const productCode = await resolveApplicationProductCode(tx, {
+        id: lockedApplication.id,
+        financing_type: lockedApplication.financing_type,
+        product_version: lockedApplication.product_version,
+      });
+      if (!productCode) {
+        throw new AppError(
+          422,
+          "PRODUCT_CODE_REQUIRED",
+          "Application product code is missing. Configure product code before creating a contract."
+        );
+      }
+
+      const created = await tx.contract.create({
+        data: {
+          issuer_organization_id: lockedApplication.issuer_organization_id,
+          status: "DRAFT",
+        },
+      });
+
+      await allocateDisplayReference(
+        {
+          moduleCode: "CON",
+          productCode,
+          referenceDate: created.created_at,
+          entityType: "contract",
+          entityId: created.id,
+          tx,
+        },
+        async (persistTx, reference) => {
+          await persistTx.contract.update({
+            where: { id: created.id },
+            data: { display_reference: reference },
+          });
+        }
+      );
+
+      await tx.application.update({
+        where: { id: applicationId },
+        data: { contract: { connect: { id: created.id } } },
+      });
+
+      return tx.contract.findUniqueOrThrow({
+        where: { id: created.id },
+      });
+    });
   }
 
   async getContract(id: string, userId: string): Promise<Contract> {

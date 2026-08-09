@@ -1,4 +1,5 @@
 import {
+  DisplayReferenceConflictError,
   DisplayReferenceExhaustedError,
   allocateDisplayReference,
   generateDisplayReference,
@@ -63,6 +64,7 @@ describe("display-reference allocator", () => {
     const tx = {
       displayReferenceAllocation: {
         create: jest.fn(async () => ({})),
+        findUnique: jest.fn(async () => null),
       },
     };
     return {
@@ -93,6 +95,7 @@ describe("display-reference allocator", () => {
     const tx = {
       displayReferenceAllocation: {
         create: jest.fn(async () => ({})),
+        findUnique: jest.fn(async () => null),
       },
     };
     const input: AllocateDisplayReferenceInput = {
@@ -116,6 +119,7 @@ describe("display-reference allocator", () => {
           .fn()
           .mockRejectedValueOnce({ code: "P2002", meta: { target: ["display_reference"] } })
           .mockResolvedValueOnce({}),
+        findUnique: jest.fn(async () => null),
       },
     };
     const persist = jest.fn(async () => undefined);
@@ -132,6 +136,7 @@ describe("display-reference allocator", () => {
     const tx = {
       displayReferenceAllocation: {
         create: jest.fn().mockRejectedValue(new Error("db offline")),
+        findUnique: jest.fn(async () => null),
       },
     };
     const persist = jest.fn(async () => undefined);
@@ -146,6 +151,7 @@ describe("display-reference allocator", () => {
     const tx = {
       displayReferenceAllocation: {
         create: jest.fn().mockRejectedValue({ code: "P2002", meta: { target: ["display_reference"] } }),
+        findUnique: jest.fn(async () => null),
       },
     };
     const persist = jest.fn(async () => undefined);
@@ -158,22 +164,53 @@ describe("display-reference allocator", () => {
     expect(persist).not.toHaveBeenCalled();
   });
 
-  it("does not retry when entity already has allocation", async () => {
+  it("returns existing entity allocation when metadata matches", async () => {
     const tx = {
       displayReferenceAllocation: {
         create: jest.fn().mockRejectedValue({
           code: "P2002",
           meta: { target: ["entity_type", "entity_id"] },
         }),
+        findUnique: jest.fn().mockResolvedValue({
+          display_reference: "APP-ARF-202608-A82",
+          module_code: "APP",
+          product_code: "ARF",
+          entity_type: "application",
+          entity_id: "app_1",
+        }),
       },
     };
     const persist = jest.fn(async () => undefined);
     const input = buildInput({ tx: tx as any });
 
-    await expect(allocateDisplayReference(input, persist)).rejects.toThrow(
-      "Entity already has a canonical display reference allocation."
-    );
+    await expect(allocateDisplayReference(input, persist)).resolves.toBe("APP-ARF-202608-A82");
     expect(tx.displayReferenceAllocation.create).toHaveBeenCalledTimes(1);
+    expect(tx.displayReferenceAllocation.findUnique).toHaveBeenCalledTimes(1);
+    expect(persist).not.toHaveBeenCalled();
+  });
+
+  it("fails with conflict when existing entity allocation module differs", async () => {
+    const tx = {
+      displayReferenceAllocation: {
+        create: jest.fn().mockRejectedValue({
+          code: "P2002",
+          meta: { target: ["entity_type", "entity_id"] },
+        }),
+        findUnique: jest.fn().mockResolvedValue({
+          display_reference: "APP-ARF-202608-A82",
+          module_code: "APP",
+          product_code: "ARF",
+          entity_type: "application",
+          entity_id: "app_1",
+        }),
+      },
+    };
+    const persist = jest.fn(async () => undefined);
+    const input = buildInput({ tx: tx as any, moduleCode: "CON" as any });
+
+    await expect(allocateDisplayReference(input, persist)).rejects.toBeInstanceOf(
+      DisplayReferenceConflictError
+    );
     expect(persist).not.toHaveBeenCalled();
   });
 
@@ -181,6 +218,7 @@ describe("display-reference allocator", () => {
     const tx = {
       displayReferenceAllocation: {
         create: jest.fn(async () => ({})),
+        findUnique: jest.fn(async () => null),
       },
     };
     const prisma = {

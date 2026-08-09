@@ -235,6 +235,7 @@ export interface IssuerProductLiveCheck {
 
 export interface Application {
   id: string;
+  displayReference?: string | null;
   issuer_organization_id: string;
   product_version: number;
   status: ApplicationStatus;
@@ -367,6 +368,7 @@ export interface CustomerDetails {
 
 export interface Contract {
   id: string;
+  displayReference?: string | null;
   application_id: string;
   issuer_organization_id: string;
   status: ContractStatus;
@@ -404,6 +406,7 @@ export interface InvoiceDetails {
 
 export interface Invoice {
   id: string;
+  displayReference?: string | null;
   contract_id?: string | null;
   application_id: string;
   status: InvoiceStatus;

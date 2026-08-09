@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import {
   DISPLAY_REFERENCE_MAX_RETRIES,
   MALAYSIA_TIME_ZONE,
@@ -18,6 +18,13 @@ export class DisplayReferenceExhaustedError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "DisplayReferenceExhaustedError";
+  }
+}
+
+export class DisplayReferenceConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DisplayReferenceConflictError";
   }
 }
 
@@ -105,6 +112,52 @@ function assertEntityAlreadyHasReferenceError(error: unknown): never {
   throw error as Error;
 }
 
+async function resolveExistingEntityAllocation(
+  tx: Prisma.TransactionClient,
+  input: AllocateDisplayReferenceBaseInput
+): Promise<string> {
+  const existing = await tx.displayReferenceAllocation.findUnique({
+    where: {
+      entity_type_entity_id: {
+        entity_type: input.entityType,
+        entity_id: input.entityId,
+      },
+    },
+  });
+  if (!existing) {
+    throw new DisplayReferenceConflictError(
+      "Entity already has a canonical display reference allocation."
+    );
+  }
+
+  if (existing.module_code !== input.moduleCode) {
+    throw new DisplayReferenceConflictError(
+      `Display reference allocation conflict for ${input.entityType}:${input.entityId}. Existing module ${existing.module_code} does not match requested module ${input.moduleCode}.`
+    );
+  }
+
+  if (isProductScopedInput(input)) {
+    const expectedCode = normalizeAndValidateProductCode(input.productCode);
+    if (existing.product_code == null) {
+      throw new DisplayReferenceConflictError(
+        `Display reference allocation conflict for ${input.entityType}:${input.entityId}. Existing allocation has no product code but ${expectedCode} is required.`
+      );
+    }
+    const existingCode = normalizeAndValidateProductCode(existing.product_code);
+    if (existingCode !== expectedCode) {
+      throw new DisplayReferenceConflictError(
+        `Display reference allocation conflict for ${input.entityType}:${input.entityId}. Existing product code ${existingCode} does not match requested product code ${expectedCode}.`
+      );
+    }
+  } else if (existing.product_code != null) {
+    throw new DisplayReferenceConflictError(
+      `Display reference allocation conflict for ${input.entityType}:${input.entityId}. Existing allocation has product code ${existing.product_code} but organization modules must not use product codes.`
+    );
+  }
+
+  return existing.display_reference;
+}
+
 async function allocateDisplayReferenceInTx(
   tx: Prisma.TransactionClient,
   input: AllocateDisplayReferenceBaseInput,
@@ -134,6 +187,10 @@ async function allocateDisplayReferenceInTx(
       if (isDisplayReferenceCollision(error)) {
         continue;
       }
+      const target = getUniqueConstraintTarget(error);
+      if (target && target.includes("entity_type") && target.includes("entity_id")) {
+        return resolveExistingEntityAllocation(tx, input);
+      }
       assertEntityAlreadyHasReferenceError(error);
     }
   }
@@ -156,9 +213,7 @@ function hasTransactionClient(
 
 function hasPrismaClient(
   input: AllocateDisplayReferenceInput
-): input is AllocateDisplayReferenceBaseInput & {
-  prisma: { $transaction: (fn: (tx: Prisma.TransactionClient) => Promise<string>) => Promise<string> };
-} {
+): input is Extract<AllocateDisplayReferenceInput, { prisma: PrismaClient }> {
   return "prisma" in input;
 }
 
@@ -169,7 +224,7 @@ function baseInputFromAllocationInput(
   if (isProductScopedInput(input)) {
     return { moduleCode, referenceDate, productCode: input.productCode, entityType, entityId };
   }
-  return { moduleCode, referenceDate, entityType, entityId };
+  return { moduleCode, referenceDate, entityType, entityId } as AllocateDisplayReferenceBaseInput;
 }
 
 export async function allocateDisplayReference(

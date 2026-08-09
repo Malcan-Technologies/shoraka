@@ -97,6 +97,10 @@ import {
 } from "./note-issuer-snapshot";
 import { noteInclude, noteRepository } from "./repository";
 import {
+  allocateDisplayReference,
+  resolveApplicationProductCode,
+} from "../../lib/display-reference";
+import {
   buildSettlementAllocations,
   calculateLateCharge as calculateLateChargeValues,
   calculateCalendarDayCount,
@@ -2109,6 +2113,7 @@ export class NoteService {
       id: string;
       issuer_organization_id: string;
       contract_id: string | null;
+      product_version: number | null;
       financing_type: Prisma.JsonValue | null;
       business_details: Prisma.JsonValue | null;
       issuer_organization: {
@@ -2155,9 +2160,21 @@ export class NoteService {
     const product = productId
       ? await prisma.product.findUnique({
           where: { id: productId },
-          select: { id: true, workflow: true, service_fee_rate_percent: true },
+          select: { id: true, workflow: true, service_fee_rate_percent: true, product_code: true },
         })
       : null;
+    const productCode = await resolveApplicationProductCode(prisma, {
+      id: application.id,
+      financing_type: application.financing_type,
+      product_version: application.product_version,
+    });
+    if (!productCode) {
+      throw new AppError(
+        422,
+        "PRODUCT_CODE_REQUIRED",
+        "Application product code is missing. Configure product code before creating a note."
+      );
+    }
     const productCategory = resolveProductCategoryFromWorkflow(product?.workflow);
     const productDisplayName =
       resolveProductNameFromWorkflow(product?.workflow) ??
@@ -2187,8 +2204,8 @@ export class NoteService {
 
     const invoiceNumber =
       typeof invoiceDetails.number === "string" ? invoiceDetails.number : invoice.id.slice(-8);
-    const reference = `NOTE-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${invoice.id
-      .slice(-8)
+    const provisionalReference = `PENDING-${application.id.slice(-6).toUpperCase()}-${invoice.id
+      .slice(-6)
       .toUpperCase()}`;
 
     const note = await prisma
@@ -2202,7 +2219,7 @@ export class NoteService {
             title:
               params.title ??
               `Note for invoice ${invoiceNumber} - ${application.issuer_organization.name ?? application.issuer_organization.id}`,
-            note_reference: reference,
+            note_reference: provisionalReference,
             issuer_snapshot: { ...issuerSnapshot },
             paymaster_snapshot: json(sourceContract?.customer_details),
             product_snapshot: json({
@@ -2211,6 +2228,7 @@ export class NoteService {
               category: productCategory,
               ...(productDisplayName ? { product_name: productDisplayName } : {}),
               ...(productDescription ? { description: productDescription } : {}),
+              product_code: productCode,
             }),
             purpose_snapshot: purposeOfFinancing
               ? json({ financing_for: purposeOfFinancing })
@@ -2270,6 +2288,23 @@ export class NoteService {
           },
           include: noteInclude,
         });
+
+        await allocateDisplayReference(
+          {
+            moduleCode: "NOTE",
+            productCode,
+            referenceDate: created.created_at,
+            entityType: "note",
+            entityId: created.id,
+            tx,
+          },
+          async (persistTx, reference) => {
+            await persistTx.note.update({
+              where: { id: created.id },
+              data: { note_reference: reference },
+            });
+          }
+        );
 
         await tx.notePaymentSchedule.create({
           data: {
