@@ -288,6 +288,7 @@ export interface UpdateApplicationStepInput {
 export interface Product {
   id: string;
   base_id?: string | null;
+  product_code?: string | null;
   version: number;
   status?: string;
   workflow: JsonValue[];

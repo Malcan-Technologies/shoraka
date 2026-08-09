@@ -58,6 +58,7 @@ router.get("/", requirePermission("products.view"), async (req: Request, res: Re
               (p as any).default_facility_fee_rate_percent != null
                 ? (p as any).default_facility_fee_rate_percent.toNumber()
                 : null,
+            product_code: (p as any).product_code ?? null,
             created_at: p.created_at.toISOString(),
             updated_at: p.updated_at.toISOString(),
           })),
@@ -86,7 +87,10 @@ router.get("/", requirePermission("products.view"), async (req: Request, res: Re
  */
 router.post("/", requirePermission("products.manage"), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const validated = createProductBodySchema.parse(req.body);
+    const validated = createProductBodySchema.parse({
+      ...req.body,
+      product_code: req.body?.product_code ?? req.body?.productCode,
+    });
     applyFinancialDefaults(validated.workflow);
     validateFinancialConfig({
       workflow: validated.workflow,
@@ -101,6 +105,7 @@ router.post("/", requirePermission("products.manage"), async (req: Request, res:
           validated.marketplace_listing_duration_days ?? undefined,
         service_fee_rate_percent: validated.service_fee_rate_percent ?? undefined,
         default_facility_fee_rate_percent: validated.default_facility_fee_rate_percent ?? undefined,
+        product_code: validated.product_code ?? undefined,
       },
       { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo: deviceInfo ?? null }
     );
@@ -119,6 +124,7 @@ router.post("/", requirePermission("products.manage"), async (req: Request, res:
         default_facility_fee_rate_percent: (product as any).default_facility_fee_rate_percent
           ? (product as any).default_facility_fee_rate_percent.toNumber()
           : null,
+        product_code: (product as any).product_code ?? null,
         created_at: product.created_at.toISOString(),
         updated_at: product.updated_at.toISOString(),
       },
@@ -159,6 +165,7 @@ router.get("/:id", requirePermission("products.view"), async (req: Request, res:
           default_facility_fee_rate_percent: (product as any).default_facility_fee_rate_percent
             ? (product as any).default_facility_fee_rate_percent.toNumber()
             : null,
+          product_code: (product as any).product_code ?? null,
           created_at: product.created_at.toISOString(),
           updated_at: product.updated_at.toISOString(),
         },
@@ -178,7 +185,10 @@ router.get("/:id", requirePermission("products.view"), async (req: Request, res:
 router.patch("/:id", requirePermission("products.manage"), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
-    const validated = updateProductBodySchema.parse(req.body);
+    const validated = updateProductBodySchema.parse({
+      ...req.body,
+      product_code: req.body?.product_code ?? req.body?.productCode,
+    });
     const current = await productRepository.findById(id);
     if (!current) {
       throw new AppError(404, "NOT_FOUND", "Product not found");
@@ -205,6 +215,7 @@ router.patch("/:id", requirePermission("products.manage"), async (req: Request, 
         marketplace_listing_duration_days: validated.marketplace_listing_duration_days,
         service_fee_rate_percent: validated.service_fee_rate_percent ?? undefined,
         default_facility_fee_rate_percent: validated.default_facility_fee_rate_percent ?? undefined,
+        product_code: validated.product_code ?? undefined,
       },
       { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo }
     );
@@ -232,6 +243,7 @@ router.patch("/:id", requirePermission("products.manage"), async (req: Request, 
         default_facility_fee_rate_percent: (product as any).default_facility_fee_rate_percent
           ? (product as any).default_facility_fee_rate_percent.toNumber()
           : null,
+        product_code: (product as any).product_code ?? null,
         created_at: product.created_at.toISOString(),
         updated_at: product.updated_at.toISOString(),
       },
