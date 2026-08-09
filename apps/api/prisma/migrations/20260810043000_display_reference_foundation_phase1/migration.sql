@@ -64,7 +64,7 @@ CREATE TABLE "display_reference_allocations" (
 
 CREATE UNIQUE INDEX "display_reference_allocations_display_reference_key"
   ON "display_reference_allocations"("display_reference");
-CREATE INDEX "display_reference_allocations_entity_type_entity_id_idx"
+CREATE UNIQUE INDEX "display_reference_allocations_entity_type_entity_id_key"
   ON "display_reference_allocations"("entity_type", "entity_id");
 CREATE INDEX "display_reference_allocations_product_code_idx"
   ON "display_reference_allocations"("product_code");

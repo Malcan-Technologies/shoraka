@@ -47,6 +47,17 @@ function baseCurrentProduct(overrides: Record<string, unknown> = {}) {
 describe("ProductRepository product_code foundation", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockTx.$queryRaw.mockReset();
+    mockTx.product.findMany.mockReset();
+    mockTx.product.findFirst.mockReset();
+    mockTx.product.create.mockReset();
+    mockTx.product.update.mockReset();
+    mockTx.product.updateMany.mockReset();
+    mockTx.productLog.create.mockReset();
+    mockTx.displayReferenceAllocation.findFirst.mockReset();
+    mockPrisma.product.findUnique.mockReset();
+
+    mockTx.product.findMany.mockResolvedValue([]);
     mockTx.product.update.mockResolvedValue({});
     mockTx.product.findFirst.mockResolvedValue(null);
     mockTx.product.updateMany.mockResolvedValue({ count: 1 });
@@ -63,6 +74,8 @@ describe("ProductRepository product_code foundation", () => {
       created_at: new Date("2026-08-10T00:00:00.000Z"),
       updated_at: new Date("2026-08-10T00:00:00.000Z"),
     }));
+
+    mockTx.$queryRaw.mockResolvedValue([{ max: 1 }]);
   });
 
   it("allows same product code across versions of the same family", async () => {
@@ -88,99 +101,78 @@ describe("ProductRepository product_code foundation", () => {
     expect(result.product_code).toBe("ARF");
   });
 
-  it("rejects using same code across different families", async () => {
+  it("allows A(v1=null), B(v2->A), C(v3->A) family to keep ARF", async () => {
+    mockPrisma.product.findUnique.mockResolvedValue(
+      baseCurrentProduct({ base_id: "A", product_code: "ARF" })
+    );
+    mockTx.product.findMany.mockResolvedValueOnce([
+      { id: "A", base_id: null, product_code: "ARF" },
+      { id: "B", base_id: "A", product_code: "ARF" },
+      { id: "C", base_id: "A", product_code: "ARF" },
+    ]);
+
+    const repo = new ProductRepository();
+    const result = await repo.update("prod_v1", {
+      workflow: [{ name: "Financing type", config: { category: "ARF", name: "ARF v4" } }],
+    });
+    expect(result.product_code).toBe("ARF");
+  });
+
+  it("rejects new version when requested code differs from existing family code", async () => {
     mockPrisma.product.findUnique.mockResolvedValue(
       baseCurrentProduct({ product_code: "ARF" })
     );
+    mockTx.product.findMany.mockResolvedValueOnce([
+      { id: "A", base_id: null, product_code: "ARF" },
+      { id: "B", base_id: "A", product_code: "ARF" },
+    ]);
+
+    const repo = new ProductRepository();
+    await expect(
+      repo.update("prod_v1", {
+        workflow: [{ name: "Financing type", config: { category: "ARF", name: "ARF v4" } }],
+        product_code: "RCF",
+      })
+    ).rejects.toThrow("must use the existing family product code");
+  });
+
+  it("rejects other root family D from using ARF already owned by A-family", async () => {
+    mockPrisma.product.findUnique.mockResolvedValue(
+      baseCurrentProduct({ base_id: "D", product_code: null })
+    );
     mockTx.product.findMany
+      // Current family D has no code yet.
       .mockResolvedValueOnce([
-        { id: "prod_v1", base_id: "base_1", product_code: "ARF" },
+        { id: "D", base_id: null, product_code: null },
+        { id: "E", base_id: "D", product_code: null },
       ])
+      // ARF exists on family A elsewhere.
       .mockResolvedValueOnce([
-        { id: "other_v1", base_id: "other_base" },
+        { id: "A", base_id: null, product_code: null },
+        { id: "B", base_id: "A", product_code: null },
       ]);
 
     const repo = new ProductRepository();
     await expect(
       repo.update("prod_v1", {
-        workflow: [{ name: "Financing type", config: { category: "ARF", name: "ARF Updated" } }],
-        product_code: "RCF",
+        workflow: [{ name: "Financing type", config: { category: "RCF", name: "RCF v2" } }],
+        product_code: "ARF",
       })
     ).rejects.toThrow("already used by another product family");
   });
 
-  it("rejects product code change after allocations exist", async () => {
+  it("new version inherits family code when product_code omitted", async () => {
     mockPrisma.product.findUnique.mockResolvedValue(
-      baseCurrentProduct({ product_code: "ARF" })
+      baseCurrentProduct({ base_id: "A", product_code: "ARF" })
     );
     mockTx.product.findMany.mockResolvedValueOnce([
-      { id: "prod_v1", base_id: "base_1", product_code: "ARF" },
-    ]);
-    mockTx.displayReferenceAllocation.findFirst.mockResolvedValueOnce({ id: "alloc_1" });
-
-    const repo = new ProductRepository();
-    await expect(
-      repo.update("prod_v1", {
-        workflow: [{ name: "Financing type", config: { category: "ARF", name: "ARF Updated" } }],
-        product_code: "RCF",
-      })
-    ).rejects.toThrow("cannot be changed after canonical references have been allocated");
-  });
-
-  it("allows product code change before allocations and syncs family", async () => {
-    mockPrisma.product.findUnique.mockResolvedValue(
-      baseCurrentProduct({ product_code: "ARF" })
-    );
-    mockTx.product.findMany
-      .mockResolvedValueOnce([
-        { id: "prod_v1", base_id: "base_1", product_code: "ARF" },
-        { id: "prod_v0", base_id: "base_1", product_code: "ARF" },
-      ])
-      .mockResolvedValueOnce([]);
-
-    const repo = new ProductRepository();
-    const result = await repo.update("prod_v1", {
-      workflow: [{ name: "Financing type", config: { category: "ARF", name: "ARF Updated" } }],
-      product_code: "rcf",
-    });
-
-    expect(mockTx.product.updateMany).toHaveBeenCalledWith({
-      where: { OR: [{ id: "base_1" }, { base_id: "base_1" }] },
-      data: { product_code: "RCF" },
-    });
-    expect(result.product_code).toBe("RCF");
-  });
-
-  it("allows non-code updates after allocations when code is unchanged", async () => {
-    mockPrisma.product.findUnique.mockResolvedValue(
-      baseCurrentProduct({ product_code: "ARF" })
-    );
-    mockTx.product.findMany.mockResolvedValueOnce([
-      { id: "prod_v1", base_id: "base_1", product_code: "ARF" },
-      { id: "prod_v0", base_id: "base_1", product_code: "ARF" },
-    ]);
-    mockTx.displayReferenceAllocation.findFirst.mockResolvedValueOnce({ id: "alloc_1" });
-
-    const repo = new ProductRepository();
-    const result = await repo.update("prod_v1", {
-      workflow: [{ name: "Financing type", config: { category: "ARF", name: "Renamed Product" } }],
-    });
-
-    expect(result.product_code).toBe("ARF");
-  });
-
-  it("new version inherits existing family product code when no override supplied", async () => {
-    mockPrisma.product.findUnique.mockResolvedValue(
-      baseCurrentProduct({ product_code: "ARF" })
-    );
-    mockTx.product.findMany.mockResolvedValueOnce([
-      { id: "prod_v1", base_id: "base_1", product_code: "ARF" },
-      { id: "prod_v0", base_id: "base_1", product_code: "ARF" },
+      { id: "A", base_id: null, product_code: "ARF" },
+      { id: "B", base_id: "A", product_code: "ARF" },
     ]);
 
     const repo = new ProductRepository();
     const result = await repo.update("prod_v1", {
-      workflow: [{ name: "Financing type", config: { category: "ARF", name: "ARF Updated" } }],
+      workflow: [{ name: "Financing type", config: { category: "ARF", name: "ARF inherited v4" } }],
     });
 
     expect(result.product_code).toBe("ARF");
@@ -191,5 +183,65 @@ describe("ProductRepository product_code foundation", () => {
         }),
       })
     );
+  });
+
+  it("allows family code change before allocations via family edit path", async () => {
+    mockPrisma.product.findUnique.mockResolvedValue(
+      baseCurrentProduct({ base_id: "A", product_code: "ARF" })
+    );
+    mockTx.product.findMany
+      .mockResolvedValueOnce([
+        { id: "A", base_id: null, product_code: "ARF" },
+        { id: "B", base_id: "A", product_code: "ARF" },
+      ])
+      .mockResolvedValueOnce([]);
+    mockTx.product.update.mockResolvedValueOnce(
+      baseCurrentProduct({ product_code: "RCF" })
+    );
+
+    const repo = new ProductRepository();
+    const result = await repo.update("prod_v1", {
+      workflow: [{ name: "Financing type", config: { category: "ARF", name: "ARF edited" } }],
+      completeCreate: true,
+      product_code: "rcf",
+    });
+
+    expect(result.product_code).toBe("RCF");
+    expect(mockTx.product.updateMany).toHaveBeenCalledWith({
+      where: { OR: [{ id: "A" }, { base_id: "A" }] },
+      data: { product_code: "RCF" },
+    });
+  });
+
+  it("rejects family code change after allocations exist", async () => {
+    mockPrisma.product.findUnique.mockResolvedValue(
+      baseCurrentProduct({ base_id: "A", product_code: "ARF" })
+    );
+    mockTx.product.findMany.mockResolvedValueOnce([
+      { id: "A", base_id: null, product_code: "ARF" },
+      { id: "B", base_id: "A", product_code: "ARF" },
+    ]);
+    mockTx.displayReferenceAllocation.findFirst.mockResolvedValueOnce({ id: "alloc_1" });
+
+    const repo = new ProductRepository();
+    await expect(
+      repo.update("prod_v1", {
+        workflow: [{ name: "Financing type", config: { category: "ARF", name: "ARF edited" } }],
+        completeCreate: true,
+        product_code: "RCF",
+      })
+    ).rejects.toThrow("cannot be changed after canonical references have been allocated");
+  });
+
+  it("rejects creating another root family with code already used by A-family", async () => {
+    mockTx.product.findFirst.mockResolvedValueOnce({ id: "A" });
+    const repo = new ProductRepository();
+
+    await expect(
+      repo.create({
+        workflow: [{ name: "Financing type", config: { category: "Invoice", name: "D Root" } }],
+        product_code: "ARF",
+      })
+    ).rejects.toThrow("already used by another product family");
   });
 });

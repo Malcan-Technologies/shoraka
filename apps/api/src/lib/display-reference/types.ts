@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 
 export const PRODUCT_SCOPED_MODULE_CODES = ["APP", "CON", "INV", "NOTE", "SET", "WDL"] as const;
 export const ORGANIZATION_MODULE_CODES = ["ISS", "IVT"] as const;
@@ -34,12 +34,15 @@ export type DisplayReferenceEntityType =
 export type AllocationInputBase = {
   entityType: DisplayReferenceEntityType;
   entityId: string;
-  tx: Prisma.TransactionClient;
 };
 
-export type AllocateDisplayReferenceInput =
+export type AllocateDisplayReferenceBaseInput =
   | (ProductScopedReferenceInput & AllocationInputBase)
   | (OrganizationReferenceInput & AllocationInputBase);
+
+export type AllocateDisplayReferenceInput =
+  | (AllocateDisplayReferenceBaseInput & { tx: Prisma.TransactionClient; prisma?: never })
+  | (AllocateDisplayReferenceBaseInput & { prisma: PrismaClient; tx?: never });
 
 export type PersistDisplayReferenceRecord = (
   tx: Prisma.TransactionClient,

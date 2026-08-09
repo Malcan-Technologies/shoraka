@@ -487,9 +487,11 @@ export class ProductRepository {
       let nextFamilyCode = familyCode;
       if (normalizedRequestedProductCode !== undefined) {
         if (familyCode && normalizedRequestedProductCode !== familyCode) {
-          await assertFamilyCodeMutable(tx, familyCode);
+          throw new Error(
+            `New product versions must use the existing family product code (${familyCode}).`
+          );
         }
-        if (normalizedRequestedProductCode) {
+        if (!familyCode && normalizedRequestedProductCode) {
           await assertCodeNotUsedByOtherFamily(tx, resolvedBaseId, normalizedRequestedProductCode);
         }
         nextFamilyCode = normalizedRequestedProductCode;
@@ -558,7 +560,7 @@ export class ProductRepository {
         },
       } as any);
 
-      if (normalizedRequestedProductCode !== undefined) {
+      if (!familyCode && normalizedRequestedProductCode !== undefined) {
         await tx.product.updateMany({
           where: {
             OR: [{ id: resolvedBaseId }, { base_id: resolvedBaseId }],

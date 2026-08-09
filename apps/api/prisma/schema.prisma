@@ -1820,7 +1820,7 @@ model DisplayReferenceAllocation {
   entity_id         String
   allocated_at      DateTime @default(now())
 
-  @@index([entity_type, entity_id])
+  @@unique([entity_type, entity_id])
   @@index([product_code])
   @@map("display_reference_allocations")
 }

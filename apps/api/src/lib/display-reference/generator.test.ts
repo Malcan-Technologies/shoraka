@@ -59,10 +59,12 @@ describe("display-reference generator", () => {
 });
 
 describe("display-reference allocator", () => {
-  function buildInput(
-    tx: any,
-    overrides: Partial<AllocateDisplayReferenceInput> = {}
-  ): AllocateDisplayReferenceInput {
+  function buildInput(overrides: Partial<AllocateDisplayReferenceInput> = {}): AllocateDisplayReferenceInput {
+    const tx = {
+      displayReferenceAllocation: {
+        create: jest.fn(async () => ({})),
+      },
+    };
     return {
       moduleCode: "APP",
       productCode: "ARF",
@@ -75,29 +77,24 @@ describe("display-reference allocator", () => {
   }
 
   it("allocates and stores metadata for product-scoped module", async () => {
-    const tx = {
-      displayReferenceAllocation: {
-        create: jest.fn(async () => ({})),
-      },
-    };
     const persist = jest.fn(async () => undefined);
-    const input = buildInput(tx);
+    const input = buildInput();
 
     const ref = await allocateDisplayReference(input, persist);
 
     expect(ref).toMatch(/^APP-ARF-202608-[A-Z0-9]{3}$/);
-    expect(tx.displayReferenceAllocation.create).toHaveBeenCalledTimes(1);
-    expect(tx.displayReferenceAllocation.create.mock.calls[0][0].data.product_code).toBe("ARF");
-    expect(persist).toHaveBeenCalledWith(tx, ref);
+    expect(input.tx.displayReferenceAllocation.create).toHaveBeenCalledTimes(1);
+    expect(input.tx.displayReferenceAllocation.create.mock.calls[0][0].data.product_code).toBe("ARF");
+    expect(persist).toHaveBeenCalledWith(input.tx, ref);
   });
 
   it("stores null product_code for organization modules", async () => {
+    const persist = jest.fn(async () => undefined);
     const tx = {
       displayReferenceAllocation: {
         create: jest.fn(async () => ({})),
       },
     };
-    const persist = jest.fn(async () => undefined);
     const input: AllocateDisplayReferenceInput = {
       moduleCode: "ISS",
       referenceDate: new Date("2026-08-10T01:00:00.000Z"),
@@ -117,12 +114,12 @@ describe("display-reference allocator", () => {
       displayReferenceAllocation: {
         create: jest
           .fn()
-          .mockRejectedValueOnce({ code: "P2002" })
+          .mockRejectedValueOnce({ code: "P2002", meta: { target: ["display_reference"] } })
           .mockResolvedValueOnce({}),
       },
     };
     const persist = jest.fn(async () => undefined);
-    const input = buildInput(tx);
+    const input = buildInput({ tx: tx as any });
 
     const ref = await allocateDisplayReference(input, persist);
 
@@ -138,7 +135,7 @@ describe("display-reference allocator", () => {
       },
     };
     const persist = jest.fn(async () => undefined);
-    const input = buildInput(tx);
+    const input = buildInput({ tx: tx as any });
 
     await expect(allocateDisplayReference(input, persist)).rejects.toThrow("db offline");
     expect(tx.displayReferenceAllocation.create).toHaveBeenCalledTimes(1);
@@ -148,16 +145,60 @@ describe("display-reference allocator", () => {
   it("fails with exhaustion after retry limit", async () => {
     const tx = {
       displayReferenceAllocation: {
-        create: jest.fn().mockRejectedValue({ code: "P2002" }),
+        create: jest.fn().mockRejectedValue({ code: "P2002", meta: { target: ["display_reference"] } }),
       },
     };
     const persist = jest.fn(async () => undefined);
-    const input = buildInput(tx);
+    const input = buildInput({ tx: tx as any });
 
     await expect(allocateDisplayReference(input, persist)).rejects.toBeInstanceOf(
       DisplayReferenceExhaustedError
     );
     expect(tx.displayReferenceAllocation.create).toHaveBeenCalledTimes(10);
     expect(persist).not.toHaveBeenCalled();
+  });
+
+  it("does not retry when entity already has allocation", async () => {
+    const tx = {
+      displayReferenceAllocation: {
+        create: jest.fn().mockRejectedValue({
+          code: "P2002",
+          meta: { target: ["entity_type", "entity_id"] },
+        }),
+      },
+    };
+    const persist = jest.fn(async () => undefined);
+    const input = buildInput({ tx: tx as any });
+
+    await expect(allocateDisplayReference(input, persist)).rejects.toThrow(
+      "Entity already has a canonical display reference allocation."
+    );
+    expect(tx.displayReferenceAllocation.create).toHaveBeenCalledTimes(1);
+    expect(persist).not.toHaveBeenCalled();
+  });
+
+  it("wraps allocation and entity persistence in a prisma transaction when prisma client is provided", async () => {
+    const tx = {
+      displayReferenceAllocation: {
+        create: jest.fn(async () => ({})),
+      },
+    };
+    const prisma = {
+      $transaction: jest.fn(async (cb: (t: any) => Promise<string>) => cb(tx)),
+    };
+    const persist = jest.fn(async () => undefined);
+    const input: AllocateDisplayReferenceInput = {
+      moduleCode: "APP",
+      productCode: "ARF",
+      referenceDate: new Date("2026-08-10T01:00:00.000Z"),
+      entityType: "application",
+      entityId: "app_1",
+      prisma: prisma as any,
+    };
+
+    const ref = await allocateDisplayReference(input, persist);
+    expect(ref).toMatch(/^APP-ARF-202608-[A-Z0-9]{3}$/);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(persist).toHaveBeenCalledWith(tx, ref);
   });
 });
