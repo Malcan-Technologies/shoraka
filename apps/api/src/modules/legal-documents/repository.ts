@@ -334,6 +334,21 @@ export class LegalDocumentRepository {
     })) as VersionWithDocument | null;
   }
 
+  async findAllPublishedByDocumentId(legalDocumentId: string, excludeVersionId?: string) {
+    return prisma.legalDocumentVersion.findMany({
+      where: {
+        legal_document_id: legalDocumentId,
+        status: "PUBLISHED",
+        ...(excludeVersionId ? { id: { not: excludeVersionId } } : {}),
+      },
+      select: {
+        id: true,
+        version: true,
+        file_hash: true,
+      },
+    });
+  }
+
   async restoreVersionToDraft(versionId: string) {
     return (await prisma.legalDocumentVersion.update({
       where: { id: versionId },

@@ -30,8 +30,8 @@ describe("legal document type helpers", () => {
 
 jest.mock("../../lib/prisma", () => ({
   prisma: {
-    issuerOrganization: { findFirst: jest.fn(), updateMany: jest.fn() },
-    investorOrganization: { findFirst: jest.fn(), updateMany: jest.fn() },
+    issuerOrganization: { findFirst: jest.fn(), updateMany: jest.fn(), findMany: jest.fn() },
+    investorOrganization: { findFirst: jest.fn(), updateMany: jest.fn(), findMany: jest.fn() },
     user: { findUnique: jest.fn() },
     legalDocumentAcceptance: {
       findFirst: jest.fn(),
@@ -40,6 +40,12 @@ jest.mock("../../lib/prisma", () => ({
       count: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    legalDocumentAuditLog: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
     },
     $transaction: jest.fn(),
   },
@@ -139,6 +145,8 @@ describe("legal document acceptance service", () => {
       first_name: "Owner",
       last_name: "User",
     });
+    (prisma.legalDocumentAuditLog.create as jest.Mock).mockResolvedValue({ id: "audit1" });
+    jest.spyOn(legalDocumentRepository, "findAllPublishedByDocumentId").mockResolvedValue([]);
   });
 
   it("does not return draft documents to users", async () => {
@@ -147,6 +155,8 @@ describe("legal document acceptance service", () => {
       id: "org1",
       owner_user_id: "u1",
       tnc_accepted: false,
+      name: "Acme Issuer",
+      type: "COMPANY",
     });
 
     const status = await legalDocumentAcceptanceService.getRequiredDocuments(
@@ -165,6 +175,8 @@ describe("legal document acceptance service", () => {
       id: "org1",
       owner_user_id: "u1",
       tnc_accepted: false,
+      name: "Acme Issuer",
+      type: "COMPANY",
     });
 
     const status = await legalDocumentAcceptanceService.hasCompletedRequiredAcceptances(
@@ -189,6 +201,8 @@ describe("legal document acceptance service", () => {
       id: "org1",
       owner_user_id: "u1",
       tnc_accepted: false,
+      name: "Acme Issuer",
+      type: "COMPANY",
     });
     (prisma.legalDocumentAcceptance.findFirst as jest.Mock).mockImplementation(
       async (args: { where: { status?: string } }) => {
@@ -217,6 +231,8 @@ describe("legal document acceptance service", () => {
       id: "org1",
       owner_user_id: "u1",
       tnc_accepted: false,
+      name: "Acme Issuer",
+      type: "COMPANY",
     });
     (prisma.legalDocumentAcceptance.findFirst as jest.Mock).mockResolvedValue({
       status: "ACCEPTED",
@@ -280,6 +296,8 @@ describe("legal document acceptance service", () => {
       id: "org1",
       owner_user_id: "u1",
       tnc_accepted: false,
+      name: "Acme Issuer",
+      type: "COMPANY",
     });
     jest
       .spyOn(legalDocumentRepository, "findVersionById")
@@ -296,6 +314,8 @@ describe("legal document acceptance service", () => {
       id: "org1",
       owner_user_id: "u1",
       tnc_accepted: false,
+      name: "Acme Issuer",
+      type: "COMPANY",
     });
     jest
       .spyOn(legalDocumentRepository, "findVersionById")
@@ -336,6 +356,8 @@ describe("legal document acceptance service", () => {
       id: "org1",
       owner_user_id: "u1",
       tnc_accepted: false,
+      name: "Acme Issuer",
+      type: "COMPANY",
     });
     jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
       publishedVersion({
@@ -388,7 +410,7 @@ describe("legal document acceptance service", () => {
           version_number: 2,
           user_email_snapshot: "owner@example.com",
           acknowledgement_text: expect.stringContaining("agree"),
-          ip_address: "203.0.113.10",
+          accepted_ip_address: "203.0.113.10",
         }),
       })
     );
@@ -487,6 +509,8 @@ describe("legal document acceptance service", () => {
       id: "org1",
       owner_user_id: "u1",
       tnc_accepted: false,
+      name: "Acme Issuer",
+      type: "COMPANY",
     });
     jest
       .spyOn(legalDocumentRepository, "findVersionById")
@@ -501,8 +525,8 @@ describe("legal document acceptance service", () => {
     expect(prisma.legalDocumentAcceptance.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          ip_address: "203.0.113.10",
-          user_agent: "JestAgent/1.0",
+          opened_ip_address: "203.0.113.10",
+          opened_user_agent: "JestAgent/1.0",
           legal_document_version_id: "ver1",
         }),
       })

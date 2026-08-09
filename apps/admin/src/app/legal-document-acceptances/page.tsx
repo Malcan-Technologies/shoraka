@@ -163,69 +163,101 @@ function AcceptanceDetailSheet({
             {error instanceof Error ? error.message : "Failed to load details"}
           </p>
         ) : acceptance ? (
-          <div className="mt-6 space-y-6">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <DetailField label="Acceptance ID" value={acceptance.id} />
-              <DetailField
-                label="Status"
-                value={
-                  <Badge variant={statusBadgeVariant(acceptance.status)}>
-                    {statusLabel(acceptance.status)}
-                  </Badge>
-                }
-              />
-              <DetailField
-                label="Accepted at"
-                value={formatAcceptanceDate(acceptance.acceptedAt)}
-              />
-              <DetailField label="Opened at" value={formatAcceptanceDate(acceptance.openedAt)} />
-              <DetailField label="Created at" value={formatAcceptanceDate(acceptance.createdAt)} />
-              <DetailField
-                label="Document"
-                value={
-                  acceptance.documentType
-                    ? LEGAL_DOCUMENT_TYPE_LABELS[acceptance.documentType]
-                    : acceptance.documentTitle
-                }
-              />
-              <DetailField
-                label="Version"
-                value={acceptance.versionNumber != null ? `v${acceptance.versionNumber}` : "—"}
-              />
-              <DetailField label="File name" value={acceptance.fileName} />
-              <DetailField label="Document hash" value={acceptance.documentHash} />
-              <DetailField label="Organization" value={acceptance.organizationName} />
-              <DetailField label="Organization ID" value={acceptance.organizationId} />
-              <DetailField
-                label="Portal"
-                value={portalLabel(acceptance.organizationType)}
-              />
-              <DetailField label="Accepted by" value={acceptance.userName} />
-              <DetailField label="User ID" value={acceptance.userId} />
-              <DetailField label="Email" value={acceptance.userEmail} />
-              <DetailField label="IP address" value={acceptance.ipAddress} />
-              <DetailField label="User agent" value={acceptance.userAgent} />
-              <DetailField label="Device info" value={acceptance.deviceInfo} />
-              <DetailField
-                label="Version status"
-                value={acceptance.versionStatus ?? "—"}
-              />
-              <DetailField label="Content type" value={acceptance.contentType} />
-              <DetailField
-                label="File size"
-                value={
-                  acceptance.fileSize != null
-                    ? formatLegalFileSize(acceptance.fileSize)
-                    : "—"
-                }
-              />
+          <div className="mt-6 space-y-8">
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">Overview</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <DetailField label="Acceptance ID" value={acceptance.id} />
+                <DetailField
+                  label="Status"
+                  value={
+                    <Badge variant={statusBadgeVariant(acceptance.status)}>
+                      {statusLabel(acceptance.status)}
+                    </Badge>
+                  }
+                />
+                <DetailField label="Created at" value={formatAcceptanceDate(acceptance.createdAt)} />
+              </div>
             </div>
 
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">Acknowledgement text</p>
-              <p className="rounded-lg border bg-muted/30 p-3 text-sm">
-                {acceptance.acknowledgementText ?? "—"}
-              </p>
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">Open evidence</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <DetailField label="Opened at" value={formatAcceptanceDate(acceptance.openedAt)} />
+                <DetailField label="Open IP" value={acceptance.openedIpAddress} />
+                <DetailField label="Open user agent" value={acceptance.openedUserAgent} />
+                <DetailField label="Open device" value={acceptance.openedDeviceInfo} />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">Acceptance evidence</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <DetailField
+                  label="Accepted at"
+                  value={formatAcceptanceDate(acceptance.acceptedAt)}
+                />
+                <DetailField label="Accept IP" value={acceptance.acceptedIpAddress} />
+                <DetailField label="Accept user agent" value={acceptance.acceptedUserAgent} />
+                <DetailField label="Accept device" value={acceptance.acceptedDeviceInfo} />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">Document evidence</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <DetailField
+                  label="Document type"
+                  value={
+                    acceptance.documentType
+                      ? LEGAL_DOCUMENT_TYPE_LABELS[acceptance.documentType]
+                      : acceptance.documentTitle
+                  }
+                />
+                <DetailField
+                  label="Version"
+                  value={acceptance.versionNumber != null ? `v${acceptance.versionNumber}` : "—"}
+                />
+                <DetailField label="Version ID" value={acceptance.legalDocumentVersionId} />
+                <DetailField label="Document ID" value={acceptance.legalDocumentId} />
+                <DetailField label="Hash" value={acceptance.documentHash} />
+                <DetailField label="File name" value={acceptance.fileName} />
+                <DetailField
+                  label="Version status"
+                  value={acceptance.versionStatus ?? "—"}
+                />
+                <DetailField label="Content type" value={acceptance.contentType} />
+                <DetailField
+                  label="File size"
+                  value={
+                    acceptance.fileSize != null
+                      ? formatLegalFileSize(acceptance.fileSize)
+                      : "—"
+                  }
+                />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Acknowledgement wording</p>
+                <p className="rounded-lg border bg-muted/30 p-3 text-sm">
+                  {acceptance.acknowledgementText ?? "—"}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold">User / organization</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <DetailField label="User ID" value={acceptance.userId} />
+                <DetailField label="User name snapshot" value={acceptance.userName} />
+                <DetailField label="User email snapshot" value={acceptance.userEmail} />
+                <DetailField label="Organization ID" value={acceptance.organizationId} />
+                <DetailField label="Organization name snapshot" value={acceptance.organizationName} />
+                <DetailField
+                  label="Organization type snapshot"
+                  value={acceptance.organizationAccountType}
+                />
+                <DetailField label="Portal" value={portalLabel(acceptance.portal)} />
+              </div>
             </div>
 
             <Button
@@ -480,7 +512,7 @@ export default function LegalDocumentAcceptancesPage() {
                   <TableHead>Portal</TableHead>
                   <TableHead>Accepted by</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead>IP</TableHead>
+                  <TableHead>Accepted IP</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -528,7 +560,7 @@ export default function LegalDocumentAcceptancesPage() {
                         </p>
                       </TableCell>
                       <TableCell className="text-sm">
-                        {portalLabel(row.organizationType)}
+                        {portalLabel(row.portal)}
                       </TableCell>
                       <TableCell className="max-w-[160px] text-sm">
                         <p className="truncate" title={row.userName ?? undefined}>
@@ -541,7 +573,7 @@ export default function LegalDocumentAcceptancesPage() {
                         </p>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {row.ipAddress ?? "—"}
+                        {row.acceptedIpAddress ?? row.openedIpAddress ?? "—"}
                       </TableCell>
                       <TableCell>
                         <Badge variant={statusBadgeVariant(row.status)}>

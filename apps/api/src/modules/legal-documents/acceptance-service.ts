@@ -38,8 +38,10 @@ import {
 
 type AcceptanceRow = {
   id: string;
-  user_id: string;
+  user_id: string | null;
   organization_id: string | null;
+  organization_name_snapshot: string | null;
+  organization_type_snapshot: string | null;
   audience_role: LegalAcceptanceAudience;
   legal_document_version_id: string;
   legal_document_id: string | null;
@@ -49,10 +51,13 @@ type AcceptanceRow = {
   acknowledgement_text: string | null;
   status: LegalAcceptanceStatus;
   opened_at: Date | null;
+  opened_ip_address: string | null;
+  opened_user_agent: string | null;
+  opened_device_info: string | null;
   accepted_at: Date | null;
-  ip_address: string | null;
-  user_agent: string | null;
-  device_info: string | null;
+  accepted_ip_address: string | null;
+  accepted_user_agent: string | null;
+  accepted_device_info: string | null;
   user_email_snapshot: string | null;
   user_name_snapshot: string | null;
 };
@@ -70,17 +75,22 @@ async function loadUserSnapshot(userId: string): Promise<{
   return { email: user.email, name: name || null };
 }
 
-function evidenceSnapshot(version: VersionWithDocument, user: {
-  email: string | null;
-  name: string | null;
-}) {
+function documentEvidenceSnapshot(version: VersionWithDocument) {
   const type = version.legal_document.type as LegalDocumentType;
   return {
     legal_document_id: version.legal_document_id,
     document_type: type,
     version_number: version.version,
     document_hash: version.file_hash,
-    acknowledgement_text: LEGAL_DOCUMENT_CHECKBOX_WORDING[type],
+  };
+}
+
+function acknowledgementWordingForType(type: LegalDocumentType): string {
+  return LEGAL_DOCUMENT_CHECKBOX_WORDING[type];
+}
+
+function userEvidenceSnapshot(user: { email: string | null; name: string | null }) {
+  return {
     user_email_snapshot: user.email,
     user_name_snapshot: user.name,
   };
@@ -95,6 +105,8 @@ type OrgAccessRow = {
   owner_user_id: string;
   tnc_accepted: boolean;
   onboarding_status: string;
+  name: string | null;
+  type: string;
 };
 
 /**
@@ -125,6 +137,8 @@ async function assertOrgAccess(
         owner_user_id: true,
         tnc_accepted: true,
         onboarding_status: true,
+        name: true,
+        type: true,
       },
     });
     if (!org) {
@@ -146,6 +160,8 @@ async function assertOrgAccess(
       owner_user_id: true,
       tnc_accepted: true,
       onboarding_status: true,
+      name: true,
+      type: true,
     },
   });
   if (!org) {
@@ -389,23 +405,29 @@ export class LegalDocumentAcceptanceService {
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
     const existing = await findUserAcceptance(userId, organizationId, versionId);
     const userSnapshot = await loadUserSnapshot(userId);
-    const evidence = evidenceSnapshot(version, userSnapshot);
+    const org = await assertOrgAccess(userId, organizationId, audience);
+    const documentEvidence = documentEvidenceSnapshot(version);
 
     if (existing?.status === "ACCEPTED" || existing?.status === "OPENED") {
       return existing;
     }
 
+    const openData = {
+      status: "OPENED" as const,
+      opened_at: new Date(),
+      opened_ip_address: ipAddress,
+      opened_user_agent: userAgent,
+      opened_device_info: deviceInfo,
+      ...documentEvidence,
+      ...userEvidenceSnapshot(userSnapshot),
+      organization_name_snapshot: org.name,
+      organization_type_snapshot: org.type,
+    };
+
     const row = existing
       ? ((await prisma.legalDocumentAcceptance.update({
           where: { id: existing.id },
-          data: {
-            status: "OPENED",
-            opened_at: new Date(),
-            ip_address: ipAddress,
-            user_agent: userAgent,
-            device_info: deviceInfo,
-            ...evidence,
-          },
+          data: openData,
         })) as AcceptanceRow)
       : ((await prisma.legalDocumentAcceptance.create({
           data: {
@@ -413,12 +435,7 @@ export class LegalDocumentAcceptanceService {
             organization_id: organizationId,
             audience_role: audience,
             legal_document_version_id: versionId,
-            status: "OPENED",
-            opened_at: new Date(),
-            ip_address: ipAddress,
-            user_agent: userAgent,
-            device_info: deviceInfo,
-            ...evidence,
+            ...openData,
           },
         })) as AcceptanceRow);
 
@@ -464,7 +481,8 @@ export class LegalDocumentAcceptanceService {
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
     const existing = await findUserAcceptance(userId, organizationId, versionId);
     const userSnapshot = await loadUserSnapshot(userId);
-    const evidence = evidenceSnapshot(version, userSnapshot);
+    const documentType = version.legal_document.type as LegalDocumentType;
+    const acknowledgementText = acknowledgementWordingForType(documentType);
 
     if (existing?.status === "ACCEPTED") {
       return existing;
@@ -483,11 +501,16 @@ export class LegalDocumentAcceptanceService {
       data: {
         status: "ACCEPTED",
         accepted_at: new Date(),
-        opened_at: existing.opened_at ?? new Date(),
-        ip_address: ipAddress,
-        user_agent: userAgent,
-        device_info: deviceInfo,
-        ...evidence,
+        accepted_ip_address: ipAddress,
+        accepted_user_agent: userAgent,
+        accepted_device_info: deviceInfo,
+        acknowledgement_text: acknowledgementText,
+        document_hash: version.file_hash,
+        document_type: documentType,
+        version_number: version.version,
+        legal_document_id: version.legal_document_id,
+        user_email_snapshot: existing.user_email_snapshot ?? userSnapshot.email,
+        user_name_snapshot: existing.user_name_snapshot ?? userSnapshot.name,
       },
     })) as AcceptanceRow;
 

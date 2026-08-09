@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Skeleton, Tabs, TabsContent, TabsList, TabsTrigger, useHeader } from "@cashsouk/ui";
 import type { AdminPermission } from "@cashsouk/types";
 import { AccessLogsPanel } from "@/components/audit/access-logs-panel";
+import { LegalDocumentAuditPanel } from "@/components/audit/legal-document-audit-panel";
 import { ProductLogsPanel } from "@/components/audit/product-logs-panel";
 import { SecurityLogsPanel } from "@/components/audit/security-logs-panel";
 import { AccessDeniedCard } from "@/components/require-permission";
@@ -15,6 +16,7 @@ const AUDIT_TABS = [
   { id: "access", label: "Access", permission: "audit.access.view" },
   { id: "security", label: "Security", permission: "audit.security.view" },
   { id: "products", label: "Products", permission: "audit.product.view" },
+  { id: "legal-documents", label: "Legal Documents", permission: "document_management.view" },
 ] as const satisfies ReadonlyArray<{
   id: string;
   label: string;
@@ -95,6 +97,7 @@ function AuditPageContent() {
               {tab.id === "access" ? <AccessLogsPanel /> : null}
               {tab.id === "security" ? <SecurityLogsPanel /> : null}
               {tab.id === "products" ? <ProductLogsPanel /> : null}
+              {tab.id === "legal-documents" ? <LegalDocumentAuditPanel /> : null}
             </TabsContent>
           ))}
         </Tabs>

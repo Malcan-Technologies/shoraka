@@ -21,17 +21,22 @@ type AcceptanceWithRelations = {
   legal_document_id: string | null;
   document_type: LegalDocumentType | null;
   version_number: number | null;
-  user_id: string;
+  user_id: string | null;
   organization_id: string | null;
+  organization_name_snapshot: string | null;
+  organization_type_snapshot: string | null;
   audience_role: LegalAcceptanceAudience;
   status: LegalAcceptanceStatus;
   opened_at: Date | null;
   accepted_at: Date | null;
+  opened_ip_address: string | null;
+  opened_user_agent: string | null;
+  opened_device_info: string | null;
+  accepted_ip_address: string | null;
+  accepted_user_agent: string | null;
+  accepted_device_info: string | null;
   document_hash: string | null;
   acknowledgement_text: string | null;
-  ip_address: string | null;
-  user_agent: string | null;
-  device_info: string | null;
   user_email_snapshot: string | null;
   user_name_snapshot: string | null;
   created_at: Date;
@@ -40,7 +45,7 @@ type AcceptanceWithRelations = {
     email: string;
     first_name: string;
     last_name: string;
-  };
+  } | null;
   version: {
     id: string;
     version: number;
@@ -72,6 +77,15 @@ function buildOrgNameMap(
   return map;
 }
 
+function resolveOrganizationName(
+  row: AcceptanceWithRelations,
+  orgNames: Map<string, string | null>
+): string | null {
+  if (row.organization_name_snapshot) return row.organization_name_snapshot;
+  if (row.organization_id) return orgNames.get(row.organization_id) ?? null;
+  return null;
+}
+
 function toListItem(
   row: AcceptanceWithRelations,
   orgNames: Map<string, string | null>
@@ -82,9 +96,9 @@ function toListItem(
     null;
   const userName =
     row.user_name_snapshot ||
-    displayName(row.user.first_name, row.user.last_name) ||
+    (row.user ? displayName(row.user.first_name, row.user.last_name) : null) ||
     null;
-  const userEmail = row.user_email_snapshot || row.user.email || null;
+  const userEmail = row.user_email_snapshot || row.user?.email || null;
 
   return {
     id: row.id,
@@ -102,16 +116,18 @@ function toListItem(
     fileName: row.version.file_name,
     documentHash: row.document_hash ?? row.version.file_hash,
     organizationId: row.organization_id,
-    organizationName: row.organization_id
-      ? orgNames.get(row.organization_id) ?? null
-      : null,
-    organizationType: row.audience_role,
+    organizationName: resolveOrganizationName(row, orgNames),
+    organizationAccountType: row.organization_type_snapshot,
+    portal: row.audience_role,
     userId: row.user_id,
     userName,
     userEmail,
-    ipAddress: row.ip_address,
-    userAgent: row.user_agent,
-    deviceInfo: row.device_info,
+    openedIpAddress: row.opened_ip_address,
+    openedUserAgent: row.opened_user_agent,
+    openedDeviceInfo: row.opened_device_info,
+    acceptedIpAddress: row.accepted_ip_address,
+    acceptedUserAgent: row.accepted_user_agent,
+    acceptedDeviceInfo: row.accepted_device_info,
     acknowledgementText: row.acknowledgement_text,
   };
 }
@@ -158,6 +174,7 @@ function buildWhere(query: ListLegalAcceptancesQuery | ExportLegalAcceptancesQue
       { user_email_snapshot: { contains: search, mode: "insensitive" } },
       { user_name_snapshot: { contains: search, mode: "insensitive" } },
       { organization_id: { contains: search, mode: "insensitive" } },
+      { organization_name_snapshot: { contains: search, mode: "insensitive" } },
       { user: { email: { contains: search, mode: "insensitive" } } },
       { user: { first_name: { contains: search, mode: "insensitive" } } },
       { user: { last_name: { contains: search, mode: "insensitive" } } },
@@ -311,7 +328,6 @@ export class LegalDocumentAcceptanceAdminService {
       throw new AppError(404, "NOT_FOUND", "Legal document acceptance not found");
     }
 
-    // Always the accepted version row — never the currently published version.
     const { downloadUrl, expiresIn } = await generatePresignedDownloadUrl({
       key: row.version.s3_key,
       fileName: row.version.file_name,

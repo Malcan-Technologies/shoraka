@@ -1654,23 +1654,30 @@ model LegalDocumentAcceptance {
   document_type              LegalDocumentType?
   /// Snapshot of version number at open/accept.
   version_number             Int?
-  user_id                    String
+  user_id                    String?
   organization_id            String?
+  /// Organization display name at first open/accept.
+  organization_name_snapshot String?
+  /// Organization account type (PERSONAL/COMPANY) at first open/accept.
+  organization_type_snapshot String?
   audience_role              LegalAcceptanceAudience
   status                     LegalAcceptanceStatus   @default(NOT_OPENED)
   opened_at                  DateTime?
+  opened_ip_address          String?
+  opened_user_agent          String?
+  opened_device_info         String?
   accepted_at                DateTime?
+  accepted_ip_address        String?
+  accepted_user_agent        String?
+  accepted_device_info       String?
   document_hash              String?
-  /// Exact acknowledgement wording shown when the user accepted.
+  /// Exact acknowledgement wording at ACCEPT time (server-validated).
   acknowledgement_text       String?
-  ip_address                 String?
-  user_agent                 String?
-  device_info                String?
   user_email_snapshot        String?
   user_name_snapshot         String?
   created_at                 DateTime                @default(now())
   updated_at                 DateTime                @updatedAt
-  user                       User                    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  user                       User?                   @relation(fields: [user_id], references: [user_id], onDelete: SetNull)
   version                    LegalDocumentVersion    @relation(fields: [legal_document_version_id], references: [id], onDelete: Restrict)
 
   @@unique([user_id, organization_id, legal_document_version_id])
@@ -1682,6 +1689,35 @@ model LegalDocumentAcceptance {
   @@index([accepted_at])
   @@index([audience_role])
   @@map("legal_document_acceptances")
+}
+
+/// Immutable admin audit trail for legal document definition/version changes.
+model LegalDocumentAuditLog {
+  id                        String             @id @default(cuid())
+  action                    String
+  legal_document_id         String?
+  legal_document_version_id String?
+  document_type             LegalDocumentType?
+  version_number            Int?
+  document_hash             String?
+  actor_user_id             String?
+  actor_name_snapshot       String?
+  actor_email_snapshot      String?
+  before_json               Json?
+  after_json                Json?
+  reason                    String?
+  ip_address                String?
+  user_agent                String?
+  correlation_id            String?
+  created_at                DateTime           @default(now())
+
+  @@index([legal_document_id])
+  @@index([legal_document_version_id])
+  @@index([action])
+  @@index([actor_user_id])
+  @@index([document_type])
+  @@index([created_at])
+  @@map("legal_document_audit_logs")
 }
 
 model ProductLog {
