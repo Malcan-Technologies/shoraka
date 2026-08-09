@@ -646,12 +646,30 @@ export class LegalDocumentService {
         );
       }
 
+      const previouslyPublished = await legalDocumentRepository.findAllPublishedByDocumentId(
+        existing.legal_document_id,
+        versionId
+      );
+
       const published = await legalDocumentRepository.publishVersion(
         versionId,
         existing.legal_document_id,
         adminUserId,
         existing.reacceptance_required
       );
+
+      for (const archived of previouslyPublished) {
+        await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_ARCHIVED", {
+          legalDocumentId: existing.legal_document_id,
+          legalDocumentVersionId: archived.id,
+          documentType: existing.legal_document.type as LegalDocumentType,
+          versionNumber: archived.version,
+          documentHash: archived.file_hash,
+          beforeJson: { status: "PUBLISHED" },
+          afterJson: { status: "ARCHIVED" },
+          reason: "auto_archived_on_restore_publish",
+        });
+      }
 
       await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_RESTORED", {
         legalDocumentId: existing.legal_document_id,

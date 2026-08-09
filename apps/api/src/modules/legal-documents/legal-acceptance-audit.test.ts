@@ -505,6 +505,128 @@ describe("legal acceptance audit trail", () => {
       );
     });
 
+    it("restore archived version to published auto-archives current version with audit trail", async () => {
+      jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+        publishedVersion({
+          id: "ver3",
+          version: 3,
+          status: "ARCHIVED",
+          published_at: new Date("2026-08-01"),
+          archived_at: new Date("2026-08-02"),
+          archived_by: "admin1",
+        }) as never
+      );
+      jest.spyOn(legalDocumentRepository, "findPublishedByDocumentId").mockResolvedValue(
+        publishedVersion({ id: "ver2", version: 2, status: "PUBLISHED" }) as never
+      );
+      jest
+        .spyOn(legalDocumentRepository, "findAllPublishedByDocumentId")
+        .mockResolvedValue([{ id: "ver2", version: 2, file_hash: "ver2-hash" }]);
+      jest.spyOn(legalDocumentRepository, "publishVersion").mockResolvedValue(
+        publishedVersion({
+          id: "ver3",
+          status: "PUBLISHED",
+          version: 3,
+        }) as never
+      );
+      (prisma.legalDocumentAuditLog.create as jest.Mock).mockClear();
+
+      await legalDocumentService.restoreVersion("ver3", "admin1", adminReq);
+
+      const archiveCalls = (prisma.legalDocumentAuditLog.create as jest.Mock).mock.calls.filter(
+        ([arg]: [{ data: { action: string } }]) => arg.data.action === "LEGAL_VERSION_ARCHIVED"
+      );
+      expect(archiveCalls).toHaveLength(1);
+      expect(archiveCalls[0][0]).toEqual(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: "LEGAL_VERSION_ARCHIVED",
+            legal_document_version_id: "ver2",
+            version_number: 2,
+            document_hash: "ver2-hash",
+            before_json: { status: "PUBLISHED" },
+            after_json: { status: "ARCHIVED" },
+            reason: "auto_archived_on_restore_publish",
+          }),
+        })
+      );
+
+      expect(prisma.legalDocumentAuditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: "LEGAL_VERSION_RESTORED",
+            legal_document_version_id: "ver3",
+          }),
+        })
+      );
+    });
+
+    it("restore archived version to published without another published version creates no archive audit", async () => {
+      jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+        publishedVersion({
+          id: "ver1",
+          version: 1,
+          status: "ARCHIVED",
+          published_at: new Date("2026-08-01"),
+          archived_at: new Date("2026-08-02"),
+          archived_by: "admin1",
+        }) as never
+      );
+      jest.spyOn(legalDocumentRepository, "findPublishedByDocumentId").mockResolvedValue(null);
+      jest.spyOn(legalDocumentRepository, "findAllPublishedByDocumentId").mockResolvedValue([]);
+      jest.spyOn(legalDocumentRepository, "publishVersion").mockResolvedValue(
+        publishedVersion({ id: "ver1", status: "PUBLISHED", version: 1 }) as never
+      );
+      (prisma.legalDocumentAuditLog.create as jest.Mock).mockClear();
+
+      await legalDocumentService.restoreVersion("ver1", "admin1", adminReq);
+
+      const archiveCalls = (prisma.legalDocumentAuditLog.create as jest.Mock).mock.calls.filter(
+        ([arg]: [{ data: { action: string } }]) => arg.data.action === "LEGAL_VERSION_ARCHIVED"
+      );
+      expect(archiveCalls).toHaveLength(0);
+      expect(prisma.legalDocumentAuditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: "LEGAL_VERSION_RESTORED",
+          }),
+        })
+      );
+    });
+
+    it("restore archived version to draft creates no archive audit", async () => {
+      jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+        publishedVersion({
+          id: "ver1",
+          status: "ARCHIVED",
+          published_at: null,
+          published_by: null,
+          archived_at: new Date(),
+          archived_by: "admin1",
+        }) as never
+      );
+      jest.spyOn(legalDocumentRepository, "findDraftByDocumentId").mockResolvedValue(null);
+      jest.spyOn(legalDocumentRepository, "restoreVersionToDraft").mockResolvedValue(
+        publishedVersion({ id: "ver1", status: "DRAFT" }) as never
+      );
+      (prisma.legalDocumentAuditLog.create as jest.Mock).mockClear();
+
+      await legalDocumentService.restoreVersion("ver1", "admin1", adminReq);
+
+      const archiveCalls = (prisma.legalDocumentAuditLog.create as jest.Mock).mock.calls.filter(
+        ([arg]: [{ data: { action: string } }]) => arg.data.action === "LEGAL_VERSION_ARCHIVED"
+      );
+      expect(archiveCalls).toHaveLength(0);
+      expect(prisma.legalDocumentAuditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: "LEGAL_VERSION_RESTORED",
+            after_json: { status: "DRAFT", restored_as: "DRAFT" },
+          }),
+        })
+      );
+    });
+
     it("lists audit logs for admin export", async () => {
       const createdAt = new Date("2026-08-01T00:00:00.000Z");
       (prisma.legalDocumentAuditLog.findMany as jest.Mock).mockResolvedValue([
