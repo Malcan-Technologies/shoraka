@@ -4,7 +4,7 @@ import { NoteService } from "./service";
 describe("NoteService withdrawal display reference allocation", () => {
   const service = new NoteService() as any;
 
-  it("allocates WDL reference for note-linked withdrawals", async () => {
+  it("allocates product-scoped WDL reference for note-linked withdrawals", async () => {
     const tx: any = {
       withdrawalInstruction: {
         create: jest.fn().mockResolvedValue({
@@ -65,7 +65,7 @@ describe("NoteService withdrawal display reference allocation", () => {
     expect(created.display_reference).toBe("WDL-ARF-202608-A1Z");
   });
 
-  it("keeps account-level withdrawals unallocated", async () => {
+  it("allocates account-scoped WDL reference for withdrawals without a note", async () => {
     const tx: any = {
       withdrawalInstruction: {
         create: jest.fn().mockResolvedValue({
@@ -73,9 +73,16 @@ describe("NoteService withdrawal display reference allocation", () => {
           note_id: null,
           created_at: new Date("2026-08-10T01:00:00.000Z"),
         }),
+        update: jest.fn().mockResolvedValue({}),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({
+          id: "wdl_account",
+          note_id: null,
+          display_reference: "WDL-202608-X7A",
+        }),
       },
       displayReferenceAllocation: {
-        create: jest.fn(),
+        create: jest.fn().mockResolvedValue({}),
+        findUnique: jest.fn().mockResolvedValue(null),
       },
     };
 
@@ -87,6 +94,62 @@ describe("NoteService withdrawal display reference allocation", () => {
     });
 
     expect(created.id).toBe("wdl_account");
-    expect(tx.displayReferenceAllocation.create).not.toHaveBeenCalled();
+    expect(tx.displayReferenceAllocation.create).toHaveBeenCalledTimes(1);
+    expect(tx.displayReferenceAllocation.create.mock.calls[0][0].data).toEqual(
+      expect.objectContaining({
+        module_code: "WDL",
+        product_code: null,
+        entity_type: "withdrawal_instruction",
+        entity_id: "wdl_account",
+      })
+    );
+    expect(tx.withdrawalInstruction.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "wdl_account" },
+        data: { display_reference: expect.stringMatching(/^WDL-202608-[A-Z0-9]{3}$/) },
+      })
+    );
+    expect(created.display_reference).toBe("WDL-202608-X7A");
+  });
+
+  it("returns existing allocation on retry without creating a duplicate", async () => {
+    const tx: any = {
+      withdrawalInstruction: {
+        create: jest.fn().mockResolvedValue({
+          id: "wdl_account",
+          note_id: null,
+          created_at: new Date("2026-08-10T01:00:00.000Z"),
+        }),
+        update: jest.fn(),
+        findUniqueOrThrow: jest.fn().mockResolvedValue({
+          id: "wdl_account",
+          note_id: null,
+          display_reference: "WDL-202608-X7A",
+        }),
+      },
+      displayReferenceAllocation: {
+        create: jest.fn().mockRejectedValue({
+          code: "P2002",
+          meta: { target: ["entity_type", "entity_id"] },
+        }),
+        findUnique: jest.fn().mockResolvedValue({
+          display_reference: "WDL-202608-X7A",
+          module_code: "WDL",
+          product_code: null,
+          entity_type: "withdrawal_instruction",
+          entity_id: "wdl_account",
+        }),
+      },
+    };
+
+    const created = await service.createWithdrawalInstructionWithDisplayReference(tx, {
+      requested_by_user_id: "user_1",
+      withdrawal_type: WithdrawalType.INVESTOR_WITHDRAWAL,
+      amount: 250,
+      beneficiary_snapshot: {},
+    });
+
+    expect(created.display_reference).toBe("WDL-202608-X7A");
+    expect(tx.withdrawalInstruction.update).not.toHaveBeenCalled();
   });
 });

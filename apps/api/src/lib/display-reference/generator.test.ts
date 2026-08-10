@@ -8,7 +8,7 @@ import {
 import type { AllocateDisplayReferenceInput } from "./types";
 
 describe("display-reference generator", () => {
-  it.each(["APP", "CON", "INV", "NOTE", "SET", "WDL"] as const)(
+  it.each(["APP", "CON", "INV", "NOTE", "SET"] as const)(
     "generates product-scoped format for %s",
     (moduleCode) => {
       const ref = generateDisplayReference({
@@ -19,6 +19,27 @@ describe("display-reference generator", () => {
       expect(ref).toMatch(new RegExp(`^${moduleCode}-ARF-202608-[A-Z0-9]{3}$`));
     }
   );
+
+  it("generates product-scoped WDL format", () => {
+    const ref = generateDisplayReference({
+      moduleCode: "WDL",
+      scope: "product",
+      productCode: "arf",
+      referenceDate: new Date("2026-08-10T01:00:00Z"),
+    });
+    expect(ref).toMatch(/^WDL-ARF-202608-[A-Z0-9]{3}$/);
+    expect(ref).not.toMatch(/^WDL-\d{6}-[A-Z0-9]{3}$/);
+  });
+
+  it("generates account-scoped WDL format without product segment", () => {
+    const ref = generateDisplayReference({
+      moduleCode: "WDL",
+      referenceDate: new Date("2026-08-10T01:00:00Z"),
+    });
+    expect(ref).toMatch(/^WDL-202608-[A-Z0-9]{3}$/);
+    expect(ref).not.toContain("-ARF-");
+    expect(ref).not.toContain("-GEN-");
+  });
 
   it.each(["ISS", "IVT"] as const)(
     "generates organization format for %s",
@@ -37,6 +58,16 @@ describe("display-reference generator", () => {
     expect(() =>
       generateDisplayReference({
         moduleCode: "APP",
+        referenceDate: new Date("2026-08-10T01:00:00Z"),
+      } as unknown as any)
+    ).toThrow();
+  });
+
+  it("rejects product scope WDL without product code", () => {
+    expect(() =>
+      generateDisplayReference({
+        moduleCode: "WDL",
+        scope: "product",
         referenceDate: new Date("2026-08-10T01:00:00Z"),
       } as unknown as any)
     ).toThrow();
@@ -88,6 +119,62 @@ describe("display-reference allocator", () => {
     expect(input.tx.displayReferenceAllocation.create).toHaveBeenCalledTimes(1);
     expect(input.tx.displayReferenceAllocation.create.mock.calls[0][0].data.product_code).toBe("ARF");
     expect(persist).toHaveBeenCalledWith(input.tx, ref);
+  });
+
+  it("stores null product_code for account-scoped WDL", async () => {
+    const persist = jest.fn(async () => undefined);
+    const tx = {
+      displayReferenceAllocation: {
+        create: jest.fn(async () => ({})),
+        findUnique: jest.fn(async () => null),
+      },
+    };
+    const input: AllocateDisplayReferenceInput = {
+      moduleCode: "WDL",
+      referenceDate: new Date("2026-08-10T01:00:00.000Z"),
+      entityType: "withdrawal_instruction",
+      entityId: "wdl_account_1",
+      tx: tx as any,
+    };
+
+    const ref = await allocateDisplayReference(input, persist);
+
+    expect(ref).toMatch(/^WDL-202608-[A-Z0-9]{3}$/);
+    expect(ref).not.toContain("-ARF-");
+    expect(tx.displayReferenceAllocation.create.mock.calls[0][0].data.product_code).toBeNull();
+  });
+
+  it("fails with conflict when existing WDL allocation scope differs", async () => {
+    const tx = {
+      displayReferenceAllocation: {
+        create: jest.fn().mockRejectedValue({
+          code: "P2002",
+          meta: { target: ["entity_type", "entity_id"] },
+        }),
+        findUnique: jest.fn().mockResolvedValue({
+          display_reference: "WDL-202608-A1Z",
+          module_code: "WDL",
+          product_code: null,
+          entity_type: "withdrawal_instruction",
+          entity_id: "wdl_1",
+        }),
+      },
+    };
+    const persist = jest.fn(async () => undefined);
+    const input: AllocateDisplayReferenceInput = {
+      moduleCode: "WDL",
+      scope: "product",
+      productCode: "ARF",
+      referenceDate: new Date("2026-08-10T01:00:00.000Z"),
+      entityType: "withdrawal_instruction",
+      entityId: "wdl_1",
+      tx: tx as any,
+    };
+
+    await expect(allocateDisplayReference(input, persist)).rejects.toBeInstanceOf(
+      DisplayReferenceConflictError
+    );
+    expect(persist).not.toHaveBeenCalled();
   });
 
   it("stores null product_code for organization modules", async () => {

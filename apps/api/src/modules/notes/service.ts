@@ -5790,8 +5790,25 @@ export class NoteService {
     data: Prisma.WithdrawalInstructionUncheckedCreateInput
   ) {
     const created = await tx.withdrawalInstruction.create({ data });
+
     if (!created.note_id) {
-      return created;
+      await allocateDisplayReference(
+        {
+          moduleCode: "WDL",
+          referenceDate: created.created_at,
+          entityType: "withdrawal_instruction",
+          entityId: created.id,
+          tx,
+        },
+        async (persistTx, reference) => {
+          await persistTx.withdrawalInstruction.update({
+            where: { id: created.id },
+            data: { display_reference: reference },
+          });
+        }
+      );
+
+      return tx.withdrawalInstruction.findUniqueOrThrow({ where: { id: created.id } });
     }
 
     const noteForReference = await tx.note.findUnique({
@@ -5822,6 +5839,7 @@ export class NoteService {
     await allocateDisplayReference(
       {
         moduleCode: "WDL",
+        scope: "product",
         productCode,
         referenceDate: created.created_at,
         entityType: "withdrawal_instruction",

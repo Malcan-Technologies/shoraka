@@ -77,7 +77,16 @@ describe("display-reference formatters", () => {
   });
 
   it("keeps account-level withdrawal fallback when canonical ref is null", () => {
-    expect(formatWithdrawalReference({ id: "abcdefghijklmnop" })).toBe("#JKLMNOPQ");
+    expect(formatWithdrawalReference({ id: "abcdefghijklmnop" })).toBe("#IJKLMNOP");
+  });
+
+  it("accepts account-scoped WDL canonical reference without transformation", () => {
+    expect(
+      formatWithdrawalReference({
+        displayReference: "WDL-202608-X7A",
+        id: "withdrawal_id",
+      })
+    ).toBe("WDL-202608-X7A");
   });
 
   it("formats organization references", () => {

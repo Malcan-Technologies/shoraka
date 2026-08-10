@@ -3,6 +3,7 @@ import {
   MODULE_CODES,
   ORGANIZATION_MODULE_CODES,
   PRODUCT_SCOPED_MODULE_CODES,
+  ACCOUNT_SCOPED_MODULE_CODES,
 } from "./types";
 import { isValidProductCode } from "./product-code";
 
@@ -34,8 +35,9 @@ export type ReferenceSanityReport = {
 };
 
 const PRODUCT_SCOPED_PATTERN = new RegExp(
-  `^(${PRODUCT_SCOPED_MODULE_CODES.join("|")})-([A-Z0-9]{2,8})-(\\d{6})-([A-Z0-9]{3})$`
+  `^(${[...PRODUCT_SCOPED_MODULE_CODES, "WDL"].join("|")})-([A-Z0-9]{2,8})-(\\d{6})-([A-Z0-9]{3})$`
 );
+const ACCOUNT_SCOPED_WDL_PATTERN = /^WDL-(\d{6})-([A-Z0-9]{3})$/;
 const ORGANIZATION_PATTERN = new RegExp(
   `^(${ORGANIZATION_MODULE_CODES.join("|")})-(\\d{6})-([A-Z0-9]{3})$`
 );
@@ -53,6 +55,10 @@ function parseReferenceParts(reference: string): {
   const productScoped = reference.match(PRODUCT_SCOPED_PATTERN);
   if (productScoped) {
     return { moduleCode: productScoped[1], productCode: productScoped[2] };
+  }
+  const accountWdl = reference.match(ACCOUNT_SCOPED_WDL_PATTERN);
+  if (accountWdl) {
+    return { moduleCode: "WDL", productCode: null };
   }
   const organization = reference.match(ORGANIZATION_PATTERN);
   if (organization) {
@@ -196,14 +202,17 @@ export async function checkDisplayReferenceSanity(
       });
     }
 
-    const isProductScoped = (PRODUCT_SCOPED_MODULE_CODES as readonly string[]).includes(
-      allocation.module_code
-    );
+    const isProductScopedAllocation =
+      (PRODUCT_SCOPED_MODULE_CODES as readonly string[]).includes(allocation.module_code) ||
+      (allocation.module_code === "WDL" && allocation.product_code != null);
+    const isAccountScopedAllocation =
+      (ACCOUNT_SCOPED_MODULE_CODES as readonly string[]).includes(allocation.module_code) &&
+      allocation.product_code == null;
     const isOrganization = (ORGANIZATION_MODULE_CODES as readonly string[]).includes(
       allocation.module_code
     );
 
-    if (isProductScoped) {
+    if (isProductScopedAllocation) {
       if (!allocation.product_code) {
         issues.push({
           code: "MISSING_PRODUCT_CODE",
@@ -235,6 +244,18 @@ export async function checkDisplayReferenceSanity(
           displayReference: allocation.display_reference,
         });
       }
+    }
+
+    if (isAccountScopedAllocation && allocation.product_code) {
+      issues.push({
+        code: "ACCOUNT_WDL_HAS_PRODUCT_CODE",
+        severity: "error",
+        message: `Account-scoped WDL allocation ${allocation.display_reference} must not include product_code`,
+        allocationId: allocation.id,
+        entityType: allocation.entity_type,
+        entityId: allocation.entity_id,
+        displayReference: allocation.display_reference,
+      });
     }
 
     if (isOrganization && allocation.product_code) {

@@ -87,6 +87,20 @@ describe("trustee-letter data mappers ourRef", () => {
     expect(investorWithdrawal.ourRef).toBe("WDL-ARF-202608-X91");
   });
 
+  it("maps account-scoped WDL ourRef for investor withdrawal", () => {
+    const config = buildConfig();
+    const investorWithdrawal = mapInvestorWithdrawalLetterData({
+      ourRef: "WDL-202608-X7A",
+      withdrawalId: "wd_account",
+      amount: 500,
+      beneficiarySnapshot: {},
+      investorOrganizationName: "Investor",
+      config,
+    });
+
+    expect(investorWithdrawal.ourRef).toBe("WDL-202608-X7A");
+  });
+
   it("maps SET ourRef for repayment letters", () => {
     const config = buildConfig();
     const repayment = mapRepaymentLetterData({

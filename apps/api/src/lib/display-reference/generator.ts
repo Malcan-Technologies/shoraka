@@ -8,6 +8,7 @@ import {
   type AllocateDisplayReferenceInput,
   type GenerateDisplayReferenceInput,
   type PersistDisplayReferenceRecord,
+  ACCOUNT_SCOPED_MODULE_CODES,
   ORGANIZATION_MODULE_CODES,
   PRODUCT_SCOPED_MODULE_CODES,
 } from "./types";
@@ -28,10 +29,29 @@ export class DisplayReferenceConflictError extends Error {
   }
 }
 
-function isProductScopedInput(
+function isProductScopedModuleInput(
   input: GenerateDisplayReferenceInput
 ): input is Extract<GenerateDisplayReferenceInput, { productCode: string }> {
-  return (PRODUCT_SCOPED_MODULE_CODES as readonly string[]).includes(input.moduleCode);
+  if ((PRODUCT_SCOPED_MODULE_CODES as readonly string[]).includes(input.moduleCode)) {
+    return true;
+  }
+  return input.moduleCode === "WDL" && "scope" in input && input.scope === "product";
+}
+
+function isAccountScopedModuleInput(
+  input: GenerateDisplayReferenceInput
+): input is Extract<GenerateDisplayReferenceInput, { moduleCode: "WDL" }> & { scope?: never } {
+  return (ACCOUNT_SCOPED_MODULE_CODES as readonly string[]).includes(input.moduleCode);
+}
+
+function isOrganizationModuleInput(
+  input: GenerateDisplayReferenceInput
+): input is Extract<GenerateDisplayReferenceInput, { moduleCode: "ISS" | "IVT" }> {
+  return (ORGANIZATION_MODULE_CODES as readonly string[]).includes(input.moduleCode);
+}
+
+function allocationUsesProductCode(input: AllocateDisplayReferenceBaseInput): boolean {
+  return isProductScopedModuleInput(input);
 }
 
 export function getMalaysiaYearMonth(now: Date): string {
@@ -54,20 +74,37 @@ export function generateDisplayReference(input: GenerateDisplayReferenceInput): 
   const yearMonth = getMalaysiaYearMonth(input.referenceDate);
   const suffix = generateSecureSuffix();
 
-  if (isProductScopedInput(input)) {
+  if (isProductScopedModuleInput(input)) {
     const productCode = normalizeAndValidateProductCode(input.productCode);
     return `${input.moduleCode}-${productCode}-${yearMonth}-${suffix}`;
   }
 
-  const inputRecord = input as unknown as Record<string, unknown>;
-  if ("productCode" in inputRecord) {
-    const maybeCode = inputRecord.productCode;
-    if (typeof maybeCode === "string" && maybeCode.trim().length > 0) {
-      throw new Error("Organization references must not include a product code.");
+  if (isAccountScopedModuleInput(input)) {
+    const inputRecord = input as unknown as Record<string, unknown>;
+    if ("productCode" in inputRecord) {
+      const maybeCode = inputRecord.productCode;
+      if (typeof maybeCode === "string" && maybeCode.trim().length > 0) {
+        throw new Error("Account-scoped WDL references must not include a product code.");
+      }
     }
+    if ("scope" in inputRecord && inputRecord.scope === "product") {
+      throw new Error("Account-scoped WDL references must not use product scope.");
+    }
+    return `${input.moduleCode}-${yearMonth}-${suffix}`;
   }
 
-  return `${input.moduleCode}-${yearMonth}-${suffix}`;
+  if (isOrganizationModuleInput(input)) {
+    const inputRecord = input as unknown as Record<string, unknown>;
+    if ("productCode" in inputRecord) {
+      const maybeCode = inputRecord.productCode;
+      if (typeof maybeCode === "string" && maybeCode.trim().length > 0) {
+        throw new Error("Organization references must not include a product code.");
+      }
+    }
+    return `${input.moduleCode}-${yearMonth}-${suffix}`;
+  }
+
+  throw new Error(`Unsupported display reference module: ${(input as { moduleCode?: string }).moduleCode}`);
 }
 
 function getUniqueConstraintTarget(error: unknown): string[] | null | undefined {
@@ -136,8 +173,10 @@ async function resolveExistingEntityAllocation(
     );
   }
 
-  if (isProductScopedInput(input)) {
-    const expectedCode = normalizeAndValidateProductCode(input.productCode);
+  if (allocationUsesProductCode(input)) {
+    const expectedCode = normalizeAndValidateProductCode(
+      (input as Extract<AllocateDisplayReferenceBaseInput, { productCode: string }>).productCode
+    );
     if (existing.product_code == null) {
       throw new DisplayReferenceConflictError(
         `Display reference allocation conflict for ${input.entityType}:${input.entityId}. Existing allocation has no product code but ${expectedCode} is required.`
@@ -151,7 +190,7 @@ async function resolveExistingEntityAllocation(
     }
   } else if (existing.product_code != null) {
     throw new DisplayReferenceConflictError(
-      `Display reference allocation conflict for ${input.entityType}:${input.entityId}. Existing allocation has product code ${existing.product_code} but organization modules must not use product codes.`
+      `Display reference allocation conflict for ${input.entityType}:${input.entityId}. Existing allocation has product code ${existing.product_code} but account/organization modules must not use product codes.`
     );
   }
 
@@ -173,8 +212,11 @@ async function allocateDisplayReferenceInTx(
         data: {
           display_reference: candidate,
           module_code: inTxInput.moduleCode,
-          product_code: isProductScopedInput(inTxInput)
-            ? normalizeAndValidateProductCode(inTxInput.productCode)
+          product_code: allocationUsesProductCode(inTxInput)
+            ? normalizeAndValidateProductCode(
+                (inTxInput as Extract<AllocateDisplayReferenceBaseInput, { productCode: string }>)
+                  .productCode
+              )
             : null,
           entity_type: inTxInput.entityType,
           entity_id: inTxInput.entityId,
@@ -195,11 +237,13 @@ async function allocateDisplayReferenceInTx(
     }
   }
 
-  const scope = (PRODUCT_SCOPED_MODULE_CODES as readonly string[]).includes(input.moduleCode)
+  const scope = allocationUsesProductCode(input)
     ? `module=${input.moduleCode} product=${normalizeAndValidateProductCode(
-        (input as Extract<GenerateDisplayReferenceInput, { productCode: string }>).productCode
+        (input as Extract<AllocateDisplayReferenceBaseInput, { productCode: string }>).productCode
       )}`
-    : `module=${input.moduleCode}`;
+    : input.moduleCode === "WDL"
+      ? "module=WDL scope=account"
+      : `module=${input.moduleCode}`;
   throw new DisplayReferenceExhaustedError(
     `Failed to allocate display reference after ${maxAttempts} attempts (${scope}).`
   );
@@ -221,8 +265,21 @@ function baseInputFromAllocationInput(
   input: AllocateDisplayReferenceInput
 ): AllocateDisplayReferenceBaseInput {
   const { moduleCode, referenceDate, entityType, entityId } = input;
-  if (isProductScopedInput(input)) {
+  if (isProductScopedModuleInput(input)) {
+    if (input.moduleCode === "WDL") {
+      return {
+        moduleCode: "WDL",
+        scope: "product",
+        referenceDate,
+        productCode: input.productCode,
+        entityType,
+        entityId,
+      };
+    }
     return { moduleCode, referenceDate, productCode: input.productCode, entityType, entityId };
+  }
+  if (isAccountScopedModuleInput(input)) {
+    return { moduleCode: input.moduleCode, referenceDate, entityType, entityId };
   }
   return { moduleCode, referenceDate, entityType, entityId } as AllocateDisplayReferenceBaseInput;
 }
