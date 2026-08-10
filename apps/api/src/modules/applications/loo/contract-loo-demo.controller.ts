@@ -12,12 +12,19 @@ import {
 } from "./build-contract-loo-merge-data";
 import { createContractLooFixture } from "./contract-loo-fixture";
 import {
+  contractLooGenerateQuerySchema,
   contractLooMergeBodySchema,
   contractLooPrefillQuerySchema,
 } from "./contract-loo-demo.schemas";
+import { convertDocxToPdf, DocxToPdfError } from "./convert-docx-to-pdf";
 import { renderContractLooDocx } from "./render-contract-loo-docx";
 
 const router = Router();
+
+function looDownloadBasename(issuerName: string): string {
+  const safeName = (issuerName || "issuer").replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 40);
+  return `ARF-LOO-${safeName || "demo"}`;
+}
 
 /** GET /v1/admin/demos/contract-loo/fixture — default editable merge values */
 router.get("/fixture", (_req: Request, res: Response) => {
@@ -106,28 +113,46 @@ router.get("/prefill", async (req: Request, res: Response, next: NextFunction) =
 });
 
 /**
- * POST /v1/admin/demos/contract-loo/generate
- * Body: ContractLooMergeData → download filled .docx
+ * POST /v1/admin/demos/contract-loo/generate?format=docx|pdf
+ * Body: ContractLooMergeData → download filled .docx or Gotenberg-converted .pdf
  */
 router.post("/generate", async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const query = contractLooGenerateQuerySchema.safeParse(req.query);
+    if (!query.success) {
+      throw new AppError(400, "VALIDATION_ERROR", "format must be docx or pdf");
+    }
     const parsed = contractLooMergeBodySchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid merge payload");
     }
     const data = normalizeContractLooMergeData(parsed.data);
-    const buffer = renderContractLooDocx(data);
-    const safeName = (data.issuer_name || "issuer")
-      .replace(/[^a-zA-Z0-9_-]+/g, "_")
-      .slice(0, 40);
-    const filename = `ARF-LOO-${safeName || "demo"}.docx`;
+    const docxBuffer = renderContractLooDocx(data);
+    const basename = looDownloadBasename(data.issuer_name);
+
+    if (query.data.format === "pdf") {
+      try {
+        const pdfBuffer = await convertDocxToPdf(docxBuffer);
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `attachment; filename="${basename}.pdf"`);
+        res.send(pdfBuffer);
+        return;
+      } catch (err) {
+        if (err instanceof DocxToPdfError) {
+          const status =
+            err.code === "GOTENBERG_MISSING" || err.code === "GOTENBERG_UNAVAILABLE" ? 503 : 500;
+          throw new AppError(status, err.code, err.message);
+        }
+        throw err;
+      }
+    }
 
     res.setHeader(
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     );
-    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-    res.send(buffer);
+    res.setHeader("Content-Disposition", `attachment; filename="${basename}.docx"`);
+    res.send(docxBuffer);
   } catch (err) {
     next(err);
   }

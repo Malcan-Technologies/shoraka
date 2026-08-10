@@ -13,3 +13,7 @@ export const contractLooMergeBodySchema = z.object(shape);
 export const contractLooPrefillQuerySchema = z.object({
   contractId: z.string().min(1, "contractId is required"),
 });
+
+export const contractLooGenerateQuerySchema = z.object({
+  format: z.enum(["docx", "pdf"]).default("docx"),
+});

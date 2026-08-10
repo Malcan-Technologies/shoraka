@@ -112,6 +112,6 @@ describe("normalizeContractLooMergeData", () => {
     });
     expect(normalized.issuer_name).toBe("Override Name");
     expect(normalized.profit_rate_percent).toBe("1.5");
-    expect(normalized.letterhead_note).toBe(fixture.letterhead_note);
+    expect(normalized.our_reference).toBe(fixture.our_reference);
   });
 });

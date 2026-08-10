@@ -177,7 +177,6 @@ export function buildContractLooMergeData(input: BuildContractLooMergeInput): Co
   return {
     ...base,
     ...emptyMissing,
-    letterhead_note: base.letterhead_note,
     issuer_id: input.issuerOrganization.id || input.contract.issuer_organization_id,
     our_reference: input.contract.id,
     letter_date: letterDate,

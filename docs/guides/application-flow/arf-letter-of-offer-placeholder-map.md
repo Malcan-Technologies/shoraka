@@ -11,10 +11,29 @@ Not production. No SigningCloud — signature lines stay blank for **wet ink**.
 | Tagged template | [`apps/api/src/modules/applications/templates/arf-contract-facility-loo.docx`](../../apps/api/src/modules/applications/templates/arf-contract-facility-loo.docx) |
 | Source copy (untagged) | [`apps/api/src/modules/applications/templates/Clean - ACCOUNT RECEIVABLE FINANCING-i Letter of Offer (16 July 2026) copy.docx`](../../apps/api/src/modules/applications/templates/Clean%20-%20ACCOUNT%20RECEIVABLE%20FINANCING-i%20Letter%20of%20Offer%20(16%20July%202026)%20copy.docx) |
 | Admin UI | `/demos/contract-loo` (admin app; deep-link only) |
-| API | `GET /v1/admin/demos/contract-loo/fixture`, `GET .../prefill?contractId=`, `POST .../generate` → `.docx` |
+| API | `GET /v1/admin/demos/contract-loo/fixture`, `GET .../prefill?contractId=`, `POST .../generate?format=docx\|pdf` → `.docx` or `.pdf` |
 | Code | [`apps/api/src/modules/applications/loo/`](../../apps/api/src/modules/applications/loo/) |
+| PDF | **Gotenberg** (`GOTENBERG_URL`); returns 503 if unset or unreachable |
 
-**How to try:** open the admin demo page → **Reset fixture** or **Prefill** from a contract id → edit any field → **Download .docx** → open in Word.
+**How to try:** open the admin demo page → **Reset fixture** or **Prefill** from a contract id → edit any field → **Download .docx** and/or **Download .pdf** → signature lines stay blank for wet ink.
+
+**Local PDF via Gotenberg:**
+
+```bash
+docker compose -f docker-compose.gotenberg.yml up -d
+export GOTENBERG_URL=http://127.0.0.1:3100   # in the shell that runs the API
+# restart / start API, then Download .pdf on /demos/contract-loo
+```
+
+Smoke-test without the app:
+
+```bash
+curl -sS -o /tmp/loo.pdf -w "%{http_code}\n" \
+  -F files=@apps/api/src/modules/applications/templates/arf-contract-facility-loo.docx \
+  http://127.0.0.1:3100/forms/libreoffice/convert
+file /tmp/loo.pdf   # should say PDF
+```
+
 
 Merge tags use `{field_name}` (docxtemplater). Map keys live in `@cashsouk/types` `ContractLooMergeData`.
 
@@ -82,7 +101,7 @@ For each row:
 
 | ID  | Template location | Placeholder                    | Recommended fill                                                        | Platform source                                                                | Status                  | Your decision                                  | Notes                                                                      |
 | --- | ----------------- | ------------------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------- | ---------------------------------------------- | -------------------------------------------------------------------------- |
-| H1  | Header            | `[Under Shoraka’s Letterhead]` | Remove placeholder; apply CashSouk / SSP letterhead asset at generation | Brand / letterhead assets (not application data)                               | `MISSING` as data field | This is pending, we have not received this yet | Template instruction, not issuer data                                      |
+| H1  | Header            | (letterhead in template)       | Letterhead baked into Word template — no merge field                        | Template asset                                                                 | `N/A`                   | Done — letterhead in document                  | Not a data field; removed from merge payload                               |
 | H2  | Issuer ID         | `[Insert]`                     | Issuer org id                                                           | `Application.issuer_organization_id` → `IssuerOrganization.id`                 | `EXISTS`                | Agreed                                         | CUID; confirm if legal wants a human-readable issuer code instead          |
 | H3  | Our Reference     | `[Insert]`                     | Contract id as offer reference                                          | `Contract.id` (fallback `Application.id` only if needed)                       | `PARTIAL`               | Agreed                                         | No dedicated LOO reference scheme; contract id is the natural facility key |
 | H4  | Date              | `[Insert]`                     | Date offer letter is issued / sent                                      | Prefer `Contract.offer_details.sent_at` (date part); else generation timestamp | `DERIVE`                | Agreed                                         | Format e.g. `16 July 2026`                                                 |

@@ -3,7 +3,6 @@ import type { ContractLooMergeData } from "./contract-loo-merge.types";
 /** Default form values for the admin LOO demo (editable). */
 export function createContractLooFixture(): ContractLooMergeData {
   return {
-    letterhead_note: "[Under Shoraka’s Letterhead]",
     issuer_id: "issuer_org_demo_001",
     our_reference: "contract_demo_001",
     letter_date: "16 July 2026",

@@ -3224,11 +3224,13 @@ export class ApiClient {
     );
   }
 
-  /** DEMO: generate filled ARF LOO .docx (wet-ink; no SigningCloud) */
+  /** DEMO: generate filled ARF LOO .docx or .pdf (wet-ink; no SigningCloud) */
   async generateContractLooDemoDocx(
-    data: import("@cashsouk/types").ContractLooMergeData
+    data: import("@cashsouk/types").ContractLooMergeData,
+    options?: { format?: "docx" | "pdf" }
   ): Promise<Blob> {
-    const url = `${this.baseUrl}/v1/admin/demos/contract-loo/generate`;
+    const format = options?.format ?? "docx";
+    const url = `${this.baseUrl}/v1/admin/demos/contract-loo/generate?format=${format}`;
     const authToken = await this.getAuthToken();
     const headers: HeadersInit = { "Content-Type": "application/json" };
     if (authToken) headers["Authorization"] = `Bearer ${authToken}`;

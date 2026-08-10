@@ -21,7 +21,6 @@ import { Textarea } from "@/components/ui/textarea";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 const FIELD_LABELS: Partial<Record<keyof ContractLooMergeData, string>> = {
-  letterhead_note: "Letterhead note",
   issuer_id: "Issuer ID",
   our_reference: "Our reference",
   letter_date: "Letter date",
@@ -60,7 +59,7 @@ const FIELD_LABELS: Partial<Record<keyof ContractLooMergeData, string>> = {
 const SECTIONS: Array<{ title: string; keys: Array<keyof ContractLooMergeData> }> = [
   {
     title: "Header / letter meta",
-    keys: ["letterhead_note", "issuer_id", "our_reference", "letter_date"],
+    keys: ["issuer_id", "our_reference", "letter_date"],
   },
   {
     title: "Addressee",
@@ -196,26 +195,33 @@ export default function ContractLooDemoPage() {
     }
   }, [apiClient, contractId]);
 
-  const downloadDocx = useCallback(async () => {
-    setBusy(true);
-    setStatus(null);
-    try {
-      const blob = await apiClient.generateContractLooDemoDocx(form);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `ARF-LOO-${(form.issuer_name || "demo").replace(/[^\w-]+/g, "_").slice(0, 40)}.docx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      setStatus("Downloaded filled .docx — open in Word; signature lines stay blank for wet ink");
-    } catch (e) {
-      setStatus(e instanceof Error ? e.message : "Generate failed");
-    } finally {
-      setBusy(false);
-    }
-  }, [apiClient, form]);
+  const downloadFile = useCallback(
+    async (format: "docx" | "pdf") => {
+      setBusy(true);
+      setStatus(null);
+      try {
+        const blob = await apiClient.generateContractLooDemoDocx(form, { format });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `ARF-LOO-${(form.issuer_name || "demo").replace(/[^\w-]+/g, "_").slice(0, 40)}.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        setStatus(
+          format === "pdf"
+            ? "Downloaded filled .pdf (Gotenberg); signature lines stay blank for wet ink"
+            : "Downloaded filled .docx — open in Word; signature lines stay blank for wet ink"
+        );
+      } catch (e) {
+        setStatus(e instanceof Error ? e.message : "Generate failed");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [apiClient, form]
+  );
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-6 md:p-8">
@@ -224,8 +230,8 @@ export default function ContractLooDemoPage() {
           <CardTitle>Contract LOO generation demo</CardTitle>
           <CardDescription>
             Temporary playground for the ARF-i facility Letter of Offer. Edits merge into the legal
-            Word template and download as <code>.docx</code> for wet-ink signing. Not wired to Send
-            Offer or SigningCloud.
+            Word template; download as <code>.docx</code> or <code>.pdf</code> (PDF needs{" "}
+            <code>GOTENBERG_URL</code>). Wet-ink only — not wired to Send Offer or SigningCloud.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
@@ -245,8 +251,11 @@ export default function ContractLooDemoPage() {
           <Button type="button" variant="outline" onClick={() => void loadFixture()} disabled={busy}>
             Reset fixture
           </Button>
-          <Button type="button" onClick={() => void downloadDocx()} disabled={busy}>
+          <Button type="button" variant="outline" onClick={() => void downloadFile("docx")} disabled={busy}>
             Download .docx
+          </Button>
+          <Button type="button" onClick={() => void downloadFile("pdf")} disabled={busy}>
+            Download .pdf
           </Button>
         </CardContent>
         {status ? <p className="px-6 pb-4 text-[15px] text-muted-foreground">{status}</p> : null}

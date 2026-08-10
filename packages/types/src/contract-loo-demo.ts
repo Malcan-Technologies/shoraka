@@ -4,7 +4,6 @@
  */
 
 export type ContractLooMergeData = {
-  letterhead_note: string;
   issuer_id: string;
   our_reference: string;
   letter_date: string;
@@ -41,7 +40,6 @@ export type ContractLooMergeData = {
 };
 
 export const CONTRACT_LOO_MERGE_KEYS = [
-  "letterhead_note",
   "issuer_id",
   "our_reference",
   "letter_date",
