@@ -291,16 +291,17 @@ export default function AccountPage() {
                         Two-factor authentication (2FA)
                       </Label>
                       <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
-                        Extra security required for all accounts
+                        Authenticator app (TOTP) required at sign-in for all accounts
                       </p>
                     </div>
                     <Badge variant="outline" className={successBadgeClass}>
                       <ShieldCheckIcon className="mr-1 h-3.5 w-3.5" />
-                      Enabled
+                      Required
                     </Badge>
                   </div>
                   <p className="text-[13px] leading-5 text-muted-foreground">
-                    Two-factor authentication is required and cannot be turned off.
+                    Set up or manage your authenticator during Cognito sign-in. 2FA cannot be
+                    turned off.
                   </p>
                 </div>
 
