@@ -22,7 +22,7 @@ const OUTPUT_DIR = path.join(ROOT, "output");
 const VENDOR_XSL = path.join(ROOT, "vendor", "ctos-enqws-v5.11.0", "3. Stylesheet");
 const SAMPLE_COMPANY = path.join(ROOT, "samples", "company.xml");
 
-/** Same 21 numeric CTOS <account> tags as the live system parser. */
+/** Same numeric CTOS <account> tags as the live system parser (incl. official `gear`). */
 const ACCOUNT_NUMERIC_CODENAMES = [
   "bsfatot",
   "othass",
@@ -45,6 +45,7 @@ const ACCOUNT_NUMERIC_CODENAMES = [
   "return_on_equity",
   "currat",
   "workcap",
+  "gear",
 ] as const;
 
 const DEFAULT_BUSINESS_OWNER = {

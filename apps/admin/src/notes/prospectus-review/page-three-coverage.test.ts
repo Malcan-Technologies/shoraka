@@ -117,12 +117,13 @@ const yearRaw: import("@cashsouk/types").ProspectusFrozenFinancialRaw = {
   bsslltd: 80_000,
   bsclstd: 20_000,
   bsqpuc: 500_000,
-  totass: null,
-  totlib: null,
+  totass: 1_000_000,
+  totlib: 250_000,
   networth: 500_000,
   profit_margin: null,
   return_on_equity: null,
   currat: null,
+  gear: null,
 };
 
 function frozenYear(
@@ -286,6 +287,7 @@ describe("page three coverage verification", () => {
         profit_margin: null,
         return_on_equity: null,
         currat: null,
+        gear: null,
       }),
     ];
     const table = buildPageThreeBalanceSheetTable(incomplete, undefined);
@@ -311,17 +313,14 @@ describe("page three coverage verification", () => {
     );
   });
 
-  it("builds Coverage table with Page 2 reuse, officer fills, and DNA trend", () => {
+  it("builds Coverage table with Page 2 reuse, CTOS system rows, and DNA trend", () => {
     const table = buildPageThreeCoverageTable(
       sampleFrozenYears,
       {
         "2024": {
           operatingCashFlow: 1_400_000,
           freeCashFlow: 1_100_000,
-          debtEquity: 0.24,
-          returnOnAssets: 4.8,
           payablesDays: 48,
-          assetTurnover: 1.72,
         },
       },
       {
@@ -343,10 +342,39 @@ describe("page three coverage verification", () => {
       "12.1x"
     );
     expect(table.rows.find((r) => r.metric === "DSCR")?.values[fy2024]).toBe("1.42x");
-    expect(table.rows.find((r) => r.metric === "Return on Assets")?.values[fy2024]).toBe("4.8%");
+    // CTOS ENQWS v5.11.0: plnpat/totass*100 = 100000/1000000*100 = 10
+    expect(table.rows.find((r) => r.metric === "Return on Assets")?.values[fy2024]).toBe("10%");
+    // CTOS: totlib/networth = 250000/500000 = 0.5x (no gear)
+    expect(table.rows.find((r) => r.metric === "Debt / Equity")?.values[fy2024]).toBe("0.5x");
+    // CTOS: turnover/totass = 1x
+    expect(table.rows.find((r) => r.metric === "Asset Turnover")?.values[fy2024]).toBe("1x");
     expect(table.rows.find((r) => r.metric === "Receivables Days")?.values[fy2024]).toBe("74");
     expect(table.rows.find((r) => r.metric === "Payables Days")?.values[fy2024]).toBe("48");
-    expect(table.rows.find((r) => r.metric === "Asset Turnover")?.values[fy2024]).toBe("1.72x");
+  });
+
+  it("prefers official CTOS gear for Debt / Equity when present", () => {
+    const withGear = [frozenYear(2024, { ...yearRaw, gear: 4.4 })];
+    const table = buildPageThreeCoverageTable(withGear, undefined, undefined);
+    expect(table.rows.find((r) => r.metric === "Debt / Equity")?.values[0]).toBe("4.4x");
+  });
+
+  it("ignores stale officer debtEquity / returnOnAssets / assetTurnover manuals", () => {
+    const table = buildPageThreeCoverageTable(
+      sampleFrozenYears,
+      {
+        "2024": {
+          debtEquity: 99,
+          returnOnAssets: 99,
+          assetTurnover: 99,
+          payablesDays: 48,
+        },
+      },
+      undefined
+    );
+    const fy2024 = 2;
+    expect(table.rows.find((r) => r.metric === "Debt / Equity")?.values[fy2024]).toBe("0.5x");
+    expect(table.rows.find((r) => r.metric === "Return on Assets")?.values[fy2024]).toBe("10%");
+    expect(table.rows.find((r) => r.metric === "Asset Turnover")?.values[fy2024]).toBe("1x");
   });
 
   it("ignores removed Page 3 interestCoverage / dscr / receivablesDays manuals", () => {
@@ -459,6 +487,7 @@ describe("page three coverage verification", () => {
       profit_margin: null,
       return_on_equity: null,
       currat: null,
+      gear: null,
     };
     const years = [
       { ...frozenYear(2024, empty), isPlaceholder: true },

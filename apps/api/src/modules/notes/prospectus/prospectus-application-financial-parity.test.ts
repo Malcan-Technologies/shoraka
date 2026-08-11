@@ -12,6 +12,7 @@ import {
   resolveApplicationFinancialReturnOnEquityRatio,
   resolveApplicationFinancialTotalAssets,
   resolveApplicationFinancialTotalLiabilities,
+  resolveCtosPatMarginPercent,
   resolveFinancialSummaryIssuerReturnOnEquityRatio,
   resolveFinancialSummaryProfitMarginRatio,
 } from "@cashsouk/types";
@@ -21,6 +22,7 @@ import { buildProspectusPageThreeIncomeStatement } from "./prospectus-page-three
 import { financialSourceFromYearBlocks } from "./prospectus-financial-comparison-test-helpers";
 import {
   formatProspectusFinancialMultiple,
+  formatProspectusFinancialPercentFromPoints,
   formatProspectusFinancialPercentFromRatio,
   formatProspectusMyrMillions,
 } from "./prospectus-financial-comparison-metrics";
@@ -135,6 +137,7 @@ const COMPLETE_UNAUDITED: Record<string, number | null> = {
   profit_margin: null,
   return_on_equity: null,
   currat: null,
+  gear: null,
 };
 
 describe("Application ↔ Prospectus shared financial parity", () => {
@@ -165,6 +168,7 @@ describe("Application ↔ Prospectus shared financial parity", () => {
         profit_margin: null,
         return_on_equity: null,
         currat: null,
+        gear: null,
       },
     },
     {
@@ -187,6 +191,7 @@ describe("Application ↔ Prospectus shared financial parity", () => {
         profit_margin: null,
         return_on_equity: null,
         currat: null,
+        gear: null,
       },
     },
     {
@@ -209,6 +214,7 @@ describe("Application ↔ Prospectus shared financial parity", () => {
         profit_margin: null,
         return_on_equity: null,
         currat: null,
+        gear: null,
       },
     },
   ];
@@ -238,12 +244,15 @@ describe("Application ↔ Prospectus shared financial parity", () => {
     const page3Is = buildProspectusPageThreeIncomeStatement({ financialSource: source });
     const page3Bs = buildProspectusPageThreeBalanceSheet({ financialSource: source });
 
-    const npm = computeProfitMargin(1_800_000, 18_600_000);
+    const npmPoints = resolveCtosPatMarginPercent({
+      plnpat: 1_800_000,
+      turnover: 18_600_000,
+    });
     expect(page2.rows.find((r) => r.key === "netProfitMargin")?.values[0]).toBe(
-      formatProspectusFinancialPercentFromRatio(npm)
+      formatProspectusFinancialPercentFromPoints(npmPoints)
     );
     expect(page3Is.rows.find((r) => r.key === "net_profit_margin")?.values[0]).toBe(
-      formatProspectusFinancialPercentFromRatio(npm)
+      formatProspectusFinancialPercentFromPoints(npmPoints)
     );
     expect(page2.rows.find((r) => r.key === "roe")?.values[0]).toBe(
       formatProspectusFinancialPercentFromRatio(0.152)
@@ -286,6 +295,7 @@ describe("Application ↔ Prospectus shared financial parity", () => {
     expect(computeCurrentRatio(200, 100)).toBe(
       resolveApplicationFinancialCurrentRatio({
         currat: null,
+        gear: null,
         bscatot: 200,
         curlib: 100,
       })

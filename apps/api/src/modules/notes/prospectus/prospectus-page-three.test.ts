@@ -156,6 +156,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         "profit_margin",
         "return_on_equity",
         "currat",
+        "gear",
       ]);
       expect(raw?.plnpbt).toBe(1_400_000);
       expect(raw?.bsfatot).toBe(1_500_000);

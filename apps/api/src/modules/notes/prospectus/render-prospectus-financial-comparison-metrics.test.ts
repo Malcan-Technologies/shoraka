@@ -4,6 +4,7 @@ import { buildProspectusFinancialComparisonSource } from "./prospectus-financial
 import {
   buildProspectusFinancialComparisonMetrics,
   formatProspectusFinancialMultiple,
+  formatProspectusFinancialPercentFromPoints,
   formatProspectusFinancialPercentFromRatio,
   formatProspectusMyrMillions,
   parseProspectusFinancialNumber,
@@ -104,13 +105,14 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
       join(__dirname, "prospectus-financial-comparison-metrics.ts"),
       "utf8"
     );
-    expect(moduleSource).toContain("resolveApplicationFinancialProfitMarginRatio");
+    expect(moduleSource).toContain("resolveCtosPatMarginPercent");
     expect(moduleSource).toContain("resolveApplicationFinancialReturnOnEquityRatio");
     expect(moduleSource).toContain("resolveApplicationFinancialCurrentRatio");
     expect(moduleSource).not.toContain("calculateGearing");
     expect(moduleSource).toContain("formatProspectusMyrMillions");
 
     expect(formatProspectusFinancialPercentFromRatio(0.086330935)).toBe("8.63%");
+    expect(formatProspectusFinancialPercentFromPoints(8.6330935)).toBe("8.63%");
     expect(formatProspectusFinancialMultiple(1.620689655)).toBe("1.62x");
     expect(row(sample, "netDebtEquity")?.values).toEqual([
       PROSPECTUS_DATA_NOT_AVAILABLE,

@@ -77,6 +77,12 @@ export interface ProspectusPage2FinancialRawSnapshot {
   return_on_equity: string | number | null;
   /** Flat CTOS current ratio — plain multiple. Preferred when present. */
   currat: string | number | null;
+  /**
+   * Official CTOS Gearing Ratio (`r:gear`).
+   * Prospectus Page 3 Debt / Equity prefers this over totlib/networth when present.
+   * Never use for Page 2 Net Debt / Equity.
+   */
+  gear: string | number | null;
 }
 
 export interface ProspectusPage2FinancialYearSnapshot {

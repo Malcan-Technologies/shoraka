@@ -62,6 +62,7 @@ const ACCOUNT_KEYS = [
   "return_on_equity",
   "currat",
   "workcap",
+  "gear",
 ] as const;
 
 function asRecord(value: unknown): Record<string, unknown> | null {

@@ -100,7 +100,7 @@ export interface ProspectusPageThreeIncomeStatementAudit {
     storageUnit: "full_myr";
   };
   netProfitMargin: {
-    calculator: "resolveApplicationFinancialProfitMarginRatio";
+    calculator: "resolveCtosPatMarginPercent";
     sharedWithPageTwo: true;
   };
   snapshot: {
@@ -158,7 +158,7 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_AUDIT: ProspectusPageThreeIn
       storageUnit: "full_myr",
     },
     netProfitMargin: {
-      calculator: "resolveApplicationFinancialProfitMarginRatio",
+      calculator: "resolveCtosPatMarginPercent",
       sharedWithPageTwo: true,
     },
     snapshot: {
@@ -277,10 +277,10 @@ export const PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_FIELD_SOURCES: Record<
   net_profit_margin: {
     label: "Net Profit Margin",
     canonicalSource:
-      "resolveApplicationFinancialProfitMarginRatio(plnpat/turnover)",
+      "resolveCtosPatMarginPercent(plnpat/turnover*100)",
     availability: "calculated",
     surface: "canva",
     possibleAlternatives: "CTOS profit_margin (PBT Margin) — not used",
-    notes: "Always PAT ÷ Turnover; never CTOS profit_margin.",
+    notes: "CTOS ENQWS v5.11.0 Financial Highlights XSL PAT Margin; never CTOS profit_margin.",
   },
 };

@@ -172,6 +172,8 @@ function isFinitePresent(v: number | null | undefined): v is number {
 
 /**
  * Prospectus Net Profit Margin as a decimal ratio: PAT ÷ Turnover.
+ * Official CTOS ENQWS v5.11.0 Financial Highlights XSL PAT Margin is percent points
+ * (`plnpat / turnover * 100`); this returns the same identity as a ratio.
  * Never uses CTOS `profit_margin` (official PBT Margin, not PAT margin).
  */
 export function resolveApplicationFinancialProfitMarginRatio(input: {
@@ -181,6 +183,7 @@ export function resolveApplicationFinancialProfitMarginRatio(input: {
   profit_margin?: number | null;
 }): number | null {
   void input.profit_margin;
+  // Same formula as resolveCtosPatMarginPercent / 100 (CTOS ENQWS v5.11.0 XSL).
   return computeProfitMargin(input.plnpat, input.turnover);
 }
 

@@ -5,8 +5,8 @@
 
 import {
   resolveApplicationFinancialCurrentRatio,
-  resolveApplicationFinancialProfitMarginRatio,
   resolveApplicationFinancialReturnOnEquityRatio,
+  resolveCtosPatMarginPercent,
   type ProspectusFrozenFinancialRaw,
   type ProspectusFrozenFinancialYear,
 } from "@cashsouk/types";
@@ -183,8 +183,9 @@ function metricValueForYear(
       return formatProspectusMyrMillions(plnpat);
     }
     case "netProfitMargin": {
-      return formatProspectusFinancialPercentFromRatio(
-        resolveApplicationFinancialProfitMarginRatio({
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — PAT Margin (never profit_margin / PBT).
+      return formatProspectusFinancialPercentFromPoints(
+        resolveCtosPatMarginPercent({
           plnpat: fieldFromRaw(raw, "plnpat"),
           turnover: fieldFromRaw(raw, "turnover"),
         })
@@ -313,6 +314,7 @@ const FROZEN_RAW_KEYS = [
   "profit_margin",
   "return_on_equity",
   "currat",
+  "gear",
 ] as const;
 
 function toFrozenRaw(raw: Record<string, unknown>): ProspectusFrozenFinancialRaw {

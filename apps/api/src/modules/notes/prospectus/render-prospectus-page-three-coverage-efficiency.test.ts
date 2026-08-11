@@ -71,9 +71,16 @@ describe("prospectus Page 3 coverage/efficiency", () => {
     expect(data.years.map((y) => y.year)).toEqual(source.years.map((y) => y.year));
   });
 
-  it("formats six officer fields with correct units", () => {
+  it("formats officer OCF/FCF/Payables and official CTOS Debt/Equity, ROA, Asset Turnover", () => {
     const source = sourceFromYears({
-      "2024": { plnpat: 1_200_000, bsqpuc: 2_000_000, turnover: 10_000_000 },
+      "2024": {
+        plnpat: 100_000,
+        turnover: 1_000_000,
+        totass: 1_000_000,
+        totlib: 250_000,
+        networth: 500_000,
+        bsqpuc: 2_000_000,
+      },
     });
     const data = buildProspectusPageThreeCoverageEfficiency({
       financialSource: source,
@@ -82,10 +89,10 @@ describe("prospectus Page 3 coverage/efficiency", () => {
           "2024": {
             operatingCashFlow: 1_400_000,
             freeCashFlow: 1_100_000,
-            debtEquity: 0.24,
-            returnOnAssets: 4.8,
+            debtEquity: 99,
+            returnOnAssets: 99,
             payablesDays: 48,
-            assetTurnover: 1.72,
+            assetTurnover: 99,
           },
         },
       },
@@ -94,14 +101,52 @@ describe("prospectus Page 3 coverage/efficiency", () => {
       formatProspectusMyrMillions(1_400_000)
     );
     expect(row(data, "free_cash_flow")?.values[0]).toBe(formatProspectusMyrMillions(1_100_000));
-    expect(row(data, "debt_equity")?.values[0]).toBe(formatProspectusFinancialMultiple(0.24));
+    expect(row(data, "debt_equity")?.values[0]).toBe(formatProspectusFinancialMultiple(0.5));
     expect(row(data, "return_on_assets")?.values[0]).toBe(
-      formatProspectusFinancialPercentFromPoints(4.8)
+      formatProspectusFinancialPercentFromPoints(10)
     );
     expect(row(data, "payables_days")?.values[0]).toBe("48");
     expect(row(data, "asset_turnover")?.values[0]).toBe(
-      formatProspectusFinancialMultiple(1.72)
+      formatProspectusFinancialMultiple(1)
     );
+  });
+
+  it("prefers raw gear for Debt / Equity and never uses profit_margin for ROA", () => {
+    const data = buildProspectusPageThreeCoverageEfficiency({
+      financialSource: sourceFromYears({
+        "2024": {
+          gear: 4.4,
+          totlib: 1,
+          networth: 1,
+          plnpat: 8,
+          totass: 100,
+          profit_margin: 99,
+          turnover: 200,
+        },
+      }),
+    });
+    expect(row(data, "debt_equity")?.values[0]).toBe("4.4x");
+    expect(row(data, "return_on_assets")?.values[0]).toBe("8%");
+  });
+
+  it("shows DNA for invalid CTOS ratio inputs", () => {
+    const missing = buildProspectusPageThreeCoverageEfficiency({
+      financialSource: sourceFromYears({
+        "2024": { plnpat: 8, turnover: 200 },
+      }),
+    });
+    expect(row(missing, "return_on_assets")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(missing, "asset_turnover")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(missing, "debt_equity")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+
+    const zeroDenom = buildProspectusPageThreeCoverageEfficiency({
+      financialSource: sourceFromYears({
+        "2024": { plnpat: 8, totass: 0, turnover: 10, totlib: 5, networth: 0 },
+      }),
+    });
+    expect(row(zeroDenom, "return_on_assets")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(zeroDenom, "asset_turnover")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(zeroDenom, "debt_equity")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
   it("reuses Page 2 Interest Coverage, DSCR, and Receivables Days", () => {
@@ -198,13 +243,16 @@ describe("prospectus Page 3 coverage/efficiency", () => {
       "utf8"
     );
     expect(moduleSource).toMatch(/resolveApplicationFinancialReturnOnEquityRatio/);
+    expect(moduleSource).toMatch(/resolveCtosGearingRatio/);
+    expect(moduleSource).toMatch(/resolveCtosReturnOnAssetsPercent/);
+    expect(moduleSource).toMatch(/resolveCtosTotalAssetTurnover/);
     expect(moduleSource).not.toMatch(/plnpat\s*\/\s*bsqpuc/);
     expect(moduleSource).toMatch(/networth/);
   });
 
-  it("shows DNA for missing officer and Page 2 values; accepts zero", () => {
+  it("shows DNA for missing officer and Page 2 values; accepts zero; CTOS zeros from official inputs", () => {
     const source = sourceFromYears({
-      "2024": { plnpat: 0, networth: 2_000_000 },
+      "2024": { plnpat: 0, networth: 2_000_000, totass: 1_000_000, turnover: 0, totlib: 0 },
     });
     const empty = buildProspectusPageThreeCoverageEfficiency({ financialSource: source });
     expect(row(empty, "operating_cash_flow")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
@@ -217,10 +265,7 @@ describe("prospectus Page 3 coverage/efficiency", () => {
           "2024": {
             operatingCashFlow: 0,
             freeCashFlow: 0,
-            debtEquity: 0,
-            returnOnAssets: 0,
             payablesDays: 0,
-            assetTurnover: 0,
           },
         },
       },
@@ -231,6 +276,7 @@ describe("prospectus Page 3 coverage/efficiency", () => {
     expect(row(zero, "operating_cash_flow")?.values[0]).toBe("0");
     expect(row(zero, "debt_equity")?.values[0]).toBe("0x");
     expect(row(zero, "return_on_assets")?.values[0]).toBe("0%");
+    expect(row(zero, "asset_turnover")?.values[0]).toBe("0x");
     expect(row(zero, "interest_coverage")?.values[0]).toBe("0x");
     expect(row(zero, "receivables_days")?.values[0]).toBe("0");
   });

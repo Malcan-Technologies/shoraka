@@ -41,6 +41,7 @@ function ctosYear(
       profit_margin: null,
       return_on_equity: null,
       currat: null,
+      gear: null,
       workcap: null,
     },
   };

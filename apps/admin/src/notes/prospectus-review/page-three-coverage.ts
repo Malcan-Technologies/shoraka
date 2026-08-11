@@ -1,10 +1,13 @@
 import { formatCurrency } from "@cashsouk/config";
 import {
-  calculateProfitMargin,
   resolveApplicationFinancialCurrentRatio,
   resolveApplicationFinancialReturnOnEquityRatio,
   resolveApplicationFinancialTotalAssets,
   resolveApplicationFinancialTotalLiabilities,
+  resolveCtosGearingRatio,
+  resolveCtosPatMarginPercent,
+  resolveCtosReturnOnAssetsPercent,
+  resolveCtosTotalAssetTurnover,
   isSoukscoreRiskRating,
   normalizeProspectusCompanySize,
   type NoteDetail,
@@ -69,7 +72,7 @@ function formatPercentFromRatio(ratio: number | null): string {
   return `${fixed}%`;
 }
 
-/** Officer ROA storage is percentage points (4.8 → 4.8%). */
+/** Percentage points display (CTOS ROA / PAT Margin). */
 function formatPercentFromPoints(points: number | null): string {
   if (points == null || !Number.isFinite(points)) return DATA_NOT_AVAILABLE;
   const fixed = points.toFixed(2).replace(/\.?0+$/, "");
@@ -278,10 +281,10 @@ export function buildIncomeStatementResolvedRows(
     { label: "Profit After Tax", value: formatMoney(pat) },
     {
       label: "Net Profit Margin",
-      value:
-        revenue != null && pat != null
-          ? formatPercentFromRatio(calculateProfitMargin(pat, revenue))
-          : DATA_NOT_AVAILABLE,
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — PAT Margin (never profit_margin / PBT).
+      value: formatPercentFromPoints(
+        resolveCtosPatMarginPercent({ plnpat: pat, turnover: revenue })
+      ),
     },
   ];
 }
@@ -353,7 +356,14 @@ export function buildCoverageResolvedRows(
     { label: "DSCR", value: formatMultiple(dscr) },
     {
       label: "Debt / Equity",
-      value: formatMultiple(parseNumber(manual?.debtEquity)),
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — gear | totlib/networth (x)
+      value: formatMultiple(
+        resolveCtosGearingRatio({
+          gear: parseNumber(yearRaw.gear),
+          totlib: parseNumber(yearRaw.totlib),
+          networth: parseNumber(yearRaw.networth),
+        })
+      ),
     },
     {
       label: "Return on Equity",
@@ -376,7 +386,13 @@ export function buildCoverageResolvedRows(
     },
     {
       label: "Return on Assets",
-      value: formatPercentFromPoints(parseNumber(manual?.returnOnAssets)),
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — plnpat/totass*100
+      value: formatPercentFromPoints(
+        resolveCtosReturnOnAssetsPercent({
+          plnpat: parseNumber(yearRaw.plnpat),
+          totass: parseNumber(yearRaw.totass),
+        })
+      ),
     },
     {
       label: "Receivables Days",
@@ -391,7 +407,13 @@ export function buildCoverageResolvedRows(
     },
     {
       label: "Asset Turnover",
-      value: formatMultiple(parseNumber(manual?.assetTurnover)),
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — turnover/totass
+      value: formatMultiple(
+        resolveCtosTotalAssetTurnover({
+          turnover: parseNumber(yearRaw.turnover),
+          totass: parseNumber(yearRaw.totass),
+        })
+      ),
     },
   ];
 }

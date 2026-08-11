@@ -282,6 +282,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
         profit_margin: null,
         return_on_equity: null,
         currat: null,
+        gear: null,
       });
       expect(JSON.stringify(page2)).not.toMatch(/RM /);
       expect(JSON.stringify(page2)).not.toMatch(/Trend|Takeaway|Cash & Bank/i);

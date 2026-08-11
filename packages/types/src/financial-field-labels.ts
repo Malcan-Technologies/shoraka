@@ -18,4 +18,5 @@ export const FINANCIAL_FIELD_LABELS: Record<string, string> = {
   plnpat: "Profit After Tax",
   plnetdiv: "Net Dividend",
   plyear: "Profit and Loss of the Year",
+  gear: "Gearing Ratio",
 };
