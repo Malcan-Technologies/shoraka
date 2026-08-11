@@ -3767,13 +3767,21 @@ export class NoteService {
     return { viewUrl, expiresIn };
   }
 
-  getPaymentInstructions(id: string) {
+  async getPaymentInstructions(id: string) {
+    const note = await prisma.note.findUnique({
+      where: { id },
+      select: { note_reference: true },
+    });
+    if (!note) {
+      throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    }
+
     return {
       noteId: id,
       bankName: process.env.REPAYMENT_BANK_NAME ?? "Trustee Bank",
       accountName: process.env.REPAYMENT_ACCOUNT_NAME ?? "CashSouk Repayment Pool",
       accountNumber: process.env.REPAYMENT_ACCOUNT_NUMBER ?? "Pending configuration",
-      referenceFormat: `NOTE-${id.slice(-8).toUpperCase()}`,
+      referenceFormat: note.note_reference,
     };
   }
 

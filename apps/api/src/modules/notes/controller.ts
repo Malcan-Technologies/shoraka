@@ -852,7 +852,7 @@ issuerNotesRouter.get("/notes/:id/payment-instructions", async (req: Request, re
   try {
     const { id } = idParamSchema.parse(req.params);
     await noteService.getIssuerNote(id, getActor(req, res, "ISSUER").userId);
-    send(res, noteService.getPaymentInstructions(id));
+    send(res, await noteService.getPaymentInstructions(id));
   } catch (error) {
     next(error);
   }
