@@ -2,8 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NoteStatus } from "@prisma/client";
 import {
-  calculateProfitMargin,
-  computeReturnOnEquity,
+  resolveCtosPatMarginPercent,
   MARKETPLACE_MIN_COMMIT_MYR,
 } from "@cashsouk/types";
 import { AppError } from "../../../lib/http/error-handler";
@@ -17,7 +16,7 @@ import {
 } from "./prospectus-page-two-mapper";
 import {
   buildProspectusFinancialComparisonMetrics,
-  formatProspectusFinancialPercentFromRatio,
+  formatProspectusFinancialPercentFromPoints,
 } from "./prospectus-financial-comparison-metrics";
 import {
   isProspectusNotePublished,
@@ -355,7 +354,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       const previewSource = buildFinancialComparisonSourceFromFrozen(frozen);
       const previewMetrics = buildProspectusFinancialComparisonMetrics({ source: previewSource });
       expect(previewMetrics.rows.find((r) => r.key === "netProfitMargin")?.values[0]).toBe(
-        formatProspectusFinancialPercentFromRatio(calculateProfitMargin(15, 100))
+        formatProspectusFinancialPercentFromPoints(resolveCtosPatMarginPercent({ plnpat: 15, turnover: 100 }))
       );
       expect(previewMetrics.rows.find((r) => r.key === "roe")?.values[0]).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
@@ -410,7 +409,11 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(fy2024?.rawFinancials.networth).toBe(500);
       expect(
         published.financialComparisonMetrics.rows.find((r) => r.key === "netProfitMargin")?.values[2]
-      ).toBe(formatProspectusFinancialPercentFromRatio(calculateProfitMargin(15, 100)));
+      ).toBe(
+        formatProspectusFinancialPercentFromPoints(
+          resolveCtosPatMarginPercent({ plnpat: 15, turnover: 100 })
+        )
+      );
       expect(published.financialComparisonMetrics.rows.find((r) => r.key === "roe")?.values[2]).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
       );

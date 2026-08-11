@@ -34,9 +34,12 @@ import {
   computeHasPendingDirectorShareholder,
   normalizeFinancialStatementsQuestionnaire,
   normalizeDirectorShareholderIdKey,
-  resolveFinancialSummaryCtosReturnOnEquityPercent,
+  resolveCtosCurrentRatio,
+  resolveCtosPatMarginPercent,
+  resolveCtosReturnOnEquityPercent,
+  resolveCtosTotalAssets,
+  resolveCtosTotalLiabilities,
   resolveFinancialSummaryIssuerReturnOnEquityRatio,
-  resolveFinancialSummaryProfitMarginRatio,
   type ApplicationPersonRow,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
@@ -209,7 +212,7 @@ function ctosFinToFs(r: CtosFinRow): Record<string, unknown> {
 
 /**
  * SECTION: CTOS-first summary cells
- * WHY: Prefer CTOS `account` values; see docs/guides/admin/ctos-financial-summary-display.md for fallback formulas.
+ * WHY: CTOS columns use direct CTOS fields or official XSL only (never CashSouk component fallbacks)
  * INPUT: Flat row from `ctosFinToFs`
  * OUTPUT: Whether key has a finite numeric value (0 counts as present)
  * WHERE USED: `renderRowCell` when column `kind === "ctos"`
@@ -366,28 +369,8 @@ export function ApplicationFinancialReviewContent({
               priorTurnover: turnoverByYear.get(y - 1) ?? null,
             });
 
-      if (spec.kind === "ctos") {
-        if (spec.year == null) return null;
-        const row = byYear.get(spec.year);
-        if (!row) return null;
-        const ac = row.account;
-        const { bs, pl } = financialFormToBsPl({
-          bsfatot: ac.bsfatot ?? 0,
-          othass: ac.othass ?? 0,
-          bscatot: ac.bscatot ?? 0,
-          bsclbank: ac.bsclbank ?? 0,
-          curlib: ac.curlib ?? 0,
-          bsslltd: ac.bsslltd ?? 0,
-          bsclstd: ac.bsclstd ?? 0,
-          bsqpuc: ac.bsqpuc ?? 0,
-          networth: ac.networth ?? undefined,
-          totass: ac.totass ?? undefined,
-          totlib: ac.totlib ?? undefined,
-          turnover: ac.turnover ?? 0,
-          plnpat: ac.plnpat ?? 0,
-        });
-        return computeColumnMetrics(bs, pl, g);
-      }
+      // CTOS columns: never derive via component sums / PAT÷equity — official direct/XSL only in renderRowCell.
+      if (spec.kind === "ctos") return null;
 
       if (spec.year == null) return null;
       if (!hasIssuerFinancialData) return null;
@@ -396,7 +379,7 @@ export function ApplicationFinancialReviewContent({
       const input = financialRecordToInput(fs as Record<string, unknown>);
       const { bs, pl } = financialFormToBsPl(input);
       const metrics = computeColumnMetrics(bs, pl, g);
-      // Financial Summary issuer ROE: PAT ÷ Net Worth (not Paid-Up Capital).
+      // Issuer Application ROE from submitted PAT ÷ Net Worth (not CTOS, not Paid-Up Capital).
       return {
         ...metrics,
         return_of_equity: resolveFinancialSummaryIssuerReturnOnEquityRatio({
@@ -405,7 +388,7 @@ export function ApplicationFinancialReviewContent({
         }),
       };
     });
-  }, [columns, byYear, turnoverByYear, hasIssuerFinancialData, unauditedByYear]);
+  }, [columns, turnoverByYear, hasIssuerFinancialData, unauditedByYear]);
 
   const getFsCol = React.useCallback(
     (idx: number): Record<string, unknown> | null => {
@@ -452,12 +435,12 @@ export function ApplicationFinancialReviewContent({
     { id: "othass", label: FINANCIAL_FIELD_LABELS.othass },
     { id: "bscatot", label: FINANCIAL_FIELD_LABELS.bscatot },
     { id: "bsclbank", label: FINANCIAL_FIELD_LABELS.bsclbank },
-    { id: "totass", label: COMPUTED_FIELD_LABELS.totass, formulaHint: "Fixed + other + current + non-current assets." },
+    { id: "totass", label: COMPUTED_FIELD_LABELS.totass, formulaHint: "CTOS: totass only. Issuer: sum of entered asset lines when totass blank." },
     { id: "curlib", label: FINANCIAL_FIELD_LABELS.curlib },
     { id: "bsslltd", label: FINANCIAL_FIELD_LABELS.bsslltd },
     { id: "bsclstd", label: FINANCIAL_FIELD_LABELS.bsclstd },
-    { id: "totlib", label: COMPUTED_FIELD_LABELS.totlib, formulaHint: "Current + long-term + non-current liabilities." },
-    { id: "networth", label: COMPUTED_FIELD_LABELS.networth, formulaHint: "Total assets − total liabilities." },
+    { id: "totlib", label: COMPUTED_FIELD_LABELS.totlib, formulaHint: "CTOS: totlib only. Issuer: sum of entered liability lines when totlib blank." },
+    { id: "networth", label: COMPUTED_FIELD_LABELS.networth, formulaHint: "CTOS: networth only. Issuer: total assets − total liabilities from entered lines." },
     { id: "bsqpuc", label: FINANCIAL_FIELD_LABELS.bsqpuc },
     { id: "turnover", label: FINANCIAL_FIELD_LABELS.turnover },
     { id: "plnpbt", label: FINANCIAL_FIELD_LABELS.plnpbt },
@@ -467,16 +450,28 @@ export function ApplicationFinancialReviewContent({
     {
       id: "turnover_growth",
       label: COMPUTED_FIELD_LABELS.turnover_growth,
-      formulaHint: "(This year turnover − prior year) ÷ prior year. Prior column year must be exactly one less.",
+      formulaHint: "CTOS: turnover_growth only. Issuer: (this year − prior) ÷ prior when years are consecutive.",
     },
-    { id: "profit_margin", label: COMPUTED_FIELD_LABELS.profit_margin, formulaHint: "Profit after tax ÷ turnover." },
+    {
+      id: "profit_margin",
+      label: COMPUTED_FIELD_LABELS.profit_margin,
+      formulaHint: "PAT ÷ turnover (official CTOS PAT Margin XSL). Never CTOS profit_margin (PBT Margin).",
+    },
     {
       id: "return_of_equity",
       label: COMPUTED_FIELD_LABELS.return_of_equity,
-      formulaHint: "Profit after tax ÷ net worth.",
+      formulaHint: "CTOS: return_on_equity only. Issuer: PAT ÷ net worth from submitted lines.",
     },
-    { id: "currat", label: COMPUTED_FIELD_LABELS.currat, formulaHint: "Current assets ÷ current liabilities." },
-    { id: "workcap", label: COMPUTED_FIELD_LABELS.workcap, formulaHint: "Current assets − current liabilities." },
+    {
+      id: "currat",
+      label: COMPUTED_FIELD_LABELS.currat,
+      formulaHint: "CTOS: currat only. Issuer: current assets ÷ current liabilities from submitted lines.",
+    },
+    {
+      id: "workcap",
+      label: COMPUTED_FIELD_LABELS.workcap,
+      formulaHint: "CTOS: workcap only. Issuer: current assets − current liabilities from submitted lines.",
+    },
   ];
 
   const renderRowCell = (rowId: string, colIdx: number): string => {
@@ -519,9 +514,12 @@ export function ApplicationFinancialReviewContent({
         );
       case "totass": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
-        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "totass")) {
-          const raw = toNum(fs.totass);
-          return raw === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(raw, { decimals: 0 });
+        if (specCol.kind === "ctos") {
+          const n = resolveCtosTotalAssets({
+            totass: fs && ctosFlatNumericPresent(fs, "totass") ? toNum(fs.totass) : null,
+          });
+          if (n == null) return "N/A";
+          return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
         }
         if (!computed) return "N/A";
         const n = computed.totass;
@@ -541,9 +539,12 @@ export function ApplicationFinancialReviewContent({
         );
       case "totlib": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
-        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "totlib")) {
-          const raw = toNum(fs.totlib);
-          return raw === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(raw, { decimals: 0 });
+        if (specCol.kind === "ctos") {
+          const n = resolveCtosTotalLiabilities({
+            totlib: fs && ctosFlatNumericPresent(fs, "totlib") ? toNum(fs.totlib) : null,
+          });
+          if (n == null) return "N/A";
+          return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
         }
         if (!computed) return "N/A";
         const n = computed.totlib;
@@ -551,7 +552,8 @@ export function ApplicationFinancialReviewContent({
       }
       case "networth": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
-        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "networth")) {
+        if (specCol.kind === "ctos") {
+          if (!fs || !ctosFlatNumericPresent(fs, "networth")) return "N/A";
           const raw = toNum(fs.networth);
           return raw === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(raw, { decimals: 0 });
         }
@@ -585,7 +587,8 @@ export function ApplicationFinancialReviewContent({
         );
       case "turnover_growth": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
-        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "turnover_growth")) {
+        if (specCol.kind === "ctos") {
+          if (!fs || !ctosFlatNumericPresent(fs, "turnover_growth")) return "N/A";
           return formatNumber(toNum(fs.turnover_growth), 2) + "%";
         }
         if (!computed || computed.turnover_growth == null) return "N/A";
@@ -593,15 +596,15 @@ export function ApplicationFinancialReviewContent({
       }
       case "profit_margin": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
-        // Always PAT ÷ turnover. Never CTOS profit_margin (that is PBT Margin).
+        // CTOS: official PAT Margin XSL. Never CTOS profit_margin (PBT Margin).
         if (specCol.kind === "ctos") {
           const row = byYear.get(specCol.year);
-          const ratio = resolveFinancialSummaryProfitMarginRatio({
+          const percent = resolveCtosPatMarginPercent({
             plnpat: row?.account.plnpat ?? null,
             turnover: row?.account.turnover ?? null,
           });
-          if (ratio == null) return "N/A";
-          return formatNumber(ratio * 100, 2) + "%";
+          if (percent == null) return "N/A";
+          return formatNumber(percent, 2) + "%";
         }
         if (!computed || computed.profit_margin == null) return "N/A";
         return formatNumber(computed.profit_margin * 100, 2) + "%";
@@ -609,16 +612,11 @@ export function ApplicationFinancialReviewContent({
       case "return_of_equity": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
         if (specCol.kind === "ctos") {
-          const row = byYear.get(specCol.year);
-          const percent = resolveFinancialSummaryCtosReturnOnEquityPercent({
+          const percent = resolveCtosReturnOnEquityPercent({
             return_on_equity:
               fs && ctosFlatNumericPresent(fs, "return_on_equity")
                 ? toNum(fs.return_on_equity)
                 : null,
-            plnpat: row?.account.plnpat ?? null,
-            networth:
-              fs && ctosFlatNumericPresent(fs, "networth") ? toNum(fs.networth) : null,
-            computedNetWorth: computed?.networth ?? null,
           });
           if (percent == null) return "N/A";
           return formatNumber(percent, 2) + "%";
@@ -628,15 +626,20 @@ export function ApplicationFinancialReviewContent({
       }
       case "currat": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
-        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "currat")) {
-          return formatNumber(toNum(fs.currat), 2);
+        if (specCol.kind === "ctos") {
+          const n = resolveCtosCurrentRatio({
+            currat: fs && ctosFlatNumericPresent(fs, "currat") ? toNum(fs.currat) : null,
+          });
+          if (n == null) return "N/A";
+          return formatNumber(n, 2);
         }
         if (!computed || computed.currat == null) return "N/A";
         return formatNumber(computed.currat, 2);
       }
       case "workcap": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
-        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "workcap")) {
+        if (specCol.kind === "ctos") {
+          if (!fs || !ctosFlatNumericPresent(fs, "workcap")) return "N/A";
           return formatCurrency(toNum(fs.workcap), { decimals: 0 });
         }
         if (!computed) return "N/A";

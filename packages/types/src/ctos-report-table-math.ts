@@ -1,9 +1,12 @@
 /**
- * SECTION: Admin CTOS financial table calculations
- * WHY: One place for ratio rules; tests prevent formula drift
- * INPUT: Plain numbers from a single year column
- * OUTPUT: Metrics or null when not calculable (UI shows em dash)
- * WHERE USED: Admin financial / CTOS review table only
+ * SECTION: Issuer Application financial table calculations
+ * WHY: One place for issuer-entered (unaudited) column metrics; not CTOS official formulas
+ * INPUT: Plain numbers from a single issuer year column
+ * OUTPUT: Metrics or null when not calculable (UI shows em dash / N/A)
+ * WHERE USED: Admin Application Financial Summary / comparison for issuer columns only
+ *
+ * CTOS columns must use `ctos-financial-highlights.ts` (direct field or ENQWS v5.11.0 XSL only).
+ * Do not add CTOS fallbacks here.
  */
 
 import type { FinancialStatementsInput } from "./financial-calculator";
@@ -28,8 +31,8 @@ function isFiniteNumber(value: number | null | undefined): value is number {
 }
 
 /**
- * Total assets: use reported total if present; otherwise sum the four asset lines.
- * Missing components default to 0 (Admin CTOS / Application Financial Summary).
+ * Issuer Total assets: use reported total if present; otherwise sum the four asset lines.
+ * Missing components default to 0. Not for CTOS columns.
  */
 export function computeTotalAssets(input: TotalAssetsInput): number {
   if (isFiniteNumber(input.total_assets)) {
@@ -44,28 +47,8 @@ export function computeTotalAssets(input: TotalAssetsInput): number {
 }
 
 /**
- * Application Financial Summary Total Assets resolution (shared with Prospectus).
- * Prefer flat CTOS `totass` when present; otherwise component sum with zero-default.
- */
-export function resolveApplicationFinancialTotalAssets(input: {
-  totass: number | null;
-  bsfatot: number | null;
-  othass: number | null;
-  bscatot: number | null;
-  bsclbank: number | null;
-}): number {
-  return computeTotalAssets({
-    total_assets: input.totass,
-    fixed_assets: input.bsfatot,
-    other_assets: input.othass,
-    current_assets: input.bscatot,
-    non_current_assets: input.bsclbank,
-  });
-}
-
-/**
- * Total liabilities: use reported total if present; else sum liability lines.
- * Missing components default to 0 (Admin CTOS / Application Financial Summary).
+ * Issuer Total liabilities: use reported total if present; else sum liability lines.
+ * Missing components default to 0. Not for CTOS columns.
  */
 export function computeTotalLiabilities(input: TotalLiabilitiesInput): number {
   if (isFiniteNumber(input.total_liabilities)) {
@@ -79,25 +62,8 @@ export function computeTotalLiabilities(input: TotalLiabilitiesInput): number {
 }
 
 /**
- * Application Financial Summary Total Liabilities resolution (shared with Prospectus).
- * Prefer flat CTOS `totlib` when present; otherwise component sum with zero-default.
- */
-export function resolveApplicationFinancialTotalLiabilities(input: {
-  totlib: number | null;
-  curlib: number | null;
-  bsslltd: number | null;
-  bsclstd: number | null;
-}): number {
-  return computeTotalLiabilities({
-    total_liabilities: input.totlib,
-    current_liabilities: input.curlib,
-    long_term_liabilities: input.bsslltd,
-    non_current_liabilities: input.bsclstd,
-  });
-}
-
-/**
- * Profit margin: profit after tax divided by turnover. Not calculable if turnover is zero or missing.
+ * Profit after tax ÷ turnover. Used for issuer Application Profit Margin (PAT).
+ * Same identity as official CTOS PAT Margin XSL when expressed as a ratio.
  */
 export function computeProfitMargin(pat: number | null, turnover: number | null): number | null {
   if (pat == null || turnover == null || !Number.isFinite(pat) || !Number.isFinite(turnover)) return null;
@@ -115,18 +81,8 @@ export function computeReturnOnEquity(pat: number | null, equity: number | null)
 }
 
 /**
- * Financial Summary Profit Margin (CTOS + issuer columns): PAT ÷ turnover as a decimal ratio.
- * Never uses CTOS `profit_margin` (official PBT Margin).
- */
-export function resolveFinancialSummaryProfitMarginRatio(input: {
-  plnpat: number | null;
-  turnover: number | null;
-}): number | null {
-  return computeProfitMargin(input.plnpat, input.turnover);
-}
-
-/**
  * Financial Summary issuer-submitted Return of Equity: PAT ÷ Net Worth as a decimal ratio.
+ * Application input math — not a CTOS fallback.
  */
 export function resolveFinancialSummaryIssuerReturnOnEquityRatio(input: {
   plnpat: number | null;
@@ -136,114 +92,13 @@ export function resolveFinancialSummaryIssuerReturnOnEquityRatio(input: {
 }
 
 /**
- * Financial Summary CTOS Return of Equity as percent points for display (e.g. 20 → "20%").
- * Prefer flat CTOS `return_on_equity` when present; else PAT ÷ Net Worth × 100.
- * Net Worth: CTOS `networth` when present, else computed `totass − totlib`.
- * Never uses Paid-Up Capital (`bsqpuc`).
- */
-export function resolveFinancialSummaryCtosReturnOnEquityPercent(input: {
-  return_on_equity: number | null;
-  plnpat: number | null;
-  networth: number | null;
-  computedNetWorth: number | null;
-}): number | null {
-  if (isFinitePresent(input.return_on_equity)) {
-    return input.return_on_equity;
-  }
-  const netWorth = isFinitePresent(input.networth) ? input.networth : input.computedNetWorth;
-  const ratio = computeReturnOnEquity(input.plnpat, netWorth);
-  if (ratio == null) return null;
-  return ratio * 100;
-}
-
-/**
- * Current ratio: current assets divided by current liabilities. Not if current liabilities are zero or missing.
+ * Current ratio from issuer-entered current assets / current liabilities.
  */
 export function computeCurrentRatio(currentAssets: number | null, currentLiabilities: number | null): number | null {
   if (currentAssets == null || currentLiabilities == null) return null;
   if (!Number.isFinite(currentAssets) || !Number.isFinite(currentLiabilities)) return null;
   if (currentLiabilities === 0) return null;
   return currentAssets / currentLiabilities;
-}
-
-function isFinitePresent(v: number | null | undefined): v is number {
-  return v != null && Number.isFinite(v);
-}
-
-/**
- * Prospectus Net Profit Margin as a decimal ratio: PAT ÷ Turnover.
- * Official CTOS ENQWS v5.11.0 Financial Highlights XSL PAT Margin is percent points
- * (`plnpat / turnover * 100`); this returns the same identity as a ratio.
- * Never uses CTOS `profit_margin` (official PBT Margin, not PAT margin).
- */
-export function resolveApplicationFinancialProfitMarginRatio(input: {
-  plnpat: number | null;
-  turnover: number | null;
-  /** @deprecated Ignored — CTOS profit_margin is PBT Margin, not Net Profit Margin. */
-  profit_margin?: number | null;
-}): number | null {
-  void input.profit_margin;
-  // Same formula as resolveCtosPatMarginPercent / 100 (CTOS ENQWS v5.11.0 XSL).
-  return computeProfitMargin(input.plnpat, input.turnover);
-}
-
-/**
- * Prospectus / shared Return on Equity as a decimal ratio.
- * Same behaviour as Admin Financial Summary:
- * Prefer CTOS flat `return_on_equity` (percent points) when present;
- * else PAT ÷ Net Worth, where Net Worth is direct `networth` or else
- * resolved Total Assets − Total Liabilities (flat totals or component sums, 0-default).
- * Never uses Paid-Up Capital (`bsqpuc`) as the denominator.
- */
-export function resolveApplicationFinancialReturnOnEquityRatio(input: {
-  return_on_equity: number | null;
-  plnpat: number | null;
-  networth: number | null;
-  totass?: number | null;
-  totlib?: number | null;
-  bsfatot?: number | null;
-  othass?: number | null;
-  bscatot?: number | null;
-  bsclbank?: number | null;
-  curlib?: number | null;
-  bsslltd?: number | null;
-  bsclstd?: number | null;
-}): number | null {
-  if (isFinitePresent(input.return_on_equity)) {
-    return input.return_on_equity / 100;
-  }
-  if (isFinitePresent(input.networth)) {
-    return computeReturnOnEquity(input.plnpat, input.networth);
-  }
-  const totass = resolveApplicationFinancialTotalAssets({
-    totass: input.totass ?? null,
-    bsfatot: input.bsfatot ?? null,
-    othass: input.othass ?? null,
-    bscatot: input.bscatot ?? null,
-    bsclbank: input.bsclbank ?? null,
-  });
-  const totlib = resolveApplicationFinancialTotalLiabilities({
-    totlib: input.totlib ?? null,
-    curlib: input.curlib ?? null,
-    bsslltd: input.bsslltd ?? null,
-    bsclstd: input.bsclstd ?? null,
-  });
-  return computeReturnOnEquity(input.plnpat, computeNetWorth(totass, totlib));
-}
-
-/**
- * Application Financial Summary current ratio.
- * Prefer CTOS flat `currat` when present; else recompute with missing→0.
- */
-export function resolveApplicationFinancialCurrentRatio(input: {
-  currat: number | null;
-  bscatot: number | null;
-  curlib: number | null;
-}): number | null {
-  if (isFinitePresent(input.currat)) {
-    return input.currat;
-  }
-  return computeCurrentRatio(input.bscatot ?? 0, input.curlib ?? 0);
 }
 
 /**
@@ -254,7 +109,7 @@ export function computeWorkingCapital(currentAssets: number | null, currentLiabi
 }
 
 /**
- * Book net worth (net assets): total assets minus total liabilities. Matches totass and totlib rules.
+ * Book net worth (net assets): total assets minus total liabilities.
  */
 export function computeNetWorth(totalAssets: number, totalLiabilities: number): number {
   return totalAssets - totalLiabilities;
@@ -292,7 +147,8 @@ export interface ColumnComputedMetrics {
 }
 
 /**
- * Ratios for one year column from balance sheet + P&amp;L numbers (issuer form or CTOS-derived).
+ * Ratios for one issuer year column from balance sheet + P&amp;L numbers.
+ * Not for CTOS columns — those use `ctos-financial-highlights.ts`.
  */
 export function computeColumnMetrics(
   bs: {
