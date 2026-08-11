@@ -4,9 +4,9 @@
  */
 
 import {
-  resolveApplicationFinancialReturnOnEquityRatio,
   resolveCtosGearingRatio,
   resolveCtosReturnOnAssetsPercent,
+  resolveCtosReturnOnEquityPercent,
   resolveCtosTotalAssetTurnover,
   type CtosFinancialHighlightAccount,
 } from "@cashsouk/types";
@@ -14,7 +14,6 @@ import {
   formatProspectusFinancialDays,
   formatProspectusFinancialMultiple,
   formatProspectusFinancialPercentFromPoints,
-  formatProspectusFinancialPercentFromRatio,
   formatProspectusMyrMillions,
   parseProspectusFinancialNumber,
   resolveYearOverride,
@@ -49,6 +48,8 @@ function highlightAccount(raw: Record<string, unknown>): CtosFinancialHighlightA
     bscatot: fieldFromRaw(raw, "bscatot"),
     curlib: fieldFromRaw(raw, "curlib"),
     gear: fieldFromRaw(raw, "gear"),
+    return_on_equity: fieldFromRaw(raw, "return_on_equity"),
+    currat: fieldFromRaw(raw, "currat"),
   };
 }
 
@@ -153,20 +154,8 @@ export function numericValueForCoverageRow(
       // CTOS ENQWS v5.11.0 Financial Highlights XSL — turnover/totass (x).
       return resolveCtosTotalAssetTurnover(account);
     case "return_on_equity":
-      return resolveApplicationFinancialReturnOnEquityRatio({
-        return_on_equity: fieldFromRaw(raw, "return_on_equity"),
-        plnpat: fieldFromRaw(raw, "plnpat"),
-        networth: fieldFromRaw(raw, "networth"),
-        totass: fieldFromRaw(raw, "totass"),
-        totlib: fieldFromRaw(raw, "totlib"),
-        bsfatot: fieldFromRaw(raw, "bsfatot"),
-        othass: fieldFromRaw(raw, "othass"),
-        bscatot: fieldFromRaw(raw, "bscatot"),
-        bsclbank: fieldFromRaw(raw, "bsclbank"),
-        curlib: fieldFromRaw(raw, "curlib"),
-        bsslltd: fieldFromRaw(raw, "bsslltd"),
-        bsclstd: fieldFromRaw(raw, "bsclstd"),
-      });
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — direct r:return_on_equity only.
+      return resolveCtosReturnOnEquityPercent(account);
     default: {
       const _exhaustive: never = key;
       return _exhaustive;
@@ -208,21 +197,8 @@ function valueForRow(
     case "asset_turnover":
       return formatProspectusFinancialMultiple(resolveCtosTotalAssetTurnover(account));
     case "return_on_equity": {
-      return formatProspectusFinancialPercentFromRatio(
-        resolveApplicationFinancialReturnOnEquityRatio({
-          return_on_equity: fieldFromRaw(raw, "return_on_equity"),
-          plnpat: fieldFromRaw(raw, "plnpat"),
-          networth: fieldFromRaw(raw, "networth"),
-          totass: fieldFromRaw(raw, "totass"),
-          totlib: fieldFromRaw(raw, "totlib"),
-          bsfatot: fieldFromRaw(raw, "bsfatot"),
-          othass: fieldFromRaw(raw, "othass"),
-          bscatot: fieldFromRaw(raw, "bscatot"),
-          bsclbank: fieldFromRaw(raw, "bsclbank"),
-          curlib: fieldFromRaw(raw, "curlib"),
-          bsslltd: fieldFromRaw(raw, "bsslltd"),
-          bsclstd: fieldFromRaw(raw, "bsclstd"),
-        })
+      return formatProspectusFinancialPercentFromPoints(
+        resolveCtosReturnOnEquityPercent(account)
       );
     }
     default: {

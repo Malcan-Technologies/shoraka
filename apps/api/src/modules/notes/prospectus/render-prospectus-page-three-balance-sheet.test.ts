@@ -1,11 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  calculateCurrentRatio,
-  resolveApplicationFinancialTotalAssets,
-  resolveApplicationFinancialTotalLiabilities,
-} from "@cashsouk/types";
-import {
   buildProspectusFinancialComparisonMetrics,
   formatProspectusFinancialMultiple,
   formatProspectusMyrMillions,
@@ -208,48 +203,31 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
     expect(row(invalid, "current_assets")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("computes Total Assets via Application-aligned resolver", () => {
+  it("uses direct CTOS totass only for Total Assets", () => {
     const data = buildProspectusPageThreeBalanceSheet(
       SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_INPUT
     );
     expect(row(data, "total_assets")?.values[0]).toBe("8.1");
-    expect(
-      resolveApplicationFinancialTotalAssets({
-        totass: null,
-        bsfatot: 1_500_000,
-        othass: 1_000_000,
-        bscatot: 4_700_000,
-        bsclbank: 900_000,
-      })
-    ).toBe(8_100_000);
 
     expect(PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT.totalAssets.sharedHelper).toBe(
-      "resolveApplicationFinancialTotalAssets"
+      "resolveCtosTotalAssets"
     );
-    expect(PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT.totalAssets.inputKeys).toEqual([
-      "totass",
-      "bsfatot",
-      "othass",
-      "bscatot",
-      "bsclbank",
-    ]);
+    expect(PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT.totalAssets.inputKeys).toEqual(["totass"]);
+    expect(PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT.totalAssets.componentSumAllowed).toBe(false);
 
     const moduleSource = readFileSync(
       join(__dirname, "prospectus-page-three-balance-sheet.ts"),
       "utf8"
     );
-    expect(moduleSource).toMatch(/resolveApplicationFinancialTotalAssets/);
-    expect(moduleSource).not.toMatch(/computeTotalAssetsIfComplete/);
+    expect(moduleSource).toMatch(/resolveCtosTotalAssets/);
+    expect(moduleSource).not.toMatch(/resolveApplicationFinancialTotalAssets/);
     expect(moduleSource).not.toMatch(/bsfatot\s*\+\s*othass/);
   });
 
-  it("matches Application zero-default and flat totass preference", () => {
+  it("does not reconstruct Total Assets when totass missing", () => {
     expect(
       PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT.totalAssets.missingComponentPolicy
-    ).toBe("application_aligned_zero_default_with_flat_total_preference");
-    expect(
-      PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT.totalAssets.alignedWithApplicationFinancialSummary
-    ).toBe(true);
+    ).toBe("ctos_direct_totass_totlib_only");
     expect(PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT.totalAssets.officerOverrideAllowed).toBe(
       false
     );
@@ -259,20 +237,13 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
         "2024": { bscatot: 4_700_000, curlib: 2_900_000 },
       }),
     });
-    expect(row(partialOldSnapshot, "total_assets")?.values[0]).toBe("4.7");
+    expect(row(partialOldSnapshot, "total_assets")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
     expect(row(partialOldSnapshot, "current_assets")?.values[0]).toBe("4.7");
 
     const allMissing = buildProspectusPageThreeBalanceSheet({
       financialSource: sourceFromYears({ "2024": { turnover: 1 } }),
     });
-    expect(row(allMissing, "total_assets")?.values[0]).toBe("0");
-
-    const zeroComponents = buildProspectusPageThreeBalanceSheet({
-      financialSource: sourceFromYears({
-        "2024": { bsfatot: 0, othass: 0, bscatot: 0, bsclbank: 0 },
-      }),
-    });
-    expect(row(zeroComponents, "total_assets")?.values[0]).toBe("0");
+    expect(row(allMissing, "total_assets")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
 
     const flatTotass = buildProspectusPageThreeBalanceSheet({
       financialSource: sourceFromYears({
@@ -307,26 +278,18 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
     );
   });
 
-  it("computes Total Liabilities via Application-aligned resolver", () => {
+  it("uses direct CTOS totlib only for Total Liabilities", () => {
     const data = buildProspectusPageThreeBalanceSheet(
       SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_INPUT
     );
     expect(row(data, "total_liabilities")?.values[0]).toBe("3.6");
-    expect(
-      resolveApplicationFinancialTotalLiabilities({
-        totlib: null,
-        curlib: 2_900_000,
-        bsslltd: 500_000,
-        bsclstd: 200_000,
-      })
-    ).toBe(3_600_000);
 
     const oldSnapshot = buildProspectusPageThreeBalanceSheet({
       financialSource: sourceFromYears({
         "2024": { curlib: 2_900_000, bscatot: 1 },
       }),
     });
-    expect(row(oldSnapshot, "total_liabilities")?.values[0]).toBe("2.9");
+    expect(row(oldSnapshot, "total_liabilities")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
 
     const flatTotlib = buildProspectusPageThreeBalanceSheet({
       financialSource: sourceFromYears({
@@ -339,12 +302,12 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
       join(__dirname, "prospectus-page-three-balance-sheet.ts"),
       "utf8"
     );
-    expect(moduleSource).toMatch(/resolveApplicationFinancialTotalLiabilities/);
-    expect(moduleSource).not.toMatch(/computeTotalLiabilitiesIfComplete/);
+    expect(moduleSource).toMatch(/resolveCtosTotalLiabilities/);
+    expect(moduleSource).not.toMatch(/resolveApplicationFinancialTotalLiabilities/);
     expect(moduleSource).not.toMatch(/curlib\s*\+\s*bsslltd/);
   });
 
-  it("reuses resolveApplicationFinancialCurrentRatio and matches Page 2", () => {
+  it("uses resolveCtosCurrentRatio (direct currat only) and matches Page 2", () => {
     const source = SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_SOURCE;
     const page3 = buildProspectusPageThreeBalanceSheet({ financialSource: source });
     const page2 = buildProspectusFinancialComparisonMetrics({ source });
@@ -352,20 +315,20 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
       page2.rows.find((r) => r.key === "currentRatio")?.values
     );
     expect(row(page3, "current_ratio")?.values[0]).toBe(
-      formatProspectusFinancialMultiple(calculateCurrentRatio(4_700_000, 2_900_000))
+      formatProspectusFinancialMultiple(1.62)
     );
 
-    const zeroCurlib = buildProspectusPageThreeBalanceSheet({
-      financialSource: sourceFromYears({ "2024": { bscatot: 100, curlib: 0 } }),
+    const missingCurrat = buildProspectusPageThreeBalanceSheet({
+      financialSource: sourceFromYears({ "2024": { bscatot: 100, curlib: 50 } }),
     });
-    expect(row(zeroCurlib, "current_ratio")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
+    expect(row(missingCurrat, "current_ratio")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
 
     const moduleSource = readFileSync(
       join(__dirname, "prospectus-page-three-balance-sheet.ts"),
       "utf8"
     );
-    expect(moduleSource).toMatch(/resolveApplicationFinancialCurrentRatio/);
-    expect(moduleSource).not.toMatch(/bscatot\s*\/\s*curlib/);
+    expect(moduleSource).toMatch(/resolveCtosCurrentRatio/);
+    expect(moduleSource).not.toMatch(/resolveApplicationFinancialCurrentRatio/);
   });
 
   it("reuses Page 2 source with no independent selection, Application parse, CTOS, or Prisma", () => {
@@ -398,7 +361,7 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
     expect(html).toContain("3.6");
     expect(html).not.toContain("RM 8,100,000.00");
     expect(html).toContain("—");
-    expect(html).not.toContain("resolveApplicationFinancialTotalAssets");
+    expect(html).not.toContain("resolveCtosTotalAssets");
     expect(html).not.toContain("bsclbank");
     expect(html).not.toContain("publicationExtensionPending");
 
@@ -407,7 +370,7 @@ describe("prospectus Page 3 balance sheet (DATA STAGE 3)", () => {
       "utf8"
     );
     expect(builder).toMatch(/formatProspectusMyrMillions/);
-    expect(builder).toMatch(/resolveApplicationFinancialTotalAssets/);
+    expect(builder).toMatch(/resolveCtosTotalAssets/);
     expect(builder).not.toMatch(/\/\s*1_?000_?000/);
     expect(builder).not.toMatch(/formatProspectusMoneyMyr/);
     expect(builder).not.toMatch(/IfComplete/);

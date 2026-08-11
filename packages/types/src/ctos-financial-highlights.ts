@@ -37,6 +37,55 @@ export type CtosFinancialHighlightAccount = {
 };
 
 /**
+ * CTOS ENQWS v5.11.0 Financial Highlights XSL — Return On Equity (ROE) [%]:
+ * Direct field only: `r:return_on_equity`.
+ * No official XSL fallback (never plnpat/networth or totass−totlib).
+ * Returns percent points (e.g. 15.2 means 15.2%).
+ */
+export function resolveCtosReturnOnEquityPercent(
+  account: CtosFinancialHighlightAccount
+): number | null {
+  if (!isFinitePresent(account.return_on_equity)) return null;
+  return account.return_on_equity;
+}
+
+/**
+ * CTOS ENQWS v5.11.0 Financial Highlights XSL — Current Ratio:
+ * Direct field only: `r:currat`.
+ * No official XSL fallback (never bscatot/curlib).
+ */
+export function resolveCtosCurrentRatio(
+  account: CtosFinancialHighlightAccount
+): number | null {
+  if (!isFinitePresent(account.currat)) return null;
+  return account.currat;
+}
+
+/**
+ * CTOS ENQWS v5.11.0 Financial Highlights — Total Assets:
+ * Direct field only: `r:totass`.
+ * No component reconstruction for Prospectus.
+ */
+export function resolveCtosTotalAssets(
+  account: CtosFinancialHighlightAccount
+): number | null {
+  if (!isFinitePresent(account.totass)) return null;
+  return account.totass;
+}
+
+/**
+ * CTOS ENQWS v5.11.0 Financial Highlights — Total Liabilities:
+ * Direct field only: `r:totlib`.
+ * No component reconstruction for Prospectus.
+ */
+export function resolveCtosTotalLiabilities(
+  account: CtosFinancialHighlightAccount
+): number | null {
+  if (!isFinitePresent(account.totlib)) return null;
+  return account.totlib;
+}
+
+/**
  * CTOS ENQWS v5.11.0 Financial Highlights XSL — Return On Assets (ROA) [%]:
  * `r:plnpat div r:totass * 100`
  * Returns percent points (e.g. 8.5 means 8.5%).

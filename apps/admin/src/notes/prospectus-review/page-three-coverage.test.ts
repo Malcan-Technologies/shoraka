@@ -7,8 +7,7 @@ jest.mock("@cashsouk/config", () => ({
 }));
 
 import {
-  resolveApplicationFinancialCurrentRatio,
-  resolveApplicationFinancialTotalLiabilities,
+  resolveCtosTotalLiabilities,
   type NoteDetail,
 } from "@cashsouk/types";
 import {
@@ -242,7 +241,7 @@ describe("page three coverage verification", () => {
     expect(table.rows.every((r) => r.trend == null)).toBe(true);
   });
 
-  it("builds Balance Sheet table with Total Liabilities via Application-aligned resolver", () => {
+  it("builds Balance Sheet table with Total Liabilities from direct totlib only", () => {
     const table = buildPageThreeBalanceSheetTable(sampleFrozenYears, undefined);
     expect(table.rows.map((r) => r.metric)).toEqual([
       "Cash & Bank",
@@ -255,19 +254,15 @@ describe("page three coverage verification", () => {
       "Current Ratio",
       "Quick Ratio",
     ]);
-    const expected = resolveApplicationFinancialTotalLiabilities({
-      totlib: null,
-      curlib: 150_000,
-      bsslltd: 80_000,
-      bsclstd: 20_000,
-    });
-    expect(computePageThreeTotalLiabilities({ ...yearRaw })).toBe(expected);
+    expect(computePageThreeTotalLiabilities({ ...yearRaw })).toBe(
+      resolveCtosTotalLiabilities({ totlib: yearRaw.totlib })
+    );
     expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toContain(
       "250,000"
     );
   });
 
-  it("matches Application zero-default Total Assets when a component is missing", () => {
+  it("does not reconstruct Total Assets / Liabilities from components when flat totals missing", () => {
     const incomplete = [
       frozenYear(2024, {
         turnover: null,
@@ -291,18 +286,14 @@ describe("page three coverage verification", () => {
       }),
     ];
     const table = buildPageThreeBalanceSheetTable(incomplete, undefined);
-    expect(table.rows.find((r) => r.metric === "Total Assets")?.values[0]).toContain(
-      "400,000"
-    );
+    expect(table.rows.find((r) => r.metric === "Total Assets")?.values[0]).toBe("—");
     expect(table.rows.find((r) => r.metric === "Current Assets")?.values[0]).toContain(
       "400,000"
     );
-    expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toContain(
-      "150,000"
-    );
+    expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toBe("—");
   });
 
-  it("prefers flat totass / totlib when present like Application CTOS columns", () => {
+  it("prefers flat totass / totlib when present; missing flat totals show —", () => {
     const withFlat = [frozenYear(2024, { ...yearRaw, totass: 999_000, totlib: 111_000 })];
     const table = buildPageThreeBalanceSheetTable(withFlat, undefined);
     expect(table.rows.find((r) => r.metric === "Total Assets")?.values[0]).toContain(
@@ -311,6 +302,24 @@ describe("page three coverage verification", () => {
     expect(table.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toContain(
       "111,000"
     );
+
+    const missingFlat = [
+      frozenYear(2024, {
+        ...yearRaw,
+        totass: null,
+        totlib: null,
+        bsfatot: 200_000,
+        othass: 50_000,
+        bscatot: 400_000,
+        bsclbank: 25_000,
+        curlib: 150_000,
+        bsslltd: 80_000,
+        bsclstd: 20_000,
+      }),
+    ];
+    const dna = buildPageThreeBalanceSheetTable(missingFlat, undefined);
+    expect(dna.rows.find((r) => r.metric === "Total Assets")?.values[0]).toBe("—");
+    expect(dna.rows.find((r) => r.metric === "Total Liabilities")?.values[0]).toBe("—");
   });
 
   it("builds Coverage table with Page 2 reuse, CTOS system rows, and DNA trend", () => {
@@ -404,45 +413,39 @@ describe("page three coverage verification", () => {
     expect(buildCoverageResolvedRows({ ...yearRaw }, undefined)).toHaveLength(10);
   });
 
-  it("uses Application ROE resolver including CTOS flat preference", () => {
+  it("uses direct CTOS return_on_equity only for ROE (no PAT/networth fallback)", () => {
     const rows = buildCoverageResolvedRows(
       { ...yearRaw, return_on_equity: 15.2, plnpat: 1, bsqpuc: 100 },
       undefined
     );
     expect(rows.find((r) => r.label === "Return on Equity")?.value).toBe("15.2%");
+
+    const missingFlat = buildCoverageResolvedRows(
+      {
+        ...yearRaw,
+        return_on_equity: null,
+        plnpat: 100_000,
+        networth: 500_000,
+        totass: 1_000_000,
+        totlib: 250_000,
+      },
+      undefined
+    );
+    expect(missingFlat.find((r) => r.label === "Return on Equity")?.value).toBe("—");
   });
 
-  it("uses resolveApplicationFinancialCurrentRatio (prefer currat, else CA÷CL)", () => {
+  it("uses direct CTOS currat only for Current Ratio (no CA÷CL fallback)", () => {
     const withFlat = buildBalanceSheetResolvedRows(
       { ...yearRaw, currat: 1.75, bscatot: 400_000, curlib: 150_000 },
       undefined
     );
     expect(withFlat.find((r) => r.label === "Current Ratio")?.value).toBe("1.75x");
-    expect(
-      resolveApplicationFinancialCurrentRatio({
-        currat: 1.75,
-        bscatot: 400_000,
-        curlib: 150_000,
-      })
-    ).toBe(1.75);
 
-    const recomputed = buildBalanceSheetResolvedRows(
+    const missingCurrat = buildBalanceSheetResolvedRows(
       { ...yearRaw, currat: null, bscatot: 400_000, curlib: 200_000 },
       undefined
     );
-    expect(recomputed.find((r) => r.label === "Current Ratio")?.value).toBe("2x");
-
-    const zeroLiabilities = buildBalanceSheetResolvedRows(
-      { ...yearRaw, currat: null, bscatot: 400_000, curlib: 0 },
-      undefined
-    );
-    expect(zeroLiabilities.find((r) => r.label === "Current Ratio")?.value).toBe("—");
-
-    const zeroAssets = buildBalanceSheetResolvedRows(
-      { ...yearRaw, currat: null, bscatot: 0, curlib: 100_000 },
-      undefined
-    );
-    expect(zeroAssets.find((r) => r.label === "Current Ratio")?.value).toBe("0x");
+    expect(missingCurrat.find((r) => r.label === "Current Ratio")?.value).toBe("—");
   });
 
   it("uses frozen year order without independent Application selection", () => {

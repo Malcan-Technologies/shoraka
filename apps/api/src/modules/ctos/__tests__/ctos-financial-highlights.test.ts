@@ -3,12 +3,16 @@
  */
 
 import {
+  resolveCtosCurrentRatio,
   resolveCtosDebtToEquityPercent,
   resolveCtosGearingRatio,
   resolveCtosPatMarginPercent,
   resolveCtosReturnOnAssetsPercent,
   resolveCtosReturnOnCapital,
+  resolveCtosReturnOnEquityPercent,
   resolveCtosTotalAssetTurnover,
+  resolveCtosTotalAssets,
+  resolveCtosTotalLiabilities,
   resolveCtosWorkingCapitalDays,
 } from "@cashsouk/types";
 
@@ -94,5 +98,57 @@ describe("resolveCtosWorkingCapitalDays", () => {
 describe("resolveCtosReturnOnCapital", () => {
   it("matches CTOS XSL turnover/networth", () => {
     expect(resolveCtosReturnOnCapital({ turnover: 200, networth: 50 })).toBe(4);
+  });
+});
+
+describe("resolveCtosReturnOnEquityPercent", () => {
+  it("uses direct return_on_equity only", () => {
+    expect(resolveCtosReturnOnEquityPercent({ return_on_equity: 15.2 })).toBe(15.2);
+  });
+
+  it("does not fall back to plnpat/networth or totass-totlib", () => {
+    expect(
+      resolveCtosReturnOnEquityPercent({
+        return_on_equity: null,
+        plnpat: 100,
+        networth: 500,
+        totass: 1000,
+        totlib: 200,
+      })
+    ).toBeNull();
+  });
+});
+
+describe("resolveCtosCurrentRatio", () => {
+  it("uses direct currat only", () => {
+    expect(resolveCtosCurrentRatio({ currat: 1.75 })).toBe(1.75);
+  });
+
+  it("does not fall back to bscatot/curlib", () => {
+    expect(
+      resolveCtosCurrentRatio({ currat: null, bscatot: 400, curlib: 200 })
+    ).toBeNull();
+  });
+});
+
+describe("resolveCtosTotalAssets / resolveCtosTotalLiabilities", () => {
+  it("uses direct totass / totlib only", () => {
+    expect(resolveCtosTotalAssets({ totass: 999 })).toBe(999);
+    expect(resolveCtosTotalLiabilities({ totlib: 111 })).toBe(111);
+  });
+
+  it("does not reconstruct from components", () => {
+    expect(
+      resolveCtosTotalAssets({
+        totass: null,
+        bscatot: 400,
+      } as Parameters<typeof resolveCtosTotalAssets>[0])
+    ).toBeNull();
+    expect(
+      resolveCtosTotalLiabilities({
+        totlib: null,
+        curlib: 150,
+      } as Parameters<typeof resolveCtosTotalLiabilities>[0])
+    ).toBeNull();
   });
 });

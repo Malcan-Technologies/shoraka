@@ -4,9 +4,9 @@
  */
 
 import {
-  resolveApplicationFinancialCurrentRatio,
-  resolveApplicationFinancialReturnOnEquityRatio,
+  resolveCtosCurrentRatio,
   resolveCtosPatMarginPercent,
+  resolveCtosReturnOnEquityPercent,
   type ProspectusFrozenFinancialRaw,
   type ProspectusFrozenFinancialYear,
 } from "@cashsouk/types";
@@ -192,29 +192,18 @@ function metricValueForYear(
       );
     }
     case "roe": {
-      return formatProspectusFinancialPercentFromRatio(
-        resolveApplicationFinancialReturnOnEquityRatio({
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — direct r:return_on_equity only.
+      return formatProspectusFinancialPercentFromPoints(
+        resolveCtosReturnOnEquityPercent({
           return_on_equity: fieldFromRaw(raw, "return_on_equity"),
-          plnpat: fieldFromRaw(raw, "plnpat"),
-          networth: fieldFromRaw(raw, "networth"),
-          totass: fieldFromRaw(raw, "totass"),
-          totlib: fieldFromRaw(raw, "totlib"),
-          bsfatot: fieldFromRaw(raw, "bsfatot"),
-          othass: fieldFromRaw(raw, "othass"),
-          bscatot: fieldFromRaw(raw, "bscatot"),
-          bsclbank: fieldFromRaw(raw, "bsclbank"),
-          curlib: fieldFromRaw(raw, "curlib"),
-          bsslltd: fieldFromRaw(raw, "bsslltd"),
-          bsclstd: fieldFromRaw(raw, "bsclstd"),
         })
       );
     }
     case "currentRatio": {
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — direct r:currat only.
       return formatProspectusFinancialMultiple(
-        resolveApplicationFinancialCurrentRatio({
+        resolveCtosCurrentRatio({
           currat: fieldFromRaw(raw, "currat"),
-          bscatot: fieldFromRaw(raw, "bscatot"),
-          curlib: fieldFromRaw(raw, "curlib"),
         })
       );
     }

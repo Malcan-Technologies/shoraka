@@ -58,12 +58,11 @@ export interface ProspectusPageThreeBalanceSheetRow {
 }
 
 /**
- * Missing-component policy matches Application Financial Summary:
- * nullish components → 0 in the sum (via computeTotalAssets / computeTotalLiabilities).
- * Flat CTOS totass / totlib preferred when present.
+ * Missing official CTOS flat total → display —.
+ * No component reconstruction (unlike Application Financial Summary).
  */
 export type ProspectusPageThreeBalanceSheetMissingComponentPolicy =
-  "application_aligned_zero_default_with_flat_total_preference";
+  "ctos_direct_totass_totlib_only";
 
 export interface ProspectusPageThreeBalanceSheetAudit {
   source: {
@@ -94,14 +93,14 @@ export interface ProspectusPageThreeBalanceSheetAudit {
     storageUnit: "full_myr";
   };
   totalAssets: {
-    status: "confirmed_calculation";
-    inputKeys: ["totass", "bsfatot", "othass", "bscatot", "bsclbank"];
-    sharedHelper: "resolveApplicationFinancialTotalAssets";
+    status: "confirmed_ctos_direct";
+    inputKeys: ["totass"];
+    sharedHelper: "resolveCtosTotalAssets";
     formatter: "formatProspectusMyrMillions";
     missingComponentPolicy: ProspectusPageThreeBalanceSheetMissingComponentPolicy;
     publicationSnapshotExtensionRequired: true;
     officerOverrideAllowed: false;
-    alignedWithApplicationFinancialSummary: true;
+    componentSumAllowed: false;
   };
   currentLiabilities: {
     rawKey: "curlib";
@@ -110,14 +109,14 @@ export interface ProspectusPageThreeBalanceSheetAudit {
     storageUnit: "full_myr";
   };
   totalLiabilities: {
-    status: "confirmed_calculation";
-    inputKeys: ["totlib", "curlib", "bsslltd", "bsclstd"];
-    sharedHelper: "resolveApplicationFinancialTotalLiabilities";
+    status: "confirmed_ctos_direct";
+    inputKeys: ["totlib"];
+    sharedHelper: "resolveCtosTotalLiabilities";
     formatter: "formatProspectusMyrMillions";
     missingComponentPolicy: ProspectusPageThreeBalanceSheetMissingComponentPolicy;
     publicationSnapshotExtensionRequired: true;
     officerOverrideAllowed: false;
-    alignedWithApplicationFinancialSummary: true;
+    componentSumAllowed: false;
   };
   totalEquity: {
     status: "officer_entered";
@@ -129,9 +128,10 @@ export interface ProspectusPageThreeBalanceSheetAudit {
     requiredForApproval: true;
   };
   currentRatio: {
-    calculator: "resolveApplicationFinancialCurrentRatio";
+    calculator: "resolveCtosCurrentRatio";
     sharedWithPageTwo: true;
     formatter: "formatProspectusFinancialMultiple";
+    caClFallbackAllowed: false;
   };
   quickRatio: {
     status: "officer_entered";
@@ -178,14 +178,14 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT: ProspectusPageThreeBalan
       storageUnit: "full_myr",
     },
     totalAssets: {
-      status: "confirmed_calculation",
-      inputKeys: ["totass", "bsfatot", "othass", "bscatot", "bsclbank"],
-      sharedHelper: "resolveApplicationFinancialTotalAssets",
+      status: "confirmed_ctos_direct",
+      inputKeys: ["totass"],
+      sharedHelper: "resolveCtosTotalAssets",
       formatter: "formatProspectusMyrMillions",
-      missingComponentPolicy: "application_aligned_zero_default_with_flat_total_preference",
+      missingComponentPolicy: "ctos_direct_totass_totlib_only",
       publicationSnapshotExtensionRequired: true,
       officerOverrideAllowed: false,
-      alignedWithApplicationFinancialSummary: true,
+      componentSumAllowed: false,
     },
     currentLiabilities: {
       rawKey: "curlib",
@@ -194,14 +194,14 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT: ProspectusPageThreeBalan
       storageUnit: "full_myr",
     },
     totalLiabilities: {
-      status: "confirmed_calculation",
-      inputKeys: ["totlib", "curlib", "bsslltd", "bsclstd"],
-      sharedHelper: "resolveApplicationFinancialTotalLiabilities",
+      status: "confirmed_ctos_direct",
+      inputKeys: ["totlib"],
+      sharedHelper: "resolveCtosTotalLiabilities",
       formatter: "formatProspectusMyrMillions",
-      missingComponentPolicy: "application_aligned_zero_default_with_flat_total_preference",
+      missingComponentPolicy: "ctos_direct_totass_totlib_only",
       publicationSnapshotExtensionRequired: true,
       officerOverrideAllowed: false,
-      alignedWithApplicationFinancialSummary: true,
+      componentSumAllowed: false,
     },
     totalEquity: {
       status: "officer_entered",
@@ -213,9 +213,10 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_AUDIT: ProspectusPageThreeBalan
       requiredForApproval: true,
     },
     currentRatio: {
-      calculator: "resolveApplicationFinancialCurrentRatio",
+      calculator: "resolveCtosCurrentRatio",
       sharedWithPageTwo: true,
       formatter: "formatProspectusFinancialMultiple",
+      caClFallbackAllowed: false,
     },
     quickRatio: {
       status: "officer_entered",
@@ -313,12 +314,11 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_FIELD_SOURCES: Record<
   },
   total_assets: {
     label: "Total Assets",
-    canonicalSource: "resolveApplicationFinancialTotalAssets(totass | bsfatot+othass+bscatot+bsclbank)",
-    availability: "calculated",
+    canonicalSource: "resolveCtosTotalAssets(totass)",
+    availability: "stored",
     surface: "canva",
-    possibleAlternatives: "none — must match Application Financial Summary",
-    notes:
-      "Prefer flat totass when present (CTOS). Else computeTotalAssets with zero-default components. Display via formatProspectusMyrMillions.",
+    possibleAlternatives: "bsfatot+othass+bscatot+bsclbank — not used",
+    notes: "CTOS ENQWS v5.11.0 direct totass only. Missing → —.",
   },
   current_liabilities: {
     label: "Current Liabilities",
@@ -330,12 +330,11 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_FIELD_SOURCES: Record<
   },
   total_liabilities: {
     label: "Total Liabilities",
-    canonicalSource: "resolveApplicationFinancialTotalLiabilities(totlib | curlib+bsslltd+bsclstd)",
-    availability: "calculated",
+    canonicalSource: "resolveCtosTotalLiabilities(totlib)",
+    availability: "stored",
     surface: "canva",
-    possibleAlternatives: "none — must match Application Financial Summary",
-    notes:
-      "Prefer flat totlib when present (CTOS). Else computeTotalLiabilities with zero-default components. Display via formatProspectusMyrMillions.",
+    possibleAlternatives: "curlib+bsslltd+bsclstd — not used",
+    notes: "CTOS ENQWS v5.11.0 direct totlib only. Missing → —.",
   },
   total_equity: {
     label: "Total Equity",
@@ -347,12 +346,11 @@ export const PROSPECTUS_PAGE_THREE_BALANCE_SHEET_FIELD_SOURCES: Record<
   },
   current_ratio: {
     label: "Current Ratio",
-    canonicalSource: "resolveApplicationFinancialCurrentRatio(currat | bscatot/curlib)",
-    availability: "calculated",
+    canonicalSource: "resolveCtosCurrentRatio(currat)",
+    availability: "stored",
     surface: "canva",
-    possibleAlternatives: "Local duplicate formula — not used",
-    notes:
-      "Same Application-aligned resolver as Page 2 (CTOS flat currat preferred, else recompute).",
+    possibleAlternatives: "bscatot/curlib — not used",
+    notes: "CTOS ENQWS v5.11.0 Financial Highlights XSL — direct currat only.",
   },
   quick_ratio: {
     label: "Quick Ratio",

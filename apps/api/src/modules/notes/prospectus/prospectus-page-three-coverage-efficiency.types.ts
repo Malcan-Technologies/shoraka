@@ -101,9 +101,11 @@ export interface ProspectusPageThreeCoverageEfficiencyAudit {
     netDebtEquitySubstitutionAllowed: false;
   };
   returnOnEquity: {
-    status: "confirmed_shared_calculation";
-    calculator: "resolveApplicationFinancialReturnOnEquityRatio";
+    status: "confirmed_ctos_direct";
+    calculator: "resolveCtosReturnOnEquityPercent";
+    officialSource: "CTOS ENQWS v5.11.0 Financial Highlights XSL — r:return_on_equity only";
     sharedWithPageTwo: true;
+    unofficialFallbackAllowed: false;
   };
   returnOnAssets: {
     status: "confirmed_ctos_calculation";
@@ -189,9 +191,11 @@ export const PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_AUDIT: ProspectusPageThre
       netDebtEquitySubstitutionAllowed: false,
     },
     returnOnEquity: {
-      status: "confirmed_shared_calculation",
-      calculator: "resolveApplicationFinancialReturnOnEquityRatio",
+      status: "confirmed_ctos_direct",
+      calculator: "resolveCtosReturnOnEquityPercent",
+      officialSource: "CTOS ENQWS v5.11.0 Financial Highlights XSL — r:return_on_equity only",
       sharedWithPageTwo: true,
+      unofficialFallbackAllowed: false,
     },
     returnOnAssets: {
       status: "confirmed_ctos_calculation",
@@ -348,13 +352,11 @@ export const PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_FIELD_SOURCES: Record<
   },
   return_on_equity: {
     label: "Return on Equity",
-    canonicalSource:
-      "resolveApplicationFinancialReturnOnEquityRatio(return_on_equity | plnpat/networth | plnpat/(resolved totass−totlib from flat or components))",
-    availability: "calculated",
+    canonicalSource: "resolveCtosReturnOnEquityPercent(return_on_equity)",
+    availability: "stored",
     surface: "canva",
-    possibleAlternatives: "plnpat/bsqpuc (Paid-Up Capital) — not used",
-    notes:
-      "Prefer CTOS return_on_equity; else PAT ÷ networth; else PAT ÷ (totass − totlib); never Paid-Up Capital.",
+    possibleAlternatives: "plnpat/networth; plnpat/(totass−totlib) — not used",
+    notes: "CTOS ENQWS v5.11.0 Financial Highlights XSL — direct return_on_equity only. Missing → —.",
   },
   return_on_assets: {
     label: "Return on Assets",

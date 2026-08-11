@@ -4,12 +4,10 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { computeReturnOnEquity } from "@cashsouk/types";
 import {
   buildProspectusFinancialComparisonMetrics,
   formatProspectusFinancialMultiple,
   formatProspectusFinancialPercentFromPoints,
-  formatProspectusFinancialPercentFromRatio,
   formatProspectusMyrMillions,
 } from "./prospectus-financial-comparison-metrics";
 import { financialSourceFromYearBlocks } from "./prospectus-financial-comparison-test-helpers";
@@ -193,21 +191,8 @@ describe("prospectus Page 3 coverage/efficiency", () => {
     expect(row(page3, "receivables_days")?.values[0]).toBe("74");
   });
 
-  it("uses resolveApplicationFinancialReturnOnEquityRatio and matches Page 2", () => {
-    const source = SAMPLE_PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_SOURCE;
-    const page3 = buildProspectusPageThreeCoverageEfficiency({ financialSource: source });
-    const page2 = buildProspectusFinancialComparisonMetrics({ source });
-
-    expect(row(page3, "return_on_equity")?.values).toEqual(
-      page2.rows.find((r) => r.key === "roe")?.values
-    );
-    expect(row(page3, "return_on_equity")?.values[0]).toBe(
-      formatProspectusFinancialPercentFromRatio(
-        computeReturnOnEquity(1_200_000, 2_000_000)
-      )
-    );
-
-    const flat = buildProspectusPageThreeCoverageEfficiency({
+  it("uses resolveCtosReturnOnEquityPercent (direct return_on_equity only) and matches Page 2", () => {
+    const withFlat = buildProspectusPageThreeCoverageEfficiency({
       financialSource: sourceFromYears({
         "2024": {
           return_on_equity: 15.2,
@@ -217,7 +202,23 @@ describe("prospectus Page 3 coverage/efficiency", () => {
         },
       }),
     });
-    expect(row(flat, "return_on_equity")?.values[0]).toBe("15.2%");
+    expect(row(withFlat, "return_on_equity")?.values[0]).toBe("15.2%");
+
+    const page2 = buildProspectusFinancialComparisonMetrics({
+      source: sourceFromYears({
+        "2024": { return_on_equity: 15.2, plnpat: 1, networth: 100 },
+      }),
+    });
+    expect(row(withFlat, "return_on_equity")?.values).toEqual(
+      page2.rows.find((r) => r.key === "roe")?.values
+    );
+
+    const missingFlat = buildProspectusPageThreeCoverageEfficiency({
+      financialSource: sourceFromYears({
+        "2024": { plnpat: 100, networth: 500, totass: 1000, totlib: 200 },
+      }),
+    });
+    expect(row(missingFlat, "return_on_equity")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
 
     const paidUpIgnored = buildProspectusPageThreeCoverageEfficiency({
       financialSource: sourceFromYears({
@@ -225,29 +226,19 @@ describe("prospectus Page 3 coverage/efficiency", () => {
       }),
     });
     expect(row(paidUpIgnored, "return_on_equity")?.values[0]).toBe(
-      formatProspectusFinancialPercentFromRatio(computeReturnOnEquity(100, 500))
+      PROSPECTUS_DATA_NOT_AVAILABLE
     );
-
-    const missingPat = buildProspectusPageThreeCoverageEfficiency({
-      financialSource: sourceFromYears({ "2024": { networth: 2_000_000 } }),
-    });
-    expect(row(missingPat, "return_on_equity")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
-
-    const zeroEquity = buildProspectusPageThreeCoverageEfficiency({
-      financialSource: sourceFromYears({ "2024": { plnpat: 100, networth: 0 } }),
-    });
-    expect(row(zeroEquity, "return_on_equity")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
 
     const moduleSource = readFileSync(
       join(__dirname, "prospectus-page-three-coverage-efficiency.ts"),
       "utf8"
     );
-    expect(moduleSource).toMatch(/resolveApplicationFinancialReturnOnEquityRatio/);
+    expect(moduleSource).toMatch(/resolveCtosReturnOnEquityPercent/);
     expect(moduleSource).toMatch(/resolveCtosGearingRatio/);
     expect(moduleSource).toMatch(/resolveCtosReturnOnAssetsPercent/);
     expect(moduleSource).toMatch(/resolveCtosTotalAssetTurnover/);
+    expect(moduleSource).not.toMatch(/resolveApplicationFinancialReturnOnEquityRatio/);
     expect(moduleSource).not.toMatch(/plnpat\s*\/\s*bsqpuc/);
-    expect(moduleSource).toMatch(/networth/);
   });
 
   it("shows DNA for missing officer and Page 2 values; accepts zero; CTOS zeros from official inputs", () => {
@@ -299,7 +290,7 @@ describe("prospectus Page 3 coverage/efficiency", () => {
     );
     const html = buildProspectusPageThreeCoverageEfficiencyDocument(data);
     expect(html).toContain("CASH FLOW, COVERAGE AND EFFICIENCY");
-    expect(html).not.toContain("resolveApplicationFinancialReturnOnEquityRatio");
+    expect(html).not.toContain("resolveCtosReturnOnEquityPercent");
     expect(html).not.toContain("↑");
     expect(html).not.toContain("favourable");
   });

@@ -106,8 +106,8 @@ describe("prospectus Page 2 Financial Comparison Metrics (DATA STAGE 4B)", () =>
       "utf8"
     );
     expect(moduleSource).toContain("resolveCtosPatMarginPercent");
-    expect(moduleSource).toContain("resolveApplicationFinancialReturnOnEquityRatio");
-    expect(moduleSource).toContain("resolveApplicationFinancialCurrentRatio");
+    expect(moduleSource).toContain("resolveCtosReturnOnEquityPercent");
+    expect(moduleSource).toContain("resolveCtosCurrentRatio");
     expect(moduleSource).not.toContain("calculateGearing");
     expect(moduleSource).toContain("formatProspectusMyrMillions");
 

@@ -213,9 +213,9 @@
  * Supported rows:
  * - Revenue → rawFinancials.turnover → formatProspectusMoneyMyr
  * - Profit After Tax → rawFinancials.plnpat → formatProspectusMoneyMyr
- * - Net Profit Margin → resolveApplicationFinancialProfitMarginRatio(plnpat/turnover)
- * - ROE → resolveApplicationFinancialReturnOnEquityRatio(return_on_equity | plnpat/networth | plnpat/(resolved totass−totlib from flat or components))
- * - Current Ratio → resolveApplicationFinancialCurrentRatio(currat | bscatot/curlib)
+ * - Net Profit Margin → resolveCtosPatMarginPercent(plnpat/turnover*100)
+ * - ROE → resolveCtosReturnOnEquityPercent(return_on_equity only)
+ * - Current Ratio → resolveCtosCurrentRatio(currat only)
  *
  * Officer-configurable when unset → — (no approximation):
  * - Net Debt / Equity — page2.financialComparison.overrides; do NOT substitute gearing helpers
@@ -426,7 +426,7 @@
  * Stage 5 coverage+trends → Stage 6 takeaways (page ends)
  *
  * Confirmed helpers (must match Page 2 for shared metrics):
- * - Revenue/PAT/NPM/ROE/Current Ratio; computeTotalAssets/Liabilities; full MYR
+ * - Revenue/PAT/NPM/ROE/Current Ratio via CTOS official-only resolvers; full MYR
  *
  * No standalone visible Financial Trends section.
  * Canva sample claims / trend arrows are not production truth.

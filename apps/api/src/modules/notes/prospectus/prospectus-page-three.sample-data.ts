@@ -49,6 +49,8 @@ export const SAMPLE_PROSPECTUS_PAGE_THREE_INPUT: ProspectusPageThreeBuilderInput
             year.year === 2022 ? 1_200_000 : year.year === 2023 ? 1_500_000 : 1_800_000,
           bsqpuc: 2_000_000,
           networth: 2_000_000,
+          return_on_equity:
+            year.year === 2022 ? 60 : year.year === 2023 ? 68.18 : 75,
         },
       ])
     ),
@@ -71,6 +73,7 @@ export const SAMPLE_PROSPECTUS_PAGE_THREE_INPUT: ProspectusPageThreeBuilderInput
       plnpat: year.year === 2022 ? 1_200_000 : year.year === 2023 ? 1_500_000 : 1_800_000,
       bsqpuc: 2_000_000,
       networth: 2_000_000,
+      return_on_equity: year.year === 2022 ? 60 : year.year === 2023 ? 68.18 : 75,
     },
   })),
   frozenFinancialComparison: null,
