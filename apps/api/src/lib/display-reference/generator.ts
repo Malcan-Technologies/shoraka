@@ -264,24 +264,41 @@ function hasPrismaClient(
 function baseInputFromAllocationInput(
   input: AllocateDisplayReferenceInput
 ): AllocateDisplayReferenceBaseInput {
-  const { moduleCode, referenceDate, entityType, entityId } = input;
-  if (isProductScopedModuleInput(input)) {
-    if (input.moduleCode === "WDL") {
+  const { referenceDate, entityType, entityId, moduleCode } = input;
+
+  switch (moduleCode) {
+    case "APP":
+    case "CON":
+    case "INV":
+    case "NOTE":
+    case "SET":
       return {
-        moduleCode: "WDL",
-        scope: "product",
+        moduleCode,
         referenceDate,
         productCode: input.productCode,
         entityType,
         entityId,
       };
+    case "WDL":
+      if ("scope" in input && input.scope === "product") {
+        return {
+          moduleCode: "WDL",
+          scope: "product",
+          referenceDate,
+          productCode: input.productCode,
+          entityType,
+          entityId,
+        };
+      }
+      return { moduleCode: "WDL", referenceDate, entityType, entityId };
+    case "ISS":
+    case "IVT":
+      return { moduleCode, referenceDate, entityType, entityId };
+    default: {
+      const unsupported: never = moduleCode;
+      throw new Error(`Unsupported display reference module: ${unsupported}`);
     }
-    return { moduleCode, referenceDate, productCode: input.productCode, entityType, entityId };
   }
-  if (isAccountScopedModuleInput(input)) {
-    return { moduleCode: input.moduleCode, referenceDate, entityType, entityId };
-  }
-  return { moduleCode, referenceDate, entityType, entityId } as AllocateDisplayReferenceBaseInput;
 }
 
 export async function allocateDisplayReference(
