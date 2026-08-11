@@ -1,6 +1,7 @@
 import { formatCurrency } from "@cashsouk/config";
 import { Skeleton } from "@cashsouk/ui";
 import type { EligibleNoteInvoice } from "@cashsouk/types";
+import { formatInvoiceReference } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatNoteStatus } from "@/notes/utils/format-note-status";
@@ -90,8 +91,18 @@ export function SourceInvoicesTable({
               invoices.map((invoice) => (
                 <TableRow key={invoice.invoiceId}>
                   <TableCell>
-                    <div className="font-medium">{invoice.invoiceNumber ?? invoice.invoiceId}</div>
-                    <div className="font-mono text-xs text-muted-foreground">{invoice.invoiceId}</div>
+                    <div className="font-medium font-mono text-xs">
+                      {formatInvoiceReference({
+                        displayReference: invoice.displayReference,
+                        businessNumber: invoice.invoiceNumber,
+                        id: invoice.invoiceId,
+                      })}
+                    </div>
+                    {invoice.invoiceNumber ? (
+                      <div className="text-xs text-muted-foreground">
+                        Invoice no: {invoice.invoiceNumber}
+                      </div>
+                    ) : null}
                   </TableCell>
                   <TableCell>{invoice.issuerName ?? invoice.issuerOrganizationId}</TableCell>
                   <TableCell>{invoice.paymasterName ?? "-"}</TableCell>

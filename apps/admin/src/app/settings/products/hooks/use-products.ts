@@ -78,6 +78,7 @@ export function useCreateProduct() {
       marketplace_listing_duration_days?: number | null;
       service_fee_rate_percent?: number | null;
       default_facility_fee_rate_percent?: number | null;
+      product_code?: string;
     }) => {
       const response = await apiClient.createProduct(data);
       return unwrapResponse(response);
@@ -105,6 +106,7 @@ export function useUpdateProduct() {
         marketplace_listing_duration_days?: number | null;
         service_fee_rate_percent?: number | null;
         default_facility_fee_rate_percent?: number | null;
+        product_code?: string;
       };
     }) => {
       const response = await apiClient.updateProduct(id, data);

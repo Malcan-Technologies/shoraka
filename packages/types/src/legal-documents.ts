@@ -212,13 +212,17 @@ export interface LegalDocumentAcceptanceListItem {
   documentHash: string | null;
   organizationId: string | null;
   organizationName: string | null;
-  organizationType: LegalAcceptanceAudience;
-  userId: string;
+  organizationAccountType: string | null;
+  portal: LegalAcceptanceAudience;
+  userId: string | null;
   userName: string | null;
   userEmail: string | null;
-  ipAddress: string | null;
-  userAgent: string | null;
-  deviceInfo: string | null;
+  openedIpAddress: string | null;
+  openedUserAgent: string | null;
+  openedDeviceInfo: string | null;
+  acceptedIpAddress: string | null;
+  acceptedUserAgent: string | null;
+  acceptedDeviceInfo: string | null;
   acknowledgementText: string | null;
 }
 
@@ -226,6 +230,35 @@ export interface LegalDocumentAcceptanceDetail extends LegalDocumentAcceptanceLi
   versionStatus: LegalDocumentVersionStatus | null;
   contentType: string | null;
   fileSize: number | null;
+}
+
+export type LegalDocumentAuditAction =
+  | "LEGAL_DOCUMENT_CREATED"
+  | "LEGAL_DOCUMENT_UPDATED"
+  | "LEGAL_VERSION_UPLOADED"
+  | "LEGAL_VERSION_FILE_REPLACED"
+  | "LEGAL_VERSION_PUBLISHED"
+  | "LEGAL_VERSION_ARCHIVED"
+  | "LEGAL_VERSION_RESTORED";
+
+export interface LegalDocumentAuditLogListItem {
+  id: string;
+  action: LegalDocumentAuditAction;
+  legalDocumentId: string | null;
+  legalDocumentVersionId: string | null;
+  documentType: LegalDocumentType | null;
+  versionNumber: number | null;
+  documentHash: string | null;
+  actorUserId: string | null;
+  actorName: string | null;
+  actorEmail: string | null;
+  beforeJson: Record<string, unknown> | null;
+  afterJson: Record<string, unknown> | null;
+  reason: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  correlationId: string | null;
+  createdAt: string;
 }
 
 export interface RequiredLegalDocumentResponse {

@@ -8,6 +8,7 @@ import {
   NoteStatusBadge,
 } from "@cashsouk/ui";
 import type { EligibleNoteInvoice, NoteListItem, NoteSettlementPoolSummary } from "@cashsouk/types";
+import { formatInvoiceReference } from "@cashsouk/types";
 import {
   formatProspectusListBadge,
   hasSettlementTrusteeMovementFromPoolSummary,
@@ -217,7 +218,11 @@ function ReadyInvoiceRow({
   onCreateNote: (invoice: EligibleNoteInvoice) => void;
   canCreate?: boolean;
 }) {
-  const invoiceLabel = invoice.invoiceNumber ?? invoice.invoiceId;
+  const invoiceLabel = formatInvoiceReference({
+    displayReference: invoice.displayReference,
+    businessNumber: invoice.invoiceNumber,
+    id: invoice.invoiceId,
+  });
   return (
     <TableRow>
       <TableCell className="min-w-0 overflow-hidden truncate font-mono text-xs" title={invoiceLabel}>

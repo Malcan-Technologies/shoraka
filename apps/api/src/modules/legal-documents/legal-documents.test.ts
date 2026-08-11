@@ -30,8 +30,8 @@ describe("legal document type helpers", () => {
 
 jest.mock("../../lib/prisma", () => ({
   prisma: {
-    issuerOrganization: { findFirst: jest.fn(), updateMany: jest.fn() },
-    investorOrganization: { findFirst: jest.fn(), updateMany: jest.fn() },
+    issuerOrganization: { findFirst: jest.fn(), updateMany: jest.fn(), findMany: jest.fn() },
+    investorOrganization: { findFirst: jest.fn(), updateMany: jest.fn(), findMany: jest.fn() },
     user: { findUnique: jest.fn() },
     legalDocumentAcceptance: {
       findFirst: jest.fn(),
@@ -40,6 +40,12 @@ jest.mock("../../lib/prisma", () => ({
       count: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    legalDocumentAuditLog: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
     },
     $transaction: jest.fn(),
   },
@@ -139,6 +145,8 @@ describe("legal document acceptance service", () => {
       first_name: "Owner",
       last_name: "User",
     });
+    (prisma.legalDocumentAuditLog.create as jest.Mock).mockResolvedValue({ id: "audit1" });
+    jest.spyOn(legalDocumentRepository, "findAllPublishedByDocumentId").mockResolvedValue([]);
   });
 
   it("does not return draft documents to users", async () => {
@@ -147,6 +155,8 @@ describe("legal document acceptance service", () => {
       id: "org1",
       owner_user_id: "u1",
       tnc_accepted: false,
+      name: "Acme Issuer",
+      type: "COMPANY",
     });
 
     const status = await legalDocumentAcceptanceService.getRequiredDocuments(
@@ -159,11 +169,135 @@ describe("legal document acceptance service", () => {
     expect(status.all_accepted).toBe(true);
   });
 
+  it("reports no required documents when nothing is published for onboarding", async () => {
+    jest.spyOn(legalDocumentRepository, "findPublishedByTypeAndAudiences").mockResolvedValue(null);
+    (prisma.issuerOrganization.findFirst as jest.Mock).mockResolvedValue({
+      id: "org1",
+      owner_user_id: "u1",
+      tnc_accepted: false,
+      name: "Acme Issuer",
+      type: "COMPANY",
+    });
+
+    const status = await legalDocumentAcceptanceService.hasCompletedRequiredAcceptances(
+      "u1",
+      "org1",
+      "ISSUER"
+    );
+
+    expect(status).toEqual({
+      hasRequiredDocuments: false,
+      allAccepted: true,
+    });
+  });
+
+  it("blocks accept-tnc readiness when a required published document is not accepted", async () => {
+    jest
+      .spyOn(legalDocumentRepository, "findPublishedByTypeAndAudiences")
+      .mockImplementation(async (type) =>
+        type === "PDPA_NOTICE_AND_CONSENT" ? (publishedVersion() as never) : null
+      );
+    (prisma.issuerOrganization.findFirst as jest.Mock).mockResolvedValue({
+      id: "org1",
+      owner_user_id: "u1",
+      tnc_accepted: false,
+      name: "Acme Issuer",
+      type: "COMPANY",
+    });
+    (prisma.legalDocumentAcceptance.findFirst as jest.Mock).mockImplementation(
+      async (args: { where: { status?: string } }) => {
+        if (args.where.status === "ACCEPTED") return null;
+        return { status: "OPENED", opened_at: new Date() };
+      }
+    );
+
+    const status = await legalDocumentAcceptanceService.hasCompletedRequiredAcceptances(
+      "u1",
+      "org1",
+      "ISSUER"
+    );
+
+    expect(status.hasRequiredDocuments).toBe(true);
+    expect(status.allAccepted).toBe(false);
+  });
+
+  it("allows accept-tnc readiness when all currently required published documents are accepted", async () => {
+    jest
+      .spyOn(legalDocumentRepository, "findPublishedByTypeAndAudiences")
+      .mockImplementation(async (type) =>
+        type === "PDPA_NOTICE_AND_CONSENT" ? (publishedVersion() as never) : null
+      );
+    (prisma.issuerOrganization.findFirst as jest.Mock).mockResolvedValue({
+      id: "org1",
+      owner_user_id: "u1",
+      tnc_accepted: false,
+      name: "Acme Issuer",
+      type: "COMPANY",
+    });
+    (prisma.legalDocumentAcceptance.findFirst as jest.Mock).mockResolvedValue({
+      status: "ACCEPTED",
+      accepted_at: new Date(),
+    });
+
+    const status = await legalDocumentAcceptanceService.hasCompletedRequiredAcceptances(
+      "u1",
+      "org1",
+      "ISSUER"
+    );
+
+    expect(status).toEqual({
+      hasRequiredDocuments: true,
+      allAccepted: true,
+    });
+  });
+
+  it("does not require unpublished or non-required document types for onboarding readiness", async () => {
+    const findPublished = jest
+      .spyOn(legalDocumentRepository, "findPublishedByTypeAndAudiences")
+      .mockImplementation(async (type) =>
+        type === "TERMS_OF_USE"
+          ? (publishedVersion({
+              id: "ver-tou",
+              legal_document: {
+                ...publishedVersion().legal_document,
+                type: "TERMS_OF_USE",
+                title: "Terms",
+              },
+            }) as never)
+          : null
+      );
+    (prisma.investorOrganization.findFirst as jest.Mock).mockResolvedValue({
+      id: "org2",
+      owner_user_id: "u2",
+      tnc_accepted: false,
+    });
+    (prisma.legalDocumentAcceptance.findFirst as jest.Mock).mockResolvedValue({
+      status: "ACCEPTED",
+      accepted_at: new Date(),
+    });
+
+    const status = await legalDocumentAcceptanceService.hasCompletedRequiredAcceptances(
+      "u2",
+      "org2",
+      "INVESTOR"
+    );
+
+    expect(findPublished).toHaveBeenCalled();
+    expect(status).toEqual({
+      hasRequiredDocuments: true,
+      allAccepted: true,
+    });
+    expect(status.hasRequiredDocuments).toBe(true);
+    expect(findPublished.mock.calls.length).toBeGreaterThan(1);
+  });
+
   it("rejects acceptance before open when open-before-accept is required", async () => {
     (prisma.issuerOrganization.findFirst as jest.Mock).mockResolvedValue({
       id: "org1",
       owner_user_id: "u1",
       tnc_accepted: false,
+      name: "Acme Issuer",
+      type: "COMPANY",
     });
     jest
       .spyOn(legalDocumentRepository, "findVersionById")
@@ -180,6 +314,8 @@ describe("legal document acceptance service", () => {
       id: "org1",
       owner_user_id: "u1",
       tnc_accepted: false,
+      name: "Acme Issuer",
+      type: "COMPANY",
     });
     jest
       .spyOn(legalDocumentRepository, "findVersionById")
@@ -220,6 +356,8 @@ describe("legal document acceptance service", () => {
       id: "org1",
       owner_user_id: "u1",
       tnc_accepted: false,
+      name: "Acme Issuer",
+      type: "COMPANY",
     });
     jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
       publishedVersion({
@@ -272,7 +410,7 @@ describe("legal document acceptance service", () => {
           version_number: 2,
           user_email_snapshot: "owner@example.com",
           acknowledgement_text: expect.stringContaining("agree"),
-          ip_address: "203.0.113.10",
+          accepted_ip_address: "203.0.113.10",
         }),
       })
     );
@@ -371,6 +509,8 @@ describe("legal document acceptance service", () => {
       id: "org1",
       owner_user_id: "u1",
       tnc_accepted: false,
+      name: "Acme Issuer",
+      type: "COMPANY",
     });
     jest
       .spyOn(legalDocumentRepository, "findVersionById")
@@ -385,8 +525,8 @@ describe("legal document acceptance service", () => {
     expect(prisma.legalDocumentAcceptance.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          ip_address: "203.0.113.10",
-          user_agent: "JestAgent/1.0",
+          opened_ip_address: "203.0.113.10",
+          opened_user_agent: "JestAgent/1.0",
           legal_document_version_id: "ver1",
         }),
       })

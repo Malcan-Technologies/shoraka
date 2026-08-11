@@ -1,6 +1,7 @@
 import type { StatusToken } from "@cashsouk/ui";
 import { getStatusPresentationByBadgeKey } from "@cashsouk/config";
 import type { WithdrawReason } from "@cashsouk/types";
+import { formatApplicationReference } from "@cashsouk/types";
 
 /**
  * Map collapsed issuer badge keys → shared StatusBadge tokens (viewer-centric):
@@ -101,6 +102,9 @@ export function countInvoicesNeedingAction(
   }).length;
 }
 
-export function formatApplicationDisplayId(id: string): string {
-  return `#${id.slice(-8).toUpperCase()}`;
+export function formatApplicationDisplayId(
+  id: string,
+  displayReference?: string | null
+): string {
+  return formatApplicationReference({ id, displayReference });
 }

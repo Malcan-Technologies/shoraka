@@ -73,6 +73,10 @@ import {
 import { toast } from "sonner";
 import {
   normalizeDirectorShareholderIdKey,
+  formatApplicationReference,
+  formatContractReference,
+  formatNoteReference,
+  formatOrganizationReference,
   toTitleCase,
 } from "@cashsouk/types";
 import { createApiClient, formatCurrency, useAuthToken } from "@cashsouk/config";
@@ -645,7 +649,10 @@ function LinkedRecordsTable({
       id: record.id,
       type: "applications" as const,
       typeLabel: "Application",
-      title: record.id.slice(-8).toUpperCase(),
+      title: formatApplicationReference({
+        displayReference: record.displayReference,
+        id: record.id,
+      }),
       subtitle: record.productId ? `Product ${record.productId}` : "Application",
       amount: record.requestedAmount,
       status: record.status,
@@ -656,7 +663,11 @@ function LinkedRecordsTable({
       id: record.id,
       type: "contracts" as const,
       typeLabel: "Contract",
-      title: record.title ?? record.contractNumber ?? record.id.slice(-8).toUpperCase(),
+      title: formatContractReference({
+        displayReference: record.displayReference,
+        businessNumber: record.contractNumber,
+        id: record.id,
+      }),
       subtitle: record.contractNumber ?? record.id,
       amount: record.contractValue,
       status: record.status,
@@ -678,7 +689,7 @@ function LinkedRecordsTable({
       id: record.id,
       type: "investments" as const,
       typeLabel: "Investment",
-      title: record.id.slice(-8).toUpperCase(),
+      title: record.noteReference ?? formatNoteReference({ id: record.id }),
       subtitle: `${record.noteReference} · ${record.noteTitle}`,
       amount: record.amount,
       status: record.status,
@@ -1091,6 +1102,14 @@ export default function OrganizationDetailPage() {
                     )}
 
                     <div className="space-y-0.5">
+                      {org.displayReference ? (
+                        <p className="text-xs text-muted-foreground font-mono">
+                          Reference: {formatOrganizationReference({
+                            displayReference: org.displayReference,
+                            id: org.id,
+                          })}
+                        </p>
+                      ) : null}
                       <p className="text-xs text-muted-foreground font-mono">
                         ID: {org.id}
                       </p>

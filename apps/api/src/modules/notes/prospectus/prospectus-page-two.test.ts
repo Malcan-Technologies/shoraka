@@ -2,8 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { NoteStatus } from "@prisma/client";
 import {
-  calculateProfitMargin,
-  computeReturnOnEquity,
+  resolveCtosPatMarginPercent,
   MARKETPLACE_MIN_COMMIT_MYR,
 } from "@cashsouk/types";
 import { AppError } from "../../../lib/http/error-handler";
@@ -17,7 +16,7 @@ import {
 } from "./prospectus-page-two-mapper";
 import {
   buildProspectusFinancialComparisonMetrics,
-  formatProspectusFinancialPercentFromRatio,
+  formatProspectusFinancialPercentFromPoints,
 } from "./prospectus-financial-comparison-metrics";
 import {
   isProspectusNotePublished,
@@ -282,6 +281,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
         profit_margin: null,
         return_on_equity: null,
         currat: null,
+        gear: null,
       });
       expect(JSON.stringify(page2)).not.toMatch(/RM /);
       expect(JSON.stringify(page2)).not.toMatch(/Trend|Takeaway|Cash & Bank/i);
@@ -354,10 +354,10 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       const previewSource = buildFinancialComparisonSourceFromFrozen(frozen);
       const previewMetrics = buildProspectusFinancialComparisonMetrics({ source: previewSource });
       expect(previewMetrics.rows.find((r) => r.key === "netProfitMargin")?.values[0]).toBe(
-        formatProspectusFinancialPercentFromRatio(calculateProfitMargin(15, 100))
+        formatProspectusFinancialPercentFromPoints(resolveCtosPatMarginPercent({ plnpat: 15, turnover: 100 }))
       );
       expect(previewMetrics.rows.find((r) => r.key === "roe")?.values[0]).toBe(
-        formatProspectusFinancialPercentFromRatio(computeReturnOnEquity(15, 500))
+        PROSPECTUS_DATA_NOT_AVAILABLE
       );
 
       const published = buildProspectusPageTwo(
@@ -409,13 +409,17 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(fy2024?.rawFinancials.networth).toBe(500);
       expect(
         published.financialComparisonMetrics.rows.find((r) => r.key === "netProfitMargin")?.values[2]
-      ).toBe(formatProspectusFinancialPercentFromRatio(calculateProfitMargin(15, 100)));
+      ).toBe(
+        formatProspectusFinancialPercentFromPoints(
+          resolveCtosPatMarginPercent({ plnpat: 15, turnover: 100 })
+        )
+      );
       expect(published.financialComparisonMetrics.rows.find((r) => r.key === "roe")?.values[2]).toBe(
-        formatProspectusFinancialPercentFromRatio(computeReturnOnEquity(15, 500))
+        PROSPECTUS_DATA_NOT_AVAILABLE
       );
     });
 
-    it("freezes totass/totlib for ROE fallback; published HTML ignores later CTOS changes", () => {
+    it("freezes totass/totlib raw fields; ROE stays DNA without return_on_equity; published HTML ignores later CTOS changes", () => {
       const frozen = buildProspectusPage2Snapshot({
         financialStatements: {
           questionnaire: { financial_year_end: "2027-12-31" },
@@ -451,12 +455,8 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
 
       const previewSource = buildFinancialComparisonSourceFromFrozen(frozen);
       const previewMetrics = buildProspectusFinancialComparisonMetrics({ source: previewSource });
-      const expectedRoe = formatProspectusFinancialPercentFromRatio(
-        computeReturnOnEquity(100, 500)
-      );
-      expect(previewMetrics.rows.find((r) => r.key === "roe")?.values[0]).toBe(expectedRoe);
-      expect(previewMetrics.rows.find((r) => r.key === "roe")?.values[0]).not.toBe(
-        formatProspectusFinancialPercentFromRatio(computeReturnOnEquity(100, 200))
+      expect(previewMetrics.rows.find((r) => r.key === "roe")?.values[0]).toBe(
+        PROSPECTUS_DATA_NOT_AVAILABLE
       );
 
       const published = buildProspectusPageTwo(
@@ -507,7 +507,7 @@ describe("prospectus Page 2 Prisma mapper and assembly", () => {
       expect(fy2024?.rawFinancials.totlib).toBe(200);
       expect(fy2024?.rawFinancials.networth).toBeNull();
       expect(published.financialComparisonMetrics.rows.find((r) => r.key === "roe")?.values[2]).toBe(
-        expectedRoe
+        PROSPECTUS_DATA_NOT_AVAILABLE
       );
     });
 

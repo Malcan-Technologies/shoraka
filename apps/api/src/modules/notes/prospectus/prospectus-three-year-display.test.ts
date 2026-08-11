@@ -199,6 +199,7 @@ describe("Prospectus page builders + freeze", () => {
               profit_margin: null,
               return_on_equity: null,
               currat: null,
+              gear: null,
             },
           },
           {
@@ -225,6 +226,7 @@ describe("Prospectus page builders + freeze", () => {
               profit_margin: null,
               return_on_equity: null,
               currat: null,
+              gear: null,
             },
           },
         ],

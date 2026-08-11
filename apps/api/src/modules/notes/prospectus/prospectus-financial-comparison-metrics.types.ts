@@ -59,19 +59,23 @@ export interface ProspectusFinancialComparisonMetricsAudit {
     formulasUseFullMyr: true;
   };
   netProfitMargin: {
-    helper: "resolveApplicationFinancialProfitMarginRatio";
+    helper: "resolveCtosPatMarginPercent";
     formulaOwnedBySharedHelper: true;
     isCalculated: true;
   };
   roe: {
-    helper: "resolveApplicationFinancialReturnOnEquityRatio";
+    helper: "resolveCtosReturnOnEquityPercent";
     formulaOwnedBySharedHelper: true;
-    isCalculated: true;
+    isCalculated: false;
+    officialSource: "CTOS ENQWS v5.11.0 Financial Highlights XSL — r:return_on_equity only";
+    unofficialFallbackAllowed: false;
   };
   currentRatio: {
-    helper: "resolveApplicationFinancialCurrentRatio";
+    helper: "resolveCtosCurrentRatio";
     formulaOwnedBySharedHelper: true;
-    isCalculated: true;
+    isCalculated: false;
+    officialSource: "CTOS ENQWS v5.11.0 Financial Highlights XSL — r:currat only";
+    unofficialFallbackAllowed: false;
   };
   netDebtEquity: {
     status: "officer_or_dna";
@@ -124,19 +128,23 @@ export const PROSPECTUS_FINANCIAL_COMPARISON_METRICS_AUDIT: ProspectusFinancialC
       formulasUseFullMyr: true,
     },
     netProfitMargin: {
-      helper: "resolveApplicationFinancialProfitMarginRatio",
+      helper: "resolveCtosPatMarginPercent",
       formulaOwnedBySharedHelper: true,
       isCalculated: true,
     },
     roe: {
-      helper: "resolveApplicationFinancialReturnOnEquityRatio",
+      helper: "resolveCtosReturnOnEquityPercent",
       formulaOwnedBySharedHelper: true,
-      isCalculated: true,
+      isCalculated: false,
+      officialSource: "CTOS ENQWS v5.11.0 Financial Highlights XSL — r:return_on_equity only",
+      unofficialFallbackAllowed: false,
     },
     currentRatio: {
-      helper: "resolveApplicationFinancialCurrentRatio",
+      helper: "resolveCtosCurrentRatio",
       formulaOwnedBySharedHelper: true,
-      isCalculated: true,
+      isCalculated: false,
+      officialSource: "CTOS ENQWS v5.11.0 Financial Highlights XSL — r:currat only",
+      unofficialFallbackAllowed: false,
     },
     netDebtEquity: {
       status: "officer_or_dna",

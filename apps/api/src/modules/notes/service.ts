@@ -97,6 +97,11 @@ import {
 } from "./note-issuer-snapshot";
 import { noteInclude, noteRepository } from "./repository";
 import {
+  allocateDisplayReference,
+  resolveApplicationProductCode,
+  resolveNoteProductCode,
+} from "../../lib/display-reference";
+import {
   buildSettlementAllocations,
   calculateLateCharge as calculateLateChargeValues,
   calculateCalendarDayCount,
@@ -158,6 +163,11 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function generateNoteEntityId(): string {
+  const compactUuid = randomUUID().replace(/-/g, "");
+  return `c${compactUuid.slice(0, 24)}`;
 }
 
 function workflowHasSigningPackage(workflow: unknown): boolean {
@@ -1407,6 +1417,7 @@ export class NoteService {
         const note = notesByInvoiceId.get(invoice.id) ?? null;
         return {
           invoiceId: invoice.id,
+          displayReference: invoice.display_reference ?? null,
           applicationId: invoice.application_id,
           contractId: invoice.contract_id ?? invoice.application.contract_id,
           issuerOrganizationId: invoice.application.issuer_organization_id,
@@ -1755,6 +1766,7 @@ export class NoteService {
       select: {
         id: true,
         note_id: true,
+        display_reference: true,
         issuer_residual_amount: true,
         posted_at: true,
         created_at: true,
@@ -1822,6 +1834,7 @@ export class NoteService {
         : undefined;
       return {
         withdrawalId: withdrawal.id,
+        displayReference: withdrawal.display_reference ?? null,
         settlementId: withdrawal.settlement_id,
         noteId: withdrawal.note_id ?? "",
         noteTitle: note?.title ?? null,
@@ -1847,6 +1860,7 @@ export class NoteService {
           : undefined;
         return {
           withdrawalId: `settlement-residual:${settlement.id}`,
+          displayReference: settlement.display_reference ?? null,
           settlementId: settlement.id,
           noteId: settlement.note_id,
           noteTitle: note?.title ?? null,
@@ -1928,6 +1942,7 @@ export class NoteService {
       select: {
         id: true,
         note_id: true,
+        display_reference: true,
         investor_principal: true,
         investor_profit_net: true,
         tawidh_investor_amount: true,
@@ -1975,6 +1990,7 @@ export class NoteService {
         toNumber(s.issuer_residual_amount);
       return {
         settlementId: s.id,
+        displayReference: s.display_reference ?? null,
         noteId: s.note_id,
         noteTitle: note?.title ?? null,
         noteStatus: note?.status ?? null,
@@ -2109,6 +2125,7 @@ export class NoteService {
       id: string;
       issuer_organization_id: string;
       contract_id: string | null;
+      product_version: number | null;
       financing_type: Prisma.JsonValue | null;
       business_details: Prisma.JsonValue | null;
       issuer_organization: {
@@ -2155,9 +2172,21 @@ export class NoteService {
     const product = productId
       ? await prisma.product.findUnique({
           where: { id: productId },
-          select: { id: true, workflow: true, service_fee_rate_percent: true },
+          select: { id: true, workflow: true, service_fee_rate_percent: true, product_code: true },
         })
       : null;
+    const productCode = await resolveApplicationProductCode(prisma, {
+      id: application.id,
+      financing_type: application.financing_type,
+      product_version: application.product_version,
+    });
+    if (!productCode) {
+      throw new AppError(
+        422,
+        "PRODUCT_CODE_REQUIRED",
+        "Application product code is missing. Configure product code before creating a note."
+      );
+    }
     const productCategory = resolveProductCategoryFromWorkflow(product?.workflow);
     const productDisplayName =
       resolveProductNameFromWorkflow(product?.workflow) ??
@@ -2187,14 +2216,27 @@ export class NoteService {
 
     const invoiceNumber =
       typeof invoiceDetails.number === "string" ? invoiceDetails.number : invoice.id.slice(-8);
-    const reference = `NOTE-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${invoice.id
-      .slice(-8)
-      .toUpperCase()}`;
 
     const note = await prisma
       .$transaction(async (tx) => {
+        const noteId = generateNoteEntityId();
+        const noteCreatedAt = new Date();
+        const canonicalReference = await allocateDisplayReference(
+          {
+            moduleCode: "NOTE",
+            productCode,
+            referenceDate: noteCreatedAt,
+            entityType: "note",
+            entityId: noteId,
+            tx,
+          },
+          async () => undefined
+        );
+
         const created = await tx.note.create({
           data: {
+            id: noteId,
+            created_at: noteCreatedAt,
             source_application_id: application.id,
             source_contract_id: invoice.contract_id ?? application.contract_id,
             source_invoice_id: invoice.id,
@@ -2202,7 +2244,7 @@ export class NoteService {
             title:
               params.title ??
               `Note for invoice ${invoiceNumber} - ${application.issuer_organization.name ?? application.issuer_organization.id}`,
-            note_reference: reference,
+            note_reference: canonicalReference,
             issuer_snapshot: { ...issuerSnapshot },
             paymaster_snapshot: json(sourceContract?.customer_details),
             product_snapshot: json({
@@ -2211,6 +2253,7 @@ export class NoteService {
               category: productCategory,
               ...(productDisplayName ? { product_name: productDisplayName } : {}),
               ...(productDescription ? { description: productDescription } : {}),
+              product_code: productCode,
             }),
             purpose_snapshot: purposeOfFinancing
               ? json({ financing_for: purposeOfFinancing })
@@ -2990,29 +3033,27 @@ export class NoteService {
           },
         });
         if (!existingDisbursement) {
-          await tx.withdrawalInstruction.create({
-            data: {
-              note_id: id,
-              issuer_organization_id: result.issuer_organization_id,
-              requested_by_user_id: actor.userId,
-              withdrawal_type: WithdrawalType.ISSUER_DISBURSEMENT,
-              amount: money(netDisbursement),
-              beneficiary_snapshot: buildBeneficiarySnapshot(issuerOrg) as Prisma.InputJsonValue,
-              metadata: {
-                autoCreatedAt: now.toISOString(),
-                autoCreatedBy: actor.userId,
-                issuerOrganizationName: issuerOrg?.name ?? null,
-                source: "CLOSE_FUNDING",
-                grossFundedAmount: fundedAmount,
-                platformFeeAmount: platformFee,
-                facilityFeeRatePercent,
-                facilityFeeCap,
-                facilityFeePaidBefore,
-                facilityFeeCharged,
-                facilityFeeRemainingAfter,
-                netIssuerDisbursement: netDisbursement,
-              } as Prisma.InputJsonValue,
-            },
+          await this.createWithdrawalInstructionWithDisplayReference(tx, {
+            note_id: id,
+            issuer_organization_id: result.issuer_organization_id,
+            requested_by_user_id: actor.userId,
+            withdrawal_type: WithdrawalType.ISSUER_DISBURSEMENT,
+            amount: money(netDisbursement),
+            beneficiary_snapshot: buildBeneficiarySnapshot(issuerOrg) as Prisma.InputJsonValue,
+            metadata: {
+              autoCreatedAt: now.toISOString(),
+              autoCreatedBy: actor.userId,
+              issuerOrganizationName: issuerOrg?.name ?? null,
+              source: "CLOSE_FUNDING",
+              grossFundedAmount: fundedAmount,
+              platformFeeAmount: platformFee,
+              facilityFeeRatePercent,
+              facilityFeeCap,
+              facilityFeePaidBefore,
+              facilityFeeCharged,
+              facilityFeeRemainingAfter,
+              netIssuerDisbursement: netDisbursement,
+            } as Prisma.InputJsonValue,
           });
           await this.logEvent(tx, id, "ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED", actor, {
             netDisbursement,
@@ -3726,13 +3767,21 @@ export class NoteService {
     return { viewUrl, expiresIn };
   }
 
-  getPaymentInstructions(id: string) {
+  async getPaymentInstructions(id: string) {
+    const note = await prisma.note.findUnique({
+      where: { id },
+      select: { note_reference: true },
+    });
+    if (!note) {
+      throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    }
+
     return {
       noteId: id,
       bankName: process.env.REPAYMENT_BANK_NAME ?? "Trustee Bank",
       accountName: process.env.REPAYMENT_ACCOUNT_NAME ?? "CashSouk Repayment Pool",
       accountNumber: process.env.REPAYMENT_ACCOUNT_NUMBER ?? "Pending configuration",
-      referenceFormat: `NOTE-${id.slice(-8).toUpperCase()}`,
+      referenceFormat: note.note_reference,
     };
   }
 
@@ -4116,14 +4165,60 @@ export class NoteService {
       approvalAllocations
     );
 
-    await prisma.noteSettlement.update({
-      where: { id: settlementId },
-      data: {
-        status: NoteSettlementStatus.APPROVED,
-        approved_by_user_id: actor.userId,
-        approved_at: new Date(),
-        preview_snapshot: json(approvalSnapshot),
-      },
+    await prisma.$transaction(async (tx) => {
+      const approvedAt = new Date();
+      const updateResult = await tx.noteSettlement.updateMany({
+        where: { id: settlementId, note_id: id, status: NoteSettlementStatus.PREVIEW },
+        data: {
+          status: NoteSettlementStatus.APPROVED,
+          approved_by_user_id: actor.userId,
+          approved_at: approvedAt,
+          preview_snapshot: json(approvalSnapshot),
+        },
+      });
+      if (updateResult.count !== 1) {
+        throw new AppError(409, "SETTLEMENT_NOT_PREVIEW", "Only preview settlements can be approved");
+      }
+
+      const settlementForReference = await tx.noteSettlement.findUniqueOrThrow({
+        where: { id: settlementId },
+        select: {
+          id: true,
+          created_at: true,
+          note: {
+            select: {
+              id: true,
+              product_snapshot: true,
+              source_application_id: true,
+            },
+          },
+        },
+      });
+      const productCode = await resolveNoteProductCode(tx, settlementForReference.note);
+      if (!productCode) {
+        throw new AppError(
+          422,
+          "PRODUCT_CODE_REQUIRED",
+          "Note settlement requires a canonical product code before approval."
+        );
+      }
+
+      await allocateDisplayReference(
+        {
+          moduleCode: "SET",
+          productCode,
+          referenceDate: settlementForReference.created_at,
+          entityType: "note_settlement",
+          entityId: settlementForReference.id,
+          tx,
+        },
+        async (persistTx, reference) => {
+          await persistTx.noteSettlement.update({
+            where: { id: settlementForReference.id },
+            data: { display_reference: reference },
+          });
+        }
+      );
     });
     await this.logEvent(prisma, id, "SETTLEMENT_APPROVED", actor, { settlementId });
     return this.getAdminNoteDetail(id);
@@ -4622,6 +4717,7 @@ export class NoteService {
 
     const letterData = {
       ...mapRepaymentLetterData({
+        ourRef: settlement.display_reference,
         settlementId: settlement.id,
         investorPrincipal: toNumber(settlement.investor_principal),
         investorProfitNet: toNumber(settlement.investor_profit_net),
@@ -4641,7 +4737,8 @@ export class NoteService {
     };
 
     const buffer = await renderTrusteeLetterPdf(letterData);
-    const key = `note-letters/${noteId}/service-fee-trustee/${settlementId}-${Date.now()}.pdf`;
+    const settlementFileRef = settlement.display_reference?.trim() || settlement.id;
+    const key = `note-letters/${noteId}/service-fee-trustee/trustee-${settlementFileRef}-${Date.now()}.pdf`;
     await putS3ObjectBuffer({ key, body: buffer, contentType: "application/pdf" });
     await prisma.$transaction(async (tx) => {
       const row = await tx.noteSettlement.updateMany({
@@ -5122,8 +5219,8 @@ export class NoteService {
   }
 
   async createWithdrawal(input: z.infer<typeof createWithdrawalSchema>, actor: ActorContext) {
-    const withdrawal = await prisma.withdrawalInstruction.create({
-      data: {
+    const withdrawal = await prisma.$transaction(async (tx) =>
+      this.createWithdrawalInstructionWithDisplayReference(tx, {
         note_id: input.noteId ?? null,
         investor_organization_id: input.investorOrganizationId ?? null,
         issuer_organization_id: input.issuerOrganizationId ?? null,
@@ -5131,8 +5228,8 @@ export class NoteService {
         withdrawal_type: input.withdrawalType,
         amount: money(input.amount),
         beneficiary_snapshot: input.beneficiarySnapshot as Prisma.InputJsonValue,
-      },
-    });
+      })
+    );
     return this.mapWithdrawal(withdrawal);
   }
 
@@ -5179,6 +5276,7 @@ export class NoteService {
         : undefined;
       return {
         withdrawalId: withdrawal.id,
+        displayReference: withdrawal.display_reference ?? null,
         investorOrganizationId: withdrawal.investor_organization_id,
         investorOrganizationName: org?.name ?? null,
         requestedByUserId: withdrawal.requested_by_user_id,
@@ -5246,19 +5344,17 @@ export class NoteService {
         metadata: { requestedByUserId: actor.userId } as Prisma.InputJsonValue,
       });
 
-      return tx.withdrawalInstruction.create({
-        data: {
-          investor_organization_id: input.investorOrganizationId,
-          requested_by_user_id: actor.userId,
-          withdrawal_type: WithdrawalType.INVESTOR_WITHDRAWAL,
-          status: WithdrawalStatus.DRAFT,
-          amount: money(input.amount),
-          beneficiary_snapshot: beneficiarySnapshot as Prisma.InputJsonValue,
-          metadata: {
-            source: "INVESTOR_PORTAL",
-            requestedAt: new Date().toISOString(),
-          } as Prisma.InputJsonValue,
-        },
+      return this.createWithdrawalInstructionWithDisplayReference(tx, {
+        investor_organization_id: input.investorOrganizationId,
+        requested_by_user_id: actor.userId,
+        withdrawal_type: WithdrawalType.INVESTOR_WITHDRAWAL,
+        status: WithdrawalStatus.DRAFT,
+        amount: money(input.amount),
+        beneficiary_snapshot: beneficiarySnapshot as Prisma.InputJsonValue,
+        metadata: {
+          source: "INVESTOR_PORTAL",
+          requestedAt: new Date().toISOString(),
+        } as Prisma.InputJsonValue,
       });
     });
 
@@ -5304,6 +5400,7 @@ export class NoteService {
         : null;
       letterData = {
         ...mapInvestorWithdrawalLetterData({
+          ourRef: withdrawal.display_reference,
           withdrawalId: withdrawal.id,
           amount: toNumber(withdrawal.amount),
           beneficiarySnapshot,
@@ -5315,6 +5412,7 @@ export class NoteService {
     } else {
       letterData = {
         ...mapDisbursementLetterData({
+          ourRef: withdrawal.display_reference,
           withdrawalId: withdrawal.id,
           withdrawalAmount: toNumber(withdrawal.amount),
           beneficiarySnapshot,
@@ -5326,7 +5424,8 @@ export class NoteService {
     }
 
     const buffer = await renderTrusteeLetterPdf(letterData);
-    const key = `withdrawal-letters/${id}/${Date.now()}.pdf`;
+    const withdrawalFileRef = withdrawal.display_reference?.trim() || withdrawal.id;
+    const key = `withdrawal-letters/${id}/trustee-${withdrawalFileRef}-${Date.now()}.pdf`;
     await putS3ObjectBuffer({ key, body: buffer, contentType: "application/pdf" });
     const updated = await prisma.withdrawalInstruction.update({
       where: { id },
@@ -5692,6 +5791,78 @@ export class NoteService {
     withdrawal: Prisma.WithdrawalInstructionGetPayload<Prisma.WithdrawalInstructionDefaultArgs>
   ) {
     return mapWithdrawalInstruction(withdrawal);
+  }
+
+  private async createWithdrawalInstructionWithDisplayReference(
+    tx: Prisma.TransactionClient,
+    data: Prisma.WithdrawalInstructionUncheckedCreateInput
+  ) {
+    const created = await tx.withdrawalInstruction.create({ data });
+
+    if (!created.note_id) {
+      await allocateDisplayReference(
+        {
+          moduleCode: "WDL",
+          referenceDate: created.created_at,
+          entityType: "withdrawal_instruction",
+          entityId: created.id,
+          tx,
+        },
+        async (persistTx, reference) => {
+          await persistTx.withdrawalInstruction.update({
+            where: { id: created.id },
+            data: { display_reference: reference },
+          });
+        }
+      );
+
+      return tx.withdrawalInstruction.findUniqueOrThrow({ where: { id: created.id } });
+    }
+
+    const noteForReference = await tx.note.findUnique({
+      where: { id: created.note_id },
+      select: {
+        id: true,
+        product_snapshot: true,
+        source_application_id: true,
+      },
+    });
+    if (!noteForReference) {
+      throw new AppError(
+        404,
+        "NOTE_NOT_FOUND",
+        "Withdrawal instruction requires a valid note before assigning canonical reference."
+      );
+    }
+
+    const productCode = await resolveNoteProductCode(tx, noteForReference);
+    if (!productCode) {
+      throw new AppError(
+        422,
+        "PRODUCT_CODE_REQUIRED",
+        "Withdrawal instruction requires a canonical product code for reference allocation."
+      );
+    }
+
+    await allocateDisplayReference(
+      {
+        moduleCode: "WDL",
+        scope: "product",
+        productCode,
+        referenceDate: created.created_at,
+        entityType: "withdrawal_instruction",
+        entityId: created.id,
+        tx,
+      },
+      async (persistTx, reference) => {
+        await persistTx.withdrawalInstruction.update({
+          where: { id: created.id },
+          data: { display_reference: reference },
+        });
+      }
+    );
+
+    return tx.withdrawalInstruction.findUniqueOrThrow({ where: { id: created.id } });
   }
 
   private resolvePaymasterName(paymaster: Record<string, unknown> | null): string | null {

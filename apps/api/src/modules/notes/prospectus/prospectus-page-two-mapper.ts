@@ -107,6 +107,7 @@ export function buildFinancialComparisonSourceFromFrozen(
         profit_margin: year.raw_financials.profit_margin,
         return_on_equity: year.raw_financials.return_on_equity,
         currat: year.raw_financials.currat,
+        gear: year.raw_financials.gear ?? null,
       },
     };
   });

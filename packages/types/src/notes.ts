@@ -135,6 +135,7 @@ export interface NoteMoneySummary {
 
 export interface NoteSettlementPoolSummary {
   settlementId: string;
+  displayReference: string | null;
   status: NoteSettlementStatus;
   grossReceiptAmount: number;
   investorPoolAmount: number;
@@ -360,6 +361,7 @@ export interface PaymentEvidenceFile {
 
 export interface NoteSettlement {
   id: string;
+  displayReference: string | null;
   noteId: string;
   paymentId: string | null;
   status: NoteSettlementStatus;
@@ -569,6 +571,7 @@ export interface PendingRepaymentsResponse {
 
 export interface PendingIssuerPayoutItem {
   withdrawalId: string;
+  displayReference: string | null;
   settlementId: string | null;
   noteId: string;
   noteTitle: string | null;
@@ -593,6 +596,7 @@ export interface PendingIssuerPayoutsResponse {
 /** Posted settlements with trustee movements where the settlement trustee instruction is not fully completed. */
 export interface PendingServiceFeeTrusteeLetterItem {
   settlementId: string;
+  displayReference: string | null;
   noteId: string;
   noteTitle: string | null;
   noteStatus: string | null;
@@ -711,6 +715,7 @@ export interface LedgerBucketAccountsConfig {
 
 export interface InvestorWithdrawalListItem {
   withdrawalId: string;
+  displayReference: string | null;
   investorOrganizationId: string | null;
   investorOrganizationName: string | null;
   requestedByUserId: string;
@@ -732,6 +737,7 @@ export interface InvestorWithdrawalsResponse {
 
 export interface WithdrawalInstruction {
   id: string;
+  displayReference: string | null;
   noteId: string | null;
   settlementId: string | null;
   investorOrganizationId: string | null;
@@ -926,6 +932,7 @@ export interface ExportInvestorBalanceStatementParams {
 
 export interface EligibleNoteInvoice {
   invoiceId: string;
+  displayReference: string | null;
   applicationId: string;
   contractId: string | null;
   issuerOrganizationId: string;
@@ -1068,6 +1075,7 @@ export function mapNoteSettlementToPoolSummary(
   settlement: Pick<
     NoteSettlement,
     | "id"
+    | "displayReference"
     | "status"
     | "grossReceiptAmount"
     | "investorPrincipal"
@@ -1094,6 +1102,7 @@ export function mapNoteSettlementToPoolSummary(
 ): NoteSettlementPoolSummary {
   return {
     settlementId: settlement.id,
+    displayReference: settlement.displayReference,
     status: settlement.status,
     grossReceiptAmount: settlement.grossReceiptAmount,
     investorPoolAmount:

@@ -6,6 +6,7 @@ import { StatusBadge } from "@cashsouk/ui";
 import { format, formatDistanceToNow } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import type { OrganizationResponse } from "@cashsouk/types";
+import { formatOrganizationReference } from "@cashsouk/types";
 import {
   UserIcon,
   BuildingOffice2Icon,
@@ -79,6 +80,17 @@ export function OrganizationsTableRow({
                 SSM: {organization.registrationNumber}
               </div>
             )}
+            {organization.displayReference ? (
+              <div
+                className="truncate text-xs font-mono text-muted-foreground"
+                title={organization.displayReference}
+              >
+                {formatOrganizationReference({
+                  displayReference: organization.displayReference,
+                  id: organization.id,
+                })}
+              </div>
+            ) : null}
             {organization.type === "COMPANY" && (
               <div
                 className="truncate text-xs text-muted-foreground"

@@ -35,6 +35,7 @@ const RAW_KEYS = [
   "profit_margin",
   "return_on_equity",
   "currat",
+  "gear",
 ] as const;
 
 function serializeRawField(value: unknown): string | number | null {
@@ -66,6 +67,7 @@ function pickRawFinancials(raw: Record<string, unknown>): ProspectusPage2Financi
     profit_margin: serializeRawField(raw.profit_margin),
     return_on_equity: serializeRawField(raw.return_on_equity),
     currat: serializeRawField(raw.currat),
+    gear: serializeRawField(raw.gear),
   };
 }
 

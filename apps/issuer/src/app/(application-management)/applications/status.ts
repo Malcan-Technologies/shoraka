@@ -108,6 +108,7 @@ export type CardStatusResult = {
 
 export interface NormalizedInvoice {
   id: string;
+  displayReference?: string | null;
   number: string;
   /** Linked Contract ID (when contract financing is used for this invoice). */
   contractId: string | null;
@@ -165,6 +166,7 @@ export function issuerInvoiceCanViewReasonRemarks(inv: NormalizedInvoice): boole
 
 export interface NormalizedApplication {
   id: string;
+  displayReference?: string | null;
   type: "Contract financing" | "Invoice financing" | "Generic";
   status: string;
   cardStatus: CardStatusResult;

@@ -111,6 +111,7 @@ export function mapWithdrawalInstruction(withdrawal: WithdrawalRecord) {
 
   return {
     id: withdrawal.id,
+    displayReference: withdrawal.display_reference ?? null,
     noteId: withdrawal.note_id,
     settlementId: withdrawal.settlement_id,
     investorOrganizationId: withdrawal.investor_organization_id,
@@ -313,6 +314,7 @@ function resolveSettlementSummary(note: NoteWithRelations) {
 
   return {
     settlementId: settlement.id,
+    displayReference: settlement.display_reference ?? null,
     status: settlement.status,
     grossReceiptAmount: moneyToNumber(settlement.gross_receipt_amount),
     investorPoolAmount,
@@ -560,6 +562,7 @@ export function mapNoteDetail(
     })),
     settlements: note.settlements.map((settlement) => ({
       id: settlement.id,
+      displayReference: settlement.display_reference ?? null,
       noteId: settlement.note_id,
       paymentId: settlement.payment_id,
       status: settlement.status,

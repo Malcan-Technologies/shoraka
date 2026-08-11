@@ -34,6 +34,7 @@ function emptyRaw(): ProspectusFrozenFinancialYear["raw"] {
     profit_margin: null,
     return_on_equity: null,
     currat: null,
+    gear: null,
   };
 }
 

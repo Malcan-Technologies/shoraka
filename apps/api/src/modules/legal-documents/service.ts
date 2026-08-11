@@ -16,11 +16,12 @@ import {
   sanitizeS3KeyForLog,
 } from "../../lib/s3/legal-document-object";
 import { resolveActivePublishedByDocumentId } from "./active-published";
+import { legalDocumentAuditLogService } from "./audit-log-service";
 import { legalDocumentRepository, type VersionWithDocument } from "./repository";
 import type {
   CreateLegalDocumentInput,
   CreateVersionInput,
-  LegalDocumentEventType,
+  LegalDocumentAuditAction,
   ListLegalDocumentsQuery,
   PublishVersionInput,
   RequestVersionUploadUrlInput,
@@ -28,6 +29,7 @@ import type {
   UpdateLegalDocumentInput,
   UpdateVersionInput,
 } from "./schemas";
+import type { LegalDocumentType } from "@cashsouk/types";
 
 function toVersionSummary(version: {
   id: string;
@@ -133,14 +135,17 @@ export class LegalDocumentService {
 
     const document = await legalDocumentRepository.create(input);
 
-    await this.logEvent(req, adminUserId, document.id, "LEGAL_DOCUMENT_CREATED", {
-      legal_document_id: document.id,
-      type: document.type,
-      title: document.title,
-      audience: document.audience,
-      required_for_onboarding: document.required_for_onboarding,
-      public_visibility: document.public_visibility,
-      show_in_account: document.show_in_account,
+    await this.recordAuditEvent(req, adminUserId, "LEGAL_DOCUMENT_CREATED", {
+      legalDocumentId: document.id,
+      documentType: document.type as LegalDocumentType,
+      afterJson: {
+        title: document.title,
+        description: document.description,
+        audience: document.audience,
+        required_for_onboarding: document.required_for_onboarding,
+        public_visibility: document.public_visibility,
+        show_in_account: document.show_in_account,
+      },
     });
 
     logger.info({ legalDocumentId: document.id, type: document.type }, "Legal document created");
@@ -202,10 +207,18 @@ export class LegalDocumentService {
 
     const updated = await legalDocumentRepository.update(id, input);
 
-    await this.logEvent(req, adminUserId, id, "LEGAL_DOCUMENT_UPDATED", {
-      legal_document_id: id,
-      type: existing.type,
-      changes,
+    const beforeJson: Record<string, unknown> = {};
+    const afterJson: Record<string, unknown> = {};
+    for (const [key, change] of Object.entries(changes)) {
+      beforeJson[key] = change.from;
+      afterJson[key] = change.to;
+    }
+
+    await this.recordAuditEvent(req, adminUserId, "LEGAL_DOCUMENT_UPDATED", {
+      legalDocumentId: id,
+      documentType: existing.type as LegalDocumentType,
+      beforeJson,
+      afterJson,
     });
 
     logger.info({ legalDocumentId: id, changes: Object.keys(changes) }, "Legal document updated");
@@ -311,15 +324,18 @@ export class LegalDocumentService {
       throw error;
     }
 
-    await this.logEvent(req, adminUserId, legalDocumentId, "LEGAL_VERSION_UPLOADED", {
-      legal_document_id: legalDocumentId,
-      legal_document_version_id: version.id,
-      type: document.type,
-      version: version.version,
-      file_name: version.file_name,
-      file_hash: version.file_hash,
-      s3_key: version.s3_key,
-      status: version.status,
+    await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_UPLOADED", {
+      legalDocumentId,
+      legalDocumentVersionId: version.id,
+      documentType: document.type as LegalDocumentType,
+      versionNumber: version.version,
+      documentHash: version.file_hash,
+      afterJson: {
+        version: version.version,
+        file_name: version.file_name,
+        file_hash: version.file_hash,
+        status: version.status,
+      },
     });
 
     logger.info(
@@ -346,18 +362,13 @@ export class LegalDocumentService {
 
     const updated = await legalDocumentRepository.updateDraftVersion(versionId, input);
 
-    await this.logEvent(
-      req,
-      adminUserId,
-      existing.legal_document_id,
-      "LEGAL_VERSION_UPDATED",
+    logger.info(
       {
-        legal_document_id: existing.legal_document_id,
-        legal_document_version_id: versionId,
-        type: existing.legal_document.type,
+        legalDocumentId: existing.legal_document_id,
+        versionId,
         version: existing.version,
-        file_hash: updated.file_hash,
-      }
+      },
+      "Legal document draft version metadata checked"
     );
 
     return toVersionResponse(updated);
@@ -477,23 +488,21 @@ export class LegalDocumentService {
       versionStatus: existing.status,
     });
 
-    await this.logEvent(
-      req,
-      adminUserId,
-      existing.legal_document_id,
-      "LEGAL_VERSION_UPDATED",
-      {
-        legal_document_id: existing.legal_document_id,
-        legal_document_version_id: versionId,
-        type: existing.legal_document.type,
-        version: existing.version,
+    await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_FILE_REPLACED", {
+      legalDocumentId: existing.legal_document_id,
+      legalDocumentVersionId: versionId,
+      documentType: existing.legal_document.type as LegalDocumentType,
+      versionNumber: existing.version,
+      documentHash: updated.file_hash,
+      beforeJson: {
+        file_name: existing.file_name,
+        file_hash: existing.file_hash,
+      },
+      afterJson: {
         file_name: updated.file_name,
         file_hash: updated.file_hash,
-        s3_key: updated.s3_key,
-        previous_file_name: existing.file_name,
-        replaced_in_place: true,
-      }
-    );
+      },
+    });
 
     logger.info(
       {
@@ -530,7 +539,11 @@ export class LegalDocumentService {
 
     const reacceptanceRequired = input.reacceptanceRequired ?? false;
 
-    // Never reset organisation tnc_accepted on publish.
+    const previouslyPublished = await legalDocumentRepository.findAllPublishedByDocumentId(
+      existing.legal_document_id,
+      versionId
+    );
+
     const published = await legalDocumentRepository.publishVersion(
       versionId,
       existing.legal_document_id,
@@ -538,20 +551,36 @@ export class LegalDocumentService {
       reacceptanceRequired
     );
 
-    await this.logEvent(
-      req,
-      adminUserId,
-      existing.legal_document_id,
-      "LEGAL_VERSION_PUBLISHED",
-      {
-        legal_document_id: existing.legal_document_id,
-        legal_document_version_id: versionId,
-        type: existing.legal_document.type,
+    await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_PUBLISHED", {
+      legalDocumentId: existing.legal_document_id,
+      legalDocumentVersionId: versionId,
+      documentType: existing.legal_document.type as LegalDocumentType,
+      versionNumber: published.version,
+      documentHash: published.file_hash,
+      beforeJson: {
+        status: existing.status,
+        reacceptance_required: existing.reacceptance_required,
+      },
+      afterJson: {
+        status: "PUBLISHED",
+        reacceptance_required: reacceptanceRequired,
         version: published.version,
         file_hash: published.file_hash,
-        reacceptance_required: reacceptanceRequired,
-      }
-    );
+      },
+    });
+
+    for (const archived of previouslyPublished) {
+      await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_ARCHIVED", {
+        legalDocumentId: existing.legal_document_id,
+        legalDocumentVersionId: archived.id,
+        documentType: existing.legal_document.type as LegalDocumentType,
+        versionNumber: archived.version,
+        documentHash: archived.file_hash,
+        beforeJson: { status: "PUBLISHED" },
+        afterJson: { status: "ARCHIVED" },
+        reason: "auto_archived_on_publish",
+      });
+    }
 
     logger.info(
       {
@@ -576,21 +605,15 @@ export class LegalDocumentService {
 
     const archived = await legalDocumentRepository.archiveVersion(versionId, adminUserId);
 
-    await this.logEvent(
-      req,
-      adminUserId,
-      existing.legal_document_id,
-      "LEGAL_VERSION_ARCHIVED",
-      {
-        legal_document_id: existing.legal_document_id,
-        legal_document_version_id: versionId,
-        type: existing.legal_document.type,
-        version: archived.version,
-        file_hash: archived.file_hash,
-        previous_status: existing.status,
-        new_status: "ARCHIVED",
-      }
-    );
+    await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_ARCHIVED", {
+      legalDocumentId: existing.legal_document_id,
+      legalDocumentVersionId: versionId,
+      documentType: existing.legal_document.type as LegalDocumentType,
+      versionNumber: archived.version,
+      documentHash: archived.file_hash,
+      beforeJson: { status: existing.status },
+      afterJson: { status: "ARCHIVED" },
+    });
 
     return toVersionResponse(archived);
   }
@@ -623,6 +646,11 @@ export class LegalDocumentService {
         );
       }
 
+      const previouslyPublished = await legalDocumentRepository.findAllPublishedByDocumentId(
+        existing.legal_document_id,
+        versionId
+      );
+
       const published = await legalDocumentRepository.publishVersion(
         versionId,
         existing.legal_document_id,
@@ -630,22 +658,28 @@ export class LegalDocumentService {
         existing.reacceptance_required
       );
 
-      await this.logEvent(
-        req,
-        adminUserId,
-        existing.legal_document_id,
-        "LEGAL_VERSION_RESTORED",
-        {
-          legal_document_id: existing.legal_document_id,
-          legal_document_version_id: versionId,
-          type: existing.legal_document.type,
-          version: published.version,
-          file_hash: published.file_hash,
-          previous_status: "ARCHIVED",
-          new_status: "PUBLISHED",
-          restored_as: "PUBLISHED",
-        }
-      );
+      for (const archived of previouslyPublished) {
+        await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_ARCHIVED", {
+          legalDocumentId: existing.legal_document_id,
+          legalDocumentVersionId: archived.id,
+          documentType: existing.legal_document.type as LegalDocumentType,
+          versionNumber: archived.version,
+          documentHash: archived.file_hash,
+          beforeJson: { status: "PUBLISHED" },
+          afterJson: { status: "ARCHIVED" },
+          reason: "auto_archived_on_restore_publish",
+        });
+      }
+
+      await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_RESTORED", {
+        legalDocumentId: existing.legal_document_id,
+        legalDocumentVersionId: versionId,
+        documentType: existing.legal_document.type as LegalDocumentType,
+        versionNumber: published.version,
+        documentHash: published.file_hash,
+        beforeJson: { status: "ARCHIVED" },
+        afterJson: { status: "PUBLISHED", restored_as: "PUBLISHED" },
+      });
 
       return toVersionResponse(published);
     }
@@ -663,22 +697,15 @@ export class LegalDocumentService {
 
     const restored = await legalDocumentRepository.restoreVersionToDraft(versionId);
 
-    await this.logEvent(
-      req,
-      adminUserId,
-      existing.legal_document_id,
-      "LEGAL_VERSION_RESTORED",
-      {
-        legal_document_id: existing.legal_document_id,
-        legal_document_version_id: versionId,
-        type: existing.legal_document.type,
-        version: restored.version,
-        file_hash: restored.file_hash,
-        previous_status: "ARCHIVED",
-        new_status: "DRAFT",
-        restored_as: "DRAFT",
-      }
-    );
+    await this.recordAuditEvent(req, adminUserId, "LEGAL_VERSION_RESTORED", {
+      legalDocumentId: existing.legal_document_id,
+      legalDocumentVersionId: versionId,
+      documentType: existing.legal_document.type as LegalDocumentType,
+      versionNumber: restored.version,
+      documentHash: restored.file_hash,
+      beforeJson: { status: "ARCHIVED" },
+      afterJson: { status: "DRAFT", restored_as: "DRAFT" },
+    });
 
     return toVersionResponse(restored);
   }
@@ -775,32 +802,48 @@ export class LegalDocumentService {
     }
   }
 
-  private logEvent(
+  private async recordAuditEvent(
     req: Request,
-    userId: string,
-    documentId: string,
-    eventType: LegalDocumentEventType,
-    metadata: Record<string, unknown>
+    actorUserId: string,
+    action: LegalDocumentAuditAction,
+    params: {
+      legalDocumentId?: string | null;
+      legalDocumentVersionId?: string | null;
+      documentType?: LegalDocumentType | null;
+      versionNumber?: number | null;
+      documentHash?: string | null;
+      beforeJson?: Record<string, unknown> | null;
+      afterJson?: Record<string, unknown> | null;
+      reason?: string | null;
+    }
   ) {
     const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-    const {
-      s3_key: _s3Key,
-      file_hash: _fileHash,
-      previous_file_name: _previousFileName,
-      ...safeMetadata
-    } = metadata;
     logger.info(
       {
-        userId,
-        documentId,
-        eventType,
+        userId: actorUserId,
+        documentId: params.legalDocumentId,
+        eventType: action,
         ipAddress,
         userAgent,
         deviceInfo,
-        ...safeMetadata,
+        ...params,
       },
-      `Legal document event: ${eventType}`
+      `Legal document event: ${action}`
     );
+
+    await legalDocumentAuditLogService.record({
+      req,
+      action,
+      actorUserId,
+      legalDocumentId: params.legalDocumentId,
+      legalDocumentVersionId: params.legalDocumentVersionId,
+      documentType: params.documentType,
+      versionNumber: params.versionNumber,
+      documentHash: params.documentHash,
+      beforeJson: params.beforeJson,
+      afterJson: params.afterJson,
+      reason: params.reason,
+    });
   }
 
   private generateCuid(): string {

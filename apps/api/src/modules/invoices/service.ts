@@ -20,6 +20,10 @@ import { logger } from "../../lib/logger";
 import { ProductRepository } from "../products/repository";
 import { assertMaturityForApplication } from "../products/validate-financial-config";
 import { shouldPreserveApplicationDocumentsInS3 } from "../applications/amendment-preserve-s3";
+import {
+  allocateDisplayReference,
+  resolveApplicationProductCode,
+} from "../../lib/display-reference";
 
 export class InvoiceService {
   private repository: InvoiceRepository;
@@ -172,12 +176,58 @@ export class InvoiceService {
           }
         }
 
-        return tx.invoice.create({
+        const applicationRow = await tx.application.findUnique({
+          where: { id: applicationId },
+          select: {
+            id: true,
+            financing_type: true,
+            product_version: true,
+          },
+        });
+        if (!applicationRow) {
+          throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+        }
+
+        const productCode = await resolveApplicationProductCode(tx, {
+          id: applicationRow.id,
+          financing_type: applicationRow.financing_type,
+          product_version: applicationRow.product_version,
+        });
+        if (!productCode) {
+          throw new AppError(
+            422,
+            "PRODUCT_CODE_REQUIRED",
+            "Application product code is missing. Configure product code before creating an invoice."
+          );
+        }
+
+        const created = await tx.invoice.create({
           data: {
             application_id: applicationId,
             contract_id: contractId,
             details,
           },
+        });
+
+        await allocateDisplayReference(
+          {
+            moduleCode: "INV",
+            productCode,
+            referenceDate: created.created_at,
+            entityType: "invoice",
+            entityId: created.id,
+            tx,
+          },
+          async (persistTx, reference) => {
+            await persistTx.invoice.update({
+              where: { id: created.id },
+              data: { display_reference: reference },
+            });
+          }
+        );
+
+        return tx.invoice.findUniqueOrThrow({
+          where: { id: created.id },
         });
       });
     } catch (err) {

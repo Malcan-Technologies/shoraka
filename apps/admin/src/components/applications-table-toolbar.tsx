@@ -47,7 +47,7 @@ export function ApplicationsTableToolbar({
     <ListToolbar
       searchQuery={searchQuery}
       onSearchChange={onSearchChange}
-      searchPlaceholder="Search by ID or applicant name..."
+      searchPlaceholder="Search by reference, ID, or applicant name..."
       statusFilters={statusFilters}
       onStatusFiltersChange={onStatusFiltersChange}
       statusOptions={STATUS_OPTIONS}

@@ -38,10 +38,7 @@ const PAGE_THREE_OFFICER_FINANCIAL_FIELDS = [
   "quickRatio",
   "operatingCashFlow",
   "freeCashFlow",
-  "debtEquity",
-  "returnOnAssets",
   "payablesDays",
-  "assetTurnover",
 ] as const;
 
 const PAGE_TWO_OVERRIDE_FIELDS = [
@@ -330,10 +327,7 @@ export function buildProspectusMissingRequiredFields(
     quickRatio: "Quick Ratio",
     operatingCashFlow: "Operating Cash Flow",
     freeCashFlow: "Free Cash Flow",
-    debtEquity: "Debt / Equity",
-    returnOnAssets: "Return on Assets",
     payablesDays: "Payables Days",
-    assetTurnover: "Asset Turnover",
   };
 
   for (const year of years) {

@@ -110,6 +110,10 @@ import {
 } from "../guarantors/utils";
 import { assertIssuerOrgDirectorShareholderOnboardingReady } from "./director-shareholder-onboarding-guard";
 import { buildAdminPeopleList } from "../admin/build-people-list";
+import {
+  allocateDisplayReference,
+  resolveApplicationProductCode,
+} from "../../lib/display-reference";
 
 function financialToNum(v: unknown): number {
   if (typeof v === "number" && !Number.isNaN(v)) return v;
@@ -308,16 +312,38 @@ export class ApplicationService {
     idempotencySuffix: string
   ) {
     const recipientUserIds = await getIssuerRecipientUserIdsForApplication(applicationId);
+    const enrichedPayload = await this.enrichApplicationNotificationPayload(applicationId, payload);
     await Promise.all(
       recipientUserIds.map((userId) =>
         this.notificationService.sendTyped(
           userId,
           typeId as never,
-          payload as never,
+          enrichedPayload as never,
           `app:${applicationId}:notif:${typeId}:user:${userId}:${idempotencySuffix}`
         )
       )
     );
+  }
+
+  private async enrichApplicationNotificationPayload(
+    applicationId: string,
+    payload: Record<string, unknown>
+  ): Promise<Record<string, unknown>> {
+    if (!("applicationId" in payload)) {
+      return payload;
+    }
+    const displayReference = payload.displayReference;
+    if (typeof displayReference === "string" && displayReference.trim().length > 0) {
+      return payload;
+    }
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { display_reference: true },
+    });
+    return {
+      ...payload,
+      displayReference: application?.display_reference ?? null,
+    };
   }
 
   private async syncApplicationGuarantors(
@@ -735,13 +761,53 @@ export class ApplicationService {
       );
     }
 
-    // Create application with product version and product_id in financing_type
-    return this.repository.create({
-      issuer_organization_id: input.issuerOrganizationId,
+    const productCode = await resolveApplicationProductCode(prisma, {
+      id: "new-application",
+      financing_type: { product_id: input.productId, product_code: product.product_code ?? null },
       product_version: product.version,
-      financing_type: {
-        product_id: input.productId,
-      },
+    });
+    if (!productCode) {
+      throw new AppError(
+        422,
+        "PRODUCT_CODE_REQUIRED",
+        "Selected product is missing a canonical product code. Configure product code before creating an application."
+      );
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const created = await tx.application.create({
+        data: {
+          issuer_organization_id: input.issuerOrganizationId,
+          product_version: product.version,
+          financing_type: {
+            product_id: input.productId,
+            product_code: productCode,
+          },
+          status: "DRAFT",
+          last_completed_step: 1,
+        },
+      });
+
+      await allocateDisplayReference(
+        {
+          moduleCode: "APP",
+          productCode,
+          referenceDate: created.created_at,
+          entityType: "application",
+          entityId: created.id,
+          tx,
+        },
+        async (persistTx, reference) => {
+          await persistTx.application.update({
+            where: { id: created.id },
+            data: { display_reference: reference },
+          });
+        }
+      );
+
+      return tx.application.findUniqueOrThrow({
+        where: { id: created.id },
+      });
     });
   }
 

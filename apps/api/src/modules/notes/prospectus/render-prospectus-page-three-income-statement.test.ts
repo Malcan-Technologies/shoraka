@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { calculateProfitMargin } from "@cashsouk/types";
+import { resolveCtosPatMarginPercent } from "@cashsouk/types";
 import {
   buildProspectusFinancialComparisonMetrics,
-  formatProspectusFinancialPercentFromRatio,
+  formatProspectusFinancialPercentFromPoints,
   formatProspectusMyrMillions,
 } from "./prospectus-financial-comparison-metrics";
 import { financialSourceFromYearBlocks } from "./prospectus-financial-comparison-test-helpers";
@@ -246,7 +246,7 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
     expect(row(invalid, "profit_after_tax")?.values[0]).toBe(PROSPECTUS_DATA_NOT_AVAILABLE);
   });
 
-  it("reuses resolveApplicationFinancialProfitMarginRatio and matches Page 2 for identical inputs", () => {
+  it("uses resolveCtosPatMarginPercent and matches Page 2 for identical inputs", () => {
     const source = SAMPLE_PROSPECTUS_PAGE_THREE_INCOME_STATEMENT_SOURCE;
     const page3 = buildProspectusPageThreeIncomeStatement({ financialSource: source });
     const page2 = buildProspectusFinancialComparisonMetrics({ source });
@@ -255,9 +255,15 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
     const page2Npm = page2.rows.find((r) => r.key === "netProfitMargin")?.values;
     expect(page3Npm).toEqual(page2Npm);
     expect(page3Npm).toEqual([
-      formatProspectusFinancialPercentFromRatio(calculateProfitMargin(1_200_000, 13_900_000)),
-      formatProspectusFinancialPercentFromRatio(calculateProfitMargin(1_500_000, 16_200_000)),
-      formatProspectusFinancialPercentFromRatio(calculateProfitMargin(1_800_000, 18_600_000)),
+      formatProspectusFinancialPercentFromPoints(
+        resolveCtosPatMarginPercent({ plnpat: 1_200_000, turnover: 13_900_000 })
+      ),
+      formatProspectusFinancialPercentFromPoints(
+        resolveCtosPatMarginPercent({ plnpat: 1_500_000, turnover: 16_200_000 })
+      ),
+      formatProspectusFinancialPercentFromPoints(
+        resolveCtosPatMarginPercent({ plnpat: 1_800_000, turnover: 18_600_000 })
+      ),
     ]);
 
     const zeroPat = buildProspectusPageThreeIncomeStatement({
@@ -291,15 +297,18 @@ describe("prospectus Page 3 income statement (DATA STAGE 2)", () => {
       financialSource: sourceFromYears({ "2024": { turnover: 100, plnpat: -25 } }),
     });
     expect(row(negativePat, "net_profit_margin")?.values[0]).toBe(
-      formatProspectusFinancialPercentFromRatio(calculateProfitMargin(-25, 100))
+      formatProspectusFinancialPercentFromPoints(
+        resolveCtosPatMarginPercent({ plnpat: -25, turnover: 100 })
+      )
     );
 
     const moduleSource = readFileSync(
       join(__dirname, "prospectus-page-three-income-statement.ts"),
       "utf8"
     );
-    expect(moduleSource).toMatch(/resolveApplicationFinancialProfitMarginRatio/);
-    expect(moduleSource).not.toMatch(/plnpat\s*\/\s*turnover/);
+    expect(moduleSource).toMatch(/resolveCtosPatMarginPercent/);
+    expect(moduleSource).toMatch(/never profit_margin/);
+    expect(moduleSource).not.toMatch(/fieldFromRaw\(raw,\s*"profit_margin"\)/);
   });
 
   it("reuses Page 2 source type with no independent selection, Application parse, CTOS, or Prisma", () => {

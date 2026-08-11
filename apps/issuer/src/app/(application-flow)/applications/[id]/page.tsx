@@ -300,7 +300,7 @@ export default function ApplicationDetailPage() {
     );
   }
 
-  const displayId = formatApplicationDisplayId(application.id);
+  const displayId = formatApplicationDisplayId(application.id, application.displayReference);
   const isDraft = application.status === "draft";
   const hasContract = application.type === "Contract financing";
   const statusLabel = getIssuerPlainStatusLabel(

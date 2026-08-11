@@ -150,12 +150,42 @@ export const legalDocumentEventTypes = [
   "LEGAL_DOCUMENT_CREATED",
   "LEGAL_DOCUMENT_UPDATED",
   "LEGAL_VERSION_UPLOADED",
-  "LEGAL_VERSION_UPDATED",
+  "LEGAL_VERSION_FILE_REPLACED",
   "LEGAL_VERSION_PUBLISHED",
   "LEGAL_VERSION_ARCHIVED",
   "LEGAL_VERSION_RESTORED",
-  "LEGAL_DOCUMENT_OPENED",
-  "LEGAL_DOCUMENT_ACCEPTED",
 ] as const;
 
 export type LegalDocumentEventType = (typeof legalDocumentEventTypes)[number];
+
+export type LegalDocumentAuditAction = LegalDocumentEventType;
+
+export const listLegalDocumentAuditLogsQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  pageSize: z.coerce.number().int().positive().max(100).default(20),
+  search: z.string().optional(),
+  action: z.enum(legalDocumentEventTypes).optional(),
+  documentType: z.enum(legalDocumentTypes).optional(),
+  legalDocumentId: z.string().optional(),
+  actorUserId: z.string().optional(),
+  dateFrom: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim() ? v : undefined)),
+  dateTo: z
+    .string()
+    .optional()
+    .transform((v) => (v && v.trim() ? v : undefined)),
+});
+
+export type ListLegalDocumentAuditLogsQuery = z.infer<typeof listLegalDocumentAuditLogsQuerySchema>;
+
+export const exportLegalDocumentAuditLogsQuerySchema = listLegalDocumentAuditLogsQuerySchema
+  .omit({ page: true, pageSize: true })
+  .extend({
+    format: z.enum(["csv", "json"]).default("csv"),
+  });
+
+export type ExportLegalDocumentAuditLogsQuery = z.infer<
+  typeof exportLegalDocumentAuditLogsQuerySchema
+>;

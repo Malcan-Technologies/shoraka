@@ -1,6 +1,6 @@
 /**
  * SECTION: Sample Page 3 Stage 3 balance sheet inputs
- * WHY: Deterministic three-year Application FS sample via Page 2 Stage 4A source
+ * WHY: Deterministic three-year CTOS direct fields (totass/totlib/currat) via Page 2 Stage 4A source
  */
 
 import { financialSourceFromYearBlocks } from "./prospectus-financial-comparison-test-helpers";
@@ -18,14 +18,20 @@ function yearBlock(input: {
   curlib: number;
   bsslltd: number;
   bsclstd: number;
+  currat: number;
 }) {
+  const totass = input.bsfatot + input.othass + input.bscatot + input.bsclbank;
+  const totlib = input.curlib + input.bsslltd + input.bsclstd;
   return {
     ...input,
+    totass,
+    totlib,
     turnover: 10_000_000,
     plnpat: 1_000_000,
     plnpbt: 1_200_000,
     bsqpuc: 2_000_000,
     networth: 2_000_000,
+    return_on_equity: 50,
   };
 }
 
@@ -39,6 +45,7 @@ export const SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_SOURCE =
       curlib: 2_900_000,
       bsslltd: 500_000,
       bsclstd: 200_000,
+      currat: 1.62,
     }),
     "2023": yearBlock({
       bsfatot: 1_600_000,
@@ -48,6 +55,7 @@ export const SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_SOURCE =
       curlib: 3_100_000,
       bsslltd: 550_000,
       bsclstd: 250_000,
+      currat: 1.68,
     }),
     "2024": yearBlock({
       bsfatot: 1_700_000,
@@ -57,6 +65,7 @@ export const SAMPLE_PROSPECTUS_PAGE_THREE_BALANCE_SHEET_SOURCE =
       curlib: 3_400_000,
       bsslltd: 600_000,
       bsclstd: 300_000,
+      currat: 1.71,
     }),
   });
 

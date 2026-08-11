@@ -174,7 +174,7 @@ model AdminRoleConfig {
 }
 
 model Admin {
-    id               String           @id @default(cuid())
+  id               String           @id @default(cuid())
   user_id          String           @unique
   role_id          String?
   role_description String
@@ -301,6 +301,7 @@ model InvestorOrganization {
   director_aml_status           Json?
   director_kyc_status           Json?
   business_aml_status           Json?
+  display_reference             String?                          @unique
   invitations                   InvestorOrganizationInvitation[]
   owner                         User                             @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
   onboarding_logs               OnboardingLog[]
@@ -315,6 +316,7 @@ model InvestorOrganization {
   @@index([owner_user_id])
   @@index([owner_user_id, type])
   @@index([onboarding_status])
+  @@index([display_reference])
   @@map("investor_organizations")
 }
 
@@ -359,6 +361,7 @@ model IssuerOrganization {
   director_aml_status          Json?
   director_kyc_status          Json?
   business_aml_status          Json?
+  display_reference            String?                        @unique
   applications                 Application[]
   gateway_payments             GatewayPayment[]
   contracts                    Contract[]
@@ -374,6 +377,7 @@ model IssuerOrganization {
   @@index([owner_user_id])
   @@index([owner_user_id, type])
   @@index([onboarding_status])
+  @@index([display_reference])
   @@map("issuer_organizations")
 }
 
@@ -457,6 +461,7 @@ model Application {
   financial_statements                Json?
   contract_id                         String?
   submitted_at                        DateTime?
+  display_reference                   String?                   @unique
   contract_originated                 Contract[]                @relation("ContractOriginatingApplication")
   application_revisions               ApplicationRevision[]
   application_review_events           ApplicationReviewEvent[]
@@ -470,6 +475,7 @@ model Application {
   gateway_payments                    GatewayPayment[]
   signing_envelopes                   SigningEnvelope[]
 
+  @@index([display_reference])
   @@map("applications")
 }
 
@@ -591,42 +597,46 @@ model ApplicationReviewEvent {
 }
 
 model Contract {
-  id                     String             @id @default(cuid())
-  created_at             DateTime           @default(now())
-  updated_at             DateTime           @updatedAt
-  contract_details       Json?
-  offer_details          Json?
-  customer_details       Json?
-  issuer_organization_id String
-  status                 ContractStatus     @default(DRAFT)
-  withdraw_reason        WithdrawReason?
+  id                         String             @id @default(cuid())
+  created_at                 DateTime           @default(now())
+  updated_at                 DateTime           @updatedAt
+  contract_details           Json?
+  offer_details              Json?
+  customer_details           Json?
+  issuer_organization_id     String
+  status                     ContractStatus     @default(DRAFT)
+  withdraw_reason            WithdrawReason?
   originating_application_id String?
-  originating_application  Application?     @relation("ContractOriginatingApplication", fields: [originating_application_id], references: [id], onDelete: SetNull)
-  applications           Application[]
-  issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
-  invoices               Invoice[]
-  signing_envelopes      SigningEnvelope[]
+  display_reference          String?            @unique
+  originating_application    Application?       @relation("ContractOriginatingApplication", fields: [originating_application_id], references: [id], onDelete: SetNull)
+  applications               Application[]
+  issuer_organization        IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  invoices                   Invoice[]
+  signing_envelopes          SigningEnvelope[]
 
   @@index([originating_application_id])
+  @@index([display_reference])
   @@map("contracts")
 }
 
 model Invoice {
-  id                     String            @id @default(cuid())
-  contract_id            String?
-  application_id         String
-  details                Json
-  offer_details          Json?
-  created_at             DateTime          @default(now())
-  updated_at             DateTime          @updatedAt
-  status                 InvoiceStatus     @default(DRAFT)
-  withdraw_reason        WithdrawReason?
-  application            Application       @relation(fields: [application_id], references: [id], onDelete: Cascade)
-  contract               Contract?         @relation(fields: [contract_id], references: [id])
-  signing_envelopes      SigningEnvelope[]
+  id                String            @id @default(cuid())
+  contract_id       String?
+  application_id    String
+  details           Json
+  offer_details     Json?
+  created_at        DateTime          @default(now())
+  updated_at        DateTime          @updatedAt
+  status            InvoiceStatus     @default(DRAFT)
+  withdraw_reason   WithdrawReason?
+  display_reference String?           @unique
+  application       Application       @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  contract          Contract?         @relation(fields: [contract_id], references: [id])
+  signing_envelopes SigningEnvelope[]
 
   @@index([contract_id])
   @@index([application_id])
+  @@index([display_reference])
   @@map("invoices")
 }
 
@@ -770,17 +780,17 @@ model SigningAssignment {
 }
 
 model Note {
-  id                              String                @id @default(cuid())
+  id                              String                      @id @default(cuid())
   source_application_id           String
   source_contract_id              String?
-  source_invoice_id               String?               @unique
+  source_invoice_id               String?                     @unique
   issuer_organization_id          String
-  status                          NoteStatus            @default(DRAFT)
-  listing_status                  NoteListingStatus     @default(NOT_LISTED)
-  funding_status                  NoteFundingStatus     @default(NOT_OPEN)
-  servicing_status                NoteServicingStatus   @default(NOT_STARTED)
+  status                          NoteStatus                  @default(DRAFT)
+  listing_status                  NoteListingStatus           @default(NOT_LISTED)
+  funding_status                  NoteFundingStatus           @default(NOT_OPEN)
+  servicing_status                NoteServicingStatus         @default(NOT_STARTED)
   title                           String
-  note_reference                  String                @unique
+  note_reference                  String                      @unique
   product_snapshot                Json?
   purpose_snapshot                Json?
   prospectus_snapshot             Json?
@@ -788,23 +798,23 @@ model Note {
   paymaster_snapshot              Json?
   contract_snapshot               Json?
   invoice_snapshot                Json?
-  requested_amount                Decimal               @db.Decimal(18, 6)
-  target_amount                   Decimal               @db.Decimal(18, 6)
-  funded_amount                   Decimal               @default(0) @db.Decimal(18, 6)
-  minimum_funding_percent         Decimal               @default(80) @db.Decimal(5, 2)
-  profit_rate_percent             Decimal?              @db.Decimal(7, 4)
-  platform_fee_rate_percent       Decimal               @default(0) @db.Decimal(5, 2)
-  service_fee_rate_percent        Decimal               @default(0) @db.Decimal(5, 2)
+  requested_amount                Decimal                     @db.Decimal(18, 6)
+  target_amount                   Decimal                     @db.Decimal(18, 6)
+  funded_amount                   Decimal                     @default(0) @db.Decimal(18, 6)
+  minimum_funding_percent         Decimal                     @default(80) @db.Decimal(5, 2)
+  profit_rate_percent             Decimal?                    @db.Decimal(7, 4)
+  platform_fee_rate_percent       Decimal                     @default(0) @db.Decimal(5, 2)
+  service_fee_rate_percent        Decimal                     @default(0) @db.Decimal(5, 2)
   service_fee_customer_scope      String?
-  is_featured                     Boolean               @default(false)
+  is_featured                     Boolean                     @default(false)
   featured_rank                   Int?
   featured_from                   DateTime?
   featured_until                  DateTime?
   maturity_date                   DateTime?
-  grace_period_days               Int                   @default(7)
-  arrears_threshold_days          Int                   @default(14)
-  tawidh_rate_cap_percent         Decimal               @default(1) @db.Decimal(5, 2)
-  gharamah_rate_cap_percent       Decimal               @default(9) @db.Decimal(5, 2)
+  grace_period_days               Int                         @default(7)
+  arrears_threshold_days          Int                         @default(14)
+  tawidh_rate_cap_percent         Decimal                     @default(1) @db.Decimal(5, 2)
+  gharamah_rate_cap_percent       Decimal                     @default(9) @db.Decimal(5, 2)
   published_at                    DateTime?
   funding_closed_at               DateTime?
   activated_at                    DateTime?
@@ -814,8 +824,8 @@ model Note {
   default_marked_by_admin_user_id String?
   default_reason                  String?
   metadata                        Json?
-  created_at                      DateTime              @default(now())
-  updated_at                      DateTime              @updatedAt
+  created_at                      DateTime                    @default(now())
+  updated_at                      DateTime                    @updatedAt
   listing                         NoteListing?
   investments                     NoteInvestment[]
   payment_schedules               NotePaymentSchedule[]
@@ -870,30 +880,30 @@ model NoteProspectusReview {
 
 /// Immutable Prospectus freeze created at Approve; published_at set in publish transaction.
 model NoteProspectusPublication {
-  id                   String               @id @default(cuid())
-  note_id              String
-  prospectus_review_id String
-  content_version      Int
-  snapshot             Json
-  render_fingerprint   String
-  approved_by_user_id  String
-  approved_at          DateTime
-  published_at         DateTime?
+  id                    String               @id @default(cuid())
+  note_id               String
+  prospectus_review_id  String
+  content_version       Int
+  snapshot              Json
+  render_fingerprint    String
+  approved_by_user_id   String
+  approved_at           DateTime
+  published_at          DateTime?
   /// Private S3 PDF generated once at Approve from frozen HTML.
-  pdf_storage_bucket   String?
-  pdf_storage_key      String?
-  pdf_content_type     String?              @default("application/pdf")
-  pdf_size_bytes       Int?
-  pdf_sha256           String?
-  pdf_generated_at     DateTime?
-  pdf_generation_status String?             @default("PENDING")
-  pdf_generation_error String?
-  pdf_snapshot_hash    String?
-  pdf_page_count       Int?
-  created_at           DateTime             @default(now())
-  note                 Note                 @relation(fields: [note_id], references: [id], onDelete: Cascade)
-  prospectus_review    NoteProspectusReview @relation(fields: [prospectus_review_id], references: [id], onDelete: Cascade)
-  investments          NoteInvestment[]
+  pdf_storage_bucket    String?
+  pdf_storage_key       String?
+  pdf_content_type      String?              @default("application/pdf")
+  pdf_size_bytes        Int?
+  pdf_sha256            String?
+  pdf_generated_at      DateTime?
+  pdf_generation_status String?              @default("PENDING")
+  pdf_generation_error  String?
+  pdf_snapshot_hash     String?
+  pdf_page_count        Int?
+  created_at            DateTime             @default(now())
+  note                  Note                 @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  prospectus_review     NoteProspectusReview @relation(fields: [prospectus_review_id], references: [id], onDelete: Cascade)
+  investments           NoteInvestment[]
 
   @@index([note_id])
   @@index([prospectus_review_id])
@@ -1035,46 +1045,48 @@ model NotePayment {
 }
 
 model NoteSettlement {
-  id                               String                              @id @default(cuid())
-  note_id                          String
-  payment_id                       String?
-  status                           NoteSettlementStatus                @default(PREVIEW)
-  settlement_type                  NoteSettlementType                  @default(STANDARD)
-  gross_receipt_amount             Decimal                             @default(0) @db.Decimal(18, 6)
-  investor_principal               Decimal                             @default(0) @db.Decimal(18, 6)
-  investor_profit_gross            Decimal                             @default(0) @db.Decimal(18, 6)
-  profit_start_date                DateTime?
-  profit_maturity_date             DateTime?
-  profit_days                      Int                                 @default(0)
-  annual_profit_rate_percent       Decimal                             @default(0) @db.Decimal(9, 6)
-  service_fee_amount               Decimal                             @default(0) @db.Decimal(18, 6)
-  investor_profit_net              Decimal                             @default(0) @db.Decimal(18, 6)
-  tawidh_amount                    Decimal                             @default(0) @db.Decimal(18, 6)
-  tawidh_investor_share_percent    Decimal                             @default(0) @db.Decimal(9, 6)
-  tawidh_investor_amount           Decimal                             @default(0) @db.Decimal(18, 6)
-  tawidh_account_amount            Decimal                             @default(0) @db.Decimal(18, 6)
-  gharamah_amount                  Decimal                             @default(0) @db.Decimal(18, 6)
-  issuer_residual_amount           Decimal                             @default(0) @db.Decimal(18, 6)
-  unapplied_amount                 Decimal                             @default(0) @db.Decimal(18, 6)
-  preview_snapshot                 Json
-  approved_by_user_id              String?
-  approved_at                      DateTime?
-  posted_at                        DateTime?
-  idempotency_key                  String?                             @unique
-  service_fee_trustee_status       ServiceFeeTrusteeInstructionStatus?
-  service_fee_trustee_created_at   DateTime?
+  id                                      String                              @id @default(cuid())
+  note_id                                 String
+  payment_id                              String?
+  status                                  NoteSettlementStatus                @default(PREVIEW)
+  settlement_type                         NoteSettlementType                  @default(STANDARD)
+  gross_receipt_amount                    Decimal                             @default(0) @db.Decimal(18, 6)
+  investor_principal                      Decimal                             @default(0) @db.Decimal(18, 6)
+  investor_profit_gross                   Decimal                             @default(0) @db.Decimal(18, 6)
+  profit_start_date                       DateTime?
+  profit_maturity_date                    DateTime?
+  profit_days                             Int                                 @default(0)
+  annual_profit_rate_percent              Decimal                             @default(0) @db.Decimal(9, 6)
+  service_fee_amount                      Decimal                             @default(0) @db.Decimal(18, 6)
+  investor_profit_net                     Decimal                             @default(0) @db.Decimal(18, 6)
+  tawidh_amount                           Decimal                             @default(0) @db.Decimal(18, 6)
+  tawidh_investor_share_percent           Decimal                             @default(0) @db.Decimal(9, 6)
+  tawidh_investor_amount                  Decimal                             @default(0) @db.Decimal(18, 6)
+  tawidh_account_amount                   Decimal                             @default(0) @db.Decimal(18, 6)
+  gharamah_amount                         Decimal                             @default(0) @db.Decimal(18, 6)
+  issuer_residual_amount                  Decimal                             @default(0) @db.Decimal(18, 6)
+  unapplied_amount                        Decimal                             @default(0) @db.Decimal(18, 6)
+  preview_snapshot                        Json
+  approved_by_user_id                     String?
+  approved_at                             DateTime?
+  posted_at                               DateTime?
+  idempotency_key                         String?                             @unique
+  display_reference                       String?                             @unique
+  service_fee_trustee_status              ServiceFeeTrusteeInstructionStatus?
+  service_fee_trustee_created_at          DateTime?
   service_fee_trustee_letter_generated_at DateTime?
-  service_fee_trustee_submitted_at DateTime?
-  service_fee_trustee_completed_at DateTime?
-  created_at                       DateTime                            @default(now())
-  updated_at                       DateTime                            @updatedAt
-  note                             Note                                @relation(fields: [note_id], references: [id], onDelete: Cascade)
-  withdrawals                      WithdrawalInstruction[]
+  service_fee_trustee_submitted_at        DateTime?
+  service_fee_trustee_completed_at        DateTime?
+  created_at                              DateTime                            @default(now())
+  updated_at                              DateTime                            @updatedAt
+  note                                    Note                                @relation(fields: [note_id], references: [id], onDelete: Cascade)
+  withdrawals                             WithdrawalInstruction[]
 
   @@index([note_id])
   @@index([payment_id])
   @@index([status])
   @@index([posted_at])
+  @@index([display_reference])
   @@index([service_fee_trustee_status])
   @@map("note_settlements")
 }
@@ -1232,6 +1244,8 @@ model GatewayPayment {
   recon_exceptions         GatewayReconException[]
   receipt                  GatewayPaymentReceipt?
 
+  @@unique([gatewayAccount, curlec_order_id])
+  @@unique([gatewayAccount, curlec_payment_id])
   @@index([status, created_at])
   @@index([purpose])
   @@index([investor_organization_id])
@@ -1241,43 +1255,41 @@ model GatewayPayment {
   @@index([curlec_order_id])
   @@index([curlec_payment_id])
   @@index([gatewayAccount, settlement_id])
-  @@unique([gatewayAccount, curlec_order_id])
-  @@unique([gatewayAccount, curlec_payment_id])
   @@map("gateway_payments")
 }
 
 /// Official finance receipt PDF for a completed Curlec gateway payment (one per payment).
 model GatewayPaymentReceipt {
-  id                   String                        @id @default(cuid())
-  receipt_number       String                        @unique
-  gateway_payment_id   String                        @unique
-  payment_purpose      GatewayPaymentPurpose
-  purpose_label        String
-  payer_name           String?
-  payer_company_name   String?
-  payer_email          String?
-  payer_phone          String?
-  amount               Decimal                       @db.Decimal(18, 6)
-  currency             String                        @default("MYR")
-  payment_method       String?
-  payment_date         DateTime
-  curlec_payment_id    String?
-  curlec_order_id      String
-  related_entity_type  String
-  related_entity_id    String
-  related_reference    String
-  wallet_credited      Boolean                       @default(false)
-  pdf_s3_key           String?
-  status               GatewayPaymentReceiptStatus   @default(PENDING)
-  generation_error     String?
-  generated_at         DateTime?
-  refund_reference     String?
-  refund_amount        Decimal?                      @db.Decimal(18, 6)
-  refunded_at          DateTime?
-  merchant_snapshot    Json?
-  created_at           DateTime                      @default(now())
-  updated_at           DateTime                      @updatedAt
-  gateway_payment      GatewayPayment                @relation(fields: [gateway_payment_id], references: [id], onDelete: Cascade)
+  id                  String                      @id @default(cuid())
+  receipt_number      String                      @unique
+  gateway_payment_id  String                      @unique
+  payment_purpose     GatewayPaymentPurpose
+  purpose_label       String
+  payer_name          String?
+  payer_company_name  String?
+  payer_email         String?
+  payer_phone         String?
+  amount              Decimal                     @db.Decimal(18, 6)
+  currency            String                      @default("MYR")
+  payment_method      String?
+  payment_date        DateTime
+  curlec_payment_id   String?
+  curlec_order_id     String
+  related_entity_type String
+  related_entity_id   String
+  related_reference   String
+  wallet_credited     Boolean                     @default(false)
+  pdf_s3_key          String?
+  status              GatewayPaymentReceiptStatus @default(PENDING)
+  generation_error    String?
+  generated_at        DateTime?
+  refund_reference    String?
+  refund_amount       Decimal?                    @db.Decimal(18, 6)
+  refunded_at         DateTime?
+  merchant_snapshot   Json?
+  created_at          DateTime                    @default(now())
+  updated_at          DateTime                    @updatedAt
+  gateway_payment     GatewayPayment              @relation(fields: [gateway_payment_id], references: [id], onDelete: Cascade)
 
   @@unique([curlec_payment_id])
   @@index([payment_purpose])
@@ -1303,19 +1315,19 @@ model ReceiptDailyCounter {
 /// success, so a failed local GatewayPayment insert can recover the same order
 /// on retry instead of creating another remote order.
 model GatewayOrderAttempt {
-  id               String                       @id @default(cuid())
-  gatewayAccount   CurlecGatewayAccount         @map("gateway_account")
-  purpose          GatewayPaymentPurpose
-  scope_key        String
-  idempotency_key  String?
-  receipt          String
-  curlec_order_id  String?
-  amount           Decimal                      @db.Decimal(18, 6)
-  currency         String                       @default("MYR")
-  status           GatewayOrderAttemptStatus     @default(PENDING)
-  last_error_code  String?
-  created_at       DateTime                     @default(now())
-  updated_at       DateTime                     @updatedAt
+  id              String                    @id @default(cuid())
+  gatewayAccount  CurlecGatewayAccount      @map("gateway_account")
+  purpose         GatewayPaymentPurpose
+  scope_key       String
+  idempotency_key String?
+  receipt         String
+  curlec_order_id String?
+  amount          Decimal                   @db.Decimal(18, 6)
+  currency        String                    @default("MYR")
+  status          GatewayOrderAttemptStatus @default(PENDING)
+  last_error_code String?
+  created_at      DateTime                  @default(now())
+  updated_at      DateTime                  @updatedAt
 
   @@unique([gatewayAccount, purpose, scope_key])
   @@index([gatewayAccount, curlec_order_id])
@@ -1342,7 +1354,7 @@ model GatewayPaymentEvent {
 
 /// Raw Curlec webhook events for dedup and audit (processed in later milestones).
 model GatewayWebhookEvent {
-  id              String    @id @default(cuid())
+  id              String               @id @default(cuid())
   event_id        String
   event_type      String
   gatewayAccount  CurlecGatewayAccount @map("gateway_account")
@@ -1350,7 +1362,7 @@ model GatewayWebhookEvent {
   signature_valid Boolean
   processed_at    DateTime?
   error           String?
-  created_at      DateTime  @default(now())
+  created_at      DateTime             @default(now())
 
   @@unique([gatewayAccount, event_id])
   @@index([event_id])
@@ -1421,6 +1433,7 @@ model WithdrawalInstruction {
   submitted_to_trustee_at  DateTime?
   completed_at             DateTime?
   metadata                 Json?
+  display_reference        String?            @unique
   created_at               DateTime           @default(now())
   updated_at               DateTime           @updatedAt
   settlement               NoteSettlement?    @relation(fields: [settlement_id], references: [id], onDelete: SetNull)
@@ -1433,6 +1446,7 @@ model WithdrawalInstruction {
   @@index([requested_by_user_id])
   @@index([status])
   @@index([created_at])
+  @@index([display_reference])
   @@map("withdrawal_instructions")
 }
 
@@ -1592,17 +1606,17 @@ model AmlIdentityMapping {
 
 /// Logical legal document definition (onboarding / public legal PDFs).
 model LegalDocument {
-  id                      String                @id @default(cuid())
-  type                    LegalDocumentType     @unique
+  id                      String                 @id @default(cuid())
+  type                    LegalDocumentType      @unique
   title                   String
   description             String?
-  audience                LegalDocumentAudience @default(BOTH)
-  required_for_onboarding Boolean               @default(true)
-  public_visibility       Boolean               @default(false)
+  audience                LegalDocumentAudience  @default(BOTH)
+  required_for_onboarding Boolean                @default(true)
+  public_visibility       Boolean                @default(false)
   /// When true, the active published version appears on Profile → Documents.
-  show_in_account         Boolean               @default(false)
-  created_at              DateTime              @default(now())
-  updated_at              DateTime              @updatedAt
+  show_in_account         Boolean                @default(false)
+  created_at              DateTime               @default(now())
+  updated_at              DateTime               @updatedAt
   versions                LegalDocumentVersion[]
 
   @@index([audience])
@@ -1613,25 +1627,25 @@ model LegalDocument {
 
 /// One uploaded PDF version of a legal document.
 model LegalDocumentVersion {
-  id                     String                     @id @default(cuid())
-  legal_document_id      String
-  version                Int
-  status                 LegalDocumentVersionStatus @default(DRAFT)
-  s3_key                 String                     @unique
-  file_name              String
-  content_type           String                     @default("application/pdf")
-  file_size              Int
-  file_hash              String?
-  reacceptance_required  Boolean                    @default(false)
-  uploaded_by            String
-  published_by           String?
-  published_at           DateTime?
-  archived_by            String?
-  archived_at            DateTime?
-  created_at             DateTime                   @default(now())
-  updated_at             DateTime                   @updatedAt
-  legal_document         LegalDocument              @relation(fields: [legal_document_id], references: [id], onDelete: Cascade)
-  acceptances            LegalDocumentAcceptance[]
+  id                    String                     @id @default(cuid())
+  legal_document_id     String
+  version               Int
+  status                LegalDocumentVersionStatus @default(DRAFT)
+  s3_key                String                     @unique
+  file_name             String
+  content_type          String                     @default("application/pdf")
+  file_size             Int
+  file_hash             String?
+  reacceptance_required Boolean                    @default(false)
+  uploaded_by           String
+  published_by          String?
+  published_at          DateTime?
+  archived_by           String?
+  archived_at           DateTime?
+  created_at            DateTime                   @default(now())
+  updated_at            DateTime                   @updatedAt
+  legal_document        LegalDocument              @relation(fields: [legal_document_id], references: [id], onDelete: Cascade)
+  acceptances           LegalDocumentAcceptance[]
 
   @@unique([legal_document_id, version])
   @@index([legal_document_id, status])
@@ -1654,23 +1668,30 @@ model LegalDocumentAcceptance {
   document_type              LegalDocumentType?
   /// Snapshot of version number at open/accept.
   version_number             Int?
-  user_id                    String
+  user_id                    String?
   organization_id            String?
+  /// Organization display name at first open/accept.
+  organization_name_snapshot String?
+  /// Organization account type (PERSONAL/COMPANY) at first open/accept.
+  organization_type_snapshot String?
   audience_role              LegalAcceptanceAudience
   status                     LegalAcceptanceStatus   @default(NOT_OPENED)
   opened_at                  DateTime?
+  opened_ip_address          String?
+  opened_user_agent          String?
+  opened_device_info         String?
   accepted_at                DateTime?
+  accepted_ip_address        String?
+  accepted_user_agent        String?
+  accepted_device_info       String?
   document_hash              String?
-  /// Exact acknowledgement wording shown when the user accepted.
+  /// Exact acknowledgement wording at ACCEPT time (server-validated).
   acknowledgement_text       String?
-  ip_address                 String?
-  user_agent                 String?
-  device_info                String?
   user_email_snapshot        String?
   user_name_snapshot         String?
   created_at                 DateTime                @default(now())
   updated_at                 DateTime                @updatedAt
-  user                       User                    @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  user                       User?                   @relation(fields: [user_id], references: [user_id], onDelete: SetNull)
   version                    LegalDocumentVersion    @relation(fields: [legal_document_version_id], references: [id], onDelete: Restrict)
 
   @@unique([user_id, organization_id, legal_document_version_id])
@@ -1682,6 +1703,35 @@ model LegalDocumentAcceptance {
   @@index([accepted_at])
   @@index([audience_role])
   @@map("legal_document_acceptances")
+}
+
+/// Immutable admin audit trail for legal document definition/version changes.
+model LegalDocumentAuditLog {
+  id                        String             @id @default(cuid())
+  action                    String
+  legal_document_id         String?
+  legal_document_version_id String?
+  document_type             LegalDocumentType?
+  version_number            Int?
+  document_hash             String?
+  actor_user_id             String?
+  actor_name_snapshot       String?
+  actor_email_snapshot      String?
+  before_json               Json?
+  after_json                Json?
+  reason                    String?
+  ip_address                String?
+  user_agent                String?
+  correlation_id            String?
+  created_at                DateTime           @default(now())
+
+  @@index([legal_document_id])
+  @@index([legal_document_version_id])
+  @@index([action])
+  @@index([actor_user_id])
+  @@index([document_type])
+  @@index([created_at])
+  @@map("legal_document_audit_logs")
 }
 
 model ProductLog {
@@ -1741,6 +1791,7 @@ model ApplicationLog {
 model Product {
   id                                String   @id @default(cuid())
   base_id                           String?
+  product_code                      String?
   created_at                        DateTime @default(now())
   updated_at                        DateTime @updatedAt
   workflow                          Json
@@ -1756,7 +1807,22 @@ model Product {
   deleted_at DateTime?
   version    Int           @default(1)
 
+  @@index([product_code])
   @@map("products")
+}
+
+model DisplayReferenceAllocation {
+  id                String   @id @default(cuid())
+  display_reference String   @unique
+  module_code       String
+  product_code      String?
+  entity_type       String
+  entity_id         String
+  allocated_at      DateTime @default(now())
+
+  @@unique([entity_type, entity_id])
+  @@index([product_code])
+  @@map("display_reference_allocations")
 }
 
 enum ProductStatus {

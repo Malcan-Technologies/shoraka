@@ -555,6 +555,30 @@ export class AdminService {
     return { deletedRoleKey: role.key as AdminRoleKey };
   }
 
+  private async enrichApplicationNotificationPayload<T extends NotificationTypeId>(
+    applicationId: string,
+    payload: NotificationPayloads[T]
+  ): Promise<NotificationPayloads[T]> {
+    const record = payload as NotificationPayloads[T] & {
+      applicationId?: string;
+      displayReference?: string | null;
+    };
+    if (!record.applicationId) {
+      return payload;
+    }
+    if (typeof record.displayReference === "string" && record.displayReference.trim().length > 0) {
+      return payload;
+    }
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { display_reference: true },
+    });
+    return {
+      ...payload,
+      displayReference: application?.display_reference ?? null,
+    };
+  }
+
   private async sendIssuerNotification<T extends NotificationTypeId>(
     applicationId: string,
     typeId: T,
@@ -580,12 +604,14 @@ export class AdminService {
       ? this.notificationService.sendTypedPlatformOnly.bind(this.notificationService)
       : this.notificationService.sendTyped.bind(this.notificationService);
 
+    const enrichedPayload = await this.enrichApplicationNotificationPayload(applicationId, payload);
+
     const results = await Promise.all(
       recipientUserIds.map((userId) =>
         send(
           userId,
           typeId,
-          payload,
+          enrichedPayload,
           `app:${applicationId}:notif:${String(typeId)}:user:${userId}:${idempotencySuffix}`
         )
       )
@@ -2420,6 +2446,7 @@ export class AdminService {
   }): Promise<{
     organizations: {
       id: string;
+      displayReference: string | null;
       portal: "investor" | "issuer";
       type: "PERSONAL" | "COMPANY";
       name: string | null;
@@ -2482,6 +2509,7 @@ export class AdminService {
     id: string
   ): Promise<{
     id: string;
+    displayReference: string | null;
     portal: "investor" | "issuer";
     type: "PERSONAL" | "COMPANY";
     name: string | null;
@@ -2692,6 +2720,7 @@ export class AdminService {
             orderBy: { created_at: "desc" },
             select: {
               id: true,
+              display_reference: true,
               status: true,
               financing_type: true,
               submitted_at: true,
@@ -2709,6 +2738,7 @@ export class AdminService {
             orderBy: { created_at: "desc" },
             select: {
               id: true,
+              display_reference: true,
               status: true,
               created_at: true,
               updated_at: true,
@@ -2757,6 +2787,7 @@ export class AdminService {
 
     return {
       id: org.id,
+      displayReference: org.display_reference ?? null,
       portal,
       type: org.type as "PERSONAL" | "COMPANY",
       name: org.name,
@@ -2978,6 +3009,7 @@ export class AdminService {
           const financingType = isPlainObjectRecord(app.financing_type) ? app.financing_type : null;
           return {
             id: app.id,
+            displayReference: app.display_reference ?? null,
             status: app.status,
             productId:
               typeof financingType?.product_id === "string" && financingType.product_id.trim().length > 0
@@ -2995,6 +3027,7 @@ export class AdminService {
           const value = Number(details?.value ?? details?.approved_facility ?? 0);
           return {
             id: contract.id,
+            displayReference: contract.display_reference ?? null,
             title: typeof details?.title === "string" ? details.title : null,
             contractNumber: typeof details?.number === "string" ? details.number : null,
             status: contract.status,
@@ -5843,6 +5876,7 @@ export class AdminService {
   async listApplications(params: GetAdminApplicationsQuery): Promise<{
     applications: {
       id: string;
+      displayReference: string | null;
       issuerOrganizationName: string | null;
       financingTypeLabel: string;
       financingStructureLabel: string;
@@ -5960,6 +5994,7 @@ export class AdminService {
   async listContracts(params: GetAdminContractsQuery): Promise<{
     contracts: {
       id: string;
+      displayReference: string | null;
       contractNumber: string | null;
       title: string | null;
       issuerOrganizationName: string | null;
@@ -6224,8 +6259,29 @@ export class AdminService {
       });
     }
 
-    return {
+    const contractWithDisplayReference = applicationWithIssuerExtras.contract
+      ? {
+          ...applicationWithIssuerExtras.contract,
+          displayReference: applicationWithIssuerExtras.contract.display_reference ?? null,
+          invoices: (applicationWithIssuerExtras.contract.invoices ?? []).map((invoice) => ({
+            ...invoice,
+            displayReference: invoice.display_reference ?? null,
+          })),
+        }
+      : null;
+    const invoicesWithDisplayReference = (applicationWithIssuerExtras.invoices ?? []).map((invoice) => ({
+      ...invoice,
+      displayReference: invoice.display_reference ?? null,
+    }));
+    const applicationWithDisplayReference = {
       ...applicationWithIssuerExtras,
+      displayReference: applicationWithIssuerExtras.display_reference ?? null,
+      contract: contractWithDisplayReference,
+      invoices: invoicesWithDisplayReference,
+    };
+
+    return {
+      ...applicationWithDisplayReference,
       processingFeePaid,
       people: partyBuild.people,
       directorShareholderListSource: partyBuild.listSource,

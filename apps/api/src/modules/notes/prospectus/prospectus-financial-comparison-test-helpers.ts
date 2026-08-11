@@ -29,6 +29,7 @@ const ACCOUNT_KEYS = [
   "return_on_equity",
   "currat",
   "workcap",
+  "gear",
 ] as const;
 
 function toAccount(raw: Record<string, unknown>): Record<string, number | null> {

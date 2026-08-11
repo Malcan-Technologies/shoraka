@@ -14,7 +14,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import type { NoteDetail, WithdrawalInstruction } from "@cashsouk/types";
-import { WithdrawalType } from "@cashsouk/types";
+import { WithdrawalType, formatWithdrawalReference } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -313,6 +313,10 @@ export function IssuerPayoutCard({
   }, [withdrawal.beneficiarySnapshot, beneficiaryDialogOpen]);
 
   const status = withdrawal.status;
+  const withdrawalReference = formatWithdrawalReference({
+    displayReference: withdrawal.displayReference,
+    id: withdrawal.id,
+  });
   const statusCopy = STATUS_COPY[status] ?? STATUS_COPY.DRAFT;
   const trusteeBadgeTone = withdrawalWorkflowTone(status);
   const currentFields = snapshotToFields(withdrawal.beneficiarySnapshot);
@@ -471,6 +475,9 @@ export function IssuerPayoutCard({
               )}
             >
               {statusPanelDescription}
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              Reference: <span className="font-mono">{withdrawalReference}</span>
             </p>
             {disbursementFlowStep ? (
               <p className="mt-1.5 text-[11px] text-muted-foreground">
