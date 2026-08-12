@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import type { Request } from "express";
+import { Prisma } from "@prisma/client";
 import type { LegalDocumentType } from "@cashsouk/types";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { prisma } from "../../lib/prisma";
@@ -32,6 +33,16 @@ async function loadActorSnapshot(userId: string): Promise<{
   return { name: name || null, email: user.email };
 }
 
+function toJsonInputValue(
+  value: Record<string, unknown> | null | undefined
+): Prisma.InputJsonValue | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
 export class LegalDocumentAuditLogService {
   async record(input: RecordLegalDocumentAuditInput) {
     const { req, action, actorUserId } = input;
@@ -57,8 +68,8 @@ export class LegalDocumentAuditLogService {
         actor_user_id: actorUserId,
         actor_name_snapshot: actor.name,
         actor_email_snapshot: actor.email,
-        before_json: input.beforeJson ?? undefined,
-        after_json: input.afterJson ?? undefined,
+        before_json: toJsonInputValue(input.beforeJson),
+        after_json: toJsonInputValue(input.afterJson),
         reason: input.reason ?? null,
         ip_address: ipAddress,
         user_agent: userAgent,

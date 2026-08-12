@@ -346,12 +346,7 @@ export class LegalDocumentService {
     return toVersionResponse(version);
   }
 
-  async updateDraftVersion(
-    versionId: string,
-    input: UpdateVersionInput,
-    adminUserId: string,
-    req: Request
-  ) {
+  async updateDraftVersion(versionId: string, input: UpdateVersionInput) {
     const existing = await legalDocumentRepository.findVersionById(versionId);
     if (!existing) {
       throw new AppError(404, "NOT_FOUND", "Legal document version not found");
