@@ -146,7 +146,11 @@ async function backfillMandatoryAdminRolePermissions(prisma: PrismaClient): Prom
     }
 
     const currentPermissions = role.permissions ?? [];
-    if (MANDATORY_ADMIN_ROLE_PERMISSIONS.every((permission) => currentPermissions.includes(permission))) {
+    if (
+      MANDATORY_ADMIN_ROLE_PERMISSIONS.every((permission: AdminPermission) =>
+        currentPermissions.includes(permission)
+      )
+    ) {
       continue;
     }
 

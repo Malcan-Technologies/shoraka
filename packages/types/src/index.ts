@@ -483,4 +483,26 @@ export * from "./guarantors";
 export * from "./company-name-normalization";
 export * from "./gateway-payments";
 export * from "./gateway-recon";
-export * from "./rbac";
+export {
+  ADMIN_PERMISSIONS,
+  ADMIN_PERMISSION_GROUPS,
+  DEFAULT_ADMIN_ROLE_BADGE_COLOR,
+  FULL_ACCESS_ADMIN_ROLE_KEYS,
+  MANDATORY_ADMIN_ROLE_PERMISSIONS,
+  SUPER_ADMIN_BADGE_COLOR,
+  SUPER_ADMIN_ROLE_TEMPLATE,
+  SYSTEM_ADMIN_ROLE_KEYS,
+  withMandatoryAdminRolePermissions,
+} from "./rbac";
+export type {
+  AdminPermission,
+  AdminPermissionGroup,
+  AdminRoleBadgeColor,
+  AdminRoleConfigRecord,
+  AdminRoleConfigResponse,
+  AdminRoleConfigsResponse,
+  CreateAdminRoleInput,
+  ResolvedAdminAccess,
+  SystemAdminRoleTemplate,
+  UpdateAdminRolePermissionsInput,
+} from "./rbac";
