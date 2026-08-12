@@ -3,6 +3,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { GetProductsResponse } from "@cashsouk/types";
+import {
+  handleAdminApiQueryError,
+  shouldRetryAdminApiQuery,
+} from "@/lib/handle-api-auth-error";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -14,15 +18,10 @@ export type UseProductsParams = {
   includeDeleted?: boolean;
 };
 
-/** If API returned an error, redirect on auth errors and throw. Otherwise return response.data. */
+/** If API returned an error, redirect on 401 and throw. Otherwise return response.data. */
 function unwrapResponse<T>(response: { success: true; data: T } | { success: false; error: { code: string; message: string } }): T {
   if (response.success) return response.data;
-  if (response.error.code === "UNAUTHORIZED" || response.error.code === "FORBIDDEN") {
-    if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
-      window.location.href = process.env.NEXT_PUBLIC_LANDING_URL || "http://localhost:3000";
-    }
-  }
-  throw new Error(response.error.message);
+  handleAdminApiQueryError(response.error);
 }
 
 export function useProducts(params: UseProductsParams) {
@@ -37,12 +36,7 @@ export function useProducts(params: UseProductsParams) {
     },
     staleTime: 0,
     refetchOnMount: true,
-    retry: (failureCount, error) => {
-      if (error instanceof Error && (error.message.includes("UNAUTHORIZED") || error.message.includes("FORBIDDEN"))) {
-        return false;
-      }
-      return failureCount < 2;
-    },
+    retry: shouldRetryAdminApiQuery,
   });
 }
 

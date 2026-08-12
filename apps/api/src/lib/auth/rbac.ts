@@ -2,7 +2,9 @@ import type { Admin, AdminRoleConfig, PrismaClient } from "@prisma/client";
 import {
   ADMIN_PERMISSIONS,
   FULL_ACCESS_ADMIN_ROLE_KEYS,
+  MANDATORY_ADMIN_ROLE_PERMISSIONS,
   SUPER_ADMIN_ROLE_TEMPLATE,
+  withMandatoryAdminRolePermissions,
   type AdminPermission,
   type AdminRoleKey,
   type ResolvedAdminAccess,
@@ -28,7 +30,9 @@ function toResolvedAccess(
   >
 ): ResolvedAdminAccess {
   const isSuperAdmin = FULL_ACCESS_ADMIN_ROLE_KEYS.includes(role.key as AdminRoleKey);
-  const permissions = isSuperAdmin ? [...ADMIN_PERMISSIONS] : sanitizePermissions(role.permissions);
+  const permissions = isSuperAdmin
+    ? [...ADMIN_PERMISSIONS]
+    : withMandatoryAdminRolePermissions(sanitizePermissions(role.permissions));
   const isSystemRole = role.key === SUPER_ADMIN_ROLE_TEMPLATE.key;
 
   return {
@@ -131,6 +135,30 @@ async function backfillGatewayReconciliationPermissions(prisma: PrismaClient): P
   }
 }
 
+async function backfillMandatoryAdminRolePermissions(prisma: PrismaClient): Promise<void> {
+  const roles = await prisma.adminRoleConfig.findMany({
+    select: { id: true, key: true, permissions: true },
+  });
+
+  for (const role of roles) {
+    if (role.key === SUPER_ADMIN_ROLE_TEMPLATE.key) {
+      continue;
+    }
+
+    const currentPermissions = role.permissions ?? [];
+    if (MANDATORY_ADMIN_ROLE_PERMISSIONS.every((permission) => currentPermissions.includes(permission))) {
+      continue;
+    }
+
+    await prisma.adminRoleConfig.update({
+      where: { id: role.id },
+      data: {
+        permissions: withMandatoryAdminRolePermissions(currentPermissions),
+      },
+    });
+  }
+}
+
 async function stripRemovedDocumentAuditPermission(prisma: PrismaClient): Promise<void> {
   const removed = "audit.document.view";
   const roles = await prisma.adminRoleConfig.findMany({
@@ -152,6 +180,7 @@ export async function ensureAdminRoleCatalog(prisma: PrismaClient): Promise<void
     syncPromise = (async () => {
       await syncSuperAdminRole(prisma);
       await stripRemovedDocumentAuditPermission(prisma);
+      await backfillMandatoryAdminRolePermissions(prisma);
       await backfillInvestorWithdrawalPermissions(prisma);
       await backfillGatewayReconciliationPermissions(prisma);
     })().finally(() => {
