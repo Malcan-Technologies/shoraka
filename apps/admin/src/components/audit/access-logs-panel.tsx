@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { AccessLogsTable } from "@/components/access-logs-table";
 import { AccessLogsToolbar } from "@/components/access-logs-toolbar";
 import { useAccessLogs } from "@/hooks/use-access-logs";
+import { AdminQueryErrorState } from "@/components/admin-query-error-state";
 import type { EventType, GetAccessLogsParams } from "@cashsouk/types";
 
 const ACCESS_EVENT_TYPES: EventType[] = [
@@ -70,6 +71,10 @@ export function AccessLogsPanel() {
   const totalLogs = data?.pagination.totalCount || 0;
   const loading = isLoading;
 
+  if (error) {
+    return <AdminQueryErrorState error={error} resourceLabel="access logs" />;
+  }
+
   return (
     <div className="space-y-6">
       <AccessLogsToolbar
@@ -95,12 +100,6 @@ export function AccessLogsPanel() {
           dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
         }}
       />
-
-      {error && (
-        <div className="text-center py-8 text-destructive">
-          Error loading access logs: {error instanceof Error ? error.message : "Unknown error"}
-        </div>
-      )}
 
       <AccessLogsTable
         logs={logs.map((log) => ({

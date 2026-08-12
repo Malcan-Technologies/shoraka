@@ -30,8 +30,27 @@ export function handleAdminApiQueryError(error: ApiErrorPayload): never {
   throw new AdminApiQueryError(error);
 }
 
+export function isAdminApiQueryError(error: unknown): error is AdminApiQueryError {
+  return error instanceof AdminApiQueryError;
+}
+
+export function isAdminApiForbiddenError(error: unknown): boolean {
+  return isAdminApiQueryError(error) && error.code === "FORBIDDEN";
+}
+
+export function isAdminApiUnauthorizedError(error: unknown): boolean {
+  return isAdminApiQueryError(error) && error.code === "UNAUTHORIZED";
+}
+
+export function isAdminApiAuthFailure(error: unknown): boolean {
+  return (
+    isAdminApiQueryError(error) &&
+    (error.code === "UNAUTHORIZED" || error.code === "FORBIDDEN")
+  );
+}
+
 export function shouldRetryAdminApiQuery(failureCount: number, error: unknown): boolean {
-  if (error instanceof AdminApiQueryError && error.code === "UNAUTHORIZED") {
+  if (isAdminApiAuthFailure(error)) {
     return false;
   }
 

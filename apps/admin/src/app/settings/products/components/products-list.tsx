@@ -41,6 +41,7 @@ import { toast } from "sonner";
 import { productName } from "../product-utils";
 import { ProductFormDialog } from "../workflow-builder/product-form-dialog";
 import { usePermissions } from "../../../../hooks/use-permissions";
+import { AdminQueryErrorState } from "../../../../components/admin-query-error-state";
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-MY", {
@@ -99,6 +100,10 @@ export function ProductsList() {
       toast.error(e instanceof Error ? e.message : "Delete failed");
     }
   };
+
+  if (isError && error) {
+    return <AdminQueryErrorState error={error} resourceLabel="products" />;
+  }
 
   return (
     <>
@@ -160,13 +165,6 @@ export function ProductsList() {
           {totalCount} {totalCount === 1 ? "product" : "products"}
         </Badge>
       </div>
-
-      {isError && (
-        <div className="text-center py-8 text-destructive">
-          Error loading products:{" "}
-          {error instanceof Error ? error.message : "Unknown error"}
-        </div>
-      )}
 
       {/* Table – scroll horizontally on small screens */}
       <div className="rounded-xl border border-border bg-card overflow-x-auto">
