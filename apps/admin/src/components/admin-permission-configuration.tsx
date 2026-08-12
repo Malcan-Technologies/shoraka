@@ -8,6 +8,8 @@ import * as z from "zod";
 import {
   ADMIN_PERMISSION_GROUPS,
   DEFAULT_ADMIN_ROLE_BADGE_COLOR,
+  MANDATORY_ADMIN_ROLE_PERMISSIONS,
+  withMandatoryAdminRolePermissions,
   type AdminRoleBadgeColor,
   type AdminRoleKey,
   type AdminPermission,
@@ -113,6 +115,12 @@ function permissionLabel(permission: AdminPermission): string {
     .join(" - ");
 }
 
+const mandatoryPermissionSet = new Set<AdminPermission>(MANDATORY_ADMIN_ROLE_PERMISSIONS);
+
+function isMandatoryPermission(permission: AdminPermission): boolean {
+  return mandatoryPermissionSet.has(permission);
+}
+
 function BadgeColorPicker({
   value,
   onChange,
@@ -201,9 +209,12 @@ export function AdminPermissionConfiguration() {
   );
 
   React.useEffect(() => {
-    setDraftPermissions(selectedRole?.permissions ?? []);
+    const permissions = selectedRole?.permissions ?? [];
+    setDraftPermissions(
+      selectedRole?.isSystem ? permissions : withMandatoryAdminRolePermissions(permissions)
+    );
     setDraftBadgeColor(selectedRole?.badgeColor ?? DEFAULT_ADMIN_ROLE_BADGE_COLOR);
-  }, [selectedRole?.key, selectedRole?.permissions, selectedRole?.badgeColor]);
+  }, [selectedRole?.key, selectedRole?.permissions, selectedRole?.badgeColor, selectedRole?.isSystem]);
 
   const selectedDisplay = selectedRole
     ? getAdminRoleDisplayInfo(
@@ -222,11 +233,23 @@ export function AdminPermissionConfiguration() {
       : null;
   const hasUnsavedChanges =
     selectedRole !== null &&
-    (JSON.stringify([...draftPermissions].sort()) !==
-      JSON.stringify([...(selectedRole.permissions ?? [])].sort()) ||
+    (JSON.stringify(
+      [...(selectedRole.isSystem ? draftPermissions : withMandatoryAdminRolePermissions(draftPermissions))].sort()
+    ) !==
+      JSON.stringify(
+        [
+          ...(selectedRole.isSystem
+            ? (selectedRole.permissions ?? [])
+            : withMandatoryAdminRolePermissions(selectedRole.permissions ?? [])),
+        ].sort()
+      ) ||
       draftBadgeColor !== selectedRole.badgeColor);
 
   const togglePermission = (permission: AdminPermission, checked: boolean) => {
+    if (!checked && isMandatoryPermission(permission) && !selectedRole?.isSystem) {
+      return;
+    }
+
     setDraftPermissions((current) => {
       return checked ? Array.from(new Set([...current, permission])) : current.filter((item) => item !== permission);
     });
@@ -241,7 +264,9 @@ export function AdminPermissionConfiguration() {
       await updateRolePermissions.mutateAsync({
         roleKey: selectedRole.key,
         data: {
-          permissions: draftPermissions,
+          permissions: selectedRole.isSystem
+            ? draftPermissions
+            : withMandatoryAdminRolePermissions(draftPermissions),
           badgeColor: draftBadgeColor,
         },
       });
@@ -587,9 +612,12 @@ export function AdminPermissionConfiguration() {
                               setDraftPermissions((current) => {
                                 const next = new Set(current);
                                 for (const permission of group.permissions) {
+                                  if (isMandatoryPermission(permission)) {
+                                    continue;
+                                  }
                                   next.delete(permission);
                                 }
-                                return Array.from(next);
+                                return withMandatoryAdminRolePermissions(Array.from(next));
                               });
                             }}
                           >
@@ -601,32 +629,50 @@ export function AdminPermissionConfiguration() {
                     <div className="grid gap-3 md:grid-cols-2">
                       {group.permissions.map((permission) => {
                         const checked = selectedPermissionSet.has(permission);
+                        const isMandatory =
+                          isMandatoryPermission(permission) && !selectedRole.isSystem;
+                        const isPermissionLocked =
+                          !canManageRoles || !selectedRole.isEditable || isMandatory;
 
                         return (
                           <div
                             key={permission}
                             className={`rounded-xl border p-4 transition-colors ${
-                              checked
-                                ? "border-primary/30 bg-primary/5"
-                                : "border-border bg-background"
+                              isMandatory
+                                ? "border-border bg-muted/40 opacity-80"
+                                : checked
+                                  ? "border-primary/30 bg-primary/5"
+                                  : "border-border bg-background"
                             }`}
                           >
                             <div className="flex items-start gap-3">
                               <Checkbox
                                 checked={checked}
-                                disabled={!canManageRoles || !selectedRole.isEditable}
+                                disabled={isPermissionLocked}
                                 aria-label={permission}
                                 onCheckedChange={(nextChecked) =>
                                   togglePermission(permission, nextChecked === true)
                                 }
                               />
                               <div className="min-w-0 space-y-1">
-                                <p className="text-sm font-medium">
-                                  {permissionLabel(permission)}
-                                </p>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-sm font-medium">
+                                    {permissionLabel(permission)}
+                                  </p>
+                                  {isMandatory && (
+                                    <Badge variant="outline" className="text-[10px] uppercase">
+                                      Required
+                                    </Badge>
+                                  )}
+                                </div>
                                 <p className="text-xs text-muted-foreground break-all">
                                   {permission}
                                 </p>
+                                {isMandatory && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Required for all admin roles so the dashboard home page loads.
+                                  </p>
+                                )}
                               </div>
                             </div>
                           </div>
