@@ -65,28 +65,4 @@ describeIntegration("admin RBAC catalog backfill", () => {
     );
   });
 
-  it("adds dashboard.view to every non–Super Admin role missing it", async () => {
-    const suffix = `${Date.now()}`.slice(-6);
-
-    const roleWithoutDashboard = await prisma.adminRoleConfig.create({
-      data: {
-        key: `TEST_NO_DASH_${suffix}`,
-        name: `No Dashboard ${suffix}`,
-        permissions: ["notifications.manage"],
-        is_system: false,
-        is_editable: true,
-        is_default: false,
-      },
-    });
-    createdRoleIds.push(roleWithoutDashboard.id);
-
-    await ensureAdminRoleCatalog(prisma);
-
-    const updated = await prisma.adminRoleConfig.findUniqueOrThrow({
-      where: { id: roleWithoutDashboard.id },
-    });
-    expect(updated.permissions).toEqual(
-      expect.arrayContaining(["dashboard.view", "notifications.manage"])
-    );
-  });
 });

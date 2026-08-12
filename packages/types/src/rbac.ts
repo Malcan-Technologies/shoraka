@@ -82,23 +82,6 @@ export const ADMIN_PERMISSIONS = [
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
 
-const adminPermissionSet = new Set<string>(ADMIN_PERMISSIONS);
-
-/** Granted to every non–Super Admin role so the admin home page is always reachable. */
-export const MANDATORY_ADMIN_ROLE_PERMISSIONS = ["dashboard.view"] as const satisfies readonly AdminPermission[];
-
-export function withMandatoryAdminRolePermissions(
-  permissions: readonly string[]
-): AdminPermission[] {
-  const merged = new Set<AdminPermission>(MANDATORY_ADMIN_ROLE_PERMISSIONS);
-  for (const permission of permissions) {
-    if (adminPermissionSet.has(permission)) {
-      merged.add(permission as AdminPermission);
-    }
-  }
-  return [...merged];
-}
-
 export type AdminRoleBadgeColor = `#${string}`;
 
 export const DEFAULT_ADMIN_ROLE_BADGE_COLOR: AdminRoleBadgeColor = "#475569";
