@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProductLogs, useExportProductLogs } from "@/hooks/use-product-logs";
+import { AdminQueryErrorState } from "@/components/admin-query-error-state";
 import {
   ArrowPathIcon,
   MagnifyingGlassIcon,
@@ -148,6 +149,10 @@ export function ProductLogsPanel() {
     setPage(1);
   }, [searchQuery, eventTypeFilter, dateRangeFilter]);
 
+  if (error) {
+    return <AdminQueryErrorState error={error} resourceLabel="product logs" />;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -232,13 +237,6 @@ export function ProductLogsPanel() {
           {totalCount} {totalCount === 1 ? "log" : "logs"}
         </Badge>
       </div>
-
-      {error && (
-        <div className="text-center py-8 text-destructive">
-          Error loading product logs:{" "}
-          {error instanceof Error ? error.message : "Unknown error"}
-        </div>
-      )}
 
       <div className="rounded-xl border border-border bg-card">
         <Table>

@@ -1,5 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
+import {
+  handleAdminApiQueryError,
+  shouldRetryAdminApiQuery,
+} from "../lib/handle-api-auth-error";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -20,10 +24,11 @@ export function useProducts(params: {
     queryFn: async () => {
       const response = await apiClient.getProducts(queryParams);
       if (!response.success) {
-        throw new Error(response.error.message);
+        handleAdminApiQueryError(response.error);
       }
       return response.data;
     },
     enabled,
+    retry: shouldRetryAdminApiQuery,
   });
 }

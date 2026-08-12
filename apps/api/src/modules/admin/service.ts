@@ -71,6 +71,7 @@ import {
 import {
   ADMIN_PERMISSIONS,
   SYSTEM_ADMIN_ROLE_KEYS,
+  withMandatoryAdminRolePermissions,
   getSectionForPendingAmendment,
   getSectionForScopeKey,
   parseItemScopeKey,
@@ -428,7 +429,7 @@ export class AdminService {
 
     const updatedRole = await this.repository.updateAdminRolePermissions(
       roleKey,
-      [...new Set(data.permissions)],
+      withMandatoryAdminRolePermissions([...new Set(data.permissions)]),
       data.badgeColor
     );
     const roleCounts = await this.countAdminRoleAssignments();
