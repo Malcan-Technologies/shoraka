@@ -201,7 +201,8 @@ export function AdminPermissionConfiguration() {
   );
 
   React.useEffect(() => {
-    setDraftPermissions(selectedRole?.permissions ?? []);
+    const permissions = selectedRole?.permissions ?? [];
+    setDraftPermissions(permissions);
     setDraftBadgeColor(selectedRole?.badgeColor ?? DEFAULT_ADMIN_ROLE_BADGE_COLOR);
   }, [selectedRole?.key, selectedRole?.permissions, selectedRole?.badgeColor]);
 

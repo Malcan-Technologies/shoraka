@@ -17,7 +17,6 @@ import {
   ReviewStepStatus,
 } from "@prisma/client";
 import type { AdminRoleKey } from "@cashsouk/types";
-import { withMandatoryAdminRolePermissions } from "@cashsouk/types";
 import type {
   GetUsersQuery,
   GetAccessLogsQuery,
@@ -799,7 +798,7 @@ export class AdminRepository {
         name: data.name,
         description: data.description ?? null,
         badge_color: data.badgeColor,
-        permissions: [...withMandatoryAdminRolePermissions([])],
+        permissions: [],
         is_system: false,
         is_editable: true,
         is_default: false,
