@@ -69,12 +69,8 @@ describe("Payment audit cutover", () => {
   const poller = readSrc("lib/jobs/gateway-stuck-order-poller.ts");
   const notes = readSrc("modules/notes/service.ts");
   const receipt = readSrc("modules/payment/receipt/receipt-service.ts");
-  const leftoverEvents = readSrc("modules/payment/gateway-events.ts");
   const typesGateway = readSrc("../../../packages/types/src/gateway-payments.ts");
-  const livePaymentSources = collectTsSources(
-    ["modules/payment", "lib/jobs", "modules/notes"],
-    ["gateway-events.ts"]
-  );
+  const livePaymentSources = collectTsSources(["modules/payment", "lib/jobs", "modules/notes"]);
   const products = collectTsSources(["modules/products"]);
   const legal = collectTsSources(["modules/legal-documents"]);
   const access = collectTsSources(["modules/auth"]);
@@ -129,16 +125,24 @@ describe("Payment audit cutover", () => {
     expect(livePaymentSources).not.toMatch(/paymentAuditLog\.(update|delete|deleteMany|upsert)/);
   });
 
-  it("has zero live GatewayPaymentEvent writers or payment-detail readers", () => {
-    expect(livePaymentSources).not.toMatch(/gatewayPaymentEvent\.create/);
-    expect(livePaymentSources).not.toMatch(/recordGatewayPaymentEvent\(/);
+  it("has no leftover GatewayPaymentEvent model, helper, or DTO", () => {
+    expect(schema).not.toMatch(/model GatewayPaymentEvent/);
+    expect(schema).not.toMatch(/enum GatewayPaymentEventType/);
+    expect(schema).not.toMatch(/events\s+GatewayPaymentEvent\[\]/);
+    expect(fs.existsSync(path.join(srcRoot, "modules/payment/gateway-events.ts"))).toBe(false);
+    expect(livePaymentSources).not.toMatch(/gatewayPaymentEvent\./);
+    expect(livePaymentSources).not.toMatch(/recordGatewayPaymentEvent/);
     expect(livePaymentSources).not.toMatch(/mapGatewayPaymentEvent/);
+    expect(livePaymentSources).not.toMatch(/getOpenOverrideProposal/);
+    expect(livePaymentSources).not.toMatch(/OVERRIDE_PROPOSED/);
+    expect(livePaymentSources).not.toMatch(/OVERRIDE_APPROVED/);
+    expect(livePaymentSources).not.toMatch(/OVERRIDE_REJECTED/);
     expect(adminService).toMatch(/paymentAuditLogReader\.listByGatewayPaymentId/);
     expect(adminService).not.toMatch(/events:\s*\{\s*orderBy/);
     expect(adminService).not.toMatch(/include:[\s\S]{0,80}events:/);
     expect(typesGateway).toMatch(/events: PaymentAuditLogDto\[\]/);
-    expect(leftoverEvents).toMatch(/gatewayPaymentEvent\.create/);
-    expect(schema).toMatch(/model GatewayPaymentEvent/);
+    expect(typesGateway).not.toMatch(/GatewayPaymentEventDto/);
+    expect(typesGateway).not.toMatch(/GatewayPaymentEventType/);
   });
 
   it("does not use PaymentAuditLog as payment, balance, withdrawal, recon, or receipt SOT", () => {

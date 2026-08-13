@@ -117,9 +117,6 @@ describeIntegration("refund confirmed + wallet reversal recovery", () => {
           },
         },
       });
-      await prisma.gatewayPaymentEvent.deleteMany({
-        where: { gateway_payment_id: { in: createdPaymentIds } },
-      });
       await prisma.gatewayPayment.deleteMany({ where: { id: { in: createdPaymentIds } } });
     }
     if (createdOrgIds.length) {

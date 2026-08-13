@@ -1,9 +1,9 @@
 **Phase 9 PaymentAuditLog cutover (current state):**
 
-- `PaymentAuditLog` (`payment_audit_logs`) is the live payment/wallet-withdrawal/recon-exception history table (append-only, no FKs).
+- `PaymentAuditLog` (`payment_audit_logs`) is the sole payment/wallet-withdrawal/recon-exception business-audit history table (append-only, no FKs).
 - `GatewayPayment`, `GatewayOrderAttempt`, `GatewayWebhookEvent`, `InvestorBalance`, `InvestorBalanceTransaction`, `WithdrawalInstruction`, `GatewayPaymentReceipt`, `GatewayReconRun`, and `GatewayReconException` remain SOT. Audit is never payment, balance, or reconciliation state.
 - Hard cutover: live writers use `PaymentAuditLog`. No dual-write. No backfill.
-- `GatewayPaymentEvent` / `gateway_payment_events` remains temporarily with no live writers or payment-detail readers. Cleanup is a separate PR.
+- `GatewayPaymentEvent` / `gateway_payment_events` **removed**. `GatewayPaymentEventType` dropped.
 - Investor wallet withdrawals (`WithdrawalType.INVESTOR_WITHDRAWAL`) are audited here. Issuer disbursement / residual stay on `NoteAuditLog`.
 - Known leftover: investor withdrawal debit idempotency still uses `randomUUID()` and can double-debit on retry. Not changed in this cutover.
 
@@ -73,7 +73,7 @@ Known limitations (not fixed in this cleanup):
 
 ## 1. Executive Summary
 
-CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_audit_logs`, `security_audit_logs`, `onboarding_audit_logs`, `application_audit_logs`, `signing_audit_logs`, `product_audit_logs`, `note_audit_logs`, `payment_audit_logs`, `legal_admin_audit_logs`, `notification_broadcast_audit_logs`, leftover `gateway_payment_events`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records). Legacy `access_logs`, `security_logs`, `onboarding_logs`, `application_logs`, `note_events`, and `note_admin_actions` have been dropped.
+CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_audit_logs`, `security_audit_logs`, `onboarding_audit_logs`, `application_audit_logs`, `signing_audit_logs`, `product_audit_logs`, `note_audit_logs`, `payment_audit_logs`, `legal_admin_audit_logs`, `notification_broadcast_audit_logs`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records). Legacy `access_logs`, `security_logs`, `onboarding_logs`, `application_logs`, `note_events`, `note_admin_actions`, and `gateway_payment_events` have been dropped.
 
 ### Current architecture (factual)
 
@@ -83,7 +83,7 @@ CashSouk does not have a single audit system. It has **many specialized tables**
 - **Signing:** `SigningAuditLog` (`signing_audit_logs`) is the signing history table (append-only). Envelope graph / `SigningCloudEkyc` remain signing SOT. `GET /v1/applications/:id/logs` merges Application + Signing audit rows. Envelope log APIs read `SigningAuditLog` only.
 - **Notes:** `NoteAuditLog` (`note_audit_logs`) is the sole Note-domain history table (append-only, no Note/User/org FKs). Ledger, `NotePayment`, `NoteSettlement`, `NoteInvestment`, `WithdrawalInstruction`, `ShorakaTradeOrder`, prospectus models, and `Note` remain SOT. Activity feed reads a **subset** of `NoteAuditLog` types. `NoteEvent` / `note_events` and `NoteAdminAction` / `note_admin_actions` **removed**. Title/summary edits, featured settings, and prospectus draft saves are intentionally unaudited.
 - **Legal admin:** dedicated `LegalAdminAuditLog`. User open/accept is **not** that table; it is `LegalDocumentAcceptance` updated **in place**. Legacy `LegalDocumentAuditLog` / `legal_document_audit_logs` has been removed.
-- **Payments:** `GatewayPayment` is SOT; `PaymentAuditLog` is the live admin history trail (append-only, no FKs). `GatewayWebhookEvent` is provider transport and is **updated** after processing. `GatewayPaymentEvent` remains as an unused leftover table. `InvestorBalance` / `InvestorBalanceTransaction`, `WithdrawalInstruction`, `GatewayPaymentReceipt`, and `GatewayReconException` remain money/workflow/receipt/recon SOT.
+- **Payments:** `GatewayPayment` is payment-state SOT; `PaymentAuditLog` is the sole payment business-audit history (append-only, no FKs). `GatewayWebhookEvent` remains provider transport/replay evidence and is **updated** after processing. `InvestorBalance` / `InvestorBalanceTransaction` remain wallet/cash statement SOT. `WithdrawalInstruction`, `GatewayPaymentReceipt`, and `GatewayReconException` remain withdrawal/receipt/recon SOT. Legacy `GatewayPaymentEvent` / `gateway_payment_events` **removed**.
 - **Products:** `ProductAuditLog` is append-only and is not deleted on product rollback. Legacy `ProductLog` / `product_logs` has been removed.
 - **Notifications:** `NotificationBroadcastAuditLog` for admin bulk send (`NOTIFICATION_BROADCAST_PROCESSED`). In-app `Notification` rows are delivery, not business audit. Legacy `NotificationLog` / `notification_logs` has been removed.
 
@@ -220,10 +220,9 @@ Fields: `id` (cuid), `legal_document_id`, `legal_document_version_id`, `event_ty
 Fields: `id` (cuid), `note_id` (nullable only for `TRUSTEE_SIGNATURE_UPDATED`), `event_type` (string), `occurred_at`, `created_at`, `actor_type`, `actor_user_id`, `organization_id`, `organization_kind`, `target_type`, `target_id`, `source`, `portal`, `ip_address`, `user_agent`, `correlation_id`, `idempotency_key`, `metadata` (required Json).  
 **No Note/User/org FKs.** No `updated_at`. Append-only create. Not financial/workflow SOT. Replaced and removed leftover `NoteEvent` / `note_events` and `NoteAdminAction` / `note_admin_actions`. Title/summary edits, featured settings, and prospectus draft saves remain intentionally unaudited.
 
-#### GatewayPaymentEvent → `gateway_payment_events` · PAYMENT · **A**
+#### GatewayPaymentEvent → `gateway_payment_events` · PAYMENT · **removed**
 
-Fields: `id`, `gateway_payment_id`, `type` (enum), `actor_user_id`, `from_status`, `to_status`, `reason`, `metadata`, `created_at`.  
-FK GatewayPayment **Cascade**. Admin API **omits metadata** via `mapGatewayPaymentEvent`.
+Legacy table **dropped**. `PaymentAuditLog` is the payment business-audit history. `GatewayWebhookEvent` remains transport/replay evidence.
 
 #### GatewayWebhookEvent → `gateway_webhook_events` · PAYMENT TRANSPORT · **C**
 
@@ -251,7 +250,7 @@ Create-only for bulk send. Legacy `NotificationLog` / `notification_logs` has be
 | NoteLedgerEntry | note_ledger_entries | **B accounting** | create + unique idempotency | Note SetNull; account Restrict |
 | NoteLedgerAccount | note_ledger_accounts | B config | seed/system; **no API mutate found** | Restrict entries |
 | NotePayment / NoteSettlement | note_payments / note_settlements | B | status updates | Note Cascade |
-| GatewayPayment | gateway_payments | B | status updates | events Cascade |
+| GatewayPayment | gateway_payments | B | status updates | — |
 | GatewayOrderAttempt | gateway_order_attempts | B/C transport | upsert/update | — |
 | GatewayPaymentReceipt | gateway_payment_receipts | B generated evidence | update | — |
 | GatewayReconRun / Exception | gateway_recon_* | B ops history | exception **resolved_at update** | Run Cascade exceptions |
@@ -452,9 +451,9 @@ Production final approval writes **`ONBOARDING_FINAL_APPROVAL_COMPLETED`**. `Aut
 
 `notes/audit/writer.ts` (`writeNoteAuditLog` / `writeNoteAuditFromActor`); prospectus and Shoraka writers call it. `GET /v1/admin/notes/:id/events` and admin note detail read `NoteAuditLog` (full history, newest first, no hidden 50 cap). `NoteLogAdapter` reads `note_audit_logs` only. `NoteEvent` / `note_events` and `NoteAdminAction` / `note_admin_actions` **removed**.
 
-### GatewayPaymentEvent
+### PaymentAuditLog
 
-`recordGatewayPaymentEvent` in `payment/gateway-events.ts`. Callers: deposit-service, admin-service, refund-service, amount-mismatch-service, webhook-service, stuck-order-poller.
+`payment/audit/writer.ts` (`writePaymentAuditLog` / `writeGatewayPaymentAudit` / `writeInvestorWithdrawalAudit` / `writeReconExceptionAudit`). `GET /v1/admin/gateway-payments/:id` `events[]` reads `PaymentAuditLog`. Legacy `GatewayPaymentEvent` / `gateway-events.ts` **removed**.
 
 ### GatewayWebhookEvent
 
@@ -490,8 +489,7 @@ Created on ingest; **`updateMany` processed_at/error** in `webhook-service.ts`.
 | legal_document_acceptances | acceptance-admin + user required/pending | Compliance UI + **onboarding gate** `hasCompletedRequiredAcceptances` | **HIGH** |
 | note_audit_logs | `GET admin notes/:id/events` + note detail mapper | Admin note timeline | full history newest-first; no hidden 50 cap | MEDIUM |
 | note_audit_logs | `NoteLogAdapter` | Activity | **subset only** (NOTE_CREATED/PUBLISHED/FUNDING_*/ACTIVATED, INVESTMENT_COMMITTED, SETTLEMENT_POSTED, DISBURSEMENT_COMPLETED, REPAYMENT_SUBMITTED, NOTE_MARKED_DEFAULT). Only `NOTE_ACTIVATED` is “Note Active”. | MEDIUM |
-| gateway_payment_events | `getGatewayPaymentDetail` mapped **without metadata** | Admin payment detail | | MEDIUM |
-| gateway_payment_events | `getOpenOverrideProposal` | **Defined never called** — not production business logic | OVERRIDE_PROPOSED lookup only | — |
+| payment_audit_logs | `getGatewayPaymentDetail` `events[]` | Admin payment detail timeline | typed metadata; not payment SOT | MEDIUM |
 | gateway_webhook_events | webhook-service findFirst/update | **Idempotency / processing** | HIGH transport |
 | notification_broadcast_audit_logs | `GET /v1/notifications/admin/logs` | Admin notification logs | type → notification_type_id; target → audience_type | MEDIUM |
 | application_revisions | admin resubmit comparison | Compliance/compare | HIGH |

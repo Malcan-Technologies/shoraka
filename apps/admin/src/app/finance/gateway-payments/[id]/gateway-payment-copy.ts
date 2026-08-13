@@ -262,53 +262,6 @@ export const EVENT_COPY: Record<string, { title: string; description: string }> 
     title: "Deposit received",
     description: "The investor wallet was credited for this captured payment.",
   },
-  NAME_CHECK: {
-    title: "Name check needed",
-    description:
-      "Payment received, but the bank name could not be matched to the investor profile. Waiting for review.",
-  },
-  NAME_CHECK_APPROVED: {
-    title: "Name check approved",
-    description: "The names were confirmed to match. The deposit was completed.",
-  },
-  NAME_CHECK_REJECTED: {
-    title: "Name check rejected",
-    description: "The names did not match. A refund was started.",
-  },
-  CAPTURE_MISMATCH: {
-    title: "Payment mismatch found",
-    description:
-      "The payment details did not match what Cashsouk expected. See the status card for amount or currency details.",
-  },
-  EXPIRED: {
-    title: "Payment expired",
-    description: "The payment link timed out before payment was finished.",
-  },
-  OVERRIDE_PROPOSED: {
-    title: "Status change proposed",
-    description: "A manual status change was requested and needs another reviewer’s approval.",
-  },
-  OVERRIDE_APPROVED: {
-    title: "Status change approved",
-    description: "The manual status change was approved.",
-  },
-  OVERRIDE_REJECTED: {
-    title: "Status change rejected",
-    description: "The manual status change was rejected. No change was applied.",
-  },
-  REFUND_INITIATED: {
-    title: "Refund requested",
-    description: "A full refund was requested. Waiting for Curlec to confirm the result.",
-  },
-  REFUND_WALLET_REVERSAL_FAILED: {
-    title: "Wallet balance could not be updated",
-    description:
-      "The refund was completed, but the wallet balance could not be fully updated. Part of the amount may still need attention.",
-  },
-  REFUNDED: {
-    title: "Refund completed",
-    description: "The refund was confirmed. Money was returned to the payer.",
-  },
 };
 
 export const REASON_COPY: Record<string, string> = {
@@ -324,8 +277,7 @@ export const REASON_COPY: Record<string, string> = {
 };
 
 export function formatGatewayEventTitle(type: string, reason?: string | null) {
-  const mismatch =
-    type === "CAPTURE_MISMATCH" || type === "PAYMENT_CAPTURE_MISMATCH_DETECTED";
+  const mismatch = type === "PAYMENT_CAPTURE_MISMATCH_DETECTED";
   if (mismatch && (reason === "Currency mismatch" || reason === "CURRENCY_MISMATCH")) {
     return "Currency mismatch found";
   }

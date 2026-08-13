@@ -9,10 +9,6 @@ import {
 } from "./refund-service";
 import { extractRefundRefs } from "./webhook-schemas";
 
-jest.mock("./gateway-events", () => ({
-  recordGatewayPaymentEvent: jest.fn().mockResolvedValue(undefined),
-}));
-
 jest.mock("./audit/writer", () => ({
   writeGatewayPaymentAudit: jest.fn().mockResolvedValue(undefined),
   webhookPaymentAuditContext: jest.fn(() => ({

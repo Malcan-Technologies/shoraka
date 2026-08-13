@@ -28,16 +28,12 @@ describe("gateway payment admin copy", () => {
       "Wallet balance could not be updated"
     );
     expect(formatGatewayEventTitle("PAYMENT_REFUND_INITIATED")).toBe("Refund requested");
-    expect(formatGatewayEventTitle("CAPTURE_MISMATCH", "Currency mismatch")).toBe(
-      "Currency mismatch found"
-    );
-    expect(formatGatewayEventTitle("REFUND_INITIATED")).toBe("Refund requested");
   });
 
   it("maps known reasons to plain descriptions", () => {
     expect(
       formatGatewayEventDescription(
-        "REFUND_INITIATED",
+        "PAYMENT_REFUND_INITIATED",
         "External Curlec refund detected on completed payment"
       )
     ).toBe("A refund was detected from Curlec on a completed payment.");

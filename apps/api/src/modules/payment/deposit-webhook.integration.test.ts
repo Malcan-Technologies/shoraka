@@ -198,9 +198,6 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
     await prisma.gatewayPaymentReceipt.deleteMany({
       where: { gateway_payment_id: gatewayPaymentId },
     });
-    await prisma.gatewayPaymentEvent.deleteMany({
-      where: { gateway_payment_id: gatewayPaymentId },
-    });
     await prisma.paymentAuditLog.deleteMany({
       where: { gateway_payment_id: gatewayPaymentId },
     });

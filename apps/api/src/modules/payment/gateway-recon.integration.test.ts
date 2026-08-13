@@ -127,9 +127,6 @@ describeIntegration("gateway reconciliation (M10)", () => {
       await prisma.gatewayReconRun.deleteMany({ where: { id: { in: createdRunIds } } });
     }
     if (createdPaymentIds.length) {
-      await prisma.gatewayPaymentEvent.deleteMany({
-        where: { gateway_payment_id: { in: createdPaymentIds } },
-      });
       await prisma.gatewayPayment.deleteMany({ where: { id: { in: createdPaymentIds } } });
     }
     if (createdUserIds.length) {

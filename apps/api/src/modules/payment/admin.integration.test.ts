@@ -42,7 +42,7 @@ jest.mock("./receipt/receipt-service", () => {
 async function gatewayTablesMigrated(): Promise<boolean> {
   try {
     await prisma.$queryRaw`SELECT 1 FROM gateway_payments LIMIT 1`;
-    await prisma.$queryRaw`SELECT 1 FROM gateway_payment_events LIMIT 1`;
+    await prisma.$queryRaw`SELECT 1 FROM payment_audit_logs LIMIT 1`;
     return true;
   } catch {
     return false;
@@ -127,9 +127,6 @@ describeIntegration("admin gateway payments refunds", () => {
     if (!migrated) return;
     if (createdPaymentIds.length > 0) {
       await prisma.noteLedgerEntry.deleteMany({
-        where: { gateway_payment_id: { in: createdPaymentIds } },
-      });
-      await prisma.gatewayPaymentEvent.deleteMany({
         where: { gateway_payment_id: { in: createdPaymentIds } },
       });
       await prisma.paymentAuditLog.deleteMany({
