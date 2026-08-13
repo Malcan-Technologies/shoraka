@@ -18,14 +18,18 @@ describe("gateway payment admin copy", () => {
   });
 
   it("uses plain activity titles for mismatch and wallet events", () => {
-    expect(formatGatewayEventTitle("CAPTURE_MISMATCH", "Currency mismatch")).toBe(
+    expect(formatGatewayEventTitle("PAYMENT_CAPTURE_MISMATCH_DETECTED", "CURRENCY_MISMATCH")).toBe(
       "Currency mismatch found"
     );
-    expect(formatGatewayEventTitle("CAPTURE_MISMATCH", "AMOUNT_MISMATCH")).toBe(
+    expect(formatGatewayEventTitle("PAYMENT_CAPTURE_MISMATCH_DETECTED", "AMOUNT_MISMATCH")).toBe(
       "Amount mismatch found"
     );
-    expect(formatGatewayEventTitle("REFUND_WALLET_REVERSAL_FAILED")).toBe(
+    expect(formatGatewayEventTitle("PAYMENT_REFUND_WALLET_REVERSAL_FAILED")).toBe(
       "Wallet balance could not be updated"
+    );
+    expect(formatGatewayEventTitle("PAYMENT_REFUND_INITIATED")).toBe("Refund requested");
+    expect(formatGatewayEventTitle("CAPTURE_MISMATCH", "Currency mismatch")).toBe(
+      "Currency mismatch found"
     );
     expect(formatGatewayEventTitle("REFUND_INITIATED")).toBe("Refund requested");
   });

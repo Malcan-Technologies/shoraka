@@ -2,6 +2,7 @@ import {
   CurlecGatewayAccount,
   GatewayReconExceptionType,
   GatewayReconRunStatus,
+  Prisma,
   PrismaClient,
 } from "@prisma/client";
 import { getCurlecGatewayAccountConfigStatus } from "../../config/curlec";
@@ -12,6 +13,11 @@ import { AppError } from "../http/error-handler";
 import { logger } from "../logger";
 import { prisma as defaultPrisma } from "../prisma";
 import { withAdvisoryLock } from "./with-advisory-lock";
+import {
+  systemPaymentAuditContext,
+  writeReconExceptionAudit,
+} from "../../modules/payment/audit/writer";
+import { PAYMENT_AUDIT_IDEMPOTENCY } from "../../modules/payment/audit/events";
 
 const CRON_CORRELATION_ID = "cron:gateway-settlement-recon";
 const RECON_PAGE_SIZE = 100;
@@ -123,6 +129,56 @@ function formatRunDate(runDate: Date): string {
   return runDate.toISOString().slice(0, 10);
 }
 
+async function persistReconExceptionWithAudit(
+  db: PrismaClient,
+  input: {
+    runId: string;
+    gatewayAccount: CurlecGatewayAccount;
+    type: GatewayReconExceptionType;
+    curlecPaymentId: string;
+    curlecSettlementId?: string | null;
+    gatewayPaymentId?: string | null;
+    expectedAmount?: Prisma.Decimal | null;
+    actualAmount?: Prisma.Decimal | null;
+    detail: string;
+  }
+) {
+  await db.$transaction(async (tx) => {
+    const exception = await tx.gatewayReconException.create({
+      data: {
+        recon_run_id: input.runId,
+        type: input.type,
+        curlec_payment_id: input.curlecPaymentId,
+        curlec_settlement_id: input.curlecSettlementId ?? null,
+        gateway_payment_id: input.gatewayPaymentId ?? null,
+        expected_amount: input.expectedAmount ?? undefined,
+        actual_amount: input.actualAmount ?? undefined,
+        detail: input.detail,
+      },
+    });
+    await writeReconExceptionAudit(
+      {
+        eventType: "PAYMENT_RECONCILIATION_EXCEPTION_DETECTED",
+        context: systemPaymentAuditContext({ correlationId: CRON_CORRELATION_ID }),
+        exceptionId: exception.id,
+        idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.reconDetected(
+          input.gatewayAccount,
+          input.curlecPaymentId,
+          input.type
+        ),
+        metadata: {
+          exceptionId: exception.id,
+          mismatchType: input.type,
+          providerReference: input.curlecPaymentId,
+          internalReference: input.gatewayPaymentId ?? null,
+          runId: input.runId,
+        },
+      },
+      tx
+    );
+  });
+}
+
 function hashLockScope(scope: string): number {
   let hash = 0;
   for (let i = 0; i < scope.length; i += 1) {
@@ -203,17 +259,16 @@ async function runGatewaySettlementReconForAccount(
           select: { id: true, gatewayAccount: true },
         });
 
-        await db.gatewayReconException.create({
-          data: {
-            recon_run_id: run.id,
-            type: GatewayReconExceptionType.ORPHAN_CURLEC_PAYMENT,
-            curlec_payment_id: curlecPaymentId,
-            curlec_settlement_id: line.settlement_id ?? null,
-            actual_amount: senToMyrDecimal(curlecAmountSen),
-            detail: crossAccountMatch
-              ? `Payment ID is linked to another Curlec account (${crossAccountMatch.gatewayAccount}). No payment was updated.`
-              : "Curlec settled payment not found in gateway_payments for account",
-          },
+        await persistReconExceptionWithAudit(db, {
+          runId: run.id,
+          gatewayAccount,
+          type: GatewayReconExceptionType.ORPHAN_CURLEC_PAYMENT,
+          curlecPaymentId,
+          curlecSettlementId: line.settlement_id ?? null,
+          actualAmount: senToMyrDecimal(curlecAmountSen),
+          detail: crossAccountMatch
+            ? `Payment ID is linked to another Curlec account (${crossAccountMatch.gatewayAccount}). No payment was updated.`
+            : "Curlec settled payment not found in gateway_payments for account",
         });
         exceptionsCount += 1;
         continue;
@@ -223,17 +278,16 @@ async function runGatewaySettlementReconForAccount(
       const expectedSen = myrDecimalToSen(gatewayPayment.amount);
 
       if (expectedSen !== curlecAmountSen) {
-        await db.gatewayReconException.create({
-          data: {
-            recon_run_id: run.id,
-            type: GatewayReconExceptionType.AMOUNT_MISMATCH,
-            gateway_payment_id: gatewayPayment.id,
-            curlec_payment_id: curlecPaymentId,
-            curlec_settlement_id: line.settlement_id ?? null,
-            expected_amount: gatewayPayment.amount,
-            actual_amount: senToMyrDecimal(curlecAmountSen),
-            detail: `Expected ${expectedSen} sen, Curlec reported ${curlecAmountSen} sen`,
-          },
+        await persistReconExceptionWithAudit(db, {
+          runId: run.id,
+          gatewayAccount,
+          type: GatewayReconExceptionType.AMOUNT_MISMATCH,
+          curlecPaymentId,
+          curlecSettlementId: line.settlement_id ?? null,
+          gatewayPaymentId: gatewayPayment.id,
+          expectedAmount: gatewayPayment.amount,
+          actualAmount: senToMyrDecimal(curlecAmountSen),
+          detail: `Expected ${expectedSen} sen, Curlec reported ${curlecAmountSen} sen`,
         });
         exceptionsCount += 1;
         continue;

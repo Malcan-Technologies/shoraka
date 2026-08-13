@@ -1,7 +1,6 @@
 import {
   CurlecGatewayAccount,
   GatewayPayment,
-  GatewayPaymentEventType,
   GatewayPaymentPurpose,
   GatewayPaymentStatus,
   NameCheckResult,
@@ -24,7 +23,13 @@ import {
 import { verifyCurlecWebhookSignature } from "./curlec-signature";
 import { createCurlecClient } from "./curlec-client";
 import { assertGatewayAccountMatch } from "./gateway-account";
-import { recordGatewayPaymentEvent } from "./gateway-events";
+import {
+  PAYMENT_AUDIT_PROVIDER,
+  gatewayPaymentAmount,
+  webhookPaymentAuditContext,
+  writeGatewayPaymentAudit,
+} from "./audit/writer";
+import { PAYMENT_AUDIT_IDEMPOTENCY } from "./audit/events";
 import { scheduleGatewayPaymentReceipt } from "./receipt/receipt-service";
 import {
   extractBankCodeFromPayment,
@@ -119,6 +124,33 @@ async function markWebhookProcessed(
   });
 }
 
+async function writePaymentCapturedAudit(
+  tx: Prisma.TransactionClient,
+  gatewayPaymentId: string
+) {
+  const payment = await tx.gatewayPayment.findUnique({ where: { id: gatewayPaymentId } });
+  if (!payment) return;
+  await writeGatewayPaymentAudit(
+    payment,
+    {
+      eventType: "PAYMENT_CAPTURED",
+      context: webhookPaymentAuditContext(),
+      idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.captured(payment.id),
+      metadata: {
+        purpose: payment.purpose,
+        amount: gatewayPaymentAmount(payment),
+        currency: payment.currency,
+        provider: PAYMENT_AUDIT_PROVIDER,
+        gatewayAccount: payment.gatewayAccount,
+        providerPaymentId: payment.curlec_payment_id,
+        providerOrderId: payment.curlec_order_id,
+        capturedAt: new Date().toISOString(),
+      },
+    },
+    tx
+  );
+}
+
 async function claimCaptureToPaid(
   tx: Prisma.TransactionClient,
   gatewayPaymentId: string
@@ -129,6 +161,7 @@ async function claimCaptureToPaid(
   });
 
   if (claimedFromCreated.count === 1) {
+    await writePaymentCapturedAudit(tx, gatewayPaymentId);
     return GatewayPaymentStatus.PAID;
   }
 
@@ -138,6 +171,7 @@ async function claimCaptureToPaid(
   });
 
   if (claimedFromExpired.count === 1) {
+    await writePaymentCapturedAudit(tx, gatewayPaymentId);
     return GatewayPaymentStatus.PAID;
   }
 
@@ -275,7 +309,6 @@ async function holdGatewayPaymentCaptureMismatch(
       return;
     }
 
-    let fromStatus = current.status;
     if (
       current.status === GatewayPaymentStatus.CREATED ||
       current.status === GatewayPaymentStatus.EXPIRED
@@ -284,7 +317,6 @@ async function holdGatewayPaymentCaptureMismatch(
       if (claimedStatus !== GatewayPaymentStatus.PAID) {
         return;
       }
-      fromStatus = GatewayPaymentStatus.PAID;
     }
 
     const claimed = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
@@ -330,24 +362,25 @@ async function holdGatewayPaymentCaptureMismatch(
       },
     });
 
-    await recordGatewayPaymentEvent(tx, {
-      gatewayPaymentId: payment.id,
-      type: GatewayPaymentEventType.CAPTURE_MISMATCH,
-      fromStatus,
-      toStatus: GatewayPaymentStatus.HELD,
-      reason,
-      metadata: {
-        mismatchType: input.mismatchType,
-        gatewayAccount: claimed.gatewayAccount,
-        purpose: claimed.purpose,
-        curlecOrderId: input.curlecOrderId ?? claimed.curlec_order_id,
-        curlecPaymentId: input.curlecPaymentId ?? claimed.curlec_payment_id,
-        expectedCurrency: input.expectedCurrency ?? null,
-        actualCurrency: input.actualCurrency ?? null,
-        expectedSen: input.expectedSen ?? null,
-        actualSen: input.actualSen ?? null,
+    await writeGatewayPaymentAudit(
+      claimed,
+      {
+        eventType: "PAYMENT_CAPTURE_MISMATCH_DETECTED",
+        context: webhookPaymentAuditContext(),
+        idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.captureMismatch(payment.id),
+        metadata: {
+          mismatchType: input.mismatchType,
+          expectedCurrency: input.expectedCurrency ?? null,
+          actualCurrency: input.actualCurrency ?? null,
+          expectedSen: input.expectedSen,
+          actualSen: input.actualSen,
+          currency: claimed.currency,
+          providerPaymentId: input.curlecPaymentId ?? claimed.curlec_payment_id,
+          providerOrderId: input.curlecOrderId ?? claimed.curlec_order_id,
+        },
       },
-    });
+      tx
+    );
   });
 }
 
@@ -1012,13 +1045,33 @@ async function markGatewayPaymentFailedByOrderId(
 
   assertTransition(payment.status, GatewayPaymentStatus.FAILED);
 
-  return db.gatewayPayment.update({
-    where: { id: payment.id },
-    data: {
-      status: GatewayPaymentStatus.FAILED,
-      curlec_payment_id: curlecPaymentId ?? payment.curlec_payment_id,
-      method: method ?? payment.method,
-    },
+  return db.$transaction(async (tx) => {
+    const updated = await tx.gatewayPayment.update({
+      where: { id: payment.id },
+      data: {
+        status: GatewayPaymentStatus.FAILED,
+        curlec_payment_id: curlecPaymentId ?? payment.curlec_payment_id,
+        method: method ?? payment.method,
+      },
+    });
+
+    await writeGatewayPaymentAudit(
+      updated,
+      {
+        eventType: "PAYMENT_FAILED",
+        context: webhookPaymentAuditContext(),
+        idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.failed(updated.id),
+        metadata: {
+          purpose: updated.purpose,
+          previousStatus: GatewayPaymentStatus.CREATED,
+          newStatus: GatewayPaymentStatus.FAILED,
+          reason: "Provider reported the checkout payment as failed",
+        },
+      },
+      tx
+    );
+
+    return updated;
   });
 }
 

@@ -478,6 +478,7 @@ export * from "./prospectus-calendar";
 export * from "./signing-envelopes";
 export * from "./signing-audit";
 export * from "./note-audit";
+export * from "./payment-audit";
 export * from "./acceptance-documents";
 export * from "./offer-acceptance";
 export * from "./offer-phase-deadline-display";

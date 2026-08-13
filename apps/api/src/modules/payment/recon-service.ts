@@ -9,6 +9,8 @@ import { AppError } from "../../lib/http/error-handler";
 import { prisma as defaultPrisma } from "../../lib/prisma";
 import { runGatewaySettlementReconJob, getYesterdayMytDateOnly } from "../../lib/jobs/gateway-settlement-recon";
 import type { ListReconExceptionsQuery, ListReconRunsQuery } from "./recon-schemas";
+import { adminPaymentAuditContext, writeReconExceptionAudit } from "./audit/writer";
+import { PAYMENT_AUDIT_IDEMPOTENCY } from "./audit/events";
 
 export type AdminActorContext = {
   userId: string;
@@ -238,13 +240,32 @@ export async function resolveReconException(
     throw new AppError(409, "RECON_EXCEPTION_ALREADY_RESOLVED", "Exception is already resolved");
   }
 
-  const updated = await db.gatewayReconException.update({
-    where: { id: exceptionId },
-    data: {
-      resolved_at: new Date(),
-      resolved_by_user_id: actor.userId,
-      resolve_reason: reason,
-    },
+  const updated = await db.$transaction(async (tx) => {
+    const row = await tx.gatewayReconException.update({
+      where: { id: exceptionId },
+      data: {
+        resolved_at: new Date(),
+        resolved_by_user_id: actor.userId,
+        resolve_reason: reason,
+      },
+    });
+    await writeReconExceptionAudit(
+      {
+        eventType: "PAYMENT_RECONCILIATION_EXCEPTION_RESOLVED",
+        context: adminPaymentAuditContext(actor.userId),
+        exceptionId: row.id,
+        idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.reconResolved(row.id),
+        metadata: {
+          exceptionId: row.id,
+          mismatchType: row.type,
+          providerReference: row.curlec_payment_id,
+          internalReference: row.gateway_payment_id,
+          runId: row.recon_run_id,
+        },
+      },
+      tx
+    );
+    return row;
   });
 
   const run = await db.gatewayReconRun.findUnique({

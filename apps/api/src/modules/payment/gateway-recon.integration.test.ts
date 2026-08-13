@@ -428,6 +428,19 @@ describeIntegration("gateway reconciliation (M10)", () => {
     expect(updated.settlement_id).toBe(`setl_${suffix}`);
     expect(updated.settled_at).not.toBeNull();
     expect(updated.gateway_fee_amount?.toNumber()).toBe(1);
+    const captureMismatch = await prisma.paymentAuditLog.count({
+      where: {
+        gateway_payment_id: payment.id,
+        event_type: "PAYMENT_CAPTURE_MISMATCH_DETECTED",
+      },
+    });
+    expect(captureMismatch).toBe(0);
+    const reconDetected = await prisma.paymentAuditLog.findMany({
+      where: { event_type: "PAYMENT_RECONCILIATION_EXCEPTION_DETECTED" },
+    });
+    expect(
+      reconDetected.filter((row) => (row.metadata as Record<string, unknown>).runId === result.runId)
+    ).toHaveLength(0);
   });
 
   it("recon records orphan and amount mismatch exceptions", async () => {
@@ -481,12 +494,22 @@ describeIntegration("gateway reconciliation (M10)", () => {
       true
     );
     expect(exceptions.some((e) => e.type === GatewayReconExceptionType.AMOUNT_MISMATCH)).toBe(true);
+
+    const detected = await prisma.paymentAuditLog.findMany({
+      where: {
+        event_type: "PAYMENT_RECONCILIATION_EXCEPTION_DETECTED",
+        target_id: { in: exceptions.map((row) => row.id) },
+      },
+    });
+    expect(detected).toHaveLength(2);
+    expect(detected.every((row) => row.gateway_payment_id === null)).toBe(true);
   });
 
   it("re-running recon for the same date replaces prior exceptions", async () => {
     if (!migrated) return;
 
     const runDate = getYesterdayMytDateOnly();
+    const orphanPaymentId = `pay_orphan_rerun_${Date.now()}`;
     mockFetchSettlementRecon.mockResolvedValue({
       count: 1,
       items: [
@@ -495,7 +518,7 @@ describeIntegration("gateway reconciliation (M10)", () => {
           amount: 99999,
           settled: true,
           settlement_id: "setl_orphan_only",
-          payment_id: `pay_orphan_rerun_${Date.now()}`,
+          payment_id: orphanPaymentId,
           created_at: Math.floor(Date.now() / 1000),
         },
       ],
@@ -514,6 +537,14 @@ describeIntegration("gateway reconciliation (M10)", () => {
     expect(first.runId).toBe(second.runId);
     const count = await prisma.gatewayReconException.count({ where: { recon_run_id: first.runId } });
     expect(count).toBe(1);
+    const detected = await prisma.paymentAuditLog.findMany({
+      where: { event_type: "PAYMENT_RECONCILIATION_EXCEPTION_DETECTED" },
+    });
+    const forThisOrphan = detected.filter((row) => {
+      const metadata = row.metadata as Record<string, unknown>;
+      return metadata.providerReference === orphanPaymentId;
+    });
+    expect(forThisOrphan).toHaveLength(1);
   });
 
   it("recon matches and stamps only within the same gateway account", async () => {
@@ -921,5 +952,13 @@ describeIntegration("gateway reconciliation (M10)", () => {
 
     expect(resolved.resolvedAt).not.toBeNull();
     expect(resolved.resolveReason).toBe("Verified with Curlec dashboard");
+    const resolvedAudit = await prisma.paymentAuditLog.findMany({
+      where: {
+        event_type: "PAYMENT_RECONCILIATION_EXCEPTION_RESOLVED",
+        target_id: exception.id,
+      },
+    });
+    expect(resolvedAudit).toHaveLength(1);
+    expect(resolvedAudit[0]?.gateway_payment_id).toBeNull();
   });
 });

@@ -13,6 +13,37 @@ jest.mock("./gateway-events", () => ({
   recordGatewayPaymentEvent: jest.fn().mockResolvedValue(undefined),
 }));
 
+jest.mock("./audit/writer", () => ({
+  writeGatewayPaymentAudit: jest.fn().mockResolvedValue(undefined),
+  webhookPaymentAuditContext: jest.fn(() => ({
+    actorType: "INTEGRATION",
+    actorUserId: null,
+    source: "WEBHOOK",
+    portal: null,
+    ipAddress: null,
+    userAgent: null,
+    correlationId: null,
+  })),
+  adminPaymentAuditContext: jest.fn(() => ({
+    actorType: "ADMIN",
+    actorUserId: "admin",
+    source: "API",
+    portal: "ADMIN",
+    ipAddress: null,
+    userAgent: null,
+    correlationId: null,
+  })),
+  gatewayPaymentAmount: (payment: { amount: { toNumber(): number } | number }) =>
+    typeof payment.amount === "number" ? payment.amount : payment.amount.toNumber(),
+  PAYMENT_AUDIT_PROVIDER: "CURLEC",
+  PAYMENT_AUDIT_TARGET_TYPE: {
+    GATEWAY_PAYMENT: "GATEWAY_PAYMENT",
+    WITHDRAWAL: "WITHDRAWAL",
+    BALANCE_TRANSACTION: "BALANCE_TRANSACTION",
+    RECON_EXCEPTION: "RECON_EXCEPTION",
+  },
+}));
+
 jest.mock("../../config/curlec", () => ({
   getCurlecConfig: jest.fn(),
 }));

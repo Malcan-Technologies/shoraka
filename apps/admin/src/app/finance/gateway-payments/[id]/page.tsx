@@ -42,6 +42,7 @@ import {
 import { cn } from "@/lib/utils";
 import {
   getGatewayPaymentDetailVisibility,
+  gatewayAuditEventView,
   readRefundRequestedAt,
 } from "./gateway-payment-detail-model";
 import {
@@ -935,14 +936,15 @@ export default function GatewayPaymentDetailPage() {
                               <div className="absolute bottom-2 left-[5px] top-2 w-px bg-border" />
                               <div className="space-y-5">
                                 {timelineEvents.map((event, index) => {
-                                  const fromLabel = formatStatusLabel(event.fromStatus);
-                                  const toLabel = formatStatusLabel(event.toStatus);
+                                  const view = gatewayAuditEventView(event);
+                                  const fromLabel = formatStatusLabel(view.fromStatus);
+                                  const toLabel = formatStatusLabel(view.toStatus);
                                   const description = formatGatewayEventDescription(
-                                    event.type,
-                                    event.reason
+                                    view.eventType,
+                                    view.reason
                                   );
                                   return (
-                                    <div key={event.id} className="relative flex gap-3 pl-0">
+                                    <div key={view.id} className="relative flex gap-3 pl-0">
                                       <div
                                         className={cn(
                                           "relative z-10 mt-1.5 h-[11px] w-[11px] shrink-0 rounded-full border-2 border-card bg-primary",
@@ -951,10 +953,10 @@ export default function GatewayPaymentDetailPage() {
                                       />
                                       <div className="-mt-0.5 min-w-0 flex-1">
                                         <p className="text-sm font-medium leading-tight text-foreground">
-                                          {formatGatewayEventTitle(event.type, event.reason)}
+                                          {formatGatewayEventTitle(view.eventType, view.reason)}
                                         </p>
                                         <p className="mt-0.5 text-xs text-muted-foreground">
-                                          {formatDate(event.createdAt)}
+                                          {formatDate(view.occurredAt)}
                                         </p>
                                         {fromLabel && toLabel ? (
                                           <p className="mt-1 text-xs text-muted-foreground">

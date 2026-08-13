@@ -1,4 +1,5 @@
 import type { GatewayPaymentStatus, NameCheckResult } from "./notes";
+import type { PaymentAuditLogDto } from "./payment-audit";
 
 export type GatewayPaymentPurpose =
   | "INVESTOR_DEPOSIT"
@@ -65,7 +66,7 @@ export interface GatewayPaymentDetailDto extends GatewayPaymentListItemDto {
   openOverrideProposedBy: string | null;
   openOverrideReason: string | null;
   metadata: Record<string, unknown> | null;
-  events: GatewayPaymentEventDto[];
+  events: PaymentAuditLogDto[];
   receipt: GatewayPaymentReceiptSummaryDto | null;
 }
 

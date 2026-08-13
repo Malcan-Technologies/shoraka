@@ -1,5 +1,4 @@
 import {
-  GatewayPaymentEventType,
   GatewayPaymentPurpose,
   GatewayPaymentStatus,
   NameCheckResult,
@@ -12,7 +11,12 @@ import {
   creditCompletedDeposit,
   resolveInvestorExpectedName,
 } from "./deposit-service";
-import { recordGatewayPaymentEvent, mapGatewayPaymentEvent } from "./gateway-events";
+import { paymentAuditLogReader } from "./audit/reader";
+import {
+  adminPaymentAuditContext,
+  writeGatewayPaymentAudit,
+} from "./audit/writer";
+import { PAYMENT_AUDIT_IDEMPOTENCY } from "./audit/events";
 import { ListGatewayPaymentsQuery } from "./admin-schemas";
 import {
   initiateGatewayPaymentRefund,
@@ -142,7 +146,6 @@ async function getInvestorDepositOrThrow(
     },
     include: {
       investor_organization: true,
-      events: { orderBy: { created_at: "desc" } },
     },
   });
 
@@ -162,7 +165,6 @@ async function getGatewayPaymentOrThrow(
     include: {
       investor_organization: true,
       issuer_organization: true,
-      events: { orderBy: { created_at: "desc" } },
       receipt: true,
     },
   });
@@ -254,7 +256,7 @@ export async function getGatewayPaymentDetail(
       payment.metadata && typeof payment.metadata === "object" && !Array.isArray(payment.metadata)
         ? (payment.metadata as Record<string, unknown>)
         : null,
-    events: payment.events.map(mapGatewayPaymentEvent),
+    events: await paymentAuditLogReader.listByGatewayPaymentId(gatewayPaymentId, db),
     receipt: payment.receipt
       ? {
           id: payment.receipt.id,
@@ -425,13 +427,21 @@ export async function approveNameCheck(
       nameCheckResult: NameCheckResult.PASS,
       actorUserId: actor.userId,
     });
-    await recordGatewayPaymentEvent(tx, {
-      gatewayPaymentId: payment.id,
-      type: GatewayPaymentEventType.NAME_CHECK_APPROVED,
-      actorUserId: actor.userId,
-      fromStatus: GatewayPaymentStatus.NAME_CHECK_PENDING,
-      toStatus: GatewayPaymentStatus.COMPLETED,
-    });
+    await writeGatewayPaymentAudit(
+      current,
+      {
+        eventType: "PAYMENT_NAME_CHECK_APPROVED",
+        context: adminPaymentAuditContext(actor.userId),
+        idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.nameCheckApproved(payment.id),
+        metadata: {
+          result: NameCheckResult.PASS,
+          previousStatus: GatewayPaymentStatus.NAME_CHECK_PENDING,
+          newStatus: GatewayPaymentStatus.COMPLETED,
+          gatewayPaymentId: payment.id,
+        },
+      },
+      tx
+    );
   });
 
   scheduleGatewayPaymentReceipt(payment.id, db);
@@ -463,14 +473,22 @@ export async function rejectNameCheck(
   }
 
   await db.$transaction(async (tx) => {
-    await recordGatewayPaymentEvent(tx, {
-      gatewayPaymentId: payment.id,
-      type: GatewayPaymentEventType.NAME_CHECK_REJECTED,
-      actorUserId: actor.userId,
-      fromStatus: GatewayPaymentStatus.NAME_CHECK_PENDING,
-      toStatus: GatewayPaymentStatus.REFUND_INITIATED,
-      reason: "Admin rejected the name match. A refund was started.",
-    });
+    const current = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
+    await writeGatewayPaymentAudit(
+      current,
+      {
+        eventType: "PAYMENT_NAME_CHECK_REJECTED",
+        context: adminPaymentAuditContext(actor.userId),
+        idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.nameCheckRejected(payment.id),
+        metadata: {
+          result: current.name_check_result ?? NameCheckResult.FAIL,
+          previousStatus: GatewayPaymentStatus.NAME_CHECK_PENDING,
+          newStatus: GatewayPaymentStatus.NAME_CHECK_PENDING,
+          gatewayPaymentId: payment.id,
+        },
+      },
+      tx
+    );
   });
 
   await initiateInvestorDepositRefund(

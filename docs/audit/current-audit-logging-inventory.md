@@ -1,3 +1,14 @@
+**Phase 9 PaymentAuditLog cutover (current state):**
+
+- `PaymentAuditLog` (`payment_audit_logs`) is the live payment/wallet-withdrawal/recon-exception history table (append-only, no FKs).
+- `GatewayPayment`, `GatewayOrderAttempt`, `GatewayWebhookEvent`, `InvestorBalance`, `InvestorBalanceTransaction`, `WithdrawalInstruction`, `GatewayPaymentReceipt`, `GatewayReconRun`, and `GatewayReconException` remain SOT. Audit is never payment, balance, or reconciliation state.
+- Hard cutover: live writers use `PaymentAuditLog`. No dual-write. No backfill.
+- `GatewayPaymentEvent` / `gateway_payment_events` remains temporarily with no live writers or payment-detail readers. Cleanup is a separate PR.
+- Investor wallet withdrawals (`WithdrawalType.INVESTOR_WITHDRAWAL`) are audited here. Issuer disbursement / residual stay on `NoteAuditLog`.
+- Known leftover: investor withdrawal debit idempotency still uses `randomUUID()` and can double-debit on retry. Not changed in this cutover.
+
+---
+
 **Phase 8 NoteAuditLog cutover (current state):**
 
 - `NoteAuditLog` (`note_audit_logs`) is the **sole** Note-domain history table (append-only, no Note/User/org FKs).
@@ -6,7 +17,7 @@
 - `NoteEvent` / `note_events` **removed**.
 - `NoteAdminAction` / `note_admin_actions` **removed**.
 - Title/summary-only edits, featured settings, and prospectus draft saves remain intentionally unaudited.
-- Investor-wallet withdrawals and GatewayPayment events are out of scope (future PaymentAuditLog).
+- Investor-wallet withdrawals are PaymentAuditLog (Phase 9). GatewayPayment events are PaymentAuditLog.
 - There is **no** canonical/global `AuditEvent` table.
 
 ---
@@ -62,7 +73,7 @@ Known limitations (not fixed in this cleanup):
 
 ## 1. Executive Summary
 
-CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_audit_logs`, `security_audit_logs`, `onboarding_audit_logs`, `application_audit_logs`, `signing_audit_logs`, `product_audit_logs`, `note_audit_logs`, `legal_admin_audit_logs`, `notification_broadcast_audit_logs`, `gateway_payment_events`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records). Legacy `access_logs`, `security_logs`, `onboarding_logs`, `application_logs`, `note_events`, and `note_admin_actions` have been dropped.
+CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_audit_logs`, `security_audit_logs`, `onboarding_audit_logs`, `application_audit_logs`, `signing_audit_logs`, `product_audit_logs`, `note_audit_logs`, `payment_audit_logs`, `legal_admin_audit_logs`, `notification_broadcast_audit_logs`, leftover `gateway_payment_events`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records). Legacy `access_logs`, `security_logs`, `onboarding_logs`, `application_logs`, `note_events`, and `note_admin_actions` have been dropped.
 
 ### Current architecture (factual)
 
@@ -72,7 +83,7 @@ CashSouk does not have a single audit system. It has **many specialized tables**
 - **Signing:** `SigningAuditLog` (`signing_audit_logs`) is the signing history table (append-only). Envelope graph / `SigningCloudEkyc` remain signing SOT. `GET /v1/applications/:id/logs` merges Application + Signing audit rows. Envelope log APIs read `SigningAuditLog` only.
 - **Notes:** `NoteAuditLog` (`note_audit_logs`) is the sole Note-domain history table (append-only, no Note/User/org FKs). Ledger, `NotePayment`, `NoteSettlement`, `NoteInvestment`, `WithdrawalInstruction`, `ShorakaTradeOrder`, prospectus models, and `Note` remain SOT. Activity feed reads a **subset** of `NoteAuditLog` types. `NoteEvent` / `note_events` and `NoteAdminAction` / `note_admin_actions` **removed**. Title/summary edits, featured settings, and prospectus draft saves are intentionally unaudited.
 - **Legal admin:** dedicated `LegalAdminAuditLog`. User open/accept is **not** that table; it is `LegalDocumentAcceptance` updated **in place**. Legacy `LegalDocumentAuditLog` / `legal_document_audit_logs` has been removed.
-- **Payments:** `GatewayPayment` is SOT; `GatewayPaymentEvent` is a partial admin trail (no capture/complete type); `GatewayWebhookEvent` is provider transport and is **updated** after processing.
+- **Payments:** `GatewayPayment` is SOT; `PaymentAuditLog` is the live admin history trail (append-only, no FKs). `GatewayWebhookEvent` is provider transport and is **updated** after processing. `GatewayPaymentEvent` remains as an unused leftover table. `InvestorBalance` / `InvestorBalanceTransaction`, `WithdrawalInstruction`, `GatewayPaymentReceipt`, and `GatewayReconException` remain money/workflow/receipt/recon SOT.
 - **Products:** `ProductAuditLog` is append-only and is not deleted on product rollback. Legacy `ProductLog` / `product_logs` has been removed.
 - **Notifications:** `NotificationBroadcastAuditLog` for admin bulk send (`NOTIFICATION_BROADCAST_PROCESSED`). In-app `Notification` rows are delivery, not business audit. Legacy `NotificationLog` / `notification_logs` has been removed.
 
@@ -81,7 +92,7 @@ CashSouk does not have a single audit system. It has **many specialized tables**
 1. **Cascade delete destroys named logs** when a User, Application, Note, or GatewayPayment is deleted.
 2. **`AuthService.cancelOnboarding` is a no-op workflow action** (reads org `onboarding_status` / `onboarded_at` and `RegTankOnboarding`, not audit). Historical `USER_COMPLETED` reader is gone with `OnboardingLog`.
 3. **Legal acceptance evidence is mutated in place** (OPENED → ACCEPTED on one row).
-4. **Money capture/complete has no `GatewayPaymentEvent` type**; reconstruction depends on `GatewayPayment` status + webhook transport + ledger.
+4. **Payment capture/complete history is `PaymentAuditLog`**; money SOT remains `GatewayPayment` / balance / recon / receipt.
 5. **High-impact admin/org actions have no audit event** (invite create, org members/ownership, platform finance settings, user_id assign, investor withdrawal request).
 6. **Product audit history is retained** (`ProductAuditLog`); failed-create rollback does not delete it. Legacy `product_logs` dropped.
 7. **Duplicate / misleading event names** (`LOGIN` twice, `PASSWORD_CHANGED` for failure, contract reject stored as `CONTRACT_WITHDRAWN`, enum `APPLICATION_APPROVED` with no writer).
@@ -135,9 +146,9 @@ Legend: ✅ inspected · N/A none found · ⚠ leftover/unused
 | NOTIFICATIONS | ✅ | ✅ | ✅ | ✅ | cleanup cron | N/A | NotificationBroadcastAuditLog bulk only | Admin logs + inbox |
 | NOTE / MARKETPLACE | ✅ | ✅ | ✅ | ✅ | listing expiry | N/A | NoteAuditLog | Admin events + activity subset |
 | INVESTMENT / BALANCE | ✅ | ✅ | ✅ | ✅ investor | N/A | Curlec | INVESTMENT_COMMITTED; deposit partial | Investor txs |
-| DEPOSIT / GATEWAY / REFUND / NAME CHECK | ✅ | ✅ | ✅ | ✅ | poller/receipt | Curlec | GatewayPaymentEvent partial | Admin payment detail (metadata stripped) |
-| RECONCILIATION | ✅ | ✅ | ✅ | ✅ | daily recon | Curlec fetch | **no audit event** | Admin recon UI |
-| WITHDRAWAL / DISBURSEMENT | ✅ | ✅ | ✅ | ✅ | N/A | N/A | issuer NoteAuditLog; investor wallet **no** (future PaymentAuditLog) | Admin withdrawals |
+| DEPOSIT / GATEWAY / REFUND / NAME CHECK | ✅ | ✅ | ✅ | ✅ | poller/receipt | Curlec | PaymentAuditLog | Admin payment detail (typed metadata; workflow still GatewayPayment SOT) |
+| RECONCILIATION | ✅ | ✅ | ✅ | ✅ | daily recon | Curlec fetch | PaymentAuditLog exception detect/resolve only | Admin recon UI (GatewayReconException SOT) |
+| WITHDRAWAL / DISBURSEMENT | ✅ | ✅ | ✅ | ✅ | N/A | N/A | issuer NoteAuditLog; investor wallet PaymentAuditLog | Admin withdrawals |
 | REPAYMENT / SETTLEMENT / LEDGER | ✅ | ✅ | ✅ | ✅ | N/A | N/A | NoteAuditLog + ledger SOT | Admin note + ledger GET |
 | TRUSTEE LETTERS | ✅ | ✅ | ✅ | ✅ | N/A | N/A | DISBURSEMENT_/RESIDUAL_/SERVICE_FEE_TRUSTEE_* | Admin |
 | LATE PAYMENT / ARREARS / DEFAULT | ✅ | ✅ | ✅ | ✅ | N/A | N/A | servicing/default/letter NoteAuditLog | Admin |

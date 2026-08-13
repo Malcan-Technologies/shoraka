@@ -1993,6 +1993,38 @@ model NoteAuditLog {
   @@map("note_audit_logs")
 }
 
+/// Append-only payment/cash-movement history. No FKs: stored ids are historical
+/// evidence and must survive GatewayPayment/User/org deletion.
+/// gateway_payment_id is null for withdrawal and reconciliation-only events.
+model PaymentAuditLog {
+  id                 String   @id @default(cuid())
+  gateway_payment_id String?
+  event_type         String
+  occurred_at        DateTime @default(now())
+  created_at         DateTime @default(now())
+  actor_type         String
+  actor_user_id      String?
+  organization_id    String?
+  organization_kind  String?
+  target_type        String
+  target_id          String
+  source             String
+  portal             String?
+  ip_address         String?
+  user_agent         String?
+  correlation_id     String?
+  idempotency_key    String?  @unique
+  metadata           Json
+
+  @@index([gateway_payment_id, occurred_at])
+  @@index([event_type, occurred_at])
+  @@index([organization_id, occurred_at])
+  @@index([actor_user_id, occurred_at])
+  @@index([target_type, target_id, occurred_at])
+  @@index([correlation_id])
+  @@map("payment_audit_logs")
+}
+
 model corporate_individual_kyc {
   id                    String            @id
   regtank_onboarding_id String

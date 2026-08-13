@@ -104,6 +104,13 @@ import {
 import { NOTE_AUDIT_CURRENCY } from "./audit/events";
 import { noteAuditLogReader } from "./audit/reader";
 import {
+  writeInvestorWithdrawalAudit,
+} from "../payment/audit/writer";
+import {
+  PAYMENT_AUDIT_CURRENCY,
+  PAYMENT_AUDIT_IDEMPOTENCY,
+} from "../payment/audit/events";
+import {
   allocateDisplayReference,
   resolveApplicationProductCode,
   resolveNoteProductCode,
@@ -170,6 +177,37 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+const BENEFICIARY_COMPARE_KEYS = [
+  "bank_name",
+  "account_number",
+  "account_holder",
+  "swift_code",
+  "branch",
+  "account_type",
+  "reference_note",
+] as const;
+
+function beneficiarySnapshotFields(value: unknown): Record<string, string> {
+  const rec = asRecord(value) ?? {};
+  const fields: Record<string, string> = {};
+  for (const key of BENEFICIARY_COMPARE_KEYS) {
+    fields[key] = typeof rec[key] === "string" ? rec[key] : "";
+  }
+  return fields;
+}
+
+function beneficiaryChangedFields(before: unknown, after: unknown): string[] {
+  const previous = beneficiarySnapshotFields(before);
+  const next = beneficiarySnapshotFields(after);
+  return BENEFICIARY_COMPARE_KEYS.filter((key) => previous[key] !== next[key]);
+}
+
+function beneficiaryChangeKey(changedFields: string[], after: unknown): string {
+  const next = beneficiarySnapshotFields(after);
+  const payload = changedFields.map((field) => `${field}=${next[field]}`).join("|");
+  return createHash("sha256").update(payload).digest("hex").slice(0, 16);
 }
 
 function sha256Hex(buffer: Buffer): string {
@@ -5735,6 +5773,8 @@ export class NoteService {
       );
     }
 
+    // Debit idempotency currently includes randomUUID, so a retried request can
+    // debit twice. Left unchanged in this PaymentAuditLog cutover.
     const idempotencyKey = `investor-withdrawal:${input.investorOrganizationId}:${randomUUID()}`;
 
     const withdrawal = await prisma.$transaction(async (tx) => {
@@ -5745,7 +5785,7 @@ export class NoteService {
         metadata: { requestedByUserId: actor.userId } as Prisma.InputJsonValue,
       });
 
-      return this.createWithdrawalInstructionWithDisplayReference(tx, {
+      const created = await this.createWithdrawalInstructionWithDisplayReference(tx, {
         investor_organization_id: input.investorOrganizationId,
         requested_by_user_id: actor.userId,
         withdrawal_type: WithdrawalType.INVESTOR_WITHDRAWAL,
@@ -5757,6 +5797,23 @@ export class NoteService {
           requestedAt: new Date().toISOString(),
         } as Prisma.InputJsonValue,
       });
+      await writeInvestorWithdrawalAudit(
+        actor,
+        {
+          eventType: "INVESTOR_WITHDRAWAL_REQUESTED",
+          withdrawalId: created.id,
+          organizationId: input.investorOrganizationId,
+          idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.withdrawalRequested(created.id),
+          metadata: {
+            withdrawalId: created.id,
+            amount: input.amount,
+            currency: PAYMENT_AUDIT_CURRENCY,
+            newStatus: WithdrawalStatus.DRAFT,
+          },
+        },
+        tx
+      );
+      return created;
     });
 
     return this.mapWithdrawal(withdrawal);
@@ -5863,6 +5920,28 @@ export class NoteService {
           tx
         );
       }
+      if (result.withdrawal_type === WithdrawalType.INVESTOR_WITHDRAWAL) {
+        await writeInvestorWithdrawalAudit(
+          actor,
+          {
+            eventType: "INVESTOR_WITHDRAWAL_LETTER_GENERATED",
+            withdrawalId: id,
+            organizationId: result.investor_organization_id,
+            idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.withdrawalLetter(id),
+            metadata: {
+              withdrawalId: id,
+              amount: toNumber(result.amount),
+              currency: PAYMENT_AUDIT_CURRENCY,
+              previousStatus: withdrawal.status,
+              newStatus: result.status,
+              documentType: "TRUSTEE_LETTER",
+              fileName,
+              fileHash,
+            },
+          },
+          tx
+        );
+      }
       return result;
     });
     return this.mapWithdrawal(updated);
@@ -5885,8 +5964,6 @@ export class NoteService {
         "Withdrawal can be submitted to trustee only after its instruction letter is generated"
       );
     }
-
-    // TODO: future enhancement — send trustee instruction email with generated PDF attachment before marking as submitted.
 
     const withdrawal = await prisma.$transaction(async (tx) => {
       const stateUpdate = await tx.withdrawalInstruction.updateMany({
@@ -5919,6 +5996,25 @@ export class NoteService {
               withdrawalType: result.withdrawal_type,
               amount: toNumber(result.amount),
               currency: NOTE_AUDIT_CURRENCY,
+              previousStatus: WithdrawalStatus.LETTER_GENERATED,
+              newStatus: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
+            },
+          },
+          tx
+        );
+      }
+      if (result.withdrawal_type === WithdrawalType.INVESTOR_WITHDRAWAL) {
+        await writeInvestorWithdrawalAudit(
+          actor,
+          {
+            eventType: "INVESTOR_WITHDRAWAL_SUBMITTED_TO_TRUSTEE",
+            withdrawalId: id,
+            organizationId: result.investor_organization_id,
+            idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.withdrawalSubmitted(id),
+            metadata: {
+              withdrawalId: id,
+              amount: toNumber(result.amount),
+              currency: PAYMENT_AUDIT_CURRENCY,
               previousStatus: WithdrawalStatus.LETTER_GENERATED,
               newStatus: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
             },
@@ -5972,6 +6068,35 @@ export class NoteService {
           },
           tx
         );
+      }
+      if (result.withdrawal_type === WithdrawalType.INVESTOR_WITHDRAWAL) {
+        const changedFields = beneficiaryChangedFields(
+          existing.beneficiary_snapshot,
+          beneficiarySnapshot
+        );
+        if (changedFields.length > 0) {
+          await writeInvestorWithdrawalAudit(
+            actor,
+            {
+              eventType: "INVESTOR_WITHDRAWAL_BENEFICIARY_UPDATED",
+              withdrawalId: id,
+              organizationId: result.investor_organization_id,
+              idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.withdrawalBeneficiary(
+                id,
+                beneficiaryChangeKey(changedFields, beneficiarySnapshot)
+              ),
+              metadata: {
+                withdrawalId: id,
+                amount: toNumber(result.amount),
+                currency: PAYMENT_AUDIT_CURRENCY,
+                previousStatus: existing.status,
+                newStatus: result.status,
+                changedFields,
+              },
+            },
+            tx
+          );
+        }
       }
       return result;
     });
@@ -6144,6 +6269,25 @@ export class NoteService {
               withdrawalType: result.withdrawal_type,
               amount: toNumber(result.amount),
               currency: NOTE_AUDIT_CURRENCY,
+              previousStatus: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
+              newStatus: WithdrawalStatus.COMPLETED,
+            },
+          },
+          tx
+        );
+      }
+      if (result.withdrawal_type === WithdrawalType.INVESTOR_WITHDRAWAL) {
+        await writeInvestorWithdrawalAudit(
+          actor,
+          {
+            eventType: "INVESTOR_WITHDRAWAL_COMPLETED",
+            withdrawalId: id,
+            organizationId: result.investor_organization_id,
+            idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.withdrawalCompleted(id),
+            metadata: {
+              withdrawalId: id,
+              amount: toNumber(result.amount),
+              currency: PAYMENT_AUDIT_CURRENCY,
               previousStatus: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
               newStatus: WithdrawalStatus.COMPLETED,
             },
