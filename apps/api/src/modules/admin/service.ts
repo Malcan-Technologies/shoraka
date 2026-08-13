@@ -40,6 +40,14 @@ import { adminInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
 import { logger } from "../../lib/logger";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
+import {
+  claimAmlApproved,
+  claimFinalApprovalCompleted,
+  claimOnboardingApproved,
+  claimSsmApproved,
+  lockOrganizationRow,
+  readOrganizationOnboardingState,
+} from "../onboarding/utils/onboarding-transition-claims";
 import type {
   GetUsersQuery,
   GetAccessLogsQuery,
@@ -3272,41 +3280,59 @@ export class AdminService {
 
     const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(onboarding.request_id);
     const corporateEntities = extractCorporateEntities(codDetails);
-    const diff = diffCorporateEntities(org.corporate_entities, corporateEntities);
 
-    if (portal === "investor") {
-      await prisma.investorOrganization.update({
-        where: { id: organizationId },
-        data: { corporate_entities: corporateEntities as Prisma.InputJsonValue },
-      });
-    } else {
-      await prisma.issuerOrganization.update({
-        where: { id: organizationId },
-        data: { corporate_entities: corporateEntities as Prisma.InputJsonValue },
-      });
-    }
+    await prisma.$transaction(async (tx) => {
+      await lockOrganizationRow(tx, portal, organizationId);
+      const locked =
+        portal === "investor"
+          ? await tx.investorOrganization.findUnique({
+              where: { id: organizationId },
+              select: { corporate_entities: true },
+            })
+          : await tx.issuerOrganization.findUnique({
+              where: { id: organizationId },
+              select: { corporate_entities: true },
+            });
+      if (!locked) return;
+      const diff = diffCorporateEntities(locked.corporate_entities, corporateEntities);
 
-    if (diff.changed) {
-      await writeOnboardingAuditLog({
-        eventType: "CORPORATE_ENTITIES_UPDATED",
-        context: auditContextFromAdminRequest(req),
-        subjectUserId: org.owner.user_id,
-        onboardingId: onboarding.id,
-        organizationId,
-        organizationKind: portal === "investor" ? "INVESTOR" : "ISSUER",
-        organizationType: "COMPANY",
-        targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
-        targetId: organizationId,
-        metadata: {
-          addedCount: diff.addedCount,
-          removedCount: diff.removedCount,
-          updatedCount: diff.updatedCount,
-        },
-      });
-    }
+      if (portal === "investor") {
+        await tx.investorOrganization.update({
+          where: { id: organizationId },
+          data: { corporate_entities: corporateEntities as Prisma.InputJsonValue },
+        });
+      } else {
+        await tx.issuerOrganization.update({
+          where: { id: organizationId },
+          data: { corporate_entities: corporateEntities as Prisma.InputJsonValue },
+        });
+      }
+
+      if (diff.changed) {
+        await writeOnboardingAuditLog(
+          {
+            eventType: "CORPORATE_ENTITIES_UPDATED",
+            context: auditContextFromAdminRequest(req),
+            subjectUserId: org.owner.user_id,
+            onboardingId: onboarding.id,
+            organizationId,
+            organizationKind: portal === "investor" ? "INVESTOR" : "ISSUER",
+            organizationType: "COMPANY",
+            targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+            targetId: organizationId,
+            metadata: {
+              addedCount: diff.addedCount,
+              removedCount: diff.removedCount,
+              updatedCount: diff.updatedCount,
+            },
+          },
+          tx
+        );
+      }
+    });
 
     logger.info(
-      { organizationId, portal, codRequestId: onboarding.request_id, changed: diff.changed },
+      { organizationId, portal, codRequestId: onboarding.request_id },
       "Corporate entities refreshed successfully"
     );
 
@@ -3337,6 +3363,13 @@ export class AdminService {
 
     if (!org) {
       throw new AppError(404, "NOT_FOUND", "Investor organization not found");
+    }
+
+    if (
+      org.is_sophisticated_investor === isSophisticatedInvestor &&
+      (org.sophisticated_investor_reason ?? "") === reason
+    ) {
+      return { success: true };
     }
 
     const action = isSophisticatedInvestor ? "GRANTED" : "REVOKED";
@@ -4326,27 +4359,13 @@ export class AdminService {
 
     const previousOrgStatus = org.onboarding_status;
     const context = auditContextFromAdminRequest(req);
-    await prisma.$transaction(async (tx) => {
-      if (isInvestor) {
-        await tx.investorOrganization.update({
-          where: { id: org.id },
-          data: {
-            onboarding_status: "COMPLETED",
-            onboarded_at: new Date(),
-            admin_approved_at: new Date(),
-          },
-        });
-      } else {
-        await tx.issuerOrganization.update({
-          where: { id: org.id },
-          data: {
-            onboarding_status: "COMPLETED",
-            onboarded_at: new Date(),
-            admin_approved_at: new Date(),
-          },
-        });
-      }
-
+    const claimed = await prisma.$transaction(async (tx) => {
+      const won = await claimFinalApprovalCompleted({
+        organizationId: org.id,
+        portalType: isInvestor ? "investor" : "issuer",
+        db: tx,
+      });
+      if (!won) return false;
       await writeOnboardingAuditLog(
         {
           eventType: "ONBOARDING_FINAL_APPROVAL_COMPLETED",
@@ -4366,7 +4385,24 @@ export class AdminService {
         },
         tx
       );
+      return true;
     });
+
+    if (!claimed) {
+      const latest = await readOrganizationOnboardingState(
+        prisma,
+        isInvestor ? "investor" : "issuer",
+        org.id
+      );
+      if (latest?.onboarding_status === OnboardingStatus.COMPLETED) {
+        throw new AppError(400, "ALREADY_COMPLETED", "Onboarding is already completed");
+      }
+      throw new AppError(
+        400,
+        "INVALID_STEP",
+        "Final approval is only allowed when onboarding_status is PENDING_FINAL_APPROVAL"
+      );
+    }
 
     // Update RegTank onboarding status to COMPLETED
     // Status flow: IN_PROGRESS → PENDING_APPROVAL → PENDING_AML → COMPLETED
@@ -4564,16 +4600,13 @@ export class AdminService {
     const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
 
     await prisma.$transaction(async (tx) => {
-      if (isInvestor && onboarding.investor_organization) {
-        await tx.investorOrganization.update({
-          where: { id: org.id },
-          data: { aml_approved: true },
-        });
-      } else if (!isInvestor && onboarding.issuer_organization) {
-        await tx.issuerOrganization.update({
-          where: { id: org.id },
-          data: { aml_approved: true },
-        });
+      const claimed = await claimAmlApproved({
+        organizationId: org.id,
+        portalType: isInvestor ? "investor" : "issuer",
+        db: tx,
+      });
+      if (!claimed) {
+        throw new AppError(400, "ALREADY_APPROVED", "AML screening is already approved");
       }
 
       await advanceOnboardingStatusFromFlags({
@@ -4727,22 +4760,17 @@ export class AdminService {
     const context = auditContextFromAdminRequest(req);
 
     await prisma.$transaction(async (tx) => {
-      if (isInvestor && onboarding.investor_organization) {
-        await tx.investorOrganization.update({
-          where: { id: org.id },
-          data: {
-            ssm_approved: true,
-            onboarding_status: OnboardingStatus.PENDING_APPROVAL,
-          },
-        });
-      } else if (!isInvestor && onboarding.issuer_organization) {
-        await tx.issuerOrganization.update({
-          where: { id: org.id },
-          data: {
-            ssm_checked: true,
-            onboarding_status: OnboardingStatus.PENDING_APPROVAL,
-          },
-        });
+      const claimed = await claimSsmApproved({
+        organizationId: org.id,
+        portalType: isInvestor ? "investor" : "issuer",
+        db: tx,
+      });
+      if (!claimed) {
+        throw new AppError(
+          400,
+          "INVALID_STEP",
+          "CTOS approval is only allowed when onboarding_status is PENDING_SSM_REVIEW"
+        );
       }
 
       await writeOnboardingAuditLog(
@@ -4854,16 +4882,25 @@ export class AdminService {
     const context = auditContextFromAdminRequest(req);
 
     await prisma.$transaction(async (tx) => {
-      if (isInvestor && onboarding.investor_organization) {
-        await tx.investorOrganization.update({
-          where: { id: org.id },
-          data: { onboarding_approved: true },
-        });
-      } else if (!isInvestor && onboarding.issuer_organization) {
-        await tx.issuerOrganization.update({
-          where: { id: org.id },
-          data: { onboarding_approved: true },
-        });
+      const claimed = await claimOnboardingApproved({
+        organizationId: org.id,
+        portalType: isInvestor ? "investor" : "issuer",
+        db: tx,
+      });
+      if (!claimed) {
+        const latest = await readOrganizationOnboardingState(
+          tx,
+          isInvestor ? "investor" : "issuer",
+          org.id
+        );
+        if (latest?.onboarding_approved) {
+          throw new AppError(400, "ALREADY_APPROVED", "Onboarding has already been approved");
+        }
+        throw new AppError(
+          400,
+          "INVALID_STEP",
+          "Onboarding approval is only allowed when onboarding_status is PENDING_APPROVAL"
+        );
       }
 
       await advanceOnboardingStatusFromFlags({
@@ -5024,18 +5061,12 @@ export class AdminService {
         if (shouldApply) {
           const context = auditContextFromAdminRequest(req);
           await prisma.$transaction(async (tx) => {
-            if (isInvestor) {
-              await tx.investorOrganization.update({
-                where: { id: org.id },
-                data: { onboarding_approved: true },
-              });
-            } else {
-              await tx.issuerOrganization.update({
-                where: { id: org.id },
-                data: { onboarding_approved: true },
-              });
-            }
-
+            const claimed = await claimOnboardingApproved({
+              organizationId: org.id,
+              portalType: isInvestor ? "investor" : "issuer",
+              db: tx,
+            });
+            if (!claimed) return;
             await writeOnboardingAuditLog(
               {
                 eventType: "ONBOARDING_APPROVED",
@@ -5499,72 +5530,95 @@ export class AdminService {
       }
 
       // Update organization with refreshed director KYC statuses and corporate entities
-      const updateData: {
-        director_kyc_status: Prisma.InputJsonValue;
-        corporate_entities?: Prisma.InputJsonValue;
-      } = {
-        director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
-      };
-
-      if (corporateEntitiesUpdated && updatedCorporateEntities) {
-        updateData.corporate_entities = updatedCorporateEntities as Prisma.InputJsonValue;
-      }
-
-      if (isInvestor) {
-        await prisma.investorOrganization.update({
-          where: { id: org.id },
-          data: updateData,
-        });
-      } else {
-        await prisma.issuerOrganization.update({
-          where: { id: org.id },
-          data: updateData,
-        });
-      }
-
       const refreshContext = auditContextFromAdminRequest(req);
-      const directorKycDiff = directorKycMaterialChange(org.director_kyc_status, directorKycStatus);
-      if (directorKycDiff.changed) {
-        await writeOnboardingAuditLog({
-          eventType: "DIRECTOR_KYC_STATUS_UPDATED",
-          context: refreshContext,
-          subjectUserId: onboarding.user_id,
-          onboardingId,
-          organizationId: org.id,
-          organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
-          organizationType: "COMPANY",
-          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
-          targetId: org.id,
-          metadata: {
-            previousKycStatus: directorKycDiff.previousKycStatus,
-            newKycStatus: directorKycDiff.newKycStatus,
-            changedCount: directorKycDiff.changedCount,
-            directorCount: directorKycDiff.directorCount,
-          },
-        });
-      }
+      const refreshPortal = isInvestor ? "investor" : "issuer";
+      await prisma.$transaction(async (tx) => {
+        await lockOrganizationRow(tx, refreshPortal, org.id);
+        const locked =
+          isInvestor
+            ? await tx.investorOrganization.findUnique({
+                where: { id: org.id },
+                select: { director_kyc_status: true, corporate_entities: true },
+              })
+            : await tx.issuerOrganization.findUnique({
+                where: { id: org.id },
+                select: { director_kyc_status: true, corporate_entities: true },
+              });
+        if (!locked) return;
 
-      if (corporateEntitiesUpdated && updatedCorporateEntities) {
-        const entitiesDiff = diffCorporateEntities(org.corporate_entities, updatedCorporateEntities);
-        if (entitiesDiff.changed) {
-          await writeOnboardingAuditLog({
-            eventType: "CORPORATE_ENTITIES_UPDATED",
-            context: refreshContext,
-            subjectUserId: onboarding.user_id,
-            onboardingId,
-            organizationId: org.id,
-            organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
-            organizationType: "COMPANY",
-            targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
-            targetId: org.id,
-            metadata: {
-              addedCount: entitiesDiff.addedCount,
-              removedCount: entitiesDiff.removedCount,
-              updatedCount: entitiesDiff.updatedCount,
-            },
+        const directorKycDiff = directorKycMaterialChange(locked.director_kyc_status, directorKycStatus);
+        const entitiesDiff =
+          corporateEntitiesUpdated && updatedCorporateEntities
+            ? diffCorporateEntities(locked.corporate_entities, updatedCorporateEntities)
+            : { changed: false, addedCount: 0, removedCount: 0, updatedCount: 0 };
+
+        const updateData: {
+          director_kyc_status: Prisma.InputJsonValue;
+          corporate_entities?: Prisma.InputJsonValue;
+        } = {
+          director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
+        };
+        if (corporateEntitiesUpdated && updatedCorporateEntities) {
+          updateData.corporate_entities = updatedCorporateEntities as Prisma.InputJsonValue;
+        }
+
+        if (isInvestor) {
+          await tx.investorOrganization.update({
+            where: { id: org.id },
+            data: updateData,
+          });
+        } else {
+          await tx.issuerOrganization.update({
+            where: { id: org.id },
+            data: updateData,
           });
         }
-      }
+
+        if (directorKycDiff.changed) {
+          await writeOnboardingAuditLog(
+            {
+              eventType: "DIRECTOR_KYC_STATUS_UPDATED",
+              context: refreshContext,
+              subjectUserId: onboarding.user_id,
+              onboardingId,
+              organizationId: org.id,
+              organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
+              organizationType: "COMPANY",
+              targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+              targetId: org.id,
+              metadata: {
+                previousKycStatus: directorKycDiff.previousKycStatus,
+                newKycStatus: directorKycDiff.newKycStatus,
+                changedCount: directorKycDiff.changedCount,
+                directorCount: directorKycDiff.directorCount,
+              },
+            },
+            tx
+          );
+        }
+
+        if (entitiesDiff.changed) {
+          await writeOnboardingAuditLog(
+            {
+              eventType: "CORPORATE_ENTITIES_UPDATED",
+              context: refreshContext,
+              subjectUserId: onboarding.user_id,
+              onboardingId,
+              organizationId: org.id,
+              organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
+              organizationType: "COMPANY",
+              targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+              targetId: org.id,
+              metadata: {
+                addedCount: entitiesDiff.addedCount,
+                removedCount: entitiesDiff.removedCount,
+                updatedCount: entitiesDiff.updatedCount,
+              },
+            },
+            tx
+          );
+        }
+      });
 
       logger.info(
         {

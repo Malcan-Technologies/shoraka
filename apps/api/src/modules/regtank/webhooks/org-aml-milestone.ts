@@ -3,6 +3,7 @@ import { prisma } from "../../../lib/prisma";
 import { logger } from "../../../lib/logger";
 import type { PortalType } from "../types";
 import { advanceOnboardingStatusFromFlags } from "../../onboarding/utils/advance-onboarding-status";
+import { claimAmlApproved } from "../../onboarding/utils/onboarding-transition-claims";
 import { getRegTankAPIClient } from "../api-client";
 import { writeOnboardingAuditLog } from "../../onboarding/audit/writer";
 import { ONBOARDING_AUDIT_TARGET_TYPE } from "../../onboarding/audit/events";
@@ -128,19 +129,12 @@ export async function maybeAdvanceOrgAfterAmlScreeningCleared(params: {
 
   let setAmlFlag = false;
   const after = await prisma.$transaction(async (tx) => {
-    if (!org.aml_approved) {
-      if (isInvestor) {
-        await tx.investorOrganization.update({
-          where: { id: organizationId },
-          data: { aml_approved: true },
-        });
-      } else {
-        await tx.issuerOrganization.update({
-          where: { id: organizationId },
-          data: { aml_approved: true },
-        });
-      }
-      setAmlFlag = true;
+    setAmlFlag = await claimAmlApproved({
+      organizationId,
+      portalType,
+      db: tx,
+    });
+    if (setAmlFlag) {
       logger.info(
         { organizationId, trigger, onboardingStatus: previousStatus },
         "[AML milestone] Set aml_approved from confirmed RegTank approval"

@@ -27,14 +27,66 @@ const mockUserFindUnique = jest.fn(() =>
 );
 const mockRegTankOnboardingFindUnique = jest.fn(() => Promise.resolve(null));
 
+let updateChain = Promise.resolve();
+
+function matchesAmlClaimWhere(row: Record<string, unknown> | null, where: Record<string, unknown>): boolean {
+  if (!row) return false;
+  if (where.aml_approved === false && row.aml_approved !== false) return false;
+  const statusClause = where.onboarding_status as { notIn?: string[] } | undefined;
+  if (statusClause?.notIn?.includes(row.onboarding_status as string)) return false;
+  return true;
+}
+
+function serializedUpdateMany(
+  getRow: () => Record<string, unknown> | null,
+  setRow: (next: Record<string, unknown>) => void
+) {
+  return ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+    const run = async () => {
+      const rest = { ...where };
+      delete rest.id;
+      if (!matchesAmlClaimWhere(getRow(), rest)) return { count: 0 };
+      setRow({ ...(getRow() as Record<string, unknown>), ...data });
+      return { count: 1 };
+    };
+    const next = updateChain.then(run, run);
+    updateChain = next.then(
+      () => undefined,
+      () => undefined
+    );
+    return next;
+  };
+}
+
+const mockInvestorUpdateMany = jest.fn(
+  serializedUpdateMany(
+    () => investorOrg,
+    (next) => {
+      investorOrg = next;
+    }
+  )
+);
+const mockIssuerUpdateMany = jest.fn(
+  serializedUpdateMany(
+    () => issuerOrg,
+    (next) => {
+      issuerOrg = next;
+    }
+  )
+);
+
 const prismaClient = {
   investorOrganization: {
     findUnique: (...args: unknown[]) => mockInvestorFindUnique(...(args as [])),
     update: (...args: unknown[]) => mockInvestorUpdate(...(args as [{ data: Record<string, unknown> }])),
+    updateMany: (...args: unknown[]) =>
+      mockInvestorUpdateMany(...(args as [{ where: Record<string, unknown>; data: Record<string, unknown> }])),
   },
   issuerOrganization: {
     findUnique: (...args: unknown[]) => mockIssuerFindUnique(...(args as [])),
     update: (...args: unknown[]) => mockIssuerUpdate(...(args as [{ data: Record<string, unknown> }])),
+    updateMany: (...args: unknown[]) =>
+      mockIssuerUpdateMany(...(args as [{ where: Record<string, unknown>; data: Record<string, unknown> }])),
   },
   onboardingAuditLog: {
     create: (...args: unknown[]) => mockOnboardingAuditCreate(...(args as [unknown])),
@@ -88,6 +140,7 @@ beforeEach(() => {
   investorOrg = null;
   issuerOrg = null;
   onboardingAuditCreates.length = 0;
+  updateChain = Promise.resolve();
 });
 
 describe("maybeAdvanceOrgAfterAmlScreeningCleared", () => {
@@ -167,6 +220,48 @@ describe("maybeAdvanceOrgAfterAmlScreeningCleared", () => {
     });
 
     expect(mockInvestorUpdate).not.toHaveBeenCalled();
+  });
+
+  it("duplicate AML approval writes exactly one AML_APPROVED", async () => {
+    resetOrg({ onboarding_status: OnboardingStatus.PENDING_AML });
+
+    await maybeAdvanceOrgAfterAmlScreeningCleared({
+      organizationId: "org-1",
+      portalType: "investor",
+      userId: "user-1",
+      trigger: "TEST",
+    });
+    await maybeAdvanceOrgAfterAmlScreeningCleared({
+      organizationId: "org-1",
+      portalType: "investor",
+      userId: "user-1",
+      trigger: "TEST",
+    });
+
+    expect(investorOrg?.aml_approved).toBe(true);
+    expect(mockOnboardingAuditCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it("concurrent AML approval writes exactly one AML_APPROVED", async () => {
+    resetOrg({ onboarding_status: OnboardingStatus.PENDING_AML });
+
+    await Promise.all([
+      maybeAdvanceOrgAfterAmlScreeningCleared({
+        organizationId: "org-1",
+        portalType: "investor",
+        userId: "user-1",
+        trigger: "TEST",
+      }),
+      maybeAdvanceOrgAfterAmlScreeningCleared({
+        organizationId: "org-1",
+        portalType: "investor",
+        userId: "user-1",
+        trigger: "TEST",
+      }),
+    ]);
+
+    expect(investorOrg?.aml_approved).toBe(true);
+    expect(mockOnboardingAuditCreate).toHaveBeenCalledTimes(1);
   });
 });
 

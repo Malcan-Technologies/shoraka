@@ -83,13 +83,16 @@ jest.mock("../../lib/http/request-utils", () => ({
 }));
 
 const prismaTx = {
+  $queryRaw: jest.fn(() => Promise.resolve([{ id: "org-1" }])),
   investorOrganization: {
     findUnique: (...args: unknown[]) => mockInvestorOrgFindUnique(...args),
     update: (...args: unknown[]) => mockInvestorOrgUpdate(...args),
+    updateMany: jest.fn(() => Promise.resolve({ count: 1 })),
   },
   issuerOrganization: {
     findUnique: (...args: unknown[]) => mockIssuerOrgFindUnique(...args),
     update: (...args: unknown[]) => mockIssuerOrgUpdate(...args),
+    updateMany: jest.fn(() => Promise.resolve({ count: 1 })),
   },
   user: {
     findUnique: (...args: unknown[]) => mockUserFindUnique(...args),
@@ -107,10 +110,12 @@ jest.mock("../../lib/prisma", () => ({
     investorOrganization: {
       findUnique: (...args: unknown[]) => mockInvestorOrgFindUnique(...args),
       update: (...args: unknown[]) => mockInvestorOrgUpdate(...args),
+      updateMany: jest.fn(() => Promise.resolve({ count: 1 })),
     },
     issuerOrganization: {
       findUnique: (...args: unknown[]) => mockIssuerOrgFindUnique(...args),
       update: (...args: unknown[]) => mockIssuerOrgUpdate(...args),
+      updateMany: jest.fn(() => Promise.resolve({ count: 1 })),
     },
     user: {
       findUnique: (...args: unknown[]) => mockUserFindUnique(...args),
@@ -118,6 +123,7 @@ jest.mock("../../lib/prisma", () => ({
     onboardingAuditLog: {
       create: (...args: unknown[]) => mockOnboardingAuditCreate(...args),
     },
+    $queryRaw: jest.fn(() => Promise.resolve([{ id: "org-1" }])),
     $transaction: async (fn: (tx: typeof prismaTx) => Promise<unknown>) => fn(prismaTx),
   },
 }));

@@ -15,6 +15,10 @@ import {
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
 import { getIndividualWaitForApprovalUpdate } from "../helpers/individual-onboarding-transition";
 import {
+  claimLandPendingApproval,
+  claimOnboardingRejected,
+} from "../../onboarding/utils/onboarding-transition-claims";
+import {
   isCancelledOnboardingRow,
   logCancelledOnboardingSkip,
   isIndividualWebhookFamilyMatch,
@@ -183,32 +187,35 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
       } as any);
     }
 
-    // If rejected, update organization status to REJECTED and log it
+    // If rejected, claim REJECTED once (does not overwrite COMPLETED).
     if (statusUpper === "REJECTED" && organizationId) {
       const portalType = onboarding.portal_type as PortalType;
 
       try {
-        let previousStatus: OnboardingStatus | null = null;
+        const isInvestor = portalType === "investor";
+        const orgExists = isInvestor
+          ? await this.organizationRepository.findInvestorOrganizationById(organizationId)
+          : await this.organizationRepository.findIssuerOrganizationById(organizationId);
 
-        if (portalType === "investor") {
-          const orgExists = await this.organizationRepository.findInvestorOrganizationById(organizationId);
-          if (orgExists) {
-            previousStatus = orgExists.onboarding_status;
-            await this.organizationRepository.updateInvestorOrganizationOnboarding(
+        if (orgExists) {
+          const previousStatus = orgExists.onboarding_status;
+          const claimed = await prisma.$transaction(async (tx) => {
+            const won = await claimOnboardingRejected({
               organizationId,
-              OnboardingStatus.REJECTED
-            );
-
-            if (previousStatus !== OnboardingStatus.REJECTED) {
-              await writeOnboardingAuditLog({
+              portalType,
+              db: tx,
+            });
+            if (!won) return false;
+            await writeOnboardingAuditLog(
+              {
                 eventType: "ONBOARDING_REJECTED",
                 context: webhookAuditContext({
-                  portal: AUDIT_PORTAL.INVESTOR,
+                  portal: isInvestor ? AUDIT_PORTAL.INVESTOR : AUDIT_PORTAL.ISSUER,
                 }),
                 subjectUserId: onboarding.user_id,
                 onboardingId: onboarding.id,
                 organizationId,
-                organizationKind: "INVESTOR",
+                organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
                 organizationType: orgExists.type,
                 targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
                 targetId: organizationId,
@@ -218,61 +225,20 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
                   provider: "REGTANK",
                   sourceFamily: "INDIVIDUAL",
                 },
-              });
-            }
-
-            logger.info(
-              { organizationId, portalType, requestId, previousStatus },
-              "Updated investor organization status to REJECTED and logged rejection event"
+              },
+              tx
             );
+            return true;
+          });
 
-            // Send platform notification
-            try {
-              await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ONBOARDING_REJECTED, {
-                onboardingType: onboarding.onboarding_type,
-                orgName: orgExists.name || "your organization",
-              });
-            } catch (notifError) {
-              logger.error({ error: notifError, userId: onboarding.user_id }, "Failed to send rejection notification");
-            }
-          }
-        } else {
-          const orgExists = await this.organizationRepository.findIssuerOrganizationById(organizationId);
-          if (orgExists) {
-            previousStatus = orgExists.onboarding_status;
-            await this.organizationRepository.updateIssuerOrganizationOnboarding(
-              organizationId,
-              OnboardingStatus.REJECTED
-            );
+          logger.info(
+            { organizationId, portalType, requestId, previousStatus, claimed },
+            claimed
+              ? "Updated organization status to REJECTED and logged rejection event"
+              : "Skipped REJECTED org mutation (already REJECTED or COMPLETED)"
+          );
 
-            if (previousStatus !== OnboardingStatus.REJECTED) {
-              await writeOnboardingAuditLog({
-                eventType: "ONBOARDING_REJECTED",
-                context: webhookAuditContext({
-                  portal: AUDIT_PORTAL.ISSUER,
-                }),
-                subjectUserId: onboarding.user_id,
-                onboardingId: onboarding.id,
-                organizationId,
-                organizationKind: "ISSUER",
-                organizationType: orgExists.type,
-                targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
-                targetId: organizationId,
-                metadata: {
-                  previousStatus,
-                  newStatus: OnboardingStatus.REJECTED,
-                  provider: "REGTANK",
-                  sourceFamily: "INDIVIDUAL",
-                },
-              });
-            }
-
-            logger.info(
-              { organizationId, portalType, requestId, previousStatus },
-              "Updated issuer organization status to REJECTED and logged rejection event"
-            );
-
-            // Send platform notification
+          if (claimed) {
             try {
               await this.notificationService.sendTyped(onboarding.user_id, NotificationTypeIds.ONBOARDING_REJECTED, {
                 onboardingType: onboarding.onboarding_type,
@@ -325,53 +291,64 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
       const update = getIndividualWaitForApprovalUpdate({ currentOnboardingStatus: previousStatus });
 
       if (update) {
-        if (isInvestor) {
-          await this.organizationRepository.updateInvestorOrganizationOnboarding(
+        const claimed = await prisma.$transaction(async (tx) => {
+          const won = await claimLandPendingApproval({
             organizationId,
-            OnboardingStatus.PENDING_APPROVAL,
-            { resetCompanySsmGateFromRegtankWebhook: true }
+            portalType,
+            resetCompanySsmGate: true,
+            db: tx,
+          });
+          if (!won) return false;
+          await writeOnboardingAuditLog(
+            {
+              eventType: "ONBOARDING_STATUS_CHANGED",
+              context: webhookAuditContext({
+                portal: auditPortalFromLegacy(portalType),
+              }),
+              subjectUserId: onboarding.user_id,
+              onboardingId: onboarding.id,
+              organizationId,
+              organizationKind: organizationKindFromPortalType(portalType),
+              organizationType: orgExists.type,
+              targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+              targetId: organizationId,
+              metadata: {
+                previousStatus,
+                newStatus: OnboardingStatus.PENDING_APPROVAL,
+                trigger,
+              },
+            },
+            tx
           );
-        } else {
-          await this.organizationRepository.updateIssuerOrganizationOnboarding(
-            organizationId,
-            OnboardingStatus.PENDING_APPROVAL,
-            { resetCompanySsmGateFromRegtankWebhook: true }
-          );
-        }
-
-        await writeOnboardingAuditLog({
-          eventType: "ONBOARDING_STATUS_CHANGED",
-          context: webhookAuditContext({
-            portal: auditPortalFromLegacy(portalType),
-          }),
-          subjectUserId: onboarding.user_id,
-          onboardingId: onboarding.id,
-          organizationId,
-          organizationKind: organizationKindFromPortalType(portalType),
-          organizationType: orgExists.type,
-          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
-          targetId: organizationId,
-          metadata: {
-            previousStatus,
-            newStatus: OnboardingStatus.PENDING_APPROVAL,
-            trigger,
-          },
+          return true;
         });
-      }
 
-      logger.info(
-        {
-          organizationId,
-          portalType,
-          requestId,
-          previousStatus,
-          resultingOnboardingStatus: update ? OnboardingStatus.PENDING_APPROVAL : previousStatus,
-          statusUpdateApplied: Boolean(update),
-        },
-        update
-          ? `Updated ${portalType} organization status to PENDING_APPROVAL (${trigger})`
-          : `Skipped ${trigger} status update — organization already progressed past review`
-      );
+        logger.info(
+          {
+            organizationId,
+            portalType,
+            requestId,
+            previousStatus,
+            resultingOnboardingStatus: claimed ? OnboardingStatus.PENDING_APPROVAL : previousStatus,
+            statusUpdateApplied: claimed,
+          },
+          claimed
+            ? `Updated ${portalType} organization status to PENDING_APPROVAL (${trigger})`
+            : `Skipped ${trigger} status update — landing already claimed or org already past pre-review`
+        );
+      } else {
+        logger.info(
+          {
+            organizationId,
+            portalType,
+            requestId,
+            previousStatus,
+            resultingOnboardingStatus: previousStatus,
+            statusUpdateApplied: false,
+          },
+          `Skipped ${trigger} status update — organization already at PENDING_APPROVAL or past review`
+        );
+      }
     } catch (orgError) {
       logger.error(
         {

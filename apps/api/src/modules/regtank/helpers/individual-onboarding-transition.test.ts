@@ -20,11 +20,11 @@ describe("individual-onboarding-transition", () => {
       expect(update).toEqual({ nextStatus: "PENDING_APPROVAL" });
     });
 
-    it("applies (idempotently) when already at PENDING_APPROVAL", () => {
+    it("does not re-apply when already at PENDING_APPROVAL", () => {
       const update = getIndividualWaitForApprovalUpdate({
         currentOnboardingStatus: OnboardingStatus.PENDING_APPROVAL,
       });
-      expect(update).toEqual({ nextStatus: "PENDING_APPROVAL" });
+      expect(update).toBeNull();
     });
 
     it("does NOT regress an organization already at PENDING_AML", () => {

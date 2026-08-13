@@ -39,6 +39,7 @@ import { writeSecurityAuditLog } from "../security/audit/writer";
 import { SECURITY_AUDIT_TARGET_TYPE } from "../security/audit/events";
 import { writeOnboardingAuditLog } from "../onboarding/audit/writer";
 import { ONBOARDING_AUDIT_TARGET_TYPE } from "../onboarding/audit/events";
+import { claimLegacyOnboardingCompleted } from "../onboarding/utils/onboarding-transition-claims";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
 import { legalDocumentAcceptanceService } from "../legal-documents/acceptance-service";
 import { sendEmail } from "../../lib/email/ses-client";
@@ -504,22 +505,19 @@ export class OrganizationService {
     });
 
     const updatedOrg = await prisma.$transaction(async (tx) => {
+      const claimed = await claimLegacyOnboardingCompleted({
+        organizationId,
+        portalType,
+        db: tx,
+      });
+      if (!claimed) {
+        throw new AppError(400, "ALREADY_COMPLETED", "Onboarding is already completed");
+      }
+
       const next =
         portalType === "investor"
-          ? await tx.investorOrganization.update({
-              where: { id: organizationId },
-              data: {
-                onboarding_status: OnboardingStatus.COMPLETED,
-                onboarded_at: new Date(),
-              },
-            })
-          : await tx.issuerOrganization.update({
-              where: { id: organizationId },
-              data: {
-                onboarding_status: OnboardingStatus.COMPLETED,
-                onboarded_at: new Date(),
-              },
-            });
+          ? await tx.investorOrganization.findUniqueOrThrow({ where: { id: organizationId } })
+          : await tx.issuerOrganization.findUniqueOrThrow({ where: { id: organizationId } });
 
       const user = await tx.user.findUnique({
         where: { user_id: userId },
