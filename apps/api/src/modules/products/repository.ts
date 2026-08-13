@@ -2,6 +2,14 @@ import { prisma } from "../../lib/prisma";
 import { Product, Prisma } from "@prisma/client";
 import type { ProductEventType, GetProductLogsQuery, DateRangeValue } from "./schemas";
 import { normalizeAndValidateProductCode } from "../../lib/display-reference";
+import type { ProductAuditContext } from "./audit/context";
+import {
+  writeProductCreatedAudit,
+  writeProductDeletedAudit,
+  writeProductInactivatedAudit,
+  writeProductReactivatedAudit,
+  writeProductUpdatedAudit,
+} from "./audit/writer";
 
 export interface ListProductsParams {
   page: number;
@@ -30,12 +38,7 @@ export interface CreateProductData {
   product_code?: string;
 }
 
-export interface LogContext {
-  userId?: string | null;
-  ipAddress?: string | null;
-  userAgent?: string | null;
-  deviceInfo?: string | null;
-}
+export type LogContext = ProductAuditContext;
 
 function effectiveBaseId(product: { id: string; base_id?: string | null }): string {
   return product.base_id ?? product.id;
@@ -262,34 +265,9 @@ export class ProductRepository {
         },
       } as any);
 
-      // Write PRODUCT_CREATED log with the initial config snapshot.
       // Later `completeCreate` calls write PRODUCT_UPDATED (not PRODUCT_CREATED) to avoid duplicates.
-      if (logContext?.userId) {
-        const createdAny = created as any;
-        await tx.productLog.create({
-          data: {
-            user_id: logContext.userId,
-            product_id: created.id,
-            event_type: "PRODUCT_CREATED",
-            ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-            user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-            device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
-            metadata: {
-              workflow: JSON.parse(JSON.stringify(createdAny.workflow)),
-              category_display_order: createdAny.category_display_order ?? null,
-              product_display_order: createdAny.product_display_order ?? null,
-              marketplace_listing_duration_days: createdAny.marketplace_listing_duration_days ?? null,
-              service_fee_rate_percent: createdAny.service_fee_rate_percent ?? null,
-              default_facility_fee_rate_percent: createdAny.default_facility_fee_rate_percent ?? null,
-              product_code: normalizedProductCode ?? null,
-              version: createdAny.version ?? null,
-              base_id: createdAny.base_id ?? created.id ?? null,
-              status: createdAny.status ?? null,
-              product_created_at: createdAny.created_at?.toISOString?.() ?? null,
-              product_updated_at: createdAny.updated_at?.toISOString?.() ?? null,
-            } as Prisma.InputJsonValue,
-          },
-        } as any);
+      if (logContext) {
+        await writeProductCreatedAudit(tx, finalized, logContext);
       }
 
       return finalized;
@@ -349,10 +327,15 @@ export class ProductRepository {
       workflowUnchanged &&
       marketplaceListingDurationUnchanged &&
       serviceFeeRatePercentUnchanged &&
-      defaultFacilityFeeRatePercentUnchanged &&
-      normalizedRequestedProductCode === undefined
+      defaultFacilityFeeRatePercentUnchanged
     ) {
-      return current;
+      if (normalizedRequestedProductCode === undefined) {
+        return current;
+      }
+      const familyCode = await getFamilyProductCode(prisma, effectiveBaseId(current));
+      if (normalizedRequestedProductCode === familyCode) {
+        return current;
+      }
     }
 
     /** completeCreate: first update after create (merge image/template keys). In-place update only; no new version row. */
@@ -408,34 +391,8 @@ export class ProductRepository {
           },
         } as any);
 
-        if (logContext?.userId) {
-          const updatedAny = updated as any;
-          const metadata = {
-            workflow: JSON.parse(JSON.stringify(updatedAny.workflow)),
-            category_display_order: updatedAny.category_display_order ?? null,
-            product_display_order: updatedAny.product_display_order ?? null,
-            marketplace_listing_duration_days: updatedAny.marketplace_listing_duration_days ?? null,
-            service_fee_rate_percent: updatedAny.service_fee_rate_percent ?? null,
-            default_facility_fee_rate_percent: updatedAny.default_facility_fee_rate_percent ?? null,
-            product_code: nextFamilyCode ?? null,
-            version: updatedAny.version,
-            base_id: updatedAny.base_id ?? null,
-            status: updatedAny.status ?? null,
-            product_created_at: updatedAny.created_at.toISOString(),
-            product_updated_at: updatedAny.updated_at.toISOString(),
-            replaced_product_id: null,
-          };
-          await tx.productLog.create({
-            data: {
-              user_id: logContext.userId,
-              product_id: updated.id,
-              event_type: "PRODUCT_UPDATED",
-              ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-              user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-              device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
-              metadata: metadata as Prisma.InputJsonValue,
-            },
-          } as any);
+        if (logContext) {
+          await writeProductUpdatedAudit(tx, current, updated, logContext);
         }
         return updated;
       });
@@ -569,34 +526,14 @@ export class ProductRepository {
         });
       }
 
-      if (logContext?.userId) {
-        const createdAny = created as any;
-        const metadata = {
-          workflow: JSON.parse(JSON.stringify(createdAny.workflow)),
-          category_display_order: createdAny.category_display_order ?? null,
-          product_display_order: createdAny.product_display_order ?? null,
-          marketplace_listing_duration_days: createdAny.marketplace_listing_duration_days ?? null,
-          service_fee_rate_percent: createdAny.service_fee_rate_percent ?? null,
-          default_facility_fee_rate_percent: createdAny.default_facility_fee_rate_percent ?? null,
-          product_code: nextFamilyCode ?? null,
-          version: createdAny.version,
-          base_id: createdAny.base_id ?? null,
-          status: createdAny.status ?? null,
-          product_created_at: createdAny.created_at.toISOString(),
-          product_updated_at: createdAny.updated_at.toISOString(),
-          replaced_product_id: id,
-        };
-        await tx.productLog.create({
-          data: {
-            user_id: logContext.userId,
-            product_id: created.id,
-            event_type: "PRODUCT_UPDATED",
-            ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-            user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-            device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
-            metadata: metadata as Prisma.InputJsonValue,
-          },
-        } as any);
+      if (logContext) {
+        if (current.status !== "INACTIVE") {
+          await writeProductInactivatedAudit(tx, current, logContext, {
+            replacedByProductId: created.id,
+            replacedByVersion: created.version,
+          });
+        }
+        await writeProductUpdatedAudit(tx, current, created, logContext, { versioned: true });
       }
 
       return created;
@@ -604,44 +541,16 @@ export class ProductRepository {
   }
 
   async delete(id: string, logContext?: LogContext): Promise<Product> {
-    // Perform delete inside transaction and snapshot metadata before deletion when logContext provided
-    if (logContext?.userId) {
+    if (logContext) {
       return await prisma.$transaction(async (tx) => {
         const current = await tx.product.findUnique({ where: { id } });
         if (!current) {
           throw new Error("Product not found");
         }
-        const currentAny = current as any;
-        const metadata = {
-          workflow: JSON.parse(JSON.stringify(currentAny.workflow)),
-          category_display_order: currentAny.category_display_order ?? null,
-          product_display_order: currentAny.product_display_order ?? null,
-          marketplace_listing_duration_days: currentAny.marketplace_listing_duration_days ?? null,
-          version: currentAny.version,
-          base_id: currentAny.base_id ?? null,
-          status: currentAny.status ?? null,
-          product_created_at: currentAny.created_at.toISOString(),
-          product_updated_at: currentAny.updated_at.toISOString(),
-          replaced_product_id: null,
-        };
-        // create log before soft-delete so snapshot represents persisted state
-        await tx.productLog.create({
-          data: {
-            user_id: logContext.userId,
-            product_id: current.id,
-            event_type: "PRODUCT_DELETED",
-            ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-            user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-            device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
-            metadata: metadata as Prisma.InputJsonValue,
-          },
-        } as any);
-
-        // soft-delete: mark status and deleted_at
+        await writeProductDeletedAudit(tx, current, logContext);
         return tx.product.update({
           where: { id },
           data: {
-            // Note: cast to any as Prisma client may need regen
             status: "DELETED" as any,
             deleted_at: new Date(),
           },
@@ -649,7 +558,6 @@ export class ProductRepository {
       });
     }
 
-    // non-logged path: perform soft-delete update
     return prisma.product.update({
       where: { id },
       data: {
@@ -659,79 +567,54 @@ export class ProductRepository {
     } as any);
   }
 
-  // Helper: mark product inactive (manual/future hide action)
   async setInactive(id: string, logContext?: LogContext): Promise<Product> {
-    const current = await prisma.product.findUnique({ where: { id } });
-    const updated = await prisma.product.update({
-      where: { id },
-      data: {
-        status: "INACTIVE" as any,
-      },
-    } as any);
-
-    if (logContext?.userId && current) {
-      const currentAny = current as any;
-      await prisma.productLog.create({
-        data: {
-          user_id: logContext.userId,
-          product_id: updated.id,
-          event_type: "PRODUCT_INACTIVATED",
-          ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-          user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-          device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
-          metadata: {
-            previous_status: currentAny.status ?? null,
-            new_status: "INACTIVE",
-            version: currentAny.version ?? null,
-            base_id: currentAny.base_id ?? null,
-            product_created_at: currentAny.created_at?.toISOString?.() ?? null,
-            product_updated_at: currentAny.updated_at?.toISOString?.() ?? null,
-          } as Prisma.InputJsonValue,
-        },
-      });
-    }
-
-    return updated;
+    return prisma.$transaction(async (tx) => {
+      const current = await tx.product.findUnique({ where: { id } });
+      if (!current) {
+        throw new Error("Product not found");
+      }
+      if (current.status === "INACTIVE") {
+        return current;
+      }
+      const updated = await tx.product.update({
+        where: { id },
+        data: { status: "INACTIVE" as any },
+      } as any);
+      if (logContext) {
+        await writeProductInactivatedAudit(tx, current, logContext);
+      }
+      return updated;
+    });
   }
 
-  // Helper: restore product to ACTIVE (undo soft-delete)
   async restoreProduct(id: string, logContext?: LogContext): Promise<Product> {
-    const current = await prisma.product.findUnique({ where: { id } });
-    const updated = await prisma.product.update({
-      where: { id },
-      data: {
-        status: "ACTIVE" as any,
-        deleted_at: null,
-      },
-    } as any);
-
-    if (logContext?.userId && current) {
-      const currentAny = current as any;
-      await prisma.productLog.create({
+    return prisma.$transaction(async (tx) => {
+      const current = await tx.product.findUnique({ where: { id } });
+      if (!current) {
+        throw new Error("Product not found");
+      }
+      if (current.status === "ACTIVE" && current.deleted_at == null) {
+        return current;
+      }
+      const updated = await tx.product.update({
+        where: { id },
         data: {
-          user_id: logContext.userId,
-          product_id: updated.id,
-          event_type: "PRODUCT_REACTIVATED",
-          ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-          user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-          device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
-          metadata: {
-            previous_status: currentAny.status ?? null,
-            new_status: "ACTIVE",
-            version: currentAny.version ?? null,
-            base_id: currentAny.base_id ?? null,
-            product_created_at: currentAny.created_at?.toISOString?.() ?? null,
-            product_updated_at: currentAny.updated_at?.toISOString?.() ?? null,
-          } as Prisma.InputJsonValue,
+          status: "ACTIVE" as any,
+          deleted_at: null,
         },
-      });
-    }
-
-    return updated;
+      } as any);
+      if (logContext) {
+        await writeProductReactivatedAudit(tx, current, logContext);
+      }
+      return updated;
+    });
   }
 
   /**
-   * Hard delete for failed creation rollback only. Removes product_logs and product.
+   * Hard delete for failed creation rollback only.
+   * Removes leftover product_logs (legacy) and the Product row.
+   * ProductAuditLog is append-only and is intentionally NOT deleted: PRODUCT_CREATED
+   * / PRODUCT_UPDATED rows may remain for a product_id that no longer exists.
    * Do NOT use for admin-initiated delete (use delete() for soft delete).
    */
   async hardDeleteForFailedCreate(id: string): Promise<void> {

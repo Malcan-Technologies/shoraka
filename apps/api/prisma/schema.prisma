@@ -1754,6 +1754,36 @@ model ProductLog {
   @@map("product_logs")
 }
 
+/// Append-only Product lifecycle/configuration audit. No Product or User FK:
+/// stored ids are historical evidence and must survive Product/User deletion.
+model ProductAuditLog {
+  id                String   @id @default(cuid())
+  product_id        String
+  event_type        String
+  occurred_at       DateTime @default(now())
+  created_at        DateTime @default(now())
+  actor_type        String
+  actor_user_id     String?
+  organization_id   String?
+  organization_kind String?
+  target_type       String
+  target_id         String
+  source            String
+  portal            String?
+  ip_address        String?
+  user_agent        String?
+  correlation_id    String?
+  idempotency_key   String?
+  metadata          Json
+
+  @@index([product_id, occurred_at])
+  @@index([event_type, occurred_at])
+  @@index([actor_user_id, occurred_at])
+  @@index([target_type, target_id, occurred_at])
+  @@index([correlation_id])
+  @@map("product_audit_logs")
+}
+
 model ApplicationLog {
   id             String  @id @default(cuid())
   user_id        String

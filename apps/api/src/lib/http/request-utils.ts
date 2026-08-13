@@ -61,6 +61,25 @@ export function getDeviceInfo(req: Request): string {
   return `${browser} on ${os}`;
 }
 
+/** Derive a display Device string from a stored user-agent. Null when missing. */
+export function formatDeviceInfoFromUserAgent(userAgent: string | null | undefined): string | null {
+  if (!userAgent || !userAgent.trim()) return null;
+  const parser = new UAParser(userAgent);
+  const result = parser.getResult();
+
+  const browser =
+    result.browser.name && result.browser.version
+      ? `${result.browser.name} ${result.browser.version}`
+      : result.browser.name || "Unknown Browser";
+
+  const os =
+    result.os.name && result.os.version
+      ? `${result.os.name} ${result.os.version}`
+      : result.os.name || "Unknown OS";
+
+  return `${browser} on ${os}`;
+}
+
 /**
  * Get simplified device type for display purposes
  * Returns simplified names like "Windows Desktop", "iPhone", "Mac Desktop"

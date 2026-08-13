@@ -892,29 +892,41 @@ export interface DownloadUrlResponse {
   fileSize: number;
 }
 
-// Product Logs
+// Product Logs (admin audit reader — sourced from ProductAuditLog)
 export type ProductEventType =
   | "PRODUCT_CREATED"
   | "PRODUCT_UPDATED"
+  | "PRODUCT_INACTIVATED"
+  | "PRODUCT_REACTIVATED"
   | "PRODUCT_DELETED";
 
-export interface ProductLogUser {
-  first_name: string;
-  last_name: string;
-  email: string;
+export interface ProductAuditActor {
+  type: string;
+  userId: string | null;
+  displayName?: string | null;
+  email?: string | null;
+}
+
+export interface ProductAuditTarget {
+  type: "PRODUCT";
+  id: string;
 }
 
 export interface ProductLogResponse {
   id: string;
-  user_id: string;
-  user: ProductLogUser;
-  product_id: string | null;
-  event_type: ProductEventType;
-  ip_address: string | null;
-  user_agent: string | null;
-  device_info: string | null;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
+  eventType: ProductEventType;
+  occurredAt: string;
+  createdAt: string;
+  actor: ProductAuditActor;
+  target: ProductAuditTarget;
+  productId: string;
+  source: string;
+  portal: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  deviceInfo: string | null;
+  correlationId: string | null;
+  metadata: Record<string, unknown>;
 }
 
 export interface GetProductLogsParams extends PaginationParams {

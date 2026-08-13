@@ -13,12 +13,12 @@ import {
   updateProductBodySchema,
 } from "./schemas";
 import { validateFinancialConfig, applyFinancialDefaults } from "./validate-financial-config";
-import { getClientIp, getDeviceInfo } from "../../lib/http/request-utils";
 import {
   getProductS3KeysFromWorkflow,
   getReplacedProductS3Keys,
 } from "./log/service";
 import { getLockedProductCodes } from "./product-family";
+import { auditContextFromAdminRequest } from "./audit/context";
 
 const router = Router();
 const productRepository = new ProductRepository();
@@ -116,9 +116,6 @@ router.post("/", requirePermission("products.manage"), async (req: Request, res:
     validateFinancialConfig({
       workflow: validated.workflow,
     });
-    const userId = req.user?.user_id ?? null;
-    const ip = getClientIp(req) ?? null;
-    const deviceInfo = getDeviceInfo(req) ?? null;
     const product = await productRepository.create(
       {
         workflow: validated.workflow,
@@ -128,7 +125,7 @@ router.post("/", requirePermission("products.manage"), async (req: Request, res:
         default_facility_fee_rate_percent: validated.default_facility_fee_rate_percent ?? undefined,
         product_code: validated.product_code ?? undefined,
       },
-      { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo: deviceInfo ?? null }
+      auditContextFromAdminRequest(req, res)
     );
     res.status(201).json({
       success: true,
@@ -199,9 +196,6 @@ router.patch("/:id", requirePermission("products.manage"), async (req: Request, 
         ? getReplacedProductS3Keys(oldWorkflow, validated.workflow)
         : [];
 
-    const userId = req.user?.user_id ?? null;
-    const ip = getClientIp(req) ?? null;
-    const deviceInfo = getDeviceInfo(req) ?? null;
     const product = await productRepository.update(
       id,
       {
@@ -212,7 +206,7 @@ router.patch("/:id", requirePermission("products.manage"), async (req: Request, 
         default_facility_fee_rate_percent: validated.default_facility_fee_rate_percent ?? undefined,
         product_code: validated.product_code ?? undefined,
       },
-      { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo }
+      auditContextFromAdminRequest(req, res)
     );
 
     for (const key of keysToDelete) {
@@ -305,10 +299,7 @@ router.delete("/:id", requirePermission("products.manage"), async (req: Request,
     // keysToDelete intentionally preserved for manual cleanup reference
     void keysToDelete;
 
-    const userId = req.user?.user_id ?? null;
-    const ip = getClientIp(req) ?? null;
-    const deviceInfo = getDeviceInfo(req) ?? null;
-    await productRepository.delete(id, { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo });
+    await productRepository.delete(id, auditContextFromAdminRequest(req, res));
 
     // NOTE: products are soft-deleted now. Do NOT delete S3 assets as part of DELETE API.
     // The following S3 cleanup is intentionally commented out and preserved for manual/emergency use only.

@@ -6,12 +6,21 @@ import {
   getProductLogsQuerySchema,
   exportProductLogsQuerySchema,
 } from "../schemas";
+import type { ProductAuditLogDto } from "../audit/reader";
 
 const router = Router();
 
+function productNameFromMetadata(metadata: Record<string, unknown>): string {
+  return typeof metadata.productName === "string" ? metadata.productName : "";
+}
+
+function actorDisplayName(log: ProductAuditLogDto): string {
+  return log.actor.displayName || log.actor.userId || "";
+}
+
 /**
  * GET /v1/admin/product-logs
- * List product logs with pagination and filters
+ * List product audit logs with pagination and filters.
  */
 router.get(
   "/",
@@ -41,7 +50,7 @@ router.get(
 
 /**
  * GET /v1/admin/product-logs/export
- * Export product logs as CSV or JSON
+ * Export product audit logs as CSV or JSON.
  */
 router.get(
   "/export",
@@ -70,40 +79,21 @@ router.get(
           "Device",
           "Metadata",
         ];
-        const rows = logs.map((log: unknown) => {
-          const logItem = log as {
-            created_at: Date;
-            user: { first_name: string; last_name: string; email: string };
-            event_type: string;
-            product_id: string | null;
-            ip_address: string | null;
-            device_info: string | null;
-            metadata: Record<string, unknown> | null;
-          };
-          const meta = logItem.metadata ?? {};
-          const productName =
-            (typeof meta.product_name === "string" ? meta.product_name : null) ??
-            (typeof meta.name === "string" ? meta.name : null) ??
-            "";
-          return [
-            logItem.created_at.toISOString(),
-            `${logItem.user.first_name} ${logItem.user.last_name}`,
-            logItem.user.email,
-            logItem.event_type,
-            productName,
-            logItem.product_id || "",
-            logItem.ip_address || "",
-            logItem.device_info || "",
-            JSON.stringify(logItem.metadata || {}),
-          ];
-        });
+        const rows = logs.map((log) => [
+          log.occurredAt,
+          actorDisplayName(log),
+          log.actor.email || "",
+          log.eventType,
+          productNameFromMetadata(log.metadata),
+          log.productId,
+          log.ipAddress || "",
+          log.deviceInfo || "",
+          JSON.stringify(log.metadata),
+        ]);
 
         const csvContent = [
           headers.join(","),
-          ...rows.map((row: unknown) => {
-            const rowArray = row as unknown[];
-            return rowArray.map((cell: unknown) => `"${String(cell).replace(/"/g, '""')}"`).join(",");
-          }),
+          ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")),
         ].join("\n");
 
         res.setHeader("Content-Type", "text/csv; charset=utf-8");
@@ -113,58 +103,12 @@ router.get(
         );
         res.send(Buffer.from(csvContent, "utf-8"));
       } else {
-        // JSON format
-        const jsonData = logs.map((log: unknown) => {
-          const logItem = log as {
-            id: string;
-            user_id: string;
-            user: {
-              first_name: string;
-              last_name: string;
-              email: string;
-              roles: unknown;
-            };
-            product_id: string | null;
-            event_type: string;
-            ip_address: string | null;
-            user_agent: string | null;
-            device_info: string | null;
-            metadata: Record<string, unknown> | null;
-            created_at: Date;
-          };
-          const meta = logItem.metadata ?? {};
-          const workflow = (meta.workflow as unknown[]) ?? [];
-          const first = workflow[0] as { config?: { name?: string; type?: { name?: string } } } | undefined;
-          const productName =
-            (typeof first?.config?.name === "string" ? first.config.name : null) ??
-            (typeof first?.config?.type?.name === "string" ? first?.config?.type?.name : null) ??
-            null;
-          return {
-            id: logItem.id,
-            user_id: logItem.user_id,
-            user: {
-              first_name: logItem.user.first_name,
-              last_name: logItem.user.last_name,
-              email: logItem.user.email,
-              roles: logItem.user.roles,
-            },
-            product_id: logItem.product_id,
-            product_name: productName,
-            event_type: logItem.event_type,
-            ip_address: logItem.ip_address,
-            user_agent: logItem.user_agent,
-            device_info: logItem.device_info,
-            metadata: logItem.metadata,
-            created_at: logItem.created_at.toISOString(),
-          };
-        });
-
         res.setHeader("Content-Type", "application/json; charset=utf-8");
         res.setHeader(
           "Content-Disposition",
           `attachment; filename="product-logs-${new Date().toISOString().split("T")[0]}.json"`
         );
-        res.json(jsonData);
+        res.json(logs);
       }
     } catch (error) {
       next(
@@ -177,4 +121,3 @@ router.get(
 );
 
 export const productLogRouter = router;
-

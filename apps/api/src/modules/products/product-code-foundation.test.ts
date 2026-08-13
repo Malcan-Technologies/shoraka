@@ -12,6 +12,11 @@ const mockTx: any = {
   },
   productLog: {
     create: jest.fn(),
+    deleteMany: jest.fn(),
+  },
+  productAuditLog: {
+    create: jest.fn(),
+    deleteMany: jest.fn(),
   },
 };
 
@@ -54,6 +59,7 @@ describe("ProductRepository product_code foundation", () => {
     mockTx.product.update.mockReset();
     mockTx.product.updateMany.mockReset();
     mockTx.productLog.create.mockReset();
+    mockTx.productAuditLog.create.mockReset();
     mockTx.displayReferenceAllocation.findFirst.mockReset();
     mockPrisma.product.findUnique.mockReset();
 

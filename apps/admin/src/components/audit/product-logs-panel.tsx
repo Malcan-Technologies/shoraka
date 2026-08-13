@@ -42,6 +42,8 @@ import { DATE_RANGES } from "@cashsouk/config";
 const PRODUCT_EVENT_TYPES: { value: ProductEventType; label: string; color: string }[] = [
   { value: "PRODUCT_CREATED", label: "Created", color: "bg-green-500" },
   { value: "PRODUCT_UPDATED", label: "Updated", color: "bg-blue-500" },
+  { value: "PRODUCT_INACTIVATED", label: "Inactivated", color: "bg-amber-500" },
+  { value: "PRODUCT_REACTIVATED", label: "Reactivated", color: "bg-violet-500" },
   { value: "PRODUCT_DELETED", label: "Deleted", color: "bg-red-500" },
 ];
 
@@ -284,39 +286,32 @@ export function ProductLogsPanel() {
               </TableRow>
             ) : (
               logs.map((log) => {
-                const metadata = log.metadata as Record<string, unknown> | null;
-                const workflow = (metadata?.workflow as unknown[]) ?? [];
-                const first = workflow[0] as
-                  | { config?: { name?: string; type?: { name?: string } } }
-                  | undefined;
+                const metadata = log.metadata ?? {};
                 const productName =
-                  (first?.config?.name as string) ||
-                  (first?.config?.type?.name as string) ||
-                  "";
-                const productId = log.product_id ?? "";
+                  typeof metadata.productName === "string" ? metadata.productName : "";
+                const productId = log.productId;
+                const actorName = log.actor.displayName || log.actor.userId || "—";
+                const actorEmail = log.actor.email || "";
 
                 return (
                   <TableRow key={log.id}>
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                      {formatDate(log.created_at)}
+                      {formatDate(log.occurredAt)}
                     </TableCell>
                     <TableCell className="text-sm min-w-[180px] max-w-[280px]">
                       <div className="min-w-0">
-                        <p
-                          className="font-medium text-sm truncate"
-                          title={`${log.user.first_name} ${log.user.last_name}`}
-                        >
-                          {log.user.first_name} {log.user.last_name}
+                        <p className="font-medium text-sm truncate" title={actorName}>
+                          {actorName}
                         </p>
                         <p
                           className="text-xs text-muted-foreground truncate"
-                          title={log.user.email}
+                          title={actorEmail || undefined}
                         >
-                          {log.user.email}
+                          {actorEmail || "—"}
                         </p>
                       </div>
                     </TableCell>
-                    <TableCell>{getEventTypeBadge(log.event_type)}</TableCell>
+                    <TableCell>{getEventTypeBadge(log.eventType)}</TableCell>
                     <TableCell className="text-sm">
                       <div className="max-w-[250px] min-w-[140px]">
                         <p
@@ -336,10 +331,10 @@ export function ProductLogsPanel() {
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {log.ip_address || "—"}
+                      {log.ipAddress || "—"}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
-                      {log.device_info || "—"}
+                      {log.deviceInfo || "—"}
                     </TableCell>
                   </TableRow>
                 );
