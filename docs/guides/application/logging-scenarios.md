@@ -43,7 +43,7 @@ ADMIN PORTAL (Admin actions)
   --------------------------------- ----------------------------------- ------
   Reset to under review             APPLICATION_RESET_TO_UNDER_REVIEW    Timeline
   Reject application               APPLICATION_REJECTED                   Timeline
-  Send amendment request to issuer  AMENDMENTS_SUBMITTED                   Timeline
+  Send amendment request to issuer  APPLICATION_AMENDMENTS_REQUESTED       Timeline
   Approve section                   SECTION_REVIEWED_APPROVED            Timeline
   Reject section                    SECTION_REVIEWED_REJECTED            Timeline
   Request amendment (section)       SECTION_REVIEWED_AMENDMENT_REQUESTED    Timeline

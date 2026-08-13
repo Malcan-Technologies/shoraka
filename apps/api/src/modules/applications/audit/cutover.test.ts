@@ -110,6 +110,7 @@ describe("Application audit cutover", () => {
     expect(chunk).toMatch(/applicationReviewRemark\.findMany/);
     expect(chunk).not.toMatch(/applicationLog\.find/);
     expect(chunk).not.toMatch(/applicationAuditLog\.find/);
+    expect(chunk).not.toMatch(/applicationReviewEvent/);
   });
 
   it("application-domain writers no longer create ApplicationLog rows", () => {
@@ -161,13 +162,20 @@ describe("Application audit cutover", () => {
     expect(schema).toMatch(/model ApplicationAuditLog/);
     expect(schema).toMatch(/@@map\("application_audit_logs"\)/);
     expect(schema).toMatch(/model SigningAuditLog/);
-    expect(schema).toMatch(/model ApplicationReviewEvent/);
+    expect(schema).not.toMatch(/model ApplicationReviewEvent/);
+    expect(schema).not.toMatch(/@@map\("application_review_events"\)/);
     expect(fs.existsSync(path.join(srcRoot, "modules/applications/logs/repository.ts"))).toBe(false);
     expect(fs.existsSync(path.join(srcRoot, "modules/applications/logs/service.ts"))).toBe(false);
     expect(fs.existsSync(path.join(srcRoot, "modules/applications/logs/types.ts"))).toBe(false);
     expect(liveApplicationSources).not.toMatch(/prisma\.applicationLog/);
     expect(liveApplicationSources).not.toMatch(/logApplicationActivity/);
     expect(liveApplicationSources).not.toMatch(/createApplicationLog/);
+    expect(liveApplicationSources).not.toMatch(/applicationReviewEvent\.create/);
+    expect(liveApplicationSources).not.toMatch(/prisma\.applicationReviewEvent/);
+    expect(liveApplicationSources).not.toMatch(/tx\.applicationReviewEvent/);
+    expect(liveApplicationSources).not.toMatch(/application_review_events/);
+    expect(adminService).not.toMatch(/event_type: "AMENDMENTS_SUBMITTED"/);
+    expect(liveApplicationSources).not.toMatch(/AMENDMENTS_SUBMITTED/);
   });
 
   it("implements the approved application lifecycle events", () => {

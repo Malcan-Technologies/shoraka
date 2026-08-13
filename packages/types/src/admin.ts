@@ -1343,19 +1343,6 @@ export interface AddPendingAmendmentParams {
   itemId?: string;
 }
 
-export interface ApplicationReviewEvent {
-  id: string;
-  application_id: string;
-  event_type: string;
-  scope: string | null;
-  scope_key: string | null;
-  old_status: string | null;
-  new_status: string;
-  reviewer_user_id: string | null;
-  remark: string | null;
-  created_at: string;
-}
-
 export interface ReviewItemActionPayload {
   itemType: "invoice" | "document";
   itemId: string;

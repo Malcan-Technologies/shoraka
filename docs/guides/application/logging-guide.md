@@ -123,7 +123,7 @@ Step 4: Admin wants changes. Clicks "Request amendment" on a section.
 Step 5: Admin sends the amendment request to the issuer.
 
   What happens: Issuer gets a notification. They must resubmit.
-  Log created: AMENDMENTS_SUBMITTED
+  Log created: APPLICATION_AMENDMENTS_REQUESTED
   Who: The admin
   Portal: ADMIN
   Where it shows: Activity timeline

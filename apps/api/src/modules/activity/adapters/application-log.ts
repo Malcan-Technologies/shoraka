@@ -308,7 +308,6 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
       case "APPLICATION_COMPLETED":
         return applicationRef ? `${this.capitalize(applicationRef)} completed successfully.` : fallbackDescription;
       case "APPLICATION_AMENDMENTS_REQUESTED":
-      case "AMENDMENTS_SUBMITTED":
         return applicationRef
           ? `We need updates to ${applicationRef} before it can continue.`
           : fallbackDescription;
@@ -605,10 +604,6 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
         description: "An invoice linked to this application was withdrawn.",
       },
       ["APPLICATION_AMENDMENTS_REQUESTED"]: {
-        title: "Changes Requested",
-        description: "We need updates to your application before it can continue.",
-      },
-      ["AMENDMENTS_SUBMITTED"]: {
         title: "Changes Requested",
         description: "We need updates to your application before it can continue.",
       },

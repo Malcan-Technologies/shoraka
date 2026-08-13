@@ -1342,23 +1342,6 @@ export default function DynamicApplicationDetailPage() {
 
                   <RecentActivityCard
                     reviewTabSections={reviewSections}
-                    events={
-                      (app.application_review_events as {
-                        event_type: string;
-                        scope_key: string | null;
-                        new_status: string;
-                        remark: string | null;
-                        created_at: string;
-                      }[]) ?? []
-                    }
-                    remarks={
-                      (app.application_review_remarks as {
-                        scope_key: string;
-                        action_type: string;
-                        remark: string;
-                        created_at: string;
-                      }[]) ?? []
-                    }
                     applicationId={applicationId}
                     productKey={productKey}
                     sectionLabelOverrides={isInvoiceOnly ? { contract_details: "Customer" } : undefined}

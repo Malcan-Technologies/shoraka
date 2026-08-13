@@ -135,7 +135,7 @@ All event types that can appear on the merged application timeline (`Application
 
 | Event Type | Source | Portal | Description |
 |------------|--------|--------|-------------|
-| `AMENDMENTS_SUBMITTED` | admin/service | ADMIN | Admin sends amendment request(s) to issuer |
+| `APPLICATION_AMENDMENTS_REQUESTED` | admin/service | ADMIN | Admin sends amendment request(s) to issuer |
 
 ### Offer phase deadline lapse (cron)
 

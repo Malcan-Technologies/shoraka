@@ -203,6 +203,7 @@ describe("Signing audit cutover", () => {
     expect(schema).not.toMatch(/@@map\("application_logs"\)/);
     expect(schema).toMatch(/model SigningAuditLog/);
     expect(schema).toMatch(/model ApplicationAuditLog/);
-    expect(schema).toMatch(/model ApplicationReviewEvent/);
+    expect(schema).not.toMatch(/model ApplicationReviewEvent/);
+    expect(schema).not.toMatch(/@@map\("application_review_events"\)/);
   });
 });

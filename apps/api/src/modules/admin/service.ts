@@ -8285,17 +8285,6 @@ export class AdminService {
         },
       });
 
-      await tx.applicationReviewEvent.create({
-        data: {
-          application_id: applicationId,
-          event_type: "CONTRACT_OFFER_SENT",
-          scope: "section",
-          scope_key: "contract_details",
-          new_status: "OFFER_SENT",
-          reviewer_user_id: reviewerUserId,
-          remark: `Contract offer sent: ${offeredFacility}`,
-        },
-      });
       await tx.application.update({
         where: { id: applicationId },
         data: { status: ApplicationStatus.CONTRACT_SENT },
@@ -8734,16 +8723,6 @@ export class AdminService {
         }
       }
 
-      await tx.applicationReviewEvent.create({
-        data: {
-          application_id: applicationId,
-          event_type: "INVOICE_OFFER_SENT",
-          scope: "item",
-          scope_key: scopeKey,
-          new_status: "OFFER_SENT",
-          reviewer_user_id: reviewerUserId,
-        },
-      });
       const invoiceStatuses = (
         await tx.invoice.findMany({
           where: { application_id: applicationId },
@@ -10740,16 +10719,6 @@ export class AdminService {
       await tx.application.update({
         where: { id: applicationId },
         data: { status: ApplicationStatus.AMENDMENT_REQUESTED },
-      });
-
-      await tx.applicationReviewEvent.create({
-        data: {
-          application_id: applicationId,
-          event_type: "AMENDMENTS_SUBMITTED",
-          new_status: "AMENDMENT_REQUESTED",
-          reviewer_user_id: reviewerUserId,
-          remark: `${pending.length} amendment(s) sent to issuer`,
-        },
       });
 
       const affectedSections = [
