@@ -90,74 +90,15 @@ Full step-by-step with code examples: **docs/guides/add-a-product-workflow-step.
 - **Validation and payload for Save:** `apps/admin/src/app/settings/products/workflow-builder/product-form-helpers.ts`
 - **Data (fetch, create, update):** `apps/admin/src/app/settings/products/hooks/use-products.ts`
 - **Backend:** `apps/api/src/modules/products/` (controller, repository)
-- **Product logs (audit):** `apps/api/src/modules/products/product-log.ts` — builds metadata; controller writes a row on create/update/delete.
+- **Product audit:** `apps/api/src/modules/products/audit/` writes `ProductAuditLog` (`product_audit_logs`). Admin UI: `/audit?tab=products`. See `docs/audit/product-audit-log.md`.
 
 ---
 
-## Product logs (audit) – when and what metadata
+## Product audit
 
-Every create, update, or delete of a product writes one row to `product_logs`. The **metadata** column stores a JSON object. Its shape is the same as the product: a **workflow** snapshot plus a few top-level fields.
+Product create, versioned update, in-place `completeCreate` update, inactivate, reactivate, and soft-delete write append-only `ProductAuditLog` rows (not `product_logs`; that table has been removed).
 
-### When each log is written
+Events: `PRODUCT_CREATED`, `PRODUCT_UPDATED`, `PRODUCT_INACTIVATED`, `PRODUCT_REACTIVATED`, `PRODUCT_DELETED`.
 
-| Event              | When it runs                          |
-|--------------------|----------------------------------------|
-| `PRODUCT_CREATED`  | Right after `POST /v1/products` succeeds. |
-| `PRODUCT_UPDATED`  | Right after `PATCH /v1/products/:id` succeeds. |
-| `PRODUCT_DELETED`  | Right before the product row is deleted (`DELETE /v1/products/:id`). |
+Readers: `GET /v1/admin/product-logs` and `/export`. Product name is `metadata.productName` (snapshot at event time). Failed-create rollback hard-deletes the Product row and does not delete audit history.
 
-### What is always in metadata
-
-| Field     | Type   | Meaning |
-|-----------|--------|--------|
-| `workflow` | array  | Snapshot of the product’s workflow at that moment. Same structure as when you create/edit: `[{ id: "financing_type_0", config: { name, category, ... } }, ...]`. Product name is always in the first step (financing type): `workflow[0].config.name` or `workflow[0].config.type.name`. |
-| `version`  | number | Product version when the log was written (1 on create, then 2, 3, …). |
-
-### Also in metadata
-
-| Field                 | Type   | Meaning |
-|-----------------------|--------|--------|
-| `product_created_at` | string | ISO date of the product’s `created_at`. |
-| `product_updated_at` | string | ISO date of the product’s `updated_at`. |
-
-### Example metadata shapes
-
-**PRODUCT_CREATED**:
-
-```json
-{
-  "workflow": [
-    { "id": "financing_type_0", "config": { "name": "Invoice Financing", "category": "invoice", "description": "...", "image": { "s3_key": "products/..." } } },
-    { "id": "supporting_documents_1", "config": { ... } },
-    { "id": "declarations_2", "config": { ... } },
-    { "id": "review_and_submit_3", "config": {} }
-  ],
-  "version": 1,
-  "product_created_at": "2025-02-03T10:00:00.000Z",
-  "product_updated_at": "2025-02-03T10:00:00.000Z"
-}
-```
-
-**PRODUCT_UPDATED**:
-
-```json
-{
-  "workflow": [ { "id": "financing_type_0", "config": { "name": "Invoice Financing (Revised)", ... } }, ... ],
-  "version": 2,
-  "product_created_at": "2025-02-03T10:00:00.000Z",
-  "product_updated_at": "2025-02-03T11:30:00.000Z"
-}
-```
-
-**PRODUCT_DELETED** (workflow is the product’s last state):
-
-```json
-{
-  "workflow": [ ... ],
-  "version": 2,
-  "product_created_at": "2025-02-03T10:00:00.000Z",
-  "product_updated_at": "2025-02-03T11:30:00.000Z"
-}
-```
-
-Product name is not stored in metadata; the UI and exports derive it from `metadata.workflow[0].config.name` (or `config.type.name`). The first step is always the financing type and always has a name.

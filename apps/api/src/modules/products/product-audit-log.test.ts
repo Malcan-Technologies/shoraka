@@ -12,10 +12,6 @@ const mockTx: any = {
   displayReferenceAllocation: {
     findFirst: jest.fn(),
   },
-  productLog: {
-    create: jest.fn(),
-    deleteMany: jest.fn(),
-  },
   productAuditLog: {
     create: jest.fn(),
     deleteMany: jest.fn(),
@@ -30,6 +26,7 @@ const mockPrisma: any = {
     findUnique: jest.fn(),
     findUniqueOrThrow: jest.fn(),
     findMany: jest.fn(),
+    delete: jest.fn(),
   },
 };
 
@@ -94,7 +91,7 @@ describe("ProductAuditLog writers", () => {
     mockTx.product.findFirst.mockResolvedValue(null);
     mockTx.product.updateMany.mockResolvedValue({ count: 1 });
     mockTx.product.delete.mockResolvedValue({});
-    mockTx.productLog.deleteMany.mockResolvedValue({ count: 0 });
+    mockPrisma.product.delete.mockResolvedValue({});
     mockTx.productAuditLog.create.mockResolvedValue({ id: "audit_1" });
     mockTx.displayReferenceAllocation.findFirst.mockResolvedValue(null);
     mockPrisma.product.findMany.mockResolvedValue([
@@ -127,7 +124,6 @@ describe("ProductAuditLog writers", () => {
       auditContext
     );
 
-    expect(mockTx.productLog.create).not.toHaveBeenCalled();
     expect(mockTx.productAuditLog.create).toHaveBeenCalledTimes(1);
     const row = auditRows()[0];
     expect(row.event_type).toBe("PRODUCT_CREATED");
@@ -238,7 +234,6 @@ describe("ProductAuditLog writers", () => {
     expect(rows[1].metadata.newProductId).toBe("prod_v2");
     expect(rows[1].metadata.previousVersion).toBe(1);
     expect(rows[1].metadata.newVersion).toBe(2);
-    expect(mockTx.productLog.create).not.toHaveBeenCalled();
   });
 
   it("soft-deletes and writes one PRODUCT_DELETED", async () => {
@@ -311,11 +306,11 @@ describe("ProductAuditLog writers", () => {
   });
 
   it("does not delete ProductAuditLog during failed-create rollback", async () => {
+    mockPrisma.product.delete.mockResolvedValue({ id: "prod_new_1" });
     const repo = new ProductRepository();
     await repo.hardDeleteForFailedCreate("prod_new_1");
 
-    expect(mockTx.productLog.deleteMany).toHaveBeenCalledWith({ where: { product_id: "prod_new_1" } });
-    expect(mockTx.product.delete).toHaveBeenCalledWith({ where: { id: "prod_new_1" } });
+    expect(mockPrisma.product.delete).toHaveBeenCalledWith({ where: { id: "prod_new_1" } });
     expect(mockTx.productAuditLog.deleteMany).not.toHaveBeenCalled();
   });
 

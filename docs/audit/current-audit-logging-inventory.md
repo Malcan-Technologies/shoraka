@@ -9,7 +9,7 @@
 
 ## 1. Executive Summary
 
-CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_logs`, `security_logs`, `onboarding_logs`, `application_logs`, `product_logs`, `note_events`, `note_admin_actions`, `legal_document_audit_logs`, `notification_logs`, `gateway_payment_events`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records).
+CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_logs`, `security_logs`, `onboarding_logs`, `application_logs`, `product_audit_logs`, `note_events`, `note_admin_actions`, `legal_document_audit_logs`, `notification_logs`, `gateway_payment_events`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records).
 
 ### Current architecture (factual)
 
@@ -19,7 +19,7 @@ CashSouk does not have a single audit system. It has **many specialized tables**
 - **Notes:** `NoteEvent` + `NoteAdminAction` dual-write for admin actions. Activity feed reads a **subset** of `NoteEvent` types.
 - **Legal admin:** dedicated `LegalDocumentAuditLog`. User open/accept is **not** that table; it is `LegalDocumentAcceptance` updated **in place**.
 - **Payments:** `GatewayPayment` is SOT; `GatewayPaymentEvent` is a partial admin trail (no capture/complete type); `GatewayWebhookEvent` is provider transport and is **updated** after processing.
-- **Products:** `ProductLog` is deleted on product rollback (`deleteMany`).
+- **Products:** `ProductAuditLog` is append-only and is not deleted on product rollback. Legacy `ProductLog` / `product_logs` has been removed.
 - **Notifications:** `NotificationLog` only for admin bulk send. In-app `Notification` rows are delivery, not business audit.
 
 ### Biggest risks
@@ -29,7 +29,7 @@ CashSouk does not have a single audit system. It has **many specialized tables**
 3. **Legal acceptance evidence is mutated in place** (OPENED → ACCEPTED on one row).
 4. **Money capture/complete has no `GatewayPaymentEvent` type**; reconstruction depends on `GatewayPayment` status + webhook transport + ledger.
 5. **High-impact admin/org actions have no audit event** (invite create, org members/ownership, platform finance settings, user_id assign, investor withdrawal request).
-6. **Product audit history is deleted** with the product.
+6. **Product audit history is retained** (`ProductAuditLog`); failed-create rollback does not delete it. Legacy `product_logs` dropped.
 7. **Duplicate / misleading event names** (`LOGIN` twice, `PASSWORD_CHANGED` for failure, contract reject stored as `CONTRACT_WITHDRAWN`, enum `APPLICATION_APPROVED` with no writer).
 8. **`ApplicationReviewEvent` and `NoteAdminAction` are written but have no production readers.**
 
@@ -75,7 +75,7 @@ Legend: ✅ inspected · N/A none found · ⚠ leftover/unused
 | CONTRACT / INVOICE | ✅ | ✅ | ✅ | ✅ | N/A | N/A | withdraw only | Application UI |
 | OFFER | ✅ | ✅ | ✅ | ✅ | expiry job | N/A | yes except reminders | Timelines + notifications |
 | SIGNING / SIGNINGCLOUD | ✅ | ✅ | ✅ | ✅ admin/issuer/external | expiry + reconcile | SigningCloud | package-level only | Signing UI |
-| PRODUCT | ✅ | ✅ | ✅ | ✅ admin | N/A | N/A | ProductLog | `/audit` products + CSV |
+| PRODUCT | ✅ | ✅ | ✅ | ✅ admin | N/A | N/A | ProductAuditLog | `/audit` products + CSV |
 | PLATFORM FINANCE SETTINGS | ✅ | ✅ | ✅ | ✅ admin | N/A | N/A | **none** | Settings UI |
 | SITE DOCUMENTS | N/A removed | tests assert absence | **no model** | N/A | N/A | N/A | N/A | Removed from invest path |
 | NOTIFICATIONS | ✅ | ✅ | ✅ | ✅ | cleanup cron | N/A | NotificationLog bulk only | Admin logs + inbox |
@@ -136,10 +136,10 @@ Fields: `id`, `user_id`, `application_id`, `event_type`, `ip_address`, `user_age
 Fields: `id`, `application_id`, `event_type`, `scope`, `scope_key`, `old_status`, `new_status`, `reviewer_user_id`, `remark`, `created_at`.  
 FK Application **Cascade**. **No production `find*` readers found.** Written only for CONTRACT_OFFER_SENT, INVOICE_OFFER_SENT, AMENDMENTS_SUBMITTED.
 
-#### ProductLog → `product_logs` · PRODUCT · **A**
+#### ProductAuditLog → `product_audit_logs` · PRODUCT · **A**
 
-Fields: `id`, `user_id`, `product_id`, `event_type`, `ip_address`, `user_agent`, `device_info`, `metadata`, `created_at`.  
-FK User **Cascade**. `product_id` **not** FK. **`deleteMany` on product rollback — not append-only.**
+Fields: `id`, `product_id`, `event_type`, `occurred_at`, `created_at`, `actor_type`, `actor_user_id`, org fields, `target_type`, `target_id`, `source`, `portal`, `ip_address`, `user_agent`, `correlation_id`, `idempotency_key`, `metadata`.  
+**No Product or User FK.** Append-only. Replaced and removed legacy `ProductLog` / `product_logs`. Failed-create rollback does not delete these rows.
 
 #### LegalDocumentAuditLog → `legal_document_audit_logs` · LEGAL ADMIN · **A**
 
@@ -324,7 +324,7 @@ Actor: USER / ADMIN / SYSTEM / PROVIDER / EXTERNAL SIGNER / WEBHOOK.
 | A197–A199 | FEE | service-fee trustee | NoteService | Service fee | ADMIN | YES | SERVICE_FEE_* |
 | A200 | ARREARS | late-charge/calculate | | Preview only | ADMIN | n/a no persist | |
 | A201–A205 | ARREARS/DEFAULT | check/approve/letters/mark | NoteService | | ADMIN | YES | LATE_CHARGE_* / *_LETTER / NOTE_DEFAULT_MARKED |
-| A206–A210 | PRODUCT | products CRUD | products/repository | | ADMIN | YES then **deleted on rollback** | product_logs |
+| A206–A210 | PRODUCT | products CRUD | products/repository + audit/writer | | ADMIN | YES (`ProductAuditLog`, retained on rollback) | product_audit_logs |
 | A212 | NOTIF | POST notifications/admin/send | sendBulkNotification | Broadcast | ADMIN | YES | notification_logs |
 | A213–A216 | NOTIF | groups/types/preferences | notification controller | Config | ADMIN/USER | **MISSING AUDIT** | tables |
 | A217 | NOTIF | cron 00:00 | runCleanup | Delete old notifs | SYSTEM | **MISSING AUDIT** | deletions |
@@ -371,9 +371,9 @@ Production final approval: **`FINAL_APPROVAL_COMPLETED`** (`AdminService.complet
 
 **Only three production creates** in `admin/service.ts`: CONTRACT_OFFER_SENT, INVOICE_OFFER_SENT, AMENDMENTS_SUBMITTED.
 
-### ProductLog
+### ProductAuditLog
 
-`products/repository.ts` create on create/update/inactivate/reactivate/delete; **`deleteMany` on rollback**.
+`products/audit/writer.ts` via `products/repository.ts` on create/update/inactivate/reactivate/delete. Append-only; not deleted on failed-create rollback. Legacy `ProductLog` removed.
 
 ### LegalDocumentAuditLog
 
@@ -417,7 +417,7 @@ Created on ingest; **`updateMany` processed_at/error** in `webhook-service.ts`.
 | application_logs | `ApplicationLogAdapter` `GET /v1/activities` | Activity feeds | **curated subset**; includes never-written APPLICATION_APPROVED and CONTRACT_OFFER_REJECTED; omits SECTION_REVIEWED_* and most signing | MEDIUM |
 | application_logs | `AdminService.getResubmitComparisonSnapshots` findFirst APPLICATION_RESUBMITTED | **Business/UI compare** parses `metadata.amendment_remarks` | HIGH |
 | application_review_events | **none found** | — | — | LOW (dead writes) |
-| product_logs | `GET /v1/admin/product-logs` + export CSV/JSON | Admin `/audit` products | eventType filter | MEDIUM |
+| product_audit_logs | `GET /v1/admin/product-logs` + export CSV/JSON | Admin `/audit` products | eventType filter | MEDIUM |
 | legal_document_audit_logs | `GET /v1/admin/legal-document-audit-logs` + export | Admin `/audit` legal | action filters | MEDIUM |
 | legal_document_acceptances | acceptance-admin + user required/pending | Compliance UI + **onboarding gate** `hasCompletedRequiredAcceptances` | **HIGH** |
 | note_events | `GET admin notes/:id/events` mapper | Admin note timeline | all types; sort helper | MEDIUM |
@@ -703,7 +703,7 @@ Keep specialized SOT even if audit events are added later.
 | CRITICAL | PAYMENT | no CAPTURED type | Deposit/fee complete only on GatewayPayment | Cannot prove capture from payment_events | Do not treat webhook payload as the audit event |
 | CRITICAL | SETTINGS | `updatePlatformFinanceSettings` | No audit of fee caps / tawidh / templates | Money + Shariah config unaudited | High-priority new events; keep settings SOT |
 | CRITICAL | CASCADE | Access/Security/Onboarding/Note/Gateway events | User/Note/Payment delete | History disappears | Snapshot actor; avoid Cascade on audit |
-| CRITICAL | PRODUCT | `productLog.deleteMany` | Rollback wipes audit | History not immutable | Stop treating ProductLog as evidence |
+| CRITICAL | PRODUCT | *(resolved)* `productLog.deleteMany` removed | Rollback no longer wipes Product audit | `ProductAuditLog` is append-only; `product_logs` dropped |
 | HIGH | AUTH | sync-user + callback | Two LOGIN rows | Inflated login stats | Dedupe rule |
 | HIGH | AUTH | PASSWORD_CHANGED / EMAIL_CHANGED | Failure uses success name | Misleading investigations | Distinguish outcome |
 | HIGH | RBAC | updateUserRoles | user_id = admin | Looks like admin logged in as target | Actor vs target split |
@@ -754,7 +754,7 @@ Keep specialized SOT even if audit events are added later.
 | ApplicationReviewEvent | **LEGACY / VERIFY REMOVAL** (no readers) |
 | NoteEvent | **CANDIDATE TO REPLACE** with activity/admin readers |
 | NoteAdminAction | **LEGACY / VERIFY REMOVAL** (no readers; dual-write) |
-| ProductLog | **CANDIDATE TO REPLACE** (currently mutable) |
+| ProductLog | **REMOVED** — replaced by `ProductAuditLog` (`product_audit_logs`) |
 | NotificationLog | **CANDIDATE TO REPLACE** (bulk send only) |
 | GatewayPaymentEvent | **CANDIDATE TO REPLACE** *or* keep payment-specialized — **UNCLEAR** |
 | ApplicationReview current rows | **KEEP AS SOURCE OF TRUTH** (not audit) |
@@ -770,7 +770,7 @@ Keep specialized SOT even if audit events are added later.
 |---|---|---|---|---|---|---|---|---|---|---|
 | ApplicationReviewEvent | 3 admin paths | none | none | no | no | no | admin tests | LOW | 1 first | YES if dual-write stopped |
 | NoteAdminAction | logAdminAction / prospectus | none | none | no | no | no | note tests | LOW | 1 | YES if NoteEvent kept during transition |
-| ProductLog | products/repository | admin product logs | `/audit` products | CSV/JSON | no | no | product tests | MEDIUM | 3 | UNCLEAR until UI migrated |
+| ProductLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `ProductAuditLog` is live |
 | NotificationLog | bulk send | admin logs | notification admin | no | no | self | notification tests | LOW | 2 | UNCLEAR |
 | LegalDocumentAuditLog | legal service | audit panel | `/audit` legal | CSV/JSON | no | no | legal tests | MEDIUM | 4 | UNCLEAR (good specialized table) |
 | GatewayPaymentEvent | payment modules | payment detail; `getOpenOverrideProposal` **never called** | admin payments (labels include OVERRIDE_*) | no | no live override logic | no | many payment tests | HIGH | 5 with payments | NO until capture events exist |
@@ -796,7 +796,7 @@ Do not design final schema here. Sequence by dependency/risk:
 6. **OnboardingLog** after AuthService + activity adapter (only 5 types) migrated.
 7. **ApplicationLog** last among app tables (timelines + comparison).
 8. **NoteEvent** after admin note page + activity subset.
-9. **ProductLog** only with a non-deleting history policy.
+9. **ProductLog** replaced by append-only `ProductAuditLog`; `product_logs` dropped.
 10. **Platform settings / org members / invitations** have nothing to migrate — they need **new** events, not table moves.
 
 Minimize risk: never delete a table that still has HIGH readers; never migrate ledgers into audit.

@@ -240,7 +240,8 @@ router.patch("/:id", requirePermission("products.manage"), async (req: Request, 
 
 /**
  * POST /v1/products/:id/rollback-create
- * Rollback a failed product creation: hard-delete the product, product_logs, and orphan S3 files.
+ * Rollback a failed product creation: hard-delete the Product row and orphan S3 files.
+ * ProductAuditLog rows for that product_id are retained.
  * Only allowed for products created within the last 5 minutes.
  */
 const rollbackCreateSchema = z.object({
