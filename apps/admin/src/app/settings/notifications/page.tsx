@@ -8,6 +8,7 @@ import type {
   AdminNotificationGroup,
   AdminNotificationLog,
   AdminSeedTypesResponse,
+  AdminSendNotificationResult,
 } from "@cashsouk/types";
 import {
   Card,
@@ -88,11 +89,12 @@ function NotificationLogsTableSkeleton() {
         <TableHeader className="bg-muted/30">
           <TableRow className="hover:bg-transparent">
             <TableHead className="text-sm font-semibold">Timestamp</TableHead>
+            <TableHead className="text-sm font-semibold">Event</TableHead>
             <TableHead className="text-sm font-semibold">Admin</TableHead>
             <TableHead className="text-sm font-semibold">Target</TableHead>
             <TableHead className="text-sm font-semibold">Type</TableHead>
             <TableHead className="text-sm font-semibold">Message</TableHead>
-            <TableHead className="text-sm font-semibold">Recipients</TableHead>
+            <TableHead className="text-sm font-semibold">Targeted</TableHead>
             <TableHead className="text-sm font-semibold">IP Address</TableHead>
             <TableHead className="text-sm font-semibold">Device</TableHead>
             <TableHead className="text-sm font-semibold">Actions</TableHead>
@@ -102,6 +104,7 @@ function NotificationLogsTableSkeleton() {
           {Array.from({ length: 5 }).map((_, index) => (
             <TableRow key={index}>
               <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+              <TableCell><Skeleton className="h-5 w-20" /></TableCell>
               <TableCell><Skeleton className="h-5 w-40" /></TableCell>
               <TableCell><Skeleton className="h-6 w-24 rounded-full" /></TableCell>
               <TableCell><Skeleton className="h-5 w-28" /></TableCell>
@@ -275,8 +278,14 @@ export default function NotificationsAdminPage() {
         expiresAt: expiresAt?.toISOString(),
       },
       {
-        onSuccess: () => {
-          toast.success("Notifications sent successfully");
+        onSuccess: (result: AdminSendNotificationResult) => {
+          if (result.failedCount === 0) {
+            toast.success("Notification broadcast processed successfully");
+          } else if (result.createdCount === 0) {
+            toast.error("Broadcast processed but no notifications were created");
+          } else {
+            toast.warning("Broadcast processed with some failures");
+          }
           setTitle("");
           setMessage("");
           setUserIds("");
@@ -892,11 +901,12 @@ export default function NotificationsAdminPage() {
                       <TableHeader className="bg-muted/30">
                         <TableRow className="hover:bg-transparent">
                           <TableHead className="text-sm font-semibold">Timestamp</TableHead>
+                          <TableHead className="text-sm font-semibold">Event</TableHead>
                           <TableHead className="text-sm font-semibold">Admin</TableHead>
                           <TableHead className="text-sm font-semibold">Target</TableHead>
                           <TableHead className="text-sm font-semibold">Type</TableHead>
                           <TableHead className="text-sm font-semibold">Message</TableHead>
-                          <TableHead className="text-sm font-semibold">Recipients</TableHead>
+                          <TableHead className="text-sm font-semibold">Targeted</TableHead>
                           <TableHead className="text-sm font-semibold">IP Address</TableHead>
                           <TableHead className="text-sm font-semibold">Device</TableHead>
                           <TableHead className="text-sm font-semibold">Actions</TableHead>
@@ -906,35 +916,40 @@ export default function NotificationsAdminPage() {
                         {logs.map((log: AdminNotificationLog) => (
                           <TableRow key={log.id} className="hover:bg-muted/50 transition-colors">
                             <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                              {format(new Date(log.created_at), "MMM d, yyyy HH:mm")}
+                              {format(new Date(log.occurredAt), "MMM d, yyyy HH:mm")}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className="text-[10px] uppercase">
+                                Processed
+                              </Badge>
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-col min-w-0">
                                 <span
                                   className="text-sm font-medium truncate"
-                                  title={`${log.admin.first_name} ${log.admin.last_name}`}
+                                  title={log.actor.displayName ?? undefined}
                                 >
-                                  {log.admin.first_name} {log.admin.last_name}
+                                  {log.actor.displayName || "Unknown admin"}
                                 </span>
                                 <span
                                   className="text-xs text-muted-foreground truncate"
-                                  title={log.admin.email}
+                                  title={log.actor.email ?? undefined}
                                 >
-                                  {log.admin.email}
+                                  {log.actor.email || "—"}
                                 </span>
                               </div>
                             </TableCell>
-                            <TableCell>{getTargetBadge(log.target_type)}</TableCell>
+                            <TableCell>{getTargetBadge(log.audienceType)}</TableCell>
                             <TableCell>
                               <div
                                 className="text-xs font-bold text-slate-700 whitespace-normal break-words"
-                                title={log.notification_type?.name}
+                                title={log.notificationTypeName}
                               >
-                                {log.notification_type?.name || "Custom"}
+                                {log.notificationTypeName || "Custom"}
                               </div>
-                              {log.notification_type?.portal_targets?.length ? (
+                              {log.portalTargets.length ? (
                                 <Badge variant="outline" className="mt-1 text-[10px]">
-                                  {getPortalTargetsLabel(log.notification_type.portal_targets)}
+                                  {getPortalTargetsLabel(log.portalTargets)}
                                 </Badge>
                               ) : null}
                             </TableCell>
@@ -954,16 +969,16 @@ export default function NotificationsAdminPage() {
                             <TableCell className="text-center">
                               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium text-xs">
                                 <Users className="h-3 w-3" />
-                                {log.recipient_count}
+                                {log.targetedCount}
                               </div>
                             </TableCell>
                             <TableCell className="font-mono text-sm text-muted-foreground">
-                              {log.ip_address || "—"}
+                              {log.ipAddress || "—"}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              {log.device_info ? (
-                                <span title={log.user_agent ?? undefined} className="line-clamp-2 leading-snug">
-                                  {log.device_info}
+                              {log.deviceInfo ? (
+                                <span title={log.userAgent ?? undefined} className="line-clamp-2 leading-snug">
+                                  {log.deviceInfo}
                                 </span>
                               ) : (
                                 "—"
@@ -1120,7 +1135,7 @@ export default function NotificationsAdminPage() {
           <DialogHeader>
             <DialogTitle>Notification Details</DialogTitle>
             <DialogDescription>
-              Full content and metadata for the sent notification.
+              Broadcast operation that finished processing its resolved audience.
             </DialogDescription>
           </DialogHeader>
 
@@ -1129,35 +1144,53 @@ export default function NotificationsAdminPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground uppercase">Timestamp</p>
-                  <p className="text-sm">{format(new Date(selectedLog.created_at), "PPP p")}</p>
+                  <p className="text-sm">{format(new Date(selectedLog.occurredAt), "PPP p")}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase">Event</p>
+                  <Badge variant="secondary" className="text-[10px] uppercase w-fit">
+                    Processed
+                  </Badge>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground uppercase">Admin</p>
                   <p className="text-sm font-medium">
-                    {selectedLog.admin.first_name} {selectedLog.admin.last_name}
+                    {selectedLog.actor.displayName || "Unknown admin"}
                   </p>
-                  <p className="text-xs text-muted-foreground">{selectedLog.admin.email}</p>
+                  <p className="text-xs text-muted-foreground">{selectedLog.actor.email || "—"}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground uppercase">Target Type</p>
                   <Badge variant="secondary" className="text-[10px] uppercase">
-                    {selectedLog.target_type.replace("_", " ")}
+                    {selectedLog.audienceType.replace("_", " ")}
                   </Badge>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground uppercase">Type</p>
                   <p className="text-sm font-medium">
-                    {selectedLog.notification_type?.name || selectedLog.notification_type_id}
+                    {selectedLog.notificationTypeName || selectedLog.notificationTypeId}
                   </p>
-                  {selectedLog.notification_type?.portal_targets?.length ? (
+                  {selectedLog.portalTargets.length ? (
                     <Badge variant="outline" className="text-[10px] mt-1">
-                      {getPortalTargetsLabel(selectedLog.notification_type.portal_targets)}
+                      {getPortalTargetsLabel(selectedLog.portalTargets)}
                     </Badge>
                   ) : null}
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Recipients</p>
-                  <p className="text-sm font-medium">{selectedLog.recipient_count} users</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase">Targeted</p>
+                  <p className="text-sm font-medium">{selectedLog.targetedCount} users</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase">Created</p>
+                  <p className="text-sm font-medium">{selectedLog.createdCount}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase">Skipped</p>
+                  <p className="text-sm font-medium">{selectedLog.skippedCount}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground uppercase">Failed</p>
+                  <p className="text-sm font-medium">{selectedLog.failedCount}</p>
                 </div>
               </div>
 
@@ -1176,13 +1209,13 @@ export default function NotificationsAdminPage() {
               <div className="grid grid-cols-2 gap-4 border-t pt-4">
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground uppercase">IP Address</p>
-                  <p className="text-sm font-mono">{selectedLog.ip_address || "—"}</p>
+                  <p className="text-sm font-mono">{selectedLog.ipAddress || "—"}</p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground uppercase">Device</p>
-                  <p className="text-sm font-medium">{selectedLog.device_info || "—"}</p>
+                  <p className="text-sm font-medium">{selectedLog.deviceInfo || "—"}</p>
                   <p className="text-[10px] text-muted-foreground break-all leading-normal opacity-60">
-                    {selectedLog.user_agent}
+                    {selectedLog.userAgent}
                   </p>
                 </div>
               </div>

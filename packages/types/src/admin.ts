@@ -974,26 +974,46 @@ export interface AdminNotificationGroup {
   updated_at: string;
 }
 
+export type NotificationBroadcastEventType = "NOTIFICATION_BROADCAST_PROCESSED";
+export type NotificationBroadcastChannelMode =
+  | "EXPLICIT_OVERRIDE"
+  | "TYPE_AND_USER_PREFERENCES";
+
 export interface AdminNotificationLog {
   id: string;
-  admin_user_id: string;
-  target_type: string;
-  target_group_id: string | null;
-  notification_type_id: string;
+  eventType: NotificationBroadcastEventType;
+  occurredAt: string;
+  createdAt: string;
+  actor: {
+    type: string;
+    userId: string | null;
+    displayName: string | null;
+    email: string | null;
+  };
+  target: { type: string; id: string };
+  audienceType: string;
+  notificationTypeId: string;
+  notificationTypeName: string;
+  portalTargets: AdminNotificationPortalTarget[];
   title: string;
   message: string;
-  recipient_count: number;
-  metadata: Record<string, unknown> | null;
-  ip_address: string | null;
-  user_agent: string | null;
-  device_info: string | null;
-  created_at: string;
-  admin: {
-    first_name: string;
-    last_name: string;
-    email: string;
-  };
-  notification_type: AdminNotificationType | null;
+  targetedCount: number;
+  createdCount: number;
+  skippedCount: number;
+  failedCount: number;
+  channelMode: NotificationBroadcastChannelMode;
+  sendToPlatform: boolean | null;
+  sendToEmail: boolean | null;
+  linkPath: string | null;
+  expiresAt: string | null;
+  groupId: string | null;
+  source: string;
+  portal: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  deviceInfo: string | null;
+  correlationId: string | null;
+  metadata: Record<string, unknown>;
 }
 
 export interface AdminNotificationLogPagination {
@@ -1019,6 +1039,13 @@ export interface AdminSendNotificationPayload {
   sendToPlatform?: boolean;
   sendToEmail?: boolean;
   expiresAt?: string;
+}
+
+export interface AdminSendNotificationResult {
+  targetedCount: number;
+  createdCount: number;
+  skippedCount: number;
+  failedCount: number;
 }
 
 export interface AdminUpdateNotificationTypePayload {

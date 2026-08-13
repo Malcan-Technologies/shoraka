@@ -10,7 +10,7 @@ import {
   CreateNotificationGroupSchema,
   UpdateNotificationGroupSchema,
 } from "./schemas";
-import { extractRequestMetadata } from "../../lib/http/request-utils";
+import { auditContextFromAdminRequest } from "./audit/context";
 
 const router = Router();
 const notificationService = new NotificationService();
@@ -329,13 +329,10 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = AdminSendNotificationSchema.parse(req.body);
-      const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-      const result = await notificationService.sendBulkNotification(req.user!.user_id, {
-        ...validated,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-        device_info: deviceInfo,
-      });
+      const result = await notificationService.sendBulkNotification(
+        auditContextFromAdminRequest(req, res),
+        validated
+      );
       res.json({
         success: true,
         data: result,

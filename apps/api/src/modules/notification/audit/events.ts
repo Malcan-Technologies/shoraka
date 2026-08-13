@@ -1,0 +1,33 @@
+export const NOTIFICATION_BROADCAST_AUDIT_EVENTS = ["NOTIFICATION_BROADCAST_PROCESSED"] as const;
+
+export type NotificationBroadcastAuditEventType =
+  (typeof NOTIFICATION_BROADCAST_AUDIT_EVENTS)[number];
+
+export const NOTIFICATION_BROADCAST_AUDIT_TARGET_TYPE = "NOTIFICATION_BROADCAST" as const;
+
+export const NOTIFICATION_BROADCAST_AUDIT_ACTOR_TYPE = {
+  ADMIN: "ADMIN",
+} as const;
+
+export const NOTIFICATION_BROADCAST_AUDIT_SOURCE = {
+  API: "API",
+} as const;
+
+export const NOTIFICATION_BROADCAST_AUDIT_PORTAL = {
+  ADMIN: "ADMIN",
+} as const;
+
+export const NOTIFICATION_BROADCAST_CHANNEL_MODE = {
+  EXPLICIT_OVERRIDE: "EXPLICIT_OVERRIDE",
+  TYPE_AND_USER_PREFERENCES: "TYPE_AND_USER_PREFERENCES",
+} as const;
+
+export type NotificationBroadcastChannelMode =
+  (typeof NOTIFICATION_BROADCAST_CHANNEL_MODE)[keyof typeof NOTIFICATION_BROADCAST_CHANNEL_MODE];
+
+export type NotificationBroadcastAuditActorType =
+  (typeof NOTIFICATION_BROADCAST_AUDIT_ACTOR_TYPE)[keyof typeof NOTIFICATION_BROADCAST_AUDIT_ACTOR_TYPE];
+export type NotificationBroadcastAuditSource =
+  (typeof NOTIFICATION_BROADCAST_AUDIT_SOURCE)[keyof typeof NOTIFICATION_BROADCAST_AUDIT_SOURCE];
+export type NotificationBroadcastAuditPortal =
+  (typeof NOTIFICATION_BROADCAST_AUDIT_PORTAL)[keyof typeof NOTIFICATION_BROADCAST_AUDIT_PORTAL];

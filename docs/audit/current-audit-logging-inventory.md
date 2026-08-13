@@ -9,7 +9,7 @@
 
 ## 1. Executive Summary
 
-CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_logs`, `security_logs`, `onboarding_logs`, `application_logs`, `product_audit_logs`, `note_events`, `note_admin_actions`, `legal_admin_audit_logs`, `notification_logs`, `gateway_payment_events`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records).
+CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_logs`, `security_logs`, `onboarding_logs`, `application_logs`, `product_audit_logs`, `note_events`, `note_admin_actions`, `legal_admin_audit_logs`, `notification_broadcast_audit_logs`, `notification_logs` (legacy unused), `gateway_payment_events`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records).
 
 ### Current architecture (factual)
 
@@ -20,7 +20,7 @@ CashSouk does not have a single audit system. It has **many specialized tables**
 - **Legal admin:** dedicated `LegalAdminAuditLog`. User open/accept is **not** that table; it is `LegalDocumentAcceptance` updated **in place**. Legacy `LegalDocumentAuditLog` / `legal_document_audit_logs` has been removed.
 - **Payments:** `GatewayPayment` is SOT; `GatewayPaymentEvent` is a partial admin trail (no capture/complete type); `GatewayWebhookEvent` is provider transport and is **updated** after processing.
 - **Products:** `ProductAuditLog` is append-only and is not deleted on product rollback. Legacy `ProductLog` / `product_logs` has been removed.
-- **Notifications:** `NotificationLog` only for admin bulk send. In-app `Notification` rows are delivery, not business audit.
+- **Notifications:** `NotificationBroadcastAuditLog` for admin bulk send (`NOTIFICATION_BROADCAST_PROCESSED`). In-app `Notification` rows are delivery, not business audit. Legacy `NotificationLog` / `notification_logs` remains in schema with no live writer/reader.
 
 ### Biggest risks
 
@@ -78,7 +78,7 @@ Legend: ✅ inspected · N/A none found · ⚠ leftover/unused
 | PRODUCT | ✅ | ✅ | ✅ | ✅ admin | N/A | N/A | ProductAuditLog | `/audit` products + CSV |
 | PLATFORM FINANCE SETTINGS | ✅ | ✅ | ✅ | ✅ admin | N/A | N/A | **none** | Settings UI |
 | SITE DOCUMENTS | N/A removed | tests assert absence | **no model** | N/A | N/A | N/A | N/A | Removed from invest path |
-| NOTIFICATIONS | ✅ | ✅ | ✅ | ✅ | cleanup cron | N/A | NotificationLog bulk only | Admin logs + inbox |
+| NOTIFICATIONS | ✅ | ✅ | ✅ | ✅ | cleanup cron | N/A | NotificationBroadcastAuditLog bulk only | Admin logs + inbox |
 | NOTE / MARKETPLACE | ✅ | ✅ | ✅ | ✅ | listing expiry | N/A | NoteEvent/AdminAction | Admin events + activity subset |
 | INVESTMENT / BALANCE | ✅ | ✅ | ✅ | ✅ investor | N/A | Curlec | INVESTMENT_COMMITTED; deposit partial | Investor txs |
 | DEPOSIT / GATEWAY / REFUND / NAME CHECK | ✅ | ✅ | ✅ | ✅ | poller/receipt | Curlec | GatewayPaymentEvent partial | Admin payment detail (metadata stripped) |
@@ -166,10 +166,14 @@ FK GatewayPayment **Cascade**. Admin API **omits metadata** via `mapGatewayPayme
 Fields: `id`, `event_id`, `event_type` (provider string), `gatewayAccount`, `payload` (JSON), `signature_valid`, `processed_at`, `error`, `created_at`.  
 Unique (gatewayAccount, event_id). **Updated** after processing (`processed_at`/`error`).
 
-#### NotificationLog → `notification_logs` · NOTIFICATION ADMIN · **A**
+#### NotificationBroadcastAuditLog → `notification_broadcast_audit_logs` · NOTIFICATION ADMIN · **A**
 
-Fields: `id`, `admin_user_id`, `target_type`, `target_group_id`, `notification_type_id`, `title`, `message`, `recipient_count`, `metadata`, `ip_address`, `user_agent`, `device_info`, `created_at`.  
-Create-only for bulk send.
+Fields: `id`, `event_type` (`NOTIFICATION_BROADCAST_PROCESSED`), `occurred_at`, `created_at`, `actor_type`, `actor_user_id` (no FK), `organization_id`/`organization_kind` (null), `target_type` (`NOTIFICATION_BROADCAST`), `target_id` (= row id), `source`, `portal`, `ip_address`, `user_agent`, `correlation_id`, `idempotency_key` (null), `metadata` (required), `audience_type`, `notification_type_id` (no FK).  
+Create-only for bulk send. Legacy `NotificationLog` / `notification_logs` unused by live writers/readers.
+
+#### NotificationLog → `notification_logs` · LEGACY UNUSED · **A**
+
+Fields unchanged. No live writer/reader after Phase 3 cutover. Table kept temporarily; no backfill into `NotificationBroadcastAuditLog`.
 
 ### 3.2 Evidence / history / SOT (not named Log, still historical)
 
@@ -325,7 +329,7 @@ Actor: USER / ADMIN / SYSTEM / PROVIDER / EXTERNAL SIGNER / WEBHOOK.
 | A200 | ARREARS | late-charge/calculate | | Preview only | ADMIN | n/a no persist | |
 | A201–A205 | ARREARS/DEFAULT | check/approve/letters/mark | NoteService | | ADMIN | YES | LATE_CHARGE_* / *_LETTER / NOTE_DEFAULT_MARKED |
 | A206–A210 | PRODUCT | products CRUD | products/repository + audit/writer | | ADMIN | YES (`ProductAuditLog`, retained on rollback) | product_audit_logs |
-| A212 | NOTIF | POST notifications/admin/send | sendBulkNotification | Broadcast | ADMIN | YES | notification_logs |
+| A212 | NOTIF | POST notifications/admin/send | sendBulkNotification | Broadcast | ADMIN | YES | notification_broadcast_audit_logs |
 | A213–A216 | NOTIF | groups/types/preferences | notification controller | Config | ADMIN/USER | **MISSING AUDIT** | tables |
 | A217 | NOTIF | cron 00:00 | runCleanup | Delete old notifs | SYSTEM | **MISSING AUDIT** | deletions |
 | A218/A219 | SETTINGS | PATCH platform-finance + trustee sig | NoteService | Caps/templates/fees | ADMIN | **MISSING AUDIT** CRITICAL | settings upsert |
@@ -391,9 +395,13 @@ Production final approval: **`FINAL_APPROVAL_COMPLETED`** (`AdminService.complet
 
 Created on ingest; **`updateMany` processed_at/error** in `webhook-service.ts`.
 
+### NotificationBroadcastAuditLog
+
+`writeNotificationBroadcastProcessedAudit` via `NotificationService.sendBulkNotification` only. Event: `NOTIFICATION_BROADCAST_PROCESSED`.
+
 ### NotificationLog
 
-`NotificationService.sendBulkNotification` only.
+**No live writer.** Legacy table retained temporarily.
 
 ### LegalDocumentAcceptance
 
@@ -426,7 +434,8 @@ Created on ingest; **`updateMany` processed_at/error** in `webhook-service.ts`.
 | gateway_payment_events | `getGatewayPaymentDetail` mapped **without metadata** | Admin payment detail | | MEDIUM |
 | gateway_payment_events | `getOpenOverrideProposal` | **Defined never called** — not production business logic | OVERRIDE_PROPOSED lookup only | — |
 | gateway_webhook_events | webhook-service findFirst/update | **Idempotency / processing** | HIGH transport |
-| notification_logs | `GET /v1/notifications/admin/logs` | Admin notification logs | | MEDIUM |
+| notification_broadcast_audit_logs | `GET /v1/notifications/admin/logs` | Admin notification logs | type → notification_type_id; target → audience_type | MEDIUM |
+| notification_logs | **none (legacy)** | — | — | LOW |
 | application_revisions | admin resubmit comparison | Compliance/compare | HIGH |
 | investor_balance_transactions / note_ledger_entries | notes/payment services + investor txs page | Accounting | HIGH keep |
 
@@ -756,7 +765,8 @@ Keep specialized SOT even if audit events are added later.
 | NoteEvent | **CANDIDATE TO REPLACE** with activity/admin readers |
 | NoteAdminAction | **LEGACY / VERIFY REMOVAL** (no readers; dual-write) |
 | ProductLog | **REMOVED** — replaced by `ProductAuditLog` (`product_audit_logs`) |
-| NotificationLog | **CANDIDATE TO REPLACE** (bulk send only) |
+| NotificationBroadcastAuditLog | **KEEP AS SPECIALIZED HISTORY** (admin bulk send; not a canonical AuditEvent) |
+| NotificationLog | **LEGACY UNUSED** — replaced by `NotificationBroadcastAuditLog`; table kept temporarily; no backfill |
 | GatewayPaymentEvent | **CANDIDATE TO REPLACE** *or* keep payment-specialized — **UNCLEAR** |
 | ApplicationReview current rows | **KEEP AS SOURCE OF TRUTH** (not audit) |
 | PlatformFinanceSetting | **KEEP AS SOURCE OF TRUTH** (needs audit events, not replacement) |
@@ -772,7 +782,7 @@ Keep specialized SOT even if audit events are added later.
 | ApplicationReviewEvent | 3 admin paths | none | none | no | no | no | admin tests | LOW | 1 first | YES if dual-write stopped |
 | NoteAdminAction | logAdminAction / prospectus | none | none | no | no | no | note tests | LOW | 1 | YES if NoteEvent kept during transition |
 | ProductLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `ProductAuditLog` is live |
-| NotificationLog | bulk send | admin logs | notification admin | no | no | self | notification tests | LOW | 2 | UNCLEAR |
+| NotificationLog | **none** | n/a | n/a | n/a | no | no | notification tests | — | done (cutover) | table kept temporarily; `NotificationBroadcastAuditLog` is live |
 | LegalDocumentAuditLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `LegalAdminAuditLog` is live |
 | GatewayPaymentEvent | payment modules | payment detail; `getOpenOverrideProposal` **never called** | admin payments (labels include OVERRIDE_*) | no | no live override logic | no | many payment tests | HIGH | 5 with payments | NO until capture events exist |
 | AccessLog | auth + admin | `/audit` access + export; **also** GET `/me` recentLogins; admin user `_count.access_logs` | `/audit` + account pages + user detail count | yes | cancel-onboarding does **not** use AccessLog; dashboard stats do **not** | no | auth tests | HIGH | 6 | NO until LOGIN readers migrated |

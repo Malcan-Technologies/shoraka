@@ -15,6 +15,10 @@ import { getNotificationContent, NotificationPayloads, NotificationTypeId } from
 import { getFullUrl, PortalType } from "../../lib/http/url-utils";
 import { PortalContext } from "../../lib/http/portal-context";
 import { initialNotificationTypes } from "./seed-data";
+import type { NotificationBroadcastAuditContext } from "./audit/context";
+import { writeNotificationBroadcastProcessedAudit } from "./audit/writer";
+import { notificationBroadcastAuditLogReader } from "./audit/reader";
+import { NOTIFICATION_BROADCAST_CHANNEL_MODE } from "./audit/events";
 
 export class NotificationService {
   private repository: NotificationRepository;
@@ -356,7 +360,7 @@ export class NotificationService {
   }
 
   /**
-   * Admin: Get all notification logs
+   * Admin: Get notification broadcast audit logs
    */
   async getAdminLogs(
     filters: {
@@ -367,80 +371,7 @@ export class NotificationService {
       target?: string;
     } = {}
   ) {
-    const limit = filters.limit || 20;
-    const offset = filters.offset || 0;
-    const { search, type, target } = filters;
-
-    const where: Prisma.NotificationLogWhereInput = {
-      AND: [
-        search
-          ? {
-              OR: [
-                { admin: { first_name: { contains: search, mode: "insensitive" } } },
-                { admin: { last_name: { contains: search, mode: "insensitive" } } },
-                { admin: { email: { contains: search, mode: "insensitive" } } },
-                // Handle combined name search (e.g. "John Doe")
-                ...(search.includes(" ")
-                  ? [
-                      {
-                        admin: {
-                          AND: [
-                            {
-                              first_name: {
-                                contains: search.split(" ")[0],
-                                mode: "insensitive" as Prisma.QueryMode,
-                              },
-                            },
-                            {
-                              last_name: {
-                                contains: search.split(" ").slice(1).join(" "),
-                                mode: "insensitive" as Prisma.QueryMode,
-                              },
-                            },
-                          ],
-                        },
-                      },
-                    ]
-                  : []),
-              ],
-            }
-          : {},
-        type && type !== "all" ? { notification_type_id: type } : {},
-        target && target !== "all" ? { target_type: target } : {},
-      ],
-    };
-
-    const [items, total] = await Promise.all([
-      prisma.notificationLog.findMany({
-        where,
-        include: {
-          admin: {
-            select: {
-              first_name: true,
-              last_name: true,
-              email: true,
-            },
-          },
-          notification_type: true,
-        },
-        orderBy: {
-          created_at: "desc",
-        },
-        take: limit,
-        skip: offset,
-      }),
-      prisma.notificationLog.count({ where }),
-    ]);
-
-    return {
-      items,
-      pagination: {
-        total,
-        limit,
-        offset,
-        pages: Math.ceil(total / limit),
-      },
-    };
+    return notificationBroadcastAuditLogReader.list(filters);
   }
 
   /**
@@ -483,10 +414,15 @@ export class NotificationService {
   }
 
   /**
-   * Admin: Send notification to multiple users
+   * Admin: Send notification to multiple users.
+   *
+   * Recipient Notification rows and SES sends are processed one-by-one outside a
+   * bulk transaction. After that loop, one NotificationBroadcastAuditLog row is
+   * written. If that audit insert fails, already-created Notification rows are
+   * left in place (no rollback of inbox/delivery).
    */
   async sendBulkNotification(
-    adminUserId: string,
+    context: NotificationBroadcastAuditContext,
     params: {
       targetType: string;
       userIds?: string[];
@@ -500,9 +436,6 @@ export class NotificationService {
       sendToPlatform?: boolean;
       sendToEmail?: boolean;
       expiresAt?: Date;
-      ip_address?: string;
-      user_agent?: string;
-      device_info?: string;
     }
   ) {
     let targetUserIds: string[] = [];
@@ -531,7 +464,10 @@ export class NotificationService {
       }
     }
 
-    const results = [];
+    let createdCount = 0;
+    let skippedCount = 0;
+    let failedCount = 0;
+
     for (const userId of targetUserIds) {
       try {
         const result = await this.create({
@@ -540,49 +476,62 @@ export class NotificationService {
         });
 
         if (result) {
-          results.push({ userId, success: true, id: result.id });
+          createdCount += 1;
         } else {
-          results.push({
-            userId,
-            success: false,
-            error: "Notification skipped: no delivery channels enabled",
-          });
+          skippedCount += 1;
         }
       } catch (error) {
+        failedCount += 1;
         logger.error(
           { error, userId, typeId: params.typeId },
           "Failed to send bulk notification to user"
         );
-        results.push({
-          userId,
-          success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
-        });
       }
     }
 
-    // Log the admin action
-    await prisma.notificationLog.create({
-      data: {
-        admin_user_id: adminUserId,
-        target_type: params.targetType,
-        target_group_id: params.groupId,
-        notification_type_id: params.typeId,
+    const targetedCount = targetUserIds.length;
+    const type = await this.repository.findTypeById(params.typeId);
+    const explicitOverride =
+      params.sendToPlatform !== undefined || params.sendToEmail !== undefined;
+
+    await writeNotificationBroadcastProcessedAudit({
+      eventType: "NOTIFICATION_BROADCAST_PROCESSED",
+      context,
+      audienceType: params.targetType,
+      notificationTypeId: params.typeId,
+      metadata: {
+        notificationTypeId: params.typeId,
+        notificationTypeName: type?.name ?? params.typeId,
+        portalTargets: (type?.portal_targets ?? []) as Array<"INVESTOR" | "ISSUER">,
+        audienceType: params.targetType,
+        groupId: params.groupId ?? null,
+        targetedCount,
+        createdCount,
+        skippedCount,
+        failedCount,
         title: params.title,
         message: params.message,
-        recipient_count: targetUserIds.length,
-        metadata: (params.metadata || {}) as Prisma.InputJsonValue,
-        ip_address: params.ip_address,
-        user_agent: params.user_agent,
-        device_info: params.device_info,
+        channelMode: explicitOverride
+          ? NOTIFICATION_BROADCAST_CHANNEL_MODE.EXPLICIT_OVERRIDE
+          : NOTIFICATION_BROADCAST_CHANNEL_MODE.TYPE_AND_USER_PREFERENCES,
+        sendToPlatform: explicitOverride ? (params.sendToPlatform ?? null) : null,
+        sendToEmail: explicitOverride ? (params.sendToEmail ?? null) : null,
+        linkPath: params.linkPath ?? null,
+        expiresAt: params.expiresAt ? params.expiresAt.toISOString() : null,
       },
     });
 
-    return results;
+    return {
+      targetedCount,
+      createdCount,
+      skippedCount,
+      failedCount,
+    };
   }
 
   /**
-   * Cleanup task
+   * Cleanup task. Deletes expired/old Notification inbox rows only.
+   * Must never delete NotificationBroadcastAuditLog (or legacy NotificationLog).
    */
   async runCleanup() {
     logger.info("Running notification cleanup...");

@@ -67,6 +67,7 @@ import type {
   AdminNotificationLog,
   AdminNotificationLogPagination,
   AdminSendNotificationPayload,
+  AdminSendNotificationResult,
   AdminUpdateNotificationTypePayload,
   AdminSeedTypesResponse,
   WithdrawReason,
@@ -2696,8 +2697,8 @@ export class ApiClient {
 
   async sendAdminNotification(
     data: AdminSendNotificationPayload
-  ): Promise<ApiResponse<{ sent: number }> | ApiError> {
-    return this.post<{ sent: number }>("/v1/notifications/admin/send", data);
+  ): Promise<ApiResponse<AdminSendNotificationResult> | ApiError> {
+    return this.post<AdminSendNotificationResult>("/v1/notifications/admin/send", data);
   }
 
   async getAdminNotificationGroups(): Promise<ApiResponse<AdminNotificationGroup[]> | ApiError> {

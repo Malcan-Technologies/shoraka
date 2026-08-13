@@ -183,6 +183,9 @@ export function useAdminNotifications(
       if ("error" in response) throw new Error(response.error.message);
       return response.data;
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-notification-logs"] });
+    },
   });
 
   const { data: groups, isLoading: isLoadingGroups } = useQuery({
