@@ -60,6 +60,7 @@ import {
   creditInvestorBalance,
   debitInvestorBalanceForCommit,
   debitInvestorBalanceForWithdrawal,
+  ensureInvestorBalanceRow,
 } from "./investor-balance";
 import { postLedgerEntry } from "./ledger";
 import {
@@ -147,6 +148,10 @@ import type {
   requestIssuerPaymentEvidenceUploadUrlSchema,
   createInvestorWithdrawalSchema,
   getInvestorWithdrawalsQuerySchema,
+} from "./schemas";
+import {
+  buildInvestorWithdrawalInstructionKey,
+  buildInvestorWithdrawalBalanceTxnKey,
 } from "./schemas";
 import { loadTrusteeLetterConfig } from "./trustee-letters/trustee-letter-config.loader";
 import {
@@ -5773,50 +5778,107 @@ export class NoteService {
       );
     }
 
-    // Debit idempotency currently includes randomUUID, so a retried request can
-    // debit twice. Left unchanged in this PaymentAuditLog cutover.
-    const idempotencyKey = `investor-withdrawal:${input.investorOrganizationId}:${randomUUID()}`;
+    const instructionKey = buildInvestorWithdrawalInstructionKey(input.withdrawalIntentId);
+    const balanceTxnKey = buildInvestorWithdrawalBalanceTxnKey(input.withdrawalIntentId);
 
     const withdrawal = await prisma.$transaction(async (tx) => {
-      await debitInvestorBalanceForWithdrawal(tx, {
-        investorOrganizationId: input.investorOrganizationId,
-        amount: input.amount,
-        idempotencyKey,
-        metadata: { requestedByUserId: actor.userId } as Prisma.InputJsonValue,
-      });
+      await ensureInvestorBalanceRow(tx, input.investorOrganizationId);
+      await tx.$queryRaw`
+        SELECT id FROM investor_balances
+        WHERE investor_organization_id = ${input.investorOrganizationId}
+        FOR UPDATE
+      `;
 
-      const created = await this.createWithdrawalInstructionWithDisplayReference(tx, {
-        investor_organization_id: input.investorOrganizationId,
-        requested_by_user_id: actor.userId,
-        withdrawal_type: WithdrawalType.INVESTOR_WITHDRAWAL,
-        status: WithdrawalStatus.DRAFT,
-        amount: money(input.amount),
-        beneficiary_snapshot: beneficiarySnapshot as Prisma.InputJsonValue,
-        metadata: {
-          source: "INVESTOR_PORTAL",
-          requestedAt: new Date().toISOString(),
-        } as Prisma.InputJsonValue,
+      const existing = await tx.withdrawalInstruction.findUnique({
+        where: { idempotency_key: instructionKey },
       });
-      await writeInvestorWithdrawalAudit(
-        actor,
-        {
-          eventType: "INVESTOR_WITHDRAWAL_REQUESTED",
-          withdrawalId: created.id,
-          organizationId: input.investorOrganizationId,
-          idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.withdrawalRequested(created.id),
+      if (existing) {
+        this.assertReusableInvestorWithdrawal(existing, input);
+        return existing;
+      }
+
+      try {
+        const created = await this.createWithdrawalInstructionWithDisplayReference(tx, {
+          investor_organization_id: input.investorOrganizationId,
+          requested_by_user_id: actor.userId,
+          withdrawal_type: WithdrawalType.INVESTOR_WITHDRAWAL,
+          status: WithdrawalStatus.DRAFT,
+          amount: money(input.amount),
+          beneficiary_snapshot: beneficiarySnapshot as Prisma.InputJsonValue,
+          idempotency_key: instructionKey,
           metadata: {
+            source: "INVESTOR_PORTAL",
+            requestedAt: new Date().toISOString(),
+          } as Prisma.InputJsonValue,
+        });
+        await debitInvestorBalanceForWithdrawal(tx, {
+          investorOrganizationId: input.investorOrganizationId,
+          amount: input.amount,
+          idempotencyKey: balanceTxnKey,
+          metadata: { requestedByUserId: actor.userId } as Prisma.InputJsonValue,
+        });
+        await writeInvestorWithdrawalAudit(
+          actor,
+          {
+            eventType: "INVESTOR_WITHDRAWAL_REQUESTED",
             withdrawalId: created.id,
-            amount: input.amount,
-            currency: PAYMENT_AUDIT_CURRENCY,
-            newStatus: WithdrawalStatus.DRAFT,
+            organizationId: input.investorOrganizationId,
+            idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.withdrawalRequested(created.id),
+            metadata: {
+              withdrawalId: created.id,
+              amount: input.amount,
+              currency: PAYMENT_AUDIT_CURRENCY,
+              newStatus: WithdrawalStatus.DRAFT,
+            },
           },
-        },
-        tx
-      );
-      return created;
+          tx
+        );
+        return created;
+      } catch (error) {
+        if (
+          isUniqueConstraintError(error, "idempotency_key") ||
+          isUniqueConstraintError(error, "withdrawal_instructions_idempotency_key_key")
+        ) {
+          const duplicate = await tx.withdrawalInstruction.findUnique({
+            where: { idempotency_key: instructionKey },
+          });
+          if (duplicate) {
+            this.assertReusableInvestorWithdrawal(duplicate, input);
+            return duplicate;
+          }
+        }
+        throw error;
+      }
     });
 
     return this.mapWithdrawal(withdrawal);
+  }
+
+  private assertReusableInvestorWithdrawal(
+    existing: Prisma.WithdrawalInstructionGetPayload<Prisma.WithdrawalInstructionDefaultArgs>,
+    input: z.infer<typeof createInvestorWithdrawalSchema>
+  ) {
+    if (existing.withdrawal_type !== WithdrawalType.INVESTOR_WITHDRAWAL) {
+      throw new AppError(
+        409,
+        "WITHDRAWAL_IDEMPOTENCY_KEY_REUSED",
+        "This withdrawal intent was already used for a different withdrawal type"
+      );
+    }
+    if (existing.investor_organization_id !== input.investorOrganizationId) {
+      throw new AppError(
+        409,
+        "WITHDRAWAL_INTENT_OWNERSHIP_CONFLICT",
+        "This withdrawal intent belongs to another investor organization"
+      );
+    }
+    if (!existing.amount.equals(money(input.amount))) {
+      throw new AppError(
+        409,
+        "WITHDRAWAL_INTENT_AMOUNT_CONFLICT",
+        "This withdrawal intent was already created with a different amount"
+      );
+    }
   }
 
   async generateWithdrawalLetter(id: string, actor: ActorContext) {

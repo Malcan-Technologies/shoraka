@@ -215,11 +215,18 @@ describe("Payment audit cutover", () => {
   });
 
   it("audits investor withdrawals only and keeps issuer types on NoteAuditLog", () => {
-    const requested = methodChunk(notes, "createInvestorWithdrawal", 4500);
+    const requestedFull = methodChunk(notes, "createInvestorWithdrawal", 12000);
+    const requested = requestedFull.split("\n  async generateWithdrawalLetter")[0];
     expect(requested).toMatch(/debitInvestorBalanceForWithdrawal/);
     expect(requested).toMatch(/writeInvestorWithdrawalAudit/);
     expect(requested).toMatch(/INVESTOR_WITHDRAWAL_REQUESTED/);
-    expect(requested).toMatch(/randomUUID/);
+    expect(requested).toMatch(/withdrawalIntentId/);
+    expect(requested).toMatch(/FOR UPDATE/);
+    expect(requested.indexOf("createWithdrawalInstructionWithDisplayReference")).toBeGreaterThan(-1);
+    expect(requested.indexOf("createWithdrawalInstructionWithDisplayReference")).toBeLessThan(
+      requested.indexOf("debitInvestorBalanceForWithdrawal")
+    );
+    expect(requested).not.toMatch(/randomUUID/);
     expect(requested).not.toMatch(/writeNoteAuditFromActor/);
     const letter = methodChunk(notes, "generateWithdrawalLetter", 14000);
     expect(letter).toMatch(/noteAuditEventForWithdrawal/);

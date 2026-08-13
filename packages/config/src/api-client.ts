@@ -1151,6 +1151,7 @@ export class ApiClient {
   async requestInvestorWithdrawal(data: {
     amount: number;
     investorOrganizationId: string;
+    withdrawalIntentId: string;
   }): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
     return this.post<WithdrawalInstruction>("/v1/investor/balance/withdraw", data);
   }

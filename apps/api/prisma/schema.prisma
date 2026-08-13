@@ -1277,6 +1277,7 @@ model WithdrawalInstruction {
   completed_at             DateTime?
   metadata                 Json?
   display_reference        String?            @unique
+  idempotency_key          String?            @unique
   created_at               DateTime           @default(now())
   updated_at               DateTime           @updatedAt
   settlement               NoteSettlement?    @relation(fields: [settlement_id], references: [id], onDelete: SetNull)

@@ -5,7 +5,7 @@
 - Hard cutover: live writers use `PaymentAuditLog`. No dual-write. No backfill.
 - `GatewayPaymentEvent` / `gateway_payment_events` **removed**. `GatewayPaymentEventType` dropped.
 - Investor wallet withdrawals (`WithdrawalType.INVESTOR_WITHDRAWAL`) are audited here. Issuer disbursement / residual stay on `NoteAuditLog`.
-- Known leftover: investor withdrawal debit idempotency still uses `randomUUID()` and can double-debit on retry. Not changed in this cutover.
+- Investor-portal withdrawal requests use a client `withdrawalIntentId` stored on `WithdrawalInstruction.idempotency_key` so retries do not double-debit.
 
 ---
 

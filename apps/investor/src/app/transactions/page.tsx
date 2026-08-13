@@ -22,6 +22,10 @@ import {
 } from "./components/transactions.types";
 import { mapActivityEntryToTransaction, parseMoneyAmount } from "./components/transaction-utils";
 import {
+  clearInvestorWithdrawalIntent,
+  getOrCreateInvestorWithdrawalIntent,
+} from "@/lib/investor-withdrawal-intent";
+import {
   useInvestorBalanceActivityAll,
   useInvestorInvestments,
   useInvestorPortfolio,
@@ -105,14 +109,17 @@ export default function TransactionsPage() {
   const requestWithdrawalMutation = useMutation({
     mutationFn: async () => {
       if (!orgId) throw new Error("No investor organization selected");
+      const withdrawalIntentId = getOrCreateInvestorWithdrawalIntent(orgId, confirmedAmount);
       const response = await apiClient.requestInvestorWithdrawal({
         amount: confirmedAmount,
         investorOrganizationId: orgId,
+        withdrawalIntentId,
       });
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
     onSuccess: () => {
+      if (orgId) clearInvestorWithdrawalIntent(orgId);
       setWithdrawConfirmOpen(false);
       setWithdrawSuccessOpen(true);
       setWithdrawAmount("");
@@ -236,12 +243,18 @@ export default function TransactionsPage() {
   function handleWithdrawSubmit() {
     const amount = validateWithdrawAmount();
     if (amount === null) return;
+    if (!orgId) {
+      setWithdrawError("No investor organization selected");
+      return;
+    }
     setConfirmedAmount(amount);
+    getOrCreateInvestorWithdrawalIntent(orgId, amount);
     setWithdrawRequestOpen(false);
     setWithdrawConfirmOpen(true);
   }
 
   function handleWithdrawConfirm() {
+    if (requestWithdrawalMutation.isPending) return;
     setWithdrawConfirmError(null);
     requestWithdrawalMutation.mutate();
   }
@@ -309,7 +322,17 @@ export default function TransactionsPage() {
 
       <WithdrawConfirmDialog
         open={withdrawConfirmOpen}
-        onOpenChange={setWithdrawConfirmOpen}
+        onOpenChange={(open) => {
+          if (
+            !open &&
+            orgId &&
+            !requestWithdrawalMutation.isPending &&
+            !requestWithdrawalMutation.isError
+          ) {
+            clearInvestorWithdrawalIntent(orgId);
+          }
+          setWithdrawConfirmOpen(open);
+        }}
         amount={confirmedAmount}
         onConfirm={handleWithdrawConfirm}
         isLoading={requestWithdrawalMutation.isPending}

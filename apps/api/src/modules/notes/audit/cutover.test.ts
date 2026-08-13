@@ -232,8 +232,12 @@ describe("Note audit cutover", () => {
   });
 
   it("does not audit investor withdrawals or late-charge approval", () => {
-    const investorChunk = methodChunk(notes, "createInvestorWithdrawal", 2500);
+    const investorChunkFull = methodChunk(notes, "createInvestorWithdrawal", 9000);
+    const investorChunk = investorChunkFull.split("\n  async generateWithdrawalLetter")[0];
     expect(investorChunk).not.toMatch(/writeNoteAuditFromActor/);
+    const adminCreate = methodChunk(notes, "createWithdrawal", 2000);
+    expect(adminCreate).not.toMatch(/withdrawalIntentId/);
+    expect(adminCreate).not.toMatch(/idempotency_key/);
     const lateChunk = methodChunk(notes, "approveLateCharge", 800);
     expect(lateChunk).not.toMatch(/writeNoteAuditFromActor/);
     expect(lateChunk).not.toMatch(/LATE_CHARGE_APPROVED/);
