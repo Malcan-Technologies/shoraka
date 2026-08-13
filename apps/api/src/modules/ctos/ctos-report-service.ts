@@ -36,8 +36,48 @@ import { buildAdminPeopleList } from "../admin/build-people-list";
 import { filterVisiblePeopleRows, normalizeRawStatus, type ApplicationPersonRow } from "@cashsouk/types";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
+import { writeOnboardingAuditLog } from "../onboarding/audit/writer";
+import { ONBOARDING_AUDIT_TARGET_TYPE } from "../onboarding/audit/events";
+import {
+  AUDIT_ACTOR_TYPE,
+  AUDIT_PORTAL,
+  AUDIT_SOURCE,
+  organizationKindFromPortalType,
+} from "../../lib/audit/context";
 
 export type AdminOrgCtosPortal = "issuer" | "investor";
+
+async function writeCtosReportReceivedAudit(params: {
+  reportId: string;
+  entityType: string;
+  organizationId: string;
+  portal: "investor" | "issuer";
+  subjectUserId: string | null;
+}): Promise<void> {
+  await writeOnboardingAuditLog({
+    eventType: "CTOS_REPORT_RECEIVED",
+    context: {
+      actorType: AUDIT_ACTOR_TYPE.ADMIN,
+      actorUserId: null,
+      source: AUDIT_SOURCE.API,
+      portal: AUDIT_PORTAL.ADMIN,
+      ipAddress: null,
+      userAgent: null,
+      correlationId: null,
+    },
+    subjectUserId: params.subjectUserId,
+    organizationId: params.organizationId,
+    organizationKind: organizationKindFromPortalType(params.portal),
+    organizationType: "COMPANY",
+    targetType: ONBOARDING_AUDIT_TARGET_TYPE.CTOS_REPORT,
+    targetId: params.reportId,
+    metadata: {
+      reportId: params.reportId,
+      entityType: params.entityType,
+      provider: "CTOS",
+    },
+  });
+}
 
 /**
  * SECTION: AML status helpers for CTOS-triggered financial review reset
@@ -175,6 +215,7 @@ function orgFkCreate(portal: AdminOrgCtosPortal, organizationId: string) {
 }
 
 type OrgRowForSubject = {
+  owner_user_id: string;
   corporate_entities: Prisma.JsonValue;
   director_kyc_status: Prisma.JsonValue;
 };
@@ -361,6 +402,14 @@ export async function fetchAndInsertCtosReport(
     },
   });
 
+  await writeCtosReportReceivedAudit({
+    reportId: row.id,
+    entityType: "company",
+    organizationId: issuerOrganizationId,
+    portal: "issuer",
+    subjectUserId: orgForPeople?.owner_user_id ?? org.owner_user_id,
+  });
+
   if (orgForPeople?.owner_user_id) {
     try {
       await runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert({
@@ -521,6 +570,14 @@ export async function fetchAndInsertCtosReportForAdminOrg(
       ccris_json: parsed.ccris_json as Prisma.InputJsonValue,
       financials_json: parsed.financials_json as unknown as Prisma.InputJsonValue,
     },
+  });
+
+  await writeCtosReportReceivedAudit({
+    reportId: row.id,
+    entityType: "company",
+    organizationId,
+    portal,
+    subjectUserId: orgForPeople?.owner_user_id ?? null,
   });
 
   const shouldNotifyDirectorShareholder = shouldNotifyDirectorShareholderAfterAdminOrgCtosInsert({
@@ -696,6 +753,14 @@ export async function fetchAndInsertCtosSubjectReport(
     },
   });
 
+  await writeCtosReportReceivedAudit({
+    reportId: row.id,
+    entityType: input.subjectKind === "CORPORATE" ? "company" : "person",
+    organizationId: issuerOrganizationId,
+    portal: "issuer",
+    subjectUserId: org.owner_user_id,
+  });
+
   logger.debug(
     {
       rowId: row.id,
@@ -807,6 +872,14 @@ export async function fetchAndInsertCtosSubjectReportForAdminOrg(
       ccris_json: parsed.ccris_json as Prisma.InputJsonValue,
       financials_json: parsed.financials_json as unknown as Prisma.InputJsonValue,
     },
+  });
+
+  await writeCtosReportReceivedAudit({
+    reportId: row.id,
+    entityType: input.subjectKind === "CORPORATE" ? "company" : "person",
+    organizationId,
+    portal,
+    subjectUserId: subjectOrg.owner_user_id,
   });
 
   logger.debug(

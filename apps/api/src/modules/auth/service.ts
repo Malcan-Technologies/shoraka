@@ -13,7 +13,7 @@ import {
   GlobalSignOutCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 import { AuthRepository } from "./repository";
-import { User, UserRole } from "@prisma/client";
+import { OnboardingStatus, User, UserRole } from "@prisma/client";
 import { formatRolesForCognito } from "../../lib/auth/cognito";
 import { verifyCognitoAccessToken } from "../../lib/auth/cognito-jwt-verifier";
 import { Request, Response } from "express";
@@ -59,6 +59,46 @@ function computeSecretHash(username: string): string {
   const hmac = createHmac("sha256", COGNITO_CLIENT_SECRET);
   hmac.update(message);
   return hmac.digest("base64");
+}
+
+async function hasIncompleteOnboardingForRole(userId: string, role: UserRole): Promise<boolean> {
+  const portalType = role === UserRole.ISSUER ? "issuer" : "investor";
+  const orgs =
+    portalType === "investor"
+      ? await prisma.investorOrganization.findMany({
+          where: { owner_user_id: userId },
+          select: { id: true, onboarding_status: true, onboarded_at: true },
+        })
+      : await prisma.issuerOrganization.findMany({
+          where: { owner_user_id: userId },
+          select: { id: true, onboarding_status: true, onboarded_at: true },
+        });
+
+  const sessions = await prisma.regTankOnboarding.findMany({
+    where: { user_id: userId, portal_type: portalType },
+    select: { investor_organization_id: true, issuer_organization_id: true },
+  });
+
+  const sessionOrgIds = new Set(
+    sessions
+      .map((row) =>
+        portalType === "investor" ? row.investor_organization_id : row.issuer_organization_id
+      )
+      .filter((id): id is string => Boolean(id))
+  );
+
+  const hasIncomplete = orgs.some((org) => {
+    if (org.onboarding_status === OnboardingStatus.COMPLETED || org.onboarded_at) {
+      return false;
+    }
+    if (org.onboarding_status !== OnboardingStatus.PENDING) {
+      return true;
+    }
+    return sessionOrgIds.has(org.id);
+  });
+
+  if (hasIncomplete) return true;
+  return false;
 }
 
 export class AuthService {
@@ -336,8 +376,8 @@ export class AuthService {
   }
 
   /**
-   * Cancel onboarding - silently cancels user-initiated onboarding (no logs created)
-   * Note: ONBOARDING_CANCELLED logs are only created when admin restarts onboarding
+   * Report whether the user has incomplete onboarding for a portal.
+   * Does not rewind org status, delete provider sessions, or write audit.
    */
   async cancelOnboarding(
     req: Request,
@@ -345,7 +385,6 @@ export class AuthService {
     role?: UserRole,
     reason?: string
   ): Promise<{ success: boolean; cancelled: boolean }> {
-    // Get user to determine role if not provided
     const user = await prisma.user.findUnique({
       where: { user_id: userId },
     });
@@ -354,10 +393,8 @@ export class AuthService {
       throw new Error("User not found");
     }
 
-    // Determine the role
     let onboardingRole = role;
     if (!onboardingRole) {
-      // Try to determine role from token or user
       const authHeader = req.headers.authorization;
       if (authHeader?.startsWith("Bearer ")) {
         try {
@@ -375,63 +412,14 @@ export class AuthService {
       }
     }
 
-    // Check if user has started onboarding but not completed it
-    // Check if there's a recent ONBOARDING_STARTED event for this role
-    const startedEvent = await prisma.onboardingLog.findFirst({
-      where: {
-        user_id: userId,
-        role: onboardingRole,
-        event_type: "ONBOARDING_STARTED",
-      },
-      orderBy: {
-        created_at: "desc",
-      },
-    });
-
-    if (!startedEvent) {
-      // User hasn't started onboarding, nothing to cancel
-      logger.info(
-        { userId, role: onboardingRole },
-        "No onboarding started event found - skipping cancellation"
-      );
-      return { success: true, cancelled: false };
-    }
-
-    // Check if onboarding has been completed (check for COMPLETED event or account array)
-    const completedEvent = await prisma.onboardingLog.findFirst({
-      where: {
-        user_id: userId,
-        role: onboardingRole,
-        event_type: "USER_COMPLETED",
-        created_at: {
-          gte: startedEvent.created_at, // Only count if completed after started
-        },
-      },
-    });
-
-    // Also check if account array indicates completion
-    const accountArray =
-      onboardingRole === UserRole.INVESTOR ? user.investor_account : user.issuer_account;
-    const hasCompletedAccount = accountArray.length > 0 && !accountArray.includes("temp");
-
-    if (completedEvent || hasCompletedAccount) {
-      // Onboarding already completed, nothing to cancel
-      logger.info(
-        { userId, role: onboardingRole, hasCompletedEvent: !!completedEvent, hasCompletedAccount },
-        "Onboarding already completed - skipping cancellation"
-      );
-      return { success: true, cancelled: false };
-    }
-
-    // User has started but not completed - skip logging cancellation
-    // Note: ONBOARDING_CANCELLED logs are only created when admin restarts onboarding
-    // User-initiated cancellations (navigating away, switching orgs) are not logged
+    const cancelled = await hasIncompleteOnboardingForRole(userId, onboardingRole);
     logger.info(
-      { userId, role: onboardingRole, reason },
-      "Onboarding cancelled (user-initiated, no log created)"
+      { userId, role: onboardingRole, reason, cancelled },
+      cancelled
+        ? "Onboarding cancelled (user-initiated, no state mutation)"
+        : "Onboarding cancel skipped — never started or already completed"
     );
-
-    return { success: true, cancelled: true };
+    return { success: true, cancelled };
   }
 
   /**

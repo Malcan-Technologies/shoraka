@@ -72,7 +72,33 @@ const mockInvestorOrgFindUnique = jest.fn();
 const mockIssuerOrgFindUnique = jest.fn();
 const mockInvestorOrgUpdate = jest.fn(() => Promise.resolve());
 const mockIssuerOrgUpdate = jest.fn(() => Promise.resolve());
-const mockOnboardingLogCreate = jest.fn(() => Promise.resolve());
+const mockOnboardingAuditCreate = jest.fn(() => Promise.resolve());
+const mockUserFindUnique = jest.fn(() =>
+  Promise.resolve({ first_name: "Admin", last_name: "User", email: "admin@example.com" })
+);
+
+jest.mock("../../lib/http/request-utils", () => ({
+  ...jest.requireActual("../../lib/http/request-utils"),
+  getClientIp: () => "127.0.0.1",
+}));
+
+const prismaTx = {
+  investorOrganization: {
+    findUnique: (...args: unknown[]) => mockInvestorOrgFindUnique(...args),
+    update: (...args: unknown[]) => mockInvestorOrgUpdate(...args),
+  },
+  issuerOrganization: {
+    findUnique: (...args: unknown[]) => mockIssuerOrgFindUnique(...args),
+    update: (...args: unknown[]) => mockIssuerOrgUpdate(...args),
+  },
+  user: {
+    findUnique: (...args: unknown[]) => mockUserFindUnique(...args),
+  },
+  onboardingAuditLog: {
+    create: (...args: unknown[]) => mockOnboardingAuditCreate(...args),
+  },
+};
+
 jest.mock("../../lib/prisma", () => ({
   prisma: {
     regTankOnboarding: {
@@ -86,9 +112,13 @@ jest.mock("../../lib/prisma", () => ({
       findUnique: (...args: unknown[]) => mockIssuerOrgFindUnique(...args),
       update: (...args: unknown[]) => mockIssuerOrgUpdate(...args),
     },
-    onboardingLog: {
-      create: (...args: unknown[]) => mockOnboardingLogCreate(...args),
+    user: {
+      findUnique: (...args: unknown[]) => mockUserFindUnique(...args),
     },
+    onboardingAuditLog: {
+      create: (...args: unknown[]) => mockOnboardingAuditCreate(...args),
+    },
+    $transaction: async (fn: (tx: typeof prismaTx) => Promise<unknown>) => fn(prismaTx),
   },
 }));
 

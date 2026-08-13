@@ -15,6 +15,8 @@ export type AuditSource = (typeof AUDIT_SOURCE)[keyof typeof AUDIT_SOURCE];
 export const AUDIT_ACTOR_TYPE = {
   USER: "USER",
   ADMIN: "ADMIN",
+  SYSTEM: "SYSTEM",
+  INTEGRATION: "INTEGRATION",
 } as const;
 
 export type AuditActorType = (typeof AUDIT_ACTOR_TYPE)[keyof typeof AUDIT_ACTOR_TYPE];
@@ -99,7 +101,7 @@ export function auditContextFromRequest(
     source: options?.source ?? AUDIT_SOURCE.API,
     portal: options?.portal !== undefined ? options.portal : auditPortalFromRequest(req),
     ipAddress: getClientIp(req) ?? null,
-    userAgent: typeof req.headers["user-agent"] === "string" ? req.headers["user-agent"] : null,
+    userAgent: typeof req.headers?.["user-agent"] === "string" ? req.headers["user-agent"] : null,
     correlationId: correlationIdFrom(req, options?.res),
   };
 }
@@ -111,6 +113,40 @@ export function auditContextFromAdminRequest(req: Request, res?: Response): Audi
     source: AUDIT_SOURCE.API,
     res,
   });
+}
+
+export function webhookAuditContext(options: {
+  actorType?: AuditActorType;
+  actorUserId?: string | null;
+  portal: AuditPortal | null;
+  correlationId?: string | null;
+}): AuditRequestContext {
+  return {
+    actorType: options.actorType ?? AUDIT_ACTOR_TYPE.INTEGRATION,
+    actorUserId: options.actorUserId ?? null,
+    source: AUDIT_SOURCE.WEBHOOK,
+    portal: options.portal,
+    ipAddress: null,
+    userAgent: null,
+    correlationId: options.correlationId ?? null,
+  };
+}
+
+export function systemAuditContext(options: {
+  source?: AuditSource;
+  portal: AuditPortal | null;
+  actorUserId?: string | null;
+  correlationId?: string | null;
+}): AuditRequestContext {
+  return {
+    actorType: AUDIT_ACTOR_TYPE.SYSTEM,
+    actorUserId: options.actorUserId ?? null,
+    source: options.source ?? AUDIT_SOURCE.INTERNAL,
+    portal: options.portal,
+    ipAddress: null,
+    userAgent: null,
+    correlationId: options.correlationId ?? null,
+  };
 }
 
 export function jsonAuditValue(value: unknown): import("@prisma/client").Prisma.InputJsonValue {

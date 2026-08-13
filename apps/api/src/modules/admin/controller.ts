@@ -707,7 +707,7 @@ router.post(
         throw new AppError(400, "VALIDATION_ERROR", "Portal must be 'investor' or 'issuer'");
       }
 
-      const result = await adminService.refreshOrganizationCorporateEntities(id, portal);
+      const result = await adminService.refreshOrganizationCorporateEntities(req, id, portal);
 
       res.json({
         success: true,
@@ -796,6 +796,7 @@ router.patch(
       const adminUserId = res.locals.userId as string | undefined;
 
       const result = await adminService.updateSophisticatedStatus(
+        req,
         id,
         validated.isSophisticatedInvestor,
         validated.reason,
@@ -1447,24 +1448,24 @@ router.get(
       if (format === "csv") {
         const headers = [
           "Timestamp",
-          "User",
+          "Actor",
           "Email",
-          "Role",
           "Event Type",
           "Portal",
+          "Source",
           "IP Address",
           "Device",
           "Metadata",
         ];
         const rows = logs.map((log) => [
-          log.created_at.toISOString(),
-          `${log.user.first_name} ${log.user.last_name}`,
-          log.user.email,
-          log.role,
-          log.event_type,
+          log.occurredAt,
+          log.actor.displayName || log.actor.userId || "",
+          log.actor.email || "",
+          log.eventType,
           log.portal || "",
-          log.ip_address || "",
-          log.device_type || "",
+          log.source,
+          log.ipAddress || "",
+          log.deviceInfo || "",
           JSON.stringify(log.metadata || {}),
         ]);
 
@@ -1484,22 +1485,20 @@ router.get(
       } else {
         const jsonData = logs.map((log) => ({
           id: log.id,
-          user_id: log.user_id,
-          user: {
-            first_name: log.user.first_name,
-            last_name: log.user.last_name,
-            email: log.user.email,
-            roles: log.user.roles,
-          },
-          role: log.role,
-          event_type: log.event_type,
+          eventType: log.eventType,
+          occurredAt: log.occurredAt,
+          createdAt: log.createdAt,
+          subjectUserId: log.subjectUserId,
+          actor: log.actor,
+          organizationId: log.organizationId,
+          organizationKind: log.organizationKind,
+          organizationType: log.organizationType,
           portal: log.portal,
-          ip_address: log.ip_address,
-          user_agent: log.user_agent,
-          device_info: log.device_info,
-          device_type: log.device_type,
+          source: log.source,
+          ipAddress: log.ipAddress,
+          userAgent: log.userAgent,
+          deviceInfo: log.deviceInfo,
           metadata: log.metadata,
-          created_at: log.created_at.toISOString(),
         }));
 
         res.setHeader("Content-Type", "application/json; charset=utf-8");

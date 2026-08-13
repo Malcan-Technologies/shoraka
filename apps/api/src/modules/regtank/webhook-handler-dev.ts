@@ -1,14 +1,11 @@
 import crypto from "crypto";
 import { getRegTankConfig } from "../../config/regtank";
-import { RegTankWebhookPayload } from "./types";
+import { RegTankWebhookPayload, PortalType } from "./types";
 import { logger } from "../../lib/logger";
 import { AppError } from "../../lib/http/error-handler";
 import { getPrismaDevClient } from "../../lib/prisma-dev";
 import { prisma } from "../../lib/prisma";
-import { OnboardingStatus, UserRole, PrismaClient } from "@prisma/client";
-import { PortalType } from "./types";
-import { AuthRepository } from "../auth/repository";
-import { OrganizationRepository } from "../organization/repository";
+import { OnboardingStatus, PrismaClient } from "@prisma/client";
 import { normalizeRawStatus } from "@cashsouk/types";
 
 /**
@@ -469,40 +466,6 @@ export class RegTankDevWebhookHandler {
         }
       }
 
-      // Log onboarding completed in dev database
-      const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-
-      // Fetch organization details for logging
-      const orgDev = organizationId
-        ? portalType === "investor"
-          ? await prismaDev.investorOrganization.findUnique({
-            where: { id: organizationId },
-            select: { name: true },
-          })
-          : await prismaDev.issuerOrganization.findUnique({
-            where: { id: organizationId },
-            select: { name: true },
-          })
-        : null;
-
-      await prismaDev.onboardingLog.create({
-        data: {
-          user_id: onboarding.user_id,
-          role,
-          event_type: "USER_COMPLETED",
-          portal: portalType,
-          organization_name: orgDev?.name || undefined,
-          investor_organization_id: (portalType === "investor" && organizationId) ? organizationId : null,
-          issuer_organization_id: (portalType === "issuer" && organizationId) ? organizationId : null,
-          metadata: {
-            organizationId,
-            requestId,
-            status: "APPROVED",
-            database: "dev",
-          },
-        },
-      });
-
       logger.info(
         {
           requestId,
@@ -511,82 +474,6 @@ export class RegTankDevWebhookHandler {
           database: "dev",
         },
         "Organization onboarding completed via RegTank webhook (DEV database)"
-      );
-    }
-
-    // Create onboarding log entry for audit purposes (in production database)
-    // Note: We log to production database even for dev webhooks for unified audit trail
-    try {
-      const portalType = onboarding.portal_type as PortalType;
-      const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-      const authRepository = new AuthRepository();
-      const organizationRepository = new OrganizationRepository();
-
-      // Fetch organization details for logging
-      const org = organizationId
-        ? portalType === "investor"
-          ? await organizationRepository.findInvestorOrganizationById(organizationId)
-          : await organizationRepository.findIssuerOrganizationById(organizationId)
-        : null;
-
-      // Determine event type based on status
-      let eventType = "WEBHOOK_RECEIVED";
-      if (statusUpper === "APPROVED") {
-        eventType = "WEBHOOK_APPROVED";
-      } else if (statusUpper === "REJECTED") {
-        eventType = "WEBHOOK_REJECTED";
-      } else if (statusUpper === "WAIT_FOR_APPROVAL" || statusUpper === "PENDING_APPROVAL") {
-        eventType = "WEBHOOK_PENDING_APPROVAL";
-      } else if (statusUpper === "LIVENESS_PASSED") {
-        eventType = "WEBHOOK_LIVENESS_PASSED";
-      } else if (
-        statusUpper === "FORM_FILLING" ||
-        statusUpper === "PROCESSING" ||
-        statusUpper === "ID_UPLOADED"
-      ) {
-        eventType = "WEBHOOK_FORM_FILLING";
-      } else if (statusUpper === "IN_PROGRESS") {
-        eventType = "WEBHOOK_IN_PROGRESS";
-      }
-
-      await authRepository.createOnboardingLog({
-        userId: onboarding.user_id,
-        role,
-        eventType,
-        portal: portalType,
-        organizationName: org?.name || undefined,
-        investorOrganizationId: (portalType === "investor" && organizationId) ? organizationId : undefined,
-        issuerOrganizationId: (portalType === "issuer" && organizationId) ? organizationId : undefined,
-        metadata: {
-          requestId,
-          status: statusUpper,
-          substatus: substatus || null,
-          payload: payload,
-          database: "dev", // Indicate this came from dev webhook handler
-        },
-      });
-
-      logger.debug(
-        {
-          requestId,
-          userId: onboarding.user_id,
-          role,
-          eventType,
-          portalType,
-          database: "dev",
-        },
-        "Created onboarding log entry for webhook (dev handler)"
-      );
-    } catch (logError) {
-      // Log error but don't fail the webhook processing
-      logger.error(
-        {
-          error: logError instanceof Error ? logError.message : String(logError),
-          requestId,
-          userId: onboarding.user_id,
-          database: "dev",
-        },
-        "Failed to create onboarding log entry for webhook (non-blocking)"
       );
     }
 

@@ -6,7 +6,6 @@ import {
   Admin,
   AdminRoleConfig,
   AdminInvitation,
-  OnboardingLog,
   OrganizationType,
   OnboardingStatus,
   ApplicationStatus,
@@ -18,7 +17,6 @@ import type { AdminRoleKey } from "@cashsouk/types";
 import type {
   GetUsersQuery,
   GetAdminUsersQuery,
-  GetOnboardingLogsQuery,
   GetAdminApplicationsQuery,
   GetAdminContractsQuery,
 } from "./schemas";
@@ -165,25 +163,22 @@ export class AdminRepository {
   async updateUserOnboarding(
     userId: string,
     data: { investorOnboarded?: boolean; issuerOnboarded?: boolean },
-    roles?: UserRole[]
+    roles?: UserRole[],
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ): Promise<User> {
     const updateData: Prisma.UserUpdateInput = {};
 
     if (data.investorOnboarded !== undefined) {
       if (data.investorOnboarded) {
-        // Set to ['temp'] if not already set (temporary placeholder)
         updateData.investor_account = { set: ["temp"] };
       } else {
-        // Clear array
         updateData.investor_account = { set: [] };
       }
     }
     if (data.issuerOnboarded !== undefined) {
       if (data.issuerOnboarded) {
-        // Set to ['temp'] if not already set (temporary placeholder)
         updateData.issuer_account = { set: ["temp"] };
       } else {
-        // Clear array
         updateData.issuer_account = { set: [] };
       }
     }
@@ -192,7 +187,7 @@ export class AdminRepository {
       updateData.roles = roles;
     }
 
-    return prisma.user.update({
+    return db.user.update({
       where: { user_id: userId },
       data: updateData,
     });
@@ -795,299 +790,6 @@ export class AdminRepository {
     await prisma.adminInvitation.delete({
       where: { id },
     });
-  }
-
-  /**
-   * Create onboarding log
-   */
-  async createOnboardingLog(data: {
-    userId: string;
-    investorOrganizationId?: string;
-    issuerOrganizationId?: string;
-    organizationName?: string;
-    role: UserRole;
-    eventType: string;
-    portal?: string;
-    ipAddress?: string;
-    userAgent?: string;
-    deviceInfo?: string;
-    deviceType?: string;
-    metadata?: object;
-  }): Promise<OnboardingLog> {
-    return prisma.onboardingLog.create({
-      data: {
-        user_id: data.userId,
-        investor_organization_id: data.investorOrganizationId,
-        issuer_organization_id: data.issuerOrganizationId,
-        organization_name: data.organizationName,
-        role: data.role,
-        event_type: data.eventType,
-        portal: data.portal,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        device_type: data.deviceType,
-        metadata: data.metadata as Prisma.InputJsonValue,
-      },
-    });
-  }
-
-  /**
-   * Get onboarding logs with pagination and filters
-   */
-  async getOnboardingLogs(params: GetOnboardingLogsQuery): Promise<{
-    logs: (OnboardingLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    })[];
-    total: number;
-  }> {
-    const { page, pageSize, search, eventType, eventTypes, role, dateRange, userId, organizationId } = params;
-    const skip = (page - 1) * pageSize;
-
-    const where: Prisma.OnboardingLogWhereInput = {};
-
-    if (userId) {
-      where.user_id = userId;
-    }
-
-    if (organizationId) {
-      where.OR = [
-        ...(where.OR || []),
-        { investor_organization_id: organizationId },
-        { issuer_organization_id: organizationId },
-      ];
-    }
-
-    if (role) {
-      where.role = role;
-    }
-
-    if (eventTypes && eventTypes.length > 0) {
-      where.event_type = { in: eventTypes };
-    } else if (eventType) {
-      where.event_type = eventType;
-    }
-
-    if (dateRange && dateRange !== "all") {
-      const now = new Date();
-      let cutoffDate: Date;
-
-      switch (dateRange) {
-        case "24h":
-          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-          break;
-        case "7d":
-          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case "30d":
-          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          cutoffDate = new Date(0);
-      }
-
-      where.created_at = { gte: cutoffDate };
-    }
-
-    if (search) {
-      where.user = {
-        OR: [
-          { first_name: { contains: search, mode: "insensitive" } },
-          { last_name: { contains: search, mode: "insensitive" } },
-          { email: { contains: search, mode: "insensitive" } },
-          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
-        ],
-      };
-    }
-
-    const [logs, total] = await Promise.all([
-      prisma.onboardingLog.findMany({
-        where,
-        skip,
-        take: pageSize,
-        orderBy: { created_at: "desc" },
-        include: {
-          user: {
-            select: {
-              first_name: true,
-              last_name: true,
-              email: true,
-              roles: true,
-            },
-          },
-          investor_organization: {
-            select: { type: true },
-          },
-          issuer_organization: {
-            select: { type: true },
-          },
-        },
-      }),
-      prisma.onboardingLog.count({ where }),
-    ]);
-
-    // Collect unique admin user IDs from metadata fields (approvedBy, updatedBy, cancelledBy, resetBy)
-    const adminUserIds = new Set<string>();
-    const actorFields = ["approvedBy", "updatedBy", "cancelledBy", "resetBy"] as const;
-    for (const log of logs) {
-      const meta = log.metadata as Record<string, unknown> | null;
-      if (!meta) continue;
-      for (const field of actorFields) {
-        const val = meta[field];
-        if (typeof val === "string" && val.length > 0 && val !== "admin" && val !== "system") {
-          adminUserIds.add(val);
-        }
-      }
-    }
-
-    // Batch-resolve admin user names
-    let adminNameMap = new Map<string, string>();
-    if (adminUserIds.size > 0) {
-      const adminUsers = await prisma.user.findMany({
-        where: { user_id: { in: [...adminUserIds] } },
-        select: { user_id: true, first_name: true, last_name: true },
-      });
-      adminNameMap = new Map(
-        adminUsers.map((u) => [u.user_id, `${u.first_name} ${u.last_name}`])
-      );
-    }
-
-    // Map logs with organization info and resolved admin names
-    const logsWithOrgInfo = logs.map((log) => {
-      const organizationName = log.organization_name;
-      const organizationType =
-        log.investor_organization?.type || log.issuer_organization?.type || null;
-
-      // Enrich metadata with resolved admin names
-      const meta = log.metadata as Record<string, unknown> | null;
-      if (meta) {
-        for (const field of actorFields) {
-          const val = meta[field];
-          if (typeof val === "string" && adminNameMap.has(val)) {
-            meta[`${field}Name`] = adminNameMap.get(val);
-          }
-        }
-      }
-
-      return {
-        ...log,
-        organizationName,
-        organizationType,
-      };
-    });
-
-    return { logs: logsWithOrgInfo, total };
-  }
-
-  /**
-   * Get onboarding log by ID
-   */
-  async getOnboardingLogById(logId: string): Promise<(OnboardingLog & { user: User }) | null> {
-    return prisma.onboardingLog.findUnique({
-      where: { id: logId },
-      include: {
-        user: true,
-      },
-    });
-  }
-
-  /**
-   * Get all onboarding logs for export (no pagination)
-   */
-  async getAllOnboardingLogsForExport(
-    params: Omit<GetOnboardingLogsQuery, "page" | "pageSize">
-  ): Promise<
-    (OnboardingLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-      organizationName?: string | null;
-      organizationType?: OrganizationType | null;
-    })[]
-  > {
-    const { search, eventType, eventTypes, role, dateRange, userId } = params;
-
-    const where: Prisma.OnboardingLogWhereInput = {};
-
-    if (userId) {
-      where.user_id = userId;
-    }
-
-    if (role) {
-      where.role = role;
-    }
-
-    if (eventTypes && eventTypes.length > 0) {
-      where.event_type = { in: eventTypes };
-    } else if (eventType) {
-      where.event_type = eventType;
-    }
-
-    if (dateRange && dateRange !== "all") {
-      const now = new Date();
-      let cutoffDate: Date;
-
-      switch (dateRange) {
-        case "24h":
-          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-          break;
-        case "7d":
-          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case "30d":
-          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          cutoffDate = new Date(0);
-      }
-
-      where.created_at = { gte: cutoffDate };
-    }
-
-    if (search) {
-      where.user = {
-        OR: [
-          { first_name: { contains: search, mode: "insensitive" } },
-          { last_name: { contains: search, mode: "insensitive" } },
-          { email: { contains: search, mode: "insensitive" } },
-          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
-        ],
-      };
-    }
-
-    const logs = await prisma.onboardingLog.findMany({
-      where,
-      orderBy: { created_at: "desc" },
-      include: {
-        user: {
-          select: {
-            first_name: true,
-            last_name: true,
-            email: true,
-            roles: true,
-          },
-        },
-        investor_organization: {
-          select: { type: true },
-        },
-        issuer_organization: {
-          select: { type: true },
-        },
-      },
-    });
-
-    // Map logs with organization info from the OnboardingLog record itself
-    const logsWithOrgInfo = logs.map((log) => {
-      const organizationName = log.organization_name;
-      const organizationType =
-        log.investor_organization?.type || log.issuer_organization?.type || null;
-
-      return {
-        ...log,
-        organizationName,
-        organizationType,
-      };
-    });
-
-    return logsWithOrgInfo;
   }
 
   /**

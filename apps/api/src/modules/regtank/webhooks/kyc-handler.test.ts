@@ -98,6 +98,7 @@ describe("KYCWebhookHandler", () => {
     expect(mockInvestorUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ kyc_response: expect.anything() }) })
     );
+    expect(mockOnboardingLogCreate).not.toHaveBeenCalled();
   });
 
   it("A2: KYC unknown/undocumented status is preserved but does not alter onboarding lifecycle status", async () => {

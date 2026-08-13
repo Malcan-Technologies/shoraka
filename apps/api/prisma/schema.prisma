@@ -1971,6 +1971,40 @@ model SecurityAuditLog {
   @@map("security_audit_logs")
 }
 
+/// Append-only onboarding/compliance history. No User or organization FKs:
+/// stored ids are historical evidence and must survive target deletion/reset.
+model OnboardingAuditLog {
+  id                  String   @id @default(cuid())
+  onboarding_id       String?
+  event_type          String
+  occurred_at         DateTime @default(now())
+  created_at          DateTime @default(now())
+  actor_type          String
+  actor_user_id       String?
+  subject_user_id     String?
+  organization_id     String?
+  organization_kind   String?
+  organization_type   String?
+  target_type         String
+  target_id           String
+  source              String
+  portal              String?
+  ip_address          String?
+  user_agent          String?
+  correlation_id      String?
+  idempotency_key     String?
+  metadata            Json
+
+  @@index([occurred_at])
+  @@index([event_type, occurred_at])
+  @@index([organization_id, occurred_at])
+  @@index([subject_user_id, occurred_at])
+  @@index([actor_user_id, occurred_at])
+  @@index([target_type, target_id, occurred_at])
+  @@index([correlation_id])
+  @@map("onboarding_audit_logs")
+}
+
 model corporate_individual_kyc {
   id                    String            @id
   regtank_onboarding_id String

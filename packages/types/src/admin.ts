@@ -364,45 +364,55 @@ export interface ExportSecurityLogsParams extends Omit<GetSecurityLogsParams, "p
 }
 
 // Onboarding Logs Types
-export type OnboardingEventType =
-  | "ONBOARDING_STARTED"
-  | "ONBOARDING_RESUMED"
-  | "ONBOARDING_CANCELLED"
-  | "ONBOARDING_STATUS_UPDATED"
-  | "ONBOARDING_REJECTED"
-  | "SOPHISTICATED_STATUS_UPDATED"
-  | "FINAL_APPROVAL_COMPLETED"
-  | "FORM_FILLED"
-  | "ONBOARDING_APPROVED"
-  | "AML_APPROVED"
-  | "TNC_APPROVED"
-  | "SSM_APPROVED"
-  | "TNC_ACCEPTED"
-  | "KYC_APPROVED"
-  | "KYB_APPROVED";
+export const ONBOARDING_AUDIT_EVENTS = [
+  "ONBOARDING_STARTED",
+  "ONBOARDING_RESUMED",
+  "ONBOARDING_RESTARTED",
+  "ONBOARDING_RESET",
+  "USER_ONBOARDING_STATUS_UPDATED",
+  "ONBOARDING_STATUS_CHANGED",
+  "ONBOARDING_APPROVED",
+  "ONBOARDING_REJECTED",
+  "ONBOARDING_FINAL_APPROVAL_COMPLETED",
+  "ONBOARDING_COMPLETED",
+  "AML_APPROVED",
+  "SSM_APPROVED",
+  "INVESTOR_SOPHISTICATED_STATUS_UPDATED",
+  "CTOS_REPORT_RECEIVED",
+  "CORPORATE_ENTITIES_UPDATED",
+  "DIRECTOR_ONBOARDING_INVITATION_SENT",
+  "DIRECTOR_KYC_STATUS_UPDATED",
+] as const;
 
-export interface OnboardingLogUser {
-  first_name: string;
-  last_name: string;
-  email: string;
-  roles: UserRole[];
+export type OnboardingEventType = (typeof ONBOARDING_AUDIT_EVENTS)[number];
+
+export interface OnboardingAuditActor {
+  type: string;
+  userId: string | null;
+  displayName: string | null;
+  email: string | null;
 }
 
 export interface OnboardingLogResponse {
   id: string;
-  user_id: string;
-  user: OnboardingLogUser;
-  role: UserRole;
-  event_type: OnboardingEventType;
+  eventType: OnboardingEventType;
+  occurredAt: string;
+  createdAt: string;
+  subjectUserId: string | null;
+  userId: string | null;
+  actor: OnboardingAuditActor;
+  organizationId: string | null;
+  organizationKind: string | null;
+  organizationType: string | null;
+  onboardingId: string | null;
+  target: { type: string; id: string };
+  source: string;
   portal: string | null;
-  ip_address: string | null;
-  user_agent: string | null;
-  device_info: string | null;
-  device_type: string | null;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-  organizationName?: string | null;
-  organizationType?: "PERSONAL" | "COMPANY" | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  deviceInfo: string | null;
+  correlationId: string | null;
+  metadata: Record<string, unknown>;
 }
 
 export interface GetOnboardingLogsParams extends PaginationParams {

@@ -7,7 +7,7 @@ import { createHash } from "crypto";
  * Checks X-Forwarded-For header first (for proxied requests), then X-Real-IP, then falls back to req.ip
  */
 export function getClientIp(req: Request): string | undefined {
-  const forwarded = req.headers["x-forwarded-for"];
+  const forwarded = req.headers?.["x-forwarded-for"];
   
   if (forwarded) {
     // X-Forwarded-For can contain multiple IPs (client, proxy1, proxy2, ...)
@@ -16,7 +16,7 @@ export function getClientIp(req: Request): string | undefined {
     return ips[0].trim();
   }
   
-  const realIp = req.headers["x-real-ip"];
+  const realIp = req.headers?.["x-real-ip"];
   if (realIp && typeof realIp === "string") {
     return realIp.trim();
   }

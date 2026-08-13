@@ -210,7 +210,7 @@ describe("Access/Security audit cutover", () => {
     );
     const securityModel = schema.slice(
       schema.indexOf("model SecurityAuditLog"),
-      schema.indexOf("model corporate_individual_kyc")
+      schema.indexOf("model OnboardingAuditLog")
     );
     expect(accessModel).not.toMatch(/@relation/);
     expect(securityModel).not.toMatch(/@relation/);
@@ -302,5 +302,15 @@ describe("Access/Security audit cutover", () => {
     expect(productWriter).not.toMatch(/securityAuditLog/);
     expect(legalWriter).not.toMatch(/securityAuditLog/);
     expect(notificationWriter).not.toMatch(/securityAuditLog/);
+  });
+
+  it("shared actor vocabulary includes SYSTEM and INTEGRATION without changing Access/Security writers", () => {
+    const context = readSrc("lib/audit/context.ts");
+    expect(context).toMatch(/SYSTEM:/);
+    expect(context).toMatch(/INTEGRATION:/);
+    expect(context).toMatch(/webhookAuditContext/);
+    expect(context).toMatch(/systemAuditContext/);
+    expect(authService).not.toMatch(/AUDIT_ACTOR_TYPE\.INTEGRATION/);
+    expect(authService).not.toMatch(/AUDIT_ACTOR_TYPE\.SYSTEM/);
   });
 });

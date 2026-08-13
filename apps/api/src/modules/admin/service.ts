@@ -3,7 +3,6 @@ import {
   User,
   UserRole,
   Prisma,
-  OnboardingLog,
   OrganizationType,
   OnboardingStatus,
   ApplicationStatus,
@@ -12,9 +11,20 @@ import {
   ApplicationGuarantor,
 } from "@prisma/client";
 import { Request } from "express";
-import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
+import { accessAuditLogReader } from "../auth/audit/reader";
+import { securityAuditLogReader } from "../security/audit/reader";
+import {
+  onboardingAuditLogReader,
+  type OnboardingAuditLogDto,
+} from "../onboarding/audit/reader";
+import { writeOnboardingAuditLog } from "../onboarding/audit/writer";
+import {
+  ONBOARDING_AUDIT_TARGET_TYPE,
+  ONBOARDING_RESTART_TRIGGER,
+} from "../onboarding/audit/events";
+import { diffCorporateEntities, directorKycMaterialChange } from "../onboarding/audit/diff";
 import {
   AUDIT_ACTOR_TYPE,
   AUDIT_PORTAL,
@@ -25,8 +35,6 @@ import {
 import { changedFieldsOf, permissionDiff, roleDiff } from "../../lib/audit/snapshot";
 import { writeSecurityAuditLog } from "../security/audit/writer";
 import { SECURITY_AUDIT_TARGET_TYPE } from "../security/audit/events";
-import { accessAuditLogReader } from "../auth/audit/reader";
-import { securityAuditLogReader } from "../security/audit/reader";
 import { sendEmail } from "../../lib/email/ses-client";
 import { adminInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
@@ -1264,7 +1272,7 @@ export class AdminService {
     req: Request,
     userId: string,
     data: UpdateUserOnboardingInput,
-    adminUserId: string
+    _adminUserId: string
   ): Promise<User> {
     const user = await this.repository.getUserById(userId);
     if (!user) {
@@ -1293,14 +1301,10 @@ export class AdminService {
     }
 
     const rolesChanged = JSON.stringify(updatedRoles.sort()) !== JSON.stringify(user.roles.sort());
+    const previousInvestorOnboarded = user.investor_account.length > 0;
+    const previousIssuerOnboarded = user.issuer_account.length > 0;
+    const context = auditContextFromAdminRequest(req);
 
-    const updatedUser = await this.repository.updateUserOnboarding(
-      userId,
-      data,
-      rolesChanged ? updatedRoles : undefined
-    );
-
-    // Fetch latest organizations for logging
     const [latestInvestorOrg, latestIssuerOrg] = await Promise.all([
       prisma.investorOrganization.findFirst({
         where: { owner_user_id: userId },
@@ -1312,61 +1316,61 @@ export class AdminService {
       }),
     ]);
 
-    // Create onboarding logs for the target user(s) when their onboarding status is updated
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    return prisma.$transaction(async (tx) => {
+      const updatedUser = await this.repository.updateUserOnboarding(
+        userId,
+        data,
+        rolesChanged ? updatedRoles : undefined,
+        tx
+      );
 
-    // Create onboarding log for investor if status changed
-    const previousInvestorOnboarded = user.investor_account.length > 0;
-    if (
-      data.investorOnboarded !== undefined &&
-      data.investorOnboarded !== previousInvestorOnboarded
-    ) {
-      await this.repository.createOnboardingLog({
-        userId: userId,
-        role: UserRole.INVESTOR,
-        eventType: "ONBOARDING_STATUS_UPDATED",
-        portal: "investor",
-        ipAddress,
-        userAgent,
-        deviceInfo,
-        deviceType,
-        organizationName: latestInvestorOrg?.name || undefined,
-        investorOrganizationId: latestInvestorOrg?.id || undefined,
-        issuerOrganizationId: undefined,
-        metadata: {
-          updatedBy: adminUserId,
-          previousStatus: previousInvestorOnboarded,
-          newStatus: data.investorOnboarded,
-          adminAction: true,
-        },
-      });
-    }
+      if (
+        data.investorOnboarded !== undefined &&
+        data.investorOnboarded !== previousInvestorOnboarded
+      ) {
+        await writeOnboardingAuditLog(
+          {
+            eventType: "USER_ONBOARDING_STATUS_UPDATED",
+            context,
+            subjectUserId: userId,
+            organizationId: latestInvestorOrg?.id ?? null,
+            organizationKind: "INVESTOR",
+            organizationType: latestInvestorOrg?.type ?? null,
+            targetType: ONBOARDING_AUDIT_TARGET_TYPE.USER,
+            targetId: userId,
+            metadata: {
+              portal: "investor",
+              previousAccountMarker: user.investor_account,
+              newAccountMarker: updatedUser.investor_account,
+            },
+          },
+          tx
+        );
+      }
 
-    // Create onboarding log for issuer if status changed
-    const previousIssuerOnboarded = user.issuer_account.length > 0;
-    if (data.issuerOnboarded !== undefined && data.issuerOnboarded !== previousIssuerOnboarded) {
-      await this.repository.createOnboardingLog({
-        userId: userId,
-        role: UserRole.ISSUER,
-        eventType: "ONBOARDING_STATUS_UPDATED",
-        portal: "issuer",
-        ipAddress,
-        userAgent,
-        deviceInfo,
-        deviceType,
-        organizationName: latestIssuerOrg?.name || undefined,
-        investorOrganizationId: undefined,
-        issuerOrganizationId: latestIssuerOrg?.id || undefined,
-        metadata: {
-          updatedBy: adminUserId,
-          previousStatus: previousIssuerOnboarded,
-          newStatus: data.issuerOnboarded,
-          adminAction: true,
-        },
-      });
-    }
+      if (data.issuerOnboarded !== undefined && data.issuerOnboarded !== previousIssuerOnboarded) {
+        await writeOnboardingAuditLog(
+          {
+            eventType: "USER_ONBOARDING_STATUS_UPDATED",
+            context,
+            subjectUserId: userId,
+            organizationId: latestIssuerOrg?.id ?? null,
+            organizationKind: "ISSUER",
+            organizationType: latestIssuerOrg?.type ?? null,
+            targetType: ONBOARDING_AUDIT_TARGET_TYPE.USER,
+            targetId: userId,
+            metadata: {
+              portal: "issuer",
+              previousAccountMarker: user.issuer_account,
+              newAccountMarker: updatedUser.issuer_account,
+            },
+          },
+          tx
+        );
+      }
 
-    return updatedUser;
+      return updatedUser;
+    });
   }
 
   /**
@@ -2442,35 +2446,20 @@ export class AdminService {
    * List onboarding logs with pagination and filters
    */
   async listOnboardingLogs(params: GetOnboardingLogsQuery): Promise<{
-    logs: (OnboardingLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-      organizationName?: string | null;
-      organizationType?: OrganizationType | null;
-    })[];
+    logs: OnboardingAuditLogDto[];
     total: number;
   }> {
-    const { logs, total } = await this.repository.getOnboardingLogs(params);
-    return { logs, total };
+    return onboardingAuditLogReader.findAll(params);
   }
 
-  /**
-   * Get onboarding log by ID
-   */
-  async getOnboardingLogById(logId: string): Promise<(OnboardingLog & { user: User }) | null> {
-    return this.repository.getOnboardingLogById(logId);
+  async getOnboardingLogById(logId: string): Promise<OnboardingAuditLogDto | null> {
+    return onboardingAuditLogReader.findById(logId);
   }
 
-  /**
-   * Export onboarding logs
-   */
-  async exportOnboardingLogs(params: Omit<GetOnboardingLogsQuery, "page" | "pageSize">): Promise<
-    (OnboardingLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-      organizationName?: string | null;
-      organizationType?: OrganizationType | null;
-    })[]
-  > {
-    return this.repository.getAllOnboardingLogsForExport(params);
+  async exportOnboardingLogs(
+    params: Omit<GetOnboardingLogsQuery, "page" | "pageSize">
+  ): Promise<OnboardingAuditLogDto[]> {
+    return onboardingAuditLogReader.findAllForExport(params);
   }
 
   /**
@@ -2501,9 +2490,6 @@ export class AdminService {
       updateData.issuerOnboarded = false;
     }
 
-    const updatedUser = await this.repository.updateUserOnboarding(userId, updateData);
-
-    // Fetch the latest organization for logging
     const latestOrg =
       data.portal === "investor"
         ? (
@@ -2521,26 +2507,33 @@ export class AdminService {
           })
         )[0];
 
-    // Create onboarding log
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    await this.repository.createOnboardingLog({
-      userId: userId,
-      role: data.portal === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
-      eventType: "ONBOARDING_RESET",
-      portal: data.portal,
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      organizationName: latestOrg?.name || undefined,
-      investorOrganizationId: data.portal === "investor" ? latestOrg?.id : undefined,
-      issuerOrganizationId: data.portal === "issuer" ? latestOrg?.id : undefined,
-      metadata: {
-        resetBy: adminUserId,
-        previousStatus: true,
-        newStatus: false,
-        adminAction: true,
-      },
+    const previousMarker =
+      data.portal === "investor" ? user.investor_account : user.issuer_account;
+    const context = auditContextFromAdminRequest(req);
+
+    const updatedUser = await prisma.$transaction(async (tx) => {
+      const next = await this.repository.updateUserOnboarding(userId, updateData, undefined, tx);
+      await writeOnboardingAuditLog(
+        {
+          eventType: "ONBOARDING_RESET",
+          context,
+          subjectUserId: userId,
+          organizationId: latestOrg?.id ?? null,
+          organizationKind: data.portal === "investor" ? "INVESTOR" : "ISSUER",
+          organizationType: latestOrg?.type ?? null,
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.USER,
+          targetId: userId,
+          metadata: {
+            statusScope: "USER_ACCOUNT_MARKER",
+            organizationStateReset: false,
+            portal: data.portal,
+            previousAccountMarker: previousMarker,
+            newAccountMarker: data.portal === "investor" ? next.investor_account : next.issuer_account,
+          },
+        },
+        tx
+      );
+      return next;
     });
 
     logger.info(
@@ -3260,6 +3253,7 @@ export class AdminService {
    * Fetches latest COD details and updates corporate_entities in the database.
    */
   async refreshOrganizationCorporateEntities(
+    req: Request,
     organizationId: string,
     portal: PortalType
   ): Promise<{ success: boolean; message: string }> {
@@ -3275,6 +3269,7 @@ export class AdminService {
 
     const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(onboarding.request_id);
     const corporateEntities = extractCorporateEntities(codDetails);
+    const diff = diffCorporateEntities(org.corporate_entities, corporateEntities);
 
     if (portal === "investor") {
       await prisma.investorOrganization.update({
@@ -3288,8 +3283,27 @@ export class AdminService {
       });
     }
 
+    if (diff.changed) {
+      await writeOnboardingAuditLog({
+        eventType: "CORPORATE_ENTITIES_UPDATED",
+        context: auditContextFromAdminRequest(req),
+        subjectUserId: org.owner.user_id,
+        onboardingId: onboarding.id,
+        organizationId,
+        organizationKind: portal === "investor" ? "INVESTOR" : "ISSUER",
+        organizationType: "COMPANY",
+        targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+        targetId: organizationId,
+        metadata: {
+          addedCount: diff.addedCount,
+          removedCount: diff.removedCount,
+          updatedCount: diff.updatedCount,
+        },
+      });
+    }
+
     logger.info(
-      { organizationId, portal, codRequestId: onboarding.request_id },
+      { organizationId, portal, codRequestId: onboarding.request_id, changed: diff.changed },
       "Corporate entities refreshed successfully"
     );
 
@@ -3301,6 +3315,7 @@ export class AdminService {
    * Only applicable for investor portal organizations
    */
   async updateSophisticatedStatus(
+    req: Request,
     organizationId: string,
     isSophisticatedInvestor: boolean,
     reason: string,
@@ -3321,34 +3336,38 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Investor organization not found");
     }
 
-    await prisma.investorOrganization.update({
-      where: { id: organizationId },
-      data: {
-        is_sophisticated_investor: isSophisticatedInvestor,
-        sophisticated_investor_reason: reason,
-      },
-    });
+    const action = isSophisticatedInvestor ? "GRANTED" : "REVOKED";
+    const context = auditContextFromAdminRequest(req);
 
-    // Log the sophisticated status update event
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: org.owner_user_id,
-        role: UserRole.INVESTOR,
-        event_type: "SOPHISTICATED_STATUS_UPDATED",
-        portal: "investor",
-        organization_name: org.name,
-        investor_organization_id: organizationId,
-        issuer_organization_id: null,
-        metadata: {
-          organizationId,
-          previousStatus: org.is_sophisticated_investor,
-          previousReason: org.sophisticated_investor_reason,
-          newStatus: isSophisticatedInvestor,
-          newReason: reason,
-          updatedBy: adminUserId || "admin",
-          action: isSophisticatedInvestor ? "granted" : "revoked",
+    await prisma.$transaction(async (tx) => {
+      await tx.investorOrganization.update({
+        where: { id: organizationId },
+        data: {
+          is_sophisticated_investor: isSophisticatedInvestor,
+          sophisticated_investor_reason: reason,
         },
-      },
+      });
+
+      await writeOnboardingAuditLog(
+        {
+          eventType: "INVESTOR_SOPHISTICATED_STATUS_UPDATED",
+          context,
+          subjectUserId: org.owner_user_id,
+          organizationId,
+          organizationKind: "INVESTOR",
+          organizationType: null,
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: organizationId,
+          metadata: {
+            previousValue: org.is_sophisticated_investor,
+            newValue: isSophisticatedInvestor,
+            previousReason: org.sophisticated_investor_reason,
+            newReason: reason,
+            action,
+          },
+        },
+        tx
+      );
     });
 
     logger.info(
@@ -4030,10 +4049,8 @@ export class AdminService {
     // Mark the old onboarding record as cancelled
     await this.regTankRepository.cancelOnboarding(onboardingId, cancelReason);
 
-    // Extract request metadata for logging
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
     const isInvestorPortal = onboarding.portal_type === "investor";
-    const role = isInvestorPortal ? UserRole.INVESTOR : UserRole.ISSUER;
+    const context = auditContextFromAdminRequest(req);
 
     // Determine organization ID
     const organizationId = isInvestorPortal
@@ -4062,59 +4079,58 @@ export class AdminService {
 
     // Reset the organization's onboarding status to PENDING and clear all approval-related fields
     // User will need to click "Yes, Restart Onboarding" to set it to IN_PROGRESS
-    if (isInvestorPortal && onboarding.investor_organization_id) {
-      await prisma.investorOrganization.update({
-        where: { id: onboarding.investor_organization_id },
-        data: {
-          onboarding_status: "PENDING",
-          is_sophisticated_investor: false,
-          onboarding_approved: false,
-          aml_approved: false,
-          tnc_accepted: false,
-          deposit_received: false,
-          ssm_approved: false,
-          admin_approved_at: null,
-          onboarded_at: null,
-        },
-      });
-    } else if (onboarding.issuer_organization_id) {
-      await prisma.issuerOrganization.update({
-        where: { id: onboarding.issuer_organization_id },
-        data: {
-          onboarding_status: "PENDING",
-          onboarding_approved: false,
-          aml_approved: false,
-          tnc_accepted: false,
-          ssm_checked: false,
-          admin_approved_at: null,
-          onboarded_at: null,
-        },
-      });
-    }
+    await prisma.$transaction(async (tx) => {
+      if (isInvestorPortal && onboarding.investor_organization_id) {
+        await tx.investorOrganization.update({
+          where: { id: onboarding.investor_organization_id },
+          data: {
+            onboarding_status: "PENDING",
+            is_sophisticated_investor: false,
+            onboarding_approved: false,
+            aml_approved: false,
+            tnc_accepted: false,
+            deposit_received: false,
+            ssm_approved: false,
+            admin_approved_at: null,
+            onboarded_at: null,
+          },
+        });
+      } else if (onboarding.issuer_organization_id) {
+        await tx.issuerOrganization.update({
+          where: { id: onboarding.issuer_organization_id },
+          data: {
+            onboarding_status: "PENDING",
+            onboarding_approved: false,
+            aml_approved: false,
+            tnc_accepted: false,
+            ssm_checked: false,
+            admin_approved_at: null,
+            onboarded_at: null,
+          },
+        });
+      }
 
-    // Log the cancellation/restart event
-    await this.repository.createOnboardingLog({
-      userId: onboarding.user_id,
-      role,
-      eventType: "ONBOARDING_CANCELLED",
-      portal: onboarding.portal_type,
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      organizationName: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
-      investorOrganizationId: onboarding.investor_organization_id || undefined,
-      issuerOrganizationId: onboarding.issuer_organization_id || undefined,
-      metadata: {
-        cancelledOnboardingId: onboardingId,
-        cancelledRequestId: onboarding.request_id,
-        newRequestId: nextRequestId,
-        previousStatus: onboarding.status,
-        cancelledBy: adminUserId,
-        reason: "Restart requested by admin",
-        organizationType: onboarding.organization_type,
-        organizationId,
-      },
+      await writeOnboardingAuditLog(
+        {
+          eventType: "ONBOARDING_RESTARTED",
+          context,
+          subjectUserId: onboarding.user_id,
+          onboardingId,
+          organizationId: organizationId ?? null,
+          organizationKind: isInvestorPortal ? "INVESTOR" : "ISSUER",
+          organizationType: onboarding.organization_type,
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: organizationId ?? onboardingId,
+          metadata: {
+            trigger: ONBOARDING_RESTART_TRIGGER.ADMIN_RESTART,
+            previousRequestId: onboarding.request_id,
+            newRequestId: nextRequestId,
+            previousStatus: onboarding.status,
+            onboardingType: onboarding.onboarding_type === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
+          },
+        },
+        tx
+      );
     });
 
     logger.info(
@@ -4256,15 +4272,7 @@ export class AdminService {
         }
       }
 
-      // Update investor organization
-      await prisma.investorOrganization.update({
-        where: { id: org.id },
-        data: {
-          onboarding_status: "COMPLETED",
-          onboarded_at: new Date(),
-          admin_approved_at: new Date(),
-        },
-      });
+      // Organization COMPLETED is applied with the audit row below.
     } else if (!isInvestor && onboarding.issuer_organization) {
       const issuerOrg = onboarding.issuer_organization;
 
@@ -4310,16 +4318,52 @@ export class AdminService {
         }
       }
 
-      // Update issuer organization
-      await prisma.issuerOrganization.update({
-        where: { id: org.id },
-        data: {
-          onboarding_status: "COMPLETED",
-          onboarded_at: new Date(),
-          admin_approved_at: new Date(),
-        },
-      });
+      // Organization COMPLETED is applied with the audit row below.
     }
+
+    const previousOrgStatus = org.onboarding_status;
+    const context = auditContextFromAdminRequest(req);
+    await prisma.$transaction(async (tx) => {
+      if (isInvestor) {
+        await tx.investorOrganization.update({
+          where: { id: org.id },
+          data: {
+            onboarding_status: "COMPLETED",
+            onboarded_at: new Date(),
+            admin_approved_at: new Date(),
+          },
+        });
+      } else {
+        await tx.issuerOrganization.update({
+          where: { id: org.id },
+          data: {
+            onboarding_status: "COMPLETED",
+            onboarded_at: new Date(),
+            admin_approved_at: new Date(),
+          },
+        });
+      }
+
+      await writeOnboardingAuditLog(
+        {
+          eventType: "ONBOARDING_FINAL_APPROVAL_COMPLETED",
+          context,
+          subjectUserId: onboarding.user_id,
+          onboardingId,
+          organizationId: org.id,
+          organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
+          organizationType: onboarding.organization_type,
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: org.id,
+          metadata: {
+            previousStatus: previousOrgStatus,
+            newStatus: "COMPLETED",
+            approvedBy: adminUserId,
+          },
+        },
+        tx
+      );
+    });
 
     // Update RegTank onboarding status to COMPLETED
     // Status flow: IN_PROGRESS → PENDING_APPROVAL → PENDING_AML → COMPLETED
@@ -4351,6 +4395,10 @@ export class AdminService {
       try {
         const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(onboarding.request_id);
         const corporateEntities = extractCorporateEntities(codDetails);
+        const priorEntities = isInvestor
+          ? onboarding.investor_organization?.corporate_entities
+          : onboarding.issuer_organization?.corporate_entities;
+        const entitiesDiff = diffCorporateEntities(priorEntities, corporateEntities);
 
         if (isInvestor) {
           await prisma.investorOrganization.update({
@@ -4361,6 +4409,25 @@ export class AdminService {
           await prisma.issuerOrganization.update({
             where: { id: org.id },
             data: { corporate_entities: corporateEntities as Prisma.InputJsonValue },
+          });
+        }
+
+        if (entitiesDiff.changed) {
+          await writeOnboardingAuditLog({
+            eventType: "CORPORATE_ENTITIES_UPDATED",
+            context,
+            subjectUserId: onboarding.user_id,
+            onboardingId,
+            organizationId: org.id,
+            organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
+            organizationType: "COMPANY",
+            targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+            targetId: org.id,
+            metadata: {
+              addedCount: entitiesDiff.addedCount,
+              removedCount: entitiesDiff.removedCount,
+              updatedCount: entitiesDiff.updatedCount,
+            },
           });
         }
 
@@ -4397,36 +4464,6 @@ export class AdminService {
       },
       "[Final Approval] ✓ Successfully updated regtank_onboarding.status to COMPLETED"
     );
-
-    // Create onboarding log entries
-    // Create FINAL_APPROVAL_COMPLETED log (replaces USER_COMPLETED)
-    // Use FINAL_APPROVAL_COMPLETED for both corporate and personal onboarding
-    const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
-    const eventType = "FINAL_APPROVAL_COMPLETED";
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: onboarding.user_id,
-        event_type: eventType,
-        role: isInvestor ? "INVESTOR" : "ISSUER",
-        portal: onboarding.portal_type,
-        ip_address:
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-        user_agent: req.headers["user-agent"] || null,
-        device_info: null,
-        device_type: null,
-        organization_name: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
-        investor_organization_id: onboarding.investor_organization_id || undefined,
-        issuer_organization_id: onboarding.issuer_organization_id || undefined,
-        metadata: {
-          organizationId: org.id,
-          organizationType: onboarding.organization_type,
-          portalType: onboarding.portal_type,
-          approvedBy: adminUserId,
-          regtankRequestId: onboarding.request_id,
-          isCorporateOnboarding,
-        },
-      },
-    });
 
     logger.info(
       {
@@ -4519,42 +4556,66 @@ export class AdminService {
       );
     }
 
-    // Update the organization's aml_approved flag
-    const now = new Date();
-    if (isInvestor && onboarding.investor_organization) {
-      await prisma.investorOrganization.update({
-        where: { id: org.id },
-        data: {
-          aml_approved: true,
-        },
-      });
-    } else if (!isInvestor && onboarding.issuer_organization) {
-      await prisma.issuerOrganization.update({
-        where: { id: org.id },
-        data: {
-          aml_approved: true,
-        },
-      });
-    }
-
-    await advanceOnboardingStatusFromFlags({
-      organizationId: org.id,
-      portalType: isInvestor ? "investor" : "issuer",
-      reason: "ADMIN_APPROVE_AML_SCREENING",
-    });
-
-    const orgAfterAml = isInvestor
-      ? await prisma.investorOrganization.findUnique({
-          where: { id: org.id },
-          select: { onboarding_status: true },
-        })
-      : await prisma.issuerOrganization.findUnique({
-          where: { id: org.id },
-          select: { onboarding_status: true },
-        });
-
-    // For corporate onboarding, update regtank_onboarding.status to APPROVED
+    const previousStatus = org.onboarding_status;
+    const context = auditContextFromAdminRequest(req);
     const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
+
+    await prisma.$transaction(async (tx) => {
+      if (isInvestor && onboarding.investor_organization) {
+        await tx.investorOrganization.update({
+          where: { id: org.id },
+          data: { aml_approved: true },
+        });
+      } else if (!isInvestor && onboarding.issuer_organization) {
+        await tx.issuerOrganization.update({
+          where: { id: org.id },
+          data: { aml_approved: true },
+        });
+      }
+
+      await advanceOnboardingStatusFromFlags({
+        organizationId: org.id,
+        portalType: isInvestor ? "investor" : "issuer",
+        reason: "ADMIN_APPROVE_AML_SCREENING",
+        db: tx,
+      });
+
+      const after = isInvestor
+        ? await tx.investorOrganization.findUnique({
+            where: { id: org.id },
+            select: { onboarding_status: true },
+          })
+        : await tx.issuerOrganization.findUnique({
+            where: { id: org.id },
+            select: { onboarding_status: true },
+          });
+
+      await writeOnboardingAuditLog(
+        {
+          eventType: "AML_APPROVED",
+          context,
+          subjectUserId: onboarding.user_id,
+          onboardingId,
+          organizationId: org.id,
+          organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
+          organizationType: onboarding.organization_type,
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: org.id,
+          metadata: {
+            provider: "ADMIN",
+            screeningKind: isCorporateOnboarding ? "KYB" : "KYC",
+            previousApproved: false,
+            newApproved: true,
+            previousStatus,
+            newStatus: after?.onboarding_status,
+            trigger: "ADMIN_APPROVE_AML_SCREENING",
+          },
+        },
+        tx
+      );
+
+      return after;
+    });
     if (isCorporateOnboarding) {
       await this.regTankRepository.updateStatus(onboarding.request_id, {
         status: "APPROVED",
@@ -4573,35 +4634,6 @@ export class AdminService {
         "[AML Approval] Updated regtank_onboarding.status to APPROVED for corporate onboarding"
       );
     }
-
-    // Create onboarding log entry
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: onboarding.user_id,
-        event_type: "AML_APPROVED",
-        role: isInvestor ? "INVESTOR" : "ISSUER",
-        portal: onboarding.portal_type,
-        ip_address:
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-        user_agent: req.headers["user-agent"] || null,
-        device_info: null,
-        device_type: null,
-        organization_name: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
-        investor_organization_id: onboarding.investor_organization_id || undefined,
-        issuer_organization_id: onboarding.issuer_organization_id || undefined,
-        metadata: {
-          organizationId: org.id,
-          organizationType: onboarding.organization_type,
-          portalType: onboarding.portal_type,
-          onboardingRequestId: onboarding.request_id,
-          isCorporateOnboarding,
-          previousStatus: org.onboarding_status,
-          newStatus: orgAfterAml?.onboarding_status,
-          approvedBy: adminUserId,
-          approvedAt: now.toISOString(),
-        },
-      },
-    });
 
     logger.info(
       {
@@ -4686,58 +4718,58 @@ export class AdminService {
       );
     }
 
-    const now = new Date();
-    if (isInvestor && onboarding.investor_organization) {
-      await prisma.investorOrganization.update({
-        where: { id: org.id },
-        data: {
-          ssm_approved: true,
-          onboarding_status: OnboardingStatus.PENDING_APPROVAL,
-        },
-      });
-    } else if (!isInvestor && onboarding.issuer_organization) {
-      await prisma.issuerOrganization.update({
-        where: { id: org.id },
-        data: {
-          ssm_checked: true,
-          onboarding_status: OnboardingStatus.PENDING_APPROVAL,
-        },
-      });
-    }
+    const previousSsmApproved = isInvestor
+      ? Boolean(onboarding.investor_organization?.ssm_approved)
+      : Boolean(onboarding.issuer_organization?.ssm_checked);
+    const context = auditContextFromAdminRequest(req);
 
-    // Create onboarding log entry with dedicated SSM_APPROVED event type
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: onboarding.user_id,
-        event_type: "SSM_APPROVED",
-        role: isInvestor ? "INVESTOR" : "ISSUER",
-        portal: onboarding.portal_type,
-        ip_address:
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-        user_agent: req.headers["user-agent"] || null,
-        device_info: null,
-        device_type: null,
-        organization_name: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
-        investor_organization_id: onboarding.investor_organization_id || undefined,
-        issuer_organization_id: onboarding.issuer_organization_id || undefined,
-        metadata: {
+    await prisma.$transaction(async (tx) => {
+      if (isInvestor && onboarding.investor_organization) {
+        await tx.investorOrganization.update({
+          where: { id: org.id },
+          data: {
+            ssm_approved: true,
+            onboarding_status: OnboardingStatus.PENDING_APPROVAL,
+          },
+        });
+      } else if (!isInvestor && onboarding.issuer_organization) {
+        await tx.issuerOrganization.update({
+          where: { id: org.id },
+          data: {
+            ssm_checked: true,
+            onboarding_status: OnboardingStatus.PENDING_APPROVAL,
+          },
+        });
+      }
+
+      await writeOnboardingAuditLog(
+        {
+          eventType: "SSM_APPROVED",
+          context,
+          subjectUserId: onboarding.user_id,
+          onboardingId,
           organizationId: org.id,
+          organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
           organizationType: onboarding.organization_type,
-          portalType: onboarding.portal_type,
-          approvedBy: adminUserId,
-          regtankRequestId: onboarding.request_id,
-          adminApprovedAt: now.toISOString(),
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: org.id,
+          metadata: {
+            previousSsmApproved,
+            newSsmApproved: true,
+            previousStatus: org.onboarding_status,
+            newStatus: OnboardingStatus.PENDING_APPROVAL,
+          },
         },
-      },
-    });
+        tx
+      );
 
-    await advanceOnboardingStatusFromFlags({
-      organizationId: org.id,
-      portalType: isInvestor ? "investor" : "issuer",
-      reason: "ADMIN_APPROVE_SSM_VERIFICATION",
+      await advanceOnboardingStatusFromFlags({
+        organizationId: org.id,
+        portalType: isInvestor ? "investor" : "issuer",
+        reason: "ADMIN_APPROVE_SSM_VERIFICATION",
+        db: tx,
+      });
     });
-
-    // SSM_APPROVED log already created above, no need for additional ONBOARDING_STATUS_UPDATED log
 
     logger.info(
       {
@@ -4815,51 +4847,60 @@ export class AdminService {
       throw new AppError(400, "ALREADY_APPROVED", "Onboarding has already been approved");
     }
 
-    const now = new Date();
-    if (isInvestor && onboarding.investor_organization) {
-      await prisma.investorOrganization.update({
-        where: { id: org.id },
-        data: {
-          onboarding_approved: true,
-        },
-      });
-    } else if (!isInvestor && onboarding.issuer_organization) {
-      await prisma.issuerOrganization.update({
-        where: { id: org.id },
-        data: {
-          onboarding_approved: true,
-        },
-      });
-    }
+    const previousStatus = org.onboarding_status;
+    const context = auditContextFromAdminRequest(req);
 
-    await advanceOnboardingStatusFromFlags({
-      organizationId: org.id,
-      portalType: isInvestor ? "investor" : "issuer",
-      reason: "ADMIN_APPROVE_ONBOARDING_SUBMISSION",
-    });
+    await prisma.$transaction(async (tx) => {
+      if (isInvestor && onboarding.investor_organization) {
+        await tx.investorOrganization.update({
+          where: { id: org.id },
+          data: { onboarding_approved: true },
+        });
+      } else if (!isInvestor && onboarding.issuer_organization) {
+        await tx.issuerOrganization.update({
+          where: { id: org.id },
+          data: { onboarding_approved: true },
+        });
+      }
 
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: onboarding.user_id,
-        event_type: "ONBOARDING_APPROVED",
-        role: isInvestor ? "INVESTOR" : "ISSUER",
-        portal: onboarding.portal_type,
-        ip_address:
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-        user_agent: req.headers["user-agent"] || null,
-        device_info: null,
-        device_type: null,
-        organization_name: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
-        investor_organization_id: onboarding.investor_organization_id || undefined,
-        issuer_organization_id: onboarding.issuer_organization_id || undefined,
-        metadata: {
+      await advanceOnboardingStatusFromFlags({
+        organizationId: org.id,
+        portalType: isInvestor ? "investor" : "issuer",
+        reason: "ADMIN_APPROVE_ONBOARDING_SUBMISSION",
+        db: tx,
+      });
+
+      const after = isInvestor
+        ? await tx.investorOrganization.findUnique({
+            where: { id: org.id },
+            select: { onboarding_status: true },
+          })
+        : await tx.issuerOrganization.findUnique({
+            where: { id: org.id },
+            select: { onboarding_status: true },
+          });
+
+      await writeOnboardingAuditLog(
+        {
+          eventType: "ONBOARDING_APPROVED",
+          context,
+          subjectUserId: onboarding.user_id,
+          onboardingId,
           organizationId: org.id,
-          portalType: onboarding.portal_type,
-          approvedBy: adminUserId,
-          approvedAt: now.toISOString(),
-          regtankRequestId: onboarding.request_id,
+          organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
+          organizationType: onboarding.organization_type,
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: org.id,
+          metadata: {
+            previousApproved: false,
+            newApproved: true,
+            previousStatus,
+            newStatus: after?.onboarding_status,
+            trigger: "ADMIN_APPROVE_ONBOARDING_SUBMISSION",
+          },
         },
-      },
+        tx
+      );
     });
 
     logger.info(
@@ -4883,7 +4924,7 @@ export class AdminService {
    * Fetches COD details and EOD details for each director to update their KYC statuses
    */
   async refreshCorporateOnboardingStatus(
-    _req: Request,
+    req: Request,
     onboardingId: string,
     adminUserId: string
   ): Promise<{
@@ -4978,43 +5019,42 @@ export class AdminService {
         });
 
         if (shouldApply) {
-          if (isInvestor) {
-            await prisma.investorOrganization.update({
-              where: { id: org.id },
-              data: { onboarding_approved: true },
-            });
-          } else {
-            await prisma.issuerOrganization.update({
-              where: { id: org.id },
-              data: { onboarding_approved: true },
-            });
-          }
-          onboardingApproved = true;
+          const context = auditContextFromAdminRequest(req);
+          await prisma.$transaction(async (tx) => {
+            if (isInvestor) {
+              await tx.investorOrganization.update({
+                where: { id: org.id },
+                data: { onboarding_approved: true },
+              });
+            } else {
+              await tx.issuerOrganization.update({
+                where: { id: org.id },
+                data: { onboarding_approved: true },
+              });
+            }
 
-          try {
-            await prisma.onboardingLog.create({
-              data: {
-                user_id: onboarding.user_id,
-                event_type: "ONBOARDING_STATUS_UPDATED",
-                role: isInvestor ? "INVESTOR" : "ISSUER",
-                portal: onboarding.portal_type,
-                organization_name: org.name ?? undefined,
-                investor_organization_id: isInvestor ? org.id : undefined,
-                issuer_organization_id: isInvestor ? undefined : org.id,
+            await writeOnboardingAuditLog(
+              {
+                eventType: "ONBOARDING_APPROVED",
+                context,
+                subjectUserId: onboarding.user_id,
+                onboardingId,
+                organizationId: org.id,
+                organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
+                organizationType: onboarding.organization_type,
+                targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+                targetId: org.id,
                 metadata: {
-                  organizationId: org.id,
-                  trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH",
+                  previousApproved: false,
+                  newApproved: true,
                   previousStatus: org.onboarding_status,
-                  codStatus: codStatusRaw,
+                  trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH",
                 },
               },
-            });
-          } catch (logError) {
-            logger.error(
-              { error: logError instanceof Error ? logError.message : String(logError), organizationId: org.id },
-              "[Admin Refresh] Failed to write onboarding log (non-blocking)"
+              tx
             );
-          }
+          });
+          onboardingApproved = true;
         }
 
         const { changed } = await advanceOnboardingStatusFromFlags({
@@ -5477,6 +5517,50 @@ export class AdminService {
           where: { id: org.id },
           data: updateData,
         });
+      }
+
+      const refreshContext = auditContextFromAdminRequest(req);
+      const directorKycDiff = directorKycMaterialChange(org.director_kyc_status, directorKycStatus);
+      if (directorKycDiff.changed) {
+        await writeOnboardingAuditLog({
+          eventType: "DIRECTOR_KYC_STATUS_UPDATED",
+          context: refreshContext,
+          subjectUserId: onboarding.user_id,
+          onboardingId,
+          organizationId: org.id,
+          organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
+          organizationType: "COMPANY",
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: org.id,
+          metadata: {
+            previousKycStatus: directorKycDiff.previousKycStatus,
+            newKycStatus: directorKycDiff.newKycStatus,
+            changedCount: directorKycDiff.changedCount,
+            directorCount: directorKycDiff.directorCount,
+          },
+        });
+      }
+
+      if (corporateEntitiesUpdated && updatedCorporateEntities) {
+        const entitiesDiff = diffCorporateEntities(org.corporate_entities, updatedCorporateEntities);
+        if (entitiesDiff.changed) {
+          await writeOnboardingAuditLog({
+            eventType: "CORPORATE_ENTITIES_UPDATED",
+            context: refreshContext,
+            subjectUserId: onboarding.user_id,
+            onboardingId,
+            organizationId: org.id,
+            organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
+            organizationType: "COMPANY",
+            targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+            targetId: org.id,
+            metadata: {
+              addedCount: entitiesDiff.addedCount,
+              removedCount: entitiesDiff.removedCount,
+              updatedCount: entitiesDiff.updatedCount,
+            },
+          });
+        }
       }
 
       logger.info(

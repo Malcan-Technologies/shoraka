@@ -2,7 +2,7 @@ import { OrganizationLogAdapter } from "./adapters/organization-log";
 
 jest.mock("../../lib/prisma", () => ({
   prisma: {
-    onboardingLog: { findMany: jest.fn(), count: jest.fn() },
+    onboardingAuditLog: { findMany: jest.fn(), count: jest.fn() },
   },
 }));
 
@@ -17,7 +17,7 @@ describe("Activity Adapters", () => {
         title: "Onboarding Started",
         description: "Your organization onboarding has started and you can continue it at any time.",
       });
-      expect(adapter.buildPresentation("ONBOARDING_REJECTED", { reason: "Missing documents" })).toEqual({
+      expect(adapter.buildPresentation("ONBOARDING_REJECTED", { reasonCode: "Missing documents" })).toEqual({
         title: "Onboarding Rejected",
         description: "Your organization onboarding was rejected: Missing documents",
       });
@@ -27,30 +27,36 @@ describe("Activity Adapters", () => {
       const now = new Date();
       const record = {
         id: "log2",
-        user_id: userId,
+        subject_user_id: userId,
         event_type: "ONBOARDING_COMPLETED",
-        metadata: {},
+        metadata: { completionMethod: "LEGACY_COMPLETE_ONBOARDING", previousStatus: "PENDING", newStatus: "COMPLETED" },
         ip_address: "127.0.0.1",
         user_agent: "Mozilla",
-        device_info: "Desktop",
-        created_at: now,
+        occurred_at: now,
       };
 
-      const unified = adapter.transform(record as any);
+      const unified = adapter.transform(record as never);
       expect(unified.category).toBe("organization");
       expect(unified.domain).toBe("onboarding");
       expect(unified.title).toBe("Onboarding Completed");
-      expect(unified.description).toBe("This onboarding update was recorded for your organization.");
+      expect(unified.user_id).toBe(userId);
+      expect(unified.source_table).toBe("onboarding_audit_logs");
+      expect(unified.created_at).toBe(now);
     });
 
-    it("should only expose major onboarding milestones", () => {
+    it("should only expose curated onboarding milestones", () => {
       expect(adapter.getEventTypes()).toEqual([
         "ONBOARDING_STARTED",
-        "ONBOARDING_CANCELLED",
+        "ONBOARDING_RESUMED",
+        "ONBOARDING_RESTARTED",
         "ONBOARDING_REJECTED",
-        "FINAL_APPROVAL_COMPLETED",
         "ONBOARDING_APPROVED",
+        "ONBOARDING_FINAL_APPROVAL_COMPLETED",
+        "ONBOARDING_COMPLETED",
       ]);
+      expect(adapter.getEventTypes()).not.toContain("ONBOARDING_CANCELLED");
+      expect(adapter.getEventTypes()).not.toContain("FORM_FILLED");
+      expect(adapter.getEventTypes()).not.toContain("WEBHOOK_RECEIVED");
     });
   });
 });

@@ -1,5 +1,6 @@
 import { prisma } from "../../../lib/prisma";
-import { OnboardingLog, Prisma } from "@prisma/client";
+import { OnboardingAuditLog, Prisma } from "@prisma/client";
+import { formatDeviceInfoFromUserAgent } from "../../../lib/http/request-utils";
 import {
   AuditLogAdapter,
   UnifiedActivity,
@@ -8,7 +9,17 @@ import {
   buildDateFilter,
 } from "./base";
 
-export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
+const CURATED_ORGANIZATION_ACTIVITY_EVENTS = [
+  "ONBOARDING_STARTED",
+  "ONBOARDING_RESUMED",
+  "ONBOARDING_RESTARTED",
+  "ONBOARDING_REJECTED",
+  "ONBOARDING_APPROVED",
+  "ONBOARDING_FINAL_APPROVAL_COMPLETED",
+  "ONBOARDING_COMPLETED",
+] as const;
+
+export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingAuditLog> {
   public readonly name = "OrganizationLogAdapter";
   public readonly category: ActivityCategory = "organization";
   public readonly domain = "onboarding" as const;
@@ -16,166 +27,98 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
   async query(
     userId: string,
     filters: ActivityFilters
-  ): Promise<OnboardingLog[]> {
-    const { search, event_types, startDate, endDate, limit, offset, organizationId, portalType } = filters;
-    const supportedTypes = this.getEventTypes();
-
-    const finalEventTypes = event_types
-      ? event_types.filter(et => supportedTypes.includes(et))
-      : supportedTypes;
-
-    // Build the where clause
-    const where: Prisma.OnboardingLogWhereInput = {
-      event_type: { in: finalEventTypes },
-      created_at: buildDateFilter(startDate, endDate),
-    };
-
-    // Filter by organization if provided, otherwise filter by user_id
-    if (organizationId && portalType) {
-      if (portalType === "investor") {
-        where.investor_organization_id = organizationId;
-      } else {
-        where.issuer_organization_id = organizationId;
-      }
-    } else {
-      where.user_id = userId;
-    }
-
-    // Pre-calculate which event types match the search string via their shared labels
-    const matchingEventTypes = search
-      ? finalEventTypes.filter((et) => {
-        const presentation = this.buildPresentation(et, {});
-        const searchTerm = search.toLowerCase();
-
-        return (
-          presentation.title.toLowerCase().includes(searchTerm) ||
-          presentation.description.toLowerCase().includes(searchTerm)
-        );
-      })
-      : [];
-
-    if (search) {
-      where.OR = [
-        { event_type: { contains: search, mode: "insensitive" } },
-        { event_type: { in: matchingEventTypes } },
-        {
-          metadata: {
-            path: ["status"],
-            string_contains: search,
-          },
-        },
-        {
-          metadata: {
-            path: ["reason"],
-            string_contains: search,
-          },
-        },
-        {
-          metadata: {
-            path: ["section"],
-            string_contains: search,
-          },
-        },
-        {
-          metadata: {
-            path: ["form_name"],
-            string_contains: search,
-          },
-        },
-      ];
-    }
-
-    return prisma.onboardingLog.findMany({
-      where,
-      orderBy: { created_at: "desc" },
-      take: limit,
-      skip: offset,
-    });
-  }
-
-  async count(
-    userId: string,
-    filters: ActivityFilters
-  ): Promise<number> {
-    const { search, event_types, startDate, endDate, organizationId, portalType } = filters;
+  ): Promise<OnboardingAuditLog[]> {
+    const { search, event_types, startDate, endDate, limit, offset, organizationId } = filters;
     const supportedTypes = this.getEventTypes();
 
     const finalEventTypes = event_types
       ? event_types.filter((et) => supportedTypes.includes(et))
       : supportedTypes;
 
-    // Build the where clause
-    const where: Prisma.OnboardingLogWhereInput = {
+    const where: Prisma.OnboardingAuditLogWhereInput = {
       event_type: { in: finalEventTypes },
-      created_at: buildDateFilter(startDate, endDate),
+      occurred_at: buildDateFilter(startDate, endDate),
     };
 
-    // Filter by organization if provided, otherwise filter by user_id
-    if (organizationId && portalType) {
-      if (portalType === "investor") {
-        where.investor_organization_id = organizationId;
-      } else {
-        where.issuer_organization_id = organizationId;
-      }
+    if (organizationId) {
+      where.organization_id = organizationId;
     } else {
-      where.user_id = userId;
+      where.subject_user_id = userId;
     }
 
     const matchingEventTypes = search
       ? finalEventTypes.filter((et) => {
-        const presentation = this.buildPresentation(et, {});
-        const searchTerm = search.toLowerCase();
-
-        return (
-          presentation.title.toLowerCase().includes(searchTerm) ||
-          presentation.description.toLowerCase().includes(searchTerm)
-        );
-      })
+          const presentation = this.buildPresentation(et, {});
+          const searchTerm = search.toLowerCase();
+          return (
+            presentation.title.toLowerCase().includes(searchTerm) ||
+            presentation.description.toLowerCase().includes(searchTerm)
+          );
+        })
       : [];
 
     if (search) {
       where.OR = [
         { event_type: { contains: search, mode: "insensitive" } },
         { event_type: { in: matchingEventTypes } },
-        {
-          metadata: {
-            path: ["status"],
-            string_contains: search,
-          },
-        },
-        {
-          metadata: {
-            path: ["reason"],
-            string_contains: search,
-          },
-        },
-        {
-          metadata: {
-            path: ["section"],
-            string_contains: search,
-          },
-        },
-        {
-          metadata: {
-            path: ["form_name"],
-            string_contains: search,
-          },
-        },
       ];
     }
 
-    return prisma.onboardingLog.count({
+    return prisma.onboardingAuditLog.findMany({
       where,
+      orderBy: { occurred_at: "desc" },
+      take: limit,
+      skip: offset,
     });
   }
 
-  transform(record: OnboardingLog): UnifiedActivity {
+  async count(userId: string, filters: ActivityFilters): Promise<number> {
+    const { search, event_types, startDate, endDate, organizationId } = filters;
+    const supportedTypes = this.getEventTypes();
+
+    const finalEventTypes = event_types
+      ? event_types.filter((et) => supportedTypes.includes(et))
+      : supportedTypes;
+
+    const where: Prisma.OnboardingAuditLogWhereInput = {
+      event_type: { in: finalEventTypes },
+      occurred_at: buildDateFilter(startDate, endDate),
+    };
+
+    if (organizationId) {
+      where.organization_id = organizationId;
+    } else {
+      where.subject_user_id = userId;
+    }
+
+    const matchingEventTypes = search
+      ? finalEventTypes.filter((et) => {
+          const presentation = this.buildPresentation(et, {});
+          const searchTerm = search.toLowerCase();
+          return (
+            presentation.title.toLowerCase().includes(searchTerm) ||
+            presentation.description.toLowerCase().includes(searchTerm)
+          );
+        })
+      : [];
+
+    if (search) {
+      where.OR = [
+        { event_type: { contains: search, mode: "insensitive" } },
+        { event_type: { in: matchingEventTypes } },
+      ];
+    }
+
+    return prisma.onboardingAuditLog.count({ where });
+  }
+
+  transform(record: OnboardingAuditLog): UnifiedActivity {
     const metadata = record.metadata as Record<string, unknown>;
     const presentation = this.buildPresentation(record.event_type, metadata);
 
     return {
       id: record.id,
-      user_id: record.user_id,
+      user_id: record.subject_user_id ?? "",
       category: this.category,
       domain: this.domain,
       event_type: record.event_type,
@@ -185,9 +128,9 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
       metadata,
       ip_address: record.ip_address,
       user_agent: record.user_agent,
-      device_info: record.device_info,
-      created_at: record.created_at,
-      source_table: "onboarding_logs",
+      device_info: formatDeviceInfoFromUserAgent(record.user_agent),
+      created_at: record.occurred_at,
+      source_table: "onboarding_audit_logs",
     };
   }
 
@@ -198,21 +141,35 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
           title: "Onboarding Started",
           description: "Your organization onboarding has started and you can continue it at any time.",
         };
-      case "ONBOARDING_CANCELLED":
+      case "ONBOARDING_RESUMED":
         return {
-          title: "Onboarding Closed",
-          description: "Your organization onboarding was cancelled and will not continue.",
+          title: "Onboarding Resumed",
+          description: "Your organization onboarding session was resumed.",
+        };
+      case "ONBOARDING_RESTARTED":
+        return {
+          title: "Onboarding Restarted",
+          description: "Your organization onboarding session was restarted.",
         };
       case "ONBOARDING_REJECTED":
         return {
           title: "Onboarding Rejected",
-          description: `Your organization onboarding was rejected${metadata?.reason ? `: ${metadata.reason}` : "."}`,
+          description: `Your organization onboarding was rejected${metadata?.reasonCode ? `: ${metadata.reasonCode}` : "."}`,
         };
-      case "FINAL_APPROVAL_COMPLETED":
       case "ONBOARDING_APPROVED":
         return {
           title: "Onboarding Approved",
           description: "Your organization onboarding was approved and no further action is needed.",
+        };
+      case "ONBOARDING_FINAL_APPROVAL_COMPLETED":
+        return {
+          title: "Final Approval Completed",
+          description: "Your organization onboarding received final approval.",
+        };
+      case "ONBOARDING_COMPLETED":
+        return {
+          title: "Onboarding Completed",
+          description: "Your organization onboarding was marked completed.",
         };
       default:
         return {
@@ -226,12 +183,6 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingLog> {
   }
 
   getEventTypes(): string[] {
-    return [
-      "ONBOARDING_STARTED",
-      "ONBOARDING_CANCELLED",
-      "ONBOARDING_REJECTED",
-      "FINAL_APPROVAL_COMPLETED",
-      "ONBOARDING_APPROVED",
-    ];
+    return [...CURATED_ORGANIZATION_ACTIVITY_EVENTS];
   }
 }

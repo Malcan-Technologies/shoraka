@@ -29,8 +29,6 @@ import {
 } from "@aws-sdk/client-cognito-identity-provider";
 import { formatRolesForCognito } from "../../lib/auth/cognito";
 import { Request } from "express";
-import { extractRequestMetadata } from "../../lib/http/request-utils";
-import { getPortalFromRole } from "../../lib/role-detector";
 import {
   AUDIT_ACTOR_TYPE,
   AUDIT_PORTAL,
@@ -39,7 +37,8 @@ import {
 } from "../../lib/audit/context";
 import { writeSecurityAuditLog } from "../security/audit/writer";
 import { SECURITY_AUDIT_TARGET_TYPE } from "../security/audit/events";
-import { AuthRepository } from "../auth/repository";
+import { writeOnboardingAuditLog } from "../onboarding/audit/writer";
+import { ONBOARDING_AUDIT_TARGET_TYPE } from "../onboarding/audit/events";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
 import { legalDocumentAcceptanceService } from "../legal-documents/acceptance-service";
 import { sendEmail } from "../../lib/email/ses-client";
@@ -202,11 +201,9 @@ async function upsertCtosPartySupplementOnboardingJson(
 
 export class OrganizationService {
   private repository: OrganizationRepository;
-  private authRepository: AuthRepository;
 
   constructor() {
     this.repository = new OrganizationRepository();
-    this.authRepository = new AuthRepository();
   }
 
   /**
@@ -476,7 +473,7 @@ export class OrganizationService {
    * In the future, this will be triggered by RegTank webhook.
    */
   async completeOnboarding(
-    _req: Request,
+    req: Request,
     userId: string,
     organizationId: string,
     portalType: PortalType
@@ -500,59 +497,73 @@ export class OrganizationService {
 
     logger.info({ organizationId, portalType, userId }, "Completing organization onboarding");
 
-    const updatedOrg =
-      portalType === "investor"
-        ? await this.repository.updateInvestorOrganizationOnboarding(
-          organizationId,
-          OnboardingStatus.COMPLETED
-        )
-        : await this.repository.updateIssuerOrganizationOnboarding(
-          organizationId,
-          OnboardingStatus.COMPLETED
-        );
-
-    logger.info({ organizationId, portalType }, "Organization onboarding completed");
-
-    // Update user's account array: replace 'temp' with organization ID
-    const user = await prisma.user.findUnique({
-      where: { user_id: userId },
+    const previousStatus = organization.onboarding_status;
+    const context = auditContextFromRequest(req, {
+      actorType: AUDIT_ACTOR_TYPE.USER,
+      portal: portalType === "investor" ? AUDIT_PORTAL.INVESTOR : AUDIT_PORTAL.ISSUER,
     });
 
-    if (user) {
-      const accountArrayField = portalType === "investor" ? "investor_account" : "issuer_account";
-      const currentArray = portalType === "investor" ? user.investor_account : user.issuer_account;
+    const updatedOrg = await prisma.$transaction(async (tx) => {
+      const next =
+        portalType === "investor"
+          ? await tx.investorOrganization.update({
+              where: { id: organizationId },
+              data: {
+                onboarding_status: OnboardingStatus.COMPLETED,
+                onboarded_at: new Date(),
+              },
+            })
+          : await tx.issuerOrganization.update({
+              where: { id: organizationId },
+              data: {
+                onboarding_status: OnboardingStatus.COMPLETED,
+                onboarded_at: new Date(),
+              },
+            });
 
-      // Find the first 'temp' and replace it with the organization ID
-      const tempIndex = currentArray.indexOf("temp");
-      if (tempIndex !== -1) {
-        const updatedArray = [...currentArray];
-        updatedArray[tempIndex] = organizationId;
+      const user = await tx.user.findUnique({
+        where: { user_id: userId },
+      });
 
-        await prisma.user.update({
-          where: { user_id: userId },
-          data: {
-            [accountArrayField]: { set: updatedArray },
-          },
-        });
-
-        logger.info(
-          { userId, organizationId, portalType, accountArray: updatedArray },
-          "User account array updated with organization ID"
-        );
-      } else {
-        logger.warn(
-          { userId, organizationId, portalType, currentArray },
-          "No 'temp' placeholder found in user account array"
-        );
+      if (user) {
+        const accountArrayField = portalType === "investor" ? "investor_account" : "issuer_account";
+        const currentArray = portalType === "investor" ? user.investor_account : user.issuer_account;
+        const tempIndex = currentArray.indexOf("temp");
+        if (tempIndex !== -1) {
+          const updatedArray = [...currentArray];
+          updatedArray[tempIndex] = organizationId;
+          await tx.user.update({
+            where: { user_id: userId },
+            data: {
+              [accountArrayField]: { set: updatedArray },
+            },
+          });
+        }
       }
 
-      // Note: USER_COMPLETED log is only created when final approval is completed by admin
-      // See apps/api/src/modules/admin/service.ts completeFinalApproval()
-      logger.info(
-        { userId, organizationId, portalType },
-        "Organization onboarding status updated to COMPLETED"
+      await writeOnboardingAuditLog(
+        {
+          eventType: "ONBOARDING_COMPLETED",
+          context,
+          subjectUserId: userId,
+          organizationId,
+          organizationKind: organizationKindFromPortalType(portalType),
+          organizationType: organization.type,
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: organizationId,
+          metadata: {
+            completionMethod: "LEGACY_COMPLETE_ONBOARDING",
+            previousStatus,
+            newStatus: OnboardingStatus.COMPLETED,
+          },
+        },
+        tx
       );
-    }
+
+      return next;
+    });
+
+    logger.info({ organizationId, portalType }, "Organization onboarding completed");
 
     return updatedOrg;
   }
@@ -823,7 +834,7 @@ export class OrganizationService {
    * When published onboarding legal PDFs exist, all required versions must already be ACCEPTED.
    */
   async acceptTnc(
-    req: Request,
+    _req: Request,
     userId: string,
     organizationId: string,
     portalType: PortalType
@@ -891,41 +902,6 @@ export class OrganizationService {
       portalType: portalType as "investor" | "issuer",
       reason: "USER_ACCEPT_TNC",
     });
-
-    // Log the T&C acceptance event
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-    const portal = getPortalFromRole(role);
-
-    // Get user for logging
-    const user = await prisma.user.findUnique({
-      where: { user_id: userId },
-    });
-
-    if (user) {
-      await this.authRepository.createOnboardingLog({
-        userId: user.user_id,
-        role,
-        eventType: "TNC_APPROVED",
-        portal,
-        ipAddress,
-        userAgent,
-        deviceInfo,
-        deviceType,
-        organizationName: organization.name || undefined,
-        investorOrganizationId: portalType === "investor" ? organizationId : undefined,
-        issuerOrganizationId: portalType === "issuer" ? organizationId : undefined,
-        metadata: {
-          organizationId,
-          organizationType: organization.type,
-          organizationName: organization.name,
-          role,
-          legalDocumentsRequired: legalStatus.hasRequiredDocuments,
-        },
-      });
-
-      logger.info({ userId, organizationId, portalType, role }, "T&C acceptance event logged");
-    }
 
     return { success: true, tncAccepted: true };
   }
@@ -2053,6 +2029,7 @@ export class OrganizationService {
    * Reuses RegTankAPIClient.createIndividualOnboarding; persists sent state on ctos_party_supplements.onboarding_json.
    */
   async sendDirectorCtosPartyOnboarding(
+    req: Request,
     userId: string,
     organizationId: string,
     portalType: PortalType,
@@ -2252,6 +2229,25 @@ export class OrganizationService {
       mergedSend as Prisma.InputJsonValue,
       entities.directorKycStatus
     );
+
+    await writeOnboardingAuditLog({
+      eventType: "DIRECTOR_ONBOARDING_INVITATION_SENT",
+      context: auditContextFromRequest(req, {
+        actorType: AUDIT_ACTOR_TYPE.USER,
+        portal: portalType === "investor" ? AUDIT_PORTAL.INVESTOR : AUDIT_PORTAL.ISSUER,
+      }),
+      subjectUserId: organization.owner_user_id,
+      organizationId,
+      organizationKind: organizationKindFromPortalType(portalType),
+      organizationType: "COMPANY",
+      targetType: ONBOARDING_AUDIT_TARGET_TYPE.DIRECTOR,
+      targetId: pk,
+      metadata: {
+        directorEmail: supplementEmail,
+        partyKey: pk,
+        requestId,
+      },
+    });
 
     if (verifyLink) {
       try {

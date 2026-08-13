@@ -1018,7 +1018,13 @@ async function sendDirectorOnboarding(
     const userId = getUserId(req);
     const { id } = organizationIdParamSchema.parse(req.params);
     const body = sendDirectorOnboardingSchema.parse(req.body);
-    const data = await organizationService.sendDirectorCtosPartyOnboarding(userId, id, portalType, body);
+    const data = await organizationService.sendDirectorCtosPartyOnboarding(
+      req,
+      userId,
+      id,
+      portalType,
+      body
+    );
     res.json({
       success: true,
       data,

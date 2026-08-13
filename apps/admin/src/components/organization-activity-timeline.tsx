@@ -33,32 +33,29 @@ function getEventIcon(eventType: string) {
       return <PlayIcon className="h-3.5 w-3.5 text-blue-600" />;
     case "ONBOARDING_RESUMED":
       return <ArrowPathIcon className="h-3.5 w-3.5 text-blue-500" />;
-    case "ONBOARDING_STATUS_UPDATED":
+    case "ONBOARDING_STATUS_CHANGED":
       return <ClockIcon className="h-3.5 w-3.5 text-amber-500" />;
-    case "ONBOARDING_CANCELLED":
-      return <XCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />;
+    case "ONBOARDING_RESTARTED":
+    case "ONBOARDING_RESET":
+      return <ArrowPathIcon className="h-3.5 w-3.5 text-amber-600" />;
     case "ONBOARDING_REJECTED":
       return <XCircleIcon className="h-3.5 w-3.5 text-destructive" />;
     case "ONBOARDING_APPROVED":
+    case "ONBOARDING_FINAL_APPROVAL_COMPLETED":
+    case "ONBOARDING_COMPLETED":
       return <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-600" />;
     case "AML_APPROVED":
       return <ShieldCheckIcon className="h-3.5 w-3.5 text-emerald-600" />;
-    case "TNC_APPROVED":
-    case "TNC_ACCEPTED":
-      return <DocumentTextIcon className="h-3.5 w-3.5 text-emerald-600" />;
     case "SSM_APPROVED":
+    case "CTOS_REPORT_RECEIVED":
       return <DocumentTextIcon className="h-3.5 w-3.5 text-emerald-600" />;
-    case "KYC_APPROVED":
-    case "KYB_APPROVED":
-      return <ShieldCheckIcon className="h-3.5 w-3.5 text-emerald-600" />;
-    case "FINAL_APPROVAL_COMPLETED":
-      return <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-700" />;
-    case "SOPHISTICATED_STATUS_UPDATED":
+    case "INVESTOR_SOPHISTICATED_STATUS_UPDATED":
       return <StarIcon className="h-3.5 w-3.5 text-violet-600" />;
-    case "FORM_FILLED":
-      return <DocumentTextIcon className="h-3.5 w-3.5 text-blue-500" />;
-    case "ONBOARDING_RESET":
-      return <ArrowPathIcon className="h-3.5 w-3.5 text-amber-600" />;
+    case "USER_ONBOARDING_STATUS_UPDATED":
+    case "CORPORATE_ENTITIES_UPDATED":
+    case "DIRECTOR_ONBOARDING_INVITATION_SENT":
+    case "DIRECTOR_KYC_STATUS_UPDATED":
+      return <ClockIcon className="h-3.5 w-3.5 text-muted-foreground" />;
     default:
       return <ClockIcon className="h-3.5 w-3.5 text-muted-foreground" />;
   }
@@ -68,21 +65,21 @@ function getEventLabel(eventType: string): string {
   const labels: Record<string, string> = {
     ONBOARDING_STARTED: "Onboarding Started",
     ONBOARDING_RESUMED: "Onboarding Resumed",
-    ONBOARDING_STATUS_UPDATED: "Status Updated",
-    ONBOARDING_CANCELLED: "Onboarding Cancelled",
+    ONBOARDING_RESTARTED: "Onboarding Restarted",
+    ONBOARDING_RESET: "Onboarding Reset",
+    USER_ONBOARDING_STATUS_UPDATED: "User Onboarding Marker Updated",
+    ONBOARDING_STATUS_CHANGED: "Status Changed",
     ONBOARDING_REJECTED: "Onboarding Rejected",
     ONBOARDING_APPROVED: "Onboarding Approved",
+    ONBOARDING_FINAL_APPROVAL_COMPLETED: "Final Approval Completed",
+    ONBOARDING_COMPLETED: "Onboarding Completed",
     AML_APPROVED: "AML Approved",
-    TNC_APPROVED: "T&C Approved",
-    TNC_ACCEPTED: "T&C Accepted",
     SSM_APPROVED: "SSM Approved",
-    KYC_APPROVED: "KYC Approved",
-    KYB_APPROVED: "KYB Approved",
-    FINAL_APPROVAL_COMPLETED: "Final Approval Completed",
-    SOPHISTICATED_STATUS_UPDATED: "Sophisticated Status Updated",
-    FORM_FILLED: "Form Submitted",
-    ONBOARDING_RESET: "Onboarding Reset",
-    USER_COMPLETED: "User Completed",
+    INVESTOR_SOPHISTICATED_STATUS_UPDATED: "Sophisticated Status Updated",
+    CTOS_REPORT_RECEIVED: "CTOS Report Received",
+    CORPORATE_ENTITIES_UPDATED: "Corporate Entities Updated",
+    DIRECTOR_ONBOARDING_INVITATION_SENT: "Director Invitation Sent",
+    DIRECTOR_KYC_STATUS_UPDATED: "Director KYC Updated",
   };
   return (
     labels[eventType] ||
@@ -97,26 +94,22 @@ function getEventDotColor(eventType: string): string {
   switch (eventType) {
     case "ONBOARDING_STARTED":
     case "ONBOARDING_RESUMED":
-    case "FORM_FILLED":
+    case "ONBOARDING_RESTARTED":
       return "bg-blue-500";
     case "ONBOARDING_APPROVED":
     case "AML_APPROVED":
-    case "TNC_APPROVED":
-    case "TNC_ACCEPTED":
     case "SSM_APPROVED":
-    case "KYC_APPROVED":
-    case "KYB_APPROVED":
-    case "FINAL_APPROVAL_COMPLETED":
-    case "USER_COMPLETED":
+    case "ONBOARDING_FINAL_APPROVAL_COMPLETED":
+    case "ONBOARDING_COMPLETED":
+    case "CTOS_REPORT_RECEIVED":
       return "bg-emerald-500";
-    case "ONBOARDING_CANCELLED":
     case "ONBOARDING_RESET":
       return "bg-muted-foreground";
     case "ONBOARDING_REJECTED":
       return "bg-destructive";
-    case "SOPHISTICATED_STATUS_UPDATED":
+    case "INVESTOR_SOPHISTICATED_STATUS_UPDATED":
       return "bg-violet-500";
-    case "ONBOARDING_STATUS_UPDATED":
+    case "ONBOARDING_STATUS_CHANGED":
       return "bg-amber-500";
     default:
       return "bg-muted-foreground";
@@ -133,29 +126,28 @@ function buildEventDescription(
   if (!metadata) return null;
 
   switch (eventType) {
-    case "ONBOARDING_STATUS_UPDATED":
+    case "ONBOARDING_STATUS_CHANGED":
       if (metadata.trigger)
         return `Triggered by ${formatTrigger(String(metadata.trigger))}`;
       return null;
     case "ONBOARDING_REJECTED":
-      return metadata.reason
-        ? String(metadata.reason)
+      return metadata.reasonCode
+        ? String(metadata.reasonCode)
         : metadata.trigger
           ? `Triggered by ${formatTrigger(String(metadata.trigger))}`
           : null;
-    case "ONBOARDING_CANCELLED":
-      return metadata.reason ? String(metadata.reason) : null;
     case "ONBOARDING_RESET":
-      return metadata.reason ? String(metadata.reason) : "Reset by admin";
-    case "SOPHISTICATED_STATUS_UPDATED": {
-      const action = metadata.action === "granted" ? "Granted" : "Revoked";
+      return "User account marker cleared; organization onboarding state was not rewound";
+    case "INVESTOR_SOPHISTICATED_STATUS_UPDATED": {
+      const action =
+        metadata.action === "AUTO_GRANTED"
+          ? "Auto-granted"
+          : metadata.action === "GRANTED"
+            ? "Granted"
+            : "Revoked";
       const reason = metadata.newReason ? ` — ${metadata.newReason}` : "";
       return `${action}${reason}`;
     }
-    case "FORM_FILLED":
-      return metadata.section
-        ? `Section: ${String(metadata.section)}`
-        : null;
     case "AML_APPROVED":
     case "KYB_APPROVED":
     case "KYC_APPROVED":
@@ -313,9 +305,9 @@ export function OrganizationActivityTimeline({
 
                 <div className="space-y-5">
                   {logs.map((log, index) => {
-                    const eventType = log.event_type;
+                    const eventType = log.eventType;
                     const isFirst = index === 0;
-                    const actorName = log.organizationName || "System";
+                    const actorName = log.actor.displayName || "System";
                     const metadata = log.metadata as Record<string, unknown> | null;
                     const description = buildEventDescription(eventType, metadata);
                     const details = extractMetadataDetails(eventType, metadata);
@@ -373,27 +365,27 @@ export function OrganizationActivityTimeline({
                                 {log.portal}
                               </span>
                             )}
-                            {log.device_type && (
+                            {log.deviceInfo && (
                               <span className="inline-flex items-center gap-0.5">
                                 <ComputerDesktopIcon className="h-3 w-3" />
-                                {log.device_type}
+                                {log.deviceInfo}
                               </span>
                             )}
                           </div>
 
                           {/* IP address */}
-                          {log.ip_address && (
+                          {log.ipAddress && (
                             <p className="text-[10px] text-muted-foreground/50 font-mono mt-0.5">
-                              {log.ip_address}
+                              {log.ipAddress}
                             </p>
                           )}
 
                           {/* Timestamp */}
                           <p
                             className="text-[11px] text-muted-foreground/70 mt-1"
-                            title={format(new Date(log.created_at), "PPpp")}
+                            title={format(new Date(log.occurredAt), "PPpp")}
                           >
-                            {formatDistanceToNow(new Date(log.created_at), {
+                            {formatDistanceToNow(new Date(log.occurredAt), {
                               addSuffix: true,
                             })}
                           </p>

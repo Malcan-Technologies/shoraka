@@ -18,29 +18,38 @@ const mockIssuerUpdate = jest.fn(({ data }: { data: Record<string, unknown> }) =
   issuerOrg = { ...(issuerOrg as Record<string, unknown>), ...data };
   return Promise.resolve(issuerOrg);
 });
-const mockOnboardingLogCreate = jest.fn((args: unknown) => {
+const mockOnboardingAuditCreate = jest.fn((args: unknown) => {
   onboardingLogs.push(args);
   return Promise.resolve({});
 });
+const mockUserFindUnique = jest.fn(() =>
+  Promise.resolve({ first_name: "Ada", last_name: "Admin", email: "ada@example.com" })
+);
 const mockRegTankOnboardingFindUnique = jest.fn(() => Promise.resolve(null));
 
-jest.mock("../../../lib/prisma", () => ({
-  prisma: {
-    investorOrganization: {
-      findUnique: (...args: unknown[]) => mockInvestorFindUnique(...(args as [])),
-      update: (...args: unknown[]) => mockInvestorUpdate(...(args as [{ data: Record<string, unknown> }])),
-    },
-    issuerOrganization: {
-      findUnique: (...args: unknown[]) => mockIssuerFindUnique(...(args as [])),
-      update: (...args: unknown[]) => mockIssuerUpdate(...(args as [{ data: Record<string, unknown> }])),
-    },
-    onboardingLog: {
-      create: (...args: unknown[]) => mockOnboardingLogCreate(...(args as [unknown])),
-    },
-    regTankOnboarding: {
-      findUnique: (...args: unknown[]) => mockRegTankOnboardingFindUnique(...(args as [])),
-    },
+const prismaClient = {
+  investorOrganization: {
+    findUnique: (...args: unknown[]) => mockInvestorFindUnique(...(args as [])),
+    update: (...args: unknown[]) => mockInvestorUpdate(...(args as [{ data: Record<string, unknown> }])),
   },
+  issuerOrganization: {
+    findUnique: (...args: unknown[]) => mockIssuerFindUnique(...(args as [])),
+    update: (...args: unknown[]) => mockIssuerUpdate(...(args as [{ data: Record<string, unknown> }])),
+  },
+  onboardingAuditLog: {
+    create: (...args: unknown[]) => mockOnboardingAuditCreate(...(args as [unknown])),
+  },
+  user: {
+    findUnique: (...args: unknown[]) => mockUserFindUnique(...(args as [])),
+  },
+  regTankOnboarding: {
+    findUnique: (...args: unknown[]) => mockRegTankOnboardingFindUnique(...(args as [])),
+  },
+  $transaction: async (fn: (tx: typeof prismaClient) => Promise<unknown>) => fn(prismaClient),
+};
+
+jest.mock("../../../lib/prisma", () => ({
+  prisma: prismaClient,
 }));
 
 const mockGetCorporateOnboardingDetails = jest.fn();
@@ -69,6 +78,7 @@ function resetOrg(overrides: Partial<Record<string, unknown>> = {}) {
     ssm_approved: true,
     type: OrganizationType.PERSONAL,
     name: "Test Org",
+    owner_user_id: "user-1",
     ...overrides,
   };
 }
@@ -94,7 +104,11 @@ describe("maybeAdvanceOrgAfterAmlScreeningCleared", () => {
     expect(outcome.amlApproved).toBe(true);
     expect(outcome.onboardingStatus).toBe(OnboardingStatus.PENDING_FINAL_APPROVAL);
     expect(outcome.advanced).toBe(true);
-    expect(mockOnboardingLogCreate).toHaveBeenCalledTimes(1);
+    expect(mockOnboardingAuditCreate).toHaveBeenCalledTimes(1);
+    const payload = mockOnboardingAuditCreate.mock.calls[0]?.[0] as {
+      data?: { event_type?: string };
+    };
+    expect(payload.data?.event_type).toBe("AML_APPROVED");
   });
 
   it("D4: still records aml_approved even when org is not yet at PENDING_AML, without skipping earlier stages", async () => {
@@ -125,6 +139,7 @@ describe("maybeAdvanceOrgAfterAmlScreeningCleared", () => {
 
     expect(outcome.advanced).toBe(false);
     expect(mockInvestorUpdate).not.toHaveBeenCalled();
+    expect(mockOnboardingAuditCreate).not.toHaveBeenCalled();
   });
 
   it("does not mutate organizations already in a terminal state (COMPLETED)", async () => {
@@ -231,7 +246,7 @@ describe("applyCorporateAmlMilestoneFromLiveKyb", () => {
 
     expect(first.advanced).toBe(true);
     expect(second.advanced).toBe(false);
-    expect(mockOnboardingLogCreate).toHaveBeenCalledTimes(1);
+    expect(mockOnboardingAuditCreate).toHaveBeenCalledTimes(1);
   });
 });
 

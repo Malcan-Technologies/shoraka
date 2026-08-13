@@ -2,6 +2,12 @@ import { OrganizationType } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 
 const mockAdminCreateOnboardingLog = jest.fn();
+const mockOnboardingAuditCreate = jest.fn().mockResolvedValue({});
+const mockUserFindUnique = jest.fn().mockResolvedValue({
+  first_name: "Admin",
+  last_name: "User",
+  email: "admin@example.com",
+});
 const mockRegTankFindById = jest.fn();
 const mockRegTankCancelOnboarding = jest.fn();
 const mockRegTankCreateOnboarding = jest.fn();
@@ -52,7 +58,23 @@ jest.mock("../../lib/http/request-utils", () => ({
     deviceInfo: "test",
     deviceType: "desktop",
   }),
+  getClientIp: () => "127.0.0.1",
 }));
+
+const prismaTx = {
+  investorOrganization: {
+    update: (...args: unknown[]) => mockInvestorOrgUpdate(...args),
+  },
+  issuerOrganization: {
+    update: (...args: unknown[]) => mockIssuerOrgUpdate(...args),
+  },
+  user: {
+    findUnique: (...args: unknown[]) => mockUserFindUnique(...args),
+  },
+  onboardingAuditLog: {
+    create: (...args: unknown[]) => mockOnboardingAuditCreate(...args),
+  },
+};
 
 jest.mock("../../lib/prisma", () => ({
   prisma: {
@@ -62,6 +84,13 @@ jest.mock("../../lib/prisma", () => ({
     issuerOrganization: {
       update: (...args: unknown[]) => mockIssuerOrgUpdate(...args),
     },
+    user: {
+      findUnique: (...args: unknown[]) => mockUserFindUnique(...args),
+    },
+    onboardingAuditLog: {
+      create: (...args: unknown[]) => mockOnboardingAuditCreate(...args),
+    },
+    $transaction: async (fn: (tx: typeof prismaTx) => Promise<unknown>) => fn(prismaTx),
   },
 }));
 
@@ -81,6 +110,7 @@ describe("AdminService.restartOnboarding company persistence", () => {
     mockInvestorOrgUpdate.mockResolvedValue({});
     mockIssuerOrgUpdate.mockResolvedValue({});
     mockAdminCreateOnboardingLog.mockResolvedValue({});
+    mockOnboardingAuditCreate.mockResolvedValue({});
   });
 
   it("investor company restart cancels old COD row and creates a new COD row", async () => {
@@ -121,6 +151,18 @@ describe("AdminService.restartOnboarding company persistence", () => {
       })
     );
     expect(result.newRequestId).toBe("COD0002");
+    expect(mockOnboardingAuditCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          event_type: "ONBOARDING_RESTARTED",
+        }),
+      })
+    );
+    const payload = mockOnboardingAuditCreate.mock.calls[0]?.[0] as {
+      data?: { metadata?: { trigger?: string } };
+    };
+    expect(payload.data?.metadata?.trigger).toBe("ADMIN_RESTART");
+    expect(mockAdminCreateOnboardingLog).not.toHaveBeenCalled();
   });
 
   it("issuer company restart cancels old COD row and creates a new COD row", async () => {

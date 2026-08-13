@@ -2,9 +2,7 @@ import { BaseWebhookHandler } from "./base-webhook-handler";
 import { RegTankEODWebhook } from "../types";
 import { logger } from "../../../lib/logger";
 import { RegTankRepository } from "../repository";
-import { AuthRepository } from "../../auth/repository";
 import { AmlIdentityRepository } from "../aml-identity-repository";
-import { UserRole } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
@@ -17,6 +15,14 @@ import {
   isEodParentFamilyMatch,
   logWebhookFamilyTypeMismatch,
 } from "./onboarding-webhook-guards";
+import { writeOnboardingAuditLog } from "../../onboarding/audit/writer";
+import { ONBOARDING_AUDIT_TARGET_TYPE } from "../../onboarding/audit/events";
+import { directorKycMaterialChange } from "../../onboarding/audit/diff";
+import {
+  auditPortalFromLegacy,
+  organizationKindFromPortalType,
+  webhookAuditContext,
+} from "../../../lib/audit/context";
 
 type DirectorKycJsonRow = {
   eodRequestId: string;
@@ -114,7 +120,6 @@ function computeDirectorMatch(
  */
 export class EODWebhookHandler extends BaseWebhookHandler {
   private repository: RegTankRepository;
-  private authRepository: AuthRepository;
   private organizationRepository: OrganizationRepository;
   private amlIdentityRepository: AmlIdentityRepository;
   private apiClient: ReturnType<typeof getRegTankAPIClient>;
@@ -122,7 +127,6 @@ export class EODWebhookHandler extends BaseWebhookHandler {
   constructor() {
     super();
     this.repository = new RegTankRepository();
-    this.authRepository = new AuthRepository();
     this.organizationRepository = new OrganizationRepository();
     this.amlIdentityRepository = new AmlIdentityRepository();
     this.apiClient = getRegTankAPIClient();
@@ -270,56 +274,7 @@ export class EODWebhookHandler extends BaseWebhookHandler {
       "[EOD Webhook] EOD webhook processed and appended to parent COD onboarding record"
     );
 
-    // Create onboarding log entry for EOD webhook
     const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
-    const portalType = onboarding.portal_type as PortalType;
-    const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-
-    try {
-      const eventType = statusUpper === "APPROVED" ? "EOD_APPROVED" : statusUpper === "REJECTED" ? "EOD_REJECTED" : "EOD_WEBHOOK";
-
-      await this.authRepository.createOnboardingLog({
-        userId: onboarding.user_id,
-        role,
-        eventType,
-        portal: portalType,
-        organizationName: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
-        investorOrganizationId: onboarding.investor_organization_id || undefined,
-        issuerOrganizationId: onboarding.issuer_organization_id || undefined,
-        metadata: {
-          eodRequestId,
-          codRequestId: onboarding.request_id,
-          status: statusUpper,
-          confidence,
-          kycId,
-          organizationId: organizationId || null,
-          onboardingType: onboarding.onboarding_type,
-        },
-      });
-
-      logger.debug(
-        {
-          eodRequestId,
-          codRequestId: onboarding.request_id,
-          userId: onboarding.user_id,
-          role,
-          eventType,
-          portalType,
-        },
-        "[EOD Webhook] Created EOD onboarding log entry"
-      );
-    } catch (logError) {
-      // Log error but don't fail the webhook processing
-      logger.error(
-        {
-          error: logError instanceof Error ? logError.message : String(logError),
-          eodRequestId,
-          codRequestId: onboarding.request_id,
-          userId: onboarding.user_id,
-        },
-        "[EOD Webhook] Failed to create EOD onboarding log entry (non-blocking)"
-      );
-    }
 
     // Update director KYC status in parent organization's director_kyc_status JSON field
     if (organizationId) {
@@ -397,6 +352,9 @@ export class EODWebhookHandler extends BaseWebhookHandler {
             lastSyncedAt: new Date().toISOString(),
           };
 
+          const kycDiff = directorKycMaterialChange(org.director_kyc_status, nextJson);
+          if (!kycDiff.changed) return;
+
           if (portal === "investor") {
             await prisma.investorOrganization.update({
               where: { id: organizationId },
@@ -430,6 +388,26 @@ export class EODWebhookHandler extends BaseWebhookHandler {
               "[EOD Webhook] Updated director KYC status in issuer organization"
             );
           }
+
+          await writeOnboardingAuditLog({
+            eventType: "DIRECTOR_KYC_STATUS_UPDATED",
+            context: webhookAuditContext({
+              portal: auditPortalFromLegacy(portal),
+            }),
+            subjectUserId: onboarding.user_id,
+            onboardingId: onboarding.id,
+            organizationId,
+            organizationKind: organizationKindFromPortalType(portal),
+            organizationType: "COMPANY",
+            targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+            targetId: organizationId,
+            metadata: {
+              previousKycStatus: kycDiff.previousKycStatus,
+              newKycStatus: kycDiff.newKycStatus,
+              changedCount: kycDiff.changedCount,
+              directorCount: kycDiff.directorCount,
+            },
+          });
         };
 
         if (portalType === "investor") {
