@@ -19,6 +19,15 @@ function getUserId(req: Request): string {
   return req.user.user_id;
 }
 
+function withDisplayReference<T extends { display_reference?: string | null }>(row: T): T & {
+  displayReference: string | null;
+} {
+  return {
+    ...row,
+    displayReference: row.display_reference ?? null,
+  };
+}
+
 async function createInvoice(req: Request, res: Response, next: NextFunction) {
   try {
     const { applicationId, contractId, details } = createInvoiceSchema.parse(req.body);
@@ -27,7 +36,7 @@ async function createInvoice(req: Request, res: Response, next: NextFunction) {
 
     res.status(201).json({
       success: true,
-      data: invoice,
+      data: withDisplayReference(invoice),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {
@@ -41,7 +50,11 @@ async function getInvoice(req: Request, res: Response, next: NextFunction) {
     const userId = getUserId(req);
     const invoice = await invoiceService.getInvoice(id, userId);
 
-    res.json({ success: true, data: invoice, correlationId: res.locals.correlationId || "unknown" });
+    res.json({
+      success: true,
+      data: withDisplayReference(invoice),
+      correlationId: res.locals.correlationId || "unknown",
+    });
   } catch (error) {
     next(error);
   }
@@ -54,7 +67,11 @@ async function updateInvoice(req: Request, res: Response, next: NextFunction) {
     const userId = getUserId(req);
     const invoice = await invoiceService.updateInvoice(id, payload, userId);
 
-    res.json({ success: true, data: invoice, correlationId: res.locals.correlationId || "unknown" });
+    res.json({
+      success: true,
+      data: withDisplayReference(invoice),
+      correlationId: res.locals.correlationId || "unknown",
+    });
   } catch (error) {
     next(error);
   }
@@ -78,7 +95,11 @@ async function getInvoicesByApplication(req: Request, res: Response, next: NextF
     const userId = getUserId(req);
     const invoices = await invoiceService.getInvoicesByApplication(applicationId, userId);
 
-    res.json({ success: true, data: invoices, correlationId: res.locals.correlationId || "unknown" });
+    res.json({
+      success: true,
+      data: invoices.map((invoice) => withDisplayReference(invoice)),
+      correlationId: res.locals.correlationId || "unknown",
+    });
   } catch (error) {
     next(error);
   }
@@ -90,7 +111,11 @@ async function getInvoicesByContract(req: Request, res: Response, next: NextFunc
     const userId = getUserId(req);
     const invoices = await invoiceService.getInvoicesByContract(contractId, userId);
 
-    res.json({ success: true, data: invoices, correlationId: res.locals.correlationId || "unknown" });
+    res.json({
+      success: true,
+      data: invoices.map((invoice) => withDisplayReference(invoice)),
+      correlationId: res.locals.correlationId || "unknown",
+    });
   } catch (error) {
     next(error);
   }
@@ -125,7 +150,11 @@ async function withdrawInvoice(req: Request, res: Response, next: NextFunction) 
     const reason = body.reason === "USER_CANCELLED" ? WithdrawReason.USER_CANCELLED : undefined;
     const invoice = await invoiceService.withdrawInvoice(id, userId, reason);
 
-    res.json({ success: true, data: invoice, correlationId: res.locals.correlationId || "unknown" });
+    res.json({
+      success: true,
+      data: withDisplayReference(invoice),
+      correlationId: res.locals.correlationId || "unknown",
+    });
   } catch (error) {
     next(error);
   }

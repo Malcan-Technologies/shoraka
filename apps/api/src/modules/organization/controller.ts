@@ -101,6 +101,7 @@ async function listOrganizations(
       data: {
         organizations: organizations.map((org) => ({
           id: org.id,
+          displayReference: org.display_reference ?? null,
           type: org.type,
           name: org.name,
           firstName: (org as { first_name?: string | null }).first_name || null,
@@ -268,6 +269,7 @@ async function createOrganization(
       success: true,
       data: {
         id: organization.id,
+        displayReference: organization.display_reference ?? null,
         type: organization.type,
         name: organization.name,
         registrationNumber: organization.registration_number,
@@ -364,6 +366,7 @@ async function getOrganization(
       success: true,
       data: {
         id: organization.id,
+        displayReference: organization.display_reference ?? null,
         type: organization.type,
         name: organization.name,
         firstName: org.first_name || null,

@@ -38,7 +38,7 @@ export function ContractsTableToolbar({
     <ListToolbar
       searchQuery={searchQuery}
       onSearchChange={onSearchChange}
-      searchPlaceholder="Search by contract, number, organization..."
+      searchPlaceholder="Search by CashSouk reference, contract number, or organization..."
       statusFilters={statusFilters}
       onStatusFiltersChange={onStatusFiltersChange}
       statusOptions={STATUS_OPTIONS}

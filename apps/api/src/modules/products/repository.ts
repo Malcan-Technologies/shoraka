@@ -1,6 +1,7 @@
 import { prisma } from "../../lib/prisma";
 import { Product, Prisma } from "@prisma/client";
 import type { ProductEventType, GetProductLogsQuery, DateRangeValue } from "./schemas";
+import { normalizeAndValidateProductCode } from "../../lib/display-reference";
 
 export interface ListProductsParams {
   page: number;
@@ -18,6 +19,7 @@ export interface UpdateProductData {
   marketplace_listing_duration_days?: number | null;
   service_fee_rate_percent?: number | null;
   default_facility_fee_rate_percent?: number | null;
+  product_code?: string;
 }
 
 export interface CreateProductData {
@@ -25,6 +27,7 @@ export interface CreateProductData {
   marketplace_listing_duration_days?: number | null;
   service_fee_rate_percent?: number | null;
   default_facility_fee_rate_percent?: number | null;
+  product_code?: string;
 }
 
 export interface LogContext {
@@ -32,6 +35,73 @@ export interface LogContext {
   ipAddress?: string | null;
   userAgent?: string | null;
   deviceInfo?: string | null;
+}
+
+function effectiveBaseId(product: { id: string; base_id?: string | null }): string {
+  return product.base_id ?? product.id;
+}
+
+function normalizeOptionalProductCode(code: string | null | undefined): string | null {
+  if (code == null) return null;
+  const trimmed = code.trim();
+  if (!trimmed) return null;
+  return normalizeAndValidateProductCode(trimmed);
+}
+
+async function getFamilyProductCode(
+  tx: Prisma.TransactionClient,
+  baseId: string
+): Promise<string | null> {
+  const rows = await tx.product.findMany({
+    where: {
+      OR: [{ id: baseId }, { base_id: baseId }],
+    },
+    select: { id: true, base_id: true, product_code: true },
+  });
+
+  let familyCode: string | null = null;
+  for (const row of rows) {
+    const code = normalizeOptionalProductCode(row.product_code);
+    if (!code) continue;
+    if (!familyCode) {
+      familyCode = code;
+      continue;
+    }
+    if (familyCode !== code) {
+      throw new Error("Product family has inconsistent product codes.");
+    }
+  }
+  return familyCode;
+}
+
+async function assertCodeNotUsedByOtherFamily(
+  tx: Prisma.TransactionClient,
+  expectedBaseId: string,
+  candidateCode: string
+): Promise<void> {
+  const rows = await tx.product.findMany({
+    where: { product_code: candidateCode },
+    select: { id: true, base_id: true },
+  });
+  const conflict = rows.find((row) => effectiveBaseId(row) !== expectedBaseId);
+  if (conflict) {
+    throw new Error(`Product code ${candidateCode} is already used by another product family.`);
+  }
+}
+
+async function assertFamilyCodeMutable(
+  tx: Prisma.TransactionClient,
+  currentCode: string
+): Promise<void> {
+  const allocation = await tx.displayReferenceAllocation.findFirst({
+    where: { product_code: currentCode },
+    select: { id: true },
+  });
+  if (allocation) {
+    throw new Error(
+      "Product code cannot be changed after canonical references have been allocated."
+    );
+  }
 }
 
 /** Deep equality for JSON-like workflow (arrays and plain objects). Used to avoid version bump when nothing changed. */
@@ -122,8 +192,22 @@ export class ProductRepository {
     const config = financingStep?.config ?? {};
     const categoryName = (config.category as string) || "Other";
 
+    const normalizedProductCode = normalizeOptionalProductCode(data.product_code);
+
     // Run in transaction to avoid race conditions when computing max + 1
     return await prisma.$transaction(async (tx) => {
+      if (normalizedProductCode) {
+        const existing = await tx.product.findFirst({
+          where: { product_code: normalizedProductCode },
+          select: { id: true },
+        });
+        if (existing) {
+          throw new Error(
+            `Product code ${normalizedProductCode} is already used by another product family.`
+          );
+        }
+      }
+
       // Find max product_display_order within the category using JSONB filter
       const prodMaxRows = await tx.$queryRaw<Array<{ max: number | null }>>`
         SELECT MAX(product_display_order) as max
@@ -155,6 +239,7 @@ export class ProductRepository {
       const created = await tx.product.create({
         data: {
           version: 1,
+          product_code: normalizedProductCode ?? undefined,
           workflow: data.workflow as Prisma.InputJsonValue,
           category_display_order: categoryDisplayOrder,
           product_display_order: nextProductOrder,
@@ -169,9 +254,12 @@ export class ProductRepository {
       } as any);
 
       /** New products are their own base; set base_id = id for versioning grouping. */
-      await tx.product.update({
+      const finalized = await tx.product.update({
         where: { id: created.id },
-        data: { base_id: created.id },
+        data: {
+          base_id: created.id,
+          product_code: normalizedProductCode ?? undefined,
+        },
       } as any);
 
       // Write PRODUCT_CREATED log with the initial config snapshot.
@@ -193,6 +281,7 @@ export class ProductRepository {
               marketplace_listing_duration_days: createdAny.marketplace_listing_duration_days ?? null,
               service_fee_rate_percent: createdAny.service_fee_rate_percent ?? null,
               default_facility_fee_rate_percent: createdAny.default_facility_fee_rate_percent ?? null,
+              product_code: normalizedProductCode ?? null,
               version: createdAny.version ?? null,
               base_id: createdAny.base_id ?? created.id ?? null,
               status: createdAny.status ?? null,
@@ -203,7 +292,7 @@ export class ProductRepository {
         } as any);
       }
 
-      return created;
+      return finalized;
     });
   }
 
@@ -217,7 +306,8 @@ export class ProductRepository {
       data.workflow === undefined &&
       data.marketplace_listing_duration_days === undefined &&
       data.service_fee_rate_percent === undefined &&
-      data.default_facility_fee_rate_percent === undefined
+      data.default_facility_fee_rate_percent === undefined &&
+      data.product_code === undefined
     ) {
       return prisma.product.findUniqueOrThrow({ where: { id } });
     }
@@ -226,6 +316,10 @@ export class ProductRepository {
       throw new Error("Product not found");
     }
     const currentWorkflow = current.workflow as unknown;
+    const normalizedRequestedProductCode =
+      data.product_code === undefined
+        ? undefined
+        : normalizeOptionalProductCode(data.product_code);
     const workflowUnchanged = data.workflow === undefined || workflowDeepEqual(data.workflow, currentWorkflow);
     const currentMarketplaceListingDuration = (current as {
       marketplace_listing_duration_days?: number | null;
@@ -255,7 +349,8 @@ export class ProductRepository {
       workflowUnchanged &&
       marketplaceListingDurationUnchanged &&
       serviceFeeRatePercentUnchanged &&
-      defaultFacilityFeeRatePercentUnchanged
+      defaultFacilityFeeRatePercentUnchanged &&
+      normalizedRequestedProductCode === undefined
     ) {
       return current;
     }
@@ -267,58 +362,83 @@ export class ProductRepository {
         data.marketplace_listing_duration_days !== undefined
           ? data.marketplace_listing_duration_days
           : (current as { marketplace_listing_duration_days?: number | null }).marketplace_listing_duration_days ?? null;
-      const updated = await prisma.product.update({
-        where: { id },
-        data: {
-          workflow: workflowPayload,
-          marketplace_listing_duration_days: marketplaceListingDurationPayload ?? undefined,
-          service_fee_rate_percent:
-            data.service_fee_rate_percent !== undefined
-              ? new Prisma.Decimal(
-                  data.service_fee_rate_percent == null
-                    ? currentServiceFeeRatePercent ?? 15
-                    : data.service_fee_rate_percent
-                )
-              : undefined,
-          default_facility_fee_rate_percent:
-            data.default_facility_fee_rate_percent !== undefined
-              ? new Prisma.Decimal(
-                  data.default_facility_fee_rate_percent == null
-                    ? currentDefaultFacilityFeeRatePercent ?? 1
-                    : data.default_facility_fee_rate_percent
-                )
-              : undefined,
-        },
-      } as any);
-      if (logContext?.userId) {
-        const updatedAny = updated as any;
-        const metadata = {
-          workflow: JSON.parse(JSON.stringify(updatedAny.workflow)),
-          category_display_order: updatedAny.category_display_order ?? null,
-          product_display_order: updatedAny.product_display_order ?? null,
-            marketplace_listing_duration_days: updatedAny.marketplace_listing_duration_days ?? null,
-          service_fee_rate_percent: updatedAny.service_fee_rate_percent ?? null,
-            default_facility_fee_rate_percent: updatedAny.default_facility_fee_rate_percent ?? null,
-          version: updatedAny.version,
-          base_id: updatedAny.base_id ?? null,
-          status: updatedAny.status ?? null,
-          product_created_at: updatedAny.created_at.toISOString(),
-          product_updated_at: updatedAny.updated_at.toISOString(),
-          replaced_product_id: null,
-        };
-        await prisma.productLog.create({
+      return prisma.$transaction(async (tx) => {
+        const baseId = effectiveBaseId(current as { id: string; base_id?: string | null });
+        const familyCode = await getFamilyProductCode(tx, baseId);
+        let nextFamilyCode = familyCode;
+
+        if (normalizedRequestedProductCode !== undefined) {
+          if (familyCode && normalizedRequestedProductCode !== familyCode) {
+            await assertFamilyCodeMutable(tx, familyCode);
+          }
+          if (normalizedRequestedProductCode) {
+            await assertCodeNotUsedByOtherFamily(tx, baseId, normalizedRequestedProductCode);
+          }
+          nextFamilyCode = normalizedRequestedProductCode;
+          await tx.product.updateMany({
+            where: {
+              OR: [{ id: baseId }, { base_id: baseId }],
+            },
+            data: { product_code: nextFamilyCode ?? null },
+          });
+        }
+
+        const updated = await tx.product.update({
+          where: { id },
           data: {
-            user_id: logContext.userId,
-            product_id: updated.id,
-            event_type: "PRODUCT_UPDATED",
-            ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-            user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-            device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
-            metadata: metadata as Prisma.InputJsonValue,
+            workflow: workflowPayload,
+            marketplace_listing_duration_days: marketplaceListingDurationPayload ?? undefined,
+            service_fee_rate_percent:
+              data.service_fee_rate_percent !== undefined
+                ? new Prisma.Decimal(
+                    data.service_fee_rate_percent == null
+                      ? currentServiceFeeRatePercent ?? 15
+                      : data.service_fee_rate_percent
+                  )
+                : undefined,
+            default_facility_fee_rate_percent:
+              data.default_facility_fee_rate_percent !== undefined
+                ? new Prisma.Decimal(
+                    data.default_facility_fee_rate_percent == null
+                      ? currentDefaultFacilityFeeRatePercent ?? 1
+                      : data.default_facility_fee_rate_percent
+                  )
+                : undefined,
+            product_code: nextFamilyCode ?? undefined,
           },
         } as any);
-      }
-      return updated;
+
+        if (logContext?.userId) {
+          const updatedAny = updated as any;
+          const metadata = {
+            workflow: JSON.parse(JSON.stringify(updatedAny.workflow)),
+            category_display_order: updatedAny.category_display_order ?? null,
+            product_display_order: updatedAny.product_display_order ?? null,
+            marketplace_listing_duration_days: updatedAny.marketplace_listing_duration_days ?? null,
+            service_fee_rate_percent: updatedAny.service_fee_rate_percent ?? null,
+            default_facility_fee_rate_percent: updatedAny.default_facility_fee_rate_percent ?? null,
+            product_code: nextFamilyCode ?? null,
+            version: updatedAny.version,
+            base_id: updatedAny.base_id ?? null,
+            status: updatedAny.status ?? null,
+            product_created_at: updatedAny.created_at.toISOString(),
+            product_updated_at: updatedAny.updated_at.toISOString(),
+            replaced_product_id: null,
+          };
+          await tx.productLog.create({
+            data: {
+              user_id: logContext.userId,
+              product_id: updated.id,
+              event_type: "PRODUCT_UPDATED",
+              ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+              user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+              device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+              metadata: metadata as Prisma.InputJsonValue,
+            },
+          } as any);
+        }
+        return updated;
+      });
     }
 
     const newVersion = current.version + 1;
@@ -361,6 +481,20 @@ export class ProductRepository {
         if (!baseId) {
           throw new Error("Failed to initialize product base_id. Product update aborted.");
         }
+      }
+      const resolvedBaseId = baseId!;
+      const familyCode = await getFamilyProductCode(tx, resolvedBaseId);
+      let nextFamilyCode = familyCode;
+      if (normalizedRequestedProductCode !== undefined) {
+        if (familyCode && normalizedRequestedProductCode !== familyCode) {
+          throw new Error(
+            `New product versions must use the existing family product code (${familyCode}).`
+          );
+        }
+        if (!familyCode && normalizedRequestedProductCode) {
+          await assertCodeNotUsedByOtherFamily(tx, resolvedBaseId, normalizedRequestedProductCode);
+        }
+        nextFamilyCode = normalizedRequestedProductCode;
       }
 
       /** Prevent multiple ACTIVE versions per base_id. */
@@ -414,6 +548,7 @@ export class ProductRepository {
       const created = await tx.product.create({
         data: {
           version: newVersion,
+          product_code: nextFamilyCode ?? undefined,
           workflow: workflowPayload,
           category_display_order: categoryDisplayOrder,
           product_display_order: productDisplayOrder,
@@ -425,6 +560,15 @@ export class ProductRepository {
         },
       } as any);
 
+      if (!familyCode && normalizedRequestedProductCode !== undefined) {
+        await tx.product.updateMany({
+          where: {
+            OR: [{ id: resolvedBaseId }, { base_id: resolvedBaseId }],
+          },
+          data: { product_code: nextFamilyCode ?? null },
+        });
+      }
+
       if (logContext?.userId) {
         const createdAny = created as any;
         const metadata = {
@@ -433,7 +577,8 @@ export class ProductRepository {
           product_display_order: createdAny.product_display_order ?? null,
           marketplace_listing_duration_days: createdAny.marketplace_listing_duration_days ?? null,
           service_fee_rate_percent: createdAny.service_fee_rate_percent ?? null,
-            default_facility_fee_rate_percent: createdAny.default_facility_fee_rate_percent ?? null,
+          default_facility_fee_rate_percent: createdAny.default_facility_fee_rate_percent ?? null,
+          product_code: nextFamilyCode ?? null,
           version: createdAny.version,
           base_id: createdAny.base_id ?? null,
           status: createdAny.status ?? null,

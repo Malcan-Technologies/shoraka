@@ -1,7 +1,6 @@
 /**
- * Shared financial calculator utility.
- * Used by admin dashboards or analytics when financial ratios are needed.
- * Input uses canonical field keys; computed metrics are never stored.
+ * Shared financial statement input shape for issuer Application forms.
+ * CTOS-derived display metrics use `ctos-financial-highlights.ts` instead.
  */
 
 export interface FinancialStatementsInput {
@@ -21,20 +20,4 @@ export interface FinancialStatementsInput {
   totlib?: number;
   turnover?: number;
   plnpat?: number;
-}
-
-/**
- * Returns profit margin (plnpat / turnover). Divide-by-zero safe.
- */
-export function calculateProfitMargin(plnpat: number, turnover: number): number | null {
-  if (turnover === 0) return null;
-  return plnpat / turnover;
-}
-
-/**
- * Returns current ratio (bscatot / curlib). Divide-by-zero safe.
- */
-export function calculateCurrentRatio(bscatot: number, curlib: number): number | null {
-  if (curlib === 0) return null;
-  return bscatot / curlib;
 }

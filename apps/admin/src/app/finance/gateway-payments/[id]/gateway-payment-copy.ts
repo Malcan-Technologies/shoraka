@@ -1,6 +1,5 @@
 /**
  * Admin-facing copy for Gateway Payment detail UI.
- * Keep production page and showcase on the same wording.
  */
 
 const INSUFFICIENT_BALANCE_RE =

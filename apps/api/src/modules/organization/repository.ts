@@ -6,7 +6,10 @@ import {
   OrganizationType,
   OnboardingStatus,
   OrganizationMemberRole,
+  Prisma,
 } from "@prisma/client";
+
+type OrganizationDbClient = typeof prisma | Prisma.TransactionClient;
 
 export type OrganizationWithMembers = (InvestorOrganization | IssuerOrganization) & {
   members: (OrganizationMember & {
@@ -50,8 +53,8 @@ export class OrganizationRepository {
     type: OrganizationType;
     name?: string;
     registrationNumber?: string;
-  }): Promise<InvestorOrganization> {
-    return prisma.investorOrganization.create({
+  }, db: OrganizationDbClient = prisma): Promise<InvestorOrganization> {
+    return db.investorOrganization.create({
       data: {
         owner_user_id: data.ownerUserId,
         type: data.type,
@@ -80,8 +83,8 @@ export class OrganizationRepository {
     type: OrganizationType;
     name?: string;
     registrationNumber?: string;
-  }): Promise<IssuerOrganization> {
-    return prisma.issuerOrganization.create({
+  }, db: OrganizationDbClient = prisma): Promise<IssuerOrganization> {
+    return db.issuerOrganization.create({
       data: {
         owner_user_id: data.ownerUserId,
         type: data.type,
@@ -105,8 +108,8 @@ export class OrganizationRepository {
     investorOrganizationId?: string;
     issuerOrganizationId?: string;
     role: OrganizationMemberRole;
-  }): Promise<OrganizationMember> {
-    return prisma.organizationMember.create({
+  }, db: OrganizationDbClient = prisma): Promise<OrganizationMember> {
+    return db.organizationMember.create({
       data: {
         user_id: data.userId,
         investor_organization_id: data.investorOrganizationId,

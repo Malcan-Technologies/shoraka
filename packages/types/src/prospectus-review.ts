@@ -287,6 +287,8 @@ export interface ProspectusFrozenFinancialRaw {
   profit_margin: number | null;
   return_on_equity: number | null;
   currat: number | null;
+  /** Official CTOS Gearing Ratio — Page 3 Debt / Equity prefers this when present. */
+  gear: number | null;
 }
 
 export interface ProspectusFrozenFinancialYear {

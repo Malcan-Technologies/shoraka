@@ -1,9 +1,5 @@
 import { NoteStatus } from "@prisma/client";
-import { computeReturnOnEquity, resolveApplicationFinancialTotalAssets } from "@cashsouk/types";
-import {
-  buildProspectusFinancialComparisonMetrics,
-  formatProspectusFinancialPercentFromRatio,
-} from "./prospectus-financial-comparison-metrics";
+import { buildProspectusFinancialComparisonMetrics } from "./prospectus-financial-comparison-metrics";
 import { parseProspectusPageTwoSnapshot } from "./prospectus-json-guards";
 import {
   buildProspectusPageThree,
@@ -156,6 +152,7 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         "profit_margin",
         "return_on_equity",
         "currat",
+        "gear",
       ]);
       expect(raw?.plnpbt).toBe(1_400_000);
       expect(raw?.bsfatot).toBe(1_500_000);
@@ -356,11 +353,17 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
         PROSPECTUS_DATA_NOT_AVAILABLE
       );
       expect(row(page.balanceSheet.rows, "current_assets")?.[2]).toBe("5.8");
-      // Incomplete freeze components → Application zero-default Total Assets = bscatot only.
-      expect(row(page.balanceSheet.rows, "total_assets")?.[2]).toBe("5.8");
-      expect(row(page.balanceSheet.rows, "total_liabilities")?.[2]).toBe("3.4");
-      // Old freeze still has plnpat + bsqpuc → ROE is computed (1.8M / 2.4M = 75%).
-      expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[2]).toBe("75%");
+      // Old freeze without totass/totlib → DNA (no component reconstruction).
+      expect(row(page.balanceSheet.rows, "total_assets")?.[2]).toBe(
+        PROSPECTUS_DATA_NOT_AVAILABLE
+      );
+      expect(row(page.balanceSheet.rows, "total_liabilities")?.[2]).toBe(
+        PROSPECTUS_DATA_NOT_AVAILABLE
+      );
+      // Old freeze without return_on_equity → DNA (no PAT/networth fallback).
+      expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[2]).toBe(
+        PROSPECTUS_DATA_NOT_AVAILABLE
+      );
       expect(row(page.balanceSheet.rows, "cash_and_bank")?.[2]).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
       );
@@ -403,26 +406,14 @@ describe("prospectus Page 3 Prisma mapper and assembly", () => {
       expect(row(page.incomeStatement.rows, "ebit")?.[0]).toBe("1.4");
       expect(row(page.incomeStatement.rows, "profit_before_tax")?.[0]).toBe("1.4");
       expect(row(page.balanceSheet.rows, "total_assets")?.[0]).toBe("8.1");
-      expect(
-        resolveApplicationFinancialTotalAssets({
-          totass: null,
-          bsfatot: 1_500_000,
-          othass: 1_000_000,
-          bscatot: 4_700_000,
-          bsclbank: 900_000,
-        })
-      ).toBe(8_100_000);
       expect(row(page.balanceSheet.rows, "cash_and_bank")?.[0]).toBe("0.9");
       expect(row(page.balanceSheet.rows, "quick_ratio")?.[0]).toBe("1.11x");
-      expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[0]).toBe(
-        formatProspectusFinancialPercentFromRatio(
-          computeReturnOnEquity(1_200_000, 2_000_000)
-        )
-      );
+      expect(row(page.coverageEfficiency.rows, "return_on_equity")?.[0]).toBe("60%");
       expect(row(page.coverageEfficiency.rows, "dscr")?.[0]).toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
       );
-      expect(row(page.coverageEfficiency.rows, "debt_equity")?.[0]).toBe(
+      // Sample has totlib but no gear → gearing from totlib/networth
+      expect(row(page.coverageEfficiency.rows, "debt_equity")?.[0]).not.toBe(
         PROSPECTUS_DATA_NOT_AVAILABLE
       );
 

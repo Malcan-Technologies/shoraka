@@ -65,6 +65,23 @@ const marketplaceListingDurationDaysSchema = z
   .optional()
   .nullable();
 
+const productCodeSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z0-9]{2,8}$/, {
+    message: "Product code must be 2-8 uppercase letters or digits (A-Z, 0-9)",
+  })
+  .optional();
+
+const requiredProductCodeSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z0-9]{2,8}$/, {
+    message: "Product code must be 2-8 uppercase letters or digits (A-Z, 0-9)",
+  });
+
 function hasMaxDecimalPlaces(value: number, maxDecimals: number): boolean {
   if (!Number.isFinite(value)) return false;
   const factor = 10 ** maxDecimals;
@@ -102,6 +119,7 @@ export const createProductBodySchema = z.object({
     .refine((v) => hasMaxDecimalPlaces(v, 2), { message: "Default facility fee rate can have up to 2 decimal places" })
     .optional()
     .nullable(),
+  product_code: requiredProductCodeSchema,
 });
 
 export type CreateProductBody = z.infer<typeof createProductBodySchema>;
@@ -136,6 +154,7 @@ export const updateProductBodySchema = z.object({
     .refine((v) => hasMaxDecimalPlaces(v, 2), { message: "Default facility fee rate can have up to 2 decimal places" })
     .optional()
     .nullable(),
+  product_code: productCodeSchema,
 });
 
 export type UpdateProductBody = z.infer<typeof updateProductBodySchema>;

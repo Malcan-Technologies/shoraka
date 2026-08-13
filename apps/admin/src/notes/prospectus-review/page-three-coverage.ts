@@ -1,10 +1,13 @@
 import { formatCurrency } from "@cashsouk/config";
 import {
-  calculateProfitMargin,
-  resolveApplicationFinancialCurrentRatio,
-  resolveApplicationFinancialReturnOnEquityRatio,
-  resolveApplicationFinancialTotalAssets,
-  resolveApplicationFinancialTotalLiabilities,
+  resolveCtosCurrentRatio,
+  resolveCtosGearingRatio,
+  resolveCtosPatMarginPercent,
+  resolveCtosReturnOnAssetsPercent,
+  resolveCtosReturnOnEquityPercent,
+  resolveCtosTotalAssetTurnover,
+  resolveCtosTotalAssets,
+  resolveCtosTotalLiabilities,
   isSoukscoreRiskRating,
   normalizeProspectusCompanySize,
   type NoteDetail,
@@ -62,14 +65,7 @@ function formatMoney(value: number | null): string {
   return formatCurrency(value);
 }
 
-function formatPercentFromRatio(ratio: number | null): string {
-  if (ratio == null || !Number.isFinite(ratio)) return DATA_NOT_AVAILABLE;
-  const percent = ratio * 100;
-  const fixed = percent.toFixed(2).replace(/\.?0+$/, "");
-  return `${fixed}%`;
-}
-
-/** Officer ROA storage is percentage points (4.8 → 4.8%). */
+/** Percentage points display (CTOS ROA / PAT Margin / ROE). */
 function formatPercentFromPoints(points: number | null): string {
   if (points == null || !Number.isFinite(points)) return DATA_NOT_AVAILABLE;
   const fixed = points.toFixed(2).replace(/\.?0+$/, "");
@@ -278,10 +274,10 @@ export function buildIncomeStatementResolvedRows(
     { label: "Profit After Tax", value: formatMoney(pat) },
     {
       label: "Net Profit Margin",
-      value:
-        revenue != null && pat != null
-          ? formatPercentFromRatio(calculateProfitMargin(pat, revenue))
-          : DATA_NOT_AVAILABLE,
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — PAT Margin (never profit_margin / PBT).
+      value: formatPercentFromPoints(
+        resolveCtosPatMarginPercent({ plnpat: pat, turnover: revenue })
+      ),
     },
   ];
 }
@@ -293,19 +289,9 @@ export function buildBalanceSheetResolvedRows(
 ): CoreTermRow[] {
   const currentAssets = parseNumber(yearRaw.bscatot);
   const currentLiabilities = parseNumber(yearRaw.curlib);
-  const totalAssets = resolveApplicationFinancialTotalAssets({
-    totass: parseNumber(yearRaw.totass),
-    bsfatot: parseNumber(yearRaw.bsfatot),
-    othass: parseNumber(yearRaw.othass),
-    bscatot: currentAssets,
-    bsclbank: parseNumber(yearRaw.bsclbank),
-  });
-  const totalLiabilities = resolveApplicationFinancialTotalLiabilities({
-    totlib: parseNumber(yearRaw.totlib),
-    curlib: currentLiabilities,
-    bsslltd: parseNumber(yearRaw.bsslltd),
-    bsclstd: parseNumber(yearRaw.bsclstd),
-  });
+  // CTOS ENQWS v5.11.0 — direct totass / totlib / currat only (no component reconstruction).
+  const totalAssets = resolveCtosTotalAssets({ totass: parseNumber(yearRaw.totass) });
+  const totalLiabilities = resolveCtosTotalLiabilities({ totlib: parseNumber(yearRaw.totlib) });
 
   return [
     { label: "Cash & Bank", value: manualDisplay(manual?.cashAndBank, "money") },
@@ -318,10 +304,8 @@ export function buildBalanceSheetResolvedRows(
     {
       label: "Current Ratio",
       value: formatMultiple(
-        resolveApplicationFinancialCurrentRatio({
+        resolveCtosCurrentRatio({
           currat: parseNumber(yearRaw.currat),
-          bscatot: currentAssets,
-          curlib: currentLiabilities,
         })
       ),
     },
@@ -353,30 +337,33 @@ export function buildCoverageResolvedRows(
     { label: "DSCR", value: formatMultiple(dscr) },
     {
       label: "Debt / Equity",
-      value: formatMultiple(parseNumber(manual?.debtEquity)),
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — gear | totlib/networth (x)
+      value: formatMultiple(
+        resolveCtosGearingRatio({
+          gear: parseNumber(yearRaw.gear),
+          totlib: parseNumber(yearRaw.totlib),
+          networth: parseNumber(yearRaw.networth),
+        })
+      ),
     },
     {
       label: "Return on Equity",
-      value: formatPercentFromRatio(
-        resolveApplicationFinancialReturnOnEquityRatio({
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — direct r:return_on_equity only.
+      value: formatPercentFromPoints(
+        resolveCtosReturnOnEquityPercent({
           return_on_equity: parseNumber(yearRaw.return_on_equity),
-          plnpat: parseNumber(yearRaw.plnpat),
-          networth: parseNumber(yearRaw.networth),
-          totass: parseNumber(yearRaw.totass),
-          totlib: parseNumber(yearRaw.totlib),
-          bsfatot: parseNumber(yearRaw.bsfatot),
-          othass: parseNumber(yearRaw.othass),
-          bscatot: parseNumber(yearRaw.bscatot),
-          bsclbank: parseNumber(yearRaw.bsclbank),
-          curlib: parseNumber(yearRaw.curlib),
-          bsslltd: parseNumber(yearRaw.bsslltd),
-          bsclstd: parseNumber(yearRaw.bsclstd),
         })
       ),
     },
     {
       label: "Return on Assets",
-      value: formatPercentFromPoints(parseNumber(manual?.returnOnAssets)),
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — plnpat/totass*100
+      value: formatPercentFromPoints(
+        resolveCtosReturnOnAssetsPercent({
+          plnpat: parseNumber(yearRaw.plnpat),
+          totass: parseNumber(yearRaw.totass),
+        })
+      ),
     },
     {
       label: "Receivables Days",
@@ -391,7 +378,13 @@ export function buildCoverageResolvedRows(
     },
     {
       label: "Asset Turnover",
-      value: formatMultiple(parseNumber(manual?.assetTurnover)),
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — turnover/totass
+      value: formatMultiple(
+        resolveCtosTotalAssetTurnover({
+          turnover: parseNumber(yearRaw.turnover),
+          totass: parseNumber(yearRaw.totass),
+        })
+      ),
     },
   ];
 }
@@ -487,11 +480,8 @@ export function pageThreeHidesIssuerIdentity(rows: CoreTermRow[]): boolean {
 }
 
 /** Expose Total Liabilities helper usage for tests (same inputs as Page 3 builder). */
-export function computePageThreeTotalLiabilities(yearRaw: Record<string, unknown>): number {
-  return resolveApplicationFinancialTotalLiabilities({
+export function computePageThreeTotalLiabilities(yearRaw: Record<string, unknown>): number | null {
+  return resolveCtosTotalLiabilities({
     totlib: parseNumber(yearRaw.totlib),
-    curlib: parseNumber(yearRaw.curlib),
-    bsslltd: parseNumber(yearRaw.bsslltd),
-    bsclstd: parseNumber(yearRaw.bsclstd),
   });
 }

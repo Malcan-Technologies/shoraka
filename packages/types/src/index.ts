@@ -235,6 +235,7 @@ export interface IssuerProductLiveCheck {
 
 export interface Application {
   id: string;
+  displayReference?: string | null;
   issuer_organization_id: string;
   product_version: number;
   status: ApplicationStatus;
@@ -288,6 +289,8 @@ export interface UpdateApplicationStepInput {
 export interface Product {
   id: string;
   base_id?: string | null;
+  product_code?: string | null;
+  product_code_locked?: boolean;
   version: number;
   status?: string;
   workflow: JsonValue[];
@@ -366,6 +369,7 @@ export interface CustomerDetails {
 
 export interface Contract {
   id: string;
+  displayReference?: string | null;
   application_id: string;
   issuer_organization_id: string;
   status: ContractStatus;
@@ -403,6 +407,7 @@ export interface InvoiceDetails {
 
 export interface Invoice {
   id: string;
+  displayReference?: string | null;
   contract_id?: string | null;
   application_id: string;
   status: InvoiceStatus;
@@ -440,6 +445,7 @@ export * from "./application-steps";
 export * from "./financial-calculator";
 export * from "./financial-field-labels";
 export * from "./ctos-report-table-math";
+export * from "./ctos-financial-highlights";
 export * from "./financial-unaudited-ctos-validation";
 export * from "./financial-statement-year-resolution";
 export * from "./review-scope";
@@ -460,6 +466,7 @@ export * from "./onboarding-readiness";
 export * from "./ctos-party-supplement-json";
 export * from "./regtank-iso3166-countries";
 export * from "./notes";
+export * from "./display-reference";
 export * from "./prospectus-review";
 export * from "./prospectus-status";
 export * from "./prospectus-fixed-templates";
@@ -477,4 +484,24 @@ export * from "./guarantors";
 export * from "./company-name-normalization";
 export * from "./gateway-payments";
 export * from "./gateway-recon";
-export * from "./rbac";
+export {
+  ADMIN_PERMISSIONS,
+  ADMIN_PERMISSION_GROUPS,
+  DEFAULT_ADMIN_ROLE_BADGE_COLOR,
+  FULL_ACCESS_ADMIN_ROLE_KEYS,
+  SUPER_ADMIN_BADGE_COLOR,
+  SUPER_ADMIN_ROLE_TEMPLATE,
+  SYSTEM_ADMIN_ROLE_KEYS,
+} from "./rbac";
+export type {
+  AdminPermission,
+  AdminPermissionGroup,
+  AdminRoleBadgeColor,
+  AdminRoleConfigRecord,
+  AdminRoleConfigResponse,
+  AdminRoleConfigsResponse,
+  CreateAdminRoleInput,
+  ResolvedAdminAccess,
+  SystemAdminRoleTemplate,
+  UpdateAdminRolePermissionsInput,
+} from "./rbac";

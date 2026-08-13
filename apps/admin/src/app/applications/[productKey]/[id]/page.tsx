@@ -77,6 +77,7 @@ import {
 } from "@cashsouk/config";
 import {
   computeHasPendingDirectorShareholder,
+  formatApplicationReference,
   getSectionForScopeKey,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
@@ -190,9 +191,15 @@ export default function DynamicApplicationDetailPage() {
     : undefined;
 
   React.useEffect(() => {
-    setTitle(isLoading ? "Loading..." : `Application ${applicationId.slice(-8).toUpperCase()}`);
+    const label = app
+      ? formatApplicationReference({
+          displayReference: (app as { displayReference?: string | null }).displayReference,
+          id: app.id ?? applicationId,
+        })
+      : applicationId.slice(-8).toUpperCase();
+    setTitle(isLoading ? "Loading..." : `Application ${label}`);
     return () => setTitle("");
-  }, [setTitle, isLoading, applicationId]);
+  }, [setTitle, isLoading, applicationId, app]);
 
   const productDefaultFacilityFeeRatePercent =
     (currentProduct as { default_facility_fee_rate_percent?: number | null })
@@ -335,7 +342,10 @@ export default function DynamicApplicationDetailPage() {
         const objectUrl = URL.createObjectURL(zipBlob);
         const link = document.createElement("a");
         link.href = objectUrl;
-        const suffix = (app?.id ?? applicationId).slice(-8).toUpperCase();
+        const suffix = formatApplicationReference({
+          displayReference: (app as { displayReference?: string | null } | undefined)?.displayReference,
+          id: app?.id ?? applicationId,
+        }).replace(/[^A-Z0-9-]/gi, "");
         link.download = `supporting-documents-${suffix}.zip`;
         document.body.appendChild(link);
         link.click();

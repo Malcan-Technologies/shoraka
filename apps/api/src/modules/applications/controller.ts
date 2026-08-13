@@ -27,6 +27,15 @@ function getUserId(req: Request): string {
   return req.user.user_id;
 }
 
+function withDisplayReference<T extends { display_reference?: string | null }>(row: T): T & {
+  displayReference: string | null;
+} {
+  return {
+    ...row,
+    displayReference: row.display_reference ?? null,
+  };
+}
+
 
 /**
  * Create a new application
@@ -57,7 +66,7 @@ async function createApplication(req: Request, res: Response, next: NextFunction
 
     res.status(201).json({
       success: true,
-      data: application,
+      data: withDisplayReference(application),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {
@@ -77,7 +86,7 @@ async function getApplication(req: Request, res: Response, next: NextFunction) {
 
     res.json({
       success: true,
-      data,
+      data: withDisplayReference(data),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {
@@ -98,7 +107,7 @@ async function updateApplicationStep(req: Request, res: Response, next: NextFunc
 
     res.json({
       success: true,
-      data: application,
+      data: withDisplayReference(application),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {
@@ -118,7 +127,7 @@ async function archiveApplication(req: Request, res: Response, next: NextFunctio
 
     res.json({
       success: true,
-      data: application,
+      data: withDisplayReference(application),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {
@@ -159,7 +168,7 @@ async function cancelApplication(req: Request, res: Response, next: NextFunction
 
     res.json({
       success: true,
-      data: application,
+      data: withDisplayReference(application),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {
@@ -589,7 +598,7 @@ router.get("/", requireAuth, async function listApplications(req, res, next) {
     const result = await applicationService.listByOrganization(organizationId, userId);
     res.json({
       success: true,
-      data: result,
+      data: result.map((application) => withDisplayReference(application)),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {

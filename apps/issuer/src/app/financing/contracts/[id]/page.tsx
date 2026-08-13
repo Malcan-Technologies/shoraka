@@ -44,7 +44,18 @@ import {
   formatDate,
 } from "@/components/financing/utils";
 import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
+import { formatContractReference } from "@cashsouk/types";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
+
+function contractBusinessNumber(contractForModal: unknown): string | null {
+  const details = asContractForModal(contractForModal)?.contract_details as
+    | { number?: string }
+    | undefined;
+  return typeof details?.number === "string" && details.number.trim().length > 0
+    ? details.number.trim()
+    : null;
+}
+
 function formatMoney(value: unknown) {
   return formatMoneyDisplay(value, EM_DASH);
 }
@@ -171,6 +182,14 @@ export default function ContractDetailsPage() {
     scope: "contract",
   });
 
+  const contractNumber = contractBusinessNumber(row.contractForModal);
+  const cashSoukReference = formatContractReference({
+    displayReference: row.displayReference,
+    businessNumber: contractNumber,
+    id: row.id,
+  });
+  const contractHeading = row.title ?? contractNumber ?? cashSoukReference;
+
   return (
     <div className={shellClass}>
       <DetailHeader
@@ -183,10 +202,10 @@ export default function ContractDetailsPage() {
               Financing
             </Link>
             <span aria-hidden>›</span>
-            <span className="text-foreground">Contract {displayCell(row.title)}</span>
+            <span className="text-foreground">Contract {displayCell(contractHeading)}</span>
           </nav>
         }
-        title={displayCell(row.title)}
+        title={displayCell(contractHeading)}
         status={
           <IssuerFinancingStatusBadge
             kind={resolveIssuerContractDashboardBadge(row.contractStatus)}
@@ -257,6 +276,8 @@ export default function ContractDetailsPage() {
           <KeyValueGrid
             columns={2}
             items={[
+              { label: "CashSouk Reference", value: displayCell(cashSoukReference) },
+              { label: "Contract number", value: displayCell(contractNumber) },
               { label: "Product", value: productLabel },
               { label: "Customer", value: displayCell(row.customerName) },
               { label: "Contract period", value: contractPeriod },

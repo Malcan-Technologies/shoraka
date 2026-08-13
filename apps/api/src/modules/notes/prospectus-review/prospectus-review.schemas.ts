@@ -414,10 +414,7 @@ const COVERAGE_OFFICER_LABELS: Record<
 > = {
   operatingCashFlow: "Operating Cash Flow",
   freeCashFlow: "Free Cash Flow",
-  debtEquity: "Debt / Equity",
-  returnOnAssets: "Return on Assets",
   payablesDays: "Payables Days",
-  assetTurnover: "Asset Turnover",
 };
 
 /** Page 2 Financial Comparison officer overrides required per displayed year at Approve. */

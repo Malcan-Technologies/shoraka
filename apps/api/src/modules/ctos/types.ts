@@ -29,6 +29,8 @@ export const CTOS_ACCOUNT_NUMERIC_CODENAMES = [
   "return_on_equity",
   "currat",
   "workcap",
+  /** Official CTOS Gearing Ratio (`r:gear`) — Financial Highlights direct field. */
+  "gear",
 ] as const;
 
 export type CtosFinancialAccountJson = {

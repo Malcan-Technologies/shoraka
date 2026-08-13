@@ -92,24 +92,28 @@ export interface ProspectusPageThreeCoverageEfficiencyAudit {
     page3ManualStorageAllowed: false;
   };
   debtEquity: {
-    status: "officer_entered";
-    source: "page3.manualFinancialInputs.years.{year}.debtEquity";
-    calculateGearingSubstitutionAllowed: false;
-    storageUnit: "ratio";
+    status: "confirmed_ctos_calculation";
+    calculator: "resolveCtosGearingRatio";
+    officialSource: "CTOS ENQWS v5.11.0 Financial Highlights XSL — gear | totlib/networth";
+    displayUnit: "x";
     formatter: "formatProspectusFinancialMultiple";
-    requiredForApproval: true;
+    officerOverrideAllowed: false;
+    netDebtEquitySubstitutionAllowed: false;
   };
   returnOnEquity: {
-    status: "confirmed_shared_calculation";
-    calculator: "resolveApplicationFinancialReturnOnEquityRatio";
+    status: "confirmed_ctos_direct";
+    calculator: "resolveCtosReturnOnEquityPercent";
+    officialSource: "CTOS ENQWS v5.11.0 Financial Highlights XSL — r:return_on_equity only";
     sharedWithPageTwo: true;
+    unofficialFallbackAllowed: false;
   };
   returnOnAssets: {
-    status: "officer_entered";
-    source: "page3.manualFinancialInputs.years.{year}.returnOnAssets";
+    status: "confirmed_ctos_calculation";
+    calculator: "resolveCtosReturnOnAssetsPercent";
+    officialSource: "CTOS ENQWS v5.11.0 Financial Highlights XSL — plnpat/totass*100";
     storageUnit: "percentage_points";
     formatter: "formatProspectusFinancialPercentFromPoints";
-    requiredForApproval: true;
+    officerOverrideAllowed: false;
   };
   receivablesDays: {
     status: "reused_from_page_2";
@@ -125,11 +129,12 @@ export interface ProspectusPageThreeCoverageEfficiencyAudit {
     requiredForApproval: true;
   };
   assetTurnover: {
-    status: "officer_entered";
-    source: "page3.manualFinancialInputs.years.{year}.assetTurnover";
+    status: "confirmed_ctos_calculation";
+    calculator: "resolveCtosTotalAssetTurnover";
+    officialSource: "CTOS ENQWS v5.11.0 Financial Highlights XSL — turnover/totass";
     storageUnit: "ratio";
     formatter: "formatProspectusFinancialMultiple";
-    requiredForApproval: true;
+    officerOverrideAllowed: false;
   };
   trends: {
     implementedInThisStage: false;
@@ -177,24 +182,28 @@ export const PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_AUDIT: ProspectusPageThre
       page3ManualStorageAllowed: false,
     },
     debtEquity: {
-      status: "officer_entered",
-      source: "page3.manualFinancialInputs.years.{year}.debtEquity",
-      calculateGearingSubstitutionAllowed: false,
-      storageUnit: "ratio",
+      status: "confirmed_ctos_calculation",
+      calculator: "resolveCtosGearingRatio",
+      officialSource: "CTOS ENQWS v5.11.0 Financial Highlights XSL — gear | totlib/networth",
+      displayUnit: "x",
       formatter: "formatProspectusFinancialMultiple",
-      requiredForApproval: true,
+      officerOverrideAllowed: false,
+      netDebtEquitySubstitutionAllowed: false,
     },
     returnOnEquity: {
-      status: "confirmed_shared_calculation",
-      calculator: "resolveApplicationFinancialReturnOnEquityRatio",
+      status: "confirmed_ctos_direct",
+      calculator: "resolveCtosReturnOnEquityPercent",
+      officialSource: "CTOS ENQWS v5.11.0 Financial Highlights XSL — r:return_on_equity only",
       sharedWithPageTwo: true,
+      unofficialFallbackAllowed: false,
     },
     returnOnAssets: {
-      status: "officer_entered",
-      source: "page3.manualFinancialInputs.years.{year}.returnOnAssets",
+      status: "confirmed_ctos_calculation",
+      calculator: "resolveCtosReturnOnAssetsPercent",
+      officialSource: "CTOS ENQWS v5.11.0 Financial Highlights XSL — plnpat/totass*100",
       storageUnit: "percentage_points",
       formatter: "formatProspectusFinancialPercentFromPoints",
-      requiredForApproval: true,
+      officerOverrideAllowed: false,
     },
     receivablesDays: {
       status: "reused_from_page_2",
@@ -210,11 +219,12 @@ export const PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_AUDIT: ProspectusPageThre
       requiredForApproval: true,
     },
     assetTurnover: {
-      status: "officer_entered",
-      source: "page3.manualFinancialInputs.years.{year}.assetTurnover",
+      status: "confirmed_ctos_calculation",
+      calculator: "resolveCtosTotalAssetTurnover",
+      officialSource: "CTOS ENQWS v5.11.0 Financial Highlights XSL — turnover/totass",
       storageUnit: "ratio",
       formatter: "formatProspectusFinancialMultiple",
-      requiredForApproval: true,
+      officerOverrideAllowed: false,
     },
     trends: {
       implementedInThisStage: false,
@@ -239,17 +249,19 @@ export interface ProspectusPageThreeCoverageEfficiency {
 export interface ProspectusPageThreeCoverageEfficiencyInput {
   /** Existing Page 2 Stage 4A result — required; never re-parsed here. */
   financialSource: ProspectusFinancialComparisonSource;
-  /** Page 3 officer fills only (not IC / DSCR / Receivables Days / ROE). */
+  /** Page 3 officer fills only (not IC / DSCR / Receivables / ROE / ROA / Debt-Equity / Asset Turnover). */
   prospectusFinancialInputs?: {
     years: Record<
       string,
       {
         operatingCashFlow?: number | string | null;
         freeCashFlow?: number | string | null;
+        /** @deprecated Ignored — Page 3 Debt / Equity uses official CTOS gearing. */
         debtEquity?: number | string | null;
-        /** Percentage points (4.8 = 4.8%). */
+        /** @deprecated Ignored — Page 3 ROA uses official CTOS XSL. */
         returnOnAssets?: number | string | null;
         payablesDays?: number | string | null;
+        /** @deprecated Ignored — Page 3 Asset Turnover uses official CTOS XSL. */
         assetTurnover?: number | string | null;
       }
     >;
@@ -331,29 +343,28 @@ export const PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_FIELD_SOURCES: Record<
   },
   debt_equity: {
     label: "Debt / Equity",
-    canonicalSource: "page3.manualFinancialInputs.years.{year}.debtEquity",
-    availability: "officer",
+    canonicalSource: "resolveCtosGearingRatio(gear | totlib/networth)",
+    availability: "calculated",
     surface: "canva",
-    possibleAlternatives: "calculateGearing; Page 2 Net Debt / Equity — not used",
-    notes: "Raw multiple storage; formatProspectusFinancialMultiple display.",
+    possibleAlternatives: "Page 2 Net Debt / Equity; Debt-to-Equity % — not used",
+    notes:
+      "Official CTOS Gearing (x). Prefer raw gear; else totlib÷networth. Never Net Debt / Equity.",
   },
   return_on_equity: {
     label: "Return on Equity",
-    canonicalSource:
-      "resolveApplicationFinancialReturnOnEquityRatio(return_on_equity | plnpat/networth | plnpat/(resolved totass−totlib from flat or components))",
-    availability: "calculated",
+    canonicalSource: "resolveCtosReturnOnEquityPercent(return_on_equity)",
+    availability: "stored",
     surface: "canva",
-    possibleAlternatives: "plnpat/bsqpuc (Paid-Up Capital) — not used",
-    notes:
-      "Prefer CTOS return_on_equity; else PAT ÷ networth; else PAT ÷ (totass − totlib); never Paid-Up Capital.",
+    possibleAlternatives: "plnpat/networth; plnpat/(totass−totlib) — not used",
+    notes: "CTOS ENQWS v5.11.0 Financial Highlights XSL — direct return_on_equity only. Missing → —.",
   },
   return_on_assets: {
     label: "Return on Assets",
-    canonicalSource: "page3.manualFinancialInputs.years.{year}.returnOnAssets",
-    availability: "officer",
+    canonicalSource: "resolveCtosReturnOnAssetsPercent(plnpat/totass*100)",
+    availability: "calculated",
     surface: "canva",
-    possibleAlternatives: "PAT / Total Assets — not approved",
-    notes: "storageUnit = percentage_points (4.8 → 4.8%).",
+    possibleAlternatives: "officer returnOnAssets — removed",
+    notes: "CTOS ENQWS v5.11.0 Financial Highlights XSL. Missing/zero totass → —.",
   },
   receivables_days: {
     label: "Receivables Days",
@@ -368,15 +379,15 @@ export const PROSPECTUS_PAGE_THREE_COVERAGE_EFFICIENCY_FIELD_SOURCES: Record<
     canonicalSource: "page3.manualFinancialInputs.years.{year}.payablesDays",
     availability: "officer",
     surface: "canva",
-    possibleAlternatives: "none",
+    possibleAlternatives: "Working Capital Days — not used",
     notes: "Numeric days storage; plain number display.",
   },
   asset_turnover: {
     label: "Asset Turnover",
-    canonicalSource: "page3.manualFinancialInputs.years.{year}.assetTurnover",
-    availability: "officer",
+    canonicalSource: "resolveCtosTotalAssetTurnover(turnover/totass)",
+    availability: "calculated",
     surface: "canva",
-    possibleAlternatives: "Revenue ÷ Total Assets — not approved",
-    notes: "Raw multiple storage; formatProspectusFinancialMultiple display.",
+    possibleAlternatives: "officer assetTurnover; average-assets formula — not used",
+    notes: "CTOS ENQWS v5.11.0 Financial Highlights XSL Total Asset Turnover.",
   },
 };

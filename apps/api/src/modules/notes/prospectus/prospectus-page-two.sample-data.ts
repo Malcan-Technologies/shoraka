@@ -37,6 +37,7 @@ const SAMPLE_FROZEN_FINANCIALS: ProspectusPage2FinancialComparisonSnapshot = {
         profit_margin: null,
         return_on_equity: null,
         currat: null,
+        gear: null,
       },
     },
     {
@@ -63,6 +64,7 @@ const SAMPLE_FROZEN_FINANCIALS: ProspectusPage2FinancialComparisonSnapshot = {
         profit_margin: null,
         return_on_equity: null,
         currat: null,
+        gear: null,
       },
     },
     {
@@ -89,6 +91,7 @@ const SAMPLE_FROZEN_FINANCIALS: ProspectusPage2FinancialComparisonSnapshot = {
         profit_margin: null,
         return_on_equity: null,
         currat: null,
+        gear: null,
       },
     },
   ],

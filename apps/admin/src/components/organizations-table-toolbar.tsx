@@ -68,7 +68,7 @@ export function OrganizationsTableToolbar({
       <div className="relative flex-1">
         <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Search by name, registration number, or owner..."
+          placeholder="Search by name, reference, registration number, or owner..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           className="h-11 rounded-xl bg-card pl-9"

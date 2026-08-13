@@ -1,19 +1,14 @@
 /**
- * Runtime side-by-side: corrected Financial Summary definitions vs Prospectus shared metrics.
- * Same year + same raw record + same metric → same underlying number (formatting may differ).
+ * Application CTOS Financial Summary and Prospectus share official CTOS resolvers.
+ * No CashSouk component / PAT÷equity fallbacks for CTOS-facing metrics.
  */
 
 import {
-  computeProfitMargin,
-  computeReturnOnEquity,
-  computeCurrentRatio,
-  resolveApplicationFinancialCurrentRatio,
-  resolveApplicationFinancialProfitMarginRatio,
-  resolveApplicationFinancialReturnOnEquityRatio,
-  resolveApplicationFinancialTotalAssets,
-  resolveApplicationFinancialTotalLiabilities,
-  resolveFinancialSummaryIssuerReturnOnEquityRatio,
-  resolveFinancialSummaryProfitMarginRatio,
+  resolveCtosCurrentRatio,
+  resolveCtosPatMarginPercent,
+  resolveCtosReturnOnEquityPercent,
+  resolveCtosTotalAssets,
+  resolveCtosTotalLiabilities,
 } from "@cashsouk/types";
 import { buildProspectusFinancialComparisonMetrics } from "./prospectus-financial-comparison-metrics";
 import { buildProspectusPageThreeBalanceSheet } from "./prospectus-page-three-balance-sheet";
@@ -21,54 +16,33 @@ import { buildProspectusPageThreeIncomeStatement } from "./prospectus-page-three
 import { financialSourceFromYearBlocks } from "./prospectus-financial-comparison-test-helpers";
 import {
   formatProspectusFinancialMultiple,
+  formatProspectusFinancialPercentFromPoints,
   formatProspectusFinancialPercentFromRatio,
   formatProspectusMyrMillions,
 } from "./prospectus-financial-comparison-metrics";
 
-/** Corrected Financial Summary definitions (NPM + ROE). */
-function applicationUnderlyingFromRaw(raw: Record<string, number | null>) {
-  const totass = resolveApplicationFinancialTotalAssets({
-    totass: raw.totass ?? null,
-    bsfatot: raw.bsfatot ?? null,
-    othass: raw.othass ?? null,
-    bscatot: raw.bscatot ?? null,
-    bsclbank: raw.bsclbank ?? null,
-  });
-  const totlib = resolveApplicationFinancialTotalLiabilities({
-    totlib: raw.totlib ?? null,
-    curlib: raw.curlib ?? null,
-    bsslltd: raw.bsslltd ?? null,
-    bsclstd: raw.bsclstd ?? null,
-  });
-  const currat = resolveApplicationFinancialCurrentRatio({
-    currat: raw.currat ?? null,
-    bscatot: raw.bscatot ?? null,
-    curlib: raw.curlib ?? null,
-  });
-
+/** CTOS Application Financial Summary column resolution (official only). */
+function applicationCtosUnderlyingFromRaw(raw: Record<string, number | null>) {
   return {
     turnover: raw.turnover ?? null,
     plnpat: raw.plnpat ?? null,
     plnpbt: raw.plnpbt ?? null,
     bscatot: raw.bscatot ?? null,
     curlib: raw.curlib ?? null,
-    totass,
-    totlib,
-    npmRatio: resolveFinancialSummaryProfitMarginRatio({
+    totass: resolveCtosTotalAssets({ totass: raw.totass ?? null }),
+    totlib: resolveCtosTotalLiabilities({ totlib: raw.totlib ?? null }),
+    npmPoints: resolveCtosPatMarginPercent({
       plnpat: raw.plnpat ?? null,
       turnover: raw.turnover ?? null,
     }),
-    roeRatio:
-      raw.return_on_equity != null && Number.isFinite(raw.return_on_equity)
-        ? raw.return_on_equity / 100
-        : resolveFinancialSummaryIssuerReturnOnEquityRatio({
-            plnpat: raw.plnpat ?? null,
-            netWorth: raw.networth ?? null,
-          }),
-    currat,
+    roePoints: resolveCtosReturnOnEquityPercent({
+      return_on_equity: raw.return_on_equity ?? null,
+    }),
+    currat: resolveCtosCurrentRatio({ currat: raw.currat ?? null }),
   };
 }
 
+/** Prospectus CTOS year resolution (same official helpers). */
 function prospectusUnderlying(raw: Record<string, number | null>) {
   return {
     turnover: raw.turnover ?? null,
@@ -76,35 +50,16 @@ function prospectusUnderlying(raw: Record<string, number | null>) {
     plnpbt: raw.plnpbt ?? null,
     bscatot: raw.bscatot ?? null,
     curlib: raw.curlib ?? null,
-    totass: resolveApplicationFinancialTotalAssets({
-      totass: raw.totass ?? null,
-      bsfatot: raw.bsfatot ?? null,
-      othass: raw.othass ?? null,
-      bscatot: raw.bscatot ?? null,
-      bsclbank: raw.bsclbank ?? null,
-    }),
-    totlib: resolveApplicationFinancialTotalLiabilities({
-      totlib: raw.totlib ?? null,
-      curlib: raw.curlib ?? null,
-      bsslltd: raw.bsslltd ?? null,
-      bsclstd: raw.bsclstd ?? null,
-    }),
-    npmRatio: resolveApplicationFinancialProfitMarginRatio({
+    totass: resolveCtosTotalAssets({ totass: raw.totass ?? null }),
+    totlib: resolveCtosTotalLiabilities({ totlib: raw.totlib ?? null }),
+    npmPoints: resolveCtosPatMarginPercent({
       plnpat: raw.plnpat ?? null,
       turnover: raw.turnover ?? null,
     }),
-    roeRatio: resolveApplicationFinancialReturnOnEquityRatio({
+    roePoints: resolveCtosReturnOnEquityPercent({
       return_on_equity: raw.return_on_equity ?? null,
-      plnpat: raw.plnpat ?? null,
-      networth: raw.networth ?? null,
-      totass: raw.totass ?? null,
-      totlib: raw.totlib ?? null,
     }),
-    currat: resolveApplicationFinancialCurrentRatio({
-      currat: raw.currat ?? null,
-      bscatot: raw.bscatot ?? null,
-      curlib: raw.curlib ?? null,
-    }),
+    currat: resolveCtosCurrentRatio({ currat: raw.currat ?? null }),
   };
 }
 
@@ -128,22 +83,23 @@ const COMPLETE_CTOS: Record<string, number | null> = {
   currat: 1.68,
 };
 
-const COMPLETE_UNAUDITED: Record<string, number | null> = {
+const COMPONENTS_ONLY: Record<string, number | null> = {
   ...COMPLETE_CTOS,
   totass: null,
   totlib: null,
   profit_margin: null,
   return_on_equity: null,
   currat: null,
+  gear: null,
 };
 
-describe("Application ↔ Prospectus shared financial parity", () => {
+describe("Application CTOS ↔ Prospectus official financial parity", () => {
   const scenarios: Array<{ name: string; raw: Record<string, number | null> }> = [
     { name: "complete CTOS year with flat ratios/totals", raw: COMPLETE_CTOS },
-    { name: "complete unaudited year (recompute path)", raw: COMPLETE_UNAUDITED },
+    { name: "components present but flat totals/ratios missing → null", raw: COMPONENTS_ONLY },
     {
       name: "flat totass/totlib present",
-      raw: { ...COMPLETE_UNAUDITED, totass: 99_000_000, totlib: 11_000_000 },
+      raw: { ...COMPONENTS_ONLY, totass: 99_000_000, totlib: 11_000_000 },
     },
     {
       name: "partial-data year",
@@ -165,6 +121,7 @@ describe("Application ↔ Prospectus shared financial parity", () => {
         profit_margin: null,
         return_on_equity: null,
         currat: null,
+        gear: null,
       },
     },
     {
@@ -187,6 +144,7 @@ describe("Application ↔ Prospectus shared financial parity", () => {
         profit_margin: null,
         return_on_equity: null,
         currat: null,
+        gear: null,
       },
     },
     {
@@ -209,26 +167,27 @@ describe("Application ↔ Prospectus shared financial parity", () => {
         profit_margin: null,
         return_on_equity: null,
         currat: null,
+        gear: null,
       },
     },
   ];
 
   for (const { name, raw } of scenarios) {
-    it(`${name}: underlying shared metrics match`, () => {
-      const app = applicationUnderlyingFromRaw(raw);
+    it(`${name}: Application CTOS and Prospectus match (official only)`, () => {
+      const app = applicationCtosUnderlyingFromRaw(raw);
       const prosp = prospectusUnderlying(raw);
-      expect(prosp.turnover).toEqual(app.turnover);
-      expect(prosp.plnpat).toEqual(app.plnpat);
-      expect(prosp.plnpbt).toEqual(app.plnpbt);
-      expect(prosp.bscatot).toEqual(app.bscatot);
-      expect(prosp.curlib).toEqual(app.curlib);
-      expect(prosp.totass).toEqual(app.totass);
-      expect(prosp.totlib).toEqual(app.totlib);
-      expect(prosp.npmRatio).toEqual(app.npmRatio);
-      expect(prosp.roeRatio).toEqual(app.roeRatio);
-      expect(prosp.currat).toEqual(app.currat);
+      expect(prosp).toEqual(app);
     });
   }
+
+  it("components-only year: no unofficial totass/currat/ROE reconstruction", () => {
+    const app = applicationCtosUnderlyingFromRaw(COMPONENTS_ONLY);
+    expect(app.totass).toBeNull();
+    expect(app.totlib).toBeNull();
+    expect(app.currat).toBeNull();
+    expect(app.roePoints).toBeNull();
+    expect(app.npmPoints).toBeCloseTo((1_800_000 / 18_600_000) * 100);
+  });
 
   it("duplicate year CTOS flat fields: NPM uses PAT/Turnover; ROE keeps flat when present", () => {
     const source = financialSourceFromYearBlocks({
@@ -238,12 +197,15 @@ describe("Application ↔ Prospectus shared financial parity", () => {
     const page3Is = buildProspectusPageThreeIncomeStatement({ financialSource: source });
     const page3Bs = buildProspectusPageThreeBalanceSheet({ financialSource: source });
 
-    const npm = computeProfitMargin(1_800_000, 18_600_000);
+    const npmPoints = resolveCtosPatMarginPercent({
+      plnpat: 1_800_000,
+      turnover: 18_600_000,
+    });
     expect(page2.rows.find((r) => r.key === "netProfitMargin")?.values[0]).toBe(
-      formatProspectusFinancialPercentFromRatio(npm)
+      formatProspectusFinancialPercentFromPoints(npmPoints)
     );
     expect(page3Is.rows.find((r) => r.key === "net_profit_margin")?.values[0]).toBe(
-      formatProspectusFinancialPercentFromRatio(npm)
+      formatProspectusFinancialPercentFromPoints(npmPoints)
     );
     expect(page2.rows.find((r) => r.key === "roe")?.values[0]).toBe(
       formatProspectusFinancialPercentFromRatio(0.152)
@@ -257,38 +219,36 @@ describe("Application ↔ Prospectus shared financial parity", () => {
     expect(page3Bs.rows.find((r) => r.key === "total_assets")?.values[0]).toBe(
       formatProspectusMyrMillions(12_000_000)
     );
-    expect(
-      resolveApplicationFinancialTotalAssets({
-        totass: 12_000_000,
-        bsfatot: 2_000_000,
-        othass: 1_000_000,
-        bscatot: 5_200_000,
-        bsclbank: 800_000,
-      })
-    ).toBe(12_000_000);
+    expect(resolveCtosTotalAssets({ totass: 12_000_000 })).toBe(12_000_000);
+    expect(resolveCtosTotalAssets({ totass: null })).toBeNull();
     expect(2_000_000 + 1_000_000 + 5_200_000 + 800_000).not.toBe(12_000_000);
   });
 
-  it("recompute helpers stay algebraically identical when flat absent", () => {
-    expect(computeProfitMargin(50, 200)).toBe(
-      resolveApplicationFinancialProfitMarginRatio({
-        plnpat: 50,
-        turnover: 200,
-      })
-    );
-    expect(computeReturnOnEquity(50, 200)).toBe(
-      resolveApplicationFinancialReturnOnEquityRatio({
+  it("official helpers do not invent CTOS fallbacks when flat absent", () => {
+    expect(
+      resolveCtosReturnOnEquityPercent({
         return_on_equity: null,
         plnpat: 50,
         networth: 200,
       })
-    );
-    expect(computeCurrentRatio(200, 100)).toBe(
-      resolveApplicationFinancialCurrentRatio({
+    ).toBeNull();
+    expect(
+      resolveCtosCurrentRatio({
         currat: null,
         bscatot: 200,
         curlib: 100,
       })
-    );
+    ).toBeNull();
+    expect(
+      resolveCtosTotalAssets({
+        totass: null,
+      })
+    ).toBeNull();
+    expect(
+      resolveCtosPatMarginPercent({
+        plnpat: 50,
+        turnover: 200,
+      })
+    ).toBe(25);
   });
 });

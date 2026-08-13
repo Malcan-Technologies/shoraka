@@ -21,6 +21,7 @@ import {
 } from "./refund-service";
 import { scheduleGatewayPaymentReceipt } from "./receipt/receipt-service";
 import { getReceiptRelatedReferenceLabel } from "./receipt/receipt-purpose";
+import { buildGatewayPaymentSearchOr } from "./gateway-payment-list-search";
 
 export type AdminActorContext = {
   userId: string;
@@ -30,8 +31,20 @@ function decimalToNumber(value: Prisma.Decimal): number {
   return value.toNumber();
 }
 
+function buildOrgPersonName(org: {
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string | null;
+}): string | null {
+  const parts = [org.first_name, org.middle_name, org.last_name]
+    .map((part) => part?.trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts.join(" ") : null;
+}
+
 function buildInvestorOrgDisplayName(org: {
   type: string;
+  name: string | null;
   first_name: string | null;
   middle_name: string | null;
   last_name: string | null;
@@ -46,15 +59,33 @@ function buildInvestorOrgDisplayName(org: {
     }
   }
 
-  const parts = [org.first_name, org.middle_name, org.last_name]
-    .map((part) => part?.trim())
-    .filter(Boolean);
-  return parts.length > 0 ? parts.join(" ") : null;
+  return buildOrgPersonName(org) ?? org.name?.trim() ?? null;
+}
+
+function buildIssuerOrgDisplayName(org: {
+  type: string;
+  name: string | null;
+  first_name: string | null;
+  middle_name: string | null;
+  last_name: string | null;
+  corporate_onboarding_data: unknown;
+}): string | null {
+  if (org.type === "COMPANY") {
+    const data = org.corporate_onboarding_data;
+    if (data && typeof data === "object" && !Array.isArray(data)) {
+      const businessName = (data as { basicInfo?: { businessName?: string } }).basicInfo
+        ?.businessName?.trim();
+      if (businessName) return businessName;
+    }
+    if (org.name?.trim()) return org.name.trim();
+  }
+
+  return buildOrgPersonName(org) ?? org.name?.trim() ?? null;
 }
 
 function mapListItem(
   payment: Prisma.GatewayPaymentGetPayload<{
-    include: { investor_organization: true };
+    include: { investor_organization: true; issuer_organization: true };
   }>
 ) {
   return {
@@ -70,6 +101,10 @@ function mapListItem(
     investorOrganizationId: payment.investor_organization_id,
     investorOrganizationName: payment.investor_organization
       ? buildInvestorOrgDisplayName(payment.investor_organization)
+      : null,
+    issuerOrganizationId: payment.issuer_organization_id,
+    issuerOrganizationName: payment.issuer_organization
+      ? buildIssuerOrgDisplayName(payment.issuer_organization)
       : null,
     curlecOrderId: payment.curlec_order_id,
     curlecPaymentId: payment.curlec_payment_id,
@@ -126,6 +161,7 @@ async function getGatewayPaymentOrThrow(
     where: { id: gatewayPaymentId },
     include: {
       investor_organization: true,
+      issuer_organization: true,
       events: { orderBy: { created_at: "desc" } },
       receipt: true,
     },
@@ -155,13 +191,8 @@ export async function listGatewayPayments(
   if (query.organizationType) where.organization_type = query.organizationType;
   if (query.gatewayAccount) where.gatewayAccount = query.gatewayAccount;
 
-  if (query.search) {
-    where.OR = [
-      { id: { contains: query.search, mode: "insensitive" } },
-      { curlec_order_id: { contains: query.search, mode: "insensitive" } },
-      { curlec_payment_id: { contains: query.search, mode: "insensitive" } },
-      { payer_name: { contains: query.search, mode: "insensitive" } },
-    ];
+  if (query.search?.trim()) {
+    where.OR = buildGatewayPaymentSearchOr(query.search);
   }
 
   const skip = (query.page - 1) * query.pageSize;
@@ -170,7 +201,7 @@ export async function listGatewayPayments(
     db.gatewayPayment.count({ where }),
     db.gatewayPayment.findMany({
       where,
-      include: { investor_organization: true },
+      include: { investor_organization: true, issuer_organization: true },
       orderBy: { created_at: "desc" },
       skip,
       take: query.pageSize,

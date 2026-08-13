@@ -4,10 +4,10 @@
  */
 
 import {
-  resolveApplicationFinancialProfitMarginRatio,
+  resolveCtosPatMarginPercent,
 } from "@cashsouk/types";
 import {
-  formatProspectusFinancialPercentFromRatio,
+  formatProspectusFinancialPercentFromPoints,
   formatProspectusMyrMillions,
   parseProspectusFinancialNumber,
 } from "./prospectus-financial-comparison-metrics";
@@ -59,8 +59,9 @@ function valueForRow(
     case "profit_after_tax":
       return moneyMillionsOrDna(fieldFromRaw(raw, "plnpat"));
     case "net_profit_margin": {
-      return formatProspectusFinancialPercentFromRatio(
-        resolveApplicationFinancialProfitMarginRatio({
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — PAT Margin (never profit_margin / PBT).
+      return formatProspectusFinancialPercentFromPoints(
+        resolveCtosPatMarginPercent({
           plnpat: fieldFromRaw(raw, "plnpat"),
           turnover: fieldFromRaw(raw, "turnover"),
         })

@@ -12,10 +12,7 @@ const OFFICER: Record<
 > = {
   "Operating Cash Flow": { field: "operatingCashFlow", kind: "money" },
   "Free Cash Flow": { field: "freeCashFlow", kind: "money" },
-  "Debt / Equity": { field: "debtEquity", kind: "ratio" },
-  "Return on Assets": { field: "returnOnAssets", kind: "percent" },
   "Payables Days": { field: "payablesDays", kind: "days" },
-  "Asset Turnover": { field: "assetTurnover", kind: "ratio" },
 };
 
 const REUSED = new Set(["Interest Coverage", "DSCR", "Receivables Days"]);

@@ -65,6 +65,7 @@ function beneficiaryField(snapshot: Record<string, unknown>, key: string): strin
 }
 
 export function mapDisbursementLetterData(input: {
+  ourRef?: string | null;
   withdrawalId: string;
   withdrawalAmount: number;
   beneficiarySnapshot: Record<string, unknown>;
@@ -115,7 +116,7 @@ export function mapDisbursementLetterData(input: {
 
   const now = input.referenceDate ?? new Date();
   return {
-    ourRef: "",
+    ourRef: input.ourRef?.trim() ?? "",
     date: formatLetterDate(now),
     trusteeName: letterConfig.trusteeName,
     trusteeAddressLines: [
@@ -175,6 +176,7 @@ function buildRepaymentSupportingParagraph(input: {
 }
 
 export function mapRepaymentLetterData(input: {
+  ourRef?: string | null;
   settlementId: string;
   investorPrincipal: number;
   investorProfitNet: number;
@@ -273,7 +275,7 @@ export function mapRepaymentLetterData(input: {
   });
 
   return {
-    ourRef: "",
+    ourRef: input.ourRef?.trim() ?? "",
     date: formatLetterDate(now),
     trusteeName: letterConfig.trusteeName,
     trusteeAddressLines: [
@@ -298,6 +300,7 @@ export function mapRepaymentLetterData(input: {
 }
 
 export function mapInvestorWithdrawalLetterData(input: {
+  ourRef?: string | null;
   withdrawalId: string;
   amount: number;
   beneficiarySnapshot: Record<string, unknown>;
@@ -325,7 +328,7 @@ export function mapInvestorWithdrawalLetterData(input: {
   ];
 
   return {
-    ourRef: "",
+    ourRef: input.ourRef?.trim() ?? "",
     date: formatLetterDate(now),
     trusteeName: letterConfig.trusteeName,
     trusteeAddressLines: [

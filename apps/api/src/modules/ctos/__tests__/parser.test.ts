@@ -59,6 +59,38 @@ describe("parseCtosReportXml", () => {
     expect(parsed.financials_json[0].account.plyear).toBe(50000);
   });
 
+  it("parses official CTOS gear (Gearing Ratio) into account.gear", async () => {
+    const xml = `<?xml version="1.0"?>
+<report version="5.11.0" xmlns="http://ws.cmctos.com.my/ctosnet/response">
+  <enq_report>
+    <summary></summary>
+    <enquiry>
+      <section_summary></section_summary>
+      <section_a data="true">
+        <record>
+          <accounts>
+            <account>
+              <pldd>31-12-2018</pldd>
+              <bsdd>2018-12-31</bsdd>
+              <turnover>200</turnover>
+              <plnpat>8</plnpat>
+              <totass>100</totass>
+              <totlib>220</totlib>
+              <networth>50</networth>
+              <gear>4.4</gear>
+            </account>
+          </accounts>
+        </record>
+      </section_a>
+      <section_ccris></section_ccris>
+    </enquiry>
+  </enq_report>
+</report>`;
+
+    const parsed = await parseCtosReportXml(xml);
+    expect(parsed.financials_json[0].account.gear).toBe(4.4);
+  });
+
   it("individual ptype I: person_json set, company null, no financials even with accounts", async () => {
     const xml = `<?xml version="1.0"?>
 <report version="5.11.0" xmlns="http://ws.cmctos.com.my/ctosnet/response">

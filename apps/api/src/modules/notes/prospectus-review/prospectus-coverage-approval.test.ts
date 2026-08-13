@@ -1,5 +1,5 @@
 /**
- * Page 3 Coverage officer fields — approval required; Page 2 reused metrics not duplicated.
+ * Page 3 Coverage officer fields — approval required; CTOS system rows not required as manuals.
  */
 
 import { PROSPECTUS_COVERAGE_OFFICER_FIELD_KEYS } from "./prospectus-option-catalogues";
@@ -13,7 +13,7 @@ describe("prospectus coverage officer approval", () => {
     expect(validateApprovalContent(draft)).toEqual([]);
   });
 
-  it("requires all six Page 3 coverage officer fields per displayed year", () => {
+  it("requires Page 3 coverage officer fields (OCF / FCF / Payables) per displayed year", () => {
     const draft = buildCompleteProspectusReviewDraft();
     draft.page3.manualFinancialInputs = {
       years: {
@@ -27,10 +27,7 @@ describe("prospectus coverage officer approval", () => {
           quickRatio: 1,
           operatingCashFlow: 1_400_000,
           freeCashFlow: 1_100_000,
-          debtEquity: 0.24,
-          // returnOnAssets missing
-          payablesDays: 48,
-          assetTurnover: 1.72,
+          // payablesDays missing
         },
         "2023": {
           grossProfit: 1,
@@ -42,10 +39,7 @@ describe("prospectus coverage officer approval", () => {
           quickRatio: 1,
           operatingCashFlow: 1_700_000,
           freeCashFlow: 1_300_000,
-          debtEquity: 0.2,
-          returnOnAssets: 5.3,
           payablesDays: 46,
-          assetTurnover: 1.82,
         },
         "2024": {
           grossProfit: 1,
@@ -57,10 +51,7 @@ describe("prospectus coverage officer approval", () => {
           quickRatio: 1,
           operatingCashFlow: 2_100_000,
           freeCashFlow: 1_600_000,
-          debtEquity: 0.16,
-          returnOnAssets: 5.8,
           payablesDays: 44,
-          assetTurnover: 1.92,
         },
       },
     };
@@ -68,8 +59,11 @@ describe("prospectus coverage officer approval", () => {
       incomeStatementYears: ["2022", "2023", "2024"],
     });
     expect(
-      errors.some((e) => e.path === "page3.manualFinancialInputs.years.2022.returnOnAssets")
+      errors.some((e) => e.path === "page3.manualFinancialInputs.years.2022.payablesDays")
     ).toBe(true);
+    expect(
+      errors.some((e) => e.path === "page3.manualFinancialInputs.years.2022.returnOnAssets")
+    ).toBe(false);
     expect(
       errors.some((e) => e.path === "page3.manualFinancialInputs.years.2023.operatingCashFlow")
     ).toBe(false);
@@ -89,21 +83,21 @@ describe("prospectus coverage officer approval", () => {
           quickRatio: 1,
           operatingCashFlow: 0,
           freeCashFlow: 0,
-          debtEquity: 0,
-          returnOnAssets: 0,
           payablesDays: 0,
-          assetTurnover: 0,
         },
       },
     };
     expect(validateApprovalContent(draft, { incomeStatementYears: ["2022"] })).toEqual([]);
   });
 
-  it("does not validate removed Page 3 interestCoverage / dscr / receivablesDays", () => {
-    const draft = buildCompleteProspectusReviewDraft();
+  it("does not require CTOS system coverage fields as officer manuals", () => {
+    expect(PROSPECTUS_COVERAGE_OFFICER_FIELD_KEYS).not.toContain("debtEquity");
+    expect(PROSPECTUS_COVERAGE_OFFICER_FIELD_KEYS).not.toContain("returnOnAssets");
+    expect(PROSPECTUS_COVERAGE_OFFICER_FIELD_KEYS).not.toContain("assetTurnover");
     expect(PROSPECTUS_COVERAGE_OFFICER_FIELD_KEYS).not.toContain("interestCoverage");
     expect(PROSPECTUS_COVERAGE_OFFICER_FIELD_KEYS).not.toContain("dscr");
     expect(PROSPECTUS_COVERAGE_OFFICER_FIELD_KEYS).not.toContain("receivablesDays");
+    const draft = buildCompleteProspectusReviewDraft();
     expect(
       validateApprovalContent(draft, {
         incomeStatementYears: ["2022", "2023", "2024"],

@@ -433,6 +433,7 @@ export interface OrganizationOwner {
 
 export interface OrganizationResponse {
   id: string;
+  displayReference: string | null;
   portal: PortalType;
   type: OrganizationTypeEnum;
   name: string | null;
@@ -559,6 +560,7 @@ export interface KycResponse {
 
 export interface OrganizationDetailResponse {
   id: string;
+  displayReference: string | null;
   portal: PortalType;
   type: OrganizationTypeEnum;
   name: string | null;
@@ -629,6 +631,7 @@ export interface OrganizationDetailResponse {
   linkedRecords?: {
     applications: {
       id: string;
+      displayReference: string | null;
       status: string;
       productId: string | null;
       submittedAt: string | null;
@@ -639,6 +642,7 @@ export interface OrganizationDetailResponse {
     }[];
     contracts: {
       id: string;
+      displayReference: string | null;
       title: string | null;
       contractNumber: string | null;
       status: string;
@@ -1026,6 +1030,7 @@ export interface AdminSeedTypesResponse {
 // Financing Applications Types
 export interface ApplicationListItem {
   id: string;
+  displayReference: string | null;
   issuerOrganizationName: string | null;
   financingTypeLabel: string;
   financingStructureLabel: string;
@@ -1067,6 +1072,7 @@ export interface AdminApplicationActionRequiredCountResponse {
 
 export interface ContractListItem {
   id: string;
+  displayReference: string | null;
   contractNumber: string | null;
   title: string | null;
   issuerOrganizationName: string | null;
@@ -1088,6 +1094,7 @@ export interface AdminContractsResponse {
 
 export interface AdminContractApplicationSummary {
   id: string;
+  displayReference: string | null;
   productId: string | null;
   status: string;
   submittedAt: string | null;
@@ -1106,6 +1113,7 @@ export interface AdminContractNoteSummary {
 
 export interface AdminContractDetail {
   id: string;
+  displayReference: string | null;
   contractNumber: string | null;
   title: string | null;
   description: string | null;

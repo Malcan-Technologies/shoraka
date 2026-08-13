@@ -51,6 +51,8 @@ interface ApiContract {
 
 interface ApiInvoice {
   id: string;
+  display_reference?: string | null;
+  displayReference?: string | null;
   contract_id?: string | null;
   status?: string;
   withdraw_reason?: string | null;
@@ -70,6 +72,7 @@ interface ApiReviewRemark {
 /** Raw application shape accepted by prepareApplication (list + detail). */
 export interface ApiApplication {
   id: string;
+  displayReference?: string | null;
   status?: string;
   financing_type?: { product_id?: string } | Record<string, unknown> | null;
   financing_structure?: { structure_type?: string } | null;
@@ -220,6 +223,7 @@ function prepareInvoice(
 
   return {
     id: api.id,
+    displayReference: api.displayReference ?? api.display_reference ?? null,
     number: String(details.invoice_number ?? details.number ?? "—"),
     contractId: contractId ? String(contractId) : null,
     maturityDate: details.maturity_date ? String(details.maturity_date) : null,
@@ -406,6 +410,7 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
 
   return {
     id: api.id,
+    displayReference: api.displayReference ?? (api as { display_reference?: string | null }).display_reference ?? null,
     type,
     status: cardStatus.badgeKey,
     cardStatus,

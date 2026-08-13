@@ -80,6 +80,27 @@ async function ensureSystemUser(): Promise<string> {
   return SYSTEM_USER_ID;
 }
 
+async function enrichApplicationNotificationPayload(
+  applicationId: string,
+  payload: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  if (!("applicationId" in payload)) {
+    return payload;
+  }
+  const displayReference = payload.displayReference;
+  if (typeof displayReference === "string" && displayReference.trim().length > 0) {
+    return payload;
+  }
+  const application = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: { display_reference: true },
+  });
+  return {
+    ...payload,
+    displayReference: application?.display_reference ?? null,
+  };
+}
+
 async function sendIssuerNotificationForApplication(
   applicationId: string,
   typeId: (typeof NotificationTypeIds)[keyof typeof NotificationTypeIds],
@@ -87,12 +108,13 @@ async function sendIssuerNotificationForApplication(
   idempotencySuffix: string
 ) {
   const recipients = await getIssuerRecipientUserIdsForApplication(applicationId);
+  const enrichedPayload = await enrichApplicationNotificationPayload(applicationId, payload);
   await Promise.all(
     recipients.map((userId) =>
       notificationService.sendTyped(
         userId,
         typeId as never,
-        payload as never,
+        enrichedPayload as never,
         `app:${applicationId}:notif:${typeId}:user:${userId}:${idempotencySuffix}`
       )
     )

@@ -2,37 +2,45 @@
 
 ## Rule
 
-For **CTOS** columns in the application financial review table, each cell **prefers the value from the CTOS `account` JSON** (and dates from `dates`) when that field is present. **If the field is empty**, some rows use a **fallback** derived from other CTOS numbers for the same year.
+For **CTOS** columns in the application financial review table, each cell uses:
 
-**Unaudited** columns use issuer form data only; this rule does not blend issuer and CTOS in one cell.
+1. a **direct CTOS `account` field**, or
+2. an **exact CTOS ENQWS v5.11.0 Financial Highlights XSL formula**, or
+3. **N/A** / empty when neither exists.
 
-## Rows with no fallback
+There are **no CashSouk-invented CTOS fallbacks** (no component totals, no PAT÷equity when `return_on_equity` is missing, no CA÷CL when `currat` is missing).
 
-Dates (`pldd`, `bsdd`) and line items (`bsfatot` through `plyear`) have **no formula**: if CTOS did not supply a value, the cell shows empty / the usual missing copy.
+**Unaudited** columns use issuer form data only. Issuer-derived ratios (PAT÷net worth, component sums) are Application input math — not CTOS fallbacks. This rule does not blend issuer and CTOS in one cell.
 
-For **computed** rows (total assets, total liabilities, net worth, turnover growth, profit margin, ROE, current ratio, working capital), when inputs are missing or a rule blocks the calculation, the admin table shows **N/A** (muted, same visual weight as **—**).
+## Direct CTOS fields (no formula)
 
-## Fallback formulas (CTOS column only)
+Dates (`pldd`, `bsdd`) and line items (`bsfatot` through `plyear`), plus:
 
-Implementations live in `packages/types/src/ctos-report-table-math.ts` and are wired through `columnMetrics` in `apps/admin/src/components/application-financial-review-content.tsx`.
+| Display row | CTOS field |
+|-------------|------------|
+| **Total assets** | `totass` only |
+| **Total liabilities** | `totlib` only |
+| **Net worth** | `networth` only |
+| **Turnover growth** | `turnover_growth` only |
+| **Return on equity** | `return_on_equity` only |
+| **Current ratio** | `currat` only |
+| **Working capital** | `workcap` only |
 
-| Display row | When CTOS field is missing |
-|-------------|----------------------------|
-| **Total assets** (`totass`) | Use `totass` if reported; else sum fixed + other + current + non-current assets: `bsfatot + othass + bscatot + bsclbank` (`computeTotalAssets`). |
-| **Total liabilities** (`totlib`) | Use `totlib` if reported; else sum `curlib + bsslltd + bsclstd` (`computeTotalLiabilities`). |
-| **Net worth** (`networth`) | `totass - totlib` after applying the two rules above (`computeNetWorth`). |
-| **Turnover growth** | `(turnover_this_column - turnover_previous_column) / turnover_previous_column` only if the previous column’s year is exactly one calendar year before this column’s year (`computeTurnoverGrowth`). |
-| **Profit margin** | Always `plnpat / turnover` when turnover ≠ 0 (`computeProfitMargin` / `resolveFinancialSummaryProfitMarginRatio`). **Do not** use CTOS `profit_margin` (that field is PBT Margin). UI shows ratio × 100 as a percent. |
-| **Return on equity** | CTOS column: prefer flat `return_on_equity` when present; else `plnpat / networth` (`resolveFinancialSummaryCtosReturnOnEquityPercent`), using CTOS `networth` or computed `totass − totlib`. Never Paid-Up Capital. Issuer column: `plnpat / networth` (`resolveFinancialSummaryIssuerReturnOnEquityRatio`). UI shows percent points. |
-| **Current ratio** | `bscatot / curlib` when current liabilities ≠ 0 (`computeCurrentRatio`). |
-| **Working capital** | `bscatot - curlib` (`computeWorkingCapital`). |
+If the field is empty, the cell shows **N/A** (or the usual missing copy). Do not reconstruct from other CTOS lines.
 
-## CTOS-supplied ratio fields
+## Official XSL calculation used in Financial Summary
 
-When CTOS provides `return_on_equity`, `turnover_growth`, `currat`, or `workcap` on `account`, the UI shows those **before** recomputing (except Profit Margin, which never uses CTOS `profit_margin`).
+| Display row | Formula | Notes |
+|-------------|---------|--------|
+| **Profit margin** | `plnpat / turnover * 100` (`resolveCtosPatMarginPercent`) | Official CTOS **PAT Margin**. **Never** use CTOS `profit_margin` (that field is **PBT Margin**). |
+
+Implementations for CTOS columns live in `packages/types/src/ctos-financial-highlights.ts`, wired in `apps/admin/src/components/application-financial-review-content.tsx`.
+
+Issuer column helpers (component sums, issuer ROE) live in `packages/types/src/ctos-report-table-math.ts` and apply **only** to unaudited columns.
+
+## CTOS-supplied ratio field semantics
 
 - **`return_on_equity`**, **`turnover_growth`** in CTOS XML are **already percent-style numbers** (e.g. `12.6` means 12.6%). The admin appends `%` without multiplying by 100.
-- **Computed** fallbacks (from `computeProfitMargin`, etc.) use **decimal ratios** internally; those rows still use **× 100** before showing `%`.
 - **`currat`** is a plain ratio (e.g. `1.32`), not a percent.
 - **`workcap`** is a currency amount.
 - **`profit_margin`** on the CTOS account JSON is **PBT Margin** and is **ignored** by the Financial Summary Profit Margin row.

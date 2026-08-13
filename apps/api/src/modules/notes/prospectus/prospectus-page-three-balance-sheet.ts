@@ -1,12 +1,12 @@
 /**
- * SECTION: Build Page 3 Stage 3 balance sheet and liquidity rows
- * WHY: Reuse Page 2 years; Application-aligned totals; MYR-millions display
+ * SECTION: Build Page 3 Stage 4 balance sheet rows
+ * WHY: Direct CTOS fields only for totals/current ratio; officer fills for Cash/Equity/Quick
  */
 
 import {
-  resolveApplicationFinancialCurrentRatio,
-  resolveApplicationFinancialTotalAssets,
-  resolveApplicationFinancialTotalLiabilities,
+  resolveCtosCurrentRatio,
+  resolveCtosTotalAssets,
+  resolveCtosTotalLiabilities,
 } from "@cashsouk/types";
 import {
   formatProspectusFinancialMultiple,
@@ -30,38 +30,11 @@ function fieldFromRaw(raw: Record<string, unknown>, key: string): number | null 
   return parseProspectusFinancialNumber(raw[key]);
 }
 
-/** Display-only: full MYR storage → shared Page 2/3 millions formatter. */
+/** Display-only: full MYR storage → shared Page 2 millions formatter. */
 function moneyMillionsOrDna(value: number | string | null | undefined): string {
   const parsed = parseProspectusFinancialNumber(value);
   if (parsed == null) return PROSPECTUS_DATA_NOT_AVAILABLE;
   return formatProspectusMyrMillions(parsed);
-}
-
-/**
- * Same resolution as Application Financial Summary:
- * prefer flat totass when present; else computeTotalAssets with zero-default components.
- */
-function totalAssetsFromRaw(raw: Record<string, unknown>): number {
-  return resolveApplicationFinancialTotalAssets({
-    totass: fieldFromRaw(raw, "totass"),
-    bsfatot: fieldFromRaw(raw, "bsfatot"),
-    othass: fieldFromRaw(raw, "othass"),
-    bscatot: fieldFromRaw(raw, "bscatot"),
-    bsclbank: fieldFromRaw(raw, "bsclbank"),
-  });
-}
-
-/**
- * Same resolution as Application Financial Summary:
- * prefer flat totlib when present; else computeTotalLiabilities with zero-default components.
- */
-function totalLiabilitiesFromRaw(raw: Record<string, unknown>): number {
-  return resolveApplicationFinancialTotalLiabilities({
-    totlib: fieldFromRaw(raw, "totlib"),
-    curlib: fieldFromRaw(raw, "curlib"),
-    bsslltd: fieldFromRaw(raw, "bsslltd"),
-    bsclstd: fieldFromRaw(raw, "bsclstd"),
-  });
 }
 
 function valueForRow(
@@ -89,17 +62,20 @@ function valueForRow(
     case "current_assets":
       return moneyMillionsOrDna(fieldFromRaw(raw, "bscatot"));
     case "total_assets":
-      return formatProspectusMyrMillions(totalAssetsFromRaw(raw));
+      // CTOS ENQWS v5.11.0 — direct r:totass only (no component sum).
+      return moneyMillionsOrDna(resolveCtosTotalAssets({ totass: fieldFromRaw(raw, "totass") }));
     case "current_liabilities":
       return moneyMillionsOrDna(fieldFromRaw(raw, "curlib"));
     case "total_liabilities":
-      return formatProspectusMyrMillions(totalLiabilitiesFromRaw(raw));
+      // CTOS ENQWS v5.11.0 — direct r:totlib only (no component sum).
+      return moneyMillionsOrDna(
+        resolveCtosTotalLiabilities({ totlib: fieldFromRaw(raw, "totlib") })
+      );
     case "current_ratio": {
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — direct r:currat only.
       return formatProspectusFinancialMultiple(
-        resolveApplicationFinancialCurrentRatio({
+        resolveCtosCurrentRatio({
           currat: fieldFromRaw(raw, "currat"),
-          bscatot: fieldFromRaw(raw, "bscatot"),
-          curlib: fieldFromRaw(raw, "curlib"),
         })
       );
     }

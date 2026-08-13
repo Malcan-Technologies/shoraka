@@ -79,9 +79,7 @@ router.patch(
       const validated = updateVersionSchema.parse(req.body);
       const version = await legalDocumentService.updateDraftVersion(
         req.params.versionId,
-        validated,
-        req.user.user_id,
-        req
+        validated
       );
       res.json({
         success: true,

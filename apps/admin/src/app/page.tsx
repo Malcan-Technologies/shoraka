@@ -14,6 +14,7 @@ import { PlatformSection } from "../components/platform-section";
 import { BucketBalancesOverview } from "../components/bucket-balances-overview";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { RequirePermission } from "../components/require-permission";
+import { AdminQueryGate } from "../components/admin-query-error-state";
 import { usePermissions } from "../hooks/use-permissions";
 import { applicationsKeys } from "../applications/query-keys";
 import { notesKeys } from "../notes/query-keys";
@@ -33,7 +34,7 @@ export default function AdminHomePage() {
   const canFinance = can("dashboard.finance.view");
   const canOperations = can("dashboard.operations.view");
   const canPlatform = can("dashboard.platform.view");
-  const { data: stats, isLoading, isFetching } = useDashboardStats();
+  const { data: stats, isLoading, isFetching, error } = useDashboardStats();
   const { data: currentUser } = useCurrentUser();
   const queryClient = useQueryClient();
   const [isSpinning, setIsSpinning] = useState(false);
@@ -65,6 +66,7 @@ export default function AdminHomePage() {
 
   return (
     <RequirePermission permission="dashboard.view">
+      <AdminQueryGate error={error} resourceLabel="dashboard statistics">
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="p-2 md:p-4">
           <PageShell
@@ -147,6 +149,7 @@ export default function AdminHomePage() {
           </PageShell>
         </div>
       </div>
+      </AdminQueryGate>
     </RequirePermission>
   );
 }

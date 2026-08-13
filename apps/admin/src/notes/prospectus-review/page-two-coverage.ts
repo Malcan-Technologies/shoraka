@@ -1,8 +1,8 @@
 import { formatCurrency } from "@cashsouk/config";
 import {
-  resolveApplicationFinancialCurrentRatio,
-  resolveApplicationFinancialProfitMarginRatio,
-  resolveApplicationFinancialReturnOnEquityRatio,
+  resolveCtosCurrentRatio,
+  resolveCtosPatMarginPercent,
+  resolveCtosReturnOnEquityPercent,
   fyEndDateForYear,
   type NoteDetail,
 } from "@cashsouk/types";
@@ -55,10 +55,9 @@ function formatMoneyOrDna(value: number | null): string {
   return formatCurrency(value);
 }
 
-function formatPercentFromRatio(ratio: number | null): string {
-  if (ratio == null || !Number.isFinite(ratio)) return DATA_NOT_AVAILABLE;
-  const percent = ratio * 100;
-  const fixed = percent.toFixed(2).replace(/\.?0+$/, "");
+function formatPercentFromPoints(points: number | null): string {
+  if (points == null || !Number.isFinite(points)) return DATA_NOT_AVAILABLE;
+  const fixed = points.toFixed(2).replace(/\.?0+$/, "");
   return `${fixed}%`;
 }
 
@@ -116,37 +115,27 @@ function metricForYear(
     case "profitAfterTax":
       return formatMoneyOrDna(parseMoney(raw.plnpat));
     case "netProfitMargin": {
-      return formatPercentFromRatio(
-        resolveApplicationFinancialProfitMarginRatio({
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — PAT Margin (never profit_margin / PBT).
+      return formatPercentFromPoints(
+        resolveCtosPatMarginPercent({
           plnpat: parseMoney(raw.plnpat),
           turnover: parseMoney(raw.turnover),
         })
       );
     }
     case "roe": {
-      return formatPercentFromRatio(
-        resolveApplicationFinancialReturnOnEquityRatio({
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — direct r:return_on_equity only.
+      return formatPercentFromPoints(
+        resolveCtosReturnOnEquityPercent({
           return_on_equity: parseMoney(raw.return_on_equity),
-          plnpat: parseMoney(raw.plnpat),
-          networth: parseMoney(raw.networth),
-          totass: parseMoney(raw.totass),
-          totlib: parseMoney(raw.totlib),
-          bsfatot: parseMoney(raw.bsfatot),
-          othass: parseMoney(raw.othass),
-          bscatot: parseMoney(raw.bscatot),
-          bsclbank: parseMoney(raw.bsclbank),
-          curlib: parseMoney(raw.curlib),
-          bsslltd: parseMoney(raw.bsslltd),
-          bsclstd: parseMoney(raw.bsclstd),
         })
       );
     }
     case "currentRatio": {
+      // CTOS ENQWS v5.11.0 Financial Highlights XSL — direct r:currat only.
       return formatMultiple(
-        resolveApplicationFinancialCurrentRatio({
+        resolveCtosCurrentRatio({
           currat: parseMoney(raw.currat),
-          bscatot: parseMoney(raw.bscatot),
-          curlib: parseMoney(raw.curlib),
         })
       );
     }

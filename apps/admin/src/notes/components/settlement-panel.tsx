@@ -21,6 +21,7 @@ import type {
   OverdueLateChargeResult,
   ServiceFeeTrusteeInstructionStatus,
 } from "@cashsouk/types";
+import { formatSettlementReference } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -710,6 +711,15 @@ export function SettlementPanel({
         : null;
   const displayedSettlement =
     persistedPostedSettlement ?? postSettlementCandidate ?? preview ?? persistedPreviewSettlement;
+  const displayedSettlementReference = formatSettlementReference({
+    displayReference:
+      (displayedSettlement as { displayReference?: string | null } | null)?.displayReference ??
+      null,
+    id:
+      (displayedSettlement as { id?: string } | null)?.id ??
+      (displayedSettlement as { settlementId?: string } | null)?.settlementId ??
+      null,
+  });
   const displayedSettlementRecord = displayedSettlement as Record<string, unknown> | null;
   const waterfallGrossReceipt = displayedSettlementRecord
     ? getSettlementValue(displayedSettlementRecord, "grossReceiptAmount")
@@ -2440,6 +2450,10 @@ export function SettlementPanel({
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="text-sm font-semibold">Waterfall allocation</div>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        CashSouk Reference:{" "}
+                        <span className="font-mono">{displayedSettlementReference}</span>
+                      </p>
                       <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
                         Gross receipt allocated across pools. Profit{" "}
                         {formatMaturityDate(waterfallProfitStartDate)}–

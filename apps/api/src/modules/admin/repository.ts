@@ -1488,6 +1488,7 @@ export class AdminRepository {
   }): Promise<{
     organizations: {
       id: string;
+      displayReference: string | null;
       portal: "investor" | "issuer";
       type: "PERSONAL" | "COMPANY";
       name: string | null;
@@ -1545,6 +1546,7 @@ export class AdminRepository {
           const term = searchTerms[0];
           where.OR = [
             { name: { contains: term, mode: "insensitive" } },
+            { display_reference: { contains: term, mode: "insensitive" } },
             { registration_number: { contains: term, mode: "insensitive" } },
             { owner: { first_name: { contains: term, mode: "insensitive" } } },
             { owner: { last_name: { contains: term, mode: "insensitive" } } },
@@ -1555,6 +1557,7 @@ export class AdminRepository {
           where.AND = searchTerms.map((term) => ({
             OR: [
               { name: { contains: term, mode: "insensitive" } },
+              { display_reference: { contains: term, mode: "insensitive" } },
               { registration_number: { contains: term, mode: "insensitive" } },
               { owner: { first_name: { contains: term, mode: "insensitive" } } },
               { owner: { last_name: { contains: term, mode: "insensitive" } } },
@@ -1585,6 +1588,7 @@ export class AdminRepository {
     // Fetch from both tables based on portal filter
     let investorOrgs: Array<{
       id: string;
+      display_reference: string | null;
       type: OrganizationType;
       name: string | null;
       registration_number: string | null;
@@ -1601,6 +1605,7 @@ export class AdminRepository {
     }> = [];
     let issuerOrgs: Array<{
       id: string;
+      display_reference: string | null;
       type: OrganizationType;
       name: string | null;
       registration_number: string | null;
@@ -1692,6 +1697,7 @@ export class AdminRepository {
         const orgWithData = org as typeof org & { corporate_onboarding_data?: unknown };
         return {
           id: org.id,
+          displayReference: org.display_reference ?? null,
           portal: "investor" as const,
           type: org.type as "PERSONAL" | "COMPANY",
           name: org.name,
@@ -1729,6 +1735,7 @@ export class AdminRepository {
         const orgWithData = org as typeof org & { corporate_onboarding_data?: unknown };
         return {
           id: org.id,
+          displayReference: org.display_reference ?? null,
           portal: "issuer" as const,
           type: org.type as "PERSONAL" | "COMPANY",
           name: org.name,
@@ -1784,6 +1791,7 @@ export class AdminRepository {
     id: string
   ): Promise<{
     id: string;
+    display_reference: string | null;
     type: OrganizationType;
     name: string | null;
     registration_number: string | null;
@@ -2147,6 +2155,7 @@ export class AdminRepository {
   async getApplications(params: GetAdminApplicationsQuery): Promise<{
     applications: {
       id: string;
+      displayReference: string | null;
       issuerOrganizationId: string;
       issuerOrganizationName: string | null;
       financingTypeLabel: string;
@@ -2201,6 +2210,7 @@ export class AdminRepository {
     if (search) {
       where.OR = [
         { id: { contains: search, mode: "insensitive" } },
+        { display_reference: { contains: search, mode: "insensitive" } },
         { issuer_organization: { name: { contains: search, mode: "insensitive" } } },
       ];
     }
@@ -2276,6 +2286,7 @@ export class AdminRepository {
 
       return {
         id: app.id,
+        displayReference: app.display_reference ?? null,
         issuerOrganizationId: app.issuer_organization.id,
         issuerOrganizationName: app.issuer_organization.name,
         financingTypeLabel: productLabel,
@@ -2316,6 +2327,7 @@ export class AdminRepository {
   async getContracts(params: GetAdminContractsQuery): Promise<{
     contracts: {
       id: string;
+      displayReference: string | null;
       contractNumber: string | null;
       title: string | null;
       issuerOrganizationName: string | null;
@@ -2341,6 +2353,7 @@ export class AdminRepository {
     if (search) {
       where.OR = [
         { id: { contains: search, mode: "insensitive" } },
+        { display_reference: { contains: search, mode: "insensitive" } },
         {
           contract_details: {
             path: ["number"],
@@ -2375,6 +2388,7 @@ export class AdminRepository {
 
       return {
         id: contract.id,
+        displayReference: contract.display_reference ?? null,
         contractNumber:
           typeof contractDetails.number === "string" && contractDetails.number.trim().length > 0
             ? contractDetails.number
@@ -2394,6 +2408,7 @@ export class AdminRepository {
 
   async getContractById(id: string): Promise<{
     id: string;
+    displayReference: string | null;
     contractNumber: string | null;
     title: string | null;
     description: string | null;
@@ -2430,6 +2445,7 @@ export class AdminRepository {
       where: { id },
       select: {
         id: true,
+        display_reference: true,
         issuer_organization_id: true,
         status: true,
         created_at: true,
@@ -2446,6 +2462,7 @@ export class AdminRepository {
           orderBy: { created_at: "desc" },
           select: {
             id: true,
+            display_reference: true,
             status: true,
             submitted_at: true,
             updated_at: true,
@@ -2504,6 +2521,7 @@ export class AdminRepository {
 
       return {
         id: application.id,
+        displayReference: application.display_reference ?? null,
         productId:
           typeof (application.financing_type as Record<string, unknown> | null)?.product_id === "string"
             ? ((application.financing_type as Record<string, unknown>).product_id as string)
@@ -2545,6 +2563,7 @@ export class AdminRepository {
 
     return {
       id: contract.id,
+      displayReference: contract.display_reference ?? null,
       contractNumber:
         typeof contractDetails.number === "string" && contractDetails.number.trim().length > 0
           ? contractDetails.number

@@ -28,7 +28,9 @@ function toResolvedAccess(
   >
 ): ResolvedAdminAccess {
   const isSuperAdmin = FULL_ACCESS_ADMIN_ROLE_KEYS.includes(role.key as AdminRoleKey);
-  const permissions = isSuperAdmin ? [...ADMIN_PERMISSIONS] : sanitizePermissions(role.permissions);
+  const permissions = isSuperAdmin
+    ? [...ADMIN_PERMISSIONS]
+    : sanitizePermissions(role.permissions);
   const isSystemRole = role.key === SUPER_ADMIN_ROLE_TEMPLATE.key;
 
   return {

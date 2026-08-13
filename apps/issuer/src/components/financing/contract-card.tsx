@@ -20,6 +20,7 @@ import {
   shouldShowIssuerReviewOfferCta,
   type OfferStatus,
 } from "@/lib/offer-utils";
+import { formatContractReference } from "@cashsouk/types";
 import { asContractForModal } from "@/types/issuer-dashboard";
 import { cn } from "@/lib/utils";
 import { FinancingDonut } from "./financing-donut";
@@ -84,6 +85,16 @@ export function DashboardContractCard({
       ? FINANCING_ATTENTION_SURFACE
       : null;
 
+  const contractNumber =
+    typeof asContractForModal(row.contractForModal)?.contract_details?.number === "string"
+      ? String(asContractForModal(row.contractForModal)?.contract_details?.number)
+      : null;
+  const cashSoukReference = formatContractReference({
+    displayReference: row.displayReference,
+    businessNumber: contractNumber,
+    id: row.id,
+  });
+
   return (
     <article
       className={cn(
@@ -97,14 +108,19 @@ export function DashboardContractCard({
             <DocumentTextIcon className="h-5 w-5 shrink-0 text-muted-foreground" />
             <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
               <p className="min-w-0 max-w-full truncate leading-5">
-                <span className="text-sm font-normal leading-5 text-foreground">Contract: </span>
+                <span className="text-sm font-normal leading-5 text-foreground">Reference: </span>
                 <Link
                   href={`/financing/contracts/${row.id}`}
                   className="text-sm font-semibold leading-5 text-foreground underline-offset-4 hover:underline"
                 >
-                  {displayCell(row.title)}
+                  {displayCell(cashSoukReference)}
                 </Link>
               </p>
+              {row.title ? (
+                <p className="min-w-0 max-w-full truncate text-xs text-muted-foreground">
+                  Contract: {displayCell(row.title)}
+                </p>
+              ) : null}
               <IssuerFinancingStatusBadge kind={resolveIssuerContractDashboardBadge(row.contractStatus)} />
               <OfferStatusBadge offerStatus={offerStatus} />
             </div>

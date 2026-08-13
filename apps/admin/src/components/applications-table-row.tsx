@@ -3,6 +3,7 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { format, formatDistanceToNow } from "date-fns";
 import type { ApplicationListItem } from "@cashsouk/types";
+import { formatApplicationReference } from "@cashsouk/types";
 import {
   BanknotesIcon,
   EyeIcon,
@@ -37,8 +38,11 @@ export function ApplicationsTableRow({
       {/* Reference */}
       <TableCell className={`${applicationTableCellClass} min-w-0 overflow-hidden truncate font-mono text-xs`}>
         <div className="min-w-0">
-          <span className="block truncate" title={application.id}>
-            {application.id.slice(-8).toUpperCase()}
+          <span className="block truncate" title={application.displayReference ?? application.id}>
+            {formatApplicationReference({
+              displayReference: application.displayReference,
+              id: application.id,
+            })}
           </span>
         </div>
       </TableCell>

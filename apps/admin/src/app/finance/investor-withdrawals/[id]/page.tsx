@@ -21,6 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RequirePermission } from "@/components/require-permission";
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import { usePermissions } from "@/hooks/use-permissions";
+import { formatWithdrawalReference } from "@cashsouk/types";
 import {
   useAdminWithdrawal,
   useGenerateWithdrawalLetter,
@@ -97,6 +98,13 @@ export default function InvestorWithdrawalDetailPage() {
     markCompleted.isPending ||
     viewDocumentPending;
 
+  const withdrawalReference = withdrawal
+    ? formatWithdrawalReference({
+        displayReference: withdrawal.displayReference,
+        id: withdrawal.id,
+      })
+    : "—";
+
   return (
     <RequirePermission permission="investor_withdrawals.view">
       <>
@@ -138,7 +146,7 @@ export default function InvestorWithdrawalDetailPage() {
                       </div>
                       <div className="space-y-1">
                         <p className="text-sm text-muted-foreground">Reference</p>
-                        <p className="break-all text-base font-medium text-foreground">{withdrawal.id}</p>
+                        <p className="break-all text-base font-medium text-foreground">{withdrawalReference}</p>
                       </div>
                       <Badge variant="secondary" className="ml-auto">
                         {STATUS_LABEL[withdrawal.status] ?? withdrawal.status}
@@ -170,7 +178,7 @@ export default function InvestorWithdrawalDetailPage() {
                       <CardContent className="grid gap-4 md:grid-cols-2">
                         <div>
                           <p className="text-sm text-muted-foreground">Reference</p>
-                          <p className="break-all text-base font-medium text-foreground">{withdrawal.id}</p>
+                          <p className="break-all text-base font-medium text-foreground">{withdrawalReference}</p>
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Status</p>

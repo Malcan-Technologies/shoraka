@@ -18,6 +18,15 @@ function getUserId(req: Request): string {
   return req.user.user_id;
 }
 
+function withDisplayReference<T extends { display_reference?: string | null }>(row: T): T & {
+  displayReference: string | null;
+} {
+  return {
+    ...row,
+    displayReference: row.display_reference ?? null,
+  };
+}
+
 async function createContract(req: Request, res: Response, next: NextFunction) {
   try {
     const { applicationId } = createContractSchema.parse(req.body);
@@ -26,7 +35,7 @@ async function createContract(req: Request, res: Response, next: NextFunction) {
 
     res.status(201).json({
       success: true,
-      data: contract,
+      data: withDisplayReference(contract),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {
@@ -42,7 +51,7 @@ async function getContract(req: Request, res: Response, next: NextFunction) {
 
     res.json({
       success: true,
-      data: contract,
+      data: withDisplayReference(contract),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {
@@ -63,7 +72,7 @@ async function updateContract(req: Request, res: Response, next: NextFunction) {
 
     res.json({
       success: true,
-      data: contract,
+      data: withDisplayReference(contract),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {
@@ -84,7 +93,7 @@ async function getApprovedContracts(req: Request, res: Response, next: NextFunct
 
     res.json({
       success: true,
-      data: contracts,
+      data: contracts.map((contract) => withDisplayReference(contract)),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {
@@ -148,7 +157,7 @@ async function withdrawContract(req: Request, res: Response, next: NextFunction)
 
     res.json({
       success: true,
-      data: contract,
+      data: withDisplayReference(contract),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {
