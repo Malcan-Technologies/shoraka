@@ -1691,40 +1691,6 @@ model ProductAuditLog {
   @@map("product_audit_logs")
 }
 
-model ApplicationLog {
-  id             String  @id @default(cuid())
-  user_id        String
-  application_id String?
-  event_type     String
-  ip_address     String?
-  user_agent     String?
-  device_info    String?
-  metadata       Json?
-  review_cycle   Int?
-
-  level  ActivityLevel?
-  target ActivityTarget?
-  action ActivityAction?
-
-  entity_id String?
-
-  remark String?
-  portal String? // ISSUER | ADMIN
-
-  created_at DateTime @default(now())
-
-  @@index([user_id])
-  @@index([event_type])
-  @@index([created_at])
-  @@index([user_id, created_at])
-  @@index([application_id])
-  @@index([application_id, review_cycle])
-  @@index([level])
-  @@index([action])
-  @@index([portal])
-  @@map("application_logs")
-}
-
 model Product {
   id                                String   @id @default(cuid())
   base_id                           String?

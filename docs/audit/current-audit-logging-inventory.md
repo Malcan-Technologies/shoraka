@@ -1,12 +1,16 @@
 # CashSouk Current Audit & Logging Inventory
 
-**Phase 6 cutover (current state):**
+**Phase 6 + 7 cutover + legacy ApplicationLog cleanup (current state):**
 
-- `ApplicationAuditLog` (`application_audit_logs`) is the application/review/contract/invoice history table (append-only, no Application/User FKs).
-- `ApplicationReviewRemark.review_cycle` is the amendment-remark source of truth. Submitted remarks survive issuer resubmit. Resubmit comparison reads `ApplicationRevision` + cycle-scoped remarks — never audit/log rows.
-- Legacy `ApplicationLog` / `application_logs` is **retained**. The only live writer is `signing/service.ts` for `SIGNING_PACKAGE_*` until SigningAuditLog exists. Do not add new ApplicationLog writers.
-- `GET /v1/applications/:id/logs` and the activity adapter read `ApplicationAuditLog`.
-- There is **no** canonical/global `AuditEvent` table.
+- Legacy `ApplicationLog` / `application_logs` **removed**. No Prisma model, no writers, no readers, no helper module (`logApplicationActivity` / `createApplicationLog`).
+- `ApplicationAuditLog` (`application_audit_logs`) owns application/review/contract/invoice history (append-only, no Application/User FKs).
+- `SigningAuditLog` (`signing_audit_logs`) owns signing history (append-only, no envelope/application/user FKs). `SIGNING_PACKAGE_*` are live Signing events.
+- `GET /v1/applications/:id/logs` is a merged reader projection of `ApplicationAuditLog` + `SigningAuditLog`. It is not a store and not workflow state.
+- `ApplicationRevision` / `ApplicationReview` / `ApplicationReviewRemark` remain workflow/evidence SOT. Resubmit comparison reads revisions + cycle-scoped remarks — never audit.
+- Signing envelope graph / `SigningCloudEkyc` remain signing SOT. Envelope log APIs read `SigningAuditLog`.
+- Activity feed uses ApplicationAuditLog + SigningAuditLog adapters (`ApplicationLogAdapter` is a preserved adapter name).
+- `ApplicationReviewEvent` still dual-writes on a few review actions and has no production readers (out of scope for this cleanup).
+- Audit tables are never used as workflow state. There is **no** canonical/global `AuditEvent` table.
 
 ---
 
@@ -47,13 +51,14 @@ Known limitations (not fixed in this cleanup):
 
 ## 1. Executive Summary
 
-CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_audit_logs`, `security_audit_logs`, `onboarding_audit_logs`, `application_logs`, `product_audit_logs`, `note_events`, `note_admin_actions`, `legal_admin_audit_logs`, `notification_broadcast_audit_logs`, `gateway_payment_events`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records). Legacy `access_logs`, `security_logs`, and `onboarding_logs` have been dropped.
+CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_audit_logs`, `security_audit_logs`, `onboarding_audit_logs`, `application_audit_logs`, `signing_audit_logs`, `product_audit_logs`, `note_events`, `note_admin_actions`, `legal_admin_audit_logs`, `notification_broadcast_audit_logs`, `gateway_payment_events`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records). Legacy `access_logs`, `security_logs`, `onboarding_logs`, and `application_logs` have been dropped.
 
 ### Current architecture (factual)
 
 - **Auth/security:** `AccessAuditLog` (signup/login/logout) + `SecurityAuditLog` (RBAC, profile, invitations, membership, notification config). No User FK; history survives User deletion. `UserSession` is session SOT; Cognito is auth authority. Legacy `AccessLog` / `SecurityLog` removed.
 - **Onboarding:** `OnboardingAuditLog` is the sole onboarding/compliance history table (append-only). Organization `onboarding_status`/flags, `RegTankOnboarding`, `LegalDocumentAcceptance`, and CTOS rows remain SOT. Audit is never workflow state. Legacy `OnboardingLog` / `onboarding_logs` removed.
-- **Applications:** `ApplicationAuditLog` (`application_audit_logs`) is the application/review/contract/invoice history table (append-only, no Application/User FKs). Amendment remarks are `ApplicationReviewRemark` (cycle-scoped). Resubmit comparison reads `ApplicationRevision` + remarks, never audit. Legacy `ApplicationLog` is retained only for `signing/service.ts` `SIGNING_PACKAGE_*` until SigningAuditLog exists. `ApplicationReviewEvent` still dual-writes on a few review actions and has no production readers.
+- **Applications:** `ApplicationAuditLog` (`application_audit_logs`) is the application/review/contract/invoice history table (append-only, no Application/User FKs). Amendment remarks are `ApplicationReviewRemark` (cycle-scoped). Resubmit comparison reads `ApplicationRevision` + remarks, never audit. Legacy `ApplicationLog` / `application_logs` **removed**. `ApplicationReviewEvent` still dual-writes on a few review actions and has no production readers (tracked separately).
+- **Signing:** `SigningAuditLog` (`signing_audit_logs`) is the signing history table (append-only). Envelope graph / `SigningCloudEkyc` remain signing SOT. `GET /v1/applications/:id/logs` merges Application + Signing audit rows. Envelope log APIs read `SigningAuditLog` only.
 - **Notes:** `NoteEvent` + `NoteAdminAction` dual-write for admin actions. Activity feed reads a **subset** of `NoteEvent` types.
 - **Legal admin:** dedicated `LegalAdminAuditLog`. User open/accept is **not** that table; it is `LegalDocumentAcceptance` updated **in place**. Legacy `LegalDocumentAuditLog` / `legal_document_audit_logs` has been removed.
 - **Payments:** `GatewayPayment` is SOT; `GatewayPaymentEvent` is a partial admin trail (no capture/complete type); `GatewayWebhookEvent` is provider transport and is **updated** after processing.
@@ -107,12 +112,12 @@ Legend: ✅ inspected · N/A none found · ⚠ leftover/unused
 | CTOS | ✅ | ✅ | ✅ | ✅ admin | ctos-kyb-retry | N/A | SECTION_REVIEWED_PENDING only | Admin CTOS cards |
 | LEGAL DOCUMENTS | ✅ | ✅ | ✅ | ✅ admin | N/A | N/A | LegalAdminAuditLog | `/audit` legal tab + export |
 | LEGAL ACCEPTANCES | ✅ | ✅ | ✅ | ✅ all portals | N/A | N/A | SOT not audit table | Admin acceptances |
-| APPLICATION | ✅ | ✅ | ✅ | ✅ issuer | N/A | N/A | ApplicationLog | Issuer timeline, GET logs, activity |
-| APPLICATION REVIEW | ✅ | ✅ | ✅ | ✅ admin | N/A | N/A | ApplicationLog + ReviewEvent | Admin timeline |
-| AMENDMENTS | ✅ | ✅ | ✅ | ✅ | N/A | N/A | submit yes; drafts no | Resubmit comparison **reads log metadata** |
+| APPLICATION | ✅ | ✅ | ✅ | ✅ issuer | N/A | N/A | ApplicationAuditLog | Issuer timeline, GET logs (merged), activity |
+| APPLICATION REVIEW | ✅ | ✅ | ✅ | ✅ admin | N/A | N/A | ApplicationAuditLog (+ unread ReviewEvent writes) | Admin timeline |
+| AMENDMENTS | ✅ | ✅ | ✅ | ✅ | N/A | N/A | submit yes; drafts no | Resubmit comparison reads **revision + remarks** |
 | CONTRACT / INVOICE | ✅ | ✅ | ✅ | ✅ | N/A | N/A | withdraw only | Application UI |
 | OFFER | ✅ | ✅ | ✅ | ✅ | expiry job | N/A | yes except reminders | Timelines + notifications |
-| SIGNING / SIGNINGCLOUD | ✅ | ✅ | ✅ | ✅ admin/issuer/external | expiry + reconcile | SigningCloud | package-level only | Signing UI |
+| SIGNING / SIGNINGCLOUD | ✅ | ✅ | ✅ | ✅ admin/issuer/external | expiry + reconcile | SigningCloud | SigningAuditLog | Signing UI + envelope logs |
 | PRODUCT | ✅ | ✅ | ✅ | ✅ admin | N/A | N/A | ProductAuditLog | `/audit` products + CSV |
 | PLATFORM FINANCE SETTINGS | ✅ | ✅ | ✅ | ✅ admin | N/A | N/A | **none** | Settings UI |
 | SITE DOCUMENTS | N/A removed | tests assert absence | **no model** | N/A | N/A | N/A | N/A | Removed from invest path |
@@ -163,10 +168,15 @@ Sole onboarding/compliance history table. Append-only create. Required `metadata
 Events: `ONBOARDING_STARTED`, `ONBOARDING_RESUMED`, `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `CTOS_REPORT_RECEIVED`, `CORPORATE_ENTITIES_UPDATED`, `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED`.  
 **REMOVED:** `OnboardingLog` / `onboarding_logs`. Audit is never workflow state.
 
-#### ApplicationLog → `application_logs` · APPLICATION · **A**
+#### ApplicationAuditLog → `application_audit_logs` · APPLICATION · **A**
 
-Fields: `id`, `user_id`, `application_id`, `event_type`, `ip_address`, `user_agent`, `device_info`, `metadata`, `review_cycle`, deprecated `level`/`target`/`action` (always null), `entity_id`, `remark`, `portal`, `created_at`.  
-**No Prisma relation** to User or Application (orphan-able). Create-only. Resubmit comparison **parses metadata**.
+Append-only application/review/contract/invoice history. Required `metadata` Json. `occurred_at` + `created_at`. No `updated_at`. No Application/User FKs (scalar historical ids only).  
+**REMOVED:** `ApplicationLog` / `application_logs`. Audit is never workflow state. Resubmit comparison reads `ApplicationRevision` + `ApplicationReviewRemark`.
+
+#### SigningAuditLog → `signing_audit_logs` · SIGNING · **A**
+
+Append-only signing package history. Required `metadata` Json. `occurred_at` + `created_at`. No `updated_at`. No envelope/application/user FKs (scalar historical ids only).  
+Events include `SIGNING_PACKAGE_CREATED/SENT/COMPLETED/VOIDED/DECLINED/EXPIRED`, recipient, eKYC, and reminder events. Envelope graph / `SigningCloudEkyc` remain signing SOT.
 
 #### ApplicationReviewEvent → `application_review_events` · REVIEW · **A**
 
@@ -246,7 +256,7 @@ Create-only for bulk send. Legacy `NotificationLog` / `notification_logs` has be
 
 - **No `DocumentLog` model.**
 - **No `SiteDocument` / `DocumentLog` models** (dropped by `20260805190000_remove_site_documents_and_document_logs`; tests assert route 404). S3 object leftovers cannot be proven from the repo.
-- ApplicationLog has **no FK** to Application (unlike ReviewEvent).
+- **No `ApplicationLog` / `application_logs`.** Dropped after ApplicationAuditLog + SigningAuditLog cutover. `ApplicationAuditLog` and `SigningAuditLog` use scalar ids (no FKs).
 
 ---
 
@@ -401,9 +411,13 @@ Writers: `writeOnboardingAuditLog` (`apps/api/src/modules/onboarding/audit/write
 
 Production final approval writes **`ONBOARDING_FINAL_APPROVAL_COMPLETED`**. `AuthService.cancelOnboarding` does **not** read audit as state. Legacy `OnboardingLog` writers/readers **removed**. Admin `GET /v1/admin/onboarding-logs` reads `OnboardingAuditLog`.
 
-### ApplicationLog
+### ApplicationAuditLog
 
-`logApplicationActivity` → `applications/logs/repository.ts` (always null level/target/action). Direct `applicationLog.create` in `amendments/service.ts`. Callers: applications controller/service, admin/service, contracts/service, invoices/service, signing/service, ctos-report-service, acceptance-signing-expiry job.
+`writeApplicationAuditLog` (`apps/api/src/modules/applications/audit/writer.ts`) only. Live callers: applications controller/service, admin/service, amendments/service, contracts/service, invoices/service, CTOS, acceptance-signing-expiry job. Append-only create. Legacy `logApplicationActivity` / `createApplicationLog` / `applications/logs/*` **removed**.
+
+### SigningAuditLog
+
+`writeSigningAuditLog` (`apps/api/src/modules/signing/audit/writer.ts`) only. Live callers: signing/service, eKYC, envelope/offer expiry jobs, reconcile. Envelope log APIs and the application timeline merge **read** this table. Append-only create.
 
 ### ApplicationReviewEvent
 
@@ -449,9 +463,10 @@ Created on ingest; **`updateMany` processed_at/error** in `webhook-service.ts`.
 | security_audit_logs | `GET /v1/admin/security-logs` (+ export) | Admin UI `/audit` security | all live Security events | MEDIUM |
 | onboarding_audit_logs | `GET` org timeline via `OrganizationLogAdapter` | Activity feeds issuer/investor/admin org | curated: STARTED, RESUMED, RESTARTED, REJECTED, APPROVED, FINAL_APPROVAL_COMPLETED, COMPLETED; scoped by `organization_id` / `subject_user_id` | MEDIUM |
 | onboarding_audit_logs | Admin `listOnboardingLogs` / `getOnboardingLogById` / `exportOnboardingLogs` | Admin `/audit` onboarding | Phase 5 event catalogue | MEDIUM |
-| application_logs | `GET /v1/applications/:id/logs` `ApplicationService` | Issuer/admin application timeline | all types for app | MEDIUM |
-| application_logs | `ApplicationLogAdapter` `GET /v1/activities` | Activity feeds | **curated subset**; includes never-written APPLICATION_APPROVED and CONTRACT_OFFER_REJECTED; omits SECTION_REVIEWED_* and most signing | MEDIUM |
-| application_logs | `AdminService.getResubmitComparisonSnapshots` findFirst APPLICATION_RESUBMITTED | **Business/UI compare** parses `metadata.amendment_remarks` | HIGH |
+| application_audit_logs | `GET /v1/applications/:id/logs` `ApplicationService` (merged with signing) | Issuer/admin application timeline | application-domain types for app | MEDIUM |
+| application_audit_logs | `ApplicationLogAdapter` `GET /v1/activities` | Activity feeds | curated application-domain subset | MEDIUM |
+| signing_audit_logs | `GET /v1/applications/:id/logs` merge + envelope `GET .../logs` | Application timeline + signing envelope APIs | signing catalogue | MEDIUM |
+| signing_audit_logs | `SigningLogAdapter` `GET /v1/activities` | Activity feeds | signing subset | MEDIUM |
 | application_review_events | **none found** | — | — | LOW (dead writes) |
 | product_audit_logs | `GET /v1/admin/product-logs` + export CSV/JSON | Admin `/audit` products | eventType filter | MEDIUM |
 | legal_admin_audit_logs | `GET /v1/admin/legal-document-audit-logs` + export | Admin `/audit` legal | action → event_type filters | MEDIUM |
@@ -490,11 +505,14 @@ Written: `ONBOARDING_STARTED`, `ONBOARDING_RESUMED`, `ONBOARDING_RESTARTED`, `ON
 Retired with `OnboardingLog`: `ONBOARDING_CANCELLED`, `WEBHOOK_*`, `FORM_FILLED`, `EOD_WEBHOOK`, `USER_COMPLETED`, `TNC_APPROVED`, `TNC_ACCEPTED`, `COD_REJECTED`, generic `ONBOARDING_STATUS_UPDATED`.  
 Activity UI curated subset: STARTED, RESUMED, RESTARTED, REJECTED, APPROVED, FINAL_APPROVAL_COMPLETED, COMPLETED.
 
-### Application (`ApplicationLogEventType` in `applications/logs/types.ts`)
+### Application (`APPLICATION_AUDIT_EVENTS`)
 
-Written: APPLICATION_CREATED/SUBMITTED/RESUBMITTED/REJECTED/WITHDRAWN/COMPLETED/RESET_TO_UNDER_REVIEW, SECTION_REVIEWED_*, ITEM_REVIEWED_*, CONTRACT_* (except CONTRACT_OFFER_REJECTED and APPLICATION_APPROVED), INVOICE_*, AMENDMENTS_SUBMITTED, SIGNING_PACKAGE_CREATED/SENT/COMPLETED/VOIDED, CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED.  
-**DEFINED NEVER WRITTEN:** APPLICATION_APPROVED, CONTRACT_OFFER_REJECTED.  
-**WRITTEN BUT NOT IN ENUM:** CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED; dynamic SECTION/ITEM_REVIEWED_${status}.
+`APPLICATION_CREATED/SUBMITTED/REVIEW_STARTED/RESUBMITTED/AMENDMENT_ACKNOWLEDGED/AMENDMENTS_REQUESTED/REOPENED_FOR_REVIEW/WITHDRAWN/REJECTED/ARCHIVED/DRAFT_DELETED/COMPLETED`, section/item review updated, document upload/remove/replace, contract/invoice offer/acceptance/expiry/withdraw events including `CONTRACT_OFFER_REJECTED`.  
+Signing package events are **not** on this table; they belong to `SigningAuditLog`.
+
+### Signing (`SIGNING_AUDIT_EVENTS`)
+
+`SIGNING_PACKAGE_CREATED/SENT/COMPLETED/VOIDED/DECLINED/EXPIRED`, `SIGNING_RECIPIENT_COMPLETED/DECLINED`, `SIGNING_EKYC_STARTED/VERIFIED/FAILED`, `SIGNING_REMINDER_SENT`.
 
 ### Note
 
@@ -763,8 +781,8 @@ Keep specialized SOT even if audit events are added later.
 | HIGH | CTOS | userId `"system"` string | Not a real user FK | |
 | HIGH | GATEWAY | webhook row updated | Transport not append-only | Keep as transport |
 | HIGH | GATEWAY | mapGatewayPaymentEvent strips metadata | Admin cannot see stored metadata | |
-| HIGH | APP | logApplicationActivity swallows errors | Silent audit loss | |
-| HIGH | APP | ApplicationLog no FK | Orphans | |
+| HIGH | APP | (historical) logApplicationActivity swallowed errors | Silent audit loss | Mitigated: helper removed; ApplicationAuditLog/SigningAuditLog writers do not swallow |
+| HIGH | APP | (historical) ApplicationLog no FK | Orphans | Table dropped; new audit tables keep scalar ids by design |
 | MEDIUM | ACTIVITY | curated subsets | Many events invisible in feeds | Reader assumptions |
 | MEDIUM | ONBOARDING | WEBHOOK_* vs business events | Inconsistent naming | |
 | MEDIUM | APP | resubmit dual writers | Duplicate rows | |
@@ -793,7 +811,7 @@ Keep specialized SOT even if audit events are added later.
 | LegalAdminAuditLog | **KEEP AS SPECIALIZED HISTORY** (admin legal-document mutations; not a canonical AuditEvent) |
 | AccessLog / SecurityLog | **REMOVED** — replaced by `AccessAuditLog` + `SecurityAuditLog` (two physical tables; no canonical AuditEvent) |
 | OnboardingLog | **REMOVED** — replaced by `OnboardingAuditLog` (`onboarding_audit_logs`) |
-| ApplicationLog | **CANDIDATE TO REPLACE** but HIGH resubmit-comparison + timelines |
+| ApplicationLog | **REMOVED** — replaced by `ApplicationAuditLog` + `SigningAuditLog` (`application_logs` dropped) |
 | ApplicationReviewEvent | **LEGACY / VERIFY REMOVAL** (no readers) |
 | NoteEvent | **CANDIDATE TO REPLACE** with activity/admin readers |
 | NoteAdminAction | **LEGACY / VERIFY REMOVAL** (no readers; dual-write) |
@@ -821,7 +839,7 @@ Keep specialized SOT even if audit events are added later.
 | AccessLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `AccessAuditLog` is live |
 | SecurityLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `SecurityAuditLog` is live |
 | OnboardingLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `OnboardingAuditLog` is live |
-| ApplicationLog | many | GET logs, activity, **resubmit comparison**, issuer timeline | yes | no | **YES metadata.amendment_remarks** | no | many | **HIGH** | 8 | NO |
+| ApplicationLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `ApplicationAuditLog` + `SigningAuditLog` are live |
 | NoteEvent | notes/shoraka/jobs | admin events + activity subset | yes | no | no | no | note tests | HIGH | 9 | NO |
 
 `GatewayWebhookEvent` should **not** be in the replace-with-audit queue.
@@ -833,12 +851,12 @@ Keep specialized SOT even if audit events are added later.
 Do not design final schema here. Sequence by dependency/risk:
 
 1. **Stop/ignore unread dual-writes** conceptually: `ApplicationReviewEvent`, `NoteAdminAction` (verify tests only).
-2. **Decouple business logic from logs:** `AuthService` USER_COMPLETED / ONBOARDING_STARTED; resubmit comparison metadata on ApplicationLog.
+2. **Decouple business logic from logs:** `AuthService` no longer reads OnboardingLog as state; resubmit comparison reads `ApplicationRevision` + remarks, never audit.
 3. **Payment capture gap** must be understood before touching GatewayPaymentEvent (accounting SOT stays).
 4. **Legal acceptances stay** as evidence; legal admin log can migrate later with `/audit` + export.
 5. **Access/Security** after audit UI + CSV exporters have a dual-read period.
 6. **OnboardingLog** replaced by append-only `OnboardingAuditLog`; `onboarding_logs` dropped. AuthService no longer reads logs as state.
-7. **ApplicationLog** last among app tables (timelines + comparison).
+7. **ApplicationLog** **removed** — `application_logs` dropped; `ApplicationAuditLog` + `SigningAuditLog` are live. `ApplicationReviewEvent` still pending separate verification.
 8. **NoteEvent** after admin note page + activity subset.
 9. **ProductLog** replaced by append-only `ProductAuditLog`; `product_logs` dropped.
 10. **Platform settings / org members / invitations** have nothing to migrate — they need **new** events, not table moves.

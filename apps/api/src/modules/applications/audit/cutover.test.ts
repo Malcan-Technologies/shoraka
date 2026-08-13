@@ -155,9 +155,19 @@ describe("Application audit cutover", () => {
     expect(SECURITY_AUDIT_EVENTS).not.toContain("APPLICATION_CREATED");
   });
 
-  it("legacy ApplicationLog model is retained", () => {
-    expect(schema).toMatch(/model ApplicationLog/);
-    expect(schema).toMatch(/@@map\("application_logs"\)/);
+  it("legacy ApplicationLog model, table mapping, and helper module are removed", () => {
+    expect(schema).not.toMatch(/model ApplicationLog/);
+    expect(schema).not.toMatch(/@@map\("application_logs"\)/);
+    expect(schema).toMatch(/model ApplicationAuditLog/);
+    expect(schema).toMatch(/@@map\("application_audit_logs"\)/);
+    expect(schema).toMatch(/model SigningAuditLog/);
+    expect(schema).toMatch(/model ApplicationReviewEvent/);
+    expect(fs.existsSync(path.join(srcRoot, "modules/applications/logs/repository.ts"))).toBe(false);
+    expect(fs.existsSync(path.join(srcRoot, "modules/applications/logs/service.ts"))).toBe(false);
+    expect(fs.existsSync(path.join(srcRoot, "modules/applications/logs/types.ts"))).toBe(false);
+    expect(liveApplicationSources).not.toMatch(/prisma\.applicationLog/);
+    expect(liveApplicationSources).not.toMatch(/logApplicationActivity/);
+    expect(liveApplicationSources).not.toMatch(/createApplicationLog/);
   });
 
   it("implements the approved application lifecycle events", () => {

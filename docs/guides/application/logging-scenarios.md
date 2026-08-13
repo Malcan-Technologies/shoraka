@@ -9,8 +9,9 @@ Related: logging-guide.md (full scenarios, DB storage, kid-level). You can read
 that file if you need more detail.
 
 The activity timeline shows logs for a single application. It appears on the
-application detail page in the admin portal. Logs are stored in the
-application_logs table.
+application detail page in the admin portal. GET /v1/applications/:id/logs
+merges application_audit_logs and signing_audit_logs. Legacy application_logs
+has been dropped.
 
 ================================================================================
 ISSUER PORTAL (User actions)
@@ -90,11 +91,13 @@ kept; admin Send Offer overwrites terms and returns to OFFER_SENT.
 See docs/guides/acceptance-signing-expiry-job.md.
 
 ================================================================================
-EVENT TYPE ENUM (ApplicationLogEventType)
+EVENT TYPE CATALOGUES
 ================================================================================
 
-All event types are defined in apps/api/src/modules/applications/logs/types.ts.
-Use the enum. No level_target_action. No APPLICATION_APPLICATION_* names.
+Application events: APPLICATION_AUDIT_EVENTS
+  apps/api/src/modules/applications/audit/events.ts
+Signing events (including SIGNING_PACKAGE_*): SIGNING_AUDIT_EVENTS
+  apps/api/src/modules/signing/audit/events.ts
 
 ================================================================================
 END

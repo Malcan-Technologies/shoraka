@@ -100,19 +100,18 @@ describe("Signing audit cutover", () => {
     expect(liveSigningSources).not.toMatch(/signingAuditLog\.(update|delete|deleteMany|upsert)/);
   });
 
-  it("has zero live ApplicationLog writers", () => {
+  it("has zero live ApplicationLog writers or readers", () => {
     expect(signing).not.toMatch(/logApplicationActivity/);
     expect(signing).not.toMatch(/applicationLog\.create/);
     expect(ekyc).not.toMatch(/applicationLog\.create/);
     expect(envelopeExpiry).not.toMatch(/applicationLog\.create/);
     expect(offerExpiry).not.toMatch(/applicationLog\.create/);
-    const helper = readSrc("modules/applications/logs/repository.ts");
-    expect(helper).toMatch(/applicationLog\.create/);
-    const live = collectTsSources(["modules", "lib"])
-      .replace(helper, "")
-      .replace(readSrc("modules/applications/logs/service.ts"), "");
-    expect(live).not.toMatch(/prisma\.applicationLog\.create/);
+    expect(fs.existsSync(path.join(srcRoot, "modules/applications/logs/repository.ts"))).toBe(false);
+    expect(fs.existsSync(path.join(srcRoot, "modules/applications/logs/service.ts"))).toBe(false);
+    const live = collectTsSources(["modules", "lib"]);
+    expect(live).not.toMatch(/prisma\.applicationLog/);
     expect(live).not.toMatch(/logApplicationActivity\(/);
+    expect(live).not.toMatch(/createApplicationLog\(/);
   });
 
   it("does not use SigningAuditLog as workflow state", () => {
@@ -158,6 +157,15 @@ describe("Signing audit cutover", () => {
     expect(offerExpiry).toMatch(/OFFER_SIGNING_CLOCK/);
   });
 
+  it("signing envelope log APIs read SigningAuditLog", () => {
+    const adminChunk = methodChunk(signing, "listEnvelopeLogs", 400);
+    const issuerChunk = methodChunk(signing, "listEnvelopeLogsForIssuer", 800);
+    expect(adminChunk).toMatch(/signingAuditLogReader\.listByEnvelopeId/);
+    expect(issuerChunk).toMatch(/signingAuditLogReader\.listByEnvelopeId/);
+    expect(signing).not.toMatch(/applicationLog\.find/);
+    expect(signing).not.toMatch(/applicationAuditLog\.find/);
+  });
+
   it("application timeline merges SigningAuditLog without a canonical table", () => {
     const chunk = methodChunk(applicationService, "getApplicationLogs", 2500);
     expect(chunk).toMatch(/applicationAuditLogReader/);
@@ -190,8 +198,11 @@ describe("Signing audit cutover", () => {
     expect(SECURITY_AUDIT_EVENTS).not.toContain("SIGNING_PACKAGE_CREATED");
   });
 
-  it("legacy ApplicationLog model is retained", () => {
-    expect(schema).toMatch(/model ApplicationLog/);
-    expect(schema).toMatch(/@@map\("application_logs"\)/);
+  it("legacy ApplicationLog model is removed", () => {
+    expect(schema).not.toMatch(/model ApplicationLog/);
+    expect(schema).not.toMatch(/@@map\("application_logs"\)/);
+    expect(schema).toMatch(/model SigningAuditLog/);
+    expect(schema).toMatch(/model ApplicationAuditLog/);
+    expect(schema).toMatch(/model ApplicationReviewEvent/);
   });
 });

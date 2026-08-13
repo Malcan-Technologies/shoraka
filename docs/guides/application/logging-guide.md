@@ -27,54 +27,25 @@ of events. Each event has an icon, a label, who did it, and when.
 2. WHERE ARE LOGS STORED?
 ================================================================================
 
-Logs are stored in a database table called application_logs.
+Application/review/contract/invoice history is stored in application_audit_logs
+(ApplicationAuditLog). Signing history is stored in signing_audit_logs
+(SigningAuditLog). Legacy application_logs has been dropped.
 
-The table has these columns:
+GET /v1/applications/:id/logs merges both tables for the timeline. It is a
+reader projection, not a store, and not workflow state.
 
-  Column name         What it stores
-  ------------------- ---------------------------------------------------------
-  id                  A unique ID for this log row. Like a serial number.
-  user_id             The ID of the person who did the action. Required.
-  application_id      The ID of the application. Can be empty for some events.
-  event_type          A short code that says what happened. Examples:
-                      APPLICATION_CREATED, APPLICATION_SUBMITTED, etc.
-  remark              A human-readable note. Shown when you click "View details".
-  metadata            Extra data in JSON. Things like scope_key, actor name,
-                      offered facility, invoice number. The API adds actor names
-                      from the users table when you read logs.
-  level               Old field. APPLICATION, TAB, or ITEM. Deprecated.
-  target              Old field. APPLICATION, FINANCIAL, CONTRACT, etc. Deprecated.
-  action              Old field. CREATED, SUBMITTED, APPROVED, etc. Deprecated.
-  entity_id           Optional. ID of a related thing, e.g. an invoice.
-  portal              Where the action came from. ISSUER or ADMIN.
-  review_cycle        Optional. Which review round. A number.
-  ip_address          Optional. IP address of the user.
-  user_agent          Optional. Browser info.
-  device_info         Optional. Device info.
-  created_at          When the log was created. Set automatically.
-
-The event_type is the main thing. The UI uses it to pick the icon, label, and
-color. level, target, and action are old. We use event_type only now.
+Event catalogues:
+  APPLICATION_AUDIT_EVENTS  apps/api/src/modules/applications/audit/events.ts
+  SIGNING_AUDIT_EVENTS      apps/api/src/modules/signing/audit/events.ts
 
 ================================================================================
 3. HOW DOES A LOG GET CREATED?
 ================================================================================
 
-When something happens in the app, the code calls a function to create a log.
-The function is createApplicationLog. It lives in the logs repository.
+Application-domain code calls writeApplicationAuditLog.
+Signing-domain code calls writeSigningAuditLog.
 
-The code passes:
-  - user_id (who did it)
-  - application_id (which application)
-  - event_type (what happened)
-  - remark (optional note)
-  - portal (ISSUER or ADMIN)
-  - metadata (optional extra data)
-
-The function inserts a new row into application_logs. That is it.
-
-Logging never blocks the main flow. If logging fails, the app still works.
-The error is swallowed so the user does not see it.
+There is no logApplicationActivity or createApplicationLog helper.
 
 ================================================================================
 4. HOW DOES THE TIMELINE GET THE LOGS?
@@ -84,15 +55,14 @@ The admin frontend calls an API: GET /v1/applications/:id/logs
 
 The API:
   1. Checks that the user can see this application
-  2. Queries application_logs where application_id matches
-  3. Orders by created_at descending (newest first)
-  4. Fetches user names from the users table
-  5. Adds actorName to each log's metadata
-  6. Returns the list
+  2. Reads ApplicationAuditLog and SigningAuditLog for that application
+  3. Merges them newest-first
+  4. Returns the list
 
-The frontend hook useApplicationLogs fetches this. The timeline component
-renders each log with an icon, label, actor, and time. If there is a remark
-or offer details, a "View details" button shows them.
+The frontend hook useApplicationLogs fetches this. The name is preserved
+public/API naming; it is not the deleted Prisma ApplicationLog model.
+
+The timeline component renders each log with an icon, label, actor, and time.
 
 ================================================================================
 5. FULL SCENARIO — ISSUER CREATES AND SUBMITS
@@ -319,40 +289,11 @@ When the last offer (contract or invoice) is accepted, the application is done.
   Where it shows: Activity timeline
 
 ================================================================================
-12. ALL EVENT TYPES (ENUM)
+12. ALL EVENT TYPES
 ================================================================================
 
-These are in apps/api/src/modules/applications/logs/types.ts.
-Use the enum. Do not invent new strings.
-
-  APPLICATION_CREATED
-  APPLICATION_SUBMITTED
-  APPLICATION_RESUBMITTED
-  APPLICATION_APPROVED
-  APPLICATION_REJECTED
-  APPLICATION_WITHDRAWN
-  APPLICATION_COMPLETED
-  APPLICATION_RESET_TO_UNDER_REVIEW
-  SECTION_REVIEWED_APPROVED
-  SECTION_REVIEWED_REJECTED
-  SECTION_REVIEWED_AMENDMENT_REQUESTED
-  SECTION_REVIEWED_PENDING
-  ITEM_REVIEWED_APPROVED
-  ITEM_REVIEWED_REJECTED
-  ITEM_REVIEWED_AMENDMENT_REQUESTED
-  ITEM_REVIEWED_PENDING
-  CONTRACT_OFFER_SENT
-  CONTRACT_OFFER_ACCEPTED
-  CONTRACT_OFFER_REJECTED
-  CONTRACT_OFFER_RETRACTED
-  CONTRACT_WITHDRAWN
-  INVOICE_OFFER_SENT
-  INVOICE_OFFER_ACCEPTED
-  INVOICE_OFFER_REJECTED
-  INVOICE_OFFER_RETRACTED
-  INVOICE_WITHDRAWN
-  OFFER_EXPIRED
-  AMENDMENTS_SUBMITTED
+Use APPLICATION_AUDIT_EVENTS and SIGNING_AUDIT_EVENTS. Do not invent new strings.
+SIGNING_PACKAGE_* belong to SigningAuditLog.
 
 ================================================================================
 13. KEY FILES
@@ -360,10 +301,11 @@ Use the enum. Do not invent new strings.
 
   Purpose                      File
   ---------------------------- --------------------------------------------------
-  Database table definition    apps/api/prisma/schema.prisma (ApplicationLog)
-  Log creation                 apps/api/src/modules/applications/logs/repository.ts
-  Log types and enum           apps/api/src/modules/applications/logs/types.ts
-  Log service wrapper          apps/api/src/modules/applications/logs/service.ts
+  Application audit table      apps/api/prisma/schema.prisma (ApplicationAuditLog)
+  Signing audit table          apps/api/prisma/schema.prisma (SigningAuditLog)
+  Application writer           apps/api/src/modules/applications/audit/writer.ts
+  Signing writer               apps/api/src/modules/signing/audit/writer.ts
+  Merged timeline API          apps/api/src/modules/applications/service.ts
   API route                    apps/api/src/modules/applications/controller.ts
   Frontend hook                apps/admin/src/hooks/use-application-logs.ts
   Timeline component           apps/admin/src/components/admin-activity-timeline.tsx

@@ -90,7 +90,7 @@ The active issuer financing flow uses these Prisma models:
 - `Invoice` stores `details`, `offer_details`, `status`, and SigningCloud metadata.
 - `ApplicationReview`, `ApplicationReviewItem`, `ApplicationReviewRemark`, and `ApplicationReviewEvent` store admin review state and reviewer actions.
 - `ApplicationRevision` stores submitted snapshots by review cycle.
-- `ApplicationLog` stores issuer/admin activity timeline events.
+- `ApplicationAuditLog` stores issuer/admin application/review/contract/invoice history. `SigningAuditLog` stores signing history. `GET /v1/applications/:id/logs` merges both.
 
 Post-origination note schema:
 
@@ -212,7 +212,7 @@ Admin review uses section-level and item-level review records:
 - Invoice and document items use `ApplicationReviewItem`.
 - Reviewer remarks use `ApplicationReviewRemark`.
 - Review events use `ApplicationReviewEvent`.
-- Activity timeline entries use `ApplicationLog`.
+- Activity timeline entries use the merged `ApplicationAuditLog` + `SigningAuditLog` reader.
 
 Review section policy:
 
