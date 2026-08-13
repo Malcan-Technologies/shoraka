@@ -36,7 +36,8 @@ import {
 import {
   LEGAL_DOCUMENT_TYPE_LABELS,
   LEGAL_DOCUMENT_TYPES,
-  type LegalDocumentAuditLogListItem,
+  type LegalAdminAuditEventType,
+  type LegalAdminAuditLogListItem,
   type LegalDocumentType,
 } from "@cashsouk/types";
 import {
@@ -56,15 +57,15 @@ const LEGAL_TYPES = LEGAL_DOCUMENT_TYPES.map((value) => ({
   label: LEGAL_DOCUMENT_TYPE_LABELS[value],
 }));
 
-const ACTION_OPTIONS = [
+const ACTION_OPTIONS: { value: LegalAdminAuditEventType; label: string }[] = [
   { value: "LEGAL_DOCUMENT_CREATED", label: "Document created" },
   { value: "LEGAL_DOCUMENT_UPDATED", label: "Document updated" },
-  { value: "LEGAL_VERSION_UPLOADED", label: "Version uploaded" },
-  { value: "LEGAL_VERSION_FILE_REPLACED", label: "Version file replaced" },
-  { value: "LEGAL_VERSION_PUBLISHED", label: "Version published" },
-  { value: "LEGAL_VERSION_ARCHIVED", label: "Version archived" },
-  { value: "LEGAL_VERSION_RESTORED", label: "Version restored" },
-] as const;
+  { value: "LEGAL_DOCUMENT_VERSION_UPLOADED", label: "Version uploaded" },
+  { value: "LEGAL_DOCUMENT_VERSION_FILE_REPLACED", label: "Version file replaced" },
+  { value: "LEGAL_DOCUMENT_VERSION_PUBLISHED", label: "Version published" },
+  { value: "LEGAL_DOCUMENT_VERSION_ARCHIVED", label: "Version archived" },
+  { value: "LEGAL_DOCUMENT_VERSION_RESTORED", label: "Version restored" },
+];
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleString("en-MY", {
@@ -77,8 +78,18 @@ function formatDate(dateStr: string): string {
   });
 }
 
-function actionLabel(action: string): string {
-  return ACTION_OPTIONS.find((option) => option.value === action)?.label ?? action;
+function actionLabel(eventType: string): string {
+  return ACTION_OPTIONS.find((option) => option.value === eventType)?.label ?? eventType;
+}
+
+function metadataString(metadata: Record<string, unknown>, key: string): string | null {
+  const value = metadata[key];
+  return typeof value === "string" ? value : null;
+}
+
+function metadataNumber(metadata: Record<string, unknown>, key: string): number | null {
+  const value = metadata[key];
+  return typeof value === "number" ? value : null;
 }
 
 function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
@@ -95,7 +106,7 @@ function AuditLogDetailSheet({
   open,
   onOpenChange,
 }: {
-  log: LegalDocumentAuditLogListItem | null;
+  log: LegalAdminAuditLogListItem | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -111,33 +122,42 @@ function AuditLogDetailSheet({
           <div className="mt-6 space-y-6">
             <div className="grid gap-4 sm:grid-cols-2">
               <DetailField label="Audit ID" value={log.id} />
-              <DetailField label="Action" value={actionLabel(log.action)} />
-              <DetailField label="Timestamp" value={formatDate(log.createdAt)} />
-              <DetailField label="Document type" value={log.documentType ?? "—"} />
-              <DetailField label="Version" value={log.versionNumber != null ? `v${log.versionNumber}` : "—"} />
-              <DetailField label="Document hash" value={log.documentHash} />
+              <DetailField label="Event" value={actionLabel(log.eventType)} />
+              <DetailField label="Timestamp" value={formatDate(log.occurredAt)} />
+              <DetailField
+                label="Document type"
+                value={metadataString(log.metadata, "documentType") ?? "—"}
+              />
+              <DetailField
+                label="Version"
+                value={
+                  metadataNumber(log.metadata, "versionNumber") != null
+                    ? `v${metadataNumber(log.metadata, "versionNumber")}`
+                    : "—"
+                }
+              />
+              <DetailField
+                label="File hash"
+                value={metadataString(log.metadata, "fileHash")}
+              />
               <DetailField label="Legal document ID" value={log.legalDocumentId} />
               <DetailField label="Version ID" value={log.legalDocumentVersionId} />
-              <DetailField label="Actor" value={log.actorName} />
-              <DetailField label="Actor email" value={log.actorEmail} />
-              <DetailField label="Actor user ID" value={log.actorUserId} />
+              <DetailField label="Actor" value={log.actor.displayName} />
+              <DetailField label="Actor email" value={log.actor.email} />
+              <DetailField label="Actor user ID" value={log.actor.userId} />
               <DetailField label="IP address" value={log.ipAddress} />
               <DetailField label="User agent" value={log.userAgent} />
               <DetailField label="Correlation ID" value={log.correlationId} />
-              <DetailField label="Reason" value={log.reason} />
+              <DetailField
+                label="Reason"
+                value={metadataString(log.metadata, "reasonCode")}
+              />
             </div>
 
             <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">Before state</p>
+              <p className="text-xs font-medium text-muted-foreground">Metadata</p>
               <pre className="max-h-48 overflow-auto rounded-lg border bg-muted/30 p-3 text-xs">
-                {log.beforeJson ? JSON.stringify(log.beforeJson, null, 2) : "—"}
-              </pre>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">After state</p>
-              <pre className="max-h-48 overflow-auto rounded-lg border bg-muted/30 p-3 text-xs">
-                {log.afterJson ? JSON.stringify(log.afterJson, null, 2) : "—"}
+                {JSON.stringify(log.metadata, null, 2)}
               </pre>
             </div>
           </div>
@@ -158,7 +178,7 @@ export function LegalDocumentAuditPanel() {
   const [dateFrom, setDateFrom] = React.useState("");
   const [dateTo, setDateTo] = React.useState("");
   const [exporting, setExporting] = React.useState(false);
-  const [selectedLog, setSelectedLog] = React.useState<LegalDocumentAuditLogListItem | null>(null);
+  const [selectedLog, setSelectedLog] = React.useState<LegalAdminAuditLogListItem | null>(null);
   const [detailOpen, setDetailOpen] = React.useState(false);
 
   const apiParams = React.useMemo((): LegalDocumentAuditLogsParams => {
@@ -371,19 +391,23 @@ export function LegalDocumentAuditPanel() {
               logs.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                    {formatDate(row.createdAt)}
+                    {formatDate(row.occurredAt)}
                   </TableCell>
-                  <TableCell className="text-sm">{actionLabel(row.action)}</TableCell>
+                  <TableCell className="text-sm">{actionLabel(row.eventType)}</TableCell>
                   <TableCell className="max-w-[200px] truncate text-sm">
-                    {row.documentType
-                      ? LEGAL_DOCUMENT_TYPE_LABELS[row.documentType]
-                      : (row.legalDocumentId ?? "—")}
+                    {metadataString(row.metadata, "documentType")
+                      ? LEGAL_DOCUMENT_TYPE_LABELS[
+                          metadataString(row.metadata, "documentType") as LegalDocumentType
+                        ]
+                      : row.legalDocumentId}
                   </TableCell>
                   <TableCell className="text-sm tabular-nums">
-                    {row.versionNumber != null ? `v${row.versionNumber}` : "—"}
+                    {metadataNumber(row.metadata, "versionNumber") != null
+                      ? `v${metadataNumber(row.metadata, "versionNumber")}`
+                      : "—"}
                   </TableCell>
                   <TableCell className="max-w-[160px] truncate text-sm">
-                    {row.actorName ?? row.actorEmail ?? "—"}
+                    {row.actor.displayName ?? row.actor.email ?? "—"}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {row.ipAddress ?? "—"}

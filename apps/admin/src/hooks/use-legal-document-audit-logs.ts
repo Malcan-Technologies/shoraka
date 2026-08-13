@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type {
-  LegalDocumentAuditAction,
-  LegalDocumentAuditLogListItem,
+  LegalAdminAuditEventType,
+  LegalAdminAuditLogListItem,
   LegalDocumentType,
 } from "@cashsouk/types";
 
@@ -12,7 +12,7 @@ export interface LegalDocumentAuditLogsParams {
   page: number;
   pageSize?: number;
   search?: string;
-  action?: LegalDocumentAuditAction;
+  action?: LegalAdminAuditEventType;
   documentType?: LegalDocumentType;
   legalDocumentId?: string;
   actorUserId?: string;
@@ -21,7 +21,7 @@ export interface LegalDocumentAuditLogsParams {
 }
 
 type ListResponse = {
-  logs: LegalDocumentAuditLogListItem[];
+  logs: LegalAdminAuditLogListItem[];
   pagination: {
     page: number;
     pageSize: number;

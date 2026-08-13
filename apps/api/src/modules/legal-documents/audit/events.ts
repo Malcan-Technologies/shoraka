@@ -1,0 +1,46 @@
+export const LEGAL_ADMIN_AUDIT_EVENTS = [
+  "LEGAL_DOCUMENT_CREATED",
+  "LEGAL_DOCUMENT_UPDATED",
+  "LEGAL_DOCUMENT_VERSION_UPLOADED",
+  "LEGAL_DOCUMENT_VERSION_FILE_REPLACED",
+  "LEGAL_DOCUMENT_VERSION_PUBLISHED",
+  "LEGAL_DOCUMENT_VERSION_ARCHIVED",
+  "LEGAL_DOCUMENT_VERSION_RESTORED",
+] as const;
+
+export type LegalAdminAuditEventType = (typeof LEGAL_ADMIN_AUDIT_EVENTS)[number];
+
+export const LEGAL_ADMIN_AUDIT_TARGET_TYPE = {
+  LEGAL_DOCUMENT: "LEGAL_DOCUMENT",
+  LEGAL_DOCUMENT_VERSION: "LEGAL_DOCUMENT_VERSION",
+} as const;
+
+export type LegalAdminAuditTargetType =
+  (typeof LEGAL_ADMIN_AUDIT_TARGET_TYPE)[keyof typeof LEGAL_ADMIN_AUDIT_TARGET_TYPE];
+
+export const LEGAL_ADMIN_AUDIT_ACTOR_TYPE = {
+  ADMIN: "ADMIN",
+} as const;
+
+export const LEGAL_ADMIN_AUDIT_SOURCE = {
+  API: "API",
+} as const;
+
+export const LEGAL_ADMIN_AUDIT_PORTAL = {
+  ADMIN: "ADMIN",
+} as const;
+
+export const LEGAL_ADMIN_ARCHIVE_REASON = {
+  AUTO_ARCHIVED_ON_PUBLISH: "AUTO_ARCHIVED_ON_PUBLISH",
+  AUTO_ARCHIVED_ON_RESTORE_PUBLISH: "AUTO_ARCHIVED_ON_RESTORE_PUBLISH",
+} as const;
+
+export type LegalAdminArchiveReasonCode =
+  (typeof LEGAL_ADMIN_ARCHIVE_REASON)[keyof typeof LEGAL_ADMIN_ARCHIVE_REASON];
+
+export type LegalAdminAuditActorType =
+  (typeof LEGAL_ADMIN_AUDIT_ACTOR_TYPE)[keyof typeof LEGAL_ADMIN_AUDIT_ACTOR_TYPE];
+export type LegalAdminAuditSource =
+  (typeof LEGAL_ADMIN_AUDIT_SOURCE)[keyof typeof LEGAL_ADMIN_AUDIT_SOURCE];
+export type LegalAdminAuditPortal =
+  (typeof LEGAL_ADMIN_AUDIT_PORTAL)[keyof typeof LEGAL_ADMIN_AUDIT_PORTAL];

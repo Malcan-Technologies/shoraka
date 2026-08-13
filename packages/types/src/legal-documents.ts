@@ -232,33 +232,40 @@ export interface LegalDocumentAcceptanceDetail extends LegalDocumentAcceptanceLi
   fileSize: number | null;
 }
 
-export type LegalDocumentAuditAction =
-  | "LEGAL_DOCUMENT_CREATED"
-  | "LEGAL_DOCUMENT_UPDATED"
-  | "LEGAL_VERSION_UPLOADED"
-  | "LEGAL_VERSION_FILE_REPLACED"
-  | "LEGAL_VERSION_PUBLISHED"
-  | "LEGAL_VERSION_ARCHIVED"
-  | "LEGAL_VERSION_RESTORED";
+export const LEGAL_ADMIN_AUDIT_EVENTS = [
+  "LEGAL_DOCUMENT_CREATED",
+  "LEGAL_DOCUMENT_UPDATED",
+  "LEGAL_DOCUMENT_VERSION_UPLOADED",
+  "LEGAL_DOCUMENT_VERSION_FILE_REPLACED",
+  "LEGAL_DOCUMENT_VERSION_PUBLISHED",
+  "LEGAL_DOCUMENT_VERSION_ARCHIVED",
+  "LEGAL_DOCUMENT_VERSION_RESTORED",
+] as const;
 
-export interface LegalDocumentAuditLogListItem {
+export type LegalAdminAuditEventType = (typeof LEGAL_ADMIN_AUDIT_EVENTS)[number];
+
+export type LegalAdminAuditActorDto = {
+  type: string;
+  userId: string | null;
+  displayName: string | null;
+  email: string | null;
+};
+
+export interface LegalAdminAuditLogListItem {
   id: string;
-  action: LegalDocumentAuditAction;
-  legalDocumentId: string | null;
+  eventType: LegalAdminAuditEventType;
+  occurredAt: string;
+  createdAt: string;
+  actor: LegalAdminAuditActorDto;
+  target: { type: string; id: string };
+  legalDocumentId: string;
   legalDocumentVersionId: string | null;
-  documentType: LegalDocumentType | null;
-  versionNumber: number | null;
-  documentHash: string | null;
-  actorUserId: string | null;
-  actorName: string | null;
-  actorEmail: string | null;
-  beforeJson: Record<string, unknown> | null;
-  afterJson: Record<string, unknown> | null;
-  reason: string | null;
+  source: string;
+  portal: string | null;
   ipAddress: string | null;
   userAgent: string | null;
   correlationId: string | null;
-  createdAt: string;
+  metadata: Record<string, unknown>;
 }
 
 export interface RequiredLegalDocumentResponse {

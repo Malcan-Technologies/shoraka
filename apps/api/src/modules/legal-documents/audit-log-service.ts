@@ -4,11 +4,13 @@ import { Prisma } from "@prisma/client";
 import type { LegalDocumentType } from "@cashsouk/types";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { prisma } from "../../lib/prisma";
-import type { LegalDocumentAuditAction } from "./schemas";
+
+/** Legacy writer for LegalDocumentAuditLog. Unused after LegalAdminAuditLog cutover. */
+type LegacyLegalDocumentAuditAction = string;
 
 export type RecordLegalDocumentAuditInput = {
   req: Request;
-  action: LegalDocumentAuditAction;
+  action: LegacyLegalDocumentAuditAction;
   actorUserId: string;
   legalDocumentId?: string | null;
   legalDocumentVersionId?: string | null;

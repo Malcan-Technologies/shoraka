@@ -8,6 +8,8 @@ import type {
   UpdateVersionInput,
 } from "./schemas";
 
+type DbClient = Prisma.TransactionClient | typeof prisma;
+
 export type LegalDocumentRow = {
   id: string;
   type: LegalDocumentTypeValue;
@@ -100,8 +102,8 @@ export class LegalDocumentRepository {
     })) as LegalDocumentRow | null;
   }
 
-  async create(input: CreateLegalDocumentInput) {
-    return (await prisma.legalDocument.create({
+  async create(input: CreateLegalDocumentInput, client: DbClient = prisma) {
+    return (await client.legalDocument.create({
       data: {
         type: input.type,
         title: input.title,
@@ -117,8 +119,8 @@ export class LegalDocumentRepository {
     })) as LegalDocumentWithVersions;
   }
 
-  async update(id: string, input: UpdateLegalDocumentInput) {
-    return (await prisma.legalDocument.update({
+  async update(id: string, input: UpdateLegalDocumentInput, client: DbClient = prisma) {
+    return (await client.legalDocument.update({
       where: { id },
       data: {
         ...(input.title !== undefined && { title: input.title }),
@@ -166,9 +168,10 @@ export class LegalDocumentRepository {
       fileSize: number;
       fileHash: string;
     },
-    uploadedBy: string
+    uploadedBy: string,
+    client: DbClient = prisma
   ) {
-    return (await prisma.legalDocumentVersion.create({
+    return (await client.legalDocumentVersion.create({
       data: {
         legal_document_id: legalDocumentId,
         version,
@@ -200,9 +203,10 @@ export class LegalDocumentRepository {
       contentType: string;
       fileSize: number;
       fileHash: string;
-    }
+    },
+    client: DbClient = prisma
   ) {
-    return (await prisma.legalDocumentVersion.update({
+    return (await client.legalDocumentVersion.update({
       where: { id: versionId },
       data: {
         s3_key: input.s3Key,
@@ -235,81 +239,82 @@ export class LegalDocumentRepository {
     versionId: string,
     legalDocumentId: string,
     publishedBy: string,
-    reacceptanceRequired: boolean
+    reacceptanceRequired: boolean,
+    client: Prisma.TransactionClient
   ) {
-    return prisma.$transaction(async (tx) => {
-      // Serialize publish/restore/archive against the same definition.
-      await tx.$queryRaw`
-        SELECT id FROM legal_documents WHERE id = ${legalDocumentId} FOR UPDATE
-      `;
+    // Serialize publish/restore/archive against the same definition.
+    await client.$queryRaw`
+      SELECT id FROM legal_documents WHERE id = ${legalDocumentId} FOR UPDATE
+    `;
 
-      // Only one active Published version may exist. Archive every other Published row.
-      await tx.legalDocumentVersion.updateMany({
-        where: {
-          legal_document_id: legalDocumentId,
-          status: "PUBLISHED",
-          id: { not: versionId },
-        },
-        data: {
-          status: "ARCHIVED",
-          archived_by: publishedBy,
-          archived_at: new Date(),
-        },
-      });
-
-      const published = (await tx.legalDocumentVersion.update({
-        where: { id: versionId },
-        data: {
-          status: "PUBLISHED",
-          reacceptance_required: reacceptanceRequired,
-          published_by: publishedBy,
-          published_at: new Date(),
-          archived_by: null,
-          archived_at: null,
-        },
-        include: { legal_document: true },
-      })) as VersionWithDocument;
-
-      const activeCount = await tx.legalDocumentVersion.count({
-        where: {
-          legal_document_id: legalDocumentId,
-          status: "PUBLISHED",
-        },
-      });
-      if (activeCount !== 1) {
-        throw new Error(
-          `Publish integrity failed: expected exactly 1 PUBLISHED version, found ${activeCount}`
-        );
-      }
-
-      return published;
+    // Only one active Published version may exist. Archive every other Published row.
+    await client.legalDocumentVersion.updateMany({
+      where: {
+        legal_document_id: legalDocumentId,
+        status: "PUBLISHED",
+        id: { not: versionId },
+      },
+      data: {
+        status: "ARCHIVED",
+        archived_by: publishedBy,
+        archived_at: new Date(),
+      },
     });
+
+    const published = (await client.legalDocumentVersion.update({
+      where: { id: versionId },
+      data: {
+        status: "PUBLISHED",
+        reacceptance_required: reacceptanceRequired,
+        published_by: publishedBy,
+        published_at: new Date(),
+        archived_by: null,
+        archived_at: null,
+      },
+      include: { legal_document: true },
+    })) as VersionWithDocument;
+
+    const activeCount = await client.legalDocumentVersion.count({
+      where: {
+        legal_document_id: legalDocumentId,
+        status: "PUBLISHED",
+      },
+    });
+    if (activeCount !== 1) {
+      throw new Error(
+        `Publish integrity failed: expected exactly 1 PUBLISHED version, found ${activeCount}`
+      );
+    }
+
+    return published;
   }
 
-  async archiveVersion(versionId: string, archivedBy: string) {
-    return prisma.$transaction(async (tx) => {
-      const existing = await tx.legalDocumentVersion.findUnique({
-        where: { id: versionId },
-        select: { legal_document_id: true, status: true },
-      });
-      if (!existing) {
-        throw new Error("Legal document version not found");
-      }
-
-      await tx.$queryRaw`
-        SELECT id FROM legal_documents WHERE id = ${existing.legal_document_id} FOR UPDATE
-      `;
-
-      return (await tx.legalDocumentVersion.update({
-        where: { id: versionId },
-        data: {
-          status: "ARCHIVED",
-          archived_by: archivedBy,
-          archived_at: new Date(),
-        },
-        include: { legal_document: true },
-      })) as VersionWithDocument;
+  async archiveVersion(
+    versionId: string,
+    archivedBy: string,
+    client: Prisma.TransactionClient
+  ) {
+    const existing = await client.legalDocumentVersion.findUnique({
+      where: { id: versionId },
+      select: { legal_document_id: true, status: true },
     });
+    if (!existing) {
+      throw new Error("Legal document version not found");
+    }
+
+    await client.$queryRaw`
+      SELECT id FROM legal_documents WHERE id = ${existing.legal_document_id} FOR UPDATE
+    `;
+
+    return (await client.legalDocumentVersion.update({
+      where: { id: versionId },
+      data: {
+        status: "ARCHIVED",
+        archived_by: archivedBy,
+        archived_at: new Date(),
+      },
+      include: { legal_document: true },
+    })) as VersionWithDocument;
   }
 
   async findDraftByDocumentId(legalDocumentId: string) {
@@ -334,8 +339,12 @@ export class LegalDocumentRepository {
     })) as VersionWithDocument | null;
   }
 
-  async findAllPublishedByDocumentId(legalDocumentId: string, excludeVersionId?: string) {
-    return prisma.legalDocumentVersion.findMany({
+  async findAllPublishedByDocumentId(
+    legalDocumentId: string,
+    excludeVersionId?: string,
+    client: DbClient = prisma
+  ) {
+    return client.legalDocumentVersion.findMany({
       where: {
         legal_document_id: legalDocumentId,
         status: "PUBLISHED",
@@ -345,12 +354,15 @@ export class LegalDocumentRepository {
         id: true,
         version: true,
         file_hash: true,
+        file_name: true,
+        content_type: true,
+        file_size: true,
       },
     });
   }
 
-  async restoreVersionToDraft(versionId: string) {
-    return (await prisma.legalDocumentVersion.update({
+  async restoreVersionToDraft(versionId: string, client: DbClient = prisma) {
+    return (await client.legalDocumentVersion.update({
       where: { id: versionId },
       data: {
         status: "DRAFT",

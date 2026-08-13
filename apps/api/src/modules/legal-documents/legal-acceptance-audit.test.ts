@@ -7,7 +7,7 @@ jest.mock("../../lib/prisma", () => ({
   prisma: {
     issuerOrganization: { findFirst: jest.fn(), findMany: jest.fn() },
     investorOrganization: { findFirst: jest.fn(), findMany: jest.fn() },
-    user: { findUnique: jest.fn(), delete: jest.fn() },
+    user: { findUnique: jest.fn(), delete: jest.fn(), findMany: jest.fn() },
     legalDocument: { findUnique: jest.fn(), create: jest.fn(), update: jest.fn() },
     legalDocumentVersion: { findFirst: jest.fn(), findMany: jest.fn() },
     legalDocumentAcceptance: {
@@ -19,6 +19,11 @@ jest.mock("../../lib/prisma", () => ({
       update: jest.fn(),
     },
     legalDocumentAuditLog: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+    },
+    legalAdminAuditLog: {
       create: jest.fn(),
       findMany: jest.fn(),
       count: jest.fn(),
@@ -56,6 +61,7 @@ import { prisma } from "../../lib/prisma";
 import { legalDocumentAcceptanceAdminService } from "./acceptance-admin-service";
 import { legalDocumentAcceptanceService } from "./acceptance-service";
 import { legalDocumentAuditAdminService } from "./audit-admin-service";
+import { auditContextForActor } from "./audit/context";
 import { legalDocumentRepository } from "./repository";
 import { legalDocumentService } from "./service";
 
@@ -121,6 +127,16 @@ function publishedVersion(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function adminContext() {
+  return auditContextForActor(adminReq, "admin1");
+}
+
+function auditCreateData() {
+  return (prisma.legalAdminAuditLog.create as jest.Mock).mock.calls.map(
+    ([arg]: [{ data: Record<string, unknown> }]) => arg.data
+  );
+}
+
 function issuerOrg() {
   return {
     id: "org1",
@@ -142,7 +158,8 @@ describe("legal acceptance audit trail", () => {
     });
     (prisma.issuerOrganization.findMany as jest.Mock).mockResolvedValue([]);
     (prisma.investorOrganization.findMany as jest.Mock).mockResolvedValue([]);
-    (prisma.legalDocumentAuditLog.create as jest.Mock).mockResolvedValue({ id: "audit1" });
+    (prisma.legalAdminAuditLog.create as jest.Mock).mockResolvedValue({ id: "audit1" });
+    (prisma.$transaction as jest.Mock).mockImplementation(async (fn) => fn(prisma));
     jest.spyOn(legalDocumentRepository, "findAllPublishedByDocumentId").mockResolvedValue([]);
   });
 
@@ -374,7 +391,7 @@ describe("legal acceptance audit trail", () => {
   });
 
   describe("admin audit log", () => {
-    it("create document writes audit row", async () => {
+    it("create document writes audit row in the same transaction", async () => {
       jest.spyOn(legalDocumentRepository, "findByType").mockResolvedValue(null);
       jest.spyOn(legalDocumentRepository, "create").mockResolvedValue({
         id: "ld-new",
@@ -398,25 +415,36 @@ describe("legal acceptance audit trail", () => {
           publicVisibility: false,
           showInAccount: false,
         },
-        "admin1",
-        adminReq
+        adminContext()
       );
 
-      expect(prisma.legalDocumentAuditLog.create).toHaveBeenCalledWith(
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(prisma.legalAdminAuditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            action: "LEGAL_DOCUMENT_CREATED",
+            event_type: "LEGAL_DOCUMENT_CREATED",
+            actor_type: "ADMIN",
             actor_user_id: "admin1",
-            after_json: expect.objectContaining({
-              required_for_onboarding: true,
-              public_visibility: false,
+            source: "API",
+            portal: "ADMIN",
+            organization_id: null,
+            organization_kind: null,
+            target_type: "LEGAL_DOCUMENT",
+            target_id: "ld-new",
+            metadata: expect.objectContaining({
+              documentType: "TERMS_OF_USE",
+              requiredForOnboarding: true,
+              publicVisibility: false,
+              actorName: "Owner User",
+              actorEmail: "owner@example.com",
             }),
           }),
         })
       );
+      expect(prisma.legalDocumentAuditLog.create).not.toHaveBeenCalled();
     });
 
-    it("update required_for_onboarding captures before/after", async () => {
+    it("update requiredForOnboarding captures camelCase before/after", async () => {
       jest.spyOn(legalDocumentRepository, "findById").mockResolvedValue({
         id: "ld1",
         type: "TERMS_OF_USE",
@@ -445,28 +473,92 @@ describe("legal acceptance audit trail", () => {
       await legalDocumentService.updateDefinition(
         "ld1",
         { requiredForOnboarding: false },
-        "admin1",
-        adminReq
+        adminContext()
       );
 
-      expect(prisma.legalDocumentAuditLog.create).toHaveBeenCalledWith(
+      expect(prisma.legalAdminAuditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            action: "LEGAL_DOCUMENT_UPDATED",
-            before_json: { required_for_onboarding: true },
-            after_json: { required_for_onboarding: false },
+            event_type: "LEGAL_DOCUMENT_UPDATED",
+            metadata: expect.objectContaining({
+              changedFields: ["requiredForOnboarding"],
+              before: { requiredForOnboarding: true },
+              after: { requiredForOnboarding: false },
+            }),
           }),
         })
       );
+    });
+
+    it("no-op update writes no audit row", async () => {
+      jest.spyOn(legalDocumentRepository, "findById").mockResolvedValue({
+        id: "ld1",
+        type: "TERMS_OF_USE",
+        title: "Terms",
+        description: null,
+        audience: "BOTH",
+        required_for_onboarding: true,
+        public_visibility: false,
+        show_in_account: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as never);
+
+      await legalDocumentService.updateDefinition(
+        "ld1",
+        { requiredForOnboarding: true },
+        adminContext()
+      );
+
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.legalAdminAuditLog.create).not.toHaveBeenCalled();
+    });
+
+    it("audit insert failure rejects the mutation", async () => {
+      jest.spyOn(legalDocumentRepository, "findByType").mockResolvedValue(null);
+      jest.spyOn(legalDocumentRepository, "create").mockResolvedValue({
+        id: "ld-new",
+        type: "TERMS_OF_USE",
+        title: "Terms",
+        description: null,
+        audience: "BOTH",
+        required_for_onboarding: true,
+        public_visibility: false,
+        show_in_account: false,
+        created_at: new Date(),
+        updated_at: new Date(),
+      } as never);
+      (prisma.legalAdminAuditLog.create as jest.Mock).mockRejectedValue(new Error("audit failed"));
+
+      await expect(
+        legalDocumentService.createDefinition(
+          {
+            type: "TERMS_OF_USE",
+            title: "Terms",
+            audience: "BOTH",
+            requiredForOnboarding: true,
+            publicVisibility: false,
+            showInAccount: false,
+          },
+          adminContext()
+        )
+      ).rejects.toThrow("audit failed");
     });
 
     it("publish captures reacceptance flag and auto-archives previous version", async () => {
       jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
         publishedVersion({ id: "ver2", status: "DRAFT", version: 2 }) as never
       );
-      jest
-        .spyOn(legalDocumentRepository, "findAllPublishedByDocumentId")
-        .mockResolvedValue([{ id: "ver1", version: 1, file_hash: "old-hash" }]);
+      jest.spyOn(legalDocumentRepository, "findAllPublishedByDocumentId").mockResolvedValue([
+        {
+          id: "ver1",
+          version: 1,
+          file_hash: "old-hash",
+          file_name: "old.pdf",
+          content_type: "application/pdf",
+          file_size: 100,
+        },
+      ]);
       jest.spyOn(legalDocumentRepository, "publishVersion").mockResolvedValue(
         publishedVersion({
           id: "ver2",
@@ -480,26 +572,32 @@ describe("legal acceptance audit trail", () => {
         "ver2",
         { reacceptanceRequired: true },
         "admin1",
-        adminReq
+        adminContext()
       );
 
-      expect(prisma.legalDocumentAuditLog.create).toHaveBeenCalledWith(
+      const rows = auditCreateData();
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toEqual(
         expect.objectContaining({
-          data: expect.objectContaining({
-            action: "LEGAL_VERSION_PUBLISHED",
-            after_json: expect.objectContaining({
-              reacceptance_required: true,
-              status: "PUBLISHED",
-            }),
+          event_type: "LEGAL_DOCUMENT_VERSION_PUBLISHED",
+          legal_document_version_id: "ver2",
+          correlation_id: "corr-admin",
+          metadata: expect.objectContaining({
+            reacceptanceRequired: true,
+            newStatus: "PUBLISHED",
+            previousStatus: "DRAFT",
           }),
         })
       );
-      expect(prisma.legalDocumentAuditLog.create).toHaveBeenCalledWith(
+      expect(rows[1]).toEqual(
         expect.objectContaining({
-          data: expect.objectContaining({
-            action: "LEGAL_VERSION_ARCHIVED",
-            legal_document_version_id: "ver1",
-            reason: "auto_archived_on_publish",
+          event_type: "LEGAL_DOCUMENT_VERSION_ARCHIVED",
+          legal_document_version_id: "ver1",
+          correlation_id: "corr-admin",
+          metadata: expect.objectContaining({
+            reasonCode: "AUTO_ARCHIVED_ON_PUBLISH",
+            previousStatus: "PUBLISHED",
+            newStatus: "ARCHIVED",
           }),
         })
       );
@@ -519,9 +617,16 @@ describe("legal acceptance audit trail", () => {
       jest.spyOn(legalDocumentRepository, "findPublishedByDocumentId").mockResolvedValue(
         publishedVersion({ id: "ver2", version: 2, status: "PUBLISHED" }) as never
       );
-      jest
-        .spyOn(legalDocumentRepository, "findAllPublishedByDocumentId")
-        .mockResolvedValue([{ id: "ver2", version: 2, file_hash: "ver2-hash" }]);
+      jest.spyOn(legalDocumentRepository, "findAllPublishedByDocumentId").mockResolvedValue([
+        {
+          id: "ver2",
+          version: 2,
+          file_hash: "ver2-hash",
+          file_name: "v2.pdf",
+          content_type: "application/pdf",
+          file_size: 100,
+        },
+      ]);
       jest.spyOn(legalDocumentRepository, "publishVersion").mockResolvedValue(
         publishedVersion({
           id: "ver3",
@@ -529,33 +634,36 @@ describe("legal acceptance audit trail", () => {
           version: 3,
         }) as never
       );
-      (prisma.legalDocumentAuditLog.create as jest.Mock).mockClear();
+      (prisma.legalAdminAuditLog.create as jest.Mock).mockClear();
 
-      await legalDocumentService.restoreVersion("ver3", "admin1", adminReq);
+      await legalDocumentService.restoreVersion("ver3", "admin1", adminContext());
 
-      const archiveCalls = (prisma.legalDocumentAuditLog.create as jest.Mock).mock.calls.filter(
-        ([arg]: [{ data: { action: string } }]) => arg.data.action === "LEGAL_VERSION_ARCHIVED"
-      );
-      expect(archiveCalls).toHaveLength(1);
-      expect(archiveCalls[0][0]).toEqual(
+      const rows = auditCreateData();
+      const archiveRows = rows.filter((row) => row.event_type === "LEGAL_DOCUMENT_VERSION_ARCHIVED");
+      expect(archiveRows).toHaveLength(1);
+      expect(archiveRows[0]).toEqual(
         expect.objectContaining({
-          data: expect.objectContaining({
-            action: "LEGAL_VERSION_ARCHIVED",
-            legal_document_version_id: "ver2",
-            version_number: 2,
-            document_hash: "ver2-hash",
-            before_json: { status: "PUBLISHED" },
-            after_json: { status: "ARCHIVED" },
-            reason: "auto_archived_on_restore_publish",
+          event_type: "LEGAL_DOCUMENT_VERSION_ARCHIVED",
+          legal_document_version_id: "ver2",
+          metadata: expect.objectContaining({
+            versionNumber: 2,
+            fileHash: "ver2-hash",
+            reasonCode: "AUTO_ARCHIVED_ON_RESTORE_PUBLISH",
+            previousStatus: "PUBLISHED",
+            newStatus: "ARCHIVED",
           }),
         })
       );
-
-      expect(prisma.legalDocumentAuditLog.create).toHaveBeenCalledWith(
+      expect(rows.some((row) => row.event_type === "LEGAL_DOCUMENT_VERSION_RESTORED")).toBe(true);
+      expect(
+        rows.find((row) => row.event_type === "LEGAL_DOCUMENT_VERSION_RESTORED")
+      ).toEqual(
         expect.objectContaining({
-          data: expect.objectContaining({
-            action: "LEGAL_VERSION_RESTORED",
-            legal_document_version_id: "ver3",
+          legal_document_version_id: "ver3",
+          metadata: expect.objectContaining({
+            restoredAs: "PUBLISHED",
+            previousStatus: "ARCHIVED",
+            newStatus: "PUBLISHED",
           }),
         })
       );
@@ -577,20 +685,21 @@ describe("legal acceptance audit trail", () => {
       jest.spyOn(legalDocumentRepository, "publishVersion").mockResolvedValue(
         publishedVersion({ id: "ver1", status: "PUBLISHED", version: 1 }) as never
       );
-      (prisma.legalDocumentAuditLog.create as jest.Mock).mockClear();
+      (prisma.legalAdminAuditLog.create as jest.Mock).mockClear();
 
-      await legalDocumentService.restoreVersion("ver1", "admin1", adminReq);
+      await legalDocumentService.restoreVersion("ver1", "admin1", adminContext());
 
-      const archiveCalls = (prisma.legalDocumentAuditLog.create as jest.Mock).mock.calls.filter(
-        ([arg]: [{ data: { action: string } }]) => arg.data.action === "LEGAL_VERSION_ARCHIVED"
+      const rows = auditCreateData();
+      expect(rows.filter((row) => row.event_type === "LEGAL_DOCUMENT_VERSION_ARCHIVED")).toHaveLength(
+        0
       );
-      expect(archiveCalls).toHaveLength(0);
-      expect(prisma.legalDocumentAuditLog.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            action: "LEGAL_VERSION_RESTORED",
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            event_type: "LEGAL_DOCUMENT_VERSION_RESTORED",
+            metadata: expect.objectContaining({ restoredAs: "PUBLISHED" }),
           }),
-        })
+        ])
       );
     });
 
@@ -609,59 +718,73 @@ describe("legal acceptance audit trail", () => {
       jest.spyOn(legalDocumentRepository, "restoreVersionToDraft").mockResolvedValue(
         publishedVersion({ id: "ver1", status: "DRAFT" }) as never
       );
-      (prisma.legalDocumentAuditLog.create as jest.Mock).mockClear();
+      (prisma.legalAdminAuditLog.create as jest.Mock).mockClear();
 
-      await legalDocumentService.restoreVersion("ver1", "admin1", adminReq);
+      await legalDocumentService.restoreVersion("ver1", "admin1", adminContext());
 
-      const archiveCalls = (prisma.legalDocumentAuditLog.create as jest.Mock).mock.calls.filter(
-        ([arg]: [{ data: { action: string } }]) => arg.data.action === "LEGAL_VERSION_ARCHIVED"
+      const rows = auditCreateData();
+      expect(rows.filter((row) => row.event_type === "LEGAL_DOCUMENT_VERSION_ARCHIVED")).toHaveLength(
+        0
       );
-      expect(archiveCalls).toHaveLength(0);
-      expect(prisma.legalDocumentAuditLog.create).toHaveBeenCalledWith(
+      expect(rows[0]).toEqual(
         expect.objectContaining({
-          data: expect.objectContaining({
-            action: "LEGAL_VERSION_RESTORED",
-            after_json: { status: "DRAFT", restored_as: "DRAFT" },
+          event_type: "LEGAL_DOCUMENT_VERSION_RESTORED",
+          metadata: expect.objectContaining({
+            restoredAs: "DRAFT",
+            previousStatus: "ARCHIVED",
+            newStatus: "DRAFT",
           }),
         })
       );
     });
 
     it("lists audit logs for admin export", async () => {
-      const createdAt = new Date("2026-08-01T00:00:00.000Z");
-      (prisma.legalDocumentAuditLog.findMany as jest.Mock).mockResolvedValue([
+      const occurredAt = new Date("2026-08-01T00:00:00.000Z");
+      (prisma.legalAdminAuditLog.findMany as jest.Mock).mockResolvedValue([
         {
           id: "log1",
-          action: "LEGAL_VERSION_PUBLISHED",
           legal_document_id: "ld1",
           legal_document_version_id: "ver2",
-          document_type: "TERMS_OF_USE",
-          version_number: 2,
-          document_hash: "hash2",
+          event_type: "LEGAL_DOCUMENT_VERSION_PUBLISHED",
+          occurred_at: occurredAt,
+          created_at: occurredAt,
+          actor_type: "ADMIN",
           actor_user_id: "admin1",
-          actor_name_snapshot: "Admin User",
-          actor_email_snapshot: "admin@example.com",
-          before_json: { status: "DRAFT" },
-          after_json: { status: "PUBLISHED", reacceptance_required: true },
-          reason: null,
+          organization_id: null,
+          organization_kind: null,
+          target_type: "LEGAL_DOCUMENT_VERSION",
+          target_id: "ver2",
+          source: "API",
+          portal: "ADMIN",
           ip_address: "192.0.2.5",
           user_agent: "AdminAgent/1.0",
           correlation_id: "corr-admin",
-          created_at: createdAt,
+          idempotency_key: null,
+          metadata: {
+            actorName: "Admin User",
+            actorEmail: "admin@example.com",
+            documentType: "TERMS_OF_USE",
+            newStatus: "PUBLISHED",
+            reacceptanceRequired: true,
+          },
         },
       ]);
 
       const logs = await legalDocumentAuditAdminService.export({
-        action: "LEGAL_VERSION_PUBLISHED",
+        action: "LEGAL_DOCUMENT_VERSION_PUBLISHED",
         dateFrom: "2026-01-01",
         dateTo: "2026-12-31",
       });
 
       expect(logs).toHaveLength(1);
-      expect(logs[0]?.afterJson).toEqual({
-        status: "PUBLISHED",
-        reacceptance_required: true,
-      });
+      expect(logs[0]?.eventType).toBe("LEGAL_DOCUMENT_VERSION_PUBLISHED");
+      expect(logs[0]?.actor.displayName).toBe("Admin User");
+      expect(logs[0]?.metadata).toEqual(
+        expect.objectContaining({
+          newStatus: "PUBLISHED",
+          reacceptanceRequired: true,
+        })
+      );
     });
   });
 
