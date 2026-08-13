@@ -78,7 +78,8 @@ import {
   AUDIT_SOURCE,
   type AuditRequestContext,
 } from "../../lib/audit/context";
-import { applicationAuditLogReader } from "./audit/reader";
+import { applicationAuditLogReader, type ApplicationAuditLogDto } from "./audit/reader";
+import { signingAuditLogReader } from "../signing/audit/reader";
 import {
   APPLICATION_AUDIT_TARGET_TYPE,
   issuerApplicationAuditContext,
@@ -952,7 +953,33 @@ export class ApplicationService {
       await this.verifyApplicationAccess(id, userId);
     }
 
-    return applicationAuditLogReader.listByApplicationId(id);
+    const [applicationLogs, signingLogs] = await Promise.all([
+      applicationAuditLogReader.listByApplicationId(id),
+      signingAuditLogReader.listByApplicationId(id),
+    ]);
+
+    const signingAsTimeline: ApplicationAuditLogDto[] = signingLogs.map((log) => ({
+      id: log.id,
+      eventType: log.eventType,
+      occurredAt: log.occurredAt,
+      createdAt: log.createdAt,
+      actor: log.actor,
+      organizationId: log.organizationId,
+      organizationKind: log.organizationKind,
+      target: log.target,
+      source: log.source,
+      portal: log.portal,
+      ipAddress: log.ipAddress,
+      userAgent: log.userAgent,
+      correlationId: log.correlationId,
+      metadata: log.metadata,
+    }));
+
+    return [...applicationLogs, ...signingAsTimeline].sort((a, b) => {
+      const byTime = b.occurredAt.localeCompare(a.occurredAt);
+      if (byTime !== 0) return byTime;
+      return b.id.localeCompare(a.id);
+    });
   }
 
   /**

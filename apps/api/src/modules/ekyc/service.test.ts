@@ -26,6 +26,28 @@ jest.mock("./signingcloud-ekyc", () => ({
   submitSigningCloudEkycResult: (...args: unknown[]) => mockSubmitSigningCloudEkycResult(...args),
 }));
 
+jest.mock("../signing/audit/writer", () => ({
+  writeSigningAuditLog: jest.fn().mockResolvedValue(undefined),
+  publicSignerAuditContext: () => ({
+    actorType: "USER",
+    actorUserId: null,
+    source: "API",
+    portal: "PUBLIC",
+    ipAddress: null,
+    userAgent: null,
+    correlationId: null,
+  }),
+  issuerSigningAuditContext: (userId: string) => ({
+    actorType: "USER",
+    actorUserId: userId,
+    source: "API",
+    portal: "ISSUER",
+    ipAddress: null,
+    userAgent: null,
+    correlationId: null,
+  }),
+}));
+
 jest.mock("./resolve-issuer-ekyc-identity", () => {
   const actual = jest.requireActual<typeof import("./resolve-issuer-ekyc-identity")>(
     "./resolve-issuer-ekyc-identity"
@@ -56,7 +78,7 @@ describe("EkycService.createSession", () => {
       email: workEmail,
     });
     mockUpdate.mockResolvedValue({});
-    mockUpsert.mockResolvedValue({});
+    mockUpsert.mockResolvedValue({ id: "ekyc-row-1" });
     mockGetSigningCloudEkycSession.mockResolvedValue({
       url: "https://sdk.example/ekyc",
       token: "session-token-new",
@@ -459,7 +481,7 @@ describe("resolveSigningKycStatus", () => {
 describe("EkycService.createExternalSignerSession", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockUpsert.mockResolvedValue({});
+    mockUpsert.mockResolvedValue({ id: "ekyc-row-1" });
     mockGetSigningCloudEkycSession.mockResolvedValue({
       url: "https://sdk.example/ekyc",
       token: "session-token-new",

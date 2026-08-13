@@ -2,6 +2,7 @@ import type {
   ApiResponse,
   ApiError,
   SigningEnvelopeDto,
+  SigningAuditLogDto,
   ExternalSigningSessionDto,
   RecipientBinding,
   GetUsersParams,
@@ -2405,6 +2406,20 @@ export class ApiClient {
     envelopeId: string
   ): Promise<ApiResponse<SigningEnvelopeDto> | ApiError> {
     return this.get<SigningEnvelopeDto>(`/v1/signing/envelopes/${envelopeId}`);
+  }
+
+  /** Issuer: signing package history for an envelope. */
+  async getSigningEnvelopeLogs(
+    envelopeId: string
+  ): Promise<ApiResponse<SigningAuditLogDto[]> | ApiError> {
+    return this.get<SigningAuditLogDto[]>(`/v1/signing/envelopes/${envelopeId}/logs`);
+  }
+
+  /** Admin: signing package history for an envelope. */
+  async getAdminSigningEnvelopeLogs(
+    envelopeId: string
+  ): Promise<ApiResponse<SigningAuditLogDto[]> | ApiError> {
+    return this.get<SigningAuditLogDto[]>(`/v1/admin/signing/envelopes/${envelopeId}/logs`);
   }
 
   /** Issuer: list envelopes for an application they can access. */

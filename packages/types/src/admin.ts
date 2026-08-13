@@ -490,7 +490,7 @@ export interface ApplicationAuditActor {
 
 export interface ApplicationAuditLogDto {
   id: string;
-  eventType: ApplicationAuditEventType;
+  eventType: string;
   occurredAt: string;
   createdAt: string;
   actor: ApplicationAuditActor;

@@ -22,6 +22,10 @@ jest.mock("../../modules/applications/audit/writer", () => ({
   },
 }));
 
+jest.mock("../../modules/signing/audit/writer", () => ({
+  writeSigningAuditLog: jest.fn(),
+}));
+
 jest.mock("../../modules/notification/service", () => ({
   NotificationService: jest.fn().mockImplementation(() => ({
     sendTyped: jest.fn().mockResolvedValue(undefined),
@@ -241,14 +245,22 @@ describe("runAcceptanceSigningExpiryJob", () => {
       offer_details: signingOffer,
       status: "OFFER_SENT",
     });
-    tx.signingEnvelope.findMany.mockResolvedValue([{ id: "env-1" }]);
+    tx.signingEnvelope.findMany.mockResolvedValue([
+      {
+        id: "env-1",
+        status: "SENT",
+        expires_at: new Date(pastIso),
+        application_id: "app-2",
+      },
+    ]);
+    tx.signingEnvelope.updateMany.mockResolvedValue({ count: 1 });
 
     const result = await runAcceptanceSigningExpiryJob();
 
     expect(result.contractsExpired).toEqual(["contract-2"]);
     expect(result.envelopesExpired).toEqual(["env-1"]);
     expect(tx.signingEnvelope.updateMany).toHaveBeenCalledWith({
-      where: { id: { in: ["env-1"] } },
+      where: { id: "env-1", status: { in: ["DRAFT", "SENT", "IN_PROGRESS"] } },
       data: { status: "EXPIRED" },
     });
   });

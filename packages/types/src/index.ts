@@ -476,6 +476,7 @@ export * from "./investor-return-breakdown";
 export * from "./marketplace-note-dates";
 export * from "./prospectus-calendar";
 export * from "./signing-envelopes";
+export * from "./signing-audit";
 export * from "./acceptance-documents";
 export * from "./offer-acceptance";
 export * from "./offer-phase-deadline-display";

@@ -27,6 +27,10 @@ import {
   writeApplicationAuditLog,
 } from "../../modules/applications/audit/writer";
 import { systemAuditContext, AUDIT_SOURCE } from "../audit/context";
+import {
+  expireSigningEnvelopeInTx,
+  SIGNING_EXPIRY_TRIGGER,
+} from "../../modules/signing/expire-envelope";
 import { NotificationService } from "../../modules/notification/service";
 import { NotificationTypeIds } from "../../modules/notification/registry";
 import { getIssuerRecipientUserIdsForApplication } from "../../modules/notification/application-recipients";
@@ -311,14 +315,20 @@ async function expireActiveEnvelopesInTx(
   if (params.invoiceId) where.invoice_id = params.invoiceId;
   const active = await tx.signingEnvelope.findMany({
     where,
-    select: { id: true },
+    select: { id: true, status: true, expires_at: true, application_id: true },
   });
   if (active.length === 0) return [];
-  const ids = active.map((e) => e.id);
-  await tx.signingEnvelope.updateMany({
-    where: { id: { in: ids } },
-    data: { status: "EXPIRED" },
-  });
+  const ids: string[] = [];
+  for (const envelope of active) {
+    const won = await expireSigningEnvelopeInTx(tx, {
+      envelopeId: envelope.id,
+      previousStatus: envelope.status,
+      expiresAt: envelope.expires_at,
+      trigger: SIGNING_EXPIRY_TRIGGER.OFFER_SIGNING_CLOCK,
+      applicationId: envelope.application_id,
+    });
+    if (won) ids.push(envelope.id);
+  }
   return ids;
 }
 

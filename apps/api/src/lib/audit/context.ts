@@ -25,6 +25,7 @@ export const AUDIT_PORTAL = {
   INVESTOR: "INVESTOR",
   ISSUER: "ISSUER",
   ADMIN: "ADMIN",
+  PUBLIC: "PUBLIC",
 } as const;
 
 export type AuditPortal = (typeof AUDIT_PORTAL)[keyof typeof AUDIT_PORTAL];

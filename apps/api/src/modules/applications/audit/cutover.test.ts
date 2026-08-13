@@ -122,14 +122,16 @@ describe("Application audit cutover", () => {
     expect(invoices).not.toMatch(/logApplicationActivity/);
   });
 
-  it("signing remains the only live ApplicationLog writer", () => {
-    expect(signing).toMatch(/logApplicationActivity/);
-    expect(signing).toMatch(/SIGNING_PACKAGE_/);
+  it("signing no longer writes ApplicationLog", () => {
+    expect(signing).not.toMatch(/logApplicationActivity/);
+    expect(signing).not.toMatch(/applicationLog\.create/);
+    expect(signing).toMatch(/writeSigningAuditLog/);
     expect(signing).not.toMatch(/writeApplicationAuditLog/);
   });
 
-  it("history readers use ApplicationAuditLog", () => {
+  it("history readers use ApplicationAuditLog and merge SigningAuditLog", () => {
     expect(applicationService).toMatch(/applicationAuditLogReader/);
+    expect(applicationService).toMatch(/signingAuditLogReader/);
     const activity = readSrc("modules/activity/adapters/application-log.ts");
     expect(activity).toMatch(/applicationAuditLog\.findMany/);
     expect(activity).not.toMatch(/prisma\.applicationLog\.find/);

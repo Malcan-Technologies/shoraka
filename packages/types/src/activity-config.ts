@@ -1,4 +1,4 @@
-export type ActivityDomain = "onboarding" | "application" | "note";
+export type ActivityDomain = "onboarding" | "application" | "note" | "signing";
 export type ActivityPortal = "investor" | "issuer";
 
 export interface ActivityDomainConfig {
@@ -22,6 +22,11 @@ export const ACTIVITY_DOMAIN_CONFIG: Record<ActivityDomain, ActivityDomainConfig
     label: "Note",
     filterable: true,
     portals: ["investor", "issuer"],
+  },
+  signing: {
+    label: "Signing",
+    filterable: true,
+    portals: ["issuer"],
   },
 };
 

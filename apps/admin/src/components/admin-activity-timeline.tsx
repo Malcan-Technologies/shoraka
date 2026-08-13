@@ -198,7 +198,13 @@ function getEventIcon(eventType: string): React.ReactElement {
     case "INVOICE_OFFER_EXPIRED":
       return <ClockIcon className="h-3.5 w-3.5 text-amber-600" />;
     case "SIGNING_PACKAGE_VOIDED":
+    case "SIGNING_PACKAGE_DECLINED":
+    case "SIGNING_PACKAGE_EXPIRED":
       return <XCircleIcon className="h-3.5 w-3.5 text-amber-600" />;
+    case "SIGNING_PACKAGE_COMPLETED":
+    case "SIGNING_PACKAGE_SENT":
+    case "SIGNING_PACKAGE_CREATED":
+      return <PaperAirplaneIcon className="h-3.5 w-3.5 text-blue-500" />;
     case "CONTRACT_SIGNING_DEADLINE_EXTENDED":
     case "INVOICE_SIGNING_DEADLINE_EXTENDED":
       return <ClockIcon className="h-3.5 w-3.5 text-emerald-600" />;
@@ -265,6 +271,18 @@ function getEventLabel(
     INVOICE_OFFER_EXPIRED: "Invoice Offer Expired",
     INVOICE_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
     INVOICE_WITHDRAWN: "Invoice Withdrawn",
+    SIGNING_PACKAGE_CREATED: "Signing Package Created",
+    SIGNING_PACKAGE_SENT: "Signing Package Sent",
+    SIGNING_PACKAGE_COMPLETED: "Signing Package Completed",
+    SIGNING_PACKAGE_VOIDED: "Signing Package Voided",
+    SIGNING_PACKAGE_DECLINED: "Signing Package Declined",
+    SIGNING_PACKAGE_EXPIRED: "Signing Package Expired",
+    SIGNING_RECIPIENT_COMPLETED: "Signer Completed",
+    SIGNING_RECIPIENT_DECLINED: "Signer Declined",
+    SIGNING_EKYC_STARTED: "Signing Identity Check Started",
+    SIGNING_EKYC_VERIFIED: "Signing Identity Verified",
+    SIGNING_EKYC_FAILED: "Signing Identity Check Failed",
+    SIGNING_REMINDER_SENT: "Signing Reminder Sent",
   };
   if (eventType === "INVOICE_OFFER_SENT") {
     const invoiceNumber = metadata?.invoice_number;
@@ -380,7 +398,13 @@ function getEventDotColor(eventType: string): string {
     case "INVOICE_OFFER_ACCEPTED":
       return "bg-blue-500";
     case "SIGNING_PACKAGE_VOIDED":
+    case "SIGNING_PACKAGE_DECLINED":
+    case "SIGNING_PACKAGE_EXPIRED":
       return "bg-amber-500";
+    case "SIGNING_PACKAGE_CREATED":
+    case "SIGNING_PACKAGE_SENT":
+    case "SIGNING_PACKAGE_COMPLETED":
+      return "bg-blue-500";
     default:
       return "bg-muted-foreground";
   }
@@ -388,8 +412,7 @@ function getEventDotColor(eventType: string): string {
 
 const ACTIVITY_PAGE_SIZE = 10;
 
-/** Audit-only events: still stored in application_logs but hidden from the timeline UI. */
-const TIMELINE_HIDDEN_EVENT_TYPES = new Set(["SIGNING_PACKAGE_COMPLETED"]);
+const TIMELINE_HIDDEN_EVENT_TYPES = new Set<string>();
 
 function TimelineSkeleton() {
   return (

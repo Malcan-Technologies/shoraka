@@ -7,7 +7,10 @@ import { requireAuth, requirePermission } from "../../lib/auth/middleware";
 import { externalSigningRateLimiter } from "../../lib/http/rate-limit";
 import { AppError } from "../../lib/http/error-handler";
 import { signingService } from "./service";
-import { ActivityPortal } from "../applications/logs/types";
+import {
+  auditContextFromAdminRequest,
+  auditContextFromRequest,
+} from "../../lib/audit/context";
 import {
   createIssuerEnvelopeSchema,
   voidEnvelopeSchema,
@@ -52,6 +55,7 @@ async function createIssuerEnvelope(req: Request, res: Response, next: NextFunct
       bindings: body.bindings,
       userId: getUserId(req),
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
+      auditContext: auditContextFromRequest(req, { res }),
     });
     ok(res, envelope, 201);
   } catch (e) {
@@ -61,7 +65,7 @@ async function createIssuerEnvelope(req: Request, res: Response, next: NextFunct
 
 async function sendEnvelope(req: Request, res: Response, next: NextFunction) {
   try {
-    ok(res, await signingService.sendEnvelopeForIssuer(req.params.id, getUserId(req)));
+    ok(res, await signingService.sendEnvelopeForIssuer(req.params.id, getUserId(req), auditContextFromRequest(req, { res })));
   } catch (e) {
     next(e);
   }
@@ -72,10 +76,11 @@ async function voidEnvelope(req: Request, res: Response, next: NextFunction) {
     const { reason } = voidEnvelopeSchema.parse(req.body ?? {});
     ok(
       res,
-      await signingService.voidEnvelope(req.params.id, reason ?? null, {
-        userId: getUserId(req),
-        portal: ActivityPortal.ADMIN,
-      })
+      await signingService.voidEnvelope(
+        req.params.id,
+        reason ?? null,
+        auditContextFromAdminRequest(req, res)
+      )
     );
   } catch (e) {
     next(e);
@@ -84,7 +89,11 @@ async function voidEnvelope(req: Request, res: Response, next: NextFunction) {
 
 async function remindRecipient(req: Request, res: Response, next: NextFunction) {
   try {
-    await signingService.remindRecipient(req.params.id, req.params.recipientId);
+    await signingService.remindRecipient(
+      req.params.id,
+      req.params.recipientId,
+      auditContextFromAdminRequest(req, res)
+    );
     ok(res, { ok: true });
   } catch (e) {
     next(e);
@@ -96,7 +105,8 @@ async function remindRecipientForIssuer(req: Request, res: Response, next: NextF
     await signingService.remindRecipientForIssuer(
       req.params.id,
       req.params.recipientId,
-      getUserId(req)
+      getUserId(req),
+      auditContextFromRequest(req, { res })
     );
     ok(res, { ok: true });
   } catch (e) {
@@ -234,7 +244,11 @@ async function syncEnvelopeFromProvider(req: Request, res: Response, next: NextF
   try {
     ok(
       res,
-      await signingService.syncEnvelopeFromProviderForIssuer(req.params.id, getUserId(req))
+      await signingService.syncEnvelopeFromProviderForIssuer(
+        req.params.id,
+        getUserId(req),
+        auditContextFromRequest(req, { res })
+      )
     );
   } catch (e) {
     next(e);
@@ -287,10 +301,27 @@ async function getIssuerSignedDocument(req: Request, res: Response, next: NextFu
   }
 }
 
+async function listEnvelopeLogs(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(res, await signingService.listEnvelopeLogsForIssuer(req.params.id, getUserId(req)));
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function listAdminEnvelopeLogs(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(res, await signingService.listEnvelopeLogs(req.params.id));
+  } catch (e) {
+    next(e);
+  }
+}
+
 export function createSigningAdminRouter(): Router {
   const router = Router();
   router.post("/envelopes/:id/void", voidEnvelope);
   router.post("/envelopes/:id/recipients/:recipientId/remind", remindRecipient);
+  router.get("/envelopes/:id/logs", listAdminEnvelopeLogs);
   router.get("/envelopes/:id", async (req, res, next) => {
     try {
       ok(res, await signingService.getEnvelope(req.params.id));
@@ -330,6 +361,7 @@ export function createSigningRouter(): Router {
     requireAuth,
     getApplicationProductWorkflow
   );
+  router.get("/envelopes/:id/logs", requireAuth, listEnvelopeLogs);
   router.get("/envelopes/:id", requireAuth, getEnvelope);
   router.get("/applications/:applicationId/envelopes", requireAuth, listEnvelopes);
   router.post("/envelopes/:id/send", requireAuth, sendEnvelope);

@@ -40,7 +40,7 @@ const EVENT_LABELS: Record<string, string> = {
   CONTRACT_OFFER_RETRACTED: "Contract offer was withdrawn by CashSouk",
   CONTRACT_OFFER_EXPIRED: "Contract offer expired",
   CONTRACT_SIGNING_DEADLINE_EXTENDED: "Signing deadline extended",
-  CONTRACT_WITHDRAWN: "Contract withdrawn",
+    CONTRACT_WITHDRAWN: "Contract withdrawn",
   INVOICE_OFFER_SENT: "Invoice financing offer sent",
   INVOICE_OFFER_ACCEPTED: "You accepted an invoice offer",
   INVOICE_OFFER_REJECTED: "You declined an invoice offer",
@@ -48,6 +48,18 @@ const EVENT_LABELS: Record<string, string> = {
   INVOICE_OFFER_EXPIRED: "Invoice offer expired",
   INVOICE_SIGNING_DEADLINE_EXTENDED: "Signing deadline extended",
   INVOICE_WITHDRAWN: "Invoice withdrawn",
+  SIGNING_PACKAGE_CREATED: "Signing package created",
+  SIGNING_PACKAGE_SENT: "Signing package sent",
+  SIGNING_PACKAGE_COMPLETED: "Signing package completed",
+  SIGNING_PACKAGE_VOIDED: "Signing package voided",
+  SIGNING_PACKAGE_DECLINED: "Signing package declined",
+  SIGNING_PACKAGE_EXPIRED: "Signing package expired",
+  SIGNING_RECIPIENT_COMPLETED: "A signer completed signing",
+  SIGNING_RECIPIENT_DECLINED: "A signer declined",
+  SIGNING_EKYC_STARTED: "Signer identity check started",
+  SIGNING_EKYC_VERIFIED: "Signer identity verified",
+  SIGNING_EKYC_FAILED: "Signer identity check failed",
+  SIGNING_REMINDER_SENT: "Signing reminder sent",
 };
 
 /** Events useful for issuer-facing timeline (skip noisy section/item approve noise). */

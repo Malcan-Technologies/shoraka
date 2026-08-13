@@ -5,7 +5,7 @@ import { z } from "zod";
  */
 export const activityCategorySchema = z.enum(["organization"]);
 export type ActivityCategory = z.infer<typeof activityCategorySchema>;
-export const activityDomainSchema = z.enum(["onboarding", "application", "note"]);
+export const activityDomainSchema = z.enum(["onboarding", "application", "note", "signing"]);
 export type ActivityDomain = z.infer<typeof activityDomainSchema>;
 
 /**

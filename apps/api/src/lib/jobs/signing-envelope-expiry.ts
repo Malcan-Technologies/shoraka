@@ -4,6 +4,10 @@
  */
 import { prisma } from "../prisma";
 import { logger } from "../logger";
+import {
+  expireSigningEnvelopeInTx,
+  SIGNING_EXPIRY_TRIGGER,
+} from "../../modules/signing/expire-envelope";
 
 export type SigningEnvelopeExpiryResult = {
   expiredEnvelopeIds: string[];
@@ -18,17 +22,30 @@ export async function runSigningEnvelopeExpiryJob(): Promise<SigningEnvelopeExpi
       expires_at: { lte: now },
       status: { in: [...ACTIVE_ENVELOPE_STATUSES] },
     },
-    select: { id: true },
+    select: {
+      id: true,
+      status: true,
+      expires_at: true,
+      application_id: true,
+    },
   });
 
-  if (expired.length === 0) return { expiredEnvelopeIds: [] };
+  const expiredEnvelopeIds: string[] = [];
+  for (const envelope of expired) {
+    const won = await prisma.$transaction(async (tx) =>
+      expireSigningEnvelopeInTx(tx, {
+        envelopeId: envelope.id,
+        previousStatus: envelope.status,
+        expiresAt: envelope.expires_at,
+        trigger: SIGNING_EXPIRY_TRIGGER.ENVELOPE_CLOCK,
+        applicationId: envelope.application_id,
+      })
+    );
+    if (won) expiredEnvelopeIds.push(envelope.id);
+  }
 
-  const ids = expired.map((envelope) => envelope.id);
-  await prisma.signingEnvelope.updateMany({
-    where: { id: { in: ids } },
-    data: { status: "EXPIRED" },
-  });
-
-  logger.info({ expiredEnvelopeCount: ids.length }, "Expired signing envelopes");
-  return { expiredEnvelopeIds: ids };
+  if (expiredEnvelopeIds.length > 0) {
+    logger.info({ expiredEnvelopeCount: expiredEnvelopeIds.length }, "Expired signing envelopes");
+  }
+  return { expiredEnvelopeIds };
 }

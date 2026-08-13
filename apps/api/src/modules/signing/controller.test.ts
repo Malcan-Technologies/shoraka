@@ -106,6 +106,11 @@ describe("SigningController", () => {
       expect(res.status).toBe(401);
     });
 
+    it("GET /envelopes/:id/logs returns 401 without auth", async () => {
+      const res = await request(issuerApp).get("/v1/signing/envelopes/env-1/logs");
+      expect(res.status).toBe(401);
+    });
+
     it("GET /applications/:applicationId/documents/:documentId/signed returns 401 without auth", async () => {
       const res = await request(issuerApp).get(
         "/v1/signing/applications/app-1/documents/doc-1/signed"
@@ -166,7 +171,7 @@ describe("SigningController", () => {
       expect(signingService.voidEnvelope).toHaveBeenCalledWith(
         "env-1",
         null,
-        expect.objectContaining({ userId: "user-1" })
+        expect.objectContaining({ actorUserId: "user-1", portal: "ADMIN" })
       );
     });
   });

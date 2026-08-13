@@ -6,6 +6,7 @@ import {
 import { OrganizationLogAdapter } from "./adapters/organization-log";
 import { ApplicationLogAdapter } from "./adapters/application-log";
 import { NoteLogAdapter } from "./adapters/note-log";
+import { SigningLogAdapter } from "./adapters/signing-log";
 
 export class AuditLogAggregator {
   private adapters: AuditLogAdapter<any>[] = [];
@@ -15,6 +16,7 @@ export class AuditLogAggregator {
     this.registerAdapter(new OrganizationLogAdapter());
     this.registerAdapter(new ApplicationLogAdapter());
     this.registerAdapter(new NoteLogAdapter());
+    this.registerAdapter(new SigningLogAdapter());
   }
 
   /**
@@ -34,7 +36,10 @@ export class AuditLogAggregator {
     const { categories, domains, limit = 10, offset = 0 } = filters;
 
     const activeAdapters = this.adapters.filter((adapter) => {
-      if (filters.portalType === "investor" && adapter.domain === "application") {
+      if (
+        filters.portalType === "investor" &&
+        (adapter.domain === "application" || adapter.domain === "signing")
+      ) {
         return false;
       }
 

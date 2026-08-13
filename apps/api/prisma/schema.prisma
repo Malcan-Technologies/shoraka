@@ -2005,6 +2005,40 @@ model ApplicationAuditLog {
   @@map("application_audit_logs")
 }
 
+/// Append-only signing package history. No envelope/application/user FKs:
+/// stored ids are historical evidence and must survive target deletion.
+model SigningAuditLog {
+  id                  String   @id @default(cuid())
+  signing_envelope_id String?
+  application_id      String?
+  event_type          String
+  occurred_at         DateTime @default(now())
+  created_at          DateTime @default(now())
+  actor_type          String
+  actor_user_id       String?
+  organization_id     String?
+  organization_kind   String?
+  target_type         String
+  target_id           String
+  source              String
+  portal              String?
+  ip_address          String?
+  user_agent          String?
+  correlation_id      String?
+  idempotency_key     String?
+  metadata            Json
+
+  @@index([occurred_at])
+  @@index([event_type, occurred_at])
+  @@index([signing_envelope_id, occurred_at])
+  @@index([application_id, occurred_at])
+  @@index([organization_id, occurred_at])
+  @@index([actor_user_id, occurred_at])
+  @@index([target_type, target_id, occurred_at])
+  @@index([correlation_id])
+  @@map("signing_audit_logs")
+}
+
 model corporate_individual_kyc {
   id                    String            @id
   regtank_onboarding_id String

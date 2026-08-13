@@ -1,20 +1,23 @@
-import type { ApplicationAuditLog } from "@prisma/client";
+import type { SigningAuditLog } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
-import { isApplicationAuditEventType } from "./events";
+import {
+  isSigningAuditEventType,
+  type SigningAuditEventType,
+} from "./events";
 
-export type ApplicationAuditActorDto = {
+export type SigningAuditActorDto = {
   type: string;
   userId: string | null;
   displayName: string | null;
   email: string | null;
 };
 
-export type ApplicationAuditLogDto = {
+export type SigningAuditLogDto = {
   id: string;
-  eventType: string;
+  eventType: SigningAuditEventType;
   occurredAt: string;
   createdAt: string;
-  actor: ApplicationAuditActorDto;
+  actor: SigningAuditActorDto;
   organizationId: string | null;
   organizationKind: string | null;
   target: { type: string; id: string };
@@ -24,7 +27,8 @@ export type ApplicationAuditLogDto = {
   userAgent: string | null;
   correlationId: string | null;
   metadata: Record<string, unknown>;
-  activity?: string;
+  signingEnvelopeId: string | null;
+  applicationId: string | null;
 };
 
 function metadataRecord(value: unknown): Record<string, unknown> {
@@ -38,27 +42,15 @@ function stringOrNull(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
-function eventTypeOf(value: string): string {
-  return isApplicationAuditEventType(value) ? value : value;
+function eventTypeOf(value: string): SigningAuditEventType {
+  return isSigningAuditEventType(value) ? value : (value as SigningAuditEventType);
 }
 
-function activityFromMetadata(eventType: string, metadata: Record<string, unknown>): string | undefined {
-  if (eventType === "APPLICATION_RESUBMITTED") {
-    const summary = metadata.activitySummary;
-    if (typeof summary === "string" && summary.trim().length > 0) {
-      return summary.trim();
-    }
-  }
-  return undefined;
-}
-
-export function toApplicationAuditLogDto(row: ApplicationAuditLog): ApplicationAuditLogDto {
+export function toSigningAuditLogDto(row: SigningAuditLog): SigningAuditLogDto {
   const metadata = metadataRecord(row.metadata);
-  const eventType = eventTypeOf(row.event_type);
-  const activity = activityFromMetadata(eventType, metadata);
   return {
     id: row.id,
-    eventType,
+    eventType: eventTypeOf(row.event_type),
     occurredAt: row.occurred_at.toISOString(),
     createdAt: row.created_at.toISOString(),
     actor: {
@@ -76,18 +68,29 @@ export function toApplicationAuditLogDto(row: ApplicationAuditLog): ApplicationA
     userAgent: row.user_agent,
     correlationId: row.correlation_id,
     metadata,
-    ...(activity ? { activity } : {}),
+    signingEnvelopeId: row.signing_envelope_id,
+    applicationId: row.application_id,
   };
 }
 
-export class ApplicationAuditLogReader {
-  async listByApplicationId(applicationId: string): Promise<ApplicationAuditLogDto[]> {
-    const rows = await prisma.applicationAuditLog.findMany({
-      where: { application_id: applicationId },
-      orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
+const ORDER_BY = [{ occurred_at: "desc" as const }, { id: "desc" as const }];
+
+export class SigningAuditLogReader {
+  async listByEnvelopeId(signingEnvelopeId: string): Promise<SigningAuditLogDto[]> {
+    const rows = await prisma.signingAuditLog.findMany({
+      where: { signing_envelope_id: signingEnvelopeId },
+      orderBy: ORDER_BY,
     });
-    return rows.map(toApplicationAuditLogDto);
+    return rows.map(toSigningAuditLogDto);
+  }
+
+  async listByApplicationId(applicationId: string): Promise<SigningAuditLogDto[]> {
+    const rows = await prisma.signingAuditLog.findMany({
+      where: { application_id: applicationId },
+      orderBy: ORDER_BY,
+    });
+    return rows.map(toSigningAuditLogDto);
   }
 }
 
-export const applicationAuditLogReader = new ApplicationAuditLogReader();
+export const signingAuditLogReader = new SigningAuditLogReader();
