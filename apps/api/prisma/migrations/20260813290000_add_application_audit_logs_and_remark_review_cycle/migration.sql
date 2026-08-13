@@ -9,6 +9,9 @@ SET "review_cycle" = a."review_cycle"
 FROM "applications" AS a
 WHERE r."application_id" = a."id";
 
+-- Prisma @@unique is a UNIQUE CONSTRAINT, not a standalone index.
+-- DROP INDEX fails with 2BP01; drop the constraint (index follows).
+ALTER TABLE "application_review_remarks" DROP CONSTRAINT IF EXISTS "application_review_remarks_application_id_scope_scope_key_key";
 DROP INDEX IF EXISTS "application_review_remarks_application_id_scope_scope_key_key";
 
 CREATE UNIQUE INDEX "application_review_remarks_app_cycle_scope_key" ON "application_review_remarks"("application_id", "review_cycle", "scope", "scope_key");
