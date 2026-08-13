@@ -483,6 +483,7 @@ model ApplicationReviewItem {
 model ApplicationReviewRemark {
   id             String      @id(map: "application_review_notes_pkey") @default(cuid())
   application_id String
+  review_cycle   Int         @default(1)
   scope          String
   scope_key      String
   action_type    String
@@ -494,8 +495,9 @@ model ApplicationReviewRemark {
   application    Application @relation(fields: [application_id], references: [id], onDelete: Cascade, map: "application_review_notes_application_id_fkey")
   author         User        @relation(fields: [author_user_id], references: [user_id], onDelete: Restrict)
 
-  @@unique([application_id, scope, scope_key], map: "application_review_remarks_application_id_scope_scope_key_key")
+  @@unique([application_id, review_cycle, scope, scope_key], map: "application_review_remarks_app_cycle_scope_key")
   @@index([application_id, scope_key], map: "application_review_notes_application_id_scope_key_idx")
+  @@index([application_id, review_cycle])
   @@index([application_id, submitted_at])
   @@map("application_review_remarks")
 }
@@ -1969,6 +1971,38 @@ model OnboardingAuditLog {
   @@index([target_type, target_id, occurred_at])
   @@index([correlation_id])
   @@map("onboarding_audit_logs")
+}
+
+/// Append-only application/contract/invoice/review history. No Application or User FKs:
+/// stored ids are historical evidence and must survive target deletion.
+model ApplicationAuditLog {
+  id                String   @id @default(cuid())
+  application_id    String
+  event_type        String
+  occurred_at       DateTime @default(now())
+  created_at        DateTime @default(now())
+  actor_type        String
+  actor_user_id     String?
+  organization_id   String?
+  organization_kind String?
+  target_type       String
+  target_id         String
+  source            String
+  portal            String?
+  ip_address        String?
+  user_agent        String?
+  correlation_id    String?
+  idempotency_key   String?
+  metadata          Json
+
+  @@index([occurred_at])
+  @@index([event_type, occurred_at])
+  @@index([application_id, occurred_at])
+  @@index([organization_id, occurred_at])
+  @@index([actor_user_id, occurred_at])
+  @@index([target_type, target_id, occurred_at])
+  @@index([correlation_id])
+  @@map("application_audit_logs")
 }
 
 model corporate_individual_kyc {

@@ -2,8 +2,6 @@ import { ContractRepository } from "./repository";
 import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { AppError } from "../../lib/http/error-handler";
-import { logApplicationActivity } from "../applications/logs/service";
-import { ActivityPortal } from "../applications/logs/types";
 import { ApplicationReviewRemark, Contract, Prisma } from "@prisma/client";
 import {
   ApplicationStatus,
@@ -12,6 +10,11 @@ import {
   parseScopeKey,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
+import {
+  APPLICATION_AUDIT_TARGET_TYPE,
+  issuerApplicationAuditContext,
+  writeApplicationAuditLog,
+} from "../applications/audit/writer";
 import {
   generateContractDocumentKey,
   generateContractDocumentKeyWithVersion,
@@ -367,46 +370,76 @@ export class ContractService {
     }
 
     const finalReason = reason ?? WithdrawReason.USER_CANCELLED;
-
-    const updated = await this.repository.update(id, {
-      status: ContractStatus.WITHDRAWN,
-      withdraw_reason: finalReason,
-    });
-
+    const previousStatus = contract.status;
     const applications = (contract as { applications?: { id: string }[] }).applications ?? [];
-    for (const app of applications) {
-      await prisma.application.update({
-        where: { id: app.id },
-        data: { status: "WITHDRAWN" },
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.contract.update({
+        where: { id },
+        data: {
+          status: ContractStatus.WITHDRAWN,
+          withdraw_reason: finalReason,
+        },
       });
-      await prisma.applicationReview.upsert({
-        where: {
-          application_id_section: {
+
+      for (const app of applications) {
+        await tx.application.update({
+          where: { id: app.id },
+          data: { status: "WITHDRAWN" },
+        });
+        await tx.applicationReview.upsert({
+          where: {
+            application_id_section: {
+              application_id: app.id,
+              section: "contract_details",
+            },
+          },
+          create: {
             application_id: app.id,
             section: "contract_details",
+            status: "WITHDRAWN",
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
           },
-        },
-        create: {
-          application_id: app.id,
-          section: "contract_details",
-          status: "WITHDRAWN",
-          reviewer_user_id: userId,
-          reviewed_at: new Date(),
-        },
-        update: {
-          status: "WITHDRAWN",
-          reviewer_user_id: userId,
-          reviewed_at: new Date(),
-        },
-      });
-      await logApplicationActivity({
-        userId,
-        applicationId: app.id,
-        eventType: "APPLICATION_WITHDRAWN",
-        portal: ActivityPortal.ISSUER,
-        metadata: { withdraw_reason: finalReason },
-      });
-    }
+          update: {
+            status: "WITHDRAWN",
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+        });
+        await writeApplicationAuditLog(
+          {
+            eventType: "CONTRACT_WITHDRAWN",
+            context: issuerApplicationAuditContext(userId),
+            applicationId: app.id,
+            targetType: APPLICATION_AUDIT_TARGET_TYPE.CONTRACT,
+            targetId: id,
+            metadata: {
+              previousStatus,
+              newStatus: "WITHDRAWN",
+              withdrawReason: finalReason,
+            },
+          },
+          tx
+        );
+        await writeApplicationAuditLog(
+          {
+            eventType: "APPLICATION_WITHDRAWN",
+            context: issuerApplicationAuditContext(userId),
+            applicationId: app.id,
+            targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+            targetId: app.id,
+            metadata: {
+              newStatus: "WITHDRAWN",
+              withdrawReason: finalReason,
+            },
+          },
+          tx
+        );
+      }
+
+      return next;
+    });
 
     return updated;
   }

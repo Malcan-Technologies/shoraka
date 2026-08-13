@@ -1969,6 +1969,7 @@ export class SigningService {
       initiatedByUserId,
       signedOfferLetterS3Key: signedDocument.signed_s3_key,
       signedFileSha256: signedDocument.signed_file_sha256,
+      envelopeId: envelope.id,
     });
     logger.info(
       { envelopeId: envelope.id, skipped: result.skipped },

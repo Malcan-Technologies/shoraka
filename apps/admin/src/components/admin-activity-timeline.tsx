@@ -154,19 +154,22 @@ function getEventIcon(eventType: string): React.ReactElement {
       return <PlayIcon className="h-3.5 w-3.5 text-blue-600" />;
     case "APPLICATION_SUBMITTED":
     case "APPLICATION_RESUBMITTED":
+    case "APPLICATION_REVIEW_STARTED":
+    case "APPLICATION_REOPENED_FOR_REVIEW":
       return <ArrowPathIcon className="h-3.5 w-3.5 text-blue-500" />;
-    case "SECTION_REVIEWED_APPROVED":
-    case "ITEM_REVIEWED_APPROVED":
-    case "APPLICATION_APPROVED":
+    case "APPLICATION_SECTION_REVIEW_UPDATED":
+    case "APPLICATION_ITEM_REVIEW_UPDATED":
     case "APPLICATION_COMPLETED":
       return <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-600" />;
     case "SECTION_REVIEWED_REJECTED":
     case "ITEM_REVIEWED_REJECTED":
     case "APPLICATION_REJECTED":
       return <XCircleIcon className="h-3.5 w-3.5 text-destructive" />;
-    case "SECTION_REVIEWED_AMENDMENT_REQUESTED":
-    case "ITEM_REVIEWED_AMENDMENT_REQUESTED":
-    case "AMENDMENTS_SUBMITTED":
+    case "APPLICATION_AMENDMENTS_REQUESTED":
+    case "APPLICATION_AMENDMENT_ACKNOWLEDGED":
+    case "APPLICATION_DOCUMENT_UPLOADED":
+    case "APPLICATION_DOCUMENT_REMOVED":
+    case "APPLICATION_DOCUMENT_REPLACED":
       return <DocumentTextIcon className="h-3.5 w-3.5 text-amber-600" />;
     case "SECTION_REVIEWED_PENDING":
     case "ITEM_REVIEWED_PENDING":
@@ -174,12 +177,12 @@ function getEventIcon(eventType: string): React.ReactElement {
       return <ArrowPathIcon className="h-3.5 w-3.5 text-muted-foreground" />;
     case "CONTRACT_OFFER_SENT":
     case "INVOICE_OFFER_SENT":
-    case "CONTRACT_OFFER_ACCEPTANCE_SUBMITTED":
-    case "INVOICE_OFFER_ACCEPTANCE_SUBMITTED":
+    case "CONTRACT_ACCEPTANCE_SUBMITTED":
+    case "CONTRACT_ACCEPTANCE_RESUBMITTED":
+    case "INVOICE_ACCEPTANCE_SUBMITTED":
+    case "INVOICE_ACCEPTANCE_RESUBMITTED":
     case "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING":
     case "INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING":
-    case "SIGNING_PACKAGE_CREATED":
-    case "SIGNING_PACKAGE_SENT":
     case "CONTRACT_OFFER_ACCEPTED":
     case "INVOICE_OFFER_ACCEPTED":
       return <PaperAirplaneIcon className="h-3.5 w-3.5 text-blue-500" />;
@@ -224,23 +227,37 @@ function getEventLabel(
   const baseLabels: Record<string, string> = {
     APPLICATION_CREATED: "Application Created",
     APPLICATION_SUBMITTED: "Application Submitted",
+    APPLICATION_REVIEW_STARTED: "Review Started",
     APPLICATION_RESUBMITTED: "Application Resubmitted",
-    APPLICATION_APPROVED: "Application Approved",
+    APPLICATION_AMENDMENT_ACKNOWLEDGED: "Amendment Acknowledged",
+    APPLICATION_AMENDMENTS_REQUESTED: "Amendments Requested",
+    APPLICATION_REOPENED_FOR_REVIEW: "Reopened for Review",
     APPLICATION_REJECTED: "Application Rejected",
     APPLICATION_WITHDRAWN: "Application Withdrawn",
+    APPLICATION_ARCHIVED: "Application Archived",
+    APPLICATION_DRAFT_DELETED: "Draft Application Deleted",
     APPLICATION_COMPLETED: "Application Completed",
-    APPLICATION_RESET_TO_UNDER_REVIEW: "Application Reset to Under Review",
+    APPLICATION_SECTION_REVIEW_UPDATED: "Section Review Updated",
+    APPLICATION_ITEM_REVIEW_UPDATED: "Item Review Updated",
+    APPLICATION_DOCUMENT_UPLOADED: "Document Uploaded",
+    APPLICATION_DOCUMENT_REMOVED: "Document Removed",
+    APPLICATION_DOCUMENT_REPLACED: "Document Replaced",
     CONTRACT_OFFER_SENT: "Contract Offer Sent",
-    CONTRACT_OFFER_ACCEPTANCE_SUBMITTED: "Contract Offer Acceptance Submitted",
+    CONTRACT_ACCEPTANCE_SUBMITTED: "Contract Acceptance Submitted",
+    CONTRACT_ACCEPTANCE_RESUBMITTED: "Contract Acceptance Resubmitted",
+    CONTRACT_ACCEPTANCE_CHANGES_REQUESTED: "Contract Acceptance Changes Requested",
     CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING: "Contract Acceptance Approved for Signing",
     CONTRACT_OFFER_ACCEPTED: "Contract Offer Signed",
-    CONTRACT_OFFER_REJECTED: "Contract Offer Withdrawn",
+    CONTRACT_OFFER_REJECTED: "Contract Offer Rejected",
     CONTRACT_OFFER_RETRACTED: "Contract Offer Retracted",
     CONTRACT_OFFER_EXPIRED: "Contract Offer Expired",
     CONTRACT_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
-    CONTRACT_WITHDRAWN: "Contract Offer Withdrawn",
+    CONTRACT_WITHDRAWN: "Contract Withdrawn",
+    CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED: "Customer Large Private Updated",
     INVOICE_OFFER_SENT: "Invoice Offer Sent",
-    INVOICE_OFFER_ACCEPTANCE_SUBMITTED: "Invoice Offer Acceptance Submitted",
+    INVOICE_ACCEPTANCE_SUBMITTED: "Invoice Acceptance Submitted",
+    INVOICE_ACCEPTANCE_RESUBMITTED: "Invoice Acceptance Resubmitted",
+    INVOICE_ACCEPTANCE_CHANGES_REQUESTED: "Invoice Acceptance Changes Requested",
     INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING: "Invoice Acceptance Approved for Signing",
     INVOICE_OFFER_ACCEPTED: "Invoice Offer Signed",
     INVOICE_OFFER_REJECTED: "Invoice Offer Rejected",
@@ -248,10 +265,6 @@ function getEventLabel(
     INVOICE_OFFER_EXPIRED: "Invoice Offer Expired",
     INVOICE_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
     INVOICE_WITHDRAWN: "Invoice Withdrawn",
-    SIGNING_PACKAGE_CREATED: "Signing Package Created",
-    SIGNING_PACKAGE_SENT: "Signing Package Sent",
-    SIGNING_PACKAGE_VOIDED: "Signing Package Voided",
-    AMENDMENTS_SUBMITTED: "Amendment Request Sent",
   };
   if (eventType === "INVOICE_OFFER_SENT") {
     const invoiceNumber = metadata?.invoice_number;
@@ -289,6 +302,22 @@ function getEventLabel(
       ? `Invoice ${invoiceNumber} Offer Expired`
       : "Invoice Offer Expired";
   }
+  if (eventType === "APPLICATION_SECTION_REVIEW_UPDATED") {
+    const scopeKey = metadata?.section;
+    const newStatus = metadata?.newStatus;
+    const sectionLabel = scopeKey
+      ? (sectionLabelOverrides?.[String(scopeKey)] ?? getReviewTabLabel(String(scopeKey)))
+      : "";
+    const statusLabel = newStatus ? String(newStatus).replace(/_/g, " ").toLowerCase() : "updated";
+    return sectionLabel ? `${sectionLabel} ${statusLabel}` : `Section review ${statusLabel}`;
+  }
+  if (eventType === "APPLICATION_ITEM_REVIEW_UPDATED") {
+    const scopeKey = (entityId ?? metadata?.itemId ?? metadata?.section) as string | undefined;
+    const itemName = scopeKey ? formatItemLabelFromScopeKey(scopeKey) : "";
+    const newStatus = metadata?.newStatus;
+    const statusLabel = newStatus ? String(newStatus).replace(/_/g, " ").toLowerCase() : "updated";
+    return itemName ? `${itemName} ${statusLabel}` : `Item review ${statusLabel}`;
+  }
   if (baseLabels[eventType]) return baseLabels[eventType];
 
   const actionLabel = ACTION_LABELS[eventType];
@@ -313,22 +342,17 @@ function getEventLabel(
 
 function getEventDotColor(eventType: string): string {
   switch (eventType) {
-    case "SECTION_REVIEWED_APPROVED":
-    case "ITEM_REVIEWED_APPROVED":
-    case "APPLICATION_APPROVED":
+    case "APPLICATION_SECTION_REVIEW_UPDATED":
+    case "APPLICATION_ITEM_REVIEW_UPDATED":
     case "APPLICATION_COMPLETED":
       return "bg-emerald-500";
-    case "SECTION_REVIEWED_REJECTED":
-    case "ITEM_REVIEWED_REJECTED":
     case "APPLICATION_REJECTED":
       return "bg-destructive";
-    case "SECTION_REVIEWED_AMENDMENT_REQUESTED":
-    case "ITEM_REVIEWED_AMENDMENT_REQUESTED":
-    case "AMENDMENTS_SUBMITTED":
+    case "APPLICATION_AMENDMENTS_REQUESTED":
+    case "APPLICATION_AMENDMENT_ACKNOWLEDGED":
       return "bg-amber-500";
-    case "SECTION_REVIEWED_PENDING":
-    case "ITEM_REVIEWED_PENDING":
-    case "APPLICATION_RESET_TO_UNDER_REVIEW":
+    case "APPLICATION_REVIEW_STARTED":
+    case "APPLICATION_REOPENED_FOR_REVIEW":
       return "bg-muted-foreground";
     case "APPLICATION_WITHDRAWN":
     case "INVOICE_WITHDRAWN":
@@ -346,12 +370,12 @@ function getEventDotColor(eventType: string): string {
       return "bg-emerald-500";
     case "CONTRACT_OFFER_SENT":
     case "INVOICE_OFFER_SENT":
-    case "CONTRACT_OFFER_ACCEPTANCE_SUBMITTED":
-    case "INVOICE_OFFER_ACCEPTANCE_SUBMITTED":
+    case "CONTRACT_ACCEPTANCE_SUBMITTED":
+    case "CONTRACT_ACCEPTANCE_RESUBMITTED":
+    case "INVOICE_ACCEPTANCE_SUBMITTED":
+    case "INVOICE_ACCEPTANCE_RESUBMITTED":
     case "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING":
     case "INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING":
-    case "SIGNING_PACKAGE_CREATED":
-    case "SIGNING_PACKAGE_SENT":
     case "CONTRACT_OFFER_ACCEPTED":
     case "INVOICE_OFFER_ACCEPTED":
       return "bg-blue-500";

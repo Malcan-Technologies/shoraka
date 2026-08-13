@@ -436,6 +436,76 @@ export interface ExportOnboardingLogsParams
   eventTypes?: OnboardingEventType[];
 }
 
+export const APPLICATION_AUDIT_EVENTS = [
+  "APPLICATION_CREATED",
+  "APPLICATION_SUBMITTED",
+  "APPLICATION_REVIEW_STARTED",
+  "APPLICATION_RESUBMITTED",
+  "APPLICATION_AMENDMENT_ACKNOWLEDGED",
+  "APPLICATION_AMENDMENTS_REQUESTED",
+  "APPLICATION_REOPENED_FOR_REVIEW",
+  "APPLICATION_WITHDRAWN",
+  "APPLICATION_REJECTED",
+  "APPLICATION_ARCHIVED",
+  "APPLICATION_DRAFT_DELETED",
+  "APPLICATION_COMPLETED",
+  "APPLICATION_SECTION_REVIEW_UPDATED",
+  "APPLICATION_ITEM_REVIEW_UPDATED",
+  "APPLICATION_DOCUMENT_UPLOADED",
+  "APPLICATION_DOCUMENT_REMOVED",
+  "APPLICATION_DOCUMENT_REPLACED",
+  "CONTRACT_OFFER_SENT",
+  "CONTRACT_OFFER_RETRACTED",
+  "CONTRACT_SIGNING_DEADLINE_EXTENDED",
+  "CONTRACT_OFFER_EXPIRED",
+  "CONTRACT_ACCEPTANCE_SUBMITTED",
+  "CONTRACT_ACCEPTANCE_RESUBMITTED",
+  "CONTRACT_ACCEPTANCE_CHANGES_REQUESTED",
+  "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING",
+  "CONTRACT_OFFER_ACCEPTED",
+  "CONTRACT_OFFER_REJECTED",
+  "CONTRACT_WITHDRAWN",
+  "CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED",
+  "INVOICE_OFFER_SENT",
+  "INVOICE_OFFER_RETRACTED",
+  "INVOICE_SIGNING_DEADLINE_EXTENDED",
+  "INVOICE_OFFER_EXPIRED",
+  "INVOICE_ACCEPTANCE_SUBMITTED",
+  "INVOICE_ACCEPTANCE_RESUBMITTED",
+  "INVOICE_ACCEPTANCE_CHANGES_REQUESTED",
+  "INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING",
+  "INVOICE_OFFER_ACCEPTED",
+  "INVOICE_OFFER_REJECTED",
+  "INVOICE_WITHDRAWN",
+] as const;
+
+export type ApplicationAuditEventType = (typeof APPLICATION_AUDIT_EVENTS)[number];
+
+export interface ApplicationAuditActor {
+  type: string;
+  userId: string | null;
+  displayName: string | null;
+  email: string | null;
+}
+
+export interface ApplicationAuditLogDto {
+  id: string;
+  eventType: ApplicationAuditEventType;
+  occurredAt: string;
+  createdAt: string;
+  actor: ApplicationAuditActor;
+  organizationId: string | null;
+  organizationKind: string | null;
+  target: { type: string; id: string };
+  source: string;
+  portal: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  correlationId: string | null;
+  metadata: Record<string, unknown>;
+  activity?: string;
+}
+
 // Pending Invitations Types
 export interface PendingInvitation {
   id: string;

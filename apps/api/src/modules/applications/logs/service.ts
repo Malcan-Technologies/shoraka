@@ -1,3 +1,8 @@
+/**
+ * Temporary ApplicationLog writer used only by signing/service.ts for SIGNING_PACKAGE_* events.
+ * Application, review, contract, and invoice history is ApplicationAuditLog.
+ * This helper is removed after SigningAuditLog cutover.
+ */
 import { CreateApplicationLogParams } from "./types";
 import * as repository from "./repository";
 

@@ -1980,8 +1980,12 @@ export class AdminRepository {
    * Ensure a review section row exists for an application (creates if missing).
    * Called on-demand when a section action is performed.
    */
-  async ensureApplicationReviewSection(applicationId: string, section: ReviewSection) {
-    await prisma.applicationReview.upsert({
+  async ensureApplicationReviewSection(
+    applicationId: string,
+    section: ReviewSection,
+    db: Prisma.TransactionClient | typeof prisma = prisma
+  ) {
+    await db.applicationReview.upsert({
       where: {
         application_id_section: { application_id: applicationId, section },
       },
@@ -1993,8 +1997,12 @@ export class AdminRepository {
   /**
    * Reset section review status to PENDING (clears reviewer and reviewed_at)
    */
-  async resetSectionReviewToPending(applicationId: string, section: ReviewSection) {
-    return prisma.applicationReview.upsert({
+  async resetSectionReviewToPending(
+    applicationId: string,
+    section: ReviewSection,
+    db: Prisma.TransactionClient | typeof prisma = prisma
+  ) {
+    return db.applicationReview.upsert({
       where: {
         application_id_section: { application_id: applicationId, section },
       },
@@ -2019,9 +2027,10 @@ export class AdminRepository {
   async resetItemReviewToPending(
     applicationId: string,
     itemType: string,
-    itemId: string
+    itemId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ) {
-    return prisma.applicationReviewItem.upsert({
+    return db.applicationReviewItem.upsert({
       where: {
         application_id_item_type_item_id: {
           application_id: applicationId,
@@ -2052,9 +2061,10 @@ export class AdminRepository {
     applicationId: string,
     section: ReviewSection,
     status: ReviewStepStatus,
-    reviewerUserId: string
+    reviewerUserId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ) {
-    return prisma.applicationReview.upsert({
+    return db.applicationReview.upsert({
       where: {
         application_id_section: { application_id: applicationId, section },
       },
@@ -2081,9 +2091,10 @@ export class AdminRepository {
     itemType: string,
     itemId: string,
     status: ReviewStepStatus,
-    reviewerUserId: string
+    reviewerUserId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ) {
-    return prisma.applicationReviewItem.upsert({
+    return db.applicationReviewItem.upsert({
       where: {
         application_id_item_type_item_id: {
           application_id: applicationId,
@@ -2107,8 +2118,19 @@ export class AdminRepository {
     });
   }
 
+  private async currentReviewCycle(
+    applicationId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
+  ): Promise<number> {
+    const application = await db.application.findUnique({
+      where: { id: applicationId },
+      select: { review_cycle: true },
+    });
+    return application?.review_cycle ?? 1;
+  }
+
   /**
-   * Create review remark
+   * Create review remark on the application's current review cycle.
    */
   async createReviewRemark(
     applicationId: string,
@@ -2116,11 +2138,14 @@ export class AdminRepository {
     scopeKey: string,
     actionType: string,
     remark: string,
-    authorUserId: string
+    authorUserId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ) {
-    return prisma.applicationReviewRemark.create({
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.create({
       data: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         scope,
         scope_key: scopeKey,
         action_type: actionType,
@@ -2131,7 +2156,7 @@ export class AdminRepository {
   }
 
   /**
-   * Upsert review remark (one current remark per scope)
+   * Upsert review remark (one current-cycle remark per scope).
    */
   async upsertReviewRemark(
     applicationId: string,
@@ -2139,18 +2164,22 @@ export class AdminRepository {
     scopeKey: string,
     actionType: string,
     remark: string,
-    authorUserId: string
+    authorUserId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ) {
-    return prisma.applicationReviewRemark.upsert({
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.upsert({
       where: {
-        application_id_scope_scope_key: {
+        application_id_review_cycle_scope_scope_key: {
           application_id: applicationId,
+          review_cycle: reviewCycle,
           scope,
           scope_key: scopeKey,
         },
       },
       create: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         scope,
         scope_key: scopeKey,
         action_type: actionType,
@@ -2167,25 +2196,29 @@ export class AdminRepository {
   }
 
   /**
-   * Upsert draft amendment (ApplicationReviewRemark with submitted_at=null)
+   * Upsert draft amendment (ApplicationReviewRemark with submitted_at=null) for the current cycle.
    */
   async upsertDraftAmendment(
     applicationId: string,
     scope: string,
     scopeKey: string,
     remark: string,
-    authorUserId: string
+    authorUserId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ) {
-    return prisma.applicationReviewRemark.upsert({
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.upsert({
       where: {
-        application_id_scope_scope_key: {
+        application_id_review_cycle_scope_scope_key: {
           application_id: applicationId,
+          review_cycle: reviewCycle,
           scope,
           scope_key: scopeKey,
         },
       },
       create: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         scope,
         scope_key: scopeKey,
         action_type: "REQUEST_AMENDMENT",
@@ -2204,12 +2237,14 @@ export class AdminRepository {
   }
 
   /**
-   * List pending amendments (draft remarks with submitted_at=null)
+   * List pending amendments (current-cycle draft remarks with submitted_at=null)
    */
-  async listPendingAmendments(applicationId: string) {
-    return prisma.applicationReviewRemark.findMany({
+  async listPendingAmendments(applicationId: string, db: Prisma.TransactionClient = prisma) {
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.findMany({
       where: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         action_type: "REQUEST_AMENDMENT",
         submitted_at: null,
       },
@@ -2218,19 +2253,34 @@ export class AdminRepository {
     });
   }
 
+  async listSubmittedAmendmentRemarksForCycle(applicationId: string, reviewCycle: number) {
+    return prisma.applicationReviewRemark.findMany({
+      where: {
+        application_id: applicationId,
+        review_cycle: reviewCycle,
+        action_type: "REQUEST_AMENDMENT",
+        submitted_at: { not: null },
+      },
+      orderBy: { created_at: "asc" },
+    });
+  }
+
   /**
-   * Update draft amendment remark
+   * Update draft amendment remark for the current cycle.
    */
   async updateDraftAmendment(
     applicationId: string,
     scope: string,
     scopeKey: string,
     remark: string,
-    authorUserId: string
+    authorUserId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ) {
-    return prisma.applicationReviewRemark.updateMany({
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.updateMany({
       where: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         scope,
         scope_key: scopeKey,
         submitted_at: null,
@@ -2242,10 +2292,17 @@ export class AdminRepository {
   /**
    * Mark a committed REQUEST_AMENDMENT remark (immediate acceptance change, not draft buffer).
    */
-  async markReviewRemarkSubmitted(applicationId: string, scope: string, scopeKey: string) {
-    return prisma.applicationReviewRemark.updateMany({
+  async markReviewRemarkSubmitted(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
+  ) {
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.updateMany({
       where: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         scope,
         scope_key: scopeKey,
         action_type: "REQUEST_AMENDMENT",
@@ -2255,12 +2312,19 @@ export class AdminRepository {
   }
 
   /**
-   * Remove draft amendment (delete remark, caller must revert item/section status)
+   * Remove current-cycle draft amendment. Submitted remarks, including prior cycles, are kept.
    */
-  async removeDraftAmendment(applicationId: string, scope: string, scopeKey: string) {
-    return prisma.applicationReviewRemark.deleteMany({
+  async removeDraftAmendment(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
+  ) {
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.deleteMany({
       where: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         scope,
         scope_key: scopeKey,
         action_type: "REQUEST_AMENDMENT",
@@ -2270,26 +2334,38 @@ export class AdminRepository {
   }
 
   /**
-   * Remove review remark for a specific scope key regardless of action type/submission state.
-   * Useful when resetting an item/section back to pending and clearing its current remark entry.
+   * Remove current-cycle draft remarks only. Historical submitted remarks must survive.
    */
-  async removeReviewRemark(applicationId: string, scope: string, scopeKey: string) {
-    return prisma.applicationReviewRemark.deleteMany({
+  async removeReviewRemark(
+    applicationId: string,
+    scope: string,
+    scopeKey: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
+  ) {
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.deleteMany({
       where: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         scope,
         scope_key: scopeKey,
+        submitted_at: null,
       },
     });
   }
 
   /**
-   * Mark draft amendments as submitted (set submitted_at)
+   * Mark current-cycle draft amendments as submitted (set submitted_at)
    */
-  async markDraftAmendmentsAsSubmitted(applicationId: string) {
-    return prisma.applicationReviewRemark.updateMany({
+  async markDraftAmendmentsAsSubmitted(
+    applicationId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
+  ) {
+    const reviewCycle = await this.currentReviewCycle(applicationId, db);
+    return db.applicationReviewRemark.updateMany({
       where: {
         application_id: applicationId,
+        review_cycle: reviewCycle,
         action_type: "REQUEST_AMENDMENT",
         submitted_at: null,
       },

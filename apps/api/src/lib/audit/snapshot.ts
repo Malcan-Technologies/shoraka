@@ -8,7 +8,7 @@ export type AuditActorSnapshot = {
 
 export async function loadAuditActorSnapshot(
   userId: string | null | undefined,
-  db: Prisma.TransactionClient = prisma
+  db: Prisma.TransactionClient | typeof prisma = prisma
 ): Promise<AuditActorSnapshot> {
   if (!userId) return { name: null, email: null };
   const user = await db.user.findUnique({

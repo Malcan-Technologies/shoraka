@@ -22,8 +22,11 @@ import {
 } from "@cashsouk/types";
 import { prisma } from "../prisma";
 import { logger } from "../logger";
-import { logApplicationActivity } from "../../modules/applications/logs/service";
-import { ActivityPortal } from "../../modules/applications/logs/types";
+import {
+  APPLICATION_AUDIT_TARGET_TYPE,
+  writeApplicationAuditLog,
+} from "../../modules/applications/audit/writer";
+import { systemAuditContext, AUDIT_SOURCE } from "../audit/context";
 import { NotificationService } from "../../modules/notification/service";
 import { NotificationTypeIds } from "../../modules/notification/registry";
 import { getIssuerRecipientUserIdsForApplication } from "../../modules/notification/application-recipients";
@@ -446,23 +449,30 @@ async function expireOffer(params: {
       result.applicationsUpdated.push(row.application_id);
     }
 
+    await writeApplicationAuditLog(
+      {
+        eventType: row.kind === "contract" ? "CONTRACT_OFFER_EXPIRED" : "INVOICE_OFFER_EXPIRED",
+        context: systemAuditContext({ source: AUDIT_SOURCE.SYSTEM_JOB, portal: null }),
+        applicationId: row.application_id,
+        targetType:
+          row.kind === "contract"
+            ? APPLICATION_AUDIT_TARGET_TYPE.CONTRACT
+            : APPLICATION_AUDIT_TARGET_TYPE.INVOICE,
+        targetId: row.id,
+        metadata: {
+          previousStatus: "OFFER_SENT",
+          newStatus: "OFFER_EXPIRED",
+          clock,
+          trigger: `${clock}_deadline_expired`,
+        },
+      },
+      tx
+    );
+
     return expiredEnvelopeIds;
   });
 
   result.envelopesExpired.push(...envelopeIds);
-
-  logApplicationActivity({
-    userId: systemUserId,
-    applicationId: row.application_id,
-    eventType: row.kind === "contract" ? "CONTRACT_OFFER_EXPIRED" : "INVOICE_OFFER_EXPIRED",
-    portal: ActivityPortal.ADMIN,
-    entityId: row.id,
-    metadata: {
-      trigger: `${clock}_deadline_expired`,
-      offer_kind: row.kind,
-      [row.kind === "contract" ? "contract_id" : "invoice_id"]: row.id,
-    },
-  });
 
   try {
     await sendIssuerNotificationForApplication(

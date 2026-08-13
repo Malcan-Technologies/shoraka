@@ -1,7 +1,14 @@
 # CashSouk Current Audit & Logging Inventory
 
-**Date:** 13 August 2026  
-**Scope:** Inventory of `/home/max/projects/shoraka`. Source of truth is current code and `apps/api/prisma/schema.prisma`.
+**Phase 6 cutover (current state):**
+
+- `ApplicationAuditLog` (`application_audit_logs`) is the application/review/contract/invoice history table (append-only, no Application/User FKs).
+- `ApplicationReviewRemark.review_cycle` is the amendment-remark source of truth. Submitted remarks survive issuer resubmit. Resubmit comparison reads `ApplicationRevision` + cycle-scoped remarks — never audit/log rows.
+- Legacy `ApplicationLog` / `application_logs` is **retained**. The only live writer is `signing/service.ts` for `SIGNING_PACKAGE_*` until SigningAuditLog exists. Do not add new ApplicationLog writers.
+- `GET /v1/applications/:id/logs` and the activity adapter read `ApplicationAuditLog`.
+- There is **no** canonical/global `AuditEvent` table.
+
+---
 
 **Phase 4 cutover + legacy cleanup (current state):**
 
@@ -46,7 +53,7 @@ CashSouk does not have a single audit system. It has **many specialized tables**
 
 - **Auth/security:** `AccessAuditLog` (signup/login/logout) + `SecurityAuditLog` (RBAC, profile, invitations, membership, notification config). No User FK; history survives User deletion. `UserSession` is session SOT; Cognito is auth authority. Legacy `AccessLog` / `SecurityLog` removed.
 - **Onboarding:** `OnboardingAuditLog` is the sole onboarding/compliance history table (append-only). Organization `onboarding_status`/flags, `RegTankOnboarding`, `LegalDocumentAcceptance`, and CTOS rows remain SOT. Audit is never workflow state. Legacy `OnboardingLog` / `onboarding_logs` removed.
-- **Applications:** `ApplicationLog` (primary UI timeline) plus rarely-read `ApplicationReviewEvent` dual-writes on three actions. Wrapper always stores `level`/`target`/`action` as null.
+- **Applications:** `ApplicationAuditLog` (`application_audit_logs`) is the application/review/contract/invoice history table (append-only, no Application/User FKs). Amendment remarks are `ApplicationReviewRemark` (cycle-scoped). Resubmit comparison reads `ApplicationRevision` + remarks, never audit. Legacy `ApplicationLog` is retained only for `signing/service.ts` `SIGNING_PACKAGE_*` until SigningAuditLog exists. `ApplicationReviewEvent` still dual-writes on a few review actions and has no production readers.
 - **Notes:** `NoteEvent` + `NoteAdminAction` dual-write for admin actions. Activity feed reads a **subset** of `NoteEvent` types.
 - **Legal admin:** dedicated `LegalAdminAuditLog`. User open/accept is **not** that table; it is `LegalDocumentAcceptance` updated **in place**. Legacy `LegalDocumentAuditLog` / `legal_document_audit_logs` has been removed.
 - **Payments:** `GatewayPayment` is SOT; `GatewayPaymentEvent` is a partial admin trail (no capture/complete type); `GatewayWebhookEvent` is provider transport and is **updated** after processing.

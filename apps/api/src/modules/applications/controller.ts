@@ -13,8 +13,7 @@ import {
 import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { z } from "zod";
-import { logApplicationActivity } from "./logs/service";
-import { ActivityPortal } from "./logs/types";
+import { auditContextFromRequest } from "../../lib/audit/context";
 import { readSigningCloudConfigFromEnv } from "../signingcloud/signingcloud-api";
 
 /**
@@ -45,24 +44,11 @@ async function createApplication(req: Request, res: Response, next: NextFunction
   try {
     const input = createApplicationSchema.parse(req.body);
     const callerUserId = getUserId(req);
-    const application = await applicationService.createApplication(input, callerUserId);
-    // Log application creation (issuer flow). Do not break main flow on failure.
-    try {
-      await logApplicationActivity({
-        userId: callerUserId,
-        applicationId: application.id,
-        eventType: "APPLICATION_CREATED",
-        reviewCycle: 1,
-        ipAddress: req.ip ?? undefined,
-        userAgent:
-          (Array.isArray(req.headers["user-agent"])
-            ? req.headers["user-agent"][0]
-            : req.headers["user-agent"]) ?? undefined,
-        portal: ActivityPortal.ISSUER,
-      });
-    } catch {
-      // swallow errors
-    }
+    const application = await applicationService.createApplication(
+      input,
+      callerUserId,
+      auditContextFromRequest(req)
+    );
 
     res.status(201).json({
       success: true,
@@ -103,7 +89,12 @@ async function updateApplicationStep(req: Request, res: Response, next: NextFunc
     const { id } = applicationIdParamSchema.parse(req.params);
     const input = updateApplicationStepSchema.parse(req.body);
     const userId = getUserId(req);
-    const application = await applicationService.updateStep(id, input, userId);
+    const application = await applicationService.updateStep(
+      id,
+      input,
+      userId,
+      auditContextFromRequest(req)
+    );
 
     res.json({
       success: true,
@@ -123,7 +114,11 @@ async function archiveApplication(req: Request, res: Response, next: NextFunctio
   try {
     const { id } = applicationIdParamSchema.parse(req.params);
     const userId = getUserId(req);
-    const application = await applicationService.archiveApplication(id, userId);
+    const application = await applicationService.archiveApplication(
+      id,
+      userId,
+      auditContextFromRequest(req)
+    );
 
     res.json({
       success: true,
@@ -144,7 +139,7 @@ async function deleteDraftApplication(req: Request, res: Response, next: NextFun
     const { id } = applicationIdParamSchema.parse(req.params);
     const userId = getUserId(req);
 
-    await applicationService.deleteDraftApplication(id, userId);
+    await applicationService.deleteDraftApplication(id, userId, auditContextFromRequest(req));
 
     res.json({
       success: true,
@@ -286,44 +281,12 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
     const { status } = updateStatusSchema.parse(req.body);
     const userId = getUserId(req);
 
-    const result = await applicationService.updateApplicationStatus(id, status, userId);
-    try {
-      const callerUserId = getUserId(req);
-
-      // Issuer flows
-      if (status === "SUBMITTED" || status === "RESUBMITTED") {
-        await logApplicationActivity({
-          userId: callerUserId,
-          applicationId: result.id,
-          eventType: status === "RESUBMITTED" ? "APPLICATION_RESUBMITTED" : "APPLICATION_SUBMITTED",
-          reviewCycle: (result as any)?.review_cycle ?? undefined,
-          ipAddress: req.ip ?? undefined,
-          userAgent:
-            (Array.isArray(req.headers["user-agent"])
-              ? req.headers["user-agent"][0]
-              : req.headers["user-agent"]) ?? undefined,
-          portal: ActivityPortal.ISSUER,
-        });
-      }
-
-      // Admin flows
-      if (status === "REJECTED") {
-        await logApplicationActivity({
-          userId: callerUserId,
-          applicationId: result.id,
-          eventType: "APPLICATION_REJECTED",
-          reviewCycle: (result as any)?.review_cycle ?? undefined,
-          ipAddress: req.ip ?? undefined,
-          userAgent:
-            (Array.isArray(req.headers["user-agent"])
-              ? req.headers["user-agent"][0]
-              : req.headers["user-agent"]) ?? undefined,
-          portal: ActivityPortal.ADMIN,
-        });
-      }
-    } catch {
-      // swallow errors
-    }
+    const result = await applicationService.updateApplicationStatus(
+      id,
+      status,
+      userId,
+      auditContextFromRequest(req)
+    );
 
     res.json({
       success: true,
@@ -621,7 +584,12 @@ router.get("/:id", requireAuth, getApplication);
         const { id } = applicationIdParamSchema.parse(req.params);
         const body = z.object({ workflowId: z.string().min(1) }).parse(req.body);
         const userId = getUserId(req);
-        const result = await applicationService.acknowledgeWorkflow(id, userId, body.workflowId);
+        const result = await applicationService.acknowledgeWorkflow(
+          id,
+          userId,
+          body.workflowId,
+          auditContextFromRequest(req)
+        );
         res.json({
           success: true,
           data: result,
@@ -640,7 +608,11 @@ router.get("/:id", requireAuth, getApplication);
       try {
         const { id } = applicationIdParamSchema.parse(req.params);
         const userId = getUserId(req);
-        const result = await applicationService.resubmitApplication(id, userId);
+        const result = await applicationService.resubmitApplication(
+          id,
+          userId,
+          auditContextFromRequest(req)
+        );
         res.json({
           success: true,
           data: result,

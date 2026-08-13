@@ -2,14 +2,14 @@ import { ApplicationLogAdapter } from "./application-log";
 
 jest.mock("../../../lib/prisma", () => ({
   prisma: {
-    applicationLog: { findMany: jest.fn(), count: jest.fn() },
+    applicationAuditLog: { findMany: jest.fn(), count: jest.fn() },
     application: { findMany: jest.fn() },
   },
 }));
 
 const { prisma } = jest.requireMock("../../../lib/prisma") as {
   prisma: {
-    applicationLog: { findMany: jest.Mock; count: jest.Mock };
+    applicationAuditLog: { findMany: jest.Mock; count: jest.Mock };
     application: { findMany: jest.Mock };
   };
 };
@@ -44,22 +44,18 @@ describe("ApplicationLogAdapter", () => {
     });
   });
 
-  it("builds presentation for offer acceptance and signing package events", () => {
-    expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTANCE_SUBMITTED")).toEqual({
+  it("builds presentation for offer acceptance events and does not advertise signing packages", () => {
+    expect(adapter.buildPresentation("CONTRACT_ACCEPTANCE_SUBMITTED")).toEqual({
       title: "Contract Acceptance Submitted",
       description: "You submitted offer acceptance documents for CashSouk review.",
     });
-    expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED")).toEqual({
+    expect(adapter.buildPresentation("CONTRACT_ACCEPTANCE_RESUBMITTED")).toEqual({
       title: "Contract Acceptance Resubmitted",
       description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
     });
     expect(adapter.buildPresentation("SIGNING_PACKAGE_SENT")).toEqual({
-      title: "Signing Package Sent",
-      description: "The signing package was sent to all required signers.",
-    });
-    expect(adapter.buildPresentation("SIGNING_PACKAGE_COMPLETED")).toEqual({
-      title: "Signing Package Completed",
-      description: "All required signers completed the signing package.",
+      title: "Application Update",
+      description: "An application update was recorded for your account.",
     });
     expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTED")).toEqual({
       title: "Contract Offer Signed",
@@ -67,25 +63,26 @@ describe("ApplicationLogAdapter", () => {
     });
   });
 
-  it("includes curated issuer-facing offer acceptance and signing events", () => {
+  it("includes application-domain events and excludes SIGNING_PACKAGE_*", () => {
     const eventTypes = adapter.getEventTypes();
     expect(eventTypes).toEqual(
       expect.arrayContaining([
-        "CONTRACT_OFFER_ACCEPTANCE_SUBMITTED",
-        "CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED",
-        "INVOICE_OFFER_ACCEPTANCE_SUBMITTED",
-        "INVOICE_OFFER_ACCEPTANCE_RESUBMITTED",
-        "SIGNING_PACKAGE_SENT",
+        "CONTRACT_ACCEPTANCE_SUBMITTED",
+        "CONTRACT_ACCEPTANCE_RESUBMITTED",
+        "INVOICE_ACCEPTANCE_SUBMITTED",
+        "INVOICE_ACCEPTANCE_RESUBMITTED",
         "CONTRACT_OFFER_ACCEPTED",
         "INVOICE_OFFER_ACCEPTED",
+        "APPLICATION_AMENDMENTS_REQUESTED",
       ])
     );
     expect(eventTypes).not.toEqual(
       expect.arrayContaining([
-        "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING",
         "SIGNING_PACKAGE_CREATED",
+        "SIGNING_PACKAGE_SENT",
         "SIGNING_PACKAGE_COMPLETED",
         "SIGNING_PACKAGE_VOIDED",
+        "APPLICATION_APPROVED",
       ])
     );
   });
@@ -94,17 +91,19 @@ describe("ApplicationLogAdapter", () => {
     const now = new Date();
     const record: any = {
       id: "log1",
-      user_id: "user123",
+      actor_user_id: "user123",
       event_type: "APPLICATION_CREATED",
       metadata: {},
       ip_address: "1.2.3.4",
       user_agent: "agent",
-      device_info: "device",
+      occurred_at: now,
       created_at: now,
+      target_type: "APPLICATION",
+      target_id: "app1",
     };
 
     const unified = adapter.transform(record);
-    expect(unified.source_table).toBe("application_logs");
+    expect(unified.source_table).toBe("application_audit_logs");
     expect(unified.category).toBe("organization");
     expect(unified.domain).toBe("application");
     expect(unified.activity).toBe("Application Started");
@@ -116,14 +115,15 @@ describe("ApplicationLogAdapter", () => {
     const now = new Date();
     const record: any = {
       id: "log2",
-      user_id: "user123",
+      actor_user_id: "user123",
       application_id: "app_123",
-      entity_id: "invoice_456",
+      target_id: "invoice_456",
       event_type: "INVOICE_OFFER_SENT",
       metadata: {
         invoice_id: "invoice_456",
         invoice_number: "INV-001",
       },
+      occurred_at: now,
       created_at: now,
     };
 
@@ -188,7 +188,7 @@ describe("ApplicationLogAdapter", () => {
 
   it("backfills contract references from the application when the log metadata is missing", async () => {
     const now = new Date();
-    prisma.applicationLog.findMany.mockResolvedValue([
+    prisma.applicationAuditLog.findMany.mockResolvedValue([
       {
         id: "log5",
         user_id: "user123",
@@ -228,7 +228,7 @@ describe("ApplicationLogAdapter", () => {
   });
 
   it("returns no application activity for investor-scoped requests", async () => {
-    prisma.applicationLog.findMany.mockResolvedValue([]);
+    prisma.applicationAuditLog.findMany.mockResolvedValue([]);
 
     const records = await adapter.query("user123", {
       organizationId: "investor-org-1",
@@ -236,7 +236,7 @@ describe("ApplicationLogAdapter", () => {
     });
 
     expect(prisma.application.findMany).not.toHaveBeenCalled();
-    expect(prisma.applicationLog.findMany).toHaveBeenCalledWith(
+    expect(prisma.applicationAuditLog.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           application_id: { in: ["__none__"] },
@@ -248,7 +248,7 @@ describe("ApplicationLogAdapter", () => {
 
   it("keeps issuer-scoped requests limited to the active issuer organization", async () => {
     prisma.application.findMany.mockResolvedValue([{ id: "app_1" }, { id: "app_2" }]);
-    prisma.applicationLog.findMany.mockResolvedValue([]);
+    prisma.applicationAuditLog.findMany.mockResolvedValue([]);
 
     await adapter.query("user123", {
       organizationId: "issuer-org-1",
@@ -259,7 +259,7 @@ describe("ApplicationLogAdapter", () => {
       where: { issuer_organization_id: "issuer-org-1" },
       select: { id: true },
     });
-    expect(prisma.applicationLog.findMany).toHaveBeenCalledWith(
+    expect(prisma.applicationAuditLog.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           application_id: { in: ["app_1", "app_2"] },
@@ -269,7 +269,7 @@ describe("ApplicationLogAdapter", () => {
   });
 
   it("returns zero application counts for investor-scoped requests", async () => {
-    prisma.applicationLog.count.mockResolvedValue(0);
+    prisma.applicationAuditLog.count.mockResolvedValue(0);
 
     const count = await adapter.count("user123", {
       organizationId: "investor-org-1",
@@ -277,7 +277,7 @@ describe("ApplicationLogAdapter", () => {
     });
 
     expect(prisma.application.findMany).not.toHaveBeenCalled();
-    expect(prisma.applicationLog.count).toHaveBeenCalledWith({
+    expect(prisma.applicationAuditLog.count).toHaveBeenCalledWith({
       where: expect.objectContaining({
         application_id: { in: ["__none__"] },
       }),
@@ -285,11 +285,17 @@ describe("ApplicationLogAdapter", () => {
     expect(count).toBe(0);
   });
 
-  it("only exposes high-signal application events", () => {
-    expect(adapter.getEventTypes()).toContain("APPLICATION_APPROVED");
-    expect(adapter.getEventTypes()).toContain("AMENDMENTS_SUBMITTED");
+  it("only exposes ApplicationAuditLog catalogue events", () => {
+    expect(adapter.getEventTypes()).toContain("APPLICATION_CREATED");
+    expect(adapter.getEventTypes()).toContain("APPLICATION_AMENDMENTS_REQUESTED");
+    expect(adapter.getEventTypes()).toContain("APPLICATION_REOPENED_FOR_REVIEW");
+    expect(adapter.getEventTypes()).toContain("CONTRACT_OFFER_REJECTED");
+    expect(adapter.getEventTypes()).not.toContain("APPLICATION_APPROVED");
+    expect(adapter.getEventTypes()).not.toContain("AMENDMENTS_SUBMITTED");
     expect(adapter.getEventTypes()).not.toContain("SECTION_REVIEWED_APPROVED");
     expect(adapter.getEventTypes()).not.toContain("ITEM_REVIEWED_REJECTED");
+    expect(adapter.getEventTypes()).not.toContain("SIGNING_PACKAGE_CREATED");
+    expect(adapter.getEventTypes()).not.toContain("SIGNING_PACKAGE_COMPLETED");
   });
 });
 
