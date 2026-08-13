@@ -185,7 +185,7 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
           ) : null}
         </div>
         <p className="text-xs text-muted-foreground">
-          Note events, admin actions, generated letters, and settlement activity
+          Note events, generated letters, and settlement activity
         </p>
       </CardHeader>
       <CardContent className="min-h-0 overflow-hidden !px-0">

@@ -71,6 +71,9 @@ describe("Note audit cutover", () => {
   ]);
   const scripts = collectTsSources(["../scripts"]);
   const dropMigration = readSrc("../prisma/migrations/20260814020000_drop_note_events/migration.sql");
+  const dropAdminActionMigration = readSrc(
+    "../prisma/migrations/20260814030000_drop_note_admin_actions/migration.sql"
+  );
   const typesNotes = readSrc("../../../packages/types/src/notes.ts");
   const products = collectTsSources(["modules/products"]);
   const legal = collectTsSources(["modules/legal-documents"]);
@@ -129,19 +132,32 @@ describe("Note audit cutover", () => {
     expect(scripts).not.toMatch(/noteEvent\.(create|createMany|deleteMany)/);
     expect(scripts).not.toMatch(/prisma\.noteEvent/);
     expect(scripts).not.toMatch(/tx\.noteEvent/);
+    expect(scripts).not.toMatch(/admin_actions:\s*\{/);
     expect(typesNotes).not.toMatch(/export interface NoteEvent/);
   });
 
-  it("removes the Prisma NoteEvent model and keeps NoteAdminAction", () => {
+  it("removes the Prisma NoteEvent model", () => {
     expect(schema).not.toMatch(/model NoteEvent/);
     expect(schema).not.toMatch(/events\s+NoteEvent\[\]/);
     expect(schema).not.toMatch(/@@map\("note_events"\)/);
     expect(dropMigration).toMatch(/DROP TABLE "note_events"/);
     expect(dropMigration).not.toMatch(/DROP TABLE "note_audit_logs"/);
-    expect(dropMigration).not.toMatch(/DROP TABLE "note_admin_actions"/);
-    expect(schema).toMatch(/model NoteAdminAction/);
-    expect(notes).toMatch(/noteAdminAction\.create/);
-    expect(prospectus).toMatch(/noteAdminAction\.create/);
+  });
+
+  it("removes NoteAdminAction model, helpers, and writers", () => {
+    expect(schema).not.toMatch(/model NoteAdminAction/);
+    expect(schema).not.toMatch(/admin_actions\s+NoteAdminAction\[\]/);
+    expect(schema).not.toMatch(/@@map\("note_admin_actions"\)/);
+    expect(dropAdminActionMigration).toMatch(/DROP TABLE "note_admin_actions"/);
+    expect(dropAdminActionMigration).not.toMatch(/DROP TABLE "note_audit_logs"/);
+    expect(notes).not.toMatch(/logAdminAction/);
+    expect(notes).not.toMatch(/noteAdminAction\.create/);
+    expect(prospectus).not.toMatch(/logProspectusAdminAction/);
+    expect(prospectus).not.toMatch(/noteAdminAction\.create/);
+    expect(liveNoteSources).not.toMatch(/prisma\.noteAdminAction/);
+    expect(liveNoteSources).not.toMatch(/tx\.noteAdminAction/);
+    expect(scripts).not.toMatch(/noteAdminAction/);
+    expect(scripts).not.toMatch(/admin_actions:/);
   });
 
   it("does not use NoteAuditLog as workflow or financial state", () => {
@@ -162,6 +178,7 @@ describe("Note audit cutover", () => {
     expect(chunk).toMatch(/NOTE_CREATED/);
     expect(chunk).toMatch(/sourceType: "INVOICE"/);
     expect(chunk).not.toMatch(/NOTE_CREATED_FROM_INVOICE/);
+    expect(chunk).not.toMatch(/admin_actions:/);
     expect(chunk).not.toMatch(/events:\s*\{\s*create/);
   });
 
@@ -170,6 +187,17 @@ describe("Note audit cutover", () => {
     expect(chunk).toMatch(/NOTE_TERMS_UPDATED/);
     expect(chunk).toMatch(/MATERIAL_TERM_FIELDS/);
     expect(chunk).toMatch(/changedFields/);
+    expect(chunk).not.toMatch(/logAdminAction/);
+  });
+
+  it("does not audit featured settings or prospectus draft saves", () => {
+    const featuredChunk = methodChunk(notes, "updateFeaturedSettings", 2500);
+    expect(featuredChunk).not.toMatch(/writeNoteAuditFromActor/);
+    expect(featuredChunk).not.toMatch(/logAdminAction/);
+    const draftChunk = methodChunk(prospectus, "saveDraft", 7000);
+    expect(draftChunk).not.toMatch(/logProspectusAdminAction/);
+    expect(draftChunk).not.toMatch(/PROSPECTUS_REVIEW_DRAFT_UPDATE/);
+    expect(draftChunk).toMatch(/NOTE_PROSPECTUS_INVALIDATED/);
   });
 
   it("publish writes one NOTE_PUBLISHED and unpublish stays truthful", () => {

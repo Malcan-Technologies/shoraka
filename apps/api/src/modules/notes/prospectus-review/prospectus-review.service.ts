@@ -183,28 +183,6 @@ function mapReview(row: NoteProspectusReview) {
   };
 }
 
-async function logProspectusAdminAction(
-  tx: Prisma.TransactionClient,
-  noteId: string,
-  actionType: string,
-  actor: ActorContext,
-  beforeState?: Prisma.InputJsonValue,
-  afterState?: Prisma.InputJsonValue
-) {
-  await tx.noteAdminAction.create({
-    data: {
-      note_id: noteId,
-      action_type: actionType,
-      actor_user_id: actor.userId,
-      before_state: beforeState,
-      after_state: afterState,
-      ip_address: actor.ipAddress,
-      user_agent: actor.userAgent,
-      correlation_id: actor.correlationId,
-    },
-  });
-}
-
 function isNotePublished(note: { status: NoteStatus; published_at: Date | null }) {
   return note.status === NoteStatus.PUBLISHED || note.published_at != null;
 }
@@ -357,7 +335,6 @@ export class ProspectusReviewService {
             updated_by_user_id: actor.userId,
           },
         });
-        await logProspectusAdminAction(tx, noteId, "PROSPECTUS_REVIEW_CREATE", actor);
         await writeNoteAuditFromActor(
           actor,
           {
@@ -421,12 +398,6 @@ export class ProspectusReviewService {
               noteId,
               actor.userId,
               asStoredContent(review!.draft_content)
-            );
-            await logProspectusAdminAction(
-              tx,
-              noteId,
-              "PROSPECTUS_APPROVAL_INVALIDATED_SOURCE",
-              actor
             );
             await writeNoteAuditFromActor(
               actor,
@@ -596,12 +567,6 @@ export class ProspectusReviewService {
     const updated = await prisma.$transaction(async (tx) => {
       if (current!.status === ProspectusReviewStatus.APPROVED && contentChanged) {
         const row = await clearApprovalEligibility(tx, noteId, actor.userId, draftToStore);
-        await logProspectusAdminAction(
-          tx,
-          noteId,
-          "PROSPECTUS_APPROVAL_INVALIDATED_EDIT",
-          actor
-        );
         await writeNoteAuditFromActor(
           actor,
           {
@@ -634,12 +599,6 @@ export class ProspectusReviewService {
           option_catalogue_version: catalogueVersion(),
         },
       });
-      await logProspectusAdminAction(
-        tx,
-        noteId,
-        "PROSPECTUS_REVIEW_DRAFT_UPDATE",
-        actor
-      );
       return row;
     });
 
@@ -791,7 +750,6 @@ export class ProspectusReviewService {
           content_version: nextVersion,
         },
       });
-      await logProspectusAdminAction(tx, noteId, "PROSPECTUS_REVIEW_APPROVE", actor);
       await writeNoteAuditFromActor(
         actor,
         {

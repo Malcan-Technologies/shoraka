@@ -246,13 +246,6 @@ async function main() {
             typeof invoiceDetails.maturity_date === "string"
               ? dateFrom(invoiceDetails.maturity_date)
               : null,
-          admin_actions: {
-            create: {
-              action_type: "CREATE_FROM_INVOICE",
-              actor_user_id: actorUserId,
-              after_state: { status: NoteStatus.DRAFT, invoiceId: invoice.id },
-            },
-          },
         },
       });
 

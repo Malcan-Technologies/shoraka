@@ -2377,16 +2377,6 @@ export class NoteService {
               typeof invoiceDetails.maturity_date === "string"
                 ? dateFrom(invoiceDetails.maturity_date)
                 : null,
-            admin_actions: {
-              create: {
-                action_type: "CREATE_FROM_INVOICE",
-                actor_user_id: actor.userId,
-                after_state: { status: NoteStatus.DRAFT, invoiceId: invoice.id },
-                ip_address: actor.ipAddress,
-                user_agent: actor.userAgent,
-                correlation_id: actor.correlationId,
-              },
-            },
           },
           include: noteInclude,
         });
@@ -2493,14 +2483,6 @@ export class NoteService {
         },
         include: noteInclude,
       });
-      await this.logAdminAction(
-        tx,
-        id,
-        "UPDATE_DRAFT",
-        actor,
-        mapNoteListItem(note),
-        mapNoteListItem(result)
-      );
       const beforeTerms = materialTermsSnapshot(note);
       const afterTerms = materialTermsSnapshot(result);
       const changedFields = MATERIAL_TERM_FIELDS.filter(
@@ -2534,7 +2516,7 @@ export class NoteService {
   async updateFeaturedSettings(
     id: string,
     input: z.infer<typeof updateNoteFeaturedSchema>,
-    actor: ActorContext
+    _actor: ActorContext
   ) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
@@ -2604,14 +2586,6 @@ export class NoteService {
         },
         include: noteInclude,
       });
-      await this.logAdminAction(
-        tx,
-        id,
-        "UPDATE_FEATURED_SETTINGS",
-        actor,
-        mapNoteListItem(note),
-        mapNoteListItem(result)
-      );
       return result;
     });
 
@@ -2759,14 +2733,6 @@ export class NoteService {
         },
         include: noteInclude,
       });
-      await this.logAdminAction(
-        tx,
-        id,
-        "PUBLISH",
-        actor,
-        mapNoteListItem(note),
-        mapNoteListItem(result)
-      );
       const publication = await tx.noteProspectusPublication.findUnique({
         where: { id: publicationId },
         select: { content_version: true, pdf_sha256: true },
@@ -2827,14 +2793,6 @@ export class NoteService {
         },
         include: noteInclude,
       });
-      await this.logAdminAction(
-        tx,
-        id,
-        "UNPUBLISH",
-        actor,
-        mapNoteListItem(note),
-        mapNoteListItem(result)
-      );
       await writeNoteAuditFromActor(
         actor,
         {
@@ -3241,14 +3199,6 @@ export class NoteService {
         }
       }
 
-      await this.logAdminAction(
-        tx,
-        id,
-        "CLOSE_FUNDING",
-        actor,
-        mapNoteListItem(note),
-        mapNoteListItem(result)
-      );
       await writeNoteAuditFromActor(
         actor,
         {
@@ -3348,14 +3298,6 @@ export class NoteService {
         });
       }
       const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
-      await this.logAdminAction(
-        tx,
-        id,
-        "FAIL_FUNDING",
-        actor,
-        mapNoteListItem(note),
-        mapNoteListItem(result)
-      );
       await writeNoteAuditFromActor(
         actor,
         {
@@ -3431,14 +3373,6 @@ export class NoteService {
       // For legacy safety: facility fee is charged at funding close; activation ledger uses facility fee = 0.
       // closeFunding() already posts the correct disbursement ledger entries.
       await this.postDisbursementLedger(tx, result, actor);
-      await this.logAdminAction(
-        tx,
-        id,
-        "ACTIVATE",
-        actor,
-        mapNoteListItem(note),
-        mapNoteListItem(result)
-      );
       await writeNoteAuditFromActor(
         actor,
         {
@@ -6443,28 +6377,6 @@ export class NoteService {
       select: { platform_fee_rate_cap_percent: true },
     });
     return toNumber(settings.platform_fee_rate_cap_percent);
-  }
-
-  private async logAdminAction(
-    tx: Prisma.TransactionClient,
-    noteId: string,
-    actionType: string,
-    actor: ActorContext,
-    beforeState?: unknown,
-    afterState?: unknown
-  ) {
-    await tx.noteAdminAction.create({
-      data: {
-        note_id: noteId,
-        action_type: actionType,
-        actor_user_id: actor.userId,
-        before_state: beforeState as Prisma.InputJsonValue | undefined,
-        after_state: afterState as Prisma.InputJsonValue | undefined,
-        ip_address: actor.ipAddress,
-        user_agent: actor.userAgent,
-        correlation_id: actor.correlationId,
-      },
-    });
   }
 
   private async getLedgerAccountId(tx: Prisma.TransactionClient, code: string) {
