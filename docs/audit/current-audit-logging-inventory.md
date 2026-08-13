@@ -1,19 +1,31 @@
 # CashSouk Current Audit & Logging Inventory
 
 **Date:** 13 August 2026  
-**Scope:** Read-only inventory of `/home/max/projects/shoraka`. Source of truth is current code and `apps/api/prisma/schema.prisma`. Existing docs were used only as clues.
+**Scope:** Inventory of `/home/max/projects/shoraka`. Source of truth is current code and `apps/api/prisma/schema.prisma`.
 
-**This report does not redesign, rename, migrate, or implement anything.**
+**Phase 4 cutover + legacy cleanup (current state):**
+
+- `AccessLog` / `access_logs` **removed**. `AccessAuditLog` (`access_audit_logs`) is the **sole** authentication-history audit table (`USER_SIGNED_UP`, `USER_LOGGED_IN`, `USER_LOGGED_OUT`).
+- `SecurityLog` / `security_logs` **removed**. `SecurityAuditLog` (`security_audit_logs`) is the **sole** security/admin-control audit table.
+- `UserSession` remains session source of truth. Cognito remains auth authority.
+- There is **no** canonical/global `AuditEvent` table.
+
+Known limitations (not fixed in the cleanup):
+
+1. One logical logout can currently emit two `USER_LOGGED_OUT` events (`POST /v1/auth/logout` and Cognito `GET /logout`).
+2. Access query `status=failed` is preserved for API compatibility but matches no Access event (Access has no failure events).
+3. Admin deactivation is DB-only; no Cognito `AdminDisableUser` / session revoke in that path yet.
+4. Password/email verification/role-sync and invitation/org email resend remain non-atomic with Cognito/SES.
 
 ---
 
 ## 1. Executive Summary
 
-CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_logs`, `security_logs`, `onboarding_logs`, `application_logs`, `product_audit_logs`, `note_events`, `note_admin_actions`, `legal_admin_audit_logs`, `notification_broadcast_audit_logs`, `gateway_payment_events`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records).
+CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_audit_logs`, `security_audit_logs`, `onboarding_logs`, `application_logs`, `product_audit_logs`, `note_events`, `note_admin_actions`, `legal_admin_audit_logs`, `notification_broadcast_audit_logs`, `gateway_payment_events`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records). Legacy `access_logs` and `security_logs` have been dropped.
 
 ### Current architecture (factual)
 
-- **Auth/security:** `AccessLog` + `SecurityLog`. Actor column is often the admin, not the target user.
+- **Auth/security:** `AccessAuditLog` (signup/login/logout) + `SecurityAuditLog` (RBAC, profile, invitations, membership, notification config). No User FK; history survives User deletion. `UserSession` is session SOT; Cognito is auth authority. Legacy `AccessLog` / `SecurityLog` removed.
 - **Onboarding:** `OnboardingLog` with free-string `event_type`. `AuthService` **reads** `ONBOARDING_STARTED` / `USER_COMPLETED` to decide cancellation, while production final approval now writes `FINAL_APPROVAL_COMPLETED`.
 - **Applications:** `ApplicationLog` (primary UI timeline) plus rarely-read `ApplicationReviewEvent` dual-writes on three actions. Wrapper always stores `level`/`target`/`action` as null.
 - **Notes:** `NoteEvent` + `NoteAdminAction` dual-write for admin actions. Activity feed reads a **subset** of `NoteEvent` types.
@@ -57,9 +69,9 @@ Legend: ✅ inspected · N/A none found · ⚠ leftover/unused
 
 | Module | Routes | Service | DB writes | Frontend mutations | Jobs | Webhooks | Log writes | Readers/UI |
 |---|---|---|---|---|---|---|---|---|
-| AUTH | ✅ | ✅ | ✅ | ✅ portals + Cognito | N/A | Cognito callback | AccessLog/SecurityLog | `/audit` + account recent logins + AuthService **logic** |
+| AUTH | ✅ | ✅ | ✅ | ✅ portals + Cognito | N/A | Cognito callback | AccessAuditLog/SecurityAuditLog | `/audit` + account recent logins |
 | USER / PROFILE | ✅ | ✅ | ✅ | ✅ admin/issuer/investor | N/A | N/A | PARTIAL | Admin users |
-| ADMIN / RBAC | ✅ | ✅ | ✅ | ✅ | N/A | N/A | SecurityLog/AccessLog | Admin roles UI |
+| ADMIN / RBAC | ✅ | ✅ | ✅ | ✅ | N/A | N/A | SecurityAuditLog | Admin roles UI + `/audit` security |
 | ADMIN INVITATIONS | ✅ | ✅ | ✅ | ✅ | N/A | SES | revoke only | Invitation rows |
 | ORGANIZATION | ✅ | ✅ | ✅ | ✅ issuer/investor | N/A | N/A | TNC_APPROVED only | Org pages |
 | ORGANIZATION MEMBERS | ✅ | ✅ | ✅ | ✅ | N/A | N/A | **none** | Members UI |
@@ -108,17 +120,16 @@ Classification: **A** = audit/history evidence · **B** = source-of-truth busine
 
 ### 3.1 Named log / event tables
 
-#### AccessLog → `access_logs` · AUTH · **A**
+#### AccessAuditLog → `access_audit_logs` · AUTH · **A**
 
-Fields: `id`, `user_id`, `event_type`, `ip_address`, `user_agent`, `device_info`, `cognito_event` (JSON), `success`, `metadata` (JSON), `created_at`, `device_type`, `portal`.  
-PK: `id`. FK: `user_id` → User **onDelete: Cascade**.  
-Indexes: user_id, event_type, portal, created_at, (user_id, created_at).  
-Mutable: create-only in production. **Destroyed if User deleted.**
+Sole authentication-history table. Events: `USER_SIGNED_UP`, `USER_LOGGED_IN`, `USER_LOGGED_OUT`.  
+No User FK (scalar `user_id` / `actor_user_id` only). Required `metadata` Json. `occurred_at` + `created_at`. No `updated_at`. Append-only create. Device derived at read from `user_agent`.  
+**REMOVED:** `AccessLog` / `access_logs`.
 
-#### SecurityLog → `security_logs` · SECURITY/RBAC · **A**
+#### SecurityAuditLog → `security_audit_logs` · SECURITY/RBAC · **A**
 
-Fields: `id`, `user_id`, `event_type`, `ip_address`, `user_agent`, `device_info`, `metadata`, `created_at`.  
-No portal, no success, no correlation. FK User **Cascade**.
+Sole security/admin-control table. Distinguishes `actor_user_id` vs `subject_user_id`. No User / role / invitation / membership FKs.  
+**REMOVED:** `SecurityLog` / `security_logs`.
 
 #### OnboardingLog → `onboarding_logs` · ONBOARDING · **A** (also **C** because AuthService uses it as state)
 
@@ -215,7 +226,7 @@ Create-only for bulk send. Legacy `NotificationLog` / `notification_logs` has be
 
 ## 4. Complete Business Mutation Inventory
 
-IDs are report-only (A001…). Trigger paths are current code. **MISSING AUDIT** = no dedicated named log/event row for that business action.
+IDs are report-only (A001…). Trigger paths in this section were captured before Phase 4 Access/Security cutover. **Current writers are AccessAuditLog / SecurityAuditLog as documented in the header and §5.** Historical `LOGIN`/`access_logs` labels in the table below are not live.
 
 Actor: USER / ADMIN / SYSTEM / PROVIDER / EXTERNAL SIGNER / WEBHOOK.
 
@@ -342,20 +353,21 @@ GET routes that mutate: prospectus `getOrCreateReview` may **create** review + `
 
 ## 5. Current Log/Event Writers
 
-### AccessLog
+### AccessAuditLog
 
-| Function | Path | Events |
-|---|---|---|
-| `AuthRepository.createAccessLog` | `apps/api/src/modules/auth/repository.ts` | generic |
-| `AuthService.syncUser` | `auth/service.ts` | LOGIN `{roles, source:"sync-user-endpoint"}` |
-| `AuthService` logout | same | LOGOUT |
-| Cognito callback / logout | `auth/cognito.routes.ts` | LOGIN/SIGNUP/LOGOUT |
-| `AdminRepository.createAccessLog` | `admin/repository.ts` | ROLE_ADDED/REMOVED, PROFILE_UPDATED, ONBOARDING_RESET |
+OAuth callback: `USER_SIGNED_UP` / `USER_LOGGED_IN` (`source=API`, `metadata.loginMethod=COGNITO_OAUTH`).  
+`AuthService.logout` and Cognito GET `/logout`: `USER_LOGGED_OUT` (both paths; one logical logout can emit two rows).  
+`POST /v1/auth/sync-user` does **not** write login audit.
 
-### SecurityLog
+### SecurityAuditLog
 
-`AuthService`: ROLE_ADDED, ROLE_SWITCHED, PROFILE_UPDATED, PASSWORD_CHANGED (success+fail), EMAIL_CHANGED (success+fail).  
-`AdminService`: ROLE_CREATED, ROLE_PERMISSIONS_UPDATED, ROLE_REMOVED, ROLE_SWITCHED (admin role/deactivate/reactivate), INVITATION_REVOKED, PROFILE_UPDATED.
+`AuthService`: `USER_ROLE_ADDED`, `ACTIVE_ROLE_CHANGED`, `USER_PROFILE_UPDATED`, `PASSWORD_CHANGED` / `PASSWORD_CHANGE_FAILED`, `USER_EMAIL_VERIFIED` / `EMAIL_VERIFICATION_FAILED`.  
+`AdminService`: role config C/U/D, `USER_ROLES_UPDATED`, `ADMIN_USER_ROLE_CHANGED`, deactivate/reactivate, invitation lifecycle, `USER_PUBLIC_ID_CHANGED`, `USER_PROFILE_UPDATED_BY_ADMIN`.  
+Organization membership: `ORGANIZATION_MEMBER_*`, ownership transfer, invitation resend/revoke.  
+Notification config (not broadcasts): type/group/preference.  
+Middleware + Cognito admin gate: `ADMIN_ACCESS_DENIED`.
+
+Legacy `AuthRepository.createAccessLog` / `AdminRepository.createAccessLog` / `createSecurityLog` **removed**.
 
 ### OnboardingLog
 
@@ -405,11 +417,10 @@ Created on ingest; **`updateMany` processed_at/error** in `webhook-service.ts`.
 
 | Table | Reader | Category | Fields/filters | Severity |
 |---|---|---|---|---|
-| access_logs | `AdminService.listAccessLogs` `GET /v1/admin/access-logs` (+ export) | Admin UI `/audit` AccessLogsPanel | event_type, user, dates, pagination | MEDIUM |
-| access_logs | `AuthRepository.findRecentLogins` via `AuthService.getCurrentUser` `GET /v1/auth/me` | Account “recent logins” (admin/issuer/investor `/account`) | `event_type=LOGIN`, `success=true`, last 3 | MEDIUM |
-| access_logs | `AdminService` user detail `_count.access_logs` | Admin user page `stats.accessLogs` | count only | LOW |
-| access_logs | Admin dashboard `getDashboardStats` / `useDashboardStats` | **does not read AccessLog** | — | — |
-| security_logs | `GET /v1/admin/security-logs` | Admin UI `/audit` security | same | MEDIUM |
+| access_audit_logs | `AdminService.listAccessLogs` `GET /v1/admin/access-logs` (+ export + detail) | Admin UI `/audit` AccessLogsPanel | eventType, search, dates, pagination; `status=failed` matches nothing | MEDIUM |
+| access_audit_logs | `accessAuditLogReader.findRecentLogins` via `AuthService.getCurrentUser` `GET /v1/auth/me` | Account “recent logins” | `event_type=USER_LOGGED_IN`, last 3 | MEDIUM |
+| access_audit_logs | `accessAuditLogReader.countForUser` | Admin user page `stats.accessLogs` | count only | LOW |
+| security_audit_logs | `GET /v1/admin/security-logs` (+ export) | Admin UI `/audit` security | all live Security events | MEDIUM |
 | onboarding_logs | `GET` org timeline via `OrganizationLogAdapter` | Activity feeds issuer/investor/admin org | **only 5 types**: ONBOARDING_STARTED, CANCELLED, REJECTED, FINAL_APPROVAL_COMPLETED, ONBOARDING_APPROVED | MEDIUM |
 | onboarding_logs | `AuthService` findFirst ONBOARDING_STARTED / **USER_COMPLETED** | **Business logic** cancel-onboarding | event_type exact | **HIGH** |
 | onboarding_logs | Admin list/detail repository | Admin onboarding | | MEDIUM |
@@ -438,9 +449,15 @@ Changing event strings **breaks** activity adapters, issuer `application-timelin
 
 Do not treat this as a target schema. Names are as written.
 
-### Access / security
+### Access (`AccessAuditLog`)
 
-`LOGIN`, `LOGOUT`, `SIGNUP`, `ROLE_ADDED`, `ROLE_REMOVED`, `ROLE_SWITCHED`, `ROLE_CREATED`, `ROLE_PERMISSIONS_UPDATED`, `PROFILE_UPDATED`, `PASSWORD_CHANGED`, `EMAIL_CHANGED`, `INVITATION_REVOKED`, `ONBOARDING_RESET` (also on AccessLog).
+`USER_SIGNED_UP`, `USER_LOGGED_IN`, `USER_LOGGED_OUT`.
+
+### Security (`SecurityAuditLog`)
+
+`USER_ROLE_ADDED`, `ACTIVE_ROLE_CHANGED`, `USER_PROFILE_UPDATED`, `USER_PROFILE_UPDATED_BY_ADMIN`, `PASSWORD_CHANGED`, `PASSWORD_CHANGE_FAILED`, `USER_EMAIL_VERIFIED`, `EMAIL_VERIFICATION_FAILED`, `ADMIN_ACCESS_DENIED`, `ADMIN_ROLE_CREATED`, `ADMIN_ROLE_PERMISSIONS_UPDATED`, `ADMIN_ROLE_DELETED`, `USER_ROLES_UPDATED`, `ADMIN_USER_ROLE_CHANGED`, `ADMIN_USER_DEACTIVATED`, `ADMIN_USER_REACTIVATED`, `ADMIN_INVITATION_*`, `USER_PUBLIC_ID_CHANGED`, `ORGANIZATION_MEMBER_*`, `ORGANIZATION_OWNERSHIP_TRANSFERRED`, `ORGANIZATION_INVITATION_REVOKED` / `RESENT`, `NOTIFICATION_TYPE_UPDATED`, `NOTIFICATION_GROUP_*`, `USER_NOTIFICATION_PREFERENCE_UPDATED`.
+
+Retired with `AccessLog`/`SecurityLog`: `LOGIN`, `SIGNUP`, `LOGOUT`, `ROLE_SWITCHED`, `ROLE_ADDED`, `ROLE_REMOVED`, `PROFILE_UPDATED`, `EMAIL_CHANGED` (verification was misnamed).
 
 ### Onboarding (free strings)
 
@@ -544,8 +561,8 @@ SYS/`systemUserId`/`"system"` can appear in human timelines unless filtered.
 ### Cognito
 
 - Endpoints: `/api/auth/callback`, `/logout`, token refresh.  
-- Business: LOGIN/SIGNUP/LOGOUT AccessLog. Confirm/resend not audited.  
-- Duplicate LOGIN with sync-user.
+- Business: AccessAuditLog `USER_SIGNED_UP` / `USER_LOGGED_IN` / `USER_LOGGED_OUT`. Confirm/resend not audited.  
+- `sync-user` does **not** write login audit. One logical logout can emit two `USER_LOGGED_OUT` rows.
 
 ### RegTank
 
@@ -642,13 +659,13 @@ Legal types in schema: `PDPA_NOTICE_AND_CONSENT`, `TERMS_OF_USE`, `RISK_STATEMEN
 
 | Change | Audit? | Severity if missing |
 |---|---|---|
-| Create/update/delete admin role + permissions | YES SecurityLog | — |
-| Assign user roles | YES but actor=admin on AccessLog | HIGH quality issue |
-| Deactivate/reactivate admin | YES but event ROLE_SWITCHED | HIGH misleading |
-| Invite admin create/resend | **NO** | HIGH |
-| Revoke invite | YES | — |
-| Admin profile edit of user | YES dual tables | — |
-| Assign user_id | **NO** | HIGH |
+| Create/update/delete admin role + permissions | YES SecurityAuditLog | — |
+| Assign user roles | YES SecurityAuditLog `USER_ROLES_UPDATED` (actor vs subject) | — |
+| Deactivate/reactivate admin | YES `ADMIN_USER_DEACTIVATED` / `ADMIN_USER_REACTIVATED` (DB-only; no Cognito disable) | — |
+| Invite admin create/resend | YES `ADMIN_INVITATION_CREATED` / `RESENT` / `LINK_GENERATED` | — |
+| Revoke invite | YES `ADMIN_INVITATION_REVOKED` | — |
+| Admin profile edit of user | YES `USER_PROFILE_UPDATED_BY_ADMIN` | — |
+| Assign user_id | YES `USER_PUBLIC_ID_CHANGED` (admin rewrite only; initial assign not audited) | — |
 | Onboarding reset/restart/approvals | YES | — |
 | Sophisticated investor | YES | — |
 | Product CRUD | YES; **deleted on rollback** | HIGH |
@@ -749,7 +766,7 @@ Keep specialized SOT even if audit events are added later.
 | GatewayWebhookEvent | **KEEP AS SPECIALIZED HISTORY/EVIDENCE** (transport; not business audit) |
 | GatewayReconRun/Exception | **KEEP AS SOURCE OF TRUTH** (ops) |
 | LegalAdminAuditLog | **KEEP AS SPECIALIZED HISTORY** (admin legal-document mutations; not a canonical AuditEvent) |
-| AccessLog / SecurityLog | **CANDIDATE TO REPLACE WITH CANONICAL AUDIT EVENT** |
+| AccessLog / SecurityLog | **REMOVED** — replaced by `AccessAuditLog` + `SecurityAuditLog` (two physical tables; no canonical AuditEvent) |
 | OnboardingLog | **CANDIDATE TO REPLACE** but **HIGH** AuthService + activity readers |
 | ApplicationLog | **CANDIDATE TO REPLACE** but HIGH resubmit-comparison + timelines |
 | ApplicationReviewEvent | **LEGACY / VERIFY REMOVAL** (no readers) |
@@ -776,8 +793,8 @@ Keep specialized SOT even if audit events are added later.
 | NotificationLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `NotificationBroadcastAuditLog` is live |
 | LegalDocumentAuditLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `LegalAdminAuditLog` is live |
 | GatewayPaymentEvent | payment modules | payment detail; `getOpenOverrideProposal` **never called** | admin payments (labels include OVERRIDE_*) | no | no live override logic | no | many payment tests | HIGH | 5 with payments | NO until capture events exist |
-| AccessLog | auth + admin | `/audit` access + export; **also** GET `/me` recentLogins; admin user `_count.access_logs` | `/audit` + account pages + user detail count | yes | cancel-onboarding does **not** use AccessLog; dashboard stats do **not** | no | auth tests | HIGH | 6 | NO until LOGIN readers migrated |
-| SecurityLog | auth + admin | `/audit` security | yes | yes | no | no | | HIGH | 6 | NO |
+| AccessLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `AccessAuditLog` is live |
+| SecurityLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `SecurityAuditLog` is live |
 | OnboardingLog | many + webhooks | activity (5 types) + **AuthService** + admin | org timeline | no | **YES cancel** | no | many | **HIGH** | 7 after AuthService decoupled | NO until logic moved |
 | ApplicationLog | many | GET logs, activity, **resubmit comparison**, issuer timeline | yes | no | **YES metadata.amendment_remarks** | no | many | **HIGH** | 8 | NO |
 | NoteEvent | notes/shoraka/jobs | admin events + activity subset | yes | no | no | no | note tests | HIGH | 9 | NO |
@@ -811,13 +828,7 @@ Internal contradictions found during the closure pass. Source code wins.
 
 ### C1 — AccessLog readers vs dashboard / `/audit`-only
 
-Original statement: AccessLog production UI is `/audit`; dashboard login statistics were unresolved; `findRecentLogins` was “if used”; migration matrix said “possible login stats.”
-
-Correct statement: Admin dashboard stats (`getDashboardStats` / `useDashboardStats`) do **not** read `AccessLog`. Production readers are (1) `GET /v1/admin/access-logs` + export → `/audit`, (2) `GET /v1/auth/me` recentLogins → issuer/investor/admin account pages, (3) admin user detail `_count.access_logs`. `/audit` is **not** the only production UI reader.
-
-Evidence: `admin/service.ts` `getDashboardStats`; `auth/repository.ts` `findRecentLogins`; `auth/service.ts` `getCurrentUser`; `apps/*/src/app/account/page.tsx`; `apps/admin/src/app/users/[id]/page.tsx`.
-
-Sections that need correction: §6, §17, former §19 item 6. **Corrected.**
+**Superseded — `AccessLog` removed.** Current readers use `AccessAuditLog` (`/audit`, `GET /me` recentLogins, user-detail count). Dashboard stats still do not read access audit.
 
 ### C2 — `getOpenOverrideProposal` as live business-logic reader
 
@@ -881,13 +892,7 @@ Sections that need correction: A035, §14 missing-events row. **Corrected.**
 
 ### C8 — Auth coverage “AccessLog → `/audit` only”
 
-Original statement: AUTH readers described as admin audit (+ AuthService logic) without account recent-logins.
-
-Correct statement: AccessLog also backs GET `/me` recent logins on portal account pages.
-
-Evidence: same as C1.
-
-Sections that need correction: §2 AUTH row (reader column remains valid at high level; §6 now lists all readers). **Corrected in §6/§17.**
+**Superseded — `AccessLog` removed.** `AccessAuditLog` backs `/audit` and GET `/me` recent logins.
 
 ---
 
@@ -1140,15 +1145,15 @@ No event: `failGatewayPaymentRefund` path that only sets `metadata.refundFailed`
 
 ### Item 6 — AccessLog dashboard / statistics
 
-**RESOLVED — dashboard statistics do not read AccessLog. `/audit` is not the only production UI reader.**
+**RESOLVED — `AccessLog` / `access_logs` removed.** Authentication history is `AccessAuditLog` only.
 
 Confirmed production readers:
 
-1. `AdminService.listAccessLogs` → `GET /v1/admin/access-logs` + export → admin `/audit` AccessLogsPanel / `use-access-logs.ts`
-2. `AuthRepository.findRecentLogins` → `AuthService.getCurrentUser` → `GET /v1/auth/me` → issuer/investor/admin `/account` “recent logins”
-3. `AdminService` user detail `stats.accessLogs` = `user._count.access_logs` → admin `users/[id]`
+1. `AdminService.listAccessLogs` → `GET /v1/admin/access-logs` + export + detail → admin `/audit` (AccessAuditLog)
+2. `accessAuditLogReader.findRecentLogins` → `AuthService.getCurrentUser` → `GET /v1/auth/me` → account “recent logins” (`USER_LOGGED_IN`)
+3. `accessAuditLogReader.countForUser` → admin user detail `stats.accessLogs`
 
-Not readers: `getDashboardStats` / `useDashboardStats` (users, orgs, applications, notes — no AccessLog). Seed writes AccessLog but is not a reader.
+Not readers: `getDashboardStats` / `useDashboardStats`.
 
 ### Item 7 — Site documents (code status)
 

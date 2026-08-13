@@ -2,12 +2,10 @@ import { prisma } from "../../lib/prisma";
 import {
   Prisma,
   User,
-  AccessLog,
   UserRole,
   Admin,
   AdminRoleConfig,
   AdminInvitation,
-  SecurityLog,
   OnboardingLog,
   OrganizationType,
   OnboardingStatus,
@@ -19,9 +17,7 @@ import {
 import type { AdminRoleKey } from "@cashsouk/types";
 import type {
   GetUsersQuery,
-  GetAccessLogsQuery,
   GetAdminUsersQuery,
-  GetSecurityLogsQuery,
   GetOnboardingLogsQuery,
   GetAdminApplicationsQuery,
   GetAdminContractsQuery,
@@ -143,13 +139,12 @@ export class AdminRepository {
     return prisma.user.findUnique({
       where: { user_id: userId },
       include: {
-        _count: {
-          select: {
-            access_logs: true,
-            investments: true,
-            loans: true,
+          _count: {
+            select: {
+              investments: true,
+              loans: true,
+            },
           },
-        },
       },
     });
   }
@@ -225,203 +220,6 @@ export class AdminRepository {
     return prisma.user.update({
       where: { user_id: userId },
       data: updateData,
-    });
-  }
-
-  /**
-   * Get access logs with pagination and filters
-   */
-  async getAccessLogs(params: GetAccessLogsQuery): Promise<{
-    logs: (AccessLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    })[];
-    total: number;
-  }> {
-    const { page, pageSize, search, eventType, eventTypes, status, dateRange, userId } = params;
-    const skip = (page - 1) * pageSize;
-
-    // Build where clause
-    const where: Prisma.AccessLogWhereInput = {};
-
-    if (userId) {
-      where.user_id = userId;
-    }
-
-    // Support both single eventType and multiple eventTypes
-    if (eventTypes && eventTypes.length > 0) {
-      where.event_type = { in: eventTypes };
-    } else if (eventType) {
-      where.event_type = eventType;
-    }
-
-    if (status) {
-      where.success = status === "success";
-    }
-
-    if (dateRange && dateRange !== "all") {
-      const now = new Date();
-      let cutoffDate: Date;
-
-      switch (dateRange) {
-        case "24h":
-          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-          break;
-        case "7d":
-          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case "30d":
-          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          cutoffDate = new Date(0);
-      }
-
-      where.created_at = { gte: cutoffDate };
-    }
-
-    // If search is provided, filter by user name, email, or user_id
-    if (search) {
-      where.user = {
-        OR: [
-          { first_name: { contains: search, mode: "insensitive" } },
-          { last_name: { contains: search, mode: "insensitive" } },
-          { email: { contains: search, mode: "insensitive" } },
-          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
-        ],
-      };
-    }
-
-    const [logs, total] = await Promise.all([
-      prisma.accessLog.findMany({
-        where,
-        skip,
-        take: pageSize,
-        orderBy: { created_at: "desc" },
-        include: {
-          user: {
-            select: {
-              first_name: true,
-              last_name: true,
-              email: true,
-              roles: true,
-            },
-          },
-        },
-      }),
-      prisma.accessLog.count({ where }),
-    ]);
-
-    return { logs, total };
-  }
-
-  /**
-   * Get access log by ID
-   */
-  async getAccessLogById(logId: string): Promise<(AccessLog & { user: User }) | null> {
-    return prisma.accessLog.findUnique({
-      where: { id: logId },
-      include: { user: true },
-    });
-  }
-
-  /**
-   * Get all access logs for export (no pagination)
-   */
-  async getAllAccessLogsForExport(params: Omit<GetAccessLogsQuery, "page" | "pageSize">): Promise<
-    (AccessLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    })[]
-  > {
-    const { search, eventType, status, dateRange, userId } = params;
-
-    const where: Prisma.AccessLogWhereInput = {};
-
-    if (userId) {
-      where.user_id = userId;
-    }
-
-    if (eventType) {
-      where.event_type = eventType;
-    }
-
-    if (status) {
-      where.success = status === "success";
-    }
-
-    if (dateRange && dateRange !== "all") {
-      const now = new Date();
-      let cutoffDate: Date;
-
-      switch (dateRange) {
-        case "24h":
-          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-          break;
-        case "7d":
-          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case "30d":
-          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          cutoffDate = new Date(0);
-      }
-
-      where.created_at = { gte: cutoffDate };
-    }
-
-    if (search) {
-      where.user = {
-        OR: [
-          { first_name: { contains: search, mode: "insensitive" } },
-          { last_name: { contains: search, mode: "insensitive" } },
-          { email: { contains: search, mode: "insensitive" } },
-          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
-        ],
-      };
-    }
-
-    return prisma.accessLog.findMany({
-      where,
-      orderBy: { created_at: "desc" },
-      include: {
-        user: {
-          select: {
-            first_name: true,
-            last_name: true,
-            email: true,
-            roles: true,
-          },
-        },
-      },
-    });
-  }
-
-  /**
-   * Create access log entry (for admin actions)
-   */
-  async createAccessLog(data: {
-    userId: string;
-    eventType: string;
-    portal?: string;
-    ipAddress?: string;
-    userAgent?: string;
-    deviceInfo?: string;
-    deviceType?: string;
-    success?: boolean;
-    metadata?: object;
-  }): Promise<AccessLog> {
-    return prisma.accessLog.create({
-      data: {
-        user_id: data.userId,
-        event_type: data.eventType,
-        portal: data.portal,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        device_type: data.deviceType,
-        success: data.success ?? true,
-        metadata: data.metadata as Prisma.InputJsonValue,
-      },
     });
   }
 
@@ -1000,108 +798,6 @@ export class AdminRepository {
   }
 
   /**
-   * Create security log entry
-   */
-  async createSecurityLog(data: {
-    userId: string;
-    eventType: string;
-    ipAddress?: string;
-    userAgent?: string;
-    deviceInfo?: string;
-    metadata?: object;
-  }): Promise<SecurityLog> {
-    return prisma.securityLog.create({
-      data: {
-        user_id: data.userId,
-        event_type: data.eventType,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        metadata: data.metadata as Prisma.InputJsonValue,
-      },
-    });
-  }
-
-  /**
-   * Get security logs with pagination and filters
-   */
-  async getSecurityLogs(params: GetSecurityLogsQuery): Promise<{
-    logs: (SecurityLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    })[];
-    total: number;
-  }> {
-    const { page, pageSize, search, eventType, eventTypes, dateRange, userId } = params;
-    const skip = (page - 1) * pageSize;
-
-    const where: Prisma.SecurityLogWhereInput = {};
-
-    if (userId) {
-      where.user_id = userId;
-    }
-
-    if (eventTypes && eventTypes.length > 0) {
-      where.event_type = { in: eventTypes };
-    } else if (eventType) {
-      where.event_type = eventType;
-    }
-
-    if (dateRange && dateRange !== "all") {
-      const now = new Date();
-      let cutoffDate: Date;
-
-      switch (dateRange) {
-        case "24h":
-          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-          break;
-        case "7d":
-          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case "30d":
-          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          cutoffDate = new Date(0);
-      }
-
-      where.created_at = { gte: cutoffDate };
-    }
-
-    if (search) {
-      where.user = {
-        OR: [
-          { first_name: { contains: search, mode: "insensitive" } },
-          { last_name: { contains: search, mode: "insensitive" } },
-          { email: { contains: search, mode: "insensitive" } },
-          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
-        ],
-      };
-    }
-
-    const [logs, total] = await Promise.all([
-      prisma.securityLog.findMany({
-        where,
-        skip,
-        take: pageSize,
-        orderBy: { created_at: "desc" },
-        include: {
-          user: {
-            select: {
-              first_name: true,
-              last_name: true,
-              email: true,
-              roles: true,
-            },
-          },
-        },
-      }),
-      prisma.securityLog.count({ where }),
-    ]);
-
-    return { logs, total };
-  }
-
-  /**
    * Create onboarding log
    */
   async createOnboardingLog(data: {
@@ -1392,78 +1088,6 @@ export class AdminRepository {
     });
 
     return logsWithOrgInfo;
-  }
-
-  /**
-   * Get all security logs for export (no pagination)
-   */
-  async getAllSecurityLogsForExport(
-    params: Omit<GetSecurityLogsQuery, "page" | "pageSize">
-  ): Promise<
-    (SecurityLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    })[]
-  > {
-    const { search, eventType, eventTypes, dateRange, userId } = params;
-
-    const where: Prisma.SecurityLogWhereInput = {};
-
-    if (userId) {
-      where.user_id = userId;
-    }
-
-    if (eventTypes && eventTypes.length > 0) {
-      where.event_type = { in: eventTypes };
-    } else if (eventType) {
-      where.event_type = eventType;
-    }
-
-    if (dateRange && dateRange !== "all") {
-      const now = new Date();
-      let cutoffDate: Date;
-
-      switch (dateRange) {
-        case "24h":
-          cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-          break;
-        case "7d":
-          cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case "30d":
-          cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          cutoffDate = new Date(0);
-      }
-
-      where.created_at = { gte: cutoffDate };
-    }
-
-    if (search) {
-      where.user = {
-        OR: [
-          { first_name: { contains: search, mode: "insensitive" } },
-          { last_name: { contains: search, mode: "insensitive" } },
-          { email: { contains: search, mode: "insensitive" } },
-          { user_id: { startsWith: search.toUpperCase(), mode: "insensitive" } },
-        ],
-      };
-    }
-
-    return prisma.securityLog.findMany({
-      where,
-      orderBy: { created_at: "desc" },
-      include: {
-        user: {
-          select: {
-            first_name: true,
-            last_name: true,
-            email: true,
-            roles: true,
-          },
-        },
-      },
-    });
   }
 
   /**

@@ -4,6 +4,8 @@
 **System:** AWS Cognito + Amplify Authentication  
 **Scope:** Full authentication flow including OAuth, token management, and session handling
 
+**Note (August 2026):** Legacy `AccessLog` / `SecurityLog` (`access_logs` / `security_logs`) have been removed. Authentication history is `AccessAuditLog`; security/admin-control audit is `SecurityAuditLog`. Code snippets below that call `createAccessLog` are historical.
+
 ---
 
 ## Executive Summary

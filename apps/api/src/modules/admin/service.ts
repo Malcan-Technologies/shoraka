@@ -989,7 +989,6 @@ export class AdminService {
         include: {
           _count: {
             select: {
-              access_logs: true,
               investments: true,
               loans: true,
             },

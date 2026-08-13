@@ -23,7 +23,7 @@ export interface UnifiedActivity {
   user_agent?: string | null;
   device_info?: string | null;
   created_at: Date; // Displayed as "Time" in UI
-  source_table: string; // For debugging (e.g., "security_logs")
+  source_table: string; // For debugging (e.g., "security_audit_logs")
   references?: ActivityReferences | null;
 }
 

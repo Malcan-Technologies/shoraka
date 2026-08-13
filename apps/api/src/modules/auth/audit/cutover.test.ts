@@ -35,6 +35,8 @@ function methodChunk(source: string, methodName: string, length = 8000): string 
 
 describe("Access/Security audit cutover", () => {
   const authService = readSrc("modules/auth/service.ts");
+  const authRepository = readSrc("modules/auth/repository.ts");
+  const adminRepository = readSrc("modules/admin/repository.ts");
   const cognitoRoutes = readSrc("modules/auth/cognito.routes.ts");
   const adminService = readSrc("modules/admin/service.ts");
   const organizationService = readSrc("modules/organization/service.ts");
@@ -108,6 +110,14 @@ describe("Access/Security audit cutover", () => {
     expect(organizationService).not.toMatch(/createSecurityLog\(/);
     expect(middleware).not.toMatch(/createAccessLog\(/);
     expect(middleware).not.toMatch(/createSecurityLog\(/);
+    expect(authRepository).not.toMatch(/createAccessLog\(/);
+    expect(authRepository).not.toMatch(/createSecurityLog\(/);
+    expect(authRepository).not.toMatch(/prisma\.accessLog/);
+    expect(authRepository).not.toMatch(/prisma\.securityLog/);
+    expect(adminRepository).not.toMatch(/createAccessLog\(/);
+    expect(adminRepository).not.toMatch(/createSecurityLog\(/);
+    expect(adminRepository).not.toMatch(/prisma\.accessLog/);
+    expect(adminRepository).not.toMatch(/prisma\.securityLog/);
   });
 
   it("recentLogins uses AccessAuditLog USER_LOGGED_IN", () => {
@@ -213,9 +223,14 @@ describe("Access/Security audit cutover", () => {
     expect(securityModel).toMatch(/actor_user_id/);
   });
 
-  it("legacy AccessLog and SecurityLog models remain", () => {
-    expect(schema).toMatch(/model AccessLog \{/);
-    expect(schema).toMatch(/model SecurityLog \{/);
+  it("legacy AccessLog and SecurityLog models are removed", () => {
+    expect(schema).not.toMatch(/model AccessLog \{/);
+    expect(schema).not.toMatch(/model SecurityLog \{/);
+    expect(schema).toMatch(/model AccessAuditLog \{/);
+    expect(schema).toMatch(/model SecurityAuditLog \{/);
+    expect(schema).toMatch(/model UserSession \{/);
+    expect(schema).not.toMatch(/access_logs\s+AccessLog/);
+    expect(schema).not.toMatch(/security_logs\s+SecurityLog/);
   });
 
   it("append-only: no update/delete/upsert on new audit tables in live source", () => {
