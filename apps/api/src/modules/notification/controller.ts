@@ -11,6 +11,11 @@ import {
   UpdateNotificationGroupSchema,
 } from "./schemas";
 import { auditContextFromAdminRequest } from "./audit/context";
+import {
+  AUDIT_ACTOR_TYPE,
+  AUDIT_PORTAL,
+  auditContextFromRequest,
+} from "../../lib/audit/context";
 
 const router = Router();
 const notificationService = new NotificationService();
@@ -217,7 +222,12 @@ router.put(
       const result = await notificationService.updateUserPreference(
         req.user!.user_id,
         req.params.typeId,
-        validated
+        validated,
+        auditContextFromRequest(req, {
+          actorType: AUDIT_ACTOR_TYPE.USER,
+          actorUserId: req.user!.user_id,
+          res,
+        })
       );
 
       res.json({
@@ -292,7 +302,16 @@ router.patch(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = UpdateNotificationTypeSchema.parse(req.body);
-      const result = await notificationService.updateNotificationType(req.params.id, validated);
+      const result = await notificationService.updateNotificationType(
+        req.params.id,
+        validated,
+        auditContextFromRequest(req, {
+          actorType: AUDIT_ACTOR_TYPE.ADMIN,
+          actorUserId: req.user!.user_id,
+          portal: AUDIT_PORTAL.ADMIN,
+          res,
+        })
+      );
       res.json({
         success: true,
         data: result,
@@ -432,7 +451,15 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = CreateNotificationGroupSchema.parse(req.body);
-      const group = await notificationService.createNotificationGroup(validated);
+      const group = await notificationService.createNotificationGroup(
+        validated,
+        auditContextFromRequest(req, {
+          actorType: AUDIT_ACTOR_TYPE.ADMIN,
+          actorUserId: req.user!.user_id,
+          portal: AUDIT_PORTAL.ADMIN,
+          res,
+        })
+      );
       res.status(201).json({
         success: true,
         data: group,
@@ -489,7 +516,16 @@ router.patch(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validated = UpdateNotificationGroupSchema.parse(req.body);
-      const group = await notificationService.updateNotificationGroup(req.params.id, validated);
+      const group = await notificationService.updateNotificationGroup(
+        req.params.id,
+        validated,
+        auditContextFromRequest(req, {
+          actorType: AUDIT_ACTOR_TYPE.ADMIN,
+          actorUserId: req.user!.user_id,
+          portal: AUDIT_PORTAL.ADMIN,
+          res,
+        })
+      );
       res.json({
         success: true,
         data: group,
@@ -507,7 +543,15 @@ router.delete(
   requirePermission("notifications.manage"),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      await notificationService.deleteNotificationGroup(req.params.id);
+      await notificationService.deleteNotificationGroup(
+        req.params.id,
+        auditContextFromRequest(req, {
+          actorType: AUDIT_ACTOR_TYPE.ADMIN,
+          actorUserId: req.user!.user_id,
+          portal: AUDIT_PORTAL.ADMIN,
+          res,
+        })
+      );
       res.json({
         success: true,
         message: "Group deleted successfully",

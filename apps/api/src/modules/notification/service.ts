@@ -19,6 +19,19 @@ import type { NotificationBroadcastAuditContext } from "./audit/context";
 import { writeNotificationBroadcastProcessedAudit } from "./audit/writer";
 import { notificationBroadcastAuditLogReader } from "./audit/reader";
 import { NOTIFICATION_BROADCAST_CHANNEL_MODE } from "./audit/events";
+import type { AuditRequestContext } from "../../lib/audit/context";
+import { writeSecurityAuditLog } from "../security/audit/writer";
+import { SECURITY_AUDIT_TARGET_TYPE } from "../security/audit/events";
+
+function jsonAuditField(value: unknown): string | number | boolean | null | string[] {
+  if (value === null || value === undefined) return null;
+  if (Array.isArray(value)) return value.map((item) => String(item));
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+  return String(value);
+}
 
 export class NotificationService {
   private repository: NotificationRepository;
@@ -311,7 +324,8 @@ export class NotificationService {
   async updateUserPreference(
     userId: string,
     typeId: string,
-    data: { enabled_platform: boolean; enabled_email: boolean }
+    data: { enabled_platform: boolean; enabled_email: boolean },
+    context: AuditRequestContext
   ) {
     const type = await this.repository.findTypeById(typeId);
     if (!type) {
@@ -322,7 +336,56 @@ export class NotificationService {
       throw new Error(`Notification type ${typeId} is not user configurable`);
     }
 
-    return this.repository.upsertUserPreference(userId, typeId, data);
+    const existing = await prisma.userNotificationPreference.findUnique({
+      where: {
+        user_id_notification_type_id: {
+          user_id: userId,
+          notification_type_id: typeId,
+        },
+      },
+    });
+
+    const before = {
+      enabledPlatform: existing?.enabled_platform ?? type.enabled_platform,
+      enabledEmail: existing?.enabled_email ?? type.enabled_email,
+    };
+    const after = {
+      enabledPlatform: data.enabled_platform,
+      enabledEmail: data.enabled_email,
+    };
+
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.userNotificationPreference.upsert({
+        where: {
+          user_id_notification_type_id: {
+            user_id: userId,
+            notification_type_id: typeId,
+          },
+        },
+        create: {
+          user_id: userId,
+          notification_type_id: typeId,
+          ...data,
+        },
+        update: data,
+      });
+      await writeSecurityAuditLog(
+        {
+          eventType: "USER_NOTIFICATION_PREFERENCE_UPDATED",
+          context,
+          subjectUserId: userId,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.USER_NOTIFICATION_PREFERENCE,
+          targetId: `${userId}:${typeId}`,
+          metadata: {
+            notificationTypeId: typeId,
+            before,
+            after,
+          },
+        },
+        tx
+      );
+      return updated;
+    });
   }
 
   /**
@@ -337,9 +400,50 @@ export class NotificationService {
    */
   async updateNotificationType(
     id: string,
-    data: Partial<NotificationType>
+    data: Partial<NotificationType>,
+    context: AuditRequestContext
   ): Promise<NotificationType> {
-    return this.repository.updateType(id, data);
+    const current = await this.repository.findTypeById(id);
+    if (!current) {
+      throw new Error(`Notification type ${id} not found`);
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.notificationType.update({
+        where: { id },
+        data,
+      });
+      const before: Record<string, string | number | boolean | null | string[]> = {};
+      const after: Record<string, string | number | boolean | null | string[]> = {};
+      for (const key of Object.keys(data) as Array<keyof NotificationType>) {
+        const previous = current[key];
+        const next = updated[key];
+        if (JSON.stringify(previous) !== JSON.stringify(next)) {
+          before[String(key)] = jsonAuditField(previous);
+          after[String(key)] = jsonAuditField(next);
+        }
+      }
+      const changedFields = Object.keys(after);
+      if (changedFields.length > 0) {
+        await writeSecurityAuditLog(
+          {
+            eventType: "NOTIFICATION_TYPE_UPDATED",
+            context,
+            subjectUserId: null,
+            targetType: SECURITY_AUDIT_TARGET_TYPE.NOTIFICATION_TYPE,
+            targetId: id,
+            metadata: {
+              notificationTypeId: id,
+              changedFields,
+              before,
+              after,
+            },
+          },
+          tx
+        );
+      }
+      return updated;
+    });
   }
 
   /**
@@ -377,11 +481,34 @@ export class NotificationService {
   /**
    * Admin: Create notification group
    */
-  async createNotificationGroup(data: { name: string; description?: string; userIds: string[] }) {
-    return this.groupRepository.create({
-      name: data.name,
-      description: data.description,
-      user_ids: data.userIds,
+  async createNotificationGroup(
+    data: { name: string; description?: string; userIds: string[] },
+    context: AuditRequestContext
+  ) {
+    return prisma.$transaction(async (tx) => {
+      const group = await tx.notificationGroup.create({
+        data: {
+          name: data.name,
+          description: data.description,
+          user_ids: data.userIds,
+        },
+      });
+      await writeSecurityAuditLog(
+        {
+          eventType: "NOTIFICATION_GROUP_CREATED",
+          context,
+          subjectUserId: null,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.NOTIFICATION_GROUP,
+          targetId: group.id,
+          metadata: {
+            groupId: group.id,
+            name: group.name,
+            userCount: group.user_ids.length,
+          },
+        },
+        tx
+      );
+      return group;
     });
   }
 
@@ -397,20 +524,60 @@ export class NotificationService {
    */
   async updateNotificationGroup(
     id: string,
-    data: { name?: string; description?: string; userIds?: string[] }
+    data: { name?: string; description?: string; userIds?: string[] },
+    context: AuditRequestContext
   ) {
-    return this.groupRepository.update(id, {
-      name: data.name,
-      description: data.description,
-      user_ids: data.userIds,
+    return prisma.$transaction(async (tx) => {
+      const group = await tx.notificationGroup.update({
+        where: { id },
+        data: {
+          name: data.name,
+          description: data.description,
+          user_ids: data.userIds,
+        },
+      });
+      await writeSecurityAuditLog(
+        {
+          eventType: "NOTIFICATION_GROUP_UPDATED",
+          context,
+          subjectUserId: null,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.NOTIFICATION_GROUP,
+          targetId: group.id,
+          metadata: {
+            groupId: group.id,
+            name: group.name,
+            userCount: group.user_ids.length,
+          },
+        },
+        tx
+      );
+      return group;
     });
   }
 
   /**
    * Admin: Delete notification group
    */
-  async deleteNotificationGroup(id: string) {
-    return this.groupRepository.delete(id);
+  async deleteNotificationGroup(id: string, context: AuditRequestContext) {
+    return prisma.$transaction(async (tx) => {
+      const group = await tx.notificationGroup.delete({ where: { id } });
+      await writeSecurityAuditLog(
+        {
+          eventType: "NOTIFICATION_GROUP_DELETED",
+          context,
+          subjectUserId: null,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.NOTIFICATION_GROUP,
+          targetId: group.id,
+          metadata: {
+            groupId: group.id,
+            name: group.name,
+            userCount: group.user_ids.length,
+          },
+        },
+        tx
+      );
+      return group;
+    });
   }
 
   /**

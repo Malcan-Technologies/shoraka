@@ -1,11 +1,9 @@
 import { AdminRepository } from "./repository";
 import {
   User,
-  AccessLog,
   UserRole,
   Prisma,
   OnboardingLog,
-  SecurityLog,
   OrganizationType,
   OnboardingStatus,
   ApplicationStatus,
@@ -17,6 +15,18 @@ import { Request } from "express";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
+import {
+  AUDIT_ACTOR_TYPE,
+  AUDIT_PORTAL,
+  AUDIT_SOURCE,
+  auditContextFromAdminRequest,
+  auditContextFromRequest,
+} from "../../lib/audit/context";
+import { changedFieldsOf, permissionDiff, roleDiff } from "../../lib/audit/snapshot";
+import { writeSecurityAuditLog } from "../security/audit/writer";
+import { SECURITY_AUDIT_TARGET_TYPE } from "../security/audit/events";
+import { accessAuditLogReader } from "../auth/audit/reader";
+import { securityAuditLogReader } from "../security/audit/reader";
 import { sendEmail } from "../../lib/email/ses-client";
 import { adminInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
@@ -406,7 +416,7 @@ export class AdminService {
     req: Request,
     roleKey: string,
     data: UpdateAdminRolePermissionsInput,
-    updatedBy: string
+    _updatedBy: string
   ): Promise<{ role: AdminRoleConfigRecord }> {
     await ensureAdminRoleCatalog(prisma);
 
@@ -428,28 +438,37 @@ export class AdminService {
       }
     }
 
-    const updatedRole = await this.repository.updateAdminRolePermissions(
-      roleKey,
-      [...new Set(data.permissions)],
-      data.badgeColor
-    );
-    const roleCounts = await this.countAdminRoleAssignments();
+    const context = auditContextFromAdminRequest(req);
+    const nextPermissions = [...new Set(data.permissions)];
+    const permDiff = permissionDiff(role.permissions, nextPermissions);
 
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-    await this.repository.createSecurityLog({
-      userId: updatedBy,
-      eventType: "ROLE_PERMISSIONS_UPDATED",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        roleKey,
-        previousPermissions: role.permissions,
-        nextPermissions: updatedRole.permissions,
-        previousBadgeColor: role.badge_color,
-        nextBadgeColor: updatedRole.badge_color,
-      },
+    const updatedRole = await prisma.$transaction(async (tx) => {
+      const updated = await tx.adminRoleConfig.update({
+        where: { key: roleKey },
+        data: { permissions: nextPermissions, badge_color: data.badgeColor },
+      });
+      await writeSecurityAuditLog(
+        {
+          eventType: "ADMIN_ROLE_PERMISSIONS_UPDATED",
+          context,
+          subjectUserId: null,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_ROLE,
+          targetId: roleKey,
+          metadata: {
+            roleKey,
+            roleName: updated.name,
+            ...permDiff,
+            previousPermissions: role.permissions,
+            nextPermissions: updated.permissions,
+            previousBadgeColor: role.badge_color,
+            nextBadgeColor: updated.badge_color,
+          },
+        },
+        tx
+      );
+      return updated;
     });
+    const roleCounts = await this.countAdminRoleAssignments();
 
     return {
       role: this.toAdminRoleConfigRecord(
@@ -462,7 +481,7 @@ export class AdminService {
   async createAdminRole(
     req: Request,
     data: CreateAdminRoleInput,
-    createdBy: string
+    _createdBy: string
   ): Promise<{ role: AdminRoleConfigRecord }> {
     await ensureAdminRoleCatalog(prisma);
 
@@ -475,22 +494,38 @@ export class AdminService {
       throw new AppError(409, "CONFLICT", "An admin role with this key already exists");
     }
 
-    const createdRole = await this.repository.createAdminRoleConfig(data);
-    const roleCounts = await this.countAdminRoleAssignments();
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-
-    await this.repository.createSecurityLog({
-      userId: createdBy,
-      eventType: "ROLE_CREATED",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        roleKey: createdRole.key,
-        roleName: createdRole.name,
-        badgeColor: createdRole.badge_color,
-      },
+    const context = auditContextFromAdminRequest(req);
+    const createdRole = await prisma.$transaction(async (tx) => {
+      const created = await tx.adminRoleConfig.create({
+        data: {
+          key: data.key,
+          name: data.name,
+          description: data.description ?? null,
+          badge_color: data.badgeColor,
+          permissions: [],
+          is_system: false,
+          is_editable: true,
+          is_default: false,
+        },
+      });
+      await writeSecurityAuditLog(
+        {
+          eventType: "ADMIN_ROLE_CREATED",
+          context,
+          subjectUserId: null,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_ROLE,
+          targetId: created.key,
+          metadata: {
+            roleKey: created.key,
+            roleName: created.name,
+            badgeColor: created.badge_color,
+          },
+        },
+        tx
+      );
+      return created;
     });
+    const roleCounts = await this.countAdminRoleAssignments();
 
     return {
       role: this.toAdminRoleConfigRecord(createdRole, roleCounts.get(createdRole.key) ?? 0),
@@ -500,7 +535,7 @@ export class AdminService {
   async deleteAdminRole(
     req: Request,
     roleKey: string,
-    deletedBy: string
+    _deletedBy: string
   ): Promise<{ deletedRoleKey: AdminRoleKey }> {
     await ensureAdminRoleCatalog(prisma);
 
@@ -539,19 +574,23 @@ export class AdminService {
       );
     }
 
-    await this.repository.deleteAdminRoleConfig(role.key);
-
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-    await this.repository.createSecurityLog({
-      userId: deletedBy,
-      eventType: "ROLE_REMOVED",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        deletedRoleKey: role.key,
-        deletedRoleName: role.name,
-      },
+    const context = auditContextFromAdminRequest(req);
+    await prisma.$transaction(async (tx) => {
+      await tx.adminRoleConfig.delete({ where: { key: role.key } });
+      await writeSecurityAuditLog(
+        {
+          eventType: "ADMIN_ROLE_DELETED",
+          context,
+          subjectUserId: null,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_ROLE,
+          targetId: role.key,
+          metadata: {
+            roleKey: role.key,
+            roleName: role.name,
+          },
+        },
+        tx
+      );
     });
 
     return { deletedRoleKey: role.key as AdminRoleKey };
@@ -1066,7 +1105,7 @@ export class AdminService {
       created_at: user.created_at.toISOString(),
       updated_at: user.updated_at.toISOString(),
       stats: {
-        accessLogs: user._count.access_logs,
+        accessLogs: await accessAuditLogReader.countForUser(user.user_id),
         investments: user._count.investments,
         loans: user._count.loans,
         investorOrganizations: investorOrganizations.length,
@@ -1099,117 +1138,121 @@ export class AdminService {
     const adminRoleRemoved = hadAdminRole && !hasAdminRole;
     const adminRoleAdded = !hadAdminRole && hasAdminRole;
 
-    // If ADMIN role is being removed, deactivate the admin record (if it exists)
-    if (adminRoleRemoved) {
-      const admin = await this.repository.getAdminByUserId(userId);
-      if (admin && admin.status === "ACTIVE") {
-        logger.info(
-          { userId, email: user.email, deactivatedBy: adminUserId },
-          "ADMIN role removed - deactivating admin record"
-        );
-        await this.repository.updateAdminStatus(userId, "INACTIVE");
+    const context = auditContextFromAdminRequest(req);
+    const diff = roleDiff(user.roles, data.roles);
 
-        // Log security event for admin deactivation via role removal
-        const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-        await this.repository.createSecurityLog({
-          userId,
-          eventType: "ROLE_SWITCHED",
-          ipAddress,
-          userAgent,
-          deviceInfo,
-          metadata: {
-            action: "DEACTIVATED_VIA_ROLE_REMOVAL",
-            previousStatus: "ACTIVE",
-            newStatus: "INACTIVE",
-            previousRoles: user.roles,
-            newRoles: data.roles,
-            deactivatedBy: adminUserId,
-          },
-        });
-      }
-    }
-
-    // If ADMIN role is being added, activate the admin record (if it exists) or create a new one
-    if (adminRoleAdded) {
-      const admin = await this.repository.getAdminByUserId(userId);
-
-      if (admin) {
-        // Admin record exists - reactivate it (preserving existing role_description)
-        if (admin.status === "INACTIVE") {
+    const updatedUser = await prisma.$transaction(async (tx) => {
+      if (adminRoleRemoved) {
+        const admin = await tx.admin.findUnique({ where: { user_id: userId } });
+        if (admin && admin.status === "ACTIVE") {
           logger.info(
-            {
-              userId,
-              email: user.email,
-              roleDescription: admin.role_description,
-              activatedBy: adminUserId,
-            },
-            "ADMIN role added - reactivating existing admin record with previous role description"
+            { userId, email: user.email, deactivatedBy: adminUserId },
+            "ADMIN role removed - deactivating admin record"
           );
-          await this.repository.updateAdminStatus(userId, "ACTIVE");
+          await tx.admin.update({
+            where: { user_id: userId },
+            data: { status: "INACTIVE" },
+          });
+          await writeSecurityAuditLog(
+            {
+              eventType: "ADMIN_USER_DEACTIVATED",
+              context,
+              subjectUserId: userId,
+              targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+              targetId: userId,
+              metadata: {
+                previousStatus: "ACTIVE",
+                newStatus: "INACTIVE",
+                previousRoles: user.roles,
+                newRoles: data.roles,
+              },
+            },
+            tx
+          );
+        }
+      }
 
-          // Log security event for admin reactivation via role addition
-          const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-          await this.repository.createSecurityLog({
-            userId,
-            eventType: "ROLE_SWITCHED",
-            ipAddress,
-            userAgent,
-            deviceInfo,
-            metadata: {
-              action: "ACTIVATED_VIA_ROLE_ADDITION",
-              previousStatus: "INACTIVE",
-              newStatus: "ACTIVE",
-              previousRoles: user.roles,
-              newRoles: data.roles,
-              roleDescription: admin.role_description,
-              activatedBy: adminUserId,
+      if (adminRoleAdded) {
+        const admin = await tx.admin.findUnique({ where: { user_id: userId } });
+        if (admin) {
+          if (admin.status === "INACTIVE") {
+            logger.info(
+              {
+                userId,
+                email: user.email,
+                roleDescription: admin.role_description,
+                activatedBy: adminUserId,
+              },
+              "ADMIN role added - reactivating existing admin record with previous role description"
+            );
+            await tx.admin.update({
+              where: { user_id: userId },
+              data: { status: "ACTIVE" },
+            });
+            await writeSecurityAuditLog(
+              {
+                eventType: "ADMIN_USER_REACTIVATED",
+                context,
+                subjectUserId: userId,
+                targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+                targetId: userId,
+                metadata: {
+                  previousStatus: "INACTIVE",
+                  newStatus: "ACTIVE",
+                  previousRoles: user.roles,
+                  newRoles: data.roles,
+                },
+              },
+              tx
+            );
+          }
+        } else {
+          logger.info(
+            { userId, email: user.email, activatedBy: adminUserId },
+            "ADMIN role added - creating new admin record with SUPER_ADMIN role"
+          );
+          const superAdminRole = await tx.adminRoleConfig.findUnique({
+            where: { key: AdminRole.SUPER_ADMIN },
+          });
+          await tx.admin.create({
+            data: {
+              user_id: userId,
+              role_id: superAdminRole?.id ?? null,
+              role_description: AdminRole.SUPER_ADMIN,
+              status: "ACTIVE",
             },
           });
         }
-      } else {
-        // No admin record exists - create a new one with SUPER_ADMIN role
-        logger.info(
-          { userId, email: user.email, activatedBy: adminUserId },
-          "ADMIN role added - creating new admin record with SUPER_ADMIN role"
-        );
-        await this.repository.createAdmin(userId, AdminRole.SUPER_ADMIN);
       }
-    }
 
-    // Validate that user has required roles for onboarding flags
-    const hasInvestorRole = data.roles.includes(UserRole.INVESTOR);
-    const hasIssuerRole = data.roles.includes(UserRole.ISSUER);
+      const hasInvestorRole = data.roles.includes(UserRole.INVESTOR);
+      const hasIssuerRole = data.roles.includes(UserRole.ISSUER);
+      const userUpdate: Prisma.UserUpdateInput = { roles: { set: data.roles } };
+      if (!hasInvestorRole && user.investor_account.length > 0) {
+        userUpdate.investor_account = { set: [] };
+      }
+      if (!hasIssuerRole && user.issuer_account.length > 0) {
+        userUpdate.issuer_account = { set: [] };
+      }
 
-    // If removing INVESTOR role, reset investor onboarding
-    // If removing ISSUER role, reset issuer onboarding
-    const updateData: Prisma.UserUpdateInput = { roles: { set: data.roles } };
-    if (!hasInvestorRole && user.investor_account.length > 0) {
-      updateData.investor_account = { set: [] };
-    }
-    if (!hasIssuerRole && user.issuer_account.length > 0) {
-      updateData.issuer_account = { set: [] };
-    }
+      const updated = await tx.user.update({
+        where: { user_id: userId },
+        data: userUpdate,
+      });
 
-    const updatedUser = await this.repository.updateUserRoles(userId, data.roles);
+      await writeSecurityAuditLog(
+        {
+          eventType: "USER_ROLES_UPDATED",
+          context,
+          subjectUserId: userId,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+          targetId: userId,
+          metadata: diff,
+        },
+        tx
+      );
 
-    // Create access log for admin action
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    await this.repository.createAccessLog({
-      userId: adminUserId,
-      eventType: adminRoleRemoved ? "ROLE_REMOVED" : "ROLE_ADDED",
-      portal: "admin",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      success: true,
-      metadata: {
-        targetUserId: userId,
-        targetUserEmail: user.email,
-        newRoles: data.roles,
-        previousRoles: user.roles,
-        adminRoleRemoved,
-      },
+      return updated;
     });
 
     return updatedUser;
@@ -1334,79 +1377,60 @@ export class AdminService {
     req: Request,
     userId: string,
     data: UpdateUserProfileInput,
-    adminUserId: string
+    _adminUserId: string
   ): Promise<User> {
     const user = await this.repository.getUserById(userId);
     if (!user) {
       throw new Error("User not found");
     }
 
-    // Admins can always edit names (no restrictions)
-    // Note: This is the admin service, so admins can edit any user's name
-    const isChangingName = data.firstName !== undefined || data.lastName !== undefined;
-    const hasCompletedOnboarding =
-      user.investor_account.length > 0 || user.issuer_account.length > 0;
+    const context = auditContextFromAdminRequest(req);
+    const before = {
+      firstName: user.first_name,
+      lastName: user.last_name,
+      phone: user.phone,
+    };
 
-    const updatedUser = await this.repository.updateUserProfile(userId, data);
+    return prisma.$transaction(async (tx) => {
+      const updateData: Record<string, string | null> = {};
+      if (data.firstName !== undefined) updateData.first_name = data.firstName;
+      if (data.lastName !== undefined) updateData.last_name = data.lastName;
+      if (data.phone !== undefined) updateData.phone = data.phone;
 
-    // Create access log for admin action
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    await this.repository.createAccessLog({
-      userId: adminUserId,
-      eventType: "PROFILE_UPDATED",
-      portal: "admin",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      success: true,
-      metadata: {
-        targetUserId: userId,
-        targetUserEmail: user.email,
-        updatedFields: Object.keys(data).filter(
-          (k) => data[k as keyof UpdateUserProfileInput] !== undefined
-        ),
-        previousValues: {
-          firstName: user.first_name,
-          lastName: user.last_name,
-          phone: user.phone,
-        },
-        nameLockedOverride: hasCompletedOnboarding && isChangingName,
-      },
-    });
-
-    // Create security log if admin changed name of onboarded user
-    if (hasCompletedOnboarding && isChangingName) {
-      await this.repository.createSecurityLog({
-        userId: userId,
-        eventType: "PROFILE_UPDATED",
-        ipAddress,
-        userAgent,
-        deviceInfo,
-        metadata: {
-          updatedBy: adminUserId,
-          updatedFields: Object.keys(data).filter(
-            (k) => data[k as keyof UpdateUserProfileInput] !== undefined
-          ),
-          previousValues: {
-            firstName: user.first_name,
-            lastName: user.last_name,
-          },
-          adminOverride: true,
-        },
+      const updatedUser = await tx.user.update({
+        where: { user_id: userId },
+        data: updateData,
       });
-    }
 
-    return updatedUser;
+      const after = {
+        firstName: updatedUser.first_name,
+        lastName: updatedUser.last_name,
+        phone: updatedUser.phone,
+      };
+      const changedFields = changedFieldsOf(before, after);
+      if (changedFields.length > 0) {
+        await writeSecurityAuditLog(
+          {
+            eventType: "USER_PROFILE_UPDATED_BY_ADMIN",
+            context,
+            subjectUserId: userId,
+            targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+            targetId: userId,
+            metadata: { changedFields, before, after },
+          },
+          tx
+        );
+      }
+
+      return updatedUser;
+    });
   }
 
   /**
    * List access logs with pagination and filters
    */
   async listAccessLogs(params: GetAccessLogsQuery): Promise<{
-    logs: (AccessLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    })[];
+    logs: Awaited<ReturnType<typeof accessAuditLogReader.findAll>>["logs"];
     pagination: {
       page: number;
       pageSize: number;
@@ -1414,7 +1438,7 @@ export class AdminService {
       totalPages: number;
     };
   }> {
-    const { logs, total } = await this.repository.getAccessLogs(params);
+    const { logs, total } = await accessAuditLogReader.findAll(params);
     const totalPages = Math.ceil(total / params.pageSize);
 
     return {
@@ -1428,22 +1452,12 @@ export class AdminService {
     };
   }
 
-  /**
-   * Get access log by ID
-   */
-  async getAccessLogById(logId: string): Promise<(AccessLog & { user: User }) | null> {
-    return this.repository.getAccessLogById(logId);
+  async getAccessLogById(logId: string) {
+    return accessAuditLogReader.findById(logId);
   }
 
-  /**
-   * Export access logs (returns all matching logs without pagination)
-   */
-  async exportAccessLogs(params: Omit<GetAccessLogsQuery, "page" | "pageSize">): Promise<
-    (AccessLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    })[]
-  > {
-    return this.repository.getAllAccessLogsForExport(params);
+  async exportAccessLogs(params: Omit<GetAccessLogsQuery, "page" | "pageSize">) {
+    return accessAuditLogReader.findAllForExport(params);
   }
 
   /**
@@ -1584,23 +1598,43 @@ export class AdminService {
   /**
    * Update user's 5-letter ID (admin only)
    */
-  async updateUserId(userId: string, newUserId: string): Promise<{ user_id: string }> {
-    // Check if user exists
+  async updateUserId(
+    req: Request,
+    userId: string,
+    newUserId: string
+  ): Promise<{ user_id: string }> {
     const user = await prisma.user.findUnique({ where: { user_id: userId } });
     if (!user) {
       throw new AppError(404, "NOT_FOUND", "User not found");
     }
 
-    // Update user_id and let database unique constraint handle conflicts
-    try {
-      const updatedUser = await prisma.user.update({
-        where: { user_id: userId },
-        data: { user_id: newUserId },
-      });
+    const context = auditContextFromAdminRequest(req);
 
-      return { user_id: updatedUser.user_id! };
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const updatedUser = await tx.user.update({
+          where: { user_id: userId },
+          data: { user_id: newUserId },
+        });
+
+        await writeSecurityAuditLog(
+          {
+            eventType: "USER_PUBLIC_ID_CHANGED",
+            context,
+            subjectUserId: newUserId,
+            targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+            targetId: newUserId,
+            metadata: {
+              previousUserId: userId,
+              newUserId,
+            },
+          },
+          tx
+        );
+
+        return { user_id: updatedUser.user_id };
+      });
     } catch (error) {
-      // Handle unique constraint violation (P2002 is Prisma's code for unique constraint errors)
       if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
         throw new AppError(409, "CONFLICT", "This User ID is already assigned to another user");
       }
@@ -1643,7 +1677,7 @@ export class AdminService {
     req: Request,
     userId: string,
     data: UpdateAdminRoleInput,
-    updatedBy: string
+    _updatedBy: string
   ): Promise<User & { admin: { role_description: string } | null }> {
     const user = await this.repository.getUserById(userId);
     if (!user) {
@@ -1677,21 +1711,31 @@ export class AdminService {
       }
     }
 
-    await this.repository.updateAdminRole(userId, data.roleDescription);
+    const context = auditContextFromAdminRequest(req);
+    const roleConfig = await this.requireAdminRoleConfig(data.roleDescription);
 
-    // Log ROLE_SWITCHED event in SecurityLog
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-    await this.repository.createSecurityLog({
-      userId,
-      eventType: "ROLE_SWITCHED",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        previousRole,
-        newRole: data.roleDescription,
-        updatedBy,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.admin.update({
+        where: { user_id: userId },
+        data: {
+          role_id: roleConfig.id,
+          role_description: data.roleDescription,
+        },
+      });
+      await writeSecurityAuditLog(
+        {
+          eventType: "ADMIN_USER_ROLE_CHANGED",
+          context,
+          subjectUserId: userId,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+          targetId: userId,
+          metadata: {
+            previousRole,
+            newRole: data.roleDescription,
+          },
+        },
+        tx
+      );
     });
 
     const updatedUser = await this.repository.getUserById(userId);
@@ -1742,33 +1786,41 @@ export class AdminService {
       }
     }
 
-    // Update admin status to INACTIVE
-    await this.repository.updateAdminStatus(userId, "INACTIVE");
+    const context = auditContextFromAdminRequest(req);
+    const previousRoles = user.roles;
+    const newRoles = user.roles.filter((role) => role !== UserRole.ADMIN);
 
-    // Remove ADMIN role from user.roles to sync with /users page
-    if (user.roles.includes(UserRole.ADMIN)) {
-      logger.info(
-        { userId, email: user.email, deactivatedBy },
-        "Removing ADMIN role from user.roles to sync with /users page"
+    await prisma.$transaction(async (tx) => {
+      await tx.admin.update({
+        where: { user_id: userId },
+        data: { status: "INACTIVE" },
+      });
+      if (user.roles.includes(UserRole.ADMIN)) {
+        logger.info(
+          { userId, email: user.email, deactivatedBy },
+          "Removing ADMIN role from user.roles to sync with /users page"
+        );
+        await tx.user.update({
+          where: { user_id: userId },
+          data: { roles: { set: newRoles } },
+        });
+      }
+      await writeSecurityAuditLog(
+        {
+          eventType: "ADMIN_USER_DEACTIVATED",
+          context,
+          subjectUserId: userId,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+          targetId: userId,
+          metadata: {
+            previousStatus: "ACTIVE",
+            newStatus: "INACTIVE",
+            previousRoles,
+            newRoles: user.roles.includes(UserRole.ADMIN) ? newRoles : previousRoles,
+          },
+        },
+        tx
       );
-      const updatedRoles = user.roles.filter((role) => role !== UserRole.ADMIN);
-      await this.repository.updateUserRoles(userId, updatedRoles);
-    }
-
-    // Log ROLE_SWITCHED event (deactivating admin access)
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-    await this.repository.createSecurityLog({
-      userId,
-      eventType: "ROLE_SWITCHED",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        action: "DEACTIVATED",
-        previousStatus: "ACTIVE",
-        newStatus: "INACTIVE",
-        deactivatedBy,
-      },
     });
 
     return this.repository.getUserById(userId) as Promise<User>;
@@ -1785,52 +1837,68 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "User not found");
     }
 
-    // Add ADMIN role to user.roles if missing (to sync with /users page)
-    if (!user.roles.includes(UserRole.ADMIN)) {
-      logger.info(
-        { userId, email: user.email, reactivatedBy },
-        "Adding ADMIN role to user.roles to sync with /users page"
-      );
-      const updatedRoles = [...user.roles, UserRole.ADMIN];
-      await this.repository.updateUserRoles(userId, updatedRoles);
+    const admin = await this.repository.getAdminByUserId(userId);
+    if (admin?.status === "ACTIVE") {
+      throw new AppError(400, "VALIDATION_ERROR", "Admin is already active");
     }
 
-    // Check if admin record exists
-    let admin = await this.repository.getAdminByUserId(userId);
+    const context = auditContextFromAdminRequest(req);
+    const previousRoles = user.roles;
+    const newRoles = user.roles.includes(UserRole.ADMIN)
+      ? user.roles
+      : [...user.roles, UserRole.ADMIN];
 
-    // If no admin record exists, create one with SUPER_ADMIN as default role
-    // This handles cases where users have ADMIN role but no admin record
-    if (!admin) {
-      logger.info(
-        { userId, email: user.email, reactivatedBy },
-        "Admin record not found - creating new admin record with SUPER_ADMIN role"
-      );
-      admin = await this.repository.createAdmin(userId, AdminRole.SUPER_ADMIN);
-      // Admin record is created with ACTIVE status by default, so we're done
-    } else {
-      // Admin record exists - check status
-      if (admin.status === "ACTIVE") {
-        throw new AppError(400, "VALIDATION_ERROR", "Admin is already active");
+    await prisma.$transaction(async (tx) => {
+      if (!user.roles.includes(UserRole.ADMIN)) {
+        logger.info(
+          { userId, email: user.email, reactivatedBy },
+          "Adding ADMIN role to user.roles to sync with /users page"
+        );
+        await tx.user.update({
+          where: { user_id: userId },
+          data: { roles: { set: newRoles } },
+        });
       }
 
-      // Update admin status to ACTIVE
-      await this.repository.updateAdminStatus(userId, "ACTIVE");
-    }
+      if (!admin) {
+        logger.info(
+          { userId, email: user.email, reactivatedBy },
+          "Admin record not found - creating new admin record with SUPER_ADMIN role"
+        );
+        const superAdminRole = await tx.adminRoleConfig.findUnique({
+          where: { key: AdminRole.SUPER_ADMIN },
+        });
+        await tx.admin.create({
+          data: {
+            user_id: userId,
+            role_id: superAdminRole?.id ?? null,
+            role_description: AdminRole.SUPER_ADMIN,
+            status: "ACTIVE",
+          },
+        });
+      } else {
+        await tx.admin.update({
+          where: { user_id: userId },
+          data: { status: "ACTIVE" },
+        });
+      }
 
-    // Log ROLE_SWITCHED event (reactivating admin access)
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-    await this.repository.createSecurityLog({
-      userId,
-      eventType: "ROLE_SWITCHED",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        action: "REACTIVATED",
-        previousStatus: "INACTIVE",
-        newStatus: "ACTIVE",
-        reactivatedBy,
-      },
+      await writeSecurityAuditLog(
+        {
+          eventType: "ADMIN_USER_REACTIVATED",
+          context,
+          subjectUserId: userId,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+          targetId: userId,
+          metadata: {
+            previousStatus: admin?.status === "ACTIVE" ? "ACTIVE" : "INACTIVE",
+            newStatus: "ACTIVE",
+            previousRoles,
+            newRoles,
+          },
+        },
+        tx
+      );
     });
 
     return this.repository.getUserById(userId) as Promise<User>;
@@ -1840,9 +1908,18 @@ export class AdminService {
    * Generate invitation URL without sending email
    */
   async generateInvitationUrl(
+    req: Request,
     data: InviteAdminInput,
-    invitedBy: string
-  ): Promise<{ inviteUrl: string; token: string }> {
+    invitedBy: string,
+    options?: { writeLinkGenerated?: boolean }
+  ): Promise<{
+    inviteUrl: string;
+    token: string;
+    invitationId: string;
+    email: string;
+    expiresAt: Date;
+    created: boolean;
+  }> {
     const inviter = await this.repository.getUserById(invitedBy);
     if (!inviter) {
       throw new AppError(404, "NOT_FOUND", "Inviter not found");
@@ -1850,10 +1927,9 @@ export class AdminService {
 
     await this.requireAdminRoleConfig(data.roleDescription);
 
-    // Use placeholder email if not provided (for link-based invitations)
     const email = data.email?.toLowerCase() || `invitation-${Date.now()}@cashsouk.com`;
+    const context = auditContextFromAdminRequest(req);
 
-    // Check if invitation already exists for this email and role
     const existingInvitation = await prisma.adminInvitation.findFirst({
       where: {
         email,
@@ -1864,39 +1940,74 @@ export class AdminService {
       orderBy: { created_at: "desc" },
     });
 
-    let token: string;
-    if (existingInvitation) {
-      // Reuse existing invitation token
-      token = existingInvitation.token;
-    } else {
-      // Generate secure token
-      token = randomBytes(32).toString("hex");
-      const expiryHours = parseInt(process.env.INVITATION_TOKEN_EXPIRY_HOURS || "24", 10);
-      const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+    const invitation = existingInvitation
+      ? existingInvitation
+      : await prisma.$transaction(async (tx) => {
+          const token = randomBytes(32).toString("hex");
+          const expiryHours = parseInt(process.env.INVITATION_TOKEN_EXPIRY_HOURS || "24", 10);
+          const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+          const created = await tx.adminInvitation.create({
+            data: {
+              email,
+              role_description: data.roleDescription,
+              token,
+              expires_at: expiresAt,
+              invited_by_user_id: invitedBy,
+            },
+          });
+          await writeSecurityAuditLog(
+            {
+              eventType: "ADMIN_INVITATION_CREATED",
+              context,
+              subjectUserId: null,
+              targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_INVITATION,
+              targetId: created.id,
+              metadata: {
+                invitationId: created.id,
+                email: created.email,
+                role: created.role_description,
+                expiresAt: created.expires_at.toISOString(),
+              },
+            },
+            tx
+          );
+          return created;
+        });
 
-      // Create invitation record
-      await this.repository.createAdminInvitation({
-        email,
-        roleDescription: data.roleDescription,
-        token,
-        expiresAt,
-        invitedByUserId: invitedBy,
+    if (options?.writeLinkGenerated) {
+      await writeSecurityAuditLog({
+        eventType: "ADMIN_INVITATION_LINK_GENERATED",
+        context,
+        subjectUserId: null,
+        targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_INVITATION,
+        targetId: invitation.id,
+        metadata: {
+          invitationId: invitation.id,
+          email: invitation.email,
+          role: invitation.role_description,
+          expiresAt: invitation.expires_at.toISOString(),
+        },
       });
     }
 
-    // Generate invitation URL
-    // Use ADMIN_PORTAL_URL if set, otherwise fall back to ADMIN_URL, then default
     const adminPortalUrl = process.env.ADMIN_URL || "http://localhost:3003";
-    const inviteUrl = `${adminPortalUrl}/callback?invitation=${token}&role=${data.roleDescription}`;
+    const inviteUrl = `${adminPortalUrl}/callback?invitation=${invitation.token}&role=${data.roleDescription}`;
 
-    return { inviteUrl, token };
+    return {
+      inviteUrl,
+      token: invitation.token,
+      invitationId: invitation.id,
+      email: invitation.email,
+      expiresAt: invitation.expires_at,
+      created: !existingInvitation,
+    };
   }
 
   /**
    * Invite admin user (sends email if email provided)
    */
   async inviteAdmin(
-    _req: Request,
+    req: Request,
     data: InviteAdminInput,
     invitedBy: string
   ): Promise<{ inviteUrl: string; messageId?: string; emailSent: boolean; emailError?: string }> {
@@ -1908,7 +2019,7 @@ export class AdminService {
     const invitedRole = await this.requireAdminRoleConfig(data.roleDescription);
 
     // Generate invitation URL (creates invitation record if needed)
-    const { inviteUrl } = await this.generateInvitationUrl(data, invitedBy);
+    const { inviteUrl } = await this.generateInvitationUrl(req, data, invitedBy);
 
     // Send email via SES only if email is provided
     let messageId: string | undefined;
@@ -2030,57 +2141,91 @@ export class AdminService {
       }
     }
 
-    // Add ADMIN role if not present
-    const updatedRoles = [...user.roles];
-    if (!updatedRoles.includes(UserRole.ADMIN)) {
-      updatedRoles.push(UserRole.ADMIN);
-      await this.repository.updateUserRoles(user.user_id, updatedRoles);
-    }
-
-    // Create or update Admin record
-    let admin = await this.repository.getAdminByUserId(user.user_id);
-    if (!admin) {
-      admin = await this.repository.createAdmin(user.user_id, invitation.role_description);
-    } else {
-      // Update role description if different
-      if (admin.role_description !== invitation.role_description) {
-        admin = await this.repository.updateAdminRole(user.user_id, invitation.role_description);
-      }
-      // Ensure status is ACTIVE - CRITICAL: This reactivates deactivated admins
-      if (admin.status !== "ACTIVE") {
-        // Update status and use the returned updated admin object
-        admin = await this.repository.updateAdminStatus(user.user_id, "ACTIVE");
-      }
-    }
-
-    // Mark invitation as accepted
-    await this.repository.acceptAdminInvitation(data.token);
-
-    // Log ROLE_ADDED event
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-    await this.repository.createSecurityLog({
-      userId: user.user_id,
-      eventType: "ROLE_ADDED",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        addedRole: "ADMIN",
-        roleDescription: invitation.role_description,
-        invitationToken: data.token,
-        invitationType: invitation.email.startsWith("invitation-") ? "link" : "email",
-      },
+    const context = auditContextFromRequest(req, {
+      actorType: AUDIT_ACTOR_TYPE.ADMIN,
+      actorUserId: user.user_id,
+      portal: AUDIT_PORTAL.ADMIN,
+      source: AUDIT_SOURCE.API,
     });
 
-    // Refresh user to get updated roles
-    const updatedUser = await this.repository.getUserById(user.user_id);
-    // Refresh admin to ensure we have the latest status (especially after status update)
-    const refreshedAdmin = await this.repository.getAdminByUserId(user.user_id);
+    const { updatedUser, admin } = await prisma.$transaction(async (tx) => {
+      const updatedRoles = [...user.roles];
+      if (!updatedRoles.includes(UserRole.ADMIN)) {
+        updatedRoles.push(UserRole.ADMIN);
+        await tx.user.update({
+          where: { user_id: user.user_id },
+          data: { roles: { set: updatedRoles } },
+        });
+      }
+
+      let adminRecord = await tx.admin.findUnique({ where: { user_id: user.user_id } });
+      if (!adminRecord) {
+        const roleConfig = await tx.adminRoleConfig.findUnique({
+          where: { key: invitation.role_description },
+        });
+        adminRecord = await tx.admin.create({
+          data: {
+            user_id: user.user_id,
+            role_id: roleConfig?.id ?? null,
+            role_description: invitation.role_description,
+            status: "ACTIVE",
+          },
+        });
+      } else {
+        const adminUpdate: { role_id?: string | null; role_description?: string; status?: "ACTIVE" | "INACTIVE" } =
+          {};
+        if (adminRecord.role_description !== invitation.role_description) {
+          const roleConfig = await tx.adminRoleConfig.findUnique({
+            where: { key: invitation.role_description },
+          });
+          adminUpdate.role_id = roleConfig?.id ?? null;
+          adminUpdate.role_description = invitation.role_description;
+        }
+        if (adminRecord.status !== "ACTIVE") {
+          adminUpdate.status = "ACTIVE";
+        }
+        if (Object.keys(adminUpdate).length > 0) {
+          adminRecord = await tx.admin.update({
+            where: { user_id: user.user_id },
+            data: adminUpdate,
+          });
+        }
+      }
+
+      await tx.adminInvitation.update({
+        where: { token: data.token },
+        data: {
+          accepted: true,
+          accepted_at: new Date(),
+        },
+      });
+
+      await writeSecurityAuditLog(
+        {
+          eventType: "ADMIN_INVITATION_ACCEPTED",
+          context,
+          subjectUserId: user.user_id,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_INVITATION,
+          targetId: invitation.id,
+          metadata: {
+            invitationId: invitation.id,
+            email: user.email,
+            role: invitation.role_description,
+            expiresAt: invitation.expires_at.toISOString(),
+          },
+        },
+        tx
+      );
+
+      const nextUser = await tx.user.findUnique({ where: { user_id: user.user_id } });
+      return { updatedUser: nextUser!, admin: adminRecord };
+    });
+
     return {
-      user: updatedUser!,
+      user: updatedUser,
       admin: {
-        role_description: refreshedAdmin?.role_description || admin.role_description,
-        status: (refreshedAdmin?.status || admin.status) as "ACTIVE" | "INACTIVE",
+        role_description: admin.role_description,
+        status: admin.status as "ACTIVE" | "INACTIVE",
       },
     };
   }
@@ -2089,17 +2234,7 @@ export class AdminService {
    * Get security logs
    */
   async getSecurityLogs(params: GetSecurityLogsQuery): Promise<{
-    logs: Array<{
-      id: string;
-      user_id: string;
-      event_type: string;
-      ip_address: string | null;
-      user_agent: string | null;
-      device_info: string | null;
-      metadata: unknown;
-      created_at: Date;
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    }>;
+    logs: Awaited<ReturnType<typeof securityAuditLogReader.findAll>>["logs"];
     pagination: {
       page: number;
       pageSize: number;
@@ -2107,7 +2242,7 @@ export class AdminService {
       totalPages: number;
     };
   }> {
-    const { logs, total } = await this.repository.getSecurityLogs(params);
+    const { logs, total } = await securityAuditLogReader.findAll(params);
     const totalPages = Math.ceil(total / params.pageSize);
 
     return {
@@ -2121,15 +2256,8 @@ export class AdminService {
     };
   }
 
-  /**
-   * Export security logs
-   */
-  async exportSecurityLogs(params: Omit<GetSecurityLogsQuery, "page" | "pageSize">): Promise<
-    (SecurityLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    })[]
-  > {
-    return this.repository.getAllSecurityLogsForExport(params);
+  async exportSecurityLogs(params: Omit<GetSecurityLogsQuery, "page" | "pageSize">) {
+    return securityAuditLogReader.findAllForExport(params);
   }
 
   /**
@@ -2164,7 +2292,7 @@ export class AdminService {
    * Resend admin invitation email (by invitation ID)
    */
   async resendInvitation(
-    _req: Request,
+    req: Request,
     invitationId: string,
     invitedBy: string
   ): Promise<{ messageId?: string; emailSent: boolean; emailError?: string }> {
@@ -2233,6 +2361,21 @@ export class AdminService {
         },
         "Admin invitation resent via email"
       );
+
+      await writeSecurityAuditLog({
+        eventType: "ADMIN_INVITATION_RESENT",
+        context: auditContextFromAdminRequest(req),
+        subjectUserId: null,
+        targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_INVITATION,
+        targetId: invitation.id,
+        metadata: {
+          invitationId: invitation.id,
+          email: invitation.email,
+          role: invitation.role_description,
+          expiresAt: invitation.expires_at.toISOString(),
+          emailSent: true,
+        },
+      });
     } catch (error) {
       emailSent = false;
       emailError = error instanceof Error ? error.message : String(error);
@@ -2265,20 +2408,24 @@ export class AdminService {
       throw new AppError(400, "VALIDATION_ERROR", "Cannot revoke an accepted invitation");
     }
 
-    // Delete the invitation
-    await this.repository.deleteAdminInvitation(invitationId);
-
-    // Log the action
-    await this.repository.createSecurityLog({
-      userId: revokedBy,
-      eventType: "INVITATION_REVOKED",
-      ipAddress: req.ip,
-      userAgent: req.get("user-agent"),
-      metadata: {
-        invitationId,
-        email: invitation.email,
-        roleDescription: invitation.role_description,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.adminInvitation.delete({ where: { id: invitationId } });
+      await writeSecurityAuditLog(
+        {
+          eventType: "ADMIN_INVITATION_REVOKED",
+          context: auditContextFromAdminRequest(req),
+          subjectUserId: null,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_INVITATION,
+          targetId: invitationId,
+          metadata: {
+            invitationId,
+            email: invitation.email,
+            role: invitation.role_description,
+            expiresAt: invitation.expires_at.toISOString(),
+          },
+        },
+        tx
+      );
     });
 
     logger.info(
@@ -2394,23 +2541,6 @@ export class AdminService {
         previousStatus: true,
         newStatus: false,
         adminAction: true,
-      },
-    });
-
-    // Create access log for admin action
-    await this.repository.createAccessLog({
-      userId: adminUserId,
-      eventType: "ONBOARDING_RESET",
-      portal: "admin",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      success: true,
-      metadata: {
-        targetUserId: userId,
-        targetUserEmail: user.email,
-        portal: data.portal,
       },
     });
 

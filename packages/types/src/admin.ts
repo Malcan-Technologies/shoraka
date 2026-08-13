@@ -94,47 +94,43 @@ export interface UpdateUserProfileInput {
   phone?: string | null;
 }
 
-export type EventType =
-  | "LOGIN"
-  | "LOGOUT"
-  | "SIGNUP"
-  | "ROLE_ADDED"
-  | "ROLE_SWITCHED"
-  | "ONBOARDING"
-  | "USER_COMPLETED"
-  | "KYC_STATUS_UPDATED"
-  | "ONBOARDING_STATUS_UPDATED"
-  | "PROFILE_UPDATED"
-  | "PASSWORD_CHANGED"
-  | "EMAIL_CHANGED";
+export const ACCESS_AUDIT_EVENTS = [
+  "USER_SIGNED_UP",
+  "USER_LOGGED_IN",
+  "USER_LOGGED_OUT",
+] as const;
 
-export interface AccessLogUser {
-  first_name: string;
-  last_name: string;
-  email: string;
-  roles: UserRole[];
+export type AccessAuditEventType = (typeof ACCESS_AUDIT_EVENTS)[number];
+export type EventType = AccessAuditEventType;
+
+export interface AccessAuditActor {
+  type: string;
+  userId: string | null;
+  displayName: string | null;
+  email: string | null;
 }
 
 export interface AccessLogResponse {
   id: string;
-  user_id: string;
-  user: AccessLogUser;
-  event_type: EventType;
+  eventType: AccessAuditEventType;
+  occurredAt: string;
+  createdAt: string;
+  userId: string | null;
+  actor: AccessAuditActor;
+  target: { type: string; id: string };
+  source: string;
   portal: string | null;
-  ip_address: string | null;
-  user_agent: string | null;
-  device_info: string | null;
-  device_type: string | null;
-  cognito_event: Record<string, unknown> | null;
-  success: boolean;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
+  ipAddress: string | null;
+  userAgent: string | null;
+  deviceInfo: string | null;
+  correlationId: string | null;
+  metadata: Record<string, unknown>;
 }
 
 export interface GetAccessLogsParams extends PaginationParams {
   search?: string;
-  eventType?: EventType;
-  eventTypes?: EventType[];
+  eventType?: AccessAuditEventType;
+  eventTypes?: AccessAuditEventType[];
   status?: "success" | "failed";
   dateRange?: "24h" | "7d" | "30d" | "all";
   userId?: string;
@@ -283,30 +279,70 @@ export interface AcceptInvitationInput {
 }
 
 // Security Logs Types
-export type SecurityEventType =
-  | "PASSWORD_CHANGED"
-  | "EMAIL_CHANGED"
-  | "ROLE_ADDED"
-  | "ROLE_SWITCHED"
-  | "PROFILE_UPDATED";
+export const SECURITY_AUDIT_EVENTS = [
+  "USER_ROLE_ADDED",
+  "ACTIVE_ROLE_CHANGED",
+  "USER_PROFILE_UPDATED",
+  "USER_PROFILE_UPDATED_BY_ADMIN",
+  "PASSWORD_CHANGED",
+  "PASSWORD_CHANGE_FAILED",
+  "USER_EMAIL_VERIFIED",
+  "EMAIL_VERIFICATION_FAILED",
+  "ADMIN_ACCESS_DENIED",
+  "ADMIN_ROLE_CREATED",
+  "ADMIN_ROLE_PERMISSIONS_UPDATED",
+  "ADMIN_ROLE_DELETED",
+  "USER_ROLES_UPDATED",
+  "ADMIN_USER_ROLE_CHANGED",
+  "ADMIN_USER_DEACTIVATED",
+  "ADMIN_USER_REACTIVATED",
+  "ADMIN_INVITATION_CREATED",
+  "ADMIN_INVITATION_LINK_GENERATED",
+  "ADMIN_INVITATION_RESENT",
+  "ADMIN_INVITATION_REVOKED",
+  "ADMIN_INVITATION_ACCEPTED",
+  "USER_PUBLIC_ID_CHANGED",
+  "ORGANIZATION_MEMBER_INVITED",
+  "ORGANIZATION_MEMBER_JOINED",
+  "ORGANIZATION_MEMBER_REMOVED",
+  "ORGANIZATION_MEMBER_LEFT",
+  "ORGANIZATION_MEMBER_ROLE_UPDATED",
+  "ORGANIZATION_OWNERSHIP_TRANSFERRED",
+  "ORGANIZATION_INVITATION_REVOKED",
+  "ORGANIZATION_INVITATION_RESENT",
+  "NOTIFICATION_TYPE_UPDATED",
+  "NOTIFICATION_GROUP_CREATED",
+  "NOTIFICATION_GROUP_UPDATED",
+  "NOTIFICATION_GROUP_DELETED",
+  "USER_NOTIFICATION_PREFERENCE_UPDATED",
+] as const;
 
-export interface SecurityLogUser {
-  first_name: string;
-  last_name: string;
-  email: string;
-  roles: UserRole[];
+export type SecurityEventType = (typeof SECURITY_AUDIT_EVENTS)[number];
+
+export interface SecurityAuditActor {
+  type: string;
+  userId: string | null;
+  displayName: string | null;
+  email: string | null;
 }
 
 export interface SecurityLogResponse {
   id: string;
-  user_id: string;
-  user: SecurityLogUser;
-  event_type: SecurityEventType;
-  ip_address: string | null;
-  user_agent: string | null;
-  device_info: string | null;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
+  eventType: SecurityEventType;
+  occurredAt: string;
+  createdAt: string;
+  subjectUserId: string | null;
+  actor: SecurityAuditActor;
+  target: { type: string; id: string };
+  organizationId: string | null;
+  organizationKind: string | null;
+  source: string;
+  portal: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  deviceInfo: string | null;
+  correlationId: string | null;
+  metadata: Record<string, unknown>;
 }
 
 export interface GetSecurityLogsParams extends PaginationParams {
@@ -320,6 +356,11 @@ export interface GetSecurityLogsParams extends PaginationParams {
 export interface SecurityLogsResponse {
   logs: SecurityLogResponse[];
   pagination: PaginationResponse;
+}
+
+export interface ExportSecurityLogsParams extends Omit<GetSecurityLogsParams, "page" | "pageSize"> {
+  format?: "csv" | "json";
+  eventTypes?: SecurityEventType[];
 }
 
 // Onboarding Logs Types

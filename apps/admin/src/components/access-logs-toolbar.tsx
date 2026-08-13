@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -18,22 +20,7 @@ import {
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import { AccessLogsExportButton } from "./access-logs-export-button";
-import type { ExportAccessLogsParams, EventType } from "@cashsouk/types";
-
-// All event types with their display labels
-const EVENT_TYPE_OPTIONS: { value: EventType; label: string }[] = [
-  { value: "LOGIN", label: "Login" },
-  { value: "LOGOUT", label: "Logout" },
-  { value: "SIGNUP", label: "Signup" },
-  { value: "PASSWORD_CHANGED", label: "Password Changed" },
-  { value: "EMAIL_CHANGED", label: "Email Changed" },
-  { value: "ROLE_ADDED", label: "Role Added" },
-  { value: "ROLE_SWITCHED", label: "Role Switched" },
-  { value: "USER_COMPLETED", label: "User Completed" },
-  { value: "ONBOARDING_STATUS_UPDATED", label: "Onboarding Status Updated" },
-  { value: "KYC_STATUS_UPDATED", label: "KYC Status Updated" },
-  { value: "PROFILE_UPDATED", label: "Profile Updated" },
-];
+import type { ExportAccessLogsParams, ExportSecurityLogsParams } from "@cashsouk/types";
 
 interface AccessLogsToolbarProps {
   searchQuery: string;
@@ -47,10 +34,15 @@ interface AccessLogsToolbarProps {
   totalCount: number;
   filteredCount: number;
   onClearFilters: () => void;
-  exportFilters?: Omit<ExportAccessLogsParams, "format" | "page" | "pageSize">;
+  exportKind: "access" | "security";
+  exportFilters?: Omit<ExportAccessLogsParams, "format" | "page" | "pageSize"> | Omit<
+    ExportSecurityLogsParams,
+    "format" | "page" | "pageSize"
+  >;
   onRefresh?: () => void;
   isLoading?: boolean;
-  allowedEventTypes?: EventType[];
+  eventTypeOptions: { value: string; label: string }[];
+  showStatusFilter?: boolean;
 }
 
 export function AccessLogsToolbar({
@@ -65,119 +57,107 @@ export function AccessLogsToolbar({
   totalCount,
   filteredCount,
   onClearFilters,
+  exportKind,
   exportFilters,
   onRefresh,
   isLoading = false,
-  allowedEventTypes,
+  eventTypeOptions,
+  showStatusFilter = false,
 }: AccessLogsToolbarProps) {
   const [isSpinning, setIsSpinning] = React.useState(false);
 
-  // Filter event type options based on allowedEventTypes prop
-  const filteredEventTypes = allowedEventTypes
-    ? EVENT_TYPE_OPTIONS.filter((opt) => allowedEventTypes.includes(opt.value))
-    : EVENT_TYPE_OPTIONS;
-
   const hasFilters =
-    searchQuery !== "" ||
+    Boolean(searchQuery) ||
     eventTypeFilter !== "all" ||
     statusFilter !== "all" ||
     dateRangeFilter !== "all";
 
-  const activeFilterCount = [
-    eventTypeFilter !== "all",
-    statusFilter !== "all",
-    dateRangeFilter !== "all",
-  ].filter(Boolean).length;
-
-  const handleRefresh = () => {
-    setIsSpinning(true);
-    onRefresh?.();
-    // Keep spinning for at least 500ms for visual feedback
-    setTimeout(() => setIsSpinning(false), 500);
-  };
-
   return (
-    <div className="flex items-center gap-3">
-      <div className="relative flex-1">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="relative flex-1 max-w-md">
         <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          placeholder="Search by user name, email, or User ID..."
           value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="h-11 rounded-xl bg-card pl-9"
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Search by name or email"
+          className="pl-9"
         />
       </div>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
-            <FunnelIcon className="h-4 w-4" />
-            Filters
-            {activeFilterCount > 0 && (
-              <Badge
-                variant="secondary"
-                className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-primary text-primary-foreground"
-              >
-                {activeFilterCount}
-              </Badge>
-            )}
+      <div className="flex flex-wrap items-center gap-2">
+        {hasFilters && (
+          <Badge variant="secondary" className="font-normal">
+            {filteredCount} of {totalCount}
+          </Badge>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-2">
+              <FunnelIcon className="h-4 w-4" />
+              Event
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+            <DropdownMenuLabel>Event type</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuRadioGroup value={eventTypeFilter} onValueChange={onEventTypeFilterChange}>
+              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+              {eventTypeOptions.map((opt) => (
+                <DropdownMenuRadioItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {showStatusFilter && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">Status</Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuRadioGroup value={statusFilter} onValueChange={onStatusFilterChange}>
+                <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="success">Success</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="failed">Failed</DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline">Date</Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuRadioGroup value={dateRangeFilter} onValueChange={onDateRangeFilterChange}>
+              <DropdownMenuRadioItem value="all">All time</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="24h">Last 24 hours</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="7d">Last 7 days</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="30d">Last 30 days</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={onClearFilters} className="gap-1">
+            <XMarkIcon className="h-4 w-4" />
+            Clear
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuLabel>Event Type</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={eventTypeFilter} onValueChange={onEventTypeFilterChange}>
-            <DropdownMenuRadioItem value="all">All Events</DropdownMenuRadioItem>
-            {filteredEventTypes.map((opt) => (
-              <DropdownMenuRadioItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Status</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={statusFilter} onValueChange={onStatusFilterChange}>
-            <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="success">Success</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="failed">Failed</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Date Range</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={dateRangeFilter} onValueChange={onDateRangeFilterChange}>
-            <DropdownMenuRadioItem value="all">All Time</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="24h">Last 24 Hours</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="7d">Last 7 Days</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="30d">Last 30 Days</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      {hasFilters && (
-        <Button variant="ghost" onClick={onClearFilters} className="gap-2 h-11 rounded-xl">
-          <XMarkIcon className="h-4 w-4" />
-          Clear
-        </Button>
-      )}
-
-      {onRefresh && (
-        <Button
-          variant="outline"
-          onClick={handleRefresh}
-          disabled={isLoading || isSpinning}
-          className="h-11 gap-2 rounded-xl bg-card"
-        >
-          <ArrowPathIcon className={`h-4 w-4 ${isLoading || isSpinning ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
-      )}
-
-      {exportFilters && <AccessLogsExportButton filters={exportFilters} />}
-
-      <Badge variant="secondary" className="h-11 px-4 rounded-xl text-sm">
-        {filteredCount} {filteredCount === 1 ? "log" : "logs"}
-        {hasFilters && ` of ${totalCount}`}
-      </Badge>
+        )}
+        {onRefresh && (
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              setIsSpinning(true);
+              onRefresh();
+              window.setTimeout(() => setIsSpinning(false), 500);
+            }}
+            disabled={isLoading}
+          >
+            <ArrowPathIcon className={`h-4 w-4 ${isSpinning ? "animate-spin" : ""}`} />
+          </Button>
+        )}
+        {exportFilters && <AccessLogsExportButton kind={exportKind} filters={exportFilters} />}
+      </div>
     </div>
   );
 }

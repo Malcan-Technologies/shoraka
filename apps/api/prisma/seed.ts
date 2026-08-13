@@ -100,69 +100,54 @@ async function main() {
   });
   logger.info(`✅ System user: ${systemUser.user_id}`);
 
-  // Create access logs for admin user
   const now = new Date();
-  const accessLogs = [];
+  const loginOccurredAt = new Date(now.getTime() - 12 * 60 * 60 * 1000);
+  const logoutOccurredAt = new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000);
 
-  // Admin user logs
-  accessLogs.push({
-    user_id: adminUser.user_id,
-    event_type: "LOGIN",
-    portal: "admin",
-    ip_address: "192.168.1.100",
-    user_agent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
-    device_info: "Linux Desktop",
-    device_type: "Linux Desktop",
-    success: true,
-    metadata: { auth_method: "mfa", active_role: "ADMIN" },
-    created_at: new Date(now.getTime() - 12 * 60 * 60 * 1000), // 12 hours ago
-  });
-
-  accessLogs.push({
-    user_id: adminUser.user_id,
-    event_type: "LOGOUT",
-    portal: "admin",
-    ip_address: "192.168.1.100",
-    user_agent: "Mozilla/5.0 (X11; Linux x86_64) Chrome/120.0.0.0 Safari/537.36",
-    device_info: "Linux Desktop",
-    device_type: "Linux Desktop",
-    success: true,
-    metadata: { session_duration: "3h 20m", active_role: "ADMIN" },
-    created_at: new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000), // 20 days ago
-  });
-
-  accessLogs.push({
-    user_id: adminUser.user_id,
-    event_type: "KYC_STATUS_UPDATED",
-    portal: "admin",
-    ip_address: "192.168.1.100",
-    user_agent: "Mozilla/5.0 (X11; Linux x86_64) Chrome/120.0.0.0 Safari/537.36",
-    device_info: "Linux Desktop",
-    device_type: "Linux Desktop",
-    success: true,
-    metadata: { old_status: "PENDING", new_status: "APPROVED" },
-    created_at: new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000), // 15 days ago
-  });
-
-  // Insert access logs
-  for (const log of accessLogs) {
-    await prisma.accessLog.create({
-      data: {
-        user_id: log.user_id,
-        event_type: log.event_type,
-        portal: log.portal,
-        ip_address: log.ip_address,
-        user_agent: log.user_agent,
-        device_info: log.device_info,
-        device_type: log.device_type,
-        success: log.success,
-        metadata: log.metadata,
-        created_at: log.created_at,
+  await prisma.accessAuditLog.create({
+    data: {
+      user_id: adminUser.user_id,
+      event_type: "USER_LOGGED_IN",
+      occurred_at: loginOccurredAt,
+      actor_type: "USER",
+      actor_user_id: adminUser.user_id,
+      target_type: "USER",
+      target_id: adminUser.user_id,
+      source: "API",
+      portal: "ADMIN",
+      ip_address: "192.168.1.100",
+      user_agent:
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+      metadata: {
+        loginMethod: "COGNITO_OAUTH",
+        actorName: "Admin User",
+        actorEmail: adminUser.email,
       },
-    });
-  }
+    },
+  });
 
-  logger.info(`✅ Created ${accessLogs.length} access log entries`);
+  await prisma.accessAuditLog.create({
+    data: {
+      user_id: adminUser.user_id,
+      event_type: "USER_LOGGED_OUT",
+      occurred_at: logoutOccurredAt,
+      actor_type: "USER",
+      actor_user_id: adminUser.user_id,
+      target_type: "USER",
+      target_id: adminUser.user_id,
+      source: "API",
+      portal: "ADMIN",
+      ip_address: "192.168.1.100",
+      user_agent:
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+      metadata: {
+        actorName: "Admin User",
+        actorEmail: adminUser.email,
+      },
+    },
+  });
+
+  logger.info("✅ Created 2 access audit log entries");
 
   logger.info("🌱 Seeding organization data...");
 

@@ -6,15 +6,19 @@ import { AccessLogsTable } from "@/components/access-logs-table";
 import { AccessLogsToolbar } from "@/components/access-logs-toolbar";
 import { useSecurityLogs } from "@/hooks/use-security-logs";
 import { AdminQueryErrorState } from "@/components/admin-query-error-state";
-import type { SecurityEventType, GetSecurityLogsParams } from "@cashsouk/types";
+import {
+  SECURITY_AUDIT_EVENTS,
+  type GetSecurityLogsParams,
+  type SecurityEventType,
+} from "@cashsouk/types";
 
-const SECURITY_EVENT_TYPES: SecurityEventType[] = [
-  "PASSWORD_CHANGED",
-  "EMAIL_CHANGED",
-  "ROLE_ADDED",
-  "ROLE_SWITCHED",
-  "PROFILE_UPDATED",
-];
+const SECURITY_EVENT_OPTIONS = SECURITY_AUDIT_EVENTS.map((value) => ({
+  value,
+  label: value
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase()),
+}));
 
 export function SecurityLogsPanel() {
   const queryClient = useQueryClient();
@@ -31,46 +35,23 @@ export function SecurityLogsPanel() {
       pageSize,
       dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
     };
-
-    if (searchQuery) {
-      params.search = searchQuery;
-    }
-
-    if (eventTypeFilter !== "all") {
-      params.eventType = eventTypeFilter as SecurityEventType;
-    }
-
+    if (searchQuery) params.search = searchQuery;
+    if (eventTypeFilter !== "all") params.eventType = eventTypeFilter as SecurityEventType;
     return params;
   }, [currentPage, pageSize, searchQuery, eventTypeFilter, dateRangeFilter]);
 
-  const { data, isLoading, error } = useSecurityLogs({
-    ...apiParams,
-    allowedEventTypes: SECURITY_EVENT_TYPES,
-  });
-
-  const handleReload = () => {
-    queryClient.invalidateQueries({ queryKey: ["admin", "security-logs"] });
-  };
-
-  const handleClearFilters = () => {
-    setSearchQuery("");
-    setEventTypeFilter("all");
-    setStatusFilter("all");
-    setDateRangeFilter("all");
-    setCurrentPage(1);
-  };
+  const { data, isLoading, error } = useSecurityLogs(apiParams);
 
   React.useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, eventTypeFilter, statusFilter, dateRangeFilter]);
 
-  const logs = data?.logs || [];
-  const totalLogs = data?.pagination.totalCount || 0;
-  const loading = isLoading;
-
   if (error) {
     return <AdminQueryErrorState error={error} resourceLabel="security logs" />;
   }
+
+  const logs = data?.logs || [];
+  const totalLogs = data?.pagination.totalCount || 0;
 
   return (
     <div className="space-y-6">
@@ -85,33 +66,41 @@ export function SecurityLogsPanel() {
         onDateRangeFilterChange={setDateRangeFilter}
         totalCount={totalLogs}
         filteredCount={totalLogs}
-        onClearFilters={handleClearFilters}
-        onRefresh={handleReload}
+        onClearFilters={() => {
+          setSearchQuery("");
+          setEventTypeFilter("all");
+          setStatusFilter("all");
+          setDateRangeFilter("all");
+          setCurrentPage(1);
+        }}
+        onRefresh={() => queryClient.invalidateQueries({ queryKey: ["admin", "security-logs"] })}
         isLoading={isLoading}
-        allowedEventTypes={SECURITY_EVENT_TYPES}
+        eventTypeOptions={SECURITY_EVENT_OPTIONS}
+        showStatusFilter={false}
+        exportKind="security"
         exportFilters={{
           search: searchQuery || undefined,
-          eventType:
-            eventTypeFilter !== "all" ? (eventTypeFilter as SecurityEventType) : undefined,
-          eventTypes: eventTypeFilter === "all" ? SECURITY_EVENT_TYPES : undefined,
+          eventType: eventTypeFilter !== "all" ? (eventTypeFilter as SecurityEventType) : undefined,
           dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
         }}
       />
-
       <AccessLogsTable
         logs={logs.map((log) => ({
-          ...log,
-          created_at: new Date(log.created_at),
-          success: true,
-          portal: null,
-          device_type: null,
-          cognito_event: null,
+          id: log.id,
+          eventType: log.eventType,
+          occurredAt: log.occurredAt,
+          actorName: log.actor.displayName,
+          actorEmail: log.actor.email,
+          ipAddress: log.ipAddress,
+          deviceInfo: log.deviceInfo,
+          metadata: log.metadata,
         }))}
-        loading={loading}
+        loading={isLoading}
         currentPage={currentPage}
         pageSize={pageSize}
         totalLogs={totalLogs}
         onPageChange={setCurrentPage}
+        emptyLabel="No security logs found"
       />
     </div>
   );

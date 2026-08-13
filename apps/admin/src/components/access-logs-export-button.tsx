@@ -10,14 +10,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import type { ExportAccessLogsParams } from "@cashsouk/types";
+import type { ExportAccessLogsParams, ExportSecurityLogsParams } from "@cashsouk/types";
 import { toast } from "sonner";
 
 interface AccessLogsExportButtonProps {
-  filters: Omit<ExportAccessLogsParams, "format" | "page" | "pageSize">;
+  kind: "access" | "security";
+  filters:
+    | Omit<ExportAccessLogsParams, "format" | "page" | "pageSize">
+    | Omit<ExportSecurityLogsParams, "format" | "page" | "pageSize">;
 }
 
-export function AccessLogsExportButton({ filters }: AccessLogsExportButtonProps) {
+export function AccessLogsExportButton({ kind, filters }: AccessLogsExportButtonProps) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(undefined, getAccessToken);
   const [isExporting, setIsExporting] = React.useState(false);
@@ -25,24 +28,21 @@ export function AccessLogsExportButton({ filters }: AccessLogsExportButtonProps)
   const handleExport = async (format: "csv" | "json") => {
     try {
       setIsExporting(true);
-      const params: ExportAccessLogsParams = {
-        ...filters,
-        format,
-      };
-
-      const blob = await apiClient.exportAccessLogs(params);
+      const blob =
+        kind === "access"
+          ? await apiClient.exportAccessLogs({ ...filters, format } as ExportAccessLogsParams)
+          : await apiClient.exportSecurityLogs({ ...filters, format } as ExportSecurityLogsParams);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `access-logs-${new Date().toISOString().split("T")[0]}.${format}`;
+      a.download = `${kind}-logs-${new Date().toISOString().split("T")[0]}.${format}`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-
-      toast.success(`Access logs exported as ${format.toUpperCase()}`);
+      toast.success(`${kind === "access" ? "Access" : "Security"} logs exported as ${format.toUpperCase()}`);
     } catch (error) {
-      toast.error("Failed to export access logs", {
+      toast.error("Failed to export logs", {
         description: error instanceof Error ? error.message : "Unknown error",
       });
     } finally {
@@ -69,4 +69,3 @@ export function AccessLogsExportButton({ filters }: AccessLogsExportButtonProps)
     </DropdownMenu>
   );
 }
-

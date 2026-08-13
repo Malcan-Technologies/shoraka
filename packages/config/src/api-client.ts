@@ -25,6 +25,7 @@ import type {
   AcceptInvitationInput,
   GetSecurityLogsParams,
   SecurityLogsResponse,
+  ExportSecurityLogsParams,
   GetOnboardingLogsParams,
   OnboardingLogsResponse,
   OnboardingLogResponse,
@@ -1939,6 +1940,39 @@ export class ApiClient {
     if (params.userId) queryParams.append("userId", params.userId);
 
     return this.get<SecurityLogsResponse>(`/v1/admin/security-logs?${queryParams.toString()}`);
+  }
+
+  async exportSecurityLogs(params: ExportSecurityLogsParams): Promise<Blob> {
+    const queryParams = new URLSearchParams();
+    if (params.search) queryParams.append("search", params.search);
+    if (params.eventType) queryParams.append("eventType", params.eventType);
+    if (params.eventTypes && params.eventTypes.length > 0)
+      queryParams.append("eventTypes", params.eventTypes.join(","));
+    if (params.dateRange) queryParams.append("dateRange", params.dateRange);
+    if (params.userId) queryParams.append("userId", params.userId);
+    queryParams.append("format", params.format || "json");
+
+    const url = `${this.baseUrl}/v1/admin/security-logs/export?${queryParams.toString()}`;
+    const authToken = await this.getAuthToken();
+
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    if (authToken) {
+      headers["Authorization"] = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.statusText}`);
+    }
+
+    return response.blob();
   }
 
   // Admin - Onboarding Logs

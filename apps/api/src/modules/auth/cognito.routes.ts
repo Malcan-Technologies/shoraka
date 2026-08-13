@@ -8,8 +8,17 @@ import { logger } from "../../lib/logger";
 import { getEnv } from "../../config/env";
 import { detectRoleFromRequest, getPortalFromRole } from "../../lib/role-detector";
 import { UserRole } from "@prisma/client";
-import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AppError } from "../../lib/http/error-handler";
+import {
+  AUDIT_ACTOR_TYPE,
+  AUDIT_PORTAL,
+  AUDIT_SOURCE,
+  auditContextFromRequest,
+  auditPortalFromLegacy,
+} from "../../lib/audit/context";
+import { writeAccessAuditLogBestEffort } from "./audit/writer";
+import { writeSecurityAuditLogBestEffort } from "../security/audit/writer";
+import { SECURITY_AUDIT_TARGET_TYPE } from "../security/audit/events";
 import {
   CognitoIdentityProviderClient,
   AdminUserGlobalSignOutCommand,
@@ -474,8 +483,13 @@ router.get("/callback", async (req: Request, res: Response) => {
       "User synced via repository (upsert with user_id assignment)"
     );
 
-    // Extract request metadata early (needed for both success and error cases)
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    const callbackAuditContext = auditContextFromRequest(req, {
+      actorType: AUDIT_ACTOR_TYPE.USER,
+      actorUserId: user.user_id,
+      source: AUDIT_SOURCE.API,
+      portal: auditPortalFromLegacy(getPortalFromRole(requestedRole)),
+    });
+    callbackAuditContext.correlationId = correlationId;
 
     // Handle admin invitation token if present (from OAuth state or query parameter)
     const invitationToken =
@@ -645,25 +659,20 @@ router.get("/callback", async (req: Request, res: Response) => {
         });
         const wasPreviouslyAdmin = !!adminRecord;
 
-        // Log failed admin access attempt
-        await prisma.accessLog.create({
-          data: {
-            user_id: user.user_id,
-            event_type: "LOGIN",
-            portal: "admin",
-            ip_address: ipAddress,
-            user_agent: userAgent,
-            device_info: deviceInfo,
-            device_type: deviceType,
-            success: false,
-            metadata: {
-              requestedRole,
-              userRoles: user.roles,
-              hasAdminRole,
-              adminStatus,
-              wasPreviouslyAdmin,
-              reason: !hasAdminRole ? "User does not have ADMIN role" : "Admin account is inactive",
-            },
+        await writeSecurityAuditLogBestEffort({
+          eventType: "ADMIN_ACCESS_DENIED",
+          context: {
+            ...callbackAuditContext,
+            actorType: AUDIT_ACTOR_TYPE.ADMIN,
+            portal: AUDIT_PORTAL.ADMIN,
+          },
+          subjectUserId: user.user_id,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_ROUTE,
+          targetId: req.path || "/callback",
+          metadata: {
+            method: req.method,
+            path: req.originalUrl || req.path,
+            reasonCode: !hasAdminRole ? "MISSING_ADMIN_ROLE" : "ADMIN_INACTIVE",
           },
         });
 
@@ -704,22 +713,19 @@ router.get("/callback", async (req: Request, res: Response) => {
 
     const portal = getPortalFromRole(activeRole);
 
-    // Create access log
-    await prisma.accessLog.create({
-      data: {
-        user_id: user.user_id,
-        event_type: isSignup ? "SIGNUP" : "LOGIN",
-        portal,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-        device_info: deviceInfo,
-        device_type: deviceType,
-        success: true,
-        metadata: {
-          requestedRole,
-          activeRole,
-          roles: user.roles,
-        },
+    await writeAccessAuditLogBestEffort({
+      eventType: isSignup ? "USER_SIGNED_UP" : "USER_LOGGED_IN",
+      context: {
+        ...callbackAuditContext,
+        portal: auditPortalFromLegacy(portal),
+        actorUserId: user.user_id,
+      },
+      userId: user.user_id,
+      metadata: {
+        loginMethod: "COGNITO_OAUTH",
+        requestedRole,
+        activeRole,
+        roles: user.roles,
       },
     });
 
@@ -984,27 +990,21 @@ router.get("/logout", async (req: Request, res: Response) => {
 
       if (user) {
         userId = user.user_id;
-        const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-
-        // Determine portal from user's roles if not detected from referer
         if (!portal && user.roles.length > 0) {
           portal = getPortalFromRole(user.roles[0]);
         }
 
-        // Create access log before signing out
-        await prisma.accessLog.create({
-          data: {
-            user_id: user.user_id,
-            event_type: "LOGOUT",
-            portal: portal || null,
-            ip_address: ipAddress,
-            user_agent: userAgent,
-            device_info: deviceInfo,
-            device_type: deviceType,
-            success: true,
-            metadata: {
-              roles: user.roles,
-            },
+        await writeAccessAuditLogBestEffort({
+          eventType: "USER_LOGGED_OUT",
+          context: auditContextFromRequest(req, {
+            actorType: AUDIT_ACTOR_TYPE.USER,
+            actorUserId: user.user_id,
+            portal: auditPortalFromLegacy(portal),
+            source: AUDIT_SOURCE.API,
+          }),
+          userId: user.user_id,
+          metadata: {
+            roles: user.roles,
           },
         });
 

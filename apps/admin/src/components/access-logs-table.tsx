@@ -10,28 +10,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@cashsouk/ui";
-import { AccessLogTableRow } from "./access-log-table-row";
+import { AccessLogTableRow, type AuditTableLog } from "./access-log-table-row";
 import { AccessLogDetailsDialog } from "./access-log-details-dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
-import type { AccessLogResponse } from "@cashsouk/types";
-
-interface AccessLog extends Omit<AccessLogResponse, "created_at"> {
-  created_at: Date;
-}
 
 interface AccessLogsTableProps {
-  logs: AccessLog[];
+  logs: AuditTableLog[];
   loading: boolean;
   currentPage: number;
   pageSize: number;
   totalLogs: number;
   onPageChange: (page: number) => void;
-  showRole?: boolean;
-  showOrganization?: boolean;
+  emptyLabel?: string;
 }
 
-function TableSkeleton({ showRole = false, showOrganization = false }: { showRole?: boolean; showOrganization?: boolean }) {
+function TableSkeleton() {
   return (
     <>
       {Array.from({ length: 7 }).map((_, i) => (
@@ -45,29 +39,11 @@ function TableSkeleton({ showRole = false, showOrganization = false }: { showRol
           <TableCell>
             <Skeleton className="h-5 w-24" />
           </TableCell>
-          {showRole && (
-            <TableCell>
-              <Skeleton className="h-5 w-20" />
-            </TableCell>
-          )}
-          {showOrganization && (
-            <>
-              <TableCell>
-                <Skeleton className="h-5 w-32" />
-              </TableCell>
-              <TableCell>
-                <Skeleton className="h-5 w-20" />
-              </TableCell>
-            </>
-          )}
           <TableCell>
             <Skeleton className="h-5 w-28" />
           </TableCell>
           <TableCell>
             <Skeleton className="h-5 w-24" />
-          </TableCell>
-          <TableCell>
-            <Skeleton className="h-5 w-16" />
           </TableCell>
           <TableCell>
             <Skeleton className="h-8 w-16" />
@@ -85,22 +61,14 @@ export function AccessLogsTable({
   pageSize,
   totalLogs,
   onPageChange,
-  showRole = false,
-  showOrganization = false,
+  emptyLabel = "No logs found",
 }: AccessLogsTableProps) {
-  const [selectedLog, setSelectedLog] = React.useState<AccessLog | null>(null);
+  const [selectedLog, setSelectedLog] = React.useState<AuditTableLog | null>(null);
   const [dialogOpen, setDialogOpen] = React.useState(false);
 
-  const handleViewDetails = (log: AccessLog) => {
-    setSelectedLog(log);
-    setDialogOpen(true);
-  };
-
-  const totalPages = Math.ceil(totalLogs / pageSize);
-  const startIndex = (currentPage - 1) * pageSize + 1;
+  const totalPages = Math.ceil(totalLogs / pageSize) || 1;
+  const startIndex = totalLogs === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endIndex = Math.min(currentPage * pageSize, totalLogs);
-
-  const columnCount = 7 + (showRole ? 1 : 0) + (showOrganization ? 2 : 0);
 
   return (
     <>
@@ -110,24 +78,22 @@ export function AccessLogsTable({
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="text-sm font-semibold">Timestamp</TableHead>
-                {showOrganization && <TableHead className="text-sm font-semibold">Organization</TableHead>}
-                {showOrganization && <TableHead className="text-sm font-semibold">Type</TableHead>}
-                <TableHead className="text-sm font-semibold min-w-[180px] max-w-[280px]">User</TableHead>
+                <TableHead className="text-sm font-semibold min-w-[180px] max-w-[280px]">
+                  Actor
+                </TableHead>
                 <TableHead className="text-sm font-semibold">Event</TableHead>
-                {showRole && <TableHead className="text-sm font-semibold">Role</TableHead>}
                 <TableHead className="text-sm font-semibold">IP Address</TableHead>
                 <TableHead className="text-sm font-semibold">Device</TableHead>
-                <TableHead className="text-sm font-semibold">Status</TableHead>
                 <TableHead className="text-sm font-semibold">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableSkeleton showRole={showRole} showOrganization={showOrganization} />
+                <TableSkeleton />
               ) : logs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={columnCount} className="text-center py-10 text-muted-foreground">
-                    No access logs found
+                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                    {emptyLabel}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -135,9 +101,10 @@ export function AccessLogsTable({
                   <AccessLogTableRow
                     key={log.id}
                     log={log}
-                    onViewDetails={() => handleViewDetails(log)}
-                    showRole={showRole}
-                    showOrganization={showOrganization}
+                    onViewDetails={() => {
+                      setSelectedLog(log);
+                      setDialogOpen(true);
+                    }}
                   />
                 ))
               )}
@@ -179,4 +146,3 @@ export function AccessLogsTable({
     </>
   );
 }
-

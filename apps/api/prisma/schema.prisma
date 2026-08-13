@@ -1951,6 +1951,68 @@ model NotificationBroadcastAuditLog {
   @@map("notification_broadcast_audit_logs")
 }
 
+/// Append-only signup/login/logout history. No User FK: stored ids are
+/// historical evidence and must survive User deletion.
+model AccessAuditLog {
+  id                String   @id @default(cuid())
+  user_id           String?
+  event_type        String
+  occurred_at       DateTime @default(now())
+  created_at        DateTime @default(now())
+  actor_type        String
+  actor_user_id     String?
+  organization_id   String?
+  organization_kind String?
+  target_type       String
+  target_id         String
+  source            String
+  portal            String?
+  ip_address        String?
+  user_agent        String?
+  correlation_id    String?
+  idempotency_key   String?
+  metadata          Json
+
+  @@index([occurred_at])
+  @@index([event_type, occurred_at])
+  @@index([user_id, occurred_at])
+  @@index([actor_user_id, occurred_at])
+  @@index([correlation_id])
+  @@map("access_audit_logs")
+}
+
+/// Append-only security/access-control audit. No User, role, invitation, or
+/// organization FKs: stored ids are historical evidence and must survive
+/// User deletion and identifier rewrites.
+model SecurityAuditLog {
+  id                String   @id @default(cuid())
+  subject_user_id   String?
+  event_type        String
+  occurred_at       DateTime @default(now())
+  created_at        DateTime @default(now())
+  actor_type        String
+  actor_user_id     String?
+  organization_id   String?
+  organization_kind String?
+  target_type       String
+  target_id         String
+  source            String
+  portal            String?
+  ip_address        String?
+  user_agent        String?
+  correlation_id    String?
+  idempotency_key   String?
+  metadata          Json
+
+  @@index([occurred_at])
+  @@index([event_type, occurred_at])
+  @@index([subject_user_id, occurred_at])
+  @@index([actor_user_id, occurred_at])
+  @@index([target_type, target_id, occurred_at])
+  @@index([correlation_id])
+  @@map("security_audit_logs")
+}
+
 model corporate_individual_kyc {
   id                    String            @id
   regtank_onboarding_id String
