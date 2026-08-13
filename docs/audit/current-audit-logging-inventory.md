@@ -9,7 +9,7 @@
 
 ## 1. Executive Summary
 
-CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_logs`, `security_logs`, `onboarding_logs`, `application_logs`, `product_audit_logs`, `note_events`, `note_admin_actions`, `legal_document_audit_logs`, `notification_logs`, `gateway_payment_events`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records).
+CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_logs`, `security_logs`, `onboarding_logs`, `application_logs`, `product_audit_logs`, `note_events`, `note_admin_actions`, `legal_admin_audit_logs`, `notification_logs`, `gateway_payment_events`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records).
 
 ### Current architecture (factual)
 
@@ -17,7 +17,7 @@ CashSouk does not have a single audit system. It has **many specialized tables**
 - **Onboarding:** `OnboardingLog` with free-string `event_type`. `AuthService` **reads** `ONBOARDING_STARTED` / `USER_COMPLETED` to decide cancellation, while production final approval now writes `FINAL_APPROVAL_COMPLETED`.
 - **Applications:** `ApplicationLog` (primary UI timeline) plus rarely-read `ApplicationReviewEvent` dual-writes on three actions. Wrapper always stores `level`/`target`/`action` as null.
 - **Notes:** `NoteEvent` + `NoteAdminAction` dual-write for admin actions. Activity feed reads a **subset** of `NoteEvent` types.
-- **Legal admin:** dedicated `LegalDocumentAuditLog`. User open/accept is **not** that table; it is `LegalDocumentAcceptance` updated **in place**.
+- **Legal admin:** dedicated `LegalAdminAuditLog`. User open/accept is **not** that table; it is `LegalDocumentAcceptance` updated **in place**. Legacy `LegalDocumentAuditLog` / `legal_document_audit_logs` has been removed.
 - **Payments:** `GatewayPayment` is SOT; `GatewayPaymentEvent` is a partial admin trail (no capture/complete type); `GatewayWebhookEvent` is provider transport and is **updated** after processing.
 - **Products:** `ProductAuditLog` is append-only and is not deleted on product rollback. Legacy `ProductLog` / `product_logs` has been removed.
 - **Notifications:** `NotificationLog` only for admin bulk send. In-app `Notification` rows are delivery, not business audit.
@@ -67,7 +67,7 @@ Legend: ✅ inspected · N/A none found · ⚠ leftover/unused
 | KYC / KYB / AML | ✅ | ✅ | ✅ | ✅ | CTOS retry | RegTank | mixed | Admin onboarding |
 | REGTANK | ✅ | ✅ | ✅ | admin refresh | N/A | 8+legacy+dev | OnboardingLog | Admin + SOT |
 | CTOS | ✅ | ✅ | ✅ | ✅ admin | ctos-kyb-retry | N/A | SECTION_REVIEWED_PENDING only | Admin CTOS cards |
-| LEGAL DOCUMENTS | ✅ | ✅ | ✅ | ✅ admin | N/A | N/A | LegalDocumentAuditLog | `/audit` legal tab + export |
+| LEGAL DOCUMENTS | ✅ | ✅ | ✅ | ✅ admin | N/A | N/A | LegalAdminAuditLog | `/audit` legal tab + export |
 | LEGAL ACCEPTANCES | ✅ | ✅ | ✅ | ✅ all portals | N/A | N/A | SOT not audit table | Admin acceptances |
 | APPLICATION | ✅ | ✅ | ✅ | ✅ issuer | N/A | N/A | ApplicationLog | Issuer timeline, GET logs, activity |
 | APPLICATION REVIEW | ✅ | ✅ | ✅ | ✅ admin | N/A | N/A | ApplicationLog + ReviewEvent | Admin timeline |
@@ -141,10 +141,10 @@ FK Application **Cascade**. **No production `find*` readers found.** Written onl
 Fields: `id`, `product_id`, `event_type`, `occurred_at`, `created_at`, `actor_type`, `actor_user_id`, org fields, `target_type`, `target_id`, `source`, `portal`, `ip_address`, `user_agent`, `correlation_id`, `idempotency_key`, `metadata`.  
 **No Product or User FK.** Append-only. Replaced and removed legacy `ProductLog` / `product_logs`. Failed-create rollback does not delete these rows.
 
-#### LegalDocumentAuditLog → `legal_document_audit_logs` · LEGAL ADMIN · **A**
+#### LegalAdminAuditLog → `legal_admin_audit_logs` · LEGAL ADMIN · **A**
 
-Fields: `id` (UUID), `action`, document/version ids, `document_type`, `version_number`, `document_hash`, `actor_user_id`, name/email snapshots, `before_json`, `after_json`, `reason`, `ip_address`, `user_agent`, `correlation_id`, `created_at`.  
-No FK cascade to documents. Intended immutable.
+Fields: `id` (cuid), `legal_document_id`, `legal_document_version_id`, `event_type`, `occurred_at`, `created_at`, `actor_type`, `actor_user_id`, org fields, `target_type`, `target_id`, `source`, `portal`, `ip_address`, `user_agent`, `correlation_id`, `idempotency_key`, `metadata`.  
+**No LegalDocument, LegalDocumentVersion, or User FK.** Append-only. Replaced and removed legacy `LegalDocumentAuditLog` / `legal_document_audit_logs`.
 
 #### NoteEvent → `note_events` · NOTE · **A**
 
@@ -375,9 +375,9 @@ Production final approval: **`FINAL_APPROVAL_COMPLETED`** (`AdminService.complet
 
 `products/audit/writer.ts` via `products/repository.ts` on create/update/inactivate/reactivate/delete. Append-only; not deleted on failed-create rollback. Legacy `ProductLog` removed.
 
-### LegalDocumentAuditLog
+### LegalAdminAuditLog
 
-`legal-documents/audit-log-service.ts` `record` via `LegalDocumentService`.
+`legal-documents/audit/writer.ts` via `LegalDocumentService` in the same Prisma transaction as the legal mutation. Append-only. Legacy `LegalDocumentAuditLog` / `audit-log-service.ts` removed.
 
 ### NoteEvent / NoteAdminAction
 
@@ -418,7 +418,7 @@ Created on ingest; **`updateMany` processed_at/error** in `webhook-service.ts`.
 | application_logs | `AdminService.getResubmitComparisonSnapshots` findFirst APPLICATION_RESUBMITTED | **Business/UI compare** parses `metadata.amendment_remarks` | HIGH |
 | application_review_events | **none found** | — | — | LOW (dead writes) |
 | product_audit_logs | `GET /v1/admin/product-logs` + export CSV/JSON | Admin `/audit` products | eventType filter | MEDIUM |
-| legal_document_audit_logs | `GET /v1/admin/legal-document-audit-logs` + export | Admin `/audit` legal | action filters | MEDIUM |
+| legal_admin_audit_logs | `GET /v1/admin/legal-document-audit-logs` + export | Admin `/audit` legal | action → event_type filters | MEDIUM |
 | legal_document_acceptances | acceptance-admin + user required/pending | Compliance UI + **onboarding gate** `hasCompletedRequiredAcceptances` | **HIGH** |
 | note_events | `GET admin notes/:id/events` mapper | Admin note timeline | all types; sort helper | MEDIUM |
 | note_events | `NoteLogAdapter` | Activity | **subset only** (PUBLISH, CLOSE_FUNDING, INVESTMENT_COMMITTED, SETTLEMENT_POSTED, FAIL_FUNDING, ACTIVATE, WITHDRAWAL_COMPLETED, NOTE_DEFAULT_MARKED, etc.) | MEDIUM |
@@ -466,7 +466,8 @@ PRODUCT_CREATED/UPDATED/INACTIVATED/REACTIVATED/DELETED.
 
 ### Legal admin
 
-LEGAL_DOCUMENT_CREATED/UPDATED, LEGAL_VERSION_UPLOADED/FILE_REPLACED/PUBLISHED/ARCHIVED/RESTORED.
+LEGAL_DOCUMENT_CREATED/UPDATED, LEGAL_DOCUMENT_VERSION_UPLOADED/FILE_REPLACED/PUBLISHED/ARCHIVED/RESTORED.  
+Retired (removed with `LegalDocumentAuditLog`): `LEGAL_VERSION_*`.
 
 ### Gateway enum
 
@@ -609,7 +610,7 @@ Legal types in schema: `PDPA_NOTICE_AND_CONSENT`, `TERMS_OF_USE`, `RISK_STATEMEN
 | Document version/hash at accept | acceptance snapshots + file_hash | COMPLETE on LegalDocumentAcceptance |
 | Date/time to the second | DateTime fields | COMPLETE |
 | Actor/org/IP/UA on accept | yes on acceptance row | COMPLETE for SOT |
-| Legal admin publish trail | LegalDocumentAuditLog | COMPLETE |
+| Legal admin publish trail | LegalAdminAuditLog | COMPLETE |
 
 ---
 
@@ -747,7 +748,7 @@ Keep specialized SOT even if audit events are added later.
 | CtosReport / RegTankOnboarding | **KEEP AS SOURCE OF TRUTH** (provider + compliance snapshots) |
 | GatewayWebhookEvent | **KEEP AS SPECIALIZED HISTORY/EVIDENCE** (transport; not business audit) |
 | GatewayReconRun/Exception | **KEEP AS SOURCE OF TRUTH** (ops) |
-| LegalDocumentAuditLog | **CANDIDATE TO REPLACE WITH CANONICAL AUDIT** *or* keep specialized — **UNCLEAR / NEEDS DECISION** (already well-shaped) |
+| LegalAdminAuditLog | **KEEP AS SPECIALIZED HISTORY** (admin legal-document mutations; not a canonical AuditEvent) |
 | AccessLog / SecurityLog | **CANDIDATE TO REPLACE WITH CANONICAL AUDIT EVENT** |
 | OnboardingLog | **CANDIDATE TO REPLACE** but **HIGH** AuthService + activity readers |
 | ApplicationLog | **CANDIDATE TO REPLACE** but HIGH resubmit-comparison + timelines |
@@ -772,7 +773,7 @@ Keep specialized SOT even if audit events are added later.
 | NoteAdminAction | logAdminAction / prospectus | none | none | no | no | no | note tests | LOW | 1 | YES if NoteEvent kept during transition |
 | ProductLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `ProductAuditLog` is live |
 | NotificationLog | bulk send | admin logs | notification admin | no | no | self | notification tests | LOW | 2 | UNCLEAR |
-| LegalDocumentAuditLog | legal service | audit panel | `/audit` legal | CSV/JSON | no | no | legal tests | MEDIUM | 4 | UNCLEAR (good specialized table) |
+| LegalDocumentAuditLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `LegalAdminAuditLog` is live |
 | GatewayPaymentEvent | payment modules | payment detail; `getOpenOverrideProposal` **never called** | admin payments (labels include OVERRIDE_*) | no | no live override logic | no | many payment tests | HIGH | 5 with payments | NO until capture events exist |
 | AccessLog | auth + admin | `/audit` access + export; **also** GET `/me` recentLogins; admin user `_count.access_logs` | `/audit` + account pages + user detail count | yes | cancel-onboarding does **not** use AccessLog; dashboard stats do **not** | no | auth tests | HIGH | 6 | NO until LOGIN readers migrated |
 | SecurityLog | auth + admin | `/audit` security | yes | yes | no | no | | HIGH | 6 | NO |

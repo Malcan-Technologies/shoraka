@@ -1704,39 +1704,9 @@ model LegalDocumentAcceptance {
   @@map("legal_document_acceptances")
 }
 
-/// Immutable admin audit trail for legal document definition/version changes.
-model LegalDocumentAuditLog {
-  id                        String             @id @default(cuid())
-  action                    String
-  legal_document_id         String?
-  legal_document_version_id String?
-  document_type             LegalDocumentType?
-  version_number            Int?
-  document_hash             String?
-  actor_user_id             String?
-  actor_name_snapshot       String?
-  actor_email_snapshot      String?
-  before_json               Json?
-  after_json                Json?
-  reason                    String?
-  ip_address                String?
-  user_agent                String?
-  correlation_id            String?
-  created_at                DateTime           @default(now())
-
-  @@index([legal_document_id])
-  @@index([legal_document_version_id])
-  @@index([action])
-  @@index([actor_user_id])
-  @@index([document_type])
-  @@index([created_at])
-  @@map("legal_document_audit_logs")
-}
-
 /// Append-only admin audit for legal document definitions and versions.
 /// No LegalDocument, LegalDocumentVersion, or User FK: stored ids are historical
-/// evidence and must survive target/user deletion. Legacy LegalDocumentAuditLog
-/// remains until a later cleanup PR; it has no live writers or readers.
+/// evidence and must survive target/user deletion.
 model LegalAdminAuditLog {
   id                        String   @id @default(cuid())
   legal_document_id         String

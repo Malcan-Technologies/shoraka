@@ -42,11 +42,6 @@ jest.mock("../../lib/prisma", () => ({
       update: jest.fn(),
       deleteMany: jest.fn(),
     },
-    legalDocumentAuditLog: {
-      create: jest.fn(),
-      findMany: jest.fn(),
-      count: jest.fn(),
-    },
     legalAdminAuditLog: {
       create: jest.fn(),
       findMany: jest.fn(),

@@ -1,10 +1,10 @@
 # LegalAdminAuditLog
 
-Append-only admin audit for legal document definitions and versions. This is the sole live Legal admin audit history.
+Append-only admin audit for legal document definitions and versions. This is the sole Legal admin audit history.
 
 Readers: `GET /v1/admin/legal-document-audit-logs` and `GET /v1/admin/legal-document-audit-logs/export` (table: `legal_admin_audit_logs`).
 
-The legacy `LegalDocumentAuditLog` model / `legal_document_audit_logs` table remains until a later cleanup PR. It has no live writers or readers. There is no backfill.
+The legacy `LegalDocumentAuditLog` model and `legal_document_audit_logs` table have been removed. There is no backfill. Old `LEGAL_VERSION_*` event names are retired.
 
 User open/accept evidence stays in `LegalDocumentAcceptance` and is not written here.
 
