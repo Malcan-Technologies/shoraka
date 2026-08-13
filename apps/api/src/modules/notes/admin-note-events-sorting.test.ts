@@ -2,107 +2,107 @@ import { sortAdminNoteEvents } from "./admin-note-events-sorting";
 
 describe("admin note events sorting", () => {
   it("orders same-timestamp events deterministically for newest-first", () => {
-    const createdAt = "2026-05-25T00:00:00.000Z";
+    const occurredAt = "2026-05-25T00:00:00.000Z";
 
     const events = [
       {
         id: "b",
-        eventType: "CLOSE_FUNDING",
-        createdAt,
+        eventType: "NOTE_FUNDING_CLOSED",
+        occurredAt,
       },
       {
         id: "a",
-        eventType: "ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED",
-        createdAt,
+        eventType: "DISBURSEMENT_INITIATED",
+        occurredAt,
       },
     ];
 
     const sorted = sortAdminNoteEvents(events, "newest-first");
 
-    // Later lifecycle event should appear above earlier lifecycle event.
     expect(sorted.map((e) => e.eventType)).toEqual([
-      "ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED",
-      "CLOSE_FUNDING",
+      "DISBURSEMENT_INITIATED",
+      "NOTE_FUNDING_CLOSED",
     ]);
   });
 
-  it("places SHORAKA order submitted after issuer disbursement created (newest-first)", () => {
-    const createdAt = "2026-05-25T00:00:00.000Z";
+  it("places SHORAKA order submitted after disbursement initiated (newest-first)", () => {
+    const occurredAt = "2026-05-25T00:00:00.000Z";
 
     const events = [
       {
         id: "b",
-        eventType: "ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED",
-        createdAt,
+        eventType: "DISBURSEMENT_INITIATED",
+        occurredAt,
       },
       {
         id: "a",
         eventType: "SHORAKA_ORDER_SUBMITTED",
-        createdAt,
+        occurredAt,
       },
     ];
 
     const sorted = sortAdminNoteEvents(events, "newest-first");
 
-    // Later lifecycle step should appear above earlier lifecycle step in newest-first.
     expect(sorted.map((e) => e.eventType)).toEqual([
       "SHORAKA_ORDER_SUBMITTED",
-      "ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED",
+      "DISBURSEMENT_INITIATED",
     ]);
   });
 
-  it("places SHORAKA certificate fetched before withdrawal letter generated (newest-first)", () => {
-    const createdAt = "2026-05-25T00:00:00.000Z";
+  it("places SHORAKA certificate received before disbursement letter generated (newest-first)", () => {
+    const occurredAt = "2026-05-25T00:00:00.000Z";
 
     const events = [
       {
         id: "b",
-        eventType: "WITHDRAWAL_LETTER_GENERATED",
-        createdAt,
+        eventType: "DISBURSEMENT_LETTER_GENERATED",
+        occurredAt,
       },
       {
         id: "a",
-        eventType: "SHORAKA_CERTIFICATE_FETCHED",
-        createdAt,
+        eventType: "SHORAKA_CERTIFICATE_RECEIVED",
+        occurredAt,
       },
     ];
 
     const sorted = sortAdminNoteEvents(events, "newest-first");
 
-    // Newest-first: later lifecycle step should appear above earlier lifecycle step.
-    expect(sorted.map((e) => e.eventType)).toEqual(["WITHDRAWAL_LETTER_GENERATED", "SHORAKA_CERTIFICATE_FETCHED"]);
+    expect(sorted.map((e) => e.eventType)).toEqual([
+      "DISBURSEMENT_LETTER_GENERATED",
+      "SHORAKA_CERTIFICATE_RECEIVED",
+    ]);
   });
 
   it("orders same-timestamp events deterministically for oldest-first", () => {
-    const createdAt = "2026-05-25T00:00:00.000Z";
+    const occurredAt = "2026-05-25T00:00:00.000Z";
 
     const events = [
       {
         id: "b",
-        eventType: "ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED",
-        createdAt,
+        eventType: "DISBURSEMENT_INITIATED",
+        occurredAt,
       },
       {
         id: "a",
-        eventType: "CLOSE_FUNDING",
-        createdAt,
+        eventType: "NOTE_FUNDING_CLOSED",
+        occurredAt,
       },
     ];
 
     const sorted = sortAdminNoteEvents(events, "oldest-first");
 
     expect(sorted.map((e) => e.eventType)).toEqual([
-      "CLOSE_FUNDING",
-      "ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED",
+      "NOTE_FUNDING_CLOSED",
+      "DISBURSEMENT_INITIATED",
     ]);
   });
 
   it("falls back to id ordering when timestamp and priority tie", () => {
-    const createdAt = "2026-05-25T00:00:00.000Z";
+    const occurredAt = "2026-05-25T00:00:00.000Z";
 
     const events = [
-      { id: "z", eventType: "UNKNOWN_EVENT_TYPE", createdAt },
-      { id: "a", eventType: "UNKNOWN_EVENT_TYPE", createdAt },
+      { id: "z", eventType: "UNKNOWN_EVENT_TYPE", occurredAt },
+      { id: "a", eventType: "UNKNOWN_EVENT_TYPE", occurredAt },
     ];
 
     const sorted = sortAdminNoteEvents(events, "newest-first");
@@ -110,4 +110,3 @@ describe("admin note events sorting", () => {
     expect(sorted.map((e) => e.id)).toEqual(["a", "z"]);
   });
 });
-

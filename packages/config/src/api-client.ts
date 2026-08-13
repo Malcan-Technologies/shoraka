@@ -98,7 +98,7 @@ import type {
   PendingInvestorWithdrawalsCountResponse,
   PendingRepaymentsResponse,
   PendingServiceFeeTrusteeLettersResponse,
-  NoteEvent,
+  NoteAuditLogDto,
   NoteLedgerBucketActivityResponse,
   NoteLedgerBucketBalancesResponse,
   NoteLedgerEntry,
@@ -711,8 +711,8 @@ export class ApiClient {
     return this.post<NoteDetail>(`/v1/admin/notes/${id}/activate`, {});
   }
 
-  async getAdminNoteEvents(id: string): Promise<ApiResponse<NoteEvent[]> | ApiError> {
-    return this.get<NoteEvent[]>(`/v1/admin/notes/${id}/events`);
+  async getAdminNoteEvents(id: string): Promise<ApiResponse<NoteAuditLogDto[]> | ApiError> {
+    return this.get<NoteAuditLogDto[]>(`/v1/admin/notes/${id}/events`);
   }
 
   async getAdminNoteLedger(id: string): Promise<ApiResponse<NoteLedgerEntry[]> | ApiError> {

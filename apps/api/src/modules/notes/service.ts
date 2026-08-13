@@ -97,6 +97,13 @@ import {
 } from "./note-issuer-snapshot";
 import { noteInclude, noteRepository } from "./repository";
 import {
+  NOTE_AUDIT_TARGET_TYPE,
+  noteAuditEventForWithdrawal,
+  writeNoteAuditFromActor,
+} from "./audit/writer";
+import { NOTE_AUDIT_CURRENCY } from "./audit/events";
+import { noteAuditLogReader } from "./audit/reader";
+import {
   allocateDisplayReference,
   resolveApplicationProductCode,
   resolveNoteProductCode,
@@ -147,7 +154,7 @@ import type {
   PlatformAccountsConfig,
   TrusteeLetterConfig,
 } from "@cashsouk/types";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import type { z } from "zod";
 
 type ActorContext = {
@@ -163,6 +170,97 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function sha256Hex(buffer: Buffer): string {
+  return createHash("sha256").update(buffer).digest("hex");
+}
+
+function isoOrNull(value: Date | string | null | undefined): string | null {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  return value.toISOString();
+}
+
+const MATERIAL_TERM_FIELDS = [
+  "targetAmount",
+  "maturityDate",
+  "profitRatePercent",
+  "platformFeeRatePercent",
+  "serviceFeeRatePercent",
+  "serviceFeeCustomerScope",
+] as const;
+
+type MaterialTermField = (typeof MATERIAL_TERM_FIELDS)[number];
+
+function materialTermsSnapshot(note: {
+  target_amount: Prisma.Decimal;
+  maturity_date: Date | null;
+  profit_rate_percent: Prisma.Decimal | null;
+  platform_fee_rate_percent: Prisma.Decimal;
+  service_fee_rate_percent: Prisma.Decimal;
+  service_fee_customer_scope: string | null;
+}): Record<MaterialTermField, unknown> {
+  return {
+    targetAmount: toNumber(note.target_amount),
+    maturityDate: isoOrNull(note.maturity_date),
+    profitRatePercent: note.profit_rate_percent != null ? toNumber(note.profit_rate_percent) : null,
+    platformFeeRatePercent: toNumber(note.platform_fee_rate_percent),
+    serviceFeeRatePercent: toNumber(note.service_fee_rate_percent),
+    serviceFeeCustomerScope: note.service_fee_customer_scope ?? null,
+  };
+}
+
+function noteStatusAxes(
+  previous: {
+    status: NoteStatus;
+    listing_status: NoteListingStatus;
+    funding_status: NoteFundingStatus;
+    servicing_status: NoteServicingStatus;
+  },
+  next: {
+    status: NoteStatus;
+    listing_status: NoteListingStatus;
+    funding_status: NoteFundingStatus;
+    servicing_status: NoteServicingStatus;
+  }
+) {
+  return {
+    previousNoteStatus: previous.status,
+    newNoteStatus: next.status,
+    previousListingStatus: previous.listing_status,
+    newListingStatus: next.listing_status,
+    previousFundingStatus: previous.funding_status,
+    newFundingStatus: next.funding_status,
+    previousServicingStatus: previous.servicing_status,
+    newServicingStatus: next.servicing_status,
+  };
+}
+
+function signatureArtifactFromTrusteeConfig(config: unknown): {
+  artifactId: string | null;
+  fileName: string | null;
+  contentType: string | null;
+} {
+  const record = asRecord(config);
+  const fileName =
+    typeof record?.authorisedSignatureImageFileName === "string"
+      ? record.authorisedSignatureImageFileName
+      : null;
+  const contentType =
+    typeof record?.authorisedSignatureImageContentType === "string"
+      ? record.authorisedSignatureImageContentType
+      : null;
+  const key =
+    typeof record?.authorisedSignatureImageKey === "string"
+      ? record.authorisedSignatureImageKey
+      : null;
+  const basename = key ? key.split("/").pop() ?? null : null;
+  return {
+    artifactId: fileName ?? basename,
+    fileName,
+    contentType,
+  };
 }
 
 function generateNoteEntityId(): string {
@@ -1369,9 +1467,8 @@ export class NoteService {
       where: { note_id: id },
       orderBy: { created_at: "desc" },
     });
-    const mapped = mapNoteDetail(note, { withdrawals });
-
-    return mapped;
+    const events = await noteAuditLogReader.listByNoteId(id);
+    return mapNoteDetail(note, { withdrawals, events });
   }
 
   async listSourceInvoicesForNotes() {
@@ -2280,18 +2377,6 @@ export class NoteService {
               typeof invoiceDetails.maturity_date === "string"
                 ? dateFrom(invoiceDetails.maturity_date)
                 : null,
-            events: {
-              create: {
-                event_type: "NOTE_CREATED_FROM_INVOICE",
-                actor_user_id: actor.userId,
-                actor_role: actor.role,
-                portal: actor.portal ?? "ADMIN",
-                ip_address: actor.ipAddress,
-                user_agent: actor.userAgent,
-                correlation_id: actor.correlationId,
-                metadata: { applicationId: application.id, invoiceId: invoice.id },
-              },
-            },
             admin_actions: {
               create: {
                 action_type: "CREATE_FROM_INVOICE",
@@ -2326,6 +2411,26 @@ export class NoteService {
             ),
           },
         });
+
+        await writeNoteAuditFromActor(
+          actor,
+          {
+            eventType: "NOTE_CREATED",
+            noteId: created.id,
+            targetType: NOTE_AUDIT_TARGET_TYPE.NOTE,
+            targetId: created.id,
+            metadata: {
+              sourceType: "INVOICE",
+              sourceId: invoice.id,
+              applicationId: application.id,
+              noteReference: created.note_reference,
+              ...(invoiceFaceValue > 0 ? { requestedAmount: invoiceFaceValue } : {}),
+              ...(targetAmount > 0 ? { targetAmount } : {}),
+              currency: NOTE_AUDIT_CURRENCY,
+            },
+          },
+          tx
+        );
 
         return tx.note.findUniqueOrThrow({ where: { id: created.id }, include: noteInclude });
       })
@@ -2396,6 +2501,30 @@ export class NoteService {
         mapNoteListItem(note),
         mapNoteListItem(result)
       );
+      const beforeTerms = materialTermsSnapshot(note);
+      const afterTerms = materialTermsSnapshot(result);
+      const changedFields = MATERIAL_TERM_FIELDS.filter(
+        (field) => JSON.stringify(beforeTerms[field]) !== JSON.stringify(afterTerms[field])
+      );
+      if (changedFields.length > 0) {
+        const before: Record<string, unknown> = {};
+        const after: Record<string, unknown> = {};
+        for (const field of changedFields) {
+          before[field] = beforeTerms[field];
+          after[field] = afterTerms[field];
+        }
+        await writeNoteAuditFromActor(
+          actor,
+          {
+            eventType: "NOTE_TERMS_UPDATED",
+            noteId: id,
+            targetType: NOTE_AUDIT_TARGET_TYPE.NOTE,
+            targetId: id,
+            metadata: { changedFields, before, after },
+          },
+          tx
+        );
+      }
       return result;
     });
 
@@ -2638,6 +2767,28 @@ export class NoteService {
         mapNoteListItem(note),
         mapNoteListItem(result)
       );
+      const publication = await tx.noteProspectusPublication.findUnique({
+        where: { id: publicationId },
+        select: { content_version: true, pdf_sha256: true },
+      });
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType: "NOTE_PUBLISHED",
+          noteId: id,
+          targetType: NOTE_AUDIT_TARGET_TYPE.NOTE,
+          targetId: id,
+          metadata: {
+            ...noteStatusAxes(note, result),
+            publicationId,
+            ...(publication?.content_version != null
+              ? { contentVersion: publication.content_version }
+              : {}),
+            pdfSha256: publication?.pdf_sha256 ?? null,
+          },
+        },
+        tx
+      );
       return result;
     });
     await notifyNotePublished({
@@ -2683,6 +2834,17 @@ export class NoteService {
         actor,
         mapNoteListItem(note),
         mapNoteListItem(result)
+      );
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType: "NOTE_UNPUBLISHED",
+          noteId: id,
+          targetType: NOTE_AUDIT_TARGET_TYPE.NOTE,
+          targetId: id,
+          metadata: noteStatusAxes(note, result),
+        },
+        tx
       );
       return result;
     });
@@ -2853,12 +3015,23 @@ export class NoteService {
         noteInvestmentId: investment.id,
         idempotencyKey: `investor-balance:commit:${investment.id}`,
       });
-      await this.logEvent(tx, noteId, "INVESTMENT_COMMITTED", actor, {
-        investorOrganizationId: input.investorOrganizationId,
-        amount: input.amount,
-        prospectusPublicationId: publication.id,
-        prospectusAcknowledgedAt: ackAt.toISOString(),
-      });
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType: "INVESTMENT_COMMITTED",
+          noteId,
+          targetType: NOTE_AUDIT_TARGET_TYPE.INVESTMENT,
+          targetId: investment.id,
+          metadata: {
+            investmentId: investment.id,
+            investorOrganizationId: input.investorOrganizationId,
+            amount: input.amount,
+            currency: NOTE_AUDIT_CURRENCY,
+            prospectusPublicationId: publication.id,
+          },
+        },
+        tx
+      );
       return tx.note.findUniqueOrThrow({ where: { id: noteId }, include: noteInclude });
     });
 
@@ -3025,7 +3198,7 @@ export class NoteService {
           },
         });
         if (!existingDisbursement) {
-          await this.createWithdrawalInstructionWithDisplayReference(tx, {
+          const createdWithdrawal = await this.createWithdrawalInstructionWithDisplayReference(tx, {
             note_id: id,
             issuer_organization_id: result.issuer_organization_id,
             requested_by_user_id: actor.userId,
@@ -3047,12 +3220,24 @@ export class NoteService {
               netIssuerDisbursement: netDisbursement,
             } as Prisma.InputJsonValue,
           });
-          await this.logEvent(tx, id, "ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED", actor, {
-            netDisbursement,
-            fundedAmount,
-            platformFee,
-            facilityFeeCharged,
-          });
+          await writeNoteAuditFromActor(
+            actor,
+            {
+              eventType: "DISBURSEMENT_INITIATED",
+              noteId: id,
+              targetType: NOTE_AUDIT_TARGET_TYPE.WITHDRAWAL,
+              targetId: createdWithdrawal.id,
+              metadata: {
+                withdrawalId: createdWithdrawal.id,
+                withdrawalType: WithdrawalType.ISSUER_DISBURSEMENT,
+                amount: netDisbursement,
+                currency: NOTE_AUDIT_CURRENCY,
+                previousStatus: WithdrawalStatus.DRAFT,
+                newStatus: createdWithdrawal.status,
+              },
+            },
+            tx
+          );
         }
       }
 
@@ -3063,6 +3248,21 @@ export class NoteService {
         actor,
         mapNoteListItem(note),
         mapNoteListItem(result)
+      );
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType: "NOTE_FUNDING_CLOSED",
+          noteId: id,
+          targetType: NOTE_AUDIT_TARGET_TYPE.NOTE,
+          targetId: id,
+          metadata: {
+            ...noteStatusAxes(note, result),
+            fundedAmount: toNumber(result.funded_amount),
+            targetAmount: toNumber(result.target_amount),
+          },
+        },
+        tx
       );
       return result;
     });
@@ -3156,6 +3356,21 @@ export class NoteService {
         mapNoteListItem(note),
         mapNoteListItem(result)
       );
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType: "NOTE_FUNDING_FAILED",
+          noteId: id,
+          targetType: NOTE_AUDIT_TARGET_TYPE.NOTE,
+          targetId: id,
+          metadata: {
+            ...noteStatusAxes(note, result),
+            fundedAmount: toNumber(result.funded_amount),
+            targetAmount: toNumber(result.target_amount),
+          },
+        },
+        tx
+      );
       return result;
     });
     await notifyNoteFundingFailed({
@@ -3223,6 +3438,21 @@ export class NoteService {
         actor,
         mapNoteListItem(note),
         mapNoteListItem(result)
+      );
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType: "NOTE_ACTIVATED",
+          noteId: id,
+          targetType: NOTE_AUDIT_TARGET_TYPE.NOTE,
+          targetId: id,
+          metadata: {
+            ...noteStatusAxes(note, result),
+            fundedAmount: toNumber(result.funded_amount),
+            targetAmount: toNumber(result.target_amount),
+          },
+        },
+        tx
       );
       return result;
     });
@@ -3714,7 +3944,7 @@ export class NoteService {
         },
       },
     });
-    return mapNoteDetail(note, { withdrawals, includeEvents: false });
+    return mapNoteDetail(note, { withdrawals });
   }
 
   async getIssuerShorakaCertificateViewUrl(noteId: string, userId: string) {
@@ -3807,7 +4037,7 @@ export class NoteService {
       }
     }
     const status = requiresAdminReview ? NotePaymentStatus.PENDING : NotePaymentStatus.RECEIVED;
-    const eventType = requiresAdminReview ? "ISSUER_PAYMENT_SUBMITTED" : "PAYMENT_RECEIVED";
+    const eventType = requiresAdminReview ? "REPAYMENT_SUBMITTED" : "REPAYMENT_RECEIVED";
     const paymentMetadata =
       input.metadata ?? (requiresAdminReview ? { paymentPurpose } : undefined);
     const { updatedNote, paymentId } = await prisma.$transaction(async (tx) => {
@@ -3830,7 +4060,23 @@ export class NoteService {
       if (status === NotePaymentStatus.RECEIVED) {
         await this.postPaymentReceiptLedger(tx, payment, actor);
       }
-      await this.logEvent(tx, id, eventType, actor, json({ ...input, metadata: paymentMetadata }));
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType,
+          noteId: id,
+          targetType: NOTE_AUDIT_TARGET_TYPE.NOTE_PAYMENT,
+          targetId: payment.id,
+          metadata: {
+            notePaymentId: payment.id,
+            amount: input.receiptAmount,
+            currency: NOTE_AUDIT_CURRENCY,
+            source: input.source,
+            newStatus: status,
+          },
+        },
+        tx
+      );
       const refreshed = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
       return { updatedNote: refreshed, paymentId: payment.id };
     });
@@ -3882,7 +4128,24 @@ export class NoteService {
         },
       });
       await this.postPaymentReceiptLedger(tx, updatedPayment, actor);
-      await this.logEvent(tx, id, "PAYMENT_APPROVED", actor, { paymentId });
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType: "REPAYMENT_RECEIVED",
+          noteId: id,
+          targetType: NOTE_AUDIT_TARGET_TYPE.NOTE_PAYMENT,
+          targetId: paymentId,
+          metadata: {
+            notePaymentId: paymentId,
+            amount: toNumber(updatedPayment.receipt_amount),
+            currency: NOTE_AUDIT_CURRENCY,
+            source: updatedPayment.source,
+            previousStatus: NotePaymentStatus.PENDING,
+            newStatus: NotePaymentStatus.RECEIVED,
+          },
+        },
+        tx
+      );
       return tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
     });
     await notifyNotePaymentReceived({
@@ -3921,10 +4184,24 @@ export class NoteService {
           },
         },
       });
-      await this.logEvent(tx, id, "PAYMENT_REJECTED", actor, {
-        paymentId,
-        reason: input.reason ?? null,
-      });
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType: "REPAYMENT_REJECTED",
+          noteId: id,
+          targetType: NOTE_AUDIT_TARGET_TYPE.NOTE_PAYMENT,
+          targetId: paymentId,
+          metadata: {
+            notePaymentId: paymentId,
+            amount: toNumber(payment.receipt_amount),
+            currency: NOTE_AUDIT_CURRENCY,
+            source: payment.source,
+            previousStatus: NotePaymentStatus.PENDING,
+            newStatus: NotePaymentStatus.VOID,
+          },
+        },
+        tx
+      );
       return tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
     });
     return mapNoteDetail(updated);
@@ -4068,7 +4345,7 @@ export class NoteService {
         where: { note_id: id, status: NoteSettlementStatus.PREVIEW },
         data: { status: NoteSettlementStatus.VOID },
       });
-      return tx.noteSettlement.create({
+      const created = await tx.noteSettlement.create({
         data: {
           note_id: id,
           payment_id: linkedPaymentId,
@@ -4095,17 +4372,25 @@ export class NoteService {
           preview_snapshot: snapshot,
         },
       });
-    });
-    await prisma.noteEvent.create({
-      data: {
-        note_id: id,
-        event_type: "SETTLEMENT_PREVIEWED",
-        actor_user_id: actor.userId,
-        actor_role: actor.role,
-        portal: actor.portal,
-        correlation_id: actor.correlationId,
-        metadata: { settlementId: settlement.id, ...snapshot },
-      },
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType: "SETTLEMENT_PREVIEWED",
+          noteId: id,
+          targetType: NOTE_AUDIT_TARGET_TYPE.SETTLEMENT,
+          targetId: created.id,
+          metadata: {
+            settlementId: created.id,
+            newStatus: NoteSettlementStatus.PREVIEW,
+            settlementAmount: waterfall.grossReceiptAmount,
+            serviceFeeAmount: waterfall.serviceFeeAmount,
+            investorAmount: waterfall.investorPrincipal + waterfall.investorProfitNet,
+            investorPayoutCount: allocations.length,
+          },
+        },
+        tx
+      );
+      return created;
     });
     return { settlementId: settlement.id, ...snapshot };
   }
@@ -4211,8 +4496,37 @@ export class NoteService {
           });
         }
       );
+      const approved = await tx.noteSettlement.findUniqueOrThrow({
+        where: { id: settlementId },
+        select: {
+          display_reference: true,
+          gross_receipt_amount: true,
+          service_fee_amount: true,
+          investor_principal: true,
+          investor_profit_net: true,
+        },
+      });
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType: "SETTLEMENT_APPROVED",
+          noteId: id,
+          targetType: NOTE_AUDIT_TARGET_TYPE.SETTLEMENT,
+          targetId: settlementId,
+          metadata: {
+            settlementId,
+            previousStatus: NoteSettlementStatus.PREVIEW,
+            newStatus: NoteSettlementStatus.APPROVED,
+            settlementAmount: toNumber(approved.gross_receipt_amount),
+            serviceFeeAmount: toNumber(approved.service_fee_amount),
+            investorAmount:
+              toNumber(approved.investor_principal) + toNumber(approved.investor_profit_net),
+            displayReference: approved.display_reference,
+          },
+        },
+        tx
+      );
     });
-    await this.logEvent(prisma, id, "SETTLEMENT_APPROVED", actor, { settlementId });
     return this.getAdminNoteDetail(id);
   }
 
@@ -4253,7 +4567,6 @@ export class NoteService {
       toNumber(settlement.gross_receipt_amount)
     );
 
-    const residualAmount = toNumber(settlement.issuer_residual_amount);
     const needsTrusteeInstruction = hasSettlementTrusteeMovement(settlement);
 
     const repaidInvestorSnapshot = await prisma.noteInvestment.findMany({
@@ -4354,12 +4667,27 @@ export class NoteService {
         });
       }
 
-      await this.logEvent(tx, id, "SETTLEMENT_POSTED", actor, {
-        settlementId,
-        investorPayoutCount: settlementAllocations.length,
-        residualAmount,
-        residualWithdrawalCreated: false,
-      });
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType: "SETTLEMENT_POSTED",
+          noteId: id,
+          targetType: NOTE_AUDIT_TARGET_TYPE.SETTLEMENT,
+          targetId: settlementId,
+          metadata: {
+            settlementId,
+            previousStatus: NoteSettlementStatus.APPROVED,
+            newStatus: NoteSettlementStatus.POSTED,
+            settlementAmount: toNumber(settlement.gross_receipt_amount),
+            serviceFeeAmount: toNumber(settlement.service_fee_amount),
+            investorAmount:
+              toNumber(settlement.investor_principal) + toNumber(settlement.investor_profit_net),
+            displayReference: settlement.display_reference,
+            investorPayoutCount: settlementAllocations.length,
+          },
+        },
+        tx
+      );
     });
     await notifyNoteSettlementPosted({
       notificationService: this.notificationService,
@@ -4513,17 +4841,42 @@ export class NoteService {
         const nextServicingStatus = isArrears
           ? NoteServicingStatus.ARREARS
           : NoteServicingStatus.LATE;
-        if (note.servicing_status !== nextServicingStatus) {
-          await noteRepository.updateState(id, {
-            status: isArrears ? NoteStatus.ARREARS : note.status,
-            servicing_status: nextServicingStatus,
-            arrears_started_at: isArrears && !note.arrears_started_at ? new Date() : undefined,
+        const nextNoteStatus = isArrears ? NoteStatus.ARREARS : note.status;
+        if (
+          note.servicing_status !== nextServicingStatus ||
+          note.status !== nextNoteStatus
+        ) {
+          await prisma.$transaction(async (tx) => {
+            await tx.note.update({
+              where: { id },
+              data: {
+                status: nextNoteStatus,
+                servicing_status: nextServicingStatus,
+                arrears_started_at: isArrears && !note.arrears_started_at ? new Date() : undefined,
+              },
+            });
+            await writeNoteAuditFromActor(
+              actor,
+              {
+                eventType: "NOTE_SERVICING_STATUS_CHANGED",
+                noteId: id,
+                targetType: NOTE_AUDIT_TARGET_TYPE.NOTE,
+                targetId: id,
+                metadata: {
+                  previousServicingStatus: note.servicing_status,
+                  newServicingStatus: nextServicingStatus,
+                  previousNoteStatus: note.status,
+                  newNoteStatus: nextNoteStatus,
+                  reasonCode: isArrears ? "ARREARS_THRESHOLD" : "OVERDUE",
+                },
+              },
+              tx
+            );
           });
           enteredArrears = isArrears;
         }
       }
     }
-    await this.logEvent(prisma, id, "OVERDUE_LATE_CHARGE_CHECKED", actor, result);
     if (enteredArrears) {
       const refreshed = await noteRepository.findById(id);
       if (refreshed) {
@@ -4541,14 +4894,13 @@ export class NoteService {
   async approveLateCharge(
     id: string,
     input: z.infer<typeof lateChargeSchema>,
-    actor: ActorContext
+    _actor: ActorContext
   ) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
     assertNoteReadyForServicing(note);
     assertNoPostedSettlement(note);
     const result = await this.calculateLateCharge(input);
-    await this.logEvent(prisma, id, "LATE_CHARGE_APPROVED", actor, result);
     return result;
   }
 
@@ -4565,8 +4917,20 @@ export class NoteService {
     ]);
     const key = `note-letters/${id}/${type}-${Date.now()}.pdf`;
     await putS3ObjectBuffer({ key, body: buffer, contentType: "application/pdf" });
-    await this.logEvent(prisma, id, `${type.toUpperCase()}_LETTER_GENERATED`, actor, {
-      s3Key: key,
+    const fileName = key.split("/").pop();
+    const fileHash = sha256Hex(buffer);
+    const eventType =
+      type === "arrears" ? "ARREARS_LETTER_GENERATED" : "DEFAULT_NOTICE_GENERATED";
+    await writeNoteAuditFromActor(actor, {
+      eventType,
+      noteId: id,
+      targetType: NOTE_AUDIT_TARGET_TYPE.NOTE,
+      targetId: id,
+      metadata: {
+        documentType: type === "arrears" ? "ARREARS_LETTER" : "DEFAULT_NOTICE",
+        fileName,
+        fileHash,
+      },
     });
     return { s3Key: key };
   }
@@ -4761,10 +5125,24 @@ export class NoteService {
           "The instruction has already been submitted to the trustee and cannot be regenerated."
         );
       }
-      await this.logEvent(tx, noteId, "SERVICE_FEE_TRUSTEE_LETTER_GENERATED", actor, {
-        s3Key: key,
-        settlementId: settlement.id,
-      });
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType: "SERVICE_FEE_TRUSTEE_LETTER_GENERATED",
+          noteId,
+          targetType: NOTE_AUDIT_TARGET_TYPE.SETTLEMENT,
+          targetId: settlement.id,
+          metadata: {
+            settlementId: settlement.id,
+            previousStatus: wfStatus ?? undefined,
+            newStatus: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
+            documentType: "SERVICE_FEE_TRUSTEE_LETTER",
+            fileName: key.split("/").pop(),
+            fileHash: sha256Hex(buffer),
+          },
+        },
+        tx
+      );
     });
     return { s3Key: key };
   }
@@ -4835,9 +5213,21 @@ export class NoteService {
           "Generate the trustee instruction PDF before marking it submitted."
         );
       }
-      await this.logEvent(tx, noteId, "SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED", actor, {
-        settlementId,
-      });
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType: "SERVICE_FEE_TRUSTEE_SUBMITTED",
+          noteId,
+          targetType: NOTE_AUDIT_TARGET_TYPE.SETTLEMENT,
+          targetId: settlementId,
+          metadata: {
+            settlementId,
+            previousStatus: ServiceFeeTrusteeInstructionStatus.LETTER_GENERATED,
+            newStatus: ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+          },
+        },
+        tx
+      );
     });
 
     return this.getAdminNoteDetail(noteId);
@@ -4972,10 +5362,21 @@ export class NoteService {
         },
       });
       noteMarkedRepaid = noteUpdate.count > 0;
-      await this.logEvent(tx, noteId, "SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED", actor, {
-        settlementId,
-        completedAt: completedAt.toISOString(),
-      });
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType: "SERVICE_FEE_TRUSTEE_COMPLETED",
+          noteId,
+          targetType: NOTE_AUDIT_TARGET_TYPE.SETTLEMENT,
+          targetId: settlementId,
+          metadata: {
+            settlementId,
+            previousStatus: ServiceFeeTrusteeInstructionStatus.SUBMITTED_TO_TRUSTEE,
+            newStatus: ServiceFeeTrusteeInstructionStatus.COMPLETED,
+          },
+        },
+        tx
+      );
     });
 
     if (noteMarkedRepaid) {
@@ -5010,14 +5411,50 @@ export class NoteService {
         "Default can only be marked while note is in arrears"
       );
     }
-    const updated = await noteRepository.updateState(id, {
-      status: NoteStatus.DEFAULTED,
-      servicing_status: NoteServicingStatus.DEFAULTED,
-      default_marked_at: new Date(),
-      default_marked_by_admin_user_id: actor.userId,
-      default_reason: reason,
+    const effectiveAt = new Date();
+    const updated = await prisma.$transaction(async (tx) => {
+      const stateUpdate = await tx.note.updateMany({
+        where: {
+          id,
+          servicing_status: NoteServicingStatus.ARREARS,
+          status: { not: NoteStatus.DEFAULTED },
+        },
+        data: {
+          status: NoteStatus.DEFAULTED,
+          servicing_status: NoteServicingStatus.DEFAULTED,
+          default_marked_at: effectiveAt,
+          default_marked_by_admin_user_id: actor.userId,
+          default_reason: reason,
+        },
+      });
+      if (stateUpdate.count !== 1) {
+        throw new AppError(
+          409,
+          "NOTE_NOT_IN_ARREARS",
+          "Default can only be marked while note is in arrears"
+        );
+      }
+      const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType: "NOTE_MARKED_DEFAULT",
+          noteId: id,
+          targetType: NOTE_AUDIT_TARGET_TYPE.NOTE,
+          targetId: id,
+          metadata: {
+            previousNoteStatus: note.status,
+            newNoteStatus: result.status,
+            previousServicingStatus: note.servicing_status,
+            newServicingStatus: result.servicing_status,
+            reason,
+            effectiveAt: effectiveAt.toISOString(),
+          },
+        },
+        tx
+      );
+      return result;
     });
-    await this.logEvent(prisma, id, "NOTE_DEFAULT_MARKED", actor, { reason });
     await notifyNoteDefaulted({
       notificationService: this.notificationService,
       noteId: id,
@@ -5066,7 +5503,24 @@ export class NoteService {
     input: z.infer<typeof updatePlatformFinanceSettingsSchema>,
     actor: ActorContext
   ) {
-    await prisma.platformFinanceSetting.upsert({
+    const previous = await prisma.platformFinanceSetting.findUnique({
+      where: { key: "DEFAULT" },
+    });
+    const previousSignature = signatureArtifactFromTrusteeConfig(previous?.trustee_letter_config);
+    const previousSignatureKey =
+      typeof asRecord(previous?.trustee_letter_config)?.authorisedSignatureImageKey === "string"
+        ? (asRecord(previous?.trustee_letter_config)?.authorisedSignatureImageKey as string)
+        : null;
+    const nextSignature = signatureArtifactFromTrusteeConfig(input.trusteeLetterConfig);
+    const nextSignatureKey =
+      typeof asRecord(input.trusteeLetterConfig)?.authorisedSignatureImageKey === "string"
+        ? (asRecord(input.trusteeLetterConfig)?.authorisedSignatureImageKey as string)
+        : null;
+    const signatureChanged =
+      input.trusteeLetterConfig != null && previousSignatureKey !== nextSignatureKey;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.platformFinanceSetting.upsert({
       where: { key: "DEFAULT" },
       create: {
         key: "DEFAULT",
@@ -5175,6 +5629,27 @@ export class NoteService {
             : undefined,
         updated_by_user_id: actor.userId,
       },
+    });
+      if (signatureChanged) {
+        await writeNoteAuditFromActor(
+          actor,
+          {
+            eventType: "TRUSTEE_SIGNATURE_UPDATED",
+            noteId: null,
+            organizationId: null,
+            organizationKind: null,
+            targetType: NOTE_AUDIT_TARGET_TYPE.PLATFORM_SETTING,
+            targetId: "DEFAULT",
+            metadata: {
+              artifactId: nextSignature.artifactId,
+              previousArtifactId: previousSignature.artifactId,
+              fileName: nextSignature.fileName,
+              contentType: nextSignature.contentType,
+            },
+          },
+          tx
+        );
+      }
     });
     return this.getPlatformFinanceSettings();
   }
@@ -5419,20 +5894,43 @@ export class NoteService {
     const withdrawalFileRef = withdrawal.display_reference?.trim() || withdrawal.id;
     const key = `withdrawal-letters/${id}/trustee-${withdrawalFileRef}-${Date.now()}.pdf`;
     await putS3ObjectBuffer({ key, body: buffer, contentType: "application/pdf" });
-    const updated = await prisma.withdrawalInstruction.update({
-      where: { id },
-      data: {
-        status: WithdrawalStatus.LETTER_GENERATED,
-        letter_s3_key: key,
-        generated_at: new Date(),
-      },
-    });
-    if (withdrawal.note_id) {
-      await this.logEvent(prisma, withdrawal.note_id, "WITHDRAWAL_LETTER_GENERATED", actor, {
-        withdrawalId: id,
-        s3Key: key,
+    const fileHash = sha256Hex(buffer);
+    const fileName = key.split("/").pop();
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.withdrawalInstruction.update({
+        where: { id },
+        data: {
+          status: WithdrawalStatus.LETTER_GENERATED,
+          letter_s3_key: key,
+          generated_at: new Date(),
+        },
       });
-    }
+      const eventType = noteAuditEventForWithdrawal(result.withdrawal_type, "letter");
+      if (eventType && result.note_id) {
+        await writeNoteAuditFromActor(
+          actor,
+          {
+            eventType,
+            noteId: result.note_id,
+            targetType: NOTE_AUDIT_TARGET_TYPE.WITHDRAWAL,
+            targetId: id,
+            metadata: {
+              withdrawalId: id,
+              withdrawalType: result.withdrawal_type,
+              amount: toNumber(result.amount),
+              currency: NOTE_AUDIT_CURRENCY,
+              previousStatus: withdrawal.status,
+              newStatus: result.status,
+              documentType: "TRUSTEE_LETTER",
+              fileName,
+              fileHash,
+            },
+          },
+          tx
+        );
+      }
+      return result;
+    });
     return this.mapWithdrawal(updated);
   }
 
@@ -5472,13 +5970,30 @@ export class NoteService {
           "Withdrawal can be submitted to trustee only after its instruction letter is generated"
         );
       }
-      return tx.withdrawalInstruction.findUniqueOrThrow({ where: { id } });
+      const result = await tx.withdrawalInstruction.findUniqueOrThrow({ where: { id } });
+      const eventType = noteAuditEventForWithdrawal(result.withdrawal_type, "submitted");
+      if (eventType && result.note_id) {
+        await writeNoteAuditFromActor(
+          actor,
+          {
+            eventType,
+            noteId: result.note_id,
+            targetType: NOTE_AUDIT_TARGET_TYPE.WITHDRAWAL,
+            targetId: id,
+            metadata: {
+              withdrawalId: id,
+              withdrawalType: result.withdrawal_type,
+              amount: toNumber(result.amount),
+              currency: NOTE_AUDIT_CURRENCY,
+              previousStatus: WithdrawalStatus.LETTER_GENERATED,
+              newStatus: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
+            },
+          },
+          tx
+        );
+      }
+      return result;
     });
-    if (withdrawal.note_id) {
-      await this.logEvent(prisma, withdrawal.note_id, "WITHDRAWAL_SUBMITTED_TO_TRUSTEE", actor, {
-        withdrawalId: id,
-      });
-    }
     return this.mapWithdrawal(withdrawal);
   }
 
@@ -5496,17 +6011,36 @@ export class NoteService {
         "Beneficiary details can only be edited while the withdrawal is in draft"
       );
     }
-    const updated = await prisma.withdrawalInstruction.update({
-      where: { id },
-      data: {
-        beneficiary_snapshot: beneficiarySnapshot as Prisma.InputJsonValue,
-      },
-    });
-    if (updated.note_id) {
-      await this.logEvent(prisma, updated.note_id, "WITHDRAWAL_BENEFICIARY_UPDATED", actor, {
-        withdrawalId: id,
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.withdrawalInstruction.update({
+        where: { id },
+        data: {
+          beneficiary_snapshot: beneficiarySnapshot as Prisma.InputJsonValue,
+        },
       });
-    }
+      const eventType = noteAuditEventForWithdrawal(result.withdrawal_type, "beneficiary");
+      if (eventType && result.note_id) {
+        await writeNoteAuditFromActor(
+          actor,
+          {
+            eventType,
+            noteId: result.note_id,
+            targetType: NOTE_AUDIT_TARGET_TYPE.WITHDRAWAL,
+            targetId: id,
+            metadata: {
+              withdrawalId: id,
+              withdrawalType: result.withdrawal_type,
+              amount: toNumber(result.amount),
+              currency: NOTE_AUDIT_CURRENCY,
+              previousStatus: existing.status,
+              newStatus: result.status,
+            },
+          },
+          tx
+        );
+      }
+      return result;
+    });
     return this.mapWithdrawal(updated);
   }
 
@@ -5583,7 +6117,10 @@ export class NoteService {
         });
 
         if (existing.withdrawal_type === WithdrawalType.ISSUER_DISBURSEMENT) {
-          await tx.note.updateMany({
+          const noteBeforeActivation = await tx.note.findUnique({
+            where: { id: existing.note_id },
+          });
+          const activationUpdate = await tx.note.updateMany({
             where: {
               id: existing.note_id,
               status: NoteStatus.FUNDING,
@@ -5594,6 +6131,26 @@ export class NoteService {
               activated_at: completedAt,
             },
           });
+          if (activationUpdate.count === 1 && noteBeforeActivation) {
+            const activated = await tx.note.findUniqueOrThrow({
+              where: { id: existing.note_id },
+            });
+            await writeNoteAuditFromActor(
+              actor,
+              {
+                eventType: "NOTE_ACTIVATED",
+                noteId: existing.note_id,
+                targetType: NOTE_AUDIT_TARGET_TYPE.NOTE,
+                targetId: existing.note_id,
+                metadata: {
+                  ...noteStatusAxes(noteBeforeActivation, activated),
+                  fundedAmount: toNumber(activated.funded_amount),
+                  targetAmount: toNumber(activated.target_amount),
+                },
+              },
+              tx
+            );
+          }
         } else {
           const postedResidualSettlement = existing.settlement_id
             ? await tx.noteSettlement.findFirst({
@@ -5638,15 +6195,31 @@ export class NoteService {
         }
       }
 
-      return tx.withdrawalInstruction.findUniqueOrThrow({ where: { id } });
+      const result = await tx.withdrawalInstruction.findUniqueOrThrow({ where: { id } });
+      const eventType = noteAuditEventForWithdrawal(result.withdrawal_type, "completed");
+      if (eventType && result.note_id) {
+        await writeNoteAuditFromActor(
+          actor,
+          {
+            eventType,
+            noteId: result.note_id,
+            targetType: NOTE_AUDIT_TARGET_TYPE.WITHDRAWAL,
+            targetId: id,
+            metadata: {
+              withdrawalId: id,
+              withdrawalType: result.withdrawal_type,
+              amount: toNumber(result.amount),
+              currency: NOTE_AUDIT_CURRENCY,
+              previousStatus: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
+              newStatus: WithdrawalStatus.COMPLETED,
+            },
+          },
+          tx
+        );
+      }
+      return result;
     });
 
-    if (withdrawal.note_id) {
-      await this.logEvent(prisma, withdrawal.note_id, "WITHDRAWAL_COMPLETED", actor, {
-        withdrawalId: id,
-        amount: toNumber(withdrawal.amount),
-      });
-    }
     return this.mapWithdrawal(withdrawal);
   }
 
@@ -5776,7 +6349,7 @@ export class NoteService {
   async listEvents(id: string) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
-    return mapNoteDetail(note).events;
+    return noteAuditLogReader.listByNoteId(id);
   }
 
   private mapWithdrawal(
@@ -5872,28 +6445,6 @@ export class NoteService {
     return toNumber(settings.platform_fee_rate_cap_percent);
   }
 
-  private async logEvent(
-    tx: Prisma.TransactionClient | typeof prisma,
-    noteId: string,
-    eventType: string,
-    actor: ActorContext,
-    metadata?: Prisma.InputJsonValue
-  ) {
-    await tx.noteEvent.create({
-      data: {
-        note_id: noteId,
-        event_type: eventType,
-        actor_user_id: actor.userId,
-        actor_role: actor.role,
-        portal: actor.portal,
-        ip_address: actor.ipAddress,
-        user_agent: actor.userAgent,
-        correlation_id: actor.correlationId,
-        metadata,
-      },
-    });
-  }
-
   private async logAdminAction(
     tx: Prisma.TransactionClient,
     noteId: string,
@@ -5914,10 +6465,6 @@ export class NoteService {
         correlation_id: actor.correlationId,
       },
     });
-    await this.logEvent(tx, noteId, actionType, actor, {
-      beforeState,
-      afterState,
-    } as Prisma.InputJsonValue);
   }
 
   private async getLedgerAccountId(tx: Prisma.TransactionClient, code: string) {

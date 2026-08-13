@@ -596,7 +596,7 @@ export function SettlementPanel({
       .filter(
         (event) =>
           event.eventType === "ARREARS_LETTER_GENERATED" ||
-          event.eventType === "DEFAULT_LETTER_GENERATED"
+          event.eventType === "DEFAULT_NOTICE_GENERATED"
       )
       .map((event) => {
         const s3Key = event.metadata?.s3Key;
@@ -604,7 +604,7 @@ export function SettlementPanel({
           id: event.id,
           type: event.eventType === "ARREARS_LETTER_GENERATED" ? "Arrears" : "Default",
           s3Key: typeof s3Key === "string" ? s3Key : null,
-          createdAt: event.createdAt,
+          createdAt: event.occurredAt,
         };
       });
   }, [note.events]);
@@ -615,7 +615,7 @@ export function SettlementPanel({
         .map((event) => ({
           id: event.id,
           s3Key: typeof event.metadata?.s3Key === "string" ? event.metadata.s3Key : null,
-          createdAt: event.createdAt,
+          createdAt: event.occurredAt,
         }))
     : [];
   const paymentDueDateValue = resolvePaymentDueDate(note);

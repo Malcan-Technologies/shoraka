@@ -6,6 +6,7 @@ const mockTx: any = {
   note: {
     create: jest.fn(),
     update: jest.fn(),
+    findUnique: jest.fn(),
     findUniqueOrThrow: jest.fn(),
   },
   notePaymentSchedule: {
@@ -14,6 +15,12 @@ const mockTx: any = {
   displayReferenceAllocation: {
     create: jest.fn(),
     findUnique: jest.fn(),
+  },
+  user: {
+    findUnique: jest.fn(),
+  },
+  noteAuditLog: {
+    create: jest.fn(),
   },
 };
 
@@ -56,10 +63,13 @@ describe("NoteService createFromInvoiceSource display reference", () => {
     mockPrisma.$transaction.mockClear();
     mockTx.note.create.mockReset();
     mockTx.note.update.mockReset();
+    mockTx.note.findUnique.mockReset();
     mockTx.note.findUniqueOrThrow.mockReset();
     mockTx.notePaymentSchedule.create.mockReset();
     mockTx.displayReferenceAllocation.create.mockReset();
     mockTx.displayReferenceAllocation.findUnique.mockReset();
+    mockTx.user.findUnique.mockReset();
+    mockTx.noteAuditLog.create.mockReset();
 
     mockPrisma.product.findUnique.mockResolvedValue({
       id: "prod_1",
@@ -87,6 +97,13 @@ describe("NoteService createFromInvoiceSource display reference", () => {
     mockTx.notePaymentSchedule.create.mockResolvedValue({});
     mockTx.displayReferenceAllocation.create.mockResolvedValue({});
     mockTx.displayReferenceAllocation.findUnique.mockResolvedValue(null);
+    mockTx.note.findUnique.mockResolvedValue({ issuer_organization_id: "org_1" });
+    mockTx.user.findUnique.mockResolvedValue({
+      email: "admin@example.com",
+      first_name: "Admin",
+      last_name: "User",
+    });
+    mockTx.noteAuditLog.create.mockResolvedValue({});
   });
 
   it("uses canonical NOTE reference for new note", async () => {
@@ -137,6 +154,14 @@ describe("NoteService createFromInvoiceSource display reference", () => {
       })
     );
     expect(mockTx.note.update).not.toHaveBeenCalled();
+    expect(mockTx.noteAuditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          event_type: "NOTE_CREATED",
+          note_id: "note_1",
+        }),
+      })
+    );
     expect(result.noteReference).toBe("NOTE-ARF-202608-BX5");
   });
 
@@ -189,5 +214,6 @@ describe("NoteService createFromInvoiceSource display reference", () => {
     expect(result.noteReference).toBe("NOTE-20250512-A1B2C3D4");
     expect(mockPrisma.$transaction).not.toHaveBeenCalled();
     expect(mockTx.displayReferenceAllocation.create).not.toHaveBeenCalled();
+    expect(mockTx.noteAuditLog.create).not.toHaveBeenCalled();
   });
 });

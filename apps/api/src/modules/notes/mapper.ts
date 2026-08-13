@@ -9,6 +9,7 @@ import {
   type NoteProspectusSummary,
 } from "@cashsouk/types";
 import { NoteSettlementStatus, Prisma, WithdrawalStatus, WithdrawalType } from "@prisma/client";
+import type { NoteAuditLogDto } from "@cashsouk/types";
 import { sortAdminNoteEvents } from "./admin-note-events-sorting";
 import { noteInclude } from "./repository";
 
@@ -472,20 +473,21 @@ export function mapNoteListItem(note: NoteWithRelations) {
 
 export function mapNoteDetail(
   note: NoteWithRelations,
-  options: { withdrawals?: WithdrawalRecord[]; includeEvents?: boolean } = {}
+  options: { withdrawals?: WithdrawalRecord[]; events?: NoteAuditLogDto[] } = {}
 ) {
   const withdrawals = options.withdrawals ?? [];
-  const includeEvents = options.includeEvents ?? true;
-
-  const sortedEvents = includeEvents
+  const events = options.events
     ? sortAdminNoteEvents(
-        note.events.map((event) => ({
+        options.events.map((event) => ({
           id: event.id,
-          eventType: event.event_type,
-          createdAt: event.created_at,
+          eventType: event.eventType,
+          occurredAt: event.occurredAt,
+          createdAt: event.createdAt,
         })),
         "newest-first"
       )
+        .map((sorted) => options.events!.find((event) => event.id === sorted.id))
+        .filter((event): event is NoteAuditLogDto => Boolean(event))
     : [];
 
   return {
@@ -592,37 +594,7 @@ export function mapNoteDetail(
       serviceFeeTrusteeSubmittedAt: iso(settlement.service_fee_trustee_submitted_at),
       serviceFeeTrusteeCompletedAt: iso(settlement.service_fee_trustee_completed_at),
     })),
-    events: includeEvents
-      ? sortedEvents.map((sortedEvent) => {
-          const event = note.events.find((e) => e.id === sortedEvent.id);
-          if (!event) {
-            // Defensive fallback for unexpected missing events.
-            return {
-              id: sortedEvent.id,
-              noteId: note.id,
-              eventType: sortedEvent.eventType,
-              actorUserId: null,
-              actorRole: null,
-              portal: null,
-              correlationId: null,
-              metadata: null,
-              createdAt: new Date(sortedEvent.createdAt).toISOString(),
-            };
-          }
-
-          return {
-            id: event.id,
-            noteId: event.note_id,
-            eventType: event.event_type,
-            actorUserId: event.actor_user_id,
-            actorRole: event.actor_role,
-            portal: event.portal,
-            correlationId: event.correlation_id,
-            metadata: asRecord(event.metadata),
-            createdAt: event.created_at.toISOString(),
-          };
-        })
-      : [],
+    events,
     withdrawals: withdrawals.map(mapWithdrawalInstruction),
   };
 }

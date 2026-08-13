@@ -17,6 +17,15 @@ const mockNoteEventCreate = jest.fn();
 const mockPublicationCreate = jest.fn();
 const mockBuildSnapshot = jest.fn();
 
+jest.mock("../audit/writer", () => {
+  const actual = jest.requireActual<typeof import("../audit/writer")>("../audit/writer");
+  return {
+    ...actual,
+    writeNoteAuditFromActor: jest.fn().mockResolvedValue(undefined),
+    writeNoteAuditLog: jest.fn().mockResolvedValue(undefined),
+  };
+});
+
 jest.mock("../../../lib/prisma", () => ({
   prisma: {
     note: { findUnique: (...args: unknown[]) => mockNoteFindUnique(...args) },

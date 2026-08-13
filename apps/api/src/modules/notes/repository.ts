@@ -16,7 +16,6 @@ export const noteInclude = {
   payment_schedules: { orderBy: { sequence: "asc" as const } },
   payments: { orderBy: { receipt_date: "desc" as const } },
   settlements: { orderBy: { created_at: "desc" as const } },
-  events: { orderBy: { created_at: "desc" as const }, take: 50 },
   prospectus_review: {
     select: {
       id: true,

@@ -5,6 +5,12 @@ import { logger } from "../../lib/logger";
 import { submitOrder, getOrderStatus, getCertificatePdf } from "./shoraka-stp-client";
 import type { ShorakaSubmitOrderValues } from "./shoraka-stp-types";
 import { AppError } from "../../lib/http/error-handler";
+import {
+  integrationNoteAuditContext,
+  NOTE_AUDIT_TARGET_TYPE,
+  writeNoteAuditLog,
+} from "../notes/audit/writer";
+import { NOTE_AUDIT_PROVIDER } from "../notes/audit/events";
 
 import type { Prisma } from "@prisma/client";
 
@@ -325,24 +331,25 @@ type ShorakaStateResponse = {
 };
 
 export class ShorakaStpService {
-  private async logShorakaStpEvent(
+  private async writeShorakaAudit(
     noteId: string,
-    eventType: string,
-    metadata?: Prisma.InputJsonValue
+    eventType: "SHORAKA_ORDER_SUBMITTED" | "SHORAKA_CERTIFICATE_RECEIVED",
+    metadata: Record<string, unknown>,
+    db: typeof prisma | Prisma.TransactionClient = prisma
   ) {
-    await prisma.noteEvent.create({
-      data: {
-        note_id: noteId,
-        event_type: eventType,
-        actor_user_id: null,
-        actor_role: null,
-        portal: null,
-        ip_address: null,
-        user_agent: null,
-        correlation_id: null,
+    await writeNoteAuditLog(
+      {
+        eventType,
+        context: integrationNoteAuditContext({
+          correlationId: `shoraka:${eventType}:${String(metadata.orderId ?? "")}`,
+        }),
+        noteId,
+        targetType: NOTE_AUDIT_TARGET_TYPE.SHORAKA_ORDER,
+        targetId: String(metadata.orderId),
         metadata,
       },
-    });
+      db
+    );
   }
 
   private getWithdrawalsError() {
@@ -504,26 +511,35 @@ export class ShorakaStpService {
     const providerStatusStr = typeof providerStatusRaw === "string" ? providerStatusRaw : "SUBMITTED";
 
     if (!existing) {
-      const created = await prisma.shorakaTradeOrder.create({
-        data: {
-          withdrawal_instruction_id: withdrawalInstructionId,
-          note_id: withdrawal.note_id ?? "unknown-note",
-          provider_order_id: providerOrderId,
-          status: providerStatusStr,
-          idempotency_key: `shoraka:submit:${withdrawalInstructionId}`,
-          submit_request_payload: submitRequestPayload,
-          submit_response_payload: response as unknown as Prisma.JsonObject,
-          submitted_at: now,
-        },
-      });
-
-      // Activity Timeline event: order successfully submitted.
-      await this.logShorakaStpEvent(withdrawal.note_id ?? "unknown-note", "SHORAKA_ORDER_SUBMITTED", {
-        provider_order_id: providerOrderId,
-        order_amount: values.order_amount,
-        murabaha_amount: values.murabaha_amount,
-        value_date: values.value_date,
-        order_date: now.toISOString(),
+      const noteId = withdrawal.note_id;
+      if (!noteId) {
+        throw new Error("Shoraka submit requires a note_id on the withdrawal");
+      }
+      const created = await prisma.$transaction(async (tx) => {
+        const row = await tx.shorakaTradeOrder.create({
+          data: {
+            withdrawal_instruction_id: withdrawalInstructionId,
+            note_id: noteId,
+            provider_order_id: providerOrderId,
+            status: providerStatusStr,
+            idempotency_key: `shoraka:submit:${withdrawalInstructionId}`,
+            submit_request_payload: submitRequestPayload,
+            submit_response_payload: response as unknown as Prisma.JsonObject,
+            submitted_at: now,
+          },
+        });
+        await this.writeShorakaAudit(
+          noteId,
+          "SHORAKA_ORDER_SUBMITTED",
+          {
+            orderId: row.id,
+            provider: NOTE_AUDIT_PROVIDER,
+            providerOrderId,
+            newStatus: row.status,
+          },
+          tx
+        );
+        return row;
       });
 
       return {
@@ -660,21 +676,31 @@ export class ShorakaStpService {
     const providerCertificateId: string | null = null;
     const uploadedAt = new Date();
 
-    await prisma.shorakaTradeOrder.update({
-      where: { withdrawal_instruction_id: withdrawalInstructionId },
-      data: {
-        certificate_s3_key: key,
-        certificate_file_sha256: sha256,
-        provider_certificate_id: providerCertificateId,
-        certificate_uploaded_at: uploadedAt,
-      },
-    });
-
-    // Activity Timeline event: certificate successfully fetched/stored.
-    await this.logShorakaStpEvent(withdrawal.note_id ?? "unknown-note", "SHORAKA_CERTIFICATE_FETCHED", {
-      document_type: "Tawarruq Certificate",
-      certificate_available: true,
-      provider_order_id: providerOrderId,
+    await prisma.$transaction(async (tx) => {
+      await tx.shorakaTradeOrder.update({
+        where: { withdrawal_instruction_id: withdrawalInstructionId },
+        data: {
+          certificate_s3_key: key,
+          certificate_file_sha256: sha256,
+          provider_certificate_id: providerCertificateId,
+          certificate_uploaded_at: uploadedAt,
+        },
+      });
+      if (!withdrawal.note_id) {
+        throw new Error("Shoraka certificate persist requires a note_id on the withdrawal");
+      }
+      await this.writeShorakaAudit(
+        withdrawal.note_id,
+        "SHORAKA_CERTIFICATE_RECEIVED",
+        {
+          orderId: tradeOrder.id,
+          provider: NOTE_AUDIT_PROVIDER,
+          providerOrderId,
+          previousStatus: tradeOrder.status,
+          certificateSha256: sha256,
+        },
+        tx
+      );
     });
 
     return (await this.getStateForWithdrawal(withdrawalInstructionId)) as ShorakaStateResponse;

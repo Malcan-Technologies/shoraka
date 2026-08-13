@@ -1,4 +1,5 @@
 import type { SoukscoreRiskRating } from "./invoice-offer-risk-rating";
+import type { NoteAuditLogDto } from "./note-audit";
 
 /** Display label for a stored note reference (e.g. NOTE-20260512-ABC → Note 20260512-ABC). */
 export function formatNoteReferenceDisplay(reference: string | null | undefined): string {
@@ -275,7 +276,7 @@ export interface NoteDetail extends NoteListItem {
   payments: NotePayment[];
   settlements: NoteSettlement[];
   withdrawals: WithdrawalInstruction[];
-  events: NoteEvent[];
+  events: NoteAuditLogDto[];
 }
 
 export interface NoteListing {

@@ -11,7 +11,7 @@ import {
   GlobeAltIcon,
   UserIcon,
 } from "@heroicons/react/24/outline";
-import type { NoteDetail, NoteEvent } from "@cashsouk/types";
+import type { NoteAuditLogDto, NoteDetail } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,26 +21,40 @@ import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-vi
 function formatEventLabel(eventType: string) {
   const labels: Record<string, string> = {
     NOTE_CREATED: "Note created",
-    NOTE_DRAFT_UPDATED: "Draft updated",
+    NOTE_TERMS_UPDATED: "Note terms updated",
+    NOTE_PROSPECTUS_REVIEW_CREATED: "Prospectus review created",
+    NOTE_PROSPECTUS_APPROVED: "Prospectus approved",
+    NOTE_PROSPECTUS_INVALIDATED: "Prospectus approval invalidated",
     NOTE_PUBLISHED: "Published to marketplace",
     NOTE_UNPUBLISHED: "Unpublished from marketplace",
+    INVESTMENT_COMMITTED: "Investment committed",
     NOTE_FUNDING_CLOSED: "Funding closed",
     NOTE_FUNDING_FAILED: "Funding failed",
     NOTE_ACTIVATED: "Note activated",
-    PAYMENT_RECORDED: "Payment recorded",
+    NOTE_SERVICING_STATUS_CHANGED: "Servicing status changed",
+    NOTE_MARKED_DEFAULT: "Default marked",
+    DISBURSEMENT_INITIATED: "Disbursement initiated",
+    DISBURSEMENT_LETTER_GENERATED: "Disbursement letter generated",
+    DISBURSEMENT_SUBMITTED_TO_TRUSTEE: "Disbursement submitted to trustee",
+    DISBURSEMENT_BENEFICIARY_UPDATED: "Disbursement beneficiary updated",
+    DISBURSEMENT_COMPLETED: "Disbursement completed",
+    RESIDUAL_RETURN_LETTER_GENERATED: "Residual return letter generated",
+    RESIDUAL_RETURN_SUBMITTED_TO_TRUSTEE: "Residual return submitted to trustee",
+    RESIDUAL_RETURN_COMPLETED: "Residual return completed",
+    SHORAKA_ORDER_SUBMITTED: "Tawarruq order submitted",
+    SHORAKA_CERTIFICATE_RECEIVED: "Tawarruq Certificate received",
+    REPAYMENT_SUBMITTED: "Repayment submitted",
+    REPAYMENT_RECEIVED: "Repayment received",
+    REPAYMENT_REJECTED: "Repayment rejected",
     SETTLEMENT_PREVIEWED: "Settlement previewed",
     SETTLEMENT_APPROVED: "Settlement approved",
     SETTLEMENT_POSTED: "Settlement posted",
-    LATE_CHARGE_APPROVED: "Late charge approved",
-    OVERDUE_LATE_CHARGE_CHECKED: "Overdue late charge checked",
-    ARREARS_LETTER_GENERATED: "Arrears letter generated",
-    DEFAULT_LETTER_GENERATED: "Default letter generated",
     SERVICE_FEE_TRUSTEE_LETTER_GENERATED: "Settlement trustee letter generated",
-    SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED: "Settlement trustee letter submitted",
-    SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED: "Settlement trustee instruction completed",
-    NOTE_DEFAULT_MARKED: "Default marked",
-    SHORAKA_ORDER_SUBMITTED: "Tawarruq order submitted",
-    SHORAKA_CERTIFICATE_FETCHED: "Tawarruq Certificate fetched",
+    SERVICE_FEE_TRUSTEE_SUBMITTED: "Settlement trustee letter submitted",
+    SERVICE_FEE_TRUSTEE_COMPLETED: "Settlement trustee instruction completed",
+    ARREARS_LETTER_GENERATED: "Arrears letter generated",
+    DEFAULT_NOTICE_GENERATED: "Default notice generated",
+    TRUSTEE_SIGNATURE_UPDATED: "Trustee signature updated",
   };
 
   const fallback =
@@ -106,17 +120,16 @@ function isProseMetadataField(key: string, value: string) {
 
 type TimelineMetadataDetail = { key: string; label: string; value: string };
 
-function extractS3Key(event: NoteEvent) {
-  const s3Key = event.metadata?.s3Key;
-  return typeof s3Key === "string" && s3Key.trim() ? s3Key : null;
+function extractS3Key(_event: NoteAuditLogDto) {
+  return null;
 }
 
-function extractMetadataDetails(event: NoteEvent): {
+function extractMetadataDetails(event: NoteAuditLogDto): {
   compact: TimelineMetadataDetail[];
   prose: TimelineMetadataDetail[];
 } {
   const details = Object.entries(event.metadata ?? {})
-    .filter(([key]) => key !== "s3Key")
+    .filter(([key]) => key !== "s3Key" && key !== "actorName" && key !== "actorEmail")
     .map(([key, value]) => ({
       key,
       label: formatMetadataLabel(key),
@@ -141,12 +154,15 @@ function extractMetadataDetails(event: NoteEvent): {
   };
 }
 
-function buildFileName(event: NoteEvent) {
-  if (event.eventType === "ARREARS_LETTER_GENERATED") return `arrears-letter-${event.noteId}.pdf`;
+function buildFileName(event: NoteAuditLogDto) {
+  const fileName = event.metadata?.fileName;
+  if (typeof fileName === "string" && fileName.trim()) return fileName;
+  if (event.eventType === "ARREARS_LETTER_GENERATED") return `arrears-letter-${event.noteId ?? "note"}.pdf`;
+  if (event.eventType === "DEFAULT_NOTICE_GENERATED") return `default-notice-${event.noteId ?? "note"}.pdf`;
   if (event.eventType === "SERVICE_FEE_TRUSTEE_LETTER_GENERATED") {
-    return `settlement-trustee-letter-${event.noteId}.pdf`;
+    return `settlement-trustee-letter-${event.noteId ?? "note"}.pdf`;
   }
-  return `note-letter-${event.noteId}.pdf`;
+  return `note-letter-${event.noteId ?? "note"}.pdf`;
 }
 
 export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
@@ -187,7 +203,7 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
                     const s3Key = extractS3Key(event);
                     const { compact: compactMetadata, prose: proseMetadata } =
                       extractMetadataDetails(event);
-                    const createdAt = new Date(event.createdAt);
+                    const createdAt = new Date(event.occurredAt);
 
                     return (
                       <div key={event.id} className="relative flex gap-3 pl-0">
@@ -205,7 +221,7 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
                           <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground/70">
                             <span className="inline-flex items-center gap-0.5">
                               <UserIcon className="h-3 w-3" />
-                              {event.actorUserId ?? "System"}
+                              {event.actor.displayName ?? event.actor.userId ?? "System"}
                             </span>
                             {event.portal ? (
                               <span className="inline-flex items-center gap-0.5">

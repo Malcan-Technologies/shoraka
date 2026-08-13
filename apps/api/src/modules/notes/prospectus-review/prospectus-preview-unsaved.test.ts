@@ -5,6 +5,16 @@
 import { NoteStatus, ProspectusReviewStatus } from "@prisma/client";
 import { buildCompleteProspectusReviewDraft } from "./prospectus-review.demo-fixtures";
 import { ProspectusReviewService } from "./prospectus-review.service";
+import { writeNoteAuditFromActor } from "../audit/writer";
+
+jest.mock("../audit/writer", () => {
+  const actual = jest.requireActual<typeof import("../audit/writer")>("../audit/writer");
+  return {
+    ...actual,
+    writeNoteAuditFromActor: jest.fn().mockResolvedValue(undefined),
+    writeNoteAuditLog: jest.fn().mockResolvedValue(undefined),
+  };
+});
 
 const mockFindUnique = jest.fn();
 const mockUpdate = jest.fn();
@@ -200,6 +210,7 @@ describe("prospectus live preview (unsaved)", () => {
     expect(mockPublicationCreate).not.toHaveBeenCalled();
     expect(mockAdminActionCreate).not.toHaveBeenCalled();
     expect(mockNoteEventCreate).not.toHaveBeenCalled();
+    expect(writeNoteAuditFromActor).not.toHaveBeenCalled();
     expect(mockTransaction).not.toHaveBeenCalled();
   });
 
