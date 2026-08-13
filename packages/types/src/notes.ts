@@ -426,18 +426,6 @@ export interface NoteSettlementPreviewResult {
   allocations: NoteSettlementAllocationPreview[];
 }
 
-export interface NoteEvent {
-  id: string;
-  noteId: string;
-  eventType: string;
-  actorUserId: string | null;
-  actorRole: string | null;
-  portal: string | null;
-  correlationId: string | null;
-  metadata: Record<string, unknown> | null;
-  createdAt: string;
-}
-
 export interface NoteLedgerEntry {
   id: string;
   noteId: string | null;

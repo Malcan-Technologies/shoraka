@@ -1,9 +1,10 @@
 **Phase 8 NoteAuditLog cutover (current state):**
 
-- `NoteAuditLog` (`note_audit_logs`) owns Note-domain history (append-only, no Note/User/org FKs).
+- `NoteAuditLog` (`note_audit_logs`) is the **sole** Note-domain history table (append-only, no Note/User/org FKs).
 - Ledger, `NotePayment`, `NoteSettlement`, `NoteInvestment`, `WithdrawalInstruction`, `ShorakaTradeOrder`, prospectus models, and `Note` remain SOT. Audit is never financial/workflow state.
 - Hard cutover: all Note/prospectus/Shoraka writers and admin/activity readers use `NoteAuditLog`. No dual-write. No backfill.
-- `NoteEvent` / `note_events` and `NoteAdminAction` remain temporarily with no live NoteEvent writers/readers.
+- `NoteEvent` / `note_events` **removed**.
+- `NoteAdminAction` remains temporarily: write-only, no production readers; pending dedicated verification. Not part of the NoteEvent cleanup.
 - Investor-wallet withdrawals and GatewayPayment events are out of scope (future PaymentAuditLog).
 - There is **no** canonical/global `AuditEvent` table.
 
@@ -60,7 +61,7 @@ Known limitations (not fixed in this cleanup):
 
 ## 1. Executive Summary
 
-CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_audit_logs`, `security_audit_logs`, `onboarding_audit_logs`, `application_audit_logs`, `signing_audit_logs`, `product_audit_logs`, `note_audit_logs`, leftover `note_events`/`note_admin_actions`, `legal_admin_audit_logs`, `notification_broadcast_audit_logs`, `gateway_payment_events`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records). Legacy `access_logs`, `security_logs`, `onboarding_logs`, and `application_logs` have been dropped.
+CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_audit_logs`, `security_audit_logs`, `onboarding_audit_logs`, `application_audit_logs`, `signing_audit_logs`, `product_audit_logs`, `note_audit_logs`, leftover `note_admin_actions`, `legal_admin_audit_logs`, `notification_broadcast_audit_logs`, `gateway_payment_events`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records). Legacy `access_logs`, `security_logs`, `onboarding_logs`, `application_logs`, and `note_events` have been dropped.
 
 ### Current architecture (factual)
 
@@ -68,7 +69,7 @@ CashSouk does not have a single audit system. It has **many specialized tables**
 - **Onboarding:** `OnboardingAuditLog` is the sole onboarding/compliance history table (append-only). Organization `onboarding_status`/flags, `RegTankOnboarding`, `LegalDocumentAcceptance`, and CTOS rows remain SOT. Audit is never workflow state. Legacy `OnboardingLog` / `onboarding_logs` removed.
 - **Applications:** `ApplicationAuditLog` (`application_audit_logs`) is the application/review/contract/invoice history table (append-only, no Application/User FKs). Amendment remarks are `ApplicationReviewRemark` (cycle-scoped). Resubmit comparison reads `ApplicationRevision` + remarks, never audit. Legacy `ApplicationLog` / `application_logs` **removed**. `ApplicationReviewEvent` still dual-writes on a few review actions and has no production readers (tracked separately).
 - **Signing:** `SigningAuditLog` (`signing_audit_logs`) is the signing history table (append-only). Envelope graph / `SigningCloudEkyc` remain signing SOT. `GET /v1/applications/:id/logs` merges Application + Signing audit rows. Envelope log APIs read `SigningAuditLog` only.
-- **Notes:** `NoteAuditLog` (`note_audit_logs`) is the Note-domain history table (append-only, no Note/User/org FKs). Ledger, `NotePayment`, `NoteSettlement`, `NoteInvestment`, `WithdrawalInstruction`, `ShorakaTradeOrder`, prospectus models, and `Note` remain SOT. Activity feed reads a **subset** of `NoteAuditLog` types. `NoteEvent` / `NoteAdminAction` remain temporarily with no live NoteEvent writers/readers.
+- **Notes:** `NoteAuditLog` (`note_audit_logs`) is the sole Note-domain history table (append-only, no Note/User/org FKs). Ledger, `NotePayment`, `NoteSettlement`, `NoteInvestment`, `WithdrawalInstruction`, `ShorakaTradeOrder`, prospectus models, and `Note` remain SOT. Activity feed reads a **subset** of `NoteAuditLog` types. `NoteEvent` / `note_events` **removed**. `NoteAdminAction` remains write-only with no production readers (pending dedicated verification).
 - **Legal admin:** dedicated `LegalAdminAuditLog`. User open/accept is **not** that table; it is `LegalDocumentAcceptance` updated **in place**. Legacy `LegalDocumentAuditLog` / `legal_document_audit_logs` has been removed.
 - **Payments:** `GatewayPayment` is SOT; `GatewayPaymentEvent` is a partial admin trail (no capture/complete type); `GatewayWebhookEvent` is provider transport and is **updated** after processing.
 - **Products:** `ProductAuditLog` is append-only and is not deleted on product rollback. Legacy `ProductLog` / `product_logs` has been removed.
@@ -83,7 +84,7 @@ CashSouk does not have a single audit system. It has **many specialized tables**
 5. **High-impact admin/org actions have no audit event** (invite create, org members/ownership, platform finance settings, user_id assign, investor withdrawal request).
 6. **Product audit history is retained** (`ProductAuditLog`); failed-create rollback does not delete it. Legacy `product_logs` dropped.
 7. **Duplicate / misleading event names** (`LOGIN` twice, `PASSWORD_CHANGED` for failure, contract reject stored as `CONTRACT_WITHDRAWN`, enum `APPLICATION_APPROVED` with no writer).
-8. **`ApplicationReviewEvent` and `NoteAdminAction` are written but have no production readers.** `NoteEvent` has no live writers/readers after Phase 8.
+8. **`ApplicationReviewEvent` and `NoteAdminAction` are written but have no production readers.** `NoteAdminAction` is write-only pending dedicated verification. `NoteEvent` / `note_events` have been removed.
 
 ### Counts (this scan)
 
@@ -205,12 +206,7 @@ Fields: `id` (cuid), `legal_document_id`, `legal_document_version_id`, `event_ty
 #### NoteAuditLog → `note_audit_logs` · NOTE · **A**
 
 Fields: `id` (cuid), `note_id` (nullable only for `TRUSTEE_SIGNATURE_UPDATED`), `event_type` (string), `occurred_at`, `created_at`, `actor_type`, `actor_user_id`, `organization_id`, `organization_kind`, `target_type`, `target_id`, `source`, `portal`, `ip_address`, `user_agent`, `correlation_id`, `idempotency_key`, `metadata` (required Json).  
-**No Note/User/org FKs.** No `updated_at`. Append-only create. Not financial/workflow SOT.
-
-#### NoteEvent → `note_events` · NOTE · leftover
-
-Fields: `id`, `note_id`, `event_type`, `actor_user_id`, `actor_role`, `portal`, `ip_address`, `user_agent`, `correlation_id`, `metadata`, `created_at`.  
-FK Note **Cascade**. **No live writers or readers after Phase 8.** Kept for a cleanup PR.
+**No Note/User/org FKs.** No `updated_at`. Append-only create. Not financial/workflow SOT. Replaced and removed leftover `NoteEvent` / `note_events`.
 
 #### NoteAdminAction → `note_admin_actions` · NOTE · leftover
 
@@ -445,9 +441,9 @@ Production final approval writes **`ONBOARDING_FINAL_APPROVAL_COMPLETED`**. `Aut
 
 `legal-documents/audit/writer.ts` via `LegalDocumentService` in the same Prisma transaction as the legal mutation. Append-only. Legacy `LegalDocumentAuditLog` / `audit-log-service.ts` removed.
 
-### NoteAuditLog / leftover NoteEvent / NoteAdminAction
+### NoteAuditLog / leftover NoteAdminAction
 
-`notes/audit/writer.ts` (`writeNoteAuditLog` / `writeNoteAuditFromActor`); prospectus and Shoraka writers call it. `GET /v1/admin/notes/:id/events` and admin note detail read `NoteAuditLog` (full history, newest first, no hidden 50 cap). `NoteLogAdapter` reads `note_audit_logs` only. `NoteEvent` has no live writers/readers. `NoteAdminAction` is still written and unread.
+`notes/audit/writer.ts` (`writeNoteAuditLog` / `writeNoteAuditFromActor`); prospectus and Shoraka writers call it. `GET /v1/admin/notes/:id/events` and admin note detail read `NoteAuditLog` (full history, newest first, no hidden 50 cap). `NoteLogAdapter` reads `note_audit_logs` only. `NoteEvent` / `note_events` **removed**. `NoteAdminAction` is still written and unread (write-only/no production readers; pending dedicated verification).
 
 ### GatewayPaymentEvent
 
@@ -487,8 +483,7 @@ Created on ingest; **`updateMany` processed_at/error** in `webhook-service.ts`.
 | legal_document_acceptances | acceptance-admin + user required/pending | Compliance UI + **onboarding gate** `hasCompletedRequiredAcceptances` | **HIGH** |
 | note_audit_logs | `GET admin notes/:id/events` + note detail mapper | Admin note timeline | full history newest-first; no hidden 50 cap | MEDIUM |
 | note_audit_logs | `NoteLogAdapter` | Activity | **subset only** (NOTE_CREATED/PUBLISHED/FUNDING_*/ACTIVATED, INVESTMENT_COMMITTED, SETTLEMENT_POSTED, DISBURSEMENT_COMPLETED, REPAYMENT_SUBMITTED, NOTE_MARKED_DEFAULT). Only `NOTE_ACTIVATED` is “Note Active”. | MEDIUM |
-| note_events | **none live** | leftover table | cleanup PR | LOW |
-| note_admin_actions | **no find*** | leftover writes | cleanup PR | LOW |
+| note_admin_actions | **no find*** | leftover writes | write-only; pending dedicated verification | LOW |
 | gateway_payment_events | `getGatewayPaymentDetail` mapped **without metadata** | Admin payment detail | | MEDIUM |
 | gateway_payment_events | `getOpenOverrideProposal` | **Defined never called** — not production business logic | OVERRIDE_PROPOSED lookup only | — |
 | gateway_webhook_events | webhook-service findFirst/update | **Idempotency / processing** | HIGH transport |
@@ -600,7 +595,7 @@ Source: `apps/api/src/lib/jobs/index.ts`.
 |---|---|---|---|---|---|---|
 | Notification cleanup | `notification/service.ts` `runCleanup` | `0 0 * * *` | delete notifications | **MISSING** | SYSTEM | none |
 | CTOS KYB retry | `ctos-kyb-retry.ts` | `*/5` | lastKybAttemptAt | **MISSING** | SYSTEM | 5-min window |
-| Note listing expiry | `note-listing-expiry.ts` | hourly | closeFunding/failFunding | YES NoteEvent (SYS) | `"SYS"` | advisory not used; service guards |
+| Note listing expiry | `note-listing-expiry.ts` | hourly | closeFunding/failFunding | YES NoteAuditLog | `"SYS"` | advisory not used; service guards |
 | Signing envelope expiry | `signing-envelope-expiry.ts` | hourly | status EXPIRED | **MISSING** | SYSTEM | advisory lock |
 | Acceptance/signing expiry | `acceptance-signing-expiry.ts` | hourly | OFFER_EXPIRED + reminders | YES expire; **no** reminder audit | `systemUserId` | advisory lock |
 | Stuck order poller | `gateway-stuck-order-poller.ts` | `*/15` | EXPIRED or recover capture | EXPIRED yes; capture **no event type** | SYSTEM | advisory lock |
@@ -653,7 +648,7 @@ Webhook router in `payment/webhook-controller.ts` (raw body, registered before J
 
 ### Shoraka STP
 
-`POST` `shoraka-stp-webhook-controller.ts` signature fields in body. Stores `callback_payload`. **No NoteEvent.** Admin submit/fetch write NoteEvents with **null actor**.
+`POST` `shoraka-stp-webhook-controller.ts` signature fields in body. Stores `callback_payload`. **No NoteAuditLog for raw callback.** Admin submit/fetch write NoteAuditLog with INTEGRATION actor.
 
 ### SES / S3
 
@@ -829,8 +824,8 @@ Keep specialized SOT even if audit events are added later.
 | ApplicationLog | **REMOVED** — replaced by `ApplicationAuditLog` + `SigningAuditLog` (`application_logs` dropped) |
 | ApplicationReviewEvent | **LEGACY / VERIFY REMOVAL** (no readers) |
 | NoteAuditLog | **KEEP AS SPECIALIZED HISTORY** (Note-domain; not a canonical AuditEvent; not financial SOT) |
-| NoteEvent | **LEGACY / VERIFY REMOVAL** — no live writers/readers after Phase 8 |
-| NoteAdminAction | **LEGACY / VERIFY REMOVAL** (no readers; still written) |
+| NoteEvent | **REMOVED** — table `note_events` dropped; `NoteAuditLog` is the sole Note history table |
+| NoteAdminAction | **LEGACY / VERIFY REMOVAL** (write-only; no production readers; pending dedicated verification) |
 | ProductLog | **REMOVED** — replaced by `ProductAuditLog` (`product_audit_logs`) |
 | NotificationBroadcastAuditLog | **KEEP AS SPECIALIZED HISTORY** (admin bulk send; not a canonical AuditEvent) |
 | NotificationLog | **REMOVED** — replaced by `NotificationBroadcastAuditLog` (`notification_broadcast_audit_logs`) |
@@ -847,7 +842,7 @@ Keep specialized SOT even if audit events are added later.
 | Old table | Writers | Readers | UI | Exports | Business logic | Notifications | Tests | Difficulty | Suggested order | Delete after? |
 |---|---|---|---|---|---|---|---|---|---|---|
 | ApplicationReviewEvent | 3 admin paths | none | none | no | no | no | admin tests | LOW | 1 first | YES if dual-write stopped |
-| NoteAdminAction | logAdminAction / prospectus | none | none | no | no | no | note tests | LOW | 1 | YES if NoteEvent kept during transition |
+| NoteAdminAction | logAdminAction / prospectus | none | none | no | no | no | note tests | LOW | follow-up | YES after dedicated verification (write-only today) |
 | ProductLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `ProductAuditLog` is live |
 | NotificationLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `NotificationBroadcastAuditLog` is live |
 | LegalDocumentAuditLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `LegalAdminAuditLog` is live |
@@ -856,7 +851,7 @@ Keep specialized SOT even if audit events are added later.
 | SecurityLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `SecurityAuditLog` is live |
 | OnboardingLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `OnboardingAuditLog` is live |
 | ApplicationLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `ApplicationAuditLog` + `SigningAuditLog` are live |
-| NoteEvent | notes/shoraka/jobs | admin events + activity subset | yes | no | no | no | note tests | HIGH | 9 | NO |
+| NoteEvent | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `NoteAuditLog` is live |
 
 `GatewayWebhookEvent` should **not** be in the replace-with-audit queue.
 
@@ -873,7 +868,7 @@ Do not design final schema here. Sequence by dependency/risk:
 5. **Access/Security** after audit UI + CSV exporters have a dual-read period.
 6. **OnboardingLog** replaced by append-only `OnboardingAuditLog`; `onboarding_logs` dropped. AuthService no longer reads logs as state.
 7. **ApplicationLog** **removed** — `application_logs` dropped; `ApplicationAuditLog` + `SigningAuditLog` are live. `ApplicationReviewEvent` still pending separate verification.
-8. **NoteEvent** after admin note page + activity subset.
+8. **NoteEvent** **removed** — `note_events` dropped; `NoteAuditLog` is the sole Note history table. `NoteAdminAction` still pending dedicated verification.
 9. **ProductLog** replaced by append-only `ProductAuditLog`; `product_logs` dropped.
 10. **Platform settings / org members / invitations** have nothing to migrate — they need **new** events, not table moves.
 

@@ -69,6 +69,9 @@ describe("Note audit cutover", () => {
     "modules/shoraka-stp",
     "modules/activity",
   ]);
+  const scripts = collectTsSources(["../scripts"]);
+  const dropMigration = readSrc("../prisma/migrations/20260814020000_drop_note_events/migration.sql");
+  const typesNotes = readSrc("../../../packages/types/src/notes.ts");
   const products = collectTsSources(["modules/products"]);
   const legal = collectTsSources(["modules/legal-documents"]);
   const access = collectTsSources(["modules/auth"]);
@@ -114,7 +117,7 @@ describe("Note audit cutover", () => {
     expect(liveNoteSources).not.toMatch(/noteAuditLog\.(update|delete|deleteMany|upsert)/);
   });
 
-  it("has zero live NoteEvent writers or readers", () => {
+  it("has zero live or seed NoteEvent writers or readers", () => {
     expect(notes).not.toMatch(/noteEvent\.create/);
     expect(prospectus).not.toMatch(/noteEvent\.create/);
     expect(shoraka).not.toMatch(/noteEvent\.create/);
@@ -123,10 +126,19 @@ describe("Note audit cutover", () => {
     expect(activity).not.toMatch(/noteEvent\.findMany/);
     expect(liveNoteSources).not.toMatch(/prisma\.noteEvent/);
     expect(liveNoteSources).not.toMatch(/tx\.noteEvent/);
+    expect(scripts).not.toMatch(/noteEvent\.(create|createMany|deleteMany)/);
+    expect(scripts).not.toMatch(/prisma\.noteEvent/);
+    expect(scripts).not.toMatch(/tx\.noteEvent/);
+    expect(typesNotes).not.toMatch(/export interface NoteEvent/);
   });
 
-  it("keeps NoteEvent and NoteAdminAction models for later cleanup", () => {
-    expect(schema).toMatch(/model NoteEvent/);
+  it("removes the Prisma NoteEvent model and keeps NoteAdminAction", () => {
+    expect(schema).not.toMatch(/model NoteEvent/);
+    expect(schema).not.toMatch(/events\s+NoteEvent\[\]/);
+    expect(schema).not.toMatch(/@@map\("note_events"\)/);
+    expect(dropMigration).toMatch(/DROP TABLE "note_events"/);
+    expect(dropMigration).not.toMatch(/DROP TABLE "note_audit_logs"/);
+    expect(dropMigration).not.toMatch(/DROP TABLE "note_admin_actions"/);
     expect(schema).toMatch(/model NoteAdminAction/);
     expect(notes).toMatch(/noteAdminAction\.create/);
     expect(prospectus).toMatch(/noteAdminAction\.create/);

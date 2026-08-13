@@ -444,7 +444,7 @@ async function resetDemoNotes() {
       await tx.noteProspectusReview.deleteMany({ where: { note_id: noteId } });
       await tx.noteListing.deleteMany({ where: { note_id: noteId } });
       await tx.notePaymentSchedule.deleteMany({ where: { note_id: noteId } });
-      await tx.noteEvent.deleteMany({ where: { note_id: noteId } });
+      await tx.noteAuditLog.deleteMany({ where: { note_id: noteId } });
       if (!ids.slice(0, 3).includes(noteId)) {
         await tx.note.delete({ where: { id: noteId } });
       }
@@ -801,17 +801,6 @@ async function upsertDraftNote(
   });
 
   await upsertHistoricalNotes(issuerSnapshot);
-
-  await prisma.noteEvent.create({
-    data: {
-      note_id: NOTE_ID,
-      event_type: "PROSPECTUS_DEMO_SEED",
-      actor_user_id: actorUserId,
-      actor_role: UserRole.ADMIN,
-      portal: "ADMIN",
-      metadata: { reference: NOTE_REFERENCE, workflow: "DRAFT" },
-    },
-  });
 }
 
 export async function seedProspectusDemo() {

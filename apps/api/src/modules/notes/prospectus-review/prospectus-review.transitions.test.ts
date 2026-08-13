@@ -13,7 +13,6 @@ const mockCreate = jest.fn();
 const mockTransaction = jest.fn();
 const mockNoteFindUnique = jest.fn();
 const mockAdminActionCreate = jest.fn();
-const mockNoteEventCreate = jest.fn();
 const mockPublicationCreate = jest.fn();
 const mockBuildSnapshot = jest.fn();
 
@@ -40,7 +39,6 @@ jest.mock("../../../lib/prisma", () => ({
     },
     $transaction: (...args: unknown[]) => mockTransaction(...args),
     noteAdminAction: { create: (...args: unknown[]) => mockAdminActionCreate(...args) },
-    noteEvent: { create: (...args: unknown[]) => mockNoteEventCreate(...args) },
   },
 }));
 
@@ -237,11 +235,9 @@ describe("prospectus workflow transitions", () => {
         noteProspectusReview: { update: mockUpdate },
         noteProspectusPublication: { create: mockPublicationCreate },
         noteAdminAction: { create: mockAdminActionCreate },
-        noteEvent: { create: mockNoteEventCreate },
       })
     );
     mockAdminActionCreate.mockResolvedValue({});
-    mockNoteEventCreate.mockResolvedValue({});
     mockPublicationCreate.mockResolvedValue({ id: "pub-1" });
     mockBuildSnapshot.mockResolvedValue({
       publication_id: "pub-1",

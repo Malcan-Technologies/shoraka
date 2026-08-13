@@ -22,7 +22,6 @@ const mockCreate = jest.fn();
 const mockTransaction = jest.fn();
 const mockNoteFindUnique = jest.fn();
 const mockAdminActionCreate = jest.fn();
-const mockNoteEventCreate = jest.fn();
 const mockPublicationCreate = jest.fn();
 
 const mockBuildPageOneHtml = jest.fn(
@@ -73,7 +72,6 @@ jest.mock("../../../lib/prisma", () => ({
     },
     $transaction: (...args: unknown[]) => mockTransaction(...args),
     noteAdminAction: { create: (...args: unknown[]) => mockAdminActionCreate(...args) },
-    noteEvent: { create: (...args: unknown[]) => mockNoteEventCreate(...args) },
   },
 }));
 
@@ -209,7 +207,6 @@ describe("prospectus live preview (unsaved)", () => {
     expect(mockCreate).not.toHaveBeenCalled();
     expect(mockPublicationCreate).not.toHaveBeenCalled();
     expect(mockAdminActionCreate).not.toHaveBeenCalled();
-    expect(mockNoteEventCreate).not.toHaveBeenCalled();
     expect(writeNoteAuditFromActor).not.toHaveBeenCalled();
     expect(mockTransaction).not.toHaveBeenCalled();
   });

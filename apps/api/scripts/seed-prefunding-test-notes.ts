@@ -246,15 +246,6 @@ async function main() {
             typeof invoiceDetails.maturity_date === "string"
               ? dateFrom(invoiceDetails.maturity_date)
               : null,
-          events: {
-            create: {
-              event_type: "NOTE_CREATED_FROM_INVOICE",
-              actor_user_id: actorUserId,
-              actor_role: UserRole.ADMIN,
-              portal: "ADMIN",
-              metadata: { applicationId: application.id, invoiceId: invoice.id },
-            },
-          },
           admin_actions: {
             create: {
               action_type: "CREATE_FROM_INVOICE",

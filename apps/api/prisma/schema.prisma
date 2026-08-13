@@ -756,7 +756,6 @@ model Note {
   payments                        NotePayment[]
   settlements                     NoteSettlement[]
   ledger_entries                  NoteLedgerEntry[]
-  events                          NoteEvent[]
   admin_actions                   NoteAdminAction[]
   prospectus_review               NoteProspectusReview?
   prospectus_publications         NoteProspectusPublication[]
@@ -1057,27 +1056,6 @@ model NoteLedgerEntry {
   @@index([gateway_payment_id])
   @@index([posted_at])
   @@map("note_ledger_entries")
-}
-
-model NoteEvent {
-  id             String   @id @default(cuid())
-  note_id        String
-  event_type     String
-  actor_user_id  String?
-  actor_role     String?
-  portal         String?
-  ip_address     String?
-  user_agent     String?
-  correlation_id String?
-  metadata       Json?
-  created_at     DateTime @default(now())
-  note           Note     @relation(fields: [note_id], references: [id], onDelete: Cascade)
-
-  @@index([note_id])
-  @@index([event_type])
-  @@index([actor_user_id])
-  @@index([created_at])
-  @@map("note_events")
 }
 
 model NoteAdminAction {
