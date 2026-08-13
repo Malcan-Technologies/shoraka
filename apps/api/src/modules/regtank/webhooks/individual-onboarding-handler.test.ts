@@ -29,12 +29,6 @@ jest.mock("../../organization/repository", () => ({
   })),
 }));
 
-jest.mock("../../auth/repository", () => ({
-  AuthRepository: jest.fn().mockImplementation(() => ({
-    createOnboardingLog: jest.fn(),
-  })),
-}));
-
 jest.mock("../../notification/service", () => ({
   NotificationService: jest.fn().mockImplementation(() => ({
     sendTyped: jest.fn(),

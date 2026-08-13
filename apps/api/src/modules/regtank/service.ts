@@ -2884,8 +2884,6 @@ export class RegTankService {
         }
       }
 
-      // Note: USER_COMPLETED log is only created when final approval is completed by admin
-      // See apps/api/src/modules/admin/service.ts completeFinalApproval()
       logger.info(
         {
           requestId,

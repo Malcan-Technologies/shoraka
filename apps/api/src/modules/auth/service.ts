@@ -368,10 +368,6 @@ export class AuthService {
       "Onboarding status updated successfully"
     );
 
-    // Note: USER_COMPLETED log is only created when final approval is completed by admin
-    // See apps/api/src/modules/admin/service.ts completeFinalApproval()
-    // Removed USER_COMPLETED log creation from here
-
     return { success: true };
   }
 

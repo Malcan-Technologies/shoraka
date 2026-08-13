@@ -31,7 +31,7 @@ The feed no longer mirrors every audit log. Low-value internal updates such as s
 
 The investor page shows investor-scoped onboarding activity and curated note milestones. Application-domain rows remain issuer-only.
 
-- onboarding logs are scoped by `investor_organization_id`
+- onboarding logs are scoped by `organization_id` (or `subject_user_id` when no org is selected)
 - note logs are scoped to notes the active investor organization has invested in
 - application logs are excluded from the investor `/activity` feed and filters
 
@@ -41,18 +41,30 @@ The investor page shows investor-scoped onboarding activity and curated note mil
   - Domain badge: `Onboarding`
   - Title: `Onboarding Started`
   - Description: `Your organization onboarding has started and you can continue it at any time.`
-- Raw types: `ONBOARDING_CANCELLED`
+- Raw types: `ONBOARDING_RESUMED`
   - Domain badge: `Onboarding`
-  - Title: `Onboarding Closed`
-  - Description: `Your organization onboarding was cancelled and will not continue.`
+  - Title: `Onboarding Resumed`
+  - Description: `Your organization onboarding session was resumed.`
+- Raw types: `ONBOARDING_RESTARTED`
+  - Domain badge: `Onboarding`
+  - Title: `Onboarding Restarted`
+  - Description: `Your organization onboarding session was restarted.`
 - Raw types: `ONBOARDING_REJECTED`
   - Domain badge: `Onboarding`
   - Title: `Onboarding Rejected`
   - Description: `Your organization onboarding was rejected: <reason>.`
-- Raw types: `FINAL_APPROVAL_COMPLETED`, `ONBOARDING_APPROVED`
+- Raw types: `ONBOARDING_APPROVED`
   - Domain badge: `Onboarding`
   - Title: `Onboarding Approved`
   - Description: `Your organization onboarding was approved and no further action is needed.`
+- Raw types: `ONBOARDING_FINAL_APPROVAL_COMPLETED`
+  - Domain badge: `Onboarding`
+  - Title: `Final Approval Completed`
+  - Description: `Your organization onboarding received final approval.`
+- Raw types: `ONBOARDING_COMPLETED`
+  - Domain badge: `Onboarding`
+  - Title: `Onboarding Completed`
+  - Description: `Your organization onboarding was marked completed.`
 
 ### Note
 
@@ -84,7 +96,7 @@ For investor payouts, `SETTLEMENT_POSTED` is the visible milestone. `PAYMENT_REC
 
 The issuer page uses the same onboarding event set as the investor page, plus issuer-scoped application and note milestones. The difference is data scope:
 
-- onboarding logs are scoped by `issuer_organization_id`
+- onboarding logs are scoped by `organization_id` (or `subject_user_id` when no org is selected)
 - application logs are scoped to applications whose `issuer_organization_id` matches the active organization
 - note logs are scoped to notes whose `issuer_organization_id` matches the active organization
 
@@ -93,9 +105,12 @@ The issuer page uses the same onboarding event set as the investor page, plus is
 Visible onboarding events match the investor portal:
 
 - `ONBOARDING_STARTED` -> `Onboarding Started`
-- `ONBOARDING_CANCELLED` -> `Onboarding Closed`
+- `ONBOARDING_RESUMED` -> `Onboarding Resumed`
+- `ONBOARDING_RESTARTED` -> `Onboarding Restarted`
 - `ONBOARDING_REJECTED` -> `Onboarding Rejected`
-- `FINAL_APPROVAL_COMPLETED`, `ONBOARDING_APPROVED` -> `Onboarding Approved`
+- `ONBOARDING_APPROVED` -> `Onboarding Approved`
+- `ONBOARDING_FINAL_APPROVAL_COMPLETED` -> `Final Approval Completed`
+- `ONBOARDING_COMPLETED` -> `Onboarding Completed`
 
 ### Application
 

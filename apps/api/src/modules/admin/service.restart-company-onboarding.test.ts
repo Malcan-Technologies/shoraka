@@ -1,7 +1,6 @@
 import { OrganizationType } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 
-const mockAdminCreateOnboardingLog = jest.fn();
 const mockOnboardingAuditCreate = jest.fn().mockResolvedValue({});
 const mockUserFindUnique = jest.fn().mockResolvedValue({
   first_name: "Admin",
@@ -16,9 +15,7 @@ const mockInvestorOrgUpdate = jest.fn();
 const mockIssuerOrgUpdate = jest.fn();
 
 jest.mock("./repository", () => ({
-  AdminRepository: jest.fn().mockImplementation(() => ({
-    createOnboardingLog: (...args: unknown[]) => mockAdminCreateOnboardingLog(...args),
-  })),
+  AdminRepository: jest.fn().mockImplementation(() => ({})),
 }));
 
 jest.mock("../regtank/repository", () => ({
@@ -109,7 +106,6 @@ describe("AdminService.restartOnboarding company persistence", () => {
     mockRegTankCreateOnboarding.mockResolvedValue({});
     mockInvestorOrgUpdate.mockResolvedValue({});
     mockIssuerOrgUpdate.mockResolvedValue({});
-    mockAdminCreateOnboardingLog.mockResolvedValue({});
     mockOnboardingAuditCreate.mockResolvedValue({});
   });
 
@@ -162,7 +158,6 @@ describe("AdminService.restartOnboarding company persistence", () => {
       data?: { metadata?: { trigger?: string } };
     };
     expect(payload.data?.metadata?.trigger).toBe("ADMIN_RESTART");
-    expect(mockAdminCreateOnboardingLog).not.toHaveBeenCalled();
   });
 
   it("issuer company restart cancels old COD row and creates a new COD row", async () => {

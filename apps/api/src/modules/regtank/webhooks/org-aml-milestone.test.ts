@@ -6,7 +6,7 @@ import { OnboardingStatus, OrganizationType } from "@prisma/client";
  */
 let investorOrg: Record<string, unknown> | null = null;
 let issuerOrg: Record<string, unknown> | null = null;
-const onboardingLogs: unknown[] = [];
+const onboardingAuditCreates: unknown[] = [];
 
 const mockInvestorFindUnique = jest.fn(() => Promise.resolve(investorOrg));
 const mockInvestorUpdate = jest.fn(({ data }: { data: Record<string, unknown> }) => {
@@ -19,7 +19,7 @@ const mockIssuerUpdate = jest.fn(({ data }: { data: Record<string, unknown> }) =
   return Promise.resolve(issuerOrg);
 });
 const mockOnboardingAuditCreate = jest.fn((args: unknown) => {
-  onboardingLogs.push(args);
+  onboardingAuditCreates.push(args);
   return Promise.resolve({});
 });
 const mockUserFindUnique = jest.fn(() =>
@@ -87,7 +87,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   investorOrg = null;
   issuerOrg = null;
-  onboardingLogs.length = 0;
+  onboardingAuditCreates.length = 0;
 });
 
 describe("maybeAdvanceOrgAfterAmlScreeningCleared", () => {

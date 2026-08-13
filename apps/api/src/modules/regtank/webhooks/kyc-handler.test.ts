@@ -49,12 +49,12 @@ jest.mock("../../organization/ctos-party-supplement-webhook-lookup", () => ({
 }));
 
 const mockInvestorUpdate = jest.fn().mockResolvedValue({});
-const mockOnboardingLogCreate = jest.fn().mockResolvedValue({});
+const mockOnboardingAuditCreate = jest.fn().mockResolvedValue({});
 jest.mock("../../../lib/prisma", () => ({
   prisma: {
     investorOrganization: { update: (...args: unknown[]) => mockInvestorUpdate(...args) },
     issuerOrganization: { update: jest.fn() },
-    onboardingLog: { create: (...args: unknown[]) => mockOnboardingLogCreate(...args) },
+    onboardingAuditLog: { create: (...args: unknown[]) => mockOnboardingAuditCreate(...args) },
     regTankOnboarding: { findMany: jest.fn().mockResolvedValue([]) },
   },
 }));
@@ -98,7 +98,7 @@ describe("KYCWebhookHandler", () => {
     expect(mockInvestorUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ kyc_response: expect.anything() }) })
     );
-    expect(mockOnboardingLogCreate).not.toHaveBeenCalled();
+    expect(mockOnboardingAuditCreate).not.toHaveBeenCalled();
   });
 
   it("A2: KYC unknown/undocumented status is preserved but does not alter onboarding lifecycle status", async () => {

@@ -17,16 +17,35 @@ Known limitations (not fixed in the cleanup):
 3. Admin deactivation is DB-only; no Cognito `AdminDisableUser` / session revoke in that path yet.
 4. Password/email verification/role-sync and invitation/org email resend remain non-atomic with Cognito/SES.
 
+**Phase 5 cutover + legacy OnboardingLog cleanup (current state):**
+
+- `OnboardingLog` / `onboarding_logs` **removed**. `OnboardingAuditLog` (`onboarding_audit_logs`) is the **sole** onboarding/compliance history table.
+- Organization `onboarding_status` / flags remain workflow source of truth.
+- `RegTankOnboarding` remains provider-session source of truth.
+- `LegalDocumentAcceptance` remains legal acceptance source of truth.
+- CTOS report rows remain report source of truth.
+- Audit is never workflow state. No User/org/RegTank FKs on `OnboardingAuditLog` (scalar historical ids only). Append-only create.
+- Admin URLs `GET /v1/admin/onboarding-logs` (list, `/:id`, `/export`) are preserved names; they read `OnboardingAuditLog`.
+- There is **no** canonical/global `AuditEvent` table.
+
+Known limitations (not fixed in this cleanup):
+
+1. `retryOnboarding` can persist a new provider session without writing `ONBOARDING_RESTARTED`.
+2. Company auto-regenerate may label a stale/cancelled session as `EXPIRED_SESSION`.
+3. CTOS audit may have `actorUserId: null` because request context is not propagated.
+4. Legacy complete-onboarding routes still exist and emit `ONBOARDING_COMPLETED`.
+5. User cancel remains a no-op workflow action.
+
 ---
 
 ## 1. Executive Summary
 
-CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_audit_logs`, `security_audit_logs`, `onboarding_logs`, `application_logs`, `product_audit_logs`, `note_events`, `note_admin_actions`, `legal_admin_audit_logs`, `notification_broadcast_audit_logs`, `gateway_payment_events`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records). Legacy `access_logs` and `security_logs` have been dropped.
+CashSouk does not have a single audit system. It has **many specialized tables** plus **business source-of-truth rows** that also serve as evidence. Named log tables (`access_audit_logs`, `security_audit_logs`, `onboarding_audit_logs`, `application_logs`, `product_audit_logs`, `note_events`, `note_admin_actions`, `legal_admin_audit_logs`, `notification_broadcast_audit_logs`, `gateway_payment_events`, `application_review_events`) sit beside evidence tables (`legal_document_acceptances`, `application_revisions`, ledgers, gateway payments, signing envelopes, RegTank/CTOS/Shoraka records). Legacy `access_logs`, `security_logs`, and `onboarding_logs` have been dropped.
 
 ### Current architecture (factual)
 
 - **Auth/security:** `AccessAuditLog` (signup/login/logout) + `SecurityAuditLog` (RBAC, profile, invitations, membership, notification config). No User FK; history survives User deletion. `UserSession` is session SOT; Cognito is auth authority. Legacy `AccessLog` / `SecurityLog` removed.
-- **Onboarding:** `OnboardingLog` with free-string `event_type`. `AuthService` **reads** `ONBOARDING_STARTED` / `USER_COMPLETED` to decide cancellation, while production final approval now writes `FINAL_APPROVAL_COMPLETED`.
+- **Onboarding:** `OnboardingAuditLog` is the sole onboarding/compliance history table (append-only). Organization `onboarding_status`/flags, `RegTankOnboarding`, `LegalDocumentAcceptance`, and CTOS rows remain SOT. Audit is never workflow state. Legacy `OnboardingLog` / `onboarding_logs` removed.
 - **Applications:** `ApplicationLog` (primary UI timeline) plus rarely-read `ApplicationReviewEvent` dual-writes on three actions. Wrapper always stores `level`/`target`/`action` as null.
 - **Notes:** `NoteEvent` + `NoteAdminAction` dual-write for admin actions. Activity feed reads a **subset** of `NoteEvent` types.
 - **Legal admin:** dedicated `LegalAdminAuditLog`. User open/accept is **not** that table; it is `LegalDocumentAcceptance` updated **in place**. Legacy `LegalDocumentAuditLog` / `legal_document_audit_logs` has been removed.
@@ -37,7 +56,7 @@ CashSouk does not have a single audit system. It has **many specialized tables**
 ### Biggest risks
 
 1. **Cascade delete destroys named logs** when a User, Application, Note, or GatewayPayment is deleted.
-2. **`AuthService` still looks for `USER_COMPLETED`** after writers switched to `FINAL_APPROVAL_COMPLETED`.
+2. **`AuthService.cancelOnboarding` is a no-op workflow action** (reads org `onboarding_status` / `onboarded_at` and `RegTankOnboarding`, not audit). Historical `USER_COMPLETED` reader is gone with `OnboardingLog`.
 3. **Legal acceptance evidence is mutated in place** (OPENED → ACCEPTED on one row).
 4. **Money capture/complete has no `GatewayPaymentEvent` type**; reconstruction depends on `GatewayPayment` status + webhook transport + ledger.
 5. **High-impact admin/org actions have no audit event** (invite create, org members/ownership, platform finance settings, user_id assign, investor withdrawal request).
@@ -75,9 +94,9 @@ Legend: ✅ inspected · N/A none found · ⚠ leftover/unused
 | ADMIN INVITATIONS | ✅ | ✅ | ✅ | ✅ | N/A | SES | revoke only | Invitation rows |
 | ORGANIZATION | ✅ | ✅ | ✅ | ✅ issuer/investor | N/A | N/A | TNC_APPROVED only | Org pages |
 | ORGANIZATION MEMBERS | ✅ | ✅ | ✅ | ✅ | N/A | N/A | **none** | Members UI |
-| ONBOARDING | ✅ | ✅ | ✅ | ✅ admin/portals | N/A | RegTank | OnboardingLog | Org timeline + AuthService |
+| ONBOARDING | ✅ | ✅ | ✅ | ✅ admin/portals | N/A | RegTank | OnboardingAuditLog | Admin `/onboarding-logs` + org activity |
 | KYC / KYB / AML | ✅ | ✅ | ✅ | ✅ | CTOS retry | RegTank | mixed | Admin onboarding |
-| REGTANK | ✅ | ✅ | ✅ | admin refresh | N/A | 8+legacy+dev | OnboardingLog | Admin + SOT |
+| REGTANK | ✅ | ✅ | ✅ | admin refresh | N/A | 8+legacy+dev | OnboardingAuditLog | Admin + SOT |
 | CTOS | ✅ | ✅ | ✅ | ✅ admin | ctos-kyb-retry | N/A | SECTION_REVIEWED_PENDING only | Admin CTOS cards |
 | LEGAL DOCUMENTS | ✅ | ✅ | ✅ | ✅ admin | N/A | N/A | LegalAdminAuditLog | `/audit` legal tab + export |
 | LEGAL ACCEPTANCES | ✅ | ✅ | ✅ | ✅ all portals | N/A | N/A | SOT not audit table | Admin acceptances |
@@ -131,11 +150,11 @@ No User FK (scalar `user_id` / `actor_user_id` only). Required `metadata` Json. 
 Sole security/admin-control table. Distinguishes `actor_user_id` vs `subject_user_id`. No User / role / invitation / membership FKs.  
 **REMOVED:** `SecurityLog` / `security_logs`.
 
-#### OnboardingLog → `onboarding_logs` · ONBOARDING · **A** (also **C** because AuthService uses it as state)
+#### OnboardingAuditLog → `onboarding_audit_logs` · ONBOARDING · **A**
 
-Fields: `id`, `user_id`, `role`, `event_type`, `portal`, `ip_address`, `user_agent`, `device_info`, `device_type`, `metadata`, `created_at`, `organization_name`, `investor_organization_id`, `issuer_organization_id`.  
-FK User **Cascade**; org FKs optional.  
-**HIGH:** `AuthService` treats presence of events as workflow state.
+Sole onboarding/compliance history table. Append-only create. Required `metadata` Json. `occurred_at` + `created_at`. No `updated_at`. No User/org/RegTank FKs (scalar historical ids only).  
+Events: `ONBOARDING_STARTED`, `ONBOARDING_RESUMED`, `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `CTOS_REPORT_RECEIVED`, `CORPORATE_ENTITIES_UPDATED`, `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED`.  
+**REMOVED:** `OnboardingLog` / `onboarding_logs`. Audit is never workflow state.
 
 #### ApplicationLog → `application_logs` · APPLICATION · **A**
 
@@ -369,11 +388,11 @@ Middleware + Cognito admin gate: `ADMIN_ACCESS_DENIED`.
 
 Legacy `AuthRepository.createAccessLog` / `AdminRepository.createAccessLog` / `createSecurityLog` **removed**.
 
-### OnboardingLog
+### OnboardingAuditLog
 
-Writers: `AuthRepository.createOnboardingLog`, `AdminRepository.createOnboardingLog`, direct `prisma.onboardingLog.create` in `admin/service.ts`, `regtank/service.ts`, `organization/service.ts` (`TNC_APPROVED`), webhook handlers (individual, cod, eod, kyc, org-aml-milestone), `webhook-handler-dev.ts` (`USER_COMPLETED`, `WEBHOOK_*`).
+Writers: `writeOnboardingAuditLog` (`apps/api/src/modules/onboarding/audit/writer.ts`) only. Live callers include start/resume/restart/reset, status transitions, admin approvals, AML/SSM/sophisticated/CTOS/corporate-entities/director invitation+KYC, and legacy complete-onboarding (`ONBOARDING_COMPLETED`). TNC, guarantor AML, and fee capture do **not** write this table.
 
-Production final approval: **`FINAL_APPROVAL_COMPLETED`** (`AdminService.completeFinalApproval` ~4271). Comment says it replaces `USER_COMPLETED`. Current production code does **not** write `USER_COMPLETED`. `AuthService.cancelOnboarding` still **reads** `USER_COMPLETED`. Dev-only `webhook-handler-dev.ts` writes `USER_COMPLETED` (dev Prisma). Admin audit UI still **labels/filters** `USER_COMPLETED`.
+Production final approval writes **`ONBOARDING_FINAL_APPROVAL_COMPLETED`**. `AuthService.cancelOnboarding` does **not** read audit as state. Legacy `OnboardingLog` writers/readers **removed**. Admin `GET /v1/admin/onboarding-logs` reads `OnboardingAuditLog`.
 
 ### ApplicationLog
 
@@ -421,9 +440,8 @@ Created on ingest; **`updateMany` processed_at/error** in `webhook-service.ts`.
 | access_audit_logs | `accessAuditLogReader.findRecentLogins` via `AuthService.getCurrentUser` `GET /v1/auth/me` | Account “recent logins” | `event_type=USER_LOGGED_IN`, last 3 | MEDIUM |
 | access_audit_logs | `accessAuditLogReader.countForUser` | Admin user page `stats.accessLogs` | count only | LOW |
 | security_audit_logs | `GET /v1/admin/security-logs` (+ export) | Admin UI `/audit` security | all live Security events | MEDIUM |
-| onboarding_logs | `GET` org timeline via `OrganizationLogAdapter` | Activity feeds issuer/investor/admin org | **only 5 types**: ONBOARDING_STARTED, CANCELLED, REJECTED, FINAL_APPROVAL_COMPLETED, ONBOARDING_APPROVED | MEDIUM |
-| onboarding_logs | `AuthService` findFirst ONBOARDING_STARTED / **USER_COMPLETED** | **Business logic** cancel-onboarding | event_type exact | **HIGH** |
-| onboarding_logs | Admin list/detail repository | Admin onboarding | | MEDIUM |
+| onboarding_audit_logs | `GET` org timeline via `OrganizationLogAdapter` | Activity feeds issuer/investor/admin org | curated: STARTED, RESUMED, RESTARTED, REJECTED, APPROVED, FINAL_APPROVAL_COMPLETED, COMPLETED; scoped by `organization_id` / `subject_user_id` | MEDIUM |
+| onboarding_audit_logs | Admin `listOnboardingLogs` / `getOnboardingLogById` / `exportOnboardingLogs` | Admin `/audit` onboarding | Phase 5 event catalogue | MEDIUM |
 | application_logs | `GET /v1/applications/:id/logs` `ApplicationService` | Issuer/admin application timeline | all types for app | MEDIUM |
 | application_logs | `ApplicationLogAdapter` `GET /v1/activities` | Activity feeds | **curated subset**; includes never-written APPLICATION_APPROVED and CONTRACT_OFFER_REJECTED; omits SECTION_REVIEWED_* and most signing | MEDIUM |
 | application_logs | `AdminService.getResubmitComparisonSnapshots` findFirst APPLICATION_RESUBMITTED | **Business/UI compare** parses `metadata.amendment_remarks` | HIGH |
@@ -459,11 +477,11 @@ Do not treat this as a target schema. Names are as written.
 
 Retired with `AccessLog`/`SecurityLog`: `LOGIN`, `SIGNUP`, `LOGOUT`, `ROLE_SWITCHED`, `ROLE_ADDED`, `ROLE_REMOVED`, `PROFILE_UPDATED`, `EMAIL_CHANGED` (verification was misnamed).
 
-### Onboarding (free strings)
+### Onboarding (`OnboardingAuditLog`)
 
-Written: `ONBOARDING_STARTED`, `ONBOARDING_RESUMED`, `ONBOARDING_CANCELLED`, `ONBOARDING_REJECTED`, `ONBOARDING_APPROVED`, `ONBOARDING_STATUS_UPDATED`, `ONBOARDING_RESET`, `TNC_APPROVED`, `AML_APPROVED`, `SSM_APPROVED`, `SOPHISTICATED_STATUS_UPDATED`, `FINAL_APPROVAL_COMPLETED`, `FORM_FILLED`, `COD_REJECTED`, `EOD_APPROVED`, `EOD_REJECTED`, `EOD_WEBHOOK`, `WEBHOOK_*` (dev/service).  
-Seed/test: `TNC_ACCEPTED`, `KYC_APPROVED`, `KYC_SUBMITTED`. `USER_COMPLETED` is a production **reader** + admin UI label + **dev-only writer**, not a current production writer. `ONBOARDING_COMPLETED` is test/docs/legacy ActivityType enum only.  
-Activity UI only shows 5 of these.
+Written: `ONBOARDING_STARTED`, `ONBOARDING_RESUMED`, `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `CTOS_REPORT_RECEIVED`, `CORPORATE_ENTITIES_UPDATED`, `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED`.  
+Retired with `OnboardingLog`: `ONBOARDING_CANCELLED`, `WEBHOOK_*`, `FORM_FILLED`, `EOD_WEBHOOK`, `USER_COMPLETED`, `TNC_APPROVED`, `TNC_ACCEPTED`, `COD_REJECTED`, generic `ONBOARDING_STATUS_UPDATED`.  
+Activity UI curated subset: STARTED, RESUMED, RESTARTED, REJECTED, APPROVED, FINAL_APPROVAL_COMPLETED, COMPLETED.
 
 ### Application (`ApplicationLogEventType` in `applications/logs/types.ts`)
 
@@ -767,7 +785,7 @@ Keep specialized SOT even if audit events are added later.
 | GatewayReconRun/Exception | **KEEP AS SOURCE OF TRUTH** (ops) |
 | LegalAdminAuditLog | **KEEP AS SPECIALIZED HISTORY** (admin legal-document mutations; not a canonical AuditEvent) |
 | AccessLog / SecurityLog | **REMOVED** — replaced by `AccessAuditLog` + `SecurityAuditLog` (two physical tables; no canonical AuditEvent) |
-| OnboardingLog | **CANDIDATE TO REPLACE** but **HIGH** AuthService + activity readers |
+| OnboardingLog | **REMOVED** — replaced by `OnboardingAuditLog` (`onboarding_audit_logs`) |
 | ApplicationLog | **CANDIDATE TO REPLACE** but HIGH resubmit-comparison + timelines |
 | ApplicationReviewEvent | **LEGACY / VERIFY REMOVAL** (no readers) |
 | NoteEvent | **CANDIDATE TO REPLACE** with activity/admin readers |
@@ -795,7 +813,7 @@ Keep specialized SOT even if audit events are added later.
 | GatewayPaymentEvent | payment modules | payment detail; `getOpenOverrideProposal` **never called** | admin payments (labels include OVERRIDE_*) | no | no live override logic | no | many payment tests | HIGH | 5 with payments | NO until capture events exist |
 | AccessLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `AccessAuditLog` is live |
 | SecurityLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `SecurityAuditLog` is live |
-| OnboardingLog | many + webhooks | activity (5 types) + **AuthService** + admin | org timeline | no | **YES cancel** | no | many | **HIGH** | 7 after AuthService decoupled | NO until logic moved |
+| OnboardingLog | **removed** | n/a | n/a | n/a | n/a | n/a | n/a | — | done | table dropped; `OnboardingAuditLog` is live |
 | ApplicationLog | many | GET logs, activity, **resubmit comparison**, issuer timeline | yes | no | **YES metadata.amendment_remarks** | no | many | **HIGH** | 8 | NO |
 | NoteEvent | notes/shoraka/jobs | admin events + activity subset | yes | no | no | no | note tests | HIGH | 9 | NO |
 
@@ -812,7 +830,7 @@ Do not design final schema here. Sequence by dependency/risk:
 3. **Payment capture gap** must be understood before touching GatewayPaymentEvent (accounting SOT stays).
 4. **Legal acceptances stay** as evidence; legal admin log can migrate later with `/audit` + export.
 5. **Access/Security** after audit UI + CSV exporters have a dual-read period.
-6. **OnboardingLog** after AuthService + activity adapter (only 5 types) migrated.
+6. **OnboardingLog** replaced by append-only `OnboardingAuditLog`; `onboarding_logs` dropped. AuthService no longer reads logs as state.
 7. **ApplicationLog** last among app tables (timelines + comparison).
 8. **NoteEvent** after admin note page + activity subset.
 9. **ProductLog** replaced by append-only `ProductAuditLog`; `product_logs` dropped.
@@ -854,11 +872,9 @@ Sections that need correction: §2 coverage, §3 leftover table, §15 LOW findin
 
 Original statement: §7 listed `USER_COMPLETED` with seed/test events.
 
-Correct statement: Current production **writer** of final approval is `FINAL_APPROVAL_COMPLETED`. `AuthService.cancelOnboarding` **reads** `USER_COMPLETED`. Admin access-log UI still labels/filters it. Dev webhook handler writes it to **dev** Prisma. Seed may write `FINAL_APPROVAL_COMPLETED` with metadata `trigger: "USER_COMPLETED"` (metadata, not event_type). `ONBOARDING_COMPLETED` is test/docs/legacy ActivityType only.
+Correct statement (after Phase 5 cleanup): `OnboardingLog` / `onboarding_logs` **removed**. Live final approval writes `ONBOARDING_FINAL_APPROVAL_COMPLETED`. Legacy complete-onboarding writes `ONBOARDING_COMPLETED`. `AuthService.cancelOnboarding` does **not** read audit as state. `USER_COMPLETED` is retired.
 
-Evidence: `admin/service.ts` ~4271; `auth/service.ts` ~410; `webhook-handler-dev.ts` ~492; `activity/adapters.test.ts`.
-
-Sections that need correction: §7 catalogue, §15 LOW TEST/SEED. **Corrected.**
+Evidence: `onboarding/audit/writer.ts`; `admin/service.ts` completeFinalApproval; `auth/service.ts` cancelOnboarding; drop migration `20260813280000_drop_onboarding_logs`.
 
 ### C5 — KYT “UNRESOLVED business impact”
 
@@ -1169,27 +1185,18 @@ Not readers: `getDashboardStats` / `useDashboardStats`.
 
 ### Item 8 — USER_COMPLETED vs FINAL_APPROVAL_COMPLETED
 
-**EXTERNAL VERIFICATION REQUIRED — whether production `onboarding_logs` still contain `USER_COMPLETED` rows requires a database sample.**
+**RESOLVED in code.** `OnboardingLog` / `onboarding_logs` dropped. Live final approval writes `ONBOARDING_FINAL_APPROVAL_COMPLETED`. Legacy complete-onboarding writes `ONBOARDING_COMPLETED`. `AuthService.cancelOnboarding` no longer reads audit as state. Historical `USER_COMPLETED` rows (if any) were in the dropped table.
 
 CURRENT CODE FACT:
 
 | Occurrence | Classification |
 |---|---|
-| `AdminService.completeFinalApproval` writes `FINAL_APPROVAL_COMPLETED` | production writer |
-| `AuthService.cancelOnboarding` finds `USER_COMPLETED` | production reader |
-| `AuthService.completeOnboarding` / org `completeOnboarding` | production writers of **status**, **not** of USER_COMPLETED (explicitly removed) |
-| `webhook-handler-dev.ts` `USER_COMPLETED` | **dev-only** writer (dev Prisma) |
-| Admin access-log table/dialog/toolbar; org activity timeline labels | UI |
-| `packages/types` admin event unions; swagger enum | type/constant |
-| `activity/adapters.test.ts` `ONBOARDING_COMPLETED` | test |
-| Old ActivityType enum / regtank docs `ONBOARDING_COMPLETED` | type/docs; **not** a current OnboardingLog writer |
+| `AdminService.completeFinalApproval` writes `ONBOARDING_FINAL_APPROVAL_COMPLETED` | production writer |
+| `AuthService.cancelOnboarding` | reads org/RegTank SOT only; no-op workflow action |
+| org `completeOnboarding` | production writer of `ONBOARDING_COMPLETED` (legacy route) |
+| `OnboardingLog` / `USER_COMPLETED` | **removed** |
 
-- Current production final approval writes: **`FINAL_APPROVAL_COMPLETED`**.
-- AuthService currently reads: **`USER_COMPLETED`** (plus `ONBOARDING_STARTED`).
-- Could current production code create `USER_COMPLETED`? **Not via admin final approval or portal complete-onboarding.** Only `RegTankDevWebhookHandler` writing to **dev** DB if `/regtank/dev*` is hit.
-- HISTORICAL POSSIBILITY: comments and leftover UI/types imply older production writers existed. Git-visible current tree still contains those comments; this pass did not reconstruct deleted historical files beyond what remains in the repo.
-
-REQUIRES DB DATA CHECK: `onboarding_logs.event_type IN ('USER_COMPLETED','FINAL_APPROVAL_COMPLETED','ONBOARDING_COMPLETED')`.
+- Could current production code create `USER_COMPLETED`? **No.**
 
 ### Item 9 — complete-onboarding reachability
 

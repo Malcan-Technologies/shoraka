@@ -23,12 +23,6 @@ jest.mock("../../organization/repository", () => ({
   })),
 }));
 
-jest.mock("../../auth/repository", () => ({
-  AuthRepository: jest.fn().mockImplementation(() => ({
-    createOnboardingLog: jest.fn(),
-  })),
-}));
-
 jest.mock("../aml-identity-repository", () => ({
   AmlIdentityRepository: jest.fn().mockImplementation(() => ({})),
 }));

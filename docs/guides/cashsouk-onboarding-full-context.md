@@ -460,9 +460,13 @@ Incomplete onboarding steps (`terms`, `fee`, `verify`) redirect off `/` to the m
 
 ---
 
-## 18. `OnboardingLog`
+## 18. `OnboardingAuditLog`
 
-**Model:** `onboarding_logs` in `schema.prisma`. Written from **`AuthRepository.createOnboardingLog`**, **`prisma.onboardingLog.create`** in AML milestone, admin flows, webhooks — event types include `ONBOARDING_STATUS_UPDATED`, `SSM_APPROVED`, `AML_APPROVED`, `ONBOARDING_APPROVED`, `FINAL_APPROVAL_COMPLETED`, `TNC_APPROVED`, etc.
+**Model:** `onboarding_audit_logs` in `schema.prisma`. Sole onboarding/compliance history table. Written only via **`writeOnboardingAuditLog`**. Organization `onboarding_status`/flags remain workflow SOT; `RegTankOnboarding` remains provider-session SOT; `LegalDocumentAcceptance` remains legal acceptance SOT; CTOS rows remain report SOT. Audit is never workflow state.
+
+**REMOVED:** `OnboardingLog` / `onboarding_logs`.
+
+Known limitations (not fixed here): `retryOnboarding` can persist a new provider session without `ONBOARDING_RESTARTED`; company auto-regenerate may label a stale/cancelled session as `EXPIRED_SESSION`; CTOS audit may have `actorUserId: null`; legacy complete-onboarding routes still emit `ONBOARDING_COMPLETED`; user cancel remains a no-op workflow action.
 
 ---
 

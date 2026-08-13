@@ -155,9 +155,11 @@ describe("Onboarding audit cutover", () => {
     expect(SECURITY_AUDIT_EVENTS).not.toContain("AML_APPROVED");
   });
 
-  it("old OnboardingLog model remains in schema for cleanup", () => {
-    expect(schema).toMatch(/model OnboardingLog/);
-    expect(schema).toMatch(/@@map\("onboarding_logs"\)/);
+  it("OnboardingLog Prisma model and onboarding_logs table mapping are removed", () => {
+    expect(schema).not.toMatch(/model OnboardingLog/);
+    expect(schema).not.toMatch(/@@map\("onboarding_logs"\)/);
+    expect(schema).toMatch(/model OnboardingAuditLog/);
+    expect(schema).toMatch(/@@map\("onboarding_audit_logs"\)/);
   });
 
   it("writes the approved event catalogue from live modules", () => {

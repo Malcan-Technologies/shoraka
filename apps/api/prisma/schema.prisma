@@ -33,7 +33,6 @@ model User {
   issuer_organizations             IssuerOrganization[]
   loans                            Loan[]
   notifications                    Notification[]
-  onboarding_logs                  OnboardingLog[]
   organization_memberships         OrganizationMember[]
   regtank_onboarding               RegTankOnboarding[]
   triggered_application_guarantors ApplicationGuarantor[]           @relation("ApplicationGuarantorTriggeredBy")
@@ -182,37 +181,6 @@ model AdminInvitation {
   @@map("admin_invitations")
 }
 
-model OnboardingLog {
-  id                       String                @id @default(cuid())
-  user_id                  String
-  role                     UserRole
-  event_type               String
-  portal                   String?
-  ip_address               String?
-  user_agent               String?
-  device_info              String?
-  device_type              String?
-  metadata                 Json?
-  created_at               DateTime              @default(now())
-  organization_name        String?
-  investor_organization_id String?
-  issuer_organization_id   String?
-  investor_organization    InvestorOrganization? @relation(fields: [investor_organization_id], references: [id])
-  issuer_organization      IssuerOrganization?   @relation(fields: [issuer_organization_id], references: [id])
-  user                     User                  @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
-
-  @@index([user_id])
-  @@index([role])
-  @@index([event_type])
-  @@index([portal])
-  @@index([created_at])
-  @@index([user_id, created_at])
-  @@index([organization_name])
-  @@index([investor_organization_id])
-  @@index([issuer_organization_id])
-  @@map("onboarding_logs")
-}
-
 model InvestorOrganization {
   id                            String                           @id @default(cuid())
   owner_user_id                 String
@@ -260,7 +228,6 @@ model InvestorOrganization {
   display_reference             String?                          @unique
   invitations                   InvestorOrganizationInvitation[]
   owner                         User                             @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
-  onboarding_logs               OnboardingLog[]
   members                       OrganizationMember[]
   regtank_onboarding            RegTankOnboarding[]              @relation("RegTankOnboardingToInvestorOrg")
   ctos_reports                  CtosReport[]
@@ -323,7 +290,6 @@ model IssuerOrganization {
   contracts                    Contract[]
   invitations                  IssuerOrganizationInvitation[]
   owner                        User                           @relation(fields: [owner_user_id], references: [user_id], onDelete: Cascade)
-  onboarding_logs              OnboardingLog[]
   members                      OrganizationMember[]
   regtank_onboarding           RegTankOnboarding[]            @relation("RegTankOnboardingToIssuerOrg")
   ctos_reports                 CtosReport[]

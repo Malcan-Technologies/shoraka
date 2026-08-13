@@ -7,11 +7,9 @@ jest.mock("../repository", () => ({
   })),
 }));
 
-const mockCreateOnboardingLog = jest.fn();
-jest.mock("../../auth/repository", () => ({
-  AuthRepository: jest.fn().mockImplementation(() => ({
-    createOnboardingLog: (...args: unknown[]) => mockCreateOnboardingLog(...args),
-  })),
+const mockWriteOnboardingAuditLog = jest.fn();
+jest.mock("../../onboarding/audit/writer", () => ({
+  writeOnboardingAuditLog: (...args: unknown[]) => mockWriteOnboardingAuditLog(...args),
 }));
 
 const mockFindInvestorOrganizationById = jest.fn();
@@ -83,7 +81,7 @@ describe("EODWebhookHandler", () => {
 
     expect(mockAppendWebhookPayload).toHaveBeenCalledTimes(1);
     expect(mockAppendWebhookPayload).toHaveBeenCalledWith("COD001", expect.objectContaining({ requestId: "EOD001" }));
-    expect(mockCreateOnboardingLog).not.toHaveBeenCalled();
+    expect(mockWriteOnboardingAuditLog).not.toHaveBeenCalled();
     expect(mockFindInvestorOrganizationById).not.toHaveBeenCalled();
   });
 });

@@ -424,8 +424,8 @@ Initiates personal (individual) onboarding for an organization.
    - **Note:** Since Personal Account onboarding is only available in Investor portal, there's no risk of duplicate `request_id` across portals, so we use `createOnboarding()` instead of upsert logic
 
 8. **Logging:**
-   - Creates `OnboardingLog` entry with event_type "ONBOARDING_STARTED"
-   - Includes request metadata (IP, user agent, device info)
+   - Creates an `OnboardingAuditLog` entry with event_type "ONBOARDING_STARTED"
+   - Includes request metadata (IP, user agent)
 
 **Returns:**
 - `verifyLink` - URL to redirect user to RegTank
@@ -456,7 +456,7 @@ Processes webhook updates from RegTank.
    - Updates organization: `onboarding_status = COMPLETED`
    - Updates `onboarded_at` timestamp
    - Updates user's account array (replaces "temp" with organizationId)
-   - Creates `OnboardingLog` entry with event_type "ONBOARDING_COMPLETED"
+   - Creates an `OnboardingAuditLog` entry with event_type "ONBOARDING_COMPLETED" on the legacy complete-onboarding path
    - Error handling: Logs warnings if organization not found, continues with user updates
 
 **Important Notes:**
@@ -749,7 +749,7 @@ When an admin restarts an onboarding, the system:
 3. Marks the old database record as CANCELLED
 4. Creates a new database record with the new requestId
 5. Resets the organization's onboarding_status to PENDING
-6. Logs the action in onboarding_logs
+6. Logs the action in `onboarding_audit_logs` (`ONBOARDING_RESTARTED`)
 
 **Response Fields:**
 The `OnboardingApplicationResponse` includes `regtankPortalUrl` which provides a direct link to the onboarding record in RegTank admin portal (e.g., `https://shoraka-trial.regtank.com/app/liveness/LD00001?archived=false`).
