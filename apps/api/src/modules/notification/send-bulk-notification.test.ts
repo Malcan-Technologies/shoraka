@@ -13,7 +13,6 @@ jest.mock("../../lib/prisma", () => ({
   prisma: {
     user: { findUnique: jest.fn(), findMany: jest.fn() },
     notification: { update: jest.fn() },
-    notificationLog: { create: jest.fn() },
     notificationBroadcastAuditLog: {
       create: jest.fn(),
       update: jest.fn(),
@@ -143,7 +142,6 @@ describe("NotificationService.sendBulkNotification", () => {
         }),
       })
     );
-    expect(prisma.notificationLog.create).not.toHaveBeenCalled();
   });
 
   it("counts create exceptions as failedCount and still writes PROCESSED", async () => {
@@ -231,5 +229,38 @@ describe("NotificationService.sendBulkNotification", () => {
     });
     expect(mockRepositoryCreate).not.toHaveBeenCalled();
     expect(mockWriteAudit).toHaveBeenCalledTimes(1);
+  });
+
+  it("writes PROCESSED when every recipient create fails", async () => {
+    (prisma.user.findMany as jest.Mock).mockResolvedValue([{ user_id: "u1" }, { user_id: "u2" }]);
+    mockRepositoryCreate.mockRejectedValue(new Error("db down"));
+
+    const service = new NotificationService();
+    const result = await service.sendBulkNotification(context, {
+      targetType: "ALL_USERS",
+      typeId: "system_announcement",
+      title: "Hello",
+      message: "World",
+      sendToPlatform: true,
+      sendToEmail: false,
+    });
+
+    expect(result).toEqual({
+      targetedCount: 2,
+      createdCount: 0,
+      skippedCount: 0,
+      failedCount: 2,
+    });
+    expect(mockWriteAudit).toHaveBeenCalledTimes(1);
+    expect(mockWriteAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "NOTIFICATION_BROADCAST_PROCESSED",
+        metadata: expect.objectContaining({
+          targetedCount: 2,
+          createdCount: 0,
+          failedCount: 2,
+        }),
+      })
+    );
   });
 });

@@ -125,4 +125,30 @@ describe("NotificationBroadcastAuditLog append-only source", () => {
     expect(sources).not.toMatch(/notificationBroadcastAuditLog\.(update|delete|deleteMany|upsert)\s*\(/);
     expect(sources).not.toMatch(/prisma\.notificationLog\.(create|update|delete|findMany|count)\s*\(/);
   });
+
+  it("only sendBulkNotification writes broadcast audit; cleanup and config mutations do not", () => {
+    const service = fs.readFileSync(path.join(__dirname, "..", "service.ts"), "utf8");
+    const writerCalls = service.match(/writeNotificationBroadcastProcessedAudit/g) ?? [];
+    expect(writerCalls).toHaveLength(2);
+
+    const afterSend = service.slice(service.indexOf("async sendBulkNotification"));
+    expect(afterSend).toMatch(/writeNotificationBroadcastProcessedAudit/);
+
+    const cleanup = service.slice(service.indexOf("async runCleanup"));
+    expect(cleanup).not.toMatch(/writeNotificationBroadcastProcessedAudit/);
+    expect(cleanup).not.toMatch(/notificationBroadcastAuditLog/);
+
+    for (const method of [
+      "updateNotificationType",
+      "updateUserPreference",
+      "createNotificationGroup",
+      "updateNotificationGroup",
+      "deleteNotificationGroup",
+    ]) {
+      const start = service.indexOf(`async ${method}`);
+      expect(start).toBeGreaterThan(-1);
+      const chunk = service.slice(start, start + 400);
+      expect(chunk).not.toMatch(/writeNotificationBroadcastProcessedAudit/);
+    }
+  });
 });

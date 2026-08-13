@@ -4,7 +4,7 @@ Append-only admin audit for bulk notification broadcasts. This is the live write
 
 Reader: `GET /v1/notifications/admin/logs` (table: `notification_broadcast_audit_logs`). No export in this phase.
 
-The legacy `NotificationLog` model and `notification_logs` table remain in schema but have **no live writer or reader**. There is no historical backfill.
+The legacy `NotificationLog` model and `notification_logs` table have been **removed**. There is no backfill. `NotificationBroadcastAuditLog` is the sole admin broadcast history.
 
 Per-user inbox/delivery stays in `Notification`. Type/group/preference configuration is not audited here (future SecurityAuditLog).
 

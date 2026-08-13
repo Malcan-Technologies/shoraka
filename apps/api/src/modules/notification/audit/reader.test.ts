@@ -105,4 +105,33 @@ describe("NotificationBroadcastAuditLogReader", () => {
       })
     );
   });
+
+  it("searches actor snapshots and matching actor_user_id values", async () => {
+    mockPrisma.user.findMany.mockResolvedValue([{ user_id: "admin_1" }]);
+    mockPrisma.notificationBroadcastAuditLog.findMany.mockResolvedValue([]);
+    mockPrisma.notificationBroadcastAuditLog.count.mockResolvedValue(0);
+
+    await reader.list({
+      limit: 20,
+      offset: 0,
+      search: "Ada",
+    });
+
+    expect(mockPrisma.user.findMany).toHaveBeenCalled();
+    expect(mockPrisma.notificationBroadcastAuditLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: [
+            {
+              OR: expect.arrayContaining([
+                { metadata: { path: ["actorName"], string_contains: "Ada" } },
+                { metadata: { path: ["actorEmail"], string_contains: "Ada" } },
+                { actor_user_id: { in: ["admin_1"] } },
+              ]),
+            },
+          ],
+        }),
+      })
+    );
+  });
 });

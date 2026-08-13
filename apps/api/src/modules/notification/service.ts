@@ -531,7 +531,7 @@ export class NotificationService {
 
   /**
    * Cleanup task. Deletes expired/old Notification inbox rows only.
-   * Must never delete NotificationBroadcastAuditLog (or legacy NotificationLog).
+   * Must never delete NotificationBroadcastAuditLog.
    */
   async runCleanup() {
     logger.info("Running notification cleanup...");

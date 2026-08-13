@@ -33,7 +33,6 @@ model User {
   sent_issuer_org_invitations      IssuerOrganizationInvitation[]   @relation("SentIssuerOrgInvitations")
   issuer_organizations             IssuerOrganization[]
   loans                            Loan[]
-  admin_notification_logs          NotificationLog[]                @relation("AdminNotificationLogs")
   notifications                    Notification[]
   onboarding_logs                  OnboardingLog[]
   organization_memberships         OrganizationMember[]
@@ -1856,7 +1855,6 @@ model NotificationType {
   retention_days    Int?
   created_at        DateTime                     @default(now())
   updated_at        DateTime                     @updatedAt
-  notification_logs NotificationLog[]
   notifications     Notification[]
   user_preferences  UserNotificationPreference[]
 
@@ -1917,28 +1915,6 @@ model NotificationGroup {
   updated_at  DateTime @updatedAt
 
   @@map("notification_groups")
-}
-
-model NotificationLog {
-  id                   String           @id @default(cuid())
-  admin_user_id        String
-  target_type          String
-  target_group_id      String?
-  notification_type_id String
-  title                String
-  message              String
-  recipient_count      Int
-  metadata             Json?
-  ip_address           String?
-  user_agent           String?
-  device_info          String?
-  created_at           DateTime         @default(now())
-  admin                User             @relation("AdminNotificationLogs", fields: [admin_user_id], references: [user_id])
-  notification_type    NotificationType @relation(fields: [notification_type_id], references: [id])
-
-  @@index([admin_user_id])
-  @@index([created_at])
-  @@map("notification_logs")
 }
 
 /// Append-only admin notification broadcast audit. No User, Notification, or
