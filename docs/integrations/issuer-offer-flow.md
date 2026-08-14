@@ -114,12 +114,13 @@ Signers complete the flow at `/signing/external/[token]`:
 
 1. IC access code (directors: must match IC bound at send; guarantors: self-declare on the link)
 2. Per-recipient MyKad eKYC when the role requires it
-3. SigningCloud signing for assigned documents (API attaches `callUrl` from `API_PUBLIC_URL` or `API_URL`)
-4. On browser return (`backUrl`): page calls `POST /v1/signing/external/:token/confirm-signed` → API syncs from SigningCloud **Get Document Detail**, then trusts the return for that recipient if Detail still shows them pending
-5. On normal revisit of the signing link: page calls `POST /v1/signing/external/:token/sync-from-provider` (Detail sync without trust-return)
-6. Issuer **Refresh** calls `POST /v1/signing/envelopes/:id/sync-from-provider` (same Detail sync) before refetching envelopes
-7. SigningCloud webhook (when it arrives) runs the same Detail sync path (stores signed PDF when the document is complete)
-8. Continue if more docs remain for that recipient; envelope COMPLETED / VOIDED / DECLINED / EXPIRED → closed package page
+3. **Guarantors only:** review the published Guarantor Warning Statement PDF and accept it (open-before-accept, same checklist pattern as onboarding). Evidence is stored on `LegalExternalAcceptance` (`source_type = SIGNING_RECIPIENT`), not on org-owner `LegalDocumentAcceptance`. Until legal publishes that PDF in Admin → Legal Documents (`audience: GUARANTOR`, `required_for_onboarding: false`), the signing page shows an empty state and `start-signing` returns `LEGAL_DOCUMENT_UNAVAILABLE`.
+4. SigningCloud signing for assigned documents (API attaches `callUrl` from `API_PUBLIC_URL` or `API_URL`)
+5. On browser return (`backUrl`): page calls `POST /v1/signing/external/:token/confirm-signed` → API syncs from SigningCloud **Get Document Detail**, then trusts the return for that recipient if Detail still shows them pending
+6. On normal revisit of the signing link: page calls `POST /v1/signing/external/:token/sync-from-provider` (Detail sync without trust-return)
+7. Issuer **Refresh** calls `POST /v1/signing/envelopes/:id/sync-from-provider` (same Detail sync) before refetching envelopes
+8. SigningCloud webhook (when it arrives) runs the same Detail sync path (stores signed PDF when the document is complete)
+9. Continue if more docs remain for that recipient; envelope COMPLETED / VOIDED / DECLINED / EXPIRED → closed package page
 
 **Status source of truth:** our DB **assignment** statuses (not document status). Document stays `PENDING` until every required signer on that document is `SIGNED`. Updated from SigningCloud Detail (`signstate`: 0 pending / 1 signed / 2 rejected) on return, revisit, Refresh, and webhook. Webhook alone is not required for progress.
 

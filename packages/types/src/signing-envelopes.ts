@@ -824,6 +824,8 @@ export interface SigningRecipientDto {
   completed_at: string | null;
   /** Present for issuer/admin views after send — tracks invitation email delivery. */
   email_delivery_status?: "sent" | "failed" | null;
+  /** Guarantors only: when they accepted the current published warning statement. */
+  warning_accepted_at?: string | null;
 }
 
 export interface SigningEnvelopeDto {
@@ -841,6 +843,16 @@ export interface SigningEnvelopeDto {
   assignments: SigningAssignmentDto[];
 }
 
+export type ExternalSigningWarningStatus = "not_opened" | "opened" | "accepted";
+
+export interface ExternalSigningWarningDto {
+  required: boolean;
+  status: ExternalSigningWarningStatus;
+  legal_document_version_id: string | null;
+  title: string;
+  checkbox_wording: string;
+}
+
 export interface ExternalSigningSessionDto {
   envelope: SigningEnvelopeDto;
   recipient_id: string;
@@ -851,6 +863,8 @@ export interface ExternalSigningSessionDto {
   kyc_status: SigningKycStatus;
   /** True when the envelope is COMPLETED / VOIDED / DECLINED / EXPIRED (read-only terminal). */
   package_closed?: boolean;
+  /** Guarantors only. Null for directors. */
+  warning?: ExternalSigningWarningDto | null;
 }
 
 export interface VerifyExternalAccessCodeInput {

@@ -2440,6 +2440,26 @@ export class ApiClient {
     );
   }
 
+  /** External no-auth guarantor: open the published warning PDF (records OPENED). */
+  async openExternalSigningWarning(
+    accessToken: string
+  ): Promise<ApiResponse<{ viewUrl: string; expiresIn: number }> | ApiError> {
+    return this.post<{ viewUrl: string; expiresIn: number }>(
+      `/v1/signing/external/${accessToken}/warning/open`,
+      {}
+    );
+  }
+
+  /** External no-auth guarantor: accept the warning after opening it. */
+  async acceptExternalSigningWarning(
+    accessToken: string
+  ): Promise<ApiResponse<ExternalSigningSessionDto> | ApiError> {
+    return this.post<ExternalSigningSessionDto>(
+      `/v1/signing/external/${accessToken}/warning/accept`,
+      {}
+    );
+  }
+
   /** External no-auth recipient: confirm signing after SigningCloud return (no token in URL). */
   async confirmSigningReturnSession(
     returnSessionId: string

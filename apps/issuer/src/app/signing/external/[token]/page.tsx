@@ -26,6 +26,7 @@ import {
   IdentificationIcon,
   ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
+import { LegalDocumentChecklistRows } from "@cashsouk/ui";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const ISSUER_ORIGIN =
@@ -37,7 +38,7 @@ function pendingConfirmStorageKey(returnSessionId: string): string {
   return `signing:pendingConfirm:${returnSessionId}`;
 }
 
-type Step = "access-code" | "ekyc" | "sign" | "done" | "closed";
+type Step = "access-code" | "ekyc" | "warning" | "sign" | "done" | "closed";
 
 function getErrorMessage(response: unknown, fallback: string): string {
   if (
@@ -88,6 +89,8 @@ export default function ExternalSigningPage() {
     documentId: string;
     documentName: string;
   } | null>(null);
+  const [warningChecked, setWarningChecked] = React.useState(false);
+  const [warningOpening, setWarningOpening] = React.useState(false);
   const returnHandledRef = React.useRef(false);
   const ekycStartAttemptedRef = React.useRef(false);
   const ekycStartFailuresRef = React.useRef(0);
@@ -114,6 +117,12 @@ export default function ExternalSigningPage() {
 
       if (data.kyc_required && data.kyc_status !== "VERIFIED") {
         setStep("ekyc");
+        return;
+      }
+
+      if (data.warning?.required && data.warning.status !== "accepted") {
+        if (data.warning.status === "not_opened") setWarningChecked(false);
+        setStep("warning");
         return;
       }
 
@@ -319,6 +328,47 @@ export default function ExternalSigningPage() {
     return () => window.clearInterval(interval);
   }, [apiClient, applySession, ekycCaptureUrl, fetchSession, step]);
 
+  const warning = session?.warning ?? null;
+  const warningOpened = warning?.status === "opened" || warning?.status === "accepted";
+  const warningPublished = Boolean(warning?.legal_document_version_id);
+
+  const openWarning = async () => {
+    setWarningOpening(true);
+    setError(null);
+    try {
+      const response = await apiClient.openExternalSigningWarning(token);
+      if (!response.success) {
+        setError(getErrorMessage(response, "Could not open the warning statement."));
+        return;
+      }
+      const data = await fetchSession();
+      if (data) applySession(data);
+      window.open(response.data.viewUrl, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not open the warning statement.");
+    } finally {
+      setWarningOpening(false);
+    }
+  };
+
+  const acceptWarning = async () => {
+    if (!warningChecked) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      const response = await apiClient.acceptExternalSigningWarning(token);
+      if (!response.success) {
+        setError(getErrorMessage(response, "Could not accept the warning statement."));
+        return;
+      }
+      applySession(response.data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not accept the warning statement.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const startSigning = async () => {
     if (!pendingAssignment) return;
     setIsSubmitting(true);
@@ -369,6 +419,8 @@ export default function ExternalSigningPage() {
       <IdentificationIcon className="h-6 w-6 text-primary" />
     ) : step === "ekyc" ? (
       <ShieldCheckIcon className="h-6 w-6 text-primary" />
+    ) : step === "warning" ? (
+      <DocumentTextIcon className="h-6 w-6 text-primary" />
     ) : step === "done" || step === "closed" ? (
       <CheckCircleIcon className="h-6 w-6 text-primary" />
     ) : (
@@ -380,13 +432,15 @@ export default function ExternalSigningPage() {
       ? "Verify your identity"
       : step === "ekyc"
         ? "Identity verification"
-        : step === "closed"
-          ? "Signing package closed"
-          : step === "done"
-            ? "You've signed"
-            : pendingAssignment
-              ? "Ready to sign"
-              : "Signing complete";
+        : step === "warning"
+          ? "Warning statement"
+          : step === "closed"
+            ? "Signing package closed"
+            : step === "done"
+              ? "You've signed"
+              : pendingAssignment
+                ? "Ready to sign"
+                : "Signing complete";
 
   const stepDescription =
     step === "access-code"
@@ -395,15 +449,17 @@ export default function ExternalSigningPage() {
         : "Enter your MyKad number to verify your identity before signing."
       : step === "ekyc"
         ? "Scan the QR code with your phone to complete MyKad verification."
-        : step === "closed"
-          ? "This signing package is complete or no longer available."
-          : step === "done"
-            ? justSigned
-              ? `${justSigned.documentName} has been signed.`
-              : "There are no pending documents for you to sign."
-            : recipient
-              ? `You are signing as ${recipient.name} (${recipient.email}).`
-              : "Secure signing link";
+        : step === "warning"
+          ? "Review the warning statement before you sign."
+          : step === "closed"
+            ? "This signing package is complete or no longer available."
+            : step === "done"
+              ? justSigned
+                ? `${justSigned.documentName} has been signed.`
+                : "There are no pending documents for you to sign."
+              : recipient
+                ? `You are signing as ${recipient.name} (${recipient.email}).`
+                : "Secure signing link";
 
   return (
     <main className="flex min-h-screen items-start justify-center bg-background px-4 py-10 sm:items-center">
@@ -552,6 +608,51 @@ export default function ExternalSigningPage() {
                     verifying.
                   </p>
                 </>
+              ) : step === "warning" ? (
+                !warningPublished ? (
+                  <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
+                    This warning statement has not been published yet. You cannot continue until it
+                    is available. Please try again later or contact support.
+                  </div>
+                ) : warning ? (
+                  <>
+                    <LegalDocumentChecklistRows
+                      compact
+                      rows={[
+                        {
+                          id: warning.legal_document_version_id ?? "warning",
+                          title: warning.title,
+                          checkboxWording: warning.checkbox_wording,
+                          status:
+                            warning.status === "accepted"
+                              ? "accepted"
+                              : warningOpened
+                                ? "opened"
+                                : "not_opened",
+                          checked: warningChecked || warning.status === "accepted",
+                          opening: warningOpening,
+                          canCheck: warningOpened,
+                          showCheckbox: true,
+                        },
+                      ]}
+                      disabled={isSubmitting}
+                      onOpen={() => {
+                        openWarning().catch(() => undefined);
+                      }}
+                      onCheckedChange={(_id, checked) => setWarningChecked(checked)}
+                    />
+                    <Button
+                      type="button"
+                      className="h-11 w-full rounded-xl"
+                      disabled={isSubmitting || !warningChecked || !warningOpened}
+                      onClick={() => {
+                        acceptWarning().catch(() => undefined);
+                      }}
+                    >
+                      {isSubmitting ? "Continuing..." : "Continue"}
+                    </Button>
+                  </>
+                ) : null
               ) : step === "closed" ? (
                 <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm text-muted-foreground">
                   You can close this page.

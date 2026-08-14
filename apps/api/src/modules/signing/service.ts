@@ -2,6 +2,7 @@
  * Signing envelope service: draft envelope from product template + issuer bindings,
  * send to all signers via email, external token session, and provider orchestration.
  */
+import { Request } from "express";
 import {
   SIGNING_TEMPLATE_WORKFLOW_KEY,
   SIGNING_PACKAGES_WORKFLOW_KEY,
@@ -74,6 +75,7 @@ import {
 } from "../ekyc/service";
 import { generateSigningAccessToken } from "./token";
 import { buildSigningReturnUrl, validateSigningRedirectUrl } from "../../lib/signing/redirect-url";
+import { legalExternalAcceptanceService } from "../legal-documents/external-acceptance-service";
 
 const EXTERNAL_ACCESS_TOKEN_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 /** Trust-return from SigningCloud backUrl is only valid shortly after start-signing. */
@@ -1023,6 +1025,7 @@ export class SigningService {
       kyc_required: recipient.kyc_required,
       kyc_status,
       package_closed: packageClosed,
+      warning: await legalExternalAcceptanceService.getWarningForSigningRecipient(recipient),
     };
   }
 
@@ -1456,7 +1459,7 @@ export class SigningService {
     return this.sendEnvelope(id);
   }
 
-  private async assertRecipientCanSign(
+  private async assertRecipientIdentityComplete(
     recipient: SigningEnvelopeWithGraph["recipients"][number]
   ): Promise<void> {
     if (!recipient.access_code_verified_at) {
@@ -1470,6 +1473,28 @@ export class SigningService {
     if (kycStatus === "PENDING" || kycStatus === "FAILED") {
       throw new AppError(403, "EKYC_REQUIRED", "Complete identity verification before signing.");
     }
+  }
+
+  private async assertRecipientCanSign(
+    recipient: SigningEnvelopeWithGraph["recipients"][number]
+  ): Promise<void> {
+    await this.assertRecipientIdentityComplete(recipient);
+    await legalExternalAcceptanceService.assertSigningRecipientAccepted(recipient);
+  }
+
+  async openExternalWarning(accessToken: string, req: Request) {
+    const { recipient } = await this.requireExternalTokenSession(accessToken);
+    await this.assertRecipientIdentityComplete(recipient);
+    return legalExternalAcceptanceService.recordOpenedForSigningRecipient(req, recipient);
+  }
+
+  async acceptExternalWarning(accessToken: string, req: Request): Promise<ExternalSigningSessionDto> {
+    const { envelope, recipient } = await this.requireExternalTokenSession(accessToken);
+    await this.assertRecipientIdentityComplete(recipient);
+    await legalExternalAcceptanceService.recordAcceptedForSigningRecipient(req, recipient);
+    const refreshed = await this.requireEnvelope(envelope.id);
+    const updatedRecipient = refreshed.recipients.find((item) => item.id === recipient.id)!;
+    return this.mapExternalSession(refreshed, updatedRecipient);
   }
 
   async startRecipientSigning(input: {

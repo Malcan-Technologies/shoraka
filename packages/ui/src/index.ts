@@ -219,6 +219,10 @@ export {
   LegalDocumentsReview,
   LegalReacceptancePanel,
   LegalReacceptanceBanner,
+  LegalDocumentChecklistShell,
+  LegalDocumentChecklistRows,
+  LegalDocumentChecklistEmpty,
+  legalChecklistStatusLabel,
   resolveLegalDocumentsReviewMode,
   legalDocumentsReviewCopy,
   useLegalReacceptanceGate,
@@ -238,6 +242,8 @@ export type {
   LegalDocumentsReviewMode,
   LegalReacceptancePanelProps,
   LegalReacceptanceGateState,
+  LegalChecklistDocRow,
+  LegalChecklistDocStatus,
 } from "./onboarding";
 export {
   DirectorShareholdersUnifiedSection,

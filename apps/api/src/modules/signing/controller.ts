@@ -199,6 +199,22 @@ async function startExternalSigning(req: Request, res: Response, next: NextFunct
   }
 }
 
+async function openExternalWarning(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(res, await signingService.openExternalWarning(req.params.accessToken, req));
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function acceptExternalWarning(req: Request, res: Response, next: NextFunction) {
+  try {
+    ok(res, await signingService.acceptExternalWarning(req.params.accessToken, req));
+  } catch (e) {
+    next(e);
+  }
+}
+
 async function confirmSigningReturn(req: Request, res: Response, next: NextFunction) {
   try {
     ok(res, await signingService.confirmRecipientSignedForReturnSession(req.params.returnSessionId));
@@ -320,6 +336,8 @@ export function createSigningRouter(): Router {
   router.post("/external/:accessToken/verify", verifyExternalAccessCode);
   router.post("/external/:accessToken/reset-access", resetExternalAccessGate);
   router.post("/external/:accessToken/ekyc/session", createExternalEkycSession);
+  router.post("/external/:accessToken/warning/open", openExternalWarning);
+  router.post("/external/:accessToken/warning/accept", acceptExternalWarning);
   router.post("/external/:accessToken/start-signing", startExternalSigning);
   router.post("/external/:accessToken/confirm-signed", confirmExternalSigned);
   router.post("/external/:accessToken/sync-from-provider", syncExternalFromProvider);

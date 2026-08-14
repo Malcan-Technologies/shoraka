@@ -124,14 +124,14 @@ describe("SigningController", () => {
   });
 
   describe("external routes are unauthenticated", () => {
-    it("GET /external/:token does not require auth", async () => {
-      (signingService.getEnvelopeForExternalToken as jest.Mock).mockResolvedValue({
-        recipient_id: "r1",
-        access_verified: false,
+    it("POST /external/:token/warning/open does not require auth", async () => {
+      (signingService.openExternalWarning as jest.Mock).mockResolvedValue({
+        viewUrl: "https://example.com/view.pdf",
+        expiresIn: 60,
       });
-      const res = await request(issuerApp).get("/v1/signing/external/token-abc");
+      const res = await request(issuerApp).post("/v1/signing/external/token-abc/warning/open");
       expect(res.status).toBe(200);
-      expect(signingService.getEnvelopeForExternalToken).toHaveBeenCalledWith("token-abc");
+      expect(signingService.openExternalWarning).toHaveBeenCalled();
     });
 
     it("POST /return/:returnSessionId/confirm does not require auth", async () => {

@@ -5,7 +5,7 @@
  * There is no automatic fallback to an older, archived, or newest historical version.
  * If none is published, these helpers return null / empty.
  */
-import type { LegalDocumentTypeValue } from "./schemas";
+import type { LegalDocumentAudienceValue, LegalDocumentTypeValue } from "./schemas";
 import { legalDocumentRepository, type VersionWithDocument } from "./repository";
 
 export async function resolveActivePublishedByDocumentId(
@@ -16,14 +16,14 @@ export async function resolveActivePublishedByDocumentId(
 
 export async function resolveActivePublishedByTypeAndAudiences(
   type: LegalDocumentTypeValue,
-  audiences: Array<"PUBLIC" | "ISSUER" | "INVESTOR" | "BOTH">
+  audiences: LegalDocumentAudienceValue[]
 ): Promise<VersionWithDocument | null> {
   return legalDocumentRepository.findPublishedByTypeAndAudiences(type, audiences);
 }
 
 export async function resolveActivePublishedReacceptanceByTypeAndAudiences(
   type: LegalDocumentTypeValue,
-  audiences: Array<"PUBLIC" | "ISSUER" | "INVESTOR" | "BOTH">
+  audiences: LegalDocumentAudienceValue[]
 ): Promise<VersionWithDocument | null> {
   return legalDocumentRepository.findPublishedReacceptanceByTypeAndAudiences(
     type,

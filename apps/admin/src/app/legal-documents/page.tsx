@@ -78,6 +78,7 @@ import {
   LEGAL_DOCUMENT_DEFAULT_AUDIENCE,
   LEGAL_DOCUMENT_TYPE_LABELS,
   LEGAL_DOCUMENT_TYPES,
+  legalDocumentDefaultRequiredForOnboarding,
   type LegalDocumentAudience,
   type LegalDocumentDefinitionResponse,
   type LegalDocumentType,
@@ -1146,6 +1147,7 @@ export default function LegalDocumentsPage() {
                           ...prev,
                           type,
                           audience: LEGAL_DOCUMENT_DEFAULT_AUDIENCE[type],
+                          requiredForOnboarding: legalDocumentDefaultRequiredForOnboarding(type),
                         }));
                       }}
                     >
