@@ -134,9 +134,9 @@ function OnboardingStatusBadge({
   const inProgressStatuses = ["IN_PROGRESS", "FORM_FILLING", "LIVENESS_STARTED"];
   if (regtankStatus && inProgressStatuses.includes(regtankStatus)) {
     return (
-      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-amber-700`}>
+      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-blue-700`}>
         <ClockIcon className={iconSize} />
-        Pending
+        In Progress
       </span>
     );
   }
@@ -168,7 +168,7 @@ function OnboardingStatusBadge({
     );
   }
 
-  if (status === "IN_PROGRESS") {
+  if (status === "IN_PROGRESS" || status === "PENDING") {
     return (
       <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-blue-700`}>
         <ClockIcon className={iconSize} />
