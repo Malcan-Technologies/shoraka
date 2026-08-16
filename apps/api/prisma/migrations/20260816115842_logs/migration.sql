@@ -1,0 +1,5 @@
+-- RenameIndex
+ALTER INDEX "notification_broadcast_audit_logs_notification_type_id_occurred" RENAME TO "notification_broadcast_audit_logs_notification_type_id_occu_idx";
+
+-- RenameIndex
+ALTER INDEX "notification_broadcast_audit_logs_target_type_target_id_occurre" RENAME TO "notification_broadcast_audit_logs_target_type_target_id_occ_idx";
