@@ -182,10 +182,13 @@ function OnboardingAccountPageContent() {
                   content={<p className="text-sm">Use the name as it appears on your IC.</p>}
                 />
               </CardTitle>
+              <CardDescription className="text-[15px] leading-7">
+                We need your first and last name to proceed with onboarding
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 pt-2">
               <div className="space-y-2">
-                <Label htmlFor="firstName">First Name</Label>
+                <Label htmlFor="firstName">First Name (As appears on your IC)</Label>
                 <Input
                   id="firstName"
                   value={nameForm.firstName}
@@ -194,7 +197,7 @@ function OnboardingAccountPageContent() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Last Name</Label>
+                <Label htmlFor="lastName">Last Name (As appears on your IC)</Label>
                 <Input
                   id="lastName"
                   value={nameForm.lastName}
