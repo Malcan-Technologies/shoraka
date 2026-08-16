@@ -12,6 +12,7 @@ import { ProductLogsPanel } from "@/components/audit/product-logs-panel";
 import { SecurityLogsPanel } from "@/components/audit/security-logs-panel";
 import { AccessDeniedCard } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
+import { resolvePermissionGate } from "@/lib/admin-auth-gate";
 import { AUDIT_PERMISSIONS, AUDIT_TABS, isAuditTabId, type AuditTabId } from "@/lib/audit-tabs";
 
 function AuditPageFallback() {
@@ -32,7 +33,7 @@ function AuditPageContent() {
     return () => setTitle("");
   }, [setTitle]);
 
-  const { can, canAny, isLoading } = usePermissions();
+  const { can, canAny, isLoading, isAdminPortalUser } = usePermissions();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -55,12 +56,22 @@ function AuditPageContent() {
     router.replace(`${pathname}?tab=${value}`);
   };
 
-  if (isLoading) {
+  const permissionView = resolvePermissionGate({
+    isPending: isLoading,
+    isAdminPortalUser,
+    hasPermission: canAny(...AUDIT_PERMISSIONS) && Boolean(activeTab),
+  });
+
+  if (permissionView === "loading") {
     return <AuditPageFallback />;
   }
 
-  if (!canAny(...AUDIT_PERMISSIONS) || !activeTab) {
+  if (permissionView === "access-denied") {
     return <AccessDeniedCard />;
+  }
+
+  if (!activeTab) {
+    return <AuditPageFallback />;
   }
 
   return (

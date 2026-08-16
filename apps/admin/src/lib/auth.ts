@@ -3,6 +3,11 @@
 import { useEffect, useRef } from "react";
 import { useAuthToken } from "@cashsouk/config";
 import { useCurrentUser } from "../hooks/use-current-user";
+import {
+  isAdminPortalUser,
+  resolveAdminAuthRedirect,
+  resolveAuthGuardView,
+} from "./admin-auth-gate";
 
 const LANDING_URL = process.env.NEXT_PUBLIC_LANDING_URL || "http://localhost:3000";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -106,44 +111,37 @@ export async function logout(
  */
 export function useAuth() {
   const { getAccessToken, signOut } = useAuthToken();
-  const { data, isLoading, isError, error } = useCurrentUser();
+  const { data, isPending, isError } = useCurrentUser();
   const redirectingRef = useRef(false);
 
   const user = data?.user;
-  const hasAdminRole = user?.roles.includes("ADMIN") ?? false;
-  const isAdminActive = user?.admin?.status === "ACTIVE";
-  const canAccessAdmin = hasAdminRole && isAdminActive;
+  const canAccessAdmin = isAdminPortalUser(user);
+  const skipGuard =
+    typeof window !== "undefined" && window.location.pathname === "/callback";
+  const redirect = resolveAdminAuthRedirect({ isPending, isError, user });
+  const gate = resolveAuthGuardView({ skipGuard, isPending, isError, user });
 
   useEffect(() => {
-    if (typeof window !== "undefined" && window.location.pathname === "/callback") {
+    if (skipGuard || redirectingRef.current) {
       return;
     }
 
-    if (redirectingRef.current) {
-      return;
-    }
-
-    if (isLoading) {
-      return;
-    }
-
-    if (isError || !user) {
+    if (redirect === "login") {
       redirectingRef.current = true;
       redirectToLogin();
       return;
     }
 
-    if (!canAccessAdmin) {
+    if (redirect === "logout") {
       redirectingRef.current = true;
       logout(signOut, getAccessToken);
     }
-  }, [isLoading, isError, user, canAccessAdmin, signOut, getAccessToken, error]);
-
-  const isAuthenticated = !isLoading && !isError && !!user && canAccessAdmin;
+  }, [skipGuard, redirect, signOut, getAccessToken]);
 
   return {
-    isAuthenticated: isLoading ? null : isAuthenticated,
-    hasAdminRole: isLoading ? null : canAccessAdmin,
+    isAuthenticated: canAccessAdmin ? true : isPending ? null : false,
+    hasAdminRole: canAccessAdmin ? true : isPending ? null : false,
+    gate,
     token: null,
   };
 }

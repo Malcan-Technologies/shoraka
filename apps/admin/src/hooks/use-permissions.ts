@@ -1,13 +1,15 @@
 "use client";
 
 import { FULL_ACCESS_ADMIN_ROLE_KEYS, type AdminPermission } from "@cashsouk/types";
+import { isAdminPortalUser } from "../lib/admin-auth-gate";
 import { useCurrentUser } from "./use-current-user";
 
 export function usePermissions() {
-  const { data, isLoading } = useCurrentUser();
+  const { data, isPending } = useCurrentUser();
   const permissions = data?.permissions ?? [];
   const roleKey = data?.roleKey;
   const hasFullAccessRole = roleKey ? FULL_ACCESS_ADMIN_ROLE_KEYS.includes(roleKey) : false;
+  const isAdminUser = isAdminPortalUser(data?.user);
 
   const can = (permission: AdminPermission): boolean => {
     if (hasFullAccessRole) {
@@ -31,6 +33,7 @@ export function usePermissions() {
     roleName: data?.roleName ?? null,
     can,
     canAny,
-    isLoading,
+    isLoading: isPending,
+    isAdminPortalUser: isAdminUser,
   };
 }
