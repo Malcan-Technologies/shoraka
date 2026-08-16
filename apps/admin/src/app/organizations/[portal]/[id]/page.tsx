@@ -90,30 +90,9 @@ function approvedPending(value: boolean): string {
   return value ? "Approved" : "Pending";
 }
 
-function organizationCurrentStageLabel(org: OrganizationDetailResponse): string {
-  if (org.onboardingStatus === "REJECTED") return "Rejected";
-  if (!org.tncAccepted) return "Terms";
-  if (org.portal === "issuer" && org.type === "COMPANY" && !org.onboardingFeePaid) return "Fee";
-  if (org.onboardingStatus === "COMPLETED") return "Completed";
-  if (
-    org.onboardingStatus === "PENDING_APPROVAL" ||
-    org.onboardingStatus === "PENDING_AML" ||
-    org.onboardingStatus === "PENDING_AMENDMENT" ||
-    org.onboardingStatus === "PENDING_SSM_REVIEW" ||
-    org.onboardingStatus === "PENDING_FINAL_APPROVAL"
-  ) {
-    return "Approval";
-  }
-  if (org.onboardingStatus === "IN_PROGRESS" || org.onboardingStatus === "PENDING") {
-    return "Verification";
-  }
-  return getOrganizationOnboardingPresentation(org.onboardingStatus).label;
-}
-
 function organizationFinalApprovalLabel(status: OrganizationDetailResponse["onboardingStatus"]): string {
   if (status === "COMPLETED") return "Completed";
   if (status === "PENDING_FINAL_APPROVAL") return "Pending";
-  if (status === "REJECTED") return "Not applicable";
   return "Pending";
 }
 
@@ -130,7 +109,7 @@ function DetailRow({
   if (value === null || value === undefined || value === "") return null;
 
   return (
-    <div className="flex items-start gap-3 py-2">
+    <div className="flex items-start gap-3 py-2 min-w-0">
       {Icon && (
         <div className="flex h-5 w-5 items-center justify-center text-muted-foreground shrink-0 mt-0.5">
           <Icon className="h-4 w-4" />
@@ -614,7 +593,7 @@ function JsonDisplay({
         {Object.entries(data).map(([key, value]) => (
           <div key={key} className="border-b last:border-0 pb-2 last:pb-0">
             <div className="text-xs text-muted-foreground capitalize">{key.replace(/_/g, " ")}</div>
-            <div className="text-sm">{renderValue(value)}</div>
+            <div className="text-sm min-w-0 break-words">{renderValue(value)}</div>
           </div>
         ))}
       </CardContent>
@@ -994,10 +973,10 @@ export default function OrganizationDetailPage() {
             Organizations
           </Button>
         </div>
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden min-w-0">
         {/* Main Content (~67%) */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="px-4 md:px-6 py-8 space-y-6">
+        <div className="flex-1 min-w-0 overflow-x-hidden overflow-y-auto">
+          <div className="px-4 md:px-6 py-8 space-y-6 min-w-0">
             {isLoading && <PageSkeleton />}
 
             {error && (
@@ -1012,17 +991,17 @@ export default function OrganizationDetailPage() {
                 {/* Header Card — includes status, dates, sophisticated toggle */}
                 <Card className="rounded-2xl">
                   <CardContent className="pt-6 space-y-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="flex items-start gap-4 min-w-0">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 shrink-0">
                           {org.type === "COMPANY" ? (
                             <BuildingOffice2Icon className="h-6 w-6 text-primary" />
                           ) : (
                             <UserIcon className="h-6 w-6 text-primary" />
                           )}
                         </div>
-                        <div>
-                          <h2 className="text-xl font-bold">{displayName}</h2>
+                        <div className="min-w-0">
+                          <h2 className="text-xl font-bold break-words">{displayName}</h2>
                           <div className="mt-1 flex flex-wrap items-center gap-2">
                             <StatusBadge
                               label={org.portal.charAt(0).toUpperCase() + org.portal.slice(1)}
@@ -1055,9 +1034,9 @@ export default function OrganizationDetailPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        {portal === "investor" && (
-                          <div className="flex items-center gap-2">
+                      {portal === "investor" ? (
+                        <div className="flex flex-wrap items-center gap-3 shrink-0">
+                          <div className="flex flex-wrap items-center gap-2 min-w-0">
                             <div className="text-xs text-muted-foreground whitespace-nowrap">Sophisticated Investor</div>
                             <Switch
                               checked={org.isSophisticatedInvestor}
@@ -1071,16 +1050,8 @@ export default function OrganizationDetailPage() {
                               <StatusBadge label="No" status="neutral" className="text-xs" />
                             )}
                           </div>
-                        )}
-                        {org.regtankPortalUrl && (
-                          <Button variant="outline" size="sm" asChild className="gap-1.5">
-                            <a href={org.regtankPortalUrl} target="_blank" rel="noopener noreferrer">
-                              <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                              Open in RegTank
-                            </a>
-                          </Button>
-                        )}
-                      </div>
+                        </div>
+                      ) : null}
                     </div>
 
                     <Separator />
@@ -1136,24 +1107,48 @@ export default function OrganizationDetailPage() {
                       </p>
                     )}
 
-                    <div className="space-y-0.5">
+                    <div className="space-y-0.5 min-w-0">
                       {org.displayReference ? (
-                        <p className="text-xs text-muted-foreground font-mono">
+                        <p className="text-xs text-muted-foreground font-mono break-all">
                           Reference: {formatOrganizationReference({
                             displayReference: org.displayReference,
                             id: org.id,
                           })}
                         </p>
                       ) : null}
-                      <p className="text-xs text-muted-foreground font-mono">
+                      <p className="text-xs text-muted-foreground font-mono break-all">
                         ID: {org.id}
                       </p>
-                      {org.type === "COMPANY" && org.codRequestId && (
-                        <p className="text-xs text-muted-foreground font-mono">
-                          COD: {org.codRequestId}
-                        </p>
-                      )}
                     </div>
+
+                    {(() => {
+                      const requestId =
+                        org.type === "COMPANY" ? org.codRequestId : org.regtankRequestId;
+                      const sessionLabel =
+                        org.type === "COMPANY" ? "Corporate onboarding" : "Personal onboarding";
+                      if (!requestId && !org.regtankPortalUrl) return null;
+                      return (
+                        <div className="rounded-lg border bg-muted/30 px-3 py-2.5 min-w-0">
+                          <div className="text-xs text-muted-foreground">RegTank</div>
+                          {requestId ? (
+                            <div className="text-xs text-muted-foreground">{sessionLabel}</div>
+                          ) : null}
+                          <div className="mt-1 flex flex-wrap items-center gap-2 min-w-0">
+                            {requestId ? (
+                              <span className="font-mono text-sm break-all">{requestId}</span>
+                            ) : null}
+                            {org.regtankPortalUrl ? (
+                              <Button variant="outline" size="sm" asChild className="h-8 shrink-0 gap-1.5">
+                                <a href={org.regtankPortalUrl} target="_blank" rel="noopener noreferrer">
+                                  <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                                  Open in RegTank
+                                </a>
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
 
@@ -1165,14 +1160,13 @@ export default function OrganizationDetailPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-x-6 gap-y-1 min-w-0 [&>*]:min-w-0">
                       <DetailRow
                         label="Status"
                         value={getOrganizationOnboardingPresentation(org.onboardingStatus, {
                           completedLabel: "Onboarded",
                         }).label}
                       />
-                      <DetailRow label="Current stage" value={organizationCurrentStageLabel(org)} />
                       <DetailRow label="T&C" value={yesNo(org.tncAccepted)} />
                       {org.portal === "issuer" && org.type === "COMPANY" ? (
                         <DetailRow
@@ -1188,18 +1182,18 @@ export default function OrganizationDetailPage() {
                         value={approvedPending(org.onboardingApproved)}
                       />
                       <DetailRow label="AML" value={approvedPending(org.amlApproved)} />
-                      <DetailRow
-                        label="Final approval"
-                        value={organizationFinalApprovalLabel(org.onboardingStatus)}
-                      />
-                      <DetailRow
-                        label="RegTank session"
-                        value={
-                          org.regtankSessionStatus
-                            ? toTitleCase(org.regtankSessionStatus)
-                            : "None"
-                        }
-                      />
+                      {org.onboardingStatus !== "REJECTED" ? (
+                        <DetailRow
+                          label="Final approval"
+                          value={organizationFinalApprovalLabel(org.onboardingStatus)}
+                        />
+                      ) : null}
+                      {org.regtankSessionStatus ? (
+                        <DetailRow
+                          label="RegTank session"
+                          value={toTitleCase(org.regtankSessionStatus)}
+                        />
+                      ) : null}
                     </div>
                   </CardContent>
                 </Card>
@@ -1211,7 +1205,7 @@ export default function OrganizationDetailPage() {
                 />
 
                 {/* Members + Company Info (or just Members for personal) */}
-                <div className={org.type === "COMPANY" ? "grid grid-cols-1 lg:grid-cols-2 gap-6" : ""}>
+                <div className={org.type === "COMPANY" ? "grid grid-cols-1 lg:grid-cols-2 gap-6 min-w-0" : "min-w-0"}>
                   {/* Members */}
                   <Card className="rounded-2xl">
                     <CardHeader className="pb-3">
@@ -1226,24 +1220,24 @@ export default function OrganizationDetailPage() {
                           {org.members.map((member) => (
                             <div
                               key={member.id}
-                              className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                              className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-lg bg-muted/50 min-w-0"
                             >
-                              <div className="flex items-center gap-3">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 shrink-0">
                                   <UserIcon className="h-4 w-4 text-primary" />
                                 </div>
-                                <div>
+                                <div className="min-w-0">
                                   <Link
                                     href={`/users/${encodeURIComponent(member.userId)}`}
-                                    className="text-sm font-medium hover:text-primary hover:underline"
+                                    className="text-sm font-medium hover:text-primary hover:underline break-words"
                                   >
                                     {member.firstName} {member.lastName}
                                   </Link>
-                                  <div className="text-xs text-muted-foreground">{member.email}</div>
+                                  <div className="text-xs text-muted-foreground break-all">{member.email}</div>
                                 </div>
                               </div>
-                              <Badge variant="outline" className="capitalize">
-                                {member.role.toLowerCase()}
+                              <Badge variant="outline" className="shrink-0 whitespace-nowrap">
+                                {toTitleCase(member.role)}
                               </Badge>
                             </div>
                           ))}
@@ -1264,7 +1258,7 @@ export default function OrganizationDetailPage() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0 [&>*]:min-w-0">
                           <DetailRow label="Company Name" value={org.name} />
                           <DetailRow
                             label="Registration Number (SSM)"
@@ -1307,10 +1301,10 @@ export default function OrganizationDetailPage() {
                                       href={org.corporateOnboardingData.basicInfo.website}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 text-primary hover:underline"
+                                      className="inline-flex flex-wrap items-center gap-1 min-w-0 text-primary hover:underline"
                                     >
-                                      <LinkIcon className="h-3.5 w-3.5" />
-                                      <span>{shortenUrl(org.corporateOnboardingData.basicInfo.website)}</span>
+                                      <LinkIcon className="h-3.5 w-3.5 shrink-0" />
+                                      <span className="break-all min-w-0">{org.corporateOnboardingData.basicInfo.website}</span>
                                       <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
                                     </a>
                                   )
@@ -1340,7 +1334,7 @@ export default function OrganizationDetailPage() {
                           {org.corporateOnboardingData?.addresses?.business && (
                             <div className="space-y-2">
                               <Label className="text-xs text-muted-foreground">Business Address</Label>
-                              <p className="text-sm">
+                              <p className="text-sm break-words">
                                 {formatAddressDisplay(org.corporateOnboardingData.addresses.business)}
                               </p>
                             </div>
@@ -1348,7 +1342,7 @@ export default function OrganizationDetailPage() {
                           {org.corporateOnboardingData?.addresses?.registered && (
                             <div className="space-y-2">
                               <Label className="text-xs text-muted-foreground">Registered Address</Label>
-                              <p className="text-sm">
+                              <p className="text-sm break-words">
                                 {formatAddressDisplay(org.corporateOnboardingData.addresses.registered)}
                               </p>
                             </div>
@@ -1368,7 +1362,7 @@ export default function OrganizationDetailPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0 [&>*]:min-w-0">
                         <DetailRow label="Name" value={org.corporateOnboardingData.personInCharge.name} />
                         <DetailRow label="Position" value={org.corporateOnboardingData.personInCharge.position} />
                         <CopyableField label="Email" value={org.corporateOnboardingData.personInCharge.email || null} />
@@ -1398,7 +1392,7 @@ export default function OrganizationDetailPage() {
                             </CardTitle>
                           </CardHeader>
                           <CardContent>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0 [&>*]:min-w-0">
                               <DetailRow label="First Name" value={org.firstName} />
                               <DetailRow label="Last Name" value={org.lastName} />
                               <DetailRow label="Middle Name" value={org.middleName} />
@@ -1423,7 +1417,7 @@ export default function OrganizationDetailPage() {
                             </CardTitle>
                           </CardHeader>
                           <CardContent>
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0 [&>*]:min-w-0">
                               {org.phoneNumber && (
                                 <CopyableField label="Phone Number" value={org.phoneNumber} />
                               )}
@@ -1431,7 +1425,7 @@ export default function OrganizationDetailPage() {
                                 <CopyableField label="Email" value={org.owner.email} />
                               )}
                               {org.address && (
-                                <div className="col-span-2">
+                                <div className="sm:col-span-2 min-w-0">
                                   <CopyableField label="Address" value={org.address} />
                                 </div>
                               )}
@@ -1453,7 +1447,7 @@ export default function OrganizationDetailPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0 [&>*]:min-w-0">
                         <DetailRow label="Document Type" value={org.documentType} />
                         <CopyableField
                           label="Document Number"
@@ -1467,7 +1461,7 @@ export default function OrganizationDetailPage() {
                 )}
 
                 {org.type === "COMPANY" && (
-                  <Card className="rounded-2xl">
+                  <Card className="rounded-2xl min-w-0">
                     <CardHeader className="pb-3">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -1477,7 +1471,7 @@ export default function OrganizationDetailPage() {
                         {null}
                       </div>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="min-w-0">
                       <DirectorShareholderTable
                         people={org.people ?? []}
                         directorShareholderListSource={org.directorShareholderListSource ?? null}
@@ -1613,7 +1607,7 @@ export default function OrganizationDetailPage() {
         </div>
 
         {/* Right Sidebar — KYC/AML, CTOS history (issuer / investor), Activity Timeline (~33%) */}
-        <div className="w-[380px] xl:w-[420px] shrink-0 hidden lg:flex flex-col overflow-hidden py-8 pr-4 gap-4">
+        <div className="w-[380px] xl:w-[420px] shrink-0 hidden lg:flex flex-col overflow-hidden min-w-0 py-8 pr-4 gap-4">
           {org?.kycResponse && <KycResponseDisplay data={org.kycResponse} />}
           {(portal === "issuer" || portal === "investor") && organizationId ? (
             <OrganizationIssuerCtosReportsCard organizationId={organizationId} portal={portal} />

@@ -1,4 +1,5 @@
 import {
+  getRegtankColumnDisplayRows,
   getRegtankCorporateOnboardingUrl,
   getRegtankCorporatePersonOnboardingUrl,
   getRegtankLivenessUrl,
@@ -130,5 +131,92 @@ describe("RegTank person onboarding links", () => {
       screeningRequestId: "KYB00004",
       screening: { status: "MATCH", riskLevel: "Low", riskScore: 1 },
     }))).toBe(`${BASE}/app/screen-kyb/result/KYB00004/riskAssessment`);
+  });
+});
+
+describe("RegTank people-table column display", () => {
+  it("shows director and shareholder EOD ids as separate onboarding rows", () => {
+    const rows = getRegtankColumnDisplayRows(
+      person({
+        roles: ["DIRECTOR", "SHAREHOLDER"],
+        sharePercentage: 60,
+        parentCorporateRequestId: "COD05463",
+        directorEodRequestId: "EOD06803",
+        shareholderEodRequestId: "EOD06802",
+        screeningRequestId: "KYC01234",
+        requestId: "KYC01234",
+      })
+    );
+    expect(rows).toEqual([
+      {
+        groupLabel: "Director",
+        requestId: "EOD06803",
+        url: `${BASE}/app/onboardingCorporate/COD05463/EOD06803`,
+        kind: "onboarding",
+      },
+      {
+        groupLabel: "Shareholder",
+        requestId: "EOD06802",
+        url: `${BASE}/app/onboardingCorporate/COD05463/EOD06802`,
+        kind: "onboarding",
+      },
+      {
+        groupLabel: "Screening",
+        requestId: "KYC01234",
+        url: `${BASE}/app/screen-kyc/result/KYC01234/scoring`,
+        kind: "screening",
+      },
+    ]);
+    expect(rows.map((r) => r.requestId)).not.toContain("COD05463");
+  });
+
+  it("shows a corporate shareholder's own COD in the column", () => {
+    const rows = getRegtankColumnDisplayRows(
+      person({
+        matchKey: "123456789",
+        name: "Child Co",
+        entityType: "CORPORATE",
+        roles: ["SHAREHOLDER"],
+        parentCorporateRequestId: "COD05463",
+        partyCorporateRequestId: "COD05464",
+        screeningRequestId: "KYB00004",
+      })
+    );
+    expect(rows[0]).toEqual({
+      groupLabel: "Corporate Shareholder",
+      requestId: "COD05464",
+      url: `${BASE}/app/onboardingCorporate/COD05464?archived=false`,
+      kind: "onboarding",
+    });
+    expect(rows[1]).toEqual({
+      groupLabel: "Screening",
+      requestId: "KYB00004",
+      url: `${BASE}/app/screen-kyb/result/KYB00004`,
+      kind: "screening",
+    });
+  });
+
+  it("keeps screening as its own row and does not merge KYC into onboarding", () => {
+    const rows = getRegtankColumnDisplayRows(
+      person({
+        parentCorporateRequestId: "COD05463",
+        directorEodRequestId: "EOD06803",
+        screeningRequestId: "KYC01234",
+        requestId: "KYC01234",
+      })
+    );
+    const onboarding = rows.filter((r) => r.kind === "onboarding");
+    const screening = rows.filter((r) => r.kind === "screening");
+    expect(onboarding).toHaveLength(1);
+    expect(onboarding[0]?.requestId).toBe("EOD06803");
+    expect(onboarding[0]?.url).toBe(`${BASE}/app/onboardingCorporate/COD05463/EOD06803`);
+    expect(screening).toEqual([
+      {
+        groupLabel: "Screening",
+        requestId: "KYC01234",
+        url: `${BASE}/app/screen-kyc/result/KYC01234/scoring`,
+        kind: "screening",
+      },
+    ]);
   });
 });

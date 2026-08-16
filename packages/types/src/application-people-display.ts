@@ -269,6 +269,64 @@ export function getRegtankOnboardingViewLinks(
   return [{ label: "View", url: liveness, requestId: standalone }];
 }
 
+export type RegtankColumnDisplayRow = {
+  groupLabel: string;
+  requestId: string;
+  url: string | null;
+  kind: "onboarding" | "screening";
+};
+
+function regtankColumnOnboardingGroupLabel(
+  person: Pick<ApplicationPersonRow, "entityType" | "roles">,
+  link: RegtankPortalLink
+): string {
+  if (link.label === "Director" || link.label === "Shareholder") return link.label;
+  if (person.entityType === "CORPORATE") return "Corporate Shareholder";
+  const roles = (person.roles ?? []).map((r) => String(r).toUpperCase());
+  const hasDirector = roles.includes("DIRECTOR");
+  const hasShareholder = roles.includes("SHAREHOLDER");
+  if (hasDirector && !hasShareholder) return "Director";
+  if (hasShareholder && !hasDirector) return "Shareholder";
+  return "Onboarding";
+}
+
+/**
+ * People-table RegTank column rows (ids + existing portal URLs).
+ * Parent COD is not included; screening stays a separate row.
+ */
+export function getRegtankColumnDisplayRows(
+  person: Pick<
+    ApplicationPersonRow,
+    | "entityType"
+    | "roles"
+    | "parentCorporateRequestId"
+    | "directorEodRequestId"
+    | "shareholderEodRequestId"
+    | "partyCorporateRequestId"
+    | "screeningRequestId"
+    | "screening"
+    | "requestId"
+  >
+): RegtankColumnDisplayRow[] {
+  const rows: RegtankColumnDisplayRow[] = getRegtankOnboardingViewLinks(person).map((link) => ({
+    groupLabel: regtankColumnOnboardingGroupLabel(person, link),
+    requestId: link.requestId,
+    url: link.url,
+    kind: "onboarding",
+  }));
+
+  const screeningId = trimRegtankId(person.screeningRequestId);
+  if (screeningId) {
+    rows.push({
+      groupLabel: "Screening",
+      requestId: screeningId,
+      url: getRegtankScreeningLink(person),
+      kind: "screening",
+    });
+  }
+  return rows;
+}
+
 /**
  * Deep link from a legacy mixed `requestId` (screening, COD, or standalone liveness).
  * Admin director/shareholder onboarding View must use {@link getRegtankOnboardingViewLinks} instead.

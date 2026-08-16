@@ -198,9 +198,9 @@ export function OrganizationActivityTimeline({
 
                         <div className="flex-1 min-w-0 -mt-0.5">
                           {/* Event label and icon */}
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-start gap-1.5 min-w-0">
                             {getEventIcon(eventType)}
-                            <span className="text-sm font-medium leading-tight">
+                            <span className="text-sm font-medium leading-tight break-words min-w-0">
                               {getEventLabel(eventType, metadata)}
                             </span>
                           </div>

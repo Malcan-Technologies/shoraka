@@ -32,12 +32,12 @@ import {
   isMissingGovernmentIdPerson,
   getFinalStatusBadgeClassName,
   getFinalStatusLabel,
-  getRegtankOnboardingViewLinks,
-  getRegtankScreeningLink,
+  getRegtankColumnDisplayRows,
   normalizeDirectorShareholderIdKey,
   resolveDirectorShareholderCtosEmptyWarning,
   type ApplicationPersonRow,
   type DirectorShareholderListSource,
+  type RegtankColumnDisplayRow,
 } from "@cashsouk/types";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import {
@@ -61,6 +61,51 @@ type PendingCtosSubjectFetch = {
   displayName: string;
   partyLabel: string;
 };
+
+/** Wide enough for Name, Roles, Share %, Status, RegTank ids, and CTOS without squeezing. */
+const PEOPLE_TABLE_MIN_WIDTH_CLASS = "min-w-[72rem]";
+
+function RegtankColumnCell({ person }: { person: ApplicationPersonRow }) {
+  const rows = getRegtankColumnDisplayRows(person);
+  if (rows.length === 0) {
+    return <span className="text-sm text-muted-foreground">—</span>;
+  }
+  return (
+    <div className="flex flex-col gap-2 py-0.5">
+      {rows.map((row) => (
+        <RegtankColumnActionRow key={`${row.kind}-${row.groupLabel}-${row.requestId}`} row={row} />
+      ))}
+    </div>
+  );
+}
+
+function RegtankColumnActionRow({ row }: { row: RegtankColumnDisplayRow }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <div className="text-[11px] leading-4 text-muted-foreground">{row.groupLabel}</div>
+      <div className="flex items-center gap-2 whitespace-nowrap">
+        <span className="font-mono text-xs">{row.requestId}</span>
+        {row.url ? (
+          <Button
+            type="button"
+            variant={row.kind === "screening" ? "ghost" : "outline"}
+            size="sm"
+            className="h-8 shrink-0 gap-1.5 rounded-full px-3 text-sm font-medium"
+            title={`Open ${row.groupLabel} ${row.requestId} in RegTank`}
+            onClick={() => {
+              const url = row.url;
+              if (!url) return;
+              window.open(url, "_blank", "noopener,noreferrer");
+            }}
+          >
+            <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            Open
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 /**
  * SECTION: Shared Director/Shareholder table
@@ -167,13 +212,14 @@ export function DirectorShareholderTable({
     <>
       {verifiedRows.length > 0 ? (
       <div className="overflow-x-auto">
+        <div className={PEOPLE_TABLE_MIN_WIDTH_CLASS}>
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Roles</TableHead>
-              <TableHead>Share %</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead className="whitespace-nowrap">Share %</TableHead>
+              <TableHead className="whitespace-nowrap">Status</TableHead>
               <TableHead>RegTank</TableHead>
               <TableHead title="Fetch or view the CTOS report for this person.">CTOS</TableHead>
             </TableRow>
@@ -195,71 +241,31 @@ export function DirectorShareholderTable({
 
               return (
                 <TableRow key={p.matchKey}>
-                  <TableCell className="font-medium">
-                    <div>{p.name ?? "—"}</div>
-                    <div className="font-mono text-xs text-muted-foreground mt-0.5">{p.matchKey}</div>
+                  <TableCell className="font-medium min-w-[14rem]">
+                    <div className="break-words">{p.name ?? "—"}</div>
+                    <div className="font-mono text-xs text-muted-foreground mt-0.5 break-all">{p.matchKey}</div>
                   </TableCell>
-                  <TableCell>{formatRoleTitleCaseWithoutShare(p)}</TableCell>
-                  <TableCell>{shareDisplay}</TableCell>
+                  <TableCell className="min-w-[10rem]">{formatRoleTitleCaseWithoutShare(p)}</TableCell>
+                  <TableCell className="whitespace-nowrap tabular-nums">{shareDisplay}</TableCell>
                   <TableCell>
                     <Badge
                       variant="outline"
-                      className={`border-transparent text-[11px] font-normal ${getFinalStatusBadgeClassName(finalStatus.tone)}`}
+                      className={`whitespace-nowrap border-transparent text-[11px] font-normal ${getFinalStatusBadgeClassName(finalStatus.tone)}`}
                     >
                       {finalStatus.label}
                     </Badge>
                   </TableCell>
-                  <TableCell>
-                    {(() => {
-                      const onboardingLinks = getRegtankOnboardingViewLinks(p);
-                      const screeningLink = getRegtankScreeningLink(p);
-                      if (onboardingLinks.length === 0 && !screeningLink) {
-                        return <span className="text-sm text-muted-foreground">—</span>;
-                      }
-                      return (
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {onboardingLinks.map((link) => (
-                            <Button
-                              key={`${link.label}-${link.requestId}`}
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="h-8 gap-1.5 rounded-full border-border bg-background px-3 text-sm font-medium text-foreground shadow-sm hover:bg-muted/60 hover:text-foreground [&_svg]:text-foreground shrink-0"
-                              title={`RegTank: ${link.requestId}`}
-                              onClick={() => window.open(link.url, "_blank", "noopener,noreferrer")}
-                            >
-                              <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                              {link.label}
-                            </Button>
-                          ))}
-                          {screeningLink ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 gap-1.5 rounded-full px-3 text-sm font-medium text-muted-foreground hover:text-foreground shrink-0"
-                              title={
-                                p.screeningRequestId
-                                  ? `Screening: ${p.screeningRequestId}`
-                                  : "RegTank screening"
-                              }
-                              onClick={() => window.open(screeningLink, "_blank", "noopener,noreferrer")}
-                            >
-                              Screening
-                            </Button>
-                          ) : null}
-                        </div>
-                      );
-                    })()}
+                  <TableCell className="min-w-[16rem]">
+                    <RegtankColumnCell person={p} />
                   </TableCell>
                   <TableCell>
                     <div className="space-y-1">
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex items-center gap-2 whitespace-nowrap">
                       <Button
                         type="button"
                         variant="secondary"
                         size="sm"
-                        className="h-9"
+                        className="h-9 shrink-0"
                         onClick={() => {
                           const idKey = normalizeDirectorShareholderIdKey(p.matchKey);
                           if (!idKey) {
@@ -298,7 +304,7 @@ export function DirectorShareholderTable({
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-9"
+                        className="h-9 shrink-0"
                         disabled={!latestReport}
                         title={
                           latestReport
@@ -333,6 +339,7 @@ export function DirectorShareholderTable({
             })}
           </TableBody>
         </Table>
+        </div>
       </div>
       ) : null}
       {unresolvedRows.length > 0 ? (
