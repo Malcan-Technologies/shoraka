@@ -932,7 +932,7 @@ Configuration is loaded once at startup and cached. Missing required variables c
 8. RegTank sends webhook (async)
    └─> POST /v1/webhooks/regtank
        ├─> Verifies signature
-       ├─> Creates OnboardingAuditLog entries for business stages/outcomes (for example ONBOARDING_STATUS_CHANGED on review landing). Intermediate director KYC statuses and corporate_entities JSON refreshes are stored on SOT, not as onboarding audit noise.
+       ├─> Creates OnboardingAuditLog entries for business stages/outcomes (for example ONBOARDING_STATUS_CHANGED on review landing). Intermediate director KYC statuses, corporate_entities JSON refreshes, and CTOS report fetches are stored on SOT, not as onboarding audit noise.
        ├─> Updates regtank_onboarding status
        ├─> Sets organization status to PENDING_APPROVAL when liveness completes
        └─> If APPROVED:

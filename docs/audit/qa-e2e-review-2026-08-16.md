@@ -4,7 +4,7 @@
 **Scope:** Read-only verification of the current source. No product code was changed.  
 **Result:** **PASS WITH CLEANUP**
 
-> **Historical snapshot.** This document records the 2026-08-16 E2E matrix. It predates the later Onboarding Audit redesign that retired A040 `ONBOARDING_RESUMED` and A053 `CORPORATE_ENTITIES_UPDATED` (IDs reserved; historical rows readable) and narrowed A055 `DIRECTOR_KYC_STATUS_UPDATED` to APPROVED/REJECTED outcomes. `ONBOARDING_STATUS_CHANGED` is now included in Admin Organization contextual history. Do not treat the matrices below as current living behaviour. See `docs/audit/audit-manual-verification-catalogue.md`.
+> **Historical snapshot.** This document records the 2026-08-16 E2E matrix. It predates the later Onboarding Audit redesign that retired A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, and A053 `CORPORATE_ENTITIES_UPDATED` (IDs reserved; historical rows readable) and narrowed A055 `DIRECTOR_KYC_STATUS_UPDATED` to APPROVED/REJECTED outcomes. `ONBOARDING_STATUS_CHANGED` is now included in Admin Organization contextual history. Do not treat the matrices below as current living behaviour. See `docs/audit/audit-manual-verification-catalogue.md`.
 
 This artifact is the full 174-event traceability matrix plus supporting notes. The chat report summarizes findings; this file is the authoritative row-level record.
 

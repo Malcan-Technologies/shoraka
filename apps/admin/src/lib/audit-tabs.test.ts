@@ -91,5 +91,6 @@ describe("admin audit tabs", () => {
     expect(formatAuditEventLabel("SSM_APPROVED")).toBe("SSM Approved");
     expect(formatAuditEventLabel("ONBOARDING_RESUMED")).toBe("Onboarding Resumed");
     expect(formatAuditEventLabel("CORPORATE_ENTITIES_UPDATED")).toBe("Corporate Entities Updated");
+    expect(formatAuditEventLabel("CTOS_REPORT_RECEIVED")).toBe("CTOS Report Received");
   });
 });

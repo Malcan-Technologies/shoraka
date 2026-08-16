@@ -466,7 +466,7 @@ Incomplete onboarding steps (`terms`, `fee`, `verify`) redirect off `/` to the m
 
 Onboarding audit records CashSouk business actions, stages, decisions, and outcomes. Detailed provider synchronization remains in its source-of-truth storage and is not duplicated as onboarding audit noise.
 
-**Reserved IDs:** A039–A055 (17). **Current active writers:** 15. **Retired / no current writer:** A040 `ONBOARDING_RESUMED`, A053 `CORPORATE_ENTITIES_UPDATED`. Historical rows remain readable. IDs are not reused.
+**Reserved IDs:** A039–A055 (17). **Current active writers:** 14. **Retired / no current writer:** A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`. Historical rows remain readable. IDs are not reused.
 
 | ID | Event | Current writer |
 |---|---|---|
@@ -483,14 +483,14 @@ Onboarding audit records CashSouk business actions, stages, decisions, and outco
 | A049 | `AML_APPROVED` | Yes |
 | A050 | `SSM_APPROVED` | Yes |
 | A051 | `INVESTOR_SOPHISTICATED_STATUS_UPDATED` | Yes |
-| A052 | `CTOS_REPORT_RECEIVED` | Yes |
+| A052 | `CTOS_REPORT_RECEIVED` | Retired — `ctos_reports` still inserts on successful fetch |
 | A053 | `CORPORATE_ENTITIES_UPDATED` | Retired — `corporate_entities` still updates |
 | A054 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | Yes |
 | A055 | `DIRECTOR_KYC_STATUS_UPDATED` | Yes — `APPROVED` / `REJECTED` outcomes only. Intermediate KYC/provider statuses stay on `director_kyc_status`. |
 
 **REMOVED:** `OnboardingLog` / `onboarding_logs`.
 
-Known limitations (not fixed here): `retryOnboarding` can persist a new provider session without `ONBOARDING_RESTARTED`; company auto-regenerate may label a stale/cancelled session as `EXPIRED_SESSION`; CTOS audit may have `actorUserId: null`; legacy complete-onboarding routes still emit `ONBOARDING_COMPLETED`; user cancel remains a no-op workflow action.
+Known limitations (not fixed here): `retryOnboarding` can persist a new provider session without `ONBOARDING_RESTARTED`; company auto-regenerate may label a stale/cancelled session as `EXPIRED_SESSION`; legacy complete-onboarding routes still emit `ONBOARDING_COMPLETED`; user cancel remains a no-op workflow action.
 
 ---
 

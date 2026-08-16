@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { ONBOARDING_AUDIT_EVENTS } from "./events";
+import { ONBOARDING_AUDIT_EVENTS, RETIRED_ONBOARDING_AUDIT_EVENTS } from "./events";
 import { ONBOARDING_AUDIT_EVENTS as TYPES_ONBOARDING_EVENTS } from "@cashsouk/types";
 import { ACCESS_AUDIT_EVENTS } from "../../auth/audit/events";
 import { SECURITY_AUDIT_EVENTS } from "../../security/audit/events";
@@ -66,6 +66,12 @@ describe("Onboarding audit cutover", () => {
 
   it("event catalogues match between API and types", () => {
     expect([...TYPES_ONBOARDING_EVENTS]).toEqual([...ONBOARDING_AUDIT_EVENTS]);
+    expect(ONBOARDING_AUDIT_EVENTS).toHaveLength(17);
+    expect([...RETIRED_ONBOARDING_AUDIT_EVENTS]).toEqual([
+      "ONBOARDING_RESUMED",
+      "CTOS_REPORT_RECEIVED",
+      "CORPORATE_ENTITIES_UPDATED",
+    ]);
   });
 
   it("does not implement dropped events", () => {
@@ -175,7 +181,8 @@ describe("Onboarding audit cutover", () => {
     expect(liveSources).toMatch(/ONBOARDING_STARTED/);
     expect(liveSources).not.toMatch(/eventType:\s*"ONBOARDING_RESUMED"/);
     expect(liveSources).not.toMatch(/eventType:\s*"CORPORATE_ENTITIES_UPDATED"/);
-    expect(liveSources).toMatch(/CTOS_REPORT_RECEIVED/);
+    expect(liveSources).not.toMatch(/eventType:\s*"CTOS_REPORT_RECEIVED"/);
+    expect(liveSources).not.toMatch(/writeCtosReportReceivedAudit/);
     expect(liveSources).toMatch(/DIRECTOR_ONBOARDING_INVITATION_SENT/);
     expect(liveSources).toMatch(/ONBOARDING_REJECTED/);
   });

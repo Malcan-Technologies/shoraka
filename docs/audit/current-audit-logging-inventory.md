@@ -58,7 +58,7 @@ Known limitations (not fixed in the cleanup):
 - `LegalDocumentAcceptance` remains legal acceptance source of truth.
 - CTOS report rows remain report source of truth.
 - Audit is never workflow state. No User/org/RegTank FKs on `OnboardingAuditLog` (scalar historical ids only). Append-only create.
-- Reserved onboarding IDs A039–A055 remain 17. Current active writers: 15. Retired / no current writer: `ONBOARDING_RESUMED` (A040) and `CORPORATE_ENTITIES_UPDATED` (A053). Historical rows remain readable. IDs are not reused.
+- Reserved onboarding IDs A039–A055 remain 17. Current active writers: 14. Retired / no current writer: `ONBOARDING_RESUMED` (A040), `CTOS_REPORT_RECEIVED` (A052), and `CORPORATE_ENTITIES_UPDATED` (A053). Historical rows remain readable. IDs are not reused.
 - Onboarding audit records CashSouk business actions, stages, decisions, and outcomes. Detailed provider synchronization remains in its source-of-truth storage (`corporate_entities`, `director_kyc_status`, `RegTankOnboarding.webhook_payloads`) and is not duplicated as onboarding audit noise.
 - `DIRECTOR_KYC_STATUS_UPDATED` writes only when an existing director newly becomes `APPROVED` or `REJECTED`.
 - `ONBOARDING_STATUS_CHANGED` is the core stage event, including review landing, amendment requested, and amendment resubmission. Admin Organization contextual history includes it.
@@ -69,9 +69,8 @@ Known limitations (not fixed in this cleanup):
 
 1. `retryOnboarding` can persist a new provider session without writing `ONBOARDING_RESTARTED`.
 2. Company auto-regenerate may label a stale/cancelled session as `EXPIRED_SESSION`.
-3. CTOS audit may have `actorUserId: null` because request context is not propagated.
-4. Legacy complete-onboarding routes still exist and emit `ONBOARDING_COMPLETED`.
-5. User cancel remains a no-op workflow action.
+3. Legacy complete-onboarding routes still exist and emit `ONBOARDING_COMPLETED`.
+4. User cancel remains a no-op workflow action.
 
 ---
 
@@ -82,7 +81,7 @@ CashSouk does not have a single audit system. It has **many specialized tables**
 ### Current architecture (factual)
 
 - **Auth/security:** `AccessAuditLog` (signup/login/logout) + `SecurityAuditLog` (RBAC, profile, invitations, membership, notification config). No User FK; history survives User deletion. `UserSession` is session SOT; Cognito is auth authority. Legacy `AccessLog` / `SecurityLog` removed.
-- **Onboarding:** `OnboardingAuditLog` is the sole onboarding/compliance history table (append-only). Organization `onboarding_status`/flags, `RegTankOnboarding`, `LegalDocumentAcceptance`, and CTOS rows remain SOT. Audit is never workflow state. Legacy `OnboardingLog` / `onboarding_logs` removed. A039–A055 are 17 reserved IDs with 15 current writers; A040 and A053 are retired (historical rows readable). `DIRECTOR_KYC_STATUS_UPDATED` is outcome-only (`APPROVED`/`REJECTED`).
+- **Onboarding:** `OnboardingAuditLog` is the sole onboarding/compliance history table (append-only). Organization `onboarding_status`/flags, `RegTankOnboarding`, `LegalDocumentAcceptance`, and CTOS rows remain SOT. Audit is never workflow state. Legacy `OnboardingLog` / `onboarding_logs` removed. A039–A055 are 17 reserved IDs with 14 current writers; A040, A052, and A053 are retired (historical rows readable). `DIRECTOR_KYC_STATUS_UPDATED` is outcome-only (`APPROVED`/`REJECTED`).
 - **Applications:** `ApplicationAuditLog` (`application_audit_logs`) is the application/review/contract/invoice history table (append-only, no Application/User FKs). `ApplicationReview` / `ApplicationReviewItem` are current review status. `ApplicationReviewRemark` is cycle-scoped amendment remark SOT. `ApplicationRevision` is comparison/snapshot SOT. Resubmit comparison reads `ApplicationRevision` + remarks, never audit. Legacy `ApplicationLog` / `application_logs` and `ApplicationReviewEvent` / `application_review_events` **removed**.
 - **Signing:** `SigningAuditLog` (`signing_audit_logs`) is the signing history table (append-only). Envelope graph / `SigningCloudEkyc` remain signing SOT. `GET /v1/applications/:id/logs` merges Application + Signing audit rows. Envelope log APIs read `SigningAuditLog` only.
 - **Notes:** `NoteAuditLog` (`note_audit_logs`) is the sole Note-domain history table (append-only, no Note/User/org FKs). Ledger, `NotePayment`, `NoteSettlement`, `NoteInvestment`, `WithdrawalInstruction`, `ShorakaTradeOrder`, prospectus models, and `Note` remain SOT. Activity feed reads a **subset** of `NoteAuditLog` types. `NoteEvent` / `note_events` and `NoteAdminAction` / `note_admin_actions` **removed**. Title/summary edits, featured settings, and prospectus draft saves are intentionally unaudited.
@@ -191,8 +190,8 @@ Sole security/admin-control table. Distinguishes `actor_user_id` vs `subject_use
 #### OnboardingAuditLog → `onboarding_audit_logs` · ONBOARDING · **A**
 
 Sole onboarding/compliance history table. Append-only create. Required `metadata` Json. `occurred_at` + `created_at`. No `updated_at`. No User/org/RegTank FKs (scalar historical ids only).  
-Reserved IDs (17): `ONBOARDING_STARTED`, `ONBOARDING_RESUMED` (retired, historical rows readable), `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `CTOS_REPORT_RECEIVED`, `CORPORATE_ENTITIES_UPDATED` (retired, `corporate_entities` still persisted), `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED` (APPROVED/REJECTED outcomes only).  
-Current active writers: 15. **REMOVED:** `OnboardingLog` / `onboarding_logs`. Audit is never workflow state.
+Reserved IDs (17): `ONBOARDING_STARTED`, `ONBOARDING_RESUMED` (retired, historical rows readable), `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `CTOS_REPORT_RECEIVED` (retired, `ctos_reports` still persisted), `CORPORATE_ENTITIES_UPDATED` (retired, `corporate_entities` still persisted), `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED` (APPROVED/REJECTED outcomes only).  
+Current active writers: 14. **REMOVED:** `OnboardingLog` / `onboarding_logs`. Audit is never workflow state.
 
 #### ApplicationAuditLog → `application_audit_logs` · APPLICATION · **A**
 
@@ -426,7 +425,7 @@ Legacy `AuthRepository.createAccessLog` / `AdminRepository.createAccessLog` / `c
 
 ### OnboardingAuditLog
 
-Writers: `writeOnboardingAuditLog` (`apps/api/src/modules/onboarding/audit/writer.ts`) only. Live callers include start (not resume), restart, reset, status transitions (including amendment requested/resubmitted), admin approvals, AML/SSM/sophisticated/CTOS/director invitation, director APPROVED/REJECTED outcomes (`writeDirectorKycOutcomeAuditLogs`), and legacy complete-onboarding (`ONBOARDING_COMPLETED`). Resume does **not** write `ONBOARDING_RESUMED`. Corporate-entity JSON sync does **not** write `CORPORATE_ENTITIES_UPDATED`. TNC, guarantor AML, and fee capture do **not** write this table.
+Writers: `writeOnboardingAuditLog` (`apps/api/src/modules/onboarding/audit/writer.ts`) only. Live callers include start (not resume), restart, reset, status transitions (including amendment requested/resubmitted), admin approvals, AML/SSM/sophisticated/director invitation, director APPROVED/REJECTED outcomes (`writeDirectorKycOutcomeAuditLogs`), and legacy complete-onboarding (`ONBOARDING_COMPLETED`). Resume does **not** write `ONBOARDING_RESUMED`. Corporate-entity JSON sync does **not** write `CORPORATE_ENTITIES_UPDATED`. CTOS fetch/storage does **not** write `CTOS_REPORT_RECEIVED` (`ctos_reports` still persists). TNC, guarantor AML, and fee capture do **not** write this table.
 
 Production final approval writes **`ONBOARDING_FINAL_APPROVAL_COMPLETED`**. `AuthService.cancelOnboarding` does **not** read audit as state. Legacy `OnboardingLog` writers/readers **removed**. Admin `GET /v1/admin/onboarding-logs` reads `OnboardingAuditLog`.
 
@@ -518,8 +517,8 @@ Retired with `AccessLog`/`SecurityLog`: `LOGIN`, `SIGNUP`, `LOGOUT`, `ROLE_SWITC
 
 ### Onboarding (`OnboardingAuditLog`)
 
-Current writers (15): `ONBOARDING_STARTED`, `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `CTOS_REPORT_RECEIVED`, `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED` (APPROVED/REJECTED outcomes only).  
-Retired, still reserved (historical rows readable): `ONBOARDING_RESUMED`, `CORPORATE_ENTITIES_UPDATED`.  
+Current writers (14): `ONBOARDING_STARTED`, `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED` (APPROVED/REJECTED outcomes only).  
+Retired, still reserved (historical rows readable): `ONBOARDING_RESUMED`, `CTOS_REPORT_RECEIVED`, `CORPORATE_ENTITIES_UPDATED`.  
 Retired with `OnboardingLog`: `ONBOARDING_CANCELLED`, `WEBHOOK_*`, `FORM_FILLED`, `EOD_WEBHOOK`, `USER_COMPLETED`, `TNC_APPROVED`, `TNC_ACCEPTED`, `COD_REJECTED`, generic `ONBOARDING_STATUS_UPDATED`.  
 Activity UI curated subset: STARTED, RESTARTED, review/amendment STATUS_CHANGED, REJECTED, APPROVED, COMPLETED; issuer invitation + director APPROVED/REJECTED; investor sophisticated when the value changes. FINAL_APPROVAL is admin-only. RESUMED is not user-facing.
 
@@ -761,7 +760,7 @@ Conceptual future names only — **not implemented**.
 | WALLET | Investor withdrawal request | No | instruction + debit | HIGH | INVESTOR_WITHDRAWAL_REQUESTED | HIGH |
 | RECON | Run/resolve | No | recon tables | HIGH | GATEWAY_RECON_RUN / EXCEPTION_RESOLVED | HIGH |
 | SHORAKA | Callback / query | No NoteEvent | trade order | HIGH | SHORAKA_STATUS_UPDATED | HIGH |
-| CTOS | Fetch report / KYB retry | Almost none | CtosReport | MEDIUM | CTOS_REPORT_FETCHED | MEDIUM |
+| CTOS | Fetch report / KYB retry | A052 retired; `ctos_reports` SOT | CtosReport | MEDIUM | CTOS_REPORT_FETCHED | MEDIUM |
 | KYB/KYT | Webhook processed | Weak | JSON | HIGH | KYB_WEBHOOK_PROCESSED | HIGH |
 | GUARANTOR | Start AML | No | RegTank | HIGH | GUARANTOR_AML_STARTED | HIGH |
 | NOTIF | Type/group config | No | tables | MEDIUM | NOTIFICATION_CONFIG_UPDATED | MEDIUM |

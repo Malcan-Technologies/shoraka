@@ -110,6 +110,7 @@ describe("OrganizationLogAdapter visibility", () => {
         metadata: { previousStatus: "IN_PROGRESS", newStatus: "PENDING_SSM_REVIEW" },
       }),
       createRecord({ id: "entities", event_type: "CORPORATE_ENTITIES_UPDATED" }),
+      createRecord({ id: "ctos", event_type: "CTOS_REPORT_RECEIVED" }),
       createRecord({ id: "aml", event_type: "AML_APPROVED" }),
     ]);
 

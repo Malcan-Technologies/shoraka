@@ -18,9 +18,10 @@ export const ONBOARDING_AUDIT_EVENTS = [
   "DIRECTOR_KYC_STATUS_UPDATED",
 ] as const;
 
-/** Historical event types with no current writer. IDs A040 / A053 stay reserved. */
+/** Historical event types with no current writer. IDs A040 / A052 / A053 stay reserved. */
 export const RETIRED_ONBOARDING_AUDIT_EVENTS = [
   "ONBOARDING_RESUMED",
+  "CTOS_REPORT_RECEIVED",
   "CORPORATE_ENTITIES_UPDATED",
 ] as const;
 

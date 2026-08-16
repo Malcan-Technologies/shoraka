@@ -14,7 +14,7 @@
 |---|---|---:|---|---|---|---|
 | Access | A001–A003 | 3 | AccessAuditLog | access_audit_logs | `/audit` → Access (`/audit?tab=access`) | `audit.access.view` |
 | Security | A004–A038 | 35 | SecurityAuditLog | security_audit_logs | `/audit` → Security (`/audit?tab=security`) | `audit.security.view` |
-| Onboarding | A039–A055 | 17 reserved (15 active writers; A040 and A053 retired) | OnboardingAuditLog | onboarding_audit_logs | `/audit` → Onboarding (`/audit?tab=onboarding`) | `onboarding.view` |
+| Onboarding | A039–A055 | 17 reserved (14 active writers; A040, A052, and A053 retired) | OnboardingAuditLog | onboarding_audit_logs | `/audit` → Onboarding (`/audit?tab=onboarding`) | `onboarding.view` |
 | Legal | A056–A062 | 7 | LegalAdminAuditLog | legal_admin_audit_logs | `/audit` → Legal Documents (`/audit?tab=legal-documents`) | `document_management.view` |
 | Application | A063–A102 | 40 | ApplicationAuditLog | application_audit_logs | Application Detail → Audit History | `applications.view` |
 | Signing | A103–A114 | 12 | SigningAuditLog | signing_audit_logs | Application Detail → Audit History (merged) + envelope logs | `applications.view` |
@@ -22,7 +22,7 @@
 | Payment | A150–A168 | 19 | PaymentAuditLog | payment_audit_logs | Gateway Payment / Investor Withdrawal / Reconciliation Audit | gateway / `investor_withdrawals.view` / `gateway_reconciliation.view` |
 | Product | A169–A173 | 5 | ProductAuditLog | product_audit_logs | `/audit` → Products (`/audit?tab=products`) | `audit.product.view` |
 | Notification | A174 | 1 | NotificationBroadcastAuditLog | notification_broadcast_audit_logs | `/audit` → Notifications (`/audit?tab=notifications`) | `notifications.view` |
-| **Total** | **A001–A174** | **174 reserved IDs** (172 current writers; A040 and A053 retired, IDs not reused) | | | | |
+| **Total** | **A001–A174** | **174 reserved IDs** (171 current writers; A040, A052, and A053 retired, IDs not reused) | | | | |
 
 
 ## Visibility summary
@@ -43,7 +43,7 @@ Computed from the event cards in this catalogue (not from memory).
 | Notification | 1 | 1 | 0 / 0 / 1 | 0 / 0 / 1 | 0 / 0 / 1 |
 | **Total** | **174** | **174** | **90 / 1 / 83** | **55 / 5 / 114** | **12 / 11 / 151** |
 
-Onboarding visibility counts include the 17 reserved IDs. Retired A040 / A053 remain SHOW on admin raw and SHOW (historical) on admin curated Activity if old rows exist; issuer/investor HIDE. Admin Activity HIDE is only `USER_ONBOARDING_STATUS_UPDATED`. Issuer/investor CONDITIONAL includes review/amendment `ONBOARDING_STATUS_CHANGED`.
+Onboarding visibility counts include the 17 reserved IDs. Retired A040 / A052 / A053 remain SHOW on admin raw and SHOW (historical) on admin curated Activity if old rows exist; issuer/investor HIDE. Admin Organization contextual history excludes A052 and A053. Admin Activity HIDE is only `USER_ONBOARDING_STATUS_UPDATED`. Issuer/investor CONDITIONAL includes review/amendment `ONBOARDING_STATUS_CHANGED`.
 
 # Access
 
@@ -8399,8 +8399,8 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
 Reserved event IDs: 17 (A039–A055). Do not renumber or reuse IDs.
-Current active writers: 15
-Retired / no current writer: 2 (A040 `ONBOARDING_RESUMED`, A053 `CORPORATE_ENTITIES_UPDATED`)
+Current active writers: 14
+Retired / no current writer: 3 (A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`)
 Range: A039-A055
 Admin Location: /audit → Onboarding (`/audit?tab=onboarding`)
 Permission: onboarding.view
@@ -8409,13 +8409,13 @@ Onboarding audit records CashSouk business actions, stages, decisions, and outco
 
 **GOOD ONBOARDING AUDIT:** Onboarding Started; Verification Submitted; Amendment Requested; Verification Resubmitted; SSM Approved; Onboarding Approved; AML Approved; Director Verification Approved/Rejected; Onboarding Completed; Onboarding Rejected.
 
-**NOT ONBOARDING AUDIT** (still stored on SOT where applicable): Corporate entity JSON refreshed; Director ID uploaded; Director liveness started; Director kycId appeared; raw RegTank webhook received.
+**NOT ONBOARDING AUDIT** (still stored on SOT where applicable): Corporate entity JSON refreshed; CTOS report fetch/storage (`ctos_reports`); Director ID uploaded; Director liveness started; Director kycId appeared; raw RegTank webhook received.
 
 **Visibility (current source):**
 
-- Admin Global Onboarding Audit (`/audit?tab=onboarding`): all catalogued types including historical A040/A053 rows; `ONBOARDING_STATUS_CHANGED` visible.
+- Admin Global Onboarding Audit (`/audit?tab=onboarding`): all catalogued types including historical A040/A052/A053 rows; `ONBOARDING_STATUS_CHANGED` visible.
 - Admin curated Activity (`isOnboardingActivityVisible` admin): all types except `USER_ONBOARDING_STATUS_UPDATED`.
-- Admin Organization contextual history (`use-organization-logs.ts`): includes `ONBOARDING_STATUS_CHANGED` and historical `ONBOARDING_RESUMED`; excludes `CORPORATE_ENTITIES_UPDATED` and `USER_ONBOARDING_STATUS_UPDATED`; includes director APPROVED/REJECTED outcomes.
+- Admin Organization contextual history (`use-organization-logs.ts`): includes `ONBOARDING_STATUS_CHANGED` and historical `ONBOARDING_RESUMED`; excludes `CTOS_REPORT_RECEIVED`, `CORPORATE_ENTITIES_UPDATED`, and `USER_ONBOARDING_STATUS_UPDATED`; includes director APPROVED/REJECTED outcomes.
 - Issuer/investor activity: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer invitation + director APPROVED/REJECTED (historical ACTION_REQUIRED still renders); investor sophisticated when the value changes. No internal SSM/AML/CTOS/admin-detail unless that surface already exposes it. Intermediate director KYC statuses are not audit events.
 
 **Manual QA — company COD WAIT:** expect `ONBOARDING_STATUS_CHANGED`; no `CORPORATE_ENTITIES_UPDATED`; no intermediate `DIRECTOR_KYC_STATUS_UPDATED`.
@@ -8439,7 +8439,7 @@ Onboarding audit records CashSouk business actions, stages, decisions, and outco
 | A049 | ONB-011 | `AML_APPROVED` | SHOW | SHOW | HIDE | HIDE |
 | A050 | ONB-012 | `SSM_APPROVED` | SHOW | SHOW | HIDE | HIDE |
 | A051 | ONB-013 | `INVESTOR_SOPHISTICATED_STATUS_UPDATED` | SHOW | SHOW | HIDE | CONDITIONAL |
-| A052 | ONB-014 | `CTOS_REPORT_RECEIVED` | SHOW | SHOW | HIDE | HIDE |
+| A052 | ONB-014 | `CTOS_REPORT_RECEIVED` | SHOW (historical) | SHOW (historical) | HIDE | HIDE |
 | A053 | ONB-015 | `CORPORATE_ENTITIES_UPDATED` | SHOW (historical) | SHOW (historical) | HIDE | HIDE |
 | A054 | ONB-016 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | SHOW | SHOW | CONDITIONAL | HIDE |
 | A055 | ONB-017 | `DIRECTOR_KYC_STATUS_UPDATED` | SHOW | SHOW | CONDITIONAL | HIDE |
@@ -11186,6 +11186,13 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A052 — CTOS_REPORT_RECEIVED
 
+**Status: RETIRED**
+**Current writer: None**
+**Historical rows: Supported/readable**
+**ID reused: No**
+
+ID A052 remains reserved in A039–A055. A successful CTOS Fetch is an operational report-fetch action, not a CashSouk onboarding milestone. CTOS reports are still stored in `ctos_reports` (append-only insert on every successful fetch). Only the onboarding audit breadcrumb was removed. Historical `CTOS_REPORT_RECEIVED` rows stay readable on admin raw. Admin Organization contextual history excludes this type.
+
 Source Case: ONB-014
 Module: Onboarding
 Audit Model: OnboardingAuditLog
@@ -11197,11 +11204,11 @@ A CTOS credit report was received and stored.
 
 ## 2. When it logs
 
-`apps/api/src/modules/ctos/ctos-report-service.ts`. Known limitation: `actorUserId` may be null because request context is not always propagated.
+No current writer. Previously `apps/api/src/modules/ctos/ctos-report-service.ts` after every successful `ctosReport.create`. Known historical limitation: `actorUserId` was often null because request context was not propagated.
 
 ## 3. When it does NOT log / no-op
 
-Issuer/investor HIDE. Failed CTOS fetch does not write this event.
+Successful org, onboarding-approval, financial, people-table, and guarantor CTOS fetches still insert `ctos_reports` rows but do not write this event. Repeated Fetch inserts another report row and still does not write onboarding audit. Failed SOAP fetch does not write this event. Issuer/investor HIDE. Admin contextual organization timeline excludes this type.
 
 ## 4. Top-level audit row
 
@@ -41176,7 +41183,7 @@ Visible curated activity titles only (HIDE = omitted). Copy is from `packages/ty
 | A050 | `SSM_APPROVED` | Admin Activity | SSM Approved |
 | A051 | `INVESTOR_SOPHISTICATED_STATUS_UPDATED` | Admin Activity | Sophisticated Status Updated |
 | A051 | `INVESTOR_SOPHISTICATED_STATUS_UPDATED` | Investor | Sophisticated Status Updated |
-| A052 | `CTOS_REPORT_RECEIVED` | Admin Activity | CTOS Report Received |
+| A052 | `CTOS_REPORT_RECEIVED` | Admin Activity | CTOS Report Received (historical rows only; no current writer; excluded from org contextual history) |
 | A053 | `CORPORATE_ENTITIES_UPDATED` | Admin Activity | Corporate Entities Updated (historical rows only; no current writer; excluded from org contextual history) |
 | A054 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | Admin Activity | Director Invitation Sent |
 | A054 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | Issuer | Director Invitation Sent |
@@ -41410,7 +41417,7 @@ Date: **2026-08-17**. Source: current tree after the Onboarding Audit redesign.
 | Catalogue arrays in this document (Access 3 + Security 35 + Onboarding 17 reserved + Legal 7 + Application 40 + Signing 12 + Note 35 + Payment 19 + Product 5 + Notification 1) | 174 reserved IDs | VERIFIED |
 | `ACCESS_AUDIT_EVENTS` `apps/api/src/modules/auth/audit/events.ts` | 3 | VERIFIED |
 | `SECURITY_AUDIT_EVENTS` `apps/api/src/modules/security/audit/events.ts` | 35 | VERIFIED |
-| `ONBOARDING_AUDIT_EVENTS` `apps/api/src/modules/onboarding/audit/events.ts` | 17 reserved IDs (15 current writers; A040 and A053 in `RETIRED_ONBOARDING_AUDIT_EVENTS`) | VERIFIED |
+| `ONBOARDING_AUDIT_EVENTS` `apps/api/src/modules/onboarding/audit/events.ts` | 17 reserved IDs (14 current writers; A040, A052, and A053 in `RETIRED_ONBOARDING_AUDIT_EVENTS`) | VERIFIED |
 | `LEGAL_ADMIN_AUDIT_EVENTS` `apps/api/src/modules/legal-documents/audit/events.ts` | 7 | VERIFIED |
 | `APPLICATION_AUDIT_EVENTS` `apps/api/src/modules/applications/audit/events.ts` | 40 | VERIFIED |
 | `SIGNING_AUDIT_EVENTS` `apps/api/src/modules/signing/audit/events.ts` | 12 | VERIFIED |
@@ -41419,7 +41426,7 @@ Date: **2026-08-17**. Source: current tree after the Onboarding Audit redesign.
 | `PRODUCT_AUDIT_EVENTS` `apps/api/src/modules/products/audit/events.ts` | 5 | VERIFIED |
 | `NOTIFICATION_BROADCAST_AUDIT_EVENTS` `apps/api/src/modules/notification/audit/events.ts` | 1 | VERIFIED |
 | Zod `metadataByEvent` / `schemas` maps (one schema per catalogue event, including retired IDs so historical rows still parse) | 174 | VERIFIED |
-| Current writers (`eventType: "…"` call sites in `apps/api/src/modules/**` plus jobs/middleware) | 172 events have at least one current writer; A040 and A053 have none | VERIFIED |
+| Current writers (`eventType: "…"` call sites in `apps/api/src/modules/**` plus jobs/middleware) | 171 events have at least one current writer; A040, A052, and A053 have none | VERIFIED |
 | Admin raw coverage (global `/audit` tabs, application/note contextual history, trustee, gateway, withdrawal, recon) | 174 reserved IDs remain readable | VERIFIED |
 
 ## Writer notes that affect verification

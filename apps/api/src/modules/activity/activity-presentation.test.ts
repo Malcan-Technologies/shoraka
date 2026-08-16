@@ -155,6 +155,15 @@ describe("Activity presentation copy", () => {
       });
       expect(entities.title).toBe("Corporate Entities Updated");
       expectSafeCopy(entities.title, entities.description);
+
+      const ctos = formatOnboardingActivity("admin", "CTOS_REPORT_RECEIVED", {
+        reportId: "ctos_1",
+        entityType: "company",
+        provider: "CTOS",
+      });
+      expect(ctos.title).toBe("CTOS Report Received");
+      expectSafeCopy(ctos.title, ctos.description);
+      expect(ctos.description).not.toContain("ctos_1");
     });
 
     it("shows director email to admin only", () => {

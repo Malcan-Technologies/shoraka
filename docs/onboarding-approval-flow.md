@@ -972,6 +972,7 @@ Key actions:
 - “Fetch report” button triggers:
   - `apiClient.createAdminOrganizationCtosReport`
   - which inserts a new CTOS report snapshot
+  - it does **not** write `CTOS_REPORT_RECEIVED` onboarding audit (retired; `ctos_reports` remains SOT)
 - “Amend / Reject”:
   - just opens `application.regtankPortalUrl`
 - “Approve”:

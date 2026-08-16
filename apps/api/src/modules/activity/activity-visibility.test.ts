@@ -110,6 +110,9 @@ describe("activity visibility matrix", () => {
       expect(isOnboardingActivityVisible("admin", "ONBOARDING_STATUS_CHANGED")).toBe(true);
       expect(isOnboardingActivityVisible("admin", "ONBOARDING_FINAL_APPROVAL_COMPLETED")).toBe(true);
       expect(isOnboardingActivityVisible("admin", "CORPORATE_ENTITIES_UPDATED")).toBe(true);
+      expect(isOnboardingActivityVisible("admin", "CTOS_REPORT_RECEIVED")).toBe(true);
+      expect(isOnboardingActivityVisible("issuer", "CTOS_REPORT_RECEIVED")).toBe(false);
+      expect(isOnboardingActivityVisible("investor", "CTOS_REPORT_RECEIVED")).toBe(false);
     });
 
     it("shows review and amendment STATUS_CHANGED transitions to users", () => {

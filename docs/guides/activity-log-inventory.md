@@ -148,6 +148,7 @@ These logs still exist as audit records but are intentionally hidden from `/acti
 
 - onboarding progress noise such as section completion, SSM/AML/CTOS admin-detail steps, and `ONBOARDING_FINAL_APPROVAL_COMPLETED` (users see `ONBOARDING_COMPLETED` instead)
 - `ONBOARDING_RESUMED` (retired; not user-facing even if a historical row exists)
+- `CTOS_REPORT_RECEIVED` (retired; `ctos_reports` still persists)
 - `CORPORATE_ENTITIES_UPDATED` (retired; `corporate_entities` still persists)
 - intermediate director KYC statuses (`ID_UPLOADED`, `LIVENESS_STARTED`, `WAIT_FOR_APPROVAL`, and other non-final states)
 - application section-level review events

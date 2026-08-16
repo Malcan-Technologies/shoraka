@@ -64,6 +64,7 @@ describe("Activity Adapters", () => {
         ])
       );
       expect(adapter.getEventTypes()).not.toContain("ONBOARDING_RESUMED");
+      expect(adapter.getEventTypes()).not.toContain("CTOS_REPORT_RECEIVED");
       expect(adapter.getEventTypes()).not.toContain("ONBOARDING_FINAL_APPROVAL_COMPLETED");
       expect(adapter.getEventTypes()).not.toContain("ONBOARDING_CANCELLED");
       expect(adapter.getEventTypes()).not.toContain("FORM_FILLED");
