@@ -28,6 +28,13 @@ import { useProductLogs, useExportProductLogs } from "@/hooks/use-product-logs";
 import { AdminQueryErrorState } from "@/components/admin-query-error-state";
 import { AuditLogDetailSheet } from "@/components/audit/audit-log-detail-sheet";
 import { formatAuditEventLabel } from "@/lib/audit-tabs";
+import { formatAuditDateTime } from "@/lib/audit-datetime";
+import {
+  auditExportFilename,
+  downloadAuditExport,
+  truncatedExportDescription,
+} from "@/lib/download-audit-export";
+import { toast } from "sonner";
 import type { ProductLogResponse } from "@cashsouk/types";
 import {
   ArrowPathIcon,
@@ -52,13 +59,7 @@ const PRODUCT_EVENT_TYPES: { value: ProductEventType; label: string; color: stri
 ];
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-MY", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatAuditDateTime(dateStr);
 }
 
 function getEventTypeBadge(eventType: ProductEventType) {
@@ -132,24 +133,23 @@ export function ProductLogsPanel() {
 
   const handleExport = async (format: "csv" | "json") => {
     try {
-      const blob = await getExportLogs({
+      const result = await getExportLogs({
         search: searchQuery || undefined,
         eventType:
           eventTypeFilter !== "all" ? (eventTypeFilter as ProductEventType) : undefined,
         dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
         format,
       });
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `product-logs-${new Date().toISOString().split("T")[0]}.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      downloadAuditExport(result.blob, auditExportFilename("product-logs", format));
+      if (result.truncated) {
+        toast.warning("Export truncated", { description: truncatedExportDescription() });
+      } else {
+        toast.success(`Product logs exported as ${format.toUpperCase()}`);
+      }
     } catch (error) {
-      console.error("Export failed:", error);
+      toast.error("Failed to export product logs", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
     }
   };
 

@@ -6,6 +6,7 @@ import {
   exportLegalDocumentAuditLogsQuerySchema,
   listLegalDocumentAuditLogsQuerySchema,
 } from "./schemas";
+import { applyAuditExportHeaders } from "../../lib/audit/export-headers";
 
 const router = Router();
 
@@ -47,6 +48,7 @@ router.get(
     try {
       const validated = exportLegalDocumentAuditLogsQuerySchema.parse(req.query);
       const rows = await legalDocumentAuditAdminService.export(validated);
+      applyAuditExportHeaders(res, rows.length);
 
       if (validated.format === "csv") {
         const headers = [
@@ -105,11 +107,7 @@ router.get(
         "Content-Disposition",
         `attachment; filename="legal-document-audit-logs-${new Date().toISOString().split("T")[0]}.json"`
       );
-      res.json({
-        success: true,
-        data: { logs: rows },
-        correlationId: res.locals.correlationId,
-      });
+      res.json(rows);
     } catch (error) {
       next(
         error instanceof AppError

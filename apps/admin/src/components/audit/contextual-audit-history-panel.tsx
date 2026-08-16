@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -12,23 +13,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  AuditLogDetailFields,
   AuditLogDetailSheet,
   type AuditLogDetail,
 } from "@/components/audit/audit-log-detail-sheet";
-
-function formatTimestamp(value: string | null | undefined): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("en-MY", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
+import { formatAuditDateTime } from "@/lib/audit-datetime";
+import { ChevronLeftIcon, ChevronRightIcon, EyeIcon } from "@heroicons/react/24/outline";
 
 function actorLabel(row: AuditLogDetail): string {
   return row.actorName || row.actorEmail || row.actorUserId || row.actorType || "—";
@@ -50,6 +40,11 @@ export function ContextualAuditHistoryPanel({
   error = null,
   emptyMessage = "No audit records found",
   variant = "card",
+  detailMode = "sheet",
+  page,
+  pageSize,
+  totalCount,
+  onPageChange,
 }: {
   title?: string;
   description?: string;
@@ -58,8 +53,17 @@ export function ContextualAuditHistoryPanel({
   error?: Error | null;
   emptyMessage?: string;
   variant?: "card" | "plain";
+  detailMode?: "sheet" | "inline";
+  page?: number;
+  pageSize?: number;
+  totalCount?: number;
+  onPageChange?: (page: number) => void;
 }) {
   const [selected, setSelected] = React.useState<AuditLogDetail | null>(null);
+  const totalPages =
+    page && pageSize && typeof totalCount === "number"
+      ? Math.max(1, Math.ceil(totalCount / pageSize))
+      : undefined;
 
   const body = (
     <>
@@ -81,17 +85,14 @@ export function ContextualAuditHistoryPanel({
                 <TableHead>Actor</TableHead>
                 <TableHead>Target</TableHead>
                 <TableHead>Source / Portal</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  className="cursor-pointer"
-                  onClick={() => setSelected(row)}
-                >
+                <TableRow key={row.id}>
                   <TableCell className="whitespace-nowrap text-xs">
-                    {formatTimestamp(row.occurredAt)}
+                    {formatAuditDateTime(row.occurredAt)}
                   </TableCell>
                   <TableCell className="text-xs font-medium">
                     {row.eventLabel ?? row.eventType}
@@ -105,6 +106,17 @@ export function ContextualAuditHistoryPanel({
                   <TableCell className="whitespace-nowrap text-xs">
                     {sourcePortalLabel(row)}
                   </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 px-2"
+                      onClick={() => setSelected(row)}
+                    >
+                      <EyeIcon className="mr-1 h-4 w-4" />
+                      View
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -112,15 +124,53 @@ export function ContextualAuditHistoryPanel({
         </div>
       )}
 
-      <AuditLogDetailSheet
-        log={selected}
-        open={selected !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelected(null);
-        }}
-        title="Audit event"
-        description="Read-only forensic audit record."
-      />
+      {totalPages && page && onPageChange && typeof totalCount === "number" && totalCount > 0 ? (
+        <div className="flex items-center justify-between border-t px-1 py-3">
+          <p className="text-sm text-muted-foreground">
+            Page {page} of {totalPages} ({totalCount} total)
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => onPageChange(page - 1)}
+            >
+              <ChevronLeftIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => onPageChange(page + 1)}
+            >
+              <ChevronRightIcon className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {detailMode === "inline" && selected ? (
+        <div className="mt-6 space-y-3 border-t pt-4">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold">Audit event</h4>
+            <Button variant="ghost" size="sm" onClick={() => setSelected(null)}>
+              Close
+            </Button>
+          </div>
+          <AuditLogDetailFields log={selected} />
+        </div>
+      ) : (
+        <AuditLogDetailSheet
+          log={selected}
+          open={selected !== null}
+          onOpenChange={(open) => {
+            if (!open) setSelected(null);
+          }}
+          title="Audit event"
+          description="Read-only forensic audit record."
+        />
+      )}
     </>
   );
 

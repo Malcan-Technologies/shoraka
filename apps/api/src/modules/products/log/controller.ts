@@ -7,6 +7,7 @@ import {
   exportProductLogsQuerySchema,
 } from "../schemas";
 import type { ProductAuditLogDto } from "../audit/reader";
+import { applyAuditExportHeaders } from "../../../lib/audit/export-headers";
 
 const router = Router();
 
@@ -66,6 +67,7 @@ router.get(
         eventTypes,
         dateRange,
       });
+      applyAuditExportHeaders(res, logs.length);
 
       if (format === "csv") {
         const headers = [

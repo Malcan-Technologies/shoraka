@@ -30,7 +30,7 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingAuditLo
       (skip, take) =>
         prisma.onboardingAuditLog.findMany({
           where: this.buildWhere(userId, filters, eventTypes),
-          orderBy: { occurred_at: "desc" },
+          orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
           skip,
           take,
         }),

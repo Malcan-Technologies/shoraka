@@ -15,6 +15,7 @@ import {
   applicationIdParamSchema,
   bucketAccountParamSchema,
   bucketActivityQuerySchema,
+  noteAuditHistoryQuerySchema,
   createInvestmentSchema,
   createNoteFromApplicationSchema,
   createWithdrawalSchema,
@@ -410,6 +411,20 @@ adminNotesRouter.get(
   } catch (error) {
     next(error);
   }
+  }
+);
+
+adminNotesRouter.get(
+  "/:id/audit-history",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const query = noteAuditHistoryQuerySchema.parse(req.query);
+      send(res, await noteService.listAuditHistory(id, query));
+    } catch (error) {
+      next(error);
+    }
   }
 );
 

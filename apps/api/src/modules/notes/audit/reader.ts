@@ -42,13 +42,42 @@ export function toNoteAuditLogDto(row: NoteAuditLog): NoteAuditLogDto {
 }
 
 export class NoteAuditLogReader {
-  /** Full NoteAuditLog history for the note, newest first. No hidden take:50 cap. */
+  /** Full NoteAuditLog history for the note, newest first. Used by Note Activity. */
   async listByNoteId(noteId: string): Promise<NoteAuditLogDto[]> {
     const rows = await prisma.noteAuditLog.findMany({
       where: { note_id: noteId },
       orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
     });
     return rows.map(toNoteAuditLogDto);
+  }
+
+  async listByNoteIdPage(
+    noteId: string,
+    query: { page: number; pageSize: number }
+  ): Promise<{
+    logs: NoteAuditLogDto[];
+    pagination: { page: number; pageSize: number; totalCount: number; totalPages: number };
+  }> {
+    const where = { note_id: noteId };
+    const skip = (query.page - 1) * query.pageSize;
+    const [rows, totalCount] = await Promise.all([
+      prisma.noteAuditLog.findMany({
+        where,
+        orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
+        skip,
+        take: query.pageSize,
+      }),
+      prisma.noteAuditLog.count({ where }),
+    ]);
+    return {
+      logs: rows.map(toNoteAuditLogDto),
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        totalCount,
+        totalPages: Math.max(1, Math.ceil(totalCount / query.pageSize)),
+      },
+    };
   }
 
   /** Platform trustee-signature history. Queried by event type, not note_id. */

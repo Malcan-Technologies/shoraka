@@ -44,6 +44,7 @@ interface AccessLogsToolbarProps {
   eventTypeOptions: { value: string; label: string }[];
   showStatusFilter?: boolean;
   hideExport?: boolean;
+  exportButton?: React.ReactNode;
 }
 
 export function AccessLogsToolbar({
@@ -65,6 +66,7 @@ export function AccessLogsToolbar({
   eventTypeOptions,
   showStatusFilter = false,
   hideExport = false,
+  exportButton,
 }: AccessLogsToolbarProps) {
   const [isSpinning, setIsSpinning] = React.useState(false);
 
@@ -158,9 +160,11 @@ export function AccessLogsToolbar({
             <ArrowPathIcon className={`h-4 w-4 ${isSpinning ? "animate-spin" : ""}`} />
           </Button>
         )}
-        {!hideExport && exportFilters ? (
-          <AccessLogsExportButton kind={exportKind} filters={exportFilters} />
-        ) : null}
+        {exportButton
+          ? exportButton
+          : !hideExport && exportFilters
+            ? <AccessLogsExportButton kind={exportKind} filters={exportFilters} />
+            : null}
       </div>
     </div>
   );

@@ -148,7 +148,7 @@ export class ProductAuditLogReader {
         where,
         skip,
         take: params.pageSize,
-        orderBy: { occurred_at: "desc" },
+        orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
       }),
       prisma.productAuditLog.count({ where }),
     ]);
@@ -167,7 +167,7 @@ export class ProductAuditLogReader {
 
     const rows = await prisma.productAuditLog.findMany({
       where,
-      orderBy: { occurred_at: "desc" },
+      orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
       take: 10000,
     });
 

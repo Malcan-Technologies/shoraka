@@ -143,3 +143,15 @@ describe("activity adapters and issuer application logs remain unchanged", () =>
     expect(issuerHook).not.toContain("signingEnvelopeId");
   });
 });
+
+describe("admin raw audit pagination endpoints", () => {
+  it("adds paginated Admin application and note audit-history routes", () => {
+    expect(readSrc("modules/admin/controller.ts")).toContain("/applications/:id/audit-history");
+    expect(readSrc("modules/applications/service.ts")).toContain("getAdminApplicationAuditHistory");
+    expect(readSrc("modules/notes/controller.ts")).toContain("/:id/audit-history");
+    expect(readSrc("modules/notes/audit/reader.ts")).toContain("listByNoteIdPage");
+    expect(methodChunk(readSrc("modules/applications/service.ts"), "getApplicationLogs")).not.toMatch(
+      /pageSize/
+    );
+  });
+});

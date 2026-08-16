@@ -118,13 +118,19 @@ function PageSkeleton() {
 }
 
 function ApplicationAuditHistoryCard({ applicationId }: { applicationId: string }) {
-  const { data, isLoading, error } = useApplicationAuditHistory(applicationId);
+  const [page, setPage] = React.useState(1);
+  const pageSize = 15;
+  const { data, isLoading, error } = useApplicationAuditHistory(applicationId, page, pageSize);
   return (
     <ContextualAuditHistoryPanel
-      rows={(data ?? []).map(applicationAuditToDetail)}
+      rows={(data?.logs ?? []).map(applicationAuditToDetail)}
       isLoading={isLoading}
       error={error instanceof Error ? error : null}
       emptyMessage="No audit records found"
+      page={page}
+      pageSize={pageSize}
+      totalCount={data?.pagination.totalCount}
+      onPageChange={setPage}
     />
   );
 }

@@ -9,7 +9,6 @@ import {
   ArrowLeftIcon,
   ArrowPathIcon,
   BanknotesIcon,
-  ClipboardDocumentCheckIcon,
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
@@ -42,17 +41,16 @@ import {
 import { cn } from "@/lib/utils";
 import {
   getGatewayPaymentDetailVisibility,
-  gatewayAuditEventView,
   readRefundRequestedAt,
 } from "./gateway-payment-detail-model";
 import {
   GATEWAY_PAYMENT_COPY,
   formatAmountMismatchDescription,
-  formatGatewayEventDescription,
-  formatGatewayEventTitle,
   formatGatewayPaymentFailureReason,
   hasUncertainAmountMismatchRefund,
 } from "./gateway-payment-copy";
+import { ContextualAuditHistoryPanel } from "@/components/audit/contextual-audit-history-panel";
+import { paymentAuditToDetail } from "@/components/audit/contextual-audit-mappers";
 
 const RECEIPT_STATUS_LABEL: Record<string, string> = {
   PENDING: "Being prepared",
@@ -83,11 +81,6 @@ function formatPendingDuration(fromIso: string) {
 
 function senToDisplayMyr(sen: number) {
   return formatCurrency(sen / 100);
-}
-
-function formatStatusLabel(status: string | null | undefined) {
-  if (!status) return null;
-  return STATUS_LABEL[status] ?? status;
 }
 
 function PageSkeleton() {
@@ -907,75 +900,14 @@ export default function GatewayPaymentDetailPage() {
 
                   <div className="min-w-0 space-y-6">
                     <Card className="flex flex-col overflow-hidden rounded-2xl">
-                      <CardHeader className="shrink-0 pb-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <ClipboardDocumentCheckIcon className="h-5 w-5 text-muted-foreground" />
-                            <CardTitle className="text-base font-semibold">
-                              {GATEWAY_PAYMENT_COPY.activity.title}
-                            </CardTitle>
-                          </div>
-                          {timelineEvents.length > 0 ? (
-                            <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                              {timelineEvents.length}
-                            </Badge>
-                          ) : null}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {GATEWAY_PAYMENT_COPY.activity.description}
-                        </p>
-                      </CardHeader>
                       <CardContent className="min-h-0 overflow-hidden !px-0">
-                        {timelineEvents.length === 0 ? (
-                          <div className="px-6 py-8 text-center text-sm text-muted-foreground">
-                            {GATEWAY_PAYMENT_COPY.activity.empty}
-                          </div>
-                        ) : (
-                          <div className="px-6 pb-6">
-                            <div className="relative">
-                              <div className="absolute bottom-2 left-[5px] top-2 w-px bg-border" />
-                              <div className="space-y-5">
-                                {timelineEvents.map((event, index) => {
-                                  const view = gatewayAuditEventView(event);
-                                  const fromLabel = formatStatusLabel(view.fromStatus);
-                                  const toLabel = formatStatusLabel(view.toStatus);
-                                  const description = formatGatewayEventDescription(
-                                    view.eventType,
-                                    view.reason
-                                  );
-                                  return (
-                                    <div key={view.id} className="relative flex gap-3 pl-0">
-                                      <div
-                                        className={cn(
-                                          "relative z-10 mt-1.5 h-[11px] w-[11px] shrink-0 rounded-full border-2 border-card bg-primary",
-                                          index === 0 && "ring-2 ring-primary/20"
-                                        )}
-                                      />
-                                      <div className="-mt-0.5 min-w-0 flex-1">
-                                        <p className="text-sm font-medium leading-tight text-foreground">
-                                          {formatGatewayEventTitle(view.eventType, view.reason)}
-                                        </p>
-                                        <p className="mt-0.5 text-xs text-muted-foreground">
-                                          {formatDate(view.occurredAt)}
-                                        </p>
-                                        {fromLabel && toLabel ? (
-                                          <p className="mt-1 text-xs text-muted-foreground">
-                                            {fromLabel} → {toLabel}
-                                          </p>
-                                        ) : null}
-                                        {description ? (
-                                          <p className="mt-1 text-xs leading-5 text-foreground/90">
-                                            {description}
-                                          </p>
-                                        ) : null}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        )}
+                        <ContextualAuditHistoryPanel
+                          title={GATEWAY_PAYMENT_COPY.activity.title}
+                          description={GATEWAY_PAYMENT_COPY.activity.description}
+                          rows={timelineEvents.map(paymentAuditToDetail)}
+                          emptyMessage={GATEWAY_PAYMENT_COPY.activity.empty}
+                          variant="plain"
+                        />
                       </CardContent>
                     </Card>
                   </div>

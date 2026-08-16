@@ -321,7 +321,11 @@ export function createSigningAdminRouter(): Router {
   const router = Router();
   router.post("/envelopes/:id/void", voidEnvelope);
   router.post("/envelopes/:id/recipients/:recipientId/remind", remindRecipient);
-  router.get("/envelopes/:id/logs", listAdminEnvelopeLogs);
+  router.get(
+    "/envelopes/:id/logs",
+    requirePermission("applications.view"),
+    listAdminEnvelopeLogs
+  );
   router.get("/envelopes/:id", async (req, res, next) => {
     try {
       ok(res, await signingService.getEnvelope(req.params.id));

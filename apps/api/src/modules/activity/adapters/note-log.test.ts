@@ -57,7 +57,9 @@ describe("NoteLogAdapter", () => {
         listing_status: "PUBLISHED",
       },
     ]);
-    prisma.noteInvestment.findMany.mockResolvedValue([{ note_id: "note_1" }]);
+    prisma.noteInvestment.findMany.mockResolvedValue([
+      { note_id: "note_1", status: "COMMITTED" },
+    ]);
     prisma.noteSettlement.findMany.mockResolvedValue([]);
   });
 
@@ -275,5 +277,85 @@ describe("NoteLogAdapter", () => {
     expect(adapter.getEventTypes()).not.toContain("SHORAKA_ORDER_SUBMITTED");
     expect(adapter.getEventTypes()).not.toContain("SETTLEMENT_APPROVED");
     expect(adapter.getEventTypes()).not.toContain("WITHDRAWAL_COMPLETED");
+  });
+
+  it("shows funding-failed to a released investor who participated", async () => {
+    prisma.noteInvestment.findMany.mockResolvedValue([
+      { note_id: "note_1", status: "RELEASED" },
+    ]);
+    prisma.noteAuditLog.findMany.mockResolvedValue([
+      createRecord({ id: "failed", event_type: "NOTE_FUNDING_FAILED" }),
+      createRecord({ id: "activated", event_type: "NOTE_ACTIVATED" }),
+      createRecord({ id: "defaulted", event_type: "NOTE_MARKED_DEFAULT" }),
+    ]);
+
+    const records = await adapter.query("user_1", {
+      organizationId: "investor-org-1",
+      portalType: "investor",
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(records.map((record) => record.event_type)).toEqual(["NOTE_FUNDING_FAILED"]);
+  });
+
+  it("hides later lifecycle events from cancelled and released investors", async () => {
+    prisma.noteInvestment.findMany.mockResolvedValue([
+      { note_id: "note_1", status: "CANCELLED" },
+    ]);
+    prisma.noteAuditLog.findMany.mockResolvedValue([
+      createRecord({ id: "closed", event_type: "NOTE_FUNDING_CLOSED" }),
+      createRecord({ id: "activated", event_type: "NOTE_ACTIVATED" }),
+      createRecord({ id: "defaulted", event_type: "NOTE_MARKED_DEFAULT" }),
+    ]);
+
+    const cancelled = await adapter.query("user_1", {
+      organizationId: "investor-org-1",
+      portalType: "investor",
+      limit: 10,
+      offset: 0,
+    });
+    expect(cancelled).toEqual([]);
+
+    prisma.noteInvestment.findMany.mockResolvedValue([
+      { note_id: "note_1", status: "RELEASED" },
+    ]);
+    const released = await adapter.query("user_1", {
+      organizationId: "investor-org-1",
+      portalType: "investor",
+      limit: 10,
+      offset: 0,
+    });
+    expect(released).toEqual([]);
+  });
+
+  it("keeps settlement ownership independent of investment status", async () => {
+    prisma.noteInvestment.findMany.mockResolvedValue([
+      { note_id: "note_1", status: "CANCELLED" },
+    ]);
+    prisma.noteAuditLog.findMany.mockResolvedValue([
+      createRecord({
+        id: "settlement",
+        event_type: "SETTLEMENT_POSTED",
+        metadata: { settlementId: "set_1" },
+      }),
+    ]);
+    prisma.noteSettlement.findMany.mockResolvedValue([
+      {
+        id: "set_1",
+        preview_snapshot: {
+          allocations: [{ investmentId: "inv_1", investorOrganizationId: "investor-org-1" }],
+        },
+      },
+    ]);
+
+    const records = await adapter.query("user_1", {
+      organizationId: "investor-org-1",
+      portalType: "investor",
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(records.map((record) => record.id)).toEqual(["settlement"]);
   });
 });

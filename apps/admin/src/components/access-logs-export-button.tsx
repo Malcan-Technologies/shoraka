@@ -12,6 +12,11 @@ import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { ExportAccessLogsParams, ExportSecurityLogsParams } from "@cashsouk/types";
 import { toast } from "sonner";
+import {
+  auditExportFilename,
+  downloadAuditExport,
+  truncatedExportDescription,
+} from "@/lib/download-audit-export";
 
 interface AccessLogsExportButtonProps {
   kind: "access" | "security";
@@ -28,19 +33,18 @@ export function AccessLogsExportButton({ kind, filters }: AccessLogsExportButton
   const handleExport = async (format: "csv" | "json") => {
     try {
       setIsExporting(true);
-      const blob =
+      const result =
         kind === "access"
           ? await apiClient.exportAccessLogs({ ...filters, format } as ExportAccessLogsParams)
           : await apiClient.exportSecurityLogs({ ...filters, format } as ExportSecurityLogsParams);
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${kind}-logs-${new Date().toISOString().split("T")[0]}.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      toast.success(`${kind === "access" ? "Access" : "Security"} logs exported as ${format.toUpperCase()}`);
+      downloadAuditExport(result.blob, auditExportFilename(`${kind}-logs`, format));
+      if (result.truncated) {
+        toast.warning("Export truncated", { description: truncatedExportDescription() });
+      } else {
+        toast.success(
+          `${kind === "access" ? "Access" : "Security"} logs exported as ${format.toUpperCase()}`
+        );
+      }
     } catch (error) {
       toast.error("Failed to export logs", {
         description: error instanceof Error ? error.message : "Unknown error",

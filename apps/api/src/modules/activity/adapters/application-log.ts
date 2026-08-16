@@ -63,7 +63,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
       async (skip, take) =>
         prisma.applicationAuditLog.findMany({
           where: await this.buildWhere(userId, filters, eventTypes),
-          orderBy: { occurred_at: "desc" },
+          orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
           skip,
           take,
         }),

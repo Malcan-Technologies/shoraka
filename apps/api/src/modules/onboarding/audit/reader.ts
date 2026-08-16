@@ -169,7 +169,7 @@ export class OnboardingAuditLogReader {
         where,
         skip,
         take: params.pageSize,
-        orderBy: { occurred_at: "desc" },
+        orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
       }),
       prisma.onboardingAuditLog.count({ where }),
     ]);
@@ -188,7 +188,7 @@ export class OnboardingAuditLogReader {
     const where = await buildWhere({ ...params, page: 1, pageSize: 100 });
     const rows = await prisma.onboardingAuditLog.findMany({
       where,
-      orderBy: { occurred_at: "desc" },
+      orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
       take: 10_000,
     });
     return rows.map(toDto);

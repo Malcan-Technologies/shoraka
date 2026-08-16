@@ -281,7 +281,8 @@ describe("Note audit cutover", () => {
     expect(repository).not.toMatch(/take: 50/);
     expect(activity).toMatch(/noteAuditLog\.findMany/);
     expect(activity).toMatch(/source_table: "note_audit_logs"/);
-    expect(activity).toMatch(/NOTE_ACTIVATED/);
+    expect(activity).toMatch(/getNoteActivityEventTypes/);
+    expect(activity).toMatch(/isNoteActivityVisible/);
     expect(activity).not.toMatch(/WITHDRAWAL_COMPLETED/);
   });
 

@@ -202,7 +202,7 @@ export class NotificationBroadcastAuditLogReader {
     const [rows, total] = await Promise.all([
       prisma.notificationBroadcastAuditLog.findMany({
         where,
-        orderBy: { occurred_at: "desc" },
+        orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
         take: limit,
         skip: offset,
       }),

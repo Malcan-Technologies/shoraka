@@ -3,6 +3,9 @@ import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AdminService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
 import { requirePermission } from "../../lib/auth/middleware";
+import { applicationService } from "../applications/service";
+import { adminAuditHistoryQuerySchema } from "../applications/schemas";
+import { applyAuditExportHeaders } from "../../lib/audit/export-headers";
 import { FULL_ACCESS_ADMIN_ROLE_KEYS, type AdminPermission, type AdminRoleKey } from "@cashsouk/types";
 import {
   getUsersQuerySchema,
@@ -866,6 +869,7 @@ router.get(
       const { format, ...filterParams } = validated;
 
       const logs = await adminService.exportAccessLogs(filterParams);
+      applyAuditExportHeaders(res, logs.length);
 
       if (format === "csv") {
         const headers = [
@@ -1323,6 +1327,7 @@ router.get(
       const { format, ...filterParams } = validated;
 
       const logs = await adminService.exportSecurityLogs(filterParams);
+      applyAuditExportHeaders(res, logs.length);
 
       if (format === "csv") {
         const headers = [
@@ -1444,6 +1449,7 @@ router.get(
       const { format, ...filterParams } = validated;
 
       const logs = await adminService.exportOnboardingLogs(filterParams);
+      applyAuditExportHeaders(res, logs.length);
 
       if (format === "csv") {
         const headers = [
@@ -2356,6 +2362,24 @@ router.get(
  *       200:
  *         description: Application details
  */
+router.get(
+  "/applications/:id/audit-history",
+  requirePermission("applications.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const query = adminAuditHistoryQuerySchema.parse(req.query);
+      const result = await applicationService.getAdminApplicationAuditHistory(req.params.id, query);
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.get(
   "/applications/:id",
   requirePermission("applications.view"),

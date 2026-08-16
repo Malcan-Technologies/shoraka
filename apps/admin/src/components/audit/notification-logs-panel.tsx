@@ -38,7 +38,7 @@ import {
   MagnifyingGlassIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
-import { format } from "date-fns";
+import { formatAuditDateTime } from "@/lib/audit-datetime";
 
 const PAGE_SIZE = 15;
 
@@ -213,7 +213,7 @@ export function NotificationLogsPanel() {
               logs.map((log) => (
                 <TableRow key={log.id}>
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                    {format(new Date(log.occurredAt), "MMM d, yyyy HH:mm")}
+                    {formatAuditDateTime(log.occurredAt)}
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="text-[10px] uppercase">

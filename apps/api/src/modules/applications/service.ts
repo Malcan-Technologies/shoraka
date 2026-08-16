@@ -961,6 +961,34 @@ export class ApplicationService {
     return mergeApplicationAndSigningAuditLogs(applicationLogs, signingLogs);
   }
 
+  async getAdminApplicationAuditHistory(
+    id: string,
+    query: { page: number; pageSize: number }
+  ) {
+    const application = await this.repository.findById(id);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    const [applicationLogs, signingLogs] = await Promise.all([
+      applicationAuditLogReader.listByApplicationId(id),
+      signingAuditLogReader.listByApplicationId(id),
+    ]);
+    const merged = mergeApplicationAndSigningAuditLogs(applicationLogs, signingLogs);
+    const totalCount = merged.length;
+    const start = (query.page - 1) * query.pageSize;
+
+    return {
+      logs: merged.slice(start, start + query.pageSize),
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        totalCount,
+        totalPages: Math.max(1, Math.ceil(totalCount / query.pageSize)),
+      },
+    };
+  }
+
   /**
    * Acknowledge a workflowId during amendment mode.
    * Appends workflowId to application's amendment_acknowledged_workflow_ids if missing.

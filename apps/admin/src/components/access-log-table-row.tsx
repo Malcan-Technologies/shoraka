@@ -2,7 +2,7 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EyeIcon } from "@heroicons/react/24/outline";
-import { format } from "date-fns";
+import { formatAuditDateTime } from "@/lib/audit-datetime";
 
 export type AuditTableLog = {
   id: string;
@@ -45,7 +45,7 @@ export function AccessLogTableRow({
   return (
     <TableRow className="hover:bg-muted/50">
       <TableCell className="text-sm text-muted-foreground">
-        {format(new Date(log.occurredAt), "MMM dd, yyyy HH:mm")}
+        {formatAuditDateTime(log.occurredAt)}
       </TableCell>
       <TableCell className="min-w-[180px] max-w-[280px]">
         <div className="flex flex-col min-w-0">

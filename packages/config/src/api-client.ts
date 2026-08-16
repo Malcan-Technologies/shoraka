@@ -43,6 +43,7 @@ import type {
   AdminApplicationActionRequiredCountResponse,
   AdminApplicationsResponse,
   ApplicationAuditLogDto,
+  NoteAuditLogDto,
   GetAdminContractsParams,
   AdminContractsResponse,
   AdminContractDetail,
@@ -99,7 +100,6 @@ import type {
   PendingInvestorWithdrawalsCountResponse,
   PendingRepaymentsResponse,
   PendingServiceFeeTrusteeLettersResponse,
-  NoteAuditLogDto,
   PaymentAuditLogDto,
   NoteLedgerBucketActivityResponse,
   NoteLedgerBucketBalancesResponse,
@@ -276,6 +276,31 @@ export class ApiClient {
     }
 
     return token;
+  }
+
+  private async fetchAuditExport(path: string): Promise<{ blob: Blob; truncated: boolean }> {
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+    if (authToken) {
+      headers.Authorization = `Bearer ${authToken}`;
+    }
+
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: "GET",
+      credentials: "include",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Export failed: ${response.statusText}`);
+    }
+
+    return {
+      blob: await response.blob(),
+      truncated: response.headers.get("X-Audit-Export-Truncated") === "true",
+    };
   }
 
   private async request<T>(
@@ -1829,7 +1854,7 @@ export class ApiClient {
     return this.get<{ log: AccessLogResponse }>(`/v1/admin/access-logs/${id}`);
   }
 
-  async exportAccessLogs(params: ExportAccessLogsParams): Promise<Blob> {
+  async exportAccessLogs(params: ExportAccessLogsParams): Promise<{ blob: Blob; truncated: boolean }> {
     const queryParams = new URLSearchParams();
     if (params.search) queryParams.append("search", params.search);
     if (params.eventType) queryParams.append("eventType", params.eventType);
@@ -1837,28 +1862,7 @@ export class ApiClient {
     if (params.dateRange) queryParams.append("dateRange", params.dateRange);
     if (params.userId) queryParams.append("userId", params.userId);
     queryParams.append("format", params.format || "json");
-
-    const url = `${this.baseUrl}/v1/admin/access-logs/export?${queryParams.toString()}`;
-    const authToken = await this.getAuthToken();
-
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    };
-    if (authToken) {
-      headers["Authorization"] = `Bearer ${authToken}`;
-    }
-
-    const response = await fetch(url, {
-      method: "GET",
-      credentials: "include",
-      headers,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Export failed: ${response.statusText}`);
-    }
-
-    return response.blob();
+    return this.fetchAuditExport(`/v1/admin/access-logs/export?${queryParams.toString()}`);
   }
 
   // Admin - Admin User Management
@@ -1962,7 +1966,9 @@ export class ApiClient {
     return this.get<SecurityLogsResponse>(`/v1/admin/security-logs?${queryParams.toString()}`);
   }
 
-  async exportSecurityLogs(params: ExportSecurityLogsParams): Promise<Blob> {
+  async exportSecurityLogs(
+    params: ExportSecurityLogsParams
+  ): Promise<{ blob: Blob; truncated: boolean }> {
     const queryParams = new URLSearchParams();
     if (params.search) queryParams.append("search", params.search);
     if (params.eventType) queryParams.append("eventType", params.eventType);
@@ -1971,28 +1977,7 @@ export class ApiClient {
     if (params.dateRange) queryParams.append("dateRange", params.dateRange);
     if (params.userId) queryParams.append("userId", params.userId);
     queryParams.append("format", params.format || "json");
-
-    const url = `${this.baseUrl}/v1/admin/security-logs/export?${queryParams.toString()}`;
-    const authToken = await this.getAuthToken();
-
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    };
-    if (authToken) {
-      headers["Authorization"] = `Bearer ${authToken}`;
-    }
-
-    const response = await fetch(url, {
-      method: "GET",
-      credentials: "include",
-      headers,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Export failed: ${response.statusText}`);
-    }
-
-    return response.blob();
+    return this.fetchAuditExport(`/v1/admin/security-logs/export?${queryParams.toString()}`);
   }
 
   // Admin - Onboarding Logs
@@ -2020,7 +2005,9 @@ export class ApiClient {
     return this.get<{ log: OnboardingLogResponse }>(`/v1/admin/onboarding-logs/${id}`);
   }
 
-  async exportOnboardingLogs(params: ExportOnboardingLogsParams): Promise<Blob> {
+  async exportOnboardingLogs(
+    params: ExportOnboardingLogsParams
+  ): Promise<{ blob: Blob; truncated: boolean }> {
     const queryParams = new URLSearchParams();
     if (params.search) queryParams.append("search", params.search);
     if (params.eventType) queryParams.append("eventType", params.eventType);
@@ -2029,29 +2016,9 @@ export class ApiClient {
     if (params.role) queryParams.append("role", params.role);
     if (params.dateRange) queryParams.append("dateRange", params.dateRange);
     if (params.userId) queryParams.append("userId", params.userId);
+    if (params.organizationId) queryParams.append("organizationId", params.organizationId);
     queryParams.append("format", params.format || "json");
-
-    const url = `${this.baseUrl}/v1/admin/onboarding-logs/export?${queryParams.toString()}`;
-    const authToken = await this.getAuthToken();
-
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    };
-    if (authToken) {
-      headers["Authorization"] = `Bearer ${authToken}`;
-    }
-
-    const response = await fetch(url, {
-      method: "GET",
-      credentials: "include",
-      headers,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Export failed: ${response.statusText}`);
-    }
-
-    return response.blob();
+    return this.fetchAuditExport(`/v1/admin/onboarding-logs/export?${queryParams.toString()}`);
   }
 
   async getAccountLegalDocuments(
@@ -2089,7 +2056,9 @@ export class ApiClient {
     return this.get<ProductLogsResponse>(`/v1/admin/product-logs?${queryParams.toString()}`);
   }
 
-  async exportProductLogs(params: ExportProductLogsParams): Promise<Blob> {
+  async exportProductLogs(
+    params: ExportProductLogsParams
+  ): Promise<{ blob: Blob; truncated: boolean }> {
     const queryParams = new URLSearchParams();
     if (params.search) queryParams.append("search", params.search);
     if (params.eventType) queryParams.append("eventType", params.eventType);
@@ -2097,28 +2066,31 @@ export class ApiClient {
       queryParams.append("eventTypes", params.eventTypes.join(","));
     if (params.dateRange) queryParams.append("dateRange", params.dateRange);
     queryParams.append("format", params.format || "json");
+    return this.fetchAuditExport(`/v1/admin/product-logs/export?${queryParams.toString()}`);
+  }
 
-    const url = `${this.baseUrl}/v1/admin/product-logs/export?${queryParams.toString()}`;
-    const authToken = await this.getAuthToken();
-
-    const headers: HeadersInit = {
-      "Content-Type": "application/json",
-    };
-    if (authToken) {
-      headers["Authorization"] = `Bearer ${authToken}`;
-    }
-
-    const response = await fetch(url, {
-      method: "GET",
-      credentials: "include",
-      headers,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Export failed: ${response.statusText}`);
-    }
-
-    return response.blob();
+  async exportLegalDocumentAuditLogs(params: {
+    format: "csv" | "json";
+    search?: string;
+    action?: string;
+    documentType?: string;
+    legalDocumentId?: string;
+    actorUserId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }): Promise<{ blob: Blob; truncated: boolean }> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("format", params.format);
+    if (params.search) queryParams.append("search", params.search);
+    if (params.action) queryParams.append("action", params.action);
+    if (params.documentType) queryParams.append("documentType", params.documentType);
+    if (params.legalDocumentId) queryParams.append("legalDocumentId", params.legalDocumentId);
+    if (params.actorUserId) queryParams.append("actorUserId", params.actorUserId);
+    if (params.dateFrom) queryParams.append("dateFrom", params.dateFrom);
+    if (params.dateTo) queryParams.append("dateTo", params.dateTo);
+    return this.fetchAuditExport(
+      `/v1/admin/legal-document-audit-logs/export?${queryParams.toString()}`
+    );
   }
 
   // Activities
@@ -2275,11 +2247,39 @@ export class ApiClient {
     return this.get<ApplicationLogEntry[]>(`/v1/applications/${id}/logs`);
   }
 
-  /** Full forensic Application + Signing audit history. Same endpoint as getApplicationLogs. */
+  /** Paginated Admin forensic Application + Signing audit history. */
   async getApplicationAuditHistory(
-    id: string
-  ): Promise<ApiResponse<ApplicationAuditLogDto[]> | ApiError> {
-    return this.get<ApplicationAuditLogDto[]>(`/v1/applications/${id}/logs`);
+    id: string,
+    params?: { page?: number; pageSize?: number }
+  ): Promise<
+    | ApiResponse<{
+        logs: ApplicationAuditLogDto[];
+        pagination: { page: number; pageSize: number; totalCount: number; totalPages: number };
+      }>
+    | ApiError
+  > {
+    const query = new URLSearchParams();
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.pageSize) query.set("pageSize", String(params.pageSize));
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return this.get(`/v1/admin/applications/${id}/audit-history${suffix}`);
+  }
+
+  async getNoteAuditHistory(
+    id: string,
+    params?: { page?: number; pageSize?: number }
+  ): Promise<
+    | ApiResponse<{
+        logs: NoteAuditLogDto[];
+        pagination: { page: number; pageSize: number; totalCount: number; totalPages: number };
+      }>
+    | ApiError
+  > {
+    const query = new URLSearchParams();
+    if (params?.page) query.set("page", String(params.page));
+    if (params?.pageSize) query.set("pageSize", String(params.pageSize));
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    return this.get(`/v1/admin/notes/${id}/audit-history${suffix}`);
   }
 
   async getApplicationProductVersionCompare(

@@ -10,7 +10,7 @@ import {
   updateApplicationStepSchema,
   applicationIdParamSchema,
 } from "./schemas";
-import { requireAuth } from "../../lib/auth/middleware";
+import { requireAuth, userHasPermission } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { z } from "zod";
 import { auditContextFromRequest } from "../../lib/audit/context";
@@ -302,9 +302,12 @@ async function getApplicationLogsHandler(req: Request, res: Response, next: Next
   try {
     const { id } = applicationIdParamSchema.parse(req.params);
     const userId = getUserId(req);
-    const asAdmin = Boolean(req.user?.roles?.includes(UserRole.ADMIN));
+    const isAdmin = Boolean(req.user?.roles?.includes(UserRole.ADMIN));
+    if (isAdmin && !userHasPermission(req, "applications.view")) {
+      throw new AppError(403, "FORBIDDEN", "Insufficient permissions");
+    }
 
-    const logs = await applicationService.getApplicationLogs(id, userId, { asAdmin });
+    const logs = await applicationService.getApplicationLogs(id, userId, { asAdmin: isAdmin });
 
     res.json({
       success: true,

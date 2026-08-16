@@ -6503,6 +6503,12 @@ export class NoteService {
     return noteAuditLogReader.listByNoteId(id);
   }
 
+  async listAuditHistory(id: string, query: { page: number; pageSize: number }) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    return noteAuditLogReader.listByNoteIdPage(id, query);
+  }
+
   private mapWithdrawal(
     withdrawal: Prisma.WithdrawalInstructionGetPayload<Prisma.WithdrawalInstructionDefaultArgs>
   ) {

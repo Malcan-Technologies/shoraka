@@ -195,9 +195,9 @@ export const GATEWAY_PAYMENT_COPY = {
   },
 
   activity: {
-    title: "Activity Timeline",
-    description: "Status changes and actions for this payment",
-    empty: "No activity logs found",
+    title: "Audit History",
+    description: "Raw forensic audit records for this payment. Not a curated Activity feed.",
+    empty: "No audit records found",
   },
 
   toasts: {

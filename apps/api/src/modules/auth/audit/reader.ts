@@ -2,6 +2,7 @@ import type { AccessAuditLog, Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import { formatDeviceInfoFromUserAgent } from "../../../lib/http/request-utils";
 import type { GetAccessLogsQuery } from "../../admin/schemas";
+import { AUDIT_EXPORT_LIMIT, AUDIT_OCCURRED_AT_ID_DESC } from "../../../lib/audit/order";
 import {
   ACCESS_AUDIT_EVENTS,
   type AccessAuditEventType,
@@ -154,7 +155,7 @@ export class AccessAuditLogReader {
         where,
         skip,
         take: params.pageSize,
-        orderBy: { occurred_at: "desc" },
+        orderBy: AUDIT_OCCURRED_AT_ID_DESC,
       }),
       prisma.accessAuditLog.count({ where }),
     ]);
@@ -173,8 +174,8 @@ export class AccessAuditLogReader {
     const where = await buildWhere({ ...params, page: 1, pageSize: 100 });
     const rows = await prisma.accessAuditLog.findMany({
       where,
-      orderBy: { occurred_at: "desc" },
-      take: 10_000,
+      orderBy: AUDIT_OCCURRED_AT_ID_DESC,
+      take: AUDIT_EXPORT_LIMIT,
     });
     return rows.map(toDto);
   }

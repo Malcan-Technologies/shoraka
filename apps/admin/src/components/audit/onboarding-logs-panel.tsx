@@ -83,6 +83,17 @@ export function OnboardingLogsPanel() {
         exportKind="access"
         exportFilters={{}}
         hideExport
+        exportButton={
+          <OnboardingLogsExportButton
+            filters={{
+              search: searchQuery || undefined,
+              eventType:
+                eventTypeFilter !== "all" ? (eventTypeFilter as OnboardingEventType) : undefined,
+              dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
+              organizationId: organizationId.trim() || undefined,
+            }}
+          />
+        }
       />
       <div className="flex flex-wrap items-center gap-3">
         <Input
@@ -91,15 +102,6 @@ export function OnboardingLogsPanel() {
           placeholder="Organization ID"
           aria-label="Organization ID"
           className="h-10 max-w-xs"
-        />
-        <OnboardingLogsExportButton
-          filters={{
-            search: searchQuery || undefined,
-            eventType:
-              eventTypeFilter !== "all" ? (eventTypeFilter as OnboardingEventType) : undefined,
-            dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
-            organizationId: organizationId.trim() || undefined,
-          }}
         />
       </div>
       <AccessLogsTable

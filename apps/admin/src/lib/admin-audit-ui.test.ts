@@ -86,9 +86,10 @@ describe("admin audit UI restructure", () => {
 
     const paymentPage = read("app/finance/gateway-payments/[id]/page.tsx");
     expect(paymentPage).toContain("timelineEvents");
-    expect(paymentPage).toContain("gatewayAuditEventView");
+    expect(paymentPage).toContain("ContextualAuditHistoryPanel");
+    expect(paymentPage).toContain("paymentAuditToDetail");
     expect(read("app/finance/gateway-payments/[id]/gateway-payment-copy.ts")).toContain(
-      "Activity Timeline"
+      "Audit History"
     );
   });
 
@@ -119,7 +120,8 @@ describe("admin audit UI restructure", () => {
     const notePage = read("app/notes/[id]/page.tsx");
     expect(notePage).toContain("NoteTimelinePanel");
     expect(notePage).toContain("ContextualAuditHistoryPanel");
-    expect(notePage).toContain("note.events.map(noteAuditToDetail)");
+    expect(notePage).toContain("useNoteAuditHistory");
+    expect(notePage).toContain("noteAuditToDetail");
     expect(read("notes/components/note-timeline-panel.tsx")).toContain("Activity Timeline");
 
     const trusteePage = read("app/settings/platform-finance/page.tsx");
@@ -137,12 +139,18 @@ describe("admin audit UI restructure", () => {
     expect(reconPage).toContain("Audit");
 
     const paymentPage = read("app/finance/gateway-payments/[id]/page.tsx");
-    expect(paymentPage).not.toContain("ContextualAuditHistoryPanel");
+    expect(paymentPage).toContain("ContextualAuditHistoryPanel");
+    expect(read("app/finance/reconciliation/page.tsx")).toContain('detailMode="inline"');
 
     const panel = read("components/audit/contextual-audit-history-panel.tsx");
     expect(panel).toContain("AuditLogDetailSheet");
+    expect(panel).toContain("AuditLogDetailFields");
+    expect(panel).toContain("formatAuditDateTime");
     expect(panel).toContain("Raw forensic audit records");
     expect(panel).not.toContain("Activity Timeline");
+    expect(read("components/audit/legal-document-audit-panel.tsx")).toContain("View");
+    expect(read("components/audit/legal-document-audit-panel.tsx")).not.toContain("View details");
+    expect(read("lib/audit-datetime.ts")).toContain("en-MY");
   });
 
   it("uses shared Activity presentation copy on curated Admin Activity surfaces", () => {

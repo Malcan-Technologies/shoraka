@@ -30,32 +30,6 @@ type ListResponse = {
   };
 };
 
-function buildQueryParams(
-  params: LegalDocumentAuditLogsParams,
-  extra?: Record<string, string>
-): URLSearchParams {
-  const query = new URLSearchParams({
-    page: String(params.page),
-    pageSize: String(params.pageSize ?? 20),
-  });
-
-  if (params.search) query.set("search", params.search);
-  if (params.action) query.set("action", params.action);
-  if (params.documentType) query.set("documentType", params.documentType);
-  if (params.legalDocumentId) query.set("legalDocumentId", params.legalDocumentId);
-  if (params.actorUserId) query.set("actorUserId", params.actorUserId);
-  if (params.dateFrom) query.set("dateFrom", params.dateFrom);
-  if (params.dateTo) query.set("dateTo", params.dateTo);
-
-  if (extra) {
-    for (const [key, value] of Object.entries(extra)) {
-      query.set(key, value);
-    }
-  }
-
-  return query;
-}
-
 export function useLegalDocumentAuditLogs(params: LegalDocumentAuditLogsParams) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
@@ -63,7 +37,18 @@ export function useLegalDocumentAuditLogs(params: LegalDocumentAuditLogsParams) 
   return useQuery({
     queryKey: ["admin", "legal-document-audit-logs", params],
     queryFn: async () => {
-      const query = buildQueryParams(params);
+      const query = new URLSearchParams({
+        page: String(params.page),
+        pageSize: String(params.pageSize ?? 15),
+      });
+      if (params.search) query.set("search", params.search);
+      if (params.action) query.set("action", params.action);
+      if (params.documentType) query.set("documentType", params.documentType);
+      if (params.legalDocumentId) query.set("legalDocumentId", params.legalDocumentId);
+      if (params.actorUserId) query.set("actorUserId", params.actorUserId);
+      if (params.dateFrom) query.set("dateFrom", params.dateFrom);
+      if (params.dateTo) query.set("dateTo", params.dateTo);
+
       const result = await apiClient.get<ListResponse>(
         `/v1/admin/legal-document-audit-logs?${query.toString()}`
       );
@@ -79,29 +64,11 @@ export function useLegalDocumentAuditLogs(params: LegalDocumentAuditLogsParams) 
 
 export function useExportLegalDocumentAuditLogs() {
   const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
 
-  return async (params: Omit<LegalDocumentAuditLogsParams, "page" | "pageSize">) => {
-    const query = buildQueryParams({ page: 1, pageSize: 20, ...params }, { format: "csv" });
-    const authToken = await getAccessToken();
-
-    const headers: HeadersInit = {};
-    if (authToken) {
-      headers["Authorization"] = `Bearer ${authToken}`;
-    }
-
-    const response = await fetch(
-      `${API_URL}/v1/admin/legal-document-audit-logs/export?${query.toString()}`,
-      {
-        method: "GET",
-        credentials: "include",
-        headers,
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Export failed: ${response.statusText}`);
-    }
-
-    return response.blob();
+  return async (
+    params: Omit<LegalDocumentAuditLogsParams, "page" | "pageSize"> & { format: "csv" | "json" }
+  ) => {
+    return apiClient.exportLegalDocumentAuditLogs(params);
   };
 }

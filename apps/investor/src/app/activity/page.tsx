@@ -5,7 +5,7 @@ import { getFilterableActivityDomains, type GetActivitiesParams } from "@cashsou
 import { useActivities } from "../../hooks/use-activities";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
-import { ActivityItem, Skeleton, ActivityToolbar, useHeader } from "@cashsouk/ui";
+import { ActivityItem, EmptyState, Skeleton, ActivityToolbar, useHeader } from "@cashsouk/ui";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 
 export default function ActivityPage() {
@@ -58,6 +58,8 @@ export default function ActivityPage() {
 
   const activities = data?.activities || [];
   const pagination = data?.pagination;
+  const hasActiveFilters =
+    Boolean(debouncedSearch) || domains.length > 0 || dateRange !== "all";
 
   const handleClearFilters = () => {
     setSearch("");
@@ -119,9 +121,23 @@ export default function ActivityPage() {
                     <ActivityItem key={activity.id} activity={activity} className="px-6 hover:bg-muted/20" />
                   ))
                 ) : (
-                  <div className="py-12 text-center text-muted-foreground">
-                    {search ? "No activities found matching your search." : "No activities recorded yet."}
-                  </div>
+                  <EmptyState
+                    variant={hasActiveFilters ? "no-results" : "no-data"}
+                    title={hasActiveFilters ? "No matching activity" : "No activity yet"}
+                    message={
+                      hasActiveFilters
+                        ? "Try a different search or clear your filters."
+                        : "Events from your investments and payments will show up here."
+                    }
+                    action={
+                      hasActiveFilters ? (
+                        <Button variant="outline" onClick={handleClearFilters}>
+                          Clear filters
+                        </Button>
+                      ) : undefined
+                    }
+                    className="border-0 py-12 shadow-none"
+                  />
                 )}
               </div>
 

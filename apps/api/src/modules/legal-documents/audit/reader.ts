@@ -148,7 +148,7 @@ export class LegalAdminAuditLogReader {
         where,
         skip,
         take: query.pageSize,
-        orderBy: [{ occurred_at: "desc" }],
+        orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
       }),
       prisma.legalAdminAuditLog.count({ where }),
     ]);
@@ -168,7 +168,7 @@ export class LegalAdminAuditLogReader {
     const where = await buildWhere(query);
     const rows = await prisma.legalAdminAuditLog.findMany({
       where,
-      orderBy: [{ occurred_at: "desc" }],
+      orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
       take: 10_000,
     });
     return rows.map(toDto);

@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { NoteInvestmentStatus, Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import {
   audienceFromPortal,
@@ -29,6 +29,12 @@ type NoteVisibilityLabel = {
 };
 
 const DEFAULT_BATCH_SIZE = 50;
+
+const ACTIVE_INVESTMENT_STATUSES: NoteInvestmentStatus[] = [
+  NoteInvestmentStatus.COMMITTED,
+  NoteInvestmentStatus.CONFIRMED,
+  NoteInvestmentStatus.SETTLED,
+];
 
 export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
   public readonly name = "NoteLogAdapter";
@@ -121,7 +127,7 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
       return [];
     }
 
-    const committedNoteIds = await this.getCommittedNoteIds(filters);
+    const membership = await this.getInvestorNoteMembership(filters);
     const batchSize = Math.max(limit ?? DEFAULT_BATCH_SIZE, DEFAULT_BATCH_SIZE);
     const visible: NoteActivityRecord[] = [];
     let skip = 0;
@@ -204,7 +210,7 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
         if (
           this.isVisibleRecord(record, filters, {
             note: record.note_id ? noteLabels.get(record.note_id) : undefined,
-            committedNoteIds,
+            membership,
             settlementSnapshots,
           })
         ) {
@@ -272,12 +278,18 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
     filters: ActivityFilters,
     context: {
       note?: NoteVisibilityLabel;
-      committedNoteIds: Set<string>;
+      membership: { activeNoteIds: Set<string>; releasedNoteIds: Set<string> };
       settlementSnapshots: Map<string, unknown>;
     }
   ) {
     const metadata = (record.metadata as Record<string, unknown> | null) ?? {};
     const settlementId = this.getMetadataString(metadata, "settlementId");
+    const noteId = record.note_id;
+    const investorCommitted =
+      noteId != null &&
+      (context.membership.activeNoteIds.has(noteId) ||
+        (record.event_type === "NOTE_FUNDING_FAILED" &&
+          context.membership.releasedNoteIds.has(noteId)));
 
     return isNoteActivityVisible(this.audienceOf(filters), record.event_type, metadata, {
       organizationId: filters.organizationId,
@@ -285,7 +297,7 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
         publishedAt: context.note?.publishedAt,
         listingStatus: context.note?.listingStatus,
       }),
-      investorCommitted: record.note_id != null && context.committedNoteIds.has(record.note_id),
+      investorCommitted,
       settlementHasInvestorAllocation: settlementHasInvestorAllocation(
         settlementId ? context.settlementSnapshots.get(settlementId) : undefined,
         filters.organizationId
@@ -297,17 +309,30 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
     return audienceFromPortal(filters.portalType);
   }
 
-  private async getCommittedNoteIds(filters: ActivityFilters): Promise<Set<string>> {
+  private async getInvestorNoteMembership(filters: ActivityFilters): Promise<{
+    activeNoteIds: Set<string>;
+    releasedNoteIds: Set<string>;
+  }> {
     if (filters.portalType !== "investor" || !filters.organizationId) {
-      return new Set();
+      return { activeNoteIds: new Set(), releasedNoteIds: new Set() };
     }
 
     const investments = await prisma.noteInvestment.findMany({
       where: { investor_organization_id: filters.organizationId },
-      select: { note_id: true },
-      distinct: ["note_id"],
+      select: { note_id: true, status: true },
     });
-    return new Set(investments.map((row) => row.note_id));
+
+    const activeNoteIds = new Set<string>();
+    const releasedNoteIds = new Set<string>();
+    for (const row of investments) {
+      if (ACTIVE_INVESTMENT_STATUSES.includes(row.status)) {
+        activeNoteIds.add(row.note_id);
+      }
+      if (row.status === NoteInvestmentStatus.RELEASED) {
+        releasedNoteIds.add(row.note_id);
+      }
+    }
+    return { activeNoteIds, releasedNoteIds };
   }
 
   private buildSearchEventTypes(search: string, eventTypes: string[], filters: ActivityFilters) {

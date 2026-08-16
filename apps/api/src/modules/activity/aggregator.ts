@@ -54,34 +54,47 @@ export class AuditLogAggregator {
       return matchesCategory && matchesDomain;
     });
 
-    // For runtime aggregation with pagination across multiple tables:
-    // To get the correct sorted slice (offset, limit), we need to fetch
-    // enough items from each source to cover the potential window.
-    // Given these are user-specific logs (relatively low volume),
-    // we fetch (offset + limit) from each source.
-    const fetchLimit = offset + limit;
+    // Adapters already return only visible rows. Fetching the merged window
+    // (offset + limit) from each source is enough for a correct k-way merge
+    // as long as each adapter is newest-first. Expand the window only when an
+    // adapter saturates its page and the merged set is still short.
+    const MAX_ADAPTER_FETCH = 500;
+    let fetchLimit = Math.min(MAX_ADAPTER_FETCH, offset + limit);
+    let allActivities: UnifiedActivity[] = [];
 
-    const results = await Promise.all(
-      activeAdapters.map(async (adapter) => {
-        try {
-          const records = await adapter.query(userId, {
-            ...filters,
-            limit: fetchLimit,
-            offset: 0, // We always fetch from the start to ensure merge sort works
-          });
-          return records.map((r) => adapter.transform(r, filters));
-        } catch (error) {
-          // Log error but don't fail the whole request
-          console.error(`Aggregator: ${adapter.name} failed`, error);
-          return [];
-        }
-      })
-    );
+    while (true) {
+      const results = await Promise.all(
+        activeAdapters.map(async (adapter) => {
+          try {
+            const records = await adapter.query(userId, {
+              ...filters,
+              limit: fetchLimit,
+              offset: 0,
+            });
+            return records.map((r) => adapter.transform(r, filters));
+          } catch (error) {
+            console.error(`Aggregator: ${adapter.name} failed`, error);
+            return [];
+          }
+        })
+      );
 
-    // Merge and sort all results by created_at DESC
-    const allActivities = results
-      .flat()
-      .sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+      allActivities = results.flat().sort((a, b) => {
+        const byTime = b.created_at.getTime() - a.created_at.getTime();
+        if (byTime !== 0) return byTime;
+        return b.id.localeCompare(a.id);
+      });
+
+      const saturated = results.some((rows) => rows.length >= fetchLimit);
+      if (
+        allActivities.length >= offset + limit ||
+        !saturated ||
+        fetchLimit >= MAX_ADAPTER_FETCH
+      ) {
+        break;
+      }
+      fetchLimit = Math.min(MAX_ADAPTER_FETCH, fetchLimit * 2);
+    }
 
     // Apply pagination slice
     const paginatedActivities = allActivities.slice(offset, offset + limit);

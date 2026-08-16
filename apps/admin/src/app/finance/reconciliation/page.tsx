@@ -98,6 +98,7 @@ function ReconExceptionAuditSheet({
         <div className="mt-6">
           <ContextualAuditHistoryPanel
             variant="plain"
+            detailMode="inline"
             rows={(data ?? []).map(paymentAuditToDetail)}
             isLoading={isLoading}
             error={error instanceof Error ? error : null}

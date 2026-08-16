@@ -43,8 +43,22 @@ import {
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import { AuditLogDetailSheet } from "@/components/audit/audit-log-detail-sheet";
+import { AdminQueryErrorState } from "@/components/admin-query-error-state";
+import { formatAuditDateTime } from "@/lib/audit-datetime";
+import {
+  auditExportFilename,
+  downloadAuditExport,
+  truncatedExportDescription,
+} from "@/lib/download-audit-export";
+import { EyeIcon } from "@heroicons/react/24/outline";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 15;
 
 const LEGAL_TYPES = LEGAL_DOCUMENT_TYPES.map((value) => ({
   value,
@@ -62,14 +76,7 @@ const ACTION_OPTIONS: { value: LegalAdminAuditEventType; label: string }[] = [
 ];
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleString("en-MY", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  return formatAuditDateTime(dateStr);
 }
 
 function actionLabel(eventType: string): string {
@@ -145,22 +152,26 @@ export function LegalDocumentAuditPanel() {
     void queryClient.invalidateQueries({ queryKey: ["admin", "legal-document-audit-logs"] });
   };
 
-  const handleExport = async () => {
+  const handleExport = async (format: "csv" | "json") => {
     setExporting(true);
     try {
-      const { page: _page, pageSize: _pageSize, ...exportParams } = apiParams;
-      const blob = await exportLogs(exportParams);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `legal-document-audit-logs-${new Date().toISOString().split("T")[0]}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      const result = await exportLogs({
+        search: apiParams.search,
+        action: apiParams.action,
+        documentType: apiParams.documentType,
+        dateFrom: apiParams.dateFrom,
+        dateTo: apiParams.dateTo,
+        format,
+      });
+      downloadAuditExport(result.blob, auditExportFilename("legal-document-audit-logs", format));
+      if (result.truncated) {
+        toast.warning("Export truncated", { description: truncatedExportDescription() });
+      } else {
+        toast.success(`Legal document audit exported as ${format.toUpperCase()}`);
+      }
     } catch (err) {
       toast.error("Export failed", {
-        description: err instanceof Error ? err.message : "Could not export CSV",
+        description: err instanceof Error ? err.message : "Could not export logs",
       });
     } finally {
       setExporting(false);
@@ -244,15 +255,26 @@ export function LegalDocumentAuditPanel() {
           Reload
         </Button>
 
-        <Button
-          variant="outline"
-          onClick={() => void handleExport()}
-          disabled={exporting}
-          className="h-11 gap-2 rounded-xl bg-card"
-        >
-          <ArrowDownTrayIcon className="h-4 w-4" />
-          {exporting ? "Exporting..." : "Export CSV"}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              disabled={exporting}
+              className="h-11 gap-2 rounded-xl bg-card"
+            >
+              <ArrowDownTrayIcon className="h-4 w-4" />
+              {exporting ? "Exporting..." : "Export"}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => void handleExport("csv")} disabled={exporting}>
+              Export as CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => void handleExport("json")} disabled={exporting}>
+              Export as JSON
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         <Badge
           variant="secondary"
@@ -263,10 +285,7 @@ export function LegalDocumentAuditPanel() {
       </div>
 
       {error ? (
-        <div className="py-8 text-center text-destructive">
-          Error loading audit logs:{" "}
-          {error instanceof Error ? error.message : "Unknown error"}
-        </div>
+        <AdminQueryErrorState error={error} resourceLabel="legal document audit" />
       ) : null}
 
       <div className="rounded-xl border border-border bg-card">
@@ -333,7 +352,8 @@ export function LegalDocumentAuditPanel() {
                         setDetailOpen(true);
                       }}
                     >
-                      View details
+                      <EyeIcon className="mr-1 h-4 w-4" />
+                      View
                     </Button>
                   </TableCell>
                 </TableRow>
