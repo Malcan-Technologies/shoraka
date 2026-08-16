@@ -462,7 +462,31 @@ Incomplete onboarding steps (`terms`, `fee`, `verify`) redirect off `/` to the m
 
 ## 18. `OnboardingAuditLog`
 
-**Model:** `onboarding_audit_logs` in `schema.prisma`. Sole onboarding/compliance history table. Written only via **`writeOnboardingAuditLog`**. Organization `onboarding_status`/flags remain workflow SOT; `RegTankOnboarding` remains provider-session SOT; `LegalDocumentAcceptance` remains legal acceptance SOT; CTOS rows remain report SOT. Audit is never workflow state.
+**Model:** `onboarding_audit_logs` in `schema.prisma`. Sole onboarding/compliance history table. Written only via **`writeOnboardingAuditLog`**. Organization `onboarding_status`/flags remain workflow SOT; `RegTankOnboarding` remains provider-session SOT; `LegalDocumentAcceptance` remains legal acceptance SOT; CTOS rows remain report SOT; `corporate_entities` and `director_kyc_status` remain current snapshots. Audit is never workflow state.
+
+Onboarding audit records CashSouk business actions, stages, decisions, and outcomes. Detailed provider synchronization remains in its source-of-truth storage and is not duplicated as onboarding audit noise.
+
+**Reserved IDs:** A039–A055 (17). **Current active writers:** 15. **Retired / no current writer:** A040 `ONBOARDING_RESUMED`, A053 `CORPORATE_ENTITIES_UPDATED`. Historical rows remain readable. IDs are not reused.
+
+| ID | Event | Current writer |
+|---|---|---|
+| A039 | `ONBOARDING_STARTED` | Yes |
+| A040 | `ONBOARDING_RESUMED` | Retired |
+| A041 | `ONBOARDING_RESTARTED` | Yes |
+| A042 | `ONBOARDING_RESET` | Yes |
+| A043 | `USER_ONBOARDING_STATUS_UPDATED` | Yes |
+| A044 | `ONBOARDING_STATUS_CHANGED` | Yes — core stage event, including review landing, amendment requested, and verification resubmitted. Does not duplicate SSM/AML/approval/final/reject/restart decision events. |
+| A045 | `ONBOARDING_APPROVED` | Yes |
+| A046 | `ONBOARDING_REJECTED` | Yes |
+| A047 | `ONBOARDING_FINAL_APPROVAL_COMPLETED` | Yes |
+| A048 | `ONBOARDING_COMPLETED` | Yes — legacy writer while the legacy API exists |
+| A049 | `AML_APPROVED` | Yes |
+| A050 | `SSM_APPROVED` | Yes |
+| A051 | `INVESTOR_SOPHISTICATED_STATUS_UPDATED` | Yes |
+| A052 | `CTOS_REPORT_RECEIVED` | Yes |
+| A053 | `CORPORATE_ENTITIES_UPDATED` | Retired — `corporate_entities` still updates |
+| A054 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | Yes |
+| A055 | `DIRECTOR_KYC_STATUS_UPDATED` | Yes — `APPROVED` / `REJECTED` outcomes only. Intermediate KYC/provider statuses stay on `director_kyc_status`. |
 
 **REMOVED:** `OnboardingLog` / `onboarding_logs`.
 

@@ -425,6 +425,7 @@ Initiates personal (individual) onboarding for an organization.
 
 8. **Logging:**
    - Creates an `OnboardingAuditLog` entry with event_type "ONBOARDING_STARTED"
+   - Resume of an existing session does **not** write `ONBOARDING_RESUMED` (retired; historical rows remain readable)
    - Includes request metadata (IP, user agent)
 
 **Returns:**
@@ -931,7 +932,7 @@ Configuration is loaded once at startup and cached. Missing required variables c
 8. RegTank sends webhook (async)
    └─> POST /v1/webhooks/regtank
        ├─> Verifies signature
-       ├─> Creates onboarding_log entry for audit
+       ├─> Creates OnboardingAuditLog entries for business stages/outcomes (for example ONBOARDING_STATUS_CHANGED on review landing). Intermediate director KYC statuses and corporate_entities JSON refreshes are stored on SOT, not as onboarding audit noise.
        ├─> Updates regtank_onboarding status
        ├─> Sets organization status to PENDING_APPROVAL when liveness completes
        └─> If APPROVED:

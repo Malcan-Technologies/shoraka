@@ -1,8 +1,8 @@
 # Audit manual verification catalogue
 
-**Purpose.** Source-authoritative, human-readable manual verification catalogue of **all 174** current audit events. Each card is the checklist a reviewer uses to confirm the write, the Zod metadata, the source of truth, transaction behavior, and the three activity surfaces (admin curated, issuer, investor) plus admin raw.
+**Purpose.** Source-authoritative, human-readable manual verification catalogue of **174 reserved/catalogued event IDs** (A001–A174). IDs are stable and are not reused when a writer is retired. Distinguish **reserved event IDs** from **current active writers**. Each card is the checklist a reviewer uses to confirm the write (or retired/no-writer status), the Zod metadata, the source of truth, transaction behavior, and the three activity surfaces (admin curated, issuer, investor) plus admin raw.
 
-**Date.** 2026-08-16 — current source after audit/activity cleanup.
+**Date.** 2026-08-17 — current source after the Onboarding Audit redesign.
 
 **How to use this document.** Do not treat activity titles as workflow state. Do not treat audit rows as source of truth. Verify the named table, then the SOT row, then visibility. Hidden activity is recorded as Title: N/A / Description: N/A.
 
@@ -14,7 +14,7 @@
 |---|---|---:|---|---|---|---|
 | Access | A001–A003 | 3 | AccessAuditLog | access_audit_logs | `/audit` → Access (`/audit?tab=access`) | `audit.access.view` |
 | Security | A004–A038 | 35 | SecurityAuditLog | security_audit_logs | `/audit` → Security (`/audit?tab=security`) | `audit.security.view` |
-| Onboarding | A039–A055 | 17 | OnboardingAuditLog | onboarding_audit_logs | `/audit` → Onboarding (`/audit?tab=onboarding`) | `onboarding.view` |
+| Onboarding | A039–A055 | 17 reserved (15 active writers; A040 and A053 retired) | OnboardingAuditLog | onboarding_audit_logs | `/audit` → Onboarding (`/audit?tab=onboarding`) | `onboarding.view` |
 | Legal | A056–A062 | 7 | LegalAdminAuditLog | legal_admin_audit_logs | `/audit` → Legal Documents (`/audit?tab=legal-documents`) | `document_management.view` |
 | Application | A063–A102 | 40 | ApplicationAuditLog | application_audit_logs | Application Detail → Audit History | `applications.view` |
 | Signing | A103–A114 | 12 | SigningAuditLog | signing_audit_logs | Application Detail → Audit History (merged) + envelope logs | `applications.view` |
@@ -22,7 +22,7 @@
 | Payment | A150–A168 | 19 | PaymentAuditLog | payment_audit_logs | Gateway Payment / Investor Withdrawal / Reconciliation Audit | gateway / `investor_withdrawals.view` / `gateway_reconciliation.view` |
 | Product | A169–A173 | 5 | ProductAuditLog | product_audit_logs | `/audit` → Products (`/audit?tab=products`) | `audit.product.view` |
 | Notification | A174 | 1 | NotificationBroadcastAuditLog | notification_broadcast_audit_logs | `/audit` → Notifications (`/audit?tab=notifications`) | `notifications.view` |
-| **Total** | **A001–A174** | **174** | | | | |
+| **Total** | **A001–A174** | **174 reserved IDs** (172 current writers; A040 and A053 retired, IDs not reused) | | | | |
 
 
 ## Visibility summary
@@ -33,7 +33,7 @@ Computed from the event cards in this catalogue (not from memory).
 |---|---:|---:|---|---|---|
 | Access | 3 | 3 | 0 / 0 / 3 | 0 / 0 / 3 | 0 / 0 / 3 |
 | Security | 35 | 35 | 0 / 0 / 35 | 0 / 0 / 35 | 0 / 0 / 35 |
-| Onboarding | 17 | 17 | 15 / 0 / 2 | 6 / 2 / 9 | 6 / 1 / 10 |
+| Onboarding | 17 | 17 | 16 / 0 / 1 | 5 / 3 / 9 | 5 / 2 / 10 |
 | Legal | 7 | 7 | 0 / 0 / 7 | 0 / 0 / 7 | 0 / 0 / 7 |
 | Application | 40 | 40 | 31 / 1 / 8 | 30 / 1 / 9 | 0 / 0 / 40 |
 | Signing | 12 | 12 | 9 / 0 / 3 | 7 / 0 / 5 | 0 / 0 / 12 |
@@ -41,7 +41,9 @@ Computed from the event cards in this catalogue (not from memory).
 | Payment | 19 | 19 | 0 / 0 / 19 | 0 / 0 / 19 | 7 / 2 / 10 |
 | Product | 5 | 5 | 0 / 0 / 5 | 0 / 0 / 5 | 0 / 0 / 5 |
 | Notification | 1 | 1 | 0 / 0 / 1 | 0 / 0 / 1 | 0 / 0 / 1 |
-| **Total** | **174** | **174** | **89 / 1 / 84** | **56 / 4 / 114** | **13 / 10 / 151** |
+| **Total** | **174** | **174** | **90 / 1 / 83** | **55 / 5 / 114** | **12 / 11 / 151** |
+
+Onboarding visibility counts include the 17 reserved IDs. Retired A040 / A053 remain SHOW on admin raw and SHOW (historical) on admin curated Activity if old rows exist; issuer/investor HIDE. Admin Activity HIDE is only `USER_ONBOARDING_STATUS_UPDATED`. Issuer/investor CONDITIONAL includes review/amendment `ONBOARDING_STATUS_CHANGED`.
 
 # Access
 
@@ -8396,10 +8398,31 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
-Events: 17
+Reserved event IDs: 17 (A039–A055). Do not renumber or reuse IDs.
+Current active writers: 15
+Retired / no current writer: 2 (A040 `ONBOARDING_RESUMED`, A053 `CORPORATE_ENTITIES_UPDATED`)
 Range: A039-A055
 Admin Location: /audit → Onboarding (`/audit?tab=onboarding`)
 Permission: onboarding.view
+
+Onboarding audit records CashSouk business actions, stages, decisions, and outcomes. Detailed provider synchronization remains in its source-of-truth storage and is not duplicated as onboarding audit noise.
+
+**GOOD ONBOARDING AUDIT:** Onboarding Started; Verification Submitted; Amendment Requested; Verification Resubmitted; SSM Approved; Onboarding Approved; AML Approved; Director Verification Approved/Rejected; Onboarding Completed; Onboarding Rejected.
+
+**NOT ONBOARDING AUDIT** (still stored on SOT where applicable): Corporate entity JSON refreshed; Director ID uploaded; Director liveness started; Director kycId appeared; raw RegTank webhook received.
+
+**Visibility (current source):**
+
+- Admin Global Onboarding Audit (`/audit?tab=onboarding`): all catalogued types including historical A040/A053 rows; `ONBOARDING_STATUS_CHANGED` visible.
+- Admin curated Activity (`isOnboardingActivityVisible` admin): all types except `USER_ONBOARDING_STATUS_UPDATED`.
+- Admin Organization contextual history (`use-organization-logs.ts`): includes `ONBOARDING_STATUS_CHANGED` and historical `ONBOARDING_RESUMED`; excludes `CORPORATE_ENTITIES_UPDATED` and `USER_ONBOARDING_STATUS_UPDATED`; includes director APPROVED/REJECTED outcomes.
+- Issuer/investor activity: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer invitation + director APPROVED/REJECTED (historical ACTION_REQUIRED still renders); investor sophisticated when the value changes. No internal SSM/AML/CTOS/admin-detail unless that surface already exposes it. Intermediate director KYC statuses are not audit events.
+
+**Manual QA — company COD WAIT:** expect `ONBOARDING_STATUS_CHANGED`; no `CORPORATE_ENTITIES_UPDATED`; no intermediate `DIRECTOR_KYC_STATUS_UPDATED`.
+
+**Manual QA — EOD / director KYC:** `ID_UPLOADED` / `LIVENESS_STARTED` / `WAIT_FOR_APPROVAL` / `PENDING` / `FORM_FILLING` / first JSON seed / kycId-only / duplicate final state → no onboarding audit. Newly `APPROVED` or `REJECTED` existing director → one `DIRECTOR_KYC_STATUS_UPDATED` per director. Duplicate APPROVED/REJECTED → no second outcome row.
+
+**Manual QA — amendment:** `PENDING_SSM_REVIEW`/`PENDING_APPROVAL` → `PENDING_AMENDMENT` writes `ONBOARDING_STATUS_CHANGED` titled Amendment requested. `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW` writes `ONBOARDING_STATUS_CHANGED` titled Verification resubmitted.
 
 | ID | Source Case | Event | Admin Raw | Admin Activity | Issuer | Investor |
 |---|---|---|---|---|---|---|
@@ -8438,7 +8461,7 @@ A new onboarding session began for an organization (individual or corporate).
 
 ## 3. When it does NOT log / no-op
 
-Resume of an existing session writes `ONBOARDING_RESUMED` instead. Failed RegTank session create does not write.
+Resume of an existing session writes **no** onboarding audit (`ONBOARDING_RESUMED` is retired). A brand-new session writes `ONBOARDING_STARTED`. Restart of an expired/stale/admin session may write `ONBOARDING_RESTARTED`. Failed RegTank session create does not write.
 
 ## 4. Top-level audit row
 
@@ -8587,7 +8610,7 @@ Curated titles/descriptions come from `packages/types/src/activity-presentation.
 
 ## 14. Current UI behavior
 
-Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity` for all events except `USER_ONBOARDING_STATUS_UPDATED` and `ONBOARDING_STATUS_CHANGED` (hidden). Issuer/investor activity is a smaller user-facing subset plus two issuer conditionals and one investor conditional.
+Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity`. `USER_ONBOARDING_STATUS_UPDATED` is hidden from admin curated Activity (`ADMIN_ORGANIZATION_HIDDEN`). `ONBOARDING_STATUS_CHANGED` is visible on admin curated Activity and on Admin Organization contextual history. Issuer/investor activity is a smaller user-facing subset: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer also invitation plus director APPROVED/REJECTED outcomes (historical ACTION_REQUIRED rows still render); investor also sophisticated status when the value changes. Internal SSM/AML/CTOS/admin-detail events stay off issuer/investor feeds. Intermediate director KYC statuses are not audit events.
 
 ## 15. Manual verification checklist
 
@@ -8615,7 +8638,12 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A040 — ONBOARDING_RESUMED
 
-**Status: RETIRED / NO WRITER.** ID A040 is reserved. Historical rows remain readable.
+**Status: RETIRED**
+**Current writer: None**
+**Historical rows: Supported/readable**
+**ID reused: No**
+
+ID A040 remains reserved in A039–A055. Resume of an existing session no longer writes onboarding audit. Historical `ONBOARDING_RESUMED` rows stay on `onboarding_audit_logs` and remain readable on admin raw (and on admin curated Activity / org contextual history if present).
 
 Source Case: ONB-002
 Module: Onboarding
@@ -8743,8 +8771,8 @@ Organization `onboarding_status` / approval flags, `RegTankOnboarding` sessions,
 
 ## 8. Writer(s)
 
-- `apps/api/src/modules/regtank/service.ts` — resume onboarding
-- `writeOnboardingAuditLog`
+- None. Previously `apps/api/src/modules/regtank/service.ts` resume path.
+- `writeOnboardingAuditLog` is not called for resume.
 
 ## 9. ADMIN RAW AUDIT
 
@@ -8758,9 +8786,9 @@ SHOW. Listed on the module's admin raw audit surface with the module permission.
 
 ## 10. ADMIN CURATED ACTIVITY
 
-**Visibility:** SHOW
+**Visibility:** SHOW (historical)
 
-SHOW always.
+SHOW if a historical row exists. No current writer. `formatOnboardingActivity` still has copy for old rows.
 
 **Title:** Onboarding Resumed
 
@@ -8768,23 +8796,23 @@ SHOW always.
 
 ## 11. ISSUER ACTIVITY
 
-**Visibility:** SHOW
+**Visibility:** HIDE
 
-SHOW always.
+HIDE. Resume is not a user-facing onboarding event. Historical rows are not shown on issuer `/activity`.
 
-**Title:** Onboarding Resumed
+**Title:** N/A
 
-**Description:** You resumed your organization onboarding.
+**Description:** N/A
 
 ## 12. INVESTOR ACTIVITY
 
-**Visibility:** SHOW
+**Visibility:** HIDE
 
-SHOW always.
+HIDE. Resume is not a user-facing onboarding event. Historical rows are not shown on investor `/activity`.
 
-**Title:** Onboarding Resumed
+**Title:** N/A
 
-**Description:** You resumed your organization onboarding.
+**Description:** N/A
 
 ## 13. Presentation metadata safety
 
@@ -8792,7 +8820,7 @@ Curated titles/descriptions come from `packages/types/src/activity-presentation.
 
 ## 14. Current UI behavior
 
-Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity` for all events except `USER_ONBOARDING_STATUS_UPDATED` and `ONBOARDING_STATUS_CHANGED` (hidden). Issuer/investor activity is a smaller user-facing subset plus two issuer conditionals and one investor conditional.
+Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity`. `USER_ONBOARDING_STATUS_UPDATED` is hidden from admin curated Activity (`ADMIN_ORGANIZATION_HIDDEN`). `ONBOARDING_STATUS_CHANGED` is visible on admin curated Activity and on Admin Organization contextual history. Issuer/investor activity is a smaller user-facing subset: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer also invitation plus director APPROVED/REJECTED outcomes (historical ACTION_REQUIRED rows still render); investor also sophisticated status when the value changes. Internal SSM/AML/CTOS/admin-detail events stay off issuer/investor feeds. Intermediate director KYC statuses are not audit events.
 
 ## 15. Manual verification checklist
 
@@ -9007,7 +9035,7 @@ Curated titles/descriptions come from `packages/types/src/activity-presentation.
 
 ## 14. Current UI behavior
 
-Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity` for all events except `USER_ONBOARDING_STATUS_UPDATED` and `ONBOARDING_STATUS_CHANGED` (hidden). Issuer/investor activity is a smaller user-facing subset plus two issuer conditionals and one investor conditional.
+Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity`. `USER_ONBOARDING_STATUS_UPDATED` is hidden from admin curated Activity (`ADMIN_ORGANIZATION_HIDDEN`). `ONBOARDING_STATUS_CHANGED` is visible on admin curated Activity and on Admin Organization contextual history. Issuer/investor activity is a smaller user-facing subset: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer also invitation plus director APPROVED/REJECTED outcomes (historical ACTION_REQUIRED rows still render); investor also sophisticated status when the value changes. Internal SSM/AML/CTOS/admin-detail events stay off issuer/investor feeds. Intermediate director KYC statuses are not audit events.
 
 ## 15. Manual verification checklist
 
@@ -9221,7 +9249,7 @@ Curated titles/descriptions come from `packages/types/src/activity-presentation.
 
 ## 14. Current UI behavior
 
-Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity` for all events except `USER_ONBOARDING_STATUS_UPDATED` and `ONBOARDING_STATUS_CHANGED` (hidden). Issuer/investor activity is a smaller user-facing subset plus two issuer conditionals and one investor conditional.
+Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity`. `USER_ONBOARDING_STATUS_UPDATED` is hidden from admin curated Activity (`ADMIN_ORGANIZATION_HIDDEN`). `ONBOARDING_STATUS_CHANGED` is visible on admin curated Activity and on Admin Organization contextual history. Issuer/investor activity is a smaller user-facing subset: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer also invitation plus director APPROVED/REJECTED outcomes (historical ACTION_REQUIRED rows still render); investor also sophisticated status when the value changes. Internal SSM/AML/CTOS/admin-detail events stay off issuer/investor feeds. Intermediate director KYC statuses are not audit events.
 
 ## 15. Manual verification checklist
 
@@ -9413,7 +9441,7 @@ Curated titles/descriptions come from `packages/types/src/activity-presentation.
 
 ## 14. Current UI behavior
 
-Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity` for all events except `USER_ONBOARDING_STATUS_UPDATED` and `ONBOARDING_STATUS_CHANGED` (hidden). Issuer/investor activity is a smaller user-facing subset plus two issuer conditionals and one investor conditional.
+Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity`. `USER_ONBOARDING_STATUS_UPDATED` is hidden from admin curated Activity (`ADMIN_ORGANIZATION_HIDDEN`). `ONBOARDING_STATUS_CHANGED` is visible on admin curated Activity and on Admin Organization contextual history. Issuer/investor activity is a smaller user-facing subset: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer also invitation plus director APPROVED/REJECTED outcomes (historical ACTION_REQUIRED rows still render); investor also sophisticated status when the value changes. Internal SSM/AML/CTOS/admin-detail events stay off issuer/investor feeds. Intermediate director KYC statuses are not audit events.
 
 ## 15. Manual verification checklist
 
@@ -9450,7 +9478,17 @@ DB Table: onboarding_audit_logs
 
 ## 1. What this event means
 
-Organization onboarding_status moved between workflow states (generic status transition, not a dedicated milestone event).
+Core business-stage event. Organization `onboarding_status` moved between workflow states that are not covered by a dedicated decision event.
+
+Includes:
+
+- Review landing: `IN_PROGRESS`/`PENDING` → `PENDING_SSM_REVIEW` or `PENDING_APPROVAL` (Verification submitted)
+- Amendment requested: `PENDING_SSM_REVIEW`/`PENDING_APPROVAL` → `PENDING_AMENDMENT`
+- Amendment resubmission: `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW` (Verification resubmitted)
+
+Must not duplicate SSM/AML/approval/final/reject/restart decision events.
+
+Human titles come from previous/new status. Technical RegTank triggers (`COD_WAIT_FOR_APPROVAL`, `URL_GENERATED`, `LIVENESS_PASSED`, `REGTANK_APPROVED`) stay in metadata/detail and are not human titles.
 
 ## 2. When it logs
 
@@ -9536,17 +9574,17 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Allowed values:** New onboarding_status
 - **Writer source:** Organization row
 - **Current writer:** Always
-- **Example:** `"PENDING_REVIEW"`
+- **Example:** `"PENDING_SSM_REVIEW"`
 
 #### `trigger`
 
 - **Type:** string | undefined
 - **Required:** No
 - **Nullable:** No (when present)
-- **Allowed values:** What caused the change
+- **Allowed values:** What caused the change (technical; not a human title)
 - **Writer source:** Webhook/helper
 - **Current writer:** Optional
-- **Example:** Example not safely inferable from source.
+- **Example:** `"COD_WAIT_FOR_APPROVAL"` — stored in metadata only; curated titles use previous/new status.
 
 #### `reasonCode`
 
@@ -9571,6 +9609,7 @@ Organization `onboarding_status` / approval flags, `RegTankOnboarding` sessions,
 
 - `apps/api/src/modules/regtank/webhooks/cod-handler.ts`
 - `apps/api/src/modules/regtank/helpers/apply-approved-org-milestone.ts`
+- `apps/api/src/modules/regtank/webhooks/individual-onboarding-handler.ts`
 - `writeOnboardingAuditLog`
 
 ## 9. ADMIN RAW AUDIT
@@ -9585,33 +9624,45 @@ SHOW. Listed on the module's admin raw audit surface with the module permission.
 
 ## 10. ADMIN CURATED ACTIVITY
 
-**Visibility:** HIDE
+**Visibility:** SHOW
 
-HIDE. `ADMIN_ORGANIZATION_HIDDEN`. Admin raw still SHOW.
+SHOW. Included on admin curated Activity and Admin Organization contextual history. Titles depend on previous/new status. Technical triggers stay in metadata.
 
-**Title:** N/A
+**Title:** Verification submitted | Amendment requested | Verification resubmitted | Onboarding stage updated
 
-**Description:** N/A
+**Description:** The organisation was submitted for company verification review. / The organisation was submitted for onboarding review. / The organisation was sent back to update verification details. / Updated verification was submitted and review resumed. / Onboarding moved from {humanized previous} to {humanized new}.
+
+| previousStatus | newStatus | Title |
+|---|---|---|
+| `IN_PROGRESS` / `PENDING` | `PENDING_SSM_REVIEW` | Verification submitted |
+| `IN_PROGRESS` / `PENDING` | `PENDING_APPROVAL` | Verification submitted |
+| `PENDING_SSM_REVIEW` / `PENDING_APPROVAL` | `PENDING_AMENDMENT` | Amendment requested |
+| `PENDING_AMENDMENT` | `PENDING_SSM_REVIEW` | Verification resubmitted |
+| any other transition | | Onboarding stage updated |
 
 ## 11. ISSUER ACTIVITY
 
-**Visibility:** HIDE
+**Visibility:** CONDITIONAL
 
-HIDE.
+CONDITIONAL: same review/amendment transitions as `isOnboardingStatusChangedUserFacing`. Unexpected transitions stay off the issuer feed (admin still sees Onboarding stage updated).
 
-**Title:** N/A
+**Title:** Verification submitted | Amendment requested | Verification resubmitted
 
-**Description:** N/A
+**Description:** Same copy as admin for those four transitions. Unexpected fallback is not issuer-visible.
+
+**Visibility condition:** `IN_PROGRESS`/`PENDING` → `PENDING_SSM_REVIEW`/`PENDING_APPROVAL`; `PENDING_SSM_REVIEW`/`PENDING_APPROVAL` → `PENDING_AMENDMENT`; `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW`
 
 ## 12. INVESTOR ACTIVITY
 
-**Visibility:** HIDE
+**Visibility:** CONDITIONAL
 
-HIDE.
+CONDITIONAL: same review/amendment transitions as issuer.
 
-**Title:** N/A
+**Title:** Verification submitted | Amendment requested | Verification resubmitted
 
-**Description:** N/A
+**Description:** Same copy as issuer for those four transitions. Unexpected fallback is not investor-visible.
+
+**Visibility condition:** `IN_PROGRESS`/`PENDING` → `PENDING_SSM_REVIEW`/`PENDING_APPROVAL`; `PENDING_SSM_REVIEW`/`PENDING_APPROVAL` → `PENDING_AMENDMENT`; `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW`
 
 ## 13. Presentation metadata safety
 
@@ -9619,7 +9670,7 @@ Curated titles/descriptions come from `packages/types/src/activity-presentation.
 
 ## 14. Current UI behavior
 
-Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity` for all events except `USER_ONBOARDING_STATUS_UPDATED` and `ONBOARDING_STATUS_CHANGED` (hidden). Issuer/investor activity is a smaller user-facing subset plus two issuer conditionals and one investor conditional.
+Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity`. `USER_ONBOARDING_STATUS_UPDATED` is hidden from admin curated Activity (`ADMIN_ORGANIZATION_HIDDEN`). `ONBOARDING_STATUS_CHANGED` is visible on admin curated Activity and on Admin Organization contextual history. Issuer/investor activity is a smaller user-facing subset: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer also invitation plus director APPROVED/REJECTED outcomes (historical ACTION_REQUIRED rows still render); investor also sophisticated status when the value changes. Internal SSM/AML/CTOS/admin-detail events stay off issuer/investor feeds. Intermediate director KYC statuses are not audit events.
 
 ## 15. Manual verification checklist
 
@@ -9644,6 +9695,12 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 - [ ] No internal metadata exposed
 - [ ] RBAC correct
 - [ ] Detail UI correct
+- [ ] PENDING_SSM_REVIEW/PENDING_APPROVAL → PENDING_AMENDMENT titled Amendment requested
+- [ ] PENDING_AMENDMENT → PENDING_SSM_REVIEW titled Verification resubmitted
+- [ ] IN_PROGRESS/PENDING → PENDING_SSM_REVIEW or PENDING_APPROVAL titled Verification submitted
+- [ ] Unexpected transition titled Onboarding stage updated (admin); not issuer/investor-visible
+- [ ] Technical RegTank triggers are metadata only, not titles
+- [ ] Dedicated SSM/AML/approval/final/reject/restart events do not also write this sibling
 
 # A045 — ONBOARDING_APPROVED
 
@@ -9835,7 +9892,7 @@ Curated titles/descriptions come from `packages/types/src/activity-presentation.
 
 ## 14. Current UI behavior
 
-Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity` for all events except `USER_ONBOARDING_STATUS_UPDATED` and `ONBOARDING_STATUS_CHANGED` (hidden). Issuer/investor activity is a smaller user-facing subset plus two issuer conditionals and one investor conditional.
+Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity`. `USER_ONBOARDING_STATUS_UPDATED` is hidden from admin curated Activity (`ADMIN_ORGANIZATION_HIDDEN`). `ONBOARDING_STATUS_CHANGED` is visible on admin curated Activity and on Admin Organization contextual history. Issuer/investor activity is a smaller user-facing subset: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer also invitation plus director APPROVED/REJECTED outcomes (historical ACTION_REQUIRED rows still render); investor also sophisticated status when the value changes. Internal SSM/AML/CTOS/admin-detail events stay off issuer/investor feeds. Intermediate director KYC statuses are not audit events.
 
 ## 15. Manual verification checklist
 
@@ -10049,7 +10106,7 @@ Curated titles/descriptions come from `packages/types/src/activity-presentation.
 
 ## 14. Current UI behavior
 
-Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity` for all events except `USER_ONBOARDING_STATUS_UPDATED` and `ONBOARDING_STATUS_CHANGED` (hidden). Issuer/investor activity is a smaller user-facing subset plus two issuer conditionals and one investor conditional.
+Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity`. `USER_ONBOARDING_STATUS_UPDATED` is hidden from admin curated Activity (`ADMIN_ORGANIZATION_HIDDEN`). `ONBOARDING_STATUS_CHANGED` is visible on admin curated Activity and on Admin Organization contextual history. Issuer/investor activity is a smaller user-facing subset: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer also invitation plus director APPROVED/REJECTED outcomes (historical ACTION_REQUIRED rows still render); investor also sophisticated status when the value changes. Internal SSM/AML/CTOS/admin-detail events stay off issuer/investor feeds. Intermediate director KYC statuses are not audit events.
 
 ## 15. Manual verification checklist
 
@@ -10241,7 +10298,7 @@ Curated titles/descriptions come from `packages/types/src/activity-presentation.
 
 ## 14. Current UI behavior
 
-Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity` for all events except `USER_ONBOARDING_STATUS_UPDATED` and `ONBOARDING_STATUS_CHANGED` (hidden). Issuer/investor activity is a smaller user-facing subset plus two issuer conditionals and one investor conditional.
+Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity`. `USER_ONBOARDING_STATUS_UPDATED` is hidden from admin curated Activity (`ADMIN_ORGANIZATION_HIDDEN`). `ONBOARDING_STATUS_CHANGED` is visible on admin curated Activity and on Admin Organization contextual history. Issuer/investor activity is a smaller user-facing subset: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer also invitation plus director APPROVED/REJECTED outcomes (historical ACTION_REQUIRED rows still render); investor also sophisticated status when the value changes. Internal SSM/AML/CTOS/admin-detail events stay off issuer/investor feeds. Intermediate director KYC statuses are not audit events.
 
 ## 15. Manual verification checklist
 
@@ -10433,7 +10490,7 @@ Curated titles/descriptions come from `packages/types/src/activity-presentation.
 
 ## 14. Current UI behavior
 
-Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity` for all events except `USER_ONBOARDING_STATUS_UPDATED` and `ONBOARDING_STATUS_CHANGED` (hidden). Issuer/investor activity is a smaller user-facing subset plus two issuer conditionals and one investor conditional.
+Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity`. `USER_ONBOARDING_STATUS_UPDATED` is hidden from admin curated Activity (`ADMIN_ORGANIZATION_HIDDEN`). `ONBOARDING_STATUS_CHANGED` is visible on admin curated Activity and on Admin Organization contextual history. Issuer/investor activity is a smaller user-facing subset: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer also invitation plus director APPROVED/REJECTED outcomes (historical ACTION_REQUIRED rows still render); investor also sophisticated status when the value changes. Internal SSM/AML/CTOS/admin-detail events stay off issuer/investor feeds. Intermediate director KYC statuses are not audit events.
 
 ## 15. Manual verification checklist
 
@@ -10681,7 +10738,7 @@ Curated titles/descriptions come from `packages/types/src/activity-presentation.
 
 ## 14. Current UI behavior
 
-Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity` for all events except `USER_ONBOARDING_STATUS_UPDATED` and `ONBOARDING_STATUS_CHANGED` (hidden). Issuer/investor activity is a smaller user-facing subset plus two issuer conditionals and one investor conditional.
+Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity`. `USER_ONBOARDING_STATUS_UPDATED` is hidden from admin curated Activity (`ADMIN_ORGANIZATION_HIDDEN`). `ONBOARDING_STATUS_CHANGED` is visible on admin curated Activity and on Admin Organization contextual history. Issuer/investor activity is a smaller user-facing subset: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer also invitation plus director APPROVED/REJECTED outcomes (historical ACTION_REQUIRED rows still render); investor also sophisticated status when the value changes. Internal SSM/AML/CTOS/admin-detail events stay off issuer/investor feeds. Intermediate director KYC statuses are not audit events.
 
 ## 15. Manual verification checklist
 
@@ -10884,7 +10941,7 @@ Curated titles/descriptions come from `packages/types/src/activity-presentation.
 
 ## 14. Current UI behavior
 
-Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity` for all events except `USER_ONBOARDING_STATUS_UPDATED` and `ONBOARDING_STATUS_CHANGED` (hidden). Issuer/investor activity is a smaller user-facing subset plus two issuer conditionals and one investor conditional.
+Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity`. `USER_ONBOARDING_STATUS_UPDATED` is hidden from admin curated Activity (`ADMIN_ORGANIZATION_HIDDEN`). `ONBOARDING_STATUS_CHANGED` is visible on admin curated Activity and on Admin Organization contextual history. Issuer/investor activity is a smaller user-facing subset: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer also invitation plus director APPROVED/REJECTED outcomes (historical ACTION_REQUIRED rows still render); investor also sophisticated status when the value changes. Internal SSM/AML/CTOS/admin-detail events stay off issuer/investor feeds. Intermediate director KYC statuses are not audit events.
 
 ## 15. Manual verification checklist
 
@@ -11101,7 +11158,7 @@ Curated titles/descriptions come from `packages/types/src/activity-presentation.
 
 ## 14. Current UI behavior
 
-Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity` for all events except `USER_ONBOARDING_STATUS_UPDATED` and `ONBOARDING_STATUS_CHANGED` (hidden). Issuer/investor activity is a smaller user-facing subset plus two issuer conditionals and one investor conditional.
+Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity`. `USER_ONBOARDING_STATUS_UPDATED` is hidden from admin curated Activity (`ADMIN_ORGANIZATION_HIDDEN`). `ONBOARDING_STATUS_CHANGED` is visible on admin curated Activity and on Admin Organization contextual history. Issuer/investor activity is a smaller user-facing subset: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer also invitation plus director APPROVED/REJECTED outcomes (historical ACTION_REQUIRED rows still render); investor also sophisticated status when the value changes. Internal SSM/AML/CTOS/admin-detail events stay off issuer/investor feeds. Intermediate director KYC statuses are not audit events.
 
 ## 15. Manual verification checklist
 
@@ -11293,7 +11350,7 @@ Curated titles/descriptions come from `packages/types/src/activity-presentation.
 
 ## 14. Current UI behavior
 
-Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity` for all events except `USER_ONBOARDING_STATUS_UPDATED` and `ONBOARDING_STATUS_CHANGED` (hidden). Issuer/investor activity is a smaller user-facing subset plus two issuer conditionals and one investor conditional.
+Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity`. `USER_ONBOARDING_STATUS_UPDATED` is hidden from admin curated Activity (`ADMIN_ORGANIZATION_HIDDEN`). `ONBOARDING_STATUS_CHANGED` is visible on admin curated Activity and on Admin Organization contextual history. Issuer/investor activity is a smaller user-facing subset: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer also invitation plus director APPROVED/REJECTED outcomes (historical ACTION_REQUIRED rows still render); investor also sophisticated status when the value changes. Internal SSM/AML/CTOS/admin-detail events stay off issuer/investor feeds. Intermediate director KYC statuses are not audit events.
 
 ## 15. Manual verification checklist
 
@@ -11321,7 +11378,12 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A053 — CORPORATE_ENTITIES_UPDATED
 
-**Status: RETIRED / NO WRITER.** ID A053 is reserved. Historical rows remain readable. `corporate_entities` JSON is still persisted; this event is no longer written.
+**Status: RETIRED**
+**Current writer: None**
+**Historical rows: Supported/readable**
+**ID reused: No**
+
+ID A053 remains reserved in A039–A055. `corporate_entities` JSON continues to update normally on COD WAIT, admin corporate-entity refresh, final-approval refresh, and corporate status refresh. Only the onboarding audit writer was removed. Historical `CORPORATE_ENTITIES_UPDATED` rows stay readable on admin raw. Admin Organization contextual history excludes this type.
 
 Source Case: ONB-015
 Module: Onboarding
@@ -11449,9 +11511,8 @@ Organization `onboarding_status` / approval flags, `RegTankOnboarding` sessions,
 
 ## 8. Writer(s)
 
-- `apps/api/src/modules/regtank/webhooks/cod-handler.ts`
-- `apps/api/src/modules/admin/service.ts`
-- `writeOnboardingAuditLog`
+- None. Previously `apps/api/src/modules/regtank/webhooks/cod-handler.ts` and `apps/api/src/modules/admin/service.ts`.
+- `writeOnboardingAuditLog` is not called for corporate-entity JSON sync.
 
 ## 9. ADMIN RAW AUDIT
 
@@ -11465,9 +11526,9 @@ SHOW. Listed on the module's admin raw audit surface with the module permission.
 
 ## 10. ADMIN CURATED ACTIVITY
 
-**Visibility:** SHOW
+**Visibility:** SHOW (historical)
 
-SHOW admin curated.
+SHOW if a historical row exists. No current writer. Admin Organization contextual history excludes this type.
 
 **Title:** Corporate Entities Updated
 
@@ -11499,7 +11560,7 @@ Curated titles/descriptions come from `packages/types/src/activity-presentation.
 
 ## 14. Current UI behavior
 
-Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity` for all events except `USER_ONBOARDING_STATUS_UPDATED` and `ONBOARDING_STATUS_CHANGED` (hidden). Issuer/investor activity is a smaller user-facing subset plus two issuer conditionals and one investor conditional.
+Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity`. `USER_ONBOARDING_STATUS_UPDATED` is hidden from admin curated Activity (`ADMIN_ORGANIZATION_HIDDEN`). `ONBOARDING_STATUS_CHANGED` is visible on admin curated Activity and on Admin Organization contextual history. Issuer/investor activity is a smaller user-facing subset: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer also invitation plus director APPROVED/REJECTED outcomes (historical ACTION_REQUIRED rows still render); investor also sophisticated status when the value changes. Internal SSM/AML/CTOS/admin-detail events stay off issuer/investor feeds. Intermediate director KYC statuses are not audit events.
 
 ## 15. Manual verification checklist
 
@@ -11693,7 +11754,7 @@ Curated titles/descriptions come from `packages/types/src/activity-presentation.
 
 ## 14. Current UI behavior
 
-Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity` for all events except `USER_ONBOARDING_STATUS_UPDATED` and `ONBOARDING_STATUS_CHANGED` (hidden). Issuer/investor activity is a smaller user-facing subset plus two issuer conditionals and one investor conditional.
+Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity`. `USER_ONBOARDING_STATUS_UPDATED` is hidden from admin curated Activity (`ADMIN_ORGANIZATION_HIDDEN`). `ONBOARDING_STATUS_CHANGED` is visible on admin curated Activity and on Admin Organization contextual history. Issuer/investor activity is a smaller user-facing subset: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer also invitation plus director APPROVED/REJECTED outcomes (historical ACTION_REQUIRED rows still render); investor also sophisticated status when the value changes. Internal SSM/AML/CTOS/admin-detail events stay off issuer/investor feeds. Intermediate director KYC statuses are not audit events.
 
 ## 15. Manual verification checklist
 
@@ -11728,7 +11789,9 @@ DB Table: onboarding_audit_logs
 
 ## 1. What this event means
 
-A director newly reached a terminal KYC outcome (`APPROVED` or `REJECTED`). Intermediate provider statuses still update `director_kyc_status` JSON but are not audited.
+Human business outcome history for director verification. A director newly reached a terminal KYC outcome (`APPROVED` or `REJECTED`). One audit row per director outcome.
+
+`director_kyc_status` remains the current provider/business snapshot and is still updated for intermediate statuses. `DIRECTOR_KYC_STATUS_UPDATED` audit is outcome-only and does not duplicate provider synchronization.
 
 ## 2. When it logs
 
@@ -11765,6 +11828,9 @@ Append-only `OnboardingAuditLog` / `onboarding_audit_logs`.
   actorEmail: string | null;
   previousKycStatus?: string;
   newKycStatus?: string;
+  eodRequestId?: string;
+  partyKey?: string;
+  directorName?: string;
   changedCount?: number;
   directorCount?: number;
 }
@@ -11816,14 +11882,46 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Current writer:** Optional; required for issuer visibility
 - **Example:** `"APPROVED"`
 
+Current writers set `newKycStatus` to `APPROVED` or `REJECTED` only.
+
+#### `eodRequestId`
+
+- **Type:** string | undefined
+- **Required:** No
+- **Nullable:** No (when present)
+- **Allowed values:** Director EOD request id when already on the JSON
+- **Writer source:** `writeDirectorKycOutcomeAuditLogs` from `DirectorKycFinalOutcome.eodRequestId`
+- **Current writer:** Optional; included when available. Used with `partyKey` as `target_id` preference (`eodRequestId` || `partyKey` || organization id)
+- **Example:** Example not safely inferable from source.
+
+#### `partyKey`
+
+- **Type:** string | undefined
+- **Required:** No
+- **Nullable:** No (when present)
+- **Allowed values:** Director/shareholder party key when already on the JSON
+- **Writer source:** `writeDirectorKycOutcomeAuditLogs` from `DirectorKycFinalOutcome.partyKey`
+- **Current writer:** Optional; included when available
+- **Example:** Example not safely inferable from source.
+
+#### `directorName`
+
+- **Type:** string | undefined
+- **Required:** No
+- **Nullable:** No (when present)
+- **Allowed values:** Name already present on director JSON
+- **Writer source:** `writeDirectorKycOutcomeAuditLogs` from `DirectorKycFinalOutcome.directorName`
+- **Current writer:** Optional; included only when already on the JSON. Not invented.
+- **Example:** Example not safely inferable from source.
+
 #### `changedCount`
 
 - **Type:** number | undefined
 - **Required:** No
 - **Nullable:** No (when present)
 - **Allowed values:** How many directors changed
-- **Writer source:** Batch sync
-- **Current writer:** Optional
+- **Writer source:** Historical batch-sync rows
+- **Current writer:** Not produced by the outcome-only writer. May exist on older rows.
 - **Example:** `1`
 
 #### `directorCount`
@@ -11832,8 +11930,8 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Required:** No
 - **Nullable:** No (when present)
 - **Allowed values:** Director count
-- **Writer source:** Batch sync
-- **Current writer:** Optional
+- **Writer source:** Historical batch-sync rows
+- **Current writer:** Not produced by the outcome-only writer. May exist on older rows.
 - **Example:** `3`
 
 
@@ -11847,6 +11945,7 @@ Organization `onboarding_status` / approval flags, `RegTankOnboarding` sessions,
 
 ## 8. Writer(s)
 
+- `apps/api/src/modules/onboarding/audit/director-kyc-outcomes.ts` (`writeDirectorKycOutcomeAuditLogs`)
 - `apps/api/src/modules/regtank/webhooks/cod-handler.ts`
 - `apps/api/src/modules/regtank/webhooks/eod-handler.ts`
 - `apps/api/src/modules/admin/service.ts`
@@ -11866,23 +11965,23 @@ SHOW. Listed on the module's admin raw audit surface with the module permission.
 
 **Visibility:** SHOW
 
-SHOW admin curated. Title/description depend on `newKycStatus`.
+SHOW admin curated. Current writers only produce `APPROVED` / `REJECTED`. Presentation still has historical `ACTION_REQUIRED` / generic Updated copy if old rows exist.
 
-**Title:** Director Verification Approved | Rejected | Action Required | Updated
+**Title:** Director Verification Approved | Rejected (historical: Action Required | Updated)
 
-**Description:** Director verification was approved. / was rejected. / needs further action. / was updated.
+**Description:** Director verification was approved. / was rejected. Historical: needs further action. / was updated.
 
 ## 11. ISSUER ACTIVITY
 
 **Visibility:** CONDITIONAL
 
-CONDITIONAL: newKycStatus in APPROVED | REJECTED | ACTION_REQUIRED.
+CONDITIONAL: current rows are `APPROVED` or `REJECTED`. Visibility helper also still renders historical `ACTION_REQUIRED` rows. Intermediate statuses are not written.
 
-**Title:** Director Verification Approved | Rejected | Action Needed | Updated
+**Title:** Director Verification Approved | Rejected (historical: Action Needed | Updated)
 
-**Description:** A director has completed verification. / A director’s verification was not approved. Please review and try again. / A director needs to take further action to complete verification. / A director’s verification status was updated.
+**Description:** A director has completed verification. / A director’s verification was not approved. Please review and try again. Historical: A director needs to take further action to complete verification. / A director’s verification status was updated.
 
-**Visibility condition:** newKycStatus (trimmed, uppercased) is APPROVED, REJECTED, or ACTION_REQUIRED
+**Visibility condition:** newKycStatus (trimmed, uppercased) is APPROVED or REJECTED. Historical ACTION_REQUIRED still matches the visibility helper.
 
 ## 12. INVESTOR ACTIVITY
 
@@ -11900,7 +11999,7 @@ Curated titles/descriptions come from `packages/types/src/activity-presentation.
 
 ## 14. Current UI behavior
 
-Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity` for all events except `USER_ONBOARDING_STATUS_UPDATED` and `ONBOARDING_STATUS_CHANGED` (hidden). Issuer/investor activity is a smaller user-facing subset plus two issuer conditionals and one investor conditional.
+Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetailSheet`. Admin curated Activity uses `formatOnboardingActivity`. `USER_ONBOARDING_STATUS_UPDATED` is hidden from admin curated Activity (`ADMIN_ORGANIZATION_HIDDEN`). `ONBOARDING_STATUS_CHANGED` is visible on admin curated Activity and on Admin Organization contextual history. Issuer/investor activity is a smaller user-facing subset: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer also invitation plus director APPROVED/REJECTED outcomes (historical ACTION_REQUIRED rows still render); investor also sophisticated status when the value changes. Internal SSM/AML/CTOS/admin-detail events stay off issuer/investor feeds. Intermediate director KYC statuses are not audit events.
 
 ## 15. Manual verification checklist
 
@@ -11925,6 +12024,9 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 - [ ] No internal metadata exposed
 - [ ] RBAC correct
 - [ ] Detail UI correct
+- [ ] ID_UPLOADED / LIVENESS_STARTED / WAIT_FOR_APPROVAL / PENDING / FORM_FILLING / first JSON seed / kycId-only / duplicate final state do not write this event
+- [ ] Newly APPROVED or REJECTED existing director writes one row
+- [ ] Several directors reaching final outcomes write one row each
 
 # Legal
 
@@ -39267,6 +39369,12 @@ Used by 1 event(s):
 
 - A054 `DIRECTOR_ONBOARDING_INVITATION_SENT`
 
+### `directorName`
+
+Used by 1 event(s):
+
+- A055 `DIRECTOR_KYC_STATUS_UPDATED`
+
 ### `displayReference`
 
 Used by 3 event(s):
@@ -39370,6 +39478,12 @@ Used by 5 event(s):
 Used by 1 event(s):
 
 - A052 `CTOS_REPORT_RECEIVED`
+
+### `eodRequestId`
+
+Used by 1 event(s):
+
+- A055 `DIRECTOR_KYC_STATUS_UPDATED`
 
 ### `exceptionId`
 
@@ -40029,9 +40143,10 @@ Used by 1 event(s):
 
 ### `partyKey`
 
-Used by 1 event(s):
+Used by 2 event(s):
 
 - A054 `DIRECTOR_ONBOARDING_INVITATION_SENT`
+- A055 `DIRECTOR_KYC_STATUS_UPDATED`
 
 ### `path`
 
@@ -41039,11 +41154,14 @@ Visible curated activity titles only (HIDE = omitted). Copy is from `packages/ty
 | A039 | `ONBOARDING_STARTED` | Admin Activity | Onboarding Started |
 | A039 | `ONBOARDING_STARTED` | Issuer | Onboarding Started |
 | A039 | `ONBOARDING_STARTED` | Investor | Onboarding Started |
+| A040 | `ONBOARDING_RESUMED` | Admin Activity | Onboarding Resumed (historical rows only; no current writer) |
 | A041 | `ONBOARDING_RESTARTED` | Admin Activity | Onboarding Restarted |
 | A041 | `ONBOARDING_RESTARTED` | Issuer | Onboarding Restarted |
 | A041 | `ONBOARDING_RESTARTED` | Investor | Onboarding Restarted |
 | A042 | `ONBOARDING_RESET` | Admin Activity | Onboarding Reset |
-| A044 | `ONBOARDING_STATUS_CHANGED` | Admin Activity / Issuer / Investor | Verification submitted \| Amendment requested \| Verification resubmitted \| Onboarding stage updated |
+| A044 | `ONBOARDING_STATUS_CHANGED` | Admin Activity | Verification submitted \| Amendment requested \| Verification resubmitted \| Onboarding stage updated |
+| A044 | `ONBOARDING_STATUS_CHANGED` | Issuer | Verification submitted \| Amendment requested \| Verification resubmitted (review/amendment only) |
+| A044 | `ONBOARDING_STATUS_CHANGED` | Investor | Verification submitted \| Amendment requested \| Verification resubmitted (review/amendment only) |
 | A045 | `ONBOARDING_APPROVED` | Admin Activity | Onboarding Approved |
 | A045 | `ONBOARDING_APPROVED` | Issuer | Onboarding Submission Approved |
 | A045 | `ONBOARDING_APPROVED` | Investor | Onboarding Submission Approved |
@@ -41059,10 +41177,11 @@ Visible curated activity titles only (HIDE = omitted). Copy is from `packages/ty
 | A051 | `INVESTOR_SOPHISTICATED_STATUS_UPDATED` | Admin Activity | Sophisticated Status Updated |
 | A051 | `INVESTOR_SOPHISTICATED_STATUS_UPDATED` | Investor | Sophisticated Status Updated |
 | A052 | `CTOS_REPORT_RECEIVED` | Admin Activity | CTOS Report Received |
+| A053 | `CORPORATE_ENTITIES_UPDATED` | Admin Activity | Corporate Entities Updated (historical rows only; no current writer; excluded from org contextual history) |
 | A054 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | Admin Activity | Director Invitation Sent |
 | A054 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | Issuer | Director Invitation Sent |
-| A055 | `DIRECTOR_KYC_STATUS_UPDATED` | Admin Activity | Director Verification Approved | Rejected | Action Required | Updated |
-| A055 | `DIRECTOR_KYC_STATUS_UPDATED` | Issuer | Director Verification Approved | Rejected | Action Needed | Updated |
+| A055 | `DIRECTOR_KYC_STATUS_UPDATED` | Admin Activity | Director Verification Approved \| Rejected (historical Action Required \| Updated) |
+| A055 | `DIRECTOR_KYC_STATUS_UPDATED` | Issuer | Director Verification Approved \| Rejected (historical Action Needed \| Updated) |
 | A063 | `APPLICATION_CREATED` | Admin Activity | Application Created |
 | A063 | `APPLICATION_CREATED` | Issuer | Application Created |
 | A064 | `APPLICATION_SUBMITTED` | Admin Activity | Application Submitted |
@@ -41213,9 +41332,11 @@ Events whose Admin Activity, Issuer, or Investor visibility is CONDITIONAL.
 
 | ID | Event | Audience | Condition |
 |---|---|---|---|
+| A044 | `ONBOARDING_STATUS_CHANGED` | Issuer | review/amendment transitions only (`IN_PROGRESS`/`PENDING` → `PENDING_SSM_REVIEW`/`PENDING_APPROVAL`; review → `PENDING_AMENDMENT`; `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW`) |
+| A044 | `ONBOARDING_STATUS_CHANGED` | Investor | same review/amendment transitions as issuer |
 | A051 | `INVESTOR_SOPHISTICATED_STATUS_UPDATED` | Investor | previousValue and newValue are both booleans and previousValue !== newValue |
 | A054 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | Issuer | context.organizationKind === "ISSUER" && context.organizationType === "COMPANY" |
-| A055 | `DIRECTOR_KYC_STATUS_UPDATED` | Issuer | newKycStatus (trimmed, uppercased) is APPROVED, REJECTED, or ACTION_REQUIRED |
+| A055 | `DIRECTOR_KYC_STATUS_UPDATED` | Issuer | newKycStatus (trimmed, uppercased) is APPROVED or REJECTED; historical ACTION_REQUIRED still matches the visibility helper |
 | A075 | `APPLICATION_SECTION_REVIEW_UPDATED` | Admin Activity | newStatus in REQUEST_AMENDMENT | AMENDMENT_REQUESTED |
 | A075 | `APPLICATION_SECTION_REVIEW_UPDATED` | Issuer | newStatus in REQUEST_AMENDMENT | AMENDMENT_REQUESTED |
 | A116 | `NOTE_TERMS_UPDATED` | Issuer | noteVisibleToIssuer (publishedAt or listingStatus PUBLISHED|UNPUBLISHED) |
@@ -41280,16 +41401,16 @@ How an investor is allowed to see an event. CANCELLED `NoteInvestment` rows do n
 
 # Source verification footer
 
-Date: **2026-08-16**. Source: current tree after audit/activity cleanup.
+Date: **2026-08-17**. Source: current tree after the Onboarding Audit redesign.
 
 ## VERIFIED counts
 
 | Source | Count | Result |
 |---|---:|---|
-| Catalogue arrays in this document (Access 3 + Security 35 + Onboarding 17 + Legal 7 + Application 40 + Signing 12 + Note 35 + Payment 19 + Product 5 + Notification 1) | 174 | VERIFIED |
+| Catalogue arrays in this document (Access 3 + Security 35 + Onboarding 17 reserved + Legal 7 + Application 40 + Signing 12 + Note 35 + Payment 19 + Product 5 + Notification 1) | 174 reserved IDs | VERIFIED |
 | `ACCESS_AUDIT_EVENTS` `apps/api/src/modules/auth/audit/events.ts` | 3 | VERIFIED |
 | `SECURITY_AUDIT_EVENTS` `apps/api/src/modules/security/audit/events.ts` | 35 | VERIFIED |
-| `ONBOARDING_AUDIT_EVENTS` `apps/api/src/modules/onboarding/audit/events.ts` | 17 | VERIFIED |
+| `ONBOARDING_AUDIT_EVENTS` `apps/api/src/modules/onboarding/audit/events.ts` | 17 reserved IDs (15 current writers; A040 and A053 in `RETIRED_ONBOARDING_AUDIT_EVENTS`) | VERIFIED |
 | `LEGAL_ADMIN_AUDIT_EVENTS` `apps/api/src/modules/legal-documents/audit/events.ts` | 7 | VERIFIED |
 | `APPLICATION_AUDIT_EVENTS` `apps/api/src/modules/applications/audit/events.ts` | 40 | VERIFIED |
 | `SIGNING_AUDIT_EVENTS` `apps/api/src/modules/signing/audit/events.ts` | 12 | VERIFIED |
@@ -41297,9 +41418,9 @@ Date: **2026-08-16**. Source: current tree after audit/activity cleanup.
 | `PAYMENT_AUDIT_EVENTS` `apps/api/src/modules/payment/audit/events.ts` | 19 | VERIFIED |
 | `PRODUCT_AUDIT_EVENTS` `apps/api/src/modules/products/audit/events.ts` | 5 | VERIFIED |
 | `NOTIFICATION_BROADCAST_AUDIT_EVENTS` `apps/api/src/modules/notification/audit/events.ts` | 1 | VERIFIED |
-| Zod `metadataByEvent` / `schemas` maps (one schema per catalogue event) | 174 | VERIFIED |
-| Live writers (`eventType: "…"` call sites in `apps/api/src/modules/**` plus jobs/middleware) | 174 events have at least one writer | VERIFIED |
-| Admin raw coverage (global `/audit` tabs, application/note contextual history, trustee, gateway, withdrawal, recon) | 174 | VERIFIED |
+| Zod `metadataByEvent` / `schemas` maps (one schema per catalogue event, including retired IDs so historical rows still parse) | 174 | VERIFIED |
+| Current writers (`eventType: "…"` call sites in `apps/api/src/modules/**` plus jobs/middleware) | 172 events have at least one current writer; A040 and A053 have none | VERIFIED |
+| Admin raw coverage (global `/audit` tabs, application/note contextual history, trustee, gateway, withdrawal, recon) | 174 reserved IDs remain readable | VERIFIED |
 
 ## Writer notes that affect verification
 

@@ -2,6 +2,8 @@
 
 **READ-ONLY comparison.** Product code was not modified.
 
+> **Historical snapshot.** This comparison is `origin/main` (`cc58bb43…`) versus `no_fix_55` (`679a1c4c…` plus that working tree). It predates the later Onboarding Audit redesign that retired A040 `ONBOARDING_RESUMED` and A053 `CORPORATE_ENTITIES_UPDATED`, narrowed A055 to APPROVED/REJECTED outcomes, and included `ONBOARDING_STATUS_CHANGED` in Admin Organization contextual history. The tables below are left as written for that git comparison. Living behaviour is in `docs/audit/audit-manual-verification-catalogue.md`.
+
 | Side | Git ref | Branch / tree |
 |---|---|---|
 | BEFORE | `cc58bb43dc694a02169ae3c1a5f5afd1ff953d8c` | `origin/main` (“No fix 54 (#226)”) |

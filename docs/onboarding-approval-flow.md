@@ -396,6 +396,11 @@ DB fields/statuses:
     - message status
     - risk score and risk level
 
+`director_kyc_status` is the current provider/business snapshot and is still updated for intermediate statuses. Onboarding audit is outcome-only:
+
+- Do **not** expect `DIRECTOR_KYC_STATUS_UPDATED` for `ID_UPLOADED`, `LIVENESS_STARTED`, `WAIT_FOR_APPROVAL`, `PENDING`, `FORM_FILLING`, first JSON seed, kycId-only change, or a duplicate final state.
+- Newly `APPROVED` or `REJECTED` on an existing director writes one `DIRECTOR_KYC_STATUS_UPDATED` row (one per director). Metadata includes `previousKycStatus`, `newKycStatus`, and `eodRequestId` / `partyKey` / `directorName` when already available.
+
 Next valid status:
 
 - Org-level `onboarding_status` still depends on the org AML gate (`PENDING_AML` → `PENDING_FINAL_APPROVAL`).
@@ -427,6 +432,12 @@ Normalization/storage:
 
 - `BaseWebhookHandler` verifies HMAC signature (when provided) and stores raw webhook payloads.
 - `normalizeRawStatus` is used to store a canonical status value.
+
+Onboarding audit expectations (storage above is unchanged):
+
+- Company COD `WAIT_FOR_APPROVAL` that actually moves org status writes `ONBOARDING_STATUS_CHANGED`. It does **not** write `CORPORATE_ENTITIES_UPDATED`. It does **not** write intermediate `DIRECTOR_KYC_STATUS_UPDATED`.
+- EOD `ID_UPLOADED` / `LIVENESS_STARTED` / `WAIT_FOR_APPROVAL` update `director_kyc_status` only. Newly `APPROVED` or `REJECTED` existing directors write one `DIRECTOR_KYC_STATUS_UPDATED` each.
+- Raw RegTank webhook payloads stay on `RegTankOnboarding.webhook_payloads` and are not themselves onboarding audit events.
 
 ### Step 10. Pending AML / KYC review
 
@@ -842,6 +853,15 @@ The Admin onboarding queue table shows a `Submitted` value based on the RegTank 
 
 `PENDING_AMENDMENT` is a real organization lifecycle status (`IssuerOrganization/InvestorOrganization.onboarding_status`).
 The frontend follows this status as the single source of truth; the UI does not compute or consume the old derived `regtankAmendmentInProgress` flag directly.
+
+#### Onboarding audit for amendment
+
+These status moves write `ONBOARDING_STATUS_CHANGED` (not a dedicated amendment event type):
+
+- `PENDING_SSM_REVIEW` / `PENDING_APPROVAL` → `PENDING_AMENDMENT` = Amendment requested (title: Amendment requested)
+- `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW` = Verification resubmitted (title: Verification resubmitted)
+
+Technical RegTank triggers (`URL_GENERATED`, `WAIT_FOR_APPROVAL`) stay in metadata/detail and are not human titles. Dedicated SSM/AML/approval/final/reject/restart events do not also write a sibling `ONBOARDING_STATUS_CHANGED` row.
 
 ### 7.9 Personal onboarding should skip corporate-only SSM steps safely
 

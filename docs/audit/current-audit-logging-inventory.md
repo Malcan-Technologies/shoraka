@@ -58,6 +58,10 @@ Known limitations (not fixed in the cleanup):
 - `LegalDocumentAcceptance` remains legal acceptance source of truth.
 - CTOS report rows remain report source of truth.
 - Audit is never workflow state. No User/org/RegTank FKs on `OnboardingAuditLog` (scalar historical ids only). Append-only create.
+- Reserved onboarding IDs A039–A055 remain 17. Current active writers: 15. Retired / no current writer: `ONBOARDING_RESUMED` (A040) and `CORPORATE_ENTITIES_UPDATED` (A053). Historical rows remain readable. IDs are not reused.
+- Onboarding audit records CashSouk business actions, stages, decisions, and outcomes. Detailed provider synchronization remains in its source-of-truth storage (`corporate_entities`, `director_kyc_status`, `RegTankOnboarding.webhook_payloads`) and is not duplicated as onboarding audit noise.
+- `DIRECTOR_KYC_STATUS_UPDATED` writes only when an existing director newly becomes `APPROVED` or `REJECTED`.
+- `ONBOARDING_STATUS_CHANGED` is the core stage event, including review landing, amendment requested, and amendment resubmission. Admin Organization contextual history includes it.
 - Admin URLs `GET /v1/admin/onboarding-logs` (list, `/:id`, `/export`) are preserved names; they read `OnboardingAuditLog`.
 - There is **no** canonical/global `AuditEvent` table.
 
@@ -78,7 +82,7 @@ CashSouk does not have a single audit system. It has **many specialized tables**
 ### Current architecture (factual)
 
 - **Auth/security:** `AccessAuditLog` (signup/login/logout) + `SecurityAuditLog` (RBAC, profile, invitations, membership, notification config). No User FK; history survives User deletion. `UserSession` is session SOT; Cognito is auth authority. Legacy `AccessLog` / `SecurityLog` removed.
-- **Onboarding:** `OnboardingAuditLog` is the sole onboarding/compliance history table (append-only). Organization `onboarding_status`/flags, `RegTankOnboarding`, `LegalDocumentAcceptance`, and CTOS rows remain SOT. Audit is never workflow state. Legacy `OnboardingLog` / `onboarding_logs` removed.
+- **Onboarding:** `OnboardingAuditLog` is the sole onboarding/compliance history table (append-only). Organization `onboarding_status`/flags, `RegTankOnboarding`, `LegalDocumentAcceptance`, and CTOS rows remain SOT. Audit is never workflow state. Legacy `OnboardingLog` / `onboarding_logs` removed. A039–A055 are 17 reserved IDs with 15 current writers; A040 and A053 are retired (historical rows readable). `DIRECTOR_KYC_STATUS_UPDATED` is outcome-only (`APPROVED`/`REJECTED`).
 - **Applications:** `ApplicationAuditLog` (`application_audit_logs`) is the application/review/contract/invoice history table (append-only, no Application/User FKs). `ApplicationReview` / `ApplicationReviewItem` are current review status. `ApplicationReviewRemark` is cycle-scoped amendment remark SOT. `ApplicationRevision` is comparison/snapshot SOT. Resubmit comparison reads `ApplicationRevision` + remarks, never audit. Legacy `ApplicationLog` / `application_logs` and `ApplicationReviewEvent` / `application_review_events` **removed**.
 - **Signing:** `SigningAuditLog` (`signing_audit_logs`) is the signing history table (append-only). Envelope graph / `SigningCloudEkyc` remain signing SOT. `GET /v1/applications/:id/logs` merges Application + Signing audit rows. Envelope log APIs read `SigningAuditLog` only.
 - **Notes:** `NoteAuditLog` (`note_audit_logs`) is the sole Note-domain history table (append-only, no Note/User/org FKs). Ledger, `NotePayment`, `NoteSettlement`, `NoteInvestment`, `WithdrawalInstruction`, `ShorakaTradeOrder`, prospectus models, and `Note` remain SOT. Activity feed reads a **subset** of `NoteAuditLog` types. `NoteEvent` / `note_events` and `NoteAdminAction` / `note_admin_actions` **removed**. Title/summary edits, featured settings, and prospectus draft saves are intentionally unaudited.
@@ -187,8 +191,8 @@ Sole security/admin-control table. Distinguishes `actor_user_id` vs `subject_use
 #### OnboardingAuditLog → `onboarding_audit_logs` · ONBOARDING · **A**
 
 Sole onboarding/compliance history table. Append-only create. Required `metadata` Json. `occurred_at` + `created_at`. No `updated_at`. No User/org/RegTank FKs (scalar historical ids only).  
-Events: `ONBOARDING_STARTED`, `ONBOARDING_RESUMED`, `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `CTOS_REPORT_RECEIVED`, `CORPORATE_ENTITIES_UPDATED`, `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED`.  
-**REMOVED:** `OnboardingLog` / `onboarding_logs`. Audit is never workflow state.
+Reserved IDs (17): `ONBOARDING_STARTED`, `ONBOARDING_RESUMED` (retired, historical rows readable), `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `CTOS_REPORT_RECEIVED`, `CORPORATE_ENTITIES_UPDATED` (retired, `corporate_entities` still persisted), `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED` (APPROVED/REJECTED outcomes only).  
+Current active writers: 15. **REMOVED:** `OnboardingLog` / `onboarding_logs`. Audit is never workflow state.
 
 #### ApplicationAuditLog → `application_audit_logs` · APPLICATION · **A**
 
@@ -315,14 +319,14 @@ Actor: USER / ADMIN / SYSTEM / PROVIDER / EXTERNAL SIGNER / WEBHOOK.
 | A046 | CTOS | PATCH ctos-party-email | | Party email | USER | **MISSING AUDIT** | |
 | A047/A050 | ORG | send-director-onboarding / admin notify | | Director action | USER/ADMIN | **MISSING AUDIT** | **notification only** |
 | A048 | ORG | POST refresh-aml | RegTank service | Refresh AML | USER | PARTIAL | maybe ONBOARDING_STATUS_UPDATED |
-| A049 | ORG | admin refresh-corporate-entities | AdminService | Entities JSON | ADMIN | **MISSING AUDIT** | |
+| A049 | ORG | admin refresh-corporate-entities | AdminService | Entities JSON | ADMIN | Intentional no audit | `corporate_entities` still persists; A053 `CORPORATE_ENTITIES_UPDATED` retired |
 | A051 | ORG | PATCH sophisticated-status | updateSophisticatedStatus | Sophisticated flag | ADMIN | YES | SOPHISTICATED_STATUS_UPDATED |
 | A052/A058 | ONBOARDING | restart / reset-onboarding | AdminService | Reset | ADMIN | YES dual | OnboardingLog + AccessLog ONBOARDING_RESET |
 | A053 | ONBOARDING | complete-final-approval | completeFinalApproval | Org COMPLETED | ADMIN | YES | FINAL_APPROVAL_COMPLETED |
 | A054–A056 | ONBOARDING | approve-aml/ssm/onboarding | AdminService | Gates | ADMIN | YES | AML_APPROVED / SSM_APPROVED / ONBOARDING_APPROVED |
 | A057 | ONBOARDING | refresh-status* | AdminService | Live RegTank pull | ADMIN | YES | ONBOARDING_STATUS_UPDATED |
 | A059 | ONBOARDING | cancel | AdminService | Cancel | ADMIN | YES | ONBOARDING_CANCELLED |
-| A060/A061 | REGTANK | start/resume APIs | regtank/service.ts | Start/resume | USER | YES | ONBOARDING_STARTED / RESUMED |
+| A060/A061 | REGTANK | start/resume APIs | regtank/service.ts | Start/resume | USER | PARTIAL | start writes ONBOARDING_STARTED; resume writes no onboarding audit (A040 retired) |
 | A062–A067 | REGTANK | webhooks liveness/cod/eod/kyc | handlers | Status/AML JSON | WEBHOOK | YES mixed | see §10 |
 | A065 | KYB | POST /webhooks/regtank/kyb | kyb-handler | KYB JSON | WEBHOOK | **MISSING** direct log | may hit org-aml-milestone |
 | A068 | KYT | POST /webhooks/regtank/kyt | kyt-handler | Appends `webhook_payloads` only | WEBHOOK | **MISSING AUDIT** | No org/AML/OnboardingLog/notification. Inline TODO. |
@@ -422,7 +426,7 @@ Legacy `AuthRepository.createAccessLog` / `AdminRepository.createAccessLog` / `c
 
 ### OnboardingAuditLog
 
-Writers: `writeOnboardingAuditLog` (`apps/api/src/modules/onboarding/audit/writer.ts`) only. Live callers include start/resume/restart/reset, status transitions, admin approvals, AML/SSM/sophisticated/CTOS/corporate-entities/director invitation+KYC, and legacy complete-onboarding (`ONBOARDING_COMPLETED`). TNC, guarantor AML, and fee capture do **not** write this table.
+Writers: `writeOnboardingAuditLog` (`apps/api/src/modules/onboarding/audit/writer.ts`) only. Live callers include start (not resume), restart, reset, status transitions (including amendment requested/resubmitted), admin approvals, AML/SSM/sophisticated/CTOS/director invitation, director APPROVED/REJECTED outcomes (`writeDirectorKycOutcomeAuditLogs`), and legacy complete-onboarding (`ONBOARDING_COMPLETED`). Resume does **not** write `ONBOARDING_RESUMED`. Corporate-entity JSON sync does **not** write `CORPORATE_ENTITIES_UPDATED`. TNC, guarantor AML, and fee capture do **not** write this table.
 
 Production final approval writes **`ONBOARDING_FINAL_APPROVAL_COMPLETED`**. `AuthService.cancelOnboarding` does **not** read audit as state. Legacy `OnboardingLog` writers/readers **removed**. Admin `GET /v1/admin/onboarding-logs` reads `OnboardingAuditLog`.
 
@@ -476,7 +480,7 @@ Created on ingest; **`updateMany` processed_at/error** in `webhook-service.ts`.
 | access_audit_logs | `accessAuditLogReader.findRecentLogins` via `AuthService.getCurrentUser` `GET /v1/auth/me` | Account “recent logins” | `event_type=USER_LOGGED_IN`, last 3 | MEDIUM |
 | access_audit_logs | `accessAuditLogReader.countForUser` | Admin user page `stats.accessLogs` | count only | LOW |
 | security_audit_logs | `GET /v1/admin/security-logs` (+ export) | Admin UI `/audit` security | all live Security events | MEDIUM |
-| onboarding_audit_logs | `GET` org timeline via `OrganizationLogAdapter` | Activity feeds issuer/investor/admin org | curated: STARTED, RESUMED, RESTARTED, REJECTED, APPROVED, FINAL_APPROVAL_COMPLETED, COMPLETED; scoped by `organization_id` / `subject_user_id` | MEDIUM |
+| onboarding_audit_logs | `GET` org timeline via `OrganizationLogAdapter` | Activity feeds issuer/investor/admin org | curated user-facing: STARTED, RESTARTED, review/amendment STATUS_CHANGED, REJECTED, APPROVED, COMPLETED; issuer invitation + director APPROVED/REJECTED; investor sophisticated when value changes; FINAL_APPROVAL hidden from users; RESUMED not user-facing; scoped by `organization_id` / `subject_user_id` | MEDIUM |
 | onboarding_audit_logs | Admin `listOnboardingLogs` / `getOnboardingLogById` / `exportOnboardingLogs` | Admin `/audit` onboarding | Phase 5 event catalogue | MEDIUM |
 | application_audit_logs | `GET /v1/applications/:id/logs` `ApplicationService` (merged with signing) | Issuer/admin application timeline | application-domain types for app | MEDIUM |
 | application_audit_logs | `ApplicationLogAdapter` `GET /v1/activities` | Activity feeds | curated application-domain subset | MEDIUM |
@@ -514,9 +518,10 @@ Retired with `AccessLog`/`SecurityLog`: `LOGIN`, `SIGNUP`, `LOGOUT`, `ROLE_SWITC
 
 ### Onboarding (`OnboardingAuditLog`)
 
-Written: `ONBOARDING_STARTED`, `ONBOARDING_RESUMED`, `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `CTOS_REPORT_RECEIVED`, `CORPORATE_ENTITIES_UPDATED`, `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED`.  
+Current writers (15): `ONBOARDING_STARTED`, `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `CTOS_REPORT_RECEIVED`, `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED` (APPROVED/REJECTED outcomes only).  
+Retired, still reserved (historical rows readable): `ONBOARDING_RESUMED`, `CORPORATE_ENTITIES_UPDATED`.  
 Retired with `OnboardingLog`: `ONBOARDING_CANCELLED`, `WEBHOOK_*`, `FORM_FILLED`, `EOD_WEBHOOK`, `USER_COMPLETED`, `TNC_APPROVED`, `TNC_ACCEPTED`, `COD_REJECTED`, generic `ONBOARDING_STATUS_UPDATED`.  
-Activity UI curated subset: STARTED, RESUMED, RESTARTED, REJECTED, APPROVED, FINAL_APPROVAL_COMPLETED, COMPLETED.
+Activity UI curated subset: STARTED, RESTARTED, review/amendment STATUS_CHANGED, REJECTED, APPROVED, COMPLETED; issuer invitation + director APPROVED/REJECTED; investor sophisticated when the value changes. FINAL_APPROVAL is admin-only. RESUMED is not user-facing.
 
 ### Application (`APPLICATION_AUDIT_EVENTS`)
 

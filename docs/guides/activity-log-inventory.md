@@ -40,31 +40,34 @@ The investor page shows investor-scoped onboarding activity and curated note mil
 - Raw types: `ONBOARDING_STARTED`
   - Domain badge: `Onboarding`
   - Title: `Onboarding Started`
-  - Description: `Your organization onboarding has started and you can continue it at any time.`
-- Raw types: `ONBOARDING_RESUMED`
-  - Domain badge: `Onboarding`
-  - Title: `Onboarding Resumed`
-  - Description: `Your organization onboarding session was resumed.`
+  - Description: `Your organization onboarding has started.`
 - Raw types: `ONBOARDING_RESTARTED`
   - Domain badge: `Onboarding`
   - Title: `Onboarding Restarted`
-  - Description: `Your organization onboarding session was restarted.`
+  - Description: `Your organization onboarding was restarted.`
+- Raw types: `ONBOARDING_STATUS_CHANGED` (conditional — review and amendment only)
+  - Domain badge: `Onboarding`
+  - `IN_PROGRESS`/`PENDING` → `PENDING_SSM_REVIEW`: Title `Verification submitted`. Description: `The organisation was submitted for company verification review.`
+  - `IN_PROGRESS`/`PENDING` → `PENDING_APPROVAL`: Title `Verification submitted`. Description: `The organisation was submitted for onboarding review.`
+  - `PENDING_SSM_REVIEW`/`PENDING_APPROVAL` → `PENDING_AMENDMENT`: Title `Amendment requested`. Description: `The organisation was sent back to update verification details.`
+  - `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW`: Title `Verification resubmitted`. Description: `Updated verification was submitted and review resumed.`
+  - Unexpected transitions use title `Onboarding stage updated` on admin only and are not investor-visible.
 - Raw types: `ONBOARDING_REJECTED`
   - Domain badge: `Onboarding`
   - Title: `Onboarding Rejected`
-  - Description: `Your organization onboarding was rejected: <reason>.`
+  - Description: `Your organization onboarding was rejected.`
 - Raw types: `ONBOARDING_APPROVED`
   - Domain badge: `Onboarding`
-  - Title: `Onboarding Approved`
-  - Description: `Your organization onboarding was approved and no further action is needed.`
-- Raw types: `ONBOARDING_FINAL_APPROVAL_COMPLETED`
-  - Domain badge: `Onboarding`
-  - Title: `Final Approval Completed`
-  - Description: `Your organization onboarding received final approval.`
+  - Title: `Onboarding Submission Approved`
+  - Description: `Your onboarding submission was approved. Additional checks may still be required before onboarding is completed.`
 - Raw types: `ONBOARDING_COMPLETED`
   - Domain badge: `Onboarding`
   - Title: `Onboarding Completed`
-  - Description: `Your organization onboarding was marked completed.`
+  - Description: `Your organization onboarding is complete.`
+- Raw types: `INVESTOR_SOPHISTICATED_STATUS_UPDATED` (conditional — `previousValue` and `newValue` are booleans and differ)
+  - Domain badge: `Onboarding`
+  - Title: `Sophisticated Status Updated`
+  - Description: granted `You have been recognised as a sophisticated investor.` / removed `Your sophisticated investor status was removed.`
 
 ### Note
 
@@ -102,15 +105,16 @@ The issuer page uses the same onboarding event set as the investor page, plus is
 
 ### Onboarding
 
-Visible onboarding events match the investor portal:
+Visible onboarding events match the investor portal for the shared user-facing set, plus issuer-only director events:
 
 - `ONBOARDING_STARTED` -> `Onboarding Started`
-- `ONBOARDING_RESUMED` -> `Onboarding Resumed`
 - `ONBOARDING_RESTARTED` -> `Onboarding Restarted`
+- `ONBOARDING_STATUS_CHANGED` (review/amendment only) -> `Verification submitted` / `Amendment requested` / `Verification resubmitted`
 - `ONBOARDING_REJECTED` -> `Onboarding Rejected`
-- `ONBOARDING_APPROVED` -> `Onboarding Approved`
-- `ONBOARDING_FINAL_APPROVAL_COMPLETED` -> `Final Approval Completed`
+- `ONBOARDING_APPROVED` -> `Onboarding Submission Approved`
 - `ONBOARDING_COMPLETED` -> `Onboarding Completed`
+- `DIRECTOR_ONBOARDING_INVITATION_SENT` (issuer company) -> `Director Invitation Sent`
+- `DIRECTOR_KYC_STATUS_UPDATED` (`APPROVED` / `REJECTED` outcomes only) -> `Director Verification Approved` / `Director Verification Rejected`
 
 ### Application
 
@@ -142,7 +146,10 @@ Visible application events match the investor portal:
 
 These logs still exist as audit records but are intentionally hidden from `/activity`:
 
-- onboarding progress noise such as section completion and sub-approval steps
+- onboarding progress noise such as section completion, SSM/AML/CTOS admin-detail steps, and `ONBOARDING_FINAL_APPROVAL_COMPLETED` (users see `ONBOARDING_COMPLETED` instead)
+- `ONBOARDING_RESUMED` (retired; not user-facing even if a historical row exists)
+- `CORPORATE_ENTITIES_UPDATED` (retired; `corporate_entities` still persists)
+- intermediate director KYC statuses (`ID_UPLOADED`, `LIVENESS_STARTED`, `WAIT_FOR_APPROVAL`, and other non-final states)
 - application section-level review events
 - application item-level review events
 - admin-only acceptance approval events (`CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING`, `INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING`)
