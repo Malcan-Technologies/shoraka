@@ -5,6 +5,7 @@ import {
   resolveAdminAuthRedirect,
   resolveAuthGuardView,
   resolvePermissionGate,
+  unauthorizedAdminExitUrl,
 } from "./admin-auth-gate";
 import type { AdminAuthUser } from "./admin-auth-gate";
 
@@ -184,6 +185,24 @@ describe("resolvePermissionGate", () => {
   });
 });
 
+describe("unauthorizedAdminExitUrl", () => {
+  const landing = "http://localhost:3000";
+
+  it("ISSUER / INVESTOR / empty roles / inactive ADMIN go to landing, not /auth-error", () => {
+    expect(unauthorizedAdminExitUrl(landing)).toBe(landing);
+    expect(unauthorizedAdminExitUrl(`${landing}/`)).toBe(landing);
+    expect(unauthorizedAdminExitUrl(`${landing}/auth-error`)).toBe(landing);
+    expect(unauthorizedAdminExitUrl(landing)).not.toContain("/auth-error");
+  });
+
+  it("does not loop through callback or admin", () => {
+    const dest = unauthorizedAdminExitUrl(landing);
+    expect(dest).not.toMatch(/auth-error/);
+    expect(dest).not.toMatch(/callback/);
+    expect(dest).not.toMatch(/:3003/);
+  });
+});
+
 describe("admin auth UX wiring", () => {
   const root = join(__dirname, "..");
   const read = (relativePath: string) => readFileSync(join(root, relativePath), "utf8");
@@ -203,13 +222,16 @@ describe("admin auth UX wiring", () => {
     expect(requirePermission).toContain('view === "loading"');
   });
 
-  it("useAuth still logs non-admins out and sends unauthenticated users to login", () => {
+  it("useAuth sends unauthorized users to landing home, not /auth-error", () => {
     const auth = read("lib/auth.ts");
     expect(auth).toContain("resolveAdminAuthRedirect");
     expect(auth).toContain('redirect === "login"');
     expect(auth).toContain("redirectToLogin()");
     expect(auth).toContain('redirect === "logout"');
-    expect(auth).toContain("logout(signOut, getAccessToken)");
+    expect(auth).toContain("exitUnauthorizedAdmin(getAccessToken)");
+    expect(auth).toContain("unauthorizedAdminExitUrl");
+    expect(auth).toContain("window.location.replace(landingHomeUrl())");
+    expect(auth).not.toMatch(/exitUnauthorizedAdmin[\s\S]*cognitoLogoutUrl/);
   });
 
   it("audit page keeps Access Denied for admins missing audit permission", () => {

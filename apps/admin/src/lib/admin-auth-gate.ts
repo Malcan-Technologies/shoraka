@@ -14,6 +14,18 @@ export function isAdminPortalUser(user: AdminAuthUser | null | undefined): boole
 }
 
 /**
+ * Destination after an authenticated user is rejected from Admin.
+ * This is authorization, not an authentication failure — never /auth-error.
+ */
+export function unauthorizedAdminExitUrl(landingUrl: string): string {
+  const trimmed = landingUrl.replace(/\/$/, "");
+  if (trimmed.endsWith("/auth-error")) {
+    return trimmed.slice(0, -"/auth-error".length) || trimmed;
+  }
+  return trimmed;
+}
+
+/**
  * Redirect decision for the admin portal. Does not delay; callers should fire
  * login/logout as soon as the auth query has settled.
  */

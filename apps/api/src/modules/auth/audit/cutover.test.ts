@@ -88,12 +88,19 @@ describe("Access/Security audit cutover", () => {
     expect(cognitoRoutes).toMatch(/ADMIN_ACCESS_DENIED/);
     expect(cognitoRoutes).toMatch(/MISSING_ADMIN_ROLE/);
     expect(cognitoRoutes).toMatch(/ADMIN_INACTIVE/);
-    const deniedChunk = cognitoRoutes.slice(
-      cognitoRoutes.indexOf("ADMIN_ACCESS_DENIED") - 200,
-      cognitoRoutes.indexOf("ADMIN_ACCESS_DENIED") + 800
-    );
+    const deniedStart = cognitoRoutes.indexOf("ADMIN_ACCESS_DENIED");
+    const deniedChunk = cognitoRoutes.slice(deniedStart - 200, deniedStart + 1200);
     expect(deniedChunk).not.toMatch(/writeAccessAuditLog/);
     expect(deniedChunk).toMatch(/writeSecurityAuditLogBestEffort/);
+    expect(deniedChunk).toMatch(/resolveAdminPortalAuthorizationDeniedRedirect/);
+    expect(deniedChunk).not.toMatch(/\/auth-error/);
+  });
+
+  it("genuine OAuth callback failures still redirect to /auth-error", () => {
+    expect(cognitoRoutes).toMatch(/oauthAuthErrorUrl/);
+    expect(cognitoRoutes).toMatch(/missing_state/);
+    expect(cognitoRoutes).toMatch(/expired_session/);
+    expect(cognitoRoutes).toMatch(/TOKEN_EXCHANGE_FAILED/);
   });
 
   it("logout writes USER_LOGGED_OUT from AuthService and Cognito GET /logout", () => {
