@@ -40,28 +40,32 @@ describe("admin organization detail presentation", () => {
     expect(toTitleCase("IN_PROGRESS")).toBe("In Progress");
   });
 
-  it("uses a horizontal overflow container and a table minimum width", () => {
+  it("does not force a giant table min-width", () => {
     expect(table).toContain("overflow-x-auto");
-    expect(table).toContain("min-w-[72rem]");
+    expect(table).not.toContain("min-w-[72rem]");
+    expect(table).not.toContain("min-w-[14rem]");
+    expect(table).not.toContain("min-w-[16rem]");
+    expect(table).toContain('className="w-[1%] whitespace-nowrap"');
   });
 
-  it("keeps status badges on one line", () => {
-    expect(table).toMatch(/className=\{`whitespace-nowrap border-transparent text-\[11px\]/);
+  it("uses the shared StatusBadge for people status", () => {
+    expect(table).toContain("StatusBadge");
+    expect(table).toContain("finalStatusToneToToken");
+    expect(table).not.toContain("getFinalStatusBadgeClassName");
+    expect(table).toContain('label={finalStatus.label}');
   });
 
   it("renders RegTank request ids separately from screening", () => {
     expect(table).toContain("getRegtankColumnDisplayRows");
-    expect(table).toContain("font-mono text-xs");
-    expect(table).toContain('row.kind === "screening"');
-    expect(table).toMatch(/\n\s+Open\n/);
+    expect(table).toContain("font-mono text-[11px]");
+    expect(table).toContain("Open");
     expect(table).not.toContain("getRegtankOnboardingViewLinks");
     expect(table).not.toContain("getRegtankScreeningLink");
   });
 
-  it("does not wrap Share % or CTOS action buttons", () => {
-    expect(table).toContain('<TableHead className="whitespace-nowrap">Share %</TableHead>');
-    expect(table).toContain("whitespace-nowrap tabular-nums");
-    expect(table).toContain("flex items-center gap-2 whitespace-nowrap");
-    expect(table).toContain('className="h-9 shrink-0"');
+  it("keeps CTOS View report disabled until a report exists", () => {
+    expect(table).toContain("disabled={!latestReport}");
+    expect(table).toContain("h-7 px-2.5 text-xs shrink-0");
+    expect(table).toContain("Last fetched: —");
   });
 });

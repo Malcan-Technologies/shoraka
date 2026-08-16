@@ -214,7 +214,7 @@ export function getRegtankScreeningLink(
   const base = getRegtankClientPortalBaseUrl();
   const enc = encodeURIComponent(id);
   if (id.startsWith("KYC")) {
-    return `${base}/app/screen-kyc/result/${enc}/scoring`;
+    return `${base}/app/screen-kyc/result/${enc}`;
   }
   const suffix = kybScreeningHasRisk(person.screening) ? "/riskAssessment" : "";
   return `${base}/app/screen-kyb/result/${enc}${suffix}`;

@@ -79,7 +79,7 @@ describe("RegTank person onboarding links", () => {
     });
     const onboarding = getRegtankOnboardingViewLinks(row);
     expect(onboarding[0]?.url).toBe(`${BASE}/app/onboardingCorporate/COD05463/EOD06803`);
-    expect(getRegtankScreeningLink(row)).toBe(`${BASE}/app/screen-kyc/result/KYC00006/scoring`);
+    expect(getRegtankScreeningLink(row)).toBe(`${BASE}/app/screen-kyc/result/KYC00006`);
   });
 
   it("keeps standalone personal LD/EOD on the liveness URL", () => {
@@ -163,7 +163,7 @@ describe("RegTank people-table column display", () => {
       {
         groupLabel: "Screening",
         requestId: "KYC01234",
-        url: `${BASE}/app/screen-kyc/result/KYC01234/scoring`,
+        url: `${BASE}/app/screen-kyc/result/KYC01234`,
         kind: "screening",
       },
     ]);
@@ -214,9 +214,48 @@ describe("RegTank people-table column display", () => {
       {
         groupLabel: "Screening",
         requestId: "KYC01234",
-        url: `${BASE}/app/screen-kyc/result/KYC01234/scoring`,
+        url: `${BASE}/app/screen-kyc/result/KYC01234`,
         kind: "screening",
       },
     ]);
+  });
+
+  it("builds the dual-role row with KYC00176 on the result path, not scoring", () => {
+    const rows = getRegtankColumnDisplayRows(
+      person({
+        name: "max chng",
+        roles: ["DIRECTOR", "SHAREHOLDER"],
+        sharePercentage: 98,
+        parentCorporateRequestId: "COD05463",
+        directorEodRequestId: "EOD06803",
+        shareholderEodRequestId: "EOD06802",
+        screeningRequestId: "KYC00176",
+        requestId: "KYC00176",
+      })
+    );
+    expect(rows).toEqual([
+      {
+        groupLabel: "Director",
+        requestId: "EOD06803",
+        url: `${BASE}/app/onboardingCorporate/COD05463/EOD06803`,
+        kind: "onboarding",
+      },
+      {
+        groupLabel: "Shareholder",
+        requestId: "EOD06802",
+        url: `${BASE}/app/onboardingCorporate/COD05463/EOD06802`,
+        kind: "onboarding",
+      },
+      {
+        groupLabel: "Screening",
+        requestId: "KYC00176",
+        url: `${BASE}/app/screen-kyc/result/KYC00176`,
+        kind: "screening",
+      },
+    ]);
+    expect(getRegtankScreeningLink(person({ screeningRequestId: "KYC00176" }))).toBe(
+      `${BASE}/app/screen-kyc/result/KYC00176`
+    );
+    expect(getRegtankScreeningLink(person({ screeningRequestId: "KYC00176" }))).not.toContain("/scoring");
   });
 });

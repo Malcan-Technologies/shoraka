@@ -3,7 +3,6 @@
 import * as React from "react";
 import { format } from "date-fns";
 import { useAuthToken } from "@cashsouk/config";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 // import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -30,19 +29,20 @@ import {
   formatPeopleRolesLine,
   formatPeopleRolesLineWithoutShare,
   isMissingGovernmentIdPerson,
-  getFinalStatusBadgeClassName,
   getFinalStatusLabel,
   getRegtankColumnDisplayRows,
   normalizeDirectorShareholderIdKey,
   resolveDirectorShareholderCtosEmptyWarning,
   type ApplicationPersonRow,
+  type DirectorShareholderFinalStatusTone,
   type DirectorShareholderListSource,
   type RegtankColumnDisplayRow,
 } from "@cashsouk/types";
-import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import {
   DirectorShareholderCtosEmptyAlert,
   DirectorShareholderUnresolvedIdentitySection,
+  StatusBadge,
+  type StatusToken,
 } from "@cashsouk/ui";
 import { toast } from "sonner";
 
@@ -62,8 +62,22 @@ type PendingCtosSubjectFetch = {
   partyLabel: string;
 };
 
-/** Wide enough for Name, Roles, Share %, Status, RegTank ids, and CTOS without squeezing. */
-const PEOPLE_TABLE_MIN_WIDTH_CLASS = "min-w-[72rem]";
+function finalStatusToneToToken(tone: DirectorShareholderFinalStatusTone): StatusToken {
+  switch (tone) {
+    case "success":
+      return "success";
+    case "warning":
+      return "submitted";
+    case "info":
+      return "in-progress";
+    case "danger":
+      return "rejected";
+    case "expired":
+      return "action";
+    default:
+      return "neutral";
+  }
+}
 
 function RegtankColumnCell({ person }: { person: ApplicationPersonRow }) {
   const rows = getRegtankColumnDisplayRows(person);
@@ -71,7 +85,7 @@ function RegtankColumnCell({ person }: { person: ApplicationPersonRow }) {
     return <span className="text-sm text-muted-foreground">—</span>;
   }
   return (
-    <div className="flex flex-col gap-2 py-0.5">
+    <div className="flex flex-col gap-1.5">
       {rows.map((row) => (
         <RegtankColumnActionRow key={`${row.kind}-${row.groupLabel}-${row.requestId}`} row={row} />
       ))}
@@ -81,16 +95,16 @@ function RegtankColumnCell({ person }: { person: ApplicationPersonRow }) {
 
 function RegtankColumnActionRow({ row }: { row: RegtankColumnDisplayRow }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <div className="text-[11px] leading-4 text-muted-foreground">{row.groupLabel}</div>
-      <div className="flex items-center gap-2 whitespace-nowrap">
-        <span className="font-mono text-xs">{row.requestId}</span>
+    <div className="min-w-0">
+      <div className="text-[10px] leading-3 text-muted-foreground">{row.groupLabel}</div>
+      <div className="flex items-baseline gap-1.5">
+        <span className="font-mono text-[11px] leading-4">{row.requestId}</span>
         {row.url ? (
           <Button
             type="button"
-            variant={row.kind === "screening" ? "ghost" : "outline"}
+            variant="link"
             size="sm"
-            className="h-8 shrink-0 gap-1.5 rounded-full px-3 text-sm font-medium"
+            className="h-auto px-0 py-0 text-xs font-medium"
             title={`Open ${row.groupLabel} ${row.requestId} in RegTank`}
             onClick={() => {
               const url = row.url;
@@ -98,7 +112,6 @@ function RegtankColumnActionRow({ row }: { row: RegtankColumnDisplayRow }) {
               window.open(url, "_blank", "noopener,noreferrer");
             }}
           >
-            <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
             Open
           </Button>
         ) : null}
@@ -211,17 +224,18 @@ export function DirectorShareholderTable({
   return (
     <>
       {verifiedRows.length > 0 ? (
-      <div className="overflow-x-auto">
-        <div className={PEOPLE_TABLE_MIN_WIDTH_CLASS}>
+      <div className="min-w-0 overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Roles</TableHead>
-              <TableHead className="whitespace-nowrap">Share %</TableHead>
-              <TableHead className="whitespace-nowrap">Status</TableHead>
-              <TableHead>RegTank</TableHead>
-              <TableHead title="Fetch or view the CTOS report for this person.">CTOS</TableHead>
+              <TableHead className="min-w-0">Name</TableHead>
+              <TableHead className="min-w-0">Roles</TableHead>
+              <TableHead className="w-[1%] whitespace-nowrap">Share %</TableHead>
+              <TableHead className="w-[1%] whitespace-nowrap">Status</TableHead>
+              <TableHead className="w-[1%] whitespace-nowrap">RegTank</TableHead>
+              <TableHead className="w-[1%] whitespace-nowrap" title="Fetch or view the CTOS report for this person.">
+                CTOS
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -241,31 +255,30 @@ export function DirectorShareholderTable({
 
               return (
                 <TableRow key={p.matchKey}>
-                  <TableCell className="font-medium min-w-[14rem]">
+                  <TableCell className="align-top min-w-0 font-medium">
                     <div className="break-words">{p.name ?? "—"}</div>
                     <div className="font-mono text-xs text-muted-foreground mt-0.5 break-all">{p.matchKey}</div>
                   </TableCell>
-                  <TableCell className="min-w-[10rem]">{formatRoleTitleCaseWithoutShare(p)}</TableCell>
-                  <TableCell className="whitespace-nowrap tabular-nums">{shareDisplay}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={`whitespace-nowrap border-transparent text-[11px] font-normal ${getFinalStatusBadgeClassName(finalStatus.tone)}`}
-                    >
-                      {finalStatus.label}
-                    </Badge>
+                  <TableCell className="align-top min-w-0">{formatRoleTitleCaseWithoutShare(p)}</TableCell>
+                  <TableCell className="align-top w-[1%] whitespace-nowrap tabular-nums">{shareDisplay}</TableCell>
+                  <TableCell className="align-top w-[1%] whitespace-nowrap">
+                    <StatusBadge
+                      label={finalStatus.label}
+                      status={finalStatusToneToToken(finalStatus.tone)}
+                      className="whitespace-nowrap"
+                    />
                   </TableCell>
-                  <TableCell className="min-w-[16rem]">
+                  <TableCell className="align-top w-[1%] whitespace-nowrap">
                     <RegtankColumnCell person={p} />
                   </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 whitespace-nowrap">
+                  <TableCell className="align-top w-[1%] whitespace-nowrap">
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex items-center gap-1.5">
                       <Button
                         type="button"
                         variant="secondary"
                         size="sm"
-                        className="h-9 shrink-0"
+                        className="h-7 px-2.5 text-xs shrink-0"
                         onClick={() => {
                           const idKey = normalizeDirectorShareholderIdKey(p.matchKey);
                           if (!idKey) {
@@ -304,7 +317,7 @@ export function DirectorShareholderTable({
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-9 shrink-0"
+                        className="h-7 px-2.5 text-xs shrink-0"
                         disabled={!latestReport}
                         title={
                           latestReport
@@ -319,7 +332,7 @@ export function DirectorShareholderTable({
                         View report
                       </Button>
                     </div>
-                      <div className="text-xs text-muted-foreground whitespace-nowrap">
+                      <div className="text-[11px] text-muted-foreground">
                         {latestReport?.fetched_at
                           ? `Last fetched: ${
                               (() => {
@@ -339,7 +352,6 @@ export function DirectorShareholderTable({
             })}
           </TableBody>
         </Table>
-        </div>
       </div>
       ) : null}
       {unresolvedRows.length > 0 ? (
