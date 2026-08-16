@@ -85,7 +85,7 @@ function RegtankColumnCell({ person }: { person: ApplicationPersonRow }) {
     return <span className="text-sm text-muted-foreground">—</span>;
   }
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="grid grid-cols-[auto_auto_auto] gap-x-3 gap-y-1 items-center">
       {rows.map((row) => (
         <RegtankColumnActionRow key={`${row.kind}-${row.groupLabel}-${row.requestId}`} row={row} />
       ))}
@@ -95,28 +95,28 @@ function RegtankColumnCell({ person }: { person: ApplicationPersonRow }) {
 
 function RegtankColumnActionRow({ row }: { row: RegtankColumnDisplayRow }) {
   return (
-    <div className="min-w-0">
-      <div className="text-[10px] leading-3 text-muted-foreground">{row.groupLabel}</div>
-      <div className="flex items-baseline gap-1.5">
-        <span className="font-mono text-[11px] leading-4">{row.requestId}</span>
-        {row.url ? (
-          <Button
-            type="button"
-            variant="link"
-            size="sm"
-            className="h-auto px-0 py-0 text-xs font-medium"
-            title={`Open ${row.groupLabel} ${row.requestId} in RegTank`}
-            onClick={() => {
-              const url = row.url;
-              if (!url) return;
-              window.open(url, "_blank", "noopener,noreferrer");
-            }}
-          >
-            Open
-          </Button>
-        ) : null}
-      </div>
-    </div>
+    <>
+      <span className="text-[11px] leading-4 text-muted-foreground whitespace-nowrap">{row.groupLabel}</span>
+      <span className="font-mono text-[11px] leading-4 whitespace-nowrap">{row.requestId}</span>
+      {row.url ? (
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="h-auto min-h-0 px-0 py-0 text-xs font-medium justify-self-start"
+          title={`Open ${row.groupLabel} ${row.requestId} in RegTank`}
+          onClick={() => {
+            const url = row.url;
+            if (!url) return;
+            window.open(url, "_blank", "noopener,noreferrer");
+          }}
+        >
+          Open
+        </Button>
+      ) : (
+        <span />
+      )}
+    </>
   );
 }
 
@@ -224,16 +224,17 @@ export function DirectorShareholderTable({
   return (
     <>
       {verifiedRows.length > 0 ? (
+      <div className="overflow-hidden rounded-xl border">
       <div className="min-w-0 overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead className="min-w-0">Name</TableHead>
-              <TableHead className="min-w-0">Roles</TableHead>
-              <TableHead className="w-[1%] whitespace-nowrap">Share %</TableHead>
-              <TableHead className="w-[1%] whitespace-nowrap">Status</TableHead>
-              <TableHead className="w-[1%] whitespace-nowrap">RegTank</TableHead>
-              <TableHead className="w-[1%] whitespace-nowrap" title="Fetch or view the CTOS report for this person.">
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="min-w-[11.5rem] w-[13rem]">Name</TableHead>
+              <TableHead className="min-w-[11.5rem] w-[13rem]">Roles</TableHead>
+              <TableHead className="w-[5.5rem] whitespace-nowrap">Share %</TableHead>
+              <TableHead className="w-[10.5rem] whitespace-nowrap">Status</TableHead>
+              <TableHead className="min-w-[16.5rem]">RegTank</TableHead>
+              <TableHead className="w-[15rem] whitespace-nowrap" title="Fetch or view the CTOS report for this person.">
                 CTOS
               </TableHead>
             </TableRow>
@@ -254,24 +255,26 @@ export function DirectorShareholderTable({
               })();
 
               return (
-                <TableRow key={p.matchKey}>
-                  <TableCell className="align-top min-w-0 font-medium">
-                    <div className="break-words">{p.name ?? "—"}</div>
-                    <div className="font-mono text-xs text-muted-foreground mt-0.5 break-all">{p.matchKey}</div>
+                <TableRow key={p.matchKey} className="odd:bg-muted/40 hover:bg-muted">
+                  <TableCell className="align-top min-w-[11.5rem] w-[13rem] max-w-[14rem]">
+                    <div className="font-medium">{p.name ?? "—"}</div>
+                    <div className="font-mono text-xs text-muted-foreground mt-0.5 whitespace-nowrap">{p.matchKey}</div>
                   </TableCell>
-                  <TableCell className="align-top min-w-0">{formatRoleTitleCaseWithoutShare(p)}</TableCell>
-                  <TableCell className="align-top w-[1%] whitespace-nowrap tabular-nums">{shareDisplay}</TableCell>
-                  <TableCell className="align-top w-[1%] whitespace-nowrap">
+                  <TableCell className="align-top min-w-[11.5rem] w-[13rem] max-w-[14rem]">
+                    {formatRoleTitleCaseWithoutShare(p)}
+                  </TableCell>
+                  <TableCell className="align-top w-[5.5rem] whitespace-nowrap tabular-nums">{shareDisplay}</TableCell>
+                  <TableCell className="align-top w-[10.5rem] whitespace-nowrap">
                     <StatusBadge
                       label={finalStatus.label}
                       status={finalStatusToneToToken(finalStatus.tone)}
-                      className="whitespace-nowrap"
+                      className="text-xs whitespace-nowrap"
                     />
                   </TableCell>
-                  <TableCell className="align-top w-[1%] whitespace-nowrap">
+                  <TableCell className="align-top min-w-[16.5rem]">
                     <RegtankColumnCell person={p} />
                   </TableCell>
-                  <TableCell className="align-top w-[1%] whitespace-nowrap">
+                  <TableCell className="align-top w-[15rem] whitespace-nowrap">
                     <div className="flex flex-col gap-0.5">
                       <div className="flex items-center gap-1.5">
                       <Button
@@ -352,6 +355,7 @@ export function DirectorShareholderTable({
             })}
           </TableBody>
         </Table>
+      </div>
       </div>
       ) : null}
       {unresolvedRows.length > 0 ? (

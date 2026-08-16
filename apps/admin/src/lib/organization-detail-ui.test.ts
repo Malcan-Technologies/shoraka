@@ -40,12 +40,15 @@ describe("admin organization detail presentation", () => {
     expect(toTitleCase("IN_PROGRESS")).toBe("In Progress");
   });
 
-  it("does not force a giant table min-width", () => {
-    expect(table).toContain("overflow-x-auto");
+  it("uses balanced column mins instead of a giant table min-width", () => {
+    expect(table).toContain("overflow-hidden rounded-xl border");
+    expect(table).toContain("odd:bg-muted/40 hover:bg-muted");
     expect(table).not.toContain("min-w-[72rem]");
-    expect(table).not.toContain("min-w-[14rem]");
-    expect(table).not.toContain("min-w-[16rem]");
-    expect(table).toContain('className="w-[1%] whitespace-nowrap"');
+    expect(table).not.toContain('className="w-[1%] whitespace-nowrap"');
+    expect(table).toContain("min-w-[11.5rem] w-[13rem]");
+    expect(table).toContain("min-w-[16.5rem]");
+    expect(table).toContain("w-[15rem]");
+    expect(table).toContain("whitespace-nowrap");
   });
 
   it("uses the shared StatusBadge for people status", () => {
@@ -53,10 +56,12 @@ describe("admin organization detail presentation", () => {
     expect(table).toContain("finalStatusToneToToken");
     expect(table).not.toContain("getFinalStatusBadgeClassName");
     expect(table).toContain('label={finalStatus.label}');
+    expect(table).toContain('className="text-xs whitespace-nowrap"');
   });
 
-  it("renders RegTank request ids separately from screening", () => {
+  it("renders RegTank ids as a compact three-column mini-grid", () => {
     expect(table).toContain("getRegtankColumnDisplayRows");
+    expect(table).toContain("grid-cols-[auto_auto_auto]");
     expect(table).toContain("font-mono text-[11px]");
     expect(table).toContain("Open");
     expect(table).not.toContain("getRegtankOnboardingViewLinks");
