@@ -92,6 +92,51 @@ describe("admin audit UI restructure", () => {
     );
   });
 
+  it("adds separate Admin Audit History surfaces without changing Activity adapters", () => {
+    const applicationPage = read("app/applications/[productKey]/[id]/page.tsx");
+    expect(applicationPage).toContain("RecentActivityCard");
+    expect(applicationPage).toContain("ApplicationAuditHistoryCard");
+    expect(applicationPage).toContain("useApplicationAuditHistory");
+    expect(applicationPage).toContain("applicationAuditToDetail");
+
+    const applicationAuditHook = read("hooks/use-application-audit-history.ts");
+    expect(applicationAuditHook).toContain("getApplicationAuditHistory");
+    expect(applicationAuditHook).not.toContain("normalizeLogItem");
+    expect(applicationAuditHook).not.toContain("event_type:");
+
+    const activityHook = read("hooks/use-application-logs.ts");
+    expect(activityHook).toContain("normalizeLogItem");
+    expect(activityHook).not.toContain("getApplicationAuditHistory");
+
+    const notePage = read("app/notes/[id]/page.tsx");
+    expect(notePage).toContain("NoteTimelinePanel");
+    expect(notePage).toContain("ContextualAuditHistoryPanel");
+    expect(notePage).toContain("note.events.map(noteAuditToDetail)");
+    expect(read("notes/components/note-timeline-panel.tsx")).toContain("Activity Timeline");
+
+    const trusteePage = read("app/settings/platform-finance/page.tsx");
+    expect(trusteePage).toContain("useTrusteeSignatureAudit");
+    expect(trusteePage).toContain("ContextualAuditHistoryPanel");
+
+    const withdrawalPage = read("app/finance/investor-withdrawals/[id]/page.tsx");
+    expect(withdrawalPage).toContain("useWithdrawalAudit");
+    expect(withdrawalPage).toContain("paymentAuditToDetail");
+
+    const reconPage = read("app/finance/reconciliation/page.tsx");
+    expect(reconPage).toContain("useReconExceptionAudit");
+    expect(reconPage).toContain("exceptionStatus");
+    expect(reconPage).toContain("Resolved");
+    expect(reconPage).toContain("Audit");
+
+    const paymentPage = read("app/finance/gateway-payments/[id]/page.tsx");
+    expect(paymentPage).not.toContain("ContextualAuditHistoryPanel");
+
+    const panel = read("components/audit/contextual-audit-history-panel.tsx");
+    expect(panel).toContain("AuditLogDetailSheet");
+    expect(panel).toContain("Raw forensic audit records");
+    expect(panel).not.toContain("Activity Timeline");
+  });
+
   it("keeps legacy audit path redirects", () => {
     expect(read("app/audit/access-logs/page.tsx")).toContain('redirect("/audit?tab=access")');
     expect(read("app/audit/security-logs/page.tsx")).toContain('redirect("/audit?tab=security")');

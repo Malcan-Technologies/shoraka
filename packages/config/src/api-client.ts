@@ -42,6 +42,7 @@ import type {
   GetAdminApplicationsParams,
   AdminApplicationActionRequiredCountResponse,
   AdminApplicationsResponse,
+  ApplicationAuditLogDto,
   GetAdminContractsParams,
   AdminContractsResponse,
   AdminContractDetail,
@@ -99,6 +100,7 @@ import type {
   PendingRepaymentsResponse,
   PendingServiceFeeTrusteeLettersResponse,
   NoteAuditLogDto,
+  PaymentAuditLogDto,
   NoteLedgerBucketActivityResponse,
   NoteLedgerBucketBalancesResponse,
   NoteLedgerEntry,
@@ -923,6 +925,12 @@ export class ApiClient {
     );
   }
 
+  async getTrusteeSignatureAudit(): Promise<ApiResponse<NoteAuditLogDto[]> | ApiError> {
+    return this.get<NoteAuditLogDto[]>(
+      "/v1/admin/platform-finance-settings/trustee-signature/audit"
+    );
+  }
+
   async getAdminInvestorWithdrawals(params?: {
     status?: string;
     dateFrom?: string;
@@ -946,6 +954,10 @@ export class ApiClient {
 
   async getAdminWithdrawal(id: string): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
     return this.get<WithdrawalInstruction>(`/v1/admin/withdrawals/${id}`);
+  }
+
+  async getAdminWithdrawalEvents(id: string): Promise<ApiResponse<PaymentAuditLogDto[]> | ApiError> {
+    return this.get<PaymentAuditLogDto[]>(`/v1/admin/withdrawals/${id}/events`);
   }
 
   async listAdminGatewayPayments(params?: {
@@ -1146,6 +1158,12 @@ export class ApiClient {
       `/v1/admin/gateway-recon/exceptions/${id}/resolve`,
       { reason }
     );
+  }
+
+  async getAdminGatewayReconExceptionEvents(
+    id: string
+  ): Promise<ApiResponse<PaymentAuditLogDto[]> | ApiError> {
+    return this.get<PaymentAuditLogDto[]>(`/v1/admin/gateway-recon/exceptions/${id}/events`);
   }
 
   async requestInvestorWithdrawal(data: {
@@ -2255,6 +2273,13 @@ export class ApiClient {
     id: string
   ): Promise<ApiResponse<ApplicationLogEntry[]> | ApiError> {
     return this.get<ApplicationLogEntry[]>(`/v1/applications/${id}/logs`);
+  }
+
+  /** Full forensic Application + Signing audit history. Same endpoint as getApplicationLogs. */
+  async getApplicationAuditHistory(
+    id: string
+  ): Promise<ApiResponse<ApplicationAuditLogDto[]> | ApiError> {
+    return this.get<ApplicationAuditLogDto[]>(`/v1/applications/${id}/logs`);
   }
 
   async getApplicationProductVersionCompare(

@@ -107,9 +107,11 @@ import { noteAuditLogReader } from "./audit/reader";
 import {
   writeInvestorWithdrawalAudit,
 } from "../payment/audit/writer";
+import { paymentAuditLogReader } from "../payment/audit/reader";
 import {
   PAYMENT_AUDIT_CURRENCY,
   PAYMENT_AUDIT_IDEMPOTENCY,
+  PAYMENT_AUDIT_TARGET_TYPE,
 } from "../payment/audit/events";
 import {
   allocateDisplayReference,
@@ -5476,6 +5478,10 @@ export class NoteService {
     };
   }
 
+  async listTrusteeSignatureAudit() {
+    return noteAuditLogReader.listTrusteeSignatureUpdates();
+  }
+
   async updatePlatformFinanceSettings(
     input: z.infer<typeof updatePlatformFinanceSettingsSchema>,
     actor: ActorContext
@@ -5745,6 +5751,11 @@ export class NoteService {
       throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal instruction not found");
     }
     return this.mapWithdrawal(withdrawal);
+  }
+
+  async listInvestorWithdrawalEvents(id: string) {
+    await this.getInvestorWithdrawal(id);
+    return paymentAuditLogReader.listByTarget(PAYMENT_AUDIT_TARGET_TYPE.WITHDRAWAL, id);
   }
 
   async createInvestorWithdrawal(

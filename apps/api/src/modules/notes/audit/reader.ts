@@ -50,6 +50,18 @@ export class NoteAuditLogReader {
     });
     return rows.map(toNoteAuditLogDto);
   }
+
+  /** Platform trustee-signature history. Queried by event type, not note_id. */
+  async listTrusteeSignatureUpdates(): Promise<NoteAuditLogDto[]> {
+    const rows = await prisma.noteAuditLog.findMany({
+      where: {
+        event_type: "TRUSTEE_SIGNATURE_UPDATED",
+        target_type: "PLATFORM_SETTING",
+      },
+      orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
+    });
+    return rows.map(toNoteAuditLogDto);
+  }
 }
 
 export const noteAuditLogReader = new NoteAuditLogReader();

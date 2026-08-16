@@ -52,6 +52,18 @@ export class PaymentAuditLogReader {
     });
     return rows.map(toPaymentAuditLogDto);
   }
+
+  async listByTarget(
+    targetType: string,
+    targetId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
+  ): Promise<PaymentAuditLogDto[]> {
+    const rows = await db.paymentAuditLog.findMany({
+      where: { target_type: targetType, target_id: targetId },
+      orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
+    });
+    return rows.map(toPaymentAuditLogDto);
+  }
 }
 
 export const paymentAuditLogReader = new PaymentAuditLogReader();

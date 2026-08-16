@@ -42,6 +42,8 @@ import { NoteInvestorsPanel } from "@/notes/components/note-investors-panel";
 import { NoteStatusBadge } from "@cashsouk/ui";
 import { NoteTermsPanel } from "@/notes/components/note-terms-panel";
 import { NoteTimelinePanel } from "@/notes/components/note-timeline-panel";
+import { ContextualAuditHistoryPanel } from "@/components/audit/contextual-audit-history-panel";
+import { noteAuditToDetail } from "@/components/audit/contextual-audit-mappers";
 import { SettlementPanel } from "@/notes/components/settlement-panel";
 import { SourceApplicationPanel } from "@/notes/components/source-application-panel";
 import { IssuerPayoutCard } from "@/notes/components/issuer-payout-card";
@@ -604,6 +606,10 @@ export default function NoteDetailPage() {
                     </CardContent>
                   </Card>
                   <NoteTimelinePanel note={note} />
+                  <ContextualAuditHistoryPanel
+                    rows={note.events.map(noteAuditToDetail)}
+                    emptyMessage="No audit records found"
+                  />
                 </div>
               </div>
             </div>

@@ -929,6 +929,17 @@ platformFinanceSettingsRouter.patch(
   }
   }
 );
+platformFinanceSettingsRouter.get(
+  "/trustee-signature/audit",
+  requirePermission("platform_settings.view"),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      send(res, await noteService.listTrusteeSignatureAudit());
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 platformFinanceSettingsRouter.post(
   "/trustee-signature/upload-url",
   requirePermission("platform_settings.manage"),
@@ -992,6 +1003,19 @@ withdrawalsRouter.get(
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       send(res, await noteService.getPendingInvestorWithdrawalsCount());
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+withdrawalsRouter.get(
+  "/:id/events",
+  requirePermission("investor_withdrawals.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      send(res, await noteService.listInvestorWithdrawalEvents(id));
     } catch (error) {
       next(error);
     }

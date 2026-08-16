@@ -22,6 +22,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RequirePermission } from "@/components/require-permission";
+import { ContextualAuditHistoryPanel } from "@/components/audit/contextual-audit-history-panel";
+import { noteAuditToDetail } from "@/components/audit/contextual-audit-mappers";
+import { useTrusteeSignatureAudit } from "@/hooks/use-trustee-signature-audit";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useS3ViewUrl } from "@/hooks/use-s3";
 import { uploadFileToS3 } from "@/lib/upload-file-to-s3";
@@ -141,6 +144,12 @@ export default function PlatformFinanceSettingsPage() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
   const queryClient = useQueryClient();
+
+  const {
+    data: trusteeAudit,
+    isLoading: trusteeAuditLoading,
+    error: trusteeAuditError,
+  } = useTrusteeSignatureAudit();
 
   const { data, isLoading } = useQuery({
     queryKey: ["platform-finance-settings"],
@@ -635,6 +644,12 @@ export default function PlatformFinanceSettingsPage() {
                   </div>
                 </CardContent>
               </Card>
+              <ContextualAuditHistoryPanel
+                rows={(trusteeAudit ?? []).map(noteAuditToDetail)}
+                isLoading={trusteeAuditLoading}
+                error={trusteeAuditError instanceof Error ? trusteeAuditError : null}
+                emptyMessage="No trustee signature audit records found"
+              />
             </TabsContent>
 
             <TabsContent value="money-flow-accounts" className="space-y-4">

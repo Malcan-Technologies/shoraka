@@ -504,6 +504,8 @@ export interface ApplicationAuditLogDto {
   correlationId: string | null;
   metadata: Record<string, unknown>;
   activity?: string;
+  applicationId: string | null;
+  signingEnvelopeId: string | null;
 }
 
 // Pending Invitations Types

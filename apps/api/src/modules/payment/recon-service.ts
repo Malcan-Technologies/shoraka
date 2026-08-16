@@ -10,7 +10,8 @@ import { prisma as defaultPrisma } from "../../lib/prisma";
 import { runGatewaySettlementReconJob, getYesterdayMytDateOnly } from "../../lib/jobs/gateway-settlement-recon";
 import type { ListReconExceptionsQuery, ListReconRunsQuery } from "./recon-schemas";
 import { adminPaymentAuditContext, writeReconExceptionAudit } from "./audit/writer";
-import { PAYMENT_AUDIT_IDEMPOTENCY } from "./audit/events";
+import { PAYMENT_AUDIT_IDEMPOTENCY, PAYMENT_AUDIT_TARGET_TYPE } from "./audit/events";
+import { paymentAuditLogReader } from "./audit/reader";
 
 export type AdminActorContext = {
   userId: string;
@@ -206,6 +207,21 @@ export async function listReconExceptions(
 export async function getUnresolvedReconExceptionsCount(db: PrismaClient = defaultPrisma) {
   const count = await db.gatewayReconException.count({ where: { resolved_at: null } });
   return { count };
+}
+
+export async function listReconExceptionEvents(
+  exceptionId: string,
+  db: PrismaClient = defaultPrisma
+) {
+  const exception = await db.gatewayReconException.findUnique({ where: { id: exceptionId } });
+  if (!exception) {
+    throw new AppError(404, "RECON_EXCEPTION_NOT_FOUND", "Reconciliation exception not found");
+  }
+  return paymentAuditLogReader.listByTarget(
+    PAYMENT_AUDIT_TARGET_TYPE.RECON_EXCEPTION,
+    exceptionId,
+    db
+  );
 }
 
 export async function triggerReconRun(
