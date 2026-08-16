@@ -141,6 +141,9 @@ const directorKycSchema = z.object({
   ...snapshotFields,
   previousKycStatus: z.string().optional(),
   newKycStatus: z.string().optional(),
+  eodRequestId: z.string().optional(),
+  partyKey: z.string().optional(),
+  directorName: z.string().optional(),
   changedCount: z.number().optional(),
   directorCount: z.number().optional(),
 });

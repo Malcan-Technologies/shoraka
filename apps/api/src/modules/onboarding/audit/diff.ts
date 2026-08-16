@@ -77,9 +77,26 @@ export function diffCorporateEntities(
 
 type DirectorKycRow = {
   eodRequestId?: string;
+  shareholderEodRequestId?: string;
+  partyKey?: string;
+  name?: string;
   kycStatus?: string;
   kycId?: string;
 };
+
+const DIRECTOR_KYC_FINAL_STATUSES = new Set(["APPROVED", "REJECTED"]);
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value : undefined;
+}
+
+function normalizeKycStatus(value: string | undefined): string {
+  return (value ?? "").trim().toUpperCase();
+}
+
+function directorIdentity(row: DirectorKycRow, index: number): string {
+  return row.eodRequestId || row.shareholderEodRequestId || row.partyKey || `idx:${index}`;
+}
 
 function directorRows(value: unknown): DirectorKycRow[] {
   const rec = asRecord(value);
@@ -88,7 +105,10 @@ function directorRows(value: unknown): DirectorKycRow[] {
   return directors.map((row) => {
     const item = asRecord(row) ?? {};
     return {
-      eodRequestId: typeof item.eodRequestId === "string" ? item.eodRequestId : undefined,
+      eodRequestId: optionalString(item.eodRequestId),
+      shareholderEodRequestId: optionalString(item.shareholderEodRequestId),
+      partyKey: optionalString(item.partyKey),
+      name: optionalString(item.name),
       kycStatus: typeof item.kycStatus === "string" ? item.kycStatus : undefined,
       kycId: typeof item.kycId === "string" ? item.kycId : undefined,
     };
@@ -101,13 +121,13 @@ export function directorKycMaterialChange(
 ): { changed: boolean; changedCount: number; directorCount: number; previousKycStatus?: string; newKycStatus?: string } {
   const prev = directorRows(before);
   const next = directorRows(after);
-  const prevById = new Map(prev.map((row, i) => [row.eodRequestId || `idx:${i}`, row]));
+  const prevById = new Map(prev.map((row, i) => [directorIdentity(row, i), row]));
   let changedCount = 0;
   let previousKycStatus: string | undefined;
   let newKycStatus: string | undefined;
 
   next.forEach((row, i) => {
-    const id = row.eodRequestId || `idx:${i}`;
+    const id = directorIdentity(row, i);
     const prior = prevById.get(id);
     if (!prior) {
       changedCount += 1;
@@ -132,4 +152,45 @@ export function directorKycMaterialChange(
     previousKycStatus,
     newKycStatus,
   };
+}
+
+export type DirectorKycFinalOutcome = {
+  eodRequestId?: string;
+  partyKey?: string;
+  directorName?: string;
+  previousKycStatus?: string;
+  newKycStatus: string;
+};
+
+/**
+ * Per-director APPROVED/REJECTED transitions only.
+ * First JSON seed / new director rows and intermediate statuses are excluded.
+ */
+export function directorKycFinalOutcomes(before: unknown, after: unknown): DirectorKycFinalOutcome[] {
+  const prev = directorRows(before);
+  const next = directorRows(after);
+  const prevById = new Map(prev.map((row, i) => [directorIdentity(row, i), row]));
+  const outcomes: DirectorKycFinalOutcome[] = [];
+
+  next.forEach((row, i) => {
+    const prior = prevById.get(directorIdentity(row, i));
+    if (!prior) return;
+
+    const previousNormalized = normalizeKycStatus(prior.kycStatus);
+    const nextNormalized = normalizeKycStatus(row.kycStatus);
+    if (!DIRECTOR_KYC_FINAL_STATUSES.has(nextNormalized)) return;
+    if (previousNormalized === nextNormalized) return;
+
+    outcomes.push({
+      newKycStatus: row.kycStatus ?? nextNormalized,
+      ...(row.eodRequestId || row.shareholderEodRequestId
+        ? { eodRequestId: row.eodRequestId || row.shareholderEodRequestId }
+        : {}),
+      ...(row.partyKey ? { partyKey: row.partyKey } : {}),
+      ...(row.name ? { directorName: row.name } : {}),
+      ...(prior.kycStatus ? { previousKycStatus: prior.kycStatus } : {}),
+    });
+  });
+
+  return outcomes;
 }

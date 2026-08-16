@@ -170,10 +170,11 @@ describe("Onboarding audit cutover", () => {
     expect(adminService).toMatch(/AML_APPROVED/);
     expect(adminService).toMatch(/SSM_APPROVED/);
     expect(adminService).toMatch(/INVESTOR_SOPHISTICATED_STATUS_UPDATED/);
-    expect(adminService).toMatch(/CORPORATE_ENTITIES_UPDATED/);
-    expect(adminService).toMatch(/DIRECTOR_KYC_STATUS_UPDATED/);
+    expect(adminService).toMatch(/writeDirectorKycOutcomeAuditLogs/);
+    expect(adminService).not.toMatch(/eventType:\s*"CORPORATE_ENTITIES_UPDATED"/);
     expect(liveSources).toMatch(/ONBOARDING_STARTED/);
-    expect(liveSources).toMatch(/ONBOARDING_RESUMED/);
+    expect(liveSources).not.toMatch(/eventType:\s*"ONBOARDING_RESUMED"/);
+    expect(liveSources).not.toMatch(/eventType:\s*"CORPORATE_ENTITIES_UPDATED"/);
     expect(liveSources).toMatch(/CTOS_REPORT_RECEIVED/);
     expect(liveSources).toMatch(/DIRECTOR_ONBOARDING_INVITATION_SENT/);
     expect(liveSources).toMatch(/ONBOARDING_REJECTED/);
@@ -202,6 +203,20 @@ describe("Onboarding audit cutover", () => {
     const chunk = methodChunk(adminService, "approveAmlScreening", 8000);
     expect(chunk).toMatch(/AML_APPROVED/);
     expect(chunk).not.toMatch(/ONBOARDING_STATUS_CHANGED/);
+  });
+
+  it("final approval does not emit ONBOARDING_STATUS_CHANGED or CORPORATE_ENTITIES_UPDATED", () => {
+    const chunk = methodChunk(adminService, "completeFinalApproval", 30000);
+    expect(chunk).toMatch(/ONBOARDING_FINAL_APPROVAL_COMPLETED/);
+    expect(chunk).not.toMatch(/ONBOARDING_STATUS_CHANGED/);
+    expect(chunk).not.toMatch(/CORPORATE_ENTITIES_UPDATED/);
+  });
+
+  it("COD URL_GENERATED writes ONBOARDING_STATUS_CHANGED for amendment", () => {
+    const cod = readSrc("modules/regtank/webhooks/cod-handler.ts");
+    expect(cod).toMatch(/statusUpper === "URL_GENERATED"/);
+    expect(cod).toMatch(/trigger:\s*"URL_GENERATED"/);
+    expect(cod).toMatch(/eventType:\s*"ONBOARDING_STATUS_CHANGED"/);
   });
 
   it("KYC/KYB/KYT raw callbacks do not invent status events", () => {

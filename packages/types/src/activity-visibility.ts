@@ -134,17 +134,13 @@ const PAYMENT_INVESTOR_CONDITIONAL = new Set<string>([
 
 const ONBOARDING_USER_FACING = new Set<string>([
   "ONBOARDING_STARTED",
-  "ONBOARDING_RESUMED",
   "ONBOARDING_RESTARTED",
   "ONBOARDING_APPROVED",
   "ONBOARDING_REJECTED",
   "ONBOARDING_COMPLETED",
 ]);
 
-const ADMIN_ORGANIZATION_HIDDEN = new Set<string>([
-  "USER_ONBOARDING_STATUS_UPDATED",
-  "ONBOARDING_STATUS_CHANGED",
-]);
+const ADMIN_ORGANIZATION_HIDDEN = new Set<string>(["USER_ONBOARDING_STATUS_UPDATED"]);
 
 function metadataRecord(metadata?: Record<string, unknown> | null): Record<string, unknown> {
   return metadata && typeof metadata === "object" ? metadata : {};
@@ -172,6 +168,28 @@ export function isDirectorKycActivityVisible(status: string | undefined): boolea
   return DIRECTOR_KYC_VISIBLE_STATUSES.has(status.toUpperCase());
 }
 
+export function isOnboardingStatusChangedUserFacing(
+  metadata?: Record<string, unknown> | null
+): boolean {
+  const record = metadataRecord(metadata);
+  const previous = metadataString(record, "previousStatus")?.toUpperCase();
+  const next = metadataString(record, "newStatus")?.toUpperCase();
+  if (!previous || !next) return false;
+
+  const fromInitial = previous === "IN_PROGRESS" || previous === "PENDING";
+  if (fromInitial && (next === "PENDING_SSM_REVIEW" || next === "PENDING_APPROVAL")) {
+    return true;
+  }
+  if (previous === "PENDING_AMENDMENT" && next === "PENDING_SSM_REVIEW") return true;
+  if (
+    (previous === "PENDING_SSM_REVIEW" || previous === "PENDING_APPROVAL") &&
+    next === "PENDING_AMENDMENT"
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function isSophisticatedStatusMaterial(metadata?: Record<string, unknown> | null): boolean {
   const record = metadataRecord(metadata);
   const previousValue = metadataBoolean(record, "previousValue");
@@ -192,6 +210,10 @@ export function isOnboardingActivityVisible(
 
   if (ONBOARDING_USER_FACING.has(eventType)) {
     return true;
+  }
+
+  if (eventType === "ONBOARDING_STATUS_CHANGED") {
+    return isOnboardingStatusChangedUserFacing(metadata);
   }
 
   if (eventType === "ONBOARDING_FINAL_APPROVAL_COMPLETED") {
@@ -338,11 +360,16 @@ export function isAdminApplicationTimelineVisible(
 
 export function getOnboardingActivityEventTypes(audience: ActivityAudience): string[] {
   if (audience === "investor") {
-    return [...ONBOARDING_USER_FACING, "INVESTOR_SOPHISTICATED_STATUS_UPDATED"];
+    return [
+      ...ONBOARDING_USER_FACING,
+      "ONBOARDING_STATUS_CHANGED",
+      "INVESTOR_SOPHISTICATED_STATUS_UPDATED",
+    ];
   }
   if (audience === "issuer") {
     return [
       ...ONBOARDING_USER_FACING,
+      "ONBOARDING_STATUS_CHANGED",
       "DIRECTOR_ONBOARDING_INVITATION_SENT",
       "DIRECTOR_KYC_STATUS_UPDATED",
     ];

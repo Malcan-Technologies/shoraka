@@ -14,9 +14,8 @@ import {
   isEodParentFamilyMatch,
   logWebhookFamilyTypeMismatch,
 } from "./onboarding-webhook-guards";
-import { writeOnboardingAuditLog } from "../../onboarding/audit/writer";
-import { ONBOARDING_AUDIT_TARGET_TYPE } from "../../onboarding/audit/events";
-import { directorKycMaterialChange } from "../../onboarding/audit/diff";
+import { directorKycFinalOutcomes, directorKycMaterialChange } from "../../onboarding/audit/diff";
+import { writeDirectorKycOutcomeAuditLogs } from "../../onboarding/audit/director-kyc-outcomes";
 import { lockOrganizationRow } from "../../onboarding/utils/onboarding-transition-claims";
 import {
   auditPortalFromLegacy,
@@ -386,9 +385,9 @@ export class EODWebhookHandler extends BaseWebhookHandler {
               `[EOD Webhook] Updated director KYC status in ${portal} organization`
             );
 
-            await writeOnboardingAuditLog(
+            await writeDirectorKycOutcomeAuditLogs(
               {
-                eventType: "DIRECTOR_KYC_STATUS_UPDATED",
+                outcomes: directorKycFinalOutcomes(org.director_kyc_status, nextJson),
                 context: webhookAuditContext({
                   portal: auditPortalFromLegacy(portal),
                 }),
@@ -397,14 +396,6 @@ export class EODWebhookHandler extends BaseWebhookHandler {
                 organizationId,
                 organizationKind: organizationKindFromPortalType(portal),
                 organizationType: "COMPANY",
-                targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
-                targetId: organizationId,
-                metadata: {
-                  previousKycStatus: kycDiff.previousKycStatus,
-                  newKycStatus: kycDiff.newKycStatus,
-                  changedCount: kycDiff.changedCount,
-                  directorCount: kycDiff.directorCount,
-                },
               },
               tx
             );

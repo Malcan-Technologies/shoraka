@@ -697,7 +697,7 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
     expect(auditEventTypes()).toEqual(["ONBOARDING_STARTED"]);
   });
 
-  it("meaningful resume from PENDING writes ONBOARDING_RESUMED", async () => {
+  it("meaningful resume from PENDING does not write ONBOARDING_RESUMED", async () => {
     mockFindInvestorOrganizationById.mockResolvedValue(makePersonalOrg(OnboardingStatus.PENDING));
     mockFindByOrganizationId.mockResolvedValue(
       makeExistingRow({
@@ -709,7 +709,7 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
     const service = new RegTankService();
     await service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor");
 
-    expect(auditEventTypes()).toEqual(["ONBOARDING_RESUMED"]);
+    expect(auditEventTypes()).toEqual([]);
   });
 
   it("expired session restart writes ONBOARDING_RESTARTED with EXPIRED_SESSION", async () => {

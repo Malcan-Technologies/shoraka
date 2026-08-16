@@ -24,12 +24,17 @@ jest.mock("../../organization/repository", () => ({
 }));
 
 jest.mock("../aml-identity-repository", () => ({
-  AmlIdentityRepository: jest.fn().mockImplementation(() => ({})),
+  AmlIdentityRepository: jest.fn().mockImplementation(() => ({
+    bulkUpsert: jest.fn().mockResolvedValue(undefined),
+  })),
 }));
 
+const mockGetCorporateOnboardingDetails = jest.fn();
+const mockGetEntityOnboardingDetails = jest.fn();
 jest.mock("../api-client", () => ({
   getRegTankAPIClient: () => ({
-    getCorporateOnboardingDetails: jest.fn(),
+    getCorporateOnboardingDetails: (...args: unknown[]) => mockGetCorporateOnboardingDetails(...args),
+    getEntityOnboardingDetails: (...args: unknown[]) => mockGetEntityOnboardingDetails(...args),
   }),
 }));
 
@@ -39,13 +44,35 @@ jest.mock("../../notification/service", () => ({
   })),
 }));
 
+const mockWriteOnboardingAuditLog = jest.fn();
+jest.mock("../../onboarding/audit/writer", () => ({
+  writeOnboardingAuditLog: (...args: unknown[]) => mockWriteOnboardingAuditLog(...args),
+}));
+
 const mockInvestorUpdate = jest.fn();
 const mockIssuerUpdate = jest.fn();
+const mockInvestorFindUnique = jest.fn();
+const mockIssuerFindUnique = jest.fn();
+const mockRegTankFindUnique = jest.fn();
+const investorOrgClient = {
+  update: (...args: unknown[]) => mockInvestorUpdate(...args),
+  findUnique: (...args: unknown[]) => mockInvestorFindUnique(...args),
+};
+const issuerOrgClient = {
+  update: (...args: unknown[]) => mockIssuerUpdate(...args),
+  findUnique: (...args: unknown[]) => mockIssuerFindUnique(...args),
+};
+const txClient = {
+  $queryRaw: jest.fn().mockResolvedValue([{ id: "org-1" }]),
+  investorOrganization: investorOrgClient,
+  issuerOrganization: issuerOrgClient,
+};
 jest.mock("../../../lib/prisma", () => ({
   prisma: {
-    investorOrganization: { update: (...args: unknown[]) => mockInvestorUpdate(...args), findUnique: jest.fn() },
-    issuerOrganization: { update: (...args: unknown[]) => mockIssuerUpdate(...args), findUnique: jest.fn() },
-    regTankOnboarding: { findUnique: jest.fn() },
+    investorOrganization: investorOrgClient,
+    issuerOrganization: issuerOrgClient,
+    regTankOnboarding: { findUnique: (...args: unknown[]) => mockRegTankFindUnique(...args) },
+    $transaction: async (fn: (tx: typeof txClient) => Promise<unknown>) => fn(txClient),
   },
 }));
 
@@ -233,6 +260,141 @@ describe("CODWebhookHandler", () => {
     );
     expect(mockUpdateStatus).not.toHaveBeenCalledWith(
       "COD-A",
+      expect.anything()
+    );
+  });
+
+  it("COD WAIT persists corporate entities and director KYC without entity or intermediate director audits", async () => {
+    mockFindByRequestId.mockResolvedValue(
+      baseOnboardingRow({ status: "IN_PROGRESS", organization_type: OrganizationType.COMPANY })
+    );
+    mockInvestorFindUnique.mockResolvedValue({
+      id: "org-1",
+      type: OrganizationType.COMPANY,
+      onboarding_status: "IN_PROGRESS",
+      corporate_entities: null,
+      director_kyc_status: { directors: [] },
+      registration_number: null,
+    });
+    mockGetCorporateOnboardingDetails.mockResolvedValue({
+      corpIndvDirectors: [
+        {
+          corporateIndividualRequest: { requestId: "EOD001", status: "PENDING" },
+          corporateUserRequestInfo: {
+            fullName: "Ada",
+            email: "ada@example.com",
+            formContent: { content: [] },
+          },
+        },
+      ],
+      corpIndvShareholders: [],
+      corpBizShareholders: [],
+    });
+    mockGetEntityOnboardingDetails.mockResolvedValue({
+      corporateIndividualRequest: { status: "PENDING" },
+    });
+
+    const handler = new CODWebhookHandler();
+    await (handler as any).handle(minimalCodPayload({ status: "WAIT_FOR_APPROVAL" }));
+
+    expect(mockInvestorUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          corporate_entities: expect.anything(),
+          director_kyc_status: expect.objectContaining({
+            directors: expect.arrayContaining([
+              expect.objectContaining({ eodRequestId: "EOD001" }),
+            ]),
+          }),
+          onboarding_status: "PENDING_SSM_REVIEW",
+        }),
+      })
+    );
+    const auditTypes = mockWriteOnboardingAuditLog.mock.calls.map(
+      (call) => (call[0] as { eventType: string }).eventType
+    );
+    expect(auditTypes).toEqual(["ONBOARDING_STATUS_CHANGED"]);
+    expect(mockWriteOnboardingAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "ONBOARDING_STATUS_CHANGED",
+        metadata: expect.objectContaining({
+          previousStatus: "IN_PROGRESS",
+          newStatus: "PENDING_SSM_REVIEW",
+        }),
+      }),
+      expect.anything()
+    );
+  });
+
+  it("COD WAIT amendment resubmission writes one STATUS_CHANGED from PENDING_AMENDMENT", async () => {
+    mockFindByRequestId.mockResolvedValue(
+      baseOnboardingRow({ status: "IN_PROGRESS", organization_type: OrganizationType.COMPANY })
+    );
+    mockInvestorFindUnique.mockResolvedValue({
+      id: "org-1",
+      type: OrganizationType.COMPANY,
+      onboarding_status: "PENDING_AMENDMENT",
+      corporate_entities: { directors: [] },
+      director_kyc_status: { directors: [] },
+      registration_number: null,
+    });
+    mockGetCorporateOnboardingDetails.mockResolvedValue({
+      corpIndvDirectors: [],
+      corpIndvShareholders: [],
+      corpBizShareholders: [],
+    });
+
+    const handler = new CODWebhookHandler();
+    await (handler as any).handle(minimalCodPayload({ status: "WAIT_FOR_APPROVAL" }));
+
+    expect(mockWriteOnboardingAuditLog).toHaveBeenCalledTimes(1);
+    expect(mockWriteOnboardingAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "ONBOARDING_STATUS_CHANGED",
+        metadata: expect.objectContaining({
+          previousStatus: "PENDING_AMENDMENT",
+          newStatus: "PENDING_SSM_REVIEW",
+        }),
+      }),
+      expect.anything()
+    );
+  });
+
+  it("COD URL_GENERATED moves review to PENDING_AMENDMENT and writes one STATUS_CHANGED", async () => {
+    mockFindByRequestId.mockResolvedValue(
+      baseOnboardingRow({ status: "IN_PROGRESS", organization_type: OrganizationType.COMPANY })
+    );
+    mockInvestorFindUnique.mockResolvedValue({
+      id: "org-1",
+      onboarding_status: "PENDING_SSM_REVIEW",
+      type: OrganizationType.COMPANY,
+      ssm_approved: true,
+    });
+    mockRegTankFindUnique.mockResolvedValue({
+      webhook_payloads: [
+        { status: "WAIT_FOR_APPROVAL", timestamp: "2026-01-01T00:00:00.000Z" },
+        { status: "URL_GENERATED", timestamp: "2026-01-02T00:00:00.000Z" },
+      ],
+    });
+
+    const handler = new CODWebhookHandler();
+    await (handler as any).handle(minimalCodPayload({ status: "URL_GENERATED" }));
+
+    expect(mockInvestorUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ onboarding_status: "PENDING_AMENDMENT" }),
+      })
+    );
+    expect(mockWriteOnboardingAuditLog).toHaveBeenCalledTimes(1);
+    expect(mockWriteOnboardingAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "ONBOARDING_STATUS_CHANGED",
+        metadata: expect.objectContaining({
+          previousStatus: "PENDING_SSM_REVIEW",
+          newStatus: "PENDING_AMENDMENT",
+          trigger: "URL_GENERATED",
+        }),
+      }),
       expect.anything()
     );
   });

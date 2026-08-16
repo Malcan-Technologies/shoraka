@@ -81,6 +81,82 @@ describe("Activity presentation copy", () => {
       ).not.toContain("WAIT_FOR_APPROVAL");
     });
 
+    it("maps review and amendment STATUS_CHANGED transitions without raw triggers", () => {
+      const submittedSsm = formatOnboardingActivity("issuer", "ONBOARDING_STATUS_CHANGED", {
+        previousStatus: "IN_PROGRESS",
+        newStatus: "PENDING_SSM_REVIEW",
+        trigger: "COD_WAIT_FOR_APPROVAL",
+      });
+      expect(submittedSsm).toEqual({
+        title: "Verification submitted",
+        description: "The organisation was submitted for company verification review.",
+      });
+
+      const submittedApproval = formatOnboardingActivity("investor", "ONBOARDING_STATUS_CHANGED", {
+        previousStatus: "PENDING",
+        newStatus: "PENDING_APPROVAL",
+        trigger: "LIVENESS_PASSED",
+      });
+      expect(submittedApproval).toEqual({
+        title: "Verification submitted",
+        description: "The organisation was submitted for onboarding review.",
+      });
+
+      const amendment = formatOnboardingActivity("admin", "ONBOARDING_STATUS_CHANGED", {
+        previousStatus: "PENDING_SSM_REVIEW",
+        newStatus: "PENDING_AMENDMENT",
+        trigger: "URL_GENERATED",
+      });
+      expect(amendment).toEqual({
+        title: "Amendment requested",
+        description: "The organisation was sent back to update verification details.",
+      });
+
+      const resubmitted = formatOnboardingActivity("issuer", "ONBOARDING_STATUS_CHANGED", {
+        previousStatus: "PENDING_AMENDMENT",
+        newStatus: "PENDING_SSM_REVIEW",
+        trigger: "COD_WAIT_FOR_APPROVAL",
+      });
+      expect(resubmitted).toEqual({
+        title: "Verification resubmitted",
+        description: "Updated verification was submitted and review resumed.",
+      });
+
+      for (const copy of [submittedSsm, submittedApproval, amendment, resubmitted]) {
+        expect(copy.title + copy.description).not.toMatch(
+          /COD_WAIT_FOR_APPROVAL|URL_GENERATED|LIVENESS_PASSED|REGTANK_APPROVED/
+        );
+      }
+    });
+
+    it("falls back to a humanized stage update for unexpected STATUS_CHANGED transitions", () => {
+      const fallback = formatOnboardingActivity("admin", "ONBOARDING_STATUS_CHANGED", {
+        previousStatus: "PENDING_APPROVAL",
+        newStatus: "PENDING_AML",
+        trigger: "REGTANK_APPROVED",
+      });
+      expect(fallback.title).toBe("Onboarding stage updated");
+      expect(fallback.description).toBe(
+        "Onboarding moved from Pending Approval to Pending AML."
+      );
+      expect(fallback.description).not.toContain("REGTANK_APPROVED");
+    });
+
+    it("renders historical retired onboarding events safely", () => {
+      const resumed = formatOnboardingActivity("admin", "ONBOARDING_RESUMED", {
+        requestId: "req_1",
+      });
+      expect(resumed.title).toBe("Onboarding Resumed");
+      expectSafeCopy(resumed.title, resumed.description);
+      expect(resumed.description).not.toContain("req_1");
+
+      const entities = formatOnboardingActivity("admin", "CORPORATE_ENTITIES_UPDATED", {
+        addedCount: 1,
+      });
+      expect(entities.title).toBe("Corporate Entities Updated");
+      expectSafeCopy(entities.title, entities.description);
+    });
+
     it("shows director email to admin only", () => {
       const admin = formatOnboardingActivity("admin", "DIRECTOR_ONBOARDING_INVITATION_SENT", {
         directorEmail: "director@example.com",

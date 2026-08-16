@@ -8404,11 +8404,11 @@ Permission: onboarding.view
 | ID | Source Case | Event | Admin Raw | Admin Activity | Issuer | Investor |
 |---|---|---|---|---|---|---|
 | A039 | ONB-001 | `ONBOARDING_STARTED` | SHOW | SHOW | SHOW | SHOW |
-| A040 | ONB-002 | `ONBOARDING_RESUMED` | SHOW | SHOW | SHOW | SHOW |
+| A040 | ONB-002 | `ONBOARDING_RESUMED` | SHOW (historical) | SHOW (historical) | HIDE | HIDE |
 | A041 | ONB-003 | `ONBOARDING_RESTARTED` | SHOW | SHOW | SHOW | SHOW |
 | A042 | ONB-004 | `ONBOARDING_RESET` | SHOW | SHOW | HIDE | HIDE |
 | A043 | ONB-005 | `USER_ONBOARDING_STATUS_UPDATED` | SHOW | HIDE | HIDE | HIDE |
-| A044 | ONB-006 | `ONBOARDING_STATUS_CHANGED` | SHOW | HIDE | HIDE | HIDE |
+| A044 | ONB-006 | `ONBOARDING_STATUS_CHANGED` | SHOW | SHOW | CONDITIONAL | CONDITIONAL |
 | A045 | ONB-007 | `ONBOARDING_APPROVED` | SHOW | SHOW | SHOW | SHOW |
 | A046 | ONB-008 | `ONBOARDING_REJECTED` | SHOW | SHOW | SHOW | SHOW |
 | A047 | ONB-009 | `ONBOARDING_FINAL_APPROVAL_COMPLETED` | SHOW | SHOW | HIDE | HIDE |
@@ -8417,7 +8417,7 @@ Permission: onboarding.view
 | A050 | ONB-012 | `SSM_APPROVED` | SHOW | SHOW | HIDE | HIDE |
 | A051 | ONB-013 | `INVESTOR_SOPHISTICATED_STATUS_UPDATED` | SHOW | SHOW | HIDE | CONDITIONAL |
 | A052 | ONB-014 | `CTOS_REPORT_RECEIVED` | SHOW | SHOW | HIDE | HIDE |
-| A053 | ONB-015 | `CORPORATE_ENTITIES_UPDATED` | SHOW | SHOW | HIDE | HIDE |
+| A053 | ONB-015 | `CORPORATE_ENTITIES_UPDATED` | SHOW (historical) | SHOW (historical) | HIDE | HIDE |
 | A054 | ONB-016 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | SHOW | SHOW | CONDITIONAL | HIDE |
 | A055 | ONB-017 | `DIRECTOR_KYC_STATUS_UPDATED` | SHOW | SHOW | CONDITIONAL | HIDE |
 
@@ -8615,6 +8615,8 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A040 — ONBOARDING_RESUMED
 
+**Status: RETIRED / NO WRITER.** ID A040 is reserved. Historical rows remain readable.
+
 Source Case: ONB-002
 Module: Onboarding
 Audit Model: OnboardingAuditLog
@@ -8626,11 +8628,11 @@ The organization continued an existing onboarding session rather than starting a
 
 ## 2. When it logs
 
-`apps/api/src/modules/regtank/service.ts` resume path.
+No current writer. Previously `apps/api/src/modules/regtank/service.ts` resume path.
 
 ## 3. When it does NOT log / no-op
 
-A brand-new session writes `ONBOARDING_STARTED`. Missing/expired session may restart instead.
+Resume of an existing personal session does not write this event. A brand-new session writes `ONBOARDING_STARTED`. Missing/expired session may restart instead.
 
 ## 4. Top-level audit row
 
@@ -9439,6 +9441,8 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A044 — ONBOARDING_STATUS_CHANGED
 
+Core stage event. Includes amendment (`PENDING_SSM_REVIEW` / `PENDING_APPROVAL` → `PENDING_AMENDMENT`) and resubmission (`PENDING_AMENDMENT` → `PENDING_SSM_REVIEW`). Do not renumber.
+
 Source Case: ONB-006
 Module: Onboarding
 Audit Model: OnboardingAuditLog
@@ -9450,11 +9454,11 @@ Organization onboarding_status moved between workflow states (generic status tra
 
 ## 2. When it logs
 
-`apps/api/src/modules/regtank/webhooks/cod-handler.ts` (two writes) and `apps/api/src/modules/regtank/helpers/apply-approved-org-milestone.ts`.
+`apps/api/src/modules/regtank/webhooks/cod-handler.ts` COD `WAIT_FOR_APPROVAL` (when organization status actually changes, including `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW`) and COD `URL_GENERATED` after a successful move from `PENDING_SSM_REVIEW` / `PENDING_APPROVAL` → `PENDING_AMENDMENT`. Also `apps/api/src/modules/regtank/helpers/apply-approved-org-milestone.ts` and `apps/api/src/modules/regtank/webhooks/individual-onboarding-handler.ts` for individual review-stage moves.
 
 ## 3. When it does NOT log / no-op
 
-Dedicated milestones (`ONBOARDING_APPROVED`, `AML_APPROVED`, etc.) are separate events. Hidden from admin curated Activity.
+Dedicated decision events (`SSM_APPROVED`, `ONBOARDING_APPROVED`, `AML_APPROVED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_REJECTED`, `ONBOARDING_RESTARTED`) do not also write a sibling `ONBOARDING_STATUS_CHANGED` row. Issuer/investor curated activity shows only review/amendment transitions; other status moves stay admin-raw.
 
 ## 4. Top-level audit row
 
@@ -11317,6 +11321,8 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A053 — CORPORATE_ENTITIES_UPDATED
 
+**Status: RETIRED / NO WRITER.** ID A053 is reserved. Historical rows remain readable. `corporate_entities` JSON is still persisted; this event is no longer written.
+
 Source Case: ONB-015
 Module: Onboarding
 Audit Model: OnboardingAuditLog
@@ -11328,11 +11334,11 @@ Corporate entity records (directors/shareholders/entities) were added/removed/up
 
 ## 2. When it logs
 
-`cod-handler.ts` (two), `admin/service.ts` (three). Counts are `addedCount` / `removedCount` / `updatedCount`.
+No current writer. Previously `cod-handler.ts` (two) and `admin/service.ts` (three).
 
 ## 3. When it does NOT log / no-op
 
-Issuer/investor HIDE. A sync with all counts zero may still write depending on the call site — verify the specific writer guard.
+COD WAIT, admin corporate-entity refresh, final-approval refresh, and corporate status refresh still update `corporate_entities` but do not write this event. Issuer/investor HIDE. Admin contextual organization timeline excludes this type.
 
 ## 4. Top-level audit row
 
@@ -11722,15 +11728,15 @@ DB Table: onboarding_audit_logs
 
 ## 1. What this event means
 
-A director's KYC status changed (RegTank COD/EOD or admin).
+A director newly reached a terminal KYC outcome (`APPROVED` or `REJECTED`). Intermediate provider statuses still update `director_kyc_status` JSON but are not audited.
 
 ## 2. When it logs
 
-`cod-handler.ts` (two), `eod-handler.ts`, `admin/service.ts`.
+`eod-handler.ts`, COD `WAIT_FOR_APPROVAL` (only if an existing director newly becomes APPROVED/REJECTED), and `admin/service.ts` corporate refresh. One row per director outcome. Webhook actor is INTEGRATION; admin refresh actor is ADMIN.
 
 ## 3. When it does NOT log / no-op
 
-Investor HIDE. Issuer CONDITIONAL: `newKycStatus` in `APPROVED` | `REJECTED` | `ACTION_REQUIRED` (case-insensitive). Other statuses remain admin-raw / admin-activity only.
+Do not write for `ID_UPLOADED`, `LIVENESS_STARTED`, `WAIT_FOR_APPROVAL`, `PENDING`, `FORM_FILLING`, first JSON seed, kycId-only changes, or a duplicate final status. Investor HIDE. Issuer CONDITIONAL: `newKycStatus` in `APPROVED` | `REJECTED` (historical `ACTION_REQUIRED` rows still render if present).
 
 ## 4. Top-level audit row
 
@@ -41033,13 +41039,11 @@ Visible curated activity titles only (HIDE = omitted). Copy is from `packages/ty
 | A039 | `ONBOARDING_STARTED` | Admin Activity | Onboarding Started |
 | A039 | `ONBOARDING_STARTED` | Issuer | Onboarding Started |
 | A039 | `ONBOARDING_STARTED` | Investor | Onboarding Started |
-| A040 | `ONBOARDING_RESUMED` | Admin Activity | Onboarding Resumed |
-| A040 | `ONBOARDING_RESUMED` | Issuer | Onboarding Resumed |
-| A040 | `ONBOARDING_RESUMED` | Investor | Onboarding Resumed |
 | A041 | `ONBOARDING_RESTARTED` | Admin Activity | Onboarding Restarted |
 | A041 | `ONBOARDING_RESTARTED` | Issuer | Onboarding Restarted |
 | A041 | `ONBOARDING_RESTARTED` | Investor | Onboarding Restarted |
 | A042 | `ONBOARDING_RESET` | Admin Activity | Onboarding Reset |
+| A044 | `ONBOARDING_STATUS_CHANGED` | Admin Activity / Issuer / Investor | Verification submitted \| Amendment requested \| Verification resubmitted \| Onboarding stage updated |
 | A045 | `ONBOARDING_APPROVED` | Admin Activity | Onboarding Approved |
 | A045 | `ONBOARDING_APPROVED` | Issuer | Onboarding Submission Approved |
 | A045 | `ONBOARDING_APPROVED` | Investor | Onboarding Submission Approved |
@@ -41055,7 +41059,6 @@ Visible curated activity titles only (HIDE = omitted). Copy is from `packages/ty
 | A051 | `INVESTOR_SOPHISTICATED_STATUS_UPDATED` | Admin Activity | Sophisticated Status Updated |
 | A051 | `INVESTOR_SOPHISTICATED_STATUS_UPDATED` | Investor | Sophisticated Status Updated |
 | A052 | `CTOS_REPORT_RECEIVED` | Admin Activity | CTOS Report Received |
-| A053 | `CORPORATE_ENTITIES_UPDATED` | Admin Activity | Corporate Entities Updated |
 | A054 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | Admin Activity | Director Invitation Sent |
 | A054 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | Issuer | Director Invitation Sent |
 | A055 | `DIRECTOR_KYC_STATUS_UPDATED` | Admin Activity | Director Verification Approved | Rejected | Action Required | Updated |
@@ -41233,8 +41236,8 @@ How an investor is allowed to see an event. CANCELLED `NoteInvestment` rows do n
 | ID | Event | Ownership / membership rule |
 |---|---|---|
 | A039 | `ONBOARDING_STARTED` | SHOW always (user-facing onboarding set). |
-| A040 | `ONBOARDING_RESUMED` | SHOW always. |
 | A041 | `ONBOARDING_RESTARTED` | SHOW always. |
+| A044 | `ONBOARDING_STATUS_CHANGED` | CONDITIONAL: review/amendment transitions only (`IN_PROGRESS`/`PENDING` → `PENDING_SSM_REVIEW`/`PENDING_APPROVAL`, `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW`, review → `PENDING_AMENDMENT`). |
 | A045 | `ONBOARDING_APPROVED` | SHOW always. Same user-facing copy as issuer. |
 | A046 | `ONBOARDING_REJECTED` | SHOW always. |
 | A048 | `ONBOARDING_COMPLETED` | SHOW always. |

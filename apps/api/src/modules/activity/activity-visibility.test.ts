@@ -21,7 +21,6 @@ describe("activity visibility matrix", () => {
     it("keeps the core user-facing onboarding milestones", () => {
       for (const eventType of [
         "ONBOARDING_STARTED",
-        "ONBOARDING_RESUMED",
         "ONBOARDING_RESTARTED",
         "ONBOARDING_APPROVED",
         "ONBOARDING_REJECTED",
@@ -30,6 +29,8 @@ describe("activity visibility matrix", () => {
         expect(isOnboardingActivityVisible("issuer", eventType)).toBe(true);
         expect(isOnboardingActivityVisible("investor", eventType)).toBe(true);
       }
+      expect(isOnboardingActivityVisible("issuer", "ONBOARDING_RESUMED")).toBe(false);
+      expect(isOnboardingActivityVisible("investor", "ONBOARDING_RESUMED")).toBe(false);
     });
 
     it("shows sophisticated status only when the investor eligibility value changes", () => {
@@ -106,8 +107,42 @@ describe("activity visibility matrix", () => {
 
     it("hides noisy admin organization timeline events while leaving other admin events visible", () => {
       expect(isOnboardingActivityVisible("admin", "USER_ONBOARDING_STATUS_UPDATED")).toBe(false);
-      expect(isOnboardingActivityVisible("admin", "ONBOARDING_STATUS_CHANGED")).toBe(false);
+      expect(isOnboardingActivityVisible("admin", "ONBOARDING_STATUS_CHANGED")).toBe(true);
       expect(isOnboardingActivityVisible("admin", "ONBOARDING_FINAL_APPROVAL_COMPLETED")).toBe(true);
+      expect(isOnboardingActivityVisible("admin", "CORPORATE_ENTITIES_UPDATED")).toBe(true);
+    });
+
+    it("shows review and amendment STATUS_CHANGED transitions to users", () => {
+      expect(
+        isOnboardingActivityVisible("issuer", "ONBOARDING_STATUS_CHANGED", {
+          previousStatus: "IN_PROGRESS",
+          newStatus: "PENDING_SSM_REVIEW",
+        })
+      ).toBe(true);
+      expect(
+        isOnboardingActivityVisible("investor", "ONBOARDING_STATUS_CHANGED", {
+          previousStatus: "PENDING",
+          newStatus: "PENDING_APPROVAL",
+        })
+      ).toBe(true);
+      expect(
+        isOnboardingActivityVisible("issuer", "ONBOARDING_STATUS_CHANGED", {
+          previousStatus: "PENDING_SSM_REVIEW",
+          newStatus: "PENDING_AMENDMENT",
+        })
+      ).toBe(true);
+      expect(
+        isOnboardingActivityVisible("issuer", "ONBOARDING_STATUS_CHANGED", {
+          previousStatus: "PENDING_AMENDMENT",
+          newStatus: "PENDING_SSM_REVIEW",
+        })
+      ).toBe(true);
+      expect(
+        isOnboardingActivityVisible("issuer", "ONBOARDING_STATUS_CHANGED", {
+          previousStatus: "PENDING_APPROVAL",
+          newStatus: "PENDING_AML",
+        })
+      ).toBe(false);
     });
   });
 

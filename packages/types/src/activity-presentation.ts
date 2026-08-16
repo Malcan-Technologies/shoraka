@@ -1,4 +1,5 @@
 import type { ActivityAudience } from "./activity-visibility";
+import { toTitleCase } from "./title-case";
 
 export type ActivityPresentation = {
   title: string;
@@ -84,6 +85,65 @@ const SERVICING_TITLES: Record<string, string> = {
   DEFAULTED: "Repayment in Default",
   SETTLED: "Servicing Completed",
 };
+
+const ONBOARDING_STATUS_LABELS: Record<string, string> = {
+  IN_PROGRESS: "In Progress",
+  PENDING: "Pending",
+  PENDING_SSM_REVIEW: "Pending SSM Review",
+  PENDING_APPROVAL: "Pending Approval",
+  PENDING_AMENDMENT: "Pending Amendment",
+  PENDING_AML: "Pending AML",
+  PENDING_FINAL_APPROVAL: "Pending Final Approval",
+  COMPLETED: "Completed",
+  REJECTED: "Rejected",
+};
+
+function humanizeOnboardingStatus(status: string | undefined): string {
+  if (!status) return "an unknown stage";
+  const key = status.trim().toUpperCase();
+  return ONBOARDING_STATUS_LABELS[key] ?? toTitleCase(status);
+}
+
+function onboardingStatusChangedCopy(metadata: Record<string, unknown>): ActivityPresentation {
+  const previous = readString(metadata, "previousStatus");
+  const next = readString(metadata, "newStatus");
+  const previousKey = previous?.toUpperCase();
+  const nextKey = next?.toUpperCase();
+  const fromInitial = previousKey === "IN_PROGRESS" || previousKey === "PENDING";
+
+  if (fromInitial && nextKey === "PENDING_SSM_REVIEW") {
+    return {
+      title: "Verification submitted",
+      description: "The organisation was submitted for company verification review.",
+    };
+  }
+  if (fromInitial && nextKey === "PENDING_APPROVAL") {
+    return {
+      title: "Verification submitted",
+      description: "The organisation was submitted for onboarding review.",
+    };
+  }
+  if (previousKey === "PENDING_AMENDMENT" && nextKey === "PENDING_SSM_REVIEW") {
+    return {
+      title: "Verification resubmitted",
+      description: "Updated verification was submitted and review resumed.",
+    };
+  }
+  if (
+    (previousKey === "PENDING_SSM_REVIEW" || previousKey === "PENDING_APPROVAL") &&
+    nextKey === "PENDING_AMENDMENT"
+  ) {
+    return {
+      title: "Amendment requested",
+      description: "The organisation was sent back to update verification details.",
+    };
+  }
+
+  return {
+    title: "Onboarding stage updated",
+    description: `Onboarding moved from ${humanizeOnboardingStatus(previous)} to ${humanizeOnboardingStatus(next)}.`,
+  };
+}
 
 function directorKycCopy(
   audience: ActivityAudience,
@@ -190,6 +250,8 @@ export function formatOnboardingActivity(
             ? "Onboarding was marked completed."
             : "Your organization onboarding is complete.",
       };
+    case "ONBOARDING_STATUS_CHANGED":
+      return onboardingStatusChangedCopy(record);
     case "INVESTOR_SOPHISTICATED_STATUS_UPDATED": {
       const granted = isSophisticatedGranted(record);
       if (audience === "admin") {
@@ -248,6 +310,12 @@ export function formatOnboardingActivity(
           "The user onboarding marker was reset. Organization onboarding state was not rewound.",
       };
     case "ONBOARDING_FINAL_APPROVAL_COMPLETED":
+      if (audience !== "admin") {
+        return {
+          title: "Onboarding Completed",
+          description: "Your organization onboarding is complete.",
+        };
+      }
       return {
         title: "Final Approval Completed",
         description: withActor(

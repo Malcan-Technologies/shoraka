@@ -101,4 +101,25 @@ describe("OrganizationLogAdapter visibility", () => {
 
     expect(records.map((record) => record.id)).toEqual(["material"]);
   });
+
+  it("includes review STATUS_CHANGED and excludes internal compliance events", async () => {
+    prisma.onboardingAuditLog.findMany.mockResolvedValue([
+      createRecord({
+        id: "status",
+        event_type: "ONBOARDING_STATUS_CHANGED",
+        metadata: { previousStatus: "IN_PROGRESS", newStatus: "PENDING_SSM_REVIEW" },
+      }),
+      createRecord({ id: "entities", event_type: "CORPORATE_ENTITIES_UPDATED" }),
+      createRecord({ id: "aml", event_type: "AML_APPROVED" }),
+    ]);
+
+    const records = await adapter.query("user_1", {
+      organizationId: "issuer-org-1",
+      portalType: "issuer",
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(records.map((record) => record.id)).toEqual(["status"]);
+  });
 });

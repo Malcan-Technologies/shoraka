@@ -24,7 +24,8 @@ import {
   ONBOARDING_AUDIT_TARGET_TYPE,
   ONBOARDING_RESTART_TRIGGER,
 } from "../onboarding/audit/events";
-import { diffCorporateEntities, directorKycMaterialChange } from "../onboarding/audit/diff";
+import { directorKycFinalOutcomes } from "../onboarding/audit/diff";
+import { writeDirectorKycOutcomeAuditLogs } from "../onboarding/audit/director-kyc-outcomes";
 import {
   AUDIT_ACTOR_TYPE,
   AUDIT_PORTAL,
@@ -3264,7 +3265,7 @@ export class AdminService {
    * Fetches latest COD details and updates corporate_entities in the database.
    */
   async refreshOrganizationCorporateEntities(
-    req: Request,
+    _req: Request,
     organizationId: string,
     portal: PortalType
   ): Promise<{ success: boolean; message: string }> {
@@ -3294,7 +3295,6 @@ export class AdminService {
               select: { corporate_entities: true },
             });
       if (!locked) return;
-      const diff = diffCorporateEntities(locked.corporate_entities, corporateEntities);
 
       if (portal === "investor") {
         await tx.investorOrganization.update({
@@ -3308,27 +3308,6 @@ export class AdminService {
         });
       }
 
-      if (diff.changed) {
-        await writeOnboardingAuditLog(
-          {
-            eventType: "CORPORATE_ENTITIES_UPDATED",
-            context: auditContextFromAdminRequest(req),
-            subjectUserId: org.owner.user_id,
-            onboardingId: onboarding.id,
-            organizationId,
-            organizationKind: portal === "investor" ? "INVESTOR" : "ISSUER",
-            organizationType: "COMPANY",
-            targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
-            targetId: organizationId,
-            metadata: {
-              addedCount: diff.addedCount,
-              removedCount: diff.removedCount,
-              updatedCount: diff.updatedCount,
-            },
-          },
-          tx
-        );
-      }
     });
 
     logger.info(
@@ -4434,10 +4413,6 @@ export class AdminService {
       try {
         const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(onboarding.request_id);
         const corporateEntities = extractCorporateEntities(codDetails);
-        const priorEntities = isInvestor
-          ? onboarding.investor_organization?.corporate_entities
-          : onboarding.issuer_organization?.corporate_entities;
-        const entitiesDiff = diffCorporateEntities(priorEntities, corporateEntities);
 
         if (isInvestor) {
           await prisma.investorOrganization.update({
@@ -4448,25 +4423,6 @@ export class AdminService {
           await prisma.issuerOrganization.update({
             where: { id: org.id },
             data: { corporate_entities: corporateEntities as Prisma.InputJsonValue },
-          });
-        }
-
-        if (entitiesDiff.changed) {
-          await writeOnboardingAuditLog({
-            eventType: "CORPORATE_ENTITIES_UPDATED",
-            context,
-            subjectUserId: onboarding.user_id,
-            onboardingId,
-            organizationId: org.id,
-            organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
-            organizationType: "COMPANY",
-            targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
-            targetId: org.id,
-            metadata: {
-              addedCount: entitiesDiff.addedCount,
-              removedCount: entitiesDiff.removedCount,
-              updatedCount: entitiesDiff.updatedCount,
-            },
           });
         }
 
@@ -5546,12 +5502,6 @@ export class AdminService {
               });
         if (!locked) return;
 
-        const directorKycDiff = directorKycMaterialChange(locked.director_kyc_status, directorKycStatus);
-        const entitiesDiff =
-          corporateEntitiesUpdated && updatedCorporateEntities
-            ? diffCorporateEntities(locked.corporate_entities, updatedCorporateEntities)
-            : { changed: false, addedCount: 0, removedCount: 0, updatedCount: 0 };
-
         const updateData: {
           director_kyc_status: Prisma.InputJsonValue;
           corporate_entities?: Prisma.InputJsonValue;
@@ -5574,50 +5524,18 @@ export class AdminService {
           });
         }
 
-        if (directorKycDiff.changed) {
-          await writeOnboardingAuditLog(
-            {
-              eventType: "DIRECTOR_KYC_STATUS_UPDATED",
-              context: refreshContext,
-              subjectUserId: onboarding.user_id,
-              onboardingId,
-              organizationId: org.id,
-              organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
-              organizationType: "COMPANY",
-              targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
-              targetId: org.id,
-              metadata: {
-                previousKycStatus: directorKycDiff.previousKycStatus,
-                newKycStatus: directorKycDiff.newKycStatus,
-                changedCount: directorKycDiff.changedCount,
-                directorCount: directorKycDiff.directorCount,
-              },
-            },
-            tx
-          );
-        }
-
-        if (entitiesDiff.changed) {
-          await writeOnboardingAuditLog(
-            {
-              eventType: "CORPORATE_ENTITIES_UPDATED",
-              context: refreshContext,
-              subjectUserId: onboarding.user_id,
-              onboardingId,
-              organizationId: org.id,
-              organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
-              organizationType: "COMPANY",
-              targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
-              targetId: org.id,
-              metadata: {
-                addedCount: entitiesDiff.addedCount,
-                removedCount: entitiesDiff.removedCount,
-                updatedCount: entitiesDiff.updatedCount,
-              },
-            },
-            tx
-          );
-        }
+        await writeDirectorKycOutcomeAuditLogs(
+          {
+            outcomes: directorKycFinalOutcomes(locked.director_kyc_status, directorKycStatus),
+            context: refreshContext,
+            subjectUserId: onboarding.user_id,
+            onboardingId,
+            organizationId: org.id,
+            organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
+            organizationType: "COMPANY",
+          },
+          tx
+        );
       });
 
       logger.info(

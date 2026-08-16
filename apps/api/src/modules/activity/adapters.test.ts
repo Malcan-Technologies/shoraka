@@ -53,8 +53,8 @@ describe("Activity Adapters", () => {
       expect(adapter.getEventTypes()).toEqual(
         expect.arrayContaining([
           "ONBOARDING_STARTED",
-          "ONBOARDING_RESUMED",
           "ONBOARDING_RESTARTED",
+          "ONBOARDING_STATUS_CHANGED",
           "ONBOARDING_APPROVED",
           "ONBOARDING_REJECTED",
           "ONBOARDING_COMPLETED",
@@ -63,6 +63,7 @@ describe("Activity Adapters", () => {
           "DIRECTOR_KYC_STATUS_UPDATED",
         ])
       );
+      expect(adapter.getEventTypes()).not.toContain("ONBOARDING_RESUMED");
       expect(adapter.getEventTypes()).not.toContain("ONBOARDING_FINAL_APPROVAL_COMPLETED");
       expect(adapter.getEventTypes()).not.toContain("ONBOARDING_CANCELLED");
       expect(adapter.getEventTypes()).not.toContain("FORM_FILLED");

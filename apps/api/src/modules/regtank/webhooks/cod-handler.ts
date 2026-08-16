@@ -35,7 +35,8 @@ import {
 } from "./onboarding-webhook-guards";
 import { writeOnboardingAuditLog } from "../../onboarding/audit/writer";
 import { ONBOARDING_AUDIT_TARGET_TYPE } from "../../onboarding/audit/events";
-import { diffCorporateEntities, directorKycMaterialChange } from "../../onboarding/audit/diff";
+import { directorKycFinalOutcomes } from "../../onboarding/audit/diff";
+import { writeDirectorKycOutcomeAuditLogs } from "../../onboarding/audit/director-kyc-outcomes";
 import {
   AUDIT_PORTAL,
   auditPortalFromLegacy,
@@ -705,8 +706,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             const statusChanged = Boolean(
               waitForApprovalUpdate && previousStatus !== waitForApprovalUpdate.nextStatus
             );
-            const entitiesDiff = diffCorporateEntities(org.corporate_entities, corporateEntities);
-            const directorDiff = directorKycMaterialChange(org.director_kyc_status, directorKycStatus);
+            const directorOutcomes = directorKycFinalOutcomes(org.director_kyc_status, directorKycStatus);
 
             await tx.investorOrganization.update({
               where: { id: organizationId },
@@ -752,50 +752,18 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               );
             }
 
-            if (entitiesDiff.changed) {
-              await writeOnboardingAuditLog(
-                {
-                  eventType: "CORPORATE_ENTITIES_UPDATED",
-                  context: webhookAuditContext({ portal: AUDIT_PORTAL.INVESTOR }),
-                  subjectUserId: onboarding.user_id,
-                  onboardingId: onboarding.id,
-                  organizationId,
-                  organizationKind: "INVESTOR",
-                  organizationType: "COMPANY",
-                  targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
-                  targetId: organizationId,
-                  metadata: {
-                    addedCount: entitiesDiff.addedCount,
-                    removedCount: entitiesDiff.removedCount,
-                    updatedCount: entitiesDiff.updatedCount,
-                  },
-                },
-                tx
-              );
-            }
-
-            if (directorDiff.changed) {
-              await writeOnboardingAuditLog(
-                {
-                  eventType: "DIRECTOR_KYC_STATUS_UPDATED",
-                  context: webhookAuditContext({ portal: AUDIT_PORTAL.INVESTOR }),
-                  subjectUserId: onboarding.user_id,
-                  onboardingId: onboarding.id,
-                  organizationId,
-                  organizationKind: "INVESTOR",
-                  organizationType: "COMPANY",
-                  targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
-                  targetId: organizationId,
-                  metadata: {
-                    previousKycStatus: directorDiff.previousKycStatus,
-                    newKycStatus: directorDiff.newKycStatus,
-                    changedCount: directorDiff.changedCount,
-                    directorCount: directorDiff.directorCount,
-                  },
-                },
-                tx
-              );
-            }
+            await writeDirectorKycOutcomeAuditLogs(
+              {
+                outcomes: directorOutcomes,
+                context: webhookAuditContext({ portal: AUDIT_PORTAL.INVESTOR }),
+                subjectUserId: onboarding.user_id,
+                onboardingId: onboarding.id,
+                organizationId,
+                organizationKind: "INVESTOR",
+                organizationType: "COMPANY",
+              },
+              tx
+            );
 
             logger.info(
               {
@@ -833,8 +801,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             const statusChanged = Boolean(
               waitForApprovalUpdate && previousStatus !== waitForApprovalUpdate.nextStatus
             );
-            const issuerEntitiesDiff = diffCorporateEntities(org.corporate_entities, corporateEntities);
-            const issuerDirectorDiff = directorKycMaterialChange(org.director_kyc_status, directorKycStatus);
+            const issuerDirectorOutcomes = directorKycFinalOutcomes(org.director_kyc_status, directorKycStatus);
 
             await tx.issuerOrganization.update({
               where: { id: organizationId },
@@ -880,50 +847,18 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               );
             }
 
-            if (issuerEntitiesDiff.changed) {
-              await writeOnboardingAuditLog(
-                {
-                  eventType: "CORPORATE_ENTITIES_UPDATED",
-                  context: webhookAuditContext({ portal: AUDIT_PORTAL.ISSUER }),
-                  subjectUserId: onboarding.user_id,
-                  onboardingId: onboarding.id,
-                  organizationId,
-                  organizationKind: "ISSUER",
-                  organizationType: "COMPANY",
-                  targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
-                  targetId: organizationId,
-                  metadata: {
-                    addedCount: issuerEntitiesDiff.addedCount,
-                    removedCount: issuerEntitiesDiff.removedCount,
-                    updatedCount: issuerEntitiesDiff.updatedCount,
-                  },
-                },
-                tx
-              );
-            }
-
-            if (issuerDirectorDiff.changed) {
-              await writeOnboardingAuditLog(
-                {
-                  eventType: "DIRECTOR_KYC_STATUS_UPDATED",
-                  context: webhookAuditContext({ portal: AUDIT_PORTAL.ISSUER }),
-                  subjectUserId: onboarding.user_id,
-                  onboardingId: onboarding.id,
-                  organizationId,
-                  organizationKind: "ISSUER",
-                  organizationType: "COMPANY",
-                  targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
-                  targetId: organizationId,
-                  metadata: {
-                    previousKycStatus: issuerDirectorDiff.previousKycStatus,
-                    newKycStatus: issuerDirectorDiff.newKycStatus,
-                    changedCount: issuerDirectorDiff.changedCount,
-                    directorCount: issuerDirectorDiff.directorCount,
-                  },
-                },
-                tx
-              );
-            }
+            await writeDirectorKycOutcomeAuditLogs(
+              {
+                outcomes: issuerDirectorOutcomes,
+                context: webhookAuditContext({ portal: AUDIT_PORTAL.ISSUER }),
+                subjectUserId: onboarding.user_id,
+                onboardingId: onboarding.id,
+                organizationId,
+                organizationKind: "ISSUER",
+                organizationType: "COMPANY",
+              },
+              tx
+            );
 
             logger.info(
               {
@@ -994,18 +929,43 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             ? { ssm_approved: update.reset.ssm_approved ?? false }
             : { ssm_checked: update.reset.ssm_checked ?? false }),
         } as Record<string, unknown>;
+        const organizationKind = organizationKindFromPortalType(portalType);
+        const auditPortal =
+          portalType === "investor" ? AUDIT_PORTAL.INVESTOR : AUDIT_PORTAL.ISSUER;
 
-        if (portalType === "investor") {
-          await prisma.investorOrganization.update({
-            where: { id: organizationId },
-            data: resetData as Prisma.InvestorOrganizationUpdateInput,
-          });
-        } else {
-          await prisma.issuerOrganization.update({
-            where: { id: organizationId },
-            data: resetData as Prisma.IssuerOrganizationUpdateInput,
-          });
-        }
+        await prisma.$transaction(async (tx) => {
+          if (portalType === "investor") {
+            await tx.investorOrganization.update({
+              where: { id: organizationId },
+              data: resetData as Prisma.InvestorOrganizationUpdateInput,
+            });
+          } else {
+            await tx.issuerOrganization.update({
+              where: { id: organizationId },
+              data: resetData as Prisma.IssuerOrganizationUpdateInput,
+            });
+          }
+
+          await writeOnboardingAuditLog(
+            {
+              eventType: "ONBOARDING_STATUS_CHANGED",
+              context: webhookAuditContext({ portal: auditPortal }),
+              subjectUserId: onboarding.user_id,
+              onboardingId: onboarding.id,
+              organizationId,
+              organizationKind,
+              organizationType: org.type === OrganizationType.COMPANY ? "COMPANY" : "PERSONAL",
+              targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+              targetId: organizationId,
+              metadata: {
+                previousStatus: org.onboarding_status,
+                newStatus: update.nextStatus,
+                trigger: "URL_GENERATED",
+              },
+            },
+            tx
+          );
+        });
 
         logger.info(
           {

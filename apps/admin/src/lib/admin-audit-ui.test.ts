@@ -114,7 +114,8 @@ describe("admin audit UI restructure", () => {
     expect(read("hooks/use-organization-logs.ts")).not.toContain(
       "USER_ONBOARDING_STATUS_UPDATED"
     );
-    expect(read("hooks/use-organization-logs.ts")).not.toContain("ONBOARDING_STATUS_CHANGED");
+    expect(read("hooks/use-organization-logs.ts")).toContain("ONBOARDING_STATUS_CHANGED");
+    expect(read("hooks/use-organization-logs.ts")).not.toContain("CORPORATE_ENTITIES_UPDATED");
     expect(read("components/audit/onboarding-logs-panel.tsx")).toContain("ONBOARDING_AUDIT_EVENTS");
 
     const notePage = read("app/notes/[id]/page.tsx");

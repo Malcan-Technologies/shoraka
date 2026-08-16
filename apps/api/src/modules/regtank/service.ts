@@ -1019,26 +1019,6 @@ export class RegTankService {
           }
         }
 
-        if (organization.onboarding_status === OnboardingStatus.PENDING) {
-          await writeOnboardingAuditLog({
-            eventType: "ONBOARDING_RESUMED",
-            context: userOnboardingAuditContext(req, portalType),
-            subjectUserId: userId,
-            onboardingId: existingOnboarding.id,
-            organizationId,
-            organizationKind: organizationKindFromPortalType(portalType),
-            organizationType: organization.type,
-            targetType: ONBOARDING_AUDIT_TARGET_TYPE.REGTANK_ONBOARDING,
-            targetId: existingOnboarding.request_id,
-            metadata: {
-              requestId: existingOnboarding.request_id,
-              onboardingType: "INDIVIDUAL",
-              previousOrgStatus: organization.onboarding_status,
-              newStatus: OnboardingStatus.IN_PROGRESS,
-            },
-          });
-        }
-
         // Ensure onboarding settings are configured before resuming
         const formId = parseInt(process.env.REGTANK_INVESTOR_PERSONAL_FORM_ID || "1036131", 10);
         const config = getRegTankConfig();

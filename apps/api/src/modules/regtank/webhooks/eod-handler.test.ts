@@ -48,8 +48,10 @@ let txChain = Promise.resolve();
 
 const investorOrgClient = {
   findUnique: jest.fn(() => Promise.resolve({ director_kyc_status: directorKyc })),
-  update: jest.fn(({ data }: { data: { director_kyc_status: typeof directorKyc } }) => {
-    directorKyc = data.director_kyc_status;
+  update: jest.fn(({ data }: { data: { director_kyc_status?: typeof directorKyc } }) => {
+    if (data.director_kyc_status) {
+      directorKyc = data.director_kyc_status;
+    }
     return Promise.resolve({});
   }),
 };
@@ -135,7 +137,7 @@ describe("EODWebhookHandler", () => {
     expect(mockFindInvestorOrganizationById).not.toHaveBeenCalled();
   });
 
-  it("concurrent identical director KYC callbacks write one DIRECTOR_KYC_STATUS_UPDATED", async () => {
+  it("concurrent identical WAIT_FOR_APPROVAL callbacks persist JSON without a director audit", async () => {
     mockRegTankOnboardingFindMany.mockResolvedValue([
       {
         id: "row-1",
@@ -166,9 +168,147 @@ describe("EODWebhookHandler", () => {
     await Promise.all([(handler as any).handle(payload), (handler as any).handle(payload)]);
 
     expect(directorKyc.directors[0]?.kycStatus).toBe("WAIT_FOR_APPROVAL");
+    expect(mockWriteOnboardingAuditLog).not.toHaveBeenCalled();
+  });
+
+  it.each(["ID_UPLOADED", "LIVENESS_STARTED", "WAIT_FOR_APPROVAL"])(
+    "EOD %s updates director JSON without an onboarding audit",
+    async (status) => {
+      mockRegTankOnboardingFindMany.mockResolvedValue([
+        {
+          id: "row-1",
+          request_id: "COD001",
+          status: "IN_PROGRESS",
+          onboarding_type: "CORPORATE",
+          organization_type: OrganizationType.COMPANY,
+          investor_organization_id: "org-1",
+          issuer_organization_id: null,
+          portal_type: "investor",
+          user_id: "user-1",
+          webhook_payloads: [
+            {
+              corpIndvDirectors: ["EOD001"],
+              corpIndvShareholders: [],
+              corpBizShareholders: [],
+            },
+          ],
+        },
+      ]);
+      const handler = new EODWebhookHandler();
+      await (handler as any).handle({ requestId: "EOD001", status });
+
+      expect(directorKyc.directors[0]?.kycStatus).toBe(status);
+      expect(mockWriteOnboardingAuditLog).not.toHaveBeenCalled();
+    }
+  );
+
+  it("EOD APPROVED writes one DIRECTOR_KYC_STATUS_UPDATED for that director", async () => {
+    mockRegTankOnboardingFindMany.mockResolvedValue([
+      {
+        id: "row-1",
+        request_id: "COD001",
+        status: "IN_PROGRESS",
+        onboarding_type: "CORPORATE",
+        organization_type: OrganizationType.COMPANY,
+        investor_organization_id: "org-1",
+        issuer_organization_id: null,
+        portal_type: "investor",
+        user_id: "user-1",
+        webhook_payloads: [
+          {
+            corpIndvDirectors: ["EOD001"],
+            corpIndvShareholders: [],
+            corpBizShareholders: [],
+          },
+        ],
+      },
+    ]);
+    const handler = new EODWebhookHandler();
+    await (handler as any).handle({ requestId: "EOD001", status: "APPROVED", kycId: "KYC001" });
+
+    expect(directorKyc.directors[0]?.kycStatus).toBe("APPROVED");
     expect(mockWriteOnboardingAuditLog).toHaveBeenCalledTimes(1);
     expect(mockWriteOnboardingAuditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ eventType: "DIRECTOR_KYC_STATUS_UPDATED" }),
+      expect.objectContaining({
+        eventType: "DIRECTOR_KYC_STATUS_UPDATED",
+        targetType: "DIRECTOR",
+        metadata: expect.objectContaining({
+          eodRequestId: "EOD001",
+          directorName: "Ada",
+          previousKycStatus: "PENDING",
+          newKycStatus: "APPROVED",
+        }),
+      }),
+      expect.anything()
+    );
+  }, 15000);
+
+  it("duplicate EOD APPROVED does not write a second director audit", async () => {
+    mockRegTankOnboardingFindMany.mockResolvedValue([
+      {
+        id: "row-1",
+        request_id: "COD001",
+        status: "IN_PROGRESS",
+        onboarding_type: "CORPORATE",
+        organization_type: OrganizationType.COMPANY,
+        investor_organization_id: "org-1",
+        issuer_organization_id: null,
+        portal_type: "investor",
+        user_id: "user-1",
+        webhook_payloads: [
+          {
+            corpIndvDirectors: ["EOD001"],
+            corpIndvShareholders: [],
+            corpBizShareholders: [],
+          },
+        ],
+      },
+    ]);
+    const handler = new EODWebhookHandler();
+    const payload = { requestId: "EOD001", status: "APPROVED", kycId: "KYC001" };
+
+    await (handler as any).handle(payload);
+    await (handler as any).handle(payload);
+
+    expect(directorKyc.directors[0]?.kycStatus).toBe("APPROVED");
+    expect(mockWriteOnboardingAuditLog).toHaveBeenCalledTimes(1);
+  }, 15000);
+
+  it("EOD REJECTED writes one director outcome audit", async () => {
+    mockRegTankOnboardingFindMany.mockResolvedValue([
+      {
+        id: "row-1",
+        request_id: "COD001",
+        status: "IN_PROGRESS",
+        onboarding_type: "CORPORATE",
+        organization_type: OrganizationType.COMPANY,
+        investor_organization_id: "org-1",
+        issuer_organization_id: null,
+        portal_type: "investor",
+        user_id: "user-1",
+        webhook_payloads: [
+          {
+            corpIndvDirectors: ["EOD001"],
+            corpIndvShareholders: [],
+            corpBizShareholders: [],
+          },
+        ],
+      },
+    ]);
+    const handler = new EODWebhookHandler();
+    await (handler as any).handle({ requestId: "EOD001", status: "REJECTED" });
+
+    expect(directorKyc.directors[0]?.kycStatus).toBe("REJECTED");
+    expect(mockWriteOnboardingAuditLog).toHaveBeenCalledTimes(1);
+    expect(mockWriteOnboardingAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "DIRECTOR_KYC_STATUS_UPDATED",
+        metadata: expect.objectContaining({
+          eodRequestId: "EOD001",
+          previousKycStatus: "PENDING",
+          newKycStatus: "REJECTED",
+        }),
+      }),
       expect.anything()
     );
   });
