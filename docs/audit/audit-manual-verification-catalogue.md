@@ -54,13 +54,13 @@ Permission: audit.access.view
 
 | ID | Source Case | Event | Admin Raw | Admin Activity | Issuer | Investor |
 |---|---|---|---|---|---|---|
-| A001 | A001 | `USER_SIGNED_UP` | SHOW | HIDE | HIDE | HIDE |
-| A002 | A002 | `USER_LOGGED_IN` | SHOW | HIDE | HIDE | HIDE |
-| A003 | A003 | `USER_LOGGED_OUT` | SHOW | HIDE | HIDE | HIDE |
+| A001 | ACC-001 | `USER_SIGNED_UP` | SHOW | HIDE | HIDE | HIDE |
+| A002 | ACC-002 | `USER_LOGGED_IN` | SHOW | HIDE | HIDE | HIDE |
+| A003 | ACC-003 | `USER_LOGGED_OUT` | SHOW | HIDE | HIDE | HIDE |
 
 # A001 — USER_SIGNED_UP
 
-Source Case: A001
+Source Case: ACC-001
 Module: Access
 Audit Model: AccessAuditLog
 DB Table: access_audit_logs
@@ -285,7 +285,7 @@ Admin `/audit?tab=access` requires `audit.access.view`. Rows open in `AuditLogDe
 
 # A002 — USER_LOGGED_IN
 
-Source Case: A002
+Source Case: ACC-002
 Module: Access
 Audit Model: AccessAuditLog
 DB Table: access_audit_logs
@@ -510,7 +510,7 @@ Admin `/audit?tab=access` requires `audit.access.view`. Rows open in `AuditLogDe
 
 # A003 — USER_LOGGED_OUT
 
-Source Case: A003
+Source Case: ACC-003
 Module: Access
 Audit Model: AccessAuditLog
 DB Table: access_audit_logs
@@ -712,45 +712,45 @@ Permission: audit.security.view
 
 | ID | Source Case | Event | Admin Raw | Admin Activity | Issuer | Investor |
 |---|---|---|---|---|---|---|
-| A004 | A004 | `USER_ROLE_ADDED` | SHOW | HIDE | HIDE | HIDE |
-| A005 | A005 | `ACTIVE_ROLE_CHANGED` | SHOW | HIDE | HIDE | HIDE |
-| A006 | A006 | `USER_PROFILE_UPDATED` | SHOW | HIDE | HIDE | HIDE |
-| A007 | A007 | `USER_PROFILE_UPDATED_BY_ADMIN` | SHOW | HIDE | HIDE | HIDE |
-| A008 | A008 | `PASSWORD_CHANGED` | SHOW | HIDE | HIDE | HIDE |
-| A009 | A009 | `PASSWORD_CHANGE_FAILED` | SHOW | HIDE | HIDE | HIDE |
-| A010 | A010 | `USER_EMAIL_VERIFIED` | SHOW | HIDE | HIDE | HIDE |
-| A011 | A011 | `EMAIL_VERIFICATION_FAILED` | SHOW | HIDE | HIDE | HIDE |
-| A012 | A012 | `ADMIN_ACCESS_DENIED` | SHOW | HIDE | HIDE | HIDE |
-| A013 | A013 | `ADMIN_ROLE_CREATED` | SHOW | HIDE | HIDE | HIDE |
-| A014 | A014 | `ADMIN_ROLE_PERMISSIONS_UPDATED` | SHOW | HIDE | HIDE | HIDE |
-| A015 | A015 | `ADMIN_ROLE_DELETED` | SHOW | HIDE | HIDE | HIDE |
-| A016 | A016 | `USER_ROLES_UPDATED` | SHOW | HIDE | HIDE | HIDE |
-| A017 | A017 | `ADMIN_USER_ROLE_CHANGED` | SHOW | HIDE | HIDE | HIDE |
-| A018 | A018 | `ADMIN_USER_DEACTIVATED` | SHOW | HIDE | HIDE | HIDE |
-| A019 | A019 | `ADMIN_USER_REACTIVATED` | SHOW | HIDE | HIDE | HIDE |
-| A020 | A020 | `ADMIN_INVITATION_CREATED` | SHOW | HIDE | HIDE | HIDE |
-| A021 | A021 | `ADMIN_INVITATION_LINK_GENERATED` | SHOW | HIDE | HIDE | HIDE |
-| A022 | A022 | `ADMIN_INVITATION_RESENT` | SHOW | HIDE | HIDE | HIDE |
-| A023 | A023 | `ADMIN_INVITATION_REVOKED` | SHOW | HIDE | HIDE | HIDE |
-| A024 | A024 | `ADMIN_INVITATION_ACCEPTED` | SHOW | HIDE | HIDE | HIDE |
-| A025 | A025 | `USER_PUBLIC_ID_CHANGED` | SHOW | HIDE | HIDE | HIDE |
-| A026 | A026 | `ORGANIZATION_MEMBER_INVITED` | SHOW | HIDE | HIDE | HIDE |
-| A027 | A027 | `ORGANIZATION_MEMBER_JOINED` | SHOW | HIDE | HIDE | HIDE |
-| A028 | A028 | `ORGANIZATION_MEMBER_REMOVED` | SHOW | HIDE | HIDE | HIDE |
-| A029 | A029 | `ORGANIZATION_MEMBER_LEFT` | SHOW | HIDE | HIDE | HIDE |
-| A030 | A030 | `ORGANIZATION_MEMBER_ROLE_UPDATED` | SHOW | HIDE | HIDE | HIDE |
-| A031 | A031 | `ORGANIZATION_OWNERSHIP_TRANSFERRED` | SHOW | HIDE | HIDE | HIDE |
-| A032 | A032 | `ORGANIZATION_INVITATION_REVOKED` | SHOW | HIDE | HIDE | HIDE |
-| A033 | A033 | `ORGANIZATION_INVITATION_RESENT` | SHOW | HIDE | HIDE | HIDE |
-| A034 | A034 | `NOTIFICATION_TYPE_UPDATED` | SHOW | HIDE | HIDE | HIDE |
-| A035 | A035 | `NOTIFICATION_GROUP_CREATED` | SHOW | HIDE | HIDE | HIDE |
-| A036 | A036 | `NOTIFICATION_GROUP_UPDATED` | SHOW | HIDE | HIDE | HIDE |
-| A037 | A037 | `NOTIFICATION_GROUP_DELETED` | SHOW | HIDE | HIDE | HIDE |
-| A038 | A038 | `USER_NOTIFICATION_PREFERENCE_UPDATED` | SHOW | HIDE | HIDE | HIDE |
+| A004 | SEC-001 | `USER_ROLE_ADDED` | SHOW | HIDE | HIDE | HIDE |
+| A005 | SEC-002 | `ACTIVE_ROLE_CHANGED` | SHOW | HIDE | HIDE | HIDE |
+| A006 | SEC-003 | `USER_PROFILE_UPDATED` | SHOW | HIDE | HIDE | HIDE |
+| A007 | SEC-004 | `USER_PROFILE_UPDATED_BY_ADMIN` | SHOW | HIDE | HIDE | HIDE |
+| A008 | SEC-005 | `PASSWORD_CHANGED` | SHOW | HIDE | HIDE | HIDE |
+| A009 | SEC-006 | `PASSWORD_CHANGE_FAILED` | SHOW | HIDE | HIDE | HIDE |
+| A010 | SEC-007 | `USER_EMAIL_VERIFIED` | SHOW | HIDE | HIDE | HIDE |
+| A011 | SEC-008 | `EMAIL_VERIFICATION_FAILED` | SHOW | HIDE | HIDE | HIDE |
+| A012 | SEC-009 | `ADMIN_ACCESS_DENIED` | SHOW | HIDE | HIDE | HIDE |
+| A013 | SEC-010 | `ADMIN_ROLE_CREATED` | SHOW | HIDE | HIDE | HIDE |
+| A014 | SEC-011 | `ADMIN_ROLE_PERMISSIONS_UPDATED` | SHOW | HIDE | HIDE | HIDE |
+| A015 | SEC-012 | `ADMIN_ROLE_DELETED` | SHOW | HIDE | HIDE | HIDE |
+| A016 | SEC-013 | `USER_ROLES_UPDATED` | SHOW | HIDE | HIDE | HIDE |
+| A017 | SEC-014 | `ADMIN_USER_ROLE_CHANGED` | SHOW | HIDE | HIDE | HIDE |
+| A018 | SEC-015 | `ADMIN_USER_DEACTIVATED` | SHOW | HIDE | HIDE | HIDE |
+| A019 | SEC-016 | `ADMIN_USER_REACTIVATED` | SHOW | HIDE | HIDE | HIDE |
+| A020 | SEC-017 | `ADMIN_INVITATION_CREATED` | SHOW | HIDE | HIDE | HIDE |
+| A021 | SEC-018 | `ADMIN_INVITATION_LINK_GENERATED` | SHOW | HIDE | HIDE | HIDE |
+| A022 | SEC-019 | `ADMIN_INVITATION_RESENT` | SHOW | HIDE | HIDE | HIDE |
+| A023 | SEC-020 | `ADMIN_INVITATION_REVOKED` | SHOW | HIDE | HIDE | HIDE |
+| A024 | SEC-021 | `ADMIN_INVITATION_ACCEPTED` | SHOW | HIDE | HIDE | HIDE |
+| A025 | SEC-022 | `USER_PUBLIC_ID_CHANGED` | SHOW | HIDE | HIDE | HIDE |
+| A026 | SEC-023 | `ORGANIZATION_MEMBER_INVITED` | SHOW | HIDE | HIDE | HIDE |
+| A027 | SEC-024 | `ORGANIZATION_MEMBER_JOINED` | SHOW | HIDE | HIDE | HIDE |
+| A028 | SEC-025 | `ORGANIZATION_MEMBER_REMOVED` | SHOW | HIDE | HIDE | HIDE |
+| A029 | SEC-026 | `ORGANIZATION_MEMBER_LEFT` | SHOW | HIDE | HIDE | HIDE |
+| A030 | SEC-027 | `ORGANIZATION_MEMBER_ROLE_UPDATED` | SHOW | HIDE | HIDE | HIDE |
+| A031 | SEC-028 | `ORGANIZATION_OWNERSHIP_TRANSFERRED` | SHOW | HIDE | HIDE | HIDE |
+| A032 | SEC-029 | `ORGANIZATION_INVITATION_REVOKED` | SHOW | HIDE | HIDE | HIDE |
+| A033 | SEC-030 | `ORGANIZATION_INVITATION_RESENT` | SHOW | HIDE | HIDE | HIDE |
+| A034 | SEC-031 | `NOTIFICATION_TYPE_UPDATED` | SHOW | HIDE | HIDE | HIDE |
+| A035 | SEC-032 | `NOTIFICATION_GROUP_CREATED` | SHOW | HIDE | HIDE | HIDE |
+| A036 | SEC-033 | `NOTIFICATION_GROUP_UPDATED` | SHOW | HIDE | HIDE | HIDE |
+| A037 | SEC-034 | `NOTIFICATION_GROUP_DELETED` | SHOW | HIDE | HIDE | HIDE |
+| A038 | SEC-035 | `USER_NOTIFICATION_PREFERENCE_UPDATED` | SHOW | HIDE | HIDE | HIDE |
 
 # A004 — USER_ROLE_ADDED
 
-Source Case: A004
+Source Case: SEC-001
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -966,7 +966,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A005 — ACTIVE_ROLE_CHANGED
 
-Source Case: A005
+Source Case: SEC-002
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -1160,7 +1160,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A006 — USER_PROFILE_UPDATED
 
-Source Case: A006
+Source Case: SEC-003
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -1354,7 +1354,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A007 — USER_PROFILE_UPDATED_BY_ADMIN
 
-Source Case: A007
+Source Case: SEC-004
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -1548,7 +1548,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A008 — PASSWORD_CHANGED
 
-Source Case: A008
+Source Case: SEC-005
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -1731,7 +1731,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A009 — PASSWORD_CHANGE_FAILED
 
-Source Case: A009
+Source Case: SEC-006
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -1914,7 +1914,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A010 — USER_EMAIL_VERIFIED
 
-Source Case: A010
+Source Case: SEC-007
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -2097,7 +2097,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A011 — EMAIL_VERIFICATION_FAILED
 
-Source Case: A011
+Source Case: SEC-008
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -2280,7 +2280,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A012 — ADMIN_ACCESS_DENIED
 
-Source Case: A012
+Source Case: SEC-009
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -2496,7 +2496,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A013 — ADMIN_ROLE_CREATED
 
-Source Case: A013
+Source Case: SEC-010
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -2690,7 +2690,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A014 — ADMIN_ROLE_PERMISSIONS_UPDATED
 
-Source Case: A014
+Source Case: SEC-011
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -2939,7 +2939,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A015 — ADMIN_ROLE_DELETED
 
-Source Case: A015
+Source Case: SEC-012
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -3122,7 +3122,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A016 — USER_ROLES_UPDATED
 
-Source Case: A016
+Source Case: SEC-013
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -3338,7 +3338,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A017 — ADMIN_USER_ROLE_CHANGED
 
-Source Case: A017
+Source Case: SEC-014
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -3521,7 +3521,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A018 — ADMIN_USER_DEACTIVATED
 
-Source Case: A018
+Source Case: SEC-015
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -3726,7 +3726,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A019 — ADMIN_USER_REACTIVATED
 
-Source Case: A019
+Source Case: SEC-016
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -3931,7 +3931,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A020 — ADMIN_INVITATION_CREATED
 
-Source Case: A020
+Source Case: SEC-017
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -4148,7 +4148,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A021 — ADMIN_INVITATION_LINK_GENERATED
 
-Source Case: A021
+Source Case: SEC-018
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -4364,7 +4364,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A022 — ADMIN_INVITATION_RESENT
 
-Source Case: A022
+Source Case: SEC-019
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -4581,7 +4581,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A023 — ADMIN_INVITATION_REVOKED
 
-Source Case: A023
+Source Case: SEC-020
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -4797,7 +4797,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A024 — ADMIN_INVITATION_ACCEPTED
 
-Source Case: A024
+Source Case: SEC-021
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -5013,7 +5013,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A025 — USER_PUBLIC_ID_CHANGED
 
-Source Case: A025
+Source Case: SEC-022
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -5196,7 +5196,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A026 — ORGANIZATION_MEMBER_INVITED
 
-Source Case: A026
+Source Case: SEC-023
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -5467,7 +5467,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A027 — ORGANIZATION_MEMBER_JOINED
 
-Source Case: A027
+Source Case: SEC-024
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -5738,7 +5738,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A028 — ORGANIZATION_MEMBER_REMOVED
 
-Source Case: A028
+Source Case: SEC-025
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -6009,7 +6009,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A029 — ORGANIZATION_MEMBER_LEFT
 
-Source Case: A029
+Source Case: SEC-026
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -6280,7 +6280,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A030 — ORGANIZATION_MEMBER_ROLE_UPDATED
 
-Source Case: A030
+Source Case: SEC-027
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -6551,7 +6551,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A031 — ORGANIZATION_OWNERSHIP_TRANSFERRED
 
-Source Case: A031
+Source Case: SEC-028
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -6822,7 +6822,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A032 — ORGANIZATION_INVITATION_REVOKED
 
-Source Case: A032
+Source Case: SEC-029
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -7093,7 +7093,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A033 — ORGANIZATION_INVITATION_RESENT
 
-Source Case: A033
+Source Case: SEC-030
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -7365,7 +7365,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A034 — NOTIFICATION_TYPE_UPDATED
 
-Source Case: A034
+Source Case: SEC-031
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -7570,7 +7570,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A035 — NOTIFICATION_GROUP_CREATED
 
-Source Case: A035
+Source Case: SEC-032
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -7764,7 +7764,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A036 — NOTIFICATION_GROUP_UPDATED
 
-Source Case: A036
+Source Case: SEC-033
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -7958,7 +7958,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A037 — NOTIFICATION_GROUP_DELETED
 
-Source Case: A037
+Source Case: SEC-034
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -8152,7 +8152,7 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A038 — USER_NOTIFICATION_PREFERENCE_UPDATED
 
-Source Case: A038
+Source Case: SEC-035
 Module: Security
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
@@ -8355,27 +8355,27 @@ Permission: onboarding.view
 
 | ID | Source Case | Event | Admin Raw | Admin Activity | Issuer | Investor |
 |---|---|---|---|---|---|---|
-| A039 | A039 | `ONBOARDING_STARTED` | SHOW | SHOW | SHOW | SHOW |
-| A040 | A040 | `ONBOARDING_RESUMED` | SHOW | SHOW | SHOW | SHOW |
-| A041 | A041 | `ONBOARDING_RESTARTED` | SHOW | SHOW | SHOW | SHOW |
-| A042 | A042 | `ONBOARDING_RESET` | SHOW | SHOW | HIDE | HIDE |
-| A043 | A043 | `USER_ONBOARDING_STATUS_UPDATED` | SHOW | HIDE | HIDE | HIDE |
-| A044 | A044 | `ONBOARDING_STATUS_CHANGED` | SHOW | HIDE | HIDE | HIDE |
-| A045 | A045 | `ONBOARDING_APPROVED` | SHOW | SHOW | SHOW | SHOW |
-| A046 | A046 | `ONBOARDING_REJECTED` | SHOW | SHOW | SHOW | SHOW |
-| A047 | A047 | `ONBOARDING_FINAL_APPROVAL_COMPLETED` | SHOW | SHOW | HIDE | HIDE |
-| A048 | A048 | `ONBOARDING_COMPLETED` | SHOW | SHOW | SHOW | SHOW |
-| A049 | A049 | `AML_APPROVED` | SHOW | SHOW | HIDE | HIDE |
-| A050 | A050 | `SSM_APPROVED` | SHOW | SHOW | HIDE | HIDE |
-| A051 | A051 | `INVESTOR_SOPHISTICATED_STATUS_UPDATED` | SHOW | SHOW | HIDE | CONDITIONAL |
-| A052 | A052 | `CTOS_REPORT_RECEIVED` | SHOW | SHOW | HIDE | HIDE |
-| A053 | A053 | `CORPORATE_ENTITIES_UPDATED` | SHOW | SHOW | HIDE | HIDE |
-| A054 | A054 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | SHOW | SHOW | CONDITIONAL | HIDE |
-| A055 | A055 | `DIRECTOR_KYC_STATUS_UPDATED` | SHOW | SHOW | CONDITIONAL | HIDE |
+| A039 | ONB-001 | `ONBOARDING_STARTED` | SHOW | SHOW | SHOW | SHOW |
+| A040 | ONB-002 | `ONBOARDING_RESUMED` | SHOW | SHOW | SHOW | SHOW |
+| A041 | ONB-003 | `ONBOARDING_RESTARTED` | SHOW | SHOW | SHOW | SHOW |
+| A042 | ONB-004 | `ONBOARDING_RESET` | SHOW | SHOW | HIDE | HIDE |
+| A043 | ONB-005 | `USER_ONBOARDING_STATUS_UPDATED` | SHOW | HIDE | HIDE | HIDE |
+| A044 | ONB-006 | `ONBOARDING_STATUS_CHANGED` | SHOW | HIDE | HIDE | HIDE |
+| A045 | ONB-007 | `ONBOARDING_APPROVED` | SHOW | SHOW | SHOW | SHOW |
+| A046 | ONB-008 | `ONBOARDING_REJECTED` | SHOW | SHOW | SHOW | SHOW |
+| A047 | ONB-009 | `ONBOARDING_FINAL_APPROVAL_COMPLETED` | SHOW | SHOW | HIDE | HIDE |
+| A048 | ONB-010 | `ONBOARDING_COMPLETED` | SHOW | SHOW | SHOW | SHOW |
+| A049 | ONB-011 | `AML_APPROVED` | SHOW | SHOW | HIDE | HIDE |
+| A050 | ONB-012 | `SSM_APPROVED` | SHOW | SHOW | HIDE | HIDE |
+| A051 | ONB-013 | `INVESTOR_SOPHISTICATED_STATUS_UPDATED` | SHOW | SHOW | HIDE | CONDITIONAL |
+| A052 | ONB-014 | `CTOS_REPORT_RECEIVED` | SHOW | SHOW | HIDE | HIDE |
+| A053 | ONB-015 | `CORPORATE_ENTITIES_UPDATED` | SHOW | SHOW | HIDE | HIDE |
+| A054 | ONB-016 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | SHOW | SHOW | CONDITIONAL | HIDE |
+| A055 | ONB-017 | `DIRECTOR_KYC_STATUS_UPDATED` | SHOW | SHOW | CONDITIONAL | HIDE |
 
 # A039 — ONBOARDING_STARTED
 
-Source Case: A039
+Source Case: ONB-001
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
@@ -8567,7 +8567,7 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A040 — ONBOARDING_RESUMED
 
-Source Case: A040
+Source Case: ONB-002
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
@@ -8770,7 +8770,7 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A041 — ONBOARDING_RESTARTED
 
-Source Case: A041
+Source Case: ONB-003
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
@@ -8985,7 +8985,7 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A042 — ONBOARDING_RESET
 
-Source Case: A042
+Source Case: ONB-004
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
@@ -9199,7 +9199,7 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A043 — USER_ONBOARDING_STATUS_UPDATED
 
-Source Case: A043
+Source Case: ONB-005
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
@@ -9391,7 +9391,7 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A044 — ONBOARDING_STATUS_CHANGED
 
-Source Case: A044
+Source Case: ONB-006
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
@@ -9595,7 +9595,7 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A045 — ONBOARDING_APPROVED
 
-Source Case: A045
+Source Case: ONB-007
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
@@ -9811,7 +9811,7 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A046 — ONBOARDING_REJECTED
 
-Source Case: A046
+Source Case: ONB-008
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
@@ -10025,7 +10025,7 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A047 — ONBOARDING_FINAL_APPROVAL_COMPLETED
 
-Source Case: A047
+Source Case: ONB-009
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
@@ -10217,7 +10217,7 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A048 — ONBOARDING_COMPLETED
 
-Source Case: A048
+Source Case: ONB-010
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
@@ -10409,7 +10409,7 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A049 — AML_APPROVED
 
-Source Case: A049
+Source Case: ONB-011
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
@@ -10657,7 +10657,7 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A050 — SSM_APPROVED
 
-Source Case: A050
+Source Case: ONB-012
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
@@ -10860,7 +10860,7 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A051 — INVESTOR_SOPHISTICATED_STATUS_UPDATED
 
-Source Case: A051
+Source Case: ONB-013
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
@@ -11077,7 +11077,7 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A052 — CTOS_REPORT_RECEIVED
 
-Source Case: A052
+Source Case: ONB-014
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
@@ -11269,7 +11269,7 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A053 — CORPORATE_ENTITIES_UPDATED
 
-Source Case: A053
+Source Case: ONB-015
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
@@ -11473,7 +11473,7 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A054 — DIRECTOR_ONBOARDING_INVITATION_SENT
 
-Source Case: A054
+Source Case: ONB-016
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
@@ -11667,7 +11667,7 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A055 — DIRECTOR_KYC_STATUS_UPDATED
 
-Source Case: A055
+Source Case: ONB-017
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
@@ -11883,17 +11883,17 @@ Permission: document_management.view
 
 | ID | Source Case | Event | Admin Raw | Admin Activity | Issuer | Investor |
 |---|---|---|---|---|---|---|
-| A056 | A056 | `LEGAL_DOCUMENT_CREATED` | SHOW | HIDE | HIDE | HIDE |
-| A057 | A057 | `LEGAL_DOCUMENT_UPDATED` | SHOW | HIDE | HIDE | HIDE |
-| A058 | A058 | `LEGAL_DOCUMENT_VERSION_UPLOADED` | SHOW | HIDE | HIDE | HIDE |
-| A059 | A059 | `LEGAL_DOCUMENT_VERSION_FILE_REPLACED` | SHOW | HIDE | HIDE | HIDE |
-| A060 | A060 | `LEGAL_DOCUMENT_VERSION_PUBLISHED` | SHOW | HIDE | HIDE | HIDE |
-| A061 | A061 | `LEGAL_DOCUMENT_VERSION_ARCHIVED` | SHOW | HIDE | HIDE | HIDE |
-| A062 | A062 | `LEGAL_DOCUMENT_VERSION_RESTORED` | SHOW | HIDE | HIDE | HIDE |
+| A056 | LEG-001 | `LEGAL_DOCUMENT_CREATED` | SHOW | HIDE | HIDE | HIDE |
+| A057 | LEG-002 | `LEGAL_DOCUMENT_UPDATED` | SHOW | HIDE | HIDE | HIDE |
+| A058 | LEG-003 | `LEGAL_DOCUMENT_VERSION_UPLOADED` | SHOW | HIDE | HIDE | HIDE |
+| A059 | LEG-004 | `LEGAL_DOCUMENT_VERSION_FILE_REPLACED` | SHOW | HIDE | HIDE | HIDE |
+| A060 | LEG-005 | `LEGAL_DOCUMENT_VERSION_PUBLISHED` | SHOW | HIDE | HIDE | HIDE |
+| A061 | LEG-006 | `LEGAL_DOCUMENT_VERSION_ARCHIVED` | SHOW | HIDE | HIDE | HIDE |
+| A062 | LEG-007 | `LEGAL_DOCUMENT_VERSION_RESTORED` | SHOW | HIDE | HIDE | HIDE |
 
 # A056 — LEGAL_DOCUMENT_CREATED
 
-Source Case: A056
+Source Case: LEG-001
 Module: Legal
 Audit Model: LegalAdminAuditLog
 DB Table: legal_admin_audit_logs
@@ -12132,7 +12132,7 @@ Admin `/audit?tab=legal-documents`, permission `document_management.view`, `Audi
 
 # A057 — LEGAL_DOCUMENT_UPDATED
 
-Source Case: A057
+Source Case: LEG-002
 Module: Legal
 Audit Model: LegalAdminAuditLog
 DB Table: legal_admin_audit_logs
@@ -12338,7 +12338,7 @@ Admin `/audit?tab=legal-documents`, permission `document_management.view`, `Audi
 
 # A058 — LEGAL_DOCUMENT_VERSION_UPLOADED
 
-Source Case: A058
+Source Case: LEG-003
 Module: Legal
 Audit Model: LegalAdminAuditLog
 DB Table: legal_admin_audit_logs
@@ -12588,7 +12588,7 @@ Admin `/audit?tab=legal-documents`, permission `document_management.view`, `Audi
 
 # A059 — LEGAL_DOCUMENT_VERSION_FILE_REPLACED
 
-Source Case: A059
+Source Case: LEG-004
 Module: Legal
 Audit Model: LegalAdminAuditLog
 DB Table: legal_admin_audit_logs
@@ -12871,7 +12871,7 @@ Admin `/audit?tab=legal-documents`, permission `document_management.view`, `Audi
 
 # A060 — LEGAL_DOCUMENT_VERSION_PUBLISHED
 
-Source Case: A060
+Source Case: LEG-005
 Module: Legal
 Audit Model: LegalAdminAuditLog
 DB Table: legal_admin_audit_logs
@@ -13154,7 +13154,7 @@ Admin `/audit?tab=legal-documents`, permission `document_management.view`, `Audi
 
 # A061 — LEGAL_DOCUMENT_VERSION_ARCHIVED
 
-Source Case: A061
+Source Case: LEG-006
 Module: Legal
 Audit Model: LegalAdminAuditLog
 DB Table: legal_admin_audit_logs
@@ -13426,7 +13426,7 @@ Admin `/audit?tab=legal-documents`, permission `document_management.view`, `Audi
 
 # A062 — LEGAL_DOCUMENT_VERSION_RESTORED
 
-Source Case: A062
+Source Case: LEG-007
 Module: Legal
 Audit Model: LegalAdminAuditLog
 DB Table: legal_admin_audit_logs
@@ -13718,50 +13718,50 @@ Permission: applications.view
 
 | ID | Source Case | Event | Admin Raw | Admin Activity | Issuer | Investor |
 |---|---|---|---|---|---|---|
-| A063 | A063 | `APPLICATION_CREATED` | SHOW | SHOW | SHOW | HIDE |
-| A064 | A064 | `APPLICATION_SUBMITTED` | SHOW | SHOW | SHOW | HIDE |
-| A065 | A065 | `APPLICATION_REVIEW_STARTED` | SHOW | SHOW | HIDE | HIDE |
-| A066 | A066 | `APPLICATION_RESUBMITTED` | SHOW | SHOW | SHOW | HIDE |
-| A067 | A067 | `APPLICATION_AMENDMENT_ACKNOWLEDGED` | SHOW | HIDE | HIDE | HIDE |
-| A068 | A068 | `APPLICATION_AMENDMENTS_REQUESTED` | SHOW | SHOW | SHOW | HIDE |
-| A069 | A069 | `APPLICATION_REOPENED_FOR_REVIEW` | SHOW | SHOW | SHOW | HIDE |
-| A070 | A070 | `APPLICATION_WITHDRAWN` | SHOW | SHOW | SHOW | HIDE |
-| A071 | A071 | `APPLICATION_REJECTED` | SHOW | SHOW | SHOW | HIDE |
-| A072 | A072 | `APPLICATION_ARCHIVED` | SHOW | HIDE | HIDE | HIDE |
-| A073 | A073 | `APPLICATION_DRAFT_DELETED` | SHOW | HIDE | HIDE | HIDE |
-| A074 | A074 | `APPLICATION_COMPLETED` | SHOW | SHOW | SHOW | HIDE |
-| A075 | A075 | `APPLICATION_SECTION_REVIEW_UPDATED` | SHOW | CONDITIONAL | CONDITIONAL | HIDE |
-| A076 | A076 | `APPLICATION_ITEM_REVIEW_UPDATED` | SHOW | HIDE | HIDE | HIDE |
-| A077 | A077 | `APPLICATION_DOCUMENT_UPLOADED` | SHOW | HIDE | HIDE | HIDE |
-| A078 | A078 | `APPLICATION_DOCUMENT_REMOVED` | SHOW | HIDE | HIDE | HIDE |
-| A079 | A079 | `APPLICATION_DOCUMENT_REPLACED` | SHOW | HIDE | HIDE | HIDE |
-| A080 | A080 | `CONTRACT_OFFER_SENT` | SHOW | SHOW | SHOW | HIDE |
-| A081 | A081 | `CONTRACT_OFFER_RETRACTED` | SHOW | SHOW | SHOW | HIDE |
-| A082 | A082 | `CONTRACT_SIGNING_DEADLINE_EXTENDED` | SHOW | SHOW | SHOW | HIDE |
-| A083 | A083 | `CONTRACT_OFFER_EXPIRED` | SHOW | SHOW | SHOW | HIDE |
-| A084 | A084 | `CONTRACT_ACCEPTANCE_SUBMITTED` | SHOW | SHOW | SHOW | HIDE |
-| A085 | A085 | `CONTRACT_ACCEPTANCE_RESUBMITTED` | SHOW | SHOW | SHOW | HIDE |
-| A086 | A086 | `CONTRACT_ACCEPTANCE_CHANGES_REQUESTED` | SHOW | SHOW | SHOW | HIDE |
-| A087 | A087 | `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING` | SHOW | SHOW | SHOW | HIDE |
-| A088 | A088 | `CONTRACT_OFFER_ACCEPTED` | SHOW | SHOW | SHOW | HIDE |
-| A089 | A089 | `CONTRACT_OFFER_REJECTED` | SHOW | SHOW | SHOW | HIDE |
-| A090 | A090 | `CONTRACT_WITHDRAWN` | SHOW | SHOW | SHOW | HIDE |
-| A091 | A091 | `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | SHOW | HIDE | HIDE | HIDE |
-| A092 | A092 | `INVOICE_OFFER_SENT` | SHOW | SHOW | SHOW | HIDE |
-| A093 | A093 | `INVOICE_OFFER_RETRACTED` | SHOW | SHOW | SHOW | HIDE |
-| A094 | A094 | `INVOICE_SIGNING_DEADLINE_EXTENDED` | SHOW | SHOW | SHOW | HIDE |
-| A095 | A095 | `INVOICE_OFFER_EXPIRED` | SHOW | SHOW | SHOW | HIDE |
-| A096 | A096 | `INVOICE_ACCEPTANCE_SUBMITTED` | SHOW | SHOW | SHOW | HIDE |
-| A097 | A097 | `INVOICE_ACCEPTANCE_RESUBMITTED` | SHOW | SHOW | SHOW | HIDE |
-| A098 | A098 | `INVOICE_ACCEPTANCE_CHANGES_REQUESTED` | SHOW | SHOW | SHOW | HIDE |
-| A099 | A099 | `INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING` | SHOW | SHOW | SHOW | HIDE |
-| A100 | A100 | `INVOICE_OFFER_ACCEPTED` | SHOW | SHOW | SHOW | HIDE |
-| A101 | A101 | `INVOICE_OFFER_REJECTED` | SHOW | SHOW | SHOW | HIDE |
-| A102 | A102 | `INVOICE_WITHDRAWN` | SHOW | SHOW | SHOW | HIDE |
+| A063 | APP-001 | `APPLICATION_CREATED` | SHOW | SHOW | SHOW | HIDE |
+| A064 | APP-002 | `APPLICATION_SUBMITTED` | SHOW | SHOW | SHOW | HIDE |
+| A065 | APP-003 | `APPLICATION_REVIEW_STARTED` | SHOW | SHOW | HIDE | HIDE |
+| A066 | APP-004 | `APPLICATION_RESUBMITTED` | SHOW | SHOW | SHOW | HIDE |
+| A067 | APP-005 | `APPLICATION_AMENDMENT_ACKNOWLEDGED` | SHOW | HIDE | HIDE | HIDE |
+| A068 | APP-006 | `APPLICATION_AMENDMENTS_REQUESTED` | SHOW | SHOW | SHOW | HIDE |
+| A069 | APP-007 | `APPLICATION_REOPENED_FOR_REVIEW` | SHOW | SHOW | SHOW | HIDE |
+| A070 | APP-008 | `APPLICATION_WITHDRAWN` | SHOW | SHOW | SHOW | HIDE |
+| A071 | APP-009 | `APPLICATION_REJECTED` | SHOW | SHOW | SHOW | HIDE |
+| A072 | APP-010 | `APPLICATION_ARCHIVED` | SHOW | HIDE | HIDE | HIDE |
+| A073 | APP-011 | `APPLICATION_DRAFT_DELETED` | SHOW | HIDE | HIDE | HIDE |
+| A074 | APP-012 | `APPLICATION_COMPLETED` | SHOW | SHOW | SHOW | HIDE |
+| A075 | APP-013 | `APPLICATION_SECTION_REVIEW_UPDATED` | SHOW | CONDITIONAL | CONDITIONAL | HIDE |
+| A076 | APP-014 | `APPLICATION_ITEM_REVIEW_UPDATED` | SHOW | HIDE | HIDE | HIDE |
+| A077 | APP-015 | `APPLICATION_DOCUMENT_UPLOADED` | SHOW | HIDE | HIDE | HIDE |
+| A078 | APP-016 | `APPLICATION_DOCUMENT_REMOVED` | SHOW | HIDE | HIDE | HIDE |
+| A079 | APP-017 | `APPLICATION_DOCUMENT_REPLACED` | SHOW | HIDE | HIDE | HIDE |
+| A080 | APP-018 | `CONTRACT_OFFER_SENT` | SHOW | SHOW | SHOW | HIDE |
+| A081 | APP-019 | `CONTRACT_OFFER_RETRACTED` | SHOW | SHOW | SHOW | HIDE |
+| A082 | APP-020 | `CONTRACT_SIGNING_DEADLINE_EXTENDED` | SHOW | SHOW | SHOW | HIDE |
+| A083 | APP-021 | `CONTRACT_OFFER_EXPIRED` | SHOW | SHOW | SHOW | HIDE |
+| A084 | APP-022 | `CONTRACT_ACCEPTANCE_SUBMITTED` | SHOW | SHOW | SHOW | HIDE |
+| A085 | APP-023 | `CONTRACT_ACCEPTANCE_RESUBMITTED` | SHOW | SHOW | SHOW | HIDE |
+| A086 | APP-024 | `CONTRACT_ACCEPTANCE_CHANGES_REQUESTED` | SHOW | SHOW | SHOW | HIDE |
+| A087 | APP-025 | `CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING` | SHOW | SHOW | SHOW | HIDE |
+| A088 | APP-026 | `CONTRACT_OFFER_ACCEPTED` | SHOW | SHOW | SHOW | HIDE |
+| A089 | APP-027 | `CONTRACT_OFFER_REJECTED` | SHOW | SHOW | SHOW | HIDE |
+| A090 | APP-028 | `CONTRACT_WITHDRAWN` | SHOW | SHOW | SHOW | HIDE |
+| A091 | APP-029 | `CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED` | SHOW | HIDE | HIDE | HIDE |
+| A092 | APP-030 | `INVOICE_OFFER_SENT` | SHOW | SHOW | SHOW | HIDE |
+| A093 | APP-031 | `INVOICE_OFFER_RETRACTED` | SHOW | SHOW | SHOW | HIDE |
+| A094 | APP-032 | `INVOICE_SIGNING_DEADLINE_EXTENDED` | SHOW | SHOW | SHOW | HIDE |
+| A095 | APP-033 | `INVOICE_OFFER_EXPIRED` | SHOW | SHOW | SHOW | HIDE |
+| A096 | APP-034 | `INVOICE_ACCEPTANCE_SUBMITTED` | SHOW | SHOW | SHOW | HIDE |
+| A097 | APP-035 | `INVOICE_ACCEPTANCE_RESUBMITTED` | SHOW | SHOW | SHOW | HIDE |
+| A098 | APP-036 | `INVOICE_ACCEPTANCE_CHANGES_REQUESTED` | SHOW | SHOW | SHOW | HIDE |
+| A099 | APP-037 | `INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING` | SHOW | SHOW | SHOW | HIDE |
+| A100 | APP-038 | `INVOICE_OFFER_ACCEPTED` | SHOW | SHOW | SHOW | HIDE |
+| A101 | APP-039 | `INVOICE_OFFER_REJECTED` | SHOW | SHOW | SHOW | HIDE |
+| A102 | APP-040 | `INVOICE_WITHDRAWN` | SHOW | SHOW | SHOW | HIDE |
 
 # A063 — APPLICATION_CREATED
 
-Source Case: A063
+Source Case: APP-001
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -13931,7 +13931,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A064 — APPLICATION_SUBMITTED
 
-Source Case: A064
+Source Case: APP-002
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -14123,7 +14123,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A065 — APPLICATION_REVIEW_STARTED
 
-Source Case: A065
+Source Case: APP-003
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -14304,7 +14304,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A066 — APPLICATION_RESUBMITTED
 
-Source Case: A066
+Source Case: APP-004
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -14518,7 +14518,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A067 — APPLICATION_AMENDMENT_ACKNOWLEDGED
 
-Source Case: A067
+Source Case: APP-005
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -14699,7 +14699,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A068 — APPLICATION_AMENDMENTS_REQUESTED
 
-Source Case: A068
+Source Case: APP-006
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -14891,7 +14891,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A069 — APPLICATION_REOPENED_FOR_REVIEW
 
-Source Case: A069
+Source Case: APP-007
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -15072,7 +15072,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A070 — APPLICATION_WITHDRAWN
 
-Source Case: A070
+Source Case: APP-008
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -15265,7 +15265,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A071 — APPLICATION_REJECTED
 
-Source Case: A071
+Source Case: APP-009
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -15458,7 +15458,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A072 — APPLICATION_ARCHIVED
 
-Source Case: A072
+Source Case: APP-010
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -15639,7 +15639,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A073 — APPLICATION_DRAFT_DELETED
 
-Source Case: A073
+Source Case: APP-011
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -15809,7 +15809,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A074 — APPLICATION_COMPLETED
 
-Source Case: A074
+Source Case: APP-012
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -15990,7 +15990,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A075 — APPLICATION_SECTION_REVIEW_UPDATED
 
-Source Case: A075
+Source Case: APP-013
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -16198,7 +16198,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A076 — APPLICATION_ITEM_REVIEW_UPDATED
 
-Source Case: A076
+Source Case: APP-014
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -16412,7 +16412,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A077 — APPLICATION_DOCUMENT_UPLOADED
 
-Source Case: A077
+Source Case: APP-015
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -16648,7 +16648,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A078 — APPLICATION_DOCUMENT_REMOVED
 
-Source Case: A078
+Source Case: APP-016
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -16884,7 +16884,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A079 — APPLICATION_DOCUMENT_REPLACED
 
-Source Case: A079
+Source Case: APP-017
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -17120,7 +17120,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A080 — CONTRACT_OFFER_SENT
 
-Source Case: A080
+Source Case: APP-018
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -17345,7 +17345,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A081 — CONTRACT_OFFER_RETRACTED
 
-Source Case: A081
+Source Case: APP-019
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -17537,7 +17537,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A082 — CONTRACT_SIGNING_DEADLINE_EXTENDED
 
-Source Case: A082
+Source Case: APP-020
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -17740,7 +17740,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A083 — CONTRACT_OFFER_EXPIRED
 
-Source Case: A083
+Source Case: APP-021
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -17943,7 +17943,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A084 — CONTRACT_ACCEPTANCE_SUBMITTED
 
-Source Case: A084
+Source Case: APP-022
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -18135,7 +18135,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A085 — CONTRACT_ACCEPTANCE_RESUBMITTED
 
-Source Case: A085
+Source Case: APP-023
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -18327,7 +18327,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A086 — CONTRACT_ACCEPTANCE_CHANGES_REQUESTED
 
-Source Case: A086
+Source Case: APP-024
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -18508,7 +18508,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A087 — CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING
 
-Source Case: A087
+Source Case: APP-025
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -18701,7 +18701,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A088 — CONTRACT_OFFER_ACCEPTED
 
-Source Case: A088
+Source Case: APP-026
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -18904,7 +18904,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A089 — CONTRACT_OFFER_REJECTED
 
-Source Case: A089
+Source Case: APP-027
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -19118,7 +19118,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A090 — CONTRACT_WITHDRAWN
 
-Source Case: A090
+Source Case: APP-028
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -19310,7 +19310,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A091 — CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED
 
-Source Case: A091
+Source Case: APP-029
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -19491,7 +19491,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A092 — INVOICE_OFFER_SENT
 
-Source Case: A092
+Source Case: APP-030
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -19716,7 +19716,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A093 — INVOICE_OFFER_RETRACTED
 
-Source Case: A093
+Source Case: APP-031
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -19908,7 +19908,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A094 — INVOICE_SIGNING_DEADLINE_EXTENDED
 
-Source Case: A094
+Source Case: APP-032
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -20111,7 +20111,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A095 — INVOICE_OFFER_EXPIRED
 
-Source Case: A095
+Source Case: APP-033
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -20314,7 +20314,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A096 — INVOICE_ACCEPTANCE_SUBMITTED
 
-Source Case: A096
+Source Case: APP-034
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -20506,7 +20506,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A097 — INVOICE_ACCEPTANCE_RESUBMITTED
 
-Source Case: A097
+Source Case: APP-035
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -20698,7 +20698,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A098 — INVOICE_ACCEPTANCE_CHANGES_REQUESTED
 
-Source Case: A098
+Source Case: APP-036
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -20879,7 +20879,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A099 — INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING
 
-Source Case: A099
+Source Case: APP-037
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -21072,7 +21072,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A100 — INVOICE_OFFER_ACCEPTED
 
-Source Case: A100
+Source Case: APP-038
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -21275,7 +21275,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A101 — INVOICE_OFFER_REJECTED
 
-Source Case: A101
+Source Case: APP-039
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -21489,7 +21489,7 @@ Admin raw: Application Detail → Audit History (`GET /v1/admin/applications/:id
 
 # A102 — INVOICE_WITHDRAWN
 
-Source Case: A102
+Source Case: APP-040
 Module: Application
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
@@ -21701,22 +21701,22 @@ Permission: applications.view
 
 | ID | Source Case | Event | Admin Raw | Admin Activity | Issuer | Investor |
 |---|---|---|---|---|---|---|
-| A103 | A103 | `SIGNING_PACKAGE_CREATED` | SHOW | SHOW | HIDE | HIDE |
-| A104 | A104 | `SIGNING_PACKAGE_SENT` | SHOW | SHOW | SHOW | HIDE |
-| A105 | A105 | `SIGNING_PACKAGE_COMPLETED` | SHOW | SHOW | SHOW | HIDE |
-| A106 | A106 | `SIGNING_PACKAGE_VOIDED` | SHOW | SHOW | SHOW | HIDE |
-| A107 | A107 | `SIGNING_PACKAGE_DECLINED` | SHOW | SHOW | SHOW | HIDE |
-| A108 | A108 | `SIGNING_PACKAGE_EXPIRED` | SHOW | SHOW | SHOW | HIDE |
-| A109 | A109 | `SIGNING_RECIPIENT_COMPLETED` | SHOW | SHOW | HIDE | HIDE |
-| A110 | A110 | `SIGNING_RECIPIENT_DECLINED` | SHOW | SHOW | SHOW | HIDE |
-| A111 | A111 | `SIGNING_EKYC_STARTED` | SHOW | HIDE | HIDE | HIDE |
-| A112 | A112 | `SIGNING_EKYC_VERIFIED` | SHOW | HIDE | HIDE | HIDE |
-| A113 | A113 | `SIGNING_EKYC_FAILED` | SHOW | SHOW | SHOW | HIDE |
-| A114 | A114 | `SIGNING_REMINDER_SENT` | SHOW | HIDE | HIDE | HIDE |
+| A103 | SIG-001 | `SIGNING_PACKAGE_CREATED` | SHOW | SHOW | HIDE | HIDE |
+| A104 | SIG-002 | `SIGNING_PACKAGE_SENT` | SHOW | SHOW | SHOW | HIDE |
+| A105 | SIG-003 | `SIGNING_PACKAGE_COMPLETED` | SHOW | SHOW | SHOW | HIDE |
+| A106 | SIG-004 | `SIGNING_PACKAGE_VOIDED` | SHOW | SHOW | SHOW | HIDE |
+| A107 | SIG-005 | `SIGNING_PACKAGE_DECLINED` | SHOW | SHOW | SHOW | HIDE |
+| A108 | SIG-006 | `SIGNING_PACKAGE_EXPIRED` | SHOW | SHOW | SHOW | HIDE |
+| A109 | SIG-007 | `SIGNING_RECIPIENT_COMPLETED` | SHOW | SHOW | HIDE | HIDE |
+| A110 | SIG-008 | `SIGNING_RECIPIENT_DECLINED` | SHOW | SHOW | SHOW | HIDE |
+| A111 | SIG-009 | `SIGNING_EKYC_STARTED` | SHOW | HIDE | HIDE | HIDE |
+| A112 | SIG-010 | `SIGNING_EKYC_VERIFIED` | SHOW | HIDE | HIDE | HIDE |
+| A113 | SIG-011 | `SIGNING_EKYC_FAILED` | SHOW | SHOW | SHOW | HIDE |
+| A114 | SIG-012 | `SIGNING_REMINDER_SENT` | SHOW | HIDE | HIDE | HIDE |
 
 # A103 — SIGNING_PACKAGE_CREATED
 
-Source Case: A103
+Source Case: SIG-001
 Module: Signing
 Audit Model: SigningAuditLog
 DB Table: signing_audit_logs
@@ -21942,7 +21942,7 @@ Admin raw: Application Detail → Audit History (merged) and `GET /envelopes/:id
 
 # A104 — SIGNING_PACKAGE_SENT
 
-Source Case: A104
+Source Case: SIG-002
 Module: Signing
 Audit Model: SigningAuditLog
 DB Table: signing_audit_logs
@@ -22135,7 +22135,7 @@ Admin raw: Application Detail → Audit History (merged) and `GET /envelopes/:id
 
 # A105 — SIGNING_PACKAGE_COMPLETED
 
-Source Case: A105
+Source Case: SIG-003
 Module: Signing
 Audit Model: SigningAuditLog
 DB Table: signing_audit_logs
@@ -22339,7 +22339,7 @@ Admin raw: Application Detail → Audit History (merged) and `GET /envelopes/:id
 
 # A106 — SIGNING_PACKAGE_VOIDED
 
-Source Case: A106
+Source Case: SIG-004
 Module: Signing
 Audit Model: SigningAuditLog
 DB Table: signing_audit_logs
@@ -22532,7 +22532,7 @@ Admin raw: Application Detail → Audit History (merged) and `GET /envelopes/:id
 
 # A107 — SIGNING_PACKAGE_DECLINED
 
-Source Case: A107
+Source Case: SIG-005
 Module: Signing
 Audit Model: SigningAuditLog
 DB Table: signing_audit_logs
@@ -22747,7 +22747,7 @@ Admin raw: Application Detail → Audit History (merged) and `GET /envelopes/:id
 
 # A108 — SIGNING_PACKAGE_EXPIRED
 
-Source Case: A108
+Source Case: SIG-006
 Module: Signing
 Audit Model: SigningAuditLog
 DB Table: signing_audit_logs
@@ -22952,7 +22952,7 @@ Admin raw: Application Detail → Audit History (merged) and `GET /envelopes/:id
 
 # A109 — SIGNING_RECIPIENT_COMPLETED
 
-Source Case: A109
+Source Case: SIG-007
 Module: Signing
 Audit Model: SigningAuditLog
 DB Table: signing_audit_logs
@@ -23167,7 +23167,7 @@ Admin raw: Application Detail → Audit History (merged) and `GET /envelopes/:id
 
 # A110 — SIGNING_RECIPIENT_DECLINED
 
-Source Case: A110
+Source Case: SIG-008
 Module: Signing
 Audit Model: SigningAuditLog
 DB Table: signing_audit_logs
@@ -23382,7 +23382,7 @@ Admin raw: Application Detail → Audit History (merged) and `GET /envelopes/:id
 
 # A111 — SIGNING_EKYC_STARTED
 
-Source Case: A111
+Source Case: SIG-009
 Module: Signing
 Audit Model: SigningAuditLog
 DB Table: signing_audit_logs
@@ -23608,7 +23608,7 @@ Admin raw: Application Detail → Audit History (merged) and `GET /envelopes/:id
 
 # A112 — SIGNING_EKYC_VERIFIED
 
-Source Case: A112
+Source Case: SIG-010
 Module: Signing
 Audit Model: SigningAuditLog
 DB Table: signing_audit_logs
@@ -23834,7 +23834,7 @@ Admin raw: Application Detail → Audit History (merged) and `GET /envelopes/:id
 
 # A113 — SIGNING_EKYC_FAILED
 
-Source Case: A113
+Source Case: SIG-011
 Module: Signing
 Audit Model: SigningAuditLog
 DB Table: signing_audit_logs
@@ -24060,7 +24060,7 @@ Admin raw: Application Detail → Audit History (merged) and `GET /envelopes/:id
 
 # A114 — SIGNING_REMINDER_SENT
 
-Source Case: A114
+Source Case: SIG-012
 Module: Signing
 Audit Model: SigningAuditLog
 DB Table: signing_audit_logs
@@ -24262,45 +24262,45 @@ Permission: notes.view (note-scoped); platform_settings.view (trustee signature)
 
 | ID | Source Case | Event | Admin Raw | Admin Activity | Issuer | Investor |
 |---|---|---|---|---|---|---|
-| A115 | A115 | `NOTE_CREATED` | SHOW | SHOW | SHOW | HIDE |
-| A116 | A116 | `NOTE_TERMS_UPDATED` | SHOW | SHOW | CONDITIONAL | HIDE |
-| A117 | A117 | `NOTE_PROSPECTUS_REVIEW_CREATED` | SHOW | SHOW | HIDE | HIDE |
-| A118 | A118 | `NOTE_PROSPECTUS_APPROVED` | SHOW | SHOW | HIDE | HIDE |
-| A119 | A119 | `NOTE_PROSPECTUS_INVALIDATED` | SHOW | SHOW | HIDE | HIDE |
-| A120 | A120 | `NOTE_PUBLISHED` | SHOW | SHOW | SHOW | HIDE |
-| A121 | A121 | `NOTE_UNPUBLISHED` | SHOW | SHOW | SHOW | HIDE |
-| A122 | A122 | `INVESTMENT_COMMITTED` | SHOW | SHOW | HIDE | CONDITIONAL |
-| A123 | A123 | `NOTE_FUNDING_CLOSED` | SHOW | SHOW | SHOW | CONDITIONAL |
-| A124 | A124 | `NOTE_FUNDING_FAILED` | SHOW | SHOW | SHOW | CONDITIONAL |
-| A125 | A125 | `NOTE_ACTIVATED` | SHOW | SHOW | SHOW | CONDITIONAL |
-| A126 | A126 | `NOTE_SERVICING_STATUS_CHANGED` | SHOW | SHOW | SHOW | CONDITIONAL |
-| A127 | A127 | `NOTE_MARKED_DEFAULT` | SHOW | SHOW | SHOW | CONDITIONAL |
-| A128 | A128 | `DISBURSEMENT_INITIATED` | SHOW | SHOW | HIDE | HIDE |
-| A129 | A129 | `DISBURSEMENT_LETTER_GENERATED` | SHOW | SHOW | HIDE | HIDE |
-| A130 | A130 | `DISBURSEMENT_SUBMITTED_TO_TRUSTEE` | SHOW | SHOW | HIDE | HIDE |
-| A131 | A131 | `DISBURSEMENT_BENEFICIARY_UPDATED` | SHOW | SHOW | HIDE | HIDE |
-| A132 | A132 | `DISBURSEMENT_COMPLETED` | SHOW | SHOW | SHOW | HIDE |
-| A133 | A133 | `RESIDUAL_RETURN_LETTER_GENERATED` | SHOW | SHOW | HIDE | HIDE |
-| A134 | A134 | `RESIDUAL_RETURN_SUBMITTED_TO_TRUSTEE` | SHOW | SHOW | HIDE | HIDE |
-| A135 | A135 | `RESIDUAL_RETURN_COMPLETED` | SHOW | SHOW | SHOW | HIDE |
-| A136 | A136 | `SHORAKA_ORDER_SUBMITTED` | SHOW | SHOW | HIDE | HIDE |
-| A137 | A137 | `SHORAKA_CERTIFICATE_RECEIVED` | SHOW | SHOW | HIDE | HIDE |
-| A138 | A138 | `REPAYMENT_SUBMITTED` | SHOW | SHOW | SHOW | HIDE |
-| A139 | A139 | `REPAYMENT_RECEIVED` | SHOW | SHOW | SHOW | HIDE |
-| A140 | A140 | `REPAYMENT_REJECTED` | SHOW | SHOW | SHOW | HIDE |
-| A141 | A141 | `SETTLEMENT_PREVIEWED` | SHOW | SHOW | HIDE | HIDE |
-| A142 | A142 | `SETTLEMENT_APPROVED` | SHOW | SHOW | HIDE | HIDE |
-| A143 | A143 | `SETTLEMENT_POSTED` | SHOW | SHOW | HIDE | CONDITIONAL |
-| A144 | A144 | `SERVICE_FEE_TRUSTEE_LETTER_GENERATED` | SHOW | SHOW | HIDE | HIDE |
-| A145 | A145 | `SERVICE_FEE_TRUSTEE_SUBMITTED` | SHOW | SHOW | HIDE | HIDE |
-| A146 | A146 | `SERVICE_FEE_TRUSTEE_COMPLETED` | SHOW | SHOW | HIDE | HIDE |
-| A147 | A147 | `ARREARS_LETTER_GENERATED` | SHOW | SHOW | HIDE | HIDE |
-| A148 | A148 | `DEFAULT_NOTICE_GENERATED` | SHOW | SHOW | HIDE | HIDE |
-| A149 | A149 | `TRUSTEE_SIGNATURE_UPDATED` | SHOW | HIDE | HIDE | HIDE |
+| A115 | NOTE-001 | `NOTE_CREATED` | SHOW | SHOW | SHOW | HIDE |
+| A116 | NOTE-002 | `NOTE_TERMS_UPDATED` | SHOW | SHOW | CONDITIONAL | HIDE |
+| A117 | NOTE-003 | `NOTE_PROSPECTUS_REVIEW_CREATED` | SHOW | SHOW | HIDE | HIDE |
+| A118 | NOTE-004 | `NOTE_PROSPECTUS_APPROVED` | SHOW | SHOW | HIDE | HIDE |
+| A119 | NOTE-005 | `NOTE_PROSPECTUS_INVALIDATED` | SHOW | SHOW | HIDE | HIDE |
+| A120 | NOTE-006 | `NOTE_PUBLISHED` | SHOW | SHOW | SHOW | HIDE |
+| A121 | NOTE-007 | `NOTE_UNPUBLISHED` | SHOW | SHOW | SHOW | HIDE |
+| A122 | NOTE-008 | `INVESTMENT_COMMITTED` | SHOW | SHOW | HIDE | CONDITIONAL |
+| A123 | NOTE-009 | `NOTE_FUNDING_CLOSED` | SHOW | SHOW | SHOW | CONDITIONAL |
+| A124 | NOTE-010 | `NOTE_FUNDING_FAILED` | SHOW | SHOW | SHOW | CONDITIONAL |
+| A125 | NOTE-011 | `NOTE_ACTIVATED` | SHOW | SHOW | SHOW | CONDITIONAL |
+| A126 | NOTE-012 | `NOTE_SERVICING_STATUS_CHANGED` | SHOW | SHOW | SHOW | CONDITIONAL |
+| A127 | NOTE-013 | `NOTE_MARKED_DEFAULT` | SHOW | SHOW | SHOW | CONDITIONAL |
+| A128 | NOTE-014 | `DISBURSEMENT_INITIATED` | SHOW | SHOW | HIDE | HIDE |
+| A129 | NOTE-015 | `DISBURSEMENT_LETTER_GENERATED` | SHOW | SHOW | HIDE | HIDE |
+| A130 | NOTE-016 | `DISBURSEMENT_SUBMITTED_TO_TRUSTEE` | SHOW | SHOW | HIDE | HIDE |
+| A131 | NOTE-017 | `DISBURSEMENT_BENEFICIARY_UPDATED` | SHOW | SHOW | HIDE | HIDE |
+| A132 | NOTE-018 | `DISBURSEMENT_COMPLETED` | SHOW | SHOW | SHOW | HIDE |
+| A133 | NOTE-019 | `RESIDUAL_RETURN_LETTER_GENERATED` | SHOW | SHOW | HIDE | HIDE |
+| A134 | NOTE-020 | `RESIDUAL_RETURN_SUBMITTED_TO_TRUSTEE` | SHOW | SHOW | HIDE | HIDE |
+| A135 | NOTE-021 | `RESIDUAL_RETURN_COMPLETED` | SHOW | SHOW | SHOW | HIDE |
+| A136 | NOTE-022 | `SHORAKA_ORDER_SUBMITTED` | SHOW | SHOW | HIDE | HIDE |
+| A137 | NOTE-023 | `SHORAKA_CERTIFICATE_RECEIVED` | SHOW | SHOW | HIDE | HIDE |
+| A138 | NOTE-024 | `REPAYMENT_SUBMITTED` | SHOW | SHOW | SHOW | HIDE |
+| A139 | NOTE-025 | `REPAYMENT_RECEIVED` | SHOW | SHOW | SHOW | HIDE |
+| A140 | NOTE-026 | `REPAYMENT_REJECTED` | SHOW | SHOW | SHOW | HIDE |
+| A141 | NOTE-027 | `SETTLEMENT_PREVIEWED` | SHOW | SHOW | HIDE | HIDE |
+| A142 | NOTE-028 | `SETTLEMENT_APPROVED` | SHOW | SHOW | HIDE | HIDE |
+| A143 | NOTE-029 | `SETTLEMENT_POSTED` | SHOW | SHOW | HIDE | CONDITIONAL |
+| A144 | NOTE-030 | `SERVICE_FEE_TRUSTEE_LETTER_GENERATED` | SHOW | SHOW | HIDE | HIDE |
+| A145 | NOTE-031 | `SERVICE_FEE_TRUSTEE_SUBMITTED` | SHOW | SHOW | HIDE | HIDE |
+| A146 | NOTE-032 | `SERVICE_FEE_TRUSTEE_COMPLETED` | SHOW | SHOW | HIDE | HIDE |
+| A147 | NOTE-033 | `ARREARS_LETTER_GENERATED` | SHOW | SHOW | HIDE | HIDE |
+| A148 | NOTE-034 | `DEFAULT_NOTICE_GENERATED` | SHOW | SHOW | HIDE | HIDE |
+| A149 | NOTE-035 | `TRUSTEE_SIGNATURE_UPDATED` | SHOW | HIDE | HIDE | HIDE |
 
 # A115 — NOTE_CREATED
 
-Source Case: A115
+Source Case: NOTE-001
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -24536,7 +24536,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A116 — NOTE_TERMS_UPDATED
 
-Source Case: A116
+Source Case: NOTE-002
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -24730,7 +24730,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A117 — NOTE_PROSPECTUS_REVIEW_CREATED
 
-Source Case: A117
+Source Case: NOTE-003
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -24922,7 +24922,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A118 — NOTE_PROSPECTUS_APPROVED
 
-Source Case: A118
+Source Case: NOTE-004
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -25147,7 +25147,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A119 — NOTE_PROSPECTUS_INVALIDATED
 
-Source Case: A119
+Source Case: NOTE-005
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -25350,7 +25350,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A120 — NOTE_PUBLISHED
 
-Source Case: A120
+Source Case: NOTE-006
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -25630,7 +25630,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A121 — NOTE_UNPUBLISHED
 
-Source Case: A121
+Source Case: NOTE-007
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -25877,7 +25877,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A122 — INVESTMENT_COMMITTED
 
-Source Case: A122
+Source Case: NOTE-008
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -26093,7 +26093,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A123 — NOTE_FUNDING_CLOSED
 
-Source Case: A123
+Source Case: NOTE-009
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -26364,7 +26364,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A124 — NOTE_FUNDING_FAILED
 
-Source Case: A124
+Source Case: NOTE-010
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -26635,7 +26635,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A125 — NOTE_ACTIVATED
 
-Source Case: A125
+Source Case: NOTE-011
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -26906,7 +26906,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A126 — NOTE_SERVICING_STATUS_CHANGED
 
-Source Case: A126
+Source Case: NOTE-012
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -27122,7 +27122,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A127 — NOTE_MARKED_DEFAULT
 
-Source Case: A127
+Source Case: NOTE-013
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -27349,7 +27349,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A128 — DISBURSEMENT_INITIATED
 
-Source Case: A128
+Source Case: NOTE-014
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -27608,7 +27608,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A129 — DISBURSEMENT_LETTER_GENERATED
 
-Source Case: A129
+Source Case: NOTE-015
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -27867,7 +27867,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A130 — DISBURSEMENT_SUBMITTED_TO_TRUSTEE
 
-Source Case: A130
+Source Case: NOTE-016
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -28126,7 +28126,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A131 — DISBURSEMENT_BENEFICIARY_UPDATED
 
-Source Case: A131
+Source Case: NOTE-017
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -28385,7 +28385,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A132 — DISBURSEMENT_COMPLETED
 
-Source Case: A132
+Source Case: NOTE-018
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -28644,7 +28644,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A133 — RESIDUAL_RETURN_LETTER_GENERATED
 
-Source Case: A133
+Source Case: NOTE-019
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -28903,7 +28903,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A134 — RESIDUAL_RETURN_SUBMITTED_TO_TRUSTEE
 
-Source Case: A134
+Source Case: NOTE-020
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -29162,7 +29162,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A135 — RESIDUAL_RETURN_COMPLETED
 
-Source Case: A135
+Source Case: NOTE-021
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -29421,7 +29421,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A136 — SHORAKA_ORDER_SUBMITTED
 
-Source Case: A136
+Source Case: NOTE-022
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -29635,7 +29635,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A137 — SHORAKA_CERTIFICATE_RECEIVED
 
-Source Case: A137
+Source Case: NOTE-023
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -29860,7 +29860,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A138 — REPAYMENT_SUBMITTED
 
-Source Case: A138
+Source Case: NOTE-024
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -30085,7 +30085,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A139 — REPAYMENT_RECEIVED
 
-Source Case: A139
+Source Case: NOTE-025
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -30310,7 +30310,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A140 — REPAYMENT_REJECTED
 
-Source Case: A140
+Source Case: NOTE-026
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -30535,7 +30535,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A141 — SETTLEMENT_PREVIEWED
 
-Source Case: A141
+Source Case: NOTE-027
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -30782,7 +30782,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A142 — SETTLEMENT_APPROVED
 
-Source Case: A142
+Source Case: NOTE-028
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -31029,7 +31029,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A143 — SETTLEMENT_POSTED
 
-Source Case: A143
+Source Case: NOTE-029
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -31278,7 +31278,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A144 — SERVICE_FEE_TRUSTEE_LETTER_GENERATED
 
-Source Case: A144
+Source Case: NOTE-030
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -31503,7 +31503,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A145 — SERVICE_FEE_TRUSTEE_SUBMITTED
 
-Source Case: A145
+Source Case: NOTE-031
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -31728,7 +31728,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A146 — SERVICE_FEE_TRUSTEE_COMPLETED
 
-Source Case: A146
+Source Case: NOTE-032
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -31953,7 +31953,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A147 — ARREARS_LETTER_GENERATED
 
-Source Case: A147
+Source Case: NOTE-033
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -32156,7 +32156,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A148 — DEFAULT_NOTICE_GENERATED
 
-Source Case: A148
+Source Case: NOTE-034
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -32359,7 +32359,7 @@ Admin raw (note-scoped): Note Detail → Audit History (`GET /v1/admin/notes/:id
 
 # A149 — TRUSTEE_SIGNATURE_UPDATED
 
-Source Case: A149
+Source Case: NOTE-035
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
@@ -32571,29 +32571,29 @@ Permission: gateway payment view; investor_withdrawals.view; gateway_reconciliat
 
 | ID | Source Case | Event | Admin Raw | Admin Activity | Issuer | Investor |
 |---|---|---|---|---|---|---|
-| A150 | A150 | `PAYMENT_INITIATED` | SHOW | HIDE | HIDE | HIDE |
-| A151 | A151 | `PAYMENT_CAPTURED` | SHOW | HIDE | HIDE | HIDE |
-| A152 | A152 | `PAYMENT_FAILED` | SHOW | HIDE | HIDE | SHOW |
-| A153 | A153 | `PAYMENT_EXPIRED` | SHOW | HIDE | HIDE | SHOW |
-| A154 | A154 | `PAYMENT_CAPTURE_MISMATCH_DETECTED` | SHOW | HIDE | HIDE | HIDE |
-| A155 | A155 | `PAYMENT_REFUND_INITIATED` | SHOW | HIDE | HIDE | CONDITIONAL |
-| A156 | A156 | `PAYMENT_REFUNDED` | SHOW | HIDE | HIDE | CONDITIONAL |
-| A157 | A157 | `PAYMENT_REFUND_WALLET_REVERSAL_FAILED` | SHOW | HIDE | HIDE | HIDE |
-| A158 | A158 | `PAYMENT_NAME_CHECK_PENDING` | SHOW | HIDE | HIDE | HIDE |
-| A159 | A159 | `PAYMENT_NAME_CHECK_APPROVED` | SHOW | HIDE | HIDE | HIDE |
-| A160 | A160 | `PAYMENT_NAME_CHECK_REJECTED` | SHOW | HIDE | HIDE | SHOW |
-| A161 | A161 | `INVESTOR_DEPOSIT_RECEIVED` | SHOW | HIDE | HIDE | SHOW |
-| A162 | A162 | `INVESTOR_WITHDRAWAL_REQUESTED` | SHOW | HIDE | HIDE | SHOW |
-| A163 | A163 | `INVESTOR_WITHDRAWAL_LETTER_GENERATED` | SHOW | HIDE | HIDE | HIDE |
-| A164 | A164 | `INVESTOR_WITHDRAWAL_BENEFICIARY_UPDATED` | SHOW | HIDE | HIDE | HIDE |
-| A165 | A165 | `INVESTOR_WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | SHOW | HIDE | HIDE | SHOW |
-| A166 | A166 | `INVESTOR_WITHDRAWAL_COMPLETED` | SHOW | HIDE | HIDE | SHOW |
-| A167 | A167 | `PAYMENT_RECONCILIATION_EXCEPTION_DETECTED` | SHOW | HIDE | HIDE | HIDE |
-| A168 | A168 | `PAYMENT_RECONCILIATION_EXCEPTION_RESOLVED` | SHOW | HIDE | HIDE | HIDE |
+| A150 | PAY-001 | `PAYMENT_INITIATED` | SHOW | HIDE | HIDE | HIDE |
+| A151 | PAY-002 | `PAYMENT_CAPTURED` | SHOW | HIDE | HIDE | HIDE |
+| A152 | PAY-003 | `PAYMENT_FAILED` | SHOW | HIDE | HIDE | SHOW |
+| A153 | PAY-004 | `PAYMENT_EXPIRED` | SHOW | HIDE | HIDE | SHOW |
+| A154 | PAY-005 | `PAYMENT_CAPTURE_MISMATCH_DETECTED` | SHOW | HIDE | HIDE | HIDE |
+| A155 | PAY-006 | `PAYMENT_REFUND_INITIATED` | SHOW | HIDE | HIDE | CONDITIONAL |
+| A156 | PAY-007 | `PAYMENT_REFUNDED` | SHOW | HIDE | HIDE | CONDITIONAL |
+| A157 | PAY-008 | `PAYMENT_REFUND_WALLET_REVERSAL_FAILED` | SHOW | HIDE | HIDE | HIDE |
+| A158 | PAY-009 | `PAYMENT_NAME_CHECK_PENDING` | SHOW | HIDE | HIDE | HIDE |
+| A159 | PAY-010 | `PAYMENT_NAME_CHECK_APPROVED` | SHOW | HIDE | HIDE | HIDE |
+| A160 | PAY-011 | `PAYMENT_NAME_CHECK_REJECTED` | SHOW | HIDE | HIDE | SHOW |
+| A161 | PAY-012 | `INVESTOR_DEPOSIT_RECEIVED` | SHOW | HIDE | HIDE | SHOW |
+| A162 | PAY-013 | `INVESTOR_WITHDRAWAL_REQUESTED` | SHOW | HIDE | HIDE | SHOW |
+| A163 | PAY-014 | `INVESTOR_WITHDRAWAL_LETTER_GENERATED` | SHOW | HIDE | HIDE | HIDE |
+| A164 | PAY-015 | `INVESTOR_WITHDRAWAL_BENEFICIARY_UPDATED` | SHOW | HIDE | HIDE | HIDE |
+| A165 | PAY-016 | `INVESTOR_WITHDRAWAL_SUBMITTED_TO_TRUSTEE` | SHOW | HIDE | HIDE | SHOW |
+| A166 | PAY-017 | `INVESTOR_WITHDRAWAL_COMPLETED` | SHOW | HIDE | HIDE | SHOW |
+| A167 | PAY-018 | `PAYMENT_RECONCILIATION_EXCEPTION_DETECTED` | SHOW | HIDE | HIDE | HIDE |
+| A168 | PAY-019 | `PAYMENT_RECONCILIATION_EXCEPTION_RESOLVED` | SHOW | HIDE | HIDE | HIDE |
 
 # A150 — PAYMENT_INITIATED
 
-Source Case: A150
+Source Case: PAY-001
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -32818,7 +32818,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A151 — PAYMENT_CAPTURED
 
-Source Case: A151
+Source Case: PAY-002
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -33067,7 +33067,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A152 — PAYMENT_FAILED
 
-Source Case: A152
+Source Case: PAY-003
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -33272,7 +33272,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A153 — PAYMENT_EXPIRED
 
-Source Case: A153
+Source Case: PAY-004
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -33477,7 +33477,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A154 — PAYMENT_CAPTURE_MISMATCH_DETECTED
 
-Source Case: A154
+Source Case: PAY-005
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -33747,7 +33747,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A155 — PAYMENT_REFUND_INITIATED
 
-Source Case: A155
+Source Case: PAY-006
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -33985,7 +33985,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A156 — PAYMENT_REFUNDED
 
-Source Case: A156
+Source Case: PAY-007
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -34223,7 +34223,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A157 — PAYMENT_REFUND_WALLET_REVERSAL_FAILED
 
-Source Case: A157
+Source Case: PAY-008
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -34459,7 +34459,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A158 — PAYMENT_NAME_CHECK_PENDING
 
-Source Case: A158
+Source Case: PAY-009
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -34673,7 +34673,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A159 — PAYMENT_NAME_CHECK_APPROVED
 
-Source Case: A159
+Source Case: PAY-010
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -34887,7 +34887,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A160 — PAYMENT_NAME_CHECK_REJECTED
 
-Source Case: A160
+Source Case: PAY-011
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -35103,7 +35103,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A161 — INVESTOR_DEPOSIT_RECEIVED
 
-Source Case: A161
+Source Case: PAY-012
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -35330,7 +35330,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A162 — INVESTOR_WITHDRAWAL_REQUESTED
 
-Source Case: A162
+Source Case: PAY-013
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -35590,7 +35590,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A163 — INVESTOR_WITHDRAWAL_LETTER_GENERATED
 
-Source Case: A163
+Source Case: PAY-014
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -35848,7 +35848,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A164 — INVESTOR_WITHDRAWAL_BENEFICIARY_UPDATED
 
-Source Case: A164
+Source Case: PAY-015
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -36106,7 +36106,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A165 — INVESTOR_WITHDRAWAL_SUBMITTED_TO_TRUSTEE
 
-Source Case: A165
+Source Case: PAY-016
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -36366,7 +36366,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A166 — INVESTOR_WITHDRAWAL_COMPLETED
 
-Source Case: A166
+Source Case: PAY-017
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -36626,7 +36626,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A167 — PAYMENT_RECONCILIATION_EXCEPTION_DETECTED
 
-Source Case: A167
+Source Case: PAY-018
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -36840,7 +36840,7 @@ Gateway payment events: Gateway Payment → Audit History. Investor withdrawal e
 
 # A168 — PAYMENT_RECONCILIATION_EXCEPTION_RESOLVED
 
-Source Case: A168
+Source Case: PAY-019
 Module: Payment
 Audit Model: PaymentAuditLog
 DB Table: payment_audit_logs
@@ -37063,15 +37063,15 @@ Permission: audit.product.view
 
 | ID | Source Case | Event | Admin Raw | Admin Activity | Issuer | Investor |
 |---|---|---|---|---|---|---|
-| A169 | A169 | `PRODUCT_CREATED` | SHOW | HIDE | HIDE | HIDE |
-| A170 | A170 | `PRODUCT_UPDATED` | SHOW | HIDE | HIDE | HIDE |
-| A171 | A171 | `PRODUCT_INACTIVATED` | SHOW | HIDE | HIDE | HIDE |
-| A172 | A172 | `PRODUCT_REACTIVATED` | SHOW | HIDE | HIDE | HIDE |
-| A173 | A173 | `PRODUCT_DELETED` | SHOW | HIDE | HIDE | HIDE |
+| A169 | PRD-001 | `PRODUCT_CREATED` | SHOW | HIDE | HIDE | HIDE |
+| A170 | PRD-002 | `PRODUCT_UPDATED` | SHOW | HIDE | HIDE | HIDE |
+| A171 | PRD-003 | `PRODUCT_INACTIVATED` | SHOW | HIDE | HIDE | HIDE |
+| A172 | PRD-004 | `PRODUCT_REACTIVATED` | SHOW | HIDE | HIDE | HIDE |
+| A173 | PRD-005 | `PRODUCT_DELETED` | SHOW | HIDE | HIDE | HIDE |
 
 # A169 — PRODUCT_CREATED
 
-Source Case: A169
+Source Case: PRD-001
 Module: Product
 Audit Model: ProductAuditLog
 DB Table: product_audit_logs
@@ -37293,7 +37293,7 @@ Admin `/audit?tab=products`, permission `audit.product.view`, `AuditLogDetailShe
 
 # A170 — PRODUCT_UPDATED
 
-Source Case: A170
+Source Case: PRD-002
 Module: Product
 Audit Model: ProductAuditLog
 DB Table: product_audit_logs
@@ -37537,7 +37537,7 @@ Admin `/audit?tab=products`, permission `audit.product.view`, `AuditLogDetailShe
 
 # A171 — PRODUCT_INACTIVATED
 
-Source Case: A171
+Source Case: PRD-003
 Module: Product
 Audit Model: ProductAuditLog
 DB Table: product_audit_logs
@@ -37749,7 +37749,7 @@ Admin `/audit?tab=products`, permission `audit.product.view`, `AuditLogDetailShe
 
 # A172 — PRODUCT_REACTIVATED
 
-Source Case: A172
+Source Case: PRD-004
 Module: Product
 Audit Model: ProductAuditLog
 DB Table: product_audit_logs
@@ -37962,7 +37962,7 @@ Admin `/audit?tab=products`, permission `audit.product.view`, `AuditLogDetailShe
 
 # A173 — PRODUCT_DELETED
 
-Source Case: A173
+Source Case: PRD-005
 Module: Product
 Audit Model: ProductAuditLog
 DB Table: product_audit_logs
@@ -38160,11 +38160,11 @@ Permission: notifications.view
 
 | ID | Source Case | Event | Admin Raw | Admin Activity | Issuer | Investor |
 |---|---|---|---|---|---|---|
-| A174 | A174 | `NOTIFICATION_BROADCAST_PROCESSED` | SHOW | HIDE | HIDE | HIDE |
+| A174 | NTF-001 | `NOTIFICATION_BROADCAST_PROCESSED` | SHOW | HIDE | HIDE | HIDE |
 
 # A174 — NOTIFICATION_BROADCAST_PROCESSED
 
-Source Case: A174
+Source Case: NTF-001
 Module: Notification
 Audit Model: NotificationBroadcastAuditLog
 DB Table: notification_broadcast_audit_logs
