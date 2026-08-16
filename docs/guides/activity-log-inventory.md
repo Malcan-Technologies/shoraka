@@ -47,11 +47,11 @@ The investor page shows investor-scoped onboarding activity and curated note mil
   - Description: `Your organization onboarding was restarted.`
 - Raw types: `ONBOARDING_STATUS_CHANGED` (conditional — review and amendment only)
   - Domain badge: `Onboarding`
-  - `IN_PROGRESS`/`PENDING` → `PENDING_SSM_REVIEW`: Title `Verification submitted`. Description: `The organisation was submitted for company verification review.`
-  - `IN_PROGRESS`/`PENDING` → `PENDING_APPROVAL`: Title `Verification submitted`. Description: `The organisation was submitted for onboarding review.`
-  - `PENDING_SSM_REVIEW`/`PENDING_APPROVAL` → `PENDING_AMENDMENT`: Title `Amendment requested`. Description: `The organisation was sent back to update verification details.`
-  - `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW`: Title `Verification resubmitted`. Description: `Updated verification was submitted and review resumed.`
-  - Unexpected transitions use title `Onboarding stage updated` on admin only and are not investor-visible.
+  - `IN_PROGRESS`/`PENDING` → `PENDING_SSM_REVIEW`: Title `Verification Submitted`. Description: `The organisation was submitted for company verification review.`
+  - `IN_PROGRESS`/`PENDING` → `PENDING_APPROVAL`: Title `Verification Submitted`. Description: `The organisation was submitted for onboarding review.`
+  - `PENDING_SSM_REVIEW`/`PENDING_APPROVAL` → `PENDING_AMENDMENT`: Title `Amendment Requested`. Description: `The organisation was sent back to update verification details.`
+  - `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW`: Title `Verification Resubmitted`. Description: `Updated verification was submitted and review resumed.`
+  - Unexpected transitions use title `Onboarding Stage Updated` on admin only and are not investor-visible.
 - Raw types: `ONBOARDING_REJECTED`
   - Domain badge: `Onboarding`
   - Title: `Onboarding Rejected`
@@ -109,7 +109,7 @@ Visible onboarding events match the investor portal for the shared user-facing s
 
 - `ONBOARDING_STARTED` -> `Onboarding Started`
 - `ONBOARDING_RESTARTED` -> `Onboarding Restarted`
-- `ONBOARDING_STATUS_CHANGED` (review/amendment only) -> `Verification submitted` / `Amendment requested` / `Verification resubmitted`
+- `ONBOARDING_STATUS_CHANGED` (review/amendment only) -> `Verification Submitted` / `Amendment Requested` / `Verification Resubmitted`
 - `ONBOARDING_REJECTED` -> `Onboarding Rejected`
 - `ONBOARDING_APPROVED` -> `Onboarding Submission Approved`
 - `ONBOARDING_COMPLETED` -> `Onboarding Completed`

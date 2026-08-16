@@ -82,6 +82,41 @@ import {
 import { createApiClient, formatCurrency, useAuthToken } from "@cashsouk/config";
 import { formatApiErrorMessage } from "@/lib/format-api-error-message";
 
+function yesNo(value: boolean): string {
+  return value ? "Accepted" : "Not accepted";
+}
+
+function approvedPending(value: boolean): string {
+  return value ? "Approved" : "Pending";
+}
+
+function organizationCurrentStageLabel(org: OrganizationDetailResponse): string {
+  if (org.onboardingStatus === "REJECTED") return "Rejected";
+  if (!org.tncAccepted) return "Terms";
+  if (org.portal === "issuer" && org.type === "COMPANY" && !org.onboardingFeePaid) return "Fee";
+  if (org.onboardingStatus === "COMPLETED") return "Completed";
+  if (
+    org.onboardingStatus === "PENDING_APPROVAL" ||
+    org.onboardingStatus === "PENDING_AML" ||
+    org.onboardingStatus === "PENDING_AMENDMENT" ||
+    org.onboardingStatus === "PENDING_SSM_REVIEW" ||
+    org.onboardingStatus === "PENDING_FINAL_APPROVAL"
+  ) {
+    return "Approval";
+  }
+  if (org.onboardingStatus === "IN_PROGRESS" || org.onboardingStatus === "PENDING") {
+    return "Verification";
+  }
+  return getOrganizationOnboardingPresentation(org.onboardingStatus).label;
+}
+
+function organizationFinalApprovalLabel(status: OrganizationDetailResponse["onboardingStatus"]): string {
+  if (status === "COMPLETED") return "Completed";
+  if (status === "PENDING_FINAL_APPROVAL") return "Pending";
+  if (status === "REJECTED") return "Not applicable";
+  return "Pending";
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 function DetailRow({
   label,
@@ -1118,6 +1153,53 @@ export default function OrganizationDetailPage() {
                           COD: {org.codRequestId}
                         </p>
                       )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <ShieldCheckIcon className="h-4 w-4" />
+                      Onboarding
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6">
+                      <DetailRow
+                        label="Status"
+                        value={getOrganizationOnboardingPresentation(org.onboardingStatus, {
+                          completedLabel: "Onboarded",
+                        }).label}
+                      />
+                      <DetailRow label="Current stage" value={organizationCurrentStageLabel(org)} />
+                      <DetailRow label="T&C" value={yesNo(org.tncAccepted)} />
+                      {org.portal === "issuer" && org.type === "COMPANY" ? (
+                        <DetailRow
+                          label="Fee"
+                          value={org.onboardingFeePaid ? "Paid" : "Unpaid"}
+                        />
+                      ) : null}
+                      {org.type === "COMPANY" ? (
+                        <DetailRow label="SSM" value={approvedPending(org.ssmApproved)} />
+                      ) : null}
+                      <DetailRow
+                        label="Onboarding approval"
+                        value={approvedPending(org.onboardingApproved)}
+                      />
+                      <DetailRow label="AML" value={approvedPending(org.amlApproved)} />
+                      <DetailRow
+                        label="Final approval"
+                        value={organizationFinalApprovalLabel(org.onboardingStatus)}
+                      />
+                      <DetailRow
+                        label="RegTank session"
+                        value={
+                          org.regtankSessionStatus
+                            ? toTitleCase(org.regtankSessionStatus)
+                            : "None"
+                        }
+                      />
                     </div>
                   </CardContent>
                 </Card>

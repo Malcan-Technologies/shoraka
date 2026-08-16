@@ -2695,6 +2695,12 @@ export class AdminService {
     regtankPortalUrl: string | null;
     regtankRequestId: string | null;
     codRequestId: string | null;
+    tncAccepted: boolean;
+    onboardingFeePaid: boolean;
+    ssmApproved: boolean;
+    onboardingApproved: boolean;
+    amlApproved: boolean;
+    regtankSessionStatus: string | null;
     applications?: {
       id: string;
       status: string;
@@ -3064,6 +3070,7 @@ export class AdminService {
                   ? (ctosPartySupplements ?? null)
                   : (investorCtosPartySupplements ?? null),
               corporateEntities: org.corporate_entities ?? null,
+              parentCorporateRequestId: codRequestId,
             });
             return {
               people: partyBuild.people,
@@ -3104,6 +3111,13 @@ export class AdminService {
       // Build RegTank portal URL from latest onboarding record
       regtankRequestId: org.regtank_onboarding?.[0]?.request_id ?? null,
       codRequestId,
+      tncAccepted: Boolean(org.tnc_accepted),
+      onboardingFeePaid: portal === "issuer" ? Boolean(org.onboarding_fee_paid_at) : false,
+      ssmApproved:
+        portal === "investor" ? Boolean(org.ssm_approved) : Boolean(org.ssm_checked),
+      onboardingApproved: Boolean(org.onboarding_approved),
+      amlApproved: Boolean(org.aml_approved),
+      regtankSessionStatus: org.regtank_onboarding?.[0]?.status ?? null,
       regtankPortalUrl: (() => {
         const requestId = org.regtank_onboarding?.[0]?.request_id;
         if (!requestId) return null;
@@ -3527,6 +3541,7 @@ export class AdminService {
       issuerDirectorAmlStatus: organizationForPeople?.director_aml_status ?? null,
       ctosPartySupplements: organizationForPeople?.ctos_party_supplements ?? null,
       corporateEntities: existingResponse.corporateEntities ?? null,
+      parentCorporateRequestId: refreshed.request_id,
     });
 
     return {

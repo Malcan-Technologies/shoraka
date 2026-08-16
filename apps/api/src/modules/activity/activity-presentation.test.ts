@@ -88,7 +88,7 @@ describe("Activity presentation copy", () => {
         trigger: "COD_WAIT_FOR_APPROVAL",
       });
       expect(submittedSsm).toEqual({
-        title: "Verification submitted",
+        title: "Verification Submitted",
         description: "The organisation was submitted for company verification review.",
       });
 
@@ -98,7 +98,7 @@ describe("Activity presentation copy", () => {
         trigger: "LIVENESS_PASSED",
       });
       expect(submittedApproval).toEqual({
-        title: "Verification submitted",
+        title: "Verification Submitted",
         description: "The organisation was submitted for onboarding review.",
       });
 
@@ -108,7 +108,7 @@ describe("Activity presentation copy", () => {
         trigger: "URL_GENERATED",
       });
       expect(amendment).toEqual({
-        title: "Amendment requested",
+        title: "Amendment Requested",
         description: "The organisation was sent back to update verification details.",
       });
 
@@ -118,7 +118,7 @@ describe("Activity presentation copy", () => {
         trigger: "COD_WAIT_FOR_APPROVAL",
       });
       expect(resubmitted).toEqual({
-        title: "Verification resubmitted",
+        title: "Verification Resubmitted",
         description: "Updated verification was submitted and review resumed.",
       });
 
@@ -135,7 +135,7 @@ describe("Activity presentation copy", () => {
         newStatus: "PENDING_AML",
         trigger: "REGTANK_APPROVED",
       });
-      expect(fallback.title).toBe("Onboarding stage updated");
+      expect(fallback.title).toBe("Onboarding Stage Updated");
       expect(fallback.description).toBe(
         "Onboarding moved from Pending Approval to Pending AML."
       );

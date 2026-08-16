@@ -181,7 +181,11 @@ export function OrganizationActivityTimeline({
                   {logs.map((log, index) => {
                     const eventType = log.eventType;
                     const isFirst = index === 0;
-                    const actorName = log.actor.displayName || "System";
+                    const actorType = String(log.actor?.type ?? "").trim().toUpperCase();
+                    const isIntegrationActor = actorType === "INTEGRATION" || actorType === "SYSTEM";
+                    const resolvedName = String(log.actor.displayName ?? "").trim();
+                    const actorName = !isIntegrationActor && resolvedName ? resolvedName : "System";
+                    const showDeviceAndIp = !isIntegrationActor;
                     const metadata = log.metadata as Record<string, unknown> | null;
                     const description = buildEventDescription(eventType, metadata);
 
@@ -202,37 +206,35 @@ export function OrganizationActivityTimeline({
                           </div>
 
                           {description ? (
-                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                            <p className="text-xs text-muted-foreground mt-0.5 break-words">
                               {description}
                             </p>
                           ) : null}
 
                           {/* Actor + context row */}
-                          <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground/70">
-                            <span className="inline-flex items-center gap-0.5">
-                              <UserIcon className="h-3 w-3" />
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[11px] text-muted-foreground/70">
+                            <span className="inline-flex items-center gap-0.5 whitespace-nowrap max-w-full">
+                              <UserIcon className="h-3 w-3 shrink-0" />
                               {actorName}
                             </span>
-                            {log.portal && (
-                              <span className="inline-flex items-center gap-0.5">
-                                <GlobeAltIcon className="h-3 w-3" />
+                            {actorType === "ADMIN" ? (
+                              <span className="whitespace-nowrap">ADMIN</span>
+                            ) : log.portal ? (
+                              <span className="inline-flex items-center gap-0.5 whitespace-nowrap">
+                                <GlobeAltIcon className="h-3 w-3 shrink-0" />
                                 {log.portal}
                               </span>
-                            )}
-                            {log.deviceInfo && (
-                              <span className="inline-flex items-center gap-0.5">
-                                <ComputerDesktopIcon className="h-3 w-3" />
-                                {log.deviceInfo}
+                            ) : null}
+                            {showDeviceAndIp && log.deviceInfo ? (
+                              <span className="inline-flex items-center gap-0.5 min-w-0">
+                                <ComputerDesktopIcon className="h-3 w-3 shrink-0" />
+                                <span className="break-all">{log.deviceInfo}</span>
                               </span>
-                            )}
+                            ) : null}
+                            {showDeviceAndIp && log.ipAddress ? (
+                              <span className="font-mono break-all">{log.ipAddress}</span>
+                            ) : null}
                           </div>
-
-                          {/* IP address */}
-                          {log.ipAddress && (
-                            <p className="text-[10px] text-muted-foreground/50 font-mono mt-0.5">
-                              {log.ipAddress}
-                            </p>
-                          )}
 
                           {/* Timestamp */}
                           <p

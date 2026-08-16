@@ -858,8 +858,8 @@ The frontend follows this status as the single source of truth; the UI does not 
 
 These status moves write `ONBOARDING_STATUS_CHANGED` (not a dedicated amendment event type):
 
-- `PENDING_SSM_REVIEW` / `PENDING_APPROVAL` → `PENDING_AMENDMENT` = Amendment requested (title: Amendment requested)
-- `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW` = Verification resubmitted (title: Verification resubmitted)
+- `PENDING_SSM_REVIEW` / `PENDING_APPROVAL` → `PENDING_AMENDMENT` = Amendment requested (title: Amendment Requested)
+- `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW` = Verification resubmitted (title: Verification Resubmitted)
 
 Technical RegTank triggers (`URL_GENERATED`, `WAIT_FOR_APPROVAL`) stay in metadata/detail and are not human titles. Dedicated SSM/AML/approval/final/reject/restart events do not also write a sibling `ONBOARDING_STATUS_CHANGED` row.
 

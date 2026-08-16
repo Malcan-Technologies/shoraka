@@ -1178,6 +1178,12 @@ export class AdminRepository {
       request_id: string;
       status: string;
     }[];
+    tnc_accepted?: boolean;
+    onboarding_approved?: boolean;
+    aml_approved?: boolean;
+    ssm_approved?: boolean;
+    ssm_checked?: boolean;
+    onboarding_fee_paid_at?: Date | null;
     // Applications (issuer only)
     applications?: {
       id: string;

@@ -113,19 +113,19 @@ function onboardingStatusChangedCopy(metadata: Record<string, unknown>): Activit
 
   if (fromInitial && nextKey === "PENDING_SSM_REVIEW") {
     return {
-      title: "Verification submitted",
+      title: "Verification Submitted",
       description: "The organisation was submitted for company verification review.",
     };
   }
   if (fromInitial && nextKey === "PENDING_APPROVAL") {
     return {
-      title: "Verification submitted",
+      title: "Verification Submitted",
       description: "The organisation was submitted for onboarding review.",
     };
   }
   if (previousKey === "PENDING_AMENDMENT" && nextKey === "PENDING_SSM_REVIEW") {
     return {
-      title: "Verification resubmitted",
+      title: "Verification Resubmitted",
       description: "Updated verification was submitted and review resumed.",
     };
   }
@@ -134,13 +134,13 @@ function onboardingStatusChangedCopy(metadata: Record<string, unknown>): Activit
     nextKey === "PENDING_AMENDMENT"
   ) {
     return {
-      title: "Amendment requested",
+      title: "Amendment Requested",
       description: "The organisation was sent back to update verification details.",
     };
   }
 
   return {
-    title: "Onboarding stage updated",
+    title: "Onboarding Stage Updated",
     description: `Onboarding moved from ${humanizeOnboardingStatus(previous)} to ${humanizeOnboardingStatus(next)}.`,
   };
 }

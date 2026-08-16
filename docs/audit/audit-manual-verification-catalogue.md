@@ -8422,7 +8422,7 @@ Onboarding audit records CashSouk business actions, stages, decisions, and outco
 
 **Manual QA — EOD / director KYC:** `ID_UPLOADED` / `LIVENESS_STARTED` / `WAIT_FOR_APPROVAL` / `PENDING` / `FORM_FILLING` / first JSON seed / kycId-only / duplicate final state → no onboarding audit. Newly `APPROVED` or `REJECTED` existing director → one `DIRECTOR_KYC_STATUS_UPDATED` per director. Duplicate APPROVED/REJECTED → no second outcome row.
 
-**Manual QA — amendment:** `PENDING_SSM_REVIEW`/`PENDING_APPROVAL` → `PENDING_AMENDMENT` writes `ONBOARDING_STATUS_CHANGED` titled Amendment requested. `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW` writes `ONBOARDING_STATUS_CHANGED` titled Verification resubmitted.
+**Manual QA — amendment:** `PENDING_SSM_REVIEW`/`PENDING_APPROVAL` → `PENDING_AMENDMENT` writes `ONBOARDING_STATUS_CHANGED` titled Amendment Requested. `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW` writes `ONBOARDING_STATUS_CHANGED` titled Verification Resubmitted.
 
 | ID | Source Case | Event | Admin Raw | Admin Activity | Issuer | Investor |
 |---|---|---|---|---|---|---|
@@ -9482,9 +9482,9 @@ Core business-stage event. Organization `onboarding_status` moved between workfl
 
 Includes:
 
-- Review landing: `IN_PROGRESS`/`PENDING` → `PENDING_SSM_REVIEW` or `PENDING_APPROVAL` (Verification submitted)
+- Review landing: `IN_PROGRESS`/`PENDING` → `PENDING_SSM_REVIEW` or `PENDING_APPROVAL` (Verification Submitted)
 - Amendment requested: `PENDING_SSM_REVIEW`/`PENDING_APPROVAL` → `PENDING_AMENDMENT`
-- Amendment resubmission: `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW` (Verification resubmitted)
+- Amendment resubmission: `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW` (Verification Resubmitted)
 
 Must not duplicate SSM/AML/approval/final/reject/restart decision events.
 
@@ -9628,25 +9628,25 @@ SHOW. Listed on the module's admin raw audit surface with the module permission.
 
 SHOW. Included on admin curated Activity and Admin Organization contextual history. Titles depend on previous/new status. Technical triggers stay in metadata.
 
-**Title:** Verification submitted | Amendment requested | Verification resubmitted | Onboarding stage updated
+**Title:** Verification Submitted | Amendment Requested | Verification Resubmitted | Onboarding Stage Updated
 
 **Description:** The organisation was submitted for company verification review. / The organisation was submitted for onboarding review. / The organisation was sent back to update verification details. / Updated verification was submitted and review resumed. / Onboarding moved from {humanized previous} to {humanized new}.
 
 | previousStatus | newStatus | Title |
 |---|---|---|
-| `IN_PROGRESS` / `PENDING` | `PENDING_SSM_REVIEW` | Verification submitted |
-| `IN_PROGRESS` / `PENDING` | `PENDING_APPROVAL` | Verification submitted |
-| `PENDING_SSM_REVIEW` / `PENDING_APPROVAL` | `PENDING_AMENDMENT` | Amendment requested |
-| `PENDING_AMENDMENT` | `PENDING_SSM_REVIEW` | Verification resubmitted |
-| any other transition | | Onboarding stage updated |
+| `IN_PROGRESS` / `PENDING` | `PENDING_SSM_REVIEW` | Verification Submitted |
+| `IN_PROGRESS` / `PENDING` | `PENDING_APPROVAL` | Verification Submitted |
+| `PENDING_SSM_REVIEW` / `PENDING_APPROVAL` | `PENDING_AMENDMENT` | Amendment Requested |
+| `PENDING_AMENDMENT` | `PENDING_SSM_REVIEW` | Verification Resubmitted |
+| any other transition | | Onboarding Stage Updated |
 
 ## 11. ISSUER ACTIVITY
 
 **Visibility:** CONDITIONAL
 
-CONDITIONAL: same review/amendment transitions as `isOnboardingStatusChangedUserFacing`. Unexpected transitions stay off the issuer feed (admin still sees Onboarding stage updated).
+CONDITIONAL: same review/amendment transitions as `isOnboardingStatusChangedUserFacing`. Unexpected transitions stay off the issuer feed (admin still sees Onboarding Stage Updated).
 
-**Title:** Verification submitted | Amendment requested | Verification resubmitted
+**Title:** Verification Submitted | Amendment Requested | Verification Resubmitted
 
 **Description:** Same copy as admin for those four transitions. Unexpected fallback is not issuer-visible.
 
@@ -9658,7 +9658,7 @@ CONDITIONAL: same review/amendment transitions as `isOnboardingStatusChangedUser
 
 CONDITIONAL: same review/amendment transitions as issuer.
 
-**Title:** Verification submitted | Amendment requested | Verification resubmitted
+**Title:** Verification Submitted | Amendment Requested | Verification Resubmitted
 
 **Description:** Same copy as issuer for those four transitions. Unexpected fallback is not investor-visible.
 
@@ -9695,10 +9695,10 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 - [ ] No internal metadata exposed
 - [ ] RBAC correct
 - [ ] Detail UI correct
-- [ ] PENDING_SSM_REVIEW/PENDING_APPROVAL → PENDING_AMENDMENT titled Amendment requested
-- [ ] PENDING_AMENDMENT → PENDING_SSM_REVIEW titled Verification resubmitted
-- [ ] IN_PROGRESS/PENDING → PENDING_SSM_REVIEW or PENDING_APPROVAL titled Verification submitted
-- [ ] Unexpected transition titled Onboarding stage updated (admin); not issuer/investor-visible
+- [ ] PENDING_SSM_REVIEW/PENDING_APPROVAL → PENDING_AMENDMENT titled Amendment Requested
+- [ ] PENDING_AMENDMENT → PENDING_SSM_REVIEW titled Verification Resubmitted
+- [ ] IN_PROGRESS/PENDING → PENDING_SSM_REVIEW or PENDING_APPROVAL titled Verification Submitted
+- [ ] Unexpected transition titled Onboarding Stage Updated (admin); not issuer/investor-visible
 - [ ] Technical RegTank triggers are metadata only, not titles
 - [ ] Dedicated SSM/AML/approval/final/reject/restart events do not also write this sibling
 
@@ -41159,9 +41159,9 @@ Visible curated activity titles only (HIDE = omitted). Copy is from `packages/ty
 | A041 | `ONBOARDING_RESTARTED` | Issuer | Onboarding Restarted |
 | A041 | `ONBOARDING_RESTARTED` | Investor | Onboarding Restarted |
 | A042 | `ONBOARDING_RESET` | Admin Activity | Onboarding Reset |
-| A044 | `ONBOARDING_STATUS_CHANGED` | Admin Activity | Verification submitted \| Amendment requested \| Verification resubmitted \| Onboarding stage updated |
-| A044 | `ONBOARDING_STATUS_CHANGED` | Issuer | Verification submitted \| Amendment requested \| Verification resubmitted (review/amendment only) |
-| A044 | `ONBOARDING_STATUS_CHANGED` | Investor | Verification submitted \| Amendment requested \| Verification resubmitted (review/amendment only) |
+| A044 | `ONBOARDING_STATUS_CHANGED` | Admin Activity | Verification Submitted \| Amendment Requested \| Verification Resubmitted \| Onboarding Stage Updated |
+| A044 | `ONBOARDING_STATUS_CHANGED` | Issuer | Verification Submitted \| Amendment Requested \| Verification Resubmitted (review/amendment only) |
+| A044 | `ONBOARDING_STATUS_CHANGED` | Investor | Verification Submitted \| Amendment Requested \| Verification Resubmitted (review/amendment only) |
 | A045 | `ONBOARDING_APPROVED` | Admin Activity | Onboarding Approved |
 | A045 | `ONBOARDING_APPROVED` | Issuer | Onboarding Submission Approved |
 | A045 | `ONBOARDING_APPROVED` | Investor | Onboarding Submission Approved |

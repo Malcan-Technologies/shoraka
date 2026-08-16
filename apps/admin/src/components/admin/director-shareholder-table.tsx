@@ -32,7 +32,8 @@ import {
   isMissingGovernmentIdPerson,
   getFinalStatusBadgeClassName,
   getFinalStatusLabel,
-  getRegtankLink,
+  getRegtankOnboardingViewLinks,
+  getRegtankScreeningLink,
   normalizeDirectorShareholderIdKey,
   resolveDirectorShareholderCtosEmptyWarning,
   type ApplicationPersonRow,
@@ -210,24 +211,45 @@ export function DirectorShareholderTable({
                   </TableCell>
                   <TableCell>
                     {(() => {
-                      const rid = String(p.requestId ?? "").trim();
-                      const link = getRegtankLink(p);
-                      if (link) {
-                        return (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 gap-1.5 rounded-full border-border bg-background px-3 text-sm font-medium text-foreground shadow-sm hover:bg-muted/60 hover:text-foreground [&_svg]:text-foreground shrink-0"
-                            title={rid ? `RegTank: ${rid}` : undefined}
-                            onClick={() => window.open(link, "_blank", "noopener,noreferrer")}
-                          >
-                            <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                            View
-                          </Button>
-                        );
+                      const onboardingLinks = getRegtankOnboardingViewLinks(p);
+                      const screeningLink = getRegtankScreeningLink(p);
+                      if (onboardingLinks.length === 0 && !screeningLink) {
+                        return <span className="text-sm text-muted-foreground">—</span>;
                       }
-                      return <span className="text-sm text-muted-foreground">—</span>;
+                      return (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {onboardingLinks.map((link) => (
+                            <Button
+                              key={`${link.label}-${link.requestId}`}
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-8 gap-1.5 rounded-full border-border bg-background px-3 text-sm font-medium text-foreground shadow-sm hover:bg-muted/60 hover:text-foreground [&_svg]:text-foreground shrink-0"
+                              title={`RegTank: ${link.requestId}`}
+                              onClick={() => window.open(link.url, "_blank", "noopener,noreferrer")}
+                            >
+                              <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              {link.label}
+                            </Button>
+                          ))}
+                          {screeningLink ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 gap-1.5 rounded-full px-3 text-sm font-medium text-muted-foreground hover:text-foreground shrink-0"
+                              title={
+                                p.screeningRequestId
+                                  ? `Screening: ${p.screeningRequestId}`
+                                  : "RegTank screening"
+                              }
+                              onClick={() => window.open(screeningLink, "_blank", "noopener,noreferrer")}
+                            >
+                              Screening
+                            </Button>
+                          ) : null}
+                        </div>
+                      );
                     })()}
                   </TableCell>
                   <TableCell>
@@ -393,6 +415,11 @@ function mergePeopleRowsByMatchKey(rows: ApplicationPersonRow[]): ApplicationPer
       onboarding: prev.onboarding ?? row.onboarding ?? null,
       screening: prev.screening ?? row.screening ?? null,
       requestId: prev.requestId ?? row.requestId ?? null,
+      directorEodRequestId: prev.directorEodRequestId || row.directorEodRequestId || null,
+      shareholderEodRequestId: prev.shareholderEodRequestId || row.shareholderEodRequestId || null,
+      partyCorporateRequestId: prev.partyCorporateRequestId || row.partyCorporateRequestId || null,
+      parentCorporateRequestId: prev.parentCorporateRequestId || row.parentCorporateRequestId || null,
+      screeningRequestId: prev.screeningRequestId || row.screeningRequestId || null,
       icFrontUrl: prev.icFrontUrl ?? row.icFrontUrl ?? null,
       icBackUrl: prev.icBackUrl ?? row.icBackUrl ?? null,
       email: prev.email ?? row.email ?? "",

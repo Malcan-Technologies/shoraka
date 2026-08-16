@@ -738,6 +738,12 @@ export interface OrganizationDetailResponse {
   regtankPortalUrl: string | null;
   regtankRequestId: string | null;
   codRequestId: string | null;
+  tncAccepted: boolean;
+  onboardingFeePaid: boolean;
+  ssmApproved: boolean;
+  onboardingApproved: boolean;
+  amlApproved: boolean;
+  regtankSessionStatus: string | null;
 
   // Applications (issuer only)
   applications?: {
