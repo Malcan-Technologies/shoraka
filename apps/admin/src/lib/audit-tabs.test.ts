@@ -47,4 +47,49 @@ describe("admin audit tabs", () => {
     expect(formatAuditEventLabel("USER_LOGGED_IN")).toBe("User Logged In");
     expect(formatAuditEventLabel("PRODUCT_UPDATED")).toBe("Product Updated");
   });
+
+  it("reuses Activity Timeline onboarding titles, including A044 transitions", () => {
+    expect(
+      formatAuditEventLabel("ONBOARDING_STATUS_CHANGED", {
+        previousStatus: "IN_PROGRESS",
+        newStatus: "PENDING_SSM_REVIEW",
+      })
+    ).toBe("Verification Submitted");
+    expect(
+      formatAuditEventLabel("ONBOARDING_STATUS_CHANGED", {
+        previousStatus: "PENDING",
+        newStatus: "PENDING_APPROVAL",
+      })
+    ).toBe("Verification Submitted");
+    expect(
+      formatAuditEventLabel("ONBOARDING_STATUS_CHANGED", {
+        previousStatus: "PENDING_SSM_REVIEW",
+        newStatus: "PENDING_AMENDMENT",
+      })
+    ).toBe("Amendment Requested");
+    expect(
+      formatAuditEventLabel("ONBOARDING_STATUS_CHANGED", {
+        previousStatus: "PENDING_AMENDMENT",
+        newStatus: "PENDING_SSM_REVIEW",
+      })
+    ).toBe("Verification Resubmitted");
+    expect(
+      formatAuditEventLabel("ONBOARDING_STATUS_CHANGED", {
+        previousStatus: "PENDING_APPROVAL",
+        newStatus: "PENDING_AML",
+      })
+    ).toBe("Onboarding Stage Updated");
+    expect(formatAuditEventLabel("ONBOARDING_STATUS_CHANGED")).not.toBe("Onboarding Status Changed");
+    expect(
+      formatAuditEventLabel("DIRECTOR_KYC_STATUS_UPDATED", { newKycStatus: "APPROVED" })
+    ).toBe("Director Verification Approved");
+    expect(
+      formatAuditEventLabel("DIRECTOR_KYC_STATUS_UPDATED", { newKycStatus: "REJECTED" })
+    ).toBe("Director Verification Rejected");
+    expect(formatAuditEventLabel("ONBOARDING_STARTED")).toBe("Onboarding Started");
+    expect(formatAuditEventLabel("AML_APPROVED")).toBe("AML Approved");
+    expect(formatAuditEventLabel("SSM_APPROVED")).toBe("SSM Approved");
+    expect(formatAuditEventLabel("ONBOARDING_RESUMED")).toBe("Onboarding Resumed");
+    expect(formatAuditEventLabel("CORPORATE_ENTITIES_UPDATED")).toBe("Corporate Entities Updated");
+  });
 });

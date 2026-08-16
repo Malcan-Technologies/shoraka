@@ -160,6 +160,15 @@ describe("admin audit UI restructure", () => {
     expect(organizationActivity).not.toContain("reasonCode");
     expect(organizationActivity).not.toContain("Triggered by");
 
+    const auditTabs = read("lib/audit-tabs.ts");
+    expect(auditTabs).toContain("formatOnboardingActivity");
+    expect(auditTabs).toContain("ONBOARDING_AUDIT_EVENTS");
+    expect(read("components/access-log-table-row.tsx")).toContain("formatAuditEventLabel");
+    expect(read("components/access-logs-table.tsx")).toContain("formatAuditEventLabel(selectedLog.eventType, selectedLog.metadata)");
+    expect(read("components/audit/audit-log-detail-sheet.tsx")).toContain("Raw event type");
+    expect(read("components/audit/onboarding-logs-panel.tsx")).toContain("eventTypeFilter");
+    expect(read("components/audit/onboarding-logs-panel.tsx")).toContain("params.eventType = eventTypeFilter");
+
     const applicationActivity = read("components/admin-activity-timeline.tsx");
     expect(applicationActivity).toContain("formatApplicationActivity");
     expect(applicationActivity).toContain("formatSigningActivity");

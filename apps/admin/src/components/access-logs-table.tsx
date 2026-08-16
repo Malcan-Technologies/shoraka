@@ -148,12 +148,17 @@ export function AccessLogsTable({
           selectedLog
             ? {
                 ...selectedLog,
-                eventLabel: formatAuditEventLabel(selectedLog.eventType),
+                eventLabel: formatAuditEventLabel(selectedLog.eventType, selectedLog.metadata),
               }
             : null
         }
         open={dialogOpen}
         onOpenChange={setDialogOpen}
+        title={
+          selectedLog
+            ? formatAuditEventLabel(selectedLog.eventType, selectedLog.metadata)
+            : "Audit event"
+        }
       />
     </>
   );

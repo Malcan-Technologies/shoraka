@@ -1,4 +1,8 @@
-import type { AdminPermission } from "@cashsouk/types";
+import {
+  formatOnboardingActivity,
+  ONBOARDING_AUDIT_EVENTS,
+  type AdminPermission,
+} from "@cashsouk/types";
 
 export const AUDIT_TABS = [
   { id: "access", label: "Access", permission: "audit.access.view" },
@@ -21,9 +25,24 @@ export function isAuditTabId(value: string | null): value is AuditTabId {
   return AUDIT_TABS.some((tab) => tab.id === value);
 }
 
-export function formatAuditEventLabel(eventType: string): string {
+function titleCaseEventType(eventType: string): string {
   return eventType
     .replace(/_/g, " ")
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+/**
+ * Human-facing audit label. Onboarding rows reuse Activity Timeline copy, including
+ * metadata-dependent titles such as Verification Submitted.
+ * Filter dropdowns should pass the raw event_type as `value`; this is display only.
+ */
+export function formatAuditEventLabel(
+  eventType: string,
+  metadata?: Record<string, unknown> | null
+): string {
+  if ((ONBOARDING_AUDIT_EVENTS as readonly string[]).includes(eventType)) {
+    return formatOnboardingActivity("admin", eventType, metadata ?? undefined).title;
+  }
+  return titleCaseEventType(eventType);
 }

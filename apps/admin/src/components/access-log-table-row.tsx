@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EyeIcon } from "@heroicons/react/24/outline";
 import { formatAuditDateTime } from "@/lib/audit-datetime";
+import { formatAuditEventLabel } from "@/lib/audit-tabs";
 
 export type AuditTableLog = {
   id: string;
@@ -28,11 +29,8 @@ export type AuditTableLog = {
   metadata: Record<string, unknown>;
 };
 
-function eventLabel(eventType: string) {
-  return eventType
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+function eventLabel(log: AuditTableLog) {
+  return formatAuditEventLabel(log.eventType, log.metadata);
 }
 
 export function AccessLogTableRow({
@@ -58,8 +56,8 @@ export function AccessLogTableRow({
         </div>
       </TableCell>
       <TableCell>
-        <Badge variant="outline" className="text-xs">
-          {eventLabel(log.eventType)}
+        <Badge variant="outline" className="text-xs" title={eventLabel(log)}>
+          {eventLabel(log)}
         </Badge>
       </TableCell>
       <TableCell className="font-mono text-sm text-muted-foreground">{log.ipAddress || "—"}</TableCell>

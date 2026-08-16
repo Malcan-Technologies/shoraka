@@ -9,6 +9,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { formatAuditDateTime } from "@/lib/audit-datetime";
+import { formatAuditEventLabel } from "@/lib/audit-tabs";
 
 export type AuditLogDetail = {
   id: string;
@@ -50,7 +51,11 @@ export function AuditLogDetailFields({ log }: { log: AuditLogDetail }) {
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2">
         <DetailField label="Audit ID" value={log.id} />
-        <DetailField label="Event" value={log.eventLabel ?? log.eventType} />
+        <DetailField
+          label="Event"
+          value={log.eventLabel ?? formatAuditEventLabel(log.eventType, log.metadata)}
+        />
+        <DetailField label="Raw event type" value={log.eventType} />
         <DetailField label="Occurred at" value={formatAuditDateTime(log.occurredAt, { seconds: true })} />
         {log.createdAt ? (
           <DetailField label="Created at" value={formatAuditDateTime(log.createdAt, { seconds: true })} />
