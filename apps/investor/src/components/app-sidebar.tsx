@@ -231,9 +231,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     if (isPendingApproval && !allowsAccountAccess) {
       return "Available after your organisation is approved";
     }
-    const step = getOnboardingStep(activeOrganization, "investor");
-    return unlockTooltipForStep(step);
-  }, [activeOrganization, allowsAccountAccess, isOnboardingPage, isPendingApproval]);
+    return "Available later in the onboarding process.";
+  }, [allowsAccountAccess, isOnboardingPage, isPendingApproval]);
 
   const mounted = React.useSyncExternalStore(
     subscribeMounted,
