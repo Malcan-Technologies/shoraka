@@ -13,73 +13,24 @@ import {
 } from "@heroicons/react/24/outline";
 import type { NoteAuditLogDto, NoteDetail } from "@cashsouk/types";
 import {
+  ADMIN_NOTE_OPERATIONAL_EVENT_TYPES,
   formatNoteActivity,
   getNoteActivityEventTypes,
 } from "@cashsouk/types";
-
-const CURATED_NOTE_ACTIVITY_EVENTS = new Set([
-  ...getNoteActivityEventTypes("issuer"),
-  ...getNoteActivityEventTypes("investor"),
-]);
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 
+const FORMATTED_NOTE_ACTIVITY_EVENTS = new Set([
+  ...getNoteActivityEventTypes("issuer"),
+  ...getNoteActivityEventTypes("investor"),
+  ...ADMIN_NOTE_OPERATIONAL_EVENT_TYPES,
+]);
+
 function formatEventLabel(eventType: string, metadata?: Record<string, unknown> | null) {
-  if (CURATED_NOTE_ACTIVITY_EVENTS.has(eventType)) {
-    return formatNoteActivity("admin", eventType, metadata ?? undefined).title;
-  }
-
-  const labels: Record<string, string> = {
-    NOTE_CREATED: "Note created",
-    NOTE_TERMS_UPDATED: "Note terms updated",
-    NOTE_PROSPECTUS_REVIEW_CREATED: "Prospectus review created",
-    NOTE_PROSPECTUS_APPROVED: "Prospectus approved",
-    NOTE_PROSPECTUS_INVALIDATED: "Prospectus approval invalidated",
-    NOTE_PUBLISHED: "Published to marketplace",
-    NOTE_UNPUBLISHED: "Unpublished from marketplace",
-    INVESTMENT_COMMITTED: "Investment committed",
-    NOTE_FUNDING_CLOSED: "Funding closed",
-    NOTE_FUNDING_FAILED: "Funding failed",
-    NOTE_ACTIVATED: "Note activated",
-    NOTE_SERVICING_STATUS_CHANGED: "Servicing status changed",
-    NOTE_MARKED_DEFAULT: "Default marked",
-    DISBURSEMENT_INITIATED: "Disbursement initiated",
-    DISBURSEMENT_LETTER_GENERATED: "Disbursement letter generated",
-    DISBURSEMENT_SUBMITTED_TO_TRUSTEE: "Disbursement submitted to trustee",
-    DISBURSEMENT_BENEFICIARY_UPDATED: "Disbursement beneficiary updated",
-    DISBURSEMENT_COMPLETED: "Disbursement completed",
-    RESIDUAL_RETURN_LETTER_GENERATED: "Residual return letter generated",
-    RESIDUAL_RETURN_SUBMITTED_TO_TRUSTEE: "Residual return submitted to trustee",
-    RESIDUAL_RETURN_COMPLETED: "Residual return completed",
-    SHORAKA_ORDER_SUBMITTED: "Tawarruq order submitted",
-    SHORAKA_CERTIFICATE_RECEIVED: "Tawarruq Certificate received",
-    REPAYMENT_SUBMITTED: "Repayment submitted",
-    REPAYMENT_RECEIVED: "Repayment received",
-    REPAYMENT_REJECTED: "Repayment rejected",
-    SETTLEMENT_PREVIEWED: "Settlement previewed",
-    SETTLEMENT_APPROVED: "Settlement approved",
-    SETTLEMENT_POSTED: "Settlement posted",
-    SERVICE_FEE_TRUSTEE_LETTER_GENERATED: "Settlement trustee letter generated",
-    SERVICE_FEE_TRUSTEE_SUBMITTED: "Settlement trustee letter submitted",
-    SERVICE_FEE_TRUSTEE_COMPLETED: "Settlement trustee instruction completed",
-    ARREARS_LETTER_GENERATED: "Arrears letter generated",
-    DEFAULT_NOTICE_GENERATED: "Default notice generated",
-    TRUSTEE_SIGNATURE_UPDATED: "Trustee signature updated",
-  };
-
-  const fallback =
-    eventType.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
-
-  // User-facing mapping: provider/internal wording "Shoraka" → business wording "Tawarruq".
-  // Keep event type constants/internal codes unchanged.
-  let label = labels[eventType] ?? fallback;
-  label = label.replace(/\bShoraka\s+Stp\b/g, "Tawarruq Transaction");
-  label = label.replace(/\bShoraka\b/g, "Tawarruq");
-
-  return label;
+  return formatNoteActivity("admin", eventType, metadata ?? undefined).title;
 }
 
 function getEventIcon(eventType: string) {
@@ -214,11 +165,11 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
                 <div className="space-y-5">
                   {note.events.map((event, index) => {
                     const s3Key = extractS3Key(event);
-                    const curated = CURATED_NOTE_ACTIVITY_EVENTS.has(event.eventType);
-                    const presentation = curated
+                    const formatted = FORMATTED_NOTE_ACTIVITY_EVENTS.has(event.eventType);
+                    const presentation = formatted
                       ? formatNoteActivity("admin", event.eventType, event.metadata ?? undefined)
                       : null;
-                    const { compact: compactMetadata, prose: proseMetadata } = curated
+                    const { compact: compactMetadata, prose: proseMetadata } = formatted
                       ? { compact: [], prose: [] }
                       : extractMetadataDetails(event);
                     const createdAt = new Date(event.occurredAt);

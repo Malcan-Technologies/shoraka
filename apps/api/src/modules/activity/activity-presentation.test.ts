@@ -1,4 +1,5 @@
 import {
+  ADMIN_NOTE_OPERATIONAL_EVENT_TYPES,
   formatApplicationActivity,
   formatNoteActivity,
   formatOnboardingActivity,
@@ -374,6 +375,170 @@ describe("Activity presentation copy", () => {
         expect(copy.description).not.toMatch(/req_1|rec_1|set_1|gw_1|APPROVED|SIGNINGCLOUD/);
         expect(copy.description).not.toContain("{");
       }
+    });
+
+    it("keeps issuer and investor Note copy unchanged for Admin-only operational events", () => {
+      for (const eventType of ADMIN_NOTE_OPERATIONAL_EVENT_TYPES) {
+        expect(formatNoteActivity("issuer", eventType).title).toBe("Note Update");
+        expect(formatNoteActivity("investor", eventType).title).toBe("Note Update");
+      }
+    });
+  });
+
+  describe("admin note operational copy", () => {
+    const titles: Record<(typeof ADMIN_NOTE_OPERATIONAL_EVENT_TYPES)[number], string> = {
+      NOTE_PROSPECTUS_REVIEW_CREATED: "Prospectus Review Started",
+      NOTE_PROSPECTUS_APPROVED: "Prospectus Approved",
+      NOTE_PROSPECTUS_INVALIDATED: "Prospectus Approval Invalidated",
+      DISBURSEMENT_INITIATED: "Disbursement Initiated",
+      DISBURSEMENT_LETTER_GENERATED: "Disbursement Letter Generated",
+      DISBURSEMENT_SUBMITTED_TO_TRUSTEE: "Disbursement Submitted to Trustee",
+      DISBURSEMENT_BENEFICIARY_UPDATED: "Disbursement Beneficiary Updated",
+      RESIDUAL_RETURN_LETTER_GENERATED: "Residual Return Letter Generated",
+      RESIDUAL_RETURN_SUBMITTED_TO_TRUSTEE: "Residual Return Submitted to Trustee",
+      SHORAKA_ORDER_SUBMITTED: "Tawarruq Order Submitted",
+      SHORAKA_CERTIFICATE_RECEIVED: "Tawarruq Certificate Received",
+      SETTLEMENT_PREVIEWED: "Settlement Preview Generated",
+      SETTLEMENT_APPROVED: "Settlement Approved",
+      SERVICE_FEE_TRUSTEE_LETTER_GENERATED: "Service Fee Trustee Letter Generated",
+      SERVICE_FEE_TRUSTEE_SUBMITTED: "Service Fee Submitted to Trustee",
+      SERVICE_FEE_TRUSTEE_COMPLETED: "Service Fee Trustee Processing Completed",
+      ARREARS_LETTER_GENERATED: "Arrears Letter Generated",
+      DEFAULT_NOTICE_GENERATED: "Default Notice Generated",
+    };
+
+    it("gives every remaining Admin Note operational event a stable title", () => {
+      for (const eventType of ADMIN_NOTE_OPERATIONAL_EVENT_TYPES) {
+        const copy = formatNoteActivity("admin", eventType);
+        expect(copy.title).toBe(titles[eventType]);
+        expectSafeCopy(copy.title, copy.description);
+        expect(copy.title).not.toBe(eventType);
+        expect(copy.title).not.toMatch(/_/);
+      }
+    });
+
+    it("keeps prospectus states distinct", () => {
+      const started = formatNoteActivity("admin", "NOTE_PROSPECTUS_REVIEW_CREATED");
+      const approved = formatNoteActivity("admin", "NOTE_PROSPECTUS_APPROVED");
+      const invalidated = formatNoteActivity("admin", "NOTE_PROSPECTUS_INVALIDATED", {
+        reasonCode: "SOURCE_CHANGED",
+      });
+      expect(new Set([started.title, approved.title, invalidated.title]).size).toBe(3);
+      expect(invalidated.description).not.toContain("SOURCE_CHANGED");
+      expect(invalidated.description).not.toContain("reasonCode");
+    });
+
+    it("keeps trustee workflow stages distinct and document-only", () => {
+      const disbursement = [
+        formatNoteActivity("admin", "DISBURSEMENT_INITIATED").title,
+        formatNoteActivity("admin", "DISBURSEMENT_LETTER_GENERATED").title,
+        formatNoteActivity("admin", "DISBURSEMENT_SUBMITTED_TO_TRUSTEE").title,
+        formatNoteActivity("admin", "DISBURSEMENT_COMPLETED").title,
+      ];
+      const residual = [
+        formatNoteActivity("admin", "RESIDUAL_RETURN_LETTER_GENERATED").title,
+        formatNoteActivity("admin", "RESIDUAL_RETURN_SUBMITTED_TO_TRUSTEE").title,
+        formatNoteActivity("admin", "RESIDUAL_RETURN_COMPLETED").title,
+      ];
+      const serviceFee = [
+        formatNoteActivity("admin", "SERVICE_FEE_TRUSTEE_LETTER_GENERATED").title,
+        formatNoteActivity("admin", "SERVICE_FEE_TRUSTEE_SUBMITTED").title,
+        formatNoteActivity("admin", "SERVICE_FEE_TRUSTEE_COMPLETED").title,
+      ];
+      expect(new Set(disbursement).size).toBe(4);
+      expect(new Set(residual).size).toBe(3);
+      expect(new Set(serviceFee).size).toBe(3);
+      expect(formatNoteActivity("admin", "DISBURSEMENT_LETTER_GENERATED").description).not.toMatch(
+        /completed|paid out|posted/i
+      );
+      expect(formatNoteActivity("admin", "SERVICE_FEE_TRUSTEE_COMPLETED").description).not.toMatch(
+        /settlement was posted|note was repaid/i
+      );
+    });
+
+    it("keeps settlement preview, approved, and posted distinct", () => {
+      const preview = formatNoteActivity("admin", "SETTLEMENT_PREVIEWED", {
+        settlementId: "set_1",
+        investorAmount: 9000,
+        newStatus: "PREVIEW",
+      });
+      const approved = formatNoteActivity("admin", "SETTLEMENT_APPROVED", {
+        displayReference: "SET-001",
+        actorName: "Aisha",
+      });
+      const posted = formatNoteActivity("admin", "SETTLEMENT_POSTED");
+      expect(preview.title).toBe("Settlement Preview Generated");
+      expect(approved.title).toBe("Settlement Approved");
+      expect(posted.title).toBe("Settlement Posted");
+      expect(preview.description).not.toContain("set_1");
+      expect(preview.description).not.toContain("9000");
+      expect(preview.description).not.toContain("PREVIEW");
+      expect(approved.description).toBe("Aisha approved settlement SET-001.");
+    });
+
+    it("keeps default notice distinct from formal default and servicing default", () => {
+      const notice = formatNoteActivity("admin", "DEFAULT_NOTICE_GENERATED");
+      const formal = formatNoteActivity("admin", "NOTE_MARKED_DEFAULT");
+      const servicing = formatNoteActivity("admin", "NOTE_SERVICING_STATUS_CHANGED", {
+        newServicingStatus: "DEFAULTED",
+      });
+      expect(notice.title).toBe("Default Notice Generated");
+      expect(formal.title).toBe("Note Marked in Default");
+      expect(servicing.title).toBe("Repayment in Default");
+      expect(notice.description).not.toMatch(/formally marked in default|servicing for this note was marked/i);
+    });
+
+    it("uses Tawarruq business wording for Admin Shoraka events", () => {
+      const order = formatNoteActivity("admin", "SHORAKA_ORDER_SUBMITTED", {
+        orderId: "ord_1",
+        provider: "SHORAKA",
+        actorName: "Nora",
+      });
+      const certificate = formatNoteActivity("admin", "SHORAKA_CERTIFICATE_RECEIVED", {
+        certificateSha256: "abc",
+      });
+      expect(order.title).toBe("Tawarruq Order Submitted");
+      expect(order.description).toBe("Nora submitted the Tawarruq order.");
+      expect(certificate.title).toBe("Tawarruq Certificate Received");
+      expect(`${order.title} ${order.description} ${certificate.title} ${certificate.description}`).not.toMatch(
+        /Shoraka|ord_1|abc/i
+      );
+    });
+
+    it("falls back safely when optional metadata is missing and does not leak IDs or enums", () => {
+      const initiated = formatNoteActivity("admin", "DISBURSEMENT_INITIATED", {
+        withdrawalId: "wd_1",
+        withdrawalType: "ISSUER_DISBURSEMENT",
+        newStatus: "DRAFT",
+      });
+      const letter = formatNoteActivity("admin", "DISBURSEMENT_LETTER_GENERATED", {});
+      const preview = formatNoteActivity("admin", "SETTLEMENT_PREVIEWED", {});
+      expect(initiated.description).toBe("Issuer disbursement was initiated.");
+      expect(initiated.description).not.toContain("wd_1");
+      expect(initiated.description).not.toContain("ISSUER_DISBURSEMENT");
+      expect(initiated.description).not.toContain("DRAFT");
+      expect(letter.description).toBe("The disbursement trustee letter was generated.");
+      expect(preview.description).toBe("A settlement preview was generated.");
+    });
+
+    it("interpolates only proven safe Admin metadata", () => {
+      expect(
+        formatNoteActivity("admin", "DISBURSEMENT_INITIATED", {
+          actorName: "Aisha",
+          amount: 12000,
+          currency: "MYR",
+        }).description
+      ).toBe("Aisha initiated issuer disbursement of MYR 12,000.00.");
+      expect(
+        formatNoteActivity("admin", "ARREARS_LETTER_GENERATED", {
+          fileName: "arrears-letter.pdf",
+        }).description
+      ).toBe("The arrears letter arrears-letter.pdf was generated.");
+      expect(
+        formatNoteActivity("admin", "NOTE_PROSPECTUS_APPROVED", {
+          contentVersion: 3,
+        }).description
+      ).toBe("The prospectus was approved (version 3).");
     });
 
     it("returns generic fallbacks for unknown events", () => {

@@ -159,9 +159,10 @@ describe("admin audit UI restructure", () => {
 
     const noteActivity = read("notes/components/note-timeline-panel.tsx");
     expect(noteActivity).toContain("formatNoteActivity");
-    expect(noteActivity).toContain("Prospectus review created");
-    expect(noteActivity).toContain("Settlement previewed");
-    expect(noteActivity).toContain("Tawarruq order submitted");
+    expect(noteActivity).toContain("ADMIN_NOTE_OPERATIONAL_EVENT_TYPES");
+    expect(noteActivity).not.toContain("Prospectus review created");
+    expect(noteActivity).not.toContain("Settlement previewed");
+    expect(noteActivity).not.toContain("Settlement trustee letter generated");
   });
 
   it("keeps legacy audit path redirects", () => {

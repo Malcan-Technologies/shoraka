@@ -676,6 +676,201 @@ function servicingPresentation(
   };
 }
 
+export const ADMIN_NOTE_OPERATIONAL_EVENT_TYPES = [
+  "NOTE_PROSPECTUS_REVIEW_CREATED",
+  "NOTE_PROSPECTUS_APPROVED",
+  "NOTE_PROSPECTUS_INVALIDATED",
+  "DISBURSEMENT_INITIATED",
+  "DISBURSEMENT_LETTER_GENERATED",
+  "DISBURSEMENT_SUBMITTED_TO_TRUSTEE",
+  "DISBURSEMENT_BENEFICIARY_UPDATED",
+  "RESIDUAL_RETURN_LETTER_GENERATED",
+  "RESIDUAL_RETURN_SUBMITTED_TO_TRUSTEE",
+  "SHORAKA_ORDER_SUBMITTED",
+  "SHORAKA_CERTIFICATE_RECEIVED",
+  "SETTLEMENT_PREVIEWED",
+  "SETTLEMENT_APPROVED",
+  "SERVICE_FEE_TRUSTEE_LETTER_GENERATED",
+  "SERVICE_FEE_TRUSTEE_SUBMITTED",
+  "SERVICE_FEE_TRUSTEE_COMPLETED",
+  "ARREARS_LETTER_GENERATED",
+  "DEFAULT_NOTICE_GENERATED",
+] as const;
+
+function formatAdminNoteOperationalActivity(
+  eventType: string,
+  metadata: Record<string, unknown>
+): ActivityPresentation | null {
+  const actorName = readActorName(metadata);
+  const fileName = readString(metadata, "fileName");
+  const amount = formatAmount(metadata);
+  const displayReference = readString(metadata, "displayReference");
+  const contentVersion = readNumber(metadata, "contentVersion");
+  const payoutCount = readNumber(metadata, "investorPayoutCount");
+
+  switch (eventType) {
+    case "NOTE_PROSPECTUS_REVIEW_CREATED":
+      return {
+        title: "Prospectus Review Started",
+        description: withActor(
+          actorName,
+          "{actorName} started prospectus review.",
+          "Prospectus review was started."
+        ),
+      };
+    case "NOTE_PROSPECTUS_APPROVED":
+      return {
+        title: "Prospectus Approved",
+        description:
+          contentVersion != null
+            ? withActor(
+                actorName,
+                `{actorName} approved the prospectus (version ${contentVersion}).`,
+                `The prospectus was approved (version ${contentVersion}).`
+              )
+            : withActor(actorName, "{actorName} approved the prospectus.", "The prospectus was approved."),
+      };
+    case "NOTE_PROSPECTUS_INVALIDATED":
+      return {
+        title: "Prospectus Approval Invalidated",
+        description: "The prospectus approval was invalidated and review returned to draft.",
+      };
+    case "DISBURSEMENT_INITIATED":
+      return {
+        title: "Disbursement Initiated",
+        description: amount
+          ? withActor(
+              actorName,
+              `{actorName} initiated issuer disbursement of ${amount}.`,
+              `Issuer disbursement of ${amount} was initiated.`
+            )
+          : withActor(
+              actorName,
+              "{actorName} initiated issuer disbursement.",
+              "Issuer disbursement was initiated."
+            ),
+      };
+    case "DISBURSEMENT_LETTER_GENERATED":
+      return {
+        title: "Disbursement Letter Generated",
+        description: fileName
+          ? `The disbursement trustee letter ${fileName} was generated.`
+          : "The disbursement trustee letter was generated.",
+      };
+    case "DISBURSEMENT_SUBMITTED_TO_TRUSTEE":
+      return {
+        title: "Disbursement Submitted to Trustee",
+        description: withActor(
+          actorName,
+          "{actorName} submitted the disbursement instruction to the trustee.",
+          "The disbursement instruction was submitted to the trustee."
+        ),
+      };
+    case "DISBURSEMENT_BENEFICIARY_UPDATED":
+      return {
+        title: "Disbursement Beneficiary Updated",
+        description: withActor(
+          actorName,
+          "{actorName} updated the disbursement beneficiary details.",
+          "Disbursement beneficiary details were updated."
+        ),
+      };
+    case "RESIDUAL_RETURN_LETTER_GENERATED":
+      return {
+        title: "Residual Return Letter Generated",
+        description: fileName
+          ? `The residual return trustee letter ${fileName} was generated.`
+          : "The residual return trustee letter was generated.",
+      };
+    case "RESIDUAL_RETURN_SUBMITTED_TO_TRUSTEE":
+      return {
+        title: "Residual Return Submitted to Trustee",
+        description: withActor(
+          actorName,
+          "{actorName} submitted the residual return instruction to the trustee.",
+          "The residual return instruction was submitted to the trustee."
+        ),
+      };
+    case "SHORAKA_ORDER_SUBMITTED":
+      return {
+        title: "Tawarruq Order Submitted",
+        description: withActor(
+          actorName,
+          "{actorName} submitted the Tawarruq order.",
+          "The Tawarruq order was submitted."
+        ),
+      };
+    case "SHORAKA_CERTIFICATE_RECEIVED":
+      return {
+        title: "Tawarruq Certificate Received",
+        description: "The Tawarruq certificate was received.",
+      };
+    case "SETTLEMENT_PREVIEWED":
+      return {
+        title: "Settlement Preview Generated",
+        description:
+          payoutCount != null && payoutCount >= 1
+            ? `A settlement preview was generated for ${payoutCount} investor payout${payoutCount === 1 ? "" : "s"}.`
+            : "A settlement preview was generated.",
+      };
+    case "SETTLEMENT_APPROVED":
+      return {
+        title: "Settlement Approved",
+        description: displayReference
+          ? withActor(
+              actorName,
+              `{actorName} approved settlement ${displayReference}.`,
+              `Settlement ${displayReference} was approved.`
+            )
+          : withActor(actorName, "{actorName} approved the settlement.", "The settlement was approved."),
+      };
+    case "SERVICE_FEE_TRUSTEE_LETTER_GENERATED":
+      return {
+        title: "Service Fee Trustee Letter Generated",
+        description: fileName
+          ? `The service fee trustee letter ${fileName} was generated.`
+          : "The service fee trustee letter was generated.",
+      };
+    case "SERVICE_FEE_TRUSTEE_SUBMITTED":
+      return {
+        title: "Service Fee Submitted to Trustee",
+        description: withActor(
+          actorName,
+          "{actorName} submitted the service fee instruction to the trustee.",
+          "The service fee instruction was submitted to the trustee."
+        ),
+      };
+    case "SERVICE_FEE_TRUSTEE_COMPLETED":
+      return {
+        title: "Service Fee Trustee Processing Completed",
+        description: "Service fee trustee processing was completed.",
+      };
+    case "ARREARS_LETTER_GENERATED":
+      return {
+        title: "Arrears Letter Generated",
+        description: fileName
+          ? `The arrears letter ${fileName} was generated.`
+          : "An arrears letter was generated.",
+      };
+    case "DEFAULT_NOTICE_GENERATED":
+      return {
+        title: "Default Notice Generated",
+        description: fileName
+          ? `A default notice ${fileName} was generated.`
+          : "A default notice was generated.",
+      };
+    case "TRUSTEE_SIGNATURE_UPDATED":
+      return {
+        title: "Trustee Signature Updated",
+        description: fileName
+          ? `The trustee signature image was updated (${fileName}).`
+          : "The trustee signature image was updated.",
+      };
+    default:
+      return null;
+  }
+}
+
 export function formatNoteActivity(
   audience: ActivityAudience,
   eventType: string,
@@ -683,6 +878,10 @@ export function formatNoteActivity(
   context?: ActivityPresentationContext
 ): ActivityPresentation {
   const record = asRecord(metadata);
+  if (audience === "admin") {
+    const operational = formatAdminNoteOperationalActivity(eventType, record);
+    if (operational) return operational;
+  }
   const label = noteLabel(record, context);
   const amount = formatAmount(record);
 
