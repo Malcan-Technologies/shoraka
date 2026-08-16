@@ -14,74 +14,72 @@ describe("resolveCognitoLogoutAuditPortal", () => {
     expect(resolveCognitoLogoutAuditPortal({ queryPortal: "admin" })).toBe(AUDIT_PORTAL.ADMIN);
   });
 
-  it("accepts uppercase explicit portal values", () => {
-    expect(resolveCognitoLogoutAuditPortal({ queryPortal: "ISSUER" })).toBe(AUDIT_PORTAL.ISSUER);
-  });
-
-  it("uses Origin/Referer hostname when portal query is missing", () => {
+  it("uses issuer hostname when portal query is missing", () => {
     expect(
       resolveCognitoLogoutAuditPortal({
-        referer: "http://localhost:3001/account",
-        origin: "https://issuer.cashsouk.com",
-        roles: ["INVESTOR"],
+        referer: "https://issuer.cashsouk.com/account",
       })
     ).toBe(AUDIT_PORTAL.ISSUER);
   });
 
-  it("uses Origin/Referer hostname when portal query is invalid", () => {
+  it("uses investor hostname when portal query is invalid", () => {
     expect(
       resolveCognitoLogoutAuditPortal({
         queryPortal: "marketplace",
-        referer: "https://admin.cashsouk.com/users",
-        roles: ["ISSUER"],
-      })
-    ).toBe(AUDIT_PORTAL.ADMIN);
-  });
-
-  it("falls back to user.roles[0] when query and hostname are absent", () => {
-    expect(
-      resolveCognitoLogoutAuditPortal({
-        referer: "http://localhost:3001/account",
-        roles: ["INVESTOR", "ISSUER"],
+        referer: "https://investor.cashsouk.com/portfolio",
       })
     ).toBe(AUDIT_PORTAL.INVESTOR);
   });
 
-  it("returns null when nothing can be resolved", () => {
+  it("does not infer portal from roles on localhost when query is missing", () => {
     expect(
       resolveCognitoLogoutAuditPortal({
         referer: "http://localhost:3001/account",
-        roles: [],
       })
     ).toBeNull();
   });
 
-  it("prefers ?portal=issuer when roles are empty", () => {
+  it("does not infer portal from a single ISSUER role on localhost", () => {
     expect(
       resolveCognitoLogoutAuditPortal({
-        queryPortal: "issuer",
+        queryPortal: undefined,
         referer: "http://localhost:3001/account",
-        roles: [],
       })
-    ).toBe(AUDIT_PORTAL.ISSUER);
+    ).toBeNull();
   });
 
-  it("prefers ?portal=issuer over multi-role roles[0] INVESTOR", () => {
+  it("does not infer portal from multi-role users on localhost", () => {
+    expect(
+      resolveCognitoLogoutAuditPortal({
+        referer: "http://localhost:3001/account",
+        origin: "http://localhost:3001",
+      })
+    ).toBeNull();
+  });
+
+  it("does not infer portal from ADMIN role when query is invalid and host is localhost", () => {
+    expect(
+      resolveCognitoLogoutAuditPortal({
+        queryPortal: "marketplace",
+        referer: "http://localhost:3003/users",
+      })
+    ).toBeNull();
+  });
+
+  it("prefers ?portal=issuer over investor hostname", () => {
     expect(
       resolveCognitoLogoutAuditPortal({
         queryPortal: "issuer",
         referer: "https://investor.cashsouk.com/",
-        roles: ["INVESTOR", "ISSUER"],
       })
     ).toBe(AUDIT_PORTAL.ISSUER);
   });
 
-  it("prefers ?portal=investor over multi-role roles[0] ISSUER", () => {
+  it("prefers ?portal=investor over issuer hostname", () => {
     expect(
       resolveCognitoLogoutAuditPortal({
         queryPortal: "investor",
         referer: "https://issuer.cashsouk.com/",
-        roles: ["ISSUER", "INVESTOR"],
       })
     ).toBe(AUDIT_PORTAL.INVESTOR);
   });

@@ -1,9 +1,4 @@
-import { UserRole } from "@prisma/client";
-import {
-  auditPortalFromLegacy,
-  auditPortalFromRole,
-  type AuditPortal,
-} from "../../lib/audit/context";
+import { auditPortalFromLegacy, type AuditPortal } from "../../lib/audit/context";
 
 const EXPLICIT_LOGOUT_PORTALS = new Set(["issuer", "investor", "admin"]);
 
@@ -28,26 +23,18 @@ function portalFromHostname(urlValue: string | null | undefined): AuditPortal | 
 
 /**
  * Resolve USER_LOGGED_OUT portal for Cognito GET /logout.
- * Priority: explicit ?portal= → Origin/Referer hostname → user.roles[0] → null.
+ * Priority: explicit ?portal= → Origin/Referer hostname → null.
+ * User roles never determine portal; they remain logout metadata only.
  */
 export function resolveCognitoLogoutAuditPortal(input: {
   queryPortal?: unknown;
   referer?: string | null;
   origin?: string | null;
-  roles?: readonly string[];
 }): AuditPortal | null {
   const query = firstQueryString(input.queryPortal)?.trim().toLowerCase() ?? "";
   if (EXPLICIT_LOGOUT_PORTALS.has(query)) {
     return auditPortalFromLegacy(query);
   }
 
-  const fromHost = portalFromHostname(input.referer) ?? portalFromHostname(input.origin);
-  if (fromHost) return fromHost;
-
-  const firstRole = input.roles?.[0];
-  if (firstRole) {
-    return auditPortalFromRole(firstRole as UserRole);
-  }
-
-  return null;
+  return portalFromHostname(input.referer) ?? portalFromHostname(input.origin);
 }

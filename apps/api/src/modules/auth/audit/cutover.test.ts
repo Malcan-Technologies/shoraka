@@ -103,6 +103,8 @@ describe("Access/Security audit cutover", () => {
     const logoutChunk = cognitoRoutes.slice(cognitoRoutes.indexOf('router.get("/logout"'));
     expect(logoutChunk).toMatch(/roles: user\.roles/);
     expect(logoutChunk).not.toMatch(/activeRole/);
+    expect(logoutChunk).not.toMatch(/roles\[0\]/);
+    expect(logoutChunk).not.toMatch(/getPortalFromRole\(user\.roles/);
   });
 
   it("old AccessLog/SecurityLog writers are not called from live services", () => {

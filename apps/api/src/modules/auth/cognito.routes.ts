@@ -976,7 +976,6 @@ router.get("/logout", async (req: Request, res: Response) => {
           queryPortal: req.query.portal,
           referer: req.get("referer"),
           origin: req.get("origin"),
-          roles: user.roles,
         });
 
         await writeAccessAuditLogBestEffort({
