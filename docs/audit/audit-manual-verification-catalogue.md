@@ -69,15 +69,20 @@ DB Table: access_audit_logs
 
 Records the first successful Cognito OAuth callback for a newly created account (the callback ran with `isSignup === true`). It is the Access-table evidence that a user completed hosted-UI signup, not that onboarding or email verification finished.
 
+A001 starts from the landing Get Started flow: `/get-started` → `/api/auth/login?role=<ROLE>&signup=true` → Cognito `/signup` → callback state `signup=true` → `USER_SIGNED_UP`. Starting from an Issuer or Investor portal is a **login** entry (`signup` is not set) and is **not** A001 even if Cognito Hosted UI still allows account creation. That path writes `USER_LOGGED_IN`.
+
+`USER_SIGNED_UP` and `USER_LOGGED_IN` are mutually exclusive on a single OAuth callback. `roles=[]` is valid until onboarding assigns a portal role. `actorName` may be null for a new user; `actorEmail` and user id still identify the actor.
+
 ## 2. When it logs
 
-Cognito OAuth callback in `apps/api/src/modules/auth/cognito.routes.ts` after the user row exists and an active role is resolved. The writer chooses `USER_SIGNED_UP` when `isSignup` is true, otherwise `USER_LOGGED_IN`. The two events are mutually exclusive on a single callback.
+Cognito OAuth callback in `apps/api/src/modules/auth/cognito.routes.ts` after the user row exists and an active role is resolved. The writer chooses `USER_SIGNED_UP` when `isSignup` is true (`stateData.signup === true` from landing Get Started), otherwise `USER_LOGGED_IN`. The two events are mutually exclusive on a single callback.
 
 ## 3. When it does NOT log / no-op
 
 - Subsequent logins of the same user write `USER_LOGGED_IN`, not this event.
+- Opening Issuer/Investor/Admin login (no `signup=true`) is not A001, even if Hosted UI creates an account.
 - `POST /v1/auth/sync-user` does **not** write Access audit (no signup, no login).
-- Failed admin-portal access (non-admin / inactive admin) redirects to auth-error **before** this write.
+- Failed admin-portal access (non-admin / inactive admin) is denied **before** this write and redirects to landing home (not `/auth-error`). The denial is Security `ADMIN_ACCESS_DENIED`, not Access.
 - If the callback never reaches the write (token/state failure), nothing is logged.
 
 ## 4. Top-level audit row
@@ -195,7 +200,7 @@ Do not expect a session id on signup/login rows.
 - **Allowed values:** User.roles array
 - **Writer source:** Cognito callback `user.roles`
 - **Current writer:** Populated on signup/login
-- **Example:** `["INVESTOR"]`
+- **Example:** `[]` (valid before onboarding) or `["ISSUER"]`
 
 
 ## 6. Source of truth
@@ -283,6 +288,8 @@ Admin `/audit?tab=access` requires `audit.access.view`. Rows open in `AuditLogDe
 - [ ] RBAC correct
 - [ ] Detail UI correct
 
+**Manual QA (2026-08-16):** **PASS** — Issuer signup from landing `/get-started` (with `signup=true`) writes `USER_SIGNED_UP`. Access raw Admin UI displays the row. `roles=[]` before onboarding is expected. Search/filter/date/CSV/pagination were not marked passed.
+
 # A002 — USER_LOGGED_IN
 
 Source Case: ACC-002
@@ -294,15 +301,17 @@ DB Table: access_audit_logs
 
 Records a successful Cognito OAuth callback for an existing account (`isSignup === false`). This is the Access-table login evidence used by the recent-logins reader.
 
+Normal existing-user OAuth login writes `USER_LOGGED_IN`. `portal` comes from the requested/active role. A signup callback (`signup=true` / `isSignup === true`) writes `USER_SIGNED_UP` only and does **not** also write `USER_LOGGED_IN`.
+
 ## 2. When it logs
 
 Same Cognito callback as signup. Written when `isSignup` is false after role resolution. Mutually exclusive with `USER_SIGNED_UP` on that callback.
 
 ## 3. When it does NOT log / no-op
 
-- First-time hosted-UI signup writes `USER_SIGNED_UP` instead.
+- Landing Get Started signup (`signup=true`) writes `USER_SIGNED_UP` instead; that callback does not add a `USER_LOGGED_IN` row.
 - `POST /v1/auth/sync-user` does **not** write login audit.
-- Admin-portal denial redirect happens before the write.
+- Failed admin-portal access (non-admin / inactive admin) is denied **before** this write and redirects to landing home (not `/auth-error`). The denial is Security `ADMIN_ACCESS_DENIED`, not Access.
 - Token/session restore without a new OAuth callback does not write this event.
 
 ## 4. Top-level audit row
@@ -482,7 +491,7 @@ No curated activity presentation. Admin raw `AuditLogDetailSheet` shows the full
 
 ## 14. Current UI behavior
 
-Admin `/audit?tab=access` requires `audit.access.view`. Rows open in `AuditLogDetailSheet`. Event label is title-cased (`User Signed Up`). Device is derived at read from `user_agent`. No issuer/investor activity card. Account 'recent logins' reader queries `USER_LOGGED_IN` only. `findRecentLogins` queries `USER_LOGGED_IN` only.
+Admin `/audit?tab=access` requires `audit.access.view`. Rows open in `AuditLogDetailSheet`. Event label is title-cased (`User Logged In`). Device is derived at read from `user_agent`. No issuer/investor activity card. Account 'recent logins' reader queries `USER_LOGGED_IN` only. `findRecentLogins` queries `USER_LOGGED_IN` only.
 
 ## 15. Manual verification checklist
 
@@ -508,6 +517,8 @@ Admin `/audit?tab=access` requires `audit.access.view`. Rows open in `AuditLogDe
 - [ ] RBAC correct
 - [ ] Detail UI correct
 
+**Manual QA (2026-08-16):** **PASS** — Issuer and Admin existing-user OAuth login write `USER_LOGGED_IN`. Portal comes from the requested/active role. Signup callback does not additionally write `USER_LOGGED_IN`. Access raw Admin UI displays the rows. Search/filter/date/CSV/pagination were not marked passed.
+
 # A003 — USER_LOGGED_OUT
 
 Source Case: ACC-003
@@ -517,18 +528,28 @@ DB Table: access_audit_logs
 
 ## 1. What this event means
 
-Records that a logout path ran for a known user. One logical logout can emit **two** rows today: `AuthService.logout` (`POST /v1/auth/logout`) and Cognito `GET /logout`.
+Records that a logout path ran for a known user.
+
+Normal Issuer / Investor / Admin portal logout produces **one** `USER_LOGGED_OUT` row through Cognito `GET /v1/auth/cognito/logout`. Current portal UIs call that GET path only.
+
+Two rows are possible only if a caller explicitly invokes **both** `POST /v1/auth/logout` (`AuthService.logout`) and `GET /v1/auth/cognito/logout`. There is no dedupe between those paths.
+
+Top-level `portal` is where logout happened. `metadata.roles` is the roles the user possesses; it is not used to infer portal.
 
 ## 2. When it logs
 
-1. `apps/api/src/modules/auth/service.ts` `logout` — after optional session revoke, best-effort Access write with `activeRole` when known.
-2. `apps/api/src/modules/auth/cognito.routes.ts` `GET /logout` — after Cognito token verify + user lookup, writes with `roles`.
+1. Cognito `GET /v1/auth/cognito/logout` in `apps/api/src/modules/auth/cognito.routes.ts` — after Cognito token verify + user lookup. This is the path the portal UIs call. Writes `metadata.roles`. Portal resolution (final):
+   1. Valid explicit `?portal=issuer|investor|admin`
+   2. Origin / Referer hostname inference
+   3. `null`
+   User roles, including `user.roles[0]`, are **not** a portal fallback.
+2. `apps/api/src/modules/auth/service.ts` `logout` (`POST /v1/auth/logout`) — after optional session revoke, best-effort Access write. Portal comes from `activeRole` / `session.active_role`. Writes `metadata.activeRole` when known. Separate path; not used by current portal UIs.
 
 ## 3. When it does NOT log / no-op
 
-- Cognito GET /logout skips the write when the token is invalid/expired or no user is found (warns and continues logout).
-- AuthService still writes even if session revoke already happened; there is no dedupe between the two paths.
-- Duplicate rows for one user action are **expected** with the current dual writers.
+- Cognito GET `/logout` skips the write when the token is invalid/expired or no user is found (warns and continues logout).
+- AuthService still writes even if session revoke already happened.
+- A typical portal logout does **not** produce two rows.
 
 ## 4. Top-level audit row
 
@@ -548,14 +569,14 @@ Append-only `AccessAuditLog` / `access_audit_logs`.
 | `target_type` | `USER` |
 | `target_id` | Same as `user_id` |
 | `source` | `API` (Cognito callback / logout routes) |
-| `portal` | Derived from active/requested role (`INVESTOR` / `ISSUER` / `ADMIN`) |
+| `portal` | Cognito GET `/logout`: valid `?portal=` → Origin/Referer hostname → `null`. AuthService.logout: `activeRole` / `session.active_role`. Never `user.roles[0]`. |
 | `ip_address` | Request IP when present |
 | `user_agent` | Request UA when present |
 | `correlation_id` | Request correlation id when present |
 | `idempotency_key` | **Always null** |
 | `metadata` | Parsed by `parseAccessAuditMetadata` |
 
-Expect two rows for a typical portal logout that hits both API logout and Cognito logout.
+Typical portal logout (Cognito GET `/logout` only) produces **one** row. Two rows only if both writers are invoked.
 
 ## 5. EXACT METADATA STRUCTURE
 
@@ -600,7 +621,7 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Required:** No
 - **Nullable:** Yes
 - **Allowed values:** Portal role used for logout, or omitted
-- **Writer source:** `AuthService.logout` passes `activeRole` when a portal role is known. Cognito `GET /logout` does not pass it.
+- **Writer source:** `AuthService.logout` passes `activeRole` when `activeRole` / `session.active_role` is known. Cognito `GET /logout` does not pass it.
 - **Current writer:** Set by AuthService logout only
 - **Example:** `"ISSUER"`
 
@@ -609,7 +630,7 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Type:** string[] | undefined
 - **Required:** No
 - **Nullable:** No (when present)
-- **Allowed values:** User.roles
+- **Allowed values:** Roles possessed by the user (`User.roles`). Not a portal fallback.
 - **Writer source:** Cognito `GET /logout` passes `roles`. AuthService logout does not.
 - **Current writer:** Set by Cognito GET /logout only
 - **Example:** `["INVESTOR","ISSUER"]`
@@ -625,8 +646,9 @@ Cognito is the authentication authority. `User` / `UserSession` remain session a
 
 ## 8. Writer(s)
 
-- `apps/api/src/modules/auth/service.ts` — `logout` → `writeAccessAuditLogBestEffort`
-- `apps/api/src/modules/auth/cognito.routes.ts` — `GET /logout` → `writeAccessAuditLogBestEffort`
+- `apps/api/src/modules/auth/cognito.routes.ts` — `GET /v1/auth/cognito/logout` → `writeAccessAuditLogBestEffort` (portal UI path)
+- `apps/api/src/modules/auth/cognito-logout-portal.ts` — portal resolution for the GET path
+- `apps/api/src/modules/auth/service.ts` — `logout` → `writeAccessAuditLogBestEffort` (separate POST path)
 
 ## 9. ADMIN RAW AUDIT
 
@@ -674,7 +696,7 @@ No curated activity presentation. Admin raw `AuditLogDetailSheet` shows the full
 
 ## 14. Current UI behavior
 
-Admin `/audit?tab=access` requires `audit.access.view`. Rows open in `AuditLogDetailSheet`. Event label is title-cased (`User Signed Up`). Device is derived at read from `user_agent`. No issuer/investor activity card. Account 'recent logins' reader queries `USER_LOGGED_IN` only.
+Admin `/audit?tab=access` requires `audit.access.view`. Rows open in `AuditLogDetailSheet`. Event label is title-cased (`User Logged Out`). Device is derived at read from `user_agent`. No issuer/investor activity card. Account 'recent logins' reader queries `USER_LOGGED_IN` only.
 
 ## 15. Manual verification checklist
 
@@ -699,7 +721,10 @@ Admin `/audit?tab=access` requires `audit.access.view`. Rows open in `AuditLogDe
 - [ ] No internal metadata exposed
 - [ ] RBAC correct
 - [ ] Detail UI correct
-- [ ] Dual-write logout produces two rows when both paths run
+- [ ] Typical portal logout (Cognito GET `/logout` only) produces one row
+- [ ] Two rows only if both `POST /v1/auth/logout` and `GET /v1/auth/cognito/logout` run
+
+**Manual QA (2026-08-16):** **PASS** — Issuer and Admin portal logout each produce one `USER_LOGGED_OUT` row via Cognito GET `/logout`. After the portal-resolution fix, `portal=ISSUER` / `portal=ADMIN` match where logout happened. Access raw Admin UI displays the rows. Search/filter/date/CSV/pagination were not marked passed.
 
 # Security
 
@@ -2287,15 +2312,34 @@ DB Table: security_audit_logs
 
 ## 1. What this event means
 
-An authenticated **ADMIN** actor hit an admin route without the required permission(s).
+Someone was denied Admin access or an Admin permission. This event is **not** limited to existing Admin actors.
+
+`actor_type` is **who** the actor actually is. `portal` is **where** the action happened. `portal=ADMIN` does **not** mean the actor is an Admin.
+
+There are two live writers:
+
+**A. Cognito Admin portal gate** (`apps/api/src/modules/auth/cognito.routes.ts` via `resolveCognitoAdminAccessDeniedClassification`)
+
+- Non-admin attempts Admin: `actor_type = USER`, `portal = ADMIN`, `reasonCode = MISSING_ADMIN_ROLE`
+- User has ADMIN role but inactive: `actor_type = ADMIN`, `portal = ADMIN`, `reasonCode = ADMIN_INACTIVE`
+
+After this write, authenticated non-admin and inactive Admin are redirected to landing home (not `/auth-error`). Genuine OAuth/authentication failures still use `/auth-error`.
+
+**B. RBAC middleware** (`apps/api/src/lib/auth/middleware.ts` `writeAdminAccessDenied`)
+
+- Active Admin lacks a required permission: `actor_type = ADMIN`, `portal = ADMIN`, `reasonCode = INSUFFICIENT_PERMISSIONS`, with `permission` / `requiredPermissions` populated
+- The Admin remains in Admin and sees Access Denied
 
 ## 2. When it logs
 
-`apps/api/src/lib/auth/middleware.ts` `writeAdminAccessDenied` — only if `req.user.roles` includes `ADMIN`. Best-effort so 403 behavior is unchanged.
+1. Cognito Admin portal gate — non-admin or inactive Admin attempting Admin OAuth. Best-effort Security write; Access signup/login is not written.
+2. RBAC middleware — authenticated Admin fails `requirePermission` / equivalent 403. Only if `req.user.roles` includes `ADMIN`. Best-effort so 403 behavior is unchanged.
 
 ## 3. When it does NOT log / no-op
 
-Does **not** write when the actor is not an ADMIN (issuer/investor 403s are silent here). Full-access admin role keys skip the denial path because they pass permission checks.
+- Middleware does **not** write when the actor is not an ADMIN (issuer/investor 403s are silent here). Cognito gate **does** write for those actors when they attempt Admin (`actor_type = USER`, `MISSING_ADMIN_ROLE`).
+- Unauthenticated Admin entry uses the existing login/landing redirect and does not write this event.
+- Full-access admin role keys skip the middleware denial path because they pass permission checks.
 
 ## 4. Top-level audit row
 
@@ -2307,13 +2351,13 @@ Append-only `SecurityAuditLog` / `security_audit_logs`.
 | `subject_user_id` | Affected user when the action is about a person; null for role/invitation/config targets |
 | `event_type` | `ADMIN_ACCESS_DENIED` |
 | `occurred_at` / `created_at` | DB default `now()` |
-| `actor_type` | `USER` or `ADMIN` from request context |
+| `actor_type` | WHO: `USER` when Cognito gate and no ADMIN role; `ADMIN` when the user has ADMIN role (inactive gate or middleware permission miss) |
 | `actor_user_id` | Acting user |
 | `organization_id` / `organization_kind` | Set for organization membership/invitation events; otherwise null |
 | `target_type` | `ADMIN_ROUTE` |
 | `target_id` | `req.path` or `req.originalUrl` or `"unknown"` |
 | `source` | `API` |
-| `portal` | Request portal |
+| `portal` | WHERE: `ADMIN` (the denied action happened on Admin). Not a claim that the actor is an Admin. |
 | `ip_address` / `user_agent` / `correlation_id` | Request context |
 | `idempotency_key` | **Always null** |
 | `metadata` | Parsed by `parseSecurityAuditMetadata` |
@@ -2364,9 +2408,9 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Required:** No
 - **Nullable:** No (when present)
 - **Allowed values:** Single required permission
-- **Writer source:** Set only when `permissions.length === 1`
-- **Current writer:** Single-permission denials
-- **Example:** `"notes.view"`
+- **Writer source:** Middleware only, and only when `permissions.length === 1`. Cognito gate omits this field.
+- **Current writer:** Single-permission middleware denials
+- **Example:** `"audit.access.view"`
 
 #### `requiredPermissions`
 
@@ -2374,9 +2418,9 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Required:** No
 - **Nullable:** No (when present)
 - **Allowed values:** All required permissions
-- **Writer source:** Middleware always passes the array
-- **Current writer:** Always populated by current middleware
-- **Example:** `["notes.view"]`
+- **Writer source:** Middleware always passes the array. Cognito gate omits this field.
+- **Current writer:** Populated by current middleware; omitted on Cognito gate denials
+- **Example:** `["audit.access.view"]`
 
 #### `method`
 
@@ -2403,10 +2447,10 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Type:** string
 - **Required:** Yes
 - **Nullable:** No
-- **Allowed values:** Denial reason
-- **Writer source:** Middleware
+- **Allowed values:** `MISSING_ADMIN_ROLE` | `ADMIN_INACTIVE` | `INSUFFICIENT_PERMISSIONS`
+- **Writer source:** Cognito gate classification or middleware
 - **Current writer:** Always populated
-- **Example:** `"MISSING_PERMISSION"`
+- **Example:** `"INSUFFICIENT_PERMISSIONS"` (middleware); `"MISSING_ADMIN_ROLE"` / `"ADMIN_INACTIVE"` (Cognito gate)
 
 
 ## 6. Source of truth
@@ -2419,7 +2463,9 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 
 ## 8. Writer(s)
 
-- `apps/api/src/lib/auth/middleware.ts` — `writeAdminAccessDenied`
+- `apps/api/src/modules/auth/cognito.routes.ts` — Cognito Admin portal gate → `writeSecurityAuditLogBestEffort`
+- `apps/api/src/modules/auth/cognito-admin-access-denied.ts` — `resolveCognitoAdminAccessDeniedClassification`
+- `apps/api/src/lib/auth/middleware.ts` — `writeAdminAccessDenied` (ADMIN role required)
 - `writeSecurityAuditLogBestEffort`
 
 ## 9. ADMIN RAW AUDIT
@@ -2493,6 +2539,8 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] No internal metadata exposed
 - [ ] RBAC correct
 - [ ] Detail UI correct
+
+**Manual QA (2026-08-16):** Confirmed `audit.access.view` denial writes Security `ADMIN_ACCESS_DENIED` with `reasonCode = INSUFFICIENT_PERMISSIONS` and `permission = audit.access.view`. Cognito-gate `MISSING_ADMIN_ROLE` / `ADMIN_INACTIVE` actor_type classification was source-traced; do not treat search/filter/date/CSV/pagination as passed.
 
 # A013 — ADMIN_ROLE_CREATED
 
@@ -41252,8 +41300,8 @@ Date: **2026-08-16**. Source: current tree after audit/activity cleanup.
 
 ## Writer notes that affect verification
 
-- Access writes are **best-effort**. `USER_SIGNED_UP` vs `USER_LOGGED_IN` are mutually exclusive on `isSignup`. `USER_LOGGED_OUT` can write **twice**. `sessionId` on login schema is never populated. `POST /v1/auth/sync-user` does not write login audit.
-- Security in-tx writes throw; BestEffort is used for denials / password / email / `USER_ROLE_ADDED`. `ADMIN_ACCESS_DENIED` only if the actor is ADMIN. `ADMIN_INVITATION_CREATED` is skipped when an existing invitation is reused. `emailSent` is only set on `ADMIN_INVITATION_RESENT`. `ORGANIZATION_INVITATION_RESENT` writes only after email success.
+- Access writes are **best-effort**. `USER_SIGNED_UP` vs `USER_LOGGED_IN` are mutually exclusive on `isSignup`. Typical portal logout writes **one** `USER_LOGGED_OUT` via Cognito GET `/logout`; two rows only if both `POST /v1/auth/logout` and GET `/v1/auth/cognito/logout` run. `sessionId` on login schema is never populated. `POST /v1/auth/sync-user` does not write login audit.
+- Security in-tx writes throw; BestEffort is used for denials / password / email / `USER_ROLE_ADDED`. `ADMIN_ACCESS_DENIED` has two writers: Cognito Admin gate (`USER` + `MISSING_ADMIN_ROLE`, or `ADMIN` + `ADMIN_INACTIVE`) and RBAC middleware (`ADMIN` + `INSUFFICIENT_PERMISSIONS`). `portal=ADMIN` is where the denial happened, not who the actor is. `ADMIN_INVITATION_CREATED` is skipped when an existing invitation is reused. `emailSent` is only set on `ADMIN_INVITATION_RESENT`. `ORGANIZATION_INVITATION_RESENT` writes only after email success.
 - Payment idempotency keys come from `PAYMENT_AUDIT_IDEMPOTENCY`; unique constraint; existing-key skip / `P2002` swallow.
 - `PRODUCT_REACTIVATED` and repository `setInactive` are **not wired to HTTP** (`restoreProduct` / `setInactive` are repository-only). Versioned product update can still write `PRODUCT_INACTIVATED`.
 - Notification broadcast audit is **outside** recipient transactions and must not roll back notifications.

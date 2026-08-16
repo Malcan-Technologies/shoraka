@@ -45,7 +45,7 @@
 
 Known limitations (not fixed in the cleanup):
 
-1. One logical logout can currently emit two `USER_LOGGED_OUT` events (`POST /v1/auth/logout` and Cognito `GET /logout`).
+1. Two `USER_LOGGED_OUT` writers exist with no deduplication (`POST /v1/auth/logout` via `AuthService.logout`, and Cognito `GET /v1/auth/cognito/logout`). This is **not** normal portal behavior. Typical portal flow: 1 logout action → Cognito GET logout → 1 audit row. Two rows are possible only if a caller explicitly invokes both paths. Current portal UIs call the GET path only. Cognito GET logout portal: valid `?portal=issuer|investor|admin` → Origin/Referer hostname → `null` (`user.roles[0]` is not a fallback).
 2. Access query `status=failed` is preserved for API compatibility but matches no Access event (Access has no failure events).
 3. Admin deactivation is DB-only; no Cognito `AdminDisableUser` / session revoke in that path yet.
 4. Password/email verification/role-sync and invitation/org email resend remain non-atomic with Cognito/SES.
@@ -407,7 +407,7 @@ GET routes that mutate: prospectus `getOrCreateReview` may **create** review + `
 ### AccessAuditLog
 
 OAuth callback: `USER_SIGNED_UP` / `USER_LOGGED_IN` (`source=API`, `metadata.loginMethod=COGNITO_OAUTH`).  
-`AuthService.logout` and Cognito GET `/logout`: `USER_LOGGED_OUT` (both paths; one logical logout can emit two rows).  
+Normal portal logout produces one `USER_LOGGED_OUT` row through Cognito `GET /v1/auth/cognito/logout`. Two rows are possible only if both the `POST /v1/auth/logout` (`AuthService.logout`) and Cognito GET `/logout` paths are explicitly invoked. Current portal UIs do not normally call both. GET logout portal: valid `?portal=issuer|investor|admin` → Origin/Referer hostname → `null` (`user.roles[0]` is not a fallback).  
 `POST /v1/auth/sync-user` does **not** write login audit.
 
 ### SecurityAuditLog
@@ -618,7 +618,7 @@ SYS/`systemUserId`/`"system"` can appear in human timelines unless filtered.
 
 - Endpoints: `/api/auth/callback`, `/logout`, token refresh.  
 - Business: AccessAuditLog `USER_SIGNED_UP` / `USER_LOGGED_IN` / `USER_LOGGED_OUT`. Confirm/resend not audited.  
-- `sync-user` does **not** write login audit. One logical logout can emit two `USER_LOGGED_OUT` rows.
+- `sync-user` does **not** write login audit. Normal portal logout produces one `USER_LOGGED_OUT` row through Cognito `GET /v1/auth/cognito/logout`. Two rows are possible only if both the `POST /v1/auth/logout` and Cognito GET `/logout` paths are explicitly invoked.
 
 ### RegTank
 
