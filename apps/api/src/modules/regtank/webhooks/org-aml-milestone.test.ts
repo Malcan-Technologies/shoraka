@@ -159,9 +159,91 @@ describe("maybeAdvanceOrgAfterAmlScreeningCleared", () => {
     expect(outcome.advanced).toBe(true);
     expect(mockOnboardingAuditCreate).toHaveBeenCalledTimes(1);
     const payload = mockOnboardingAuditCreate.mock.calls[0]?.[0] as {
-      data?: { event_type?: string };
+      data?: { event_type?: string; onboarding_id?: string | null };
     };
     expect(payload.data?.event_type).toBe("AML_APPROVED");
+    expect(payload.data?.onboarding_id ?? null).toBeNull();
+  });
+
+  it("links AML_APPROVED to reg_tank_onboarding.id when the caller supplies it", async () => {
+    resetOrg({ onboarding_status: OnboardingStatus.PENDING_AML });
+
+    await maybeAdvanceOrgAfterAmlScreeningCleared({
+      organizationId: "org-1",
+      portalType: "investor",
+      userId: "user-1",
+      trigger: "REGTANK_KYB_MAIN_COMPANY_APPROVED",
+      onboardingId: "cmsw5yz970051r9vqk5h16dme",
+      extraMetadata: { kybRequestId: "KYB00103", onboardingRequestId: "COD05463" },
+    });
+
+    expect(mockOnboardingAuditCreate).toHaveBeenCalledTimes(1);
+    const payload = mockOnboardingAuditCreate.mock.calls[0]?.[0] as {
+      data?: {
+        event_type?: string;
+        onboarding_id?: string | null;
+        metadata?: Record<string, unknown>;
+      };
+    };
+    expect(payload.data?.event_type).toBe("AML_APPROVED");
+    expect(payload.data?.onboarding_id).toBe("cmsw5yz970051r9vqk5h16dme");
+    expect(payload.data?.metadata).toEqual(
+      expect.objectContaining({
+        provider: "REGTANK",
+        screeningKind: "KYB",
+        providerReference: "KYB00103",
+        previousApproved: false,
+        newApproved: true,
+        previousStatus: OnboardingStatus.PENDING_AML,
+        newStatus: OnboardingStatus.PENDING_FINAL_APPROVAL,
+        trigger: "REGTANK_KYB_MAIN_COMPANY_APPROVED",
+      })
+    );
+    expect(payload.data?.metadata).not.toEqual(
+      expect.objectContaining({ event_type: "ONBOARDING_STATUS_CHANGED" })
+    );
+    const eventTypes = mockOnboardingAuditCreate.mock.calls.map(
+      (call) => (call[0] as { data?: { event_type?: string } }).data?.event_type
+    );
+    expect(eventTypes).toEqual(["AML_APPROVED"]);
+  });
+
+  it("issuer company KYB milestone writes AML_APPROVED with the supplied onboarding id", async () => {
+    issuerOrg = {
+      onboarding_status: OnboardingStatus.PENDING_AML,
+      aml_approved: false,
+      onboarding_approved: true,
+      ssm_checked: true,
+      type: OrganizationType.COMPANY,
+      name: "Issuer Co",
+      owner_user_id: "user-1",
+    };
+
+    await maybeAdvanceOrgAfterAmlScreeningCleared({
+      organizationId: "org-issuer-1",
+      portalType: "issuer",
+      userId: "user-1",
+      trigger: "REGTANK_KYB_MAIN_COMPANY_APPROVED",
+      onboardingId: "issuer-onboarding-1",
+      extraMetadata: { kybRequestId: "KYB00103" },
+    });
+
+    expect(mockOnboardingAuditCreate).toHaveBeenCalledTimes(1);
+    const payload = mockOnboardingAuditCreate.mock.calls[0]?.[0] as {
+      data?: { event_type?: string; onboarding_id?: string | null; metadata?: Record<string, unknown> };
+    };
+    expect(payload.data?.event_type).toBe("AML_APPROVED");
+    expect(payload.data?.onboarding_id).toBe("issuer-onboarding-1");
+    expect(payload.data?.metadata).toEqual(
+      expect.objectContaining({
+        providerReference: "KYB00103",
+        trigger: "REGTANK_KYB_MAIN_COMPANY_APPROVED",
+        previousApproved: false,
+        newApproved: true,
+        previousStatus: OnboardingStatus.PENDING_AML,
+        newStatus: OnboardingStatus.PENDING_FINAL_APPROVAL,
+      })
+    );
   });
 
   it("D4: still records aml_approved even when org is not yet at PENDING_AML, without skipping earlier stages", async () => {
@@ -284,6 +366,28 @@ describe("applyCorporateAmlMilestoneFromLiveKyb", () => {
     expect(outcome.onboardingStatus).toBe(OnboardingStatus.PENDING_FINAL_APPROVAL);
   });
 
+  it("threads a caller-supplied onboarding id onto AML_APPROVED without looking it up", async () => {
+    resetOrg({ onboarding_status: OnboardingStatus.PENDING_AML });
+    mockGetCorporateOnboardingDetails.mockResolvedValue({ kybRequestDto: { kybId: "KYB001" } });
+    mockQueryKYBStatus.mockResolvedValue({ status: "Approved" });
+
+    await applyCorporateAmlMilestoneFromLiveKyb({
+      organizationId: "org-1",
+      portalType: "investor",
+      userId: "user-1",
+      codRequestId: "COD001",
+      trigger: "ADMIN_MANUAL_AML_REFRESH",
+      onboardingId: "onboarding-1",
+    });
+
+    expect(mockOnboardingAuditCreate).toHaveBeenCalledTimes(1);
+    const payload = mockOnboardingAuditCreate.mock.calls[0]?.[0] as {
+      data?: { event_type?: string; onboarding_id?: string | null };
+    };
+    expect(payload.data?.event_type).toBe("AML_APPROVED");
+    expect(payload.data?.onboarding_id).toBe("onboarding-1");
+  });
+
   it("does not advance when messageStatus is DONE but status is not Approved", async () => {
     resetOrg({ onboarding_status: OnboardingStatus.PENDING_AML });
     mockGetCorporateOnboardingDetails.mockResolvedValue({ kybRequestDto: { kybId: "KYB001" } });
@@ -361,6 +465,35 @@ describe("applyPersonalAmlMilestoneFromLiveKyc", () => {
     expect(outcome.approved).toBe(true);
     expect(outcome.advanced).toBe(true);
     expect(outcome.onboardingStatus).toBe(OnboardingStatus.PENDING_FINAL_APPROVAL);
+  });
+
+  it("threads a caller-supplied onboarding id onto personal AML_APPROVED", async () => {
+    resetOrg({ onboarding_status: OnboardingStatus.PENDING_AML });
+    mockQueryKYCStatus.mockResolvedValue({ status: "Approved" });
+
+    await applyPersonalAmlMilestoneFromLiveKyc({
+      organizationId: "org-1",
+      portalType: "investor",
+      userId: "user-1",
+      kycId: "KYC001",
+      trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH_PERSONAL",
+      onboardingId: "personal-onboarding-1",
+    });
+
+    expect(mockOnboardingAuditCreate).toHaveBeenCalledTimes(1);
+    const payload = mockOnboardingAuditCreate.mock.calls[0]?.[0] as {
+      data?: { event_type?: string; onboarding_id?: string | null; metadata?: Record<string, unknown> };
+    };
+    expect(payload.data?.event_type).toBe("AML_APPROVED");
+    expect(payload.data?.onboarding_id).toBe("personal-onboarding-1");
+    expect(payload.data?.metadata).toEqual(
+      expect.objectContaining({
+        screeningKind: "KYC",
+        trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH_PERSONAL",
+        previousApproved: false,
+        newApproved: true,
+      })
+    );
   });
 
   it("does not advance when KYC status is still pending", async () => {

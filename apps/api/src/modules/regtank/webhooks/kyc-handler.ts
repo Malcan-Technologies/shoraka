@@ -460,6 +460,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                 userId: onboarding.user_id,
                 organizationName: org.name,
                 trigger: "REGTANK_KYC_PERSONAL_AML_CLEARED",
+                onboardingId: onboarding.id,
                 extraMetadata: {
                   kycRequestId: requestId,
                   onboardingRequestId: onboarding.request_id,
@@ -499,6 +500,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                 userId: onboarding.user_id,
                 organizationName: org.name,
                 trigger: "REGTANK_KYC_PERSONAL_AML_CLEARED",
+                onboardingId: onboarding.id,
                 extraMetadata: {
                   kycRequestId: requestId,
                   onboardingRequestId: onboarding.request_id,

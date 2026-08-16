@@ -5684,6 +5684,7 @@ export class AdminService {
         organizationName: org.name,
         codRequestId,
         trigger: "ADMIN_MANUAL_AML_REFRESH",
+        onboardingId,
       });
 
       logger.info(
@@ -5896,7 +5897,7 @@ export class AdminService {
    * record exists — apply the shared personal AML milestone from a live KYC query.
    */
   private async refreshPersonalOnboardingStatus(
-    onboarding: { request_id: string; reference_id: string; portal_type: string },
+    onboarding: { id: string; request_id: string; reference_id: string; portal_type: string },
     org: { id: string; name: string | null; onboarding_status: OnboardingStatus; onboarding_approved: boolean; aml_approved: boolean; kyc_id?: string | null },
     isInvestor: boolean,
     adminUserId: string
@@ -6029,6 +6030,7 @@ export class AdminService {
           organizationName: afterOnboarding?.name ?? org.name,
           kycId,
           trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH_PERSONAL",
+          onboardingId: onboarding.id,
         });
         refreshedSources.push("KYC");
         amlProviderStatus = milestone.rawStatus;

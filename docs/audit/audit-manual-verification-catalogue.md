@@ -10531,6 +10531,8 @@ AML screening was approved (admin or RegTank org-AML milestone).
 
 `apps/api/src/modules/admin/service.ts` and `apps/api/src/modules/regtank/webhooks/org-aml-milestone.ts`.
 
+When the current AML writer already knows the RegTank onboarding session, `onboarding_id` links to `reg_tank_onboarding.id`. It remains nullable for truly session-independent writes.
+
 ## 3. When it does NOT log / no-op
 
 Issuer/investor HIDE. Repeat approval with no flag change may still write depending on the call site — verify `previousApproved === newApproved` behavior per writer.
@@ -10542,7 +10544,7 @@ Append-only `OnboardingAuditLog` / `onboarding_audit_logs`.
 | Column | Current writer behavior |
 |---|---|
 | `id` | cuid |
-| `onboarding_id` | RegTank / session id when the writer supplies it; otherwise null |
+| `onboarding_id` | When the current AML writer already knows the RegTank onboarding session, `onboarding_id` links to `reg_tank_onboarding.id`. It remains nullable for truly session-independent writes. |
 | `event_type` | `AML_APPROVED` |
 | `occurred_at` / `created_at` | DB default `now()` |
 | `actor_type` / `actor_user_id` | Request or webhook/system context |

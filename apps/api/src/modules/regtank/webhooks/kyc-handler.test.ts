@@ -15,10 +15,11 @@ jest.mock("../repository", () => ({
 }));
 
 const mockFindInvestorOrganizationById = jest.fn().mockResolvedValue({ id: "org-1", name: "Test Org" });
+const mockFindIssuerOrganizationById = jest.fn().mockResolvedValue({ id: "org-issuer-1", name: "Issuer Person" });
 jest.mock("../../organization/repository", () => ({
   OrganizationRepository: jest.fn().mockImplementation(() => ({
     findInvestorOrganizationById: (...args: unknown[]) => mockFindInvestorOrganizationById(...args),
-    findIssuerOrganizationById: jest.fn(),
+    findIssuerOrganizationById: (...args: unknown[]) => mockFindIssuerOrganizationById(...args),
   })),
 }));
 
@@ -151,8 +152,20 @@ describe("KYCWebhookHandler", () => {
 
     expect(mockMaybeAdvance).toHaveBeenCalledTimes(1);
     expect(mockMaybeAdvance).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: "org-1", portalType: "investor" })
+      expect.objectContaining({
+        organizationId: "org-1",
+        portalType: "investor",
+        trigger: "REGTANK_KYC_PERSONAL_AML_CLEARED",
+        onboardingId: "row-1",
+        extraMetadata: expect.objectContaining({
+          kycRequestId: "KYC001",
+          onboardingRequestId: "LD001-R01",
+        }),
+      })
     );
+    const call = mockMaybeAdvance.mock.calls[0]?.[0] as { onboardingId?: string };
+    expect(call.onboardingId).not.toBe("LD001-R01");
+    expect(call.onboardingId).not.toBe("KYC001");
   });
 
   it("G2: a director/shareholder KYC resolved against the parent CORPORATE onboarding does NOT trigger the personal AML milestone", async () => {

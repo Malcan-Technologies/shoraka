@@ -67,8 +67,9 @@ export async function maybeAdvanceOrgAfterAmlScreeningCleared(params: {
   organizationName?: string | null;
   trigger: string;
   extraMetadata?: Record<string, unknown>;
+  onboardingId?: string | null;
 }): Promise<AmlMilestoneOutcome> {
-  const { organizationId, portalType, trigger, extraMetadata } = params;
+  const { organizationId, portalType, trigger, extraMetadata, onboardingId } = params;
   const isInvestor = portalType === "investor";
 
   const org = isInvestor
@@ -173,6 +174,7 @@ export async function maybeAdvanceOrgAfterAmlScreeningCleared(params: {
             portal: auditPortalFromLegacy(portalType),
           }),
           subjectUserId: org.owner_user_id,
+          onboardingId,
           organizationId,
           organizationKind: organizationKindFromPortalType(portalType as "investor" | "issuer"),
           organizationType: org.type,
@@ -295,8 +297,9 @@ export async function applyCorporateAmlMilestoneFromLiveKyb(params: {
   organizationName?: string | null;
   codRequestId: string;
   trigger: string;
+  onboardingId?: string | null;
 }): Promise<AmlMilestoneOutcome> {
-  const { codRequestId, ...rest } = params;
+  const { codRequestId, onboardingId, ...rest } = params;
   const { approved, rawStatus } = await checkMainCompanyKybApprovedLive(codRequestId);
 
   if (!approved) {
@@ -317,6 +320,7 @@ export async function applyCorporateAmlMilestoneFromLiveKyb(params: {
 
   const outcome = await maybeAdvanceOrgAfterAmlScreeningCleared({
     ...rest,
+    onboardingId,
     extraMetadata: { codRequestId, rawStatus, source: "LIVE_KYB_QUERY" },
   });
   return { ...outcome, rawStatus, approved: true };
@@ -333,8 +337,9 @@ export async function applyPersonalAmlMilestoneFromLiveKyc(params: {
   organizationName?: string | null;
   kycId: string;
   trigger: string;
+  onboardingId?: string | null;
 }): Promise<AmlMilestoneOutcome> {
-  const { kycId, ...rest } = params;
+  const { kycId, onboardingId, ...rest } = params;
   const apiClient = getRegTankAPIClient();
   let rawStatus: string | null = null;
 
@@ -369,6 +374,7 @@ export async function applyPersonalAmlMilestoneFromLiveKyc(params: {
 
   const outcome = await maybeAdvanceOrgAfterAmlScreeningCleared({
     ...rest,
+    onboardingId,
     extraMetadata: { kycId, rawStatus, source: "LIVE_KYC_QUERY" },
   });
   return { ...outcome, rawStatus, approved: true };

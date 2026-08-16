@@ -211,7 +211,12 @@ describe("AdminService.refreshOnboardingStatus — personal", () => {
       expect.objectContaining({ requestId: "LD001", status: "APPROVED" })
     );
     expect(mockApplyPersonalAmlMilestoneFromLiveKyc).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: "org-1", kycId: "KYC001", userId: "admin-1" })
+      expect.objectContaining({
+        organizationId: "org-1",
+        kycId: "KYC001",
+        userId: "admin-1",
+        onboardingId: "onboarding-1",
+      })
     );
     expect(result.advanced).toBe(true);
     expect(result.onboardingStatus).toBe(OnboardingStatus.PENDING_FINAL_APPROVAL);

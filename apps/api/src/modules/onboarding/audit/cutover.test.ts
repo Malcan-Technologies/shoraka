@@ -209,6 +209,7 @@ describe("Onboarding audit cutover", () => {
   it("AML approval does not also emit ONBOARDING_STATUS_CHANGED", () => {
     const chunk = methodChunk(adminService, "approveAmlScreening", 8000);
     expect(chunk).toMatch(/AML_APPROVED/);
+    expect(chunk).toMatch(/onboardingId,/);
     expect(chunk).not.toMatch(/ONBOARDING_STATUS_CHANGED/);
   });
 
