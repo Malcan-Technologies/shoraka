@@ -12,6 +12,7 @@ import {
   oauthAuthErrorUrl,
   resolveAdminPortalAuthorizationDeniedRedirect,
 } from "./cognito-callback-redirect";
+import { resolveCognitoAdminAccessDeniedClassification } from "./cognito-admin-access-denied";
 import { UserRole } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import {
@@ -658,11 +659,13 @@ router.get("/callback", async (req: Request, res: Response) => {
           "User attempted to access admin portal without ADMIN role or with inactive status"
         );
 
+        const deniedClassification = resolveCognitoAdminAccessDeniedClassification(hasAdminRole);
+
         await writeSecurityAuditLogBestEffort({
           eventType: "ADMIN_ACCESS_DENIED",
           context: {
             ...callbackAuditContext,
-            actorType: AUDIT_ACTOR_TYPE.ADMIN,
+            actorType: deniedClassification.actorType,
             portal: AUDIT_PORTAL.ADMIN,
           },
           subjectUserId: user.user_id,
@@ -671,7 +674,7 @@ router.get("/callback", async (req: Request, res: Response) => {
           metadata: {
             method: req.method,
             path: req.originalUrl || req.path,
-            reasonCode: !hasAdminRole ? "MISSING_ADMIN_ROLE" : "ADMIN_INACTIVE",
+            reasonCode: deniedClassification.reasonCode,
           },
         });
 

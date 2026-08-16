@@ -71,6 +71,10 @@ describe("admin 403 ADMIN_ACCESS_DENIED", () => {
     expect(writeSecurityAuditLogBestEffort).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: "ADMIN_ACCESS_DENIED",
+        context: expect.objectContaining({
+          actorType: "ADMIN",
+          portal: "ADMIN",
+        }),
         metadata: expect.objectContaining({
           reasonCode: "INSUFFICIENT_PERMISSIONS",
           method: "GET",

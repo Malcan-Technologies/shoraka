@@ -85,11 +85,22 @@ describe("Access/Security audit cutover", () => {
   });
 
   it("admin Cognito gate denial writes Security ADMIN_ACCESS_DENIED, not Access", () => {
+    const deniedClassification = readSrc("modules/auth/cognito-admin-access-denied.ts");
+    expect(deniedClassification).toMatch(/MISSING_ADMIN_ROLE/);
+    expect(deniedClassification).toMatch(/ADMIN_INACTIVE/);
+    expect(deniedClassification).toMatch(/hasAdminRole/);
+    expect(deniedClassification).toMatch(/AUDIT_ACTOR_TYPE\.USER/);
+    expect(deniedClassification).toMatch(/AUDIT_ACTOR_TYPE\.ADMIN/);
+
     expect(cognitoRoutes).toMatch(/ADMIN_ACCESS_DENIED/);
-    expect(cognitoRoutes).toMatch(/MISSING_ADMIN_ROLE/);
-    expect(cognitoRoutes).toMatch(/ADMIN_INACTIVE/);
+    expect(cognitoRoutes).toMatch(/resolveCognitoAdminAccessDeniedClassification\(hasAdminRole\)/);
     const deniedStart = cognitoRoutes.indexOf("ADMIN_ACCESS_DENIED");
     const deniedChunk = cognitoRoutes.slice(deniedStart - 200, deniedStart + 1200);
+    expect(deniedChunk).toMatch(/resolveCognitoAdminAccessDeniedClassification/);
+    expect(deniedChunk).toMatch(/deniedClassification\.actorType/);
+    expect(deniedChunk).toMatch(/deniedClassification\.reasonCode/);
+    expect(deniedChunk).toMatch(/portal: AUDIT_PORTAL\.ADMIN/);
+    expect(deniedChunk).not.toMatch(/actorType: AUDIT_ACTOR_TYPE\.ADMIN/);
     expect(deniedChunk).not.toMatch(/writeAccessAuditLog/);
     expect(deniedChunk).toMatch(/writeSecurityAuditLogBestEffort/);
     expect(deniedChunk).toMatch(/resolveAdminPortalAuthorizationDeniedRedirect/);
