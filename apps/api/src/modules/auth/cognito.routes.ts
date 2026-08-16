@@ -7,6 +7,7 @@ import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { getEnv } from "../../config/env";
 import { detectRoleFromRequest, getPortalFromRole } from "../../lib/role-detector";
+import { resolveCognitoLogoutAuditPortal } from "./cognito-logout-portal";
 import { UserRole } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import {
@@ -954,27 +955,8 @@ router.get("/logout", async (req: Request, res: Response) => {
   const token = tokenFromHeader || tokenFromQuery;
 
   let cognitoSub: string | undefined;
-  let portal: string | undefined;
   let userId: string | undefined;
-
-  // Try to detect portal from referer/origin if token doesn't have it
-  // This helps when logout is called without a valid token
-  const referer = req.get("referer") || req.get("origin");
-  if (referer && !portal) {
-    try {
-      const url = new URL(referer);
-      const hostname = url.hostname.toLowerCase();
-      if (hostname.includes("admin")) {
-        portal = "admin";
-      } else if (hostname.includes("investor")) {
-        portal = "investor";
-      } else if (hostname.includes("issuer")) {
-        portal = "issuer";
-      }
-    } catch {
-      // Ignore URL parsing errors
-    }
-  }
+  let logoutAuditPortal: ReturnType<typeof resolveCognitoLogoutAuditPortal> = null;
 
   if (token) {
     try {
@@ -990,16 +972,19 @@ router.get("/logout", async (req: Request, res: Response) => {
 
       if (user) {
         userId = user.user_id;
-        if (!portal && user.roles.length > 0) {
-          portal = getPortalFromRole(user.roles[0]);
-        }
+        logoutAuditPortal = resolveCognitoLogoutAuditPortal({
+          queryPortal: req.query.portal,
+          referer: req.get("referer"),
+          origin: req.get("origin"),
+          roles: user.roles,
+        });
 
         await writeAccessAuditLogBestEffort({
           eventType: "USER_LOGGED_OUT",
           context: auditContextFromRequest(req, {
             actorType: AUDIT_ACTOR_TYPE.USER,
             actorUserId: user.user_id,
-            portal: auditPortalFromLegacy(portal),
+            portal: logoutAuditPortal,
             source: AUDIT_SOURCE.API,
           }),
           userId: user.user_id,
@@ -1008,7 +993,10 @@ router.get("/logout", async (req: Request, res: Response) => {
           },
         });
 
-        logger.info({ correlationId, userId: user.user_id, portal }, "Logout access log created");
+        logger.info(
+          { correlationId, userId: user.user_id, portal: logoutAuditPortal },
+          "Logout access log created"
+        );
       }
     } catch (error) {
       // If token is invalid/expired, log warning but continue with logout
@@ -1069,7 +1057,10 @@ router.get("/logout", async (req: Request, res: Response) => {
   // Frontend will handle the redirect to Cognito logout URL
 
   // Return success response - let frontend handle redirect
-  logger.info({ correlationId, userId, portal }, "Logout completed - returning success");
+  logger.info(
+    { correlationId, userId, portal: logoutAuditPortal },
+    "Logout completed - returning success"
+  );
   return res.json({
     success: true,
     message: "Logged out successfully",
