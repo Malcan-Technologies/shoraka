@@ -1000,8 +1000,19 @@ export default function OrganizationDetailPage() {
                             <UserIcon className="h-6 w-6 text-primary" />
                           )}
                         </div>
-                        <div className="min-w-0">
-                          <h2 className="text-xl font-bold break-words">{displayName}</h2>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                            <h2 className="text-xl font-bold break-words min-w-0">{displayName}</h2>
+                            {org.type === "COMPANY" && org.codRequestId ? (
+                              <span className="text-xs text-muted-foreground shrink-0 pt-1.5">
+                                Corporate onboarding
+                              </span>
+                            ) : org.type !== "COMPANY" && org.regtankRequestId ? (
+                              <span className="text-xs text-muted-foreground shrink-0 pt-1.5">
+                                Personal onboarding
+                              </span>
+                            ) : null}
+                          </div>
                           <div className="mt-1 flex flex-wrap items-center gap-2">
                             <StatusBadge
                               label={org.portal.charAt(0).toUpperCase() + org.portal.slice(1)}
@@ -1119,36 +1130,46 @@ export default function OrganizationDetailPage() {
                       <p className="text-xs text-muted-foreground font-mono break-all">
                         ID: {org.id}
                       </p>
+                      {(() => {
+                        const requestId =
+                          org.type === "COMPANY" ? org.codRequestId : org.regtankRequestId;
+                        if (!requestId && !org.regtankPortalUrl) return null;
+                        if (requestId && org.regtankPortalUrl) {
+                          return (
+                            <p className="text-xs text-muted-foreground">
+                              RegTank:{" "}
+                              <a
+                                href={org.regtankPortalUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 font-mono text-foreground hover:text-primary hover:underline break-all"
+                              >
+                                {requestId}
+                                <ArrowTopRightOnSquareIcon className="h-3 w-3 shrink-0" aria-hidden />
+                              </a>
+                            </p>
+                          );
+                        }
+                        if (requestId) {
+                          return (
+                            <p className="text-xs text-muted-foreground font-mono break-all">
+                              RegTank: {requestId}
+                            </p>
+                          );
+                        }
+                        return (
+                          <a
+                            href={org.regtankPortalUrl ?? undefined}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-foreground hover:text-primary hover:underline"
+                          >
+                            Open in RegTank
+                            <ArrowTopRightOnSquareIcon className="h-3 w-3 shrink-0" aria-hidden />
+                          </a>
+                        );
+                      })()}
                     </div>
-
-                    {(() => {
-                      const requestId =
-                        org.type === "COMPANY" ? org.codRequestId : org.regtankRequestId;
-                      const sessionLabel =
-                        org.type === "COMPANY" ? "Corporate onboarding" : "Personal onboarding";
-                      if (!requestId && !org.regtankPortalUrl) return null;
-                      return (
-                        <div className="rounded-lg border bg-muted/30 px-3 py-2.5 min-w-0">
-                          <div className="text-xs text-muted-foreground">RegTank</div>
-                          {requestId ? (
-                            <div className="text-xs text-muted-foreground">{sessionLabel}</div>
-                          ) : null}
-                          <div className="mt-1 flex flex-wrap items-center gap-2 min-w-0">
-                            {requestId ? (
-                              <span className="font-mono text-sm break-all">{requestId}</span>
-                            ) : null}
-                            {org.regtankPortalUrl ? (
-                              <Button variant="outline" size="sm" asChild className="h-8 shrink-0 gap-1.5">
-                                <a href={org.regtankPortalUrl} target="_blank" rel="noopener noreferrer">
-                                  <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                                  Open in RegTank
-                                </a>
-                              </Button>
-                            ) : null}
-                          </div>
-                        </div>
-                      );
-                    })()}
                   </CardContent>
                 </Card>
 

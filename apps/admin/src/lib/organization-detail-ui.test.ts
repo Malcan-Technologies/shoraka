@@ -12,11 +12,13 @@ describe("admin organization detail presentation", () => {
   const page = read("app/organizations/[portal]/[id]/page.tsx");
   const table = read("components/admin/director-shareholder-table.tsx");
 
-  it("shows parent COD in the organization RegTank area, not as a raw COD: line", () => {
+  it("shows parent COD in the header metadata, with corporate onboarding beside the name", () => {
     expect(page).toContain("Corporate onboarding");
     expect(page).toContain("org.codRequestId");
-    expect(page).toContain("Open in RegTank");
+    expect(page).toContain("RegTank:");
+    expect(page).toContain("org.regtankPortalUrl");
     expect(page).not.toContain("COD: {org.codRequestId}");
+    expect(page).not.toContain("rounded-lg border bg-muted/30");
   });
 
   it("humanises organization member roles with toTitleCase", () => {
@@ -46,7 +48,7 @@ describe("admin organization detail presentation", () => {
     expect(table).not.toContain("min-w-[72rem]");
     expect(table).not.toContain('className="w-[1%] whitespace-nowrap"');
     expect(table).toContain("min-w-[11.5rem] w-[13rem]");
-    expect(table).toContain("min-w-[16.5rem]");
+    expect(table).toContain("w-[11rem]");
     expect(table).toContain("w-[15rem]");
     expect(table).toContain("whitespace-nowrap");
   });
@@ -59,11 +61,16 @@ describe("admin organization detail presentation", () => {
     expect(table).toContain('className="text-xs whitespace-nowrap"');
   });
 
-  it("renders RegTank ids as a compact three-column mini-grid", () => {
+  it("shows a compact RegTank record count and View popover", () => {
     expect(table).toContain("getRegtankColumnDisplayRows");
-    expect(table).toContain("grid-cols-[auto_auto_auto]");
-    expect(table).toContain("font-mono text-[11px]");
-    expect(table).toContain("Open");
+    expect(table).toContain("PopoverTrigger");
+    expect(table).toContain("RegTank records");
+    expect(table).toContain("1 record");
+    expect(table).toContain("records");
+    expect(table).toContain("aria-label={`View ${recordLabel} in RegTank`}");
+    expect(table).toContain("href={row.url}");
+    expect(table).toContain("ArrowTopRightOnSquareIcon");
+    expect(table).not.toContain("bg-muted/30 px-2.5 py-1.5");
     expect(table).not.toContain("getRegtankOnboardingViewLinks");
     expect(table).not.toContain("getRegtankScreeningLink");
   });

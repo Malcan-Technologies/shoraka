@@ -4,7 +4,7 @@ import * as React from "react";
 import { format } from "date-fns";
 import { useAuthToken } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
-// import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,6 +44,7 @@ import {
   StatusBadge,
   type StatusToken,
 } from "@cashsouk/ui";
+import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -84,39 +85,55 @@ function RegtankColumnCell({ person }: { person: ApplicationPersonRow }) {
   if (rows.length === 0) {
     return <span className="text-sm text-muted-foreground">—</span>;
   }
+  const count = rows.length;
+  const recordLabel = count === 1 ? "1 record" : `${count} records`;
   return (
-    <div className="grid grid-cols-[auto_auto_auto] gap-x-3 gap-y-1 items-center">
-      {rows.map((row) => (
-        <RegtankColumnActionRow key={`${row.kind}-${row.groupLabel}-${row.requestId}`} row={row} />
-      ))}
+    <div className="flex items-center gap-2 whitespace-nowrap">
+      <span className="text-xs text-muted-foreground">{recordLabel}</span>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2.5 text-xs shrink-0"
+            aria-label={`View ${recordLabel} in RegTank`}
+          >
+            View
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[16.5rem] p-3" align="start" side="bottom" sideOffset={6}>
+          <div className="text-sm font-medium">RegTank records</div>
+          <div className="mt-2 space-y-2">
+            {rows.map((row) => (
+              <RegtankPopoverRecord key={`${row.kind}-${row.groupLabel}-${row.requestId}`} row={row} />
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
 
-function RegtankColumnActionRow({ row }: { row: RegtankColumnDisplayRow }) {
+function RegtankPopoverRecord({ row }: { row: RegtankColumnDisplayRow }) {
   return (
-    <>
-      <span className="text-[11px] leading-4 text-muted-foreground whitespace-nowrap">{row.groupLabel}</span>
-      <span className="font-mono text-[11px] leading-4 whitespace-nowrap">{row.requestId}</span>
+    <div className="min-w-0">
+      <div className="text-[11px] leading-4 text-muted-foreground">{row.groupLabel}</div>
       {row.url ? (
-        <Button
-          type="button"
-          variant="link"
-          size="sm"
-          className="h-auto min-h-0 px-0 py-0 text-xs font-medium justify-self-start"
+        <a
+          href={row.url}
+          target="_blank"
+          rel="noopener noreferrer"
           title={`Open ${row.groupLabel} ${row.requestId} in RegTank`}
-          onClick={() => {
-            const url = row.url;
-            if (!url) return;
-            window.open(url, "_blank", "noopener,noreferrer");
-          }}
+          className="mt-0.5 inline-flex max-w-full items-center gap-1 font-mono text-xs leading-4 text-foreground hover:text-primary hover:underline"
         >
-          Open
-        </Button>
+          <span className="truncate">{row.requestId}</span>
+          <ArrowTopRightOnSquareIcon className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden />
+        </a>
       ) : (
-        <span />
+        <div className="mt-0.5 font-mono text-xs leading-4 truncate">{row.requestId}</div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -233,7 +250,7 @@ export function DirectorShareholderTable({
               <TableHead className="min-w-[11.5rem] w-[13rem]">Roles</TableHead>
               <TableHead className="w-[5.5rem] whitespace-nowrap">Share %</TableHead>
               <TableHead className="w-[10.5rem] whitespace-nowrap">Status</TableHead>
-              <TableHead className="min-w-[16.5rem]">RegTank</TableHead>
+              <TableHead className="w-[11rem] whitespace-nowrap">RegTank</TableHead>
               <TableHead className="w-[15rem] whitespace-nowrap" title="Fetch or view the CTOS report for this person.">
                 CTOS
               </TableHead>
@@ -271,7 +288,7 @@ export function DirectorShareholderTable({
                       className="text-xs whitespace-nowrap"
                     />
                   </TableCell>
-                  <TableCell className="align-top min-w-[16.5rem]">
+                  <TableCell className="align-top w-[11rem] whitespace-nowrap">
                     <RegtankColumnCell person={p} />
                   </TableCell>
                   <TableCell className="align-top w-[15rem] whitespace-nowrap">
