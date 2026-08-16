@@ -387,6 +387,50 @@ export function OrganizationSwitcher({ variant = "sidebar" }: OrganizationSwitch
   }
 
   if (isOnboardingPage) {
+    if (organizations.length === 0) {
+      if (isHeader) {
+        return (
+          <button
+            type="button"
+            disabled
+            aria-disabled="true"
+            data-testid="organization-switcher"
+            className="flex h-10 max-w-[16rem] cursor-default items-center gap-2 rounded-lg border border-border bg-card px-2 text-left shadow-sm disabled:pointer-events-none disabled:opacity-100"
+          >
+            <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <Plus className="size-3.5" />
+            </div>
+            <span className="hidden min-w-0 truncate text-sm font-medium sm:block">
+              Adding organisation
+            </span>
+          </button>
+        );
+      }
+      return (
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              size="lg"
+              disabled
+              aria-disabled="true"
+              data-testid="organization-switcher"
+              className="cursor-default opacity-100 disabled:opacity-100"
+            >
+              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <Plus className="size-4" />
+              </div>
+              <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
+                <span className="truncate text-sm font-semibold text-foreground">
+                  Adding New Organization
+                </span>
+                <span className="truncate text-xs text-muted-foreground">Complete onboarding</span>
+              </div>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      );
+    }
+
     const trigger = isHeader ? (
       <button
         type="button"
