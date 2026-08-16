@@ -61,13 +61,13 @@ function getServerSnapshot() {
   return false;
 }
 
-const ADDING_ORGANISATION_TOOLTIP = "Finish adding your organisation to unlock this";
+const ADDING_ORGANISATION_TOOLTIP = "Finish adding your organisation to unlock this.";
 const REJECTED_ONBOARDING_TOOLTIP = "Onboarding was not approved.";
-const WORK_NAV_UNLOCK_TOOLTIP =
-  "Available after you complete business verification.";
-const ACCOUNT_ACCESS_UNLOCK_TOOLTIP =
-  "Available after onboarding verification is complete and your organisation has passed initial review.";
+const WORK_NAV_UNLOCK_TOOLTIP = "Available after verification is complete.";
+const ACCOUNT_ACCESS_UNLOCK_TOOLTIP = "Available after verification and initial review.";
 const COMPLETED_ONBOARDING_UNLOCK_TOOLTIP = "Available after onboarding is complete.";
+const LOCKED_TOOLTIP_CONTENT_CLASSNAME =
+  "max-w-[240px] whitespace-normal break-words text-left leading-5";
 
 function sidebarLockTooltip(params: {
   addingOrganisation: boolean;
@@ -100,7 +100,7 @@ function LockedNavButton({
           </SidebarMenuButton>
         </span>
       </TooltipTrigger>
-      <TooltipContent side="right" align="center">
+      <TooltipContent side="right" align="center" className={LOCKED_TOOLTIP_CONTENT_CLASSNAME}>
         {tooltip}
       </TooltipContent>
     </Tooltip>
@@ -139,7 +139,7 @@ function ApplyForFinancingCard({
               <LockClosedIcon className="hidden h-4 w-4 text-muted-foreground group-data-[collapsible=icon]:block" />
             </div>
           </TooltipTrigger>
-          <TooltipContent side="right" align="center">
+          <TooltipContent side="right" align="center" className={LOCKED_TOOLTIP_CONTENT_CLASSNAME}>
             {lockedTooltip}
           </TooltipContent>
         </Tooltip>
