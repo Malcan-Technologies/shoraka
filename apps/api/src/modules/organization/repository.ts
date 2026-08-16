@@ -41,12 +41,12 @@ export type UpdateOrganizationOnboardingOptions = {
 
 export class OrganizationRepository {
   /**
-   * Create an investor organization
+   * Create an investor organization.
    *
-   * Note: Personal accounts start with IN_PROGRESS when user clicks "Yes, create Personal Account".
-   * Company accounts start with PENDING. Status is updated via RegTank webhooks:
-   * - IN_PROGRESS → PENDING_APPROVAL (when liveness test completes)
-   * - PENDING_APPROVAL → COMPLETED (when RegTank approves)
+   * Personal and company accounts both start as IN_PROGRESS while the user is
+   * completing onboarding. Later transitions (liveness / approval webhooks) move
+   * IN_PROGRESS → PENDING_APPROVAL or PENDING_SSM_REVIEW; those writers already
+   * accept both PENDING (legacy rows) and IN_PROGRESS.
    */
   async createInvestorOrganization(data: {
     ownerUserId: string;
@@ -60,23 +60,17 @@ export class OrganizationRepository {
         type: data.type,
         name: data.name,
         registration_number: data.registrationNumber,
-        // Personal accounts: IN_PROGRESS when user clicks "Yes, create Personal Account"
-        // Company accounts: PENDING (will be updated when onboarding starts)
-        onboarding_status:
-          data.type === OrganizationType.PERSONAL
-            ? OnboardingStatus.IN_PROGRESS
-            : OnboardingStatus.PENDING,
+        onboarding_status: OnboardingStatus.IN_PROGRESS,
       },
     });
   }
 
   /**
-   * Create an issuer organization
+   * Create an issuer organization.
    *
-   * Note: Personal accounts start with IN_PROGRESS when user clicks "Yes, create Personal Account".
-   * Company accounts start with PENDING. Status is updated via RegTank webhooks:
-   * - IN_PROGRESS → PENDING_APPROVAL (when liveness test completes)
-   * - PENDING_APPROVAL → COMPLETED (when RegTank approves)
+   * Personal and company accounts both start as IN_PROGRESS while the user is
+   * completing onboarding. Later transitions already accept both PENDING (legacy
+   * rows) and IN_PROGRESS.
    */
   async createIssuerOrganization(data: {
     ownerUserId: string;
@@ -90,12 +84,7 @@ export class OrganizationRepository {
         type: data.type,
         name: data.name,
         registration_number: data.registrationNumber,
-        // Personal accounts: IN_PROGRESS when user clicks "Yes, create Personal Account"
-        // Company accounts: PENDING (will be updated when onboarding starts)
-        onboarding_status:
-          data.type === OrganizationType.PERSONAL
-            ? OnboardingStatus.IN_PROGRESS
-            : OnboardingStatus.PENDING,
+        onboarding_status: OnboardingStatus.IN_PROGRESS,
       },
     });
   }
