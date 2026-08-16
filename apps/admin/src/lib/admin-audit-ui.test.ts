@@ -107,6 +107,14 @@ describe("admin audit UI restructure", () => {
     const activityHook = read("hooks/use-application-logs.ts");
     expect(activityHook).toContain("normalizeLogItem");
     expect(activityHook).not.toContain("getApplicationAuditHistory");
+    expect(read("components/admin-activity-timeline.tsx")).toContain(
+      "isAdminApplicationTimelineVisible"
+    );
+    expect(read("hooks/use-organization-logs.ts")).not.toContain(
+      "USER_ONBOARDING_STATUS_UPDATED"
+    );
+    expect(read("hooks/use-organization-logs.ts")).not.toContain("ONBOARDING_STATUS_CHANGED");
+    expect(read("components/audit/onboarding-logs-panel.tsx")).toContain("ONBOARDING_AUDIT_EVENTS");
 
     const notePage = read("app/notes/[id]/page.tsx");
     expect(notePage).toContain("NoteTimelinePanel");

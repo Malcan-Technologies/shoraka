@@ -12,6 +12,8 @@ const ACTIVITY_DOMAIN_BADGE_CLASS: Record<ActivityDomain, string> = {
     "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300",
   signing:
     "border-transparent bg-status-in-progress-bg text-status-in-progress-text dark:bg-violet-950/40 dark:text-violet-300",
+  payment:
+    "border-transparent bg-status-submitted-bg text-status-submitted-text dark:bg-sky-950/40 dark:text-sky-300",
 };
 
 interface ActivityBadgeProps extends React.HTMLAttributes<HTMLDivElement> {

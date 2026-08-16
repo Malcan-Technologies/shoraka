@@ -2,114 +2,44 @@ import { prisma } from "../../../lib/prisma";
 import { OnboardingAuditLog, Prisma } from "@prisma/client";
 import { formatDeviceInfoFromUserAgent } from "../../../lib/http/request-utils";
 import {
+  getOnboardingActivityEventTypes,
+  isOnboardingActivityVisible,
+  type ActivityAudience,
+} from "@cashsouk/types";
+import {
   AuditLogAdapter,
   UnifiedActivity,
   ActivityFilters,
   ActivityCategory,
   buildDateFilter,
 } from "./base";
-
-const CURATED_ORGANIZATION_ACTIVITY_EVENTS = [
-  "ONBOARDING_STARTED",
-  "ONBOARDING_RESUMED",
-  "ONBOARDING_RESTARTED",
-  "ONBOARDING_REJECTED",
-  "ONBOARDING_APPROVED",
-  "ONBOARDING_FINAL_APPROVAL_COMPLETED",
-  "ONBOARDING_COMPLETED",
-] as const;
+import { collectVisibleRecords } from "./visible-query";
 
 export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingAuditLog> {
   public readonly name = "OrganizationLogAdapter";
   public readonly category: ActivityCategory = "organization";
   public readonly domain = "onboarding" as const;
 
-  async query(
-    userId: string,
-    filters: ActivityFilters
-  ): Promise<OnboardingAuditLog[]> {
-    const { search, event_types, startDate, endDate, limit, offset, organizationId } = filters;
-    const supportedTypes = this.getEventTypes();
+  async query(userId: string, filters: ActivityFilters): Promise<OnboardingAuditLog[]> {
+    const eventTypes = this.resolveEventTypes(filters);
+    if (eventTypes.length === 0) return [];
 
-    const finalEventTypes = event_types
-      ? event_types.filter((et) => supportedTypes.includes(et))
-      : supportedTypes;
-
-    const where: Prisma.OnboardingAuditLogWhereInput = {
-      event_type: { in: finalEventTypes },
-      occurred_at: buildDateFilter(startDate, endDate),
-    };
-
-    if (organizationId) {
-      where.organization_id = organizationId;
-    } else {
-      where.subject_user_id = userId;
-    }
-
-    const matchingEventTypes = search
-      ? finalEventTypes.filter((et) => {
-          const presentation = this.buildPresentation(et, {});
-          const searchTerm = search.toLowerCase();
-          return (
-            presentation.title.toLowerCase().includes(searchTerm) ||
-            presentation.description.toLowerCase().includes(searchTerm)
-          );
-        })
-      : [];
-
-    if (search) {
-      where.OR = [
-        { event_type: { contains: search, mode: "insensitive" } },
-        { event_type: { in: matchingEventTypes } },
-      ];
-    }
-
-    return prisma.onboardingAuditLog.findMany({
-      where,
-      orderBy: { occurred_at: "desc" },
-      take: limit,
-      skip: offset,
-    });
+    return collectVisibleRecords(
+      (skip, take) =>
+        prisma.onboardingAuditLog.findMany({
+          where: this.buildWhere(userId, filters, eventTypes),
+          orderBy: { occurred_at: "desc" },
+          skip,
+          take,
+        }),
+      (record) => this.isVisible(record, filters),
+      { offset: filters.offset, limit: filters.limit }
+    );
   }
 
   async count(userId: string, filters: ActivityFilters): Promise<number> {
-    const { search, event_types, startDate, endDate, organizationId } = filters;
-    const supportedTypes = this.getEventTypes();
-
-    const finalEventTypes = event_types
-      ? event_types.filter((et) => supportedTypes.includes(et))
-      : supportedTypes;
-
-    const where: Prisma.OnboardingAuditLogWhereInput = {
-      event_type: { in: finalEventTypes },
-      occurred_at: buildDateFilter(startDate, endDate),
-    };
-
-    if (organizationId) {
-      where.organization_id = organizationId;
-    } else {
-      where.subject_user_id = userId;
-    }
-
-    const matchingEventTypes = search
-      ? finalEventTypes.filter((et) => {
-          const presentation = this.buildPresentation(et, {});
-          const searchTerm = search.toLowerCase();
-          return (
-            presentation.title.toLowerCase().includes(searchTerm) ||
-            presentation.description.toLowerCase().includes(searchTerm)
-          );
-        })
-      : [];
-
-    if (search) {
-      where.OR = [
-        { event_type: { contains: search, mode: "insensitive" } },
-        { event_type: { in: matchingEventTypes } },
-      ];
-    }
-
-    return prisma.onboardingAuditLog.count({ where });
+    const records = await this.query(userId, { ...filters, limit: undefined, offset: 0 });
+    return records.length;
   }
 
   transform(record: OnboardingAuditLog): UnifiedActivity {
@@ -161,15 +91,25 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingAuditLo
           title: "Onboarding Approved",
           description: "Your organization onboarding was approved and no further action is needed.",
         };
-      case "ONBOARDING_FINAL_APPROVAL_COMPLETED":
-        return {
-          title: "Final Approval Completed",
-          description: "Your organization onboarding received final approval.",
-        };
       case "ONBOARDING_COMPLETED":
         return {
           title: "Onboarding Completed",
           description: "Your organization onboarding was marked completed.",
+        };
+      case "INVESTOR_SOPHISTICATED_STATUS_UPDATED":
+        return {
+          title: "Sophisticated Status Updated",
+          description: "Your sophisticated investor status was updated.",
+        };
+      case "DIRECTOR_ONBOARDING_INVITATION_SENT":
+        return {
+          title: "Director Invitation Sent",
+          description: "A director was invited to complete onboarding.",
+        };
+      case "DIRECTOR_KYC_STATUS_UPDATED":
+        return {
+          title: "Director Verification Updated",
+          description: "A director verification status was updated.",
         };
       default:
         return {
@@ -183,6 +123,69 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingAuditLo
   }
 
   getEventTypes(): string[] {
-    return [...CURATED_ORGANIZATION_ACTIVITY_EVENTS];
+    return Array.from(
+      new Set([
+        ...getOnboardingActivityEventTypes("issuer"),
+        ...getOnboardingActivityEventTypes("investor"),
+      ])
+    );
+  }
+
+  private resolveEventTypes(filters: ActivityFilters): string[] {
+    const audience = this.audienceOf(filters);
+    const supported = getOnboardingActivityEventTypes(audience);
+    if (!filters.event_types?.length) return supported;
+    return filters.event_types.filter((eventType) => supported.includes(eventType));
+  }
+
+  private audienceOf(filters: ActivityFilters): ActivityAudience {
+    return filters.portalType === "investor" ? "investor" : "issuer";
+  }
+
+  private buildWhere(
+    userId: string,
+    filters: ActivityFilters,
+    eventTypes: string[]
+  ): Prisma.OnboardingAuditLogWhereInput {
+    const { search, startDate, endDate, organizationId } = filters;
+    const where: Prisma.OnboardingAuditLogWhereInput = {
+      event_type: { in: eventTypes },
+      occurred_at: buildDateFilter(startDate, endDate),
+    };
+
+    if (organizationId) {
+      where.organization_id = organizationId;
+    } else {
+      where.subject_user_id = userId;
+    }
+
+    if (search) {
+      const matchingEventTypes = eventTypes.filter((eventType) => {
+        const presentation = this.buildPresentation(eventType, {});
+        const searchTerm = search.toLowerCase();
+        return (
+          presentation.title.toLowerCase().includes(searchTerm) ||
+          presentation.description.toLowerCase().includes(searchTerm)
+        );
+      });
+      where.OR = [
+        { event_type: { contains: search, mode: "insensitive" } },
+        { event_type: { in: matchingEventTypes } },
+      ];
+    }
+
+    return where;
+  }
+
+  private isVisible(record: OnboardingAuditLog, filters: ActivityFilters): boolean {
+    return isOnboardingActivityVisible(
+      this.audienceOf(filters),
+      record.event_type,
+      (record.metadata as Record<string, unknown> | null) ?? {},
+      {
+        organizationKind: record.organization_kind,
+        organizationType: record.organization_type,
+      }
+    );
   }
 }

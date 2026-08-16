@@ -38,6 +38,7 @@
  import { ScrollArea } from "@/components/ui/scroll-area";
  import { Skeleton } from "@cashsouk/ui";
  import { useApplicationLogs, type ApplicationLogEntry } from "@/hooks/use-application-logs";
+ import { isAdminApplicationTimelineVisible } from "@cashsouk/types";
  import { formatDistanceToNow, format } from "date-fns";
 import {
   ChevronDownIcon,
@@ -161,8 +162,6 @@ function getEventIcon(eventType: string): React.ReactElement {
     case "APPLICATION_ITEM_REVIEW_UPDATED":
     case "APPLICATION_COMPLETED":
       return <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-600" />;
-    case "SECTION_REVIEWED_REJECTED":
-    case "ITEM_REVIEWED_REJECTED":
     case "APPLICATION_REJECTED":
       return <XCircleIcon className="h-3.5 w-3.5 text-destructive" />;
     case "APPLICATION_AMENDMENTS_REQUESTED":
@@ -171,10 +170,6 @@ function getEventIcon(eventType: string): React.ReactElement {
     case "APPLICATION_DOCUMENT_REMOVED":
     case "APPLICATION_DOCUMENT_REPLACED":
       return <DocumentTextIcon className="h-3.5 w-3.5 text-amber-600" />;
-    case "SECTION_REVIEWED_PENDING":
-    case "ITEM_REVIEWED_PENDING":
-    case "APPLICATION_RESET_TO_UNDER_REVIEW":
-      return <ArrowPathIcon className="h-3.5 w-3.5 text-muted-foreground" />;
     case "CONTRACT_OFFER_SENT":
     case "INVOICE_OFFER_SENT":
     case "CONTRACT_ACCEPTANCE_SUBMITTED":
@@ -212,17 +207,6 @@ function getEventIcon(eventType: string): React.ReactElement {
       return <ClockIcon className="h-3.5 w-3.5 text-muted-foreground" />;
   }
 }
-
-const ACTION_LABELS: Record<string, string> = {
-  SECTION_REVIEWED_APPROVED: "Section Approved",
-  SECTION_REVIEWED_REJECTED: "Section Rejected",
-  SECTION_REVIEWED_AMENDMENT_REQUESTED: "Section Amendment Requested",
-  SECTION_REVIEWED_PENDING: "Section Reset to Pending",
-  ITEM_REVIEWED_APPROVED: "Approved",
-  ITEM_REVIEWED_REJECTED: "Rejected",
-  ITEM_REVIEWED_AMENDMENT_REQUESTED: "Amendment Requested",
-  ITEM_REVIEWED_PENDING: "Reset to Pending",
-};
 
 function getEventLabel(
   eventType: string,
@@ -290,12 +274,6 @@ function getEventLabel(
       ? `Invoice ${invoiceNumber} Offer Sent`
       : "Invoice Offer Sent";
   }
-  if (eventType === "INVOICE_OFFER_ACCEPTANCE_SUBMITTED") {
-    const invoiceNumber = metadata?.invoice_number;
-    return invoiceNumber != null && invoiceNumber !== ""
-      ? `Invoice ${invoiceNumber} Acceptance Submitted`
-      : "Invoice Offer Acceptance Submitted";
-  }
   if (eventType === "INVOICE_OFFER_ACCEPTED") {
     const invoiceNumber = metadata?.invoice_number;
     return invoiceNumber != null && invoiceNumber !== ""
@@ -337,23 +315,6 @@ function getEventLabel(
     return itemName ? `${itemName} ${statusLabel}` : `Item review ${statusLabel}`;
   }
   if (baseLabels[eventType]) return baseLabels[eventType];
-
-  const actionLabel = ACTION_LABELS[eventType];
-  if (actionLabel) {
-    if (eventType.startsWith("SECTION_REVIEWED_")) {
-      const scopeKey = metadata?.scope_key;
-      const sectionLabel = scopeKey
-        ? (sectionLabelOverrides?.[String(scopeKey)] ?? getReviewTabLabel(String(scopeKey)))
-        : "";
-      return sectionLabel ? `${sectionLabel} ${actionLabel}` : actionLabel;
-    }
-    if (eventType.startsWith("ITEM_REVIEWED_")) {
-      const scopeKey = (entityId ?? metadata?.scope_key) as string | undefined;
-      const itemName = scopeKey ? formatItemLabelFromScopeKey(scopeKey) : "";
-      return itemName ? `${itemName} ${actionLabel}` : actionLabel;
-    }
-    return actionLabel;
-  }
 
   return eventType.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -412,8 +373,6 @@ function getEventDotColor(eventType: string): string {
 
 const ACTIVITY_PAGE_SIZE = 10;
 
-const TIMELINE_HIDDEN_EVENT_TYPES = new Set<string>();
-
 function TimelineSkeleton() {
   return (
     <div className="space-y-6">
@@ -453,7 +412,8 @@ export function AdminActivityTimeline({
   const { data, isLoading, error } = useApplicationLogs(applicationId);
 
   const logs: ApplicationLogEntry[] = React.useMemo(
-    () => (data ?? []).filter((log) => !TIMELINE_HIDDEN_EVENT_TYPES.has(log.event_type)),
+    () =>
+      (data ?? []).filter((log) => isAdminApplicationTimelineVisible(log.event_type, log.metadata)),
     [data]
   );
 

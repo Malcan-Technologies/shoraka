@@ -6,10 +6,14 @@ import {
   ActivityFilters,
   buildDateFilter,
 } from "./base";
-import type { ActivityReferences } from "@cashsouk/types";
-import { formatApplicationReference } from "@cashsouk/types";
+import type { ActivityAudience, ActivityReferences } from "@cashsouk/types";
+import {
+  formatApplicationReference,
+  getSigningActivityEventTypes,
+  isSigningActivityVisible,
+} from "@cashsouk/types";
 import { formatDeviceInfoFromUserAgent } from "../../../lib/http/request-utils";
-import { SIGNING_AUDIT_EVENTS } from "../../signing/audit/events";
+import { collectVisibleRecords } from "./visible-query";
 
 export class SigningLogAdapter implements AuditLogAdapter<SigningAuditLog> {
   public readonly name = "SigningLogAdapter";
@@ -17,80 +21,25 @@ export class SigningLogAdapter implements AuditLogAdapter<SigningAuditLog> {
   public readonly domain = "signing" as const;
 
   async query(userId: string, filters: ActivityFilters): Promise<SigningAuditLog[]> {
-    const { search, event_types, startDate, endDate, limit, offset, organizationId, portalType } = filters;
-    const supportedTypes = this.getEventTypes();
-    const finalEventTypes = event_types
-      ? event_types.filter((et) => supportedTypes.includes(et))
-      : supportedTypes;
+    const eventTypes = this.resolveEventTypes(filters);
+    if (eventTypes.length === 0) return [];
 
-    const where: Prisma.SigningAuditLogWhereInput = {
-      event_type: { in: finalEventTypes },
-      occurred_at: buildDateFilter(startDate, endDate),
-    };
-
-    if (organizationId && portalType) {
-      where.application_id = { in: await this.getScopedApplicationIds(organizationId, portalType) };
-    } else {
-      where.actor_user_id = userId;
-    }
-
-    if (search) {
-      const matchingEventTypes = finalEventTypes.filter((eventType) => {
-        const presentation = this.buildPresentation(eventType, {});
-        const searchTerm = search.toLowerCase();
-        return (
-          presentation.title.toLowerCase().includes(searchTerm) ||
-          presentation.description.toLowerCase().includes(searchTerm)
-        );
-      });
-      where.OR = [
-        { event_type: { contains: search, mode: "insensitive" } },
-        { event_type: { in: matchingEventTypes } },
-      ];
-    }
-
-    return prisma.signingAuditLog.findMany({
-      where,
-      orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
-      take: limit,
-      skip: offset,
-    });
+    return collectVisibleRecords(
+      async (skip, take) =>
+        prisma.signingAuditLog.findMany({
+          where: await this.buildWhere(userId, filters, eventTypes),
+          orderBy: [{ occurred_at: "desc" }, { id: "desc" }],
+          skip,
+          take,
+        }),
+      (record) => isSigningActivityVisible(this.audienceOf(filters), record.event_type),
+      { offset: filters.offset, limit: filters.limit }
+    );
   }
 
   async count(userId: string, filters: ActivityFilters): Promise<number> {
-    const { search, event_types, startDate, endDate, organizationId, portalType } = filters;
-    const supportedTypes = this.getEventTypes();
-    const finalEventTypes = event_types
-      ? event_types.filter((et) => supportedTypes.includes(et))
-      : supportedTypes;
-
-    const where: Prisma.SigningAuditLogWhereInput = {
-      event_type: { in: finalEventTypes },
-      occurred_at: buildDateFilter(startDate, endDate),
-    };
-
-    if (organizationId && portalType) {
-      where.application_id = { in: await this.getScopedApplicationIds(organizationId, portalType) };
-    } else {
-      where.actor_user_id = userId;
-    }
-
-    if (search) {
-      const matchingEventTypes = finalEventTypes.filter((eventType) => {
-        const presentation = this.buildPresentation(eventType, {});
-        const searchTerm = search.toLowerCase();
-        return (
-          presentation.title.toLowerCase().includes(searchTerm) ||
-          presentation.description.toLowerCase().includes(searchTerm)
-        );
-      });
-      where.OR = [
-        { event_type: { contains: search, mode: "insensitive" } },
-        { event_type: { in: matchingEventTypes } },
-      ];
-    }
-
-    return prisma.signingAuditLog.count({ where });
+    const records = await this.query(userId, { ...filters, limit: undefined, offset: 0 });
+    return records.length;
   }
 
   transform(record: SigningAuditLog): UnifiedActivity {
@@ -205,6 +154,51 @@ export class SigningLogAdapter implements AuditLogAdapter<SigningAuditLog> {
   }
 
   getEventTypes(): string[] {
-    return [...SIGNING_AUDIT_EVENTS];
+    return getSigningActivityEventTypes("issuer");
+  }
+
+  private resolveEventTypes(filters: ActivityFilters): string[] {
+    const supported = getSigningActivityEventTypes(this.audienceOf(filters));
+    if (!filters.event_types?.length) return supported;
+    return filters.event_types.filter((eventType) => supported.includes(eventType));
+  }
+
+  private audienceOf(filters: ActivityFilters): ActivityAudience {
+    return filters.portalType === "investor" ? "investor" : "issuer";
+  }
+
+  private async buildWhere(
+    userId: string,
+    filters: ActivityFilters,
+    eventTypes: string[]
+  ): Promise<Prisma.SigningAuditLogWhereInput> {
+    const { search, startDate, endDate, organizationId, portalType } = filters;
+    const where: Prisma.SigningAuditLogWhereInput = {
+      event_type: { in: eventTypes },
+      occurred_at: buildDateFilter(startDate, endDate),
+    };
+
+    if (organizationId && portalType) {
+      where.application_id = { in: await this.getScopedApplicationIds(organizationId, portalType) };
+    } else {
+      where.actor_user_id = userId;
+    }
+
+    if (search) {
+      const matchingEventTypes = eventTypes.filter((eventType) => {
+        const presentation = this.buildPresentation(eventType, {});
+        const searchTerm = search.toLowerCase();
+        return (
+          presentation.title.toLowerCase().includes(searchTerm) ||
+          presentation.description.toLowerCase().includes(searchTerm)
+        );
+      });
+      where.OR = [
+        { event_type: { contains: search, mode: "insensitive" } },
+        { event_type: { in: matchingEventTypes } },
+      ];
+    }
+
+    return where;
   }
 }

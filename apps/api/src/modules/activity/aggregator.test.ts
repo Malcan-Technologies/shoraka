@@ -180,4 +180,29 @@ describe("AuditLogAggregator", () => {
     expect(result.total).toBe(2);
     expect(result.unfilteredTotal).toBe(2);
   });
+
+  it("should exclude payment activities for issuer-scoped requests", async () => {
+    const aggregator = new AuditLogAggregator();
+    (aggregator as any).adapters = [];
+
+    aggregator.registerAdapter(
+      new MockAdapter("Note", "organization", "note", [
+        { id: "1", created_at: new Date("2026-01-01T10:00:00Z"), user_id: userId, text: "Note" },
+      ])
+    );
+    aggregator.registerAdapter(
+      new MockAdapter("Payment", "organization", "payment", [
+        { id: "2", created_at: new Date("2026-01-01T11:00:00Z"), user_id: userId, text: "Payment" },
+      ])
+    );
+
+    const result = await aggregator.aggregate(userId, {
+      limit: 10,
+      offset: 0,
+      portalType: "issuer",
+    });
+
+    expect(result.activities.map((activity) => activity.domain)).toEqual(["note"]);
+    expect(result.total).toBe(1);
+  });
 });

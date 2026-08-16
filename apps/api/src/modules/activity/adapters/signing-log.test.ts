@@ -25,17 +25,20 @@ describe("SigningLogAdapter", () => {
     expect(adapter.domain).toBe("signing");
     expect(adapter.getEventTypes()).toEqual(
       expect.arrayContaining([
-        "SIGNING_PACKAGE_CREATED",
         "SIGNING_PACKAGE_SENT",
         "SIGNING_PACKAGE_COMPLETED",
         "SIGNING_PACKAGE_VOIDED",
         "SIGNING_PACKAGE_DECLINED",
         "SIGNING_PACKAGE_EXPIRED",
-        "SIGNING_RECIPIENT_COMPLETED",
-        "SIGNING_EKYC_STARTED",
-        "SIGNING_REMINDER_SENT",
+        "SIGNING_RECIPIENT_DECLINED",
+        "SIGNING_EKYC_FAILED",
       ])
     );
+    expect(adapter.getEventTypes()).not.toContain("SIGNING_PACKAGE_CREATED");
+    expect(adapter.getEventTypes()).not.toContain("SIGNING_RECIPIENT_COMPLETED");
+    expect(adapter.getEventTypes()).not.toContain("SIGNING_EKYC_STARTED");
+    expect(adapter.getEventTypes()).not.toContain("SIGNING_EKYC_VERIFIED");
+    expect(adapter.getEventTypes()).not.toContain("SIGNING_REMINDER_SENT");
     expect(adapter.getEventTypes()).not.toContain("CONTRACT_OFFER_ACCEPTED");
     expect(adapter.getEventTypes()).not.toContain("SIGNING_SESSION_OPENED");
     expect(adapter.getEventTypes()).not.toContain("SIGNING_RECIPIENT_VIEWED");
@@ -66,5 +69,33 @@ describe("SigningLogAdapter", () => {
     await adapter.query("user-1", { limit: 10, offset: 0 });
     expect(prisma.signingAuditLog.findMany).toHaveBeenCalled();
     expect(prisma.applicationAuditLog).toBeUndefined();
+  });
+
+  it("returns only the issuer signing lifecycle set", async () => {
+    prisma.application.findMany.mockResolvedValue([{ id: "app-1" }]);
+    prisma.signingAuditLog.findMany.mockResolvedValue([
+      { id: "sent", event_type: "SIGNING_PACKAGE_SENT", application_id: "app-1" },
+      { id: "created", event_type: "SIGNING_PACKAGE_CREATED", application_id: "app-1" },
+      { id: "ekyc_failed", event_type: "SIGNING_EKYC_FAILED", application_id: "app-1" },
+      { id: "reminder", event_type: "SIGNING_REMINDER_SENT", application_id: "app-1" },
+    ]);
+
+    const records = await adapter.query("user-1", {
+      organizationId: "issuer-org-1",
+      portalType: "issuer",
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(records.map((record) => record.id)).toEqual(["sent", "ekyc_failed"]);
+  });
+
+  it("returns no signing activity for investors", async () => {
+    const records = await adapter.query("user-1", {
+      organizationId: "investor-org-1",
+      portalType: "investor",
+    });
+    expect(records).toEqual([]);
+    expect(prisma.signingAuditLog.findMany).not.toHaveBeenCalled();
   });
 });

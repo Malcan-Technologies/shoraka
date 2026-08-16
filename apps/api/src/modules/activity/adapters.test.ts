@@ -45,15 +45,20 @@ describe("Activity Adapters", () => {
     });
 
     it("should only expose curated onboarding milestones", () => {
-      expect(adapter.getEventTypes()).toEqual([
-        "ONBOARDING_STARTED",
-        "ONBOARDING_RESUMED",
-        "ONBOARDING_RESTARTED",
-        "ONBOARDING_REJECTED",
-        "ONBOARDING_APPROVED",
-        "ONBOARDING_FINAL_APPROVAL_COMPLETED",
-        "ONBOARDING_COMPLETED",
-      ]);
+      expect(adapter.getEventTypes()).toEqual(
+        expect.arrayContaining([
+          "ONBOARDING_STARTED",
+          "ONBOARDING_RESUMED",
+          "ONBOARDING_RESTARTED",
+          "ONBOARDING_APPROVED",
+          "ONBOARDING_REJECTED",
+          "ONBOARDING_COMPLETED",
+          "INVESTOR_SOPHISTICATED_STATUS_UPDATED",
+          "DIRECTOR_ONBOARDING_INVITATION_SENT",
+          "DIRECTOR_KYC_STATUS_UPDATED",
+        ])
+      );
+      expect(adapter.getEventTypes()).not.toContain("ONBOARDING_FINAL_APPROVAL_COMPLETED");
       expect(adapter.getEventTypes()).not.toContain("ONBOARDING_CANCELLED");
       expect(adapter.getEventTypes()).not.toContain("FORM_FILLED");
       expect(adapter.getEventTypes()).not.toContain("WEBHOOK_RECEIVED");

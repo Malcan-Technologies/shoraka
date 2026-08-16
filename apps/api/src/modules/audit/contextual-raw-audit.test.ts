@@ -85,6 +85,34 @@ describe("contextual raw audit readers and endpoints", () => {
   });
 });
 
+describe("raw Admin audit surfaces stay complete", () => {
+  it("keeps Application raw history on the unfiltered 40 + 12 catalogues", () => {
+    const applicationEvents = readSrc("modules/applications/audit/events.ts");
+    const signingEvents = readSrc("modules/signing/audit/events.ts");
+    expect(applicationEvents.match(/"[A-Z0-9_]+"/g)?.length).toBeGreaterThanOrEqual(40);
+    expect(signingEvents.match(/"[A-Z0-9_]+"/g)?.length).toBeGreaterThanOrEqual(12);
+    expect(readSrc("modules/applications/service.ts")).toContain("mergeApplicationAndSigningAuditLogs");
+    expect(methodChunk(readSrc("modules/applications/service.ts"), "getApplicationLogs")).not.toMatch(
+      /event_type:\s*\{\s*in:/
+    );
+  });
+
+  it("keeps Note, withdrawal, recon, and trustee raw readers complete", () => {
+    expect(methodChunk(readSrc("modules/notes/audit/reader.ts"), "listByNoteId")).toContain(
+      "note_id: noteId"
+    );
+    expect(methodChunk(readSrc("modules/notes/service.ts"), "listInvestorWithdrawalEvents")).toContain(
+      "listByTarget"
+    );
+    expect(methodChunk(readSrc("modules/payment/recon-service.ts"), "listReconExceptionEvents")).toContain(
+      "listByTarget"
+    );
+    expect(methodChunk(readSrc("modules/notes/audit/reader.ts"), "listTrusteeSignatureUpdates")).toContain(
+      'event_type: "TRUSTEE_SIGNATURE_UPDATED"'
+    );
+  });
+});
+
 describe("activity adapters and issuer application logs remain unchanged", () => {
   it("does not add visibility filters or new writers to Activity adapters", () => {
     const applicationAdapter = readSrc("modules/activity/adapters/application-log.ts");

@@ -7,6 +7,7 @@ import { OrganizationLogAdapter } from "./adapters/organization-log";
 import { ApplicationLogAdapter } from "./adapters/application-log";
 import { NoteLogAdapter } from "./adapters/note-log";
 import { SigningLogAdapter } from "./adapters/signing-log";
+import { PaymentLogAdapter } from "./adapters/payment-log";
 
 export class AuditLogAggregator {
   private adapters: AuditLogAdapter<any>[] = [];
@@ -17,6 +18,7 @@ export class AuditLogAggregator {
     this.registerAdapter(new ApplicationLogAdapter());
     this.registerAdapter(new NoteLogAdapter());
     this.registerAdapter(new SigningLogAdapter());
+    this.registerAdapter(new PaymentLogAdapter());
   }
 
   /**
@@ -40,6 +42,10 @@ export class AuditLogAggregator {
         filters.portalType === "investor" &&
         (adapter.domain === "application" || adapter.domain === "signing")
       ) {
+        return false;
+      }
+
+      if (filters.portalType === "issuer" && adapter.domain === "payment") {
         return false;
       }
 

@@ -439,6 +439,7 @@ export interface InvoiceOfferDetails {
 export * from "./deadline-config";
 export * from "./invoice-offer-risk-rating";
 export * from "./activity-config";
+export * from "./activity-visibility";
 export * from "./admin";
 export * from "./legal-documents";
 export * from "./application-steps";

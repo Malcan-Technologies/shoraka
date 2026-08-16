@@ -228,21 +228,13 @@ describe("ApplicationLogAdapter", () => {
   });
 
   it("returns no application activity for investor-scoped requests", async () => {
-    prisma.applicationAuditLog.findMany.mockResolvedValue([]);
-
     const records = await adapter.query("user123", {
       organizationId: "investor-org-1",
       portalType: "investor",
     });
 
     expect(prisma.application.findMany).not.toHaveBeenCalled();
-    expect(prisma.applicationAuditLog.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          application_id: { in: ["__none__"] },
-        }),
-      })
-    );
+    expect(prisma.applicationAuditLog.findMany).not.toHaveBeenCalled();
     expect(records).toEqual([]);
   });
 
@@ -269,33 +261,61 @@ describe("ApplicationLogAdapter", () => {
   });
 
   it("returns zero application counts for investor-scoped requests", async () => {
-    prisma.applicationAuditLog.count.mockResolvedValue(0);
-
     const count = await adapter.count("user123", {
       organizationId: "investor-org-1",
       portalType: "investor",
     });
 
     expect(prisma.application.findMany).not.toHaveBeenCalled();
-    expect(prisma.applicationAuditLog.count).toHaveBeenCalledWith({
-      where: expect.objectContaining({
-        application_id: { in: ["__none__"] },
-      }),
-    });
+    expect(prisma.applicationAuditLog.findMany).not.toHaveBeenCalled();
     expect(count).toBe(0);
   });
 
-  it("only exposes ApplicationAuditLog catalogue events", () => {
+  it("only exposes curated Application activity events", () => {
     expect(adapter.getEventTypes()).toContain("APPLICATION_CREATED");
     expect(adapter.getEventTypes()).toContain("APPLICATION_AMENDMENTS_REQUESTED");
     expect(adapter.getEventTypes()).toContain("APPLICATION_REOPENED_FOR_REVIEW");
     expect(adapter.getEventTypes()).toContain("CONTRACT_OFFER_REJECTED");
+    expect(adapter.getEventTypes()).toContain("APPLICATION_SECTION_REVIEW_UPDATED");
+    expect(adapter.getEventTypes()).not.toContain("APPLICATION_REVIEW_STARTED");
+    expect(adapter.getEventTypes()).not.toContain("APPLICATION_DOCUMENT_UPLOADED");
+    expect(adapter.getEventTypes()).not.toContain("APPLICATION_ITEM_REVIEW_UPDATED");
     expect(adapter.getEventTypes()).not.toContain("APPLICATION_APPROVED");
     expect(adapter.getEventTypes()).not.toContain("AMENDMENTS_SUBMITTED");
     expect(adapter.getEventTypes()).not.toContain("SECTION_REVIEWED_APPROVED");
     expect(adapter.getEventTypes()).not.toContain("ITEM_REVIEWED_REJECTED");
     expect(adapter.getEventTypes()).not.toContain("SIGNING_PACKAGE_CREATED");
     expect(adapter.getEventTypes()).not.toContain("SIGNING_PACKAGE_COMPLETED");
+  });
+
+  it("hides issuer review-start and file noise while keeping amendment-required section review", async () => {
+    prisma.application.findMany.mockResolvedValue([{ id: "app_1" }]);
+    prisma.applicationAuditLog.findMany.mockResolvedValue([
+      { id: "keep_1", event_type: "APPLICATION_SUBMITTED", application_id: "app_1", metadata: {} },
+      { id: "hide_1", event_type: "APPLICATION_REVIEW_STARTED", application_id: "app_1", metadata: {} },
+      {
+        id: "keep_2",
+        event_type: "APPLICATION_SECTION_REVIEW_UPDATED",
+        application_id: "app_1",
+        metadata: { newStatus: "AMENDMENT_REQUESTED" },
+      },
+      {
+        id: "hide_2",
+        event_type: "APPLICATION_SECTION_REVIEW_UPDATED",
+        application_id: "app_1",
+        metadata: { newStatus: "APPROVED" },
+      },
+      { id: "hide_3", event_type: "APPLICATION_DOCUMENT_UPLOADED", application_id: "app_1", metadata: {} },
+    ]);
+
+    const records = await adapter.query("user123", {
+      organizationId: "issuer-org-1",
+      portalType: "issuer",
+      limit: 10,
+      offset: 0,
+    });
+
+    expect(records.map((record) => record.id)).toEqual(["keep_1", "keep_2"]);
   });
 });
 

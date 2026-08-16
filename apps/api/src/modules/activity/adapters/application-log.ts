@@ -10,10 +10,14 @@ import {
   ActivityFilters,
   buildDateFilter,
 } from "./base";
-import type { ActivityReferences } from "@cashsouk/types";
-import { formatApplicationReference } from "@cashsouk/types";
+import type { ActivityAudience, ActivityReferences } from "@cashsouk/types";
+import {
+  formatApplicationReference,
+  getApplicationActivityEventTypes,
+  isApplicationActivityVisible,
+} from "@cashsouk/types";
 import { formatDeviceInfoFromUserAgent } from "../../../lib/http/request-utils";
-import { APPLICATION_AUDIT_EVENTS } from "../../applications/audit/events";
+import { collectVisibleRecords } from "./visible-query";
 
 const CONTRACT_EVENT_TYPES = new Set<string>([
   "CONTRACT_OFFER_SENT",
@@ -50,99 +54,33 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
   public readonly domain = "application" as const;
 
   async query(userId: string, filters: ActivityFilters): Promise<ApplicationAuditLog[]> {
-    const { search, event_types, startDate, endDate, limit, offset, organizationId, portalType } = filters;
-    const supportedTypes = this.getEventTypes();
-    const finalEventTypes = event_types
-      ? event_types.filter((et) => supportedTypes.includes(et))
-      : supportedTypes;
+    const eventTypes = this.resolveEventTypes(filters);
+    if (eventTypes.length === 0) return [];
 
-    const where: Prisma.ApplicationAuditLogWhereInput = {
-      event_type: { in: finalEventTypes },
-      occurred_at: buildDateFilter(startDate, endDate),
-    };
-
-    if (organizationId && portalType) {
-      where.application_id = { in: await this.getScopedApplicationIds(organizationId, portalType) };
-    } else {
-      where.actor_user_id = userId;
-    }
-
-    if (search) {
-      const matchingEventTypes = finalEventTypes.filter((eventType) => {
-        const presentation = this.buildPresentation(eventType, {});
-        const searchTerm = search.toLowerCase();
-
-        return (
-          presentation.title.toLowerCase().includes(searchTerm) ||
-          presentation.description.toLowerCase().includes(searchTerm)
-        );
-      });
-
-      where.OR = [
-        { event_type: { contains: search, mode: "insensitive" } },
-        { event_type: { in: matchingEventTypes } },
-        {
-          metadata: {
-            path: ["remark"],
-            string_contains: search,
-          },
-        },
-      ];
-    }
-
-    const records = await prisma.applicationAuditLog.findMany({
-      where,
-      orderBy: { occurred_at: "desc" },
-      take: limit,
-      skip: offset,
-    });
+    const records = await collectVisibleRecords(
+      async (skip, take) =>
+        prisma.applicationAuditLog.findMany({
+          where: await this.buildWhere(userId, filters, eventTypes),
+          orderBy: { occurred_at: "desc" },
+          skip,
+          take,
+        }),
+      (record) =>
+        isApplicationActivityVisible(
+          this.audienceOf(filters),
+          record.event_type,
+          (record.metadata as Record<string, unknown> | null) ?? {}
+        ),
+      { offset: filters.offset, limit: filters.limit }
+    );
 
     await this.enrichRecordReferences(records);
     return records;
   }
 
   async count(userId: string, filters: ActivityFilters): Promise<number> {
-    const { search, event_types, startDate, endDate, organizationId, portalType } = filters;
-    const supportedTypes = this.getEventTypes();
-    const finalEventTypes = event_types
-      ? event_types.filter((et) => supportedTypes.includes(et))
-      : supportedTypes;
-
-    const where: Prisma.ApplicationAuditLogWhereInput = {
-      event_type: { in: finalEventTypes },
-      occurred_at: buildDateFilter(startDate, endDate),
-    };
-
-    if (organizationId && portalType) {
-      where.application_id = { in: await this.getScopedApplicationIds(organizationId, portalType) };
-    } else {
-      where.actor_user_id = userId;
-    }
-
-    if (search) {
-      const matchingEventTypes = finalEventTypes.filter((eventType) => {
-        const presentation = this.buildPresentation(eventType, {});
-        const searchTerm = search.toLowerCase();
-
-        return (
-          presentation.title.toLowerCase().includes(searchTerm) ||
-          presentation.description.toLowerCase().includes(searchTerm)
-        );
-      });
-
-      where.OR = [
-        { event_type: { contains: search, mode: "insensitive" } },
-        { event_type: { in: matchingEventTypes } },
-        {
-          metadata: {
-            path: ["remark"],
-            string_contains: search,
-          },
-        },
-      ];
-    }
-
-    return prisma.applicationAuditLog.count({ where });
+    const records = await this.query(userId, { ...filters, limit: undefined, offset: 0 });
+    return records.length;
   }
 
   private async getScopedApplicationIds(organizationId: string, portalType: "investor" | "issuer") {
@@ -293,10 +231,6 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
         return applicationRef
           ? `You resubmitted ${applicationRef} after making the requested updates.`
           : fallbackDescription;
-      case "APPLICATION_APPROVED":
-        return applicationRef
-          ? `${this.capitalize(applicationRef)} was approved and no further action is needed.`
-          : fallbackDescription;
       case "APPLICATION_REJECTED":
         return applicationRef
           ? `${this.capitalize(applicationRef)} was rejected and will not continue.`
@@ -316,12 +250,10 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
           ? `A contract offer for ${contractRef} is ready for your review and response.`
           : fallbackDescription;
       case "CONTRACT_ACCEPTANCE_SUBMITTED":
-      case "CONTRACT_OFFER_ACCEPTANCE_SUBMITTED":
         return contractRef
           ? `You submitted acceptance for ${contractRef} and CashSouk is reviewing your documents.`
           : fallbackDescription;
       case "CONTRACT_ACCEPTANCE_RESUBMITTED":
-      case "CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED":
         return contractRef
           ? `You resubmitted acceptance documents for ${contractRef} after requested changes.`
           : fallbackDescription;
@@ -353,12 +285,10 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
           ? `An invoice offer for ${invoiceRef} is ready for your review and response.`
           : fallbackDescription;
       case "INVOICE_ACCEPTANCE_SUBMITTED":
-      case "INVOICE_OFFER_ACCEPTANCE_SUBMITTED":
         return invoiceRef
           ? `You submitted acceptance for ${invoiceRef} and CashSouk is reviewing your documents.`
           : fallbackDescription;
       case "INVOICE_ACCEPTANCE_RESUBMITTED":
-      case "INVOICE_OFFER_ACCEPTANCE_RESUBMITTED":
         return invoiceRef
           ? `You resubmitted acceptance documents for ${invoiceRef} after requested changes.`
           : fallbackDescription;
@@ -499,10 +429,6 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
         title: "Application Resubmitted",
         description: "You resubmitted your application after making the requested updates.",
       },
-      ["APPLICATION_APPROVED"]: {
-        title: "Application Approved",
-        description: "Your financing application was approved and no further action is needed.",
-      },
       ["APPLICATION_REJECTED"]: {
         title: "Application Rejected",
         description: "Your financing application was rejected and will not continue.",
@@ -523,17 +449,17 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
         title: "Contract Acceptance Submitted",
         description: "You submitted offer acceptance documents for CashSouk review.",
       },
-      ["CONTRACT_OFFER_ACCEPTANCE_SUBMITTED"]: {
-        title: "Contract Acceptance Submitted",
-        description: "You submitted offer acceptance documents for CashSouk review.",
-      },
       ["CONTRACT_ACCEPTANCE_RESUBMITTED"]: {
         title: "Contract Acceptance Resubmitted",
         description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
       },
-      ["CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED"]: {
-        title: "Contract Acceptance Resubmitted",
-        description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
+      ["CONTRACT_ACCEPTANCE_CHANGES_REQUESTED"]: {
+        title: "Contract Acceptance Changes Requested",
+        description: "Changes were requested for contract offer acceptance.",
+      },
+      ["CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING"]: {
+        title: "Contract Acceptance Approved for Signing",
+        description: "Contract offer acceptance was approved for signing.",
       },
       ["CONTRACT_OFFER_ACCEPTED"]: {
         title: "Contract Offer Signed",
@@ -567,17 +493,17 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
         title: "Invoice Acceptance Submitted",
         description: "You submitted offer acceptance documents for CashSouk review.",
       },
-      ["INVOICE_OFFER_ACCEPTANCE_SUBMITTED"]: {
-        title: "Invoice Acceptance Submitted",
-        description: "You submitted offer acceptance documents for CashSouk review.",
-      },
       ["INVOICE_ACCEPTANCE_RESUBMITTED"]: {
         title: "Invoice Acceptance Resubmitted",
         description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
       },
-      ["INVOICE_OFFER_ACCEPTANCE_RESUBMITTED"]: {
-        title: "Invoice Acceptance Resubmitted",
-        description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
+      ["INVOICE_ACCEPTANCE_CHANGES_REQUESTED"]: {
+        title: "Invoice Acceptance Changes Requested",
+        description: "Changes were requested for invoice offer acceptance.",
+      },
+      ["INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING"]: {
+        title: "Invoice Acceptance Approved for Signing",
+        description: "Invoice offer acceptance was approved for signing.",
       },
       ["INVOICE_OFFER_ACCEPTED"]: {
         title: "Invoice Offer Signed",
@@ -607,6 +533,14 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
         title: "Changes Requested",
         description: "We need updates to your application before it can continue.",
       },
+      ["APPLICATION_REOPENED_FOR_REVIEW"]: {
+        title: "Application Reopened",
+        description: "Your application was reopened for review.",
+      },
+      ["APPLICATION_SECTION_REVIEW_UPDATED"]: {
+        title: "Application Changes Requested",
+        description: "A section of your application needs updates before it can continue.",
+      },
     };
 
     return (
@@ -618,6 +552,57 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
   }
 
   getEventTypes(): string[] {
-    return [...APPLICATION_AUDIT_EVENTS];
+    return getApplicationActivityEventTypes("issuer");
+  }
+
+  private resolveEventTypes(filters: ActivityFilters): string[] {
+    const supported = getApplicationActivityEventTypes(this.audienceOf(filters));
+    if (!filters.event_types?.length) return supported;
+    return filters.event_types.filter((eventType) => supported.includes(eventType));
+  }
+
+  private audienceOf(filters: ActivityFilters): ActivityAudience {
+    return filters.portalType === "investor" ? "investor" : "issuer";
+  }
+
+  private async buildWhere(
+    userId: string,
+    filters: ActivityFilters,
+    eventTypes: string[]
+  ): Promise<Prisma.ApplicationAuditLogWhereInput> {
+    const { search, startDate, endDate, organizationId, portalType } = filters;
+    const where: Prisma.ApplicationAuditLogWhereInput = {
+      event_type: { in: eventTypes },
+      occurred_at: buildDateFilter(startDate, endDate),
+    };
+
+    if (organizationId && portalType) {
+      where.application_id = { in: await this.getScopedApplicationIds(organizationId, portalType) };
+    } else {
+      where.actor_user_id = userId;
+    }
+
+    if (search) {
+      const matchingEventTypes = eventTypes.filter((eventType) => {
+        const presentation = this.buildPresentation(eventType, {});
+        const searchTerm = search.toLowerCase();
+        return (
+          presentation.title.toLowerCase().includes(searchTerm) ||
+          presentation.description.toLowerCase().includes(searchTerm)
+        );
+      });
+      where.OR = [
+        { event_type: { contains: search, mode: "insensitive" } },
+        { event_type: { in: matchingEventTypes } },
+        {
+          metadata: {
+            path: ["remark"],
+            string_contains: search,
+          },
+        },
+      ];
+    }
+
+    return where;
   }
 }
