@@ -62,6 +62,24 @@ describe("SigningLogAdapter", () => {
     expect(activity.source_table).toBe("signing_audit_logs");
     expect(activity.title).toBe("Signing Package Sent");
     expect(activity.references?.applicationId).toBe("app-1");
+    expect(activity.description).not.toContain("SIGNINGCLOUD");
+  });
+
+  it("uses issuer-safe signing copy for voided packages and failed identity checks", () => {
+    expect(adapter.buildPresentation("SIGNING_PACKAGE_VOIDED")).toEqual({
+      title: "Signing Package Cancelled",
+      description: "The signing package was cancelled.",
+    });
+    expect(
+      adapter.buildPresentation("SIGNING_EKYC_FAILED", { email: "signer@example.com" })
+    ).toEqual({
+      title: "Signer Identity Check Failed",
+      description: "A signer could not complete identity verification. They need to try again.",
+    });
+    expect(
+      adapter.buildPresentation("SIGNING_EKYC_FAILED", { email: "signer@example.com" }, "admin")
+        .description
+    ).toContain("signer@example.com");
   });
 
   it("queries SigningAuditLog", async () => {

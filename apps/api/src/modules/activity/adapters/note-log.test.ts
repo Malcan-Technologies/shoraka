@@ -68,7 +68,7 @@ describe("NoteLogAdapter", () => {
       })
     ).toEqual({
       title: "Note Published",
-      description: "Note NOTE-001 is now live and open for investment.",
+      description: "Your note is now listed and open for investment.",
     });
 
     expect(
@@ -77,7 +77,18 @@ describe("NoteLogAdapter", () => {
       })
     ).toEqual({
       title: "Settlement Posted",
-      description: "Your returns for note Bridge Note were posted.",
+      description: "Settlement was posted.",
+    });
+
+    expect(
+      adapter.buildPresentation(
+        "SETTLEMENT_POSTED",
+        { investorAmount: 9000, currency: "MYR" },
+        "investor"
+      )
+    ).toEqual({
+      title: "Returns Credited",
+      description: "Your returns were credited to your CashSouk balance.",
     });
   });
 
@@ -251,7 +262,7 @@ describe("NoteLogAdapter", () => {
     expect(completed.title).toBe("Disbursement Completed");
 
     const activated = adapter.transform(records[1] as never);
-    expect(activated.title).toBe("Note Active");
+    expect(activated.title).toBe("Note Activated");
   });
 
   it("only exposes curated high-signal note events", () => {

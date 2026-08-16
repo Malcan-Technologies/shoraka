@@ -2,6 +2,8 @@ import { prisma } from "../../../lib/prisma";
 import { OnboardingAuditLog, Prisma } from "@prisma/client";
 import { formatDeviceInfoFromUserAgent } from "../../../lib/http/request-utils";
 import {
+  audienceFromPortal,
+  formatOnboardingActivity,
   getOnboardingActivityEventTypes,
   isOnboardingActivityVisible,
   type ActivityAudience,
@@ -42,9 +44,13 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingAuditLo
     return records.length;
   }
 
-  transform(record: OnboardingAuditLog): UnifiedActivity {
+  transform(record: OnboardingAuditLog, filters?: ActivityFilters): UnifiedActivity {
     const metadata = record.metadata as Record<string, unknown>;
-    const presentation = this.buildPresentation(record.event_type, metadata);
+    const presentation = this.buildPresentation(
+      record.event_type,
+      metadata,
+      filters ? this.audienceOf(filters) : "issuer"
+    );
 
     return {
       id: record.id,
@@ -64,62 +70,12 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingAuditLo
     };
   }
 
-  buildPresentation(eventType: string, metadata?: Record<string, unknown>) {
-    switch (eventType) {
-      case "ONBOARDING_STARTED":
-        return {
-          title: "Onboarding Started",
-          description: "Your organization onboarding has started and you can continue it at any time.",
-        };
-      case "ONBOARDING_RESUMED":
-        return {
-          title: "Onboarding Resumed",
-          description: "Your organization onboarding session was resumed.",
-        };
-      case "ONBOARDING_RESTARTED":
-        return {
-          title: "Onboarding Restarted",
-          description: "Your organization onboarding session was restarted.",
-        };
-      case "ONBOARDING_REJECTED":
-        return {
-          title: "Onboarding Rejected",
-          description: `Your organization onboarding was rejected${metadata?.reasonCode ? `: ${metadata.reasonCode}` : "."}`,
-        };
-      case "ONBOARDING_APPROVED":
-        return {
-          title: "Onboarding Approved",
-          description: "Your organization onboarding was approved and no further action is needed.",
-        };
-      case "ONBOARDING_COMPLETED":
-        return {
-          title: "Onboarding Completed",
-          description: "Your organization onboarding was marked completed.",
-        };
-      case "INVESTOR_SOPHISTICATED_STATUS_UPDATED":
-        return {
-          title: "Sophisticated Status Updated",
-          description: "Your sophisticated investor status was updated.",
-        };
-      case "DIRECTOR_ONBOARDING_INVITATION_SENT":
-        return {
-          title: "Director Invitation Sent",
-          description: "A director was invited to complete onboarding.",
-        };
-      case "DIRECTOR_KYC_STATUS_UPDATED":
-        return {
-          title: "Director Verification Updated",
-          description: "A director verification status was updated.",
-        };
-      default:
-        return {
-          title: eventType
-            .split("_")
-            .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-            .join(" "),
-          description: "This onboarding update was recorded for your organization.",
-        };
-    }
+  buildPresentation(
+    eventType: string,
+    metadata?: Record<string, unknown>,
+    audience: ActivityAudience = "issuer"
+  ) {
+    return formatOnboardingActivity(audience, eventType, metadata);
   }
 
   getEventTypes(): string[] {
@@ -139,7 +95,7 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingAuditLo
   }
 
   private audienceOf(filters: ActivityFilters): ActivityAudience {
-    return filters.portalType === "investor" ? "investor" : "issuer";
+    return audienceFromPortal(filters.portalType);
   }
 
   private buildWhere(
@@ -161,7 +117,7 @@ export class OrganizationLogAdapter implements AuditLogAdapter<OnboardingAuditLo
 
     if (search) {
       const matchingEventTypes = eventTypes.filter((eventType) => {
-        const presentation = this.buildPresentation(eventType, {});
+        const presentation = this.buildPresentation(eventType, {}, this.audienceOf(filters));
         const searchTerm = search.toLowerCase();
         return (
           presentation.title.toLowerCase().includes(searchTerm) ||

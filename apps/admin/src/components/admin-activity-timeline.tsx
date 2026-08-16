@@ -38,7 +38,11 @@
  import { ScrollArea } from "@/components/ui/scroll-area";
  import { Skeleton } from "@cashsouk/ui";
  import { useApplicationLogs, type ApplicationLogEntry } from "@/hooks/use-application-logs";
- import { isAdminApplicationTimelineVisible } from "@cashsouk/types";
+ import {
+  formatApplicationActivity,
+  formatSigningActivity,
+  isAdminApplicationTimelineVisible,
+} from "@cashsouk/types";
  import { formatDistanceToNow, format } from "date-fns";
 import {
   ChevronDownIcon,
@@ -58,7 +62,7 @@ import { Button } from "@/components/ui/button";
 import { formatRemarkAsBullets } from "@/lib/utils";
 import { getReviewTabLabel } from "@/components/application-review/review-registry";
 import { formatCurrency } from "@cashsouk/config";
-import { getItemDisplayNameFromScopeKey, formatPhaseDeadlineAbsolute } from "@cashsouk/types";
+import { formatPhaseDeadlineAbsolute } from "@cashsouk/types";
 import type {
   ResubmitChangesMetadata,
   ResubmitFieldChangeItem,
@@ -87,10 +91,6 @@ type ActivityMetadata = {
   rejection_reason?: string;
   resubmit_changes?: ResubmitChangesMetadata;
 };
-
-function formatItemLabelFromScopeKey(scopeKey: string): string {
-  return getItemDisplayNameFromScopeKey(scopeKey);
-}
 
 /**
  * Component props
@@ -208,115 +208,35 @@ function getEventIcon(eventType: string): React.ReactElement {
   }
 }
 
+function resolveSectionLabel(
+  metadata?: Record<string, unknown> | null,
+  sectionLabelOverrides?: Record<string, string>
+): string | undefined {
+  const scopeKey = metadata?.section;
+  if (scopeKey == null || String(scopeKey).trim() === "") return undefined;
+  return sectionLabelOverrides?.[String(scopeKey)] ?? getReviewTabLabel(String(scopeKey));
+}
+
+function formatAdminApplicationPresentation(
+  eventType: string,
+  metadata?: Record<string, unknown> | null,
+  sectionLabelOverrides?: Record<string, string>
+) {
+  if (eventType.startsWith("SIGNING_")) {
+    return formatSigningActivity("admin", eventType, metadata ?? undefined);
+  }
+  return formatApplicationActivity("admin", eventType, metadata ?? undefined, {
+    sectionLabel: resolveSectionLabel(metadata, sectionLabelOverrides),
+  });
+}
+
 function getEventLabel(
   eventType: string,
   metadata?: Record<string, unknown> | null,
-  entityId?: string | null,
+  _entityId?: string | null,
   sectionLabelOverrides?: Record<string, string>
 ): string {
-  const baseLabels: Record<string, string> = {
-    APPLICATION_CREATED: "Application Created",
-    APPLICATION_SUBMITTED: "Application Submitted",
-    APPLICATION_REVIEW_STARTED: "Review Started",
-    APPLICATION_RESUBMITTED: "Application Resubmitted",
-    APPLICATION_AMENDMENT_ACKNOWLEDGED: "Amendment Acknowledged",
-    APPLICATION_AMENDMENTS_REQUESTED: "Amendments Requested",
-    APPLICATION_REOPENED_FOR_REVIEW: "Reopened for Review",
-    APPLICATION_REJECTED: "Application Rejected",
-    APPLICATION_WITHDRAWN: "Application Withdrawn",
-    APPLICATION_ARCHIVED: "Application Archived",
-    APPLICATION_DRAFT_DELETED: "Draft Application Deleted",
-    APPLICATION_COMPLETED: "Application Completed",
-    APPLICATION_SECTION_REVIEW_UPDATED: "Section Review Updated",
-    APPLICATION_ITEM_REVIEW_UPDATED: "Item Review Updated",
-    APPLICATION_DOCUMENT_UPLOADED: "Document Uploaded",
-    APPLICATION_DOCUMENT_REMOVED: "Document Removed",
-    APPLICATION_DOCUMENT_REPLACED: "Document Replaced",
-    CONTRACT_OFFER_SENT: "Contract Offer Sent",
-    CONTRACT_ACCEPTANCE_SUBMITTED: "Contract Acceptance Submitted",
-    CONTRACT_ACCEPTANCE_RESUBMITTED: "Contract Acceptance Resubmitted",
-    CONTRACT_ACCEPTANCE_CHANGES_REQUESTED: "Contract Acceptance Changes Requested",
-    CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING: "Contract Acceptance Approved for Signing",
-    CONTRACT_OFFER_ACCEPTED: "Contract Offer Signed",
-    CONTRACT_OFFER_REJECTED: "Contract Offer Rejected",
-    CONTRACT_OFFER_RETRACTED: "Contract Offer Retracted",
-    CONTRACT_OFFER_EXPIRED: "Contract Offer Expired",
-    CONTRACT_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
-    CONTRACT_WITHDRAWN: "Contract Withdrawn",
-    CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED: "Customer Large Private Updated",
-    INVOICE_OFFER_SENT: "Invoice Offer Sent",
-    INVOICE_ACCEPTANCE_SUBMITTED: "Invoice Acceptance Submitted",
-    INVOICE_ACCEPTANCE_RESUBMITTED: "Invoice Acceptance Resubmitted",
-    INVOICE_ACCEPTANCE_CHANGES_REQUESTED: "Invoice Acceptance Changes Requested",
-    INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING: "Invoice Acceptance Approved for Signing",
-    INVOICE_OFFER_ACCEPTED: "Invoice Offer Signed",
-    INVOICE_OFFER_REJECTED: "Invoice Offer Rejected",
-    INVOICE_OFFER_RETRACTED: "Invoice Offer Retracted",
-    INVOICE_OFFER_EXPIRED: "Invoice Offer Expired",
-    INVOICE_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
-    INVOICE_WITHDRAWN: "Invoice Withdrawn",
-    SIGNING_PACKAGE_CREATED: "Signing Package Created",
-    SIGNING_PACKAGE_SENT: "Signing Package Sent",
-    SIGNING_PACKAGE_COMPLETED: "Signing Package Completed",
-    SIGNING_PACKAGE_VOIDED: "Signing Package Voided",
-    SIGNING_PACKAGE_DECLINED: "Signing Package Declined",
-    SIGNING_PACKAGE_EXPIRED: "Signing Package Expired",
-    SIGNING_RECIPIENT_COMPLETED: "Signer Completed",
-    SIGNING_RECIPIENT_DECLINED: "Signer Declined",
-    SIGNING_EKYC_STARTED: "Signing Identity Check Started",
-    SIGNING_EKYC_VERIFIED: "Signing Identity Verified",
-    SIGNING_EKYC_FAILED: "Signing Identity Check Failed",
-    SIGNING_REMINDER_SENT: "Signing Reminder Sent",
-  };
-  if (eventType === "INVOICE_OFFER_SENT") {
-    const invoiceNumber = metadata?.invoice_number;
-    return invoiceNumber != null && invoiceNumber !== ""
-      ? `Invoice ${invoiceNumber} Offer Sent`
-      : "Invoice Offer Sent";
-  }
-  if (eventType === "INVOICE_OFFER_ACCEPTED") {
-    const invoiceNumber = metadata?.invoice_number;
-    return invoiceNumber != null && invoiceNumber !== ""
-      ? `Invoice ${invoiceNumber} Offer Signed`
-      : "Invoice Offer Signed";
-  }
-  if (eventType === "INVOICE_OFFER_REJECTED") {
-    const invoiceNumber = metadata?.invoice_number;
-    return invoiceNumber != null && invoiceNumber !== ""
-      ? `Invoice ${invoiceNumber} Offer Rejected`
-      : "Invoice Offer Rejected";
-  }
-  if (eventType === "INVOICE_WITHDRAWN") {
-    const invoiceNumber = metadata?.invoice_number;
-    return invoiceNumber != null && invoiceNumber !== ""
-      ? `Invoice ${invoiceNumber} Withdrawn`
-      : "Invoice Withdrawn";
-  }
-  if (eventType === "INVOICE_OFFER_EXPIRED") {
-    const invoiceNumber = metadata?.invoice_number;
-    return invoiceNumber != null && invoiceNumber !== ""
-      ? `Invoice ${invoiceNumber} Offer Expired`
-      : "Invoice Offer Expired";
-  }
-  if (eventType === "APPLICATION_SECTION_REVIEW_UPDATED") {
-    const scopeKey = metadata?.section;
-    const newStatus = metadata?.newStatus;
-    const sectionLabel = scopeKey
-      ? (sectionLabelOverrides?.[String(scopeKey)] ?? getReviewTabLabel(String(scopeKey)))
-      : "";
-    const statusLabel = newStatus ? String(newStatus).replace(/_/g, " ").toLowerCase() : "updated";
-    return sectionLabel ? `${sectionLabel} ${statusLabel}` : `Section review ${statusLabel}`;
-  }
-  if (eventType === "APPLICATION_ITEM_REVIEW_UPDATED") {
-    const scopeKey = (entityId ?? metadata?.itemId ?? metadata?.section) as string | undefined;
-    const itemName = scopeKey ? formatItemLabelFromScopeKey(scopeKey) : "";
-    const newStatus = metadata?.newStatus;
-    const statusLabel = newStatus ? String(newStatus).replace(/_/g, " ").toLowerCase() : "updated";
-    return itemName ? `${itemName} ${statusLabel}` : `Item review ${statusLabel}`;
-  }
-  if (baseLabels[eventType]) return baseLabels[eventType];
-
-  return eventType.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  return formatAdminApplicationPresentation(eventType, metadata, sectionLabelOverrides).title;
 }
 
 function getEventDotColor(eventType: string): string {
@@ -565,7 +485,11 @@ export function AdminActivityTimeline({
                                 }
                               }
 
-                              if (log.activity == null) return null;
+                              const presentation = formatAdminApplicationPresentation(
+                                eventType,
+                                metadata,
+                                sectionLabelOverrides
+                              );
                               return (
                                 <p
                                   className={`text-xs text-muted-foreground mt-0.5 ${
@@ -574,11 +498,7 @@ export function AdminActivityTimeline({
                                       : "line-clamp-2"
                                   }`}
                                 >
-                                  {typeof log.activity === "string"
-                                    ? log.activity
-                                    : typeof log.activity === "number" || typeof log.activity === "boolean"
-                                      ? String(log.activity)
-                                      : JSON.stringify(log.activity)}
+                                  {presentation.description}
                                 </p>
                               );
                             })()}

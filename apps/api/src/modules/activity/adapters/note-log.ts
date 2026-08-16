@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import {
+  audienceFromPortal,
+  formatNoteActivity,
   getNoteActivityEventTypes,
   isIssuerNoteTermsVisible,
   isNoteActivityVisible,
@@ -54,13 +56,17 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
     return visible.length;
   }
 
-  transform(record: NoteActivityRecord): UnifiedActivity {
+  transform(record: NoteActivityRecord, filters?: ActivityFilters): UnifiedActivity {
     const metadata = (record.metadata as Record<string, unknown> | null) ?? {};
-    const presentation = this.buildPresentation(record.event_type, {
-      ...metadata,
-      noteReference: record.noteReference,
-      noteTitle: record.noteTitle,
-    });
+    const presentation = this.buildPresentation(
+      record.event_type,
+      {
+        ...metadata,
+        noteReference: record.noteReference,
+        noteTitle: record.noteTitle,
+      },
+      filters ? this.audienceOf(filters) : "issuer"
+    );
 
     return {
       id: record.id,
@@ -79,128 +85,15 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
     };
   }
 
-  buildPresentation(eventType: string, metadata?: Record<string, unknown>) {
-    const noteLabel = this.getNoteLabel(metadata);
-
-    switch (eventType) {
-      case "NOTE_CREATED":
-        return {
-          title: "Note Created",
-          description: noteLabel
-            ? `${this.capitalize(noteLabel)} was created from an approved invoice and can now be prepared for listing.`
-            : "A new note was created from an approved invoice and can now be prepared for listing.",
-        };
-      case "NOTE_PUBLISHED":
-        return {
-          title: "Note Published",
-          description: noteLabel
-            ? `${this.capitalize(noteLabel)} is now live and open for investment.`
-            : "The note is now live and open for investment.",
-        };
-      case "NOTE_UNPUBLISHED":
-        return {
-          title: "Note Unpublished",
-          description: noteLabel
-            ? `${this.capitalize(noteLabel)} is no longer listed.`
-            : "The note is no longer listed.",
-        };
-      case "NOTE_FUNDING_CLOSED":
-        return {
-          title: "Funding Closed",
-          description: noteLabel
-            ? `${this.capitalize(noteLabel)} completed funding and disbursement can proceed.`
-            : "Funding completed and disbursement can proceed.",
-        };
-      case "NOTE_FUNDING_FAILED":
-        return {
-          title: "Funding Unsuccessful",
-          description: noteLabel
-            ? `${this.capitalize(noteLabel)} did not meet the minimum funding threshold and committed funds were released.`
-            : "The note did not meet the minimum funding threshold and committed funds were released.",
-        };
-      case "NOTE_ACTIVATED":
-        return {
-          title: "Note Active",
-          description: noteLabel
-            ? `${this.capitalize(noteLabel)} is now active and servicing has started.`
-            : "The note is now active and servicing has started.",
-        };
-      case "NOTE_SERVICING_STATUS_CHANGED":
-        return {
-          title: "Servicing Status Updated",
-          description: noteLabel
-            ? `Servicing status for ${noteLabel} was updated.`
-            : "Servicing status for the note was updated.",
-        };
-      case "NOTE_TERMS_UPDATED":
-        return {
-          title: "Note Terms Updated",
-          description: noteLabel
-            ? `Terms for ${noteLabel} were updated.`
-            : "Note terms were updated.",
-        };
-      case "DISBURSEMENT_COMPLETED":
-        return {
-          title: "Disbursement Completed",
-          description: noteLabel
-            ? `Issuer disbursement for ${noteLabel} was marked complete.`
-            : "Issuer disbursement was marked complete.",
-        };
-      case "RESIDUAL_RETURN_COMPLETED":
-        return {
-          title: "Residual Return Completed",
-          description: noteLabel
-            ? `Residual return for ${noteLabel} was completed.`
-            : "Residual return was completed.",
-        };
-      case "REPAYMENT_SUBMITTED":
-        return {
-          title: "Payment Submitted",
-          description: noteLabel
-            ? `A repayment for ${noteLabel} was submitted and is awaiting review.`
-            : "A repayment was submitted and is awaiting review.",
-        };
-      case "REPAYMENT_RECEIVED":
-        return {
-          title: "Payment Received",
-          description: noteLabel
-            ? `A repayment for ${noteLabel} was received.`
-            : "A repayment was received.",
-        };
-      case "REPAYMENT_REJECTED":
-        return {
-          title: "Payment Rejected",
-          description: noteLabel
-            ? `A repayment for ${noteLabel} was rejected.`
-            : "A repayment was rejected.",
-        };
-      case "INVESTMENT_COMMITTED":
-        return {
-          title: "Investment Committed",
-          description: noteLabel
-            ? `Your investment in ${noteLabel} was committed successfully.`
-            : "Your investment was committed successfully.",
-        };
-      case "SETTLEMENT_POSTED":
-        return {
-          title: "Settlement Posted",
-          description: noteLabel
-            ? `Your returns for ${noteLabel} were posted.`
-            : "Your returns for the note were posted.",
-        };
-      case "NOTE_MARKED_DEFAULT":
-        return {
-          title: "Note Defaulted",
-          description: noteLabel
-            ? `${this.capitalize(noteLabel)} was marked in default and requires attention.`
-            : "The note was marked in default and requires attention.",
-        };
-      default:
-        return {
-          title: "Note Update",
-          description: "A note update was recorded for your organization.",
-        };
-    }
+  buildPresentation(
+    eventType: string,
+    metadata?: Record<string, unknown>,
+    audience: ActivityAudience = "issuer"
+  ) {
+    return formatNoteActivity(audience, eventType, metadata, {
+      noteReference: this.getMetadataString(metadata, "noteReference"),
+      noteTitle: this.getMetadataString(metadata, "noteTitle"),
+    });
   }
 
   getEventTypes(): string[] {
@@ -354,7 +247,7 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
     }
 
     if (search) {
-      const matchingEventTypes = this.buildSearchEventTypes(search, eventTypes);
+      const matchingEventTypes = this.buildSearchEventTypes(search, eventTypes, filters);
       const notes = await prisma.note.findMany({
         where: {
           OR: [
@@ -401,9 +294,7 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
   }
 
   private audienceOf(filters: ActivityFilters): ActivityAudience {
-    if (filters.portalType === "investor") return "investor";
-    if (filters.portalType === "issuer") return "issuer";
-    return "issuer";
+    return audienceFromPortal(filters.portalType);
   }
 
   private async getCommittedNoteIds(filters: ActivityFilters): Promise<Set<string>> {
@@ -419,30 +310,16 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
     return new Set(investments.map((row) => row.note_id));
   }
 
-  private buildSearchEventTypes(search: string, eventTypes: string[]) {
+  private buildSearchEventTypes(search: string, eventTypes: string[], filters: ActivityFilters) {
     const searchTerm = search.toLowerCase();
 
     return eventTypes.filter((eventType) => {
-      const presentation = this.buildPresentation(eventType);
+      const presentation = this.buildPresentation(eventType, {}, this.audienceOf(filters));
       return (
         presentation.title.toLowerCase().includes(searchTerm) ||
         presentation.description.toLowerCase().includes(searchTerm)
       );
     });
-  }
-
-  private getNoteLabel(metadata?: Record<string, unknown>) {
-    const noteReference = this.getMetadataString(metadata, "noteReference");
-    if (noteReference) {
-      return `note ${noteReference}`;
-    }
-
-    const noteTitle = this.getMetadataString(metadata, "noteTitle");
-    if (noteTitle) {
-      return `note ${noteTitle}`;
-    }
-
-    return undefined;
   }
 
   private getMetadataString(metadata: unknown, key: string) {
@@ -457,9 +334,5 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
 
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : undefined;
-  }
-
-  private capitalize(value: string) {
-    return value.charAt(0).toUpperCase() + value.slice(1);
   }
 }

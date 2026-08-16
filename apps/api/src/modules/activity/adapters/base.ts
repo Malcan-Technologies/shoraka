@@ -73,9 +73,13 @@ export interface AuditLogAdapter<T> {
   /**
    * Transform a single audit log record into a unified activity
    */
-  transform(record: T): UnifiedActivity;
+  transform(record: T, filters?: ActivityFilters): UnifiedActivity;
 
-  buildPresentation(eventType: string, metadata?: Record<string, unknown>): {
+  buildPresentation(
+    eventType: string,
+    metadata?: Record<string, unknown>,
+    audience?: import("@cashsouk/types").ActivityAudience
+  ): {
     title: string;
     description: string;
   };

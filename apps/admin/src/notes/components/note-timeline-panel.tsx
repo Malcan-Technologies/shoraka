@@ -12,13 +12,26 @@ import {
   UserIcon,
 } from "@heroicons/react/24/outline";
 import type { NoteAuditLogDto, NoteDetail } from "@cashsouk/types";
+import {
+  formatNoteActivity,
+  getNoteActivityEventTypes,
+} from "@cashsouk/types";
+
+const CURATED_NOTE_ACTIVITY_EVENTS = new Set([
+  ...getNoteActivityEventTypes("issuer"),
+  ...getNoteActivityEventTypes("investor"),
+]);
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 
-function formatEventLabel(eventType: string) {
+function formatEventLabel(eventType: string, metadata?: Record<string, unknown> | null) {
+  if (CURATED_NOTE_ACTIVITY_EVENTS.has(eventType)) {
+    return formatNoteActivity("admin", eventType, metadata ?? undefined).title;
+  }
+
   const labels: Record<string, string> = {
     NOTE_CREATED: "Note created",
     NOTE_TERMS_UPDATED: "Note terms updated",
@@ -201,8 +214,13 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
                 <div className="space-y-5">
                   {note.events.map((event, index) => {
                     const s3Key = extractS3Key(event);
-                    const { compact: compactMetadata, prose: proseMetadata } =
-                      extractMetadataDetails(event);
+                    const curated = CURATED_NOTE_ACTIVITY_EVENTS.has(event.eventType);
+                    const presentation = curated
+                      ? formatNoteActivity("admin", event.eventType, event.metadata ?? undefined)
+                      : null;
+                    const { compact: compactMetadata, prose: proseMetadata } = curated
+                      ? { compact: [], prose: [] }
+                      : extractMetadataDetails(event);
                     const createdAt = new Date(event.occurredAt);
 
                     return (
@@ -214,9 +232,15 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
                           <div className="flex items-center gap-1.5">
                             {getEventIcon(event.eventType)}
                             <span className="text-sm font-medium leading-tight">
-                              {formatEventLabel(event.eventType)}
+                              {presentation?.title ?? formatEventLabel(event.eventType, event.metadata)}
                             </span>
                           </div>
+
+                          {presentation?.description ? (
+                            <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+                              {presentation.description}
+                            </p>
+                          ) : null}
 
                           <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground/70">
                             <span className="inline-flex items-center gap-0.5">

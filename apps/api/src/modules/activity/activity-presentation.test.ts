@@ -1,0 +1,387 @@
+import {
+  formatApplicationActivity,
+  formatNoteActivity,
+  formatOnboardingActivity,
+  formatPaymentActivity,
+  formatSigningActivity,
+} from "@cashsouk/types";
+
+function expectSafeCopy(title: string, description: string) {
+  expect(title).toBeTruthy();
+  expect(description).toBeTruthy();
+  expect(title).not.toMatch(/undefined|null/i);
+  expect(description).not.toMatch(/undefined|null/i);
+  expect(title).not.toMatch(/[{}]/);
+  expect(description).not.toMatch(/[{}]/);
+}
+
+describe("Activity presentation copy", () => {
+  describe("onboarding", () => {
+    it("keeps ONBOARDING_APPROVED from implying onboarding is complete", () => {
+      const issuer = formatOnboardingActivity("issuer", "ONBOARDING_APPROVED");
+      const investor = formatOnboardingActivity("investor", "ONBOARDING_APPROVED");
+      const admin = formatOnboardingActivity("admin", "ONBOARDING_APPROVED", {
+        actorName: "Aisha",
+      });
+
+      expect(issuer).toEqual({
+        title: "Onboarding Submission Approved",
+        description:
+          "Your onboarding submission was approved. Additional checks may still be required before onboarding is completed.",
+      });
+      expect(investor).toEqual(issuer);
+      expect(admin.title).toBe("Onboarding Approved");
+      expect(admin.description).toBe("Aisha approved the onboarding submission.");
+      expect(issuer.description.toLowerCase()).not.toMatch(
+        /no further action|onboarding is complete\.|was marked completed/
+      );
+    });
+
+    it("keeps ONBOARDING_COMPLETED as a distinct final milestone", () => {
+      const completed = formatOnboardingActivity("issuer", "ONBOARDING_COMPLETED");
+      const approved = formatOnboardingActivity("issuer", "ONBOARDING_APPROVED");
+
+      expect(completed.title).toBe("Onboarding Completed");
+      expect(completed.description).toBe("Your organization onboarding is complete.");
+      expect(completed.title).not.toBe(approved.title);
+      expect(completed.description).not.toBe(approved.description);
+    });
+
+    it("does not expose reasonCode on rejection", () => {
+      const rejected = formatOnboardingActivity("issuer", "ONBOARDING_REJECTED", {
+        reasonCode: "MISSING_DOCUMENTS",
+      });
+      expect(rejected.title).toBe("Onboarding Rejected");
+      expect(rejected.description).toBe("Your organization onboarding was rejected.");
+      expect(rejected.description).not.toContain("MISSING_DOCUMENTS");
+      expect(rejected.description).not.toContain("reasonCode");
+    });
+
+    it("maps director KYC to the three visible states", () => {
+      expect(
+        formatOnboardingActivity("issuer", "DIRECTOR_KYC_STATUS_UPDATED", {
+          newKycStatus: "APPROVED",
+        }).title
+      ).toBe("Director Verification Approved");
+      expect(
+        formatOnboardingActivity("issuer", "DIRECTOR_KYC_STATUS_UPDATED", {
+          newKycStatus: "REJECTED",
+        }).title
+      ).toBe("Director Verification Rejected");
+      expect(
+        formatOnboardingActivity("issuer", "DIRECTOR_KYC_STATUS_UPDATED", {
+          newKycStatus: "ACTION_REQUIRED",
+        }).title
+      ).toBe("Director Verification Action Needed");
+      expect(
+        formatOnboardingActivity("issuer", "DIRECTOR_KYC_STATUS_UPDATED", {
+          newKycStatus: "WAIT_FOR_APPROVAL",
+        }).description
+      ).not.toContain("WAIT_FOR_APPROVAL");
+    });
+
+    it("shows director email to admin only", () => {
+      const admin = formatOnboardingActivity("admin", "DIRECTOR_ONBOARDING_INVITATION_SENT", {
+        directorEmail: "director@example.com",
+      });
+      const issuer = formatOnboardingActivity("issuer", "DIRECTOR_ONBOARDING_INVITATION_SENT", {
+        directorEmail: "director@example.com",
+      });
+      expect(admin.description).toContain("director@example.com");
+      expect(issuer.description).toBe("A director was invited to complete verification.");
+      expect(issuer.description).not.toContain("director@example.com");
+    });
+  });
+
+  describe("application", () => {
+    it("uses Application Created and does not say Application Started", () => {
+      const created = formatApplicationActivity("issuer", "APPLICATION_CREATED");
+      expect(created.title).toBe("Application Created");
+      expect(created.title).not.toMatch(/Started/i);
+    });
+
+    it("does not say Application Submitted is now under review", () => {
+      const submitted = formatApplicationActivity("issuer", "APPLICATION_SUBMITTED");
+      expect(submitted.title).toBe("Application Submitted");
+      expect(submitted.description.toLowerCase()).not.toContain("now under review");
+      expect(submitted.description).toBe("Your application has been submitted for review.");
+    });
+
+    it("labels withdrawal as Withdrawn, not Closed", () => {
+      const withdrawn = formatApplicationActivity("issuer", "APPLICATION_WITHDRAWN");
+      expect(withdrawn.title).toBe("Application Withdrawn");
+      expect(withdrawn.title).not.toMatch(/Closed/i);
+      expect(withdrawn.description).toContain("withdrawn");
+    });
+
+    it("describes offer accepted as acceptance, not signing completion", () => {
+      const contract = formatApplicationActivity("issuer", "CONTRACT_OFFER_ACCEPTED");
+      const invoice = formatApplicationActivity("issuer", "INVOICE_OFFER_ACCEPTED");
+      const signing = formatSigningActivity("issuer", "SIGNING_PACKAGE_COMPLETED");
+
+      expect(contract.title).toBe("Contract Offer Accepted");
+      expect(invoice.title).toBe("Invoice Offer Accepted");
+      expect(contract.description).toBe("The contract offer was accepted.");
+      expect(invoice.description).toBe("The invoice offer was accepted.");
+      for (const copy of [contract, invoice]) {
+        expect(copy.title + copy.description).not.toMatch(/signed|all signers|signing package completed/i);
+      }
+      expect(signing.title).toBe("Signing Package Completed");
+      expect(signing.description).toBe("All required signers have completed the signing package.");
+    });
+
+    it("does not render raw section-review enums", () => {
+      const section = formatApplicationActivity("issuer", "APPLICATION_SECTION_REVIEW_UPDATED", {
+        newStatus: "AMENDMENT_REQUESTED",
+        section: "financial_details",
+      });
+      expect(section.title).toBe("Section Changes Requested");
+      expect(section.description).not.toContain("AMENDMENT_REQUESTED");
+      expect(section.description).not.toContain("financial_details");
+      expect(section.title).not.toBe(formatApplicationActivity("issuer", "APPLICATION_AMENDMENTS_REQUESTED").title);
+    });
+
+    it("uses admin actor fallbacks without inventing names", () => {
+      const withActor = formatApplicationActivity("admin", "APPLICATION_SUBMITTED", {
+        actorName: "Nora",
+      });
+      const fallback = formatApplicationActivity("admin", "APPLICATION_SUBMITTED", {});
+      expect(withActor.description).toBe("Nora submitted the application for review.");
+      expect(fallback.description).toBe("The application was submitted for review.");
+    });
+  });
+
+  describe("signing", () => {
+    it("uses Cancelled for issuer voided packages and Voided for admin", () => {
+      const issuer = formatSigningActivity("issuer", "SIGNING_PACKAGE_VOIDED");
+      const admin = formatSigningActivity("admin", "SIGNING_PACKAGE_VOIDED");
+      expect(issuer.title).toBe("Signing Package Cancelled");
+      expect(issuer.description).toBe("The signing package was cancelled.");
+      expect(issuer.title + issuer.description).not.toMatch(/voided/i);
+      expect(admin.title).toBe("Signing Package Voided");
+    });
+
+    it("keeps declined, voided, expired, and recipient-declined wording distinct", () => {
+      const titles = [
+        formatSigningActivity("issuer", "SIGNING_RECIPIENT_DECLINED").title,
+        formatSigningActivity("issuer", "SIGNING_PACKAGE_DECLINED").title,
+        formatSigningActivity("issuer", "SIGNING_PACKAGE_VOIDED").title,
+        formatSigningActivity("issuer", "SIGNING_PACKAGE_EXPIRED").title,
+      ];
+      expect(new Set(titles).size).toBe(4);
+    });
+
+    it("keeps eKYC failed issuer copy actionable and email-free", () => {
+      const issuer = formatSigningActivity("issuer", "SIGNING_EKYC_FAILED", {
+        email: "signer@example.com",
+        provider: "SIGNINGCLOUD",
+      });
+      expect(issuer.title).toBe("Signer Identity Check Failed");
+      expect(issuer.description).toBe(
+        "A signer could not complete identity verification. They need to try again."
+      );
+      expect(issuer.description).not.toContain("signer@example.com");
+      expect(issuer.description).not.toMatch(/ekyc|signingcloud|provider/i);
+    });
+
+    it("may include signer email for admin eKYC failed", () => {
+      const admin = formatSigningActivity("admin", "SIGNING_EKYC_FAILED", {
+        email: "signer@example.com",
+      });
+      expect(admin.description).toContain("signer@example.com");
+      expect(formatSigningActivity("admin", "SIGNING_EKYC_FAILED", {}).description).toBe(
+        "Identity verification failed for a signer."
+      );
+    });
+  });
+
+  describe("notes", () => {
+    it("maps issuer servicing statuses and never shows raw enums", () => {
+      const expected: Record<string, string> = {
+        CURRENT: "Repayment On Track",
+        PARTIAL: "Partial Payment Recorded",
+        ADVANCE_PAID: "Advance Payment Recorded",
+        LATE: "Payment Delayed",
+        ARREARS: "Payment Overdue",
+        DEFAULTED: "Repayment in Default",
+        SETTLED: "Servicing Completed",
+      };
+
+      for (const [status, title] of Object.entries(expected)) {
+        const copy = formatNoteActivity("issuer", "NOTE_SERVICING_STATUS_CHANGED", {
+          newServicingStatus: status,
+        });
+        expect(copy.title).toBe(title);
+        expect(copy.description).not.toContain(status);
+      }
+
+      const unknown = formatNoteActivity("issuer", "NOTE_SERVICING_STATUS_CHANGED", {
+        newServicingStatus: "NOT_STARTED",
+      });
+      expect(unknown.title).toBe("Servicing Status Updated");
+      expect(unknown.description).not.toContain("NOT_STARTED");
+    });
+
+    it("keeps formal default wording distinct from servicing default", () => {
+      const servicing = formatNoteActivity("issuer", "NOTE_SERVICING_STATUS_CHANGED", {
+        newServicingStatus: "DEFAULTED",
+      });
+      const formal = formatNoteActivity("issuer", "NOTE_MARKED_DEFAULT");
+      expect(formal.title).toBe("Note Marked in Default");
+      expect(servicing.title).toBe("Repayment in Default");
+      expect(formal.title).not.toBe(servicing.title);
+      expect(formal.description).not.toBe(servicing.description);
+      expect(formal.description).toMatch(/formally marked in default/);
+    });
+
+    it("uses distinct issuer and investor note activation copy", () => {
+      const issuer = formatNoteActivity("issuer", "NOTE_ACTIVATED");
+      const investor = formatNoteActivity("investor", "NOTE_ACTIVATED");
+      expect(issuer).toEqual({
+        title: "Note Activated",
+        description: "The note is now active and servicing has started.",
+      });
+      expect(investor).toEqual({
+        title: "Investment Activated",
+        description: "Your investment is now active and servicing has started.",
+      });
+    });
+
+    it("uses investor-specific settlement copy without aggregate investorAmount", () => {
+      const investor = formatNoteActivity("investor", "SETTLEMENT_POSTED", {
+        investorAmount: 12500,
+        currency: "MYR",
+        settlementId: "set_123",
+      });
+      const issuer = formatNoteActivity("issuer", "SETTLEMENT_POSTED", {
+        investorAmount: 12500,
+        currency: "MYR",
+      });
+      expect(investor.title).toBe("Returns Credited");
+      expect(investor.description).toBe("Your returns were credited to your CashSouk balance.");
+      expect(investor.description).not.toContain("12500");
+      expect(investor.description).not.toContain("set_123");
+      expect(issuer.title).toBe("Settlement Posted");
+      expect(issuer.description).toBe("Settlement was posted.");
+    });
+
+    it("renders the viewer’s own amount when amount and currency are present", () => {
+      const commitment = formatNoteActivity(
+        "investor",
+        "INVESTMENT_COMMITTED",
+        { amount: 1000, currency: "MYR" }
+      );
+      const repayment = formatNoteActivity("issuer", "REPAYMENT_RECEIVED", {
+        amount: 2500,
+        currency: "MYR",
+      });
+      expect(commitment.description).toContain("MYR 1,000.00");
+      expect(repayment.description).toContain("MYR 2,500.00");
+    });
+
+    it("falls back safely when amount or currency is missing", () => {
+      const missingCurrency = formatNoteActivity("investor", "INVESTMENT_COMMITTED", {
+        amount: 1000,
+      });
+      const missingAmount = formatNoteActivity("issuer", "REPAYMENT_SUBMITTED", {
+        currency: "MYR",
+      });
+      expect(missingCurrency.description).toBe("Your investment was committed.");
+      expect(missingAmount.description).toBe("A repayment was submitted and is awaiting review.");
+      expect(missingCurrency.description).not.toContain("undefined");
+      expect(missingAmount.description).not.toContain("MYR");
+    });
+  });
+
+  describe("payments", () => {
+    it("uses Payment Verification Failed wording for name-check rejection", () => {
+      const copy = formatPaymentActivity("investor", "PAYMENT_NAME_CHECK_REJECTED", {
+        score: 12,
+        result: "NO_MATCH",
+      });
+      expect(copy.title).toBe("Payment Verification Failed");
+      expect(copy.description).not.toMatch(/name check|score|NO_MATCH/i);
+    });
+
+    it("keeps refund processing and completed distinct", () => {
+      const processing = formatPaymentActivity("investor", "PAYMENT_REFUND_INITIATED");
+      const completed = formatPaymentActivity("investor", "PAYMENT_REFUNDED");
+      expect(processing.title).toBe("Refund Processing");
+      expect(completed.title).toBe("Refund Completed");
+      expect(processing.title).not.toBe(completed.title);
+    });
+
+    it("keeps withdrawal requested, processing, and completed distinct without trustee wording", () => {
+      const requested = formatPaymentActivity("investor", "INVESTOR_WITHDRAWAL_REQUESTED", {
+        amount: 500,
+        currency: "MYR",
+        withdrawalId: "wd_99",
+      });
+      const processing = formatPaymentActivity("investor", "INVESTOR_WITHDRAWAL_SUBMITTED_TO_TRUSTEE", {
+        withdrawalId: "wd_99",
+      });
+      const completed = formatPaymentActivity("investor", "INVESTOR_WITHDRAWAL_COMPLETED");
+
+      expect(requested.title).toBe("Withdrawal Requested");
+      expect(processing.title).toBe("Withdrawal Processing");
+      expect(completed.title).toBe("Withdrawal Completed");
+      expect(processing.description.toLowerCase()).not.toContain("trustee");
+      expect(requested.description).toContain("MYR 500.00");
+      expect(requested.description).not.toContain("wd_99");
+      expect(new Set([requested.title, processing.title, completed.title]).size).toBe(3);
+    });
+
+    it("renders deposit amounts only when both amount and currency exist", () => {
+      const withAmount = formatPaymentActivity("investor", "INVESTOR_DEPOSIT_RECEIVED", {
+        amount: 750,
+        currency: "MYR",
+      });
+      const fallback = formatPaymentActivity("investor", "INVESTOR_DEPOSIT_RECEIVED", {
+        gatewayPaymentId: "pay_1",
+      });
+      expect(withAmount.description).toContain("MYR 750.00");
+      expect(fallback.description).toBe("A deposit was credited to your CashSouk balance.");
+      expect(fallback.description).not.toContain("pay_1");
+    });
+  });
+
+  describe("safety", () => {
+    it("never interpolates raw IDs, enums, or JSON into portal copy", () => {
+      const samples = [
+        formatOnboardingActivity("issuer", "ONBOARDING_REJECTED", {
+          reasonCode: "X",
+          requestId: "req_1",
+        }),
+        formatApplicationActivity("issuer", "APPLICATION_SECTION_REVIEW_UPDATED", {
+          newStatus: "APPROVED",
+          changedFields: { foo: "bar" },
+        }),
+        formatSigningActivity("issuer", "SIGNING_EKYC_FAILED", {
+          recipientId: "rec_1",
+          provider: "SIGNINGCLOUD",
+        }),
+        formatNoteActivity("investor", "SETTLEMENT_POSTED", {
+          settlementId: "set_1",
+          investorAmount: 9,
+        }),
+        formatPaymentActivity("investor", "PAYMENT_FAILED", {
+          gatewayPaymentId: "gw_1",
+        }),
+      ];
+
+      for (const copy of samples) {
+        expectSafeCopy(copy.title, copy.description);
+        expect(copy.description).not.toMatch(/req_1|rec_1|set_1|gw_1|APPROVED|SIGNINGCLOUD/);
+        expect(copy.description).not.toContain("{");
+      }
+    });
+
+    it("returns generic fallbacks for unknown events", () => {
+      expect(formatOnboardingActivity("issuer", "UNKNOWN_EVENT").title).toBe("Onboarding Update");
+      expect(formatApplicationActivity("issuer", "UNKNOWN_EVENT").title).toBe("Application Update");
+      expect(formatSigningActivity("issuer", "UNKNOWN_EVENT").title).toBe("Signing Update");
+      expect(formatNoteActivity("issuer", "UNKNOWN_EVENT").title).toBe("Note Update");
+      expect(formatPaymentActivity("investor", "UNKNOWN_EVENT").title).toBe("Payment Update");
+    });
+  });
+});

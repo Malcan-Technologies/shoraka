@@ -23,16 +23,16 @@ describe("ApplicationLogAdapter", () => {
 
   it("builds user-facing presentation copy", () => {
     expect(adapter.buildPresentation("APPLICATION_CREATED")).toEqual({
-      title: "Application Started",
-      description: "You created a financing application and can continue it before submitting.",
+      title: "Application Created",
+      description: "You created a financing application.",
     });
     expect(adapter.buildPresentation("APPLICATION_SUBMITTED")).toEqual({
       title: "Application Submitted",
-      description: "Your financing application was submitted and is now under review.",
+      description: "Your application has been submitted for review.",
     });
     expect(adapter.buildPresentation("APPLICATION_REJECTED", { remark: "Invalid docs" })).toEqual({
       title: "Application Rejected",
-      description: "Your financing application was rejected and will not continue.",
+      description: "Your application was rejected.",
     });
     expect(
       adapter.buildPresentation("APPLICATION_RESUBMITTED", {
@@ -40,26 +40,27 @@ describe("ApplicationLogAdapter", () => {
       })
     ).toEqual({
       title: "Application Resubmitted",
-      description: "You resubmitted your application after updating the requested information.",
+      description: "You resubmitted your application after making the requested updates.",
     });
+    expect(adapter.buildPresentation("APPLICATION_WITHDRAWN").title).toBe("Application Withdrawn");
   });
 
   it("builds presentation for offer acceptance events and does not advertise signing packages", () => {
     expect(adapter.buildPresentation("CONTRACT_ACCEPTANCE_SUBMITTED")).toEqual({
       title: "Contract Acceptance Submitted",
-      description: "You submitted offer acceptance documents for CashSouk review.",
+      description: "You submitted your contract acceptance for review.",
     });
     expect(adapter.buildPresentation("CONTRACT_ACCEPTANCE_RESUBMITTED")).toEqual({
       title: "Contract Acceptance Resubmitted",
-      description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
+      description: "You resubmitted your contract acceptance after requested changes.",
     });
     expect(adapter.buildPresentation("SIGNING_PACKAGE_SENT")).toEqual({
       title: "Application Update",
       description: "An application update was recorded for your account.",
     });
     expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTED")).toEqual({
-      title: "Contract Offer Signed",
-      description: "All signers completed the contract offer signing package.",
+      title: "Contract Offer Accepted",
+      description: "The contract offer was accepted.",
     });
   });
 
@@ -106,9 +107,9 @@ describe("ApplicationLogAdapter", () => {
     expect(unified.source_table).toBe("application_audit_logs");
     expect(unified.category).toBe("organization");
     expect(unified.domain).toBe("application");
-    expect(unified.activity).toBe("Application Started");
-    expect(unified.title).toBe("Application Started");
-    expect(unified.description).toBe("You created a financing application and can continue it before submitting.");
+    expect(unified.activity).toBe("Application Created");
+    expect(unified.title).toBe("Application Created");
+    expect(unified.description).toBe("You created a financing application.");
   });
 
   it("derives structured references for application and invoice events", () => {
@@ -130,7 +131,7 @@ describe("ApplicationLogAdapter", () => {
     const unified = adapter.transform(record);
 
     expect(unified.description).toBe(
-      "An invoice offer for invoice INV-001 is ready for your review and response."
+      "An invoice offer for invoice INV-001 is ready for your review."
     );
     expect(unified.references).toEqual({
       applicationId: "app_123",
@@ -157,7 +158,7 @@ describe("ApplicationLogAdapter", () => {
     const unified = adapter.transform(record);
 
     expect(unified.description).toBe(
-      "An invoice offer for invoice INV-001 is ready for your review and response."
+      "An invoice offer for invoice INV-001 is ready for your review."
     );
     expect(unified.references).toEqual({
       applicationId: "app_123",
@@ -179,7 +180,9 @@ describe("ApplicationLogAdapter", () => {
 
     const unified = adapter.transform(record);
 
-    expect(unified.description).toBe("Application #APP_123 was submitted and is now under review.");
+    expect(unified.description).toBe("Your application has been submitted for review.");
+    expect(unified.description.toLowerCase()).not.toContain("now under review");
+    expect(unified.description).not.toContain("#APP_123");
     expect(unified.references).toEqual({
       applicationId: "app_123",
       applicationReference: "#APP_123",
@@ -217,7 +220,7 @@ describe("ApplicationLogAdapter", () => {
     const unified = adapter.transform(record as any);
 
     expect(unified.description).toBe(
-      "A contract offer for contract CT-2026-001 is ready for your review and response."
+      "A contract offer for CT-2026-001 is ready for your review."
     );
     expect(unified.references).toEqual({
       applicationId: "issuerapp_123",

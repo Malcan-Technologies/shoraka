@@ -2,6 +2,8 @@ import { prisma } from "../../../lib/prisma";
 import { PaymentAuditLog, Prisma } from "@prisma/client";
 import { formatDeviceInfoFromUserAgent } from "../../../lib/http/request-utils";
 import {
+  audienceFromPortal,
+  formatPaymentActivity,
   getPaymentActivityEventTypes,
   isPaymentActivityVisible,
   type ActivityAudience,
@@ -41,9 +43,13 @@ export class PaymentLogAdapter implements AuditLogAdapter<PaymentAuditLog> {
     return records.length;
   }
 
-  transform(record: PaymentAuditLog): UnifiedActivity {
+  transform(record: PaymentAuditLog, filters?: ActivityFilters): UnifiedActivity {
     const metadata = (record.metadata as Record<string, unknown> | null) ?? {};
-    const presentation = this.buildPresentation(record.event_type, metadata);
+    const presentation = this.buildPresentation(
+      record.event_type,
+      metadata,
+      filters ? this.audienceOf(filters) : "investor"
+    );
 
     return {
       id: record.id,
@@ -63,62 +69,12 @@ export class PaymentLogAdapter implements AuditLogAdapter<PaymentAuditLog> {
     };
   }
 
-  buildPresentation(eventType: string, _metadata?: Record<string, unknown>) {
-    switch (eventType) {
-      case "PAYMENT_FAILED":
-        return {
-          title: "Payment Failed",
-          description: "A payment attempt did not complete.",
-        };
-      case "PAYMENT_EXPIRED":
-        return {
-          title: "Payment Expired",
-          description: "A payment attempt expired before it was completed.",
-        };
-      case "PAYMENT_NAME_CHECK_REJECTED":
-        return {
-          title: "Payment Name Check Rejected",
-          description: "A payment name check was rejected.",
-        };
-      case "INVESTOR_DEPOSIT_RECEIVED":
-        return {
-          title: "Deposit Received",
-          description: "A deposit was received in your account.",
-        };
-      case "INVESTOR_WITHDRAWAL_REQUESTED":
-        return {
-          title: "Withdrawal Requested",
-          description: "A withdrawal request was submitted.",
-        };
-      case "INVESTOR_WITHDRAWAL_SUBMITTED_TO_TRUSTEE":
-        return {
-          title: "Withdrawal Processing",
-          description: "Your withdrawal request is being processed.",
-        };
-      case "INVESTOR_WITHDRAWAL_COMPLETED":
-        return {
-          title: "Withdrawal Completed",
-          description: "A withdrawal was completed.",
-        };
-      case "PAYMENT_REFUND_INITIATED":
-        return {
-          title: "Refund Started",
-          description: "A refund was started for one of your payments.",
-        };
-      case "PAYMENT_REFUNDED":
-        return {
-          title: "Payment Refunded",
-          description: "A payment was refunded.",
-        };
-      default:
-        return {
-          title: eventType
-            .split("_")
-            .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-            .join(" "),
-          description: "A payment update was recorded for your account.",
-        };
-    }
+  buildPresentation(
+    eventType: string,
+    metadata?: Record<string, unknown>,
+    audience: ActivityAudience = "investor"
+  ) {
+    return formatPaymentActivity(audience, eventType, metadata);
   }
 
   getEventTypes(): string[] {
@@ -132,7 +88,7 @@ export class PaymentLogAdapter implements AuditLogAdapter<PaymentAuditLog> {
   }
 
   private audienceOf(filters: ActivityFilters): ActivityAudience {
-    return filters.portalType === "investor" ? "investor" : "issuer";
+    return audienceFromPortal(filters.portalType);
   }
 
   private buildWhere(
@@ -149,7 +105,7 @@ export class PaymentLogAdapter implements AuditLogAdapter<PaymentAuditLog> {
 
     if (search) {
       const matchingEventTypes = eventTypes.filter((eventType) => {
-        const presentation = this.buildPresentation(eventType, {});
+        const presentation = this.buildPresentation(eventType, {}, this.audienceOf(filters));
         const searchTerm = search.toLowerCase();
         return (
           presentation.title.toLowerCase().includes(searchTerm) ||

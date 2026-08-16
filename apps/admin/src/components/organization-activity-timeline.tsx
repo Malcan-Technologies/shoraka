@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@cashsouk/ui";
 import { useOrganizationLogs } from "@/hooks/use-organization-logs";
 import { formatDistanceToNow, format } from "date-fns";
+import { formatOnboardingActivity } from "@cashsouk/types";
 import {
   CheckCircleIcon,
   XCircleIcon,
@@ -61,33 +62,8 @@ function getEventIcon(eventType: string) {
   }
 }
 
-function getEventLabel(eventType: string): string {
-  const labels: Record<string, string> = {
-    ONBOARDING_STARTED: "Onboarding Started",
-    ONBOARDING_RESUMED: "Onboarding Resumed",
-    ONBOARDING_RESTARTED: "Onboarding Restarted",
-    ONBOARDING_RESET: "Onboarding Reset",
-    USER_ONBOARDING_STATUS_UPDATED: "User Onboarding Marker Updated",
-    ONBOARDING_STATUS_CHANGED: "Status Changed",
-    ONBOARDING_REJECTED: "Onboarding Rejected",
-    ONBOARDING_APPROVED: "Onboarding Approved",
-    ONBOARDING_FINAL_APPROVAL_COMPLETED: "Final Approval Completed",
-    ONBOARDING_COMPLETED: "Onboarding Completed",
-    AML_APPROVED: "AML Approved",
-    SSM_APPROVED: "SSM Approved",
-    INVESTOR_SOPHISTICATED_STATUS_UPDATED: "Sophisticated Status Updated",
-    CTOS_REPORT_RECEIVED: "CTOS Report Received",
-    CORPORATE_ENTITIES_UPDATED: "Corporate Entities Updated",
-    DIRECTOR_ONBOARDING_INVITATION_SENT: "Director Invitation Sent",
-    DIRECTOR_KYC_STATUS_UPDATED: "Director KYC Updated",
-  };
-  return (
-    labels[eventType] ||
-    eventType
-      .split("_")
-      .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
-      .join(" ")
-  );
+function getEventLabel(eventType: string, metadata?: Record<string, unknown> | null): string {
+  return formatOnboardingActivity("admin", eventType, metadata ?? undefined).title;
 }
 
 function getEventDotColor(eventType: string): string {
@@ -116,113 +92,11 @@ function getEventDotColor(eventType: string): string {
   }
 }
 
-/**
- * Builds a human-readable description from event metadata.
- */
 function buildEventDescription(
   eventType: string,
   metadata: Record<string, unknown> | null
-): string | null {
-  if (!metadata) return null;
-
-  switch (eventType) {
-    case "ONBOARDING_STATUS_CHANGED":
-      if (metadata.trigger)
-        return `Triggered by ${formatTrigger(String(metadata.trigger))}`;
-      return null;
-    case "ONBOARDING_REJECTED":
-      return metadata.reasonCode
-        ? String(metadata.reasonCode)
-        : metadata.trigger
-          ? `Triggered by ${formatTrigger(String(metadata.trigger))}`
-          : null;
-    case "ONBOARDING_RESET":
-      return "User account marker cleared; organization onboarding state was not rewound";
-    case "INVESTOR_SOPHISTICATED_STATUS_UPDATED": {
-      const action =
-        metadata.action === "AUTO_GRANTED"
-          ? "Auto-granted"
-          : metadata.action === "GRANTED"
-            ? "Granted"
-            : "Revoked";
-      const reason = metadata.newReason ? ` — ${metadata.newReason}` : "";
-      return `${action}${reason}`;
-    }
-    case "AML_APPROVED":
-    case "KYB_APPROVED":
-    case "KYC_APPROVED":
-      if (metadata.isCorporateOnboarding)
-        return "Corporate onboarding";
-      return null;
-    default:
-      return null;
-  }
-}
-
-function formatTrigger(trigger: string): string {
-  return trigger
-    .split("_")
-    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
-    .join(" ");
-}
-
-/**
- * Extracts structured metadata details to render as key-value pairs.
- */
-function extractMetadataDetails(
-  eventType: string,
-  metadata: Record<string, unknown> | null
-): { label: string; value: string }[] {
-  if (!metadata) return [];
-
-  const details: { label: string; value: string }[] = [];
-
-  // Status transition
-  if (metadata.previousStatus && metadata.newStatus) {
-    details.push({
-      label: "Transition",
-      value: `${String(metadata.previousStatus)} → ${String(metadata.newStatus)}`,
-    });
-  } else if (metadata.newStatus) {
-    details.push({ label: "Status", value: String(metadata.newStatus) });
-  }
-
-  // Risk info
-  if (metadata.riskLevel) {
-    details.push({ label: "Risk", value: String(metadata.riskLevel) });
-  }
-  if (metadata.riskScore) {
-    details.push({ label: "Score", value: String(metadata.riskScore) });
-  }
-
-  // Actor — prefer resolved name, fall back to shortened ID
-  if (metadata.approvedBy) {
-    details.push({ label: "Approved by", value: String(metadata.approvedByName || shortenId(String(metadata.approvedBy))) });
-  }
-  if (metadata.cancelledBy) {
-    details.push({ label: "Cancelled by", value: String(metadata.cancelledByName || shortenId(String(metadata.cancelledBy))) });
-  }
-  if (metadata.updatedBy) {
-    details.push({ label: "Updated by", value: String(metadata.updatedByName || shortenId(String(metadata.updatedBy))) });
-  }
-  if (metadata.resetBy) {
-    details.push({ label: "Reset by", value: String(metadata.resetByName || shortenId(String(metadata.resetBy))) });
-  }
-
-  // Portal/org type
-  if (metadata.portalType && eventType !== "ONBOARDING_STATUS_UPDATED") {
-    details.push({ label: "Portal", value: String(metadata.portalType) });
-  }
-  if (metadata.organizationType) {
-    details.push({ label: "Type", value: String(metadata.organizationType) });
-  }
-
-  return details;
-}
-
-function shortenId(id: string): string {
-  if (id.length <= 12) return id;
-  return `${id.slice(0, 6)}...${id.slice(-4)}`;
+): string {
+  return formatOnboardingActivity("admin", eventType, metadata ?? undefined).description;
 }
 
 function TimelineSkeleton() {
@@ -310,7 +184,6 @@ export function OrganizationActivityTimeline({
                     const actorName = log.actor.displayName || "System";
                     const metadata = log.metadata as Record<string, unknown> | null;
                     const description = buildEventDescription(eventType, metadata);
-                    const details = extractMetadataDetails(eventType, metadata);
 
                     return (
                       <div key={log.id} className="relative flex gap-3 pl-0">
@@ -324,34 +197,15 @@ export function OrganizationActivityTimeline({
                           <div className="flex items-center gap-1.5">
                             {getEventIcon(eventType)}
                             <span className="text-sm font-medium leading-tight">
-                              {getEventLabel(eventType)}
+                              {getEventLabel(eventType, metadata)}
                             </span>
                           </div>
 
-                          {/* Description */}
-                          {description && (
+                          {description ? (
                             <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
                               {description}
                             </p>
-                          )}
-
-                          {/* Status transition & structured metadata */}
-                          {details.length > 0 && (
-                            <div className="mt-1 flex flex-wrap gap-1">
-                              {details.map((d, i) => (
-                                <Badge
-                                  key={i}
-                                  variant="outline"
-                                  className="text-[10px] h-5 px-1.5 font-normal"
-                                >
-                                  <span className="text-muted-foreground mr-0.5">
-                                    {d.label}:
-                                  </span>
-                                  {d.value}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
+                          ) : null}
 
                           {/* Actor + context row */}
                           <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground/70">

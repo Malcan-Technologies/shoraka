@@ -34,6 +34,27 @@ describe("PaymentLogAdapter", () => {
     jest.clearAllMocks();
   });
 
+  it("uses investor-safe payment copy", () => {
+    expect(adapter.buildPresentation("PAYMENT_NAME_CHECK_REJECTED")).toEqual({
+      title: "Payment Verification Failed",
+      description:
+        "We could not verify the account details for this payment. Please review the details and try again.",
+    });
+    expect(adapter.buildPresentation("PAYMENT_REFUND_INITIATED").title).toBe("Refund Processing");
+    expect(adapter.buildPresentation("PAYMENT_REFUNDED").title).toBe("Refund Completed");
+    expect(adapter.buildPresentation("INVESTOR_WITHDRAWAL_SUBMITTED_TO_TRUSTEE")).toEqual({
+      title: "Withdrawal Processing",
+      description: "Your withdrawal request is being processed.",
+    });
+    expect(
+      adapter.buildPresentation("INVESTOR_WITHDRAWAL_SUBMITTED_TO_TRUSTEE").description.toLowerCase()
+    ).not.toContain("trustee");
+    expect(
+      adapter.buildPresentation("INVESTOR_DEPOSIT_RECEIVED", { amount: 100, currency: "MYR" })
+        .description
+    ).toContain("MYR 100.00");
+  });
+
   it("exposes only curated investor payment events", () => {
     expect(adapter.getEventTypes()).toEqual(
       expect.arrayContaining([

@@ -15,11 +15,16 @@ describe("Activity Adapters", () => {
     it("should build curated onboarding presentation copy", () => {
       expect(adapter.buildPresentation("ONBOARDING_STARTED")).toEqual({
         title: "Onboarding Started",
-        description: "Your organization onboarding has started and you can continue it at any time.",
+        description: "Your organization onboarding has started.",
       });
       expect(adapter.buildPresentation("ONBOARDING_REJECTED", { reasonCode: "Missing documents" })).toEqual({
         title: "Onboarding Rejected",
-        description: "Your organization onboarding was rejected: Missing documents",
+        description: "Your organization onboarding was rejected.",
+      });
+      expect(adapter.buildPresentation("ONBOARDING_APPROVED")).toEqual({
+        title: "Onboarding Submission Approved",
+        description:
+          "Your onboarding submission was approved. Additional checks may still be required before onboarding is completed.",
       });
     });
 

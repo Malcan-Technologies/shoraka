@@ -10,8 +10,10 @@ import {
   ActivityFilters,
   buildDateFilter,
 } from "./base";
-import type { ActivityAudience, ActivityReferences } from "@cashsouk/types";
+import type { ActivityAudience } from "@cashsouk/types";
 import {
+  audienceFromPortal,
+  formatApplicationActivity,
   formatApplicationReference,
   getApplicationActivityEventTypes,
   isApplicationActivityVisible,
@@ -168,7 +170,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
     }
   }
 
-  transform(record: ApplicationAuditLog): UnifiedActivity {
+  transform(record: ApplicationAuditLog, filters?: ActivityFilters): UnifiedActivity {
     const baseMetadata = (record.metadata as Record<string, unknown> | null) || {};
     const remark =
       typeof baseMetadata.remarks === "string"
@@ -176,12 +178,16 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
         : typeof baseMetadata.remark === "string"
           ? baseMetadata.remark
           : null;
-    const presentation = this.buildPresentation(record.event_type, {
-      ...baseMetadata,
-      ...(remark ? { remark } : {}),
-    });
+    const presentation = this.buildPresentation(
+      record.event_type,
+      {
+        ...baseMetadata,
+        ...(remark ? { remark } : {}),
+      },
+      filters ? this.audienceOf(filters) : "issuer"
+    );
     const references = this.buildReferences(record, baseMetadata);
-    const description = this.buildDescription(record.event_type, presentation.description, references);
+    const description = presentation.description;
 
     const unified: Record<string, unknown> = {
       id: record.id,
@@ -205,119 +211,6 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
     if (record.target_id) unified.entityId = record.target_id;
 
     return unified as unknown as UnifiedActivity;
-  }
-
-  private buildDescription(
-    eventType: string,
-    fallbackDescription: string,
-    references: ActivityReferences | null
-  ): string {
-    const applicationRef = this.asApplicationReference(
-      references?.applicationReference ?? references?.applicationId
-    );
-    const contractRef = this.asContractReference(references);
-    const invoiceRef = this.asInvoiceReference(references);
-
-    switch (eventType) {
-      case "APPLICATION_CREATED":
-        return applicationRef
-          ? `You created ${applicationRef} and can continue it before submitting.`
-          : fallbackDescription;
-      case "APPLICATION_SUBMITTED":
-        return applicationRef
-          ? `${this.capitalize(applicationRef)} was submitted and is now under review.`
-          : fallbackDescription;
-      case "APPLICATION_RESUBMITTED":
-        return applicationRef
-          ? `You resubmitted ${applicationRef} after making the requested updates.`
-          : fallbackDescription;
-      case "APPLICATION_REJECTED":
-        return applicationRef
-          ? `${this.capitalize(applicationRef)} was rejected and will not continue.`
-          : fallbackDescription;
-      case "APPLICATION_WITHDRAWN":
-        return applicationRef
-          ? `${this.capitalize(applicationRef)} was withdrawn and is no longer active.`
-          : fallbackDescription;
-      case "APPLICATION_COMPLETED":
-        return applicationRef ? `${this.capitalize(applicationRef)} completed successfully.` : fallbackDescription;
-      case "APPLICATION_AMENDMENTS_REQUESTED":
-        return applicationRef
-          ? `We need updates to ${applicationRef} before it can continue.`
-          : fallbackDescription;
-      case "CONTRACT_OFFER_SENT":
-        return contractRef
-          ? `A contract offer for ${contractRef} is ready for your review and response.`
-          : fallbackDescription;
-      case "CONTRACT_ACCEPTANCE_SUBMITTED":
-        return contractRef
-          ? `You submitted acceptance for ${contractRef} and CashSouk is reviewing your documents.`
-          : fallbackDescription;
-      case "CONTRACT_ACCEPTANCE_RESUBMITTED":
-        return contractRef
-          ? `You resubmitted acceptance documents for ${contractRef} after requested changes.`
-          : fallbackDescription;
-      case "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING":
-        return contractRef
-          ? `Acceptance for ${contractRef} was approved. You can configure and send the signing package.`
-          : fallbackDescription;
-      case "CONTRACT_OFFER_ACCEPTED":
-        return contractRef
-          ? `All signers completed the package for ${contractRef} and the offer is signed.`
-          : fallbackDescription;
-      case "CONTRACT_OFFER_REJECTED":
-        return contractRef
-          ? `The offer for ${contractRef} was declined and this application is now closed.`
-          : fallbackDescription;
-      case "CONTRACT_OFFER_RETRACTED":
-        return contractRef
-          ? `The offer for ${contractRef} was withdrawn before it was accepted.`
-          : fallbackDescription;
-      case "CONTRACT_WITHDRAWN":
-        if (contractRef && applicationRef) {
-          return `${this.capitalize(contractRef)} linked to ${applicationRef} was withdrawn.`;
-        }
-        return contractRef
-          ? `${this.capitalize(contractRef)} was withdrawn.`
-          : fallbackDescription;
-      case "INVOICE_OFFER_SENT":
-        return invoiceRef
-          ? `An invoice offer for ${invoiceRef} is ready for your review and response.`
-          : fallbackDescription;
-      case "INVOICE_ACCEPTANCE_SUBMITTED":
-        return invoiceRef
-          ? `You submitted acceptance for ${invoiceRef} and CashSouk is reviewing your documents.`
-          : fallbackDescription;
-      case "INVOICE_ACCEPTANCE_RESUBMITTED":
-        return invoiceRef
-          ? `You resubmitted acceptance documents for ${invoiceRef} after requested changes.`
-          : fallbackDescription;
-      case "INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING":
-        return invoiceRef
-          ? `Acceptance for ${invoiceRef} was approved. You can configure and send the signing package.`
-          : fallbackDescription;
-      case "INVOICE_OFFER_ACCEPTED":
-        return invoiceRef
-          ? `All signers completed the package for ${invoiceRef} and the offer is signed.`
-          : fallbackDescription;
-      case "INVOICE_OFFER_REJECTED":
-        return invoiceRef
-          ? `The offer for ${invoiceRef} was declined and this application has stopped moving forward.`
-          : fallbackDescription;
-      case "INVOICE_OFFER_RETRACTED":
-        return invoiceRef
-          ? `The offer for ${invoiceRef} was withdrawn before it was accepted.`
-          : fallbackDescription;
-      case "INVOICE_WITHDRAWN":
-        if (invoiceRef && applicationRef) {
-          return `${this.capitalize(invoiceRef)} linked to ${applicationRef} was withdrawn.`;
-        }
-        return invoiceRef
-          ? `${this.capitalize(invoiceRef)} was withdrawn.`
-          : fallbackDescription;
-      default:
-        return fallbackDescription;
-    }
   }
 
   private buildReferences(record: ApplicationAuditLog, metadata: Record<string, unknown>) {
@@ -386,169 +279,12 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
     return trimmed;
   }
 
-  private asApplicationReference(applicationId?: string) {
-    return applicationId ? `application ${applicationId}` : undefined;
-  }
-
-  private asContractReference(references?: ActivityReferences | null) {
-    const contract = references?.contractNumber ?? references?.contractId;
-    return contract ? `contract ${contract}` : undefined;
-  }
-
-  private asInvoiceReference(references?: ActivityReferences | null) {
-    const invoice = references?.invoiceNumber ?? references?.invoiceId;
-    return invoice ? `invoice ${invoice}` : undefined;
-  }
-
-  private capitalize(value: string) {
-    return value.charAt(0).toUpperCase() + value.slice(1);
-  }
-
-  buildPresentation(eventType: string, metadata?: Record<string, unknown>) {
-    if (eventType === "APPLICATION_RESUBMITTED") {
-      const summary =
-        (typeof metadata?.activitySummary === "string" && metadata.activitySummary) ||
-        (metadata?.resubmit_changes as { activity_summary?: string } | undefined)?.activity_summary;
-      if (typeof summary === "string" && summary.length > 0) {
-        return {
-          title: "Application Resubmitted",
-          description: "You resubmitted your application after updating the requested information.",
-        };
-      }
-    }
-    const presentations: Record<string, { title: string; description: string }> = {
-      ["APPLICATION_CREATED"]: {
-        title: "Application Started",
-        description: "You created a financing application and can continue it before submitting.",
-      },
-      ["APPLICATION_SUBMITTED"]: {
-        title: "Application Submitted",
-        description: "Your financing application was submitted and is now under review.",
-      },
-      ["APPLICATION_RESUBMITTED"]: {
-        title: "Application Resubmitted",
-        description: "You resubmitted your application after making the requested updates.",
-      },
-      ["APPLICATION_REJECTED"]: {
-        title: "Application Rejected",
-        description: "Your financing application was rejected and will not continue.",
-      },
-      ["APPLICATION_WITHDRAWN"]: {
-        title: "Application Closed",
-        description: "Your financing application was withdrawn and is no longer active.",
-      },
-      ["APPLICATION_COMPLETED"]: {
-        title: "Application Completed",
-        description: "Your financing application completed successfully.",
-      },
-      ["CONTRACT_OFFER_SENT"]: {
-        title: "Contract Offer Sent",
-        description: "A contract offer is ready for your review and response.",
-      },
-      ["CONTRACT_ACCEPTANCE_SUBMITTED"]: {
-        title: "Contract Acceptance Submitted",
-        description: "You submitted offer acceptance documents for CashSouk review.",
-      },
-      ["CONTRACT_ACCEPTANCE_RESUBMITTED"]: {
-        title: "Contract Acceptance Resubmitted",
-        description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
-      },
-      ["CONTRACT_ACCEPTANCE_CHANGES_REQUESTED"]: {
-        title: "Contract Acceptance Changes Requested",
-        description: "Changes were requested for contract offer acceptance.",
-      },
-      ["CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING"]: {
-        title: "Contract Acceptance Approved for Signing",
-        description: "Contract offer acceptance was approved for signing.",
-      },
-      ["CONTRACT_OFFER_ACCEPTED"]: {
-        title: "Contract Offer Signed",
-        description: "All signers completed the contract offer signing package.",
-      },
-      ["CONTRACT_OFFER_REJECTED"]: {
-        title: "Contract Offer Declined",
-        description: "The contract offer was declined and this application is now closed.",
-      },
-      ["CONTRACT_OFFER_RETRACTED"]: {
-        title: "Contract Offer Retracted",
-        description: "The contract offer was withdrawn before it was accepted.",
-      },
-      ["CONTRACT_OFFER_EXPIRED"]: {
-        title: "Contract Offer Expired",
-        description: "The contract offer expired. A new offer can be sent from the Contract tab.",
-      },
-      ["CONTRACT_SIGNING_DEADLINE_EXTENDED"]: {
-        title: "Signing Deadline Extended",
-        description: "CashSouk extended the signing deadline so you can complete the signing package.",
-      },
-      ["CONTRACT_WITHDRAWN"]: {
-        title: "Contract Withdrawn",
-        description: "The contract linked to this application was withdrawn.",
-      },
-      ["INVOICE_OFFER_SENT"]: {
-        title: "Invoice Offer Sent",
-        description: "An invoice offer is ready for your review and response.",
-      },
-      ["INVOICE_ACCEPTANCE_SUBMITTED"]: {
-        title: "Invoice Acceptance Submitted",
-        description: "You submitted offer acceptance documents for CashSouk review.",
-      },
-      ["INVOICE_ACCEPTANCE_RESUBMITTED"]: {
-        title: "Invoice Acceptance Resubmitted",
-        description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
-      },
-      ["INVOICE_ACCEPTANCE_CHANGES_REQUESTED"]: {
-        title: "Invoice Acceptance Changes Requested",
-        description: "Changes were requested for invoice offer acceptance.",
-      },
-      ["INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING"]: {
-        title: "Invoice Acceptance Approved for Signing",
-        description: "Invoice offer acceptance was approved for signing.",
-      },
-      ["INVOICE_OFFER_ACCEPTED"]: {
-        title: "Invoice Offer Signed",
-        description: "All signers completed the invoice offer signing package.",
-      },
-      ["INVOICE_OFFER_REJECTED"]: {
-        title: "Invoice Offer Declined",
-        description: "The invoice offer was declined and this application has stopped moving forward.",
-      },
-      ["INVOICE_OFFER_RETRACTED"]: {
-        title: "Invoice Offer Retracted",
-        description: "The invoice offer was withdrawn before it was accepted.",
-      },
-      ["INVOICE_OFFER_EXPIRED"]: {
-        title: "Invoice Offer Expired",
-        description: "The invoice offer expired. A new offer can be sent from the Invoice tab.",
-      },
-      ["INVOICE_SIGNING_DEADLINE_EXTENDED"]: {
-        title: "Signing Deadline Extended",
-        description: "CashSouk extended the signing deadline so you can complete the signing package.",
-      },
-      ["INVOICE_WITHDRAWN"]: {
-        title: "Invoice Withdrawn",
-        description: "An invoice linked to this application was withdrawn.",
-      },
-      ["APPLICATION_AMENDMENTS_REQUESTED"]: {
-        title: "Changes Requested",
-        description: "We need updates to your application before it can continue.",
-      },
-      ["APPLICATION_REOPENED_FOR_REVIEW"]: {
-        title: "Application Reopened",
-        description: "Your application was reopened for review.",
-      },
-      ["APPLICATION_SECTION_REVIEW_UPDATED"]: {
-        title: "Application Changes Requested",
-        description: "A section of your application needs updates before it can continue.",
-      },
-    };
-
-    return (
-      presentations[eventType] || {
-        title: "Application Update",
-        description: "An application update was recorded for your account.",
-      }
-    );
+  buildPresentation(
+    eventType: string,
+    metadata?: Record<string, unknown>,
+    audience: ActivityAudience = "issuer"
+  ) {
+    return formatApplicationActivity(audience, eventType, metadata);
   }
 
   getEventTypes(): string[] {
@@ -562,7 +298,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
   }
 
   private audienceOf(filters: ActivityFilters): ActivityAudience {
-    return filters.portalType === "investor" ? "investor" : "issuer";
+    return audienceFromPortal(filters.portalType);
   }
 
   private async buildWhere(
@@ -584,7 +320,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationAuditLo
 
     if (search) {
       const matchingEventTypes = eventTypes.filter((eventType) => {
-        const presentation = this.buildPresentation(eventType, {});
+        const presentation = this.buildPresentation(eventType, {}, this.audienceOf(filters));
         const searchTerm = search.toLowerCase();
         return (
           presentation.title.toLowerCase().includes(searchTerm) ||

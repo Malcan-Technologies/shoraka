@@ -69,7 +69,7 @@ export class AuditLogAggregator {
             limit: fetchLimit,
             offset: 0, // We always fetch from the start to ensure merge sort works
           });
-          return records.map((r) => adapter.transform(r));
+          return records.map((r) => adapter.transform(r, filters));
         } catch (error) {
           // Log error but don't fail the whole request
           console.error(`Aggregator: ${adapter.name} failed`, error);

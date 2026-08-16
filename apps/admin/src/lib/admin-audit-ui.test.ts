@@ -145,6 +145,25 @@ describe("admin audit UI restructure", () => {
     expect(panel).not.toContain("Activity Timeline");
   });
 
+  it("uses shared Activity presentation copy on curated Admin Activity surfaces", () => {
+    const organizationActivity = read("components/organization-activity-timeline.tsx");
+    expect(organizationActivity).toContain("formatOnboardingActivity");
+    expect(organizationActivity).not.toContain("reasonCode");
+    expect(organizationActivity).not.toContain("Triggered by");
+
+    const applicationActivity = read("components/admin-activity-timeline.tsx");
+    expect(applicationActivity).toContain("formatApplicationActivity");
+    expect(applicationActivity).toContain("formatSigningActivity");
+    expect(applicationActivity).not.toContain("Offer Signed");
+    expect(applicationActivity).not.toContain("JSON.stringify(log.activity)");
+
+    const noteActivity = read("notes/components/note-timeline-panel.tsx");
+    expect(noteActivity).toContain("formatNoteActivity");
+    expect(noteActivity).toContain("Prospectus review created");
+    expect(noteActivity).toContain("Settlement previewed");
+    expect(noteActivity).toContain("Tawarruq order submitted");
+  });
+
   it("keeps legacy audit path redirects", () => {
     expect(read("app/audit/access-logs/page.tsx")).toContain('redirect("/audit?tab=access")');
     expect(read("app/audit/security-logs/page.tsx")).toContain('redirect("/audit?tab=security")');

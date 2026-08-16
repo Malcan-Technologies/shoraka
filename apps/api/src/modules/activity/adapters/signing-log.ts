@@ -8,7 +8,9 @@ import {
 } from "./base";
 import type { ActivityAudience, ActivityReferences } from "@cashsouk/types";
 import {
+  audienceFromPortal,
   formatApplicationReference,
+  formatSigningActivity,
   getSigningActivityEventTypes,
   isSigningActivityVisible,
 } from "@cashsouk/types";
@@ -42,9 +44,13 @@ export class SigningLogAdapter implements AuditLogAdapter<SigningAuditLog> {
     return records.length;
   }
 
-  transform(record: SigningAuditLog): UnifiedActivity {
+  transform(record: SigningAuditLog, filters?: ActivityFilters): UnifiedActivity {
     const metadata = (record.metadata as Record<string, unknown> | null) || {};
-    const presentation = this.buildPresentation(record.event_type, metadata);
+    const presentation = this.buildPresentation(
+      record.event_type,
+      metadata,
+      filters ? this.audienceOf(filters) : "issuer"
+    );
     const references = this.buildReferences(record, metadata);
 
     return {
@@ -93,64 +99,12 @@ export class SigningLogAdapter implements AuditLogAdapter<SigningAuditLog> {
     return apps.length > 0 ? apps.map((app) => app.id) : ["__none__"];
   }
 
-  buildPresentation(eventType: string, _metadata?: Record<string, unknown>) {
-    const presentations: Record<string, { title: string; description: string }> = {
-      SIGNING_PACKAGE_CREATED: {
-        title: "Signing Package Created",
-        description: "A draft signing package was created for this offer.",
-      },
-      SIGNING_PACKAGE_SENT: {
-        title: "Signing Package Sent",
-        description: "Signers were invited to complete the signing package.",
-      },
-      SIGNING_PACKAGE_COMPLETED: {
-        title: "Signing Package Completed",
-        description: "All required signers completed the signing package.",
-      },
-      SIGNING_PACKAGE_VOIDED: {
-        title: "Signing Package Voided",
-        description: "The signing package was voided.",
-      },
-      SIGNING_PACKAGE_DECLINED: {
-        title: "Signing Package Declined",
-        description: "A signer declined the signing package.",
-      },
-      SIGNING_PACKAGE_EXPIRED: {
-        title: "Signing Package Expired",
-        description: "The signing package expired before it was completed.",
-      },
-      SIGNING_RECIPIENT_COMPLETED: {
-        title: "Signer Completed",
-        description: "A signer finished signing their assigned documents.",
-      },
-      SIGNING_RECIPIENT_DECLINED: {
-        title: "Signer Declined",
-        description: "A signer declined to sign.",
-      },
-      SIGNING_EKYC_STARTED: {
-        title: "Signing Identity Check Started",
-        description: "Identity verification was started for a signer.",
-      },
-      SIGNING_EKYC_VERIFIED: {
-        title: "Signing Identity Verified",
-        description: "A signer completed identity verification.",
-      },
-      SIGNING_EKYC_FAILED: {
-        title: "Signing Identity Check Failed",
-        description: "Identity verification for a signer did not succeed.",
-      },
-      SIGNING_REMINDER_SENT: {
-        title: "Signing Reminder Sent",
-        description: "A manual reminder was sent to a signer.",
-      },
-    };
-
-    return (
-      presentations[eventType] || {
-        title: "Signing Update",
-        description: "A signing update was recorded.",
-      }
-    );
+  buildPresentation(
+    eventType: string,
+    metadata?: Record<string, unknown>,
+    audience: ActivityAudience = "issuer"
+  ) {
+    return formatSigningActivity(audience, eventType, metadata);
   }
 
   getEventTypes(): string[] {
@@ -164,7 +118,7 @@ export class SigningLogAdapter implements AuditLogAdapter<SigningAuditLog> {
   }
 
   private audienceOf(filters: ActivityFilters): ActivityAudience {
-    return filters.portalType === "investor" ? "investor" : "issuer";
+    return audienceFromPortal(filters.portalType);
   }
 
   private async buildWhere(
@@ -186,7 +140,7 @@ export class SigningLogAdapter implements AuditLogAdapter<SigningAuditLog> {
 
     if (search) {
       const matchingEventTypes = eventTypes.filter((eventType) => {
-        const presentation = this.buildPresentation(eventType, {});
+        const presentation = this.buildPresentation(eventType, {}, this.audienceOf(filters));
         const searchTerm = search.toLowerCase();
         return (
           presentation.title.toLowerCase().includes(searchTerm) ||
