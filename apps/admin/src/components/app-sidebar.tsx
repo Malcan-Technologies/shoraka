@@ -412,7 +412,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const canViewAuditSecurity = can("audit.security.view");
   const canViewAuditProduct = can("audit.product.view");
   const canViewAnyAudit =
-    canViewAuditAccess || canViewAuditSecurity || canViewAuditProduct;
+    canViewAuditAccess ||
+    canViewAuditSecurity ||
+    canViewAuditProduct ||
+    canViewOnboarding ||
+    canViewDocuments ||
+    canViewNotifications;
 
   const { data: pendingCountData } = usePendingApprovalCount({ enabled: canViewOnboarding });
   const { data: noteActionCountData } = useNoteActionRequiredCount({ enabled: canViewNotes });
@@ -842,11 +847,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <SidebarMenuButton
                       asChild
                       isActive={pathname === "/audit" || pathname.startsWith("/audit/")}
-                      tooltip="Audit"
+                      tooltip="Audit Logs"
                     >
                       <Link href="/audit">
                         <ClipboardDocumentListIcon className="h-4 w-4" />
-                        <span>Audit</span>
+                        <span>Audit Logs</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

@@ -28,4 +28,8 @@ describe("admin platform sidebar navigation", () => {
   it("hides the obsolete placeholder Documents nav entry", () => {
     expect(source).not.toMatch(/title:\s*"Documents"/);
   });
+
+  it("labels the audit nav item Audit Logs", () => {
+    expect(source).toContain("<span>Audit Logs</span>");
+  });
 });

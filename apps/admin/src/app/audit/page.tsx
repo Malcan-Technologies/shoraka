@@ -4,32 +4,15 @@ import * as React from "react";
 import { Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Skeleton, Tabs, TabsContent, TabsList, TabsTrigger, useHeader } from "@cashsouk/ui";
-import type { AdminPermission } from "@cashsouk/types";
 import { AccessLogsPanel } from "@/components/audit/access-logs-panel";
 import { LegalDocumentAuditPanel } from "@/components/audit/legal-document-audit-panel";
+import { NotificationLogsPanel } from "@/components/audit/notification-logs-panel";
+import { OnboardingLogsPanel } from "@/components/audit/onboarding-logs-panel";
 import { ProductLogsPanel } from "@/components/audit/product-logs-panel";
 import { SecurityLogsPanel } from "@/components/audit/security-logs-panel";
 import { AccessDeniedCard } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
-
-const AUDIT_TABS = [
-  { id: "access", label: "Access", permission: "audit.access.view" },
-  { id: "security", label: "Security", permission: "audit.security.view" },
-  { id: "products", label: "Products", permission: "audit.product.view" },
-  { id: "legal-documents", label: "Legal Documents", permission: "document_management.view" },
-] as const satisfies ReadonlyArray<{
-  id: string;
-  label: string;
-  permission: AdminPermission;
-}>;
-
-type AuditTabId = (typeof AUDIT_TABS)[number]["id"];
-
-const AUDIT_PERMISSIONS: AdminPermission[] = AUDIT_TABS.map((tab) => tab.permission);
-
-function isAuditTabId(value: string | null): value is AuditTabId {
-  return AUDIT_TABS.some((tab) => tab.id === value);
-}
+import { AUDIT_PERMISSIONS, AUDIT_TABS, isAuditTabId, type AuditTabId } from "@/lib/audit-tabs";
 
 function AuditPageFallback() {
   return (
@@ -45,7 +28,7 @@ function AuditPageFallback() {
 function AuditPageContent() {
   const { setTitle } = useHeader();
   React.useEffect(() => {
-    setTitle("Audit");
+    setTitle("Audit Logs");
     return () => setTitle("");
   }, [setTitle]);
 
@@ -96,8 +79,10 @@ function AuditPageContent() {
             <TabsContent key={tab.id} value={tab.id} className="mt-0">
               {tab.id === "access" ? <AccessLogsPanel /> : null}
               {tab.id === "security" ? <SecurityLogsPanel /> : null}
+              {tab.id === "onboarding" ? <OnboardingLogsPanel /> : null}
               {tab.id === "products" ? <ProductLogsPanel /> : null}
               {tab.id === "legal-documents" ? <LegalDocumentAuditPanel /> : null}
+              {tab.id === "notifications" ? <NotificationLogsPanel /> : null}
             </TabsContent>
           ))}
         </Tabs>

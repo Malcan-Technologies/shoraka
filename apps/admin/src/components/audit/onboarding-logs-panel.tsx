@@ -4,47 +4,52 @@ import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AccessLogsTable } from "@/components/access-logs-table";
 import { AccessLogsToolbar } from "@/components/access-logs-toolbar";
-import { useAccessLogs } from "@/hooks/use-access-logs";
+import { OnboardingLogsExportButton } from "@/components/onboarding-logs-export-button";
 import { AdminQueryErrorState } from "@/components/admin-query-error-state";
-import { ACCESS_AUDIT_EVENTS, type AccessAuditEventType, type GetAccessLogsParams } from "@cashsouk/types";
+import { Input } from "@/components/ui/input";
+import { useOnboardingLogs } from "@/hooks/use-onboarding-logs";
+import { formatAuditEventLabel } from "@/lib/audit-tabs";
+import {
+  ONBOARDING_AUDIT_EVENTS,
+  type GetOnboardingLogsParams,
+  type OnboardingEventType,
+} from "@cashsouk/types";
 
-const ACCESS_EVENT_OPTIONS = ACCESS_AUDIT_EVENTS.map((value) => ({
+const ONBOARDING_EVENT_OPTIONS = ONBOARDING_AUDIT_EVENTS.map((value) => ({
   value,
-  label: value
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (char) => char.toUpperCase()),
+  label: formatAuditEventLabel(value),
 }));
 
-export function AccessLogsPanel() {
+export function OnboardingLogsPanel() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [eventTypeFilter, setEventTypeFilter] = React.useState("all");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [dateRangeFilter, setDateRangeFilter] = React.useState("all");
+  const [organizationId, setOrganizationId] = React.useState("");
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 15;
 
   const apiParams = React.useMemo(() => {
-    const params: GetAccessLogsParams = {
+    const params: GetOnboardingLogsParams = {
       page: currentPage,
       pageSize,
       dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
     };
     if (searchQuery) params.search = searchQuery;
-    if (eventTypeFilter !== "all") params.eventType = eventTypeFilter as AccessAuditEventType;
-    if (statusFilter !== "all") params.status = statusFilter as "success" | "failed";
+    if (eventTypeFilter !== "all") params.eventType = eventTypeFilter as OnboardingEventType;
+    if (organizationId.trim()) params.organizationId = organizationId.trim();
     return params;
-  }, [currentPage, pageSize, searchQuery, eventTypeFilter, statusFilter, dateRangeFilter]);
+  }, [currentPage, pageSize, searchQuery, eventTypeFilter, dateRangeFilter, organizationId]);
 
-  const { data, isLoading, error } = useAccessLogs(apiParams);
+  const { data, isLoading, error } = useOnboardingLogs(apiParams);
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, eventTypeFilter, statusFilter, dateRangeFilter]);
+  }, [searchQuery, eventTypeFilter, dateRangeFilter, organizationId]);
 
   if (error) {
-    return <AdminQueryErrorState error={error} resourceLabel="access logs" />;
+    return <AdminQueryErrorState error={error} resourceLabel="onboarding audit" />;
   }
 
   const logs = data?.logs || [];
@@ -68,19 +73,35 @@ export function AccessLogsPanel() {
           setEventTypeFilter("all");
           setStatusFilter("all");
           setDateRangeFilter("all");
+          setOrganizationId("");
           setCurrentPage(1);
         }}
-        onRefresh={() => queryClient.invalidateQueries({ queryKey: ["admin", "access-logs"] })}
+        onRefresh={() => queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-logs"] })}
         isLoading={isLoading}
-        eventTypeOptions={ACCESS_EVENT_OPTIONS}
+        eventTypeOptions={ONBOARDING_EVENT_OPTIONS}
         showStatusFilter={false}
         exportKind="access"
-        exportFilters={{
-          search: searchQuery || undefined,
-          eventType: eventTypeFilter !== "all" ? (eventTypeFilter as AccessAuditEventType) : undefined,
-          dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
-        }}
+        exportFilters={{}}
+        hideExport
       />
+      <div className="flex flex-wrap items-center gap-3">
+        <Input
+          value={organizationId}
+          onChange={(event) => setOrganizationId(event.target.value)}
+          placeholder="Organization ID"
+          aria-label="Organization ID"
+          className="h-10 max-w-xs"
+        />
+        <OnboardingLogsExportButton
+          filters={{
+            search: searchQuery || undefined,
+            eventType:
+              eventTypeFilter !== "all" ? (eventTypeFilter as OnboardingEventType) : undefined,
+            dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
+            organizationId: organizationId.trim() || undefined,
+          }}
+        />
+      </div>
       <AccessLogsTable
         logs={logs.map((log) => ({
           id: log.id,
@@ -91,6 +112,10 @@ export function AccessLogsPanel() {
           actorEmail: log.actor.email,
           actorType: log.actor.type,
           actorUserId: log.actor.userId,
+          subjectUserId: log.subjectUserId,
+          organizationId: log.organizationId,
+          organizationKind: log.organizationKind,
+          organizationType: log.organizationType,
           targetType: log.target.type,
           targetId: log.target.id,
           source: log.source,
@@ -106,7 +131,7 @@ export function AccessLogsPanel() {
         pageSize={pageSize}
         totalLogs={totalLogs}
         onPageChange={setCurrentPage}
-        emptyLabel="No access logs found"
+        emptyLabel="No onboarding audit records found"
       />
     </div>
   );

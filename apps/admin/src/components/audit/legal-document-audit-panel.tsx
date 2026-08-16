@@ -20,13 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useExportLegalDocumentAuditLogs,
@@ -49,6 +42,7 @@ import {
   XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
+import { AuditLogDetailSheet } from "@/components/audit/audit-log-detail-sheet";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -90,81 +84,6 @@ function metadataString(metadata: Record<string, unknown>, key: string): string 
 function metadataNumber(metadata: Record<string, unknown>, key: string): number | null {
   const value = metadata[key];
   return typeof value === "number" ? value : null;
-}
-
-function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="text-sm break-all">{value ?? "—"}</p>
-    </div>
-  );
-}
-
-function AuditLogDetailSheet({
-  log,
-  open,
-  onOpenChange,
-}: {
-  log: LegalAdminAuditLogListItem | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>Audit log details</SheetTitle>
-          <SheetDescription>Read-only admin legal-document change record.</SheetDescription>
-        </SheetHeader>
-
-        {log ? (
-          <div className="mt-6 space-y-6">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <DetailField label="Audit ID" value={log.id} />
-              <DetailField label="Event" value={actionLabel(log.eventType)} />
-              <DetailField label="Timestamp" value={formatDate(log.occurredAt)} />
-              <DetailField
-                label="Document type"
-                value={metadataString(log.metadata, "documentType") ?? "—"}
-              />
-              <DetailField
-                label="Version"
-                value={
-                  metadataNumber(log.metadata, "versionNumber") != null
-                    ? `v${metadataNumber(log.metadata, "versionNumber")}`
-                    : "—"
-                }
-              />
-              <DetailField
-                label="File hash"
-                value={metadataString(log.metadata, "fileHash")}
-              />
-              <DetailField label="Legal document ID" value={log.legalDocumentId} />
-              <DetailField label="Version ID" value={log.legalDocumentVersionId} />
-              <DetailField label="Actor" value={log.actor.displayName} />
-              <DetailField label="Actor email" value={log.actor.email} />
-              <DetailField label="Actor user ID" value={log.actor.userId} />
-              <DetailField label="IP address" value={log.ipAddress} />
-              <DetailField label="User agent" value={log.userAgent} />
-              <DetailField label="Correlation ID" value={log.correlationId} />
-              <DetailField
-                label="Reason"
-                value={metadataString(log.metadata, "reasonCode")}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">Metadata</p>
-              <pre className="max-h-48 overflow-auto rounded-lg border bg-muted/30 p-3 text-xs">
-                {JSON.stringify(log.metadata, null, 2)}
-              </pre>
-            </div>
-          </div>
-        ) : null}
-      </SheetContent>
-    </Sheet>
-  );
 }
 
 export function LegalDocumentAuditPanel() {
@@ -254,13 +173,6 @@ export function LegalDocumentAuditPanel() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold tracking-tight">Legal document audit</h2>
-        <p className="mt-1 text-[15px] leading-7 text-muted-foreground">
-          Persistent history of admin changes to legal documents and versions
-        </p>
-      </div>
-
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-[200px] flex-1">
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -459,7 +371,52 @@ export function LegalDocumentAuditPanel() {
         ) : null}
       </div>
 
-      <AuditLogDetailSheet log={selectedLog} open={detailOpen} onOpenChange={setDetailOpen} />
+      <AuditLogDetailSheet
+        log={
+          selectedLog
+            ? {
+                id: selectedLog.id,
+                eventType: selectedLog.eventType,
+                eventLabel: actionLabel(selectedLog.eventType),
+                occurredAt: selectedLog.occurredAt,
+                createdAt: selectedLog.createdAt,
+                actorType: selectedLog.actor.type,
+                actorName: selectedLog.actor.displayName,
+                actorEmail: selectedLog.actor.email,
+                actorUserId: selectedLog.actor.userId,
+                targetType: selectedLog.target.type,
+                targetId: selectedLog.target.id,
+                source: selectedLog.source,
+                portal: selectedLog.portal,
+                ipAddress: selectedLog.ipAddress,
+                userAgent: selectedLog.userAgent,
+                correlationId: selectedLog.correlationId,
+                extraFields: [
+                  { label: "Legal document ID", value: selectedLog.legalDocumentId },
+                  { label: "Version ID", value: selectedLog.legalDocumentVersionId },
+                  {
+                    label: "Document type",
+                    value: metadataString(selectedLog.metadata, "documentType"),
+                  },
+                  {
+                    label: "Version",
+                    value:
+                      metadataNumber(selectedLog.metadata, "versionNumber") != null
+                        ? `v${metadataNumber(selectedLog.metadata, "versionNumber")}`
+                        : null,
+                  },
+                  { label: "File hash", value: metadataString(selectedLog.metadata, "fileHash") },
+                  { label: "Reason", value: metadataString(selectedLog.metadata, "reasonCode") },
+                ],
+                metadata: selectedLog.metadata,
+              }
+            : null
+        }
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        title="Legal Documents audit"
+        description="Read-only admin legal-document change record."
+      />
     </div>
   );
 }

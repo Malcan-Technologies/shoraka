@@ -8,10 +8,23 @@ export type AuditTableLog = {
   id: string;
   eventType: string;
   occurredAt: string;
+  createdAt?: string | null;
   actorName: string | null;
   actorEmail: string | null;
+  actorType?: string | null;
+  actorUserId?: string | null;
+  subjectUserId?: string | null;
+  organizationId?: string | null;
+  organizationKind?: string | null;
+  organizationType?: string | null;
+  targetType?: string | null;
+  targetId?: string | null;
+  source?: string | null;
+  portal?: string | null;
   ipAddress: string | null;
+  userAgent?: string | null;
   deviceInfo: string | null;
+  correlationId?: string | null;
   metadata: Record<string, unknown>;
 };
 

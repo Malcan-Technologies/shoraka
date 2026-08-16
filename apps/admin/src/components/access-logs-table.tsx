@@ -11,7 +11,8 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@cashsouk/ui";
 import { AccessLogTableRow, type AuditTableLog } from "./access-log-table-row";
-import { AccessLogDetailsDialog } from "./access-log-details-dialog";
+import { AuditLogDetailSheet } from "@/components/audit/audit-log-detail-sheet";
+import { formatAuditEventLabel } from "@/lib/audit-tabs";
 import { Button } from "@/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 
@@ -142,7 +143,18 @@ export function AccessLogsTable({
         )}
       </div>
 
-      <AccessLogDetailsDialog open={dialogOpen} onOpenChange={setDialogOpen} log={selectedLog} />
+      <AuditLogDetailSheet
+        log={
+          selectedLog
+            ? {
+                ...selectedLog,
+                eventLabel: formatAuditEventLabel(selectedLog.eventType),
+              }
+            : null
+        }
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+      />
     </>
   );
 }

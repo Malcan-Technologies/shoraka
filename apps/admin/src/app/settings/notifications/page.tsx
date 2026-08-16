@@ -6,10 +6,10 @@ import { usePermissions } from "../../../hooks/use-permissions";
 import type {
   AdminNotificationType,
   AdminNotificationGroup,
-  AdminNotificationLog,
   AdminSeedTypesResponse,
   AdminSendNotificationResult,
 } from "@cashsouk/types";
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -38,14 +38,8 @@ import {
   Plus,
   Pencil,
   Trash2,
-  History,
-  ChevronLeft,
-  ChevronRight,
-  Search,
   RotateCcw,
-  Filter,
 } from "lucide-react";
-import { EyeIcon } from "@heroicons/react/24/outline";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -55,94 +49,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../../components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../../../components/ui/table";
-import { Skeleton } from "../../../components/ui/skeleton";
 import { RequirePermission } from "../../../components/require-permission";
-
-const TARGET_CONFIG: Record<string, { label: string; color: string }> = {
-  ALL_USERS: { label: "All Users", color: "bg-blue-500" },
-  INVESTORS: { label: "Investors", color: "bg-blue-500" },
-  ISSUERS: { label: "Issuers", color: "bg-purple-500" },
-  SPECIFIC_USERS: { label: "Specific Users", color: "bg-emerald-500" },
-  GROUP: { label: "Group", color: "bg-orange-500" },
-};
-
-const COLOR_MAP: Record<string, string> = {
-  "bg-blue-500": "rgb(59 130 246)",
-  "bg-purple-500": "rgb(168 85 247)",
-  "bg-emerald-500": "rgb(16 185 129)",
-  "bg-orange-500": "rgb(249 115 22)",
-  "bg-gray-500": "rgb(107 114 128)",
-};
-
-function NotificationLogsTableSkeleton() {
-  return (
-    <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-      <Table>
-        <TableHeader className="bg-muted/30">
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="text-sm font-semibold">Timestamp</TableHead>
-            <TableHead className="text-sm font-semibold">Event</TableHead>
-            <TableHead className="text-sm font-semibold">Admin</TableHead>
-            <TableHead className="text-sm font-semibold">Target</TableHead>
-            <TableHead className="text-sm font-semibold">Type</TableHead>
-            <TableHead className="text-sm font-semibold">Message</TableHead>
-            <TableHead className="text-sm font-semibold">Targeted</TableHead>
-            <TableHead className="text-sm font-semibold">IP Address</TableHead>
-            <TableHead className="text-sm font-semibold">Device</TableHead>
-            <TableHead className="text-sm font-semibold">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {Array.from({ length: 5 }).map((_, index) => (
-            <TableRow key={index}>
-              <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-              <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-              <TableCell><Skeleton className="h-5 w-40" /></TableCell>
-              <TableCell><Skeleton className="h-6 w-24 rounded-full" /></TableCell>
-              <TableCell><Skeleton className="h-5 w-28" /></TableCell>
-              <TableCell><Skeleton className="h-5 w-56" /></TableCell>
-              <TableCell><Skeleton className="h-6 w-16 rounded-full" /></TableCell>
-              <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-              <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-              <TableCell><Skeleton className="ml-auto h-8 w-20" /></TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
-  );
-}
-
-function getTargetBadge(targetType: string) {
-  const config = TARGET_CONFIG[targetType] || {
-    label: targetType.replace("_", " "),
-    color: "bg-gray-500",
-  };
-  const cssColor = COLOR_MAP[config.color] || "rgb(107 114 128)";
-
-  return (
-    <Badge
-      variant="outline"
-      className="text-xs font-medium px-2 py-0.5 flex items-center gap-1.5 w-fit whitespace-nowrap"
-      style={{
-        backgroundColor: `color-mix(in srgb, ${cssColor} 10%, transparent)`,
-        borderColor: `color-mix(in srgb, ${cssColor} 30%, transparent)`,
-        color: "rgb(15, 23, 42)", // slate-900 for dark text
-      }}
-    >
-      <span className={`inline-block w-2 h-2 rounded-full ${config.color}`} />
-      {config.label}
-    </Badge>
-  );
-}
 
 export default function NotificationsAdminPage() {
   const { setTitle: setHeaderTitle } = useHeader();
@@ -153,14 +60,9 @@ export default function NotificationsAdminPage() {
 
   const { can } = usePermissions();
   const canManage = can("notifications.manage");
-  const [page, setPage] = useState(1);
-  const [logSearchQuery, setLogSearchQuery] = useState<string>("");
-  const [logTypeFilter, setLogTypeFilter] = useState<string>("all");
-  const [logTargetFilter, setLogTargetFilter] = useState<string>("all");
   const [configPortalFilter, setConfigPortalFilter] = useState<"INVESTOR" | "ISSUER" | "BOTH">(
     "ISSUER"
   );
-  const limit = 10;
   const {
     types,
     isLoadingTypes,
@@ -173,18 +75,10 @@ export default function NotificationsAdminPage() {
     isCreatingGroup,
     updateGroup,
     deleteGroup,
-    logs,
-    isLoadingLogs,
-    paginationLogs,
-    refetchLogs,
     seedTypes,
     isSeeding,
   } = useAdminNotifications({
-    limit,
-    offset: (page - 1) * limit,
-    search: logSearchQuery || undefined,
-    type: logTypeFilter !== "all" ? logTypeFilter : undefined,
-    target: logTargetFilter !== "all" ? logTargetFilter : undefined,
+    includeLogs: false,
   });
   const [selectedType, setSelectedType] = useState<string>("");
   const [targetType, setTargetType] = useState<string>("ALL_USERS");
@@ -207,17 +101,6 @@ export default function NotificationsAdminPage() {
   const [groupDescription, setGroupDescription] = useState("");
   const [groupUserIds, setGroupUserIds] = useState("");
   const [editingGroupId, setGroupEditingId] = useState<string | null>(null);
-
-  // Log View State
-  const [selectedLog, setSelectedLog] = useState<AdminNotificationLog | null>(null);
-  const [isLogDetailsOpen, setIsLogDetailsOpen] = useState(false);
-
-  const getPortalTargetsLabel = (targets: string[]) => {
-    if (targets.includes("INVESTOR") && targets.includes("ISSUER")) return "Investor + Issuer";
-    if (targets.includes("INVESTOR")) return "Investor";
-    if (targets.includes("ISSUER")) return "Issuer";
-    return "Unscoped";
-  };
 
   const selectedTargetPortal =
     targetType === "INVESTORS" ? "INVESTOR" : targetType === "ISSUERS" ? "ISSUER" : null;
@@ -369,11 +252,15 @@ export default function NotificationsAdminPage() {
             <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="w-full px-2 md:px-4 py-8 space-y-6">
           <p className="text-muted-foreground -mt-4">
-            Manage system-wide notification settings and send custom alerts.
+            Manage system-wide notification settings and send custom alerts. Broadcast history is in{" "}
+            <Link href="/audit?tab=notifications" className="font-medium text-foreground underline underline-offset-4">
+              Audit Logs → Notifications
+            </Link>
+            .
           </p>
 
           <Tabs defaultValue="config" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3 max-w-[600px]">
+            <TabsList className="grid w-full grid-cols-2 max-w-[400px]">
           <TabsTrigger value="config" className="flex items-center gap-2">
             <Settings2 className="h-4 w-4" />
             Configuration
@@ -381,10 +268,6 @@ export default function NotificationsAdminPage() {
           <TabsTrigger value="custom" className="flex items-center gap-2">
             <Send className="h-4 w-4" />
             Custom & Groups
-          </TabsTrigger>
-          <TabsTrigger value="logs" className="flex items-center gap-2">
-            <History className="h-4 w-4" />
-            Notification Logs
           </TabsTrigger>
         </TabsList>
 
@@ -803,274 +686,6 @@ export default function NotificationsAdminPage() {
             </Card>
           </div>
         </TabsContent>
-
-        <TabsContent value="logs" className="space-y-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[300px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by user name or email..."
-                value={logSearchQuery}
-                onChange={(e) => {
-                  setLogSearchQuery(e.target.value);
-                  setPage(1);
-                }}
-                className="h-11 rounded-xl bg-card pl-9"
-              />
-            </div>
-
-            <Select
-              value={logTypeFilter}
-              onValueChange={(value) => {
-                setLogTypeFilter(value);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-11 w-[180px] rounded-xl bg-card">
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <Filter className="h-4 w-4 shrink-0" />
-                  <div className="truncate">
-                    <SelectValue placeholder="All Types" />
-                  </div>
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {types.map((type: AdminNotificationType) => (
-                  <SelectItem key={type.id} value={type.id}>
-                    {type.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={logTargetFilter}
-              onValueChange={(value) => {
-                setLogTargetFilter(value);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="h-11 w-[180px] rounded-xl bg-card">
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <Users className="h-4 w-4 shrink-0" />
-                  <div className="truncate">
-                    <SelectValue placeholder="All Targets" />
-                  </div>
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Targets</SelectItem>
-                <SelectItem value="ALL_USERS">All Users</SelectItem>
-                <SelectItem value="INVESTORS">Investors</SelectItem>
-                <SelectItem value="ISSUERS">Issuers</SelectItem>
-                <SelectItem value="SPECIFIC_USERS">Specific Users</SelectItem>
-                <SelectItem value="GROUP">Group</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Button
-              variant="outline"
-              onClick={() => refetchLogs()}
-              disabled={isLoadingLogs}
-              className="h-11 gap-2 rounded-xl bg-card"
-            >
-              <RotateCcw className={`h-4 w-4 ${isLoadingLogs ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
-
-            <Badge variant="secondary" className="h-11 px-4 rounded-xl text-sm font-normal">
-              {paginationLogs?.total || 0} {paginationLogs?.total === 1 ? "log" : "logs"}
-            </Badge>
-          </div>
-
-          <Card className="border-none shadow-none bg-transparent">
-            <CardContent className="p-0">
-              {isLoadingLogs ? (
-                <NotificationLogsTableSkeleton />
-              ) : logs.length === 0 ? (
-                <div className="text-center py-20 text-muted-foreground bg-white border rounded-2xl">
-                  <History className="h-12 w-12 mx-auto mb-4 opacity-20" />
-                  <p className="text-lg font-medium">No notification logs found</p>
-                  <p className="text-sm">Try adjusting your search or send a new notification.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
-                    <Table>
-                      <TableHeader className="bg-muted/30">
-                        <TableRow className="hover:bg-transparent">
-                          <TableHead className="text-sm font-semibold">Timestamp</TableHead>
-                          <TableHead className="text-sm font-semibold">Event</TableHead>
-                          <TableHead className="text-sm font-semibold">Admin</TableHead>
-                          <TableHead className="text-sm font-semibold">Target</TableHead>
-                          <TableHead className="text-sm font-semibold">Type</TableHead>
-                          <TableHead className="text-sm font-semibold">Message</TableHead>
-                          <TableHead className="text-sm font-semibold">Targeted</TableHead>
-                          <TableHead className="text-sm font-semibold">IP Address</TableHead>
-                          <TableHead className="text-sm font-semibold">Device</TableHead>
-                          <TableHead className="text-sm font-semibold">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {logs.map((log: AdminNotificationLog) => (
-                          <TableRow key={log.id} className="hover:bg-muted/50 transition-colors">
-                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                              {format(new Date(log.occurredAt), "MMM d, yyyy HH:mm")}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="secondary" className="text-[10px] uppercase">
-                                Processed
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-col min-w-0">
-                                <span
-                                  className="text-sm font-medium truncate"
-                                  title={log.actor.displayName ?? undefined}
-                                >
-                                  {log.actor.displayName || "Unknown admin"}
-                                </span>
-                                <span
-                                  className="text-xs text-muted-foreground truncate"
-                                  title={log.actor.email ?? undefined}
-                                >
-                                  {log.actor.email || "—"}
-                                </span>
-                              </div>
-                            </TableCell>
-                            <TableCell>{getTargetBadge(log.audienceType)}</TableCell>
-                            <TableCell>
-                              <div
-                                className="text-xs font-bold text-slate-700 whitespace-normal break-words"
-                                title={log.notificationTypeName}
-                              >
-                                {log.notificationTypeName || "Custom"}
-                              </div>
-                              {log.portalTargets.length ? (
-                                <Badge variant="outline" className="mt-1 text-[10px]">
-                                  {getPortalTargetsLabel(log.portalTargets)}
-                                </Badge>
-                              ) : null}
-                            </TableCell>
-                            <TableCell>
-                              <div className="max-w-[300px]">
-                                <div
-                                  className="text-sm font-medium truncate mb-0.5"
-                                  title={log.title}
-                                >
-                                  {log.title}
-                                </div>
-                                <div className="text-xs text-muted-foreground line-clamp-1">
-                                  {log.message}
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium text-xs">
-                                <Users className="h-3 w-3" />
-                                {log.targetedCount}
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-mono text-sm text-muted-foreground">
-                              {log.ipAddress || "—"}
-                            </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
-                              {log.deviceInfo ? (
-                                <span title={log.userAgent ?? undefined} className="line-clamp-2 leading-snug">
-                                  {log.deviceInfo}
-                                </span>
-                              ) : (
-                                "—"
-                              )}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 px-2"
-                                onClick={() => {
-                                  setSelectedLog(log);
-                                  setIsLogDetailsOpen(true);
-                                }}
-                              >
-                                <EyeIcon className="h-4 w-4 mr-1" />
-                                View
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-
-                  {/* Pagination for Logs */}
-                  {paginationLogs && paginationLogs.pages > 1 && (
-                    <div className="flex items-center justify-between border-t px-6 py-4">
-                      <div className="text-sm text-muted-foreground">
-                        Showing {Math.min((page - 1) * limit + 1, paginationLogs.total)}-
-                        {Math.min(page * limit, paginationLogs.total)} of {paginationLogs.total}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="rounded-xl h-9"
-                          onClick={() => setPage((p) => Math.max(1, p - 1))}
-                          disabled={page === 1}
-                        >
-                          <ChevronLeft className="h-4 w-4 mr-1" />
-                          Previous
-                        </Button>
-                        <div className="flex items-center gap-1">
-                          {Array.from({ length: paginationLogs.pages }, (_, i) => i + 1).map(
-                            (p) => {
-                              if (
-                                p === 1 ||
-                                p === paginationLogs.pages ||
-                                (p >= page - 1 && p <= page + 1)
-                              ) {
-                                return (
-                                  <Button
-                                    key={p}
-                                    variant={p === page ? "default" : "outline"}
-                                    size="sm"
-                                    className="h-9 w-9 p-0 rounded-xl"
-                                    onClick={() => setPage(p)}
-                                  >
-                                    {p}
-                                  </Button>
-                                );
-                              }
-                              if (p === 2 || p === paginationLogs.pages - 1) {
-                                return (
-                                  <span key={p} className="px-1 text-muted-foreground">
-                                    ...
-                                  </span>
-                                );
-                              }
-                              return null;
-                            }
-                          )}
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="rounded-xl h-9"
-                          onClick={() => setPage((p) => Math.min(paginationLogs.pages, p + 1))}
-                          disabled={page === paginationLogs.pages}
-                        >
-                          Next
-                          <ChevronRight className="h-4 w-4 ml-1" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
       {/* Group Management Modal */}
@@ -1129,105 +744,6 @@ export default function NotificationsAdminPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Log Details Modal */}
-      <Dialog open={isLogDetailsOpen} onOpenChange={setIsLogDetailsOpen}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Notification Details</DialogTitle>
-            <DialogDescription>
-              Broadcast operation that finished processing its resolved audience.
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedLog && (
-            <div className="space-y-6 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Timestamp</p>
-                  <p className="text-sm">{format(new Date(selectedLog.occurredAt), "PPP p")}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Event</p>
-                  <Badge variant="secondary" className="text-[10px] uppercase w-fit">
-                    Processed
-                  </Badge>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Admin</p>
-                  <p className="text-sm font-medium">
-                    {selectedLog.actor.displayName || "Unknown admin"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{selectedLog.actor.email || "—"}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Target Type</p>
-                  <Badge variant="secondary" className="text-[10px] uppercase">
-                    {selectedLog.audienceType.replace("_", " ")}
-                  </Badge>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Type</p>
-                  <p className="text-sm font-medium">
-                    {selectedLog.notificationTypeName || selectedLog.notificationTypeId}
-                  </p>
-                  {selectedLog.portalTargets.length ? (
-                    <Badge variant="outline" className="text-[10px] mt-1">
-                      {getPortalTargetsLabel(selectedLog.portalTargets)}
-                    </Badge>
-                  ) : null}
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Targeted</p>
-                  <p className="text-sm font-medium">{selectedLog.targetedCount} users</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Created</p>
-                  <p className="text-sm font-medium">{selectedLog.createdCount}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Skipped</p>
-                  <p className="text-sm font-medium">{selectedLog.skippedCount}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Failed</p>
-                  <p className="text-sm font-medium">{selectedLog.failedCount}</p>
-                </div>
-              </div>
-
-              <div className="space-y-2 border-t pt-4">
-                <p className="text-xs font-medium text-muted-foreground uppercase">Title</p>
-                <p className="text-sm font-semibold text-slate-900">{selectedLog.title}</p>
-              </div>
-
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase">Message</p>
-                <div className="rounded-xl bg-muted/50 p-4 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap max-h-[400px] overflow-y-auto">
-                  {selectedLog.message}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 border-t pt-4">
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">IP Address</p>
-                  <p className="text-sm font-mono">{selectedLog.ipAddress || "—"}</p>
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground uppercase">Device</p>
-                  <p className="text-sm font-medium">{selectedLog.deviceInfo || "—"}</p>
-                  <p className="text-[10px] text-muted-foreground break-all leading-normal opacity-60">
-                    {selectedLog.userAgent}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsLogDetailsOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   </div>
 </RequirePermission>

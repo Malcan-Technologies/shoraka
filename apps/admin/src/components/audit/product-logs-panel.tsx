@@ -26,6 +26,9 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProductLogs, useExportProductLogs } from "@/hooks/use-product-logs";
 import { AdminQueryErrorState } from "@/components/admin-query-error-state";
+import { AuditLogDetailSheet } from "@/components/audit/audit-log-detail-sheet";
+import { formatAuditEventLabel } from "@/lib/audit-tabs";
+import type { ProductLogResponse } from "@cashsouk/types";
 import {
   ArrowPathIcon,
   MagnifyingGlassIcon,
@@ -34,6 +37,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   CubeIcon,
+  EyeIcon,
   FunnelIcon,
 } from "@heroicons/react/24/outline";
 import type { ProductEventType, GetProductLogsParams } from "@cashsouk/types";
@@ -83,6 +87,8 @@ export function ProductLogsPanel() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [eventTypeFilter, setEventTypeFilter] = React.useState<string>("all");
   const [dateRangeFilter, setDateRangeFilter] = React.useState<string>("all");
+  const [selectedLog, setSelectedLog] = React.useState<ProductLogResponse | null>(null);
+  const [detailOpen, setDetailOpen] = React.useState(false);
 
   const getExportLogs = useExportProductLogs();
 
@@ -250,6 +256,7 @@ export function ProductLogsPanel() {
               <TableHead>Product</TableHead>
               <TableHead>IP Address</TableHead>
               <TableHead>Device</TableHead>
+              <TableHead className="text-right">Details</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -274,11 +281,14 @@ export function ProductLogsPanel() {
                   <TableCell>
                     <Skeleton className="h-5 w-32" />
                   </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-16" />
+                  </TableCell>
                 </TableRow>
               ))
             ) : logs.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                   <CubeIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>No product logs found</p>
                   <p className="text-sm mt-1">Product changes will be recorded here</p>
@@ -336,6 +346,20 @@ export function ProductLogsPanel() {
                     <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
                       {log.deviceInfo || "—"}
                     </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 px-2"
+                        onClick={() => {
+                          setSelectedLog(log);
+                          setDetailOpen(true);
+                        }}
+                      >
+                        <EyeIcon className="mr-1 h-4 w-4" />
+                        View
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 );
               })
@@ -371,6 +395,38 @@ export function ProductLogsPanel() {
           </div>
         )}
       </div>
+
+      <AuditLogDetailSheet
+        log={
+          selectedLog
+            ? {
+                id: selectedLog.id,
+                eventType: selectedLog.eventType,
+                eventLabel: formatAuditEventLabel(selectedLog.eventType),
+                occurredAt: selectedLog.occurredAt,
+                createdAt: selectedLog.createdAt,
+                actorType: selectedLog.actor.type,
+                actorName: selectedLog.actor.displayName ?? null,
+                actorEmail: selectedLog.actor.email ?? null,
+                actorUserId: selectedLog.actor.userId,
+                targetType: selectedLog.target.type,
+                targetId: selectedLog.target.id,
+                source: selectedLog.source,
+                portal: selectedLog.portal,
+                ipAddress: selectedLog.ipAddress,
+                userAgent: selectedLog.userAgent,
+                deviceInfo: selectedLog.deviceInfo,
+                correlationId: selectedLog.correlationId,
+                extraFields: [{ label: "Product ID", value: selectedLog.productId }],
+                metadata: selectedLog.metadata,
+              }
+            : null
+        }
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        title="Product audit"
+        description="Read-only product configuration change record."
+      />
     </div>
   );
 }
