@@ -179,7 +179,19 @@ function OnboardingAccountPageContent() {
                 Enter Your Name
                 <InfoTooltip
                   className="max-w-[320px]"
-                  content={<p className="text-sm">Use the name as it appears on your IC.</p>}
+                  content={
+                    <div className="space-y-2">
+                      <p className="font-medium text-sm">How to fill in your name:</p>
+                      <table className="w-full text-sm">
+                        <tbody className="font-mono">
+                          <tr>
+                            <td className="pr-8">Aisyah</td>
+                            <td>binti Rahman</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  }
                 />
               </CardTitle>
               <CardDescription className="text-[15px] leading-7">
