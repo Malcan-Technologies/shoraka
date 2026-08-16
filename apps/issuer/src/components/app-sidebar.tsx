@@ -63,12 +63,21 @@ function getServerSnapshot() {
 
 const ADDING_ORGANISATION_TOOLTIP = "Finish adding your organisation to unlock this.";
 const REJECTED_ONBOARDING_TOOLTIP = "Onboarding was not approved.";
-const WORK_NAV_UNLOCK_TOOLTIP = "Available after verification is complete.";
-const ACCOUNT_ACCESS_UNLOCK_TOOLTIP =
-  "Available after verification is complete and your account is approved to continue.";
 const COMPLETED_ONBOARDING_UNLOCK_TOOLTIP = "Available after onboarding is complete.";
 const LOCKED_TOOLTIP_CONTENT_CLASSNAME =
   "max-w-[260px] whitespace-normal break-words text-left leading-5";
+
+function verificationKindLabel(orgType: string | undefined): "identity" | "business" {
+  return orgType === "PERSONAL" ? "identity" : "business";
+}
+
+function workNavUnlockTooltip(orgType: string | undefined): string {
+  return `Available after ${verificationKindLabel(orgType)} verification is complete.`;
+}
+
+function accountAccessUnlockTooltip(orgType: string | undefined): string {
+  return `Available after ${verificationKindLabel(orgType)} verification is complete and your account is approved to continue.`;
+}
 
 function sidebarLockTooltip(params: {
   addingOrganisation: boolean;
@@ -220,11 +229,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   };
   const workNavLockedTooltip = sidebarLockTooltip({
     ...tooltipContext,
-    unlockCopy: WORK_NAV_UNLOCK_TOOLTIP,
+    unlockCopy: workNavUnlockTooltip(activeOrganization?.type),
   });
   const accountAccessLockedTooltip = sidebarLockTooltip({
     ...tooltipContext,
-    unlockCopy: ACCOUNT_ACCESS_UNLOCK_TOOLTIP,
+    unlockCopy: accountAccessUnlockTooltip(activeOrganization?.type),
   });
   const completedOnboardingLockedTooltip = sidebarLockTooltip({
     ...tooltipContext,
