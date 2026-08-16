@@ -64,10 +64,11 @@ function getServerSnapshot() {
 const ADDING_ORGANISATION_TOOLTIP = "Finish adding your organisation to unlock this.";
 const REJECTED_ONBOARDING_TOOLTIP = "Onboarding was not approved.";
 const WORK_NAV_UNLOCK_TOOLTIP = "Available after verification is complete.";
-const ACCOUNT_ACCESS_UNLOCK_TOOLTIP = "Available after verification and initial review.";
+const ACCOUNT_ACCESS_UNLOCK_TOOLTIP =
+  "Available after verification is complete and your account is approved to continue.";
 const COMPLETED_ONBOARDING_UNLOCK_TOOLTIP = "Available after onboarding is complete.";
 const LOCKED_TOOLTIP_CONTENT_CLASSNAME =
-  "max-w-[240px] whitespace-normal break-words text-left leading-5";
+  "max-w-[260px] whitespace-normal break-words text-left leading-5";
 
 function sidebarLockTooltip(params: {
   addingOrganisation: boolean;
