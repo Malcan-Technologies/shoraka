@@ -113,7 +113,7 @@ Visible onboarding events match the investor portal for the shared user-facing s
 - `ONBOARDING_REJECTED` -> `Onboarding Rejected`
 - `ONBOARDING_APPROVED` -> `Onboarding Submission Approved`
 - `ONBOARDING_COMPLETED` -> `Onboarding Completed`
-- `DIRECTOR_ONBOARDING_INVITATION_SENT` (issuer company) -> `Director Invitation Sent`
+- `DIRECTOR_ONBOARDING_INVITATION_SENT` (issuer COMPANY only; investor activity hidden) -> `Director Invitation Sent`. Writer: Company org COMPLETED → Profile → Directors and Shareholders → Confirm & Send → Confirm.
 - `DIRECTOR_KYC_STATUS_UPDATED` (`APPROVED` / `REJECTED` outcomes only) -> `Director Verification Approved` / `Director Verification Rejected`
 
 ### Application
@@ -148,9 +148,10 @@ These logs still exist as audit records but are intentionally hidden from `/acti
 
 - onboarding progress noise such as section completion, SSM/AML/CTOS admin-detail steps, and `ONBOARDING_FINAL_APPROVAL_COMPLETED` (users see `ONBOARDING_COMPLETED` instead)
 - `ONBOARDING_RESUMED` (retired; not user-facing even if a historical row exists)
-- `CTOS_REPORT_RECEIVED` (retired; `ctos_reports` still persists)
+- `CTOS_REPORT_RECEIVED` (retired; no current writer. A successful CTOS Fetch still performs the SOAP enquiry and inserts a new `ctos_reports` row; repeated Fetch inserts another row. Only the onboarding audit breadcrumb was removed.)
 - `CORPORATE_ENTITIES_UPDATED` (retired; `corporate_entities` still persists)
-- intermediate director KYC statuses (`ID_UPLOADED`, `LIVENESS_STARTED`, `WAIT_FOR_APPROVAL`, and other non-final states)
+- `DIRECTOR_ONBOARDING_INVITATION_SENT` on investor activity (the event is still written for Investor COMPANY Confirm & Send; investor `/activity` hides it)
+- intermediate director KYC statuses (`ID_UPLOADED`, `LIVENESS_STARTED`, `WAIT_FOR_APPROVAL`, and other non-final states). Audit rows exist only for final `APPROVED` / `REJECTED` on an existing director.
 - application section-level review events
 - application item-level review events
 - admin-only acceptance approval events (`CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING`, `INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING`)

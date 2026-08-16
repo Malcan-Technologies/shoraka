@@ -428,6 +428,13 @@ Initiates personal (individual) onboarding for an organization.
    - Resume of an existing session does **not** write `ONBOARDING_RESUMED` (retired; historical rows remain readable)
    - Includes request metadata (IP, user agent)
 
+**Onboarding audit (current source, A039–A055):** 17 reserved/catalogued IDs; 14 current active event types. Retired / no current writer: `ONBOARDING_RESUMED` (A040), `CTOS_REPORT_RECEIVED` (A052), `CORPORATE_ENTITIES_UPDATED` (A053). Historical rows remain readable. IDs are not reused.
+
+- `AML_APPROVED` `onboarding_id` is optional linkage to `reg_tank_onboarding.id` (CashSouk cuid, not COD/KYB/KYC ids) when the writer already knows the session: KYB main-company webhook, personal KYC webhook, admin corporate AML refresh, admin personal onboarding refresh, admin Approve AML. Self-service AML sync may leave it NULL. Provider ids stay in metadata. This does not change AML approval logic.
+- Director Confirm & Send (Company org COMPLETED → Issuer/Investor Profile → Directors and Shareholders → Confirm & Send → Confirm) creates a new RegTank individual onboarding and writes `DIRECTOR_ONBOARDING_INVITATION_SENT` (A054). There is no separate resend endpoint.
+- `DIRECTOR_KYC_STATUS_UPDATED` (A055) is outcome-only: one row when an existing director newly reaches `APPROVED` or `REJECTED`. Intermediate provider statuses update `director_kyc_status` only.
+- A successful CTOS Fetch still performs the SOAP enquiry and inserts a new `ctos_reports` row; it does **not** write onboarding audit.
+
 **Returns:**
 - `verifyLink` - URL to redirect user to RegTank
 - `requestId` - RegTank's request ID
@@ -932,7 +939,7 @@ Configuration is loaded once at startup and cached. Missing required variables c
 8. RegTank sends webhook (async)
    └─> POST /v1/webhooks/regtank
        ├─> Verifies signature
-       ├─> Creates OnboardingAuditLog entries for business stages/outcomes (for example ONBOARDING_STATUS_CHANGED on review landing). Intermediate director KYC statuses, corporate_entities JSON refreshes, and CTOS report fetches are stored on SOT, not as onboarding audit noise.
+       ├─> Creates OnboardingAuditLog entries for business stages/outcomes (for example ONBOARDING_STATUS_CHANGED on review landing; AML_APPROVED with onboarding_id = reg_tank_onboarding.id when the session is already loaded). Intermediate director KYC statuses, corporate_entities JSON refreshes, and CTOS report fetches are stored on SOT, not as onboarding audit noise. DIRECTOR_KYC_STATUS_UPDATED is written only for final APPROVED/REJECTED on an existing director.
        ├─> Updates regtank_onboarding status
        ├─> Sets organization status to PENDING_APPROVAL when liveness completes
        └─> If APPROVED:

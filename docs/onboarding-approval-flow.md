@@ -332,24 +332,26 @@ What must NOT be skipped:
 
 What triggers it:
 
-- Company onboarding requires director/shareholder onboarding to be completed on RegTank.
+- After **company onboarding is COMPLETED**, the org owner/admin sends director/shareholder individual onboarding from Profile.
 
 Which page/component:
 
-- Issuer UI (issuer portal): `apps/issuer/src/components/director-shareholders-unified-section.tsx`
-  - users enter email, then “Confirm & Send”
+- Issuer and Investor COMPANY Profile: Directors and Shareholders → enter email → **Confirm & Send** → **Confirm**.
+- File (issuer): `apps/issuer/src/components/director-shareholders-unified-section.tsx`
 
 Backend endpoints:
 
 - Save email:
   - `PATCH /v1/organizations/:portal(investor|issuer)/:id/ctos-party-email`
-- Send director onboarding link:
+- Send director onboarding link (same path for send and later send):
   - `POST /v1/organizations/:portal(investor|issuer)/:id/send-director-onboarding`
 
 DB fields/statuses:
 
-- (Needs verification in backend service code.)
-- Expected: updates `ctos_party_supplements.onboarding_json` for the target `party_key` and triggers RegTank onboarding for that person.
+- Requires `organization.type === COMPANY` and `onboarding_status === COMPLETED`.
+- Creates a new RegTank individual onboarding.
+- Updates `ctos_party_supplements.onboarding_json` (`requestId`, `sentAt`, `lastSentAt`, `sendTimestamps`).
+- Writes onboarding audit `DIRECTOR_ONBOARDING_INVITATION_SENT` (A054). There is no separate resend endpoint; a second Confirm & Send writes another A054 with a new RegTank request id.
 
 Next valid status (org-level):
 
@@ -358,7 +360,8 @@ Next valid status (org-level):
 
 What must NOT be skipped:
 
-- The onboarding links must be sent for directors/shareholders that are not already approved (issuer UI blocks sending once org is completed and gates by `canManageDirectorShareholder`).
+- Company onboarding must already be COMPLETED (`ONBOARDING_NOT_COMPLETED` if not).
+- Do not confuse Confirm & Send with Organization Member Resend, Admin invitation resend, Admin CTOS Fetch, or Admin notify-owner.
 
 ### Step 8. Director / shareholder KYC and AML
 
@@ -456,8 +459,9 @@ How AML/KYC completes:
 - For corporate, org AML milestone is advanced by:
   - `maybeAdvanceOrgAfterAmlScreeningCleared` (called from AML milestone webhook handler `org-aml-milestone.ts`)
   - which only advances when `org.onboarding_status === PENDING_AML` and sets `aml_approved = true`.
+  - On `AML_APPROVED` audit, `onboarding_id` is `reg_tank_onboarding.id` when the caller already has the session (KYB webhook, admin AML refresh). Self-service AML sync may leave it NULL.
 - For personal, AML progression can be advanced from KYC webhook in `KYCWebhookHandler`:
-  - `maybeAdvanceOrgAfterAmlScreeningCleared` gets called with trigger `REGTANK_KYC_PERSONAL_AML_CLEARED` when `onboarding_type === "PERSONAL"` and KYC approval arrives.
+  - `maybeAdvanceOrgAfterAmlScreeningCleared` gets called with trigger `REGTANK_KYC_PERSONAL_AML_CLEARED` when `onboarding_type === "INDIVIDUAL"` and organization type is PERSONAL and KYC approval arrives, passing `onboardingId: onboarding.id`.
 
 Next valid status:
 
@@ -972,7 +976,7 @@ Key actions:
 - “Fetch report” button triggers:
   - `apiClient.createAdminOrganizationCtosReport`
   - which inserts a new CTOS report snapshot
-  - it does **not** write `CTOS_REPORT_RECEIVED` onboarding audit (retired; `ctos_reports` remains SOT)
+  - it does **not** write `CTOS_REPORT_RECEIVED` onboarding audit (retired; a successful Fetch still inserts a **new** `ctos_reports` row; repeated Fetch inserts another row)
 - “Amend / Reject”:
   - just opens `application.regtankPortalUrl`
 - “Approve”:
@@ -1042,9 +1046,7 @@ Director/shareholder alert banner:
     - `WAIT_FOR_APPROVAL` or `APPROVED` (per `normalizeRawStatus`)
   - “Go to Profile” routes user to `/profile?focus=directors` with a `matchKey`.
 
-Needs verification:
-
-- Which exact issuer UI page triggers director/shareholder “resend email” vs “send onboarding link again” and which backend logic prevents duplicates.
+There is no separate director resend endpoint. A later send uses the same Confirm & Send path and writes another A054 with a new RegTank request id. Do not confuse that with Organization Member Resend or Admin invitation resend.
 
 ## 10. Status transition table
 

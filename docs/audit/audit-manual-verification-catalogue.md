@@ -2,7 +2,7 @@
 
 **Purpose.** Source-authoritative, human-readable manual verification catalogue of **174 reserved/catalogued event IDs** (A001–A174). IDs are stable and are not reused when a writer is retired. Distinguish **reserved event IDs** from **current active writers**. Each card is the checklist a reviewer uses to confirm the write (or retired/no-writer status), the Zod metadata, the source of truth, transaction behavior, and the three activity surfaces (admin curated, issuer, investor) plus admin raw.
 
-**Date.** 2026-08-17 — current source after the Onboarding Audit redesign.
+**Date.** 2026-08-17 — current source after the Onboarding Audit redesign, including A040/A052/A053 retirement, A055 outcome-only, A044 amendment/resubmission, and A049 `onboarding_id` threading when the session is already known.
 
 **How to use this document.** Do not treat activity titles as workflow state. Do not treat audit rows as source of truth. Verify the named table, then the SOT row, then visibility. Hidden activity is recorded as Title: N/A / Description: N/A.
 
@@ -22,7 +22,7 @@
 | Payment | A150–A168 | 19 | PaymentAuditLog | payment_audit_logs | Gateway Payment / Investor Withdrawal / Reconciliation Audit | gateway / `investor_withdrawals.view` / `gateway_reconciliation.view` |
 | Product | A169–A173 | 5 | ProductAuditLog | product_audit_logs | `/audit` → Products (`/audit?tab=products`) | `audit.product.view` |
 | Notification | A174 | 1 | NotificationBroadcastAuditLog | notification_broadcast_audit_logs | `/audit` → Notifications (`/audit?tab=notifications`) | `notifications.view` |
-| **Total** | **A001–A174** | **174 reserved IDs** (171 current writers; A040, A052, and A053 retired, IDs not reused) | | | | |
+| **Total** | **A001–A174** | **174 reserved/catalogued IDs** (171 currently active event types with at least one writer; A040, A052, and A053 retired, IDs not reused) | | | | |
 
 
 ## Visibility summary
@@ -8398,8 +8398,8 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
-Reserved event IDs: 17 (A039–A055). Do not renumber or reuse IDs.
-Current active writers: 14
+Reserved/catalogued event IDs: 17 (A039–A055). Do not renumber or reuse IDs.
+Current active onboarding event types: 14
 Retired / no current writer: 3 (A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`)
 Range: A039-A055
 Admin Location: /audit → Onboarding (`/audit?tab=onboarding`)
@@ -8407,22 +8407,81 @@ Permission: onboarding.view
 
 Onboarding audit records CashSouk business actions, stages, decisions, and outcomes. Detailed provider synchronization remains in its source-of-truth storage and is not duplicated as onboarding audit noise.
 
+**Status (A039–A055):**
+
+| ID | Event | Status |
+|---|---|---|
+| A039 | `ONBOARDING_STARTED` | ACTIVE |
+| A040 | `ONBOARDING_RESUMED` | RETIRED. Current writer: none. Historical rows: supported/readable. ID reused: no. |
+| A041 | `ONBOARDING_RESTARTED` | ACTIVE |
+| A042 | `ONBOARDING_RESET` | ACTIVE |
+| A043 | `USER_ONBOARDING_STATUS_UPDATED` | ACTIVE |
+| A044 | `ONBOARDING_STATUS_CHANGED` | ACTIVE. Core business-stage transition event. |
+| A045 | `ONBOARDING_APPROVED` | ACTIVE |
+| A046 | `ONBOARDING_REJECTED` | ACTIVE |
+| A047 | `ONBOARDING_FINAL_APPROVAL_COMPLETED` | ACTIVE |
+| A048 | `ONBOARDING_COMPLETED` | ACTIVE legacy event while the endpoint exists. Presentation may use completion semantics. |
+| A049 | `AML_APPROVED` | ACTIVE. `onboarding_id` is optional linkage to `reg_tank_onboarding.id` (CashSouk cuid) when the writer already knows the session. |
+| A050 | `SSM_APPROVED` | ACTIVE |
+| A051 | `INVESTOR_SOPHISTICATED_STATUS_UPDATED` | ACTIVE |
+| A052 | `CTOS_REPORT_RECEIVED` | RETIRED. Current writer: none. Historical rows: supported/readable. ID reused: no. CTOS SOAP fetch and `ctos_reports` inserts are unchanged. |
+| A053 | `CORPORATE_ENTITIES_UPDATED` | RETIRED. Current writer: none. Historical rows: supported/readable. ID reused: no. `corporate_entities` persistence remains active. |
+| A054 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | ACTIVE. Issuer or Investor COMPANY Profile → Directors and Shareholders → Confirm & Send → Confirm, after company onboarding is COMPLETED. |
+| A055 | `DIRECTOR_KYC_STATUS_UPDATED` | ACTIVE — OUTCOME ONLY (`APPROVED` / `REJECTED` on an existing director). |
+
 **GOOD ONBOARDING AUDIT:** Onboarding Started; Verification Submitted; Amendment Requested; Verification Resubmitted; SSM Approved; Onboarding Approved; AML Approved; Director Verification Approved/Rejected; Onboarding Completed; Onboarding Rejected.
 
 **NOT ONBOARDING AUDIT** (still stored on SOT where applicable): Corporate entity JSON refreshed; CTOS report fetch/storage (`ctos_reports`); Director ID uploaded; Director liveness started; Director kycId appeared; raw RegTank webhook received.
 
+**Issuer Company clean happy-path audit timeline:**
+
+`ONBOARDING_STARTED` → `ONBOARDING_STATUS_CHANGED` (“Verification Submitted”) → `SSM_APPROVED` → `DIRECTOR_KYC_STATUS_UPDATED` (only if a director reaches APPROVED/REJECTED) → `ONBOARDING_APPROVED` → `AML_APPROVED` → `ONBOARDING_FINAL_APPROVAL_COMPLETED`
+
+Example status progression: `IN_PROGRESS` → `PENDING_SSM_REVIEW` → `PENDING_APPROVAL` → `PENDING_AML` → `PENDING_FINAL_APPROVAL` → `COMPLETED`
+
+The clean happy path must **not** contain `ONBOARDING_RESUMED`, `CTOS_REPORT_RECEIVED`, `CORPORATE_ENTITIES_UPDATED`, or intermediate director KYC audit rows. CTOS reports and corporate entities may still be persisted separately. Dedicated milestone events must **not** also write a sibling A044 row.
+
+**Amendment branch:** `PENDING_SSM_REVIEW` / `PENDING_APPROVAL` → `PENDING_AMENDMENT` writes A044 titled Amendment Requested. Then `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW` writes A044 titled Verification Resubmitted. Do not add noisy provider-sync events around these transitions.
+
 **Visibility (current source):**
 
-- Admin Global Onboarding Audit (`/audit?tab=onboarding`): all catalogued types including historical A040/A052/A053 rows; `ONBOARDING_STATUS_CHANGED` visible.
-- Admin curated Activity (`isOnboardingActivityVisible` admin): all types except `USER_ONBOARDING_STATUS_UPDATED`.
-- Admin Organization contextual history (`use-organization-logs.ts`): includes `ONBOARDING_STATUS_CHANGED` and historical `ONBOARDING_RESUMED`; excludes `CTOS_REPORT_RECEIVED`, `CORPORATE_ENTITIES_UPDATED`, and `USER_ONBOARDING_STATUS_UPDATED`; includes director APPROVED/REJECTED outcomes.
-- Issuer/investor activity: STARTED, RESTARTED, review/amendment `ONBOARDING_STATUS_CHANGED`, APPROVED, REJECTED, COMPLETED; issuer invitation + director APPROVED/REJECTED (historical ACTION_REQUIRED still renders); investor sophisticated when the value changes. No internal SSM/AML/CTOS/admin-detail unless that surface already exposes it. Intermediate director KYC statuses are not audit events.
+- Admin Global Onboarding Audit (`/audit?tab=onboarding`): active meaningful onboarding events plus historical retired A040/A052/A053 rows; A044 visible.
+- Admin curated Activity (`isOnboardingActivityVisible` admin): all types except `USER_ONBOARDING_STATUS_UPDATED`. Historical retired rows remain readable/formattable.
+- Admin Organization contextual history (`use-organization-logs.ts`): includes A044 meaningful stage transitions and A055 final director outcomes; includes historical `ONBOARDING_RESUMED` if present; excludes A052 and A053; does not show intermediate director KYC noise.
+- Issuer/investor activity: meaningful user-facing onboarding milestones only (STARTED, RESTARTED, review/amendment A044, APPROVED, REJECTED, COMPLETED). No CTOS admin detail. No corporate entity sync. No intermediate director KYC. `ONBOARDING_RESUMED` is not user-facing. `ONBOARDING_FINAL_APPROVAL_COMPLETED` is not directly user-facing; presentation uses completion semantics via `ONBOARDING_COMPLETED`. A054: Admin visible; Issuer COMPANY activity visible where current rule allows; Investor activity hidden. A055 issuer CONDITIONAL on APPROVED/REJECTED.
+
+**Manual QA — company happy path:**
+
+- [ ] `ONBOARDING_STARTED`
+- [ ] Verification submitted A044
+- [ ] `SSM_APPROVED` for company flow
+- [ ] No A052
+- [ ] No A053
+- [ ] No intermediate A055
+- [ ] Final director APPROVED/REJECTED produces one A055
+- [ ] `ONBOARDING_APPROVED`
+- [ ] `AML_APPROVED`
+- [ ] `AML_APPROVED` carries `onboarding_id` (`reg_tank_onboarding.id`) when the session is already known
+- [ ] `ONBOARDING_FINAL_APPROVAL_COMPLETED`
+- [ ] No duplicate sibling `ONBOARDING_STATUS_CHANGED` rows beside SSM/AML/approval/final/reject/restart
+
+**Manual QA — branches:**
+
+- [ ] Amendment requested (`PENDING_SSM_REVIEW`/`PENDING_APPROVAL` → `PENDING_AMENDMENT`)
+- [ ] Verification resubmitted (`PENDING_AMENDMENT` → `PENDING_SSM_REVIEW`)
+- [ ] Director Confirm & Send → A054 (Company org COMPLETED → Issuer/Investor Profile → Directors and Shareholders → Confirm & Send → Confirm). Do **not** use Admin or Organization Member Resend.
+- [ ] Director rejected outcome → one A055
+- [ ] Restart
+- [ ] Rejection
+- [ ] Reset
+- [ ] User onboarding marker update
+- [ ] Investor Personal happy path
+- [ ] Investor Company sanity path
+- [ ] Sophisticated Investor status change
 
 **Manual QA — company COD WAIT:** expect `ONBOARDING_STATUS_CHANGED`; no `CORPORATE_ENTITIES_UPDATED`; no intermediate `DIRECTOR_KYC_STATUS_UPDATED`.
 
 **Manual QA — EOD / director KYC:** `ID_UPLOADED` / `LIVENESS_STARTED` / `WAIT_FOR_APPROVAL` / `PENDING` / `FORM_FILLING` / first JSON seed / kycId-only / duplicate final state → no onboarding audit. Newly `APPROVED` or `REJECTED` existing director → one `DIRECTOR_KYC_STATUS_UPDATED` per director. Duplicate APPROVED/REJECTED → no second outcome row.
-
-**Manual QA — amendment:** `PENDING_SSM_REVIEW`/`PENDING_APPROVAL` → `PENDING_AMENDMENT` writes `ONBOARDING_STATUS_CHANGED` titled Amendment Requested. `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW` writes `ONBOARDING_STATUS_CHANGED` titled Verification Resubmitted.
 
 | ID | Source Case | Event | Admin Raw | Admin Activity | Issuer | Investor |
 |---|---|---|---|---|---|---|
@@ -9490,6 +9549,16 @@ Must not duplicate SSM/AML/approval/final/reject/restart decision events.
 
 Human titles come from previous/new status. Technical RegTank triggers (`COD_WAIT_FOR_APPROVAL`, `URL_GENERATED`, `LIVENESS_PASSED`, `REGTANK_APPROVED`) stay in metadata/detail and are not human titles.
 
+Meaningful user-facing titles (source: `activity-presentation.ts`):
+
+- `IN_PROGRESS` / `PENDING` → `PENDING_SSM_REVIEW`: Verification Submitted
+- `IN_PROGRESS` / `PENDING` → `PENDING_APPROVAL`: Verification Submitted
+- `PENDING_SSM_REVIEW` / `PENDING_APPROVAL` → `PENDING_AMENDMENT`: Amendment Requested
+- `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW`: Verification Resubmitted
+- Unexpected/admin-only fallback: Onboarding Stage Updated
+
+Do not create sibling A044 rows beside `SSM_APPROVED`, `AML_APPROVED`, `ONBOARDING_APPROVED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_REJECTED`, or `ONBOARDING_RESTARTED`.
+
 ## 2. When it logs
 
 `apps/api/src/modules/regtank/webhooks/cod-handler.ts` COD `WAIT_FOR_APPROVAL` (when organization status actually changes, including `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW`) and COD `URL_GENERATED` after a successful move from `PENDING_SSM_REVIEW` / `PENDING_APPROVAL` → `PENDING_AMENDMENT`. Also `apps/api/src/modules/regtank/helpers/apply-approved-org-milestone.ts` and `apps/api/src/modules/regtank/webhooks/individual-onboarding-handler.ts` for individual review-stage moves.
@@ -10518,6 +10587,10 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A049 — AML_APPROVED
 
+**Status: ACTIVE**
+
+`onboarding_id` is optional linkage to `reg_tank_onboarding.id` (the CashSouk cuid). It is not the COD request id, KYB request id, or KYC request id. Provider ids stay in metadata (`providerReference` / `onboardingRequestId`). This linkage does not alter AML approval logic, status transitions, RegTank calls, payload persistence, or presentation.
+
 Source Case: ONB-011
 Module: Onboarding
 Audit Model: OnboardingAuditLog
@@ -10532,6 +10605,16 @@ AML screening was approved (admin or RegTank org-AML milestone).
 `apps/api/src/modules/admin/service.ts` and `apps/api/src/modules/regtank/webhooks/org-aml-milestone.ts`.
 
 When the current AML writer already knows the RegTank onboarding session, `onboarding_id` links to `reg_tank_onboarding.id`. It remains nullable for truly session-independent writes.
+
+Current paths that populate `onboarding_id` with the CashSouk cuid:
+
+- KYB main-company webhook
+- personal KYC webhook
+- admin corporate AML refresh
+- admin personal onboarding refresh
+- admin Approve AML
+
+Self-service AML sync may still leave `onboarding_id` NULL because that call site does not already have the CashSouk onboarding cuid and no extra lookup is done.
 
 ## 3. When it does NOT log / no-op
 
@@ -11193,7 +11276,7 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 **Historical rows: Supported/readable**
 **ID reused: No**
 
-ID A052 remains reserved in A039–A055. A successful CTOS Fetch is an operational report-fetch action, not a CashSouk onboarding milestone. CTOS reports are still stored in `ctos_reports` (append-only insert on every successful fetch). Only the onboarding audit breadcrumb was removed. Historical `CTOS_REPORT_RECEIVED` rows stay readable on admin raw. Admin Organization contextual history excludes this type.
+ID A052 remains reserved in A039–A055. A successful CTOS Fetch is operational report history, not a meaningful onboarding milestone. CTOS behavior itself is unchanged: a successful Fetch still performs the CTOS SOAP enquiry and inserts a **new** `ctos_reports` row; repeated Fetch creates another `ctos_reports` row (no in-place update). Only the onboarding audit breadcrumb was removed. Historical `CTOS_REPORT_RECEIVED` rows stay readable/formattable on admin raw. Admin Organization contextual history excludes this type.
 
 Source Case: ONB-014
 Module: Onboarding
@@ -11597,6 +11680,12 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 # A054 — DIRECTOR_ONBOARDING_INVITATION_SENT
 
+**Status: ACTIVE**
+
+Exact live writer: Issuer or Investor COMPANY organization, after company onboarding is `COMPLETED` → Profile → Directors and Shareholders → Confirm & Send → Confirm. `OrganizationService.sendDirectorCtosPartyOnboarding` creates a new RegTank individual onboarding, updates `ctos_party_supplements.onboarding_json` (`requestId` / `sentAt` / `lastSentAt` / `sendTimestamps`), and writes A054. There is no separate resend endpoint; a second Confirm & Send uses the same flow and writes another A054 with a new RegTank request id.
+
+Do not confuse with Organization Member Resend (`ORGANIZATION_INVITATION_RESENT`), Admin invitation resend (`ADMIN_INVITATION_RESENT`), Admin CTOS Fetch (no A054), or Admin notify-owner (notification, not A054).
+
 Source Case: ONB-016
 Module: Onboarding
 Audit Model: OnboardingAuditLog
@@ -11604,15 +11693,15 @@ DB Table: onboarding_audit_logs
 
 ## 1. What this event means
 
-A director was invited to complete verification for a corporate issuer.
+A director/shareholder on a COMPANY organization was invited to complete individual verification (Confirm & Send after company onboarding is COMPLETED).
 
 ## 2. When it logs
 
-`apps/api/src/modules/organization/service.ts`.
+`apps/api/src/modules/organization/service.ts` `sendDirectorCtosPartyOnboarding` after Confirm & Send. Investor COMPANY orgs also write this event; investor activity still HIDE.
 
 ## 3. When it does NOT log / no-op
 
-Investor HIDE. Issuer CONDITIONAL: `organizationKind === ISSUER` and `organizationType === COMPANY`. Personal issuers and investor orgs do not see this in activity.
+Investor HIDE (even if a COMPANY investor org wrote the row). Issuer CONDITIONAL: `organizationKind === ISSUER` and `organizationType === COMPANY`. Personal issuers do not see this in activity. Organization Member Resend and Admin invitation resend do not write this event.
 
 ## 4. Top-level audit row
 
@@ -11790,6 +11879,8 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 - [ ] Detail UI correct
 
 # A055 — DIRECTOR_KYC_STATUS_UPDATED
+
+**Status: ACTIVE — OUTCOME ONLY**
 
 Source Case: ONB-017
 Module: Onboarding
@@ -41416,10 +41507,10 @@ Date: **2026-08-17**. Source: current tree after the Onboarding Audit redesign.
 
 | Source | Count | Result |
 |---|---:|---|
-| Catalogue arrays in this document (Access 3 + Security 35 + Onboarding 17 reserved + Legal 7 + Application 40 + Signing 12 + Note 35 + Payment 19 + Product 5 + Notification 1) | 174 reserved IDs | VERIFIED |
+| Catalogue arrays in this document (Access 3 + Security 35 + Onboarding 17 reserved + Legal 7 + Application 40 + Signing 12 + Note 35 + Payment 19 + Product 5 + Notification 1) | 174 reserved/catalogued IDs | VERIFIED |
 | `ACCESS_AUDIT_EVENTS` `apps/api/src/modules/auth/audit/events.ts` | 3 | VERIFIED |
 | `SECURITY_AUDIT_EVENTS` `apps/api/src/modules/security/audit/events.ts` | 35 | VERIFIED |
-| `ONBOARDING_AUDIT_EVENTS` `apps/api/src/modules/onboarding/audit/events.ts` | 17 reserved IDs (14 current writers; A040, A052, and A053 in `RETIRED_ONBOARDING_AUDIT_EVENTS`) | VERIFIED |
+| `ONBOARDING_AUDIT_EVENTS` `apps/api/src/modules/onboarding/audit/events.ts` | 17 reserved IDs (14 current active onboarding event types; A040, A052, and A053 in `RETIRED_ONBOARDING_AUDIT_EVENTS`) | VERIFIED |
 | `LEGAL_ADMIN_AUDIT_EVENTS` `apps/api/src/modules/legal-documents/audit/events.ts` | 7 | VERIFIED |
 | `APPLICATION_AUDIT_EVENTS` `apps/api/src/modules/applications/audit/events.ts` | 40 | VERIFIED |
 | `SIGNING_AUDIT_EVENTS` `apps/api/src/modules/signing/audit/events.ts` | 12 | VERIFIED |
@@ -41428,8 +41519,8 @@ Date: **2026-08-17**. Source: current tree after the Onboarding Audit redesign.
 | `PRODUCT_AUDIT_EVENTS` `apps/api/src/modules/products/audit/events.ts` | 5 | VERIFIED |
 | `NOTIFICATION_BROADCAST_AUDIT_EVENTS` `apps/api/src/modules/notification/audit/events.ts` | 1 | VERIFIED |
 | Zod `metadataByEvent` / `schemas` maps (one schema per catalogue event, including retired IDs so historical rows still parse) | 174 | VERIFIED |
-| Current writers (`eventType: "…"` call sites in `apps/api/src/modules/**` plus jobs/middleware) | 171 events have at least one current writer; A040, A052, and A053 have none | VERIFIED |
-| Admin raw coverage (global `/audit` tabs, application/note contextual history, trustee, gateway, withdrawal, recon) | 174 reserved IDs remain readable | VERIFIED |
+| Current writers (`eventType: "…"` call sites in `apps/api/src/modules/**` plus jobs/middleware) | 171 currently active event types with at least one writer; A040, A052, and A053 have none | VERIFIED |
+| Admin raw coverage (global `/audit` tabs, application/note contextual history, trustee, gateway, withdrawal, recon) | 174 reserved/catalogued IDs remain readable | VERIFIED |
 
 ## Writer notes that affect verification
 

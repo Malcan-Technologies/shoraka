@@ -466,7 +466,7 @@ Incomplete onboarding steps (`terms`, `fee`, `verify`) redirect off `/` to the m
 
 Onboarding audit records CashSouk business actions, stages, decisions, and outcomes. Detailed provider synchronization remains in its source-of-truth storage and is not duplicated as onboarding audit noise.
 
-**Reserved IDs:** A039–A055 (17). **Current active writers:** 14. **Retired / no current writer:** A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`. Historical rows remain readable. IDs are not reused.
+**Reserved/catalogued IDs:** A039–A055 (17). **Current active onboarding event types:** 14. **Retired / no current writer:** A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`. Historical rows remain readable. IDs are not reused. Overall audit catalogue remains **174 reserved/catalogued IDs** (A001–A174), with **171 currently active event types** that have at least one writer.
 
 | ID | Event | Current writer |
 |---|---|---|
@@ -475,18 +475,24 @@ Onboarding audit records CashSouk business actions, stages, decisions, and outco
 | A041 | `ONBOARDING_RESTARTED` | Yes |
 | A042 | `ONBOARDING_RESET` | Yes |
 | A043 | `USER_ONBOARDING_STATUS_UPDATED` | Yes |
-| A044 | `ONBOARDING_STATUS_CHANGED` | Yes — core stage event, including review landing, amendment requested, and verification resubmitted. Does not duplicate SSM/AML/approval/final/reject/restart decision events. |
+| A044 | `ONBOARDING_STATUS_CHANGED` | Yes — core stage event, including review landing, amendment requested, and verification resubmitted. Titles: Verification Submitted / Amendment Requested / Verification Resubmitted; unexpected fallback Onboarding Stage Updated. Does not duplicate SSM/AML/approval/final/reject/restart decision events. |
 | A045 | `ONBOARDING_APPROVED` | Yes |
 | A046 | `ONBOARDING_REJECTED` | Yes |
 | A047 | `ONBOARDING_FINAL_APPROVAL_COMPLETED` | Yes |
-| A048 | `ONBOARDING_COMPLETED` | Yes — legacy writer while the legacy API exists |
-| A049 | `AML_APPROVED` | Yes |
+| A048 | `ONBOARDING_COMPLETED` | Yes — legacy writer while the legacy API exists. Presentation may use completion semantics. |
+| A049 | `AML_APPROVED` | Yes. `onboarding_id` is optional linkage to `reg_tank_onboarding.id` (CashSouk cuid, not COD/KYB/KYC ids) when the writer already knows the session: KYB main-company webhook, personal KYC webhook, admin corporate AML refresh, admin personal onboarding refresh, admin Approve AML. Self-service AML sync may leave it NULL. Provider ids stay in metadata. Does not change AML approval logic. |
 | A050 | `SSM_APPROVED` | Yes |
 | A051 | `INVESTOR_SOPHISTICATED_STATUS_UPDATED` | Yes |
-| A052 | `CTOS_REPORT_RECEIVED` | Retired — `ctos_reports` still inserts on successful fetch |
+| A052 | `CTOS_REPORT_RECEIVED` | Retired — CTOS SOAP fetch still inserts a new `ctos_reports` row (repeated Fetch inserts another row). Only the onboarding audit breadcrumb was removed. |
 | A053 | `CORPORATE_ENTITIES_UPDATED` | Retired — `corporate_entities` still updates |
-| A054 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | Yes |
+| A054 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | Yes — Issuer or Investor COMPANY org, after onboarding is COMPLETED: Profile → Directors and Shareholders → Confirm & Send → Confirm. No separate resend endpoint. Not Organization Member Resend / Admin invitation resend / Admin CTOS Fetch. |
 | A055 | `DIRECTOR_KYC_STATUS_UPDATED` | Yes — `APPROVED` / `REJECTED` outcomes only. Intermediate KYC/provider statuses stay on `director_kyc_status`. |
+
+**Issuer Company clean happy path:** `ONBOARDING_STARTED` → `ONBOARDING_STATUS_CHANGED` (Verification Submitted) → `SSM_APPROVED` → optional `DIRECTOR_KYC_STATUS_UPDATED` (final APPROVED/REJECTED only) → `ONBOARDING_APPROVED` → `AML_APPROVED` → `ONBOARDING_FINAL_APPROVAL_COMPLETED`. Status: `IN_PROGRESS` → `PENDING_SSM_REVIEW` → `PENDING_APPROVAL` → `PENDING_AML` → `PENDING_FINAL_APPROVAL` → `COMPLETED`. Must not contain A040/A052/A053 or intermediate director KYC audit rows.
+
+**Amendment branch:** `PENDING_SSM_REVIEW` / `PENDING_APPROVAL` → `PENDING_AMENDMENT` writes A044 titled Amendment Requested. Then `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW` writes A044 titled Verification Resubmitted. Do not add noisy provider-sync events around these transitions.
+
+**Visibility (current source):** Admin global Onboarding Audit shows active meaningful events plus historical retired rows; A044 is visible. Admin organization contextual history includes A044 meaningful stage transitions and A055 final director outcomes; excludes A052 and A053; does not show intermediate director KYC. Issuer/investor activity shows meaningful user-facing milestones only. A054: Admin visible; Issuer COMPANY activity visible where the current rule allows; Investor activity hidden.
 
 **REMOVED:** `OnboardingLog` / `onboarding_logs`.
 

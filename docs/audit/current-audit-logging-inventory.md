@@ -58,10 +58,12 @@ Known limitations (not fixed in the cleanup):
 - `LegalDocumentAcceptance` remains legal acceptance source of truth.
 - CTOS report rows remain report source of truth.
 - Audit is never workflow state. No User/org/RegTank FKs on `OnboardingAuditLog` (scalar historical ids only). Append-only create.
-- Reserved onboarding IDs A039–A055 remain 17. Current active writers: 14. Retired / no current writer: `ONBOARDING_RESUMED` (A040), `CTOS_REPORT_RECEIVED` (A052), and `CORPORATE_ENTITIES_UPDATED` (A053). Historical rows remain readable. IDs are not reused.
+- Reserved onboarding IDs A039–A055 remain 17 reserved/catalogued IDs. Current active onboarding event types: 14. Retired / no current writer: `ONBOARDING_RESUMED` (A040), `CTOS_REPORT_RECEIVED` (A052), and `CORPORATE_ENTITIES_UPDATED` (A053). Historical rows remain readable. IDs are not reused.
 - Onboarding audit records CashSouk business actions, stages, decisions, and outcomes. Detailed provider synchronization remains in its source-of-truth storage (`corporate_entities`, `director_kyc_status`, `RegTankOnboarding.webhook_payloads`) and is not duplicated as onboarding audit noise.
 - `DIRECTOR_KYC_STATUS_UPDATED` writes only when an existing director newly becomes `APPROVED` or `REJECTED`.
-- `ONBOARDING_STATUS_CHANGED` is the core stage event, including review landing, amendment requested, and amendment resubmission. Admin Organization contextual history includes it.
+- `ONBOARDING_STATUS_CHANGED` is the core stage event, including review landing, amendment requested, and amendment resubmission. Admin Organization contextual history includes it. Dedicated SSM/AML/approval/final/reject/restart events do not also write a sibling A044 row.
+- `AML_APPROVED` `onboarding_id` is optional linkage to `reg_tank_onboarding.id` (CashSouk cuid) when the writer already knows the session. Self-service AML sync may leave it NULL. Provider ids stay in metadata.
+- `DIRECTOR_ONBOARDING_INVITATION_SENT` is written only from Issuer/Investor COMPANY Profile → Directors and Shareholders → Confirm & Send after company onboarding is COMPLETED.
 - Admin URLs `GET /v1/admin/onboarding-logs` (list, `/:id`, `/export`) are preserved names; they read `OnboardingAuditLog`.
 - There is **no** canonical/global `AuditEvent` table.
 
@@ -81,7 +83,7 @@ CashSouk does not have a single audit system. It has **many specialized tables**
 ### Current architecture (factual)
 
 - **Auth/security:** `AccessAuditLog` (signup/login/logout) + `SecurityAuditLog` (RBAC, profile, invitations, membership, notification config). No User FK; history survives User deletion. `UserSession` is session SOT; Cognito is auth authority. Legacy `AccessLog` / `SecurityLog` removed.
-- **Onboarding:** `OnboardingAuditLog` is the sole onboarding/compliance history table (append-only). Organization `onboarding_status`/flags, `RegTankOnboarding`, `LegalDocumentAcceptance`, and CTOS rows remain SOT. Audit is never workflow state. Legacy `OnboardingLog` / `onboarding_logs` removed. A039–A055 are 17 reserved IDs with 14 current writers; A040, A052, and A053 are retired (historical rows readable). `DIRECTOR_KYC_STATUS_UPDATED` is outcome-only (`APPROVED`/`REJECTED`).
+- **Onboarding:** `OnboardingAuditLog` is the sole onboarding/compliance history table (append-only). Organization `onboarding_status`/flags, `RegTankOnboarding`, `LegalDocumentAcceptance`, and CTOS rows remain SOT. Audit is never workflow state. Legacy `OnboardingLog` / `onboarding_logs` removed. A039–A055 are 17 reserved/catalogued IDs with 14 current active event types; A040, A052, and A053 are retired (historical rows readable). `DIRECTOR_KYC_STATUS_UPDATED` is outcome-only (`APPROVED`/`REJECTED`). `AML_APPROVED` links `onboarding_id` to `reg_tank_onboarding.id` when the writer already has the session.
 - **Applications:** `ApplicationAuditLog` (`application_audit_logs`) is the application/review/contract/invoice history table (append-only, no Application/User FKs). `ApplicationReview` / `ApplicationReviewItem` are current review status. `ApplicationReviewRemark` is cycle-scoped amendment remark SOT. `ApplicationRevision` is comparison/snapshot SOT. Resubmit comparison reads `ApplicationRevision` + remarks, never audit. Legacy `ApplicationLog` / `application_logs` and `ApplicationReviewEvent` / `application_review_events` **removed**.
 - **Signing:** `SigningAuditLog` (`signing_audit_logs`) is the signing history table (append-only). Envelope graph / `SigningCloudEkyc` remain signing SOT. `GET /v1/applications/:id/logs` merges Application + Signing audit rows. Envelope log APIs read `SigningAuditLog` only.
 - **Notes:** `NoteAuditLog` (`note_audit_logs`) is the sole Note-domain history table (append-only, no Note/User/org FKs). Ledger, `NotePayment`, `NoteSettlement`, `NoteInvestment`, `WithdrawalInstruction`, `ShorakaTradeOrder`, prospectus models, and `Note` remain SOT. Activity feed reads a **subset** of `NoteAuditLog` types. `NoteEvent` / `note_events` and `NoteAdminAction` / `note_admin_actions` **removed**. Title/summary edits, featured settings, and prospectus draft saves are intentionally unaudited.
@@ -191,7 +193,7 @@ Sole security/admin-control table. Distinguishes `actor_user_id` vs `subject_use
 
 Sole onboarding/compliance history table. Append-only create. Required `metadata` Json. `occurred_at` + `created_at`. No `updated_at`. No User/org/RegTank FKs (scalar historical ids only).  
 Reserved IDs (17): `ONBOARDING_STARTED`, `ONBOARDING_RESUMED` (retired, historical rows readable), `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `CTOS_REPORT_RECEIVED` (retired, `ctos_reports` still persisted), `CORPORATE_ENTITIES_UPDATED` (retired, `corporate_entities` still persisted), `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED` (APPROVED/REJECTED outcomes only).  
-Current active writers: 14. **REMOVED:** `OnboardingLog` / `onboarding_logs`. Audit is never workflow state.
+Current active onboarding event types: 14. `AML_APPROVED.onboarding_id` is optional linkage to `reg_tank_onboarding.id` when the writer already knows the session. **REMOVED:** `OnboardingLog` / `onboarding_logs`. Audit is never workflow state.
 
 #### ApplicationAuditLog → `application_audit_logs` · APPLICATION · **A**
 
@@ -280,7 +282,7 @@ Create-only for bulk send. Legacy `NotificationLog` / `notification_logs` has be
 
 ## 4. Complete Business Mutation Inventory
 
-IDs are report-only (A001…). Trigger paths in this section were captured before Phase 4 Access/Security cutover. **Current writers are AccessAuditLog / SecurityAuditLog as documented in the header and §5.** Historical `LOGIN`/`access_logs` labels in the table below are not live.
+IDs are report-only original inventory case numbers (A001…). They are **not** the current catalogue A001–A174 IDs (for example, original case A049 here is admin refresh-corporate-entities, while catalogue A049 is `AML_APPROVED`). Trigger paths in this section were captured before Phase 4 Access/Security cutover. **Current writers are AccessAuditLog / SecurityAuditLog / OnboardingAuditLog as documented in the header and §5–§7.** Historical `LOGIN`/`access_logs` labels in the table below are not live.
 
 Actor: USER / ADMIN / SYSTEM / PROVIDER / EXTERNAL SIGNER / WEBHOOK.
 
@@ -316,7 +318,7 @@ Actor: USER / ADMIN / SYSTEM / PROVIDER / EXTERNAL SIGNER / WEBHOOK.
 | A037–A044 | ORG MEMBERS | invite/remove/leave/role/ownership/invites | organization service | Membership lifecycle | USER | **MISSING AUDIT** HIGH | membership tables |
 | A045 | ORG | PATCH corporate-info | | Corporate JSON | USER | **MISSING AUDIT** | |
 | A046 | CTOS | PATCH ctos-party-email | | Party email | USER | **MISSING AUDIT** | |
-| A047/A050 | ORG | send-director-onboarding / admin notify | | Director action | USER/ADMIN | **MISSING AUDIT** | **notification only** |
+| A047/A050 | ORG | send-director-onboarding / admin notify | | Director action | USER/ADMIN | PARTIAL | Confirm & Send writes catalogue A054 `DIRECTOR_ONBOARDING_INVITATION_SENT` after company COMPLETED. Admin notify-owner remains notification only. |
 | A048 | ORG | POST refresh-aml | RegTank service | Refresh AML | USER | PARTIAL | maybe ONBOARDING_STATUS_UPDATED |
 | A049 | ORG | admin refresh-corporate-entities | AdminService | Entities JSON | ADMIN | Intentional no audit | `corporate_entities` still persists; A053 `CORPORATE_ENTITIES_UPDATED` retired |
 | A051 | ORG | PATCH sophisticated-status | updateSophisticatedStatus | Sophisticated flag | ADMIN | YES | SOPHISTICATED_STATUS_UPDATED |
@@ -327,7 +329,7 @@ Actor: USER / ADMIN / SYSTEM / PROVIDER / EXTERNAL SIGNER / WEBHOOK.
 | A059 | ONBOARDING | cancel | AdminService | Cancel | ADMIN | YES | ONBOARDING_CANCELLED |
 | A060/A061 | REGTANK | start/resume APIs | regtank/service.ts | Start/resume | USER | PARTIAL | start writes ONBOARDING_STARTED; resume writes no onboarding audit (A040 retired) |
 | A062–A067 | REGTANK | webhooks liveness/cod/eod/kyc | handlers | Status/AML JSON | WEBHOOK | YES mixed | see §10 |
-| A065 | KYB | POST /webhooks/regtank/kyb | kyb-handler | KYB JSON | WEBHOOK | **MISSING** direct log | may hit org-aml-milestone |
+| A065 | KYB | POST /webhooks/regtank/kyb | kyb-handler | KYB JSON | WEBHOOK | YES via helper | main-company APPROVED → `AML_APPROVED` (`onboarding_id` = `reg_tank_onboarding.id` when the COD session is already loaded) |
 | A068 | KYT | POST /webhooks/regtank/kyt | kyt-handler | Appends `webhook_payloads` only | WEBHOOK | **MISSING AUDIT** | No org/AML/OnboardingLog/notification. Inline TODO. |
 | A070/A072 | CTOS | POST ctos-reports / subject | ctos-report-service | Insert reports | ADMIN | **MISSING** (A071 partial) | CtosReport |
 | A071 | CTOS | same if financial APPROVED | reset financial review | Section → PENDING | SYSTEM | YES | SECTION_REVIEWED_PENDING userId `"system"` |
@@ -425,7 +427,7 @@ Legacy `AuthRepository.createAccessLog` / `AdminRepository.createAccessLog` / `c
 
 ### OnboardingAuditLog
 
-Writers: `writeOnboardingAuditLog` (`apps/api/src/modules/onboarding/audit/writer.ts`) only. Live callers include start (not resume), restart, reset, status transitions (including amendment requested/resubmitted), admin approvals, AML/SSM/sophisticated/director invitation, director APPROVED/REJECTED outcomes (`writeDirectorKycOutcomeAuditLogs`), and legacy complete-onboarding (`ONBOARDING_COMPLETED`). Resume does **not** write `ONBOARDING_RESUMED`. Corporate-entity JSON sync does **not** write `CORPORATE_ENTITIES_UPDATED`. CTOS fetch/storage does **not** write `CTOS_REPORT_RECEIVED` (`ctos_reports` still persists). TNC, guarantor AML, and fee capture do **not** write this table.
+Writers: `writeOnboardingAuditLog` (`apps/api/src/modules/onboarding/audit/writer.ts`) only. Live callers include start (not resume), restart, reset, status transitions (including amendment requested/resubmitted), admin approvals, AML/SSM/sophisticated/director invitation, director APPROVED/REJECTED outcomes (`writeDirectorKycOutcomeAuditLogs`), and legacy complete-onboarding (`ONBOARDING_COMPLETED`). Resume does **not** write `ONBOARDING_RESUMED`. Corporate-entity JSON sync does **not** write `CORPORATE_ENTITIES_UPDATED`. CTOS fetch/storage does **not** write `CTOS_REPORT_RECEIVED` (`ctos_reports` still persists). TNC, guarantor AML, and fee capture do **not** write this table. `AML_APPROVED` from the shared helper threads `onboarding_id` when the caller already has `reg_tank_onboarding.id`.
 
 Production final approval writes **`ONBOARDING_FINAL_APPROVAL_COMPLETED`**. `AuthService.cancelOnboarding` does **not** read audit as state. Legacy `OnboardingLog` writers/readers **removed**. Admin `GET /v1/admin/onboarding-logs` reads `OnboardingAuditLog`.
 
@@ -519,6 +521,8 @@ Retired with `AccessLog`/`SecurityLog`: `LOGIN`, `SIGNUP`, `LOGOUT`, `ROLE_SWITC
 
 Current writers (14): `ONBOARDING_STARTED`, `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED` (APPROVED/REJECTED outcomes only).  
 Retired, still reserved (historical rows readable): `ONBOARDING_RESUMED`, `CTOS_REPORT_RECEIVED`, `CORPORATE_ENTITIES_UPDATED`.  
+`AML_APPROVED` `onboarding_id` links to `reg_tank_onboarding.id` when the current writer already has that session (KYB/KYC webhooks, admin AML refresh, admin Approve AML). Self-service AML sync may leave it NULL.  
+Issuer Company clean happy path: `ONBOARDING_STARTED` → `ONBOARDING_STATUS_CHANGED` (Verification Submitted) → `SSM_APPROVED` → optional `DIRECTOR_KYC_STATUS_UPDATED` (final APPROVED/REJECTED only) → `ONBOARDING_APPROVED` → `AML_APPROVED` → `ONBOARDING_FINAL_APPROVAL_COMPLETED`. No A040/A052/A053 and no sibling A044 beside those milestone events.  
 Retired with `OnboardingLog`: `ONBOARDING_CANCELLED`, `WEBHOOK_*`, `FORM_FILLED`, `EOD_WEBHOOK`, `USER_COMPLETED`, `TNC_APPROVED`, `TNC_ACCEPTED`, `COD_REJECTED`, generic `ONBOARDING_STATUS_UPDATED`.  
 Activity UI curated subset: STARTED, RESTARTED, review/amendment STATUS_CHANGED, REJECTED, APPROVED, COMPLETED; issuer invitation + director APPROVED/REJECTED; investor sophisticated when the value changes. FINAL_APPROVAL is admin-only. RESUMED is not user-facing.
 
@@ -628,11 +632,11 @@ SYS/`systemUserId`/`"system"` can appear in human timelines unless filtered.
 
 | Endpoint | Handler | Transport storage | Business audit |
 |---|---|---|---|
-| `/v1/webhooks/regtank/liveness` | individual-onboarding-handler | `webhook_payloads` JSON array **appended/updated** | FORM_FILLED / ONBOARDING_STATUS_UPDATED / ONBOARDING_REJECTED |
-| `/codliveness` | cod-handler | same | ONBOARDING_STATUS_UPDATED / COD_REJECTED |
-| `/eodliveness` | eod-handler | same | EOD_* |
-| `/kyc` (ACURIS) + `/djkyc` (DOWJONES) | **shared** `KYCWebhookHandler` (constructor provider only) | `webhook_payloads` + org `kyc_response` on APPROVED | ONBOARDING_STATUS_UPDATED on APPROVED (status often unchanged); org-aml-milestone may log; **no notification** |
-| `/kyb` (ACURIS) + `/djkyb` (DOWJONES) | **shared** `KYBWebhookHandler` | `webhook_payloads`; shareholder `director_aml_status` JSON | **no onboardingLog in handler**; org-aml-milestone logs on main-company APPROVED; **no notification** |
+| `/v1/webhooks/regtank/liveness` | individual-onboarding-handler | `webhook_payloads` JSON array **appended/updated** | `ONBOARDING_STATUS_CHANGED` / `ONBOARDING_REJECTED` on business-stage moves |
+| `/codliveness` | cod-handler | same | `ONBOARDING_STATUS_CHANGED` (review landing / amendment / resubmission); no sibling A044 beside dedicated milestone events |
+| `/eodliveness` | eod-handler | same | `DIRECTOR_KYC_STATUS_UPDATED` only when an existing director newly becomes APPROVED/REJECTED |
+| `/kyc` (ACURIS) + `/djkyc` (DOWJONES) | **shared** `KYCWebhookHandler` (constructor provider only) | `webhook_payloads` + org `kyc_response` on APPROVED | personal INDIVIDUAL + PERSONAL org → `AML_APPROVED` via org-aml-milestone (`onboarding_id` = session cuid); **no notification** |
+| `/kyb` (ACURIS) + `/djkyb` (DOWJONES) | **shared** `KYBWebhookHandler` | `webhook_payloads`; shareholder `director_aml_status` JSON | main-company APPROVED → `AML_APPROVED` via org-aml-milestone (`onboarding_id` = session cuid); **no notification** |
 | `/kyt` | `KYTWebhookHandler` (separate) | `webhook_payloads` if onboarding found | **no OnboardingLog, no org/AML mutation, no notification** |
 | `/regtank` legacy | individual | same as liveness | same |
 | `/regtank/dev*` | same handlers or dev | | WEBHOOK_* or production events |
@@ -675,7 +679,7 @@ Legal types in schema: `PDPA_NOTICE_AND_CONSENT`, `TERMS_OF_USE`, `RISK_STATEMEN
 | Risk Statement | RISK_STATEMENT | PARTIAL |
 | Warning Statement | ISSUER/INVESTOR_WARNING_STATEMENT; display = open | PARTIAL (open IP/UA/hash; not a named audit event) |
 | Issuer Agreement | ISSUER_AGREEMENT | PARTIAL |
-| AML approval | AML_APPROVED OnboardingLog + org.aml_approved | PARTIAL (admin decision logged; KYC webhook does not set aml_approved) |
+| AML approval | `AML_APPROVED` OnboardingAuditLog + org.aml_approved | YES (admin Approve AML, KYB/KYC webhook helper, admin AML refresh). `onboarding_id` = `reg_tank_onboarding.id` when the session is already known; self-service refresh may leave it NULL. |
 | Disclosure / Receivable Verification / Guarantee ack / Notice of Assignment / paymaster ack / per-note Shariah sequence as **named legal types** | **not in LegalDocumentType enum** | NOT first-class legal types. Code mapping of nearby names is in §19 item 4. Whether legal/product **intended** those names to equal the implemented artifacts cannot be decided from code. |
 | Letter of Offer issue | CONTRACT/INVOICE_OFFER_SENT | PARTIAL (amounts/version; letter PDF generated separately) |
 | Letter of Offer acceptance | offer accept + signing complete | PARTIAL |
@@ -997,9 +1001,9 @@ Always (when onboarding found and type-consistent): append full webhook payload.
 **Branch APPROVED + org found**
 
 - DB: `investorOrganization`/`issuerOrganization.kyc_response` = payload.
-- Org `onboarding_status` / `aml_approved`: **not set by this branch**.
-- OnboardingLog: `ONBOARDING_STATUS_UPDATED` metadata `{ organizationId, kycRequestId, onboardingRequestId, note: "KYC_APPROVED webhook stored kyc_response; onboarding_status and aml_approved unchanged", trigger: "KYC_APPROVED" }`.
-- Personal INDIVIDUAL + PERSONAL org: `maybeAdvanceOrgAfterAmlScreeningCleared` trigger `REGTANK_KYC_PERSONAL_AML_CLEARED` extraMetadata `{ kycRequestId, onboardingRequestId }`. That helper may set `aml_approved` and write another `ONBOARDING_STATUS_UPDATED` with `{ trigger, previousStatus, newStatus, amlApproved: true, ...extraMetadata }`.
+- Org `onboarding_status` / `aml_approved`: **not set by this branch** except the personal AML helper below.
+- This handler does **not** write `ONBOARDING_STATUS_CHANGED`.
+- Personal INDIVIDUAL + PERSONAL org: `maybeAdvanceOrgAfterAmlScreeningCleared` trigger `REGTANK_KYC_PERSONAL_AML_CLEARED` extraMetadata `{ kycRequestId, onboardingRequestId }` and `onboardingId: onboarding.id`. That helper may set `aml_approved` and write `AML_APPROVED` with `onboarding_id` = `reg_tank_onboarding.id`.
 - Notification: **none**.
 
 **Branch status !== APPROVED**
@@ -1029,8 +1033,8 @@ Does **not** overwrite `reg_tank_onboarding.status`. Raw payload appended to `we
 
 **Branch APPROVED + corporate + main-company COD**
 
-- `maybeAdvanceOrgAfterAmlScreeningCleared` trigger `REGTANK_KYB_MAIN_COMPANY_APPROVED` extraMetadata `{ kybRequestId, onboardingRequestId, riskLevel, riskScore }`.
-- Handler itself: **no** `onboardingLog.create`. Milestone helper may write `ONBOARDING_STATUS_UPDATED`.
+- `maybeAdvanceOrgAfterAmlScreeningCleared` trigger `REGTANK_KYB_MAIN_COMPANY_APPROVED` extraMetadata `{ kybRequestId, onboardingRequestId, riskLevel, riskScore }` and `onboardingId: onboarding.id`.
+- Handler itself does not write audit. Milestone helper writes `AML_APPROVED` with `onboarding_id` = `reg_tank_onboarding.id`. No sibling `ONBOARDING_STATUS_CHANGED`.
 - Notification: **none**.
 - Main-company AML identity mapping: log-only, not stored.
 
