@@ -25,7 +25,7 @@ flowchart LR
 ```
 
 - **Applications** — the **pipeline**. Drafts, submissions, amendments, offers to review, signing.
-- **Financing** — the **facility view**. Approved contracts and invoice financing lines, with offers and utilisation.
+- **Financing** — the **facility view**. Approved facilities and invoice financing lines, with offers and utilisation.
 - **Notes** — the **instrument view**. Funded invoices that are now live notes, with funding, repayment, and settlement.
 
 The **Dashboard** sits above all three and shows a roll-up of activity from each one.
@@ -36,7 +36,7 @@ The sidebar is ordered to match the lifecycle:
 
 1. **Dashboard** — overview and KPIs (`/`).
 2. **Applications** — manage submissions and offers (`/applications`).
-3. **Financing** — your contracts and invoice financing (`/financing`).
+3. **Financing** — your facilities and invoice financing (`/financing`).
 4. **Notes** — your funded notes (`/notes`).
 5. **Activity**, **Profile**, **Help** below.
 
@@ -50,7 +50,7 @@ You will see a small number badge on **Applications** when there are offers wait
 - **Account Overview** — success rate, active and past financing, active and completed notes.
 - **Repayment Performance** — on-time rate, past-due count, late repayments over the last 6 months.
 - **Recent applications** — the most recent and most actionable applications. The header shows a count of applications that need action (amendments or offers to review). Each row links into the right place: amendment items open the editor, others open **Applications**. **View all** takes you to `/applications`.
-- **Recent financing** — a mix of your most relevant contracts and invoice financing rows. The header shows a count of items with action required. **View all** takes you to `/financing`. Contract rows open the contract detail page; invoice rows that already have a note open the note.
+- **Recent financing** — a mix of your most relevant facilities and invoice financing rows. The header shows a count of items with action required. **View all** takes you to `/financing`. Facility rows open the facility detail page; invoice rows that already have a note open the note.
 - **Recent notes** — your latest active (non-settled) notes. **View all** takes you to `/notes`.
 
 The Dashboard does not replicate full lists — use the **View all** links to drill into each area.
@@ -68,36 +68,36 @@ Open **Applications** in the sidebar (`/applications`). This is where the work h
 - **Draft** — not yet submitted. Open and continue from where you left off.
 - **Submitted** — under review by CashSouk.
 - **Action Required** — amendments requested. The card shows a **Make Amendments** button that opens the editor.
-- **Offer Received** — a contract and/or invoice offer is ready. The card shows a **Review Offer** button and the validity date.
+- **Offer Received** — a facility and/or invoice offer is ready. The card shows a **Review Offer** button and the validity date.
 - **Completed**, **Withdrawn**, **Declined**, **Offer Expired** — terminal states for that application.
 
 ### Action-required deep links
 
-When something in **Financing** needs action on a related application (for example an amendment), the contract or invoice card carries an **Action required** pill. Clicking it opens **Applications** with a filter applied to just those applications, with a one-line note at the top explaining what you are looking at. Use **Clear filter** to return to the full list.
+When something in **Financing** needs action on a related application (for example an amendment), the facility or invoice card carries an **Action required** pill. Clicking it opens **Applications** with a filter applied to just those applications, with a one-line note at the top explaining what you are looking at. Use **Clear filter** to return to the full list.
 
 ## Financing — your active facilities
 
 Open **Financing** in the sidebar (`/financing`). This is the **post-approval** view. Think of it as "what do I have on the books?"
 
 - **Header** — `Financing` title, description, and the same **Apply for financing** button (so you can spawn a new request from here too).
-- **Tabs** — **Contracts** and **Invoices**. The active tab is remembered in the URL (`?tab=contracts` or `?tab=invoices`) so links are shareable.
-- **Filter row per tab** — search box (left), and on the right: **Status**, **Period** (contracts) or **Submission date** (invoices), **Customer**, **Product** (when you have more than one product), **Clear**, **Reload**, and a count badge.
+- **Tabs** — **Facilities** and **Invoices**. The active tab is remembered in the URL (`?tab=contracts` or `?tab=invoices`) so links are shareable.
+- **Filter row per tab** — search box (left), and on the right: **Status**, **Period** (facilities) or **Submission date** (invoices), **Customer**, **Product** (when you have more than one product), **Clear**, **Reload**, and a count badge.
 
-### Contracts tab
+### Facilities tab
 
-Each row is a **contract / facility** that has been approved or is in progress. The card shows:
+Each row is a **facility** that has been approved or is in progress. The card shows:
 
-- Contract title, status badge, and any offer pill.
+- Facility title, status badge, and any offer pill.
 - Customer, contract period, active notes count.
 - A utilisation bar with the approved and utilised facility amounts.
 - A **Review offer** button when an offer is waiting, and an **Action required** pill if any related application needs amendment.
-- A `⋮` menu with **View details**, which opens the contract detail page (`/financing/contracts/[id]`).
+- A `⋮` menu with **View details**, which opens the facility detail page (`/financing/contracts/[id]`).
 
-The contract detail page shows facility totals, invoice breakdowns, and a filtered list of invoices under that contract. Use the **Back to Financing** button (top right) to return.
+The facility detail page shows facility totals, invoice breakdowns, and a filtered list of invoices under that facility. Use the **Back to Financing** button (top right) to return.
 
 ### Invoices tab
 
-Each row is an **invoice financing line** — every invoice you have submitted under any contract, plus invoice-only submissions. The card shows:
+Each row is an **invoice financing line** — every invoice you have submitted under any facility, plus invoice-only submissions. The card shows:
 
 - Invoice number, status badge, and any offer pill.
 - Note number (if a note has been issued), customer, submission date, funding deadline, maturity date.
@@ -125,7 +125,7 @@ A few flows you will use often:
 - **Resume a draft** — **Applications** > open the draft card > **Edit Application**.
 - **Review an offer** — Dashboard **Recent applications** > row, or **Applications** > card > **Review Offer**.
 - **Make amendments** — Dashboard **Recent applications** > row, or **Applications** > card > **Make Amendments**, or follow an **Action required** pill from a card in **Financing**.
-- **Check a facility** — **Financing** > **Contracts** tab > contract row > `⋮` > **View details**.
+- **Check a facility** — **Financing** > **Facilities** tab > facility row > `⋮` > **View details**.
 - **Open the note for a financed invoice** — **Financing** > **Invoices** tab > click the **Note no.** link on the invoice card, or **Notes** > click the note card.
 - **Track repayment / settlement** — **Notes** > open a note > scroll to the timeline and settlement summary.
 
@@ -135,7 +135,7 @@ A few flows you will use often:
 |---|---|
 | Submit, fix, sign, or withdraw an application | **Applications** |
 | Browse approved facilities and invoice financing lines | **Financing** |
-| Drill into one contract and its invoices | **Financing** > Contracts > contract row > **View details** |
+| Drill into one facility and its invoices | **Financing** > Facilities > facility row > **View details** |
 | See or pay a funded note | **Notes** |
 | Get a quick read on overall activity | **Dashboard** |
 

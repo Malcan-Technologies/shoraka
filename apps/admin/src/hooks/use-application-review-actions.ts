@@ -348,7 +348,7 @@ export function useSendContractOffer() {
         facilityFeeRatePercent ?? null
       );
       if (!response.success) {
-        throw new Error((response as ApiError).error?.message ?? "Failed to send contract offer");
+        throw new Error((response as ApiError).error?.message ?? "Failed to send facility offer");
       }
       return response.data;
     },

@@ -118,7 +118,7 @@ export function DashboardContractCard({
               </p>
               {row.title ? (
                 <p className="min-w-0 max-w-full truncate text-xs text-muted-foreground">
-                  Contract: {displayCell(row.title)}
+                  Facility: {displayCell(row.title)}
                 </p>
               ) : null}
               <IssuerFinancingStatusBadge kind={resolveIssuerContractDashboardBadge(row.contractStatus)} />
@@ -234,7 +234,7 @@ export function DashboardContractCard({
                             <InformationCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />
                           </TooltipTrigger>
                           <TooltipContent className="max-w-[260px] whitespace-normal break-words bg-popover px-2 py-1.5 text-popover-foreground shadow-md">
-                            Shows the total facility fee collected so far for this contract.
+                            Shows the total facility fee collected so far for this facility.
                             Facility fee is deducted from each invoice financing disbursement until
                             the cap is reached.
                           </TooltipContent>

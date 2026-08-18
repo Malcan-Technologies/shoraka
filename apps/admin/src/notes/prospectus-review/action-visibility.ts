@@ -23,14 +23,16 @@ export function getProspectusActionVisibility(input: {
   notePublished: boolean;
 }): ProspectusActionVisibility {
   const workflow = normalizeProspectusWorkflowStatus(input.status);
-  const published = input.notePublished || workflow === "PUBLISHED";
-  const canEdit = input.canManage && !published;
+  const listed = input.notePublished;
+  const effective = !listed && workflow === "PUBLISHED" ? "DRAFT" : workflow;
+  const freezeReady = effective === "APPROVED" || listed;
+  const canEdit = input.canManage && !listed;
 
   return {
     saveDraft: canEdit,
     preview: canEdit,
-    approve: canEdit && workflow === "DRAFT",
-    viewProspectus: published,
-    backToNote: workflow === "APPROVED" || published,
+    approve: canEdit && effective === "DRAFT",
+    viewProspectus: freezeReady && effective !== "DRAFT",
+    backToNote: freezeReady || listed,
   };
 }

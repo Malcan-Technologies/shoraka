@@ -79,7 +79,7 @@ export function NoteInvestorsPanel({ note }: NoteInvestorsPanelProps) {
       />
       <CardContent className="p-0">
         {error ? (
-          <div className="px-5 py-4 text-sm text-destructive">
+          <div className="px-6 py-4 text-sm text-destructive">
             Failed to load investors:{" "}
             {error instanceof Error ? error.message : "Unknown error"}
           </div>

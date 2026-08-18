@@ -302,11 +302,11 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
   }
 
   const structureType = (api.financing_structure as { structure_type?: string } | undefined)?.structure_type;
-  let type: "Contract financing" | "Invoice financing" | "Generic" = "Generic";
+  let type: "Facility financing" | "Invoice financing" | "Generic" = "Generic";
   if (api.status === "DRAFT" && !structureType) type = "Generic";
   else if (structureType === "invoice_only") type = "Invoice financing";
-  else if (structureType === "existing_contract" || structureType === "new_contract") type = "Contract financing";
-  else type = contract ? "Contract financing" : "Invoice financing";
+  else if (structureType === "existing_contract" || structureType === "new_contract") type = "Facility financing";
+  else type = contract ? "Facility financing" : "Invoice financing";
 
   const contractDetails = (contract?.contract_details ?? {}) as Record<string, unknown>;
   const customerDetails = (contract?.customer_details ?? {}) as Record<string, unknown>;

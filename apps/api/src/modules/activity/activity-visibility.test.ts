@@ -31,6 +31,9 @@ describe("activity visibility matrix", () => {
       }
       expect(isOnboardingActivityVisible("issuer", "ONBOARDING_RESUMED")).toBe(false);
       expect(isOnboardingActivityVisible("investor", "ONBOARDING_RESUMED")).toBe(false);
+      expect(isOnboardingActivityVisible("admin", "ORGANIZATION_PROFILE_UPDATED_BY_ADMIN")).toBe(true);
+      expect(isOnboardingActivityVisible("issuer", "ORGANIZATION_PROFILE_UPDATED_BY_ADMIN")).toBe(false);
+      expect(isOnboardingActivityVisible("investor", "ORGANIZATION_PROFILE_UPDATED_BY_ADMIN")).toBe(false);
     });
 
     it("shows sophisticated status only when the investor eligibility value changes", () => {
@@ -255,6 +258,8 @@ describe("activity visibility matrix", () => {
   describe("note", () => {
     it("shows the approved issuer note additions and hides prospectus", () => {
       expect(isNoteActivityVisible("issuer", "NOTE_UNPUBLISHED")).toBe(true);
+      expect(isNoteActivityVisible("issuer", "NOTE_CAMPAIGN_PAUSED")).toBe(true);
+      expect(isNoteActivityVisible("issuer", "NOTE_CAMPAIGN_RESUMED")).toBe(true);
       expect(isNoteActivityVisible("issuer", "REPAYMENT_RECEIVED")).toBe(true);
       expect(isNoteActivityVisible("issuer", "REPAYMENT_REJECTED")).toBe(true);
       expect(isNoteActivityVisible("issuer", "RESIDUAL_RETURN_COMPLETED")).toBe(true);
@@ -280,7 +285,13 @@ describe("activity visibility matrix", () => {
         isNoteActivityVisible("investor", "NOTE_FUNDING_CLOSED", {}, { investorCommitted: false })
       ).toBe(false);
       expect(
-        isNoteActivityVisible("investor", "NOTE_ACTIVATED", {}, { investorCommitted: true })
+        isNoteActivityVisible("investor", "NOTE_CAMPAIGN_PAUSED", {}, { investorCommitted: true })
+      ).toBe(true);
+      expect(
+        isNoteActivityVisible("investor", "NOTE_CAMPAIGN_PAUSED", {}, { investorCommitted: false })
+      ).toBe(false);
+      expect(
+        isNoteActivityVisible("investor", "NOTE_CAMPAIGN_RESUMED", {}, { investorCommitted: true })
       ).toBe(true);
       expect(
         isNoteActivityVisible("investor", "NOTE_MARKED_DEFAULT", {}, { investorCommitted: false })

@@ -47,20 +47,20 @@ describe("ApplicationLogAdapter", () => {
 
   it("builds presentation for offer acceptance events and does not advertise signing packages", () => {
     expect(adapter.buildPresentation("CONTRACT_ACCEPTANCE_SUBMITTED")).toEqual({
-      title: "Contract Acceptance Submitted",
-      description: "You submitted your contract acceptance for review.",
+      title: "Facility Acceptance Submitted",
+      description: "You submitted your facility acceptance for review.",
     });
     expect(adapter.buildPresentation("CONTRACT_ACCEPTANCE_RESUBMITTED")).toEqual({
-      title: "Contract Acceptance Resubmitted",
-      description: "You resubmitted your contract acceptance after requested changes.",
+      title: "Facility Acceptance Resubmitted",
+      description: "You resubmitted your facility acceptance after requested changes.",
     });
     expect(adapter.buildPresentation("SIGNING_PACKAGE_SENT")).toEqual({
       title: "Application Update",
       description: "An application update was recorded for your account.",
     });
     expect(adapter.buildPresentation("CONTRACT_OFFER_ACCEPTED")).toEqual({
-      title: "Contract Offer Accepted",
-      description: "The contract offer was accepted.",
+      title: "Facility Offer Accepted",
+      description: "The facility offer was accepted.",
     });
   });
 
@@ -220,7 +220,7 @@ describe("ApplicationLogAdapter", () => {
     const unified = adapter.transform(record as any);
 
     expect(unified.description).toBe(
-      "A contract offer for CT-2026-001 is ready for your review."
+      "A facility offer for CT-2026-001 is ready for your review."
     );
     expect(unified.references).toEqual({
       applicationId: "issuerapp_123",

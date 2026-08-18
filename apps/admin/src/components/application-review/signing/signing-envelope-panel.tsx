@@ -194,7 +194,7 @@ export function SigningEnvelopePanel({
   const isInvoiceOnly = structureType === "invoice_only";
   const noOfferYetHint = isInvoiceOnly
     ? "Send an offer from Invoice to start acceptance."
-    : "Send an offer from Contract to start acceptance.";
+    : "Send an offer from Facility to start acceptance.";
 
   const invoiceIdForExtend = React.useMemo(() => {
     if (!isInvoiceOnly) return null;

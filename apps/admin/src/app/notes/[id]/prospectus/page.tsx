@@ -44,6 +44,7 @@ import {
   useProspectusReview,
   useProspectusReviewPreview,
   useSaveProspectusReviewDraft,
+  useOpenAdminProspectusPdf,
 } from "@/notes/hooks/use-prospectus-review";
 import type { ProspectusPreviewPages } from "@/notes/prospectus-review/preview-sheet-utils";
 import {
@@ -102,6 +103,7 @@ function ProspectusReviewPageInner() {
 
   const saveDraft = useSaveProspectusReviewDraft(noteId);
   const approve = useApproveProspectusReview(noteId);
+  const openProspectusPdf = useOpenAdminProspectusPdf();
 
   const [step, setStep] = React.useState<ProspectusWorkflowStepId>(0);
   const [pageOneTab, setPageOneTab] = React.useState<
@@ -147,8 +149,8 @@ function ProspectusReviewPageInner() {
   }, [dirty]);
 
   const status = data?.review.status as ProspectusReviewStatus | undefined;
-  const notePublished = note?.status === "PUBLISHED" || note?.publishedAt != null;
-  const locked = notePublished || status === "PUBLISHED";
+  const notePublished = note?.status === "PUBLISHED";
+  const locked = notePublished;
 
   const updateDraft = (
     updater: (prev: ProspectusReviewStoredContent) => ProspectusReviewStoredContent
@@ -223,8 +225,9 @@ function ProspectusReviewPageInner() {
   };
 
   const onViewSavedProspectus = () => {
-    setLivePreviewHtml(null);
-    setPreviewOpen(true);
+    void openProspectusPdf.mutateAsync(noteId).catch((e) => {
+      toast.error(e instanceof Error ? e.message : "Prospectus PDF is not available");
+    });
   };
 
   const openApproveDialog = () => {
@@ -555,7 +558,11 @@ function ProspectusReviewPageInner() {
             </div>
           ) : null}
           {actions.viewProspectus ? (
-            <Button variant="secondary" onClick={onViewSavedProspectus}>
+            <Button
+              variant="secondary"
+              onClick={onViewSavedProspectus}
+              disabled={openProspectusPdf.isPending}
+            >
               View Prospectus
             </Button>
           ) : null}

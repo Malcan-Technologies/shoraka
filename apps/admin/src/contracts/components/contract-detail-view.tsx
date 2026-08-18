@@ -23,6 +23,7 @@ import {
   AdminDetailTabPanel,
   AdminDetailTabs,
   AdminEntityHeader,
+  AdminEntitySummaryCard,
   AdminMetricProgress,
   AdminNextActionBanner,
   useAdminDetailTabState,
@@ -54,12 +55,13 @@ import {
   resolveContractFacilityMetrics,
 } from "@/contracts/utils/contract-facility-metrics";
 import {
+  getContractHeaderEndDate,
   getContractHeaderMetrics,
   resolveContractHeaderDescription,
 } from "@/contracts/utils/contract-header-metrics";
 import {
+  CONTRACT_REFERENCE_TAB_TOKEN,
   isContractDetailTabId,
-  resolveContractActivityTabToken,
   resolveContractApplicationsTabToken,
   resolveContractDetailNextAction,
   resolveContractDocumentsTabToken,
@@ -68,7 +70,9 @@ import {
   resolveContractOverviewTabToken,
   type ContractDetailTabId,
 } from "@/contracts/utils/contract-detail-next-action";
-import { adminTabStatusLabel } from "@/lib/admin-status-token";
+import { adminTabStatusLabel, getAdminStatusToken } from "@/lib/admin-status-token";
+import { orgHref } from "@/lib/admin-directory-hrefs";
+import { usePermissions } from "@/hooks/use-permissions";
 
 const CONTRACT_CURATED_KEYS = [
   "title",
@@ -140,22 +144,38 @@ function ContractEmptyState({ title, description }: { title: string; description
 function ContractDetailSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Skeleton className="h-10 w-10 rounded-xl" />
-        <div className="space-y-2">
-          <Skeleton className="h-6 w-64" />
-          <Skeleton className="h-4 w-40" />
+      <Skeleton className="h-8 w-24" />
+      <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+        <div className="p-6 md:p-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-3">
+              <Skeleton className="h-12 w-12 rounded-xl" />
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-7 w-72 max-w-full" />
+                <Skeleton className="h-4 w-48" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:flex">
+              <Skeleton className="h-20 w-full rounded-xl sm:w-48" />
+              <Skeleton className="h-20 w-full rounded-xl sm:w-48" />
+            </div>
+          </div>
+          <Skeleton className="mt-6 h-28 w-full rounded-xl" />
+        </div>
+        <div className="border-t px-6 py-4 md:px-8">
+          <Skeleton className="h-12 w-full" />
         </div>
       </div>
-      <Skeleton className="h-16 w-full rounded-2xl" />
       <Skeleton className="h-10 w-full rounded-xl" />
-      <Skeleton className="h-56 w-full rounded-2xl" />
       <Skeleton className="h-56 w-full rounded-2xl" />
     </div>
   );
 }
 
 export function ContractDetailView({ contractId }: { contractId: string }) {
+  const { can } = usePermissions();
+  const canViewOrganizations = can("organizations.view");
   const { data, isLoading, error } = useContractDetail(contractId);
   const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
     useAdminS3DocumentViewDownload();
@@ -178,7 +198,6 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
     const notesToken = resolveContractNotesTabToken(data.notes);
     const document = data.contractDetails?.document as { s3_key?: string } | undefined;
     const documentsToken = resolveContractDocumentsTabToken(Boolean(document?.s3_key));
-    const activityToken = resolveContractActivityTabToken(data.activity, data.status);
     return [
       {
         id: "overview",
@@ -213,8 +232,7 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
       {
         id: "activity",
         label: "Activity",
-        statusToken: activityToken,
-        statusLabel: adminTabStatusLabel(activityToken),
+        statusToken: CONTRACT_REFERENCE_TAB_TOKEN,
       },
     ];
   }, [data]);
@@ -224,7 +242,7 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
   if (error) {
     return (
       <div className="rounded-2xl border bg-card p-6 text-ui text-destructive">
-        {error instanceof Error ? error.message : "Failed to load contract details"}
+        {error instanceof Error ? error.message : "Failed to load facility details"}
       </div>
     );
   }
@@ -269,23 +287,26 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
   return (
     <div className="space-y-6">
       <AdminEntityHeader
+        variant="hero"
+        tone={getAdminStatusToken(data.status)}
         backHref="/contracts"
-        backLabel="Contracts"
-        eyebrow="Contract detail"
-        title={data.title?.trim() || "Untitled contract"}
+        backLabel="Facilities"
+        eyebrow="Facility detail"
+        title={data.title?.trim() || "Untitled facility"}
         subtitle={
           <>
             <span className="font-mono">{contractReference}</span>
             {" · "}
-            {data.issuerOrganizationId ? (
+            {data.issuerOrganizationId && canViewOrganizations ? (
               <Link
-                href={`/organizations/issuer/${encodeURIComponent(data.issuerOrganizationId)}`}
+                href={orgHref("issuer", data.issuerOrganizationId)}
                 className="underline-offset-4 hover:text-foreground hover:underline"
               >
                 {data.issuerOrganizationName ?? "Unnamed organization"}
               </Link>
             ) : (
-              (data.issuerOrganizationName ?? "Unknown issuer")
+              (data.issuerOrganizationName ??
+                (data.issuerOrganizationId ? "Unnamed organization" : "Unknown issuer"))
             )}
             {headerDescription ? (
               <>
@@ -302,16 +323,38 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
             {/* The reference falls back to the contract number, so only chip it when it adds something. */}
             {data.contractNumber && data.contractNumber !== contractReference ? (
               <StatusBadge
-                label={`Contract no. ${data.contractNumber}`}
+                label={`Facility no. ${data.contractNumber}`}
                 status="neutral"
                 showDot={false}
               />
             ) : null}
           </>
         }
+        summaryCards={[
+          <AdminEntitySummaryCard
+            key="end-date"
+            label="End date"
+            value={getContractHeaderEndDate(contractDetails)}
+          />,
+          <AdminEntitySummaryCard
+            key="notes"
+            label="Notes"
+            value={
+              <button
+                type="button"
+                className="appearance-none bg-transparent p-0 text-inherit underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                onClick={() => setActiveTab("notes")}
+                aria-label={formatContractFacilityNoteCount(data.notes.length)}
+              >
+                {data.notes.length}
+              </button>
+            }
+          />,
+        ]}
         metrics={headerMetrics}
         visualization={
           <AdminMetricProgress
+            variant="hero"
             percent={facility.utilizationPercent ?? 0}
             leftLabel="Utilized"
             leftValue={formatCurrency(facility.utilized)}
@@ -335,7 +378,6 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
               facility.utilizationPercent,
               facility.approved > 0
             )}
-            footer={formatContractFacilityNoteCount(data.notes.length)}
           />
         }
       />
@@ -392,14 +434,14 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
           {hasExtraFields ? (
             <AdminCollapsibleCard
               title="Additional fields"
-              description="Remaining fields exactly as submitted on the contract and customer records."
+              description="Remaining fields exactly as submitted on the facility and customer records."
               icon={QueueListIcon}
             >
               <div className="grid gap-x-8 sm:grid-cols-2">
                 {contractExtraKeys.length > 0 ? (
                   <div>
                     <p className="text-meta font-medium uppercase tracking-wider text-muted-foreground">
-                      Contract
+                      Facility
                     </p>
                     <ContractDynamicRows
                       data={contractDetails}
@@ -581,7 +623,7 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
               description={
                 data.notes.length === 0
                   ? "No notes have used this line of credit"
-                  : `${data.notes.length} ${data.notes.length === 1 ? "note" : "notes"} issued from invoices under this contract`
+                  : `${data.notes.length} ${data.notes.length === 1 ? "note" : "notes"} issued from invoices under this facility`
               }
             />
             <CardContent className={data.notes.length === 0 ? undefined : "p-0"}>
@@ -595,7 +637,7 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
             <AdminDetailCardHeader
               icon={PaperClipIcon}
               title="Documents"
-              description="Evidence uploaded with the contract submission."
+              description="Evidence uploaded with the facility submission."
             />
             <CardContent className="pt-0">
               {contractDocument?.s3_key ? (

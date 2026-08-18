@@ -148,6 +148,17 @@ const directorKycSchema = z.object({
   directorCount: z.number().optional(),
 });
 
+const jsonScalar = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+
+const organizationProfileUpdatedSchema = z.object({
+  ...snapshotFields,
+  changedFields: z.array(z.string()),
+  before: z.record(jsonScalar),
+  after: z.record(jsonScalar),
+  bankAccountDetailsChanged: z.boolean(),
+  corporateOnboardingChangedFields: z.array(z.string()).optional(),
+});
+
 const metadataByEvent = {
   ONBOARDING_STARTED: startedSchema,
   ONBOARDING_RESUMED: resumedSchema,
@@ -166,6 +177,7 @@ const metadataByEvent = {
   CORPORATE_ENTITIES_UPDATED: corporateEntitiesSchema,
   DIRECTOR_ONBOARDING_INVITATION_SENT: directorInvitationSchema,
   DIRECTOR_KYC_STATUS_UPDATED: directorKycSchema,
+  ORGANIZATION_PROFILE_UPDATED_BY_ADMIN: organizationProfileUpdatedSchema,
 } as const;
 
 export function parseOnboardingAuditMetadata(

@@ -60,7 +60,7 @@ export function ApplicationSlimCard({
 }) {
   const { cardStatus } = application;
   const isDraft = application.status === "draft";
-  const hasContract = application.type === "Contract financing";
+  const hasContract = application.type === "Facility financing";
   const displayId = formatApplicationDisplayId(application.id, application.displayReference);
   const statusToken = badgeKeyToStatusToken(cardStatus.badgeKey);
   const needsAttention = isIssuerApplicationActionable(application);

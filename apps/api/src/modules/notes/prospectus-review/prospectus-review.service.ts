@@ -183,8 +183,8 @@ function mapReview(row: NoteProspectusReview) {
   };
 }
 
-function isNotePublished(note: { status: NoteStatus; published_at: Date | null }) {
-  return note.status === NoteStatus.PUBLISHED || note.published_at != null;
+function isNoteListed(note: { status: NoteStatus }) {
+  return note.status === NoteStatus.PUBLISHED;
 }
 
 async function clearApprovalEligibility(
@@ -209,6 +209,73 @@ async function clearApprovalEligibility(
       option_catalogue_version: catalogueVersion(),
     },
   });
+}
+
+/**
+ * Unpublish (zero investors) reopens the prospectus as Draft with fields preserved.
+ * Does not bump content_version — the next Approve creates the new publication version.
+ * Prior `note_prospectus_publications` rows are kept for audit; live `published_at` is cleared.
+ */
+async function reopenProspectusDraftAfterUnpublish(
+  tx: Prisma.TransactionClient,
+  noteId: string,
+  actor: ActorContext
+) {
+  const review = await tx.noteProspectusReview.findUnique({ where: { note_id: noteId } });
+  if (!review) return null;
+  if (
+    review.status !== ProspectusReviewStatus.APPROVED &&
+    review.status !== ProspectusReviewStatus.PUBLISHED
+  ) {
+    return review;
+  }
+
+  const draftContent = review.draft_content
+    ? asStoredContent(review.draft_content)
+    : review.approved_content
+      ? asStoredContent(review.approved_content)
+      : null;
+  const row = await tx.noteProspectusReview.update({
+    where: { note_id: noteId },
+    data: {
+      status: ProspectusReviewStatus.DRAFT,
+      ...(draftContent
+        ? { draft_content: draftContent as unknown as Prisma.InputJsonValue }
+        : {}),
+      approved_content: Prisma.DbNull,
+      approved_snapshot: Prisma.DbNull,
+      approved_publication_id: null,
+      render_fingerprint: null,
+      approved_by_user_id: null,
+      approved_at: null,
+      updated_by_user_id: actor.userId,
+    },
+  });
+  await tx.noteProspectusPublication.updateMany({
+    where: { note_id: noteId, published_at: { not: null } },
+    data: { published_at: null },
+  });
+  await tx.note.updateMany({
+    where: { id: noteId, status: { not: NoteStatus.PUBLISHED } },
+    data: { published_at: null },
+  });
+  await writeNoteAuditFromActor(
+    actor,
+    {
+      eventType: "NOTE_PROSPECTUS_INVALIDATED",
+      noteId,
+      targetType: NOTE_AUDIT_TARGET_TYPE.REVIEW,
+      targetId: row.id,
+      metadata: {
+        reviewId: row.id,
+        previousStatus: review.status,
+        newStatus: row.status,
+        reasonCode: NOTE_PROSPECTUS_INVALIDATION_REASON.UNPUBLISH,
+      },
+    },
+    tx
+  );
+  return row;
 }
 
 export class ProspectusReviewService {
@@ -296,6 +363,15 @@ export class ProspectusReviewService {
     };
   }
 
+  /** Called from Note unpublish: reopen fields for edit and require a new approval. */
+  async invalidateAfterUnpublish(
+    tx: Prisma.TransactionClient,
+    noteId: string,
+    actor: ActorContext
+  ) {
+    await reopenProspectusDraftAfterUnpublish(tx, noteId, actor);
+  }
+
   async getOrCreateReview(noteId: string, actor: ActorContext) {
     const note = await prisma.note.findUnique({
       where: { id: noteId },
@@ -351,7 +427,16 @@ export class ProspectusReviewService {
         );
         return created;
       });
-    } else if (
+    }
+
+    if (!isNoteListed(note) && review.status === ProspectusReviewStatus.PUBLISHED) {
+      const healed = await prisma.$transaction(async (tx) =>
+        reopenProspectusDraftAfterUnpublish(tx, noteId, actor)
+      );
+      if (healed) review = healed;
+    }
+
+    if (
       review.status !== ProspectusReviewStatus.APPROVED &&
       review.status !== ProspectusReviewStatus.PUBLISHED
     ) {
@@ -379,7 +464,7 @@ export class ProspectusReviewService {
     // Source drift while APPROVED → invalidate to Draft.
     if (
       review.status === ProspectusReviewStatus.APPROVED &&
-      !isNotePublished(note) &&
+      !isNoteListed(note) &&
       review.approved_content &&
       review.approved_snapshot &&
       review.render_fingerprint
@@ -445,9 +530,7 @@ export class ProspectusReviewService {
     }
     const page2 = buildProspectusPageTwo(page2Input);
     const publishBlocked =
-      !isNotePublished(note) && workflow !== "APPROVED" && workflow !== "PUBLISHED"
-        ? PUBLISH_BLOCKED
-        : null;
+      !isNoteListed(note) && workflow !== "APPROVED" ? PUBLISH_BLOCKED : null;
 
     return {
       note: {
@@ -500,7 +583,7 @@ export class ProspectusReviewService {
       select: { status: true, published_at: true },
     });
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
-    if (isNotePublished(note)) {
+    if (isNoteListed(note)) {
       throw new AppError(
         409,
         "PROSPECTUS_PUBLISHED_LOCKED",
@@ -517,11 +600,12 @@ export class ProspectusReviewService {
     }
 
     if (current.status === ProspectusReviewStatus.PUBLISHED) {
-      throw new AppError(
-        409,
-        "PROSPECTUS_PUBLISHED_LOCKED",
-        "Published Prospectus cannot be edited."
-      );
+      await prisma.$transaction(async (tx) => {
+        await reopenProspectusDraftAfterUnpublish(tx, noteId, actor);
+      });
+      current = await prisma.noteProspectusReview.findUniqueOrThrow({
+        where: { note_id: noteId },
+      });
     }
 
     if (input.expectedUpdatedAt) {
@@ -611,7 +695,7 @@ export class ProspectusReviewService {
       select: { status: true, published_at: true },
     });
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
-    if (isNotePublished(note)) {
+    if (isNoteListed(note)) {
       throw new AppError(
         409,
         "PROSPECTUS_PUBLISHED_LOCKED",
@@ -622,15 +706,17 @@ export class ProspectusReviewService {
     let current = await prisma.noteProspectusReview.findUnique({ where: { note_id: noteId } });
     if (!current) throw new AppError(404, "PROSPECTUS_REVIEW_NOT_FOUND", "Prospectus review not found");
 
+    if (current.status === ProspectusReviewStatus.PUBLISHED) {
+      await prisma.$transaction(async (tx) => {
+        await reopenProspectusDraftAfterUnpublish(tx, noteId, actor);
+      });
+      current = await prisma.noteProspectusReview.findUniqueOrThrow({
+        where: { note_id: noteId },
+      });
+    }
+
     if (current.status === ProspectusReviewStatus.APPROVED) {
       throw new AppError(409, "PROSPECTUS_REVIEW_ALREADY_APPROVED", "Prospectus is already approved");
-    }
-    if (current.status === ProspectusReviewStatus.PUBLISHED) {
-      throw new AppError(
-        409,
-        "PROSPECTUS_PUBLISHED_LOCKED",
-        "Published Prospectus cannot be re-approved."
-      );
     }
 
     // Optional: save latest draft body before approve.

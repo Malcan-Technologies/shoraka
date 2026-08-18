@@ -344,6 +344,26 @@ export function formatOnboardingActivity(
         title: "Corporate Entities Updated",
         description: "Corporate entity records were updated.",
       };
+    case "ORGANIZATION_PROFILE_UPDATED_BY_ADMIN": {
+      const changed = Array.isArray(record.changedFields)
+        ? record.changedFields.filter((field): field is string => typeof field === "string")
+        : [];
+      return {
+        title: "Organization Profile Updated",
+        description:
+          audience === "admin"
+            ? withActor(
+                actorName,
+                changed.length > 0
+                  ? `{actorName} updated ${changed.join(", ")}.`
+                  : "{actorName} updated the organization profile.",
+                changed.length > 0
+                  ? `Updated ${changed.join(", ")}.`
+                  : "The organization profile was updated."
+              )
+            : "The organization profile was updated.",
+      };
+    }
     default:
       return {
         title: "Onboarding Update",
@@ -446,22 +466,22 @@ export function formatApplicationActivity(
       };
     case "CONTRACT_OFFER_SENT":
       return {
-        title: "Contract Offer Sent",
+        title: "Facility Offer Sent",
         description: contractNumber
           ? audience === "admin"
-            ? `A contract offer was sent for ${contractNumber}.`
-            : `A contract offer for ${contractNumber} is ready for your review.`
+            ? `A facility offer was sent for ${contractNumber}.`
+            : `A facility offer for ${contractNumber} is ready for your review.`
           : audience === "admin"
-            ? "A contract offer was sent."
-            : "A contract offer is ready for your review.",
+            ? "A facility offer was sent."
+            : "A facility offer is ready for your review.",
       };
     case "CONTRACT_OFFER_RETRACTED":
       return {
-        title: "Contract Offer Retracted",
+        title: "Facility Offer Retracted",
         description:
           audience === "admin"
-            ? "The contract offer was retracted."
-            : "The contract offer was withdrawn before it was accepted.",
+            ? "The facility offer was retracted."
+            : "The facility offer was withdrawn before it was accepted.",
       };
     case "CONTRACT_SIGNING_DEADLINE_EXTENDED":
       return {
@@ -470,56 +490,56 @@ export function formatApplicationActivity(
       };
     case "CONTRACT_OFFER_EXPIRED":
       return {
-        title: "Contract Offer Expired",
-        description: "The contract offer expired.",
+        title: "Facility Offer Expired",
+        description: "The facility offer expired.",
       };
     case "CONTRACT_ACCEPTANCE_SUBMITTED":
       return {
-        title: "Contract Acceptance Submitted",
+        title: "Facility Acceptance Submitted",
         description:
           audience === "admin"
-            ? "Contract acceptance was submitted."
-            : "You submitted your contract acceptance for review.",
+            ? "Facility acceptance was submitted."
+            : "You submitted your facility acceptance for review.",
       };
     case "CONTRACT_ACCEPTANCE_RESUBMITTED":
       return {
-        title: "Contract Acceptance Resubmitted",
+        title: "Facility Acceptance Resubmitted",
         description:
           audience === "admin"
-            ? "Contract acceptance was resubmitted."
-            : "You resubmitted your contract acceptance after requested changes.",
+            ? "Facility acceptance was resubmitted."
+            : "You resubmitted your facility acceptance after requested changes.",
       };
     case "CONTRACT_ACCEPTANCE_CHANGES_REQUESTED":
       return {
-        title: "Contract Acceptance Changes Requested",
+        title: "Facility Acceptance Changes Requested",
         description:
           audience === "admin"
-            ? "Changes were requested on contract acceptance."
-            : "Changes were requested on your contract acceptance.",
+            ? "Changes were requested on facility acceptance."
+            : "Changes were requested on your facility acceptance.",
       };
     case "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING":
       return {
-        title: "Contract Acceptance Approved for Signing",
+        title: "Facility Acceptance Approved for Signing",
         description:
           audience === "admin"
-            ? "Contract acceptance was approved for signing."
-            : "Your contract acceptance was approved. Signing can now be arranged.",
+            ? "Facility acceptance was approved for signing."
+            : "Your facility acceptance was approved. Signing can now be arranged.",
       };
     case "CONTRACT_OFFER_ACCEPTED":
       return {
-        title: "Contract Offer Accepted",
-        description: "The contract offer was accepted.",
+        title: "Facility Offer Accepted",
+        description: "The facility offer was accepted.",
       };
     case "CONTRACT_OFFER_REJECTED":
       return {
-        title: audience === "admin" ? "Contract Offer Rejected" : "Contract Offer Declined",
+        title: audience === "admin" ? "Facility Offer Rejected" : "Facility Offer Declined",
         description:
-          audience === "admin" ? "The contract offer was rejected." : "The contract offer was declined.",
+          audience === "admin" ? "The facility offer was rejected." : "The facility offer was declined.",
       };
     case "CONTRACT_WITHDRAWN":
       return {
-        title: "Contract Withdrawn",
-        description: "The contract was withdrawn.",
+        title: "Facility Withdrawn",
+        description: "The facility was withdrawn.",
       };
     case "INVOICE_OFFER_SENT":
       return {
@@ -978,6 +998,26 @@ export function formatNoteActivity(
       return {
         title: "Note Unpublished",
         description: audience === "issuer" ? "Your note is no longer listed." : "The note is no longer listed.",
+      };
+    case "NOTE_CAMPAIGN_PAUSED":
+      return {
+        title: "Campaign Paused",
+        description:
+          audience === "investor"
+            ? "The campaign was temporarily closed to new investment. Existing commitments are held."
+            : audience === "issuer"
+              ? "Your campaign was temporarily closed to new investment. Existing commitments are held."
+              : "The campaign was temporarily closed to new investment. Existing commitments are held.",
+      };
+    case "NOTE_CAMPAIGN_RESUMED":
+      return {
+        title: "Campaign Resumed",
+        description:
+          audience === "investor"
+            ? "The campaign is open for investment again."
+            : audience === "issuer"
+              ? "Your campaign is open for investment again."
+              : "The campaign is open for investment again.",
       };
     case "NOTE_FUNDING_CLOSED":
       return {

@@ -9,6 +9,7 @@ import {
   HomeIcon,
   DocumentTextIcon,
   UsersIcon,
+  UserGroupIcon,
   BuildingOffice2Icon,
   ArrowTrendingUpIcon,
   ClipboardDocumentListIcon,
@@ -217,7 +218,7 @@ const navLifecycleConfig = [
     icon: DocumentCheckIcon,
   },
   {
-    title: "Contracts",
+    title: "Facilities",
     url: "/contracts",
     icon: DocumentDuplicateIcon,
   },
@@ -287,10 +288,11 @@ const gatewayItems: Array<{
 ];
 
 const navDirectory = [
-  { title: "Users", url: "/users", icon: UsersIcon },
-  { title: "Organizations", url: "/organizations", icon: BuildingOffice2Icon },
-  { title: "Legal Documents", url: "/legal-documents", icon: ScaleIcon },
-  { title: "Legal Acceptances", url: "/legal-document-acceptances", icon: ClipboardDocumentCheckIcon },
+  { title: "User Accounts", url: "/accounts", icon: UsersIcon, access: "users" },
+  { title: "Issuers", url: "/issuers", icon: BuildingOffice2Icon, access: "organizations" },
+  { title: "Investors", url: "/investors", icon: UserGroupIcon, access: "organizations" },
+  { title: "Legal Documents", url: "/legal-documents", icon: ScaleIcon, access: "documents" },
+  { title: "Legal Acceptances", url: "/legal-document-acceptances", icon: ClipboardDocumentCheckIcon, access: "documents" },
 ] as const;
 
 const navSettings = [
@@ -505,7 +507,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return (
       (item.title === "Onboarding Approval" && canViewOnboarding) ||
       (item.title === "Applications" && canViewApplications) ||
-      (item.title === "Contracts" && canViewContracts) ||
+      (item.title === "Facilities" && canViewContracts) ||
       (item.title === "Notes" && canViewNotes) ||
       (item.title === "Investments" && canViewInvestments)
     );
@@ -576,7 +578,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   const canShow =
                     (item.title === "Onboarding Approval" && canViewOnboarding) ||
                     (item.title === "Applications" && canViewApplications) ||
-                    (item.title === "Contracts" && canViewContracts) ||
+                    (item.title === "Facilities" && canViewContracts) ||
                     (item.title === "Notes" && canViewNotes) ||
                     (item.title === "Investments" && canViewInvestments);
 
@@ -759,10 +761,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <SidebarMenu>
                 {navDirectory.map((item) => {
                   const canShow =
-                    (item.title === "Users" && canViewUsers) ||
-                    (item.title === "Organizations" && canViewOrganizations) ||
-                    (item.title === "Legal Documents" && canViewDocuments) ||
-                    (item.title === "Legal Acceptances" && canViewDocuments);
+                    (item.access === "users" && canViewUsers) ||
+                    (item.access === "organizations" && canViewOrganizations) ||
+                    (item.access === "documents" && canViewDocuments);
                   if (!canShow) return null;
                   const Icon = item.icon;
                   return (

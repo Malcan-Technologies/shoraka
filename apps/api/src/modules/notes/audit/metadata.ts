@@ -65,6 +65,7 @@ const prospectusInvalidatedSchema = z.object({
   reasonCode: z.enum([
     NOTE_PROSPECTUS_INVALIDATION_REASON.SOURCE_CHANGED,
     NOTE_PROSPECTUS_INVALIDATION_REASON.EDIT_AFTER_APPROVAL,
+    NOTE_PROSPECTUS_INVALIDATION_REASON.UNPUBLISH,
   ]),
 });
 
@@ -79,6 +80,13 @@ const publishedSchema = z.object({
 const unpublishedSchema = z.object({
   ...snapshotFields,
   ...statusAxes,
+});
+
+const campaignPausedSchema = z.object({
+  ...snapshotFields,
+  ...statusAxes,
+  previousIsFeatured: z.boolean().optional(),
+  newIsFeatured: z.boolean().optional(),
 });
 
 const investmentSchema = z.object({
@@ -204,6 +212,8 @@ const schemas: Record<NoteAuditEventType, z.ZodType> = {
   NOTE_PROSPECTUS_INVALIDATED: prospectusInvalidatedSchema,
   NOTE_PUBLISHED: publishedSchema,
   NOTE_UNPUBLISHED: unpublishedSchema,
+  NOTE_CAMPAIGN_PAUSED: campaignPausedSchema,
+  NOTE_CAMPAIGN_RESUMED: unpublishedSchema,
   INVESTMENT_COMMITTED: investmentSchema,
   NOTE_FUNDING_CLOSED: fundingSchema,
   NOTE_FUNDING_FAILED: fundingSchema,

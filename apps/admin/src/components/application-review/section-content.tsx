@@ -170,7 +170,7 @@ export interface SectionContentProps {
   invoiceRatioLimits?: { min: number; max: number };
   /** Platform finance setting for the maximum platform fee rate (%) allowed on invoice offers. */
   platformFeeRateCapPercent?: number | null;
-  /** Product-level default Facility Fee rate (%). Used only to prefill Contract Offer UI. */
+  /** Product-level default Facility Fee rate (%). Used only to prefill Facility Offer UI. */
   productDefaultFacilityFeeRatePercent?: number | null;
   /** Minimum months from today to maturity to enable Send Offer on invoice review. */
   minMonthsReviewToMaturityForOffer?: number | null;
@@ -432,7 +432,7 @@ export function SectionContent({
           isActionLocked={isActionLocked || isInheritedAcceptance}
           actionLockTooltip={
             isInheritedAcceptance
-              ? "Acceptance was completed when the linked contract was approved"
+              ? "Acceptance was completed when the linked facility was approved"
               : actionLockTooltip
           }
           viewDocumentPending={viewDocumentPending}

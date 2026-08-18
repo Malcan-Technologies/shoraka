@@ -157,7 +157,7 @@ export default function ApplicationsPage() {
     }
     if (financingFilter !== "all") {
       const match =
-        financingFilter === "contract" ? "Contract financing" : "Invoice financing";
+        financingFilter === "contract" ? "Facility financing" : "Invoice financing";
       list = list.filter((a) => a.type === match);
     }
     if (submittedFilter !== "all") {

@@ -23,17 +23,20 @@ export type InvestorProspectusPdf = {
   pdfSnapshotHash: string | null;
 };
 
-async function resolveReadyPublicationPdf(publication: {
-  id: string;
-  content_version: number;
-  published_at: Date | null;
-  pdf_generation_status: string | null;
-  pdf_storage_key: string | null;
-  pdf_sha256: string | null;
-  pdf_snapshot_hash: string | null;
-  note_id: string;
-}): Promise<InvestorProspectusPdf> {
-  if (!publication.published_at) {
+async function resolveReadyPublicationPdf(
+  publication: {
+    id: string;
+    content_version: number;
+    published_at: Date | null;
+    pdf_generation_status: string | null;
+    pdf_storage_key: string | null;
+    pdf_sha256: string | null;
+    pdf_snapshot_hash: string | null;
+    note_id: string;
+  },
+  options: { requirePublishedAt?: boolean } = {}
+): Promise<InvestorProspectusPdf> {
+  if (options.requirePublishedAt !== false && !publication.published_at) {
     throw new AppError(404, "PROSPECTUS_NOT_FOUND", "Published Prospectus not found");
   }
   if (
@@ -43,7 +46,7 @@ async function resolveReadyPublicationPdf(publication: {
     throw new AppError(
       404,
       "PROSPECTUS_PDF_UNAVAILABLE",
-      "Published Prospectus PDF is not available"
+      "Prospectus PDF is not available"
     );
   }
 
@@ -108,6 +111,33 @@ export async function getMarketplacePublishedProspectus(
   }
 
   return resolveReadyPublicationPdf(publication);
+}
+
+/** Admin: frozen approved PDF, including before the note is listed on the marketplace. */
+export async function getAdminApprovedProspectusPdf(noteId: string): Promise<InvestorProspectusPdf> {
+  const note = await prisma.note.findUnique({
+    where: { id: noteId },
+    select: {
+      prospectus_review: {
+        select: { approved_publication_id: true },
+      },
+    },
+  });
+  if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+
+  const publicationId = note.prospectus_review?.approved_publication_id;
+  if (!publicationId) {
+    throw new AppError(404, "PROSPECTUS_PDF_UNAVAILABLE", "Prospectus PDF is not available");
+  }
+
+  const publication = await prisma.noteProspectusPublication.findUnique({
+    where: { id: publicationId },
+  });
+  if (!publication) {
+    throw new AppError(404, "PROSPECTUS_PDF_UNAVAILABLE", "Prospectus PDF is not available");
+  }
+
+  return resolveReadyPublicationPdf(publication, { requirePublishedAt: false });
 }
 
 /**

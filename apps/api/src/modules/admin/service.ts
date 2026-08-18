@@ -67,6 +67,8 @@ import type {
   GetOnboardingApplicationsQuery,
   GetAdminApplicationsQuery,
   GetAdminContractsQuery,
+  GetOrganizationLinkedRecordsQuery,
+  UpdateAdminOrganizationProfileBody,
 } from "./schemas";
 import { RegTankRepository, OnboardingApplicationRecord } from "../regtank/repository";
 import { RegTankAPIClient } from "../regtank/api-client";
@@ -77,6 +79,8 @@ import {
   NotificationTypeIds,
 } from "../notification/registry";
 import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
+import { listOrganizationLinkedRecords } from "./organization-linked-records";
+import { updateAdminOrganizationProfile } from "./organization-admin-profile";
 import {
   assertAcceptanceDocumentChangeRequestAllowed,
   isAcceptanceDocumentItemId,
@@ -727,13 +731,13 @@ export class AdminService {
     application: { contract_id?: string | null; contract?: { status?: string | null } | null }
   ): void {
     if (!application.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract");
+      throw new AppError(400, "INVALID_STATE", "Application has no facility");
     }
     if (application.contract?.status === "APPROVED") {
       throw new AppError(
         400,
         "OFFER_FINALIZED",
-        "Contract offer was finalized by issuer and cannot be modified"
+        "Facility offer was finalized by issuer and cannot be modified"
       );
     }
   }
@@ -2685,6 +2689,7 @@ export class AdminService {
       firstName: string;
       lastName: string;
       email: string;
+      phone: string | null;
       role: string;
       createdAt: string;
     }[];
@@ -2701,57 +2706,6 @@ export class AdminService {
     onboardingApproved: boolean;
     amlApproved: boolean;
     regtankSessionStatus: string | null;
-    applications?: {
-      id: string;
-      status: string;
-      productVersion: number;
-      lastCompletedStep: number;
-      submittedAt: string | null;
-      createdAt: string;
-      updatedAt: string;
-      contractId: string | null;
-    }[];
-    linkedRecords: {
-      applications: {
-        id: string;
-        status: string;
-        productId: string | null;
-        submittedAt: string | null;
-        createdAt: string;
-        updatedAt: string;
-        contractId: string | null;
-        requestedAmount: number | null;
-      }[];
-      contracts: {
-        id: string;
-        title: string | null;
-        contractNumber: string | null;
-        status: string;
-        createdAt: string;
-        updatedAt: string;
-        contractValue: number | null;
-      }[];
-      notes: {
-        id: string;
-        noteReference: string;
-        title: string;
-        status: string;
-        targetAmount: number;
-        fundedAmount: number;
-        createdAt: string;
-        updatedAt: string;
-      }[];
-      investments: {
-        id: string;
-        status: string;
-        amount: number;
-        noteId: string;
-        noteReference: string;
-        noteTitle: string;
-        committedAt: string;
-        updatedAt: string;
-      }[];
-    };
     corporateOnboardingData?: {
       basicInfo?: {
         tinNumber?: string;
@@ -2855,77 +2809,18 @@ export class AdminService {
       latestOrganizationCtosSubjectReports = extras.latestOrganizationCtosSubjectReports;
     }
 
-    const [linkedApplications, linkedContracts, linkedNotes, linkedInvestments] = await Promise.all([
-      portal === "issuer"
-        ? prisma.application.findMany({
-            where: { issuer_organization_id: id },
-            orderBy: { created_at: "desc" },
-            select: {
-              id: true,
-              display_reference: true,
-              status: true,
-              financing_type: true,
-              submitted_at: true,
-              created_at: true,
-              updated_at: true,
-              contract_id: true,
-              invoices: { select: { details: true } },
-              contract: { select: { contract_details: true } },
-            },
-          })
-        : Promise.resolve([]),
-      portal === "issuer"
-        ? prisma.contract.findMany({
-            where: { issuer_organization_id: id },
-            orderBy: { created_at: "desc" },
-            select: {
-              id: true,
-              display_reference: true,
-              status: true,
-              created_at: true,
-              updated_at: true,
-              contract_details: true,
-            },
-          })
-        : Promise.resolve([]),
-      portal === "issuer"
-        ? prisma.note.findMany({
-            where: { issuer_organization_id: id },
-            orderBy: { created_at: "desc" },
-            select: {
-              id: true,
-              note_reference: true,
-              title: true,
-              status: true,
-              target_amount: true,
-              funded_amount: true,
-              created_at: true,
-              updated_at: true,
-            },
-          })
-        : Promise.resolve([]),
-      prisma.noteInvestment.findMany({
-        where:
-          portal === "investor"
-            ? { investor_organization_id: id }
-            : { note: { issuer_organization_id: id } },
-        orderBy: { committed_at: "desc" },
-        select: {
-          id: true,
-          status: true,
-          amount: true,
-          committed_at: true,
-          updated_at: true,
-          note: {
-            select: {
-              id: true,
-              note_reference: true,
-              title: true,
-            },
-          },
-        },
-      }),
-    ]);
+    const investedAmount =
+      portal === "investor"
+        ? (
+            await prisma.noteInvestment.aggregate({
+              where: {
+                investor_organization_id: id,
+                status: { in: ["COMMITTED", "CONFIRMED"] },
+              },
+              _sum: { amount: true },
+            })
+          )._sum.amount?.toNumber() ?? 0
+        : null;
 
     return {
       id: org.id,
@@ -3085,6 +2980,7 @@ export class AdminService {
         firstName: m.user.first_name,
         lastName: m.user.last_name,
         email: m.user.email,
+        phone: m.user.phone,
         role: m.role,
         createdAt: m.created_at.toISOString(),
       })),
@@ -3097,17 +2993,7 @@ export class AdminService {
         portal === "investor"
           ? (org.investor_balance?.available_amount?.toNumber() ?? 0)
           : null,
-      investedAmount:
-        portal === "investor"
-          ? linkedInvestments
-              .filter((inv) => inv.status === "COMMITTED" || inv.status === "CONFIRMED")
-              .reduce(
-                (sum, inv) =>
-                  sum +
-                  (typeof inv.amount === "number" ? inv.amount : inv.amount.toNumber?.() ?? 0),
-                0
-              )
-          : null,
+      investedAmount,
       // Build RegTank portal URL from latest onboarding record
       regtankRequestId: org.regtank_onboarding?.[0]?.request_id ?? null,
       codRequestId,
@@ -3127,87 +3013,30 @@ export class AdminService {
         }
         return `${baseUrl}/app/liveness/${requestId}?archived=false`;
       })(),
-      // Applications (issuer only)
-      applications: (portal === "issuer" && org.applications)
-        ? org.applications.map((app: { id: string; status: string; product_version: number; last_completed_step: number; submitted_at: Date | null; created_at: Date; updated_at: Date; contract_id: string | null }) => ({
-          id: app.id,
-          status: app.status,
-          productVersion: app.product_version,
-          lastCompletedStep: app.last_completed_step,
-          submittedAt: app.submitted_at?.toISOString() ?? null,
-          createdAt: app.created_at.toISOString(),
-          updatedAt: app.updated_at.toISOString(),
-          contractId: app.contract_id,
-        }))
-        : undefined,
-      linkedRecords: {
-        applications: linkedApplications.map((app) => {
-          const requestedAmount = app.invoices.length > 0
-            ? app.invoices.reduce((sum, invoice) => {
-                const details = isPlainObjectRecord(invoice.details) ? invoice.details : null;
-                const invoiceValue = Number(details?.value ?? 0);
-                const financingRatio = Number(details?.financing_ratio_percent ?? 80);
-                return sum + (invoiceValue * financingRatio) / 100;
-              }, 0)
-            : (() => {
-                const contractDetails = isPlainObjectRecord(app.contract?.contract_details)
-                  ? app.contract.contract_details
-                  : null;
-                const amount = Number(contractDetails?.value ?? contractDetails?.approved_facility ?? 0);
-                return Number.isFinite(amount) && amount > 0 ? amount : null;
-              })();
-          const financingType = isPlainObjectRecord(app.financing_type) ? app.financing_type : null;
-          return {
-            id: app.id,
-            displayReference: app.display_reference ?? null,
-            status: app.status,
-            productId:
-              typeof financingType?.product_id === "string" && financingType.product_id.trim().length > 0
-                ? financingType.product_id.trim()
-                : null,
-            submittedAt: app.submitted_at?.toISOString() ?? null,
-            createdAt: app.created_at.toISOString(),
-            updatedAt: app.updated_at.toISOString(),
-            contractId: app.contract_id,
-            requestedAmount: requestedAmount == null ? null : Number(requestedAmount),
-          };
-        }),
-        contracts: linkedContracts.map((contract) => {
-          const details = isPlainObjectRecord(contract.contract_details) ? contract.contract_details : null;
-          const value = Number(details?.value ?? details?.approved_facility ?? 0);
-          return {
-            id: contract.id,
-            displayReference: contract.display_reference ?? null,
-            title: typeof details?.title === "string" ? details.title : null,
-            contractNumber: typeof details?.number === "string" ? details.number : null,
-            status: contract.status,
-            createdAt: contract.created_at.toISOString(),
-            updatedAt: contract.updated_at.toISOString(),
-            contractValue: Number.isFinite(value) && value > 0 ? value : null,
-          };
-        }),
-        notes: linkedNotes.map((note) => ({
-          id: note.id,
-          noteReference: note.note_reference,
-          title: note.title,
-          status: note.status,
-          targetAmount: Number(note.target_amount),
-          fundedAmount: Number(note.funded_amount),
-          createdAt: note.created_at.toISOString(),
-          updatedAt: note.updated_at.toISOString(),
-        })),
-        investments: linkedInvestments.map((investment) => ({
-          id: investment.id,
-          status: investment.status,
-          amount: Number(investment.amount),
-          noteId: investment.note.id,
-          noteReference: investment.note.note_reference,
-          noteTitle: investment.note.title,
-          committedAt: investment.committed_at.toISOString(),
-          updatedAt: investment.updated_at.toISOString(),
-        })),
-      },
     };
+  }
+
+  async listOrganizationLinkedRecords(
+    portal: "issuer" | "investor",
+    organizationId: string,
+    query: GetOrganizationLinkedRecordsQuery
+  ) {
+    return listOrganizationLinkedRecords(portal, organizationId, query);
+  }
+
+  async updateOrganizationProfile(
+    req: Request,
+    portal: "issuer" | "investor",
+    organizationId: string,
+    input: UpdateAdminOrganizationProfileBody,
+    _adminUserId: string
+  ) {
+    return updateAdminOrganizationProfile({
+      portal,
+      organizationId,
+      input,
+      context: auditContextFromAdminRequest(req),
+    });
   }
 
   async notifyIssuerDirectorShareholderActionRequired(
@@ -6236,7 +6065,7 @@ export class AdminService {
     const repository = new AdminRepository();
     const contract = await repository.getContractById(id);
     if (!contract) {
-      throw new AppError(404, "NOT_FOUND", "Contract not found");
+      throw new AppError(404, "NOT_FOUND", "Facility not found");
     }
     return contract;
   }
@@ -6660,7 +6489,7 @@ export class AdminService {
       select: { contract_id: true },
     });
     if (!application?.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract");
+      throw new AppError(400, "INVALID_STATE", "Application has no facility");
     }
     const s3Key = await this.resolveSignedOfferLetterS3KeyFromEnvelope({
       applicationId,
@@ -8057,7 +7886,7 @@ export class AdminService {
     this.ensureContractOfferActionAllowed(application);
 
     if (!application.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract");
+      throw new AppError(400, "INVALID_STATE", "Application has no facility");
     }
 
     const contractId = application.contract_id;
@@ -8066,7 +7895,7 @@ export class AdminService {
       select: { customer_details: true, status: true },
     });
     if (!contract) {
-      throw new AppError(404, "NOT_FOUND", "Contract not found");
+      throw new AppError(404, "NOT_FOUND", "Facility not found");
     }
 
     const nonEditableStatuses = ["OFFER_SENT", "OFFER_EXPIRED", "APPROVED", "REJECTED", "WITHDRAWN"] as const;
@@ -8074,7 +7903,7 @@ export class AdminService {
       throw new AppError(
         400,
         "INVALID_STATE",
-        "Cannot update customer type after the contract offer was sent or finalized"
+        "Cannot update customer type after the facility offer was sent or finalized"
       );
     }
 
@@ -8139,11 +7968,11 @@ export class AdminService {
     this.ensureContractOfferActionAllowed(application);
 
     if (!application.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract to offer");
+      throw new AppError(400, "INVALID_STATE", "Application has no facility to offer");
     }
 
     const contractId = application.contract_id;
-    await this.assertNoActiveSigningPackage(applicationId, { contractId }, "sending a new contract offer");
+    await this.assertNoActiveSigningPackage(applicationId, { contractId }, "sending a new facility offer");
 
     const workflow = await this.loadApplicationProductWorkflow(application);
     const stampOfferAcceptance = workflowUsesOfferAcceptanceFlow(workflow);
@@ -8179,13 +8008,13 @@ export class AdminService {
       `;
       const lockedContract = lockedContracts[0];
       if (!lockedContract) {
-        throw new AppError(404, "NOT_FOUND", "Contract not found");
+        throw new AppError(404, "NOT_FOUND", "Facility not found");
       }
       if (lockedContract.status === "APPROVED") {
         throw new AppError(
           400,
           "OFFER_FINALIZED",
-          "Contract offer was finalized by issuer and cannot be modified"
+          "Facility offer was finalized by issuer and cannot be modified"
         );
       }
 
@@ -8203,7 +8032,7 @@ export class AdminService {
       const contractDetails = (lockedContract.contract_details as Record<string, unknown> | null) ?? null;
       const requestedFacility = resolveRequestedFacility(contractDetails);
       if (!Number.isFinite(requestedFacility) || requestedFacility <= 0) {
-        throw new AppError(400, "INVALID_STATE", "Contract requested facility is invalid");
+        throw new AppError(400, "INVALID_STATE", "Requested facility is invalid");
       }
       if (offeredFacility > requestedFacility) {
         throw new AppError(
@@ -8247,7 +8076,7 @@ export class AdminService {
         throw new AppError(
           409,
           "CONFLICT",
-          "Contract was modified concurrently. Refresh and retry sending offer."
+          "Facility was modified concurrently. Refresh and retry sending offer."
         );
       }
 
@@ -8330,7 +8159,7 @@ export class AdminService {
     } catch (notificationError) {
       logger.error(
         { error: notificationError, applicationId, contractId },
-        "Failed to send contract offer notification to issuer"
+        "Failed to send facility offer notification to issuer"
       );
     }
 
@@ -8350,7 +8179,7 @@ export class AdminService {
     this.ensureContractOfferActionAllowed(application);
 
     if (!application.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract to extend");
+      throw new AppError(400, "INVALID_STATE", "Application has no facility to extend");
     }
 
     const contractId = application.contract_id;
@@ -8372,7 +8201,7 @@ export class AdminService {
         select: { id: true, status: true, offer_details: true },
       });
       if (!locked) {
-        throw new AppError(404, "NOT_FOUND", "Contract not found");
+        throw new AppError(404, "NOT_FOUND", "Facility not found");
       }
       if (locked.status !== "OFFER_SENT" && locked.status !== "OFFER_EXPIRED") {
         throw new AppError(
@@ -9009,7 +8838,7 @@ export class AdminService {
         throw new AppError(
           400,
           "INVALID_ACTION",
-          "Contract and invoice approvals must be finalized by issuer offer response"
+          "Facility and invoice approvals must be finalized by issuer offer response"
         );
       }
     }
@@ -9223,7 +9052,7 @@ export class AdminService {
       await this.assertNoActiveSigningPackage(
         applicationId,
         { contractId: application.contract_id },
-        "retracting a contract offer"
+        "retracting a facility offer"
       );
     }
 
@@ -9320,7 +9149,7 @@ export class AdminService {
       } catch (notificationError) {
         logger.error(
           { error: notificationError, applicationId, section },
-          "Failed to send contract offer retracted/reset notification to issuer"
+          "Failed to send facility offer retracted/reset notification to issuer"
         );
       }
     }

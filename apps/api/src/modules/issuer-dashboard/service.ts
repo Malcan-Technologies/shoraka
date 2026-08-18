@@ -589,7 +589,7 @@ export class IssuerDashboardService {
       where: { id: contractId, issuer_organization_id: organizationId },
     });
     if (!contract) {
-      throw new AppError(404, "CONTRACT_NOT_FOUND", "Contract not found");
+      throw new AppError(404, "CONTRACT_NOT_FOUND", "Facility not found");
     }
     // Include contract-linked invoices so contract detail can still show the full invoice list.
     const full = await this.getDashboard(organizationId, userId, { includeContractLinkedInvoices: true });

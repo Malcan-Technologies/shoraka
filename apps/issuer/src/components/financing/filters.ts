@@ -55,9 +55,9 @@ export const DEFAULT_INVOICE_FINANCING_LIST_FILTERS: InvoiceFinancingListFilters
 
 export function contractPeriodPresetLabel(p: ContractPeriodPreset): string {
   if (p === "all") return "All periods";
-  if (p === "active") return "Active contracts";
+  if (p === "active") return "Active facilities";
   if (p === "starting_soon") return "Starting soon";
-  return "Expired contracts";
+  return "Expired facilities";
 }
 
 export function invoiceSubmissionPresetLabel(p: InvoiceSubmissionPreset): string {

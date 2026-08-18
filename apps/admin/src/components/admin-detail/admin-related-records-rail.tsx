@@ -20,7 +20,7 @@ export function AdminRelatedRecordsRail({
   return (
     <div
       className={cn(
-        "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,360px)]",
+        "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(380px,440px)]",
         className
       )}
     >

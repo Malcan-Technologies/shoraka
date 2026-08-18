@@ -319,7 +319,7 @@ export function useWithdrawContract() {
     }) => {
       const response = await apiClient.withdrawContract(contractId);
       if (!response.success) {
-        throw new Error(response.error.message ?? "Failed to withdraw contract");
+        throw new Error(response.error.message ?? "Failed to withdraw facility");
       }
       return { data: response.data, applicationId, organizationId };
     },
@@ -334,7 +334,7 @@ export function useWithdrawContract() {
       queryClient.invalidateQueries({ queryKey: ["issuer-dashboard-contract"] });
     },
     onError: (error: Error) => {
-      toast.error("Failed to withdraw contract", {
+      toast.error("Failed to withdraw facility", {
         description: error.message,
       });
     },

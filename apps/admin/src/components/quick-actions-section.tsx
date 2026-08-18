@@ -183,7 +183,7 @@ export function QuickActionsSection({ loading = false }: QuickActionsSectionProp
       list.push({
         id: "applications",
         title: "Application Actions",
-        description: "Review applications, send offers, and process accepted contracts",
+        description: "Review applications, send offers, and process accepted facilities",
         count: applicationActionCount,
         countLabel: "actions",
         href: applicationActionHref,

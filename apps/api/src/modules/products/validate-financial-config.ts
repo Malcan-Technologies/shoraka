@@ -27,7 +27,7 @@ function stepIdStartsWith(step: unknown, prefix: string): boolean {
 }
 
 /**
- * Mandatory step set: Financing Structure, Contract Details, Invoice Details.
+ * Mandatory step set: Financing Structure, Facility Details, Invoice Details.
  * Only applies when at least one of these steps is in the workflow.
  * When applicable: all three must be selected and in order.
  */
@@ -51,14 +51,14 @@ function validateMandatoryWorkflowStepSet(workflow: unknown[]): void {
     throw new AppError(
       400,
       "VALIDATION_ERROR",
-      "Financing Structure, Contract Details, and Invoice Details must all be selected and appear in the correct order."
+      "Financing Structure, Facility Details, and Invoice Details must all be selected and appear in the correct order."
     );
   }
   if (fsIndex >= cdIndex || cdIndex >= idIndex) {
     throw new AppError(
       400,
       "VALIDATION_ERROR",
-      "Financing Structure, Contract Details, and Invoice Details must all be selected and appear in the correct order."
+      "Financing Structure, Facility Details, and Invoice Details must all be selected and appear in the correct order."
     );
   }
 }

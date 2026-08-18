@@ -219,6 +219,8 @@ export interface NoteListItem extends NoteMoneySummary {
   issuerIndustry: string | null;
   sourceApplicationId: string;
   sourceContractId: string | null;
+  /** Canonical facility reference (`CON-…`) when the note is under a master facility. */
+  sourceContractDisplayReference: string | null;
   sourceInvoiceId: string | null;
   issuerOrganizationId: string;
   issuerName: string | null;
@@ -928,6 +930,7 @@ export interface EligibleNoteInvoice {
   displayReference: string | null;
   applicationId: string;
   contractId: string | null;
+  contractDisplayReference: string | null;
   issuerOrganizationId: string;
   issuerName: string | null;
   paymasterName: string | null;

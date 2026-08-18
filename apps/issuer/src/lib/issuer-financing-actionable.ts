@@ -122,7 +122,7 @@ export function buildIssuerFinancingPendingAction(input: {
   if (total === 0) return null;
 
   const parts: string[] = [];
-  if (contracts > 0) parts.push(`${contracts} contract${contracts === 1 ? "" : "s"}`);
+  if (contracts > 0) parts.push(`${contracts} ${contracts === 1 ? "facility" : "facilities"}`);
   if (invoices > 0) parts.push(`${invoices} invoice${invoices === 1 ? "" : "s"}`);
   if (notes > 0) parts.push(`${notes} note${notes === 1 ? "" : "s"}`);
 

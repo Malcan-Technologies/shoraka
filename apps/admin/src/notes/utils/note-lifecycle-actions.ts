@@ -1,7 +1,35 @@
 import type { NoteDetail, WithdrawalInstruction } from "@cashsouk/types";
-import { isNoteLifecycleVisuallyComplete } from "@/notes/utils/settlement-trustee-workflow";
+import {
+  isNoteLifecycleVisuallyComplete,
+  isSettlementWrappingUp,
+} from "@/notes/utils/settlement-trustee-workflow";
 
-export type NoteLifecycleAction = "publish" | "unpublish" | "closeFunding" | "failFunding";
+export type NoteLifecycleStageId =
+  | "DRAFT"
+  | "PUBLISHED"
+  | "FUNDED"
+  | "DISBURSEMENT"
+  | "ACTIVE"
+  | "SETTLEMENT"
+  | "REPAID";
+
+export const NOTE_LIFECYCLE_STAGES: { id: NoteLifecycleStageId; label: string }[] = [
+  { id: "DRAFT", label: "Draft" },
+  { id: "PUBLISHED", label: "Published" },
+  { id: "FUNDED", label: "Funded" },
+  { id: "DISBURSEMENT", label: "Disbursement" },
+  { id: "ACTIVE", label: "Active" },
+  { id: "SETTLEMENT", label: "Settlement" },
+  { id: "REPAID", label: "Complete" },
+];
+
+export type NoteLifecycleAction =
+  | "publish"
+  | "unpublish"
+  | "pauseListing"
+  | "resumeListing"
+  | "closeFunding"
+  | "failFunding";
 
 export type NoteLifecycleActionConfig = {
   key: NoteLifecycleAction;
@@ -16,6 +44,8 @@ export type NoteLifecycleActionPlan = {
   contextHelper: string | null;
   meetsMinimumFunding: boolean;
   isFundingOpen: boolean;
+  isListingLive: boolean;
+  isListingPaused: boolean;
 };
 
 export type NoteLifecycleTerminalFailure = {
@@ -37,9 +67,54 @@ export function isDisbursementComplete(withdrawal: WithdrawalInstruction | null)
   return withdrawal?.status === "COMPLETED";
 }
 
-/** Index into the six lifecycle stages (Draft → Repaid). */
+function getSettlementAmount(note: NoteDetail): number {
+  return note.settlementAmount ?? note.invoiceAmount ?? note.requestedAmount ?? 0;
+}
+
+function settlementReceiptThresholdMet(note: NoteDetail): boolean {
+  const settlementAmount = getSettlementAmount(note);
+  if (settlementAmount <= 0.005) return false;
+  const payments = note.payments ?? [];
+  if (payments.some((payment) => payment.status === "PENDING")) return false;
+  const eligibleReceiptTotal = payments
+    .filter((payment) =>
+      ["RECEIVED", "RECONCILED", "PARTIAL", "SETTLED"].includes(payment.status)
+    )
+    .reduce((sum, payment) => sum + payment.receiptAmount, 0);
+  const settledReceiptTotal = payments
+    .filter((payment) => payment.status === "SETTLED")
+    .reduce((sum, payment) => sum + payment.receiptAmount, 0);
+  return (
+    eligibleReceiptTotal + 0.005 >= settlementAmount ||
+    settledReceiptTotal + 0.005 >= settlementAmount
+  );
+}
+
+function hasActiveSettlementWork(note: NoteDetail): boolean {
+  return (note.settlements ?? []).some(
+    (settlement) =>
+      settlement.status === "PREVIEW" ||
+      settlement.status === "APPROVED" ||
+      settlement.status === "POSTED"
+  );
+}
+
+/** True while settlement is the current lifecycle stage (Active → Complete). */
+export function isNoteSettlementStageCurrent(note: NoteDetail): boolean {
+  if (isNoteLifecycleVisuallyComplete(note)) return false;
+  return (
+    hasActiveSettlementWork(note) ||
+    isSettlementWrappingUp(note) ||
+    settlementReceiptThresholdMet(note)
+  );
+}
+
+/** Index into the seven lifecycle stages (Draft → Complete). */
 export function getNoteLifecycleStageIndex(note: NoteDetail): number {
   if (isNoteLifecycleVisuallyComplete(note)) {
+    return 6;
+  }
+  if (isNoteSettlementStageCurrent(note)) {
     return 5;
   }
   const servicingActive =
@@ -79,7 +154,7 @@ function validTimestamp(value: string | null | undefined): string | null {
 /** When each lifecycle milestone was reached. Null until that stage is completed. */
 export function getNoteLifecycleStageCompletedAt(
   note: NoteDetail,
-  stageId: "DRAFT" | "PUBLISHED" | "FUNDED" | "DISBURSEMENT" | "ACTIVE" | "REPAID"
+  stageId: NoteLifecycleStageId
 ): string | null {
   switch (stageId) {
     case "DRAFT":
@@ -99,6 +174,15 @@ export function getNoteLifecycleStageCompletedAt(
       return validTimestamp(findIssuerDisbursementWithdrawal(note)?.completedAt);
     case "ACTIVE":
       return validTimestamp(note.activatedAt) ?? firstMatchingEventAt(note, ["ACTIVATE", "NOTE_ACTIVATED"]);
+    case "SETTLEMENT": {
+      const postedAt = (note.settlements ?? [])
+        .map((settlement) =>
+          settlement.status === "POSTED" ? validTimestamp(settlement.postedAt) : null
+        )
+        .filter((value): value is string => value != null)
+        .sort()[0];
+      return postedAt ?? null;
+    }
     case "REPAID":
       return validTimestamp(note.repaidAt);
   }
@@ -128,34 +212,66 @@ export function getNoteLifecycleTerminalFailure(
       label: "Defaulted",
       description:
         "Servicing has reached default. Settle outstanding obligations via the servicing panel.",
-      stageIndex: 4,
+      stageIndex: isNoteSettlementStageCurrent(note) ? 5 : 4,
     };
   }
   return null;
 }
 
+/** True while the note is live on the investor marketplace. */
+export function isNoteMarketplaceListingLive(note: NoteDetail): boolean {
+  return (
+    note.status === "PUBLISHED" &&
+    note.listingStatus === "PUBLISHED" &&
+    note.fundingStatus === "OPEN"
+  );
+}
+
+/** Matches the API: only published listings that are still open for funding can be featured. */
+export function isNoteFeatureEligible(note: NoteDetail): boolean {
+  return isNoteMarketplaceListingLive(note);
+}
+
 export function buildNoteLifecycleActionPlan(note: NoteDetail): NoteLifecycleActionPlan {
   const publishableListingStatuses = ["NOT_LISTED", "DRAFT", "UNPUBLISHED"];
-  const prospectusApproved =
-    note.prospectus?.status === "APPROVED" || note.prospectus?.status === "PUBLISHED";
+  const prospectusApproved = note.prospectus?.status === "APPROVED";
   const baseCanPublish =
     note.status === "DRAFT" &&
     note.fundingStatus === "NOT_OPEN" &&
     publishableListingStatuses.includes(note.listingStatus);
   const canPublish = baseCanPublish && prospectusApproved;
   const isFundingOpen = note.status === "PUBLISHED" && note.fundingStatus === "OPEN";
+  const isListingLive = isNoteMarketplaceListingLive(note);
+  const isListingPaused = isFundingOpen && note.listingStatus === "UNPUBLISHED";
+  const hasCommitments = note.investments.length > 0;
   const meetsMinimumFunding = note.fundingPercent + 0.005 >= note.minimumFundingPercent;
-  const canUnpublish =
-    note.status === "PUBLISHED" &&
-    note.listingStatus === "PUBLISHED" &&
-    note.fundingStatus === "OPEN" &&
-    note.investments.length === 0;
+  const canUnpublish = isListingLive && !hasCommitments;
+  const canPauseListing = isListingLive && hasCommitments;
+  const canResumeListing = isListingPaused;
   const canCloseFunding = isFundingOpen && meetsMinimumFunding;
   const canFailFunding = isFundingOpen && !meetsMinimumFunding;
 
   let primary: NoteLifecycleActionConfig | null = null;
   const secondary: NoteLifecycleActionConfig[] = [];
   let contextHelper: string | null = null;
+
+  const pushPauseOrResume = () => {
+    if (canPauseListing) {
+      secondary.push({
+        key: "pauseListing",
+        label: "Pause campaign",
+        variant: "outline",
+        helper: "Hides the listing from investors. Existing commitments are held; funds are not returned.",
+      });
+    }
+    if (canResumeListing) {
+      secondary.push({
+        key: "resumeListing",
+        label: "Resume campaign",
+        variant: "outline",
+      });
+    }
+  };
 
   // Draft prospectus: next action lives on NoteProspectusStatusCard (not here).
   if (canPublish) {
@@ -175,14 +291,26 @@ export function buildNoteLifecycleActionPlan(note: NoteDetail): NoteLifecycleAct
     if (canUnpublish) {
       secondary.push({ key: "unpublish", label: "Unpublish", variant: "outline" });
     }
+    pushPauseOrResume();
   } else if (note.status === "ACTIVE" || note.servicingStatus !== "NOT_STARTED") {
     contextHelper = "Servicing is active. Manage receipts and settlement in the Servicing tab.";
   } else if (note.status === "PUBLISHED" || note.status === "FUNDING") {
-    contextHelper = isFundingOpen
-      ? canFailFunding
-        ? `Awaiting investor commitments. Minimum ${note.minimumFundingPercent}% not yet met (currently ${note.fundingPercent.toFixed(1)}%).`
-        : "Awaiting investor commitments."
-      : "Awaiting funding to open.";
+    if (isListingPaused) {
+      contextHelper =
+        "Campaign is paused. Existing commitments are held and funds have not been returned.";
+      primary = {
+        key: "resumeListing",
+        label: "Resume campaign",
+        variant: "default",
+        helper: "Republish the listing so investors can commit again. Existing commitments stay in place.",
+      };
+    } else {
+      contextHelper = isFundingOpen
+        ? canFailFunding
+          ? `Awaiting investor commitments. Minimum ${note.minimumFundingPercent}% not yet met (currently ${note.fundingPercent.toFixed(1)}%).`
+          : "Awaiting investor commitments."
+        : "Awaiting funding to open.";
+    }
     if (canFailFunding) {
       secondary.push({
         key: "failFunding",
@@ -193,9 +321,25 @@ export function buildNoteLifecycleActionPlan(note: NoteDetail): NoteLifecycleAct
     if (canUnpublish) {
       secondary.push({ key: "unpublish", label: "Unpublish", variant: "outline" });
     }
+    if (canPauseListing) {
+      secondary.push({
+        key: "pauseListing",
+        label: "Pause campaign",
+        variant: "outline",
+        helper: "Hides the listing from investors. Existing commitments are held; funds are not returned.",
+      });
+    }
   }
 
-  return { primary, secondary, contextHelper, meetsMinimumFunding, isFundingOpen };
+  return {
+    primary,
+    secondary,
+    contextHelper,
+    meetsMinimumFunding,
+    isFundingOpen,
+    isListingLive,
+    isListingPaused,
+  };
 }
 
 /**
@@ -204,7 +348,7 @@ export function buildNoteLifecycleActionPlan(note: NoteDetail): NoteLifecycleAct
  */
 const LIFECYCLE_ADMIN_ACTIONS: readonly NoteLifecycleAction[] = ["publish", "closeFunding"];
 
-/** True when Overview should highlight Lifecycle for a primary admin action. */
+/** True when Campaign should highlight for a primary admin action. */
 export function hasNoteLifecycleAdminAction(note: NoteDetail): boolean {
   if (isNoteLifecycleVisuallyComplete(note)) return false;
   if (getNoteLifecycleTerminalFailure(note, getNoteLifecycleStageIndex(note)) != null) return false;
@@ -219,4 +363,54 @@ export function getNoteLifecycleCardTone(note: NoteDetail): NoteLifecycleCardTon
   if (hasNoteLifecycleAdminAction(note)) return "action";
   if (note.status === "PUBLISHED") return "waiting";
   return null;
+}
+
+export type NoteListingAutoCloseInfo = {
+  formatted: string;
+  relative: string;
+  overdue: boolean;
+  fullyFunded: boolean;
+  label: string;
+};
+
+export function getNoteListingAutoCloseInfo(note: NoteDetail): NoteListingAutoCloseInfo | null {
+  const closesAtIso = note.listing?.closesAt ?? null;
+  if (!closesAtIso) return null;
+  const closesAt = new Date(closesAtIso);
+  if (Number.isNaN(closesAt.getTime())) return null;
+  const now = new Date();
+  const diffMs = closesAt.getTime() - now.getTime();
+  const absMs = Math.abs(diffMs);
+  const days = Math.floor(absMs / 86_400_000);
+  const hours = Math.floor((absMs % 86_400_000) / 3_600_000);
+  const overdue = diffMs <= 0;
+  const formatted = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(closesAt);
+  const fundingRemaining = Math.max(note.targetAmount - note.fundedAmount, 0);
+  const fullyFunded = note.targetAmount > 0 && fundingRemaining < 0.01;
+  let relative: string;
+  if (days >= 1) {
+    relative = `${days} day${days === 1 ? "" : "s"}`;
+  } else if (hours >= 1) {
+    relative = `${hours} hour${hours === 1 ? "" : "s"}`;
+  } else {
+    relative = "less than an hour";
+  }
+  return {
+    formatted,
+    relative,
+    overdue,
+    fullyFunded,
+    label: fullyFunded
+      ? "Fully funded — auto-closing on next cycle"
+      : overdue
+        ? `Listing past auto-close (${relative} ago, ${formatted})`
+        : `Auto-closes in ${relative} (${formatted})`,
+  };
 }

@@ -43,14 +43,14 @@ export class ContractService {
   private async verifyContractAccess(contractId: string, userId: string): Promise<Contract> {
     const contract = await this.repository.findById(contractId);
     if (!contract) {
-      throw new AppError(404, "CONTRACT_NOT_FOUND", "Contract not found");
+      throw new AppError(404, "CONTRACT_NOT_FOUND", "Facility not found");
     }
 
     const organizationId = contract.issuer_organization_id;
     const organization = (contract as any).issuer_organization;
 
     if (!organization) {
-      throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found for this contract");
+      throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found for this facility");
     }
 
     if (organization.owner_user_id === userId) {
@@ -64,7 +64,7 @@ export class ContractService {
     );
 
     if (!member) {
-      throw new AppError(403, "FORBIDDEN", "You do not have access to this contract.");
+      throw new AppError(403, "FORBIDDEN", "You do not have access to this facility.");
     }
 
     return contract;
@@ -195,7 +195,7 @@ export class ContractService {
       if (structure?.structure_type === "invoice_only") {
         const isClearingContractDetails = data.contract_details === Prisma.JsonNull || data.contract_details === null;
         if (!isClearingContractDetails && data.contract_details != null) {
-          throw new AppError(400, "VALIDATION_ERROR", "Contract financing fields are not allowed for invoice-only structure.");
+          throw new AppError(400, "VALIDATION_ERROR", "Facility financing fields are not allowed for invoice-only structure.");
         }
       }
       if (application && (application as any).status === "AMENDMENT_REQUESTED") {
@@ -211,7 +211,7 @@ export class ContractService {
           }
         });
         if (!hasContractRemark) {
-          throw new AppError(403, "AMENDMENT_BOUNDARY", "Contract edits are locked during amendment unless contract details are requested for amendment.");
+          throw new AppError(403, "AMENDMENT_BOUNDARY", "Facility edits are locked during amendment unless facility details are requested for amendment.");
         }
       }
     }
@@ -268,7 +268,7 @@ export class ContractService {
     const organization = await this.organizationRepository.findIssuerOrganizationById(organizationId);
 
     if (!member && organization?.owner_user_id !== userId) {
-      throw new AppError(403, "FORBIDDEN", "You do not have access to this organization's contracts.");
+      throw new AppError(403, "FORBIDDEN", "You do not have access to this organization's facilities.");
     }
 
     return this.repository.findApprovedByOrganization(organizationId);
@@ -362,11 +362,11 @@ export class ContractService {
     const contract = await this.verifyContractAccess(id, userId);
 
     if (contract.status === ContractStatus.APPROVED) {
-      throw new AppError(400, "BAD_REQUEST", "This contract has already been approved and can no longer be withdrawn.");
+      throw new AppError(400, "BAD_REQUEST", "This facility has already been approved and can no longer be withdrawn.");
     }
 
     if (contract.status === ContractStatus.WITHDRAWN) {
-      throw new AppError(400, "BAD_REQUEST", "This contract was already withdrawn.");
+      throw new AppError(400, "BAD_REQUEST", "This facility was already withdrawn.");
     }
 
     const finalReason = reason ?? WithdrawReason.USER_CANCELLED;

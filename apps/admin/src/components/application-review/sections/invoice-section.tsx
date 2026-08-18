@@ -27,7 +27,7 @@ export interface InvoiceSectionProps {
   }[];
   /** Invoice IDs that are from other applications (same contract) - read-only, actions locked */
   readOnlyInvoiceIds?: Set<string>;
-  /** When set, shows Contract Facility, Available Facility and Utilized Facility above the invoice list (contract applications only) */
+  /** When set, shows Approved Facility, Available Facility and Utilized Facility above the invoice list (facility applications only) */
   contractFacility?: {
     contractFacility: number;
     availableFacility: number;

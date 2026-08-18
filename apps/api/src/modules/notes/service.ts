@@ -62,6 +62,7 @@ import {
   debitInvestorBalanceForWithdrawal,
   ensureInvestorBalanceRow,
 } from "./investor-balance";
+import { buildFailFundingWalletCredits } from "./fail-funding-refunds";
 import { postLedgerEntry } from "./ledger";
 import {
   buildInvestorBalanceStatement,
@@ -1475,6 +1476,22 @@ export class NoteService {
         resolveIssuerIndustryFromCorporateData(org.corporate_onboarding_data),
       ])
     );
+    const contractIds = [
+      ...new Set(
+        notes
+          .map((note) => note.source_contract_id)
+          .filter((id): id is string => Boolean(id?.trim()))
+      ),
+    ];
+    const contracts = contractIds.length
+      ? await prisma.contract.findMany({
+          where: { id: { in: contractIds } },
+          select: { id: true, display_reference: true },
+        })
+      : [];
+    const contractDisplayById = new Map(
+      contracts.map((contract) => [contract.id, contract.display_reference ?? null])
+    );
     const mappedNotes = notes.map((note) => {
       const mapped = mapNoteListItem(note);
       const productSnapshot = asRecord(note.product_snapshot);
@@ -1485,6 +1502,9 @@ export class NoteService {
           : null;
       return {
         ...mapped,
+        sourceContractDisplayReference: note.source_contract_id
+          ? (contractDisplayById.get(note.source_contract_id) ?? null)
+          : null,
         productCategory:
           mapped.productCategory ??
           (productId ? (productCategoryById.get(productId) ?? null) : null),
@@ -1554,6 +1574,7 @@ export class NoteService {
           displayReference: invoice.display_reference ?? null,
           applicationId: invoice.application_id,
           contractId: invoice.contract_id ?? invoice.application.contract_id,
+          contractDisplayReference: sourceContract?.display_reference ?? null,
           issuerOrganizationId: invoice.application.issuer_organization_id,
           issuerName: invoice.application.issuer_organization.name,
           paymasterName: this.resolvePaymasterName(paymaster),
@@ -2743,7 +2764,6 @@ export class NoteService {
         where: {
           id: publicationId,
           note_id: id,
-          published_at: null,
         },
         data: { published_at: now },
       });
@@ -2823,12 +2843,93 @@ export class NoteService {
     }
     const now = new Date();
     const updated = await prisma.$transaction(async (tx) => {
-      const result = await tx.note.update({
+      await tx.note.update({
         where: { id },
         data: {
           status: NoteStatus.DRAFT,
           listing_status: NoteListingStatus.UNPUBLISHED,
           funding_status: NoteFundingStatus.NOT_OPEN,
+          published_at: null,
+          listing: {
+            upsert: {
+              create: { status: NoteListingStatus.UNPUBLISHED, unpublished_at: now },
+              update: { status: NoteListingStatus.UNPUBLISHED, unpublished_at: now },
+            },
+          },
+        },
+      });
+      const { prospectusReviewService } = await import(
+        "./prospectus-review/prospectus-review.service"
+      );
+      await prospectusReviewService.invalidateAfterUnpublish(tx, id, actor);
+      const result = await tx.note.findUniqueOrThrow({
+        where: { id },
+        include: noteInclude,
+      });
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType: "NOTE_UNPUBLISHED",
+          noteId: id,
+          targetType: NOTE_AUDIT_TARGET_TYPE.NOTE,
+          targetId: id,
+          metadata: noteStatusAxes(note, result),
+        },
+        tx
+      );
+      return result;
+    });
+    return mapNoteDetail(updated);
+  }
+
+  async pauseListing(id: string, actor: ActorContext) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    if (
+      note.status !== NoteStatus.PUBLISHED ||
+      note.funding_status !== NoteFundingStatus.OPEN ||
+      note.listing_status !== NoteListingStatus.PUBLISHED
+    ) {
+      throw new AppError(
+        409,
+        "NOTE_LISTING_NOT_PAUSABLE",
+        "Only published listings that are still open for funding can be paused"
+      );
+    }
+    if (note.investments.length === 0) {
+      throw new AppError(
+        409,
+        "NOTE_HAS_NO_COMMITMENTS",
+        "Unpublish notes with no investor commitments instead of pausing"
+      );
+    }
+    const now = new Date();
+    const updated = await prisma.$transaction(async (tx) => {
+      const stateUpdate = await tx.note.updateMany({
+        where: {
+          id,
+          status: NoteStatus.PUBLISHED,
+          funding_status: NoteFundingStatus.OPEN,
+          listing_status: NoteListingStatus.PUBLISHED,
+        },
+        data: {
+          listing_status: NoteListingStatus.UNPUBLISHED,
+          is_featured: false,
+          featured_rank: null,
+          featured_from: null,
+          featured_until: null,
+        },
+      });
+      if (stateUpdate.count !== 1) {
+        throw new AppError(
+          409,
+          "NOTE_LISTING_NOT_PAUSABLE",
+          "Only published listings that are still open for funding can be paused"
+        );
+      }
+      const result = await tx.note.update({
+        where: { id },
+        data: {
           listing: {
             upsert: {
               create: { status: NoteListingStatus.UNPUBLISHED, unpublished_at: now },
@@ -2841,7 +2942,77 @@ export class NoteService {
       await writeNoteAuditFromActor(
         actor,
         {
-          eventType: "NOTE_UNPUBLISHED",
+          eventType: "NOTE_CAMPAIGN_PAUSED",
+          noteId: id,
+          targetType: NOTE_AUDIT_TARGET_TYPE.NOTE,
+          targetId: id,
+          metadata: {
+            ...noteStatusAxes(note, result),
+            previousIsFeatured: note.is_featured,
+            newIsFeatured: result.is_featured,
+          },
+        },
+        tx
+      );
+      return result;
+    });
+    return mapNoteDetail(updated);
+  }
+
+  async resumeListing(id: string, actor: ActorContext) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    if (
+      note.status !== NoteStatus.PUBLISHED ||
+      note.funding_status !== NoteFundingStatus.OPEN ||
+      note.listing_status !== NoteListingStatus.UNPUBLISHED
+    ) {
+      throw new AppError(
+        409,
+        "NOTE_LISTING_NOT_RESUMABLE",
+        "Only paused listings that are still open for funding can be resumed"
+      );
+    }
+    const updated = await prisma.$transaction(async (tx) => {
+      const stateUpdate = await tx.note.updateMany({
+        where: {
+          id,
+          status: NoteStatus.PUBLISHED,
+          funding_status: NoteFundingStatus.OPEN,
+          listing_status: NoteListingStatus.UNPUBLISHED,
+        },
+        data: { listing_status: NoteListingStatus.PUBLISHED },
+      });
+      if (stateUpdate.count !== 1) {
+        throw new AppError(
+          409,
+          "NOTE_LISTING_NOT_RESUMABLE",
+          "Only paused listings that are still open for funding can be resumed"
+        );
+      }
+      const result = await tx.note.update({
+        where: { id },
+        data: {
+          listing: {
+            upsert: {
+              create: {
+                status: NoteListingStatus.PUBLISHED,
+                published_at: new Date(),
+                opens_at: new Date(),
+              },
+              update: {
+                status: NoteListingStatus.PUBLISHED,
+                unpublished_at: null,
+              },
+            },
+          },
+        },
+        include: noteInclude,
+      });
+      await writeNoteAuditFromActor(
+        actor,
+        {
+          eventType: "NOTE_CAMPAIGN_RESUMED",
           noteId: id,
           targetType: NOTE_AUDIT_TARGET_TYPE.NOTE,
           targetId: id,
@@ -2896,6 +3067,7 @@ export class NoteService {
       select: {
         status: true,
         funding_status: true,
+        listing_status: true,
         target_amount: true,
         funded_amount: true,
         prospectus_review: {
@@ -2908,7 +3080,11 @@ export class NoteService {
       },
     });
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
-    if (note.status !== NoteStatus.PUBLISHED || note.funding_status !== NoteFundingStatus.OPEN) {
+    if (
+      note.status !== NoteStatus.PUBLISHED ||
+      note.funding_status !== NoteFundingStatus.OPEN ||
+      note.listing_status !== NoteListingStatus.PUBLISHED
+    ) {
       throw new AppError(409, "NOTE_NOT_OPEN", "Note is not open for investment");
     }
 
@@ -2966,6 +3142,7 @@ export class NoteService {
           id: noteId,
           status: NoteStatus.PUBLISHED,
           funding_status: NoteFundingStatus.OPEN,
+          listing_status: NoteListingStatus.PUBLISHED,
           funded_amount: { lte: remainingCapacityFloor },
         },
         data: { funded_amount: { increment: investmentAmount } },
@@ -2977,6 +3154,7 @@ export class NoteService {
           select: {
             status: true,
             funding_status: true,
+            listing_status: true,
             funded_amount: true,
             target_amount: true,
           },
@@ -2984,7 +3162,8 @@ export class NoteService {
         if (!current) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
         if (
           current.status !== NoteStatus.PUBLISHED ||
-          current.funding_status !== NoteFundingStatus.OPEN
+          current.funding_status !== NoteFundingStatus.OPEN ||
+          current.listing_status !== NoteListingStatus.PUBLISHED
         ) {
           throw new AppError(409, "NOTE_NOT_OPEN", "Note is not open for investment");
         }
@@ -3013,7 +3192,7 @@ export class NoteService {
       });
       await debitInvestorBalanceForCommit(tx, {
         investorOrganizationId: input.investorOrganizationId,
-        amount: input.amount,
+        amount: toNumber(investmentAmount),
         noteId,
         noteInvestmentId: investment.id,
         idempotencyKey: `investor-balance:commit:${investment.id}`,
@@ -3044,7 +3223,8 @@ export class NoteService {
       updatedTarget > 0 &&
       isNoteFullyFunded(updatedFunded, updatedTarget) &&
       updated.status === NoteStatus.PUBLISHED &&
-      updated.funding_status === NoteFundingStatus.OPEN
+      updated.funding_status === NoteFundingStatus.OPEN &&
+      updated.listing_status === NoteListingStatus.PUBLISHED
     ) {
       try {
         await this.closeFunding(noteId, {
@@ -3332,14 +3512,14 @@ export class NoteService {
         where: { note_id: id, status: NoteInvestmentStatus.COMMITTED },
         data: { status: NoteInvestmentStatus.RELEASED, released_at: now },
       });
-      for (const inv of releasedCommitments) {
+      for (const credit of buildFailFundingWalletCredits(releasedCommitments)) {
         await creditInvestorBalance(tx, {
-          investorOrganizationId: inv.investor_organization_id,
-          amount: toNumber(inv.amount),
+          investorOrganizationId: credit.investorOrganizationId,
+          amount: credit.amount,
           source: InvestorBalanceTransactionSource.NOTE_INVESTMENT_RELEASE,
           noteId: id,
-          noteInvestmentId: inv.id,
-          idempotencyKey: `investor-balance:release:fail-funding:${inv.id}`,
+          noteInvestmentId: credit.noteInvestmentId,
+          idempotencyKey: credit.idempotencyKey,
         });
       }
       const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });

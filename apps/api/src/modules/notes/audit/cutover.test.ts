@@ -204,9 +204,24 @@ describe("Note audit cutover", () => {
     const publishChunk = methodChunk(notes, "publish", 9000);
     expect(publishChunk).toMatch(/NOTE_PUBLISHED/);
     expect(publishChunk).not.toMatch(/NOTE_PROSPECTUS_PUBLISHED/);
-    const unpublishChunk = methodChunk(notes, "unpublish", 2500);
+    const unpublishChunk = methodChunk(notes, "unpublish", 3600);
     expect(unpublishChunk).toMatch(/NOTE_UNPUBLISHED/);
-    expect(unpublishChunk).not.toMatch(/INVALIDATED/);
+    expect(unpublishChunk).not.toMatch(/NOTE_CAMPAIGN_PAUSED/);
+    expect(unpublishChunk).not.toMatch(/NOTE_PROSPECTUS_INVALIDATED/);
+  });
+
+  it("pause and resume campaign write dedicated note audit events in the same transaction", () => {
+    const pauseChunk = methodChunk(notes, "pauseListing", 4500);
+    expect(pauseChunk).toMatch(/\$transaction/);
+    expect(pauseChunk).toMatch(/NOTE_CAMPAIGN_PAUSED/);
+    expect(pauseChunk).toMatch(/writeNoteAuditFromActor/);
+    expect(pauseChunk).not.toMatch(/NOTE_UNPUBLISHED/);
+    expect(pauseChunk).not.toMatch(/NOTE_PUBLISHED/);
+    const resumeChunk = methodChunk(notes, "resumeListing", 4500);
+    expect(resumeChunk).toMatch(/\$transaction/);
+    expect(resumeChunk).toMatch(/NOTE_CAMPAIGN_RESUMED/);
+    expect(resumeChunk).toMatch(/writeNoteAuditFromActor/);
+    expect(resumeChunk).not.toMatch(/NOTE_PUBLISHED/);
   });
 
   it("investment commits after cash debit and skips oversubscribe", () => {

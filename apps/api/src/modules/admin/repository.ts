@@ -1171,6 +1171,7 @@ export class AdminRepository {
         first_name: string;
         last_name: string;
         email: string;
+        phone: string | null;
       };
     }[];
     // Latest RegTank onboarding record (for portal link)
@@ -1184,17 +1185,6 @@ export class AdminRepository {
     ssm_approved?: boolean;
     ssm_checked?: boolean;
     onboarding_fee_paid_at?: Date | null;
-    // Applications (issuer only)
-    applications?: {
-      id: string;
-      status: string;
-      product_version: number;
-      last_completed_step: number;
-      submitted_at: Date | null;
-      created_at: Date;
-      updated_at: Date;
-      contract_id: string | null;
-    }[];
   } | null> {
     const include = {
       owner: {
@@ -1205,17 +1195,18 @@ export class AdminRepository {
           last_name: true,
         },
       },
-      members: {
-        include: {
-          user: {
-            select: {
-              first_name: true,
-              last_name: true,
-              email: true,
-            },
+    members: {
+      include: {
+        user: {
+          select: {
+            first_name: true,
+            last_name: true,
+            email: true,
+            phone: true,
           },
         },
       },
+    },
       regtank_onboarding: {
         select: {
           request_id: true,
@@ -1234,27 +1225,11 @@ export class AdminRepository {
           investor_balance: { select: { available_amount: true } },
         },
       });
-    } else {
-      return prisma.issuerOrganization.findUnique({
-        where: { id },
-        include: {
-          ...include,
-          applications: {
-            select: {
-              id: true,
-              status: true,
-              product_version: true,
-              last_completed_step: true,
-              submitted_at: true,
-              created_at: true,
-              updated_at: true,
-              contract_id: true,
-            },
-            orderBy: { created_at: "desc" as const },
-          },
-        },
-      });
     }
+    return prisma.issuerOrganization.findUnique({
+      where: { id },
+      include,
+    });
   }
 
   /**
@@ -1606,9 +1581,9 @@ export class AdminRepository {
       if (structureType === "invoice_only") {
         financingStructureLabel = "Invoice financing";
       } else if (structureType === "existing_contract" || structureType === "new_contract") {
-        financingStructureLabel = "Contract financing";
+        financingStructureLabel = "Facility financing";
       } else {
-        financingStructureLabel = app.contract_id ? "Contract financing" : "Invoice financing";
+        financingStructureLabel = app.contract_id ? "Facility financing" : "Invoice financing";
       }
 
       const linkedProductId =

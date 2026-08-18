@@ -20,6 +20,41 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ["@cashsouk/ui", "@cashsouk/config"],
   },
+  async redirects() {
+    return [
+      {
+        source: "/users",
+        destination: "/accounts",
+        permanent: true,
+      },
+      {
+        source: "/users/:id",
+        destination: "/accounts/:id",
+        permanent: true,
+      },
+      {
+        source: "/organizations",
+        has: [{ type: "query", key: "tab", value: "investor" }],
+        destination: "/investors",
+        permanent: true,
+      },
+      {
+        source: "/organizations",
+        destination: "/issuers",
+        permanent: true,
+      },
+      {
+        source: "/organizations/issuer/:id",
+        destination: "/issuers/:id",
+        permanent: true,
+      },
+      {
+        source: "/organizations/investor/:id",
+        destination: "/investors/:id",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {

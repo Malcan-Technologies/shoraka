@@ -164,7 +164,7 @@ function ContractRow({ row }: { row: IssuerDashboardContract }) {
       >
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span className="text-sm text-muted-foreground">Contract:</span>
+            <span className="text-sm text-muted-foreground">Facility:</span>
             <span className="truncate text-sm font-semibold text-foreground">
               {row.title?.trim() || EM}
             </span>

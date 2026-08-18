@@ -71,7 +71,7 @@ const SCENARIOS: Array<{
   appStatus: string;
   contractStatus: string | null;
   invoiceStatuses: string[];
-  type: "Contract financing" | "Invoice financing" | "Generic";
+      type: "Facility financing" | "Invoice financing" | "Generic";
   hasContract: boolean;
   invoiceCount: number;
   withdrawReason?: WithdrawReason;
@@ -81,31 +81,31 @@ const SCENARIOS: Array<{
   maturityDateNull?: boolean;
 }> = [
   { appStatus: "DRAFT", contractStatus: null, invoiceStatuses: [], type: "Generic", hasContract: false, invoiceCount: 0 },
-  /** Offer Received — Contract: shows "Review Contract Financing Offer". */
-  { appStatus: "SUBMITTED", contractStatus: "OFFER_SENT", invoiceStatuses: [], type: "Contract financing", hasContract: true, invoiceCount: 0, hasExpiry: true },
+  /** Offer Received — Facility: shows "Review Facility Financing Offer". */
+  { appStatus: "SUBMITTED", contractStatus: "OFFER_SENT", invoiceStatuses: [], type: "Facility financing", hasContract: true, invoiceCount: 0, hasExpiry: true },
   /** Offer Received — Invoice: shows "Review Invoice Financing Offer" on card. */
   { appStatus: "SUBMITTED", contractStatus: null, invoiceStatuses: ["OFFER_SENT"], type: "Invoice financing", hasContract: false, invoiceCount: 1, hasExpiry: true, hasDocumentS3Key: true },
   /** Action Required — app AMENDMENT_REQUESTED: shows "Make Amendments" on card and in invoice table. */
   { appStatus: "AMENDMENT_REQUESTED", contractStatus: null, invoiceStatuses: ["AMENDMENT_REQUESTED"], type: "Invoice financing", hasContract: false, invoiceCount: 1 },
-  { appStatus: "SUBMITTED", contractStatus: "SUBMITTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
-  { appStatus: "COMPLETED", contractStatus: "APPROVED", invoiceStatuses: ["APPROVED", "APPROVED"], type: "Contract financing", hasContract: true, invoiceCount: 2 },
+  { appStatus: "SUBMITTED", contractStatus: "SUBMITTED", invoiceStatuses: ["SUBMITTED"], type: "Facility financing", hasContract: true, invoiceCount: 1 },
+  { appStatus: "COMPLETED", contractStatus: "APPROVED", invoiceStatuses: ["APPROVED", "APPROVED"], type: "Facility financing", hasContract: true, invoiceCount: 2 },
   { appStatus: "COMPLETED", contractStatus: null, invoiceStatuses: ["APPROVED", "REJECTED"], type: "Invoice financing", hasContract: false, invoiceCount: 2 },
   { appStatus: "WITHDRAWN", contractStatus: null, invoiceStatuses: ["WITHDRAWN", "WITHDRAWN"], type: "Invoice financing", hasContract: false, invoiceCount: 2, withdrawReason: WithdrawReason.USER_CANCELLED },
   /** User declined offer — card shows Declined. */
   { appStatus: "WITHDRAWN", contractStatus: null, invoiceStatuses: ["WITHDRAWN"], type: "Invoice financing", hasContract: false, invoiceCount: 1, withdrawReason: WithdrawReason.OFFER_REJECTED },
-  { appStatus: "REJECTED", contractStatus: "REJECTED", invoiceStatuses: [], type: "Contract financing", hasContract: true, invoiceCount: 0 },
-  { appStatus: "COMPLETED", contractStatus: "APPROVED", invoiceStatuses: [], type: "Contract financing", hasContract: true, invoiceCount: 0, hasExpiry: true },
+  { appStatus: "REJECTED", contractStatus: "REJECTED", invoiceStatuses: [], type: "Facility financing", hasContract: true, invoiceCount: 0 },
+  { appStatus: "COMPLETED", contractStatus: "APPROVED", invoiceStatuses: [], type: "Facility financing", hasContract: true, invoiceCount: 0, hasExpiry: true },
   { appStatus: "COMPLETED", contractStatus: null, invoiceStatuses: ["APPROVED"], type: "Invoice financing", hasContract: false, invoiceCount: 1 },
-  { appStatus: "DRAFT", contractStatus: "DRAFT", invoiceStatuses: ["DRAFT"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
-  { appStatus: "UNDER_REVIEW", contractStatus: "SUBMITTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
-  { appStatus: "COMPLETED", contractStatus: "APPROVED", invoiceStatuses: ["APPROVED", "REJECTED"], type: "Contract financing", hasContract: true, invoiceCount: 2 },
-  { appStatus: "CONTRACT_SENT", contractStatus: "OFFER_EXPIRED", invoiceStatuses: [], type: "Contract financing", hasContract: true, invoiceCount: 0 },
+  { appStatus: "DRAFT", contractStatus: "DRAFT", invoiceStatuses: ["DRAFT"], type: "Facility financing", hasContract: true, invoiceCount: 1 },
+  { appStatus: "UNDER_REVIEW", contractStatus: "SUBMITTED", invoiceStatuses: ["SUBMITTED"], type: "Facility financing", hasContract: true, invoiceCount: 1 },
+  { appStatus: "COMPLETED", contractStatus: "APPROVED", invoiceStatuses: ["APPROVED", "REJECTED"], type: "Facility financing", hasContract: true, invoiceCount: 2 },
+  { appStatus: "CONTRACT_SENT", contractStatus: "OFFER_EXPIRED", invoiceStatuses: [], type: "Facility financing", hasContract: true, invoiceCount: 0 },
   { appStatus: "WITHDRAWN", contractStatus: null, invoiceStatuses: ["WITHDRAWN"], type: "Invoice financing", hasContract: false, invoiceCount: 1, withdrawReason: WithdrawReason.OFFER_REJECTED },
-  { appStatus: "SUBMITTED", contractStatus: "OFFER_SENT", invoiceStatuses: ["OFFER_SENT", "DRAFT"], type: "Contract financing", hasContract: true, invoiceCount: 2, hasExpiry: true },
+  { appStatus: "SUBMITTED", contractStatus: "OFFER_SENT", invoiceStatuses: ["OFFER_SENT", "DRAFT"], type: "Facility financing", hasContract: true, invoiceCount: 2, hasExpiry: true },
   { appStatus: "SUBMITTED", contractStatus: null, invoiceStatuses: ["OFFER_SENT", "SUBMITTED", "DRAFT"], type: "Invoice financing", hasContract: false, invoiceCount: 3, hasExpiry: true },
-  { appStatus: "RESUBMITTED", contractStatus: "SUBMITTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
+  { appStatus: "RESUBMITTED", contractStatus: "SUBMITTED", invoiceStatuses: ["SUBMITTED"], type: "Facility financing", hasContract: true, invoiceCount: 1 },
   { appStatus: "COMPLETED", contractStatus: null, invoiceStatuses: ["APPROVED", "APPROVED"], type: "Invoice financing", hasContract: false, invoiceCount: 2 },
-  { appStatus: "SUBMITTED", contractStatus: "AMENDMENT_REQUESTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
+  { appStatus: "SUBMITTED", contractStatus: "AMENDMENT_REQUESTED", invoiceStatuses: ["SUBMITTED"], type: "Facility financing", hasContract: true, invoiceCount: 1 },
   { appStatus: "SUBMITTED", contractStatus: null, invoiceStatuses: ["SUBMITTED"], type: "Invoice financing", hasContract: false, invoiceCount: 1, maturityDateNull: true },
 ];
 

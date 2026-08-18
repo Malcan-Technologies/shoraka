@@ -184,12 +184,12 @@ Explicit permission coverage:
 - [ ] `onboarding.view`
 - [ ] `onboarding.manage`
 
-### Users
+### User Accounts
 
-- [ ] Open Users listing:
+- [ ] Open User Accounts listing:
   - [ ] `users.view` required
   - [ ] Without `users.view` => Access Denied
-- [ ] Open User detail:
+- [ ] Open User Account detail:
   - [ ] With `users.view` only: edit controls disabled/greyed out
   - [ ] With `users.manage`: mutation actions enabled
 
@@ -197,11 +197,13 @@ Explicit permission coverage:
 - [ ] `users.view`
 - [ ] `users.manage`
 
-### Organizations
+### Issuers & Investors
 
-- [ ] Open Organizations listing:
+- [ ] Open Issuers listing:
   - [ ] `organizations.view` required
-- [ ] Open Organization detail:
+- [ ] Open Investors listing:
+  - [ ] `organizations.view` required
+- [ ] Open Issuer / Investor detail:
   - [ ] With `organizations.view` only: management toggle/actions disabled
   - [ ] With `organizations.manage`: enabled
 
@@ -289,7 +291,7 @@ Explicit permission coverage:
 - [ ] Service Fee:
   - [ ] `service_fee.view` required
   - [ ] `service_fee.manage` required for service fee mutation actions/buttons
-- [ ] Contracts:
+- [ ] Facilities:
   - [ ] `contracts.view` required
   - [ ] `contracts.manage` required for “Resign Offer” mutations
 

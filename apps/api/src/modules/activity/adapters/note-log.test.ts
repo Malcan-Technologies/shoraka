@@ -73,6 +73,16 @@ describe("NoteLogAdapter", () => {
       description: "Your note is now listed and open for investment.",
     });
 
+    expect(adapter.buildPresentation("NOTE_CAMPAIGN_PAUSED")).toEqual({
+      title: "Campaign Paused",
+      description:
+        "Your campaign was temporarily closed to new investment. Existing commitments are held.",
+    });
+    expect(adapter.buildPresentation("NOTE_CAMPAIGN_RESUMED")).toEqual({
+      title: "Campaign Resumed",
+      description: "Your campaign is open for investment again.",
+    });
+
     expect(
       adapter.buildPresentation("SETTLEMENT_POSTED", {
         noteTitle: "Bridge Note",
@@ -272,6 +282,8 @@ describe("NoteLogAdapter", () => {
     expect(adapter.getEventTypes()).toContain("SETTLEMENT_POSTED");
     expect(adapter.getEventTypes()).toContain("REPAYMENT_RECEIVED");
     expect(adapter.getEventTypes()).toContain("NOTE_UNPUBLISHED");
+    expect(adapter.getEventTypes()).toContain("NOTE_CAMPAIGN_PAUSED");
+    expect(adapter.getEventTypes()).toContain("NOTE_CAMPAIGN_RESUMED");
     expect(adapter.getEventTypes()).toContain("NOTE_TERMS_UPDATED");
     expect(adapter.getEventTypes()).not.toContain("NOTE_PROSPECTUS_APPROVED");
     expect(adapter.getEventTypes()).not.toContain("SHORAKA_ORDER_SUBMITTED");

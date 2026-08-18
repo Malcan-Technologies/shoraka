@@ -1,8 +1,8 @@
 # Audit manual verification catalogue
 
-**Purpose.** Source-authoritative, human-readable manual verification catalogue of **174 reserved/catalogued event IDs** (A001–A174). IDs are stable and are not reused when a writer is retired. Distinguish **reserved event IDs** from **current active writers**. Each card is the checklist a reviewer uses to confirm the write (or retired/no-writer status), the Zod metadata, the source of truth, transaction behavior, and the three activity surfaces (admin curated, issuer, investor) plus admin raw.
+**Purpose.** Source-authoritative, human-readable manual verification catalogue of **177 reserved/catalogued event IDs** (A001–A177). IDs are stable and are not reused when a writer is retired. Distinguish **reserved event IDs** from **current active writers**. Each card is the checklist a reviewer uses to confirm the write (or retired/no-writer status), the Zod metadata, the source of truth, transaction behavior, and the three activity surfaces (admin curated, issuer, investor) plus admin raw.
 
-**Date.** 2026-08-17 — current source after the Onboarding Audit redesign, including A040/A052/A053 retirement, A055 outcome-only, A044 amendment/resubmission, and A049 `onboarding_id` threading when the session is already known.
+**Date.** 2026-08-19 — A175–A177 added for admin organization profile update and note campaign pause/resume. Prior source remains the Onboarding Audit redesign through A174.
 
 **How to use this document.** Do not treat activity titles as workflow state. Do not treat audit rows as source of truth. Verify the named table, then the SOT row, then visibility. Hidden activity is recorded as Title: N/A / Description: N/A.
 
@@ -14,15 +14,15 @@
 |---|---|---:|---|---|---|---|
 | Access | A001–A003 | 3 | AccessAuditLog | access_audit_logs | `/audit` → Access (`/audit?tab=access`) | `audit.access.view` |
 | Security | A004–A038 | 35 | SecurityAuditLog | security_audit_logs | `/audit` → Security (`/audit?tab=security`) | `audit.security.view` |
-| Onboarding | A039–A055 | 17 reserved (14 active writers; A040, A052, and A053 retired) | OnboardingAuditLog | onboarding_audit_logs | `/audit` → Onboarding (`/audit?tab=onboarding`) | `onboarding.view` |
+| Onboarding | A039–A055, A175 | 18 reserved (15 active writers; A040, A052, and A053 retired) | OnboardingAuditLog | onboarding_audit_logs | `/audit` → Onboarding (`/audit?tab=onboarding`) | `onboarding.view` |
 | Legal | A056–A062 | 7 | LegalAdminAuditLog | legal_admin_audit_logs | `/audit` → Legal Documents (`/audit?tab=legal-documents`) | `document_management.view` |
 | Application | A063–A102 | 40 | ApplicationAuditLog | application_audit_logs | Application Detail → Audit History | `applications.view` |
 | Signing | A103–A114 | 12 | SigningAuditLog | signing_audit_logs | Application Detail → Audit History (merged) + envelope logs | `applications.view` |
-| Note | A115–A149 | 35 | NoteAuditLog | note_audit_logs | Note Detail → Audit History; trustee signature on Platform Finance | `notes.view` / `platform_settings.view` |
+| Note | A115–A149, A176–A177 | 37 | NoteAuditLog | note_audit_logs | Note Detail → Audit History; trustee signature on Platform Finance | `notes.view` / `platform_settings.view` |
 | Payment | A150–A168 | 19 | PaymentAuditLog | payment_audit_logs | Gateway Payment / Investor Withdrawal / Reconciliation Audit | gateway / `investor_withdrawals.view` / `gateway_reconciliation.view` |
 | Product | A169–A173 | 5 | ProductAuditLog | product_audit_logs | `/audit` → Products (`/audit?tab=products`) | `audit.product.view` |
 | Notification | A174 | 1 | NotificationBroadcastAuditLog | notification_broadcast_audit_logs | `/audit` → Notifications (`/audit?tab=notifications`) | `notifications.view` |
-| **Total** | **A001–A174** | **174 reserved/catalogued IDs** (171 currently active event types with at least one writer; A040, A052, and A053 retired, IDs not reused) | | | | |
+| **Total** | **A001–A177** | **177 reserved/catalogued IDs** (174 currently active event types with at least one writer; A040, A052, and A053 retired, IDs not reused) | | | | |
 
 
 ## Visibility summary
@@ -33,17 +33,17 @@ Computed from the event cards in this catalogue (not from memory).
 |---|---:|---:|---|---|---|
 | Access | 3 | 3 | 0 / 0 / 3 | 0 / 0 / 3 | 0 / 0 / 3 |
 | Security | 35 | 35 | 0 / 0 / 35 | 0 / 0 / 35 | 0 / 0 / 35 |
-| Onboarding | 17 | 17 | 16 / 0 / 1 | 5 / 3 / 9 | 5 / 2 / 10 |
+| Onboarding | 18 | 18 | 17 / 0 / 1 | 5 / 3 / 10 | 5 / 2 / 11 |
 | Legal | 7 | 7 | 0 / 0 / 7 | 0 / 0 / 7 | 0 / 0 / 7 |
 | Application | 40 | 40 | 31 / 1 / 8 | 30 / 1 / 9 | 0 / 0 / 40 |
 | Signing | 12 | 12 | 9 / 0 / 3 | 7 / 0 / 5 | 0 / 0 / 12 |
-| Note | 35 | 35 | 34 / 0 / 1 | 13 / 1 / 21 | 0 / 7 / 28 |
+| Note | 37 | 37 | 36 / 0 / 1 | 15 / 1 / 21 | 0 / 9 / 28 |
 | Payment | 19 | 19 | 0 / 0 / 19 | 0 / 0 / 19 | 7 / 2 / 10 |
 | Product | 5 | 5 | 0 / 0 / 5 | 0 / 0 / 5 | 0 / 0 / 5 |
 | Notification | 1 | 1 | 0 / 0 / 1 | 0 / 0 / 1 | 0 / 0 / 1 |
-| **Total** | **174** | **174** | **90 / 1 / 83** | **55 / 5 / 114** | **12 / 11 / 151** |
+| **Total** | **177** | **177** | **93 / 1 / 83** | **57 / 5 / 115** | **12 / 13 / 152** |
 
-Onboarding visibility counts include the 17 reserved IDs. Retired A040 / A052 / A053 remain SHOW on admin raw and SHOW (historical) on admin curated Activity if old rows exist; issuer/investor HIDE. Admin Organization contextual history excludes A052 and A053. Admin Activity HIDE is only `USER_ONBOARDING_STATUS_UPDATED`. Issuer/investor CONDITIONAL includes review/amendment `ONBOARDING_STATUS_CHANGED`.
+Onboarding visibility counts include the 18 reserved IDs. Retired A040 / A052 / A053 remain SHOW on admin raw and SHOW (historical) on admin curated Activity if old rows exist; issuer/investor HIDE. Admin Organization contextual history excludes A052 and A053. Admin Activity HIDE is only `USER_ONBOARDING_STATUS_UPDATED`. Issuer/investor CONDITIONAL includes review/amendment `ONBOARDING_STATUS_CHANGED`. A175 is admin org Activity SHOW and issuer/investor HIDE.
 
 # Access
 
@@ -41507,7 +41507,7 @@ Date: **2026-08-17**. Source: current tree after the Onboarding Audit redesign.
 
 | Source | Count | Result |
 |---|---:|---|
-| Catalogue arrays in this document (Access 3 + Security 35 + Onboarding 17 reserved + Legal 7 + Application 40 + Signing 12 + Note 35 + Payment 19 + Product 5 + Notification 1) | 174 reserved/catalogued IDs | VERIFIED |
+| Catalogue arrays in this document (Access 3 + Security 35 + Onboarding 18 reserved + Legal 7 + Application 40 + Signing 12 + Note 37 + Payment 19 + Product 5 + Notification 1) | 177 reserved/catalogued IDs | VERIFIED |
 | `ACCESS_AUDIT_EVENTS` `apps/api/src/modules/auth/audit/events.ts` | 3 | VERIFIED |
 | `SECURITY_AUDIT_EVENTS` `apps/api/src/modules/security/audit/events.ts` | 35 | VERIFIED |
 | `ONBOARDING_AUDIT_EVENTS` `apps/api/src/modules/onboarding/audit/events.ts` | 17 reserved IDs (14 current active onboarding event types; A040, A052, and A053 in `RETIRED_ONBOARDING_AUDIT_EVENTS`) | VERIFIED |
@@ -41518,9 +41518,9 @@ Date: **2026-08-17**. Source: current tree after the Onboarding Audit redesign.
 | `PAYMENT_AUDIT_EVENTS` `apps/api/src/modules/payment/audit/events.ts` | 19 | VERIFIED |
 | `PRODUCT_AUDIT_EVENTS` `apps/api/src/modules/products/audit/events.ts` | 5 | VERIFIED |
 | `NOTIFICATION_BROADCAST_AUDIT_EVENTS` `apps/api/src/modules/notification/audit/events.ts` | 1 | VERIFIED |
-| Zod `metadataByEvent` / `schemas` maps (one schema per catalogue event, including retired IDs so historical rows still parse) | 174 | VERIFIED |
-| Current writers (`eventType: "…"` call sites in `apps/api/src/modules/**` plus jobs/middleware) | 171 currently active event types with at least one writer; A040, A052, and A053 have none | VERIFIED |
-| Admin raw coverage (global `/audit` tabs, application/note contextual history, trustee, gateway, withdrawal, recon) | 174 reserved/catalogued IDs remain readable | VERIFIED |
+| Zod `metadataByEvent` / `schemas` maps (one schema per catalogue event, including retired IDs so historical rows still parse) | 177 | VERIFIED |
+| Current writers (`eventType: "…"` call sites in `apps/api/src/modules/**` plus jobs/middleware) | 174 currently active event types with at least one writer; A040, A052, and A053 have none | VERIFIED |
+| Admin raw coverage (global `/audit` tabs, application/note contextual history, trustee, gateway, withdrawal, recon) | 177 reserved/catalogued IDs remain readable | VERIFIED |
 
 ## Writer notes that affect verification
 
@@ -41535,3 +41535,128 @@ Date: **2026-08-17**. Source: current tree after the Onboarding Audit redesign.
 
 Exact titles and descriptions: `packages/types/src/activity-presentation.ts`.
 Visibility gates: `packages/types/src/activity-visibility.ts` plus payment/note adapters (`organization_kind = INVESTOR` query; RELEASED membership for `NOTE_FUNDING_FAILED`).
+
+# A175 — ORGANIZATION_PROFILE_UPDATED_BY_ADMIN
+
+Source Case: ONB-018
+Module: Onboarding
+Audit Model: OnboardingAuditLog
+DB Table: onboarding_audit_logs
+
+## 1. What this event means
+
+An admin completed an organization profile update on issuer or investor organization fields (name, phone, address, names, optional bank-details-changed flag, optional corporate onboarding nested keys). This is not a user-profile event.
+
+## 2. When it logs
+
+`PATCH /v1/admin/organizations/:portal/:id` via `updateAdminOrganizationProfile`, in the same transaction as the organization update, only when at least one scalar field, bank payload, or corporate nested key actually changed.
+
+## 3. When it does NOT log / no-op
+
+Empty PATCH. Same-value scalar PATCH with no bank/corporate keys. Do not write `USER_PROFILE_UPDATED_BY_ADMIN`.
+
+## 4. Top-level audit row
+
+| Column | Current writer behavior |
+|---|---|
+| `event_type` | `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN` |
+| `actor_type` / `actor_user_id` | Admin from `auditContextFromAdminRequest` |
+| `organization_id` / `organization_kind` / `organization_type` | Target org |
+| `target_type` / `target_id` | `ORGANIZATION` / org id |
+| `source` / `portal` | API / ADMIN |
+
+## 5. EXACT METADATA STRUCTURE
+
+```ts
+{
+  actorName: string | null;
+  actorEmail: string | null;
+  changedFields: string[];
+  before: Record<string, string | number | boolean | null>;
+  after: Record<string, string | number | boolean | null>;
+  bankAccountDetailsChanged: boolean;
+  corporateOnboardingChangedFields?: string[];
+}
+```
+
+`before`/`after` are scalar org fields only (`name`, `phoneNumber`, `address`, `firstName`, `lastName`, `middleName`). Bank account numbers are not stored.
+
+## 6. Visibility
+
+| Surface | Decision |
+|---|---|
+| Admin raw (Onboarding) | SHOW |
+| Admin Activity (org) | SHOW |
+| Issuer Activity | HIDE |
+| Investor Activity | HIDE |
+
+Writer: `writeOnboardingAuditLog` in `organization-admin-profile.ts`. Tests: onboarding cutover, activity presentation/visibility, `organization-admin-profile.test.ts`.
+
+# A176 — NOTE_CAMPAIGN_PAUSED
+
+Source Case: NOTE-036
+Module: Note
+Audit Model: NoteAuditLog
+DB Table: note_audit_logs
+
+## 1. What this event means
+
+Admin paused a live campaign: note `status` stays `PUBLISHED`, `funding_status` stays `OPEN`, `listing_status` becomes `UNPUBLISHED`, featured flags are cleared. Existing commitments are held. This is not `NOTE_UNPUBLISHED` (which returns the note to DRAFT / NOT_OPEN).
+
+## 2. When it logs
+
+`POST /v1/admin/notes/:id/listing/pause` → `NotesService.pauseListing`, same transaction as the listing update.
+
+## 3. When it does NOT log
+
+Note not published+open+listed. Notes with zero commitments must unpublish instead.
+
+## 5. EXACT METADATA STRUCTURE
+
+Status axes (`previous*` / `new*` for note, listing, funding, servicing) plus optional `previousIsFeatured` / `newIsFeatured`.
+
+## 6. Visibility
+
+| Surface | Decision |
+|---|---|
+| Admin raw | SHOW |
+| Admin Activity | SHOW |
+| Issuer Activity | SHOW |
+| Investor Activity | CONDITIONAL: committed investor |
+
+Writer: `writeNoteAuditFromActor`. Tests: note cutover, note-log adapter, activity presentation/visibility.
+
+# A177 — NOTE_CAMPAIGN_RESUMED
+
+Source Case: NOTE-037
+Module: Note
+Audit Model: NoteAuditLog
+DB Table: note_audit_logs
+
+## 1. What this event means
+
+Admin resumed a paused campaign: note stays `PUBLISHED` + `OPEN`, `listing_status` returns to `PUBLISHED`. This is not first-time `NOTE_PUBLISHED` (no draft→published, no funding OPEN transition, no prospectus freeze).
+
+## 2. When it logs
+
+`POST /v1/admin/notes/:id/listing/resume` → `NotesService.resumeListing`, same transaction as the listing update.
+
+## 3. When it does NOT log
+
+Note not published+open with listing unpublished.
+
+## 5. EXACT METADATA STRUCTURE
+
+Status axes only (`previous*` / `new*` for note, listing, funding, servicing).
+
+## 6. Visibility
+
+| Surface | Decision |
+|---|---|
+| Admin raw | SHOW |
+| Admin Activity | SHOW |
+| Issuer Activity | SHOW |
+| Investor Activity | CONDITIONAL: committed investor |
+
+Writer: `writeNoteAuditFromActor`. Tests: note cutover, note-log adapter, activity presentation/visibility.
+

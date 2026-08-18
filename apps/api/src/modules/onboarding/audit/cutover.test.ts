@@ -66,7 +66,7 @@ describe("Onboarding audit cutover", () => {
 
   it("event catalogues match between API and types", () => {
     expect([...TYPES_ONBOARDING_EVENTS]).toEqual([...ONBOARDING_AUDIT_EVENTS]);
-    expect(ONBOARDING_AUDIT_EVENTS).toHaveLength(17);
+    expect(ONBOARDING_AUDIT_EVENTS).toHaveLength(18);
     expect([...RETIRED_ONBOARDING_AUDIT_EVENTS]).toEqual([
       "ONBOARDING_RESUMED",
       "CTOS_REPORT_RECEIVED",
@@ -184,6 +184,7 @@ describe("Onboarding audit cutover", () => {
     expect(liveSources).not.toMatch(/eventType:\s*"CTOS_REPORT_RECEIVED"/);
     expect(liveSources).not.toMatch(/writeCtosReportReceivedAudit/);
     expect(liveSources).toMatch(/DIRECTOR_ONBOARDING_INVITATION_SENT/);
+    expect(liveSources).toMatch(/ORGANIZATION_PROFILE_UPDATED_BY_ADMIN/);
     expect(liveSources).toMatch(/ONBOARDING_REJECTED/);
   });
 

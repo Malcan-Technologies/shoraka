@@ -121,7 +121,7 @@ function OfferAcceptanceBlock({
   const isInvoiceOnly = structureType === "invoice_only";
   const emptyHint = isInvoiceOnly
     ? "Send an offer from Invoice to start acceptance."
-    : "Send an offer from Contract to start acceptance.";
+    : "Send an offer from Facility to start acceptance.";
   const deadlineDisplay = getOfferPhaseDeadlineDisplay(offerDetails);
   const showDeadline =
     acceptance &&
@@ -247,7 +247,7 @@ export function AcceptanceSection({
       <CardContent className="space-y-10">
         {isInheritedAcceptance ? (
           <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-            Acceptance and signing were completed when this contract was approved
+            Acceptance and signing were completed when this facility was approved
             {inheritedSourceHref ? (
               <>
                 {" "}

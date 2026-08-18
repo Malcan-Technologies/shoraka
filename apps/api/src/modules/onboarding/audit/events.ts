@@ -16,6 +16,7 @@ export const ONBOARDING_AUDIT_EVENTS = [
   "CORPORATE_ENTITIES_UPDATED",
   "DIRECTOR_ONBOARDING_INVITATION_SENT",
   "DIRECTOR_KYC_STATUS_UPDATED",
+  "ORGANIZATION_PROFILE_UPDATED_BY_ADMIN",
 ] as const;
 
 /** Historical event types with no current writer. IDs A040 / A052 / A053 stay reserved. */

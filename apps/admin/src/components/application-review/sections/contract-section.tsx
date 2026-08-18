@@ -327,7 +327,7 @@ export function ContractSection({
     const rf = (cd: typeof bCd) => (cd ? resolveRequestedFacility(cd) : 0);
     const of = (o: typeof bOffer) => resolveOfferedFacility(o);
     return (
-      <ReviewSectionCard title="Contract Details" icon={DocumentTextIcon} section={section} isReviewable={false}>
+      <ReviewSectionCard title="Facility" icon={DocumentTextIcon} section={section} isReviewable={false}>
         <ReviewFieldBlock title="Offer to Issuer">
           <div className="space-y-2">
             <ComparisonFieldRow
@@ -476,7 +476,7 @@ export function ContractSection({
 
   return (
     <ReviewSectionCard
-      title="Contract Details"
+      title="Facility"
       icon={DocumentTextIcon}
       section={section}
       isReviewable={isReviewable}
@@ -484,7 +484,7 @@ export function ContractSection({
       isActionLocked={isActionLocked || isContractFinalizedByIssuer}
       actionLockTooltip={
         isContractFinalizedByIssuer
-          ? "Contract offer finalized by issuer. No further admin actions are allowed."
+          ? "Facility offer finalized by issuer. No further admin actions are allowed."
           : actionLockTooltip
       }
       sectionStatus={sectionStatus}
@@ -594,7 +594,7 @@ export function ContractSection({
                       aria-invalid={!!facilityFeeRatePercentError}
                     />
                     <div className="text-xs text-muted-foreground">
-                      Facility Fee rate for this contract offer. Allowed range: 0% to 100%, up to 2 decimal places.
+                      Facility Fee rate for this facility offer. Allowed range: 0% to 100%, up to 2 decimal places.
                       This is charged progressively only when invoice financing is disbursed.
                     </div>
                   </div>
@@ -711,7 +711,7 @@ export function ContractSection({
                     </SelectContent>
                   </Select>
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    Required before you can send the contract offer.
+                    Required before you can send the facility offer.
                   </p>
                 </div>
                 <Label className={reviewLabelClass}>Customer SSM Number</Label>
@@ -781,7 +781,7 @@ export function ContractSection({
           </ReviewFieldBlock>
         </>
       ) : (
-        <p className={reviewEmptyStateClass}>No contract details submitted.</p>
+        <p className={reviewEmptyStateClass}>No facility details submitted.</p>
       )}
       {!hideSectionComments ? (
         <SectionComments comments={comments} onSubmitComment={onAddComment} />
@@ -790,7 +790,7 @@ export function ContractSection({
       <Dialog open={contractOfferConfirmOpen} onOpenChange={setContractOfferConfirmOpen}>
         <DialogContent className="rounded-2xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirm Contract Offer</DialogTitle>
+            <DialogTitle>Confirm Facility Offer</DialogTitle>
             <DialogDescription>
               Review the offer details below before sending to the issuer.
             </DialogDescription>

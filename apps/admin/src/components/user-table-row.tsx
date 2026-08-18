@@ -7,6 +7,7 @@ import type { UserRole } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { UserRoleBadges } from "@/components/user-role-badges";
+import { accountHref } from "@/lib/admin-directory-hrefs";
 
 interface User {
   user_id: string;
@@ -31,7 +32,7 @@ interface UserTableRowProps {
 }
 
 export function UserTableRow({ user }: UserTableRowProps) {
-  const userHref = `/users/${encodeURIComponent(user.user_id)}`;
+  const userHref = accountHref(user.user_id);
 
   return (
     <TableRow className="hover:bg-muted/50">

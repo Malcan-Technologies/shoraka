@@ -205,9 +205,9 @@ describe("Activity presentation copy", () => {
       const invoice = formatApplicationActivity("issuer", "INVOICE_OFFER_ACCEPTED");
       const signing = formatSigningActivity("issuer", "SIGNING_PACKAGE_COMPLETED");
 
-      expect(contract.title).toBe("Contract Offer Accepted");
+      expect(contract.title).toBe("Facility Offer Accepted");
       expect(invoice.title).toBe("Invoice Offer Accepted");
-      expect(contract.description).toBe("The contract offer was accepted.");
+      expect(contract.description).toBe("The facility offer was accepted.");
       expect(invoice.description).toBe("The invoice offer was accepted.");
       for (const copy of [contract, invoice]) {
         expect(copy.title + copy.description).not.toMatch(/signed|all signers|signing package completed/i);
@@ -619,11 +619,18 @@ describe("Activity presentation copy", () => {
           fileName: "arrears-letter.pdf",
         }).description
       ).toBe("The arrears letter arrears-letter.pdf was generated.");
-      expect(
-        formatNoteActivity("admin", "NOTE_PROSPECTUS_APPROVED", {
+      expect(formatNoteActivity("admin", "NOTE_PROSPECTUS_APPROVED", {
           contentVersion: 3,
         }).description
       ).toBe("The prospectus was approved (version 3).");
+      expect(formatNoteActivity("issuer", "NOTE_CAMPAIGN_PAUSED").title).toBe("Campaign Paused");
+      expect(formatNoteActivity("investor", "NOTE_CAMPAIGN_RESUMED").title).toBe("Campaign Resumed");
+      expect(
+        formatOnboardingActivity("admin", "ORGANIZATION_PROFILE_UPDATED_BY_ADMIN", {
+          actorName: "Ada Admin",
+          changedFields: ["name", "phoneNumber"],
+        }).title
+      ).toBe("Organization Profile Updated");
     });
 
     it("returns generic fallbacks for unknown events", () => {

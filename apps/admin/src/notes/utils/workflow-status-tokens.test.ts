@@ -59,7 +59,7 @@ describe("settlement and receipt tones", () => {
     expect(trusteeWorkflowTone("COMPLETED")).toBe("success");
   });
 
-  it("colours the overview settlement strip yellow when admin still has work", () => {
+  it("colours the settlement strip yellow when admin still has work", () => {
     expect(
       settlementLifecycleStripTone({
         settledComplete: false,
@@ -107,7 +107,7 @@ describe("settlement and receipt tones", () => {
     ).toBe("success");
   });
 
-  it("colours the overview disbursement strip yellow until waiting on trustee", () => {
+  it("colours the disbursement strip yellow until waiting on trustee", () => {
     expect(disbursementLifecycleStripTone(null)).toBe("active");
     expect(disbursementLifecycleStripTone("DRAFT")).toBe("active");
     expect(disbursementLifecycleStripTone("SUBMITTED_TO_TRUSTEE")).toBe("warning");

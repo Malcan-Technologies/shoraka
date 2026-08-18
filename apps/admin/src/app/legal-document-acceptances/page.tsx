@@ -21,21 +21,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LegalAcceptanceDetailSheet } from "@/components/legal-acceptance-detail-sheet";
 import { RequirePermission } from "@/components/require-permission";
 import { AdminPageHeader } from "@/components/admin-page-header";
 import { adminActionRowClass } from "@/lib/admin-status-token";
 import {
-  useDownloadAcceptedVersion,
+  formatLegalAcceptanceDate,
+  LEGAL_ACCEPTANCE_STATUS_OPTIONS,
+  legalAcceptanceStatusLabel,
+  legalAcceptanceStatusToken,
+} from "@/lib/legal-acceptance-display";
+import {
   useExportLegalDocumentAcceptances,
-  useLegalDocumentAcceptanceDetail,
   useLegalDocumentAcceptances,
   type LegalDocumentAcceptancesParams,
 } from "@/hooks/use-legal-document-acceptances";
@@ -47,7 +45,6 @@ import {
   type LegalDocumentAcceptanceListItem,
   type LegalDocumentType,
 } from "@cashsouk/types";
-import { formatLegalFileSize } from "@/lib/legal-documents-admin";
 import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
@@ -66,215 +63,10 @@ const LEGAL_TYPES = LEGAL_DOCUMENT_TYPES.map((value) => ({
   label: LEGAL_DOCUMENT_TYPE_LABELS[value],
 }));
 
-const STATUS_OPTIONS: { value: LegalAcceptanceStatus; label: string }[] = [
-  { value: "NOT_OPENED", label: "Not opened" },
-  { value: "OPENED", label: "Opened" },
-  { value: "ACCEPTED", label: "Accepted" },
-];
-
 const AUDIENCE_OPTIONS: { value: LegalAcceptanceAudience; label: string }[] = [
   { value: "ISSUER", label: "Issuer" },
   { value: "INVESTOR", label: "Investor" },
 ];
-
-function formatAcceptanceDate(dateStr: string | null): string {
-  if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleString("en-MY", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
-function statusLabel(status: LegalAcceptanceStatus): string {
-  const match = STATUS_OPTIONS.find((option) => option.value === status);
-  return match?.label ?? status;
-}
-
-function statusToken(status: LegalAcceptanceStatus) {
-  if (status === "ACCEPTED") return "success" as const;
-  if (status === "OPENED") return "action" as const;
-  return "neutral" as const;
-}
-
-function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <div className="text-sm break-all">{value ?? "—"}</div>
-    </div>
-  );
-}
-
-function AcceptanceDetailSheet({
-  acceptanceId,
-  open,
-  onOpenChange,
-}: {
-  acceptanceId: string | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const downloadAcceptedVersion = useDownloadAcceptedVersion();
-  const { data: acceptance, isLoading, error } = useLegalDocumentAcceptanceDetail(
-    open ? acceptanceId : null
-  );
-  const [downloading, setDownloading] = React.useState(false);
-
-  const handleDownload = async () => {
-    if (!acceptanceId) return;
-    setDownloading(true);
-    try {
-      await downloadAcceptedVersion(acceptanceId);
-    } catch (err) {
-      toast.error("Download failed", {
-        description: err instanceof Error ? err.message : "Could not download PDF",
-      });
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>Acceptance details</SheetTitle>
-          <SheetDescription>
-            Read-only evidence record for this legal document acceptance.
-          </SheetDescription>
-        </SheetHeader>
-
-        {isLoading ? (
-          <div className="mt-6 space-y-4">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="h-10 w-full" />
-            ))}
-          </div>
-        ) : error ? (
-          <p className="mt-6 text-sm text-destructive">
-            {error instanceof Error ? error.message : "Failed to load details"}
-          </p>
-        ) : acceptance ? (
-          <div className="mt-6 space-y-8">
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Overview</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <DetailField label="Acceptance ID" value={acceptance.id} />
-                <DetailField
-                  label="Status"
-                  value={
-                    <StatusBadge
-                      label={statusLabel(acceptance.status)}
-                      status={statusToken(acceptance.status)}
-                    />
-                  }
-                />
-                <DetailField label="Created at" value={formatAcceptanceDate(acceptance.createdAt)} />
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Open evidence</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <DetailField label="Opened at" value={formatAcceptanceDate(acceptance.openedAt)} />
-                <DetailField label="Open IP" value={acceptance.openedIpAddress} />
-                <DetailField label="Open user agent" value={acceptance.openedUserAgent} />
-                <DetailField label="Open device" value={acceptance.openedDeviceInfo} />
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Acceptance evidence</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <DetailField
-                  label="Accepted at"
-                  value={formatAcceptanceDate(acceptance.acceptedAt)}
-                />
-                <DetailField label="Accept IP" value={acceptance.acceptedIpAddress} />
-                <DetailField label="Accept user agent" value={acceptance.acceptedUserAgent} />
-                <DetailField label="Accept device" value={acceptance.acceptedDeviceInfo} />
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Document evidence</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <DetailField
-                  label="Document type"
-                  value={
-                    acceptance.documentType
-                      ? LEGAL_DOCUMENT_TYPE_LABELS[acceptance.documentType]
-                      : acceptance.documentTitle
-                  }
-                />
-                <DetailField
-                  label="Version"
-                  value={acceptance.versionNumber != null ? `v${acceptance.versionNumber}` : "—"}
-                />
-                <DetailField label="Version ID" value={acceptance.legalDocumentVersionId} />
-                <DetailField label="Document ID" value={acceptance.legalDocumentId} />
-                <DetailField label="Hash" value={acceptance.documentHash} />
-                <DetailField label="File name" value={acceptance.fileName} />
-                <DetailField
-                  label="Version status"
-                  value={acceptance.versionStatus ?? "—"}
-                />
-                <DetailField label="Content type" value={acceptance.contentType} />
-                <DetailField
-                  label="File size"
-                  value={
-                    acceptance.fileSize != null
-                      ? formatLegalFileSize(acceptance.fileSize)
-                      : "—"
-                  }
-                />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Acknowledgement wording</p>
-                <p className="rounded-lg border bg-muted/30 p-3 text-sm">
-                  {acceptance.acknowledgementText ?? "—"}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">User / organization</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <DetailField label="User ID" value={acceptance.userId} />
-                <DetailField label="User name snapshot" value={acceptance.userName} />
-                <DetailField label="User email snapshot" value={acceptance.userEmail} />
-                <DetailField label="Organization ID" value={acceptance.organizationId} />
-                <DetailField label="Organization name snapshot" value={acceptance.organizationName} />
-                <DetailField
-                  label="Organization type snapshot"
-                  value={acceptance.organizationAccountType}
-                />
-                <DetailField
-                  label="Portal"
-                  value={<PortalBadge portal={acceptance.portal} />}
-                />
-              </div>
-            </div>
-
-            <Button
-              variant="outline"
-              className="w-full"
-              disabled={downloading}
-              onClick={() => void handleDownload()}
-            >
-              <ArrowDownTrayIcon className="mr-2 h-4 w-4" />
-              {downloading ? "Preparing download..." : "Download accepted version"}
-            </Button>
-          </div>
-        ) : null}
-      </SheetContent>
-    </Sheet>
-  );
-}
 
 export default function LegalDocumentAcceptancesPage() {
   const queryClient = useQueryClient();
@@ -428,7 +220,7 @@ export default function LegalDocumentAcceptancesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
-                {STATUS_OPTIONS.map((option) => (
+                {LEGAL_ACCEPTANCE_STATUS_OPTIONS.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
@@ -532,9 +324,9 @@ export default function LegalDocumentAcceptancesPage() {
                   </TableRow>
                 ) : (
                   acceptances.map((row) => (
-                    <TableRow key={row.id} className={adminActionRowClass(statusToken(row.status))}>
+                    <TableRow key={row.id} className={adminActionRowClass(legalAcceptanceStatusToken(row.status))}>
                       <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                        {formatAcceptanceDate(row.acceptedAt)}
+                        {formatLegalAcceptanceDate(row.acceptedAt)}
                       </TableCell>
                       <TableCell className="max-w-[220px] text-sm">
                         <p className="truncate font-medium" title={row.documentTitle}>
@@ -569,8 +361,8 @@ export default function LegalDocumentAcceptancesPage() {
                       </TableCell>
                       <TableCell>
                         <StatusBadge
-                          label={statusLabel(row.status)}
-                          status={statusToken(row.status)}
+                          label={legalAcceptanceStatusLabel(row.status)}
+                          status={legalAcceptanceStatusToken(row.status)}
                         />
                       </TableCell>
                       <TableCell className="text-right">
@@ -615,7 +407,7 @@ export default function LegalDocumentAcceptancesPage() {
         </div>
       </div>
 
-      <AcceptanceDetailSheet
+      <LegalAcceptanceDetailSheet
         acceptanceId={selectedAcceptanceId}
         open={detailOpen}
         onOpenChange={setDetailOpen}

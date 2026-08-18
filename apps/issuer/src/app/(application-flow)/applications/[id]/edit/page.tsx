@@ -665,10 +665,10 @@ function EditApplicationPageBody() {
       if (currentStepKey === "contract_details") {
         const isInvoiceOnly = effectiveStructureType === "invoice_only";
         return {
-          title: isInvoiceOnly ? "Provide Customer Details" : "Provide Contract and Customer Details",
+          title: isInvoiceOnly ? "Provide Customer Details" : "Provide Facility and Customer Details",
           description: isInvoiceOnly
             ? "Tell us about the customer billed under this invoice."
-            : "Help us understand your contract and the customer billed under this invoice.",
+            : "Help us understand your facility and the customer billed under this invoice.",
         };
       }
       const stepDisplay = STEP_KEY_DISPLAY[currentStepKey];
@@ -1887,7 +1887,7 @@ function EditApplicationPageBody() {
                   if (stepKey === "contract_details") {
                     return effectiveStructureType === "invoice_only"
                       ? "Customer Details"
-                      : "Contract Details";
+                      : "Facility Details";
                   }
                   return (s.name as string) ?? "";
                 })}
@@ -1924,7 +1924,7 @@ function EditApplicationPageBody() {
                   if (stepKey === "contract_details") {
                     return effectiveStructureType === "invoice_only"
                       ? "Customer Details"
-                      : "Contract Details";
+                      : "Facility Details";
                   }
                   return (s.name as string) ?? "";
                 })}

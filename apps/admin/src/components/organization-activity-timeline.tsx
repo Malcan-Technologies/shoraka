@@ -22,10 +22,14 @@ import {
   UserIcon,
   GlobeAltIcon,
   ComputerDesktopIcon,
+  PencilSquareIcon,
 } from "@heroicons/react/24/outline";
+import type { OnboardingLogResponse } from "@cashsouk/types";
 
 interface OrganizationActivityTimelineProps {
   organizationId: string | null;
+  /** `panel` is the full-width activity tab; default `sidebar` keeps the compact rail layout. */
+  variant?: "sidebar" | "panel";
 }
 
 function getEventIcon(eventType: string) {
@@ -52,6 +56,8 @@ function getEventIcon(eventType: string) {
       return <DocumentTextIcon className="h-3.5 w-3.5 text-emerald-600" />;
     case "INVESTOR_SOPHISTICATED_STATUS_UPDATED":
       return <StarIcon className="h-3.5 w-3.5 text-violet-600" />;
+    case "ORGANIZATION_PROFILE_UPDATED_BY_ADMIN":
+      return <PencilSquareIcon className="h-3.5 w-3.5 text-muted-foreground" />;
     case "USER_ONBOARDING_STATUS_UPDATED":
     case "CORPORATE_ENTITIES_UPDATED":
     case "DIRECTOR_ONBOARDING_INVITATION_SENT":
@@ -116,8 +122,108 @@ function TimelineSkeleton() {
   );
 }
 
+function OrganizationActivityTimelineList({
+  logs,
+  hasNextPage,
+  fetchNextPage,
+  isFetchingNextPage,
+}: {
+  logs: OnboardingLogResponse[];
+  hasNextPage: boolean | undefined;
+  fetchNextPage: () => void;
+  isFetchingNextPage: boolean;
+}) {
+  return (
+    <>
+      <div className="relative">
+        <div className="absolute left-[5px] top-2 bottom-2 w-px bg-border" />
+        <div className="space-y-5">
+          {logs.map((log, index) => {
+            const eventType = log.eventType;
+            const isFirst = index === 0;
+            const actorType = String(log.actor?.type ?? "").trim().toUpperCase();
+            const isIntegrationActor = actorType === "INTEGRATION" || actorType === "SYSTEM";
+            const resolvedName = String(log.actor.displayName ?? "").trim();
+            const actorName = !isIntegrationActor && resolvedName ? resolvedName : "System";
+            const showDeviceAndIp = !isIntegrationActor;
+            const metadata = log.metadata as Record<string, unknown> | null;
+            const description = buildEventDescription(eventType, metadata);
+
+            return (
+              <div key={log.id} className="relative flex gap-3 pl-0">
+                <div
+                  className={`relative z-10 mt-1.5 h-[11px] w-[11px] shrink-0 rounded-full border-2 border-card ${getEventDotColor(eventType)} ${isFirst ? "ring-2 ring-primary/20" : ""}`}
+                />
+                <div className="flex-1 min-w-0 -mt-0.5">
+                  <div className="flex items-start gap-1.5 min-w-0">
+                    {getEventIcon(eventType)}
+                    <span className="text-sm font-medium leading-tight break-words min-w-0">
+                      {getEventLabel(eventType, metadata)}
+                    </span>
+                  </div>
+                  {description ? (
+                    <p className="text-xs text-muted-foreground mt-0.5 break-words">{description}</p>
+                  ) : null}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[11px] text-muted-foreground/70">
+                    <span className="inline-flex items-center gap-0.5 whitespace-nowrap max-w-full">
+                      <UserIcon className="h-3 w-3 shrink-0" />
+                      {actorName}
+                    </span>
+                    {actorType === "ADMIN" ? (
+                      <span className="whitespace-nowrap">ADMIN</span>
+                    ) : log.portal ? (
+                      <span className="inline-flex items-center gap-0.5 whitespace-nowrap">
+                        <GlobeAltIcon className="h-3 w-3 shrink-0" />
+                        {log.portal}
+                      </span>
+                    ) : null}
+                    {showDeviceAndIp && log.deviceInfo ? (
+                      <span className="inline-flex items-center gap-0.5 min-w-0">
+                        <ComputerDesktopIcon className="h-3 w-3 shrink-0" />
+                        <span className="break-all">{log.deviceInfo}</span>
+                      </span>
+                    ) : null}
+                    {showDeviceAndIp && log.ipAddress ? (
+                      <span className="font-mono break-all">{log.ipAddress}</span>
+                    ) : null}
+                  </div>
+                  <p
+                    className="text-[11px] text-muted-foreground/70 mt-1"
+                    title={format(new Date(log.occurredAt), "PPpp")}
+                  >
+                    {formatDistanceToNow(new Date(log.occurredAt), { addSuffix: true })}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      {hasNextPage ? (
+        <div className="mt-4 flex justify-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+            className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            {isFetchingNextPage ? (
+              <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <ChevronDownIcon className="h-3.5 w-3.5" />
+            )}
+            {isFetchingNextPage ? "Loading..." : "Load more"}
+          </Button>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 export function OrganizationActivityTimeline({
   organizationId,
+  variant = "sidebar",
 }: OrganizationActivityTimelineProps) {
   const {
     data,
@@ -134,146 +240,62 @@ export function OrganizationActivityTimeline({
   );
 
   const totalCount = data?.pages[0]?.pagination.totalCount ?? 0;
+  const isPanel = variant === "panel";
 
   return (
-    <Card className="rounded-2xl flex flex-col h-full overflow-hidden">
+    <Card className={isPanel ? "rounded-2xl" : "rounded-2xl flex flex-col h-full overflow-hidden"}>
       <CardHeader className="pb-3 shrink-0">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm font-semibold">Activity Timeline</CardTitle>
-          {totalCount > 0 && (
+          {totalCount > 0 ? (
             <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
               {totalCount}
             </Badge>
-          )}
+          ) : null}
         </div>
-        <p className="text-xs text-muted-foreground">
-          Organization events and status changes
-        </p>
+        <p className="text-xs text-muted-foreground">Organization events and status changes</p>
       </CardHeader>
 
-      <CardContent className="flex-1 overflow-hidden pt-0 px-0">
-        {isLoading && (
+      <CardContent className={isPanel ? "pt-0 px-0" : "flex-1 overflow-hidden pt-0 px-0"}>
+        {isLoading ? (
           <div className="px-6 pb-4">
             <TimelineSkeleton />
           </div>
-        )}
+        ) : null}
 
-        {error && (
-          <div className="px-6 pb-4 text-sm text-destructive">
-            Failed to load activity logs
-          </div>
-        )}
+        {error ? (
+          <div className="px-6 pb-4 text-sm text-destructive">Failed to load activity logs</div>
+        ) : null}
 
-        {!isLoading && !error && logs.length === 0 && (
+        {!isLoading && !error && logs.length === 0 ? (
           <div className="px-6 pb-4 text-sm text-muted-foreground text-center py-8">
             No activity logs found
           </div>
-        )}
+        ) : null}
 
-        {!isLoading && logs.length > 0 && (
-          <ScrollArea className="h-full">
+        {!isLoading && logs.length > 0 ? (
+          isPanel ? (
             <div className="px-6 pb-4">
-              <div className="relative">
-                {/* Vertical timeline line */}
-                <div className="absolute left-[5px] top-2 bottom-2 w-px bg-border" />
-
-                <div className="space-y-5">
-                  {logs.map((log, index) => {
-                    const eventType = log.eventType;
-                    const isFirst = index === 0;
-                    const actorType = String(log.actor?.type ?? "").trim().toUpperCase();
-                    const isIntegrationActor = actorType === "INTEGRATION" || actorType === "SYSTEM";
-                    const resolvedName = String(log.actor.displayName ?? "").trim();
-                    const actorName = !isIntegrationActor && resolvedName ? resolvedName : "System";
-                    const showDeviceAndIp = !isIntegrationActor;
-                    const metadata = log.metadata as Record<string, unknown> | null;
-                    const description = buildEventDescription(eventType, metadata);
-
-                    return (
-                      <div key={log.id} className="relative flex gap-3 pl-0">
-                        {/* Dot indicator */}
-                        <div
-                          className={`relative z-10 mt-1.5 h-[11px] w-[11px] shrink-0 rounded-full border-2 border-card ${getEventDotColor(eventType)} ${isFirst ? "ring-2 ring-primary/20" : ""}`}
-                        />
-
-                        <div className="flex-1 min-w-0 -mt-0.5">
-                          {/* Event label and icon */}
-                          <div className="flex items-start gap-1.5 min-w-0">
-                            {getEventIcon(eventType)}
-                            <span className="text-sm font-medium leading-tight break-words min-w-0">
-                              {getEventLabel(eventType, metadata)}
-                            </span>
-                          </div>
-
-                          {description ? (
-                            <p className="text-xs text-muted-foreground mt-0.5 break-words">
-                              {description}
-                            </p>
-                          ) : null}
-
-                          {/* Actor + context row */}
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[11px] text-muted-foreground/70">
-                            <span className="inline-flex items-center gap-0.5 whitespace-nowrap max-w-full">
-                              <UserIcon className="h-3 w-3 shrink-0" />
-                              {actorName}
-                            </span>
-                            {actorType === "ADMIN" ? (
-                              <span className="whitespace-nowrap">ADMIN</span>
-                            ) : log.portal ? (
-                              <span className="inline-flex items-center gap-0.5 whitespace-nowrap">
-                                <GlobeAltIcon className="h-3 w-3 shrink-0" />
-                                {log.portal}
-                              </span>
-                            ) : null}
-                            {showDeviceAndIp && log.deviceInfo ? (
-                              <span className="inline-flex items-center gap-0.5 min-w-0">
-                                <ComputerDesktopIcon className="h-3 w-3 shrink-0" />
-                                <span className="break-all">{log.deviceInfo}</span>
-                              </span>
-                            ) : null}
-                            {showDeviceAndIp && log.ipAddress ? (
-                              <span className="font-mono break-all">{log.ipAddress}</span>
-                            ) : null}
-                          </div>
-
-                          {/* Timestamp */}
-                          <p
-                            className="text-[11px] text-muted-foreground/70 mt-1"
-                            title={format(new Date(log.occurredAt), "PPpp")}
-                          >
-                            {formatDistanceToNow(new Date(log.occurredAt), {
-                              addSuffix: true,
-                            })}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Load More */}
-              {hasNextPage && (
-                <div className="mt-4 flex justify-center">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => fetchNextPage()}
-                    disabled={isFetchingNextPage}
-                    className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    {isFetchingNextPage ? (
-                      <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <ChevronDownIcon className="h-3.5 w-3.5" />
-                    )}
-                    {isFetchingNextPage ? "Loading..." : "Load more"}
-                  </Button>
-                </div>
-              )}
+              <OrganizationActivityTimelineList
+                logs={logs}
+                hasNextPage={hasNextPage}
+                fetchNextPage={fetchNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+              />
             </div>
-          </ScrollArea>
-        )}
+          ) : (
+            <ScrollArea className="h-full">
+              <div className="px-6 pb-4">
+                <OrganizationActivityTimelineList
+                  logs={logs}
+                  hasNextPage={hasNextPage}
+                  fetchNextPage={fetchNextPage}
+                  isFetchingNextPage={isFetchingNextPage}
+                />
+              </div>
+            </ScrollArea>
+          )
+        ) : null}
       </CardContent>
     </Card>
   );

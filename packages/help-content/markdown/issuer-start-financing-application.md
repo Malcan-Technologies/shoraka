@@ -34,26 +34,26 @@ Use **Save and Continue** to move forward and **Back** to fix an earlier screen.
 
 ## After Financing Type
 
-Follow the progress bar. The middle steps are **only** what your product includes. Examples you might see (not every product has all of them) include **Company Details**, **Business & Guarantor Details**, **Financial Statements**, **Upload Supporting Documents**, **Provide Contract and Customer Details**, **Upload invoice(s)**, or a **Financing Structure** style question. Your product may use other labels or skip some of these entirely.
+Follow the progress bar. The middle steps are **only** what your product includes. Examples you might see (not every product has all of them) include **Company Details**, **Business & Guarantor Details**, **Financial Statements**, **Upload Supporting Documents**, **Provide Facility and Customer Details**, **Upload invoice(s)**, or a **Financing Structure** style question. Your product may use other labels or skip some of these entirely.
 
 ## When you see Financing Structure
 
 Some products ask **How would you like to apply for financing?** with three choices. Use the one that matches your situation.
 
-**Submit a new contract**  
-*My invoice is under a contract that hasn't been approved by Cashsouk*  
-For a **new** facility CashSouk has not approved yet. You will enter contract and customer details where the form asks. Invoice steps depend on the product.
+**Submit a new facility**  
+*My invoice is under a facility that hasn't been approved by Cashsouk*  
+For a **new** facility CashSouk has not approved yet. You will enter facility and customer details where the form asks. Invoice steps depend on the product.
 
-**Use an existing contract**  
-*My invoice is under a contract already approved by Cashsouk*  
-When you already have an approved CashSouk contract. Choose it in **Select an existing contract**. If you see **No existing contracts**, pick another path or complete an approved facility first. Details may **prefill** from the contract you pick.
+**Use an existing facility**  
+*My invoice is under a facility already approved by Cashsouk*  
+When you already have an approved CashSouk facility. Choose it in **Select an existing facility**. If you see **No existing facilities**, pick another path or complete an approved facility first. Details may **prefill** from the facility you pick.
 
 **Invoice-only financing**  
-*I want to finance my invoice(s) without a contract*  
-When the product supports invoice-led financing without a full new-contract path. You still complete customer or paymaster details where the product requires them.
+*I want to finance my invoice(s) without a facility*  
+When the product supports invoice-led financing without a full new-facility path. You still complete customer or paymaster details where the product requires them.
 
 ## Declarations and submit
 
 The last step is **Declarations**. Tick every box, then **Submit**. The application is no longer **Draft** and goes to the team for review. Check **Application** for the latest status.
 
-If you get **Amendment requested**, fix what they flagged and **Resubmit**. When offers are ready, accept or sign **contract** and **invoice** offers as the product requires.
+If you get **Amendment requested**, fix what they flagged and **Resubmit**. When offers are ready, accept or sign **facility** and **invoice** offers as the product requires.

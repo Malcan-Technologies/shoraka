@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import type { AdminInvestmentItem } from "@cashsouk/types";
 import { Skeleton } from "@cashsouk/ui";
@@ -9,8 +11,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SortableTableHead } from "@/shared/admin-list/components/sortable-table-head";
 import { TablePagination } from "@/shared/admin-list/components/table-pagination";
+import { timestampOrNull } from "@/shared/admin-list/table-sort";
+import { useTableSort } from "@/shared/admin-list/use-table-sort";
 import { InvestmentsTableRow } from "./investments-table-row";
+
+type InvestmentsSortColumn = "amount" | "committed";
 
 interface InvestmentsTableProps {
   investments: AdminInvestmentItem[];
@@ -38,6 +45,13 @@ function TableSkeleton() {
   );
 }
 
+function investmentsSortValue(
+  investment: AdminInvestmentItem,
+  column: InvestmentsSortColumn
+): number | null {
+  return column === "amount" ? investment.amount : timestampOrNull(investment.committedAt);
+}
+
 export function InvestmentsTable({
   investments,
   loading,
@@ -50,6 +64,10 @@ export function InvestmentsTable({
   const totalPages = Math.max(1, Math.ceil(totalInvestments / pageSize));
   const startIndex = totalInvestments === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endIndex = Math.min(currentPage * pageSize, totalInvestments);
+  const { sortedRows, sortColumn, sortDirection, onSort } = useTableSort(
+    investments,
+    investmentsSortValue
+  );
 
   return (
     <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
@@ -70,24 +88,36 @@ export function InvestmentsTable({
               <TableHead className="truncate">Note ref</TableHead>
               <TableHead className="truncate">Note / Issuer</TableHead>
               <TableHead className="truncate">Investor</TableHead>
-              <TableHead className="truncate">Amount</TableHead>
+              <SortableTableHead
+                column="amount"
+                label="Amount"
+                activeColumn={sortColumn}
+                direction={sortDirection}
+                onSort={onSort}
+              />
               <TableHead className="truncate text-right">Allocation</TableHead>
               <TableHead className="truncate">Status</TableHead>
-              <TableHead className="truncate">Committed</TableHead>
+              <SortableTableHead
+                column="committed"
+                label="Committed"
+                activeColumn={sortColumn}
+                direction={sortDirection}
+                onSort={onSort}
+              />
               <TableHead className="truncate">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableSkeleton />
-            ) : investments.length === 0 ? (
+            ) : sortedRows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
                   No investments found
                 </TableCell>
               </TableRow>
             ) : (
-              investments.map((investment) => (
+              sortedRows.map((investment) => (
                 <InvestmentsTableRow
                   key={investment.id}
                   investment={investment}

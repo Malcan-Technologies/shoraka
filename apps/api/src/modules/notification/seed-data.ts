@@ -155,8 +155,8 @@ export const initialNotificationTypes = [
   },
   {
     id: "contract_offer_sent",
-    name: "Contract Offer Sent",
-    description: "Sent when a contract offer is sent to your application.",
+    name: "Facility Offer Sent",
+    description: "Sent when a facility offer is sent to your application.",
     category: NotificationCategory.SYSTEM,
     portal_targets: ISSUER_ONLY,
     default_priority: NotificationPriority.WARNING,
@@ -189,7 +189,7 @@ export const initialNotificationTypes = [
   {
     id: "offer_expired",
     name: "Offer Expired",
-    description: "Sent when a contract or invoice offer expires.",
+    description: "Sent when a facility or invoice offer expires.",
     category: NotificationCategory.SYSTEM,
     portal_targets: ISSUER_ONLY,
     default_priority: NotificationPriority.WARNING,

@@ -185,7 +185,7 @@ function InvoiceFeesCell({
     status: invoice.status,
     offerDetails: invoice.offer_details,
     financingAmount: invoice.appliedFinancing,
-    isContractFinancing: application.type === "Contract financing" && !!invoice.contractId,
+    isContractFinancing: application.type === "Facility financing" && !!invoice.contractId,
     contractFacilityFeeRatePercent: application.facilityFeeRatePercent,
     contractFacilityFeeCapAmount: application.facilityFeeCapAmount,
     contractFacilityFeePaidAmount: application.facilityFeePaidAmount,

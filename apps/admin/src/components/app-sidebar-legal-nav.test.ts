@@ -7,6 +7,18 @@ describe("admin platform sidebar navigation", () => {
     "utf8"
   );
 
+  it("shows User Accounts linking to /accounts", () => {
+    expect(source).toMatch(/title:\s*"User Accounts"[\s\S]*?url:\s*"\/accounts"/);
+  });
+
+  it("shows Issuers linking to /issuers", () => {
+    expect(source).toMatch(/title:\s*"Issuers"[\s\S]*?url:\s*"\/issuers"/);
+  });
+
+  it("shows Investors linking to /investors", () => {
+    expect(source).toMatch(/title:\s*"Investors"[\s\S]*?url:\s*"\/investors"/);
+  });
+
   it("shows Legal Documents linking to /legal-documents", () => {
     expect(source).toMatch(/title:\s*"Legal Documents"[\s\S]*?url:\s*"\/legal-documents"/);
   });
@@ -17,12 +29,16 @@ describe("admin platform sidebar navigation", () => {
     );
   });
 
-  it("allows Legal Documents with document_management.view", () => {
-    expect(source).toContain('item.title === "Legal Documents" && canViewDocuments');
+  it("gates User Accounts with users.view", () => {
+    expect(source).toContain('item.access === "users" && canViewUsers');
   });
 
-  it("allows Legal Acceptances with document_management.view", () => {
-    expect(source).toContain('item.title === "Legal Acceptances" && canViewDocuments');
+  it("gates Issuers and Investors with organizations.view", () => {
+    expect(source).toContain('item.access === "organizations" && canViewOrganizations');
+  });
+
+  it("gates legal directory items with document_management.view", () => {
+    expect(source).toContain('item.access === "documents" && canViewDocuments');
   });
 
   it("hides the obsolete placeholder Documents nav entry", () => {
@@ -31,5 +47,10 @@ describe("admin platform sidebar navigation", () => {
 
   it("labels the audit nav item Audit Logs", () => {
     expect(source).toContain("<span>Audit Logs</span>");
+  });
+
+  it("does not keep the old Users or Organizations directory URLs", () => {
+    expect(source).not.toMatch(/url:\s*"\/users"/);
+    expect(source).not.toMatch(/url:\s*"\/organizations"/);
   });
 });

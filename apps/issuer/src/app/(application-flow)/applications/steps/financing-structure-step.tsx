@@ -33,11 +33,11 @@ import { FinancingStructureSkeleton } from "@/app/(application-flow)/application
  * FINANCING STRUCTURE STEP
  *
  * This step lets users choose how they want to apply for financing:
- * 1. Submit a new contract - User will fill contract details in next step
- * 2. Use an existing contract - Select from previously approved contracts
- * 3. Invoice-only financing - Finance invoices without a contract
+ * 1. Submit a new facility - User will fill facility details in next step
+ * 2. Use an existing facility - Select from previously approved facilities
+ * 3. Invoice-only financing - Finance invoices without a facility
  *
- * Changing structure is a branch reset: invoices / draft contract data are cleared on save.
+ * Changing structure is a branch reset: invoices / draft facility data are cleared on save.
  */
 
 type FinancingStructureType = "new_contract" | "existing_contract" | "invoice_only";
@@ -219,16 +219,16 @@ export function FinancingStructureStep({
       <div className={applicationFlowStepHorizontalClassName}>
         <div className="space-y-3">
           <SelectionCard
-            title="Submit a new contract"
-            description="My invoice is under a contract that hasn't been approved by Cashsouk"
+            title="Submit a new facility"
+            description="My invoice is under a facility that hasn't been approved by Cashsouk"
             isSelected={selectedStructure === "new_contract"}
             onClick={readOnly ? () => {} : () => handleStructureSelect("new_contract")}
             disabled={readOnly}
           />
 
           <SelectionCard
-            title="Use an existing contract"
-            description="My invoice is under a contract already approved by Cashsouk"
+            title="Use an existing facility"
+            description="My invoice is under a facility already approved by Cashsouk"
             isSelected={selectedStructure === "existing_contract"}
             onClick={readOnly ? () => {} : () => handleStructureSelect("existing_contract")}
             disabled={readOnly}
@@ -248,13 +248,13 @@ export function FinancingStructureStep({
                       }
                     }}
                   >
-                    <SelectValue placeholder="Select an existing contract" />
+                    <SelectValue placeholder="Select an existing facility" />
                   </SelectTrigger>
 
                   <SelectContent>
                     {approvedContracts.map((contract: Contract) => (
                       <SelectItem key={contract.id} value={contract.id}>
-                        {contract.contract_details?.title ?? "Untitled Contract"}
+                        {contract.contract_details?.title ?? "Untitled facility"}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -264,7 +264,7 @@ export function FinancingStructureStep({
                   className="w-[280px] rounded-md border border-dashed border-input bg-muted px-3 py-2 text-sm text-muted-foreground"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  No existing contracts
+                  No existing facilities
                 </div>
               )
             }
@@ -272,7 +272,7 @@ export function FinancingStructureStep({
 
           <SelectionCard
             title="Invoice-only financing"
-            description="I want to finance my invoice(s) without a contract"
+            description="I want to finance my invoice(s) without a facility"
             isSelected={selectedStructure === "invoice_only"}
             onClick={readOnly ? () => {} : () => handleStructureSelect("invoice_only")}
             disabled={readOnly}
@@ -284,7 +284,7 @@ export function FinancingStructureStep({
         open={branchResetConfirmOpen}
         onOpenChange={handleBranchResetConfirmOpenChange}
         title="Change financing structure?"
-        description="This will remove invoices and contract details entered for the current structure, including uploaded files. Other application steps are kept. This can't be undone."
+        description="This will remove invoices and facility details entered for the current structure, including uploaded files. Other application steps are kept. This can't be undone."
         confirmText="Change structure"
         cancelText="Cancel"
         variant="destructive"

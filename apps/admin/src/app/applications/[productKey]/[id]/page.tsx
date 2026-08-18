@@ -85,6 +85,7 @@ import {
   ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL,
   ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT,
 } from "@/lib/admin-director-shareholder-review-message";
+import { orgHref } from "@/lib/admin-directory-hrefs";
 import { ApplicationStatusBadge } from "@/components/application-review";
 import {
   isSignedContractOfferLetterAvailable,
@@ -986,7 +987,7 @@ export default function DynamicApplicationDetailPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(240px,300px)] xl:grid-cols-[1fr_minmax(260px,320px)] gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(380px,440px)] gap-6">
                 <div className="min-w-0 space-y-6">
                   <Card className="rounded-2xl">
                     <CardContent className="pt-6">
@@ -996,9 +997,9 @@ export default function DynamicApplicationDetailPage() {
                           structureType === "invoice_only"
                             ? "Invoice only"
                             : structureType === "new_contract"
-                              ? "New contract"
+                              ? "New facility"
                               : structureType === "existing_contract"
-                                ? "Existing contract"
+                                ? "Existing facility"
                                 : "—";
                         const customerDetails = (app.contract as { customer_details?: Record<string, unknown> } | null)?.customer_details ?? {};
                         const companyDetails = (app as { company_details?: Record<string, unknown> }).company_details ?? {};
@@ -1127,9 +1128,9 @@ export default function DynamicApplicationDetailPage() {
                           : applicationWithdrawn
                             ? "Application withdrawn"
                             : isContractExistingContract
-                              ? "Contract was approved in a prior application"
+                              ? "Facility was approved in a prior application"
                               : isAcceptanceExistingContract
-                                ? "Acceptance was completed when the linked contract was approved"
+                                ? "Acceptance was completed when the linked facility was approved"
                                 : getTabUnlockTooltip(
                                   descriptor.reviewSection,
                                   sectionStatusMap,
@@ -1236,16 +1237,16 @@ export default function DynamicApplicationDetailPage() {
                                   facilityFeeRatePercent,
                                 });
                                 if (hasAcceptanceTab) {
-                                  toast.success("Contract offer sent — continue on Acceptance");
+                                  toast.success("Facility offer sent — continue on Acceptance");
                                   goToAcceptanceTab();
                                 } else {
-                                  toast.success("Contract offer sent");
+                                  toast.success("Facility offer sent");
                                 }
                               } catch (err) {
                                 toast.error(
                                   err instanceof Error
                                     ? err.message
-                                    : "Failed to send contract offer"
+                                    : "Failed to send facility offer"
                                 );
                               }
                             }}
@@ -1318,7 +1319,11 @@ export default function DynamicApplicationDetailPage() {
                       <RelatedRecordLink
                         label="Issuer Organization"
                         value={app.issuer_organization_id}
-                        href={`/organizations/issuer/${encodeURIComponent(app.issuer_organization_id)}`}
+                        href={
+                          can("organizations.view")
+                            ? orgHref("issuer", app.issuer_organization_id)
+                            : null
+                        }
                         display={
                           app.issuer_organization.name
                             ? `${app.issuer_organization.name} (${app.issuer_organization_id})`
@@ -1326,7 +1331,7 @@ export default function DynamicApplicationDetailPage() {
                         }
                       />
                       <RelatedRecordLink
-                        label="Contract ID"
+                        label="Facility ID"
                         value={applicationContractId}
                         href={applicationContractId ? `/contracts/${encodeURIComponent(applicationContractId)}` : null}
                       />

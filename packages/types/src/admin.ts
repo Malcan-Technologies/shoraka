@@ -382,6 +382,7 @@ export const ONBOARDING_AUDIT_EVENTS = [
   "CORPORATE_ENTITIES_UPDATED",
   "DIRECTOR_ONBOARDING_INVITATION_SENT",
   "DIRECTOR_KYC_STATUS_UPDATED",
+  "ORGANIZATION_PROFILE_UPDATED_BY_ADMIN",
 ] as const;
 
 export type OnboardingEventType = (typeof ONBOARDING_AUDIT_EVENTS)[number];
@@ -595,6 +596,7 @@ export interface OrganizationMemberDetail {
   firstName: string;
   lastName: string;
   email: string;
+  phone: string | null;
   role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
   createdAt: string;
 }
@@ -745,62 +747,6 @@ export interface OrganizationDetailResponse {
   amlApproved: boolean;
   regtankSessionStatus: string | null;
 
-  // Applications (issuer only)
-  applications?: {
-    id: string;
-    status: string;
-    productVersion: number;
-    lastCompletedStep: number;
-    submittedAt: string | null;
-    createdAt: string;
-    updatedAt: string;
-    contractId: string | null;
-  }[];
-
-  linkedRecords?: {
-    applications: {
-      id: string;
-      displayReference: string | null;
-      status: string;
-      productId: string | null;
-      submittedAt: string | null;
-      createdAt: string;
-      updatedAt: string;
-      contractId: string | null;
-      requestedAmount: number | null;
-    }[];
-    contracts: {
-      id: string;
-      displayReference: string | null;
-      title: string | null;
-      contractNumber: string | null;
-      status: string;
-      createdAt: string;
-      updatedAt: string;
-      contractValue: number | null;
-    }[];
-    notes: {
-      id: string;
-      noteReference: string;
-      title: string;
-      status: string;
-      targetAmount: number;
-      fundedAmount: number;
-      createdAt: string;
-      updatedAt: string;
-    }[];
-    investments: {
-      id: string;
-      status: string;
-      amount: number;
-      noteId: string;
-      noteReference: string;
-      noteTitle: string;
-      committedAt: string;
-      updatedAt: string;
-    }[];
-  };
-
   // Corporate onboarding data (for COMPANY type)
   corporateOnboardingData?: {
     basicInfo?: {
@@ -869,6 +815,87 @@ export interface OrganizationDetailResponse {
 
   // Business AML screening status — COMPANY only
   businessAmlStatus?: Record<string, unknown> | null;
+}
+
+export type OrganizationLinkedRecordType = "applications" | "contracts" | "notes" | "investments";
+
+export interface GetOrganizationLinkedRecordsParams extends PaginationParams {
+  type?: OrganizationLinkedRecordType;
+}
+
+export interface OrganizationLinkedRecordRow {
+  type: "application" | "contract" | "note" | "investment";
+  id: string;
+  displayReference: string | null;
+  title: string | null;
+  amount: number | null;
+  status: string;
+  updatedAt: string;
+  productId: string | null;
+  noteId: string | null;
+  contractId: string | null;
+  contractNumber: string | null;
+}
+
+export interface OrganizationLinkedRecordsCounts {
+  applications?: number;
+  contracts?: number;
+  notes?: number;
+  investments?: number;
+}
+
+export interface OrganizationLinkedRecordsResponse {
+  items: OrganizationLinkedRecordRow[];
+  pagination: PaginationResponse;
+  counts: OrganizationLinkedRecordsCounts;
+}
+
+export interface AdminOrganizationAddressInput {
+  line1?: string | null;
+  line2?: string | null;
+  city?: string | null;
+  postalCode?: string | null;
+  state?: string | null;
+  country?: string | null;
+}
+
+export interface UpdateAdminOrganizationCorporateOnboardingInput {
+  website?: string | null;
+  industry?: string | null;
+  entityType?: string | null;
+  numberOfEmployees?: number | null;
+  annualRevenue?: string | null;
+  tinNumber?: string | null;
+  businessName?: string | null;
+  addresses?: {
+    business?: AdminOrganizationAddressInput | null;
+    registered?: AdminOrganizationAddressInput | null;
+  };
+  personInCharge?: {
+    name?: string | null;
+    position?: string | null;
+    email?: string | null;
+    contactNumber?: string | null;
+  };
+}
+
+export interface UpdateAdminOrganizationProfileInput {
+  name?: string | null;
+  phoneNumber?: string | null;
+  address?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  middleName?: string | null;
+  bankAccountDetails?: {
+    content: Array<{
+      cn: boolean;
+      fieldName: string;
+      fieldType: string;
+      fieldValue: string;
+    }>;
+    displayArea: string;
+  } | null;
+  corporateOnboardingData?: UpdateAdminOrganizationCorporateOnboardingInput;
 }
 
 // Onboarding Applications Types (Admin Approval Queue)

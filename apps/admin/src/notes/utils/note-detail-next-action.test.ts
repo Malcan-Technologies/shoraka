@@ -2,7 +2,6 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   NoteFundingStatus,
-  NoteInvestmentStatus,
   NoteListingStatus,
   NoteServicingStatus,
   NoteStatus,
@@ -11,19 +10,17 @@ import {
 import {
   findNoteDisbursementWithdrawal,
   isNoteDetailTabId,
+  NOTE_REFERENCE_TAB_TOKEN,
   noteDetailTabStatusToken,
   noteLatePaymentTabStatusToken,
   noteProspectusNeedsReview,
-  resolveNoteActivityTabToken,
+  resolveNoteCampaignTabStatus,
   resolveNoteDetailNextAction,
   resolveNoteDisbursementTabStatus,
-  resolveNoteInvestorsTabToken,
-  resolveNoteLedgerTabToken,
-  resolveNoteOverviewTabStatus,
   resolveNoteServicingTabStatus,
 } from "./note-detail-next-action";
 import { hasNoteLifecycleAdminAction } from "./note-lifecycle-actions";
-import { resolveNoteSourceLinkage } from "./note-source-linkage";
+import { resolveNoteFacilityLink, resolveNoteSourceLinkage } from "./note-source-linkage";
 
 function daysFromNow(days: number): string {
   return new Date(Date.now() + days * 86_400_000).toISOString();
@@ -39,6 +36,7 @@ function baseNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     issuerIndustry: null,
     sourceApplicationId: "app-1",
     sourceContractId: null,
+    sourceContractDisplayReference: null,
     sourceInvoiceId: null,
     issuerOrganizationId: "org-1",
     issuerName: null,
@@ -150,20 +148,21 @@ function servicingNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
 describe("resolveNoteDetailNextAction priority", () => {
   it("1. sends a draft prospectus to the review page", () => {
     const action = resolveNoteDetailNextAction(baseNote());
-    expect(action.tabId).toBe("overview");
+    expect(action.tabId).toBe("campaign");
     expect(action.tone).toBe("action");
     expect(action.title).toBe("Prospectus approval required");
     expect(action.ctaLabel).toBe("Review prospectus");
+    expect(action.description).toContain("Campaign tab");
     expect(action.href).toBe("/notes/note-1/prospectus");
   });
 
-  it("1. sends an available lifecycle action to Overview", () => {
+  it("1. sends an available campaign action to Campaign", () => {
     const action = resolveNoteDetailNextAction(
       baseNote({ prospectus: approvedProspectus })
     );
-    expect(action.tabId).toBe("overview");
+    expect(action.tabId).toBe("campaign");
     expect(action.tone).toBe("action");
-    expect(action.title).toContain("Publish to Marketplace");
+    expect(action.title).toBe("Campaign action available: Publish to Marketplace");
   });
 
   it("2. prefers Disbursement once funding is closed and the payout is incomplete", () => {
@@ -276,7 +275,7 @@ describe("resolveNoteDetailNextAction priority", () => {
     expect(hasNoteLifecycleAdminAction(note)).toBe(false);
     expect(action.tone).toBe("neutral");
     expect(action.title).not.toContain("Fail Funding");
-    expect(resolveNoteOverviewTabStatus(note)).toBe("in-progress");
+    expect(resolveNoteCampaignTabStatus(note)).toBe("in-progress");
   });
 
   it("1. surfaces Close Funding once the minimum is met", () => {
@@ -292,7 +291,7 @@ describe("resolveNoteDetailNextAction priority", () => {
         investments: [{ id: "inv-1" }] as never,
       })
     );
-    expect(action.tabId).toBe("overview");
+    expect(action.tabId).toBe("campaign");
     expect(action.tone).toBe("action");
     expect(action.title).toContain("Close Funding");
   });
@@ -306,19 +305,20 @@ describe("resolveNoteDetailNextAction priority", () => {
       })
     );
     expect(action.tone).toBe("neutral");
-    expect(action.tabId).toBe("overview");
+    expect(action.tabId).toBe("campaign");
   });
 });
 
 describe("note detail tab identity and dots", () => {
   it("accepts only the known tab ids", () => {
-    expect(isNoteDetailTabId("overview")).toBe(true);
+    expect(isNoteDetailTabId("campaign")).toBe(true);
     expect(isNoteDetailTabId("disbursement")).toBe(true);
     expect(isNoteDetailTabId("servicing")).toBe(true);
     expect(isNoteDetailTabId("late-payment")).toBe(true);
-    expect(isNoteDetailTabId("investors")).toBe(true);
     expect(isNoteDetailTabId("ledger")).toBe(true);
     expect(isNoteDetailTabId("activity")).toBe(true);
+    expect(isNoteDetailTabId("overview")).toBe(false);
+    expect(isNoteDetailTabId("investors")).toBe(false);
     expect(isNoteDetailTabId("servicing-settlement")).toBe(false);
     expect(isNoteDetailTabId("")).toBe(false);
   });
@@ -340,13 +340,13 @@ describe("note detail tab identity and dots", () => {
     expect(noteLatePaymentTabStatusToken("defaulted")).toBe("rejected");
   });
 
-  it("marks Overview as needing action only while the lifecycle waits on admin", () => {
+  it("marks Campaign as needing action only while the listing waits on admin", () => {
     expect(noteProspectusNeedsReview(baseNote())).toBe(true);
-    expect(resolveNoteOverviewTabStatus(baseNote())).toBe("in-progress");
+    expect(resolveNoteCampaignTabStatus(baseNote())).toBe("not-started");
     expect(
-      resolveNoteOverviewTabStatus(baseNote({ prospectus: approvedProspectus }))
+      resolveNoteCampaignTabStatus(baseNote({ prospectus: approvedProspectus }))
     ).toBe("needs-action");
-    expect(resolveNoteOverviewTabStatus(servicingNote())).toBe("in-progress");
+    expect(resolveNoteCampaignTabStatus(servicingNote())).toBe("done");
     expect(hasNoteLifecycleAdminAction(baseNote({ prospectus: approvedProspectus }))).toBe(true);
     expect(
       hasNoteLifecycleAdminAction(
@@ -359,6 +359,13 @@ describe("note detail tab identity and dots", () => {
         })
       )
     ).toBe(false);
+    expect(
+      resolveNoteCampaignTabStatus(
+        servicingNote({
+          investments: [{ id: "inv-1", status: "PENDING" }] as never,
+        })
+      )
+    ).toBe("needs-action");
   });
 
   it("derives the disbursement dot from the issuer payout instruction", () => {
@@ -427,65 +434,8 @@ describe("note detail tab identity and dots", () => {
     expect(resolveNoteDetailNextAction(fundedWithCancelled).tabId).toBe("disbursement");
   });
 
-  it("dots Investors from commitment state and Ledger from lifecycle", () => {
-    expect(resolveNoteInvestorsTabToken(baseNote())).toBe("neutral");
-    expect(
-      resolveNoteInvestorsTabToken(
-        baseNote({
-          status: NoteStatus.PUBLISHED,
-          fundingStatus: NoteFundingStatus.OPEN,
-          prospectus: publishedProspectus,
-        })
-      )
-    ).toBe("submitted");
-    expect(
-      resolveNoteInvestorsTabToken(
-        servicingNote({
-          investments: [
-            { id: "inv-1", status: NoteInvestmentStatus.COMMITTED },
-            { id: "inv-2", status: NoteInvestmentStatus.CONFIRMED },
-          ] as never,
-        })
-      )
-    ).toBe("submitted");
-    expect(
-      resolveNoteInvestorsTabToken(
-        servicingNote({
-          investments: [{ id: "inv-1", status: NoteInvestmentStatus.CONFIRMED }] as never,
-        })
-      )
-    ).toBe("active");
-    expect(resolveNoteLedgerTabToken(baseNote())).toBe("neutral");
-    expect(resolveNoteLedgerTabToken(servicingNote())).toBe("active");
-    expect(
-      resolveNoteLedgerTabToken(
-        servicingNote({
-          status: NoteStatus.REPAID,
-          servicingStatus: NoteServicingStatus.SETTLED,
-        })
-      )
-    ).toBe("success");
-    expect(
-      resolveNoteLedgerTabToken(
-        servicingNote({
-          status: NoteStatus.ARREARS,
-          servicingStatus: NoteServicingStatus.ARREARS,
-        })
-      )
-    ).toBe("rejected");
-    expect(resolveNoteActivityTabToken(baseNote())).toBe("neutral");
-    expect(
-      resolveNoteActivityTabToken(baseNote({ events: [{ id: "evt-1" }] as never }))
-    ).toBe("submitted");
-    expect(
-      resolveNoteActivityTabToken(
-        servicingNote({
-          status: NoteStatus.REPAID,
-          servicingStatus: NoteServicingStatus.SETTLED,
-          events: [{ id: "evt-1" }] as never,
-        })
-      )
-    ).toBe("success");
+  it("keeps Ledger and Activity grey because they have no workflow status", () => {
+    expect(NOTE_REFERENCE_TAB_TOKEN).toBe("neutral");
   });
 });
 
@@ -505,9 +455,39 @@ describe("standalone vs contract-linked notes", () => {
   it("links a contract-funded note to its contract", () => {
     const linkage = resolveNoteSourceLinkage({ sourceContractId: "contract 7/A" });
     expect(linkage.isStandalone).toBe(false);
-    expect(linkage.typeLabel).toBe("Under contract");
+    expect(linkage.typeLabel).toBe("Under facility");
     expect(linkage.contractId).toBe("contract 7/A");
     expect(linkage.contractHref).toBe("/contracts/contract%207%2FA");
+  });
+
+  it("builds a facility table link from the source contract", () => {
+    expect(resolveNoteFacilityLink({ contractId: null })).toBeNull();
+    expect(resolveNoteFacilityLink({ contractId: "   " })).toBeNull();
+    expect(
+      resolveNoteFacilityLink({
+        contractId: "contract 7/A",
+        displayReference: "CON-ARF-202608-K71",
+      })
+    ).toEqual({
+      href: "/contracts/contract%207%2FA",
+      label: "CON-ARF-202608-K71",
+    });
+  });
+
+  it("shows Facility instead of Paymaster on the admin notes table", () => {
+    const tableSource = fs.readFileSync(
+      path.join(__dirname, "../components/notes-table.tsx"),
+      "utf8"
+    );
+    const rowSource = fs.readFileSync(
+      path.join(__dirname, "../components/notes-table-row.tsx"),
+      "utf8"
+    );
+    expect(tableSource).toContain(">Facility</TableHead>");
+    expect(tableSource).not.toContain(">Paymaster</TableHead>");
+    expect(rowSource).toContain("resolveNoteFacilityLink");
+    expect(rowSource).toContain("note.sourceContractId");
+    expect(rowSource).toContain("invoice.contractId");
   });
 
   it("hides the source rail Contract row only when standalone", () => {
@@ -517,7 +497,7 @@ describe("standalone vs contract-linked notes", () => {
     );
     expect(panelSource).toContain("resolveNoteSourceLinkage");
     expect(panelSource).toContain("linkage.isStandalone ? null : (");
-    expect(panelSource).toContain('label="Contract ID"');
+    expect(panelSource).toContain('label="Facility ID"');
     expect(panelSource).toContain("Quick Links");
     expect(panelSource).not.toContain("Source Application");
   });
@@ -532,18 +512,23 @@ describe("standalone vs contract-linked notes", () => {
     expect(pageSource).toContain("linkage.contractHref");
     expect(pageSource).toContain('status="neutral"');
     expect(pageSource).toContain("AdminMetricProgress");
+    expect(pageSource).toContain('variant="hero"');
+    expect(pageSource).toContain("tone={getNoteDerivedStatusToken(note)}");
+    expect(pageSource).toContain("summaryCards");
+    expect(pageSource).toContain("AdminEntitySummaryCard");
+    expect(pageSource).toContain("getNotePaymentDueSummary");
     expect(pageSource).toContain("getNoteCommercialTermRows");
     expect(pageSource).toContain("@/notes/utils/note-commercial-terms");
-    expect(pageSource).toContain('setActiveTab("investors")');
+    expect(pageSource).toContain('setActiveTab("campaign")');
     expect(pageSource).toContain("note.investments.length");
     expect(pageSource).toContain("isNoteActiveLoan");
     expect(pageSource).toContain("Settlement amount");
     expect(pageSource).toContain("Payment due");
-    expect(pageSource).toContain('label: "Investors"');
+    expect(pageSource).toContain('label="Investors"');
     expect(pageSource).toContain("getNotePaymentDueDate");
     expect(pageSource).toContain("formatPaymentDueHint");
     expect(pageSource).toContain("isNoteSettlementPosted");
-    expect(pageSource).toContain("maturityCountdownClass(paymentDueDays");
+    expect(pageSource).toContain("maturityCountdownClass(calendarDaysUntilMaturity(paymentDueDate)");
     expect(pageSource).not.toContain("getNoteFundingStatusLabel");
     expect(pageSource).not.toContain("showDetail");
     expect(pageSource).not.toContain("expandLabel");
@@ -557,18 +542,38 @@ describe("standalone vs contract-linked notes", () => {
     expect(pageSource).not.toContain("Risk Rating");
     expect(pageSource).not.toContain("Paymaster");
     expect(pageSource).not.toContain("Workflow Status");
-    expect(pageSource).toContain("resolveNoteInvestorsTabToken");
-    expect(pageSource).toContain("resolveNoteLedgerTabToken");
-    expect(pageSource).toContain("resolveNoteActivityTabToken");
+    expect(pageSource).toContain("NOTE_REFERENCE_TAB_TOKEN");
+    expect(pageSource).toContain('id: "campaign"');
     expect(pageSource).toContain('id: "activity"');
-    expect(pageSource).toContain("layout=\"rail\"");
+    expect(pageSource).toContain("NoteCampaignActions");
+    expect(pageSource).toContain("<NoteLifecycleCard note={note} />");
+    expect(pageSource).toContain("NoteProspectusStatusCard");
+    expect(pageSource).not.toContain("layout=\"rail\"");
     expect(pageSource).toContain("ctaLabel={nextAction.ctaLabel}");
-    expect(pageSource).toContain("icon={MapIcon}");
     expect(pageSource).toContain("icon={BanknotesIcon}");
     expect(pageSource).not.toContain("ExclamationTriangleIcon");
     expect(pageSource).not.toContain('title="Investors"');
     expect(pageSource).not.toContain('title="Ledger"');
     expect(pageSource).not.toContain('title="Activity"');
+  });
+
+  it("defines the entity hero on the shared AdminEntityHeader so other detail pages can opt in", () => {
+    const headerSource = fs.readFileSync(
+      path.join(__dirname, "../../components/admin-detail/admin-entity-header.tsx"),
+      "utf8"
+    );
+    const progressSource = fs.readFileSync(
+      path.join(__dirname, "../../components/admin-detail/admin-metric-progress.tsx"),
+      "utf8"
+    );
+    expect(headerSource).toContain("tone ? adminHeroTintClass(tone)");
+    expect(headerSource).toContain('variant?: "plain" | "hero"');
+    expect(headerSource).toContain("summaryCards?: React.ReactNode[]");
+    expect(headerSource).toContain("HERO_SUMMARY_CARD_LIMIT");
+    expect(headerSource).toContain("heroSummaryClusterClass");
+    expect(headerSource).toContain("summaryCards && summaryCards.length > 0");
+    expect(headerSource).toContain("overflow-hidden rounded-2xl border shadow-sm md:shadow");
+    expect(progressSource).toContain('variant?: "panel" | "hero"');
   });
 
   it("replaces completed workflow titles instead of stacking an uppercase caption", () => {
@@ -640,7 +645,8 @@ describe("?tab= synchronisation contract", () => {
     expect(pageSource).toContain("<SettlementPanel");
     expect(pageSource.match(/<SettlementPanel/g)?.length).toBe(1);
     expect(pageSource).toContain('section={resolvedTab === "late-payment" ? "late-payment" : "settlement"}');
-    expect(pageSource).toContain('<AdminDetailTabPanel value="investors" preserveMount>');
+    expect(pageSource).toContain('<AdminDetailTabPanel value="campaign" preserveMount>');
+    expect(pageSource).toContain("NoteInvestorsPanel");
     expect(pageSource).toContain('<AdminDetailTabPanel value="ledger" preserveMount>');
     expect(pageSource).not.toContain('<AdminDetailTabPanel value="servicing" preserveMount>');
     expect(pageSource).not.toContain('<AdminDetailTabPanel value="late-payment" preserveMount>');

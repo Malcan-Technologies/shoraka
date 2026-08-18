@@ -36,6 +36,9 @@ import type {
   GetOrganizationsParams,
   OrganizationDetailResponse,
   OrganizationsResponse,
+  GetOrganizationLinkedRecordsParams,
+  OrganizationLinkedRecordsResponse,
+  UpdateAdminOrganizationProfileInput,
   GetOnboardingApplicationsParams,
   OnboardingApplicationsResponse,
   OnboardingApplicationResponse,
@@ -484,6 +487,28 @@ export class ApiClient {
     return this.get<OrganizationDetailResponse>(`/v1/admin/organizations/${portal}/${id}`);
   }
 
+  async getOrganizationLinkedRecords(
+    portal: "investor" | "issuer",
+    id: string,
+    params: GetOrganizationLinkedRecordsParams
+  ): Promise<ApiResponse<OrganizationLinkedRecordsResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page));
+    queryParams.append("pageSize", String(params.pageSize));
+    if (params.type) queryParams.append("type", params.type);
+    return this.get<OrganizationLinkedRecordsResponse>(
+      `/v1/admin/organizations/${portal}/${id}/linked-records?${queryParams.toString()}`
+    );
+  }
+
+  async updateAdminOrganizationProfile(
+    portal: "investor" | "issuer",
+    id: string,
+    data: UpdateAdminOrganizationProfileInput
+  ): Promise<ApiResponse<{ success: true }> | ApiError> {
+    return this.patch<{ success: true }>(`/v1/admin/organizations/${portal}/${id}`, data);
+  }
+
   async updateSophisticatedStatus(
     organizationId: string,
     isSophisticatedInvestor: boolean,
@@ -667,6 +692,24 @@ export class ApiClient {
     );
   }
 
+  async getAdminNoteProspectus(
+    id: string
+  ): Promise<
+    | ApiResponse<{
+        publicationId: string;
+        contentVersion: number;
+        pdfViewUrl: string;
+        pdfExpiresIn: number;
+        pdfContentType: "application/pdf";
+        pdfFileName: string;
+        pdfSha256: string | null;
+        pdfSnapshotHash: string | null;
+      }>
+    | ApiError
+  > {
+    return this.get(`/v1/admin/notes/${id}/prospectus`);
+  }
+
   async getMarketplaceNoteProspectus(
     noteId: string
   ): Promise<
@@ -724,6 +767,14 @@ export class ApiClient {
 
   async unpublishAdminNote(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
     return this.post<NoteDetail>(`/v1/admin/notes/${id}/unpublish`, {});
+  }
+
+  async pauseAdminNoteListing(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/listing/pause`, {});
+  }
+
+  async resumeAdminNoteListing(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/listing/resume`, {});
   }
 
   async closeAdminNoteFunding(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {

@@ -50,7 +50,7 @@ export function useInvoicesByContract(contractId?: string) {
       const api = createApiClient(API_URL, getAccessToken);
       const resp = await api.getInvoicesByContract(contractId!);
       if (!resp.success) {
-        throw new Error("Failed to load invoices by contract");
+        throw new Error("Failed to load invoices by facility");
       }
       return resp.data;
     },

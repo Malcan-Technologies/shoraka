@@ -1,10 +1,11 @@
 import type { NoteDetail, WithdrawalInstruction } from "@cashsouk/types";
 import type { StatusToken } from "@cashsouk/ui";
-import { getAdminStatusToken, pickHighestAdminTabToken } from "@/lib/admin-status-token";
+import { getAdminStatusToken } from "@/lib/admin-status-token";
 import { resolveProspectusStatusCard } from "@/notes/components/note-prospectus-status-card.model";
 import {
   buildNoteLifecycleActionPlan,
   findIssuerDisbursementWithdrawal,
+  getNoteLifecycleCardTone,
   hasNoteLifecycleAdminAction,
 } from "@/notes/utils/note-lifecycle-actions";
 import {
@@ -18,11 +19,10 @@ import {
 import type { SimpleTabStatus } from "@/notes/utils/workflow-status-tokens";
 
 export const NOTE_DETAIL_TAB_IDS = [
-  "overview",
+  "campaign",
   "disbursement",
   "servicing",
   "late-payment",
-  "investors",
   "ledger",
   "activity",
 ] as const;
@@ -121,46 +121,39 @@ export function noteProspectusNeedsReview(note: NoteDetail): boolean {
   return resolveProspectusStatusCard(note).emphasize;
 }
 
-export function resolveNoteOverviewTabStatus(note: NoteDetail): SimpleTabStatus {
-  if (hasNoteLifecycleAdminAction(note)) {
-    return "needs-action";
-  }
-  if (isNoteLifecycleVisuallyComplete(note)) return "done";
-  return "in-progress";
-}
-
-export function resolveNoteInvestorsTabToken(note: NoteDetail): StatusToken {
-  const investments = note.investments ?? [];
-  if (investments.length === 0) {
-    if (note.fundingStatus === "OPEN") return "submitted";
-    if (isNoteLifecycleVisuallyComplete(note)) return "success";
-    return "neutral";
-  }
-  return pickHighestAdminTabToken(
-    investments.map((investment) => getAdminStatusToken(investment.status))
+function campaignInvestmentNeedsAdmin(note: NoteDetail): boolean {
+  return (note.investments ?? []).some(
+    (investment) => getAdminStatusToken(investment.status) === "action"
   );
 }
 
-export function resolveNoteLedgerTabToken(note: NoteDetail): StatusToken {
-  if (isNoteLifecycleVisuallyComplete(note)) return "success";
-  if (
+function isCampaignComplete(note: NoteDetail): boolean {
+  return (
+    note.fundingStatus === "FUNDED" ||
+    note.fundingStatus === "CLOSED" ||
+    note.status === "ACTIVE" ||
     note.status === "ARREARS" ||
     note.status === "DEFAULTED" ||
-    note.servicingStatus === "ARREARS"
-  ) {
-    return "rejected";
-  }
-  if (note.status === "ACTIVE" || note.servicingStatus === "CURRENT") return "active";
-  if (note.fundingStatus === "FUNDED" || note.status === "FUNDING") return "submitted";
-  if ((note.events?.length ?? 0) > 0) return "submitted";
-  return "neutral";
+    note.status === "REPAID" ||
+    isNoteLifecycleVisuallyComplete(note)
+  );
 }
 
-export function resolveNoteActivityTabToken(note: NoteDetail): StatusToken {
-  if (isNoteLifecycleVisuallyComplete(note)) return "success";
-  if ((note.events?.length ?? 0) > 0) return "submitted";
-  return "neutral";
+export function resolveNoteCampaignTabStatus(note: NoteDetail): SimpleTabStatus {
+  if (hasNoteLifecycleAdminAction(note) || campaignInvestmentNeedsAdmin(note)) {
+    return "needs-action";
+  }
+  if (getNoteLifecycleCardTone(note) === "waiting") {
+    return "in-progress";
+  }
+  if (isCampaignComplete(note)) {
+    return "done";
+  }
+  return "not-started";
 }
+
+/** Ledger and Activity are always present and have no workflow status. */
+export const NOTE_REFERENCE_TAB_TOKEN = "neutral" as const satisfies StatusToken;
 
 export type NoteDetailNextActionTone = "action" | "neutral";
 
@@ -177,10 +170,10 @@ export type NoteDetailNextAction = {
 };
 
 const NO_ACTION_REQUIRED: NoteDetailNextAction = {
-  tabId: "overview",
+  tabId: "campaign",
   title: "No admin action required",
   description: "Nothing on this note is waiting on CashSouk right now.",
-  ctaLabel: "Open Overview",
+  ctaLabel: "Open Campaign",
   tone: "neutral",
 };
 
@@ -193,10 +186,10 @@ export function resolveNoteDetailNextAction(note: NoteDetail): NoteDetailNextAct
 
   if (noteProspectusNeedsReview(note)) {
     return {
-      tabId: "overview",
+      tabId: "campaign",
       title: "Prospectus approval required",
       description:
-        "Review and approve the prospectus in the sidebar before this note can be published to the marketplace.",
+        "Review and approve the prospectus from the Campaign tab before this note can be published to the marketplace.",
       ctaLabel: "Review prospectus",
       href: `/notes/${note.id}/prospectus`,
       tone: "action",
@@ -208,11 +201,11 @@ export function resolveNoteDetailNextAction(note: NoteDetail): NoteDetailNextAct
     : null;
   if (lifecyclePrimary) {
     return {
-      tabId: "overview",
-      title: `Lifecycle action available: ${lifecyclePrimary.label}`,
+      tabId: "campaign",
+      title: `Campaign action available: ${lifecyclePrimary.label}`,
       description:
-        lifecyclePrimary.helper ?? "Continue the note lifecycle from the Overview tab.",
-      ctaLabel: "Open Overview",
+        lifecyclePrimary.helper ?? "Continue the marketplace campaign from the Campaign tab.",
+      ctaLabel: "Open Campaign",
       tone: "action",
     };
   }

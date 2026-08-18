@@ -81,7 +81,7 @@ export function ContractsTableRow({ contract, onViewDetails }: ContractsTableRow
 
       <TableCell className="text-sm">
         <span className="font-medium text-foreground truncate max-w-[220px] block" title={contract.title || ""}>
-          {contract.title || "Untitled Contract"}
+          {contract.title || "Untitled facility"}
         </span>
       </TableCell>
 

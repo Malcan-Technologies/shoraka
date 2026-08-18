@@ -256,7 +256,7 @@ export function OperationsSection({
     },
     {
       key: "contracts",
-      label: "Contracts",
+      label: "Facilities",
       href: "/contracts",
       icon: DocumentTextIcon,
       total: cts.total,
@@ -304,7 +304,7 @@ export function OperationsSection({
             <p className="mt-1 text-sm text-muted-foreground">
               <span className="sm:hidden">Pipeline stages from onboarding to notes</span>
               <span className="hidden sm:inline">
-                Onboarding → Applications → Contracts → Notes
+                Onboarding → Applications → Facilities → Notes
               </span>
             </p>
           </div>

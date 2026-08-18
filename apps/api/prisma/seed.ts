@@ -192,7 +192,7 @@ async function main() {
       workflow: [
         { id: "financing_type_1", name: "Financing Type" },
         { id: "financing_structure_1", name: "Financing Structure" },
-        { id: "contract_details_1", name: "Contract Details" },
+        { id: "contract_details_1", name: "Facility Details" },
         { id: "invoice_details_1", name: "Invoice Details" },
         { id: "company_details_1", name: "Company Details" },
         { id: "business_details_1", name: "Business & Guarantor Details" },

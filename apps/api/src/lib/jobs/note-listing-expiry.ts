@@ -6,11 +6,14 @@
  *   2. The note is fully funded (funded_amount >= target_amount) — closed early
  *      as a safety net in case the inline auto-close on commit failed.
  *
+ * Paused listings (listing_status UNPUBLISHED while funding stays OPEN) are
+ * skipped so a temporary close does not auto-fail and refund investors.
+ *
  * Runs hourly as a cron job; can also be invoked manually via the
  * run-note-listing-expiry script.
  */
 
-import { NoteFundingStatus, NoteStatus } from "@prisma/client";
+import { NoteFundingStatus, NoteListingStatus, NoteStatus } from "@prisma/client";
 import { isNoteFullyFunded, meetsMinimumFunding } from "@cashsouk/types";
 import { prisma } from "../prisma";
 import { logger } from "../logger";
@@ -47,6 +50,7 @@ export async function runNoteListingExpiryJob(): Promise<NoteListingExpiryResult
     where: {
       status: NoteStatus.PUBLISHED,
       funding_status: NoteFundingStatus.OPEN,
+      listing_status: NoteListingStatus.PUBLISHED,
     },
     select: {
       id: true,

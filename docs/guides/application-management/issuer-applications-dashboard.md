@@ -81,7 +81,7 @@ Draft, Submitted, Under Review, Action Required, Offer Received, Approved
 
 **What the user sees:**
 - Badge: **Draft** (Gray)
-- Card shows "Application ID XXXXXXXX" and type (e.g. Contract financing, Invoice financing)
+- Card shows "Application ID XXXXXXXX" and type (e.g. Facility financing, Invoice financing)
 - If no financing structure yet: simple card with "This application is still being set up."
 - If structure exists: full card with contract/invoice details
 
@@ -167,8 +167,8 @@ Draft, Submitted, Under Review, Action Required, Offer Received, Approved
 - **Offer valid until: DD Mon YYYY** under the Review button
 
 **Buttons:**
-- **Review Contract Financing Offer** (for contract offers) or **Review Offer** (for invoice-only offers)
-- Per-invoice: **Review Offer** (when contract is approved)
+- **Review Facility Financing Offer** (for facility offers) or **Review Offer** (for invoice-only offers)
+- Per-invoice: **Review Offer** (when the facility is approved)
 
 **User can:**
 - Review and accept/reject the offer
@@ -232,16 +232,16 @@ Draft, Submitted, Under Review, Action Required, Offer Received, Approved
 
 ## Invoice Table Behavior
 
-### Grayed-Out Invoices (Contract Applications)
+### Grayed-Out Invoices (Facility Applications)
 
-For **Contract financing** applications, invoices are locked until the contract is approved.
+For **Facility financing** applications, invoices are locked until the facility is approved.
 
 **When ContractStatus ≠ APPROVED:**
 - Gray overlay on the invoice table
 - All invoice actions disabled (Review Offer, Make Amendments, document download)
-- Helper message above the table: *"Invoices will be available after the contract offer is accepted."*
+- Helper message above the table: *"Invoices will be available after the facility offer is accepted."*
 - Slight opacity reduction on the table
-- Only the invoice section is blocked; the card header and contract summary stay interactive
+- Only the invoice section is blocked; the card header and facility summary stay interactive
 
 **When ContractStatus = APPROVED:**
 - Invoices become interactive
@@ -292,7 +292,7 @@ Each invoice row has a **Document** column.
 
 | Context              | Button Text                      |
 |----------------------|----------------------------------|
-| Contract offer       | Review Contract Financing Offer  |
+| Facility offer       | Review Facility Financing Offer  |
 | Invoice offer        | Review Offer                     |
 | Amendment requested  | Make Amendments                  |
 
@@ -392,7 +392,7 @@ Archived apps are filtered out of the default list. Unknown badgeKeys get priori
 **Special rules.**
 
 - Contract rejected = whole app rejected. Invoice rejected only = app not rejected.
-- Contract financing: invoices grayed out until contract is approved.
+- Facility financing: invoices grayed out until the facility is approved.
 - Offer expired = we show "Offer expired" and hide the Review button.
 
 **Full example.** API sends: app UNDER_REVIEW, contract OFFER_SENT (PENDING_ISSUER), invoices DRAFT, OFFER_SENT, APPROVED. We check: Rejected? No. Action Required? No. OFFER_SENT + PENDING_ISSUER? Yes. We return badgeKey "offer_sent". The page shows "Offer Received". The card appears above Draft or Completed.

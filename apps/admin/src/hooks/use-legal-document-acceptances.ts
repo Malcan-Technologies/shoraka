@@ -16,6 +16,7 @@ export interface LegalDocumentAcceptancesParams {
   search?: string;
   documentType?: LegalDocumentType;
   audience?: LegalAcceptanceAudience;
+  organizationId?: string;
   status?: LegalAcceptanceStatus;
   dateFrom?: string;
   dateTo?: string;
@@ -47,6 +48,7 @@ function buildQueryParams(
   if (params.search) query.set("search", params.search);
   if (params.documentType) query.set("documentType", params.documentType);
   if (params.audience) query.set("audience", params.audience);
+  if (params.organizationId) query.set("organizationId", params.organizationId);
   if (params.status) query.set("status", params.status);
   if (params.dateFrom) query.set("dateFrom", params.dateFrom);
   if (params.dateTo) query.set("dateTo", params.dateTo);

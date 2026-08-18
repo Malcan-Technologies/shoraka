@@ -10,18 +10,25 @@ export function isNoteFundingOpen(fundingStatus: string) {
   return fundingStatus === "OPEN";
 }
 
-/** Funding window has ended — bar fill is green (including failed close). */
+export function isNoteFundingFailed(note: NoteFundingFields) {
+  return note.status === "FAILED_FUNDING" || note.fundingStatus === "FAILED";
+}
+
+/** Funding window has ended (successful close or failed close). */
 export function isNoteFundingComplete(note: NoteFundingFields) {
   return (
     note.status === "REPAID" ||
     note.fundingStatus === "FUNDED" ||
     note.fundingStatus === "CLOSED" ||
-    note.fundingStatus === "FAILED"
+    isNoteFundingFailed(note)
   );
 }
 
 /** Track behind the fill. Pair with `getNoteFundingIndicatorClass`. */
 export function getNoteFundingProgressClass(note: NoteFundingFields) {
+  if (isNoteFundingFailed(note)) {
+    return "bg-status-rejected-bg";
+  }
   if (isNoteFundingOpen(note.fundingStatus)) {
     return "bg-status-submitted-bg";
   }
@@ -30,6 +37,9 @@ export function getNoteFundingProgressClass(note: NoteFundingFields) {
 
 /** Fill colour — same tokens as the note-detail funding bar. */
 export function getNoteFundingIndicatorClass(note: NoteFundingFields) {
+  if (isNoteFundingFailed(note)) {
+    return "bg-status-rejected-text";
+  }
   if (isNoteFundingOpen(note.fundingStatus)) {
     return "bg-status-submitted-text";
   }
@@ -39,8 +49,9 @@ export function getNoteFundingIndicatorClass(note: NoteFundingFields) {
   return "bg-status-neutral-text";
 }
 
-/** Accent for funded amounts / progress copy. Failed close stays unaccented (badge carries the failure). */
+/** Accent for funded amounts / progress copy. */
 export function getNoteFundingAccentClass(note: NoteFundingFields) {
+  if (isNoteFundingFailed(note)) return "text-status-rejected-text";
   if (isNoteFundingOpen(note.fundingStatus)) return "text-status-submitted-text";
   if (
     note.status === "REPAID" ||

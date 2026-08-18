@@ -36,6 +36,7 @@ function sampleNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     issuerIndustry: "Construction",
     sourceApplicationId: "app-1",
     sourceContractId: null,
+    sourceContractDisplayReference: null,
     sourceInvoiceId: null,
     issuerOrganizationId: "org-1",
     issuerName: "Secret Issuer Sdn Bhd",

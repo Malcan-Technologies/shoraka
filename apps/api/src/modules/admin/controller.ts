@@ -29,6 +29,8 @@ import {
   exportSecurityLogsQuerySchema,
   resetOnboardingSchema,
   getOrganizationsQuerySchema,
+  getOrganizationLinkedRecordsQuerySchema,
+  updateAdminOrganizationProfileSchema,
   getOnboardingApplicationsQuerySchema,
   updateSophisticatedStatusSchema,
   getAdminApplicationsQuerySchema,
@@ -655,6 +657,74 @@ router.get(
         throw new AppError(404, "NOT_FOUND", "Organization not found");
       }
 
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(
+        error instanceof AppError
+          ? error
+          : error instanceof Error
+            ? new AppError(400, "VALIDATION_ERROR", error.message)
+            : error
+      );
+    }
+  }
+);
+
+router.get(
+  "/organizations/:portal/:id/linked-records",
+  requirePermission("organizations.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id } = req.params;
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "Portal must be 'investor' or 'issuer'");
+      }
+      const query = getOrganizationLinkedRecordsQuerySchema.parse(req.query);
+      const result = await adminService.listOrganizationLinkedRecords(portal, id, query);
+      if (!result) {
+        throw new AppError(404, "NOT_FOUND", "Organization not found");
+      }
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(
+        error instanceof AppError
+          ? error
+          : error instanceof Error
+            ? new AppError(400, "VALIDATION_ERROR", error.message)
+            : error
+      );
+    }
+  }
+);
+
+router.patch(
+  "/organizations/:portal/:id",
+  requirePermission("organizations.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id } = req.params;
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "Portal must be 'investor' or 'issuer'");
+      }
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+      const input = updateAdminOrganizationProfileSchema.parse(req.body);
+      const result = await adminService.updateOrganizationProfile(
+        req,
+        portal,
+        id,
+        input,
+        req.user.user_id
+      );
       res.json({
         success: true,
         data: result,

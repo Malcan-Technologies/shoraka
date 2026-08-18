@@ -238,7 +238,7 @@ export default function InvoiceDetailPage() {
           <span className="flex flex-wrap items-center gap-2">
             <IssuerFinancingStatusBadge kind={badgeKind} />
             {contractId ? (
-              <StatusBadge label="Under contract" status="submitted" />
+              <StatusBadge label="Under facility" status="submitted" />
             ) : (
               <StatusBadge label="Standalone" status="neutral" />
             )}
@@ -272,8 +272,8 @@ export default function InvoiceDetailPage() {
                   className="text-primary underline-offset-4 hover:underline"
                 >
                   {relatedContract?.title
-                    ? `Contract: ${relatedContract.title}`
-                    : "Contract"}
+                    ? `Facility: ${relatedContract.title}`
+                    : "Facility"}
                 </Link>
               </>
             ) : null}

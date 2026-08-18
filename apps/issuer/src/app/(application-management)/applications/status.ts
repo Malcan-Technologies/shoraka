@@ -167,7 +167,7 @@ export function issuerInvoiceCanViewReasonRemarks(inv: NormalizedInvoice): boole
 export interface NormalizedApplication {
   id: string;
   displayReference?: string | null;
-  type: "Contract financing" | "Invoice financing" | "Generic";
+  type: "Facility financing" | "Invoice financing" | "Generic";
   status: string;
   cardStatus: CardStatusResult;
   contractTitle: string | null;
@@ -274,7 +274,7 @@ export const FILTER_STATUSES = [
 
 /** Financing type filter options. */
 export const FINANCING_TYPES = [
-  { value: "contract", label: "Contract financing" },
+  { value: "contract", label: "Facility financing" },
   { value: "invoice", label: "Invoice financing" },
 ] as const;
 
@@ -448,7 +448,7 @@ export function getCardStatus(input: {
 
 export function countPendingIssuerOfferReviewItems(app: NormalizedApplication): number {
   let n = 0;
-  const hasContract = app.type === "Contract financing";
+  const hasContract = app.type === "Facility financing";
   if (
     app.cardStatus.showReviewOffer &&
     hasContract &&
