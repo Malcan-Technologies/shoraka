@@ -108,7 +108,7 @@ function StageCard({ stage, canNavigate }: { stage: StageMetric; canNavigate: bo
           <span className="truncate">{stage.label}</span>
         </div>
         {stage.actionRequired > 0 ? (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-status-action-bg px-2 py-0.5 text-[11px] font-semibold text-status-action-text">
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-status-action-bg px-2 py-0.5 text-[11px] font-normal text-status-action-text">
             <ExclamationTriangleIcon className="h-3 w-3" aria-hidden />
             {stage.actionRequired}
           </span>
@@ -310,7 +310,7 @@ export function OperationsSection({
           </div>
           <span
             className={cn(
-              "inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+              "inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-normal",
               totalActionRequired > 0
                 ? "bg-status-action-bg text-status-action-text"
                 : "bg-status-neutral-bg text-status-neutral-text"

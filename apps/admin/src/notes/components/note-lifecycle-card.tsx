@@ -14,9 +14,19 @@ import {
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import type { NoteDetail, ShorakaWithdrawalState, WithdrawalInstruction } from "@cashsouk/types";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  buildNoteLifecycleActionPlan,
+  findIssuerDisbursementWithdrawal,
+  getNoteLifecycleCardTone,
+  getNoteLifecycleStageCompletedAt,
+  getNoteLifecycleStageIndex,
+  getNoteLifecycleTerminalFailure,
+  isDisbursementComplete,
+  type NoteLifecycleAction,
+} from "@/notes/utils/note-lifecycle-actions";
+import { StatusBadge } from "@cashsouk/ui";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { resolveLatePaymentTimeline, LATE_PAYMENT_WORKFLOW_BADGE } from "@/notes/utils/late-payment-workflow";
@@ -29,10 +39,19 @@ import {
 import {
   type WorkflowStatusTone,
   WORKFLOW_CARD,
-  workflowBadgeClassName,
+  disbursementLifecycleStripTone,
+  settlementLifecycleStripTone,
+  workflowToneToStatusToken,
 } from "@/notes/utils/workflow-status-tokens";
 
-export type NoteLifecycleAction = "publish" | "unpublish" | "closeFunding" | "failFunding";
+export type { NoteLifecycleAction } from "@/notes/utils/note-lifecycle-actions";
+
+const ACTION_ICONS: Record<NoteLifecycleAction, React.ComponentType<{ className?: string }>> = {
+  publish: GlobeAltIcon,
+  unpublish: ArrowUturnLeftIcon,
+  closeFunding: ArrowRightCircleIcon,
+  failFunding: ExclamationTriangleIcon,
+};
 
 type StageId = "DRAFT" | "PUBLISHED" | "FUNDED" | "DISBURSEMENT" | "ACTIVE" | "REPAID";
 
@@ -50,81 +69,16 @@ const STAGES: LifecycleStage[] = [
   { id: "REPAID", label: "Repaid" },
 ];
 
-const ACTION_CARD_CLASS =
-  "border-primary/35 bg-primary/5 shadow-[0_0_0_1px_hsl(var(--primary)/0.08),0_0_28px_hsl(var(--primary)/0.16)]";
+const ACTION_CARD_CLASS = WORKFLOW_CARD.activeSection;
 
-interface TerminalFailure {
-  label: string;
-  description: string;
-  stageIndex: number;
-}
-
-function getTerminalFailure(note: NoteDetail, activeIndex: number): TerminalFailure | null {
-  if (note.status === "FAILED_FUNDING" || note.fundingStatus === "FAILED") {
-    return {
-      label: "Funding failed",
-      description:
-        "Marketplace did not reach the minimum funding threshold. Commitments must be released.",
-      stageIndex: 1,
-    };
-  }
-  if (note.status === "CANCELLED") {
-    return {
-      label: "Cancelled",
-      description: "This note has been cancelled and is no longer active.",
-      stageIndex: activeIndex,
-    };
-  }
-  if (note.status === "DEFAULTED") {
-    return {
-      label: "Defaulted",
-      description:
-        "Servicing has reached default. Settle outstanding obligations via the servicing panel.",
-      stageIndex: 4,
-    };
-  }
-  return null;
-}
-
-function findIssuerDisbursementWithdrawal(note: NoteDetail): WithdrawalInstruction | null {
-  return (
-    (note.withdrawals ?? []).find(
-      (withdrawal) =>
-        withdrawal.withdrawalType === "ISSUER_DISBURSEMENT" && withdrawal.status !== "CANCELLED"
-    ) ?? null
-  );
-}
-
-function isDisbursementComplete(withdrawal: WithdrawalInstruction | null): boolean {
-  return withdrawal?.status === "COMPLETED";
-}
-
-function getActiveStageIndex(note: NoteDetail): number {
-  if (isNoteLifecycleVisuallyComplete(note)) {
-    return 5;
-  }
-  const servicingActive =
-    note.status === "ACTIVE" ||
-    note.status === "ARREARS" ||
-    note.status === "DEFAULTED" ||
-    note.servicingStatus === "CURRENT" ||
-    note.servicingStatus === "LATE" ||
-    note.servicingStatus === "ARREARS" ||
-    note.servicingStatus === "DEFAULTED";
-  if (servicingActive) {
-    return 4;
-  }
-  if (note.fundingStatus === "FUNDED") {
-    return isDisbursementComplete(findIssuerDisbursementWithdrawal(note)) ? 4 : 3;
-  }
-  if (note.status === "FUNDING") {
-    return 2;
-  }
-  if (note.status === "PUBLISHED") {
-    return 1;
-  }
-  return 0;
-}
+const LIFECYCLE_STEPPER_FILL = {
+  success: "bg-status-success-bg text-status-success-text ring-status-success-text/20",
+  active: "bg-status-active-bg text-status-active-text ring-status-active-text/20",
+  action: "bg-status-action-bg text-status-action-text ring-status-action-text/20",
+  submitted: "bg-status-submitted-bg text-status-submitted-text ring-status-submitted-text/20",
+  rejected: "bg-status-rejected-bg text-status-rejected-text ring-status-rejected-text/20",
+  neutral: "bg-status-neutral-bg text-status-neutral-text ring-status-neutral-text/15",
+} as const;
 
 type FlowSubStep = {
   id: string;
@@ -149,7 +103,7 @@ function buildDisbursementSubSteps(
         label,
         status: idx === 0 ? "current" : "pending",
       })),
-      tone: "neutral",
+      tone: "active",
     };
   }
 
@@ -178,8 +132,7 @@ function buildDisbursementSubSteps(
           : ("pending" as const),
   }));
 
-  const tone: WorkflowStatusTone =
-    withdrawal.status === "COMPLETED" ? "success" : "warning";
+  const tone = disbursementLifecycleStripTone(withdrawal.status);
 
   return { steps, tone };
 }
@@ -242,6 +195,10 @@ function buildSettlementSubSteps(note: NoteDetail): {
     completedThrough = 0;
   }
 
+  const trusteeSubmittedToTrustee = Boolean(
+    postedSettlement && postedSettlement.serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE"
+  );
+
   const steps = labels.map((label, idx) => ({
     id: ids[idx] ?? `STEP_${idx}`,
     label,
@@ -253,14 +210,13 @@ function buildSettlementSubSteps(note: NoteDetail): {
           : ("pending" as const),
   }));
 
-  let tone: WorkflowStatusTone = "warning";
-  if (settledComplete) {
-    tone = "success";
-  } else if (postedComplete && !trusteeComplete) {
-    tone = "warning";
-  } else if (receiptsComplete && !postedComplete) {
-    tone = "active";
-  }
+  const tone = settlementLifecycleStripTone({
+    settledComplete,
+    receiptsComplete,
+    postedComplete,
+    trusteeComplete,
+    trusteeSubmittedToTrustee,
+  });
 
   return { steps, tone };
 }
@@ -277,128 +233,38 @@ function settlementStripHelperText(note: NoteDetail): string {
     return "Settlement is complete.";
   }
   if (postedSettlement && !trusteeComplete) {
-    return "Settlement is posted. Complete the settlement trustee instruction — including any issuer refund allocation — from the Servicing & Settlement tab.";
+    return "Settlement is posted. Complete the settlement trustee instruction — including any issuer refund allocation — from the Servicing tab.";
   }
   if (postedSettlement && trusteeComplete) {
     return "Settlement allocations are finishing on the ledger.";
   }
   if (receiptsComplete) {
-    return "Receipts meet the settlement amount. Preview, approve, and post from the Servicing & Settlement tab.";
+    return "Receipts meet the settlement amount. Preview, approve, and post from the Servicing tab.";
   }
-  return "Record and reconcile repayment receipts from the Servicing & Settlement tab.";
-}
-
-interface ActionConfig {
-  key: NoteLifecycleAction;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  variant: "default" | "outline" | "destructive";
-  helper?: string;
-}
-
-function buildActionPlan(note: NoteDetail) {
-  const publishableListingStatuses = ["NOT_LISTED", "DRAFT", "UNPUBLISHED"];
-  const prospectusApproved =
-    note.prospectus?.status === "APPROVED" || note.prospectus?.status === "PUBLISHED";
-  const baseCanPublish =
-    note.status === "DRAFT" &&
-    note.fundingStatus === "NOT_OPEN" &&
-    publishableListingStatuses.includes(note.listingStatus);
-  const canPublish = baseCanPublish && prospectusApproved;
-  const isFundingOpen = note.status === "PUBLISHED" && note.fundingStatus === "OPEN";
-  const meetsMinimumFunding = note.fundingPercent + 0.005 >= note.minimumFundingPercent;
-  const canUnpublish =
-    note.status === "PUBLISHED" &&
-    note.listingStatus === "PUBLISHED" &&
-    note.fundingStatus === "OPEN" &&
-    note.investments.length === 0;
-  const canCloseFunding = isFundingOpen && meetsMinimumFunding;
-  const canFailFunding = isFundingOpen && !meetsMinimumFunding;
-
-  let primary: ActionConfig | null = null;
-  const secondary: ActionConfig[] = [];
-  let contextHelper: string | null = null;
-
-  // Draft prospectus: next action lives on NoteProspectusStatusCard (not here).
-  if (canPublish) {
-    primary = {
-      key: "publish",
-      label: "Publish to Marketplace",
-      icon: GlobeAltIcon,
-      variant: "default",
-      helper: "Prospectus approved. Publish when you are ready to list this Note.",
-    };
-  } else if (canCloseFunding) {
-    primary = {
-      key: "closeFunding",
-      label: "Close Funding",
-      icon: ArrowRightCircleIcon,
-      variant: "default",
-      helper: `Minimum funding reached (${note.fundingPercent.toFixed(1)}% of target). Closing locks allocations and activates servicing in a single step.`,
-    };
-    if (canUnpublish) {
-      secondary.push({
-        key: "unpublish",
-        label: "Unpublish",
-        icon: ArrowUturnLeftIcon,
-        variant: "outline",
-      });
-    }
-  } else if (canFailFunding) {
-    primary = {
-      key: "failFunding",
-      label: "Fail Funding",
-      icon: ExclamationTriangleIcon,
-      variant: "destructive",
-      helper: `Minimum ${note.minimumFundingPercent}% not yet met (currently ${note.fundingPercent.toFixed(1)}%). Failing releases all commitments.`,
-    };
-    if (canUnpublish) {
-      secondary.push({
-        key: "unpublish",
-        label: "Unpublish",
-        icon: ArrowUturnLeftIcon,
-        variant: "outline",
-      });
-    }
-  } else if (note.status === "ACTIVE" || note.servicingStatus !== "NOT_STARTED") {
-    contextHelper = "Servicing is active. Manage receipts and settlement in the Servicing & Settlement tab.";
-  } else if (note.status === "PUBLISHED" || note.status === "FUNDING") {
-    contextHelper = isFundingOpen
-      ? `Awaiting commitments — ${note.fundingPercent.toFixed(1)}% of target funded.`
-      : "Awaiting funding to open.";
-    if (canUnpublish) {
-      secondary.push({
-        key: "unpublish",
-        label: "Unpublish",
-        icon: ArrowUturnLeftIcon,
-        variant: "outline",
-      });
-    }
-  }
-
-  return { primary, secondary, contextHelper, meetsMinimumFunding, isFundingOpen };
+  return "Record and reconcile repayment receipts from the Servicing tab.";
 }
 
 function workflowStripSurfaceClass(tone: WorkflowStatusTone) {
-  if (tone === "success") return WORKFLOW_CARD.successPanel;
-  if (tone === "warning") return WORKFLOW_CARD.warningPanel;
-  if (tone === "danger") return "border-destructive/30 bg-destructive/5";
-  if (tone === "active") return WORKFLOW_CARD.warningPanel;
+  if (tone === "success") return WORKFLOW_CARD.successSection;
+  if (tone === "warning") return WORKFLOW_CARD.warningSection;
+  if (tone === "danger") return "border-status-rejected-text/20 bg-[hsl(var(--status-rejected-bg)/0.45)]";
+  if (tone === "active") return WORKFLOW_CARD.activeSection;
   return WORKFLOW_CARD.neutralSection;
 }
 
 function workflowStripTitleClass(tone: WorkflowStatusTone) {
-  if (tone === "success") return "text-emerald-900";
-  if (tone === "danger") return "text-destructive";
-  if (tone === "warning") return "text-amber-900";
-  if (tone === "active") return "text-amber-900";
+  if (tone === "success") return "text-status-success-text";
+  if (tone === "danger") return "text-status-rejected-text";
+  if (tone === "warning") return "text-status-submitted-text";
+  if (tone === "active") return "text-status-action-text";
   return "text-muted-foreground";
 }
 
 function workflowStripBodyClass(tone: WorkflowStatusTone) {
-  if (tone === "success") return "text-emerald-900/80";
-  if (tone === "danger") return "text-destructive/80";
-  if (tone === "warning" || tone === "active") return "text-amber-900/80";
+  if (tone === "success") return "text-status-success-text/80";
+  if (tone === "danger") return "text-status-rejected-text/80";
+  if (tone === "warning") return "text-status-submitted-text/80";
+  if (tone === "active") return "text-status-action-text/80";
   return "text-muted-foreground";
 }
 
@@ -434,13 +300,17 @@ function WorkflowSubFlowStrip({
                 className={cn(
                   "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold ring-1",
                   step.status === "done"
-                    ? "bg-emerald-500 text-white ring-emerald-500"
+                    ? LIFECYCLE_STEPPER_FILL.success
                     : step.status === "current"
                       ? tone === "danger"
-                        ? "bg-destructive text-destructive-foreground ring-destructive"
+                        ? LIFECYCLE_STEPPER_FILL.rejected
                         : tone === "neutral"
-                          ? "bg-muted-foreground text-background ring-muted-foreground"
-                          : "bg-amber-500 text-white ring-amber-500"
+                          ? LIFECYCLE_STEPPER_FILL.neutral
+                          : tone === "warning"
+                            ? LIFECYCLE_STEPPER_FILL.submitted
+                            : tone === "success"
+                              ? LIFECYCLE_STEPPER_FILL.success
+                              : LIFECYCLE_STEPPER_FILL.action
                       : "bg-white text-muted-foreground ring-border"
                 )}
               >
@@ -451,8 +321,12 @@ function WorkflowSubFlowStrip({
                   step.status === "pending"
                     ? "text-muted-foreground"
                     : tone === "success"
-                      ? "font-medium text-emerald-950"
-                      : "font-medium text-foreground"
+                      ? "font-medium text-status-success-text"
+                      : tone === "warning"
+                        ? "font-medium text-status-submitted-text"
+                        : tone === "active"
+                          ? "font-medium text-status-action-text"
+                          : "font-medium text-foreground"
                 )}
               >
                 {step.label}
@@ -462,7 +336,7 @@ function WorkflowSubFlowStrip({
               <span
                 className={cn(
                   "h-px w-4",
-                  step.status === "done" ? "bg-emerald-500" : "bg-border"
+                  step.status === "done" ? "bg-status-success-bg" : "bg-border"
                 )}
               />
             ) : null}
@@ -488,14 +362,14 @@ function StageDot({
   return (
     <div
       className={cn(
-        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ring-2 ring-background",
+        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ring-1",
         failed && active
-          ? "bg-destructive text-destructive-foreground"
+          ? LIFECYCLE_STEPPER_FILL.rejected
           : past
-            ? "bg-emerald-500 text-white"
+            ? LIFECYCLE_STEPPER_FILL.success
             : active
-              ? "bg-amber-500 text-white"
-              : "bg-muted text-muted-foreground"
+              ? LIFECYCLE_STEPPER_FILL.active
+              : LIFECYCLE_STEPPER_FILL.neutral
       )}
     >
       {failed && active ? (
@@ -514,6 +388,8 @@ interface NoteLifecycleCardProps {
   pending: Partial<Record<NoteLifecycleAction, boolean>>;
   onRequestAction: (action: NoteLifecycleAction) => void;
   canManage?: boolean;
+  /** Body only, for callers that already provide the card frame and heading. */
+  unframed?: boolean;
 }
 
 function getAutoCloseInfo(note: NoteDetail) {
@@ -562,10 +438,17 @@ function hasActiveSettlementWork(note: NoteDetail): boolean {
   );
 }
 
-export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = true }: NoteLifecycleCardProps) {
-  const activeIndex = getActiveStageIndex(note);
+export function NoteLifecycleCard({
+  note,
+  pending,
+  onRequestAction,
+  canManage = true,
+  unframed = false,
+}: NoteLifecycleCardProps) {
+  const activeIndex = getNoteLifecycleStageIndex(note);
   const isComplete = isNoteLifecycleVisuallyComplete(note);
-  const { primary, secondary, contextHelper, isFundingOpen } = buildActionPlan(note);
+  const { primary, secondary, contextHelper, isFundingOpen } = buildNoteLifecycleActionPlan(note);
+  const lifecycleCardTone = getNoteLifecycleCardTone(note);
   const anyPending = Object.values(pending).some(Boolean);
   const currentStage = STAGES[activeIndex];
   const autoClose = isFundingOpen ? getAutoCloseInfo(note) : null;
@@ -586,7 +469,7 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
     ) ?? null;
   const awaitingResidual =
     !isComplete && hasPostedSettlement && pendingResidualWithdrawal !== null;
-  const terminalFailure = getTerminalFailure(note, activeIndex);
+  const terminalFailure = getNoteLifecycleTerminalFailure(note, activeIndex);
   const defaultedWithSettlementTrusteeWork =
     terminalFailure?.label === "Defaulted" && settlementInProgress;
   const showDisbursementStrip =
@@ -635,7 +518,7 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
     ? "All settlement allocations are complete. The note lifecycle is complete."
     : terminalFailure
       ? defaultedWithSettlementTrusteeWork
-        ? "The note has defaulted. Settlement has been posted and recovery is in progress. Complete the settlement trustee instruction — including any issuer refund allocation — from the Servicing & Settlement tab."
+        ? "The note has defaulted. Settlement has been posted and recovery is in progress. Complete the settlement trustee instruction — including any issuer refund allocation — from the Servicing tab."
         : terminalFailure.description
       : awaitingResidual
         ? "Settlement waterfall posted. Investors have been paid. The issuer residual refund must be disbursed to close the lifecycle."
@@ -647,12 +530,8 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
   if (!terminalFailure && !isComplete && !awaitingDisbursement && !awaitingResidual) {
     if (isFundingOpen) {
       contextLines.push(
-        `${note.fundingPercent.toFixed(1)}% of ${formatCurrency(note.targetAmount)} funded`
-      );
-      contextLines.push(
         `${note.investments.length} commitment${note.investments.length === 1 ? "" : "s"}`
       );
-      contextLines.push(`Minimum ${note.minimumFundingPercent}% to close`);
     } else if (activeIndex >= 4) {
       contextLines.push(`${formatCurrency(note.fundedAmount)} disbursed`);
       contextLines.push(
@@ -660,34 +539,25 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
       );
     }
   }
-  const hasAvailableAction = !terminalFailure && !isComplete && (primary || secondary.length > 0);
-
-  return (
-    <Card className={cn("rounded-2xl", hasAvailableAction && ACTION_CARD_CLASS)}>
-      <CardContent className="space-y-5 p-5">
+  const body = (
+    <>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <div className="text-xs uppercase tracking-wider text-muted-foreground">
-              Note Lifecycle
-            </div>
+            {unframed ? null : (
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                Note Lifecycle
+              </div>
+            )}
             <div className="mt-1 flex items-center gap-2">
               <h3 className="text-lg font-semibold">{headerTitle}</h3>
               {isComplete ? (
-                <Badge className="bg-emerald-500 uppercase text-white hover:bg-emerald-500">
-                  Complete
-                </Badge>
+                <StatusBadge label="Complete" status="success" />
               ) : terminalFailure ? (
-                <Badge variant="destructive" className="uppercase">
-                  Terminal
-                </Badge>
+                <StatusBadge label="Terminal" status="rejected" />
               ) : awaitingDisbursement ? (
-                <Badge variant="secondary" className="uppercase">
-                  Pending Disbursement
-                </Badge>
+                <StatusBadge label="Pending disbursement" status="action" />
               ) : awaitingResidual ? (
-                <Badge variant="secondary" className="uppercase">
-                  Pending Refund
-                </Badge>
+                <StatusBadge label="Pending refund" status="action" />
               ) : null}
             </div>
             {headerDescription ? (
@@ -700,7 +570,7 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
           </div>
         </div>
 
-        <div className="flex items-center gap-1 overflow-x-auto sm:gap-2">
+        <div className="flex items-start gap-1 overflow-x-auto px-1 py-1 sm:gap-2">
           {STAGES.map((stage, idx) => {
             const isFailureStage = terminalFailure?.stageIndex === idx;
             const isPast = isComplete
@@ -714,33 +584,44 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
               : terminalFailure
                 ? idx < terminalFailure.stageIndex
                 : idx < activeIndex;
+            const completedAt =
+              isPast || isComplete ? getNoteLifecycleStageCompletedAt(note, stage.id) : null;
             return (
               <React.Fragment key={stage.id}>
-                <div className="flex shrink-0 items-center gap-2">
-                  <StageDot
-                    index={idx}
-                    active={isCurrent || isFailureStage}
-                    past={isPast && !isFailureStage}
-                    failed={isFailureStage}
-                  />
-                  <span
-                    className={cn(
-                      "text-sm",
-                      isCurrent || isFailureStage
-                        ? "font-semibold text-foreground"
-                        : isPast
-                          ? "text-foreground"
-                          : "text-muted-foreground"
-                    )}
-                  >
-                    {stage.label}
-                  </span>
+                <div className="flex shrink-0 flex-col">
+                  <div className="flex h-8 items-center gap-2">
+                    <StageDot
+                      index={idx}
+                      active={isCurrent || isFailureStage}
+                      past={isPast && !isFailureStage}
+                      failed={isFailureStage}
+                    />
+                    <span
+                      className={cn(
+                        "text-sm",
+                        isFailureStage
+                          ? "font-semibold text-status-rejected-text"
+                          : isCurrent
+                            ? "font-semibold text-status-active-text"
+                            : isPast
+                              ? "text-status-success-text"
+                              : "text-muted-foreground"
+                      )}
+                    >
+                      {stage.label}
+                    </span>
+                  </div>
+                  {completedAt ? (
+                    <p className="mt-1 pl-10 text-meta text-muted-foreground">
+                      {format(new Date(completedAt), "dd MMM yyyy")}
+                    </p>
+                  ) : null}
                 </div>
                 {idx < STAGES.length - 1 ? (
                   <div
                     className={cn(
-                      "h-px min-w-4 flex-1",
-                      connectorActive ? "bg-emerald-500" : "bg-border"
+                      "mt-3.5 h-1 min-w-4 flex-1 rounded-full",
+                      connectorActive ? "bg-status-success-bg" : "bg-border"
                     )}
                   />
                 ) : null}
@@ -763,7 +644,7 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
             title="Issuer disbursement"
             steps={disbursementSubFlow.steps}
             tone={disbursementSubFlow.tone}
-            helperText="Continue this from the Disbursement tab below."
+            helperText="Continue this from the Disbursement tab."
           />
         ) : null}
 
@@ -778,15 +659,13 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
               >
                 Late payment
               </div>
-              <Badge
-                variant="outline"
-                className={workflowBadgeClassName(latePaymentStripTone)}
-              >
-                {LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].label}
-              </Badge>
+              <StatusBadge
+                label={LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].label}
+                status={workflowToneToStatusToken(latePaymentStripTone)}
+              />
             </div>
             <p className={cn("mt-2 text-xs", workflowStripBodyClass(latePaymentStripTone))}>
-              Manage this from the Late Payment tab below.
+              Manage this from the Late Payment tab.
             </p>
           </div>
         ) : null}
@@ -796,16 +675,28 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
             className={cn(
               "flex flex-wrap items-center gap-2 rounded-xl border p-3 text-sm",
               autoClose.fullyFunded
-                ? "border-emerald-300 bg-emerald-50 text-emerald-950"
-                : autoClose.overdue
-                  ? "border-amber-300 bg-amber-50 text-amber-950"
+                ? "border-status-success-text/25 bg-status-success-bg text-status-success-text"
+                  : autoClose.overdue
+                    ? "border-status-action-text/25 bg-status-action-bg text-status-action-text"
                   : "border-border bg-card text-muted-foreground"
             )}
           >
             <ClockIcon className="h-4 w-4 shrink-0" />
             <div className="min-w-0 flex-1">
-              <div className="font-medium text-foreground">{autoClose.label}</div>
-              <div className="text-xs text-muted-foreground">
+              <div
+                className={cn(
+                  "font-medium",
+                  autoClose.fullyFunded ? "text-status-success-text" : "text-foreground"
+                )}
+              >
+                {autoClose.label}
+              </div>
+              <div
+                className={cn(
+                  "text-xs",
+                  autoClose.fullyFunded ? "text-status-success-text/80" : "text-muted-foreground"
+                )}
+              >
                 {autoClose.fullyFunded
                   ? `Target ${formatCurrency(note.targetAmount)} reached. Funding is being closed automatically; you can also close manually to proceed immediately.`
                   : autoClose.overdue
@@ -820,10 +711,10 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
           <div className="flex flex-col gap-3 rounded-xl border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 flex-1">
               <div className="text-xs uppercase tracking-wider text-muted-foreground">
-                Next Step
+                {primary ? "Next Step" : "Actions"}
               </div>
               <div className="mt-1 text-sm font-medium">
-                {primary ? primary.label : "No forward action available"}
+                {primary ? primary.label : contextHelper ?? "No forward action available"}
               </div>
               {primary?.helper ? (
                 <p className="mt-1 text-xs text-muted-foreground">{primary.helper}</p>
@@ -831,7 +722,7 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
             </div>
             <div className="flex flex-wrap items-center gap-2">
               {secondary.map((action) => {
-                const Icon = action.icon;
+                const Icon = ACTION_ICONS[action.key];
                 const btn = (
                   <Button
                     key={action.key}
@@ -859,6 +750,7 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
               })}
               {primary ? (
                 (() => {
+                  const PrimaryIcon = ACTION_ICONS[primary.key];
                   const btn = (
                     <Button
                       size="sm"
@@ -870,7 +762,7 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
                       {pending[primary.key] ? (
                         <ArrowPathIcon className="h-4 w-4 animate-spin" />
                       ) : (
-                        <primary.icon className="h-4 w-4" />
+                        <PrimaryIcon className="h-4 w-4" />
                       )}
                       {primary.label}
                     </Button>
@@ -891,7 +783,22 @@ export function NoteLifecycleCard({ note, pending, onRequestAction, canManage = 
             </div>
           </div>
         ) : null}
-      </CardContent>
+    </>
+  );
+
+  if (unframed) {
+    return <div className="space-y-5">{body}</div>;
+  }
+
+  return (
+    <Card
+      className={cn(
+        "rounded-2xl",
+        lifecycleCardTone === "action" && ACTION_CARD_CLASS,
+        lifecycleCardTone === "waiting" && WORKFLOW_CARD.warningSection
+      )}
+    >
+      <CardContent className="space-y-5 p-5">{body}</CardContent>
     </Card>
   );
 }

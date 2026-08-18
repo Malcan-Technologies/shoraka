@@ -68,7 +68,7 @@ export function FinancingTypeStep({
     return (
       <div className="text-center py-12 px-4 max-w-lg mx-auto space-y-2 text-muted-foreground">
         <p className="font-medium text-foreground">No financing product on this application</p>
-        <p className="text-[15px] leading-7">
+        <p className="text-ui leading-7">
           Start a new application to choose a product, or contact support if this looks wrong.
         </p>
       </div>
@@ -79,7 +79,7 @@ export function FinancingTypeStep({
     return (
       <div className="text-center py-12 px-4 max-w-lg mx-auto space-y-2 text-muted-foreground">
         <p className="font-medium text-foreground">Financing product not in the active catalog</p>
-        <p className="text-[15px] leading-7">
+        <p className="text-ui leading-7">
           This application&apos;s product is no longer listed for new applications. You may need to start
           a new application with a current product. Contact your administrator if you need help.
         </p>

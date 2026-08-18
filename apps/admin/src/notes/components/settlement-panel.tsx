@@ -9,10 +9,12 @@ import {
   CheckCircleIcon,
   ChevronDownIcon,
   DocumentTextIcon,
+  ExclamationTriangleIcon,
   PlusIcon,
+  ReceiptPercentIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
-import { parseMoney } from "@cashsouk/ui";
+import { parseMoney, StatusBadge } from "@cashsouk/ui";
 import type {
   NoteDetail,
   NotePayment,
@@ -81,11 +83,13 @@ import {
   useMarkServiceFeeTrusteeLetterSubmitted,
   useMarkServiceFeeTrusteeInstructionCompleted,
 } from "../hooks/use-notes";
+import { formatLedgerBucketLabel } from "@/lib/ledger-bucket-display";
 import { cn } from "@/lib/utils";
 import {
   BeneficiaryDetailsBlock,
   CollapsibleDetailTimeline,
   PoolSummaryCard,
+  WorkflowStepTitle,
 } from "@/notes/components/note-detail-ui-blocks";
 import { NoteWorkflowTabHeader } from "@/notes/components/note-workflow-tab-header";
 import {
@@ -94,10 +98,11 @@ import {
 } from "@/notes/utils/late-payment-workflow";
 import {
   WORKFLOW_CARD,
-  WORKFLOW_SUCCESS_COPY,
+  paymentReceiptStatusLabel,
   paymentReceiptTone,
   trusteeWorkflowTone,
-  workflowBadgeClassName,
+  workflowTaskSurfaceClass,
+  workflowToneToStatusToken,
 } from "@/notes/utils/workflow-status-tokens";
 
 type RecordPaymentSource = "PAYMASTER" | "ISSUER_ON_BEHALF";
@@ -106,7 +111,6 @@ type OverdueFeeInputMode = "AMOUNT" | "PERCENTAGE";
 const ACTION_CARD_CLASS = WORKFLOW_CARD.activeSection;
 const SETTLEMENT_ACTIVE_STEP_CLASS = WORKFLOW_CARD.activeStep;
 const SECTION_COMPLETE_CLASS = WORKFLOW_CARD.successSection;
-const SECTION_COMPLETE_HEADER_CLASS = WORKFLOW_SUCCESS_COPY.sectionHeader;
 const OPEN_PAYMENT_STATUSES = ["PENDING", "PARTIAL", "RECEIVED", "RECONCILED"];
 
 function serviceFeeTrusteeStatusLabel(status: ServiceFeeTrusteeInstructionStatus | null) {
@@ -115,10 +119,6 @@ function serviceFeeTrusteeStatusLabel(status: ServiceFeeTrusteeInstructionStatus
   if (status === "SUBMITTED_TO_TRUSTEE") return "Submitted to trustee";
   if (status === "COMPLETED") return "Completed";
   return "Not generated";
-}
-
-function formatStatus(value: string) {
-  return value.replace(/_/g, " ");
 }
 
 function sourceLabel(source: NotePaymentSource) {
@@ -130,14 +130,8 @@ function sourceLabel(source: NotePaymentSource) {
   return labels[source] ?? source;
 }
 
-function statusVariant(status: string) {
-  const tone = paymentReceiptTone(status);
-  if (tone === "danger") return "destructive" as const;
-  return "outline" as const;
-}
-
-function paymentStatusBadgeClass(status: string) {
-  return workflowBadgeClassName(paymentReceiptTone(status));
+function paymentStatusToken(status: string) {
+  return workflowToneToStatusToken(paymentReceiptTone(status));
 }
 
 function MoneyMetric({
@@ -266,6 +260,39 @@ function getPaymentMetadata(payment: NotePayment) {
 
 function getPaymentEvidenceFiles(payment: NotePayment) {
   return Array.isArray(payment.evidenceFiles) ? payment.evidenceFiles : [];
+}
+
+function PaymentReceiptIdentity({
+  payment,
+  included = false,
+}: {
+  payment: NotePayment;
+  included?: boolean;
+}) {
+  return (
+    <>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-semibold tabular-nums">
+          {formatCurrency(payment.receiptAmount)}
+        </span>
+        <StatusBadge
+          label={paymentReceiptStatusLabel(payment.status)}
+          status={paymentStatusToken(payment.status)}
+        />
+        <StatusBadge label={sourceLabel(payment.source)} status="neutral" showDot={false} />
+        {included ? (
+          <StatusBadge label="Counts toward settlement" status="success" marker="check" />
+        ) : null}
+      </div>
+      <div className="text-xs text-muted-foreground">
+        {format(new Date(payment.receiptDate), "dd MMM yyyy, h:mm a")}
+        {payment.reference ? ` · Ref: ${payment.reference}` : ""}
+      </div>
+      <div className="text-xs text-muted-foreground">
+        Received into {formatLedgerBucketLabel(payment.receivedIntoAccountCode)}
+      </div>
+    </>
+  );
 }
 
 function PaymentAdviceProofCompact({
@@ -619,19 +646,14 @@ export function SettlementPanel({
         }))
     : [];
   const paymentDueDateValue = resolvePaymentDueDate(note);
-  const maturityDateLabel = formatMaturityDate(note.maturityDate);
   const paymentDueDateLabel = formatMaturityDate(paymentDueDateValue);
-  const latePaymentTimeline = React.useMemo(() => resolveLatePaymentTimeline(note), [note]);
+  const latePaymentTimeline = resolveLatePaymentTimeline(note);
   const paymentDueTimingLabel = latePaymentTimeline.servicingTimingLabel;
-  const maturityTimingLabel = paymentDueTimingLabel;
-  const overdueSnapshot = React.useMemo(
-    () => ({
-      daysPastMaturity: latePaymentTimeline.daysPastMaturity,
-      daysOverdue: latePaymentTimeline.daysOverdue,
-      label: latePaymentTimeline.lateFeeStatusLabel,
-    }),
-    [latePaymentTimeline]
-  );
+  const overdueSnapshot = {
+    daysPastMaturity: latePaymentTimeline.daysPastMaturity,
+    daysOverdue: latePaymentTimeline.daysOverdue,
+    label: latePaymentTimeline.lateFeeStatusLabel,
+  };
   const noteIsOverdue = overdueSnapshot.daysOverdue > 0;
   const profitMaturityDateValue = resolveProfitMaturityDate(note);
   const profitMaturityDateLabel = formatMaturityDate(profitMaturityDateValue);
@@ -666,13 +688,11 @@ export function SettlementPanel({
     !lateFeesPostedFinal;
   const lateFeesSectionSurfaceClass = lateFeesPostedFinal
     ? SECTION_COMPLETE_CLASS
-    : lateFeesApplyActionRequired
+    : lateFeesApplyActionRequired || lateFeesQueuedLocally
       ? ACTION_CARD_CLASS
-      : lateFeesQueuedLocally
-        ? WORKFLOW_CARD.warningSection
-        : lateFeesInSavedPreview
-          ? WORKFLOW_CARD.neutralCard
-          : "border-border bg-card";
+      : lateFeesInSavedPreview
+        ? WORKFLOW_CARD.neutralCard
+        : "border-border bg-card";
   const lateFeesStatusHelperText = lateFeesBlockedByZeroHeadroom
     ? "No late fees can be charged: settlement headroom is fully used by investor principal and contractual profit."
     : pendingLateFeesExceedHeadroom
@@ -904,8 +924,6 @@ export function SettlementPanel({
     pendingPayments.length === 0 &&
     repaymentReceiptsThresholdMet &&
     !pendingLateFeesExceedHeadroom;
-  const repaymentReceiptsNeedAttention =
-    paymentActionsOpen && (pendingPayments.length > 0 || canRecordMoreReceipts);
   const repaymentReceiptsSectionComplete =
     repaymentReceiptsThresholdMet || persistedPostedSettlement != null;
   const repaymentCollectionIncomplete =
@@ -941,8 +959,7 @@ export function SettlementPanel({
   const settlementStatusDisplay = persistedPostedSettlement
     ? {
         title: "Settlement posted",
-        description:
-          "Ledger entries have been created. Complete trustee submission if required.",
+        description: "Ledger entries have been created.",
         tone: "success" as const,
       }
     : canPostSettlement
@@ -1040,17 +1057,13 @@ export function SettlementPanel({
     (Boolean(servicingBlockedReason) ||
       settlementBlockerDisplay.message.startsWith("Recorded receipt"));
   const canMarkDefault = note.servicingStatus === "ARREARS";
-  const latePaymentActionGates = React.useMemo(
-    () =>
-      resolveLatePaymentActionGates({
-        timeline: latePaymentTimeline,
-        servicingOpen,
-        canDefaultPermission: canDefault,
-        servicingStatusArrears: canMarkDefault,
-        defaultReason,
-      }),
-    [latePaymentTimeline, servicingOpen, canDefault, canMarkDefault, defaultReason]
-  );
+  const latePaymentActionGates = resolveLatePaymentActionGates({
+    timeline: latePaymentTimeline,
+    servicingOpen,
+    canDefaultPermission: canDefault,
+    servicingStatusArrears: canMarkDefault,
+    defaultReason,
+  });
   const documentActionAvailable =
     servicingOpen &&
     (latePaymentTimeline.phase === "arrears" ||
@@ -1574,45 +1587,23 @@ export function SettlementPanel({
   const latePaymentPanel = (
     <Card className="rounded-2xl">
       <NoteWorkflowTabHeader
-        asCardHeader
+        icon={ExclamationTriangleIcon}
         title="Late Payment"
         description="Manage late fees, arrears letters, default letters, and default actions."
       />
       <CardContent className="space-y-6 pt-0">
         {servicingWorkflowAvailable ? (
           <>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-xl border bg-card p-4 md:col-span-2">
-                <div className="text-xs text-muted-foreground">Payment due / maturity</div>
-                <div className="mt-1 text-lg font-semibold">{paymentDueDateLabel}</div>
-                <div className="mt-1 text-xs text-muted-foreground">{paymentDueTimingLabel}</div>
-              </div>
-              <div className="rounded-xl border bg-card p-4">
-                <div className="text-xs text-muted-foreground">Grace and Arrears</div>
-                <div className="mt-1 text-lg font-semibold">
-                  {note.gracePeriodDays} + {note.arrearsThresholdDays} days
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {note.gracePeriodDays}-day grace, then {note.arrearsThresholdDays}-day arrears
-                  threshold before default actions
-                </div>
-              </div>
-              <div className="rounded-xl border bg-card p-4">
-                <div className="text-xs text-muted-foreground">Late Fee Caps</div>
-                <div className="mt-1 text-lg font-semibold">
-                  Ta&apos;widh {note.tawidhRateCapPercent}%
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  Gharamah {note.gharamahRateCapPercent}% cap
-                </div>
-              </div>
-            </div>
-
             {showOverdueFeesSection ? (
               <div className={cn("rounded-lg border p-4", lateFeesSectionSurfaceClass)}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-medium">Late fees</div>
+                    <WorkflowStepTitle
+                      complete={lateFeesPostedFinal}
+                      completeLabel="Late fees complete"
+                    >
+                      Late fees
+                    </WorkflowStepTitle>
                     <p className="mt-1 text-xs text-muted-foreground">
                       Caps from payment due {paymentDueDateLabel} plus {note.gracePeriodDays}-day
                       grace. Fees come from the settlement receipt pool, not on top of it.
@@ -1631,12 +1622,12 @@ export function SettlementPanel({
                         {formatCurrency(Number(gharamahAmount) || 0)}
                       </div>
                       {feesNeedPreview ? (
-                        <span className="text-amber-900">Queued for preview</span>
+                        <span className="text-status-action-text">Queued for preview</span>
                       ) : (
                         <span className="text-muted-foreground">In preview</span>
                       )}
                       {pendingLateFeesExceedHeadroom ? (
-                        <Badge variant="destructive">Exceeds headroom</Badge>
+                        <StatusBadge label="Exceeds headroom" status="rejected" />
                       ) : null}
                     </div>
                   ) : null}
@@ -1718,6 +1709,16 @@ export function SettlementPanel({
                   </div>
                 </div>
               </div>
+            ) : latePaymentTimeline.phase === "not-needed" ? (
+              <div className={cn("rounded-lg border p-4", SECTION_COMPLETE_CLASS)}>
+                <WorkflowStepTitle complete completeLabel="Late payment not needed">
+                  Late fees
+                </WorkflowStepTitle>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {latePaymentTimeline.latePaymentTimingLabel}
+                  {paymentDueDateLabel ? ` · due ${paymentDueDateLabel}` : ""}
+                </p>
+              </div>
             ) : (
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed bg-muted/20 px-3 py-2">
                 <div className="min-w-0">
@@ -1738,7 +1739,12 @@ export function SettlementPanel({
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-medium">Arrears and Default Documents</div>
+                  <WorkflowStepTitle
+                    complete={latePaymentTimeline.phase === "defaulted"}
+                    completeLabel="Default complete"
+                  >
+                    Arrears and Default Documents
+                  </WorkflowStepTitle>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Generate lifecycle letters tied to the maturity, grace, arrears, and default
                     workflow.
@@ -1922,42 +1928,11 @@ export function SettlementPanel({
       ) : (
       <Card className="rounded-2xl">
         <NoteWorkflowTabHeader
-          asCardHeader
+          icon={ReceiptPercentIcon}
           title="Servicing & Settlement"
-          description="Manage repayment receipts, settlement preview, posting, and trustee submission."
+          description="Manage repayment receipts, settlement preview and posting, then trustee submission."
         />
         <CardContent className="space-y-6 pt-0">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <div
-              className={cn(
-                "rounded-xl border p-4 md:col-span-2 xl:col-span-1",
-                repaymentReceiptsNeedAttention ? ACTION_CARD_CLASS : "bg-card"
-              )}
-            >
-              <div className="text-xs text-muted-foreground">Invoice settlement amount</div>
-              <div className="mt-1 text-2xl font-semibold text-primary">
-                {formatCurrency(settlementAmount)}
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Repayment receipts should total this amount. Ta&apos;widh and Gharamah are taken
-                from this pool in the waterfall (they are not added on top).
-              </p>
-            </div>
-            <div className="rounded-xl border bg-card p-4">
-              <div className="text-xs text-muted-foreground">Payment due / maturity</div>
-              <div className="mt-1 text-lg font-semibold">{paymentDueDateLabel}</div>
-              <div className="mt-1 text-xs text-muted-foreground">{maturityTimingLabel}</div>
-              {paymentDueDateValue &&
-              note.maturityDate &&
-              new Date(paymentDueDateValue).toDateString() !==
-                new Date(note.maturityDate).toDateString() ? (
-                <div className="mt-1 text-xs text-muted-foreground">
-                  Contractual maturity {maturityDateLabel}
-                </div>
-              ) : null}
-            </div>
-          </div>
-
           {servicingWorkflowAvailable ? (
             <>
           <div
@@ -1970,12 +1945,14 @@ export function SettlementPanel({
                   : "border-border bg-muted/20"
             )}
           >
-            {repaymentReceiptsSectionComplete ? (
-              <div className={SECTION_COMPLETE_HEADER_CLASS}>Repayment receipts complete</div>
-            ) : null}
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-medium">1. Repayment receipts</div>
+                <WorkflowStepTitle
+                  complete={repaymentReceiptsSectionComplete}
+                  completeLabel="1. Repayment receipts complete"
+                >
+                  1. Repayment receipts
+                </WorkflowStepTitle>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Record paymaster or issuer receipts and approve issuer payment advice. Once
                   receipts counted reach the required settlement amount, continue to settlement
@@ -2015,7 +1992,12 @@ export function SettlementPanel({
             </div>
 
             {pendingPayments.length > 0 ? (
-              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-900">
+              <div
+                className={cn(
+                  "mt-3 rounded-lg border p-3 text-xs text-status-action-text",
+                  ACTION_CARD_CLASS
+                )}
+              >
                 {pendingPayments.length} issuer-submitted payment
                 {pendingPayments.length === 1 ? " is" : "s are"} awaiting approval before settlement
                 preview is available.
@@ -2023,7 +2005,12 @@ export function SettlementPanel({
             ) : null}
 
             {servicingBlockedReason ? (
-              <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+              <div
+                className={cn(
+                  "mt-3 rounded-lg border p-3 text-xs text-status-action-text",
+                  ACTION_CARD_CLASS
+                )}
+              >
                 {servicingBlockedReason}
               </div>
             ) : null}
@@ -2047,7 +2034,7 @@ export function SettlementPanel({
               <div className="mt-4 space-y-4">
                 {pendingReviewPayments.length > 0 ? (
                   <div className="space-y-2">
-                    <div className="text-xs font-semibold uppercase tracking-wide text-amber-900">
+                    <div className="text-meta font-medium text-status-action-text">
                       Needs approval ({pendingReviewPayments.length})
                     </div>
                     <div className="space-y-2">
@@ -2057,34 +2044,11 @@ export function SettlementPanel({
                         return (
                           <div
                             key={payment.id}
-                            className="rounded-lg border border-amber-200 bg-amber-50/50 p-3"
+                            className={cn("rounded-lg border p-3", ACTION_CARD_CLASS)}
                           >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div className="min-w-0 flex-1 space-y-2">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="text-sm font-semibold tabular-nums">
-                                    {formatCurrency(payment.receiptAmount)}
-                                  </span>
-
-                                  <Badge
-                                    variant={statusVariant(payment.status)}
-                                    className={
-                                      paymentReceiptTone(payment.status) === "danger"
-                                        ? undefined
-                                        : paymentStatusBadgeClass(payment.status)
-                                    }
-                                  >
-                                    {formatStatus(payment.status)}
-                                  </Badge>
-                                  <Badge variant="outline">{sourceLabel(payment.source)}</Badge>
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {format(new Date(payment.receiptDate), "dd MMM yyyy, h:mm a")}
-                                  {payment.reference ? ` · Ref: ${payment.reference}` : ""}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  Received into {payment.receivedIntoAccountCode}
-                                </div>
+                                <PaymentReceiptIdentity payment={payment} />
                                 {evidenceFiles.length > 0 ? (
                                   <PaymentAdviceProofCompact
                                     files={evidenceFiles}
@@ -2185,7 +2149,7 @@ export function SettlementPanel({
                     className="group"
                   >
                     <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg py-1 text-left">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      <span className="text-meta font-medium text-muted-foreground">
                         Recorded receipts ({recordedReceiptPayments.length})
                       </span>
                       <ChevronDownIcon className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=closed]:-rotate-90" />
@@ -2201,39 +2165,7 @@ export function SettlementPanel({
                               className="rounded-lg border border-border bg-card p-3"
                             >
                               <div className="space-y-2">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="text-sm font-semibold tabular-nums">
-                                    {formatCurrency(payment.receiptAmount)}
-                                  </span>
-
-                                  <Badge
-                                    variant={statusVariant(payment.status)}
-                                    className={
-                                      paymentReceiptTone(payment.status) === "danger"
-                                        ? undefined
-                                        : paymentStatusBadgeClass(payment.status)
-                                    }
-                                  >
-                                    {formatStatus(payment.status)}
-                                  </Badge>
-                                  <Badge variant="outline">{sourceLabel(payment.source)}</Badge>
-                                  {isIncluded ? (
-                                    <Badge
-                                      variant="secondary"
-                                      className="gap-1 border-transparent bg-muted px-2 py-0.5 text-xs text-foreground"
-                                    >
-                                      <CheckCircleIcon className="h-3.5 w-3.5" />
-                                      Counts toward settlement
-                                    </Badge>
-                                  ) : null}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {format(new Date(payment.receiptDate), "dd MMM yyyy, h:mm a")}
-                                  {payment.reference ? ` · Ref: ${payment.reference}` : ""}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  Received into {payment.receivedIntoAccountCode}
-                                </div>
+                                <PaymentReceiptIdentity payment={payment} included={isIncluded} />
                                 {evidenceFiles.length > 0 ? (
                                   <PaymentAdviceProofCompact
                                     files={evidenceFiles}
@@ -2256,7 +2188,12 @@ export function SettlementPanel({
 
           <div className={cn("rounded-xl border p-4", settlementSectionSurfaceClass)}>
             <div>
-              <div className="text-sm font-medium">2. Settlement &amp; waterfall</div>
+              <WorkflowStepTitle
+                complete={Boolean(persistedPostedSettlement)}
+                completeLabel="2. Settlement complete"
+              >
+                2. Settlement &amp; waterfall
+              </WorkflowStepTitle>
               {!persistedPostedSettlement ? (
                 <>
                   <p className="mt-0.5 text-xs text-muted-foreground">
@@ -2270,39 +2207,26 @@ export function SettlementPanel({
                 </>
               ) : (
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Final waterfall and trustee submission for this settlement.
+                  Final waterfall for this settlement.
                 </p>
               )}
             </div>
 
+            {settlementStatusDisplay.tone !== "success" ? (
             <div
               className={cn(
                 "mt-3 rounded-lg border px-3 py-2.5",
-                settlementStatusDisplay.tone === "success"
-                  ? WORKFLOW_CARD.successPanel
-                  : settlementIsCurrentStep && settlementStatusDisplay.tone === "active"
-                    ? WORKFLOW_CARD.activeStep
-                    : WORKFLOW_CARD.neutralSection
+                settlementIsCurrentStep && settlementStatusDisplay.tone === "active"
+                  ? WORKFLOW_CARD.activeStep
+                  : WORKFLOW_CARD.neutralSection
               )}
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <div
-                    className={cn(
-                      "text-sm font-semibold",
-                      settlementStatusDisplay.tone === "success" && WORKFLOW_SUCCESS_COPY.title
-                    )}
-                  >
+                  <div className="text-sm font-semibold">
                     {settlementStatusDisplay.title}
                   </div>
-                  <p
-                    className={cn(
-                      "mt-0.5 text-xs",
-                      settlementStatusDisplay.tone === "success"
-                        ? WORKFLOW_SUCCESS_COPY.body
-                        : "text-muted-foreground"
-                    )}
-                  >
+                  <p className="mt-0.5 text-xs text-muted-foreground">
                     {settlementStatusDisplay.description}
                   </p>
                 </div>
@@ -2320,6 +2244,7 @@ export function SettlementPanel({
                 ) : null}
               </div>
             </div>
+            ) : null}
 
             {!persistedPostedSettlement ? (
               <div className="mt-3">
@@ -2338,12 +2263,12 @@ export function SettlementPanel({
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       {eligibleReceiptTotal + 0.005 >= activeSettlementRequiredAmount ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-800">
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-status-success-text">
                           <CheckCircleIcon className="h-3.5 w-3.5" />
                           Fully covered
                         </span>
                       ) : (
-                        <span className="text-xs text-amber-900 tabular-nums">
+                        <span className="text-xs text-status-action-text tabular-nums">
                           {formatCurrency(
                             Math.max(0, activeSettlementRequiredAmount - eligibleReceiptTotal)
                           )}{" "}
@@ -2418,11 +2343,13 @@ export function SettlementPanel({
             ) : null}
 
             {showSettlementBlockerBanner ? (
-              <div className="mt-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2">
-                <div className="text-xs font-semibold text-amber-950">
+              <div
+                className={cn("mt-3 rounded-lg border px-3 py-2", ACTION_CARD_CLASS)}
+              >
+                <div className="text-xs font-semibold text-status-action-text">
                   {settlementBlockerDisplay!.title}
                 </div>
-                <p className="mt-0.5 text-xs text-amber-900">
+                <p className="mt-0.5 text-xs text-status-action-text/80">
                   {settlementBlockerDisplay!.message}
                 </p>
               </div>
@@ -2442,14 +2369,15 @@ export function SettlementPanel({
                       : "border-border bg-card shadow-sm"
                   )}
                 >
-                  {settlementWaterfallSectionComplete ? (
-                    <div className="mb-2 text-xs font-medium text-emerald-800">
-                      Waterfall complete
-                    </div>
-                  ) : null}
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold">Waterfall allocation</div>
+                      <WorkflowStepTitle
+                        complete={settlementWaterfallSectionComplete}
+                        completeLabel="Waterfall allocation complete"
+                        className="font-semibold"
+                      >
+                        Waterfall allocation
+                      </WorkflowStepTitle>
                       <p className="mt-0.5 text-xs text-muted-foreground">
                         CashSouk Reference:{" "}
                         <span className="font-mono">{displayedSettlementReference}</span>
@@ -2588,206 +2516,6 @@ export function SettlementPanel({
                     )}
                   />
                 </div>
-                {persistedPostedSettlement && showSettlementTrusteeWorkflow ? (
-                  <div
-                    className={cn(
-                      "rounded-lg border bg-card p-3",
-                      settlementTrusteeTone === "success" && "border-emerald-200/60",
-                      settlementTrusteeTone === "active" && "border-primary/30",
-                      settlementTrusteeTone === "warning" && "border-amber-200/80"
-                    )}
-                  >
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-sm font-medium">Trustee submission</div>
-                        <Badge variant="outline" className={workflowBadgeClassName(settlementTrusteeTone)}>
-                          {serviceFeeTrusteeNeedsPdf
-                            ? "Not generated"
-                            : serviceFeeTrusteeStatusLabel(serviceFeeTrusteeStatus)}
-                        </Badge>
-                      </div>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {serviceFeeTrusteeStatus === "LETTER_GENERATED"
-                          ? "Trustee instruction letter has been generated. Submit it to the trustee, then mark it as submitted."
-                          : serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE"
-                            ? "Trustee instruction has been submitted. Mark complete once trustee confirmation is received."
-                            : serviceFeeTrusteeWorkflowComplete
-                              ? "Trustee submission is complete."
-                              : "Generate the trustee instruction letter for the posted settlement waterfall."}
-                      </p>
-                      {latestTrusteeLetter ? (
-                        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                          <DocumentTextIcon className="h-3.5 w-3.5 shrink-0" />
-                          <span className="font-medium text-foreground">
-                            Settlement trustee instruction
-                          </span>
-                          <span aria-hidden>·</span>
-                          <span>
-                            {format(
-                              new Date(latestTrusteeLetter.createdAt),
-                              "dd MMM yyyy, h:mm a"
-                            )}
-                          </span>
-                        </div>
-                      ) : null}
-                    </div>
-                    {waterfallIssuerResidual > 0.005 ? (
-                      <BeneficiaryDetailsBlock
-                        accountHolder={issuerResidualBeneficiary.accountHolder || "—"}
-                        bankName={issuerResidualBeneficiary.bankName || "—"}
-                        accountNumber={issuerResidualBeneficiary.accountNumber || "—"}
-                      />
-                    ) : null}
-                    <CollapsibleDetailTimeline
-                      rows={[
-                        ...(persistedPostedSettlement.serviceFeeTrusteeCreatedAt ??
-                        persistedPostedSettlement.postedAt
-                          ? [
-                              {
-                                label: "Created",
-                                value: format(
-                                  new Date(
-                                    persistedPostedSettlement.serviceFeeTrusteeCreatedAt ??
-                                      persistedPostedSettlement.postedAt!
-                                  ),
-                                  "dd MMM yyyy, h:mm a"
-                                ),
-                              },
-                            ]
-                          : []),
-                        ...(persistedPostedSettlement.serviceFeeTrusteeLetterGeneratedAt ??
-                        latestTrusteeLetter?.createdAt
-                          ? [
-                              {
-                                label: "Letter generated",
-                                value: format(
-                                  new Date(
-                                    persistedPostedSettlement.serviceFeeTrusteeLetterGeneratedAt ??
-                                      latestTrusteeLetter!.createdAt
-                                  ),
-                                  "dd MMM yyyy, h:mm a"
-                                ),
-                              },
-                            ]
-                          : []),
-                        ...(persistedPostedSettlement.serviceFeeTrusteeSubmittedAt
-                          ? [
-                              {
-                                label: "Submitted to trustee",
-                                value: format(
-                                  new Date(persistedPostedSettlement.serviceFeeTrusteeSubmittedAt),
-                                  "dd MMM yyyy, h:mm a"
-                                ),
-                              },
-                            ]
-                          : []),
-                        ...(persistedPostedSettlement.serviceFeeTrusteeCompletedAt
-                          ? [
-                              {
-                                label: "Completed",
-                                value: format(
-                                  new Date(persistedPostedSettlement.serviceFeeTrusteeCompletedAt),
-                                  "dd MMM yyyy, h:mm a"
-                                ),
-                              },
-                            ]
-                          : []),
-                      ]}
-                    />
-                    {serviceFeeTrusteeNeedsPdf ? (
-                      <p className="mt-2 text-xs text-destructive">
-                        Generate the settlement trustee instruction before marking submitted or
-                        complete.
-                      </p>
-                    ) : null}
-                    <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-border/60 pt-3">
-                      {latestTrusteeLetter?.s3Key ? (
-                        <>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-8 gap-1.5"
-                            disabled={viewDocumentPending}
-                            onClick={() => handleViewDocument(latestTrusteeLetter.s3Key!)}
-                          >
-                            <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
-                            View
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            className="h-8 gap-1.5"
-                            disabled={viewDocumentPending}
-                            onClick={() =>
-                              handleDownloadDocument(
-                                latestTrusteeLetter.s3Key!,
-                                trusteeDownloadFileName
-                              )
-                            }
-                          >
-                            <ArrowDownTrayIcon className="h-3.5 w-3.5" />
-                            Download
-                          </Button>
-                        </>
-                      ) : null}
-                      {serviceFeeTrusteeNeedsPdf ? (
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => void handleServiceFeeTrusteeLetter()}
-                          disabled={
-                            serviceFeeTrusteeLetterLocked ||
-                            serviceFeeTrusteePendingAny ||
-                            !canDisbursement
-                          }
-                          title={
-                            !canDisbursement
-                              ? "You do not have permission to perform this action."
-                              : undefined
-                          }
-                        >
-                          Generate Letter
-                        </Button>
-                      ) : null}
-                      {serviceFeeTrusteeStatus === "LETTER_GENERATED" ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => setServiceFeeTrusteeConfirm("submit")}
-                          disabled={serviceFeeTrusteePendingAny || !canDisbursement}
-                          title={
-                            !canDisbursement
-                              ? "You do not have permission to perform this action."
-                              : undefined
-                          }
-                        >
-                          Mark submitted to trustee
-                        </Button>
-                      ) : null}
-                      {serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE" ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          onClick={() => setServiceFeeTrusteeConfirm("complete")}
-                          disabled={serviceFeeTrusteePendingAny || !canDisbursement}
-                          title={
-                            !canDisbursement
-                              ? "You do not have permission to perform this action."
-                              : undefined
-                          }
-                        >
-                          Mark completed
-                        </Button>
-                      ) : null}
-                      {serviceFeeTrusteePendingAny ? (
-                        <span className="text-xs text-muted-foreground">Working…</span>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
               </div>
             ) : settlementNotReadyForPreview ? (
               <p className="mt-3 text-xs text-muted-foreground">
@@ -2803,6 +2531,219 @@ export function SettlementPanel({
               </div>
             )}
           </div>
+
+          {showSettlementTrusteeWorkflow ? (
+            persistedPostedSettlement ? (
+              <div
+                className={cn(
+                  "rounded-xl border p-4",
+                  serviceFeeTrusteeWorkflowComplete
+                    ? SECTION_COMPLETE_CLASS
+                    : workflowTaskSurfaceClass(settlementTrusteeTone)
+                )}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <WorkflowStepTitle
+                    complete={serviceFeeTrusteeWorkflowComplete}
+                    completeLabel="3. Trustee instruction complete"
+                  >
+                    3. Trustee instruction
+                  </WorkflowStepTitle>
+                  {serviceFeeTrusteeWorkflowComplete ? null : (
+                    <StatusBadge
+                      label={
+                        serviceFeeTrusteeNeedsPdf
+                          ? "Not generated"
+                          : serviceFeeTrusteeStatusLabel(serviceFeeTrusteeStatus)
+                      }
+                      status={workflowToneToStatusToken(settlementTrusteeTone)}
+                    />
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {serviceFeeTrusteeStatus === "LETTER_GENERATED"
+                    ? "Trustee instruction letter has been generated. Submit it to the trustee, then mark it as submitted."
+                    : serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE"
+                      ? "Trustee instruction has been submitted. Mark complete once trustee confirmation is received."
+                      : serviceFeeTrusteeWorkflowComplete
+                        ? "Trustee submission is complete."
+                        : "Generate the trustee instruction letter for the posted settlement waterfall."}
+                </p>
+                {latestTrusteeLetter ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                    <DocumentTextIcon className="h-3.5 w-3.5 shrink-0" />
+                    <span className="font-medium text-foreground">
+                      Settlement trustee instruction
+                    </span>
+                    <span aria-hidden>·</span>
+                    <span>
+                      {format(new Date(latestTrusteeLetter.createdAt), "dd MMM yyyy, h:mm a")}
+                    </span>
+                  </div>
+                ) : null}
+                {waterfallIssuerResidual > 0.005 ? (
+                  <BeneficiaryDetailsBlock
+                    accountHolder={issuerResidualBeneficiary.accountHolder || "—"}
+                    bankName={issuerResidualBeneficiary.bankName || "—"}
+                    accountNumber={issuerResidualBeneficiary.accountNumber || "—"}
+                  />
+                ) : null}
+                <CollapsibleDetailTimeline
+                  rows={[
+                    ...(persistedPostedSettlement.serviceFeeTrusteeCreatedAt ??
+                    persistedPostedSettlement.postedAt
+                      ? [
+                          {
+                            label: "Created",
+                            value: format(
+                              new Date(
+                                persistedPostedSettlement.serviceFeeTrusteeCreatedAt ??
+                                  persistedPostedSettlement.postedAt!
+                              ),
+                              "dd MMM yyyy, h:mm a"
+                            ),
+                          },
+                        ]
+                      : []),
+                    ...(persistedPostedSettlement.serviceFeeTrusteeLetterGeneratedAt ??
+                    latestTrusteeLetter?.createdAt
+                      ? [
+                          {
+                            label: "Letter generated",
+                            value: format(
+                              new Date(
+                                persistedPostedSettlement.serviceFeeTrusteeLetterGeneratedAt ??
+                                  latestTrusteeLetter!.createdAt
+                              ),
+                              "dd MMM yyyy, h:mm a"
+                            ),
+                          },
+                        ]
+                      : []),
+                    ...(persistedPostedSettlement.serviceFeeTrusteeSubmittedAt
+                      ? [
+                          {
+                            label: "Submitted to trustee",
+                            value: format(
+                              new Date(persistedPostedSettlement.serviceFeeTrusteeSubmittedAt),
+                              "dd MMM yyyy, h:mm a"
+                            ),
+                          },
+                        ]
+                      : []),
+                    ...(persistedPostedSettlement.serviceFeeTrusteeCompletedAt
+                      ? [
+                          {
+                            label: "Completed",
+                            value: format(
+                              new Date(persistedPostedSettlement.serviceFeeTrusteeCompletedAt),
+                              "dd MMM yyyy, h:mm a"
+                            ),
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
+                {serviceFeeTrusteeNeedsPdf ? (
+                  <p className="mt-2 text-xs text-destructive">
+                    Generate the settlement trustee instruction before marking submitted or complete.
+                  </p>
+                ) : null}
+                <div className="mt-3 flex flex-wrap items-center justify-end gap-2 border-t border-border/60 pt-3">
+                  {latestTrusteeLetter?.s3Key ? (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1.5"
+                        disabled={viewDocumentPending}
+                        onClick={() => handleViewDocument(latestTrusteeLetter.s3Key!)}
+                      >
+                        <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                        View
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1.5"
+                        disabled={viewDocumentPending}
+                        onClick={() =>
+                          handleDownloadDocument(
+                            latestTrusteeLetter.s3Key!,
+                            trusteeDownloadFileName
+                          )
+                        }
+                      >
+                        <ArrowDownTrayIcon className="h-3.5 w-3.5" />
+                        Download
+                      </Button>
+                    </>
+                  ) : null}
+                  {serviceFeeTrusteeNeedsPdf ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => void handleServiceFeeTrusteeLetter()}
+                      disabled={
+                        serviceFeeTrusteeLetterLocked ||
+                        serviceFeeTrusteePendingAny ||
+                        !canDisbursement
+                      }
+                      title={
+                        !canDisbursement
+                          ? "You do not have permission to perform this action."
+                          : undefined
+                      }
+                    >
+                      Generate Letter
+                    </Button>
+                  ) : null}
+                  {serviceFeeTrusteeStatus === "LETTER_GENERATED" ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setServiceFeeTrusteeConfirm("submit")}
+                      disabled={serviceFeeTrusteePendingAny || !canDisbursement}
+                      title={
+                        !canDisbursement
+                          ? "You do not have permission to perform this action."
+                          : undefined
+                      }
+                    >
+                      Mark submitted to trustee
+                    </Button>
+                  ) : null}
+                  {serviceFeeTrusteeStatus === "SUBMITTED_TO_TRUSTEE" ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setServiceFeeTrusteeConfirm("complete")}
+                      disabled={serviceFeeTrusteePendingAny || !canDisbursement}
+                      title={
+                        !canDisbursement
+                          ? "You do not have permission to perform this action."
+                          : undefined
+                      }
+                    >
+                      Mark completed
+                    </Button>
+                  ) : null}
+                  {serviceFeeTrusteePendingAny ? (
+                    <span className="text-xs text-muted-foreground">Working…</span>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border bg-muted/20 p-4">
+                <div className="text-sm font-medium">3. Trustee instruction</div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Generate and submit the settlement trustee letter after the waterfall is posted.
+                </p>
+              </div>
+            )
+          ) : null}
 
             </>
           ) : (

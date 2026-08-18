@@ -6,11 +6,9 @@ import { format, formatDistanceToNowStrict } from "date-fns";
 import {
   ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
-  BanknotesIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
-import { Skeleton, useHeader } from "@cashsouk/ui";
-import { Badge } from "@/components/ui/badge";
+import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -23,11 +21,15 @@ import {
 } from "@/components/ui/table";
 import { usePendingIssuerPayouts } from "@/notes/hooks/use-notes";
 import { RequirePermission } from "@/components/require-permission";
+import { AdminPageHeader } from "@/components/admin-page-header";
+import { adminActionRowClass } from "@/lib/admin-status-token";
 
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  DRAFT: "secondary",
-  LETTER_GENERATED: "outline",
-  SUBMITTED_TO_TRUSTEE: "default",
+const STATUS_TOKEN: Record<string, "neutral" | "action" | "success"> = {
+  DRAFT: "neutral",
+  LETTER_GENERATED: "action",
+  SUBMITTED_TO_TRUSTEE: "action",
+  COMPLETED: "success",
+  CANCELLED: "neutral",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -59,12 +61,6 @@ function formatAge(value: string | null) {
 }
 
 export default function PendingIssuerPayoutsPage() {
-  const { setTitle } = useHeader();
-  React.useEffect(() => {
-    setTitle("Issuer Payouts");
-    return () => setTitle("");
-  }, [setTitle]);
-
   const { data, isLoading, error, refetch, isFetching } = usePendingIssuerPayouts();
   const items = data?.items ?? [];
 
@@ -82,33 +78,24 @@ export default function PendingIssuerPayoutsPage() {
     <RequirePermission permission="disbursements.view">
       <>
             <div className="flex-1 overflow-y-auto">
-        <div className="w-full space-y-8 px-4 py-10 md:px-6 md:py-12 lg:px-8">
+        <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
           <section className="space-y-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <BanknotesIcon className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold">Issuer payouts in flight</h2>
-                  <p className="text-sm text-muted-foreground">
-                    All payments owed to issuers, both initial disbursements (after funding close) and
-                    residual refunds (after settlement). Progress each item through Draft → Letter
-                    Generated → Submitted to Trustee → Disbursed from the note&apos;s settlement panel.
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void refetch()}
-                disabled={isFetching}
-                className="h-8 w-8 shrink-0 p-0"
-                title="Refresh"
-              >
-                <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-              </Button>
-            </div>
+            <AdminPageHeader
+              title="Issuer Payouts"
+              description="All payments owed to issuers, both initial disbursements (after funding close) and residual refunds (after settlement). Progress each item through Draft → Letter Generated → Submitted to Trustee → Disbursed from the note's settlement panel."
+              action={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void refetch()}
+                  disabled={isFetching}
+                  className="h-8 w-8 shrink-0 p-0"
+                  title="Refresh"
+                >
+                  <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+                </Button>
+              }
+            />
 
             {error ? (
               <div className="rounded-lg border border-destructive/30 p-4 text-sm text-destructive">
@@ -201,13 +188,18 @@ export default function PendingIssuerPayoutsPage() {
                             </TableRow>
                           )
                         : items.map((item) => (
-                            <TableRow key={item.withdrawalId}>
+                            <TableRow
+                              key={item.withdrawalId}
+                              className={adminActionRowClass(
+                                (STATUS_TOKEN[item.status] ?? "neutral") === "action"
+                              )}
+                            >
                               <TableCell className="font-medium">
                                 {item.noteTitle ?? item.noteId}
                               </TableCell>
                               <TableCell>
                                 <span
-                                  className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${
+                                  className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-normal ${
                                     TYPE_TONE[item.withdrawalType] ?? "border-border bg-muted text-foreground"
                                   }`}
                                 >
@@ -219,9 +211,10 @@ export default function PendingIssuerPayoutsPage() {
                                 {formatCurrency(item.amount)}
                               </TableCell>
                               <TableCell>
-                                <Badge variant={STATUS_VARIANT[item.status] ?? "secondary"}>
-                                  {STATUS_LABEL[item.status] ?? item.status}
-                                </Badge>
+                                <StatusBadge
+                                  label={STATUS_LABEL[item.status] ?? item.status}
+                                  status={STATUS_TOKEN[item.status] ?? "neutral"}
+                                />
                               </TableCell>
                               <TableCell>{formatDate(item.generatedAt)}</TableCell>
                               <TableCell>{formatDate(item.submittedToTrusteeAt)}</TableCell>

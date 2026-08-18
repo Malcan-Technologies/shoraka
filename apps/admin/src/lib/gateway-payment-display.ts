@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { getAdminStatusToken } from "./admin-status-token";
 
 export const STATUS_LABEL: Record<string, string> = {
   CREATED: "Awaiting payment",
@@ -19,9 +20,14 @@ export const PURPOSE_LABEL: Record<string, string> = {
 };
 
 /**
- * Badge variant for payment status (list + detail).
+ * Badge token for payment status (list + detail).
  * PAID is an intermediate Curlec-captured state, not the final Completed success.
  */
+export function statusToken(status: string) {
+  return getAdminStatusToken(status);
+}
+
+/** @deprecated Prefer statusToken with StatusBadge. */
 export function statusVariant(status: string) {
   if (status === "COMPLETED") return "success" as const;
   if (status === "HELD" || status === "FAILED") return "destructive" as const;
@@ -32,7 +38,8 @@ export function statusVariant(status: string) {
   ) {
     return "warning" as const;
   }
-  if (status === "REFUNDED" || status === "EXPIRED") return "muted" as const;
+  if (status === "REFUNDED") return "muted" as const;
+  if (status === "EXPIRED") return "destructive" as const;
   if (status === "CREATED") return "info" as const;
   return "outline" as const;
 }

@@ -454,7 +454,7 @@ export function InvestorInvestmentsList({
 
         {!isLoading && !error && notes.length === 0 ? (
           <div className="rounded-xl border border-dashed p-8 text-center">
-            <p className="text-[17px] leading-7 text-muted-foreground">
+            <p className="text-body leading-7 text-muted-foreground">
               You have not invested in any notes yet. Explore marketplace opportunities to start
               building your portfolio.
             </p>

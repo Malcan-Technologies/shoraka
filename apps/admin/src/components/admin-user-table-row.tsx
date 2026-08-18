@@ -1,6 +1,5 @@
 import * as React from "react";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -16,10 +15,9 @@ import {
   CheckIcon,
   ShieldExclamationIcon,
   ShieldCheckIcon,
-  CheckCircleIcon,
-  XCircleIcon,
   UserCircleIcon,
 } from "@heroicons/react/24/outline";
+import { StatusBadge } from "@cashsouk/ui";
 import { useUpdateAdminRole, useDeactivateAdmin, useReactivateAdmin } from "@/hooks/use-admin-users";
 import type {
   AdminRoleBadgeColor,
@@ -268,7 +266,7 @@ export function AdminUserTableRow({
           <button
             onClick={handleStartEditRole}
             disabled={!canManageRoles || status === "INACTIVE"}
-            className={`group inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
+            className={`group inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-normal ${
               !canManageRoles || status === "INACTIVE"
                 ? "opacity-50 cursor-not-allowed" 
                 : "hover:shadow-sm transition-shadow"
@@ -299,21 +297,9 @@ export function AdminUserTableRow({
       </TableCell>
       <TableCell>
         {status === "ACTIVE" ? (
-          <Badge
-            variant="outline"
-            className="border-green-500/30 text-foreground bg-green-500/10"
-          >
-            <CheckCircleIcon className="h-3 w-3 mr-1 text-green-600" />
-            Active
-          </Badge>
+          <StatusBadge label="Active" status="active" />
         ) : (
-          <Badge
-            variant="outline"
-            className="border-gray-400/30 text-foreground bg-gray-400/10"
-          >
-            <XCircleIcon className="h-3 w-3 mr-1 text-gray-500" />
-            Inactive
-          </Badge>
+          <StatusBadge label="Inactive" status="neutral" />
         )}
       </TableCell>
       <TableCell>

@@ -178,7 +178,7 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
           </div>
           <div className="space-y-2">
             <h2 className="text-xl font-semibold">Setting up your account...</h2>
-            <p className="text-[15px] text-muted-foreground">This will only take a moment</p>
+            <p className="text-ui text-muted-foreground">This will only take a moment</p>
           </div>
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
         </div>
@@ -273,7 +273,7 @@ export function AccountTypeSelector({ onBack }: AccountTypeSelectorProps) {
       <div className="w-full max-w-xl space-y-6">
         <div className="text-center space-y-2">
           <h2 className="text-xl font-semibold">Choose Account Type</h2>
-          <p className="text-[15px] text-muted-foreground">
+          <p className="text-ui text-muted-foreground">
             Select how you&apos;d like to invest on CashSouk
           </p>
         </div>

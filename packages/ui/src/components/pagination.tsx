@@ -71,18 +71,18 @@ export function Pagination({
       )}
       {...props}
     >
-      <p className="text-sm text-muted-foreground">
+      <p className="text-ui text-muted-foreground">
         {rangeLabel(effectivePage, pageSize, total, itemLabel)}
       </p>
       <div className="flex flex-wrap items-center gap-2">
         {onPageSizeChange ? (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Per page</span>
+            <span className="text-ui text-muted-foreground">Per page</span>
             <Select
               value={String(pageSize)}
               onValueChange={(value) => onPageSizeChange(Number(value))}
             >
-              <SelectTrigger className="h-9 w-[4.5rem] rounded-xl">
+              <SelectTrigger className="h-10 w-[4.5rem] rounded-xl">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -100,21 +100,19 @@ export function Pagination({
             type="button"
             variant="outline"
             size="icon"
-            className="h-9 w-9 rounded-xl"
             disabled={!canPrev}
             onClick={() => onPageChange(effectivePage - 1)}
             aria-label="Previous page"
           >
             <ChevronLeftIcon className="h-4 w-4" />
           </Button>
-          <span className="min-w-[4.5rem] text-center text-sm text-muted-foreground">
+          <span className="min-w-[4.5rem] text-center text-ui text-muted-foreground">
             {effectivePage} / {totalPages}
           </span>
           <Button
             type="button"
             variant="outline"
             size="icon"
-            className="h-9 w-9 rounded-xl"
             disabled={!canNext}
             onClick={() => onPageChange(effectivePage + 1)}
             aria-label="Next page"

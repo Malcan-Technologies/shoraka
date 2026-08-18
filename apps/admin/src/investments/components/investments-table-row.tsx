@@ -2,18 +2,11 @@ import * as React from "react";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import type { AdminInvestmentItem } from "@cashsouk/types";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
-import {
-  ArchiveBoxIcon,
-  ArrowUturnLeftIcon,
-  CheckBadgeIcon,
-  CheckCircleIcon,
-  ClockIcon,
-  EyeIcon,
-  XCircleIcon,
-} from "@heroicons/react/24/outline";
+import { EyeIcon } from "@heroicons/react/24/outline";
+import { adminActionRowClass, getAdminStatusToken } from "@/lib/admin-status-token";
 
 interface InvestmentsTableRowProps {
   investment: AdminInvestmentItem;
@@ -24,59 +17,21 @@ function formatDate(value: string | null) {
   return value ? format(new Date(value), "dd MMM yyyy") : "—";
 }
 
-const investmentStatusConfig: Record<
-  string,
-  {
-    className: string;
-    icon: React.ComponentType<{ className?: string }>;
-    label: string;
-  }
-> = {
-  COMMITTED: {
-    className:
-      "border-transparent bg-status-action-bg text-status-action-text dark:bg-amber-950/40 dark:text-amber-300",
-    icon: ClockIcon,
-    label: "Committed",
-  },
-  CONFIRMED: {
-    className:
-      "border-transparent bg-status-completed-bg text-status-completed-text dark:bg-sky-950/40 dark:text-sky-300",
-    icon: CheckCircleIcon,
-    label: "Confirmed",
-  },
-  SETTLED: {
-    className:
-      "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300",
-    icon: CheckBadgeIcon,
-    label: "Settled",
-  },
-  RELEASED: {
-    className:
-      "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300",
-    icon: ArrowUturnLeftIcon,
-    label: "Released",
-  },
-  CANCELLED: {
-    className:
-      "border-transparent bg-status-rejected-bg text-status-rejected-text dark:bg-red-950/40 dark:text-red-300",
-    icon: XCircleIcon,
-    label: "Cancelled",
-  },
+const INVESTMENT_STATUS_LABEL: Record<string, string> = {
+  COMMITTED: "Committed",
+  CONFIRMED: "Confirmed",
+  SETTLED: "Settled",
+  RELEASED: "Released",
+  CANCELLED: "Cancelled",
 };
 
 function InvestmentStatusBadge({ status }: { status: string }) {
-  const config = investmentStatusConfig[status] ?? {
-    className:
-      "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300",
-    icon: ArchiveBoxIcon,
-    label: status,
-  };
-  const Icon = config.icon;
   return (
-    <Badge variant="outline" className={`max-w-full truncate ${config.className}`}>
-      <Icon className="mr-1 h-3.5 w-3.5 shrink-0" />
-      {config.label}
-    </Badge>
+    <StatusBadge
+      label={INVESTMENT_STATUS_LABEL[status] ?? status}
+      status={getAdminStatusToken(status)}
+      className="max-w-full truncate"
+    />
   );
 }
 
@@ -88,7 +43,7 @@ export function InvestmentsTableRow({ investment, onViewNote }: InvestmentsTable
     investment.investorUserId;
 
   return (
-    <TableRow>
+    <TableRow className={adminActionRowClass(getAdminStatusToken(investment.status))}>
       <TableCell className="min-w-0 overflow-hidden truncate font-mono text-xs" title={investment.noteReference ?? ""}>
         {investment.noteReference ?? "—"}
       </TableCell>

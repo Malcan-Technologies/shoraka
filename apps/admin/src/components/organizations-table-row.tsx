@@ -17,8 +17,9 @@ import { cn } from "@/lib/utils";
 import {
   getOrganizationOnboardingPresentation,
   getOrganizationRiskPresentation,
-  getOrganizationTypePresentation,
 } from "@/lib/organization-status";
+import { adminActionRowClass } from "@/lib/admin-status-token";
+import { OrganizationTypeBadge } from "@/components/organization-type-badge";
 
 interface OrganizationsTableRowProps {
   organization: OrganizationResponse;
@@ -39,14 +40,13 @@ export function OrganizationsTableRow({
       : `${organization.owner.firstName} ${organization.owner.lastName}`;
   const ownerName = `${organization.owner.firstName} ${organization.owner.lastName}`.trim();
   const ownerHref = `/users/${encodeURIComponent(organization.owner.userId)}`;
-  const typePresentation = getOrganizationTypePresentation(organization.type);
   const onboardingPresentation = getOrganizationOnboardingPresentation(
     organization.onboardingStatus
   );
   const riskStatus = getOrganizationRiskPresentation(organization.riskLevel);
 
   return (
-    <TableRow className="hover:bg-muted/50">
+    <TableRow className={cn("hover:bg-muted/50", adminActionRowClass(onboardingPresentation.status))}>
       {/* Organization */}
       <TableCell className="text-sm min-w-[180px] max-w-[280px]">
         <div className="flex items-start gap-3">
@@ -108,7 +108,7 @@ export function OrganizationsTableRow({
 
       {/* Type */}
       <TableCell>
-        <StatusBadge label={typePresentation.label} status={typePresentation.status} />
+        <OrganizationTypeBadge type={organization.type} />
       </TableCell>
 
       {/* Onboarding Status */}
@@ -142,7 +142,7 @@ export function OrganizationsTableRow({
         <>
           <TableCell>
             {organization.isSophisticatedInvestor ? (
-              <StatusBadge label="Yes" status="completed" />
+              <StatusBadge label="Yes" status="success" />
             ) : (
               <span className="text-sm text-muted-foreground">No</span>
             )}

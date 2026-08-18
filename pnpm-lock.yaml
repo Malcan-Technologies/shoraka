@@ -34,7 +34,7 @@ importers:
         version: 7.70.0(react@19.2.3)
       zod:
         specifier: link:@hookform/resolvers/zod
-        version: link:@hookform/resolvers/zod
+        version: 3.25.76
     devDependencies:
       '@eslint/eslintrc':
         specifier: ^3.3.1

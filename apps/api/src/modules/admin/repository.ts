@@ -2332,6 +2332,8 @@ export class AdminRepository {
       title: string | null;
       issuerOrganizationName: string | null;
       contractValue: number;
+      approvedFacility: number;
+      utilizedFacility: number;
       status: string;
       updatedAt: Date;
     }[];
@@ -2385,6 +2387,8 @@ export class AdminRepository {
     const transformedContracts = contracts.map((contract) => {
       const contractDetails = (contract.contract_details ?? {}) as Record<string, unknown>;
       const contractValue = Number(contractDetails.value ?? contractDetails.financing ?? 0);
+      const approvedFacility = Number(contractDetails.approved_facility ?? 0);
+      const utilizedFacility = Number(contractDetails.utilized_facility ?? 0);
 
       return {
         id: contract.id,
@@ -2398,6 +2402,8 @@ export class AdminRepository {
           : null,
         issuerOrganizationName: contract.issuer_organization?.name ?? null,
         contractValue: Number.isFinite(contractValue) ? contractValue : 0,
+        approvedFacility: Number.isFinite(approvedFacility) ? approvedFacility : 0,
+        utilizedFacility: Number.isFinite(utilizedFacility) ? utilizedFacility : 0,
         status: contract.status,
         updatedAt: contract.updated_at,
       };
@@ -2440,6 +2446,17 @@ export class AdminRepository {
       sourceApplicationId: string;
       sourceInvoiceId: string | null;
     }[];
+    activity: {
+      id: string;
+      eventType: string;
+      createdAt: Date;
+      actorUserId: string | null;
+      actorName: string | null;
+      portal: string | null;
+      remark: string | null;
+      metadata: Record<string, unknown> | null;
+      applicationId: string | null;
+    }[];
   } | null> {
     const contract = await prisma.contract.findUnique({
       where: { id },
@@ -2447,6 +2464,7 @@ export class AdminRepository {
         id: true,
         display_reference: true,
         issuer_organization_id: true,
+        originating_application_id: true,
         status: true,
         created_at: true,
         updated_at: true,
@@ -2533,8 +2551,25 @@ export class AdminRepository {
       };
     });
 
+    const linkedApplicationIds = contract.applications.map((application) => application.id);
+    const originatingApplicationId = contract.originating_application_id;
+    const activityWhere: Prisma.ApplicationLogWhereInput = {
+      OR: [
+        { entity_id: id },
+        ...(originatingApplicationId ? [{ application_id: originatingApplicationId }] : []),
+        ...(linkedApplicationIds.length > 0
+          ? [
+              {
+                application_id: { in: linkedApplicationIds },
+                event_type: { startsWith: "CONTRACT_" },
+              },
+            ]
+          : []),
+      ],
+    };
+
     const userIds = [sentByUserId, respondedByUserId].filter((id): id is string => Boolean(id));
-    const [users, notes] = await Promise.all([
+    const [users, notes, activityLogs] = await Promise.all([
       userIds.length
         ? prisma.user.findMany({
             where: { user_id: { in: userIds } },
@@ -2553,9 +2588,26 @@ export class AdminRepository {
           source_invoice_id: true,
         },
       }),
+      prisma.applicationLog.findMany({
+        where: activityWhere,
+        orderBy: { created_at: "desc" },
+      }),
     ]);
+    const activityActorIds = [
+      ...new Set(
+        activityLogs
+          .map((log) => log.user_id)
+          .filter((actorId): actorId is string => Boolean(actorId) && !userIds.includes(actorId))
+      ),
+    ];
+    const extraActors = activityActorIds.length
+      ? await prisma.user.findMany({
+          where: { user_id: { in: activityActorIds } },
+          select: { user_id: true, first_name: true, last_name: true, email: true },
+        })
+      : [];
     const userNameById = new Map(
-      users.map((user) => {
+      [...users, ...extraActors].map((user) => {
         const fullName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
         return [user.user_id, fullName.length > 0 ? fullName : user.email];
       })
@@ -2598,6 +2650,21 @@ export class AdminRepository {
         sourceApplicationId: note.source_application_id,
         sourceInvoiceId: note.source_invoice_id,
       })),
+      activity: activityLogs.map((log) => {
+        const metadata = (log.metadata as Record<string, unknown> | null) ?? {};
+        const actorName = log.user_id ? userNameById.get(log.user_id) ?? null : null;
+        return {
+          id: log.id,
+          eventType: log.event_type,
+          createdAt: log.created_at,
+          actorUserId: log.user_id || null,
+          actorName,
+          portal: log.portal,
+          remark: log.remark,
+          metadata: actorName ? { ...metadata, actorName } : metadata,
+          applicationId: log.application_id,
+        };
+      }),
     };
   }
 

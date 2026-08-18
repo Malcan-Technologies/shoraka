@@ -21,7 +21,7 @@ export function RecentSectionHeader({
         <h3 className="text-xl font-semibold tracking-tight text-foreground">{title}</h3>
         {countBadge}
       </div>
-      <Button asChild variant="ghost" size="sm" className="h-8 gap-1 text-sm">
+      <Button asChild variant="ghost" size="sm" className="gap-1">
         <Link href={viewAllHref}>
           {viewAllLabel}
           <ArrowRightIcon className="h-4 w-4" aria-hidden />

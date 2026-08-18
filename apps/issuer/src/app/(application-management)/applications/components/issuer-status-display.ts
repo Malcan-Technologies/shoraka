@@ -1,38 +1,8 @@
-import type { StatusToken } from "@cashsouk/ui";
-import { getStatusPresentationByBadgeKey } from "@cashsouk/config";
+import { badgeKeyToStatusToken, getStatusPresentationByBadgeKey } from "@cashsouk/config";
 import type { WithdrawReason } from "@cashsouk/types";
 import { formatApplicationReference } from "@cashsouk/types";
 
-/**
- * Map collapsed issuer badge keys → shared StatusBadge tokens (viewer-centric):
- * yellow/action = issuer must respond · blue/submitted = waiting on admin ·
- * green/success = good · red/rejected = bad · slate/neutral = terminal/closed.
- */
-export function badgeKeyToStatusToken(badgeKey: string): StatusToken {
-  switch (badgeKey?.toLowerCase()) {
-    case "draft":
-    case "amendment_requested":
-    case "offer_sent":
-      return "action";
-    case "submitted":
-    case "resubmitted":
-    case "under_review":
-      return "submitted";
-    case "accepted":
-    case "approved":
-      return "success";
-    case "rejected":
-    case "declined":
-    case "offer_expired":
-      return "rejected";
-    case "completed":
-    case "withdrawn":
-    case "archived":
-      return "neutral"; // terminal / closed
-    default:
-      return "neutral";
-  }
-}
+export { badgeKeyToStatusToken };
 
 /**
  * Plain-English status for SME issuers (primary badge / card).

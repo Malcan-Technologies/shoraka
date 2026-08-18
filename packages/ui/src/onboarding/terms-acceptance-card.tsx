@@ -69,12 +69,12 @@ export function TermsAcceptanceCard({
         <CardTitle className="text-xl font-semibold tracking-tight md:text-2xl">
           Terms and Conditions
         </CardTitle>
-        <CardDescription className="text-[17px] leading-7 text-muted-foreground">
+        <CardDescription className="text-body text-muted-foreground">
           {isOwner
             ? "Please read and accept our Terms and Conditions to continue."
             : "The organisation owner must accept the updated legal document before new transactions can continue."}
           <br />
-          <span className="text-[13px] leading-5 text-muted-foreground">
+          <span className="text-meta leading-5 text-muted-foreground">
             Last updated: {formattedDate}
           </span>
         </CardDescription>
@@ -109,7 +109,7 @@ export function TermsAcceptanceCard({
         </CardFooter>
       ) : (
         <CardFooter className="border-t px-6 py-4 md:px-8">
-          <p className="text-[17px] leading-7 text-muted-foreground">
+          <p className="text-body text-muted-foreground">
             Only the organisation owner can accept these terms. You can still read the document
             above.
           </p>

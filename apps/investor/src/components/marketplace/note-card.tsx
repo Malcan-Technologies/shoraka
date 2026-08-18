@@ -105,7 +105,7 @@ export function NoteCard({ note, onInvest, onViewProspectus }: NoteCardProps) {
                   {formatInvestorReturnRatePercent(note.annualReturn)}
                 </div>
               </div>
-              <div className="mt-1 inline-flex items-center justify-center gap-1 text-[11px] text-muted-foreground">
+              <div className="mt-1 inline-flex items-center justify-center gap-1 text-meta text-muted-foreground">
                 Per annum
                 <MarketplaceReturnRateTooltip />
               </div>
@@ -116,7 +116,7 @@ export function NoteCard({ note, onInvest, onViewProspectus }: NoteCardProps) {
                   {note.tenorDays ?? "-"}
                 </div>
               </div>
-              <div className="mt-1 text-[11px] text-muted-foreground">Days</div>
+              <div className="mt-1 text-meta text-muted-foreground">Days</div>
             </div>
             <div className="flex flex-col text-center">
               <div className="flex flex-1 flex-col rounded-2xl border border-border bg-muted/30 p-3">
@@ -128,15 +128,14 @@ export function NoteCard({ note, onInvest, onViewProspectus }: NoteCardProps) {
                   )}
                 />
               </div>
-              <div className="mt-1 text-[11px] text-muted-foreground">Score</div>
+              <div className="mt-1 text-meta text-muted-foreground">Score</div>
             </div>
           </div>
 
           <div className="mt-auto shrink-0 space-y-2 border-t border-border pt-4">
             <Button
               variant="action"
-              size="lg"
-              className="h-10 w-full rounded-lg text-sm"
+              className="w-full"
               disabled={!note.investable}
               onClick={() => note.investable && onInvest(note)}
             >
@@ -144,7 +143,8 @@ export function NoteCard({ note, onInvest, onViewProspectus }: NoteCardProps) {
             </Button>
             <Button
               variant="ghost"
-              className="h-7 w-full gap-1 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              size="sm"
+              className="w-full text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               onClick={() => onViewProspectus?.(note)}
             >
               <DocumentTextIcon className="h-3.5 w-3.5" />

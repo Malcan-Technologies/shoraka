@@ -463,6 +463,8 @@ export function mapNoteListItem(note: NoteWithRelations) {
     listingClosesAt: note.listing ? iso(note.listing.closes_at) : null,
     activatedAt: iso(note.activated_at),
     publishedAt: iso(note.published_at),
+    fundingClosedAt: iso(note.funding_closed_at),
+    repaidAt: iso(note.repaid_at),
     settlementSummary: resolveSettlementSummary(note),
     prospectus: mapProspectusSummary(note),
     createdAt: note.created_at.toISOString(),

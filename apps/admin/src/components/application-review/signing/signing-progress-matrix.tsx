@@ -5,7 +5,7 @@
 "use client";
 
 import * as React from "react";
-import { Progress } from "@cashsouk/ui";
+import { Progress, StatusBadge } from "@cashsouk/ui";
 import {
   computeSigningEnvelopeProgress,
   type SigningAssignmentDto,
@@ -13,7 +13,7 @@ import {
   type SigningEnvelopeDto,
   type SigningRecipientDto,
 } from "@cashsouk/types";
-import { Badge } from "@/components/ui/badge";
+import { getAdminStatusToken } from "@/lib/admin-status-token";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -35,34 +35,13 @@ import { CheckIcon } from "@heroicons/react/24/solid";
 
 const STATUS_META: Record<
   SigningAssignmentStatus,
-  { label: string; badgeClass: string; Icon: React.ComponentType<{ className?: string }> }
+  { label: string; Icon: React.ComponentType<{ className?: string }> }
 > = {
-  PENDING: {
-    label: "Pending",
-    badgeClass: "border-transparent bg-status-neutral-bg text-status-neutral-text",
-    Icon: ClockIcon,
-  },
-  SENT: {
-    label: "Email sent",
-    badgeClass: "border-transparent bg-status-action-bg text-status-action-text",
-    Icon: PaperAirplaneIcon,
-  },
-  VIEWED: {
-    label: "Viewed",
-    badgeClass: "border-transparent bg-status-in-progress-bg text-status-in-progress-text",
-    Icon: EyeIcon,
-  },
-  SIGNED: {
-    label: "Signed",
-    badgeClass:
-      "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300",
-    Icon: CheckCircleIcon,
-  },
-  DECLINED: {
-    label: "Declined",
-    badgeClass: "border-transparent bg-status-rejected-bg text-status-rejected-text",
-    Icon: XCircleIcon,
-  },
+  PENDING: { label: "Pending", Icon: ClockIcon },
+  SENT: { label: "Email sent", Icon: PaperAirplaneIcon },
+  VIEWED: { label: "Viewed", Icon: EyeIcon },
+  SIGNED: { label: "Signed", Icon: CheckCircleIcon },
+  DECLINED: { label: "Declined", Icon: XCircleIcon },
 };
 
 const SIGNED_DOC_ACTION_BTN_CLASS =
@@ -274,7 +253,10 @@ export function SigningProgressMatrix({
                       </div>
 
                       <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-                        <Badge className={cn("font-normal", meta.badgeClass)}>{meta.label}</Badge>
+                        <StatusBadge
+                          label={meta.label}
+                          status={getAdminStatusToken(assignment.status)}
+                        />
                         {canRemind ? (
                           <Button
                             type="button"

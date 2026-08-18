@@ -1,11 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@cashsouk/ui";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClipboardDocumentCheckIcon } from "@heroicons/react/24/outline";
-import { cn } from "@/lib/utils";
 import { toTitleCase } from "@cashsouk/types";
+import { getAdminStatusToken } from "@/lib/admin-status-token";
 import { getReviewTabLabel } from "./review-registry";
 import { getReviewStatusPresentation } from "./status-presentation";
 
@@ -37,22 +37,10 @@ export function ReviewSummaryCard({ sections }: ReviewSummaryCardProps) {
                 return (
                   <div key={s.section} className="flex items-center justify-between text-sm">
                     <span>{getReviewTabLabel(s.section)}</span>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "h-6 px-2.5 text-[11px] font-semibold tracking-wide gap-1.5",
-                        presentation.badgeClass
-                      )}
-                    >
-                      <span
-                        aria-hidden
-                        className={cn(
-                          "inline-block h-2 w-2 rounded-full shrink-0",
-                          presentation.dotClass
-                        )}
-                      />
-                      {displayText}
-                    </Badge>
+                    <StatusBadge
+                      label={displayText}
+                      status={getAdminStatusToken(s.status)}
+                    />
                   </div>
                 );
               })()

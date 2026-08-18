@@ -8,7 +8,6 @@ import {
   type NoteDetail,
 } from "@cashsouk/types";
 import {
-  WORKFLOW_CARD,
   WORKFLOW_STATUS_BADGE,
 } from "@/notes/utils/workflow-status-tokens";
 import { resolveProspectusStatusCard } from "./note-prospectus-status-card.model";
@@ -41,6 +40,8 @@ function baseNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     listingClosesAt: null,
     activatedAt: null,
     publishedAt: null,
+    fundingClosedAt: null,
+    repaidAt: null,
     settlementSummary: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -97,7 +98,7 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.primaryLabel).toBe("Review Prospectus");
     expect(model.secondaryLabel).toBeNull();
     expect(model.emphasize).toBe(true);
-    expect(model.badgeTone).toBeNull();
+    expect(model.badgeTone).toBe("neutral");
     expect(model.actionVariant).toBe("default");
   });
 
@@ -117,7 +118,7 @@ describe("resolveProspectusStatusCard", () => {
     );
     expect(model.phase).toBe("draft");
     expect(model.emphasize).toBe(true);
-    expect(model.badgeTone).toBeNull();
+    expect(model.badgeTone).toBe("neutral");
     expect(model.actionVariant).toBe("default");
   });
 
@@ -206,11 +207,16 @@ describe("Admin Note Detail prospectus UI cleanup", () => {
     path.join(__dirname, "note-prospectus-status-card.tsx"),
     "utf8"
   );
+  const lifecycleActionsSource = fs.readFileSync(
+    path.join(__dirname, "../utils/note-lifecycle-actions.ts"),
+    "utf8"
+  );
 
   it("no longer renders the old Publication Checklist labels", () => {
     expect(lifecycleSource).not.toContain("Publication checklist");
     expect(lifecycleSource).not.toContain("Note details ready");
     expect(lifecycleSource).not.toContain("Listing window configurable at publish");
+    expect(lifecycleSource).toContain("getNoteLifecycleStageCompletedAt");
     expect(pageSource).not.toContain("Publication checklist");
     expect(pageSource).not.toContain("Note details ready");
     expect(pageSource).not.toContain("Listing window configurable at publish");
@@ -222,14 +228,18 @@ describe("Admin Note Detail prospectus UI cleanup", () => {
     expect(pageSource).not.toContain("onPublishNote");
     expect(cardSource).not.toContain("Publish Note");
     expect(cardSource).not.toContain("onPublishNote");
-    expect(lifecycleSource).toContain("Publish to Marketplace");
+    // Marketplace publish stays on the lifecycle action plan, never the prospectus card.
+    expect(lifecycleActionsSource).toContain("Publish to Marketplace");
+    expect(lifecycleSource).toContain("buildNoteLifecycleActionPlan");
   });
 
   it("maps card emphasis and button variant from status model; Approved and Published get success badge tone", () => {
-    expect(cardSource).toContain("WORKFLOW_CARD.activeSection");
-    expect(cardSource).toContain("model.badgeTone ? workflowBadgeClassName(model.badgeTone)");
+    expect(cardSource).toContain("ADMIN_ACTION_SURFACE_CLASS");
+    expect(cardSource).toContain("ExclamationTriangleIcon");
+    expect(cardSource).toContain("workflowToneToStatusToken(model.badgeTone)");
     expect(cardSource).toContain("variant={model.actionVariant}");
-    expect(WORKFLOW_CARD.activeSection).toMatch(/border-primary|bg-primary/);
+    expect(cardSource).toContain("<CardTitle>Prospectus</CardTitle>");
+    expect(cardSource).not.toContain("{model.heading}");
 
     const approved = resolveProspectusStatusCard(
       baseNote({
@@ -260,7 +270,7 @@ describe("Admin Note Detail prospectus UI cleanup", () => {
     const draft = resolveProspectusStatusCard(baseNote());
     expect(approved.badgeTone).toBe("success");
     expect(published.badgeTone).toBe("success");
-    expect(draft.badgeTone).toBeNull();
+    expect(draft.badgeTone).toBe("neutral");
   });
 });
 

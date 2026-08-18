@@ -4,7 +4,7 @@ import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeftIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
-import { Skeleton, useHeader } from "@cashsouk/ui";
+import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import {
   normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
@@ -13,7 +13,6 @@ import {
   type ProspectusReviewStoredContent,
   type ProspectusReviewStatus,
 } from "@cashsouk/types";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -57,10 +56,9 @@ import {
   PROSPECTUS_STEP_PAGE_LABEL,
   formatActorDisplayName,
   formatProspectusReviewStatus,
-  prospectusReviewStatusBadgeClassName,
+  prospectusReviewStatusToken,
   type ProspectusWorkflowStepId,
 } from "@/notes/prospectus-review/labels";
-import { cn } from "@/lib/utils";
 import {
   PROSPECTUS_STEP_STATUS_LABEL,
   buildProspectusMissingRequiredFields,
@@ -595,15 +593,11 @@ function ProspectusReviewPageInner() {
                 <p className="mt-1 truncate text-sm text-muted-foreground">{data.note.title}</p>
               </div>
             </div>
-            <Badge
-              variant="outline"
-              className={cn(
-                "shrink-0",
-                prospectusReviewStatusBadgeClassName(data.review.status, notePublished)
-              )}
-            >
-              {formatProspectusReviewStatus(data.review.status, notePublished)}
-            </Badge>
+            <StatusBadge
+              label={formatProspectusReviewStatus(data.review.status, notePublished)}
+              status={prospectusReviewStatusToken(data.review.status, notePublished)}
+              className="shrink-0"
+            />
           </div>
 
           <Card className="rounded-2xl">
@@ -820,12 +814,6 @@ function ProspectusReviewPageInner() {
 }
 
 export default function ProspectusReviewPage() {
-  const { setTitle } = useHeader();
-  React.useEffect(() => {
-    setTitle("Prospectus Review");
-    return () => setTitle("");
-  }, [setTitle]);
-
   return (
     <RequirePermission permission="notes.view">
       <ProspectusReviewPageInner />

@@ -22,6 +22,7 @@ import {
   legalDocumentDisplayName,
   legalRowVersionLabel,
   legalStatusBadgeVariant,
+  legalStatusToken,
   matchesClientFilters,
   nextCreateOrchestrationAfterDefinition,
   nextCreateOrchestrationAfterVersion,
@@ -81,8 +82,11 @@ describe("legal-documents-admin helpers", () => {
   });
 
   it("uses semantic badge variants for status, onboarding, and website", () => {
+    expect(legalStatusToken("PUBLISHED")).toBe("success");
+    expect(legalStatusToken("DRAFT")).toBe("neutral");
+    expect(legalStatusToken("ARCHIVED")).toBe("neutral");
     expect(legalStatusBadgeVariant("PUBLISHED")).toBe("success");
-    expect(legalStatusBadgeVariant("DRAFT")).toBe("secondary");
+    expect(legalStatusBadgeVariant("DRAFT")).toBe("muted");
     expect(legalStatusBadgeVariant("ARCHIVED")).toBe("muted");
     expect(onboardingBadgeVariant(true)).toBe("warning");
     expect(onboardingBadgeVariant(false)).toBe("secondary");
@@ -320,7 +324,7 @@ describe("legal-documents-admin helpers", () => {
 
   it("maps badge variants and row actions by status", () => {
     expect(legalStatusBadgeVariant("PUBLISHED")).toBe("success");
-    expect(legalStatusBadgeVariant("DRAFT")).toBe("secondary");
+    expect(legalStatusBadgeVariant("DRAFT")).toBe("muted");
     expect(legalStatusBadgeVariant("ARCHIVED")).toBe("muted");
     expect(onboardingBadgeVariant(true)).toBe("warning");
     expect(onboardingBadgeLabel(true)).toBe("Required");

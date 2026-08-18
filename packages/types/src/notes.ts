@@ -237,6 +237,10 @@ export interface NoteListItem extends NoteMoneySummary {
   listingClosesAt: string | null;
   activatedAt: string | null;
   publishedAt: string | null;
+  /** When marketplace funding was closed (`notes.funding_closed_at`). */
+  fundingClosedAt: string | null;
+  /** When the note was fully repaid (`notes.repaid_at`). */
+  repaidAt: string | null;
   settlementSummary: NoteSettlementPoolSummary | null;
   /** Issuer portal list: residual trustee payout vs `settlementSummary` (omitted elsewhere). */
   issuerResidualPayout?: IssuerResidualPayoutListStatus;

@@ -1,7 +1,5 @@
 "use client";
 
-import { useHeader } from "@cashsouk/ui";
-
 import * as React from "react";
 import Link from "next/link";
 import { Button } from "../../../components/ui/button";
@@ -12,6 +10,7 @@ import { PendingInvitationsTable } from "../../../components/pending-invitations
 import { useAdminUsers } from "../../../hooks/use-admin-users";
 import { useAdminRoleConfigs } from "../../../hooks/use-admin-role-config";
 import { RequirePermission } from "../../../components/require-permission";
+import { AdminPageHeader } from "../../../components/admin-page-header";
 import { usePermissions } from "../../../hooks/use-permissions";
 import {
   usePendingInvitations,
@@ -24,12 +23,6 @@ import type { AdminRoleKey, AdminUser } from "@cashsouk/types";
 const ITEMS_PER_PAGE = 10;
 
 export default function RolesPage() {
-  const { setTitle } = useHeader();
-  React.useEffect(() => {
-    setTitle("Roles");
-    return () => setTitle("");
-  }, [setTitle]);
-
   const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [selectedRoles, setSelectedRoles] = React.useState<AdminRoleKey[]>([]);
@@ -106,31 +99,28 @@ export default function RolesPage() {
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <RequirePermission permission="roles.view">
         <div className="w-full px-2 md:px-4 py-8 space-y-6">
-          {/* Page Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Admin Roles & Users</h1>
-              <p className="text-[15px] leading-7 text-muted-foreground mt-1">
-                Manage admin user roles, permissions, and access levels.
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" asChild className="h-11 rounded-xl">
-                <Link href="/settings/roles/configuration">
-                  <AdjustmentsHorizontalIcon className="h-4 w-4" />
-                  Permission Configuration
-                </Link>
-              </Button>
-              <Button
-                variant="action"
-                onClick={() => setInviteDialogOpen(true)}
-                disabled={!canManageRoles}
-                title={!canManageRoles ? "You do not have permission to perform this action." : undefined}
-              >
-                Invite Admin User
-              </Button>
-            </div>
-          </div>
+          <AdminPageHeader
+            title="Admin Roles & Users"
+            description="Manage admin user roles, permissions, and access levels."
+            action={
+              <>
+                <Button variant="outline" asChild className="h-11 rounded-xl">
+                  <Link href="/settings/roles/configuration">
+                    <AdjustmentsHorizontalIcon className="h-4 w-4" />
+                    Permission Configuration
+                  </Link>
+                </Button>
+                <Button
+                  variant="action"
+                  onClick={() => setInviteDialogOpen(true)}
+                  disabled={!canManageRoles}
+                  title={!canManageRoles ? "You do not have permission to perform this action." : undefined}
+                >
+                  Invite Admin User
+                </Button>
+              </>
+            }
+          />
 
           {/* Pending Invitations Section */}
           <div className="space-y-4">

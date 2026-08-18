@@ -150,7 +150,7 @@ export function DashboardContractCard({
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="h-8 rounded-lg border-status-action-text/30 bg-status-action-bg px-3 text-xs font-medium text-status-action-text hover:bg-status-action-bg"
+                      className="border-status-action-text/30 bg-status-action-bg text-status-action-text hover:bg-status-action-bg"
                       onClick={() =>
                         router.push(
                           `/applications?applicationIds=${encodeURIComponent(
@@ -214,7 +214,7 @@ export function DashboardContractCard({
                 <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
                 <LabelValue label="Contract period">{contractPeriod}</LabelValue>
                 <LabelValue label="Active notes">{String(row.activeNotesCount)}</LabelValue>
-                <p className="text-[17px] leading-7 text-foreground">
+                <p className="text-ui leading-7 text-foreground">
                   <span className="font-normal text-muted-foreground">Invoices: </span>
                   <span className="font-medium tabular-nums text-foreground">{stats.total}</span>
                 </p>

@@ -92,7 +92,7 @@ export function MoneyInput({
   return (
     <div className={cn("relative w-full flex items-center", className)}>
       {hasPrefixDisplay && (
-        <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
+        <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-ui pointer-events-none">
           {prefix}
         </div>
       )}

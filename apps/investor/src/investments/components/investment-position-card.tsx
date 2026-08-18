@@ -129,7 +129,7 @@ export function InvestmentPositionCard({
             <NoteStatusBadge
               note={note}
               viewer="investor"
-              className="max-w-full text-xs font-semibold"
+              className="max-w-full"
             />
           </div>
         </div>
@@ -243,7 +243,7 @@ export function InvestmentPositionCard({
               })}
               {showDetailLink ? (
                 <div className="flex justify-end pt-1">
-                  <Button asChild variant="link" className="h-auto p-0 text-sm text-primary">
+                  <Button asChild variant="link" className="h-auto p-0 text-ui text-primary">
                     <Link href={detailHref} className="inline-flex items-center gap-1.5">
                       View details
                       <ArrowRightIcon className="h-3.5 w-3.5" />

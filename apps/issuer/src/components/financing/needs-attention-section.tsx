@@ -23,7 +23,7 @@ export function FinancingAttentionList({
         <section className="space-y-3">
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-base font-semibold text-foreground">Needs your attention</h2>
-            <span className="text-[13px] text-muted-foreground">
+            <span className="text-ui text-muted-foreground">
               {attentionCount} {attentionCount === 1 ? "item" : "items"}
             </span>
           </div>

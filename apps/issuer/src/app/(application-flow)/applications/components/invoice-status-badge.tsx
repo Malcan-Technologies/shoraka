@@ -1,6 +1,6 @@
-import { cn } from "@cashsouk/ui";
+import { StatusBadge as UiStatusBadge } from "@cashsouk/ui";
 import type { WithdrawReason } from "@cashsouk/types";
-import { getStatusColorAndLabel } from "@cashsouk/config";
+import { getStatusColorAndLabel, getUserPortalStatusToken } from "@cashsouk/config";
 
 const ALLOWED_STATUSES = [
   "DRAFT",
@@ -11,10 +11,6 @@ const ALLOWED_STATUSES = [
   "AMENDMENT_REQUESTED",
   "WITHDRAWN",
 ] as const;
-
-/** Matches application management StatusBadge base. */
-const BADGE_BASE =
-  "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border";
 
 export function StatusBadge({
   status,
@@ -27,13 +23,9 @@ export function StatusBadge({
     return null;
   }
 
-  const { color, label } = getStatusColorAndLabel(status ?? "", withdrawReason, {
+  const { label } = getStatusColorAndLabel(status, withdrawReason, {
     issuerWithdrawPresentation: true,
   });
 
-  return (
-    <span className={cn(BADGE_BASE, color)}>
-      {label}
-    </span>
-  );
+  return <UiStatusBadge label={label} status={getUserPortalStatusToken(status)} />;
 }

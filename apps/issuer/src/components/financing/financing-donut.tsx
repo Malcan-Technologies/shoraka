@@ -83,7 +83,7 @@ export function FinancingDonut({
             {rate != null ? `${Math.round(rate)}%` : EM}
           </span>
           {centerLabel ? (
-            <span className="mt-1.5 text-[11px] font-normal leading-none text-muted-foreground">
+            <span className="mt-1.5 text-meta font-normal leading-none text-muted-foreground">
               {centerLabel}
             </span>
           ) : null}

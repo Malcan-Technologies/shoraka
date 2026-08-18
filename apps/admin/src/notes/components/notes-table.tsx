@@ -66,15 +66,15 @@ export function NotesTable({
         <Table className="w-full table-fixed">
           <colgroup>
             <col className="w-[8%]" />
-            <col className="w-[17%]" />
+            <col className="w-[12%]" />
             <col className="w-[6%]" />
             <col className="w-[10%]" />
             <col className="w-[8%]" />
             <col className="w-[10%]" />
             <col className="w-[8%]" />
             <col className="w-[10%]" />
-            <col className="w-[10%]" />
-            <col className="w-[6%]" />
+            <col className="w-[12%]" />
+            <col className="w-[9%]" />
             <col className="w-[7%]" />
           </colgroup>
           <TableHeader>
@@ -83,12 +83,14 @@ export function NotesTable({
               <TableHead className="truncate">Note / Invoice</TableHead>
               <TableHead className="truncate">Risk</TableHead>
               <TableHead className="truncate">Paymaster</TableHead>
-              <TableHead className="truncate">Target</TableHead>
+              <TableHead className="truncate" title="Invoice settlement amount">
+                Settlement amt
+              </TableHead>
               <TableHead className="truncate">Funding</TableHead>
               <TableHead className="truncate">Status</TableHead>
               <TableHead className="truncate">Settlement</TableHead>
-              <TableHead className="truncate max-w-[9rem]" title="Service fee — trustee instruction (pools)">
-                Svc fee trustee
+              <TableHead className="truncate" title="Settlement trustee instruction after posting">
+                Trustee instruction
               </TableHead>
               <TableHead className="truncate">Maturity</TableHead>
               <TableHead className="truncate">Actions</TableHead>

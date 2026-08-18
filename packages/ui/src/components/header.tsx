@@ -21,7 +21,7 @@ export function Header({ title: propsTitle, rightContent }: HeaderProps) {
       <div className="flex min-w-0 items-center gap-2">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
-        {title ? <h1 className="truncate text-lg font-semibold">{title}</h1> : null}
+        {title ? <h1 className="truncate text-dialog-title">{title}</h1> : null}
       </div>
       <div className="flex shrink-0 items-center gap-3 sm:gap-4">
         {rightContent ?? <NotificationBell />}

@@ -415,7 +415,7 @@ function IssuerFinancingPageContent() {
           <TabsTrigger value={TAB_CONTRACTS} className="gap-1.5">
             Contracts
             {contractsActionableCount > 0 ? (
-              <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-[11px] text-primary-foreground">
+              <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-meta text-primary-foreground">
                 {contractsActionableCount}
               </Badge>
             ) : null}
@@ -423,7 +423,7 @@ function IssuerFinancingPageContent() {
           <TabsTrigger value={TAB_INVOICES} className="gap-1.5">
             Invoices
             {invoicesActionableCount > 0 ? (
-              <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-[11px] text-primary-foreground">
+              <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-meta text-primary-foreground">
                 {invoicesActionableCount}
               </Badge>
             ) : null}
@@ -431,7 +431,7 @@ function IssuerFinancingPageContent() {
           <TabsTrigger value={TAB_NOTES} className="gap-1.5">
             Notes
             {notesActionableCount > 0 ? (
-              <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-[11px] text-primary-foreground">
+              <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-meta text-primary-foreground">
                 {notesActionableCount}
               </Badge>
             ) : null}

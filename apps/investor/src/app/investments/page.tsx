@@ -772,10 +772,10 @@ export function MarketplacePage() {
 
             {activeNote ? (
               <div className="pt-1">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-9 w-full rounded-lg text-xs"
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
                   onClick={() => {
                     void openMarketplaceProspectus(activeNote.id).catch((err) =>
                       toast.error(err instanceof Error ? err.message : "Prospectus unavailable")
@@ -816,7 +816,7 @@ export function MarketplacePage() {
               <Button
                 type="button"
                 variant="outline"
-                className="h-9 flex-1 rounded-lg"
+                className="flex-1"
                 onClick={closeInvestDialog}
               >
                 Cancel
@@ -824,7 +824,7 @@ export function MarketplacePage() {
               <Button
                 type="button"
                 variant="action"
-                className="h-9 flex-1 rounded-lg"
+                className="flex-1"
                 onClick={handleInvestAction}
                 disabled={!agreedToTerms || !activeNote?.investable}
               >
@@ -855,7 +855,6 @@ export function MarketplacePage() {
             <Button
               type="button"
               variant="outline"
-              className="h-9 rounded-lg"
               onClick={() => setIsConfirmDialogOpen(false)}
             >
               Cancel
@@ -863,7 +862,6 @@ export function MarketplacePage() {
             <Button
               type="button"
               variant="action"
-              className="h-9 rounded-lg"
               onClick={() => void handleConfirmInvestment()}
               disabled={
                 commitInvestment.isPending || !activeOrganization?.id || !activeNote?.investable

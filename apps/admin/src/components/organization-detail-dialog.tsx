@@ -22,14 +22,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Skeleton, StatusBadge } from "@cashsouk/ui";
+import { PortalBadge, Skeleton, StatusBadge } from "@cashsouk/ui";
+import { OrganizationTypeBadge } from "@/components/organization-type-badge";
 import { getOrganizationOnboardingPresentation } from "@/lib/organization-status";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
-  kycAmlScreeningRiskLevelBadgeClass,
-  kycAmlScreeningStatusBadgeClass,
+  kycAmlScreeningRiskToken,
+  kycAmlScreeningStatusToken,
 } from "@/lib/kyc-aml-screening-badge-classes";
 import {
   useOrganizationDetail,
@@ -285,7 +286,7 @@ function FormFieldValue({ field }: { field: FormField }): React.ReactNode {
     }
     // For other picklist values, show as badge
     return (
-      <Badge variant="secondary" className="text-xs font-medium">
+      <Badge variant="secondary" className="text-xs">
         {fieldValue}
       </Badge>
     );
@@ -446,13 +447,19 @@ function KycResponseDisplay({
           {data.status && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Status:</span>
-              <Badge className={kycAmlScreeningStatusBadgeClass(data.status)}>{toTitleCase(data.status)}</Badge>
+              <StatusBadge
+                label={toTitleCase(data.status)}
+                status={kycAmlScreeningStatusToken(data.status)}
+              />
             </div>
           )}
           {data.riskLevel && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Risk Level:</span>
-              <Badge className={kycAmlScreeningRiskLevelBadgeClass(data.riskLevel)}>{toTitleCase(data.riskLevel)}</Badge>
+              <StatusBadge
+                label={toTitleCase(data.riskLevel)}
+                status={kycAmlScreeningRiskToken(data.riskLevel)}
+              />
             </div>
           )}
           {data.riskScore && (
@@ -715,19 +722,8 @@ export function OrganizationDetailDialog({
                 <div>{isLoading ? "Loading..." : displayName}</div>
                 {org && (
                   <div className="flex items-center gap-2 mt-1">
-                    <Badge
-                      variant="outline"
-                      className={
-                        org.portal === "investor"
-                          ? "border-primary/30 text-primary text-xs"
-                          : "border-accent/30 text-accent text-xs"
-                      }
-                    >
-                      {org.portal}
-                    </Badge>
-                    <Badge variant="secondary" className="text-xs capitalize">
-                      {org.type.toLowerCase()}
-                    </Badge>
+                    <PortalBadge portal={org.portal} />
+                    <OrganizationTypeBadge type={org.type} />
                   </div>
                 )}
               </div>
@@ -800,7 +796,7 @@ export function OrganizationDetailDialog({
                             disabled={updateSophisticatedMutation.isPending}
                           />
                           {org.isSophisticatedInvestor ? (
-                            <StatusBadge label="Yes" status="completed" />
+                            <StatusBadge label="Yes" status="success" />
                           ) : (
                             <StatusBadge label="No" status="neutral" />
                           )}

@@ -1,8 +1,6 @@
 "use client";
 
-import { useHeader } from "@cashsouk/ui";
-
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useAuthToken } from "@cashsouk/config";
 import { Separator } from "../../components/ui/separator";
 import { Button } from "../../components/ui/button";
@@ -20,12 +18,6 @@ interface ErrorStats {
 }
 
 export default function TestErrorsPage() {
-  const { setTitle } = useHeader();
-  useEffect(() => {
-    setTitle("Error Testing Page (Temporary)");
-    return () => setTitle("");
-  }, [setTitle]);
-
   const { getAccessToken } = useAuthToken();
 
   const [isRunning, setIsRunning] = useState(false);

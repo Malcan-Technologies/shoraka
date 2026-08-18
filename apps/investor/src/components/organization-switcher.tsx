@@ -3,8 +3,7 @@
 import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { ChevronsUpDown, Plus, Check } from "lucide-react";
-import { UserIcon, BuildingOffice2Icon } from "@heroicons/react/24/outline";
-import { CheckCircleIcon, ClockIcon } from "@heroicons/react/24/solid";
+import { UserIcon } from "@heroicons/react/24/outline";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,12 +17,13 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
+  OrganizationSwitcherAvatar,
+  OrganizationSwitcherCaption,
 } from "@cashsouk/ui";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useOrganization,
   type Organization,
-  type OnboardingStatus,
   getOnboardingRouteForOrg,
   isAddingNewOrganizationRoute,
   isOrganizationActionRequired,
@@ -49,140 +49,6 @@ function sortOrganizations(orgs: Organization[]): Organization[] {
     if (a.type !== "PERSONAL" && b.type === "PERSONAL") return 1;
     return 0;
   });
-}
-
-function getOrgIcon(org: Organization) {
-  if (org.type === "PERSONAL") {
-    return <UserIcon className="h-4 w-4" />;
-  }
-  return <BuildingOffice2Icon className="h-4 w-4" />;
-}
-
-function getActionRequiredIconClass(org: Organization): string {
-  const status = org.onboardingStatus;
-  const regtankStatus = String(org.regtankOnboardingStatus ?? "").toUpperCase();
-
-  if (regtankStatus === "EXPIRED" || regtankStatus === "REJECTED" || status === "REJECTED") {
-    return "bg-red-100 text-red-700";
-  }
-  if (status === "PENDING_AML" || status === "PENDING_FINAL_APPROVAL" || status === "IN_PROGRESS") {
-    return "bg-blue-100 text-blue-700";
-  }
-  if (regtankStatus === "PENDING_APPROVAL" || status === "PENDING_APPROVAL") {
-    return "bg-purple-100 text-purple-700";
-  }
-  return "bg-amber-100 text-amber-700";
-}
-
-function OnboardingStatusBadge({
-  status,
-  regtankStatus,
-  size = "default",
-}: {
-  status: OnboardingStatus;
-  regtankStatus?: string | null;
-  size?: "default" | "sm";
-}) {
-  const textSize = size === "sm" ? "text-[11px]" : "text-xs";
-  const iconSize = size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5";
-
-  if (status === "COMPLETED") {
-    return (
-      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-emerald-700`}>
-        <CheckCircleIcon className={iconSize} />
-        Verified
-      </span>
-    );
-  }
-
-  if (status === "REJECTED") {
-    return (
-      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-red-700`}>
-        <ClockIcon className={iconSize} />
-        Rejected
-      </span>
-    );
-  }
-
-  if (status === "PENDING_AML") {
-    return (
-      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-blue-700`}>
-        <ClockIcon className={iconSize} />
-        Pending AML Approval
-      </span>
-    );
-  }
-
-  if (status === "PENDING_AMENDMENT") {
-    return (
-      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-amber-700`}>
-        <ClockIcon className={iconSize} />
-        Amendment in Progress
-      </span>
-    );
-  }
-
-  if (status === "PENDING_FINAL_APPROVAL") {
-    return (
-      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-blue-700`}>
-        <ClockIcon className={iconSize} />
-        Pending Final Approval
-      </span>
-    );
-  }
-
-  const inProgressStatuses = ["IN_PROGRESS", "FORM_FILLING", "LIVENESS_STARTED"];
-  if (regtankStatus && inProgressStatuses.includes(regtankStatus)) {
-    return (
-      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-amber-700`}>
-        <ClockIcon className={iconSize} />
-        Pending
-      </span>
-    );
-  }
-
-  if (regtankStatus === "REJECTED") {
-    return (
-      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-red-700`}>
-        <ClockIcon className={iconSize} />
-        Rejected
-      </span>
-    );
-  }
-
-  if (regtankStatus === "EXPIRED") {
-    return (
-      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-orange-700`}>
-        <ClockIcon className={iconSize} />
-        Expired
-      </span>
-    );
-  }
-
-  if (regtankStatus === "PENDING_APPROVAL" || status === "PENDING_APPROVAL") {
-    return (
-      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-purple-700`}>
-        <ClockIcon className={iconSize} />
-        Pending Approval
-      </span>
-    );
-  }
-
-  if (status === "IN_PROGRESS") {
-    return (
-      <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-blue-700`}>
-        <ClockIcon className={iconSize} />
-        In Progress
-      </span>
-    );
-  }
-
-  return (
-    <span className={`inline-flex items-center gap-1 ${textSize} font-medium text-amber-700`}>
-      <ClockIcon className={iconSize} />
-      Pending
-    </span>
-  );
 }
 
 type OrganizationSwitcherProps = {
@@ -247,20 +113,17 @@ export function OrganizationSwitcher({ variant = "sidebar" }: OrganizationSwitch
                 onClick={() => void handleSelectOrganization(org)}
                 className="flex cursor-pointer items-center gap-3 rounded-lg p-2.5 focus:bg-accent/10"
               >
-                <div className="flex size-8 items-center justify-center rounded-lg bg-muted text-foreground">
-                  {getOrgIcon(org)}
-                </div>
+                <OrganizationSwitcherAvatar
+                  status={org.onboardingStatus}
+                  regtankStatus={org.regtankOnboardingStatus}
+                />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium text-foreground">
                     {getOrgDisplayName(org)}
                   </div>
-                  <OnboardingStatusBadge
-                    status={org.onboardingStatus}
-                    regtankStatus={org.regtankOnboardingStatus || undefined}
-                    size="sm"
-                  />
+                  <OrganizationSwitcherCaption type={org.type} />
                   {isExpiredCompany(org) ? (
-                    <p className="mt-1 text-[11px] font-medium text-orange-700">
+                    <p className="mt-1 text-meta font-medium text-status-rejected-text">
                       Start again to restart onboarding.
                     </p>
                   ) : null}
@@ -284,20 +147,15 @@ export function OrganizationSwitcher({ variant = "sidebar" }: OrganizationSwitch
                 onClick={() => void handleSelectOrganization(org)}
                 className="flex cursor-pointer items-center gap-3 rounded-lg p-2.5 focus:bg-accent/10"
               >
-                <div
-                  className={`flex size-8 items-center justify-center rounded-lg ${getActionRequiredIconClass(org)}`}
-                >
-                  {getOrgIcon(org)}
-                </div>
+                <OrganizationSwitcherAvatar
+                  status={org.onboardingStatus}
+                  regtankStatus={org.regtankOnboardingStatus}
+                />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium text-foreground">
                     {getOrgDisplayName(org)}
                   </div>
-                  <OnboardingStatusBadge
-                    status={org.onboardingStatus}
-                    regtankStatus={org.regtankOnboardingStatus || undefined}
-                    size="sm"
-                  />
+                  <OrganizationSwitcherCaption type={org.type} />
                 </div>
                 {activeOrganization?.id === org.id && (
                   <Check className="size-4 shrink-0 text-primary" />
@@ -466,19 +324,23 @@ export function OrganizationSwitcher({ variant = "sidebar" }: OrganizationSwitch
       data-testid="organization-switcher"
       className="flex h-auto min-h-10 max-w-[18rem] items-center gap-2 rounded-lg border border-border bg-card px-2 py-1.5 text-left shadow-sm hover:bg-accent/50"
     >
-      <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-        {activeOrganization ? getOrgIcon(activeOrganization) : <UserIcon className="size-3.5" />}
-      </div>
+      {activeOrganization ? (
+        <OrganizationSwitcherAvatar
+          status={activeOrganization.onboardingStatus}
+          regtankStatus={activeOrganization.regtankOnboardingStatus}
+          size="sm"
+        />
+      ) : (
+        <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+          <UserIcon className="size-3.5" />
+        </div>
+      )}
       <div className="hidden min-w-0 flex-1 sm:grid">
         <span className="truncate text-sm font-medium leading-5">
           {activeOrganization ? getOrgDisplayName(activeOrganization) : "Select account"}
         </span>
         {activeOrganization ? (
-          <OnboardingStatusBadge
-            status={activeOrganization.onboardingStatus}
-            regtankStatus={activeOrganization.regtankOnboardingStatus || undefined}
-            size="sm"
-          />
+          <OrganizationSwitcherCaption type={activeOrganization.type} />
         ) : null}
       </div>
       <ChevronsUpDown className="ml-auto hidden size-4 shrink-0 text-muted-foreground sm:block" />
@@ -489,20 +351,23 @@ export function OrganizationSwitcher({ variant = "sidebar" }: OrganizationSwitch
       data-testid="organization-switcher"
       className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground hover:bg-sidebar-accent/50"
     >
-      <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-        {activeOrganization ? getOrgIcon(activeOrganization) : <UserIcon className="size-4" />}
-      </div>
+      {activeOrganization ? (
+        <OrganizationSwitcherAvatar
+          status={activeOrganization.onboardingStatus}
+          regtankStatus={activeOrganization.regtankOnboardingStatus}
+        />
+      ) : (
+        <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+          <UserIcon className="size-4" />
+        </div>
+      )}
       <div className="grid flex-1 text-left leading-tight group-data-[collapsible=icon]:hidden">
         <span className="truncate text-sm font-semibold text-foreground">
           {activeOrganization ? getOrgDisplayName(activeOrganization) : "Select Account"}
         </span>
-        {activeOrganization && (
-          <OnboardingStatusBadge
-            status={activeOrganization.onboardingStatus}
-            regtankStatus={activeOrganization.regtankOnboardingStatus || undefined}
-            size="sm"
-          />
-        )}
+        {activeOrganization ? (
+          <OrganizationSwitcherCaption type={activeOrganization.type} />
+        ) : null}
       </div>
       <ChevronsUpDown className="ml-auto size-4 text-muted-foreground group-data-[collapsible=icon]:hidden" />
     </SidebarMenuButton>

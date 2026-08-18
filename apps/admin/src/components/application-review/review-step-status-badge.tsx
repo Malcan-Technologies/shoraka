@@ -1,16 +1,8 @@
 "use client";
 
-import * as React from "react";
-import { Badge } from "@/components/ui/badge";
-import {
-  ArchiveBoxIcon,
-  CheckCircleIcon,
-  ClockIcon,
-  ExclamationTriangleIcon,
-  PaperAirplaneIcon,
-  XCircleIcon,
-} from "@heroicons/react/24/outline";
+import { StatusBadge } from "@cashsouk/ui";
 import { toTitleCase } from "@cashsouk/types";
+import { getAdminStatusToken } from "@/lib/admin-status-token";
 import { getReviewStatusPresentation } from "./status-presentation";
 
 interface ReviewStepStatusBadgeProps {
@@ -20,39 +12,19 @@ interface ReviewStepStatusBadgeProps {
   label?: string;
 }
 
-const STATUS_CONFIG: Record<
-  string,
-  { Icon: React.ComponentType<{ className?: string }> }
-> = {
-  APPROVED: { Icon: CheckCircleIcon },
-  REJECTED: { Icon: XCircleIcon },
-  AMENDMENT_REQUESTED: { Icon: ExclamationTriangleIcon },
-  PENDING: { Icon: ClockIcon },
-  OFFER_SENT: { Icon: PaperAirplaneIcon },
-  OFFER_EXPIRED: { Icon: ClockIcon },
-  WITHDRAWN: { Icon: ArchiveBoxIcon },
-};
-
 export function ReviewStepStatusBadge({
   status,
   size = "md",
   label,
 }: ReviewStepStatusBadgeProps) {
-  const config = STATUS_CONFIG[status] ?? STATUS_CONFIG.PENDING;
   const presentation = getReviewStatusPresentation(status);
-  const Icon = config.Icon;
-  const isCompact = size === "sm";
-  const iconSize = isCompact ? "h-3 w-3" : "h-3.5 w-3.5";
-  const sizeClass = isCompact ? "text-xs px-1.5 py-0 shrink-0" : "";
   const displayText = toTitleCase(label ?? presentation.label);
 
   return (
-    <Badge
-      variant="outline"
-      className={`${presentation.badgeClass} ${sizeClass}`}
-    >
-      <Icon className={`${iconSize} mr-1 shrink-0 ${presentation.iconClass}`} />
-      {displayText || presentation.label}
-    </Badge>
+    <StatusBadge
+      label={displayText || presentation.label}
+      status={getAdminStatusToken(status)}
+      className={size === "sm" ? "text-meta px-1.5 py-0 shrink-0" : undefined}
+    />
   );
 }

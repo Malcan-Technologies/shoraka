@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { BookOpenIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { Skeleton } from "@cashsouk/ui";
 import type { NoteDetail, NoteLedgerEntry } from "@cashsouk/types";
@@ -55,7 +56,7 @@ function formatSignedLedgerAmount(value: number | null) {
   const prefix = value > 0 ? "+" : "−";
   return {
     display: `${prefix}${formatCurrency(Math.abs(value))}`,
-    className: value > 0 ? "text-emerald-800 dark:text-emerald-300" : "text-foreground",
+    className: value > 0 ? "text-status-success-text" : "text-foreground",
   };
 }
 
@@ -75,46 +76,43 @@ function buildBucketTotals(entries: NoteLedgerEntry[]) {
 
 function LedgerTableSkeleton() {
   return (
-    <div className="overflow-hidden rounded-xl border">
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="min-w-32">Posted</TableHead>
-              <TableHead className="min-w-48">Description</TableHead>
-              {LEDGER_BUCKET_COLUMNS.map((column) => (
-                <TableHead key={column.code} className="min-w-[5.5rem] text-right">
-                  <Skeleton className="ml-auto h-4 w-14" />
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {Array.from({ length: 5 }).map((_, index) => (
-              <TableRow key={index}>
-                <TableCell>
-                  <Skeleton className="h-5 w-28" />
-                </TableCell>
-                <TableCell>
-                  <Skeleton className="h-5 w-48" />
-                </TableCell>
-                {LEDGER_BUCKET_COLUMNS.map((column) => (
-                  <TableCell key={column.code}>
-                    <Skeleton className="ml-auto h-5 w-16" />
-                  </TableCell>
-                ))}
-              </TableRow>
+    <Table>
+      <TableHeader>
+        <TableRow className="hover:bg-transparent">
+          <TableHead className="min-w-32">Posted</TableHead>
+          <TableHead className="min-w-48">Description</TableHead>
+          {LEDGER_BUCKET_COLUMNS.map((column) => (
+            <TableHead key={column.code} className="min-w-[5.5rem] text-right">
+              <Skeleton className="ml-auto h-4 w-14" />
+            </TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {Array.from({ length: 3 }).map((_, index) => (
+          <TableRow key={index}>
+            <TableCell>
+              <Skeleton className="h-4 w-28" />
+            </TableCell>
+            <TableCell>
+              <Skeleton className="h-4 w-48" />
+            </TableCell>
+            {LEDGER_BUCKET_COLUMNS.map((column) => (
+              <TableCell key={column.code}>
+                <Skeleton className="ml-auto h-4 w-16" />
+              </TableCell>
             ))}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   );
 }
 
 export function LedgerPanel({ note }: { note: NoteDetail }) {
   const { data: entries = [], isLoading } = useNoteLedger(note.id);
   const bucketTotals = React.useMemo(() => buildBucketTotals(entries), [entries]);
+  const entryCount = entries.length;
 
   const handleExport = () => {
     const header = [
@@ -154,60 +152,96 @@ export function LedgerPanel({ note }: { note: NoteDetail }) {
 
   return (
     <Card className="rounded-2xl">
-      <CardHeader className="flex flex-row items-start justify-between gap-3">
-        <div>
-          <CardTitle className="text-base">Ledger</CardTitle>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Platform buckets as columns. Each row is one posting: + adds to a bucket, − removes.
-            Column nets are the running balance for this note.
-          </p>
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+            <BookOpenIcon className="h-4 w-4 text-primary" />
+          </div>
+          <div>
+            <CardTitle>Ledger</CardTitle>
+            <p className="mt-0.5 text-meta text-muted-foreground">
+              {isLoading
+                ? "Loading…"
+                : entryCount === 0
+                  ? "No ledger entries posted yet"
+                  : `${entryCount} ${entryCount === 1 ? "entry" : "entries"}`}
+            </p>
+          </div>
         </div>
-        <Button size="sm" variant="outline" onClick={handleExport} disabled={entries.length === 0}>
+        <Button size="sm" variant="outline" onClick={handleExport} disabled={entryCount === 0}>
           Export CSV
         </Button>
       </CardHeader>
-      <CardContent>
+      <CardContent className="p-0">
         {isLoading ? (
-          <LedgerTableSkeleton />
-        ) : entries.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No ledger entries posted yet.</p>
+          <div className="w-full overflow-x-auto">
+            <LedgerTableSkeleton />
+          </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border">
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="min-w-32 text-xs">Posted</TableHead>
-                    <TableHead className="min-w-48 text-xs">Description</TableHead>
-                    {LEDGER_BUCKET_COLUMNS.map((column) => (
-                      <TableHead
-                        key={column.code}
-                        className="min-w-[5.75rem] text-right"
-                        title={column.label}
-                      >
-                        <span className="block text-xs font-semibold">{column.shortLabel}</span>
-                      </TableHead>
-                    ))}
+          <div className="w-full overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-32">Posted</TableHead>
+                  <TableHead className="min-w-48">Description</TableHead>
+                  {LEDGER_BUCKET_COLUMNS.map((column) => (
+                    <TableHead
+                      key={column.code}
+                      className="min-w-[5.75rem] text-right"
+                      title={column.label}
+                    >
+                      {column.shortLabel}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {entryCount === 0 ? (
+                  <TableRow>
+                    <TableCell
+                      colSpan={2 + LEDGER_BUCKET_COLUMNS.length}
+                      className="py-8 text-center text-ui text-muted-foreground"
+                    >
+                      Ledger postings for this note will appear here.
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {entries.map((entry) => (
-                    <TableRow key={entry.id}>
-                      <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                        {formatDateTime(entry.postedAt)}
-                      </TableCell>
-                      <TableCell className="max-w-xs text-xs leading-snug text-foreground">
-                        {entry.description}
+                ) : (
+                  <>
+                    {entries.map((entry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell className="whitespace-nowrap text-muted-foreground">
+                          {formatDateTime(entry.postedAt)}
+                        </TableCell>
+                        <TableCell className="max-w-xs leading-snug">{entry.description}</TableCell>
+                        {LEDGER_BUCKET_COLUMNS.map((column) => {
+                          const signed =
+                            entry.accountCode === column.code ? signedBucketAmount(entry) : null;
+                          const formatted = formatSignedLedgerAmount(signed);
+                          return (
+                            <TableCell
+                              key={column.code}
+                              className={cn(
+                                "text-right font-mono tabular-nums",
+                                formatted.className
+                              )}
+                            >
+                              {formatted.display}
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    ))}
+                    <TableRow className="border-t-2 bg-muted/40 font-semibold hover:bg-muted/40">
+                      <TableCell colSpan={2} className="font-semibold text-foreground">
+                        Net (this note)
                       </TableCell>
                       {LEDGER_BUCKET_COLUMNS.map((column) => {
-                        const signed =
-                          entry.accountCode === column.code ? signedBucketAmount(entry) : null;
-                        const formatted = formatSignedLedgerAmount(signed);
+                        const formatted = formatSignedLedgerAmount(bucketTotals[column.code]);
                         return (
                           <TableCell
                             key={column.code}
                             className={cn(
-                              "text-right font-mono text-xs tabular-nums",
+                              "text-right font-mono tabular-nums",
                               formatted.className
                             )}
                           >
@@ -216,29 +250,10 @@ export function LedgerPanel({ note }: { note: NoteDetail }) {
                         );
                       })}
                     </TableRow>
-                  ))}
-                  <TableRow className="border-t-2 bg-muted/40 font-semibold hover:bg-muted/40">
-                    <TableCell colSpan={2} className="text-xs font-semibold text-foreground">
-                      Net (this note)
-                    </TableCell>
-                    {LEDGER_BUCKET_COLUMNS.map((column) => {
-                      const formatted = formatSignedLedgerAmount(bucketTotals[column.code]);
-                      return (
-                        <TableCell
-                          key={column.code}
-                          className={cn(
-                            "text-right font-mono text-xs tabular-nums",
-                            formatted.className
-                          )}
-                        >
-                          {formatted.display}
-                        </TableCell>
-                      );
-                    })}
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
+                  </>
+                )}
+              </TableBody>
+            </Table>
           </div>
         )}
       </CardContent>

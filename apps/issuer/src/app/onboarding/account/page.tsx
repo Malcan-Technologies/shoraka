@@ -137,13 +137,13 @@ function OnboardingAccountPageContent() {
           <Card className="rounded-2xl shadow-lg w-full">
             <CardHeader className="text-center space-y-2 pb-4">
               <CardTitle className="text-2xl font-bold">Welcome {displayName}</CardTitle>
-              <CardDescription className="text-[15px] leading-7">
+              <CardDescription className="text-ui leading-7">
                 Let&apos;s set up your <strong>Issuer</strong> account to start applying for
                 financing
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 pt-2">
-              <Button variant="action" className="w-full h-11 text-[15px]" onClick={handleStartOnboarding}>
+              <Button variant="action" className="w-full h-11" onClick={handleStartOnboarding}>
                 <span>Start Onboarding</span>
                 <ArrowRightIcon className="h-4 w-4 ml-2" />
               </Button>
@@ -157,7 +157,7 @@ function OnboardingAccountPageContent() {
               </div>
               <Button
                 variant="ghost"
-                className="w-full h-11 text-[15px] hover:bg-transparent hover:text-primary"
+                className="w-full h-11 hover:bg-transparent hover:text-primary"
                 onClick={() => {
                   window.location.href = INVESTOR_URL;
                 }}

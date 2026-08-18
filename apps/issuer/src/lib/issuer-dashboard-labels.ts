@@ -1,10 +1,11 @@
 import { InvoiceStatus } from "@cashsouk/types";
+import type { UserPortalStatusToken } from "@cashsouk/config";
 import type { IssuerDashboardNote } from "@/types/issuer-dashboard";
 
 /**
  * Issuer financing dashboard groups. Colors via StatusBadge tokens (viewer-centric):
- * action_required → yellow · pending_approval → blue · funded/active → green ·
- * unsuccessful → red · completed → slate terminal · in_progress → indigo working.
+ * action_required → yellow · pending_approval / in_progress / funded → blue ·
+ * active → violet · arrears / unsuccessful → red · completed → green · draft → grey.
  */
 export type IssuerFinancingStatusKind =
   | "draft"
@@ -13,6 +14,7 @@ export type IssuerFinancingStatusKind =
   | "in_progress"
   | "funded"
   | "active"
+  | "arrears"
   | "completed"
   | "unsuccessful";
 
@@ -35,7 +37,7 @@ export function getIssuerFinancingStatusPresentation(kind: IssuerFinancingStatus
     case "draft":
       return {
         label: "Draft",
-        className: "bg-status-action-bg text-status-action-text hover:bg-status-action-bg",
+        className: "bg-status-neutral-bg text-status-neutral-text hover:bg-status-neutral-bg",
         variant: "default",
       };
     case "action_required":
@@ -54,25 +56,31 @@ export function getIssuerFinancingStatusPresentation(kind: IssuerFinancingStatus
       return {
         label: "In progress",
         className:
-          "bg-status-in-progress-bg text-status-in-progress-text hover:bg-status-in-progress-bg",
+          "bg-status-submitted-bg text-status-submitted-text hover:bg-status-submitted-bg",
         variant: "default",
       };
     case "funded":
       return {
         label: "Funded",
-        className: "bg-status-success-bg text-status-success-text hover:bg-status-success-bg",
+        className: "bg-status-submitted-bg text-status-submitted-text hover:bg-status-submitted-bg",
         variant: "default",
       };
     case "active":
       return {
         label: "Active",
-        className: "bg-status-success-bg text-status-success-text hover:bg-status-success-bg",
+        className: "bg-status-active-bg text-status-active-text hover:bg-status-active-bg",
         variant: "default",
       };
     case "completed":
       return {
         label: "Completed",
-        className: "bg-status-neutral-bg text-status-neutral-text hover:bg-status-neutral-bg",
+        className: "bg-status-success-bg text-status-success-text hover:bg-status-success-bg",
+        variant: "default",
+      };
+    case "arrears":
+      return {
+        label: "Arrears",
+        className: "bg-status-rejected-bg text-status-rejected-text hover:bg-status-rejected-bg",
         variant: "default",
       };
     case "unsuccessful":
@@ -81,6 +89,27 @@ export function getIssuerFinancingStatusPresentation(kind: IssuerFinancingStatus
         className: "bg-status-rejected-bg text-status-rejected-text hover:bg-status-rejected-bg",
         variant: "default",
       };
+  }
+}
+
+export function financingKindToStatusToken(kind: IssuerFinancingStatusKind): UserPortalStatusToken {
+  switch (kind) {
+    case "action_required":
+      return "action";
+    case "pending_approval":
+    case "in_progress":
+    case "funded":
+      return "submitted";
+    case "active":
+      return "active";
+    case "completed":
+      return "success";
+    case "unsuccessful":
+    case "arrears":
+      return "rejected";
+    case "draft":
+    default:
+      return "neutral";
   }
 }
 
@@ -166,12 +195,20 @@ export function resolveIssuerInvoiceDashboardBadge(
   }
 
   if (
-    ns === "ACTIVE" ||
     ns === "ARREARS" ||
+    ss === "ARREARS"
+  ) {
+    return "arrears";
+  }
+
+  if (ss === "LATE") {
+    return "action_required";
+  }
+
+  if (
+    ns === "ACTIVE" ||
     ns === "DISBURSED" ||
     ss === "CURRENT" ||
-    ss === "ARREARS" ||
-    ss === "LATE" ||
     ss === "PARTIAL" ||
     ss === "ADVANCE_PAID"
   ) {

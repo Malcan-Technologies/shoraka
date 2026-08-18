@@ -52,11 +52,18 @@ export function accountVisibilityLabel(visible: boolean): string {
 
 export type LegalBadgeVariant = "success" | "secondary" | "muted" | "warning" | "info" | "outline";
 
+export function legalStatusToken(
+  status: LegalDocumentVersionStatus
+): "success" | "neutral" {
+  if (status === "PUBLISHED") return "success";
+  return "neutral";
+}
+
 export function legalStatusBadgeVariant(
   status: LegalDocumentVersionStatus
 ): LegalBadgeVariant {
   if (status === "PUBLISHED") return "success";
-  if (status === "DRAFT") return "secondary";
+  if (status === "DRAFT") return "muted";
   return "muted";
 }
 

@@ -5999,6 +5999,8 @@ export class AdminService {
       title: string | null;
       issuerOrganizationName: string | null;
       contractValue: number;
+      approvedFacility: number;
+      utilizedFacility: number;
       status: string;
       updatedAt: Date;
     }[];

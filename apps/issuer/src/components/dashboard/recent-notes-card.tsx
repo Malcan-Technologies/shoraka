@@ -24,9 +24,9 @@ export function RecentNotesCard() {
       <RecentSectionHeader title="Recent notes" viewAllHref="/financing?tab=notes" />
       <div className="px-5 pb-5 pt-4 md:px-6 md:pb-6 md:pt-5">
         {isLoading ? (
-          <p className="py-4 text-[17px] leading-7 text-muted-foreground">Loading...</p>
+          <p className="py-4 text-body leading-7 text-muted-foreground">Loading...</p>
         ) : visible.length === 0 ? (
-          <p className="py-4 text-[17px] leading-7 text-muted-foreground">
+          <p className="py-4 text-body leading-7 text-muted-foreground">
             No active notes yet. Funded invoices appear here as notes.
           </p>
         ) : (
@@ -49,7 +49,7 @@ export function RecentNotesCard() {
                       {note.fundingPercent.toFixed(1)}%
                     </p>
                   </div>
-                  <NoteStatusBadge note={note} className="shrink-0 text-xs font-semibold" />
+                  <NoteStatusBadge note={note} className="shrink-0" />
                   <ArrowRightIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                 </Link>
               </li>

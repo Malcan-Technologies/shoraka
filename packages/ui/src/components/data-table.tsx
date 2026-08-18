@@ -55,7 +55,7 @@ export function DataTable<T>({
     <div className={cn("w-full", className)}>
       {/* Desktop / tablet table */}
       <div className="hidden overflow-x-auto rounded-xl border md:block">
-        <table className={cn("w-full min-w-full text-[15px] leading-6", tableClassName)}>
+        <table className={cn("w-full min-w-full text-ui", tableClassName)}>
           <thead>
             <tr className="border-b bg-muted/40">
               {columns.map((col) => (
@@ -63,7 +63,7 @@ export function DataTable<T>({
                   key={col.id}
                   scope="col"
                   className={cn(
-                    "whitespace-nowrap px-4 py-3 text-sm font-semibold text-foreground",
+                    "whitespace-nowrap px-4 py-3 text-ui font-semibold text-foreground",
                     alignClass(col.align),
                     col.sticky &&
                       "sticky z-10 bg-muted/95 backdrop-blur supports-[backdrop-filter]:bg-muted/80",
@@ -128,9 +128,9 @@ export function DataTable<T>({
                   return (
                     <div
                       key={col.id}
-                      className="grid grid-cols-[minmax(0,8rem)_1fr] gap-x-3 gap-y-1 text-[15px] leading-6"
+                      className="grid grid-cols-[minmax(0,8rem)_1fr] gap-x-3 gap-y-1 text-ui"
                     >
-                      <dt className="text-sm text-muted-foreground">{label}</dt>
+                      <dt className="text-ui text-muted-foreground">{label}</dt>
                       <dd className={cn(alignClass(col.align), col.className)}>
                         {col.cell(row)}
                       </dd>

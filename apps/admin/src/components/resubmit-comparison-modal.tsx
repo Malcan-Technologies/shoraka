@@ -188,7 +188,7 @@ export function ResubmitComparisonModal({
           </span>
           <div className="relative z-10 min-w-0 text-start">
             <p className="text-xs font-semibold uppercase tracking-wide text-status-rejected-text">Before</p>
-            <p className="mt-0.5 text-[11px] font-normal leading-snug text-muted-foreground">Before resubmit</p>
+            <p className="mt-0.5 text-meta font-normal leading-snug text-muted-foreground">Before resubmit</p>
           </div>
         </div>
         <div className="relative flex min-h-[3.25rem] h-full items-start justify-center gap-2 overflow-hidden px-4 py-2.5 text-center sm:justify-start">
@@ -205,7 +205,7 @@ export function ResubmitComparisonModal({
           </span>
           <div className="relative z-10 min-w-0 text-start">
             <p className="text-xs font-semibold uppercase tracking-wide text-status-action-text">After</p>
-            <p className="mt-0.5 text-[11px] font-normal leading-snug text-muted-foreground">After resubmit</p>
+            <p className="mt-0.5 text-meta font-normal leading-snug text-muted-foreground">After resubmit</p>
           </div>
         </div>
       </div>
@@ -216,7 +216,7 @@ export function ResubmitComparisonModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] w-full max-h-[90vh] flex flex-col overflow-hidden rounded-2xl p-0 gap-0 border border-border bg-background shadow-lg">
         <DialogHeader className="space-y-1 shrink-0 border-b border-border/80 px-6 pb-1.5 pt-6">
-          <DialogTitle className="text-[17px] leading-7">What changed in this application</DialogTitle>
+          <DialogTitle className="text-dialog-title">What changed in this application</DialogTitle>
           <DialogDescription className="text-sm">
             {applicationId ? `Application ${applicationId}` : "Application"}
           </DialogDescription>

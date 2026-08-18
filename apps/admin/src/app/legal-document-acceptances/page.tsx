@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useHeader } from "@cashsouk/ui";
+import { PortalBadge, StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +30,8 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RequirePermission } from "@/components/require-permission";
+import { AdminPageHeader } from "@/components/admin-page-header";
+import { adminActionRowClass } from "@/lib/admin-status-token";
 import {
   useDownloadAcceptedVersion,
   useExportLegalDocumentAcceptances,
@@ -87,28 +89,22 @@ function formatAcceptanceDate(dateStr: string | null): string {
   });
 }
 
-function portalLabel(type: LegalAcceptanceAudience): string {
-  return type === "ISSUER" ? "Issuer" : "Investor";
-}
-
 function statusLabel(status: LegalAcceptanceStatus): string {
   const match = STATUS_OPTIONS.find((option) => option.value === status);
   return match?.label ?? status;
 }
 
-function statusBadgeVariant(
-  status: LegalAcceptanceStatus
-): "default" | "secondary" | "outline" | "destructive" {
-  if (status === "ACCEPTED") return "default";
-  if (status === "OPENED") return "secondary";
-  return "outline";
+function statusToken(status: LegalAcceptanceStatus) {
+  if (status === "ACCEPTED") return "success" as const;
+  if (status === "OPENED") return "action" as const;
+  return "neutral" as const;
 }
 
 function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="space-y-1">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="text-sm break-all">{value ?? "—"}</p>
+      <div className="text-sm break-all">{value ?? "—"}</div>
     </div>
   );
 }
@@ -171,9 +167,10 @@ function AcceptanceDetailSheet({
                 <DetailField
                   label="Status"
                   value={
-                    <Badge variant={statusBadgeVariant(acceptance.status)}>
-                      {statusLabel(acceptance.status)}
-                    </Badge>
+                    <StatusBadge
+                      label={statusLabel(acceptance.status)}
+                      status={statusToken(acceptance.status)}
+                    />
                   }
                 />
                 <DetailField label="Created at" value={formatAcceptanceDate(acceptance.createdAt)} />
@@ -256,7 +253,10 @@ function AcceptanceDetailSheet({
                   label="Organization type snapshot"
                   value={acceptance.organizationAccountType}
                 />
-                <DetailField label="Portal" value={portalLabel(acceptance.portal)} />
+                <DetailField
+                  label="Portal"
+                  value={<PortalBadge portal={acceptance.portal} />}
+                />
               </div>
             </div>
 
@@ -277,7 +277,6 @@ function AcceptanceDetailSheet({
 }
 
 export default function LegalDocumentAcceptancesPage() {
-  const { setTitle } = useHeader();
   const queryClient = useQueryClient();
   const exportAcceptances = useExportLegalDocumentAcceptances();
 
@@ -291,11 +290,6 @@ export default function LegalDocumentAcceptancesPage() {
   const [exporting, setExporting] = React.useState(false);
   const [selectedAcceptanceId, setSelectedAcceptanceId] = React.useState<string | null>(null);
   const [detailOpen, setDetailOpen] = React.useState(false);
-
-  React.useEffect(() => {
-    setTitle("Legal Acceptances");
-    return () => setTitle("");
-  }, [setTitle]);
 
   const apiParams = React.useMemo((): LegalDocumentAcceptancesParams => {
     const params: LegalDocumentAcceptancesParams = {
@@ -384,12 +378,10 @@ export default function LegalDocumentAcceptancesPage() {
     <RequirePermission permission="document_management.view">
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="w-full space-y-6 px-2 py-8 md:px-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Legal Acceptances</h1>
-            <p className="mt-1 text-[15px] leading-7 text-muted-foreground">
-              Evidence records when users open or accept legal documents
-            </p>
-          </div>
+          <AdminPageHeader
+            title="Legal Acceptances"
+            description="Evidence records when users open or accept legal documents"
+          />
 
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative min-w-[200px] flex-1">
@@ -488,7 +480,7 @@ export default function LegalDocumentAcceptancesPage() {
 
             <Badge
               variant="secondary"
-              className="rounded-xl px-3 py-1 text-[13px] font-medium leading-5"
+              className="rounded-xl px-3 py-1 text-ui font-medium leading-5"
             >
               {totalCount} {totalCount === 1 ? "record" : "records"}
             </Badge>
@@ -540,7 +532,7 @@ export default function LegalDocumentAcceptancesPage() {
                   </TableRow>
                 ) : (
                   acceptances.map((row) => (
-                    <TableRow key={row.id}>
+                    <TableRow key={row.id} className={adminActionRowClass(statusToken(row.status))}>
                       <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                         {formatAcceptanceDate(row.acceptedAt)}
                       </TableCell>
@@ -559,8 +551,8 @@ export default function LegalDocumentAcceptancesPage() {
                           {row.organizationName ?? "—"}
                         </p>
                       </TableCell>
-                      <TableCell className="text-sm">
-                        {portalLabel(row.portal)}
+                      <TableCell>
+                        <PortalBadge portal={row.portal} />
                       </TableCell>
                       <TableCell className="max-w-[160px] text-sm">
                         <p className="truncate" title={row.userName ?? undefined}>
@@ -576,9 +568,10 @@ export default function LegalDocumentAcceptancesPage() {
                         {row.acceptedIpAddress ?? row.openedIpAddress ?? "—"}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={statusBadgeVariant(row.status)}>
-                          {statusLabel(row.status)}
-                        </Badge>
+                        <StatusBadge
+                          label={statusLabel(row.status)}
+                          status={statusToken(row.status)}
+                        />
                       </TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm" onClick={() => openDetails(row)}>

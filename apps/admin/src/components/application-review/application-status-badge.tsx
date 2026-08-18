@@ -1,17 +1,6 @@
-import { Badge } from "@/components/ui/badge";
-import {
-  CheckCircleIcon,
-  ClockIcon,
-  XCircleIcon,
-  ClipboardDocumentCheckIcon,
-  ExclamationTriangleIcon,
-  ArrowPathIcon,
-  ArchiveBoxIcon,
-  DocumentTextIcon,
-  PaperAirplaneIcon,
-} from "@heroicons/react/24/outline";
-import React from "react";
+import { StatusBadge } from "@cashsouk/ui";
 import { toTitleCase } from "@cashsouk/types";
+import { getAdminStatusToken } from "@/lib/admin-status-token";
 import { getReviewStatusPresentation } from "./status-presentation";
 
 interface ApplicationStatusBadgeProps {
@@ -20,46 +9,15 @@ interface ApplicationStatusBadgeProps {
   label?: string;
 }
 
-const STATUS_CONFIG: Record<string, {
-  icon: React.ComponentType<{ className?: string }>;
-}> = {
-  DRAFT: { icon: ClockIcon },
-  SUBMITTED: { icon: ClipboardDocumentCheckIcon },
-  UNDER_REVIEW: { icon: ClockIcon },
-  CONTRACT_PENDING: { icon: DocumentTextIcon },
-  CONTRACT_SENT: { icon: PaperAirplaneIcon },
-  CONTRACT_ACCEPTED: { icon: CheckCircleIcon },
-  INVOICE_ACCEPTED: { icon: CheckCircleIcon },
-  SIGNING_PENDING: { icon: ClockIcon },
-  INVOICE_PENDING: { icon: DocumentTextIcon },
-  INVOICES_SENT: { icon: PaperAirplaneIcon },
-  OFFER_SENT: { icon: PaperAirplaneIcon },
-  OFFER_EXPIRED: { icon: ClockIcon },
-  AMENDMENT_REQUESTED: { icon: ExclamationTriangleIcon },
-  RESUBMITTED: { icon: ArrowPathIcon },
-  COMPLETED: { icon: CheckCircleIcon },
-  REJECTED: { icon: XCircleIcon },
-  WITHDRAWN: { icon: ArchiveBoxIcon },
-  ARCHIVED: { icon: ArchiveBoxIcon },
-};
-
 export function ApplicationStatusBadge({ status, size = "md", label }: ApplicationStatusBadgeProps) {
-  const Icon = STATUS_CONFIG[status]?.icon ?? ClockIcon;
   const presentation = getReviewStatusPresentation(status);
-  const iconSize =
-    size === "sm" ? "h-3 w-3" : size === "lg" ? "h-4 w-4" : "h-3.5 w-3.5";
-  const sizeClasses =
-    size === "sm" ? "text-xs px-1.5 py-0" : size === "lg" ? "text-sm px-2.5 py-1" : "";
-  const displayLabel = label ?? presentation.label;
-  const displayText = toTitleCase(displayLabel);
+  const displayLabel = toTitleCase(label ?? presentation.label);
 
   return (
-    <Badge
-      variant="outline"
-      className={`${presentation.badgeClass} ${sizeClasses}`}
-    >
-      <Icon className={`${iconSize} mr-1 ${presentation.iconClass}`} />
-      {displayText || displayLabel}
-    </Badge>
+    <StatusBadge
+      label={displayLabel || presentation.label}
+      status={getAdminStatusToken(status)}
+      size={size === "sm" ? "sm" : "default"}
+    />
   );
 }

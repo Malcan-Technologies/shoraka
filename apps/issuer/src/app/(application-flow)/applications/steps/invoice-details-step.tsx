@@ -96,7 +96,7 @@ import { generateInvoiceData } from "../utils/dev-data-generator";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { FileDisplayBadge } from "../components/file-display-badge";
 
-const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
+const valueClassName = "text-ui leading-7 text-foreground font-medium";
 
 const invoiceTableFieldChrome = cn(
   "h-9 text-xs px-3 placeholder:text-muted-foreground",
@@ -105,7 +105,7 @@ const invoiceTableFieldChrome = cn(
 );
 
 const invoiceTableReadonlyCellChrome = cn(
-  "flex h-9 shrink-0 items-center justify-center px-2 text-[11px] font-semibold tabular-nums text-foreground",
+  "flex h-9 shrink-0 items-center justify-center px-2 text-meta font-semibold tabular-nums text-foreground",
   issuerFieldChromeClassName
 );
 
@@ -1558,7 +1558,7 @@ export default function InvoiceDetailsStep({
                                           "opacity-100 [&_[data-disabled]]:opacity-100 [&_.relative.h-2]:bg-muted [&_span.absolute]:bg-muted-foreground/50 [&_button]:border-muted-foreground/50 [&_button]:bg-muted"
                                       )}
                                     />
-                                    <div className="mt-0.5 flex justify-between text-[10px] font-medium text-muted-foreground tabular-nums">
+                                    <div className="mt-0.5 flex justify-between text-meta font-medium text-muted-foreground tabular-nums">
                                       <span>{minRatio}%</span>
                                       <span>{maxRatio}%</span>
                                     </div>
@@ -1600,7 +1600,7 @@ export default function InvoiceDetailsStep({
                                       )}
                                     />
                                   </div>
-                                  <p className="text-[10px] leading-tight text-muted-foreground tabular-nums">
+                                  <p className="text-meta leading-tight text-muted-foreground tabular-nums">
                                     Based on {ratioNum}% ratio
                                   </p>
                                 </div>

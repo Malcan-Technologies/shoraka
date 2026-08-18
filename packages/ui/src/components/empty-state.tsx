@@ -55,10 +55,10 @@ export function EmptyState({
         {icon ?? <Icon className="h-6 w-6" aria-hidden />}
       </div>
       <div className="max-w-[40ch] space-y-1">
-        <p className="text-base font-semibold text-foreground">
+        <p className="text-card-title text-foreground">
           {title ?? defaults.title}
         </p>
-        <p className="text-[17px] leading-7 text-muted-foreground">
+        <p className="text-body text-muted-foreground">
           {message ?? defaults.message}
         </p>
       </div>

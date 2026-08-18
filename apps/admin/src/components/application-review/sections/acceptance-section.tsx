@@ -14,8 +14,8 @@ import {
   isOfferAcceptanceDocumentsVisibleToAdmin,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
-import { getOfferAcceptancePhaseBadgeClass } from "@cashsouk/config";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@cashsouk/ui";
+import { getAdminStatusToken } from "@/lib/admin-status-token";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DocumentsSection } from "./documents-section";
@@ -299,9 +299,10 @@ export function AcceptanceSection({
                 title="Acceptance documents"
                 titleAside={
                   presentation && acceptance ? (
-                    <Badge className={getOfferAcceptancePhaseBadgeClass(acceptance.status)}>
-                      {presentation.label}
-                    </Badge>
+                    <StatusBadge
+                      label={presentation.label}
+                      status={getAdminStatusToken(acceptance.status)}
+                    />
                   ) : null
                 }
                 titleEnd={showAcceptanceDocuments ? downloadAllButton : undefined}

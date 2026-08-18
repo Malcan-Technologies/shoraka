@@ -5,9 +5,9 @@ import { format } from "date-fns";
 import { UsersIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import type { AdminInvestmentItem, NoteDetail } from "@cashsouk/types";
-import { Skeleton } from "@cashsouk/ui";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton, StatusBadge } from "@cashsouk/ui";
+import { AdminDetailCardHeader } from "@/components/admin-detail";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -18,20 +18,16 @@ import {
 } from "@/components/ui/table";
 import { useAdminInvestments } from "@/investments/hooks/use-admin-investments";
 import { TablePagination } from "@/shared/admin-list/components/table-pagination";
+import { getAdminStatusToken, adminActionRowClass } from "@/lib/admin-status-token";
 
 const PAGE_SIZE = 20;
 
-const STATUS_TONE: Record<string, string> = {
-  COMMITTED:
-    "border-transparent bg-status-action-bg text-status-action-text dark:bg-amber-950/40 dark:text-amber-300",
-  CONFIRMED:
-    "border-transparent bg-status-completed-bg text-status-completed-text dark:bg-sky-950/40 dark:text-sky-300",
-  SETTLED:
-    "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300",
-  RELEASED:
-    "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300",
-  CANCELLED:
-    "border-transparent bg-status-rejected-bg text-status-rejected-text dark:bg-red-950/40 dark:text-red-300",
+const INVESTMENT_STATUS_LABEL: Record<string, string> = {
+  COMMITTED: "Committed",
+  CONFIRMED: "Confirmed",
+  SETTLED: "Settled",
+  RELEASED: "Released",
+  CANCELLED: "Cancelled",
 };
 
 function formatDate(value: string | null): string {
@@ -70,23 +66,17 @@ export function NoteInvestorsPanel({ note }: NoteInvestorsPanelProps) {
 
   return (
     <Card className="rounded-2xl">
-      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-            <UsersIcon className="h-4 w-4 text-primary" />
-          </div>
-          <div>
-            <CardTitle className="text-base">Investors</CardTitle>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {isLoading
-                ? "Loading…"
-                : totalCount === 0
-                  ? "No investor commitments yet"
-                  : `${totalCount} investor${totalCount === 1 ? "" : "s"} · ${formatCurrency(note.fundedAmount)} funded`}
-            </p>
-          </div>
-        </div>
-      </CardHeader>
+      <AdminDetailCardHeader
+        icon={UsersIcon}
+        title="Investors"
+        description={
+          isLoading
+            ? "Loading…"
+            : totalCount === 0
+              ? "No investor commitments yet"
+              : `${totalCount} investor${totalCount === 1 ? "" : "s"} · ${formatCurrency(note.fundedAmount)} funded`
+        }
+      />
       <CardContent className="p-0">
         {error ? (
           <div className="px-5 py-4 text-sm text-destructive">
@@ -126,7 +116,10 @@ export function NoteInvestorsPanel({ note }: NoteInvestorsPanelProps) {
                           </TableRow>
                         )
                       : items.map((investment) => (
-                          <TableRow key={investment.id}>
+                          <TableRow
+                            key={investment.id}
+                            className={adminActionRowClass(getAdminStatusToken(investment.status))}
+                          >
                             <TableCell>
                               <div className="font-medium">{getInvestorName(investment)}</div>
                               {investment.investorUserName && investment.investorOrganizationName ? (
@@ -142,12 +135,10 @@ export function NoteInvestorsPanel({ note }: NoteInvestorsPanelProps) {
                               {investment.allocationPercent.toFixed(2)}%
                             </TableCell>
                             <TableCell>
-                              <Badge
-                                variant="outline"
-                                className={STATUS_TONE[investment.status] ?? STATUS_TONE.RELEASED}
-                              >
-                                {investment.status}
-                              </Badge>
+                              <StatusBadge
+                                label={INVESTMENT_STATUS_LABEL[investment.status] ?? investment.status}
+                                status={getAdminStatusToken(investment.status)}
+                              />
                             </TableCell>
                             <TableCell className="text-sm">
                               {formatDate(investment.committedAt)}

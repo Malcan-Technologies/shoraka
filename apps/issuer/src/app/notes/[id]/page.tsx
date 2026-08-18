@@ -11,11 +11,10 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  Badge,
+  StatusBadge,
   DetailHeader,
   LoadingState,
   NoteStatusBadge,
-  NOTE_STATUS_BADGE_TONE_CLASS,
   SoukscoreRiskRatingBadge,
   Progress,
   parseMoney,
@@ -147,9 +146,7 @@ function RepaymentPoolReceivedBreakdown({
       <div className="mt-1 flex flex-wrap items-center gap-2">
         <span className={totalClassName}>{formatCurrency(total)}</span>
         {hasPending ? (
-          <Badge variant="outline" className={NOTE_STATUS_BADGE_TONE_CLASS.warning}>
-            Pending
-          </Badge>
+          <StatusBadge label="Pending" status="submitted" />
         ) : null}
       </div>
       <div className="mt-1.5 space-y-0.5 text-xs tabular-nums">
@@ -573,7 +570,7 @@ export default function IssuerNoteDetailPage() {
           status={
             <NoteStatusBadge
               note={note}
-              className="max-w-[48%] shrink-0 self-start text-xs font-semibold"
+              className="max-w-[48%] shrink-0 self-start"
             />
           }
           facts={
@@ -882,37 +879,23 @@ export default function IssuerNoteDetailPage() {
                   ) : null}
                 </p>
                 {issuerResidualDisbursement?.kind === "paid" ? (
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "w-fit shrink-0 text-xs font-semibold",
-                      NOTE_STATUS_BADGE_TONE_CLASS.success
-                    )}
-                  >
-                    Paid
-                  </Badge>
+                  <StatusBadge label="Paid" status="success" className="w-fit shrink-0" />
                 ) : issuerResidualDisbursement?.kind === "pending" ? (
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "w-fit shrink-0 text-xs font-semibold",
-                      NOTE_STATUS_BADGE_TONE_CLASS.warning
-                    )}
-                  >
-                    {issuerResidualDisbursement.status === WithdrawalStatus.SUBMITTED_TO_TRUSTEE
-                      ? "Payout with trustee"
-                      : "Payout in progress"}
-                  </Badge>
+                  <StatusBadge
+                    label={
+                      issuerResidualDisbursement.status === WithdrawalStatus.SUBMITTED_TO_TRUSTEE
+                        ? "Payout with trustee"
+                        : "Payout in progress"
+                    }
+                    status="submitted"
+                    className="w-fit shrink-0"
+                  />
                 ) : issuerResidualDisbursement?.kind === "awaiting" ? (
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "w-fit shrink-0 text-xs font-semibold",
-                      NOTE_STATUS_BADGE_TONE_CLASS.neutral
-                    )}
-                  >
-                    Awaiting disbursement
-                  </Badge>
+                  <StatusBadge
+                    label="Awaiting disbursement"
+                    status="submitted"
+                    className="w-fit shrink-0"
+                  />
                 ) : null}
               </div>
             </CardContent>
@@ -1057,7 +1040,6 @@ export default function IssuerNoteDetailPage() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-7 rounded-md px-2.5 text-xs"
                       disabled={remainingCapacity <= MONEY_TOLERANCE}
                       onClick={() =>
                         setPaymentAmountInput(roundMoneyTwo(remainingCapacity).toFixed(2))
@@ -1101,7 +1083,7 @@ export default function IssuerNoteDetailPage() {
                         <div className="grid gap-x-4 gap-y-1.5 sm:grid-cols-2">
                           {instructionEntries.map(([key, value]) => (
                             <div key={key} className="min-w-0">
-                              <div className="text-[11px] leading-4 text-muted-foreground">
+                              <div className="text-meta leading-4 text-muted-foreground">
                                 {key.replace(/([A-Z])/g, " $1")}
                               </div>
                               <div className="text-xs font-medium leading-5 text-foreground break-words">
@@ -1155,7 +1137,7 @@ export default function IssuerNoteDetailPage() {
                       type="button"
                       variant="ghost"
                       size="sm"
-                      className="h-7 shrink-0 px-2"
+                      className="shrink-0"
                       onClick={() => setEvidenceFiles([])}
                     >
                       Remove

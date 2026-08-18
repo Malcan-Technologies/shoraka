@@ -1,19 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-
-import { useHeader } from "@cashsouk/ui";
-
 import { AdminPermissionConfiguration } from "../../../../components/admin-permission-configuration";
 import { RequirePermission } from "../../../../components/require-permission";
 
 export default function RolesConfigurationPage() {
-  const { setTitle } = useHeader();
-  useEffect(() => {
-    setTitle("Role configuration");
-    return () => setTitle("");
-  }, [setTitle]);
-
   return (
     <>
       

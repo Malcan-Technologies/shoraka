@@ -81,7 +81,7 @@ function InvitationRow({
       </TableCell>
       <TableCell>
         <Badge
-          className="border font-medium"
+          className="border font-normal"
           style={getRoleBadgeClasses(invitation.role_description, roleRecord?.badgeColor)}
         >
           {roleDisplay.name}

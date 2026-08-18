@@ -15,45 +15,8 @@ import type { NoteDetail, NoteEvent } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
-
-function formatEventLabel(eventType: string) {
-  const labels: Record<string, string> = {
-    NOTE_CREATED: "Note created",
-    NOTE_DRAFT_UPDATED: "Draft updated",
-    NOTE_PUBLISHED: "Published to marketplace",
-    NOTE_UNPUBLISHED: "Unpublished from marketplace",
-    NOTE_FUNDING_CLOSED: "Funding closed",
-    NOTE_FUNDING_FAILED: "Funding failed",
-    NOTE_ACTIVATED: "Note activated",
-    PAYMENT_RECORDED: "Payment recorded",
-    SETTLEMENT_PREVIEWED: "Settlement previewed",
-    SETTLEMENT_APPROVED: "Settlement approved",
-    SETTLEMENT_POSTED: "Settlement posted",
-    LATE_CHARGE_APPROVED: "Late charge approved",
-    OVERDUE_LATE_CHARGE_CHECKED: "Overdue late charge checked",
-    ARREARS_LETTER_GENERATED: "Arrears letter generated",
-    DEFAULT_LETTER_GENERATED: "Default letter generated",
-    SERVICE_FEE_TRUSTEE_LETTER_GENERATED: "Settlement trustee letter generated",
-    SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED: "Settlement trustee letter submitted",
-    SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED: "Settlement trustee instruction completed",
-    NOTE_DEFAULT_MARKED: "Default marked",
-    SHORAKA_ORDER_SUBMITTED: "Tawarruq order submitted",
-    SHORAKA_CERTIFICATE_FETCHED: "Tawarruq Certificate fetched",
-  };
-
-  const fallback =
-    eventType.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (char) => char.toUpperCase());
-
-  // User-facing mapping: provider/internal wording "Shoraka" → business wording "Tawarruq".
-  // Keep event type constants/internal codes unchanged.
-  let label = labels[eventType] ?? fallback;
-  label = label.replace(/\bShoraka\s+Stp\b/g, "Tawarruq Transaction");
-  label = label.replace(/\bShoraka\b/g, "Tawarruq");
-
-  return label;
-}
+import { buildNoteActivityCsv, formatNoteActivityEventLabel } from "@/notes/utils/note-activity-csv";
 
 function getEventIcon(eventType: string) {
   if (eventType.includes("LETTER")) return <DocumentTextIcon className="h-3.5 w-3.5" />;
@@ -154,35 +117,46 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
     useAdminS3DocumentViewDownload();
   const totalCount = note.events.length;
 
+  const handleExport = () => {
+    const csv = buildNoteActivityCsv(note.events);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${note.noteReference}-activity.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <Card className="flex flex-col overflow-hidden rounded-2xl">
-      <CardHeader className="shrink-0 pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ClipboardDocumentCheckIcon className="h-5 w-5 text-destructive" />
-            <CardTitle className="text-base font-semibold">Activity Timeline</CardTitle>
+    <Card className="rounded-2xl">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+            <ClockIcon className="h-4 w-4 text-primary" />
           </div>
-          {totalCount > 0 ? (
-            <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-              {totalCount}
-            </Badge>
-          ) : null}
+          <div>
+            <CardTitle>Activity</CardTitle>
+            <p className="mt-0.5 text-meta text-muted-foreground">
+              {totalCount === 0
+                ? "No activity logs yet"
+                : `${totalCount} ${totalCount === 1 ? "event" : "events"}`}
+            </p>
+          </div>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Note events, admin actions, generated letters, and settlement activity
-        </p>
+        <Button size="sm" variant="outline" onClick={handleExport} disabled={totalCount === 0}>
+          Export CSV
+        </Button>
       </CardHeader>
-      <CardContent className="min-h-0 overflow-hidden !px-0">
+      <CardContent className={totalCount === 0 ? "p-0" : undefined}>
         {totalCount === 0 ? (
-          <div className="px-6 py-8 pb-12 text-center text-sm text-muted-foreground">
-            No activity logs found
+          <div className="px-5 py-8 text-center text-ui text-muted-foreground">
+            Note events, admin actions, and settlement activity will appear here.
           </div>
         ) : (
-          <ScrollArea className="overflow-auto">
-            <div className="px-6">
-              <div className="relative">
-                <div className="absolute bottom-2 left-[5px] top-2 w-px bg-border" />
-                <div className="space-y-5">
+          <div className="relative">
+            <div className="absolute bottom-2 left-[5px] top-2 w-px bg-border" />
+            <div className="space-y-5">
                   {note.events.map((event, index) => {
                     const s3Key = extractS3Key(event);
                     const { compact: compactMetadata, prose: proseMetadata } =
@@ -197,12 +171,12 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
                         <div className="-mt-0.5 min-w-0 flex-1">
                           <div className="flex items-center gap-1.5">
                             {getEventIcon(event.eventType)}
-                            <span className="text-sm font-medium leading-tight">
-                              {formatEventLabel(event.eventType)}
+                            <span className="text-ui font-medium leading-tight">
+                              {formatNoteActivityEventLabel(event.eventType)}
                             </span>
                           </div>
 
-                          <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground/70">
+                          <div className="mt-1 flex items-center gap-2 text-meta text-muted-foreground">
                             <span className="inline-flex items-center gap-0.5">
                               <UserIcon className="h-3 w-3" />
                               {event.actorUserId ?? "System"}
@@ -217,7 +191,7 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
 
                           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                             <p
-                              className="text-[11px] text-muted-foreground/70"
+                              className="text-meta text-muted-foreground"
                               title={format(createdAt, "PPpp")}
                             >
                               {formatDistanceToNow(createdAt, { addSuffix: true })}
@@ -293,12 +267,10 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
                       </div>
                     );
                   })}
-                </div>
-              </div>
             </div>
-          </ScrollArea>
+          </div>
         )}
-      </CardContent>
+        </CardContent>
     </Card>
   );
 }

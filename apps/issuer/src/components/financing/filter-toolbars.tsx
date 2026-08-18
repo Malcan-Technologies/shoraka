@@ -51,7 +51,7 @@ function ProductFilterDropdown({
           variant="outline"
           size="sm"
           className={cn(
-            "h-9 max-w-[14rem] gap-1.5 truncate bg-card px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
+            "max-w-[14rem] gap-1.5 truncate bg-card px-3 transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
             value !== "" && "border-primary/40 bg-muted/50"
           )}
         >
@@ -124,7 +124,7 @@ export function FinancingContractFilterToolbar({
             variant="outline"
             size="sm"
             className={cn(
-              "h-9 max-w-[11rem] gap-1.5 truncate bg-card px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
+              "max-w-[11rem] gap-1.5 truncate bg-card px-3 transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
               value.statusKind !== "all" && "border-primary/40 bg-muted/50"
             )}
           >
@@ -163,7 +163,7 @@ export function FinancingContractFilterToolbar({
             variant="outline"
             size="sm"
             className={cn(
-              "h-9 max-w-[14rem] gap-1.5 truncate bg-card px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
+              "max-w-[14rem] gap-1.5 truncate bg-card px-3 transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
               value.periodPreset !== "all" && "border-primary/40 bg-muted/50"
             )}
           >
@@ -192,7 +192,7 @@ export function FinancingContractFilterToolbar({
             variant="outline"
             size="sm"
             className={cn(
-              "h-9 max-w-[12rem] gap-1.5 truncate bg-card px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
+              "max-w-[12rem] gap-1.5 truncate bg-card px-3 transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
               value.customer !== "" && "border-primary/40 bg-muted/50"
             )}
           >
@@ -234,7 +234,7 @@ export function FinancingContractFilterToolbar({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-9 px-2 text-sm text-muted-foreground transition-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          className="px-2 text-muted-foreground transition-none focus-visible:ring-0 focus-visible:ring-offset-0"
           onClick={onClear}
         >
           Clear
@@ -295,7 +295,7 @@ export function FinancingInvoiceFilterToolbar({
             variant="outline"
             size="sm"
             className={cn(
-              "h-9 max-w-[11rem] gap-1.5 truncate bg-card px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
+              "max-w-[11rem] gap-1.5 truncate bg-card px-3 transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
               value.statusKind !== "all" && "border-primary/40 bg-muted/50"
             )}
           >
@@ -334,7 +334,7 @@ export function FinancingInvoiceFilterToolbar({
             variant="outline"
             size="sm"
             className={cn(
-              "h-9 max-w-[14rem] gap-1.5 truncate bg-card px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
+              "max-w-[14rem] gap-1.5 truncate bg-card px-3 transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
               value.submissionPreset !== "all" && "border-primary/40 bg-muted/50"
             )}
           >
@@ -364,7 +364,7 @@ export function FinancingInvoiceFilterToolbar({
               variant="outline"
               size="sm"
               className={cn(
-                "h-9 max-w-[12rem] gap-1.5 truncate bg-card px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
+                "max-w-[12rem] gap-1.5 truncate bg-card px-3 transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
                 value.customer !== "" && "border-primary/40 bg-muted/50"
               )}
             >
@@ -407,7 +407,7 @@ export function FinancingInvoiceFilterToolbar({
           type="button"
           variant="ghost"
           size="sm"
-          className="h-9 px-2 text-sm text-muted-foreground transition-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          className="px-2 text-muted-foreground transition-none focus-visible:ring-0 focus-visible:ring-offset-0"
           onClick={onClear}
         >
           Clear

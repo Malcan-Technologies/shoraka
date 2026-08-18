@@ -15,10 +15,12 @@ Architecture & Monorepo
 
 Branding & Design System
 
-- Reference branding.mdc at the .cursor/rules for all brand guidance (tokens, color usage, typography, spacing).
+- Reference branding.mdc and BRANDING.md for all brand guidance (tokens, color usage, typography, spacing, status badges).
 - shadcn/ui + Tailwind only; no external component libraries.
 - No arbitrary hex in app code. Use Tailwind tokens: bg-primary, text-foreground, border, accent, etc.
-- Typography: Body text-[17px] leading-7; headings as in brand guide. Avoid tiny text.
+- Workflow status: `StatusBadge` from `@cashsouk/ui` plus status tokens. Badge labels use `font-normal` (not bold); contrast comes from darker status text tokens. Admin: yellow = admin must act, blue = waiting on someone else (`getAdminStatusToken`). User portals: yellow = you must act, blue = waiting on CashSouk or another party (`badgeKeyToStatusToken` / `getUserPortalStatusToken`). Violet = live/in force (`active`), green = done, grey = draft/idle/withdrawn, red = failed/arrears. Admin list rows with a yellow action badge use `adminActionRowClass`; arrears rows use `adminRejectedRowClass`. Type chips have no dot. Investor/Issuer chips use `PortalBadge` (investor earth brown, issuer brand red). Account portal access uses `PortalBadge` `access` (circled check in brand colour, not green). `VerifiedBadge` / `RequiredBadge` use a solid circled check. User-page Admin role stays purple. See BRANDING.md §3.2 and §3.3.
+- Typography: Body `text-body` (16px); UI chrome `text-ui` (14px); meta `text-meta` (12px). Headings via `h1`–`h4` or `text-page-title` / `text-section-title` / `text-card-title`. Do not use arbitrary `text-[Npx]` on badges or UI chrome.
+- Buttons: same size scale in all portals — default `h-10` + `text-ui`; sm `h-8` still `text-ui` (not `text-meta`); lg / page-toolbar `h-11`; icon `h-10`. Do not override with `text-xs` / `h-9`. Portal CTA colour stays on `--primary`.
 - Use portal themes via theme-user, theme-investor, theme-admin CSS scopes at each portal layout root. Don’t override with inline styles.
 - Ensure responsive design so app looks good in web and mobile with dynamic component and font sizing.
 - Use Hero Icons for icons. Never design your own svg.

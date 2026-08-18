@@ -21,7 +21,7 @@ const nextConfig = {
     "@cashsouk/icons",
   ],
   experimental: {
-    optimizePackageImports: ["@cashsouk/ui"],
+    optimizePackageImports: ["@cashsouk/ui", "@cashsouk/config"],
   },
   async headers() {
     return [

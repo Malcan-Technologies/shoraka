@@ -4,19 +4,19 @@ import * as React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
-import { formatCurrency, useOrganization } from "@cashsouk/config";
+import { formatCurrency, getUserPortalStatusToken, useOrganization } from "@cashsouk/config";
 import type {
   InvestorBalanceActivityEntry,
   MarketplaceNoteDetail,
   NoteListItem,
 } from "@cashsouk/types";
 import {
-  Badge,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
   Skeleton,
+  StatusBadge,
   portalContentMaxWidthClassName,
   useHeader,
 } from "@cashsouk/ui";
@@ -248,7 +248,6 @@ export default function InvestmentDetailPage() {
             <Button
               type="button"
               variant="outline"
-              className="h-9 rounded-lg text-xs"
               onClick={() => {
                 const investmentId = investedNote?.investorInvestmentId;
                 const open = investmentId
@@ -296,12 +295,10 @@ export default function InvestmentDetailPage() {
                 </CardTitle>
               </div>
               {!isInvestedView ? (
-                <Badge
-                  variant="secondary"
-                  className="w-fit rounded-full bg-muted font-normal text-muted-foreground hover:bg-muted"
-                >
-                  {formatEnumLabel(note.listingStatus)}
-                </Badge>
+                <StatusBadge
+                  label={formatEnumLabel(note.listingStatus)}
+                  status={getUserPortalStatusToken(note.listingStatus)}
+                />
               ) : null}
             </CardHeader>
             <CardContent className="space-y-3">

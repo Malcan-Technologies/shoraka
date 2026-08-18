@@ -20,9 +20,9 @@ export function DetailSection({
     <section className={cn("space-y-4", className)} {...props}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <h2 className="text-xl font-semibold md:text-2xl">{title}</h2>
+          <h2 className="text-section-title">{title}</h2>
           {description ? (
-            <div className="max-w-[70ch] text-[15px] leading-6 text-muted-foreground">
+            <div className="max-w-[70ch] text-ui text-muted-foreground">
               {description}
             </div>
           ) : null}

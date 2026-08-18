@@ -1,6 +1,6 @@
 "use client";
 
-import { useHeader } from "@cashsouk/ui";
+import { StatusBadge } from "@cashsouk/ui";
 
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -18,7 +18,7 @@ import {
   formatDate,
   PURPOSE_LABEL,
   STATUS_LABEL,
-  statusVariant,
+  statusToken,
 } from "@/lib/gateway-payment-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,12 +60,12 @@ const RECEIPT_STATUS_LABEL: Record<string, string> = {
   REFUNDED: "Refunded",
 };
 
-function receiptStatusVariant(status: string) {
+function receiptStatusToken(status: string) {
   if (status === "GENERATED") return "success" as const;
-  if (status === "FAILED") return "destructive" as const;
-  if (status === "REFUNDED") return "secondary" as const;
-  if (status === "PENDING") return "warning" as const;
-  return "outline" as const;
+  if (status === "FAILED") return "rejected" as const;
+  if (status === "REFUNDED") return "neutral" as const;
+  if (status === "PENDING") return "action" as const;
+  return "neutral" as const;
 }
 
 function formatPendingDuration(fromIso: string) {
@@ -143,7 +143,6 @@ function DetailRow({
 }
 
 export default function GatewayPaymentDetailPage() {
-  const { setTitle } = useHeader();
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = typeof params?.id === "string" ? params.id : null;
@@ -169,15 +168,6 @@ export default function GatewayPaymentDetailPage() {
   const receiptPdf = useGatewayPaymentReceiptPdf();
   const retryReceipt = useRetryGatewayPaymentReceipt();
   const [showRefundDialog, setShowRefundDialog] = React.useState(false);
-
-  React.useEffect(() => {
-    setTitle(
-      payment
-        ? `${PURPOSE_LABEL[payment.purpose] ?? payment.purpose} · ${formatCurrency(payment.amount)}`
-        : "Gateway Payment"
-    );
-    return () => setTitle("");
-  }, [setTitle, payment]);
 
   const isPending =
     retryRefund.isPending ||
@@ -346,9 +336,10 @@ export default function GatewayPaymentDetailPage() {
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
-                    <Badge variant={statusVariant(payment.status)}>
-                      {STATUS_LABEL[payment.status] ?? payment.status}
-                    </Badge>
+                    <StatusBadge
+                      label={STATUS_LABEL[payment.status] ?? payment.status}
+                      status={statusToken(payment.status)}
+                    />
                     <Badge
                       variant="outline"
                       className={getGatewayAccountBadgeClassName(payment.gatewayAccount)}
@@ -811,10 +802,10 @@ export default function GatewayPaymentDetailPage() {
                           </p>
                         </div>
                         {payment.receipt ? (
-                          <Badge variant={receiptStatusVariant(payment.receipt.status)}>
-                            {RECEIPT_STATUS_LABEL[payment.receipt.status] ??
-                              payment.receipt.status}
-                          </Badge>
+                          <StatusBadge
+                            label={RECEIPT_STATUS_LABEL[payment.receipt.status] ?? payment.receipt.status}
+                            status={receiptStatusToken(payment.receipt.status)}
+                          />
                         ) : (
                           <Badge variant="outline">{GATEWAY_PAYMENT_COPY.receipt.notCreated}</Badge>
                         )}

@@ -175,7 +175,7 @@ export function FinancingRequestsList() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="rounded-full h-9 w-9"
+                  className="rounded-full"
                 >
                   <MoreVertical className="h-4 w-4" />
                 </Button>
@@ -351,11 +351,11 @@ export function FinancingRequestsList() {
 //                 {getStatusBadge(app.status)}
 //               </div>
 
-//               <p className="text-muted-foreground text-[15px]">
+//               <p className="text-muted-foreground text-ui">
 //                 Customer: {app.customerName}
 //               </p>
 
-//               <p className="text-muted-foreground text-[15px]">
+//               <p className="text-muted-foreground text-ui">
 //                 Submitted on {app.submissionDate}
 //               </p>
 //             </div>
@@ -385,7 +385,7 @@ export function FinancingRequestsList() {
 //                   <p className="font-semibold text-primary mb-2">
 //                     Amendment required
 //                   </p>
-//                   <ul className="list-disc pl-5 text-[15px] space-y-1">
+//                   <ul className="list-disc pl-5 text-ui space-y-1">
 //                     {app.amendmentReasons.map((reason, i) => (
 //                       <li key={i}>{reason}</li>
 //                     ))}
@@ -397,10 +397,10 @@ export function FinancingRequestsList() {
 //               {app.contract && (
 //                 <div className="mb-6 space-y-2">
 //                   <h4 className="font-semibold">Contract Summary</h4>
-//                   <p className="text-[15px] text-muted-foreground">
+//                   <p className="text-ui text-muted-foreground">
 //                     Approved facility: RM {app.contract.approvedFacility.toLocaleString()}
 //                   </p>
-//                   <p className="text-[15px] text-muted-foreground">
+//                   <p className="text-ui text-muted-foreground">
 //                     Utilised facility: RM {app.contract.utilisedFacility.toLocaleString()}
 //                   </p>
 //                 </div>
@@ -420,11 +420,11 @@ export function FinancingRequestsList() {
 //                       {getStatusBadge(inv.status)}
 //                     </div>
 
-//                     <p className="text-[15px] text-muted-foreground">
+//                     <p className="text-ui text-muted-foreground">
 //                       Invoice value: RM {inv.invoiceValue.toLocaleString()}
 //                     </p>
 
-//                     <p className="text-[15px] text-muted-foreground">
+//                     <p className="text-ui text-muted-foreground">
 //                       Financing amount: RM {inv.financingAmount.toLocaleString()}
 //                     </p>
 

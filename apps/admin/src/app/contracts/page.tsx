@@ -1,7 +1,5 @@
 "use client";
 
-import { useHeader } from "@cashsouk/ui";
-
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -9,19 +7,13 @@ import { ContractsTable } from "@/contracts/components/contracts-table";
 import { ContractsTableToolbar } from "@/contracts/components/contracts-table-toolbar";
 import { useContracts } from "@/contracts/hooks/use-contracts";
 import { contractsKeys } from "@/contracts/query-keys";
-import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import type { ContractListItem, GetAdminContractsParams } from "@cashsouk/types";
+import { AdminPageHeader } from "@/components/admin-page-header";
 import { RequirePermission } from "@/components/require-permission";
 
 const DEFAULT_STATUS_FILTERS = ["SUBMITTED", "OFFER_SENT", "AMENDMENT_REQUESTED"];
 
 export default function ContractsPage() {
-  const { setTitle } = useHeader();
-  React.useEffect(() => {
-    setTitle("Contracts");
-    return () => setTitle("");
-  }, [setTitle]);
-
   const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -86,19 +78,12 @@ export default function ContractsPage() {
     <RequirePermission permission="contracts.view">
       <>
             <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="w-full px-2 md:px-4 py-8 space-y-8">
+        <div className="w-full space-y-6 px-2 py-8 md:px-4">
           <section className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <DocumentTextIcon className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold">Contracts Registry</h2>
-                <p className="text-sm text-muted-foreground">
-                  Track contract status and facility values across issuer organizations
-                </p>
-              </div>
-            </div>
+            <AdminPageHeader
+              title="Contracts"
+              description="Track contract status and facility values across issuer organizations"
+            />
 
             {error && (
               <div className="text-center py-8 text-destructive">

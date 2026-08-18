@@ -10,6 +10,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { ApplicationStatusBadge } from "@/components/application-review";
+import { StatusBadge } from "@cashsouk/ui";
 import {
   applicationTableRowClass,
   applicationTableCellClass,
@@ -21,6 +22,8 @@ import {
   ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL,
   ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT,
 } from "@/lib/admin-director-shareholder-review-message";
+import { adminActionRowClass, getAdminStatusToken } from "@/lib/admin-status-token";
+import { cn } from "@/lib/utils";
 
 interface ApplicationsTableRowProps {
   application: ApplicationListItem;
@@ -32,9 +35,11 @@ export function ApplicationsTableRow({
   onViewDetails,
 }: ApplicationsTableRowProps) {
   const hasPending = Boolean(application.directorShareholderAmlPending);
+  const needsAdminAction =
+    hasPending || getAdminStatusToken(application.status) === "action";
 
   return (
-    <TableRow className={applicationTableRowClass}>
+    <TableRow className={cn(applicationTableRowClass, adminActionRowClass(needsAdminAction))}>
       {/* Reference */}
       <TableCell className={`${applicationTableCellClass} min-w-0 overflow-hidden truncate font-mono text-xs`}>
         <div className="min-w-0">
@@ -54,12 +59,11 @@ export function ApplicationsTableRow({
             {application.issuerOrganizationName || "Unnamed Organization"}
           </div>
           {hasPending ? (
-            <span
-              className="shrink-0 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:text-amber-100"
+            <StatusBadge
+              label={ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL}
+              status="action"
               title={ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT}
-            >
-              {ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL}
-            </span>
+            />
           ) : null}
         </div>
       </TableCell>

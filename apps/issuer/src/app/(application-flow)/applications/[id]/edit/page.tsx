@@ -1913,7 +1913,7 @@ function EditApplicationPageBody() {
                   <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
                     {currentStepInfo.title}
                   </h1>
-                  <p className="text-sm sm:text-[15px] leading-6 sm:leading-7 text-muted-foreground mt-1">
+                  <p className="text-sm sm:text-ui leading-6 sm:leading-7 text-muted-foreground mt-1">
                     {currentStepInfo.description}
                   </p>
                 </div>
@@ -2004,7 +2004,7 @@ function EditApplicationPageBody() {
                   application?.status === "AMENDMENT_REQUESTED" &&
                   (resubmitMutation.isPending || isSubmittingApplication))
               }
-              className="h-11 rounded-xl px-4 text-sm font-semibold sm:px-6 sm:text-base"
+              className="h-11 rounded-xl px-4 sm:px-6"
             >
               <ArrowLeftIcon className="mr-2 h-4 w-4" />
               Back
@@ -2037,7 +2037,7 @@ function EditApplicationPageBody() {
                     (!devPreviewAmendment && !isCurrentStepValid) ||
                     !isStepMapped)
               }
-              className="h-11 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-brand hover:opacity-95 sm:px-6 sm:text-base"
+              className="h-11 rounded-xl px-4 sm:px-6"
             >
               {isDeclarationsFinalStep &&
               (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment)
@@ -2068,7 +2068,7 @@ function EditApplicationPageBody() {
               {isAmendmentModeEffective ? "Confirm resubmission" : "Confirm submission"}
             </DialogTitle>
             <DialogDescription asChild>
-              <div className="space-y-3 pt-1 text-[15px] leading-7 text-muted-foreground">
+              <div className="space-y-3 pt-1 text-ui leading-7 text-muted-foreground">
                 <p>
                   Please review everything you have entered across all steps of this application. Make sure
                   all information is complete and accurate before you continue. Incorrect or incomplete details

@@ -389,7 +389,7 @@ export default function ApplicationsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 w-full justify-start text-xs"
+                className="w-full justify-start"
                 onClick={() => {
                   setDebugShowSkeleton((prev) => !prev);
                   if (!debugShowSkeleton) setDebugMockApplications(null);
@@ -400,7 +400,7 @@ export default function ApplicationsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 w-full justify-start text-xs"
+                className="w-full justify-start"
                 onClick={() => {
                   setDebugMockApplications(generateMockApplications(MOCK_APPLICATION_COUNT));
                   setDebugShowSkeleton(false);
@@ -411,7 +411,7 @@ export default function ApplicationsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 w-full justify-start text-xs"
+                className="w-full justify-start"
                 onClick={() => {
                   setDebugShowSkeleton(false);
                   setDebugMockApplications(null);
@@ -626,7 +626,7 @@ export default function ApplicationsPage() {
                       <h2 className="text-base font-semibold text-foreground">
                         Needs your attention
                       </h2>
-                      <span className="text-[13px] text-muted-foreground">
+                      <span className="text-ui text-muted-foreground">
                         {needsAttention.length}{" "}
                         {needsAttention.length === 1 ? "item" : "items"}
                       </span>

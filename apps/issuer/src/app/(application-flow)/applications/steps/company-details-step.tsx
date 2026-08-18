@@ -19,22 +19,21 @@ import {
   formatPeopleRolesLine,
   formatPeopleRolesLineTitleCaseWithoutShare,
   formatShareOwnershipCell,
-  getFinalStatusBadgeClassName,
   getFinalStatusLabel,
+  getFinalStatusToken,
   isMissingGovernmentIdPerson,
   resolveDirectorShareholderCtosEmptyWarning,
 } from "@cashsouk/types";
 import {
   DirectorShareholderCtosEmptyAlert,
   DirectorShareholderUnresolvedIdentitySection,
+  StatusBadge,
 } from "@cashsouk/ui";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useApplication } from "@/hooks/use-applications";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-// import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -767,7 +766,7 @@ export function CompanyDetailsStep({
             ) : null}
             {visiblePeopleRows.filter((p) => !isMissingGovernmentIdPerson(p)).length === 0 &&
             !visiblePeopleRows.some((p) => isMissingGovernmentIdPerson(p)) ? (
-              <p className="text-[17px] leading-7 text-muted-foreground col-span-2">
+              <p className="text-body leading-7 text-muted-foreground col-span-2">
                 {resolvedCtosEmptyWarning
                   ? "No directors or shareholders are available from CTOS."
                   : "No directors or shareholders found"}
@@ -791,25 +790,22 @@ export function CompanyDetailsStep({
                         <div className="flex flex-col gap-2">
                           <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
                             <div className="flex min-w-0 flex-col">
-                              <span className="text-[17px] leading-7 font-medium truncate">{p.name ?? "—"}</span>
+                              <span className="text-ui leading-7 font-medium truncate">{p.name ?? "—"}</span>
                               <span className="text-xs text-muted-foreground truncate">{idLabel || "—"}</span>
                             </div>
                             <div className="h-4 w-px bg-border" />
-                            <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
+                            <div className="text-ui leading-7 text-muted-foreground whitespace-nowrap">
                               {own || "—"}
                             </div>
                             <div className="h-4 w-px bg-border" />
                             <div className="flex flex-col gap-0.5 min-w-0">
-                              <span className="text-xs text-muted-foreground">Status</span>
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "w-fit border-transparent text-[11px] font-normal",
-                                  getFinalStatusBadgeClassName(finalStatus.tone)
-                                )}
-                              >
-                                {finalStatus.label}
-                              </Badge>
+                              <span className="text-meta text-muted-foreground">Status</span>
+                              <StatusBadge
+                                label={finalStatus.label}
+                                status={getFinalStatusToken(finalStatus.tone)}
+                                size="sm"
+                                className="w-fit"
+                              />
                             </div>
                           </div>
                         </div>
@@ -1130,7 +1126,7 @@ function EditAddressDialog({
       <DialogContent className="rounded-2xl sm:max-w-[700px] max-h-[90vh] overflow-y-auto p-6">
         <DialogHeader>
           <DialogTitle>Edit Address</DialogTitle>
-          <DialogDescription className="text-[15px]">
+          <DialogDescription className="text-ui">
             Update your business address and registered address.
           </DialogDescription>
         </DialogHeader>
