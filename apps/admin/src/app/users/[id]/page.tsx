@@ -13,8 +13,7 @@ import {
   ShieldCheckIcon,
   UserIcon,
 } from "@heroicons/react/24/outline";
-import type { UserDetailResponse, UserOrganizationSummary, UserRole } from "@cashsouk/types";
-import { toTitleCase } from "@cashsouk/types";
+import type { UserDetailResponse, UserOrganizationSummary } from "@cashsouk/types";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,7 +29,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Skeleton, useHeader } from "@cashsouk/ui";
+import { PortalBadge, Skeleton, StatusBadge } from "@cashsouk/ui";
+import { OrganizationTypeBadge } from "@/components/organization-type-badge";
+import { UserRoleBadges } from "@/components/user-role-badges";
+import { getOrganizationOnboardingPresentation } from "@/lib/organization-status";
+import { adminActionRowClass } from "@/lib/admin-status-token";
 import { EditUserDialog } from "@/components/edit-user-dialog";
 import {
   useUpdateUserId,
@@ -50,48 +53,6 @@ interface UserDraft {
   phone: string;
   investorOnboarded: boolean;
   issuerOnboarded: boolean;
-}
-
-const ROLE_CONFIG: Record<UserRole, { label: string; className: string }> = {
-  INVESTOR: { label: "Investor", className: "text-blue-600 dark:text-blue-300" },
-  ISSUER: { label: "Issuer", className: "text-amber-600 dark:text-amber-300" },
-  ADMIN: { label: "Admin", className: "text-violet-600 dark:text-violet-300" },
-};
-
-function RoleText({ roles }: { roles: UserRole[] }) {
-  if (roles.length === 0) {
-    return <span className="text-muted-foreground">none</span>;
-  }
-
-  return (
-    <span>
-      {roles.map((role, index) => {
-        const config = ROLE_CONFIG[role] ?? {
-          label: role.toLowerCase(),
-          className: "text-muted-foreground",
-        };
-        return (
-          <React.Fragment key={role}>
-            <span className={config.className}>{config.label}</span>
-            {index < roles.length - 1 ? <span className="text-muted-foreground">, </span> : null}
-          </React.Fragment>
-        );
-      })}
-    </span>
-  );
-}
-
-function statusBadgeClass(status: string) {
-  if (["COMPLETED", "APPROVED", "ACTIVE"].includes(status)) {
-    return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
-  }
-  if (["PENDING_APPROVAL", "PENDING_AML", "PENDING_SSM_REVIEW", "PENDING_AMENDMENT", "PENDING_FINAL_APPROVAL"].includes(status)) {
-    return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
-  }
-  if (["REJECTED", "FAILED", "EXPIRED"].includes(status)) {
-    return "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300";
-  }
-  return "border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-300";
 }
 
 function buildDraft(user: UserDetailResponse): UserDraft {
@@ -154,20 +115,14 @@ function AccountSummaryCard({ user }: { user: UserDetailResponse }) {
                 <Badge variant="outline" className="font-mono">
                   {user.user_id}
                 </Badge>
-                <Badge
-                  variant="outline"
-                  className={
-                    user.email_verified
-                      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
-                      : "border-amber-500/30 bg-amber-500/10 text-amber-700"
-                  }
-                >
-                  {user.email_verified ? "Email verified" : "Email unverified"}
-                </Badge>
+                <StatusBadge
+                  label={user.email_verified ? "Email verified" : "Email unverified"}
+                  status={user.email_verified ? "success" : "action"}
+                />
               </div>
-              <div className="mt-2 text-sm">
-                <span className="font-medium text-foreground">Roles: </span>
-                <RoleText roles={user.roles} />
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="text-sm font-medium text-foreground">Roles</span>
+                <UserRoleBadges roles={user.roles} />
               </div>
               <p className="mt-2 text-sm text-muted-foreground">{user.email}</p>
             </div>
@@ -456,25 +411,23 @@ function OrganizationRow({ organization }: { organization: UserOrganizationSumma
   const title =
     organization.name ??
     (organization.type === "COMPANY" ? "Unnamed company" : "Personal organization");
+  const onboarding = getOrganizationOnboardingPresentation(organization.onboardingStatus);
 
   return (
-    <TableRow className="odd:bg-muted/40 hover:bg-muted">
+    <TableRow
+      className={
+        onboarding.status === "action"
+          ? adminActionRowClass(true)
+          : "odd:bg-muted/40 hover:bg-muted"
+      }
+    >
       <TableCell>
-        <Badge
-          variant="outline"
-          className={
-            organization.portal === "investor"
-              ? "border-primary/30 text-primary"
-              : "border-accent/30 text-accent"
-          }
-        >
-          {organization.portal}
-        </Badge>
+        <PortalBadge portal={organization.portal} />
       </TableCell>
       <TableCell className="min-w-[260px]">
         <div className="font-medium">{title}</div>
-        <div className="mt-0.5 flex flex-wrap gap-2 text-xs text-muted-foreground">
-          <span>{toTitleCase(organization.type)}</span>
+        <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <OrganizationTypeBadge type={organization.type} />
           {organization.registrationNumber ? <span>{organization.registrationNumber}</span> : null}
           {organization.isSophisticatedInvestor ? <span>Sophisticated investor</span> : null}
         </div>
@@ -486,9 +439,7 @@ function OrganizationRow({ organization }: { organization: UserOrganizationSumma
         </Badge>
       </TableCell>
       <TableCell>
-        <Badge variant="outline" className={statusBadgeClass(organization.onboardingStatus)}>
-          {toTitleCase(organization.onboardingStatus)}
-        </Badge>
+        <StatusBadge label={onboarding.label} status={onboarding.status} />
       </TableCell>
       <TableCell className="whitespace-nowrap text-sm">{organization.memberCount}</TableCell>
       <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
@@ -507,7 +458,6 @@ function OrganizationRow({ organization }: { organization: UserOrganizationSumma
 }
 
 export default function UserDetailPage() {
-  const { setTitle } = useHeader();
   const { can } = usePermissions();
   const canManage = can("users.manage");
   const params = useParams();
@@ -590,11 +540,6 @@ export default function UserDetailPage() {
   };
 
   const displayName = user ? `${user.first_name} ${user.last_name}`.trim() || user.email : "User";
-
-  React.useEffect(() => {
-    setTitle(isLoading ? "Loading..." : displayName);
-    return () => setTitle("");
-  }, [setTitle, isLoading, displayName]);
 
   return (
     <RequirePermission permission="users.view">

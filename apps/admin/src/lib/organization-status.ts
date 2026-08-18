@@ -8,15 +8,30 @@ type OrgStatusPresentation = {
 
 const ONBOARDING_STATUS: Record<OnboardingStatusEnum, OrgStatusPresentation> = {
   PENDING: { label: "Not Started", status: "neutral" },
-  IN_PROGRESS: { label: "In Progress", status: "in-progress" },
-  PENDING_APPROVAL: { label: "Pending Approval", status: "submitted" },
-  PENDING_AML: { label: "Pending AML", status: "submitted" },
-  PENDING_SSM_REVIEW: { label: "Pending SSM", status: "submitted" },
-  PENDING_AMENDMENT: { label: "Amendment in Progress", status: "action" },
-  PENDING_FINAL_APPROVAL: { label: "Pending Final", status: "submitted" },
+  IN_PROGRESS: { label: "In Progress", status: "submitted" },
+  PENDING_APPROVAL: { label: "Pending Approval", status: "action" },
+  PENDING_AML: { label: "Pending AML", status: "action" },
+  PENDING_SSM_REVIEW: { label: "Pending SSM", status: "action" },
+  PENDING_AMENDMENT: { label: "Amendment in Progress", status: "submitted" },
+  PENDING_FINAL_APPROVAL: { label: "Pending Final", status: "action" },
   COMPLETED: { label: "Completed", status: "success" },
   REJECTED: { label: "Rejected", status: "rejected" },
 };
+
+const QUEUE_STATUS: Record<string, OrgStatusPresentation> = {
+  PENDING_ONBOARDING: { label: "In Progress", status: "submitted" },
+  EXPIRED: { label: "Expired", status: "rejected" },
+  CANCELLED: { label: "Cancelled", status: "neutral" },
+};
+
+export function getOnboardingQueuePresentation(
+  status: string
+): OrgStatusPresentation {
+  return (
+    QUEUE_STATUS[status] ??
+    getOrganizationOnboardingPresentation(status)
+  );
+}
 
 export function getOrganizationOnboardingPresentation(
   onboardingStatus: OnboardingStatusEnum | string,

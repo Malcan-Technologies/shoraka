@@ -33,10 +33,10 @@ import {
   type SigningEnvelopeStatus,
   toTitleCase,
 } from "@cashsouk/types";
-import { getSigningEnvelopeBadgeClass } from "@cashsouk/config";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@cashsouk/ui";
+import { getAdminStatusToken } from "@/lib/admin-status-token";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -312,11 +312,14 @@ export function SigningEnvelopePanel({
           ) : null}
         </div>
       ) : null}
-      {showOfferAcceptanceSummary && acceptancePresentation ? (
+      {showOfferAcceptanceSummary && acceptance && acceptancePresentation ? (
         <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-medium text-foreground">Offer acceptance</span>
-            <Badge variant="secondary">{acceptancePresentation.label}</Badge>
+            <StatusBadge
+              label={acceptancePresentation.label}
+              status={getAdminStatusToken(acceptance.status)}
+            />
           </div>
         </div>
       ) : null}
@@ -452,9 +455,10 @@ function ActiveEnvelopeCard({
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="truncate font-medium">{envelope.title}</span>
-          <Badge className={getSigningEnvelopeBadgeClass(envelope.status)}>
-            {toTitleCase(envelope.status.replace(/_/g, " "))}
-          </Badge>
+          <StatusBadge
+            label={toTitleCase(envelope.status.replace(/_/g, " "))}
+            status={getAdminStatusToken(envelope.status)}
+          />
         </div>
         {canVoid ? (
           <Button size="sm" variant="outline" onClick={onVoid} disabled={voidDisabled}>
@@ -506,9 +510,10 @@ function HistoryEnvelopeRow({
               className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
             />
             <span className="min-w-0 flex-1 truncate text-sm font-medium">{envelope.title}</span>
-            <Badge className={cn("shrink-0", getSigningEnvelopeBadgeClass(envelope.status))}>
-              {toTitleCase(envelope.status.replace(/_/g, " "))}
-            </Badge>
+            <StatusBadge
+              label={toTitleCase(envelope.status.replace(/_/g, " "))}
+              status={getAdminStatusToken(envelope.status)}
+            />
             <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
               {progress.signed}/{progress.total_required} signed
               {when ? ` · ${when}` : ""}

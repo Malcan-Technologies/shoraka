@@ -17,7 +17,6 @@ interface UsersTableToolbarProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
   roleFilter: string;
-  onRoleFilterChange: (value: string) => void;
   investorOnboardedFilter: string;
   onInvestorOnboardedFilterChange: (value: string) => void;
   issuerOnboardedFilter: string;
@@ -33,7 +32,6 @@ export function UsersTableToolbar({
   searchQuery,
   onSearchChange,
   roleFilter,
-  onRoleFilterChange,
   investorOnboardedFilter,
   onInvestorOnboardedFilterChange,
   issuerOnboardedFilter,
@@ -53,7 +51,6 @@ export function UsersTableToolbar({
     issuerOnboardedFilter !== "all";
 
   const activeFilterCount = [
-    roleFilter !== "all",
     investorOnboardedFilter !== "all",
     issuerOnboardedFilter !== "all",
   ].filter(Boolean).length;
@@ -93,15 +90,6 @@ export function UsersTableToolbar({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuLabel>Role</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={roleFilter} onValueChange={onRoleFilterChange}>
-            <DropdownMenuRadioItem value="all">All Roles</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="INVESTOR">Investor</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="ISSUER">Issuer</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="ADMIN">Admin</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-
-          <DropdownMenuSeparator />
           <DropdownMenuLabel>Investor Onboarded</DropdownMenuLabel>
           <DropdownMenuRadioGroup
             value={investorOnboardedFilter}

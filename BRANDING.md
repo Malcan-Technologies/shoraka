@@ -87,21 +87,72 @@ Defined in `packages/styles/tailwind.config.ts` under `colors.status`. Consumed 
 
 | Token | bg | text | Meaning (viewer-centric) |
 |---|---|---|---|
-| `status-action` | `#FEFCE8` | `#CA8A04` | Yellow — pending **your** response (offers, amendments, drafts) |
-| `status-submitted` | `#EFF6FF` | `#2563EB` | Blue — pending the **other side** (e.g. issuer waiting on admin) |
-| `status-in-progress` | `#EEF2FF` | `#4F46E5` | Indigo — being worked on (funding open, admin processing) |
-| `status-success` | `#D1FAE5` | `#047857` | Green — good / active positive state |
-| `status-completed` | `#E0F2FE` | `#0369A1` | Sky — finished positive (prefer `neutral` for closed terminal on issuer) |
-| `status-rejected` | `#FEF2F2` | `#DC2626` | Red — bad / failed / declined / expired |
-| `status-neutral` | `#F1F5F9` | `#475569` | Slate/near-black — terminal closed (completed, withdrawn, archived) |
+| `status-action` | `#FEFCE8` | `#854D0E` | Yellow — pending **your** response (offers, amendments) |
+| `status-submitted` | `#EFF6FF` | `#1E40AF` | Blue — pending the **other side** (CashSouk, trustee, counterpart) |
+| `status-in-progress` | `#EEF2FF` | `#3730A3` | Indigo — leftover CSS; **do not** use on issuer/investor workflow chips |
+| `status-success` | `#D1FAE5` | `#065F46` | Green — finished / approved / completed / settled |
+| `status-active` | `#F5F3FF` | `#5B21B6` | Violet — live / in force |
+| `status-completed` | `#E0F2FE` | `#075985` | Sky — leftover CSS; user portals use `success` green for completed |
+| `status-rejected` | `#FEF2F2` | `#991B1B` | Red — bad / failed / declined / expired / arrears |
+| `status-neutral` | `#F1F5F9` | `#334155` | Grey — draft / idle / cancelled / withdrawn |
 
 > **Rule.** Never hand-write `bg-amber-50 text-amber-800` for a status. Always use a status token, so the meaning stays consistent and dark mode keeps working.
 
-Status is **meaning-first, not colour-first**: pick the token by what the state means to the user, not by the colour you had in mind. A new domain status maps onto an existing token; adding an eighth token needs a good reason.
+Status is **meaning-first, not colour-first**: pick the token by what the state means to the user, not by the colour you had in mind. A new domain status maps onto an existing token. `active` (violet) exists so live/in-force does not share green with completed.
+
+Issuer and investor portals keep this **viewer-centric** map (yellow = you must act, blue = waiting on CashSouk). Admin uses the same idea from the operator’s seat — see §3.2.
+
+Application / offer / envelope group tables: [docs/guides/status-badges.md](docs/guides/status-badges.md).
 
 ### 3.1 No hardcoded action colours
 
 Hardcoded hex button variants (`reviewOffer`, `makeAmendments`) are retired. Use a standard button variant (`default` / `action`) placed in a status-toned context — e.g. `bg-status-action-bg` for review-offer and amendments (both need issuer action). The surrounding badge and section carry the meaning; the button does not need raw hex.
+
+### 3.2 Admin portal status badges
+
+Admin is an operations console: **yellow** = CashSouk must act; **blue** = waiting on the issuer, investor, signers, or another party; **violet** = live / in force; **green** = finished. Draft stays grey. Arrears stays red. Do not paint every in-flight status yellow.
+
+Use `StatusBadge` from `@cashsouk/ui`. Map domain strings with `getAdminStatusToken` (`apps/admin/src/lib/admin-status-token.ts`). Do not invent a one-off `Badge` + utility class for a workflow status. List rows whose primary (or action-needed) badge is yellow (`action`) use `adminActionRowClass` — a 45% wash of `status-action-bg`, same as dashboard Quick Actions. Arrears rows use `adminRejectedRowClass` — the same 45% wash of `status-rejected-bg`.
+
+**Chrome (same size everywhere)**
+
+| | Rule |
+|---|---|
+| Shape | `rounded-full` |
+| Type | `text-ui font-normal` (compact steppers: `text-meta px-1.5 py-0`). Do not bold badge labels. Contrast comes from the darker status **text** tokens, not weight. |
+| Padding | `px-2.5 py-0.5` |
+| Workflow status | Colour **dot + label** |
+| Type / identity | Text only, **no dot**. Company = blue (`submitted`), Personal = grey (`neutral`). **Portal:** `PortalBadge` — Investor = earth brown, Issuer = brand red. Account portal access uses `access` (circled check in brand colour / muted X). **User role Admin:** purple (`violet`) chip, same chrome, no portal token |
+
+**Colours**
+
+| Token | Colour | Meaning | Examples |
+|---|---|---|---|
+| `action` | Yellow | Admin must act | Submitted, under review, pending approval, contract/invoice pending, gateway Paid, awaiting disbursement |
+| `submitted` | Blue | Waiting on someone else | Offer sent, waiting for issuer to accept, amendment requested, funding open, submitted to trustee |
+| `active` | Violet | Live / in force | Active · servicing, Active · advance paid, investment Confirmed |
+| `success` | Green | Finished / approved | Completed, approved, settled, repaid, signed, legal Published, prospectus Approved |
+| `neutral` | Grey | Idle / closed without failure | Draft, cancelled, unpublished, refunded, not started |
+| `rejected` | Red | Failed or negative | Rejected, failed, withdrawn, expired, void, defaulted, arrears |
+
+Exceptions: legal **Published** stays green (`legalStatusToken`). Note **Active · late** stays yellow (admin monitoring); **Active · partial** is blue (waiting on remaining payment); **Active · servicing** is violet (`active`). Category chips (currency, Required/Optional, event types) are not workflow status. User portal roles use `UserRoleBadges`: Investor/Issuer via `PortalBadge`; Admin stays purple (identity chip, no status dot).
+
+Issuer `NoteStatusBadge` keeps icons. Admin notes use `marker="dot"`.
+
+### 3.3 Issuer and investor portals
+
+Same six tokens as admin; **yellow/blue flip with the seat**. Map with `badgeKeyToStatusToken`, `getUserPortalStatusToken`, `onboardingStatusToToken`, or domain helpers — not `getAdminStatusToken`.
+
+| Token | Colour | Meaning | Examples |
+|---|---|---|---|
+| `action` | Yellow | You must act | Offer sent, amendment requested, late repayment, onboarding amendment |
+| `submitted` | Blue | Waiting on CashSouk or another party | Submitted, under review, funding open, pending approval, awaiting disbursement |
+| `active` | Violet | Live / in force | Active · servicing, investment Confirmed |
+| `success` | Green | Finished | Completed, approved, settled, signed, Verified, Required |
+| `neutral` | Grey | Idle / closed without failure | Draft, cancelled, withdrawn |
+| `rejected` | Red | Failed or negative | Declined, expired, arrears, funding failed |
+
+Do not use indigo (`in-progress`) or sky (`completed` token) on user-portal workflow chips. Compact steppers: `StatusBadge` `size="sm"` (`text-meta`). Call sites must not pass `text-[Npx]` or `font-semibold` on chips. Primary buttons stay portal-themed (issuer red, investor earth brown).
 
 ---
 
@@ -114,13 +165,15 @@ Headings: `h1` `text-3xl md:text-4xl font-bold tracking-tight` · `h2` `text-2xl
 
 ### 4.1 Three density registers
 
-Portal screens are denser than marketing pages. Pick a register and stay in it — don't invent a size.
+Portal screens are denser than marketing pages. Pick a register and stay in it — don't invent a size. Tokens: `--text-body`, `--text-ui`, `--text-meta` in `packages/styles`. Prefer `typeScale` from `@cashsouk/ui`.
 
-| Register | Size / leading | Where |
-|---|---|---|
-| **Prose** | `text-[17px] leading-7` | page copy, descriptions, help articles, empty states |
-| **Data** | `text-[15px] leading-6` | tables, card fields, list rows, form values |
-| **Meta** | `text-[13px] leading-5` | timestamps, fee breakdowns, hints, badge text |
+| Register | Token | Size | Where |
+|---|---|---|---|
+| **Body** | `text-body` (`text-base`) | 16px / `leading-7` | page copy, descriptions, help, empty states |
+| **UI** | `text-ui` (`text-sm`) | 14px | tables, labels, buttons, card fields, form values, status badges |
+| **Meta** | `text-meta` (`text-xs`) | 12px | timestamps, hints, compact chips |
+
+Title roles: `text-page-title`, `text-section-title`, `text-card-title`, `text-dialog-title`. Do not use `text-[Npx]`.
 
 Numeric columns use `tabular-nums` and right-align. Currency shows the symbol left-aligned and the amount right-aligned within the cell so decimal points line up down the column.
 
@@ -187,6 +240,8 @@ Issuer is brand-forward and friendly (red asserts on CTAs; whisper-red chrome). 
 - **Ghost** — minimal; hover uses `accent`
 - **Destructive** — `bg-destructive`; always paired with confirmation (§2.1). Never restyle destructive to match portal primary.
 
+Sizes are the same in admin, issuer, and investor: default `h-10 px-4` + `text-ui` (primary/action `font-semibold`); sm `h-8 px-3` still `text-ui`; lg and page-toolbar next to `h-11` inputs `h-11`; icon `h-10 w-10`. Radius `rounded-xl`. Do not override labels with `text-xs` / `text-meta` or a one-off `h-9`.
+
 One primary button per view. If two things look equally primary, neither is.
 
 ### Inputs, selects, textareas
@@ -202,7 +257,7 @@ Data register (§4.1); header `text-sm font-semibold`. Zebra `odd:bg-muted/40`, 
 Topbar `h-16`, logo left, actions right. Active state: `text-primary` plus a 2px `bg-primary` bottom bar. Sidebar groups get a labelled separator once there are more than five items.
 
 ### Badges & chips
-Default fill taupe (`bg-secondary text-secondary-foreground`). Status badges use §3 tokens. Reserve bright red for genuinely critical information.
+Default fill taupe (`bg-secondary text-secondary-foreground`). **Workflow status** uses `StatusBadge` and §3 / §3.2 — never `accent`, never raw amber/emerald/red utilities. Reserve bright red for genuinely critical information.
 
 **A badge is not a button.** Don't size a non-interactive count to `h-11` beside real buttons — it invites clicks that do nothing.
 
@@ -252,11 +307,20 @@ Deep nesting is what forces sticky-column width arithmetic and horizontal scroll
 
 ## 9. Examples
 
-**Status badge**
+**Status badge (admin)**
 ```tsx
-<span className="inline-flex items-center rounded-full border border-transparent bg-status-action-bg px-3 py-1 text-[13px] font-semibold text-status-action-text">
-  Action required
-</span>
+import { StatusBadge } from "@cashsouk/ui";
+import { getAdminStatusToken } from "@/lib/admin-status-token";
+
+<StatusBadge label="Under review" status={getAdminStatusToken("UNDER_REVIEW")} />
+```
+
+**Type chip (admin, no dot)**
+```tsx
+<OrganizationTypeBadge type="COMPANY" />
+<PortalBadge portal="investor" />
+<PortalBadge portal="issuer" access />
+<UserRoleBadges roles={user.roles} />
 ```
 
 **Primary CTA**
@@ -285,7 +349,7 @@ Deep nesting is what forces sticky-column width arithmetic and horizontal scroll
 ```tsx
 <div className="theme-investor rounded-2xl border bg-card p-8">
   <h3 className="text-2xl font-semibold">Q4 performance</h3>
-  <p className="mt-2 text-[17px] leading-7 text-muted-foreground">
+  <p className="mt-2 text-body text-muted-foreground">
     Year-to-date returns are above benchmark; see the full report.
   </p>
   <div className="mt-6 flex gap-3">
@@ -304,4 +368,4 @@ Deep nesting is what forces sticky-column width arithmetic and horizontal scroll
 3. Changing a token in `packages/styles` affects four apps. Say so in the PR description.
 4. Do not alter or crop the logo files, and respect their clear space.
 
-**Related:** [docs/issuer-portal-redesign-plan.md](docs/issuer-portal-redesign-plan.md) — issuer portal redesign plan.
+**Related:** [docs/guides/status-badges.md](docs/guides/status-badges.md) — application / offer / envelope colour groups. [docs/issuer-portal-redesign-plan.md](docs/issuer-portal-redesign-plan.md) — issuer portal redesign plan.

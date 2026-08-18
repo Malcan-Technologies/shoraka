@@ -1238,6 +1238,8 @@ export interface ContractListItem {
   title: string | null;
   issuerOrganizationName: string | null;
   contractValue: number;
+  approvedFacility: number;
+  utilizedFacility: number;
   status: string;
   updatedAt: string;
 }
@@ -1272,6 +1274,19 @@ export interface AdminContractNoteSummary {
   sourceInvoiceId: string | null;
 }
 
+/** Contract audit row sourced from `application_audit_logs` (no dedicated contract_logs table). */
+export interface AdminContractActivityEvent {
+  id: string;
+  eventType: string;
+  createdAt: string;
+  actorUserId: string | null;
+  actorName: string | null;
+  portal: string | null;
+  remark: string | null;
+  metadata: Record<string, unknown> | null;
+  applicationId: string | null;
+}
+
 export interface AdminContractDetail {
   id: string;
   displayReference: string | null;
@@ -1292,6 +1307,7 @@ export interface AdminContractDetail {
   customerDetails: Record<string, unknown> | null;
   applications: AdminContractApplicationSummary[];
   notes: AdminContractNoteSummary[];
+  activity: AdminContractActivityEvent[];
 }
 
 export interface ApplicationReviewSection {

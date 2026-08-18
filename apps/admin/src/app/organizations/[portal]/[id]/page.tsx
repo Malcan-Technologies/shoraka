@@ -18,11 +18,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Skeleton, StatusBadge, useHeader } from "@cashsouk/ui";
-import {
-  getOrganizationOnboardingPresentation,
-  getOrganizationTypePresentation,
-} from "@/lib/organization-status";
+import { PortalBadge, Skeleton, StatusBadge } from "@cashsouk/ui";
+import { OrganizationTypeBadge } from "@/components/organization-type-badge";
+import { getOrganizationOnboardingPresentation } from "@/lib/organization-status";
+import { getAdminStatusToken, adminActionRowClass } from "@/lib/admin-status-token";
+import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -35,8 +35,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  kycAmlScreeningRiskLevelBadgeClass,
-  kycAmlScreeningStatusBadgeClass,
+  kycAmlScreeningRiskToken,
+  kycAmlScreeningStatusToken,
 } from "@/lib/kyc-aml-screening-badge-classes";
 import { OrganizationActivityTimeline } from "@/components/organization-activity-timeline";
 import { OrganizationIssuerCtosReportsCard } from "@/components/organization-issuer-ctos-reports-card";
@@ -298,7 +298,7 @@ function FormFieldValue({ field }: { field: FormField }): React.ReactNode {
     if (lowerValue === "yes") return <span className="text-green-600 font-medium">✓ Yes</span>;
     if (lowerValue === "no") return <span className="text-muted-foreground">No</span>;
     return (
-      <Badge variant="secondary" className="text-xs font-medium">
+      <Badge variant="secondary" className="text-xs">
         {fieldValue}
       </Badge>
     );
@@ -445,13 +445,19 @@ function KycResponseDisplay({
           {data.status && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Status:</span>
-              <Badge className={kycAmlScreeningStatusBadgeClass(data.status)}>{toTitleCase(data.status)}</Badge>
+              <StatusBadge
+                label={toTitleCase(data.status)}
+                status={kycAmlScreeningStatusToken(data.status)}
+              />
             </div>
           )}
           {data.riskLevel && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Risk Level:</span>
-              <Badge className={kycAmlScreeningRiskLevelBadgeClass(data.riskLevel)}>{toTitleCase(data.riskLevel)}</Badge>
+              <StatusBadge
+                label={toTitleCase(data.riskLevel)}
+                status={kycAmlScreeningRiskToken(data.riskLevel)}
+              />
             </div>
           )}
           {data.riskScore && (
@@ -624,25 +630,6 @@ function formatAddressDisplay(address?: {
 type LinkedRecordTab = "all" | "applications" | "contracts" | "notes" | "investments";
 type LinkedRecords = NonNullable<OrganizationDetailResponse["linkedRecords"]>;
 
-function statusBadgeClass(status: string) {
-  if (["APPROVED", "COMPLETED", "ACTIVE", "REPAID", "CONFIRMED", "RELEASED"].includes(status)) {
-    return "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300";
-  }
-  if (["SUBMITTED", "RESUBMITTED", "PUBLISHED", "COMMITTED"].includes(status)) {
-    return "border-transparent bg-status-submitted-bg text-status-submitted-text dark:bg-blue-950/40 dark:text-blue-300";
-  }
-  if (["UNDER_REVIEW", "CONTRACT_PENDING", "CONTRACT_ACCEPTED", "INVOICE_PENDING", "FUNDING", "OPEN"].includes(status)) {
-    return "border-transparent bg-status-in-progress-bg text-status-in-progress-text dark:bg-indigo-950/40 dark:text-indigo-300";
-  }
-  if (["DRAFT", "AMENDMENT_REQUESTED", "ARREARS"].includes(status)) {
-    return "border-transparent bg-status-action-bg text-status-action-text dark:bg-amber-950/40 dark:text-amber-300";
-  }
-  if (["REJECTED", "FAILED", "FAILED_FUNDING", "DEFAULTED", "CANCELLED", "WITHDRAWN"].includes(status)) {
-    return "border-transparent bg-status-rejected-bg text-status-rejected-text dark:bg-red-950/40 dark:text-red-300";
-  }
-  return "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300";
-}
-
 function LinkedRecordsTable({
   linkedRecords,
   activeTab,
@@ -778,7 +765,13 @@ function LinkedRecordsTable({
                   </TableRow>
                 ) : (
                   filteredRows.map((row) => (
-                    <TableRow key={`${row.type}-${row.id}`} className="odd:bg-muted/40 hover:bg-muted">
+                    <TableRow
+                      key={`${row.type}-${row.id}`}
+                      className={cn(
+                        "odd:bg-muted/40 hover:bg-muted",
+                        adminActionRowClass(getAdminStatusToken(row.status))
+                      )}
+                    >
                       <TableCell>
                         <Badge variant="outline">{row.typeLabel}</Badge>
                       </TableCell>
@@ -792,9 +785,10 @@ function LinkedRecordsTable({
                         {row.amount == null ? "—" : formatCurrency(row.amount)}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline" className={statusBadgeClass(row.status)}>
-                          {toTitleCase(row.status)}
-                        </Badge>
+                        <StatusBadge
+                          label={toTitleCase(row.status)}
+                          status={getAdminStatusToken(row.status)}
+                        />
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
                         {format(new Date(row.updatedAt), "dd MMM yyyy")}
@@ -844,7 +838,6 @@ function PageSkeleton() {
 }
 
 export default function OrganizationDetailPage() {
-  const { setTitle } = useHeader();
   const { can } = usePermissions();
   const canManage = can("organizations.manage");
   const params = useParams();
@@ -954,11 +947,6 @@ export default function OrganizationDetailPage() {
       : `${org.owner.firstName} ${org.owner.lastName}`;
   }, [org]);
 
-  React.useEffect(() => {
-    setTitle(isLoading ? "Loading..." : displayName);
-    return () => setTitle("");
-  }, [setTitle, isLoading, displayName]);
-
   return (
     <RequirePermission permission="organizations.view">
       <>
@@ -1014,21 +1002,8 @@ export default function OrganizationDetailPage() {
                             ) : null}
                           </div>
                           <div className="mt-1 flex flex-wrap items-center gap-2">
-                            <StatusBadge
-                              label={org.portal.charAt(0).toUpperCase() + org.portal.slice(1)}
-                              status={portal === "investor" ? "completed" : "in-progress"}
-                              className="text-xs"
-                            />
-                            {(() => {
-                              const typePresentation = getOrganizationTypePresentation(org.type);
-                              return (
-                                <StatusBadge
-                                  label={typePresentation.label}
-                                  status={typePresentation.status}
-                                  className="text-xs"
-                                />
-                              );
-                            })()}
+                            <PortalBadge portal={org.portal} />
+                            <OrganizationTypeBadge type={org.type} />
                             {(() => {
                               const onboardingPresentation = getOrganizationOnboardingPresentation(
                                 org.onboardingStatus,
@@ -1038,7 +1013,6 @@ export default function OrganizationDetailPage() {
                                 <StatusBadge
                                   label={onboardingPresentation.label}
                                   status={onboardingPresentation.status}
-                                  className="text-xs"
                                 />
                               );
                             })()}
@@ -1056,9 +1030,9 @@ export default function OrganizationDetailPage() {
                               title={!canManage ? "You do not have permission to perform this action." : undefined}
                             />
                             {org.isSophisticatedInvestor ? (
-                              <StatusBadge label="Yes" status="completed" className="text-xs" />
+                              <StatusBadge label="Yes" status="success" />
                             ) : (
-                              <StatusBadge label="No" status="neutral" className="text-xs" />
+                              <StatusBadge label="No" status="neutral" />
                             )}
                           </div>
                         </div>

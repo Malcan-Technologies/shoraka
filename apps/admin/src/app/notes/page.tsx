@@ -1,13 +1,11 @@
 "use client";
 
-import { useHeader } from "@cashsouk/ui";
-
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import type { GetAdminNotesParams, NoteListItem, NoteStatus } from "@cashsouk/types";
+import { AdminPageHeader } from "@/components/admin-page-header";
 import { NotesTable } from "@/notes/components/notes-table";
 import {
   NOTE_STATUS_FILTER_ACTIVE_LOANS,
@@ -19,12 +17,6 @@ import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
 
 export default function NotesPage() {
-  const { setTitle } = useHeader();
-  React.useEffect(() => {
-    setTitle("Notes");
-    return () => setTitle("");
-  }, [setTitle]);
-
   const { can } = usePermissions();
   const canCreate = can("notes.create");
   const router = useRouter();
@@ -117,19 +109,12 @@ export default function NotesPage() {
     <RequirePermission permission="notes.view">
       <>
             <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="w-full space-y-8 px-2 py-8 md:px-4">
+        <div className="w-full space-y-6 px-2 py-8 md:px-4">
           <section className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <DocumentTextIcon className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold">Notes Registry</h2>
-                <p className="text-sm text-muted-foreground">
-                  Turn approved invoices into notes, publish marketplace listings, and monitor servicing.
-                </p>
-              </div>
-            </div>
+            <AdminPageHeader
+              title="Notes"
+              description="Turn approved invoices into notes, publish marketplace listings, and monitor servicing."
+            />
 
             {error && (
               <div className="rounded-lg border border-destructive/30 p-4 text-sm text-destructive">

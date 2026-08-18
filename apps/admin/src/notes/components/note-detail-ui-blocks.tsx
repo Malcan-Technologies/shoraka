@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDownIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
+import { CheckCircleIcon, ChevronDownIcon, PencilSquareIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { WORKFLOW_SUCCESS_COPY } from "@/notes/utils/workflow-status-tokens";
 
 export function PoolSummaryCard({
   label,
@@ -132,4 +133,37 @@ export function CollapsibleDetailTimeline({
       </CollapsibleContent>
     </Collapsible>
   );
+}
+
+export function WorkflowCompleteHeader({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex items-center gap-1.5", WORKFLOW_SUCCESS_COPY.sectionHeader, className)}>
+      <CheckCircleIcon className="h-4 w-4 shrink-0" aria-hidden />
+      <span>{children}</span>
+    </div>
+  );
+}
+
+/** Renders the complete checkmark title in place of the step title. */
+export function WorkflowStepTitle({
+  complete,
+  completeLabel,
+  children,
+  className,
+}: {
+  complete: boolean;
+  completeLabel: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  if (complete) {
+    return <WorkflowCompleteHeader className={className}>{completeLabel}</WorkflowCompleteHeader>;
+  }
+  return <div className={cn("text-sm font-medium", className)}>{children}</div>;
 }

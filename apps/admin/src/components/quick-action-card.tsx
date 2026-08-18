@@ -21,7 +21,7 @@ export interface QuickActionCardProps {
 
 function CountPill({ count }: { count: number }) {
   return (
-    <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold tabular-nums text-primary-foreground">
+    <span className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-meta font-normal tabular-nums text-primary-foreground">
       {count > 99 ? "99+" : count}
     </span>
   );
@@ -86,21 +86,21 @@ export function QuickActionCard({
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <p className="min-w-0 truncate text-[15px] font-semibold leading-6 text-foreground">
+          <p className="min-w-0 truncate text-ui font-semibold leading-6 text-foreground">
             {title}
           </p>
           {!caughtUp && count !== undefined && count > 0 ? <CountPill count={count} /> : null}
         </div>
         {caughtUp ? (
-          <span className="mt-0.5 inline-flex items-center rounded-md bg-emerald-100 px-1.5 py-0.5 text-[13px] font-medium leading-5 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+          <span className="mt-0.5 inline-flex items-center rounded-md bg-emerald-100 px-1.5 py-0.5 text-ui font-normal leading-5 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
             All caught up
           </span>
         ) : description ? (
-          <p className="mt-0.5 line-clamp-2 text-[13px] leading-5 text-muted-foreground">
+          <p className="mt-0.5 line-clamp-2 text-ui leading-5 text-muted-foreground">
             {description}
           </p>
         ) : (
-          <p className="mt-0.5 text-[13px] leading-5 text-muted-foreground">No open items</p>
+          <p className="mt-0.5 text-ui leading-5 text-muted-foreground">No open items</p>
         )}
       </div>
       <ArrowRightIcon className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />

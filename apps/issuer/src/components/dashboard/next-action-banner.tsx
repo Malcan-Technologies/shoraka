@@ -34,9 +34,9 @@ export function NextActionBanner({
       role="status"
     >
       <div className="min-w-0 space-y-1">
-        <p className="text-[17px] font-semibold leading-7">{title}</p>
+        <p className="text-ui font-semibold leading-7">{title}</p>
         {description ? (
-          <p className="text-[15px] leading-6 text-muted-foreground">{description}</p>
+          <p className="text-ui leading-6 text-muted-foreground">{description}</p>
         ) : null}
       </div>
       <Button asChild className="h-11 shrink-0 gap-2 rounded-xl font-semibold">

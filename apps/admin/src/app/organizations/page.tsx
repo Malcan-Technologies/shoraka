@@ -4,7 +4,7 @@ import * as React from "react";
 import { Suspense } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { Skeleton, Tabs, TabsContent, TabsList, TabsTrigger, useHeader } from "@cashsouk/ui";
+import { Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
 import type {
   GetOrganizationsParams,
   OnboardingStatusEnum,
@@ -13,6 +13,7 @@ import type {
 import { OrganizationsTable } from "../../components/organizations-table";
 import { OrganizationsTableToolbar } from "../../components/organizations-table-toolbar";
 import { RequirePermission } from "../../components/require-permission";
+import { AdminPageHeader } from "../../components/admin-page-header";
 import { useOrganizations } from "../../hooks/use-organizations";
 
 const ORG_TABS = [
@@ -39,12 +40,6 @@ function OrganizationsPageFallback() {
 }
 
 function OrganizationsPageContent() {
-  const { setTitle } = useHeader();
-  React.useEffect(() => {
-    setTitle("Organizations");
-    return () => setTitle("");
-  }, [setTitle]);
-
   const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
@@ -145,6 +140,10 @@ function OrganizationsPageContent() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
       <div className="w-full space-y-6 px-2 py-8 md:px-4">
+        <AdminPageHeader
+          title="Organizations"
+          description="Browse issuer and investor organizations, onboarding status, and membership."
+        />
         <OrganizationsTableToolbar
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}

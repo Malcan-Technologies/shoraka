@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AdminPageHeader } from "@/components/admin-page-header";
 import {
   Card,
   CardContent,
@@ -328,14 +329,10 @@ export function AdminPermissionConfiguration() {
               Back to Roles & Users
             </Link>
           </Button>
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-              Permission Configuration
-            </h1>
-            <p className="text-[15px] leading-7 text-muted-foreground mt-1 max-w-3xl">
-              Review, create, and update the admin role catalog for Shoraka.
-            </p>
-          </div>
+          <AdminPageHeader
+            title="Permission Configuration"
+            description="Review, create, and update the admin role catalog for Shoraka."
+          />
         </div>
         <Card className="min-w-[240px] border-border bg-muted/20 shadow-sm">
           <CardContent className="flex items-center gap-3 p-4">

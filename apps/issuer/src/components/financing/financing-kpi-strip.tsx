@@ -25,7 +25,7 @@ export function FinancingKpiTile({
       )}
     >
       <div className="flex items-center gap-1">
-        <p className="text-[13px] font-normal leading-5 text-muted-foreground">{label}</p>
+        <p className="text-ui font-normal leading-5 text-muted-foreground">{label}</p>
         {labelExtra}
       </div>
       <div className="mt-1 flex min-w-0 items-center gap-2">

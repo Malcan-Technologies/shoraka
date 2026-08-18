@@ -9,9 +9,12 @@ export {
   areAllPostedSettlementTrusteeInstructionsComplete,
   hasSettlementTrusteeMovementFromPoolSummary,
   hasSettlementTrusteeMovementFromSettlement,
+  isNoteSettlementPosted,
   isSettlementSummaryTrusteeInstructionComplete,
   isSettlementWrappingUpFromSettlements,
   isSettlementWrappingUpFromSummary,
+  resolveSettlementTrusteeRegistryState,
+  settlementTrusteeRegistryNeedsAdminAction,
 } from "@cashsouk/types";
 
 export function hasSettlementTrusteeMovement(

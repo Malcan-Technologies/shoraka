@@ -83,11 +83,11 @@ function labelFromEffective(effective: {
   }
 
   if (value === "ACTION_REQUIRED" || value === "ACTION_NEEDED") {
-    return { label: "Action Required", tone: "danger" };
+    return { label: "Action Required", tone: "warning" };
   }
 
   if (source === "ONBOARDING" && value === "REJECTED") {
-    return { label: "Action Required", tone: "danger" };
+    return { label: "Action Required", tone: "warning" };
   }
 
   if (source === "AML" && REJECT_FAIL_DECLINE.has(value)) {
@@ -98,7 +98,7 @@ function labelFromEffective(effective: {
   }
 
   if (PENDING_REVIEW.has(value)) {
-    return { label: "Pending Review", tone: "warning" };
+    return { label: "Pending Review", tone: "info" };
   }
 
   if (IN_PROGRESS.has(value)) {
@@ -124,23 +124,42 @@ export function getFinalStatusLabel(
 }
 
 /**
- * Flat semantic fills for director/shareholder status chips (light + dark).
- * Aligns with portal badge usage: success / warning / info / danger / neutral / expired.
+ * Viewer-centric StatusBadge tokens for KYC/AML chips.
+ * warning = you must act (yellow) · info = waiting (blue) · expired = failed (red).
  */
-export function getFinalStatusBadgeClassName(tone: DirectorShareholderFinalStatusTone): string {
+export function getFinalStatusToken(
+  tone: DirectorShareholderFinalStatusTone
+): "action" | "submitted" | "success" | "rejected" | "neutral" {
   switch (tone) {
     case "success":
-      return "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-200";
+      return "success";
     case "warning":
-      return "bg-amber-100 text-amber-900 dark:bg-amber-950/35 dark:text-amber-200";
+      return "action";
     case "info":
-      return "bg-blue-100 text-blue-900 dark:bg-blue-950/40 dark:text-blue-200";
+      return "submitted";
     case "danger":
-      return "bg-red-100 text-red-900 dark:bg-red-950/40 dark:text-red-200";
     case "expired":
-      return "bg-purple-100 text-purple-900 dark:bg-purple-950/40 dark:text-purple-200";
-    case "neutral":
+      return "rejected";
     default:
-      return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200";
+      return "neutral";
+  }
+}
+
+/**
+ * Flat semantic fills for director/shareholder status chips.
+ * Prefer StatusBadge + getFinalStatusToken; this remains for className call sites.
+ */
+export function getFinalStatusBadgeClassName(tone: DirectorShareholderFinalStatusTone): string {
+  switch (getFinalStatusToken(tone)) {
+    case "success":
+      return "border-transparent bg-status-success-bg text-status-success-text";
+    case "action":
+      return "border-transparent bg-status-action-bg text-status-action-text";
+    case "submitted":
+      return "border-transparent bg-status-submitted-bg text-status-submitted-text";
+    case "rejected":
+      return "border-transparent bg-status-rejected-bg text-status-rejected-text";
+    default:
+      return "border-transparent bg-status-neutral-bg text-status-neutral-text";
   }
 }

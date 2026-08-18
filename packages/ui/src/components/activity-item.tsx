@@ -18,8 +18,8 @@ export function ActivityItem({ activity, className, ...props }: ActivityItemProp
       {...props}
     >
       <div className="flex flex-col gap-1 flex-1">
-        <span className="font-semibold text-[15px]">{activity.title}</span>
-        <span className="max-w-[70ch] text-sm leading-6 text-muted-foreground">
+        <span className="font-semibold text-ui">{activity.title}</span>
+        <span className="max-w-[70ch] text-ui leading-6 text-muted-foreground">
           {activity.description}
         </span>
       </div>
@@ -29,7 +29,7 @@ export function ActivityItem({ activity, className, ...props }: ActivityItemProp
           <ActivityBadge domain={activity.domain} />
         </div>
 
-        <div className="text-sm text-muted-foreground whitespace-nowrap text-right">
+        <div className="text-ui text-muted-foreground whitespace-nowrap text-right">
           {format(new Date(activity.created_at), "dd-MM-yyyy hh:mm aa")}
         </div>
       </div>

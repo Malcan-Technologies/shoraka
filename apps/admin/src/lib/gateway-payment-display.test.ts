@@ -1,4 +1,4 @@
-import { PURPOSE_LABEL, STATUS_LABEL, statusVariant } from "./gateway-payment-display";
+import { PURPOSE_LABEL, STATUS_LABEL, statusToken, statusVariant } from "./gateway-payment-display";
 
 describe("gateway-payment-display", () => {
   it("uses detail-aligned status labels", () => {
@@ -13,6 +13,18 @@ describe("gateway-payment-display", () => {
     expect(STATUS_LABEL.EXPIRED).toBe("Expired");
   });
 
+  it("maps status tokens for StatusBadge", () => {
+    expect(statusToken("COMPLETED")).toBe("success");
+    expect(statusToken("CREATED")).toBe("submitted");
+    expect(statusToken("PAID")).toBe("action");
+    expect(statusToken("NAME_CHECK_PENDING")).toBe("action");
+    expect(statusToken("REFUND_INITIATED")).toBe("submitted");
+    expect(statusToken("HELD")).toBe("rejected");
+    expect(statusToken("FAILED")).toBe("rejected");
+    expect(statusToken("REFUNDED")).toBe("neutral");
+    expect(statusToken("EXPIRED")).toBe("rejected");
+  });
+
   it("maps status badge variants for list and detail", () => {
     expect(statusVariant("COMPLETED")).toBe("success");
     expect(statusVariant("CREATED")).toBe("info");
@@ -22,7 +34,7 @@ describe("gateway-payment-display", () => {
     expect(statusVariant("HELD")).toBe("destructive");
     expect(statusVariant("FAILED")).toBe("destructive");
     expect(statusVariant("REFUNDED")).toBe("muted");
-    expect(statusVariant("EXPIRED")).toBe("muted");
+    expect(statusVariant("EXPIRED")).toBe("destructive");
   });
 
   it("keeps purpose labels stable", () => {

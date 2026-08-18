@@ -238,7 +238,7 @@ export default function InvoiceDetailPage() {
           <span className="flex flex-wrap items-center gap-2">
             <IssuerFinancingStatusBadge kind={badgeKind} />
             {contractId ? (
-              <StatusBadge label="Under contract" status="completed" />
+              <StatusBadge label="Under contract" status="submitted" />
             ) : (
               <StatusBadge label="Standalone" status="neutral" />
             )}
@@ -389,7 +389,7 @@ export default function InvoiceDetailPage() {
               <FundingStatusLine text={fundingLabel} />
             </div>
           ) : (
-            <p className="text-[17px] leading-7 text-muted-foreground">
+            <p className="text-body leading-7 text-muted-foreground">
               No note has been raised for this invoice yet.
             </p>
           )}
@@ -403,7 +403,7 @@ export default function InvoiceDetailPage() {
           </CardHeader>
           <CardContent>
             {hideFeesBeforeAcceptance ? (
-              <p className="text-[17px] leading-7 text-muted-foreground">
+              <p className="text-body leading-7 text-muted-foreground">
                 Fee amounts are shown after you accept the offer.
               </p>
             ) : (
@@ -460,7 +460,7 @@ export default function InvoiceDetailPage() {
               {document.file_name || "Download invoice document"}
             </Button>
           ) : (
-            <p className="text-[17px] leading-7 text-muted-foreground">
+            <p className="text-body leading-7 text-muted-foreground">
               No invoice document on file.
             </p>
           )}

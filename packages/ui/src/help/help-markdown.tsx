@@ -85,7 +85,7 @@ export function HelpMarkdown({ content, className }: HelpMarkdownProps) {
             <div
               role="paragraph"
               className={cn(
-                "text-[17px] leading-7 text-foreground/95 [&:not(:first-child)]:mt-4",
+                "text-body text-foreground/95 [&:not(:first-child)]:mt-4",
                 paragraphClassName
               )}
               {...props}
@@ -97,7 +97,7 @@ export function HelpMarkdown({ content, className }: HelpMarkdownProps) {
           ul: ({ className: listClassName, ...props }) => (
             <ul
               className={cn(
-                "my-4 ml-6 list-disc space-y-2 text-[17px] leading-7 text-foreground/95",
+                "my-4 ml-6 list-disc space-y-2 text-body text-foreground/95",
                 listClassName
               )}
               {...props}
@@ -106,7 +106,7 @@ export function HelpMarkdown({ content, className }: HelpMarkdownProps) {
           ol: ({ className: listClassName, ...props }) => (
             <ol
               className={cn(
-                "my-4 ml-6 list-decimal space-y-2 text-[17px] leading-7 text-foreground/95",
+                "my-4 ml-6 list-decimal space-y-2 text-body text-foreground/95",
                 listClassName
               )}
               {...props}
@@ -118,7 +118,7 @@ export function HelpMarkdown({ content, className }: HelpMarkdownProps) {
           blockquote: ({ className: quoteClassName, ...props }) => (
             <blockquote
               className={cn(
-                "my-6 rounded-lg border border-border bg-muted/60 px-5 py-4 text-[17px] leading-7 text-muted-foreground",
+                "my-6 rounded-lg border border-border bg-muted/60 px-5 py-4 text-body text-muted-foreground",
                 quoteClassName
               )}
               {...props}

@@ -31,6 +31,7 @@ const ATTENTION_SURFACE: Record<StatusToken, string> = {
   "in-progress":
     "border-status-in-progress-text/15 bg-[hsl(var(--status-in-progress-bg)/0.45)]",
   success: "border-status-success-text/15 bg-[hsl(var(--status-success-bg)/0.45)]",
+  active: "border-status-active-text/15 bg-[hsl(var(--status-active-bg)/0.45)]",
   completed: "border-status-completed-text/15 bg-[hsl(var(--status-completed-bg)/0.45)]",
   rejected: "border-status-rejected-text/15 bg-[hsl(var(--status-rejected-bg)/0.45)]",
   neutral: "border-status-neutral-text/15 bg-[hsl(var(--status-neutral-bg)/0.45)]",
@@ -155,12 +156,12 @@ export function ApplicationSlimCard({
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge label={statusLabel} status={statusToken} />
-            <span className="text-[15px] font-semibold text-foreground">
+            <span className="text-ui font-semibold text-foreground">
               {displayId}
               {application.type !== "Generic" ? ` · ${application.type}` : ""}
             </span>
           </div>
-          <p className="text-[15px] leading-6 text-foreground">
+          <p className="text-ui leading-6 text-foreground">
             {application.customer}
             {" · "}
             {headlineAmount(application)}
@@ -168,7 +169,7 @@ export function ApplicationSlimCard({
               ? ` · submitted ${format(new Date(application.submittedAt), "d MMM yyyy")}`
               : ""}
           </p>
-          <p className="text-[13px] leading-5 text-muted-foreground">{subStatus}</p>
+          <p className="text-ui leading-5 text-muted-foreground">{subStatus}</p>
         </div>
 
         <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
@@ -178,7 +179,7 @@ export function ApplicationSlimCard({
               <Button
                 variant="outline"
                 size="icon"
-                className="h-9 w-9 rounded-xl"
+                className="h-8 w-8"
                 aria-label="More actions"
               >
                 <EllipsisVerticalIcon className="h-4 w-4" />

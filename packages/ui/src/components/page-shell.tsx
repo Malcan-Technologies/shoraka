@@ -33,11 +33,11 @@ export function PageShell({
       <header className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-1.5">
           {breadcrumb ? (
-            <div className="text-sm text-muted-foreground">{breadcrumb}</div>
+            <div className="text-ui text-muted-foreground">{breadcrumb}</div>
           ) : null}
-          <h1 className="text-3xl font-bold tracking-tight md:text-4xl">{title}</h1>
+          <h1 className="text-page-title">{title}</h1>
           {description ? (
-            <div className="max-w-[70ch] text-[17px] leading-7 text-muted-foreground">
+            <div className="max-w-[70ch] text-body text-muted-foreground">
               {description}
             </div>
           ) : null}

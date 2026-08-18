@@ -1,6 +1,6 @@
 "use client";
 
-import { useHeader } from "@cashsouk/ui";
+import { StatusBadge } from "@cashsouk/ui";
 
 import * as React from "react";
 import { format } from "date-fns";
@@ -14,7 +14,7 @@ import {
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
-import { Badge } from "@/components/ui/badge";
+import { getAdminStatusToken } from "@/lib/admin-status-token";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -64,12 +64,6 @@ function DetailSkeleton() {
 }
 
 export default function InvestorWithdrawalDetailPage() {
-  const { setTitle } = useHeader();
-  React.useEffect(() => {
-    setTitle("Investor Withdrawal");
-    return () => setTitle("");
-  }, [setTitle]);
-
   const params = useParams<{ id: string }>();
   const id = typeof params?.id === "string" ? params.id : null;
   const { can } = usePermissions();
@@ -156,9 +150,11 @@ export default function InvestorWithdrawalDetailPage() {
                         <p className="text-sm text-muted-foreground">Reference</p>
                         <p className="break-all text-base font-medium text-foreground">{withdrawalReference}</p>
                       </div>
-                      <Badge variant="secondary" className="ml-auto">
-                        {STATUS_LABEL[withdrawal.status] ?? withdrawal.status}
-                      </Badge>
+                      <StatusBadge
+                        label={STATUS_LABEL[withdrawal.status] ?? withdrawal.status}
+                        status={getAdminStatusToken(withdrawal.status)}
+                        className="ml-auto"
+                      />
                     </div>
                     <div className="mt-6 grid gap-4 md:grid-cols-3">
                       <div>
@@ -190,7 +186,10 @@ export default function InvestorWithdrawalDetailPage() {
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Status</p>
-                          <p>{STATUS_LABEL[withdrawal.status] ?? withdrawal.status}</p>
+                          <StatusBadge
+                            label={STATUS_LABEL[withdrawal.status] ?? withdrawal.status}
+                            status={getAdminStatusToken(withdrawal.status)}
+                          />
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Amount</p>

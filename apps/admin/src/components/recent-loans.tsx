@@ -3,10 +3,11 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  Badge,
   Skeleton,
+  StatusBadge,
 } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
+import { getAdminStatusToken } from "@/lib/admin-status-token";
 
 interface Loan {
   id: string;
@@ -23,13 +24,6 @@ const mockLoans: Loan[] = [
   { id: "L004", borrower: "Alice Brown", amount: 7200, status: "pending", date: "2024-01-12" },
   { id: "L005", borrower: "Charlie Davis", amount: 4800, status: "active", date: "2024-01-11" },
 ];
-
-const statusColors = {
-  pending: "secondary",
-  approved: "default",
-  funded: "default",
-  active: "default",
-} as const;
 
 interface RecentLoansProps {
   loading?: boolean;
@@ -72,9 +66,10 @@ export function RecentLoans({ loading }: RecentLoansProps) {
                   <p className="text-sm font-semibold text-foreground">
                     {formatCurrency(loan.amount, { decimals: 0 })}
                   </p>
-                  <Badge variant={statusColors[loan.status]} className="capitalize">
-                    {loan.status}
-                  </Badge>
+                  <StatusBadge
+                    label={loan.status.charAt(0).toUpperCase() + loan.status.slice(1)}
+                    status={getAdminStatusToken(loan.status)}
+                  />
                 </div>
               </div>
             ))

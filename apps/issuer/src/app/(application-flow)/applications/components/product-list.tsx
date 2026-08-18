@@ -357,20 +357,20 @@ export function ProductList({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by name, description, or category"
-              className="pl-9 pr-3 text-[15px] leading-6"
+              className="pl-9 pr-3 text-ui leading-6"
               aria-label="Search financing products"
               disabled={disabled}
             />
           </div>
           {categories.length > 1 ? (
             <div className="flex flex-wrap items-center justify-end gap-1">
-              <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={expandAll}>
+              <Button type="button" variant="ghost" size="sm" onClick={expandAll}>
                 Expand all
               </Button>
               <span className="text-muted-foreground text-xs" aria-hidden>
                 ·
               </span>
-              <Button type="button" variant="ghost" size="sm" className="h-8 text-xs" onClick={collapseAll}>
+              <Button type="button" variant="ghost" size="sm" onClick={collapseAll}>
                 Collapse all
               </Button>
             </div>
@@ -381,7 +381,7 @@ export function ProductList({
       {noSearchMatches ? (
         <div className="rounded-lg border border-border bg-muted/30 px-4 py-10 text-center">
           <p className="font-medium text-foreground">No products match your search</p>
-          <p className="mt-1 text-[15px] leading-7 text-muted-foreground">Try a different keyword.</p>
+          <p className="mt-1 text-ui leading-7 text-muted-foreground">Try a different keyword.</p>
           <Button
             type="button"
             variant="link"
@@ -456,7 +456,7 @@ export function ProductList({
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full rounded-md border-dashed shadow-sm"
+                    className="w-full rounded-xl border-dashed shadow-sm"
                     onClick={() =>
                       setShowAllInCategory((prev) => ({
                         ...prev,

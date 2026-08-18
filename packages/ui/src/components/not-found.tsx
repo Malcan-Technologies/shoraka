@@ -33,7 +33,7 @@ export function NotFound({
           <h2 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">{title}</h2>
         </div>
 
-        <p className="text-[17px] leading-7 text-muted-foreground">{description}</p>
+        <p className="text-body text-muted-foreground">{description}</p>
 
         {showHomeButton && (
           <div className="pt-4">

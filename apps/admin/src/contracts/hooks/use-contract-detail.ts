@@ -18,7 +18,10 @@ export function useContractDetail(contractId?: string) {
       if (!response.success) {
         throw new Error(response.error.message);
       }
-      return response.data;
+      return {
+        ...response.data,
+        activity: response.data.activity ?? [],
+      };
     },
     enabled: Boolean(contractId),
     staleTime: 0,

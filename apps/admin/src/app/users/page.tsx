@@ -1,6 +1,6 @@
 "use client";
 
-import { useHeader } from "@cashsouk/ui";
+import { Tabs, TabsList, TabsTrigger } from "@cashsouk/ui";
 
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -8,20 +8,26 @@ import { UsersTable } from "../../components/users-table";
 import { UsersTableToolbar } from "../../components/users-table-toolbar";
 import { useUsers } from "../../hooks/use-users";
 import { RequirePermission } from "../../components/require-permission";
+import { AdminPageHeader } from "../../components/admin-page-header";
 import type { GetUsersParams, UserRole } from "@cashsouk/types";
 
-// Mock users removed - using API data
+const ROLE_TABS = [
+  { id: "all", label: "All" },
+  { id: "ISSUER", label: "Issuer" },
+  { id: "INVESTOR", label: "Investor" },
+  { id: "ADMIN", label: "Admin" },
+] as const;
+
+type RoleTabId = (typeof ROLE_TABS)[number]["id"];
+
+function isRoleTabId(value: string): value is RoleTabId {
+  return ROLE_TABS.some((tab) => tab.id === value);
+}
 
 export default function UsersPage() {
-  const { setTitle } = useHeader();
-  React.useEffect(() => {
-    setTitle("Users");
-    return () => setTitle("");
-  }, [setTitle]);
-
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [roleFilter, setRoleFilter] = React.useState("all");
+  const [roleFilter, setRoleFilter] = React.useState<RoleTabId>("all");
   const [investorOnboardedFilter, setInvestorOnboardedFilter] = React.useState("all");
   const [issuerOnboardedFilter, setIssuerOnboardedFilter] = React.useState("all");
   const [currentPage, setCurrentPage] = React.useState(1);
@@ -83,12 +89,15 @@ export default function UsersPage() {
     <RequirePermission permission="users.view">
       <>
             <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="w-full px-2 md:px-4 py-8 space-y-6">
+        <div className="w-full space-y-6 px-2 py-8 md:px-4">
+          <AdminPageHeader
+            title="Users"
+            description="Search and manage platform users across investor, issuer, and admin roles."
+          />
           <UsersTableToolbar
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
             roleFilter={roleFilter}
-            onRoleFilterChange={setRoleFilter}
             investorOnboardedFilter={investorOnboardedFilter}
             onInvestorOnboardedFilterChange={setInvestorOnboardedFilter}
             issuerOnboardedFilter={issuerOnboardedFilter}
@@ -105,6 +114,21 @@ export default function UsersPage() {
               Error loading users: {error instanceof Error ? error.message : "Unknown error"}
             </div>
           )}
+
+          <Tabs
+            value={roleFilter}
+            onValueChange={(value) => {
+              if (isRoleTabId(value)) setRoleFilter(value);
+            }}
+          >
+            <TabsList className="flex h-auto w-fit max-w-full flex-wrap justify-start">
+              {ROLE_TABS.map((tab) => (
+                <TabsTrigger key={tab.id} value={tab.id}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
 
           <UsersTable
             users={users

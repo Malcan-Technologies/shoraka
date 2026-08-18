@@ -1,19 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-
-import { useHeader } from "@cashsouk/ui";
-
 import { ProductsList } from "./components/products-list";
 import { RequirePermission } from "../../../components/require-permission";
 
 export default function SettingsProductsPage() {
-  const { setTitle } = useHeader();
-  useEffect(() => {
-    setTitle("Products");
-    return () => setTitle("");
-  }, [setTitle]);
-
   return (
     <RequirePermission permission="products.view">
       <>

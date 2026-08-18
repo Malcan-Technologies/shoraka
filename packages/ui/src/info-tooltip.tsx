@@ -26,7 +26,7 @@ export function InfoTooltip({ content, className, iconClassName }: InfoTooltipPr
             className
           )}
         >
-          {typeof content === "string" ? <p className="text-sm">{content}</p> : content}
+          {typeof content === "string" ? <p className="text-ui">{content}</p> : content}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

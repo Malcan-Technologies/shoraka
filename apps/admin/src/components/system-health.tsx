@@ -2,10 +2,8 @@
 
 import * as React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cashsouk/ui/card";
-import { Badge, Skeleton } from "@cashsouk/ui";
+import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import {
-  CheckCircleIcon,
-  XCircleIcon,
   ClockIcon,
   ServerIcon,
   CircleStackIcon,
@@ -69,20 +67,10 @@ export function SystemHealth() {
     }
 
     if (status === "ok" || status === "connected") {
-      return (
-        <Badge variant="default" className="bg-green-500 hover:bg-green-600">
-          <CheckCircleIcon className="mr-1 h-3.5 w-3.5" />
-          Healthy
-        </Badge>
-      );
+      return <StatusBadge label="Healthy" status="success" />;
     }
 
-    return (
-      <Badge variant="destructive">
-        <XCircleIcon className="mr-1 h-3.5 w-3.5" />
-        Error
-      </Badge>
-    );
+    return <StatusBadge label="Error" status="rejected" />;
   };
 
   const formatTimestamp = (date: Date | null) => {

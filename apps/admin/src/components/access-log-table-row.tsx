@@ -2,6 +2,7 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EyeIcon } from "@heroicons/react/24/outline";
+import { PortalBadge } from "@cashsouk/ui";
 import { formatAuditDateTime } from "@/lib/audit-datetime";
 import { formatAuditEventLabel } from "@/lib/audit-tabs";
 
@@ -33,6 +34,14 @@ function eventLabel(log: AuditTableLog) {
   return formatAuditEventLabel(log.eventType, log.metadata);
 }
 
+function portalBadge(portal: string | null | undefined) {
+  const key = String(portal ?? "").toLowerCase();
+  if (key === "investor" || key === "issuer") {
+    return <PortalBadge portal={key} />;
+  }
+  return null;
+}
+
 export function AccessLogTableRow({
   log,
   onViewDetails,
@@ -40,6 +49,7 @@ export function AccessLogTableRow({
   log: AuditTableLog;
   onViewDetails: () => void;
 }) {
+  const portal = portalBadge(log.portal);
   return (
     <TableRow className="hover:bg-muted/50">
       <TableCell className="text-sm text-muted-foreground">
@@ -56,9 +66,12 @@ export function AccessLogTableRow({
         </div>
       </TableCell>
       <TableCell>
-        <Badge variant="outline" className="text-xs" title={eventLabel(log)}>
-          {eventLabel(log)}
-        </Badge>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge variant="outline" className="text-xs" title={eventLabel(log)}>
+            {eventLabel(log)}
+          </Badge>
+          {portal}
+        </div>
       </TableCell>
       <TableCell className="font-mono text-sm text-muted-foreground">{log.ipAddress || "—"}</TableCell>
       <TableCell className="text-sm text-muted-foreground">{log.deviceInfo || "—"}</TableCell>

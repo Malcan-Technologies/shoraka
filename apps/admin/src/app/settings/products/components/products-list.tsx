@@ -42,6 +42,7 @@ import { productName } from "../product-utils";
 import { ProductFormDialog } from "../workflow-builder/product-form-dialog";
 import { usePermissions } from "../../../../hooks/use-permissions";
 import { AdminQueryErrorState } from "../../../../components/admin-query-error-state";
+import { AdminPageHeader } from "../../../../components/admin-page-header";
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("en-MY", {
@@ -107,26 +108,23 @@ export function ProductsList() {
 
   return (
     <>
-      {/* Title row: heading left, Create product right */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Products</h1>
-          <p className="text-sm text-muted-foreground leading-6 mt-1">
-            View and manage product definitions and workflows.
-          </p>
-        </div>
-        <Button
-          variant="default"
-          onClick={openCreateProduct}
-          className="gap-2 h-11 rounded-xl shrink-0"
-          aria-label="Create product"
-          disabled={!canManage}
-          title={!canManage ? "You do not have permission to perform this action." : undefined}
-        >
-          <PlusIcon className="h-4 w-4" />
-          Create product
-        </Button>
-      </div>
+      <AdminPageHeader
+        title="Products"
+        description="View and manage product definitions and workflows."
+        action={
+          <Button
+            variant="default"
+            onClick={openCreateProduct}
+            className="gap-2 h-11 rounded-xl shrink-0"
+            aria-label="Create product"
+            disabled={!canManage}
+            title={!canManage ? "You do not have permission to perform this action." : undefined}
+          >
+            <PlusIcon className="h-4 w-4" />
+            Create product
+          </Button>
+        }
+      />
 
       {/* Toolbar – search, clear, reload, count */}
       <div className="flex flex-wrap items-center gap-3">

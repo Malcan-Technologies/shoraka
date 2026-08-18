@@ -3,131 +3,22 @@
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  EyeIcon,
-  ClockIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  ExclamationTriangleIcon,
-  UserIcon,
-  BuildingOffice2Icon,
-} from "@heroicons/react/24/outline";
+import { PortalBadge, StatusBadge } from "@cashsouk/ui";
+import { EyeIcon } from "@heroicons/react/24/outline";
 import { OnboardingReviewDialog } from "./onboarding-review-dialog";
-import { toTitleCase, type OnboardingApplicationResponse, type OnboardingApprovalStatus } from "@cashsouk/types";
+import type { OnboardingApplicationResponse, OnboardingApprovalStatus } from "@cashsouk/types";
 import { usePermissions } from "@/hooks/use-permissions";
+import { OrganizationTypeBadge } from "@/components/organization-type-badge";
+import { getOnboardingQueuePresentation } from "@/lib/organization-status";
+import { adminActionRowClass } from "@/lib/admin-status-token";
 
 interface OnboardingQueueRowProps {
   application: OnboardingApplicationResponse;
 }
 
-function getStatusBadge(status: OnboardingApprovalStatus) {
-  switch (status) {
-    case "PENDING_ONBOARDING":
-      return (
-        <Badge variant="outline" className="border-slate-500/30 text-foreground bg-slate-500/10">
-          <ClockIcon className="h-3 w-3 mr-1 text-slate-600" />
-          In Progress
-        </Badge>
-      );
-    case "PENDING_APPROVAL":
-      return (
-        <Badge variant="outline" className="border-yellow-500/30 text-foreground bg-yellow-500/10">
-          <ExclamationTriangleIcon className="h-3 w-3 mr-1 text-yellow-600" />
-          Pending Approval
-        </Badge>
-      );
-    case "PENDING_AML":
-      return (
-        <Badge variant="outline" className="border-orange-500/30 text-foreground bg-orange-500/10">
-          <ExclamationTriangleIcon className="h-3 w-3 mr-1 text-orange-600" />
-          Pending AML
-        </Badge>
-      );
-    case "PENDING_SSM_REVIEW":
-      return (
-        <Badge variant="outline" className="border-amber-600/30 text-foreground bg-amber-600/10">
-          <ExclamationTriangleIcon className="h-3 w-3 mr-1 text-amber-600" />
-          Pending SSM
-        </Badge>
-      );
-    case "PENDING_AMENDMENT":
-      return (
-        <Badge variant="outline" className="border-amber-500/30 text-foreground bg-amber-500/10">
-          <ExclamationTriangleIcon className="h-3 w-3 mr-1 text-amber-600" />
-          Amendment in Progress
-        </Badge>
-      );
-    case "PENDING_FINAL_APPROVAL":
-      return (
-        <Badge variant="outline" className="border-purple-500/30 text-foreground bg-purple-500/10">
-          <ExclamationTriangleIcon className="h-3 w-3 mr-1 text-purple-600" />
-          Pending Final Approval
-        </Badge>
-      );
-    case "COMPLETED":
-      return (
-        <Badge
-          variant="outline"
-          className="border-emerald-600/30 text-foreground bg-emerald-600/10"
-        >
-          <CheckCircleIcon className="h-3 w-3 mr-1 text-emerald-600" />
-          Completed
-        </Badge>
-      );
-    case "REJECTED":
-      return (
-        <Badge variant="outline" className="border-red-500/30 text-foreground bg-red-500/10">
-          <XCircleIcon className="h-3 w-3 mr-1 text-red-600" />
-          Rejected
-        </Badge>
-      );
-    case "EXPIRED":
-      return (
-        <Badge variant="outline" className="border-slate-400/30 text-foreground bg-slate-400/10">
-          <ClockIcon className="h-3 w-3 mr-1 text-slate-500" />
-          Expired
-        </Badge>
-      );
-    case "CANCELLED":
-      return (
-        <Badge variant="outline" className="border-slate-400/30 text-foreground bg-slate-400/10">
-          <XCircleIcon className="h-3 w-3 mr-1 text-slate-500" />
-          Cancelled
-        </Badge>
-      );
-    default:
-      return <Badge variant="secondary">{toTitleCase(String(status))}</Badge>;
-  }
-}
-
-function getTypeBadge(type: "PERSONAL" | "COMPANY") {
-  if (type === "PERSONAL") {
-    return (
-      <Badge variant="outline" className="border-slate-500/30 text-foreground bg-slate-500/10">
-        <UserIcon className="h-3 w-3 mr-1 text-slate-600" />
-        Personal
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="outline" className="border-blue-500/30 text-foreground bg-blue-500/10">
-      <BuildingOffice2Icon className="h-3 w-3 mr-1 text-blue-600" />
-      Company
-    </Badge>
-  );
-}
-
 function getPortalBadge(portal: "investor" | "issuer") {
-  if (portal === "investor") {
-    return <Badge variant="secondary">Investor</Badge>;
-  }
-  return (
-    <Badge variant="secondary" className="bg-muted">
-      Issuer
-    </Badge>
-  );
+  return <PortalBadge portal={portal} />;
 }
 
 function queueRowDisplayStatus(app: OnboardingApplicationResponse): OnboardingApprovalStatus {
@@ -171,6 +62,7 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
   };
 
   const displayStatus = queueRowDisplayStatus(application);
+  const presentation = getOnboardingQueuePresentation(displayStatus);
 
   const needsAction =
     application.onboardingStatus === "PENDING_APPROVAL" ||
@@ -181,7 +73,7 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
 
   return (
     <>
-      <TableRow className={needsAction ? "bg-muted/30" : undefined}>
+      <TableRow className={adminActionRowClass(presentation.status)}>
         <TableCell className="min-w-[180px] max-w-[280px]">
           <div className="space-y-0.5 min-w-0">
             {application.type === "COMPANY" ? (
@@ -222,7 +114,9 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
             )}
           </div>
         </TableCell>
-        <TableCell>{getTypeBadge(application.type)}</TableCell>
+        <TableCell>
+          <OrganizationTypeBadge type={application.type} />
+        </TableCell>
         <TableCell>{getPortalBadge(application.portal)}</TableCell>
         <TableCell>
           {application.submittedAt ? (
@@ -242,7 +136,9 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
             <span className="text-sm text-muted-foreground/50">—</span>
           )}
         </TableCell>
-        <TableCell>{getStatusBadge(displayStatus)}</TableCell>
+        <TableCell>
+          <StatusBadge label={presentation.label} status={presentation.status} />
+        </TableCell>
         <TableCell>
           {application.status !== "CANCELLED" && (
             <Button

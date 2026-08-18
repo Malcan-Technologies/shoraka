@@ -28,8 +28,9 @@ import { Badge } from "../../components/ui/badge";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Skeleton, portalContentMaxWidthClassName, useHeader } from "@cashsouk/ui";
+import { Skeleton, portalContentMaxWidthClassName } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
+import { AdminPageHeader } from "@/components/admin-page-header";
 import { CURRENT_USER_QUERY_KEY } from "../../hooks/use-current-user";
 import { getAdminRoleDisplayInfo } from "../../components/admin-role-metadata";
 import {
@@ -191,12 +192,6 @@ function AccountPageSkeleton() {
 }
 
 export default function AccountPage() {
-  const { setTitle } = useHeader();
-  React.useEffect(() => {
-    setTitle("Account");
-    return () => setTitle("");
-  }, [setTitle]);
-
   const queryClient = useQueryClient();
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
@@ -307,6 +302,10 @@ export default function AccountPage() {
     <>
             <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className={cn(portalContentMaxWidthClassName, "space-y-6 px-2 py-8 md:px-4")}>
+          <AdminPageHeader
+            title="Account"
+            description="Your login details, role, and security settings."
+          />
           {/* Account Info Card */}
           <Card>
             <CardHeader>

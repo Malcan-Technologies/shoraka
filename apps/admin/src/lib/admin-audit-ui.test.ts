@@ -14,7 +14,8 @@ describe("admin audit UI restructure", () => {
 
   it("renders the six audit panels from the shared tab config", () => {
     expect(auditPage).toContain('from "@/lib/audit-tabs"');
-    expect(auditPage).toContain("setTitle(\"Audit Logs\")");
+    expect(auditPage).toContain("AdminPageHeader");
+    expect(auditPage).toContain('title="Audit Logs"');
     expect(auditPage).toContain("<AccessLogsPanel />");
     expect(auditPage).toContain("<SecurityLogsPanel />");
     expect(auditPage).toContain("<OnboardingLogsPanel />");
@@ -124,7 +125,7 @@ describe("admin audit UI restructure", () => {
     expect(notePage).toContain("ContextualAuditHistoryPanel");
     expect(notePage).toContain("useNoteAuditHistory");
     expect(notePage).toContain("noteAuditToDetail");
-    expect(read("notes/components/note-timeline-panel.tsx")).toContain("Activity Timeline");
+    expect(read("notes/components/note-timeline-panel.tsx")).toContain("<CardTitle>Activity</CardTitle>");
 
     const trusteePage = read("app/settings/platform-finance/page.tsx");
     expect(trusteePage).toContain("useTrusteeSignatureAudit");

@@ -57,7 +57,7 @@ describe("Admin Legal Documents page UX", () => {
   });
 
   it("uses semantic badges and status-based compact actions", () => {
-    expect(source).toContain("legalStatusBadgeVariant");
+    expect(source).toContain("legalStatusToken");
     expect(source).toContain("onboardingBadgeVariant");
     expect(source).toContain("websiteBadgeVariant");
     expect(source).toContain("getLegalDocumentRowActions");

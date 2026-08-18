@@ -5,6 +5,8 @@ import { format } from "date-fns";
 import { useAuthToken } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { StatusBadge } from "@cashsouk/ui";
+import { getDirectorFinalStatusToken, adminActionRowClass } from "@/lib/admin-status-token";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,15 +36,12 @@ import {
   normalizeDirectorShareholderIdKey,
   resolveDirectorShareholderCtosEmptyWarning,
   type ApplicationPersonRow,
-  type DirectorShareholderFinalStatusTone,
   type DirectorShareholderListSource,
   type RegtankColumnDisplayRow,
 } from "@cashsouk/types";
 import {
   DirectorShareholderCtosEmptyAlert,
   DirectorShareholderUnresolvedIdentitySection,
-  StatusBadge,
-  type StatusToken,
 } from "@cashsouk/ui";
 import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
@@ -62,23 +61,6 @@ type PendingCtosSubjectFetch = {
   displayName: string;
   partyLabel: string;
 };
-
-function finalStatusToneToToken(tone: DirectorShareholderFinalStatusTone): StatusToken {
-  switch (tone) {
-    case "success":
-      return "success";
-    case "warning":
-      return "submitted";
-    case "info":
-      return "in-progress";
-    case "danger":
-      return "rejected";
-    case "expired":
-      return "action";
-    default:
-      return "neutral";
-  }
-}
 
 function RegtankColumnCell({ person }: { person: ApplicationPersonRow }) {
   const rows = getRegtankColumnDisplayRows(person);
@@ -272,7 +254,10 @@ export function DirectorShareholderTable({
               })();
 
               return (
-                <TableRow key={p.matchKey} className="odd:bg-muted/40 hover:bg-muted">
+                <TableRow
+                  key={p.matchKey}
+                  className={adminActionRowClass(getDirectorFinalStatusToken(finalStatus.tone))}
+                >
                   <TableCell className="align-top min-w-[11.5rem] w-[13rem] max-w-[14rem]">
                     <div className="font-medium">{p.name ?? "—"}</div>
                     <div className="font-mono text-xs text-muted-foreground mt-0.5 whitespace-nowrap">{p.matchKey}</div>
@@ -284,7 +269,7 @@ export function DirectorShareholderTable({
                   <TableCell className="align-top w-[10.5rem] whitespace-nowrap">
                     <StatusBadge
                       label={finalStatus.label}
-                      status={finalStatusToneToToken(finalStatus.tone)}
+                      status={getDirectorFinalStatusToken(finalStatus.tone)}
                       className="text-xs whitespace-nowrap"
                     />
                   </TableCell>

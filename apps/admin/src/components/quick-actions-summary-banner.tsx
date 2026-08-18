@@ -40,9 +40,9 @@ export function QuickActionsSummaryBanner({
       role="status"
     >
       <div className="min-w-0 space-y-1">
-        <p className="text-[17px] font-semibold leading-7">{title}</p>
+        <p className="text-body font-semibold">{title}</p>
         {description ? (
-          <p className="text-[15px] leading-6 text-muted-foreground">{description}</p>
+          <p className="text-ui text-muted-foreground">{description}</p>
         ) : null}
       </div>
       {href && ctaLabel ? (

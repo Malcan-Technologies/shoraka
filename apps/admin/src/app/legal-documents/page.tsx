@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { useHeader } from "@cashsouk/ui";
+import { StatusBadge } from "@cashsouk/ui";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
@@ -85,6 +85,7 @@ import {
   type LegalDocumentVersionSummary,
 } from "@cashsouk/types";
 import { RequirePermission } from "../../components/require-permission";
+import { AdminPageHeader } from "../../components/admin-page-header";
 import { usePermissions } from "../../hooks/use-permissions";
 import {
   audienceLabel,
@@ -108,7 +109,7 @@ import {
   latestPublishedVersion,
   legalDocumentDisplayName,
   legalRowVersionLabel,
-  legalStatusBadgeVariant,
+  legalStatusToken,
   matchesClientFilters,
   nextCreateOrchestrationAfterDefinition,
   onboardingBadgeLabel,
@@ -205,12 +206,6 @@ function ReacceptanceOptions({
 }
 
 export default function LegalDocumentsPage() {
-  const { setTitle } = useHeader();
-  React.useEffect(() => {
-    setTitle("Legal Documents");
-    return () => setTitle("");
-  }, [setTitle]);
-
   const { can } = usePermissions();
   const canManage = can("document_management.manage");
   const { getAccessToken } = useAuthToken();
@@ -727,23 +722,21 @@ export default function LegalDocumentsPage() {
       <>
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
           <div className="w-full space-y-6 px-2 py-8 md:px-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Legal Documents</h1>
-                <p className="mt-1 text-[15px] leading-7 text-muted-foreground">
-                  PDFs for onboarding acceptance and optional website links
-                </p>
-              </div>
-              <Button
-                variant="action"
-                onClick={openCreateDialog}
-                disabled={!canManage}
-                title={!canManage ? "You do not have permission to perform this action." : undefined}
-              >
-                <PlusIcon className="mr-2 h-4 w-4" />
-                Add Legal Document
-              </Button>
-            </div>
+            <AdminPageHeader
+              title="Legal Documents"
+              description="PDFs for onboarding acceptance and optional website links"
+              action={
+                <Button
+                  variant="action"
+                  onClick={openCreateDialog}
+                  disabled={!canManage}
+                  title={!canManage ? "You do not have permission to perform this action." : undefined}
+                >
+                  <PlusIcon className="mr-2 h-4 w-4" />
+                  Add Legal Document
+                </Button>
+              }
+            />
 
             <div className="flex flex-wrap items-center gap-3">
               <div className="relative min-w-[200px] flex-1">
@@ -1002,9 +995,10 @@ export default function LegalDocumentsPage() {
                             )}
                           </TableCell>
                           <TableCell>
-                            <Badge variant={legalStatusBadgeVariant(status)}>
-                              {statusLabel(status)}
-                            </Badge>
+                            <StatusBadge
+                              label={statusLabel(status)}
+                              status={legalStatusToken(status)}
+                            />
                           </TableCell>
                           <TableCell className="text-sm">{audienceLabel(doc.audience)}</TableCell>
                           <TableCell>
@@ -1607,9 +1601,10 @@ export default function LegalDocumentsPage() {
                             {version.fileName}
                           </p>
                         </div>
-                        <Badge variant={legalStatusBadgeVariant(version.status)}>
-                          {statusLabel(version.status)}
-                        </Badge>
+                        <StatusBadge
+                          label={statusLabel(version.status)}
+                          status={legalStatusToken(version.status)}
+                        />
                       </div>
                       <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
                         <div>Uploaded {formatLegalDate(version.createdAt)}</div>

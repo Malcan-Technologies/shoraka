@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
-import { Card } from "@cashsouk/ui";
+import { Card, StatusBadge } from "@cashsouk/ui";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useApplicationsData } from "@/app/(application-management)/applications/use-applications-data";
@@ -11,6 +11,7 @@ import {
   isIssuerApplicationActionable,
   type NormalizedApplication,
 } from "@/app/(application-management)/applications/status";
+import { badgeKeyToStatusToken } from "@/app/(application-management)/applications/components/issuer-status-display";
 import {
   actionsRequiredLabel,
   issuerApplicationActionHref,
@@ -26,13 +27,6 @@ function statusLabel(app: NormalizedApplication): string {
     return "Changes requested";
   }
   return app.cardStatus.displayLabel;
-}
-
-function statusTone(app: NormalizedApplication): string {
-  if (isIssuerApplicationActionable(app)) {
-    return "border-status-action-text/30 bg-status-action-bg text-status-action-text";
-  }
-  return "border-border bg-muted text-muted-foreground";
 }
 
 function displayId(app: NormalizedApplication): string {
@@ -72,14 +66,14 @@ export function RecentApplicationsCard() {
       />
       <div className="flex flex-1 flex-col px-5 pb-5 pt-4 md:px-6 md:pb-6 md:pt-5">
         {isLoading ? (
-          <p className="py-4 text-[17px] leading-7 text-muted-foreground">Loading…</p>
+          <p className="py-4 text-body leading-7 text-muted-foreground">Loading…</p>
         ) : visible.length === 0 ? (
-          <p className="py-4 text-[17px] leading-7 text-muted-foreground">
+          <p className="py-4 text-body leading-7 text-muted-foreground">
             No applications yet.{" "}
             <ApplyForFinancingButton
               variant="link"
               showIcon={false}
-              className="inline h-auto p-0 text-[17px] font-medium leading-7"
+              className="inline h-auto p-0 text-ui font-medium leading-7"
             />
           </p>
         ) : (
@@ -103,9 +97,11 @@ export function RecentApplicationsCard() {
                         {app.customer}
                       </p>
                     </div>
-                    <Badge variant="outline" className={cn("shrink-0", statusTone(app))}>
-                      {statusLabel(app)}
-                    </Badge>
+                    <StatusBadge
+                      label={statusLabel(app)}
+                      status={badgeKeyToStatusToken(app.cardStatus.badgeKey)}
+                      className="shrink-0"
+                    />
                     <ArrowRightIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                   </Link>
                 </li>

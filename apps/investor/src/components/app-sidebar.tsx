@@ -144,7 +144,7 @@ function InvestNowCard({
             >
               <div className="space-y-1 group-data-[collapsible=icon]:hidden">
                 <p className="text-sm font-semibold text-sidebar-foreground">Available balance</p>
-                <p className="text-[13px] leading-5 text-muted-foreground">
+                <p className="text-ui leading-5 text-muted-foreground">
                   Available after onboarding is complete.
                 </p>
               </div>
@@ -187,7 +187,7 @@ function InvestNowCard({
           <p className="text-lg font-semibold tabular-nums leading-tight text-sidebar-foreground">
             {formatCurrency(availableBalance)}
           </p>
-          <p className="text-[13px] leading-5 text-muted-foreground">
+          <p className="text-ui leading-5 text-muted-foreground">
             Browse notes and commit capital from the marketplace.
           </p>
         </div>

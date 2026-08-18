@@ -3,14 +3,16 @@
 import * as React from "react";
 import Link from "next/link";
 import { format, formatDistanceToNowStrict } from "date-fns";
-import { ArrowPathIcon, BanknotesIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
-import { Skeleton, useHeader } from "@cashsouk/ui";
-import { Badge } from "@/components/ui/badge";
+import { toTitleCase } from "@cashsouk/types";
+import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePendingRepayments } from "@/notes/hooks/use-notes";
 import { RequirePermission } from "@/components/require-permission";
+import { AdminPageHeader } from "@/components/admin-page-header";
+import { adminActionRowClass, getAdminStatusToken } from "@/lib/admin-status-token";
 import {
   Table,
   TableBody,
@@ -27,26 +29,10 @@ const SOURCE_LABEL: Record<string, string> = {
   OTHER: "Other",
 };
 
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  PENDING: "secondary",
-  PARTIAL: "outline",
-  RECEIVED: "default",
-  RECONCILED: "default",
-};
-
-const ACTION_COPY: Record<string, { label: string; tone: string }> = {
-  REVIEW: {
-    label: "Review & approve",
-    tone: "border-amber-300 bg-amber-50 text-amber-950",
-  },
-  AWAIT_REMAINDER: {
-    label: "Awaiting remainder",
-    tone: "border-slate-300 bg-slate-50 text-slate-900",
-  },
-  POST_SETTLEMENT: {
-    label: "Ready for settlement",
-    tone: "border-sky-300 bg-sky-50 text-sky-950",
-  },
+const ACTION_COPY: Record<string, { label: string; status: "action" | "submitted" | "neutral" }> = {
+  REVIEW: { label: "Review & approve", status: "action" },
+  AWAIT_REMAINDER: { label: "Awaiting remainder", status: "submitted" },
+  POST_SETTLEMENT: { label: "Ready for settlement", status: "action" },
 };
 
 function formatDate(value: string | null) {
@@ -60,12 +46,6 @@ function formatAge(value: string | null) {
 }
 
 export default function PendingRepaymentsPage() {
-  const { setTitle } = useHeader();
-  React.useEffect(() => {
-    setTitle("Pending Repayments");
-    return () => setTitle("");
-  }, [setTitle]);
-
   const { data, isLoading, error, refetch, isFetching } = usePendingRepayments();
   const items = data?.items ?? [];
 
@@ -79,35 +59,32 @@ export default function PendingRepaymentsPage() {
     <RequirePermission permission="repayments.view">
       <>
             <div className="flex-1 overflow-y-auto">
-        <div className="w-full space-y-8 px-4 py-10 md:px-6 md:py-12 lg:px-8">
+        <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
           <section className="space-y-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <BanknotesIcon className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold">Repayments awaiting action</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Every payment that has not yet been allocated to a posted settlement. Issuer-submitted
-                    receipts need <span className="font-medium">Review &amp; approve</span>; admin-recorded
-                    receipts sit in <span className="font-medium">Ready for settlement</span> until the
-                    waterfall is posted. Items leave this queue once their settlement is posted or the
-                    payment is voided.
-                  </p>
-                </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => void refetch()}
-                disabled={isFetching}
-                className="h-8 w-8 shrink-0 p-0"
-                title="Refresh"
-              >
-                <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-              </Button>
-            </div>
+            <AdminPageHeader
+              title="Repayments"
+              description={
+                <>
+                  Every payment that has not yet been allocated to a posted settlement. Issuer-submitted
+                  receipts need <span className="font-medium">Review &amp; approve</span>; admin-recorded
+                  receipts sit in <span className="font-medium">Ready for settlement</span> until the
+                  waterfall is posted. Items leave this queue once their settlement is posted or the
+                  payment is voided.
+                </>
+              }
+              action={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void refetch()}
+                  disabled={isFetching}
+                  className="h-8 w-8 shrink-0 p-0"
+                  title="Refresh"
+                >
+                  <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+                </Button>
+              }
+            />
 
             {error ? (
               <div className="rounded-lg border border-destructive/30 p-4 text-sm text-destructive">
@@ -188,7 +165,13 @@ export default function PendingRepaymentsPage() {
                             </TableRow>
                           )
                         : items.map((item) => (
-                            <TableRow key={item.paymentId}>
+                            <TableRow
+                              key={item.paymentId}
+                              className={adminActionRowClass(
+                                getAdminStatusToken(item.status) === "action" ||
+                                  ACTION_COPY[item.actionNeeded]?.status === "action"
+                              )}
+                            >
                               <TableCell className="font-medium">
                                 {item.noteTitle ?? item.noteId}
                               </TableCell>
@@ -214,18 +197,16 @@ export default function PendingRepaymentsPage() {
                                 {formatAge(item.receivedAt ?? item.createdAt)}
                               </TableCell>
                               <TableCell>
-                                <Badge variant={STATUS_VARIANT[item.status] ?? "secondary"}>
-                                  {item.status}
-                                </Badge>
+                                <StatusBadge
+                                  label={toTitleCase(item.status)}
+                                  status={getAdminStatusToken(item.status)}
+                                />
                               </TableCell>
                               <TableCell>
-                                <span
-                                  className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${
-                                    ACTION_COPY[item.actionNeeded]?.tone ?? "border-border bg-muted text-foreground"
-                                  }`}
-                                >
-                                  {ACTION_COPY[item.actionNeeded]?.label ?? item.actionNeeded}
-                                </span>
+                                <StatusBadge
+                                  label={ACTION_COPY[item.actionNeeded]?.label ?? toTitleCase(item.actionNeeded)}
+                                  status={ACTION_COPY[item.actionNeeded]?.status ?? "neutral"}
+                                />
                               </TableCell>
                               <TableCell className="text-right">
                                 <Button asChild variant="ghost" size="sm" className="gap-1">

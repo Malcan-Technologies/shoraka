@@ -269,7 +269,7 @@ export function ProgressIndicator({
               {/* Label — red when flagged (before or after save); thicker when current */}
               <span
                 className={cn(
-                  "mt-2.5 text-center text-[12px] leading-snug max-w-[90px]",
+                  "mt-2.5 text-center text-meta leading-snug max-w-[90px]",
                   isActive && isFlagged && !isNotClickable && "font-semibold text-status-rejected-text",
                   isActive && isFlagged && isNotClickable && "font-medium text-muted-foreground",
                   isActive && !isFlagged && !isNotClickable && "font-medium text-foreground",

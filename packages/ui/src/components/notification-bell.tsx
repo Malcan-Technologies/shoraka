@@ -58,7 +58,7 @@ export function NotificationBell() {
           {unreadCount > 0 && (
             <Badge
               variant="destructive"
-              className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full p-0 text-[10px]"
+                className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full p-0 text-meta"
             >
               {unreadCount > 9 ? "9+" : unreadCount}
             </Badge>
@@ -70,7 +70,7 @@ export function NotificationBell() {
           <div className="flex items-center gap-1.5">
             <h2 className="text-base font-bold text-slate-900">Notifications</h2>
             {unreadCount > 0 && (
-              <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full bg-slate-100 text-[11px] font-medium text-slate-600">
+              <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full bg-slate-100 text-meta font-medium text-slate-600">
                 {unreadCount}
               </span>
             )}
@@ -80,7 +80,7 @@ export function NotificationBell() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 px-2 text-xs font-medium text-primary hover:text-accent hover:bg-primary/5"
+                className="px-2 text-primary hover:text-accent hover:bg-primary/5"
                 onClick={(e) => {
                   e.stopPropagation();
                   markAllAsRead();
@@ -122,11 +122,11 @@ export function NotificationBell() {
                         <span className="text-sm font-bold text-slate-900 leading-tight">
                           {notification.title}
                         </span>
-                        <span className="text-[11px] text-slate-400 whitespace-nowrap ml-2">
+                        <span className="text-meta text-slate-400 whitespace-nowrap ml-2">
                           {formatDistanceToNow(new Date(notification.created_at ?? 0), { addSuffix: true })}
                         </span>
                       </div>
-                      <p className="text-[13px] text-slate-500 leading-snug line-clamp-2">
+                      <p className="text-ui text-slate-500 leading-snug line-clamp-2">
                         {notification.message}
                       </p>
                     </div>
@@ -145,7 +145,8 @@ export function NotificationBell() {
         <div className="p-1.5 border-t border-slate-100 bg-white">
           <Button
             variant="ghost"
-            className="w-full h-8 text-sm font-medium text-slate-900 hover:bg-slate-50 hover:text-slate-900 rounded-md transition-colors"
+            size="sm"
+            className="w-full text-slate-900 hover:bg-slate-50 hover:text-slate-900"
             onClick={() => router.push("/notifications")}
           >
             View all notifications

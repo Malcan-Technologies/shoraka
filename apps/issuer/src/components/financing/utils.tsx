@@ -1,9 +1,12 @@
 import React from "react";
-import { StatusBadge, formatMoneyDisplay, type StatusToken } from "@cashsouk/ui";
+import { StatusBadge, formatMoneyDisplay } from "@cashsouk/ui";
 import {
   getIssuerFinancingStatusPresentation,
+  financingKindToStatusToken,
   type IssuerFinancingStatusKind,
 } from "@/lib/issuer-dashboard-labels";
+
+export { financingKindToStatusToken };
 
 export const EM_DASH = "\u2014";
 
@@ -15,27 +18,6 @@ export const FINANCING_ARREARS_SURFACE =
   "border-status-rejected-text/25 bg-[hsl(var(--status-rejected-bg)/0.55)]";
 /** @deprecated Alias — offers use the same action (yellow) surface as amendments. */
 export const FINANCING_OFFER_ATTENTION_SURFACE = FINANCING_ATTENTION_SURFACE;
-
-export function financingKindToStatusToken(kind: IssuerFinancingStatusKind): StatusToken {
-  switch (kind) {
-    case "draft":
-    case "action_required":
-      return "action";
-    case "pending_approval":
-      return "submitted";
-    case "in_progress":
-      return "in-progress";
-    case "funded":
-    case "active":
-      return "success";
-    case "completed":
-      return "neutral";
-    case "unsuccessful":
-      return "rejected";
-    default:
-      return "neutral";
-  }
-}
 
 export function displayCell(value: unknown): string {
   if (value === null || value === undefined) return EM_DASH;
@@ -85,7 +67,7 @@ export function LabelValue({
   tabular?: boolean;
 }) {
   return (
-    <p className="text-[17px] leading-7 text-foreground">
+    <p className="text-ui leading-6 text-foreground">
       <span className="font-normal text-muted-foreground">{label}: </span>
       <span
         className={
@@ -111,20 +93,20 @@ export function FundingStatusLine({ text }: { text: string }) {
   const m = text.match(/^Funding status \((.+)\)$/);
   if (m) {
     return (
-      <p className="text-[17px] leading-7 text-foreground">
+      <p className="text-ui leading-6 text-foreground">
         <span className="font-medium">{FUNDING_STATUS_PREFIX}</span>
-        <span className="text-sm font-normal leading-6 text-muted-foreground">({m[1]})</span>
+        <span className="text-ui font-normal leading-6 text-muted-foreground">({m[1]})</span>
       </p>
     );
   }
   if (text.startsWith(FUNDING_STATUS_PREFIX)) {
     const suffix = text.slice(FUNDING_STATUS_PREFIX.length);
     return (
-      <p className="text-[17px] leading-7 text-foreground">
+      <p className="text-ui leading-6 text-foreground">
         <span className="font-medium">{FUNDING_STATUS_PREFIX}</span>
-        <span className="text-sm font-normal leading-6 text-muted-foreground">{suffix}</span>
+        <span className="text-ui font-normal leading-6 text-muted-foreground">{suffix}</span>
       </p>
     );
   }
-  return <p className="text-[17px] font-medium leading-7 text-foreground">{text}</p>;
+  return <p className="text-ui font-medium leading-6 text-foreground">{text}</p>;
 }

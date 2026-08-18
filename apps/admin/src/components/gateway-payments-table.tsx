@@ -1,6 +1,6 @@
 "use client";
 
-import { useHeader } from "@cashsouk/ui";
+import { StatusBadge } from "@cashsouk/ui";
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -9,7 +9,6 @@ import { toast } from "sonner";
 import {
   ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
-  BanknotesIcon,
   ClipboardDocumentIcon,
   FunnelIcon,
   MagnifyingGlassIcon,
@@ -39,6 +38,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { RequirePermission } from "@/components/require-permission";
+import { AdminPageHeader } from "@/components/admin-page-header";
 import { useGatewayPayments } from "@/hooks/use-gateway-payments";
 import {
   GATEWAY_ACCOUNT_OPTIONS,
@@ -50,9 +50,11 @@ import {
   STATUS_LABEL,
   formatDate,
   formatGatewayPaymentDate,
+  statusToken,
   statusVariant,
 } from "@/lib/gateway-payment-display";
 import { TablePagination } from "@/shared/admin-list/components/table-pagination";
+import { adminActionRowClass } from "@/lib/admin-status-token";
 
 const PAGE_SIZE = 20;
 
@@ -166,12 +168,6 @@ function GatewayPaymentsTableContent({
   description,
   initialFilter = "all",
 }: GatewayPaymentsTableProps) {
-  const { setTitle } = useHeader();
-  useEffect(() => {
-    setTitle(title);
-    return () => setTitle("");
-  }, [setTitle, title]);
-
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -307,17 +303,9 @@ function GatewayPaymentsTableContent({
   return (
     <RequirePermission permission="gateway_payments.view">
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="w-full space-y-8 px-2 py-8 md:px-4">
+        <div className="w-full space-y-6 px-2 py-8 md:px-4">
           <section className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <BanknotesIcon className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold">{title}</h2>
-                <p className="text-sm text-muted-foreground">{description}</p>
-              </div>
-            </div>
+            <AdminPageHeader title={title} description={description} />
 
             <div className="flex flex-wrap items-center gap-3">
               <div className="relative min-w-[12rem] flex-1">
@@ -493,7 +481,10 @@ function GatewayPaymentsTableContent({
                         </TableRow>
                       ) : (
                         items.map((item) => (
-                          <TableRow key={item.id}>
+                          <TableRow
+                            key={item.id}
+                            className={adminActionRowClass(statusToken(item.status))}
+                          >
                             <TableCell className="whitespace-nowrap text-sm">
                               {formatGatewayPaymentDate(item.createdAt)}
                             </TableCell>
@@ -512,9 +503,10 @@ function GatewayPaymentsTableContent({
                               {formatCurrency(item.amount)}
                             </TableCell>
                             <TableCell>
-                              <Badge variant={statusVariant(item.status)}>
-                                {STATUS_LABEL[item.status] ?? item.status}
-                              </Badge>
+                              <StatusBadge
+                                label={STATUS_LABEL[item.status] ?? item.status}
+                                status={statusToken(item.status)}
+                              />
                             </TableCell>
                             <TableCell>
                               <Badge
@@ -594,4 +586,4 @@ export function GatewayPaymentsTable(props: GatewayPaymentsTableProps) {
   );
 }
 
-export { STATUS_LABEL, PURPOSE_LABEL, statusVariant, formatDate };
+export { STATUS_LABEL, PURPOSE_LABEL, statusToken, statusVariant, formatDate };

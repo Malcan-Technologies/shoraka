@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { PageShell, useHeader, welcomeBackTitle } from "@cashsouk/ui";
+import { PageShell, welcomeBackTitle } from "@cashsouk/ui";
 
 import { Button } from "../components/ui/button";
 import { useDashboardStats } from "../hooks/use-dashboard-stats";
@@ -23,13 +23,6 @@ import { gatewayReconKeys } from "../hooks/use-gateway-recon";
 import { cn } from "../lib/utils";
 
 export default function AdminHomePage() {
-  const { setTitle } = useHeader();
-  useEffect(() => {
-    // PageShell owns the title.
-    setTitle("");
-    return () => setTitle("");
-  }, [setTitle]);
-
   const { can } = usePermissions();
   const canFinance = can("dashboard.finance.view");
   const canOperations = can("dashboard.operations.view");
@@ -99,7 +92,7 @@ export default function AdminHomePage() {
                         Finance
                       </h2>
                       <p className="text-sm text-muted-foreground">
-                        Current balances across platform money buckets
+                        Where money sits across investor, repayment, and income pools
                       </p>
                     </div>
                     <BucketBalancesOverview />

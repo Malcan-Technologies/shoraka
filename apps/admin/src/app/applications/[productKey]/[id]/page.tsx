@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton, useHeader } from "@cashsouk/ui";
+import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import { useApplicationDetail } from "@/hooks/use-application-detail";
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import { useUpdateApplicationStatus } from "@/hooks/use-update-application-status";
@@ -179,7 +179,6 @@ const SECTION_PERMISSION_MAP: Record<string, AdminPermission> = {
 };
 
 export default function DynamicApplicationDetailPage() {
-  const { setTitle } = useHeader();
   const { can } = usePermissions();
   const canAppManage = can("applications.manage");
   const params = useParams();
@@ -210,17 +209,6 @@ export default function DynamicApplicationDetailPage() {
   const currentProduct = productsData?.products
     ? resolveDisplayProductForNav(productsData.products, productKey)
     : undefined;
-
-  React.useEffect(() => {
-    const label = app
-      ? formatApplicationReference({
-          displayReference: (app as { displayReference?: string | null }).displayReference,
-          id: app.id ?? applicationId,
-        })
-      : applicationId.slice(-8).toUpperCase();
-    setTitle(isLoading ? "Loading..." : `Application ${label}`);
-    return () => setTitle("");
-  }, [setTitle, isLoading, applicationId, app]);
 
   const productDefaultFacilityFeeRatePercent =
     (currentProduct as { default_facility_fee_rate_percent?: number | null })
@@ -849,15 +837,14 @@ export default function DynamicApplicationDetailPage() {
                       {formatCurrency(requestedAmount)}
                     </div>
                   </div>
-                  <ApplicationStatusBadge status={app.status} size="lg" />
+                  <ApplicationStatusBadge status={app.status} />
                   {!isFinalApplicationForAmlGate &&
                   computeHasPendingDirectorShareholder(applicationPeople) ? (
-                    <span
-                      className="shrink-0 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:text-amber-100"
+                    <StatusBadge
+                      label={ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL}
+                      status="action"
                       title={ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT}
-                    >
-                      {ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL}
-                    </span>
+                    />
                   ) : null}
                 </div>
                 {isReviewable ? (

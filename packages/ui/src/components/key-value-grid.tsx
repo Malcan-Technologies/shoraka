@@ -33,11 +33,11 @@ export function KeyValueGrid({
         <div
           key={index}
           className={cn(
-            "grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[15px] leading-6",
+            "grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-ui",
             item.className
           )}
         >
-          <dt className="text-sm text-muted-foreground">{item.label}</dt>
+          <dt className="text-ui text-muted-foreground">{item.label}</dt>
           <dd
             className={cn(
               "min-w-0 break-words text-foreground",

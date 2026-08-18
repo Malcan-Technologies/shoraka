@@ -34,7 +34,7 @@ export function ActivityBadge({
     <Badge
       variant="outline"
       className={cn(
-        "w-fit whitespace-nowrap text-xs",
+        "w-fit whitespace-nowrap text-meta",
         ACTIVITY_DOMAIN_BADGE_CLASS[domain],
         className
       )}

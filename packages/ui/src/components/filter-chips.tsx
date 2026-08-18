@@ -36,7 +36,7 @@ export function FilterChips({
           key={chip.id}
           type="button"
           onClick={chip.onRemove}
-          className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 text-sm text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-muted/40 px-3 text-ui text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span>{chip.label}</span>
           <XMarkIcon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
@@ -49,7 +49,7 @@ export function FilterChips({
           variant="ghost"
           size="sm"
           onClick={onClearAll}
-          className="h-8 rounded-xl px-2 text-muted-foreground"
+          className="px-2 text-muted-foreground"
         >
           {clearAllLabel}
         </Button>

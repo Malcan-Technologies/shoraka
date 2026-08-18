@@ -272,12 +272,12 @@ describe("prospectus review step title icons", () => {
 describe("prospectus review compact status badges", () => {
   it("uses compact badge sizing and existing workflow tones", () => {
     expect(PROSPECTUS_STATUS_BADGE_COMPACT_CLASS).toContain("h-5");
-    expect(PROSPECTUS_STATUS_BADGE_COMPACT_CLASS).toContain("text-[10px]");
+    expect(PROSPECTUS_STATUS_BADGE_COMPACT_CLASS).toContain("text-meta");
     expect(PROSPECTUS_STATUS_BADGE_COMPACT_CLASS).toContain("px-1.5");
     expect(PROSPECTUS_STATUS_BADGE_COMPACT_CLASS).toContain("shrink-0");
-    expect(PROSPECTUS_STATUS_BADGE_TONE.complete).toMatch(/success/);
-    expect(PROSPECTUS_STATUS_BADGE_TONE.required).toMatch(/amber/);
-    expect(PROSPECTUS_STATUS_BADGE_TONE.optional).toMatch(/neutral/);
+    expect(PROSPECTUS_STATUS_BADGE_TONE.complete).toBe("success");
+    expect(PROSPECTUS_STATUS_BADGE_TONE.required).toBe("action");
+    expect(PROSPECTUS_STATUS_BADGE_TONE.optional).toBe("neutral");
   });
 });
 

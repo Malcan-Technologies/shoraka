@@ -51,7 +51,7 @@ export function LegalDocumentChecklistShell({
         <CardHeader className="space-y-1.5 border-b px-6 py-6 md:px-8">
           <CardTitle className="text-xl font-semibold tracking-tight md:text-2xl">{title}</CardTitle>
           {description ? (
-            <p className="text-[17px] leading-7 text-muted-foreground">{description}</p>
+            <p className="text-body text-muted-foreground">{description}</p>
           ) : null}
         </CardHeader>
       ) : null}
@@ -99,7 +99,7 @@ export function LegalDocumentChecklistError({
         </Button>
       }
     >
-      <div className="px-6 py-5 text-[17px] leading-7 text-destructive md:px-8">{error}</div>
+      <div className="px-6 py-5 text-body text-destructive md:px-8">{error}</div>
     </LegalDocumentChecklistShell>
   );
 }
@@ -126,7 +126,7 @@ export function LegalDocumentChecklistEmpty({
         ) : undefined
       }
     >
-      <div className="px-6 py-8 text-[17px] leading-7 text-muted-foreground md:px-8">
+      <div className="px-6 py-8 text-body text-muted-foreground md:px-8">
         You cannot continue until the required legal documents are available.
       </div>
     </LegalDocumentChecklistShell>
@@ -153,13 +153,13 @@ export function LegalDocumentChecklistRows({
           <li key={row.id} className="px-6 py-5 md:px-8">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <h3 className="text-[17px] font-semibold leading-7 text-foreground">{row.title}</h3>
+                <h3 className="text-body font-semibold text-foreground">{row.title}</h3>
               </div>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-9 shrink-0 gap-2 rounded-lg"
+                className="shrink-0"
                 disabled={row.opening || disabled}
                 onClick={() => onOpen(row.id)}
               >
@@ -192,7 +192,7 @@ export function LegalDocumentChecklistRows({
 
                 <p
                   className={cn(
-                    "mt-2 text-[13px] leading-5",
+                    "mt-2 text-meta leading-5",
                     row.status === "accepted"
                       ? "inline-flex items-center gap-1.5 text-foreground"
                       : "text-muted-foreground"

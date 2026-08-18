@@ -58,8 +58,8 @@ function NoteArrearsAlert({ note }: { note: NoteListItem }) {
     >
       <ExclamationTriangleIcon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
       <div className="min-w-0 space-y-1">
-        <p className="text-[15px] font-semibold leading-6">This note is in arrears</p>
-        <p className="text-[13px] leading-5 opacity-90">
+        <p className="text-ui font-semibold leading-6">This note is in arrears</p>
+        <p className="text-ui leading-5 opacity-90">
           Repayment was not received by the maturity date.{overdueClause} Arrange settlement with
           the paymaster and submit repayment proof so we can reconcile this note.
         </p>
@@ -195,7 +195,7 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
                   {noteRef !== EM_DASH ? noteRef : displayCell(note.title)}
                 </Link>
               </p>
-              <NoteStatusBadge note={note} className="shrink-0 text-xs font-semibold" />
+              <NoteStatusBadge note={note} className="shrink-0" />
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -214,7 +214,7 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
 
         {inArrears ? <NoteArrearsAlert note={note} /> : null}
 
-        <p className="truncate text-[15px] leading-6 text-muted-foreground">{note.title}</p>
+        <p className="truncate text-ui leading-6 text-muted-foreground">{note.title}</p>
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
           <div className="flex shrink-0 items-center justify-center sm:w-[11rem] sm:justify-start">
@@ -250,7 +250,7 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
                   {displayCell(note.productName ?? note.productCategory)}
                 </LabelValue>
                 {note.sourceInvoiceId ? (
-                  <p className="text-[17px] leading-7 text-foreground">
+                  <p className="text-ui leading-7 text-foreground">
                     <span className="font-normal text-muted-foreground">Invoice: </span>
                     <Link
                       href={`/financing/invoices/${note.sourceInvoiceId}`}
@@ -262,7 +262,7 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
                   </p>
                 ) : null}
                 {note.sourceApplicationId ? (
-                  <p className="text-[17px] leading-7 text-foreground">
+                  <p className="text-ui leading-7 text-foreground">
                     <span className="font-normal text-muted-foreground">Application: </span>
                     <Link
                       href={`/applications/${note.sourceApplicationId}`}

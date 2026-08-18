@@ -1,8 +1,8 @@
 "use client";
 
-import { useHeader } from "@cashsouk/ui";
+import { StatusBadge } from "@cashsouk/ui";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { format } from "date-fns";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
@@ -29,6 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { RequirePermission } from "@/components/require-permission";
+import { AdminPageHeader } from "@/components/admin-page-header";
 import { ApplicationReviewRemarkDialog } from "@/components/application-review-remark-dialog";
 import { ContextualAuditHistoryPanel } from "@/components/audit/contextual-audit-history-panel";
 import { paymentAuditToDetail } from "@/components/audit/contextual-audit-mappers";
@@ -41,6 +42,7 @@ import {
 } from "@/components/ui/sheet";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useReconExceptionAudit } from "@/hooks/use-recon-exception-audit";
+import { adminActionRowClass } from "@/lib/admin-status-token";
 import {
   GATEWAY_ACCOUNT_OPTIONS,
   getGatewayAccountBadgeClassName,
@@ -65,10 +67,10 @@ const EXCEPTION_TYPE_LABEL: Record<string, string> = {
   AMOUNT_MISMATCH: "Amount mismatch",
 };
 
-function runStatusVariant(status: string) {
-  if (status === "COMPLETED") return "default" as const;
-  if (status === "FAILED") return "destructive" as const;
-  return "secondary" as const;
+function runStatusToken(status: string) {
+  if (status === "COMPLETED") return "success" as const;
+  if (status === "FAILED") return "rejected" as const;
+  return "action" as const;
 }
 
 function formatDate(value: string) {
@@ -111,12 +113,6 @@ function ReconExceptionAuditSheet({
 }
 
 export default function ReconciliationPage() {
-  const { setTitle } = useHeader();
-  useEffect(() => {
-    setTitle("Gateway Reconciliation");
-    return () => setTitle("");
-  }, [setTitle]);
-
   const { can } = usePermissions();
   const canManage = can("gateway_reconciliation.manage");
   const disabledReason = !canManage ? "You do not have permission to perform this action." : undefined;
@@ -216,26 +212,26 @@ export default function ReconciliationPage() {
       <>
         
         <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-muted-foreground max-w-3xl">
-              Daily settlement reconciliation against Curlec. Unresolved exceptions need manual
-              review before they can be cleared from the queue.
-            </p>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                void refetchRuns();
-                void refetchExceptions();
-                void refetchOpenExceptions();
-              }}
-              disabled={isRefreshing}
-              className="h-8 w-8 shrink-0 p-0"
-              title="Refresh"
-            >
-              <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-            </Button>
-          </div>
+          <AdminPageHeader
+            title="Gateway Reconciliation"
+            description="Daily settlement reconciliation against Curlec. Unresolved exceptions need manual review before they can be cleared from the queue."
+            action={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  void refetchRuns();
+                  void refetchExceptions();
+                  void refetchOpenExceptions();
+                }}
+                disabled={isRefreshing}
+                className="h-8 w-8 shrink-0 p-0"
+                title="Refresh"
+              >
+                <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              </Button>
+            }
+          />
 
           <Card className="rounded-2xl">
             <CardHeader>
@@ -343,9 +339,11 @@ export default function ReconciliationPage() {
                 ) : latestRun ? (
                   <>
                     <p className="text-2xl font-semibold">{latestRun.runDate}</p>
-                    <Badge variant={runStatusVariant(latestRun.status)} className="mt-2">
-                      {RUN_STATUS_LABEL[latestRun.status] ?? latestRun.status}
-                    </Badge>
+                    <StatusBadge
+                      label={RUN_STATUS_LABEL[latestRun.status] ?? latestRun.status}
+                      status={runStatusToken(latestRun.status)}
+                      className="mt-2"
+                    />
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">No runs yet</p>
@@ -411,7 +409,7 @@ export default function ReconciliationPage() {
                   </TableHeader>
                   <TableBody>
                     {runsData?.items.map((run) => (
-                      <TableRow key={run.id}>
+                      <TableRow key={run.id} className={adminActionRowClass(runStatusToken(run.status))}>
                         <TableCell>{run.runDate}</TableCell>
                           <TableCell>
                             <Badge
@@ -422,9 +420,10 @@ export default function ReconciliationPage() {
                             </Badge>
                           </TableCell>
                         <TableCell>
-                          <Badge variant={runStatusVariant(run.status)}>
-                            {RUN_STATUS_LABEL[run.status] ?? run.status}
-                          </Badge>
+                          <StatusBadge
+                            label={RUN_STATUS_LABEL[run.status] ?? run.status}
+                            status={runStatusToken(run.status)}
+                          />
                         </TableCell>
                         <TableCell>{run.settlementsScanned}</TableCell>
                         <TableCell>{run.paymentsMatched}</TableCell>

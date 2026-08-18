@@ -76,7 +76,7 @@ function WelcomePageContent() {
             </div>
           </div>
           <CardTitle className="text-3xl">Welcome {displayName}</CardTitle>
-          <CardDescription className="text-[17px]">
+          <CardDescription>
             Welcome to CashSouk Admin Portal
           </CardDescription>
         </CardHeader>

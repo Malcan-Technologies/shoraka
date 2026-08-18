@@ -22,6 +22,17 @@ const config: Config = {
       boxShadow: {
         brand: 'var(--shadow-brand)'
       },
+      fontFamily: {
+        sans: ["Inter", "system-ui", "sans-serif"],
+      },
+      fontSize: {
+        xs: ["var(--text-meta)", { lineHeight: "1rem" }],
+        sm: ["var(--text-ui)", { lineHeight: "1.25rem" }],
+        base: ["var(--text-body)", { lineHeight: "1.75rem" }],
+        meta: ["var(--text-meta)", { lineHeight: "1rem" }],
+        ui: ["var(--text-ui)", { lineHeight: "1.25rem" }],
+        body: ["var(--text-body)", { lineHeight: "1.75rem" }],
+      },
       colors: {
         /** Status tokens: CSS vars from @cashsouk/styles (light/dark via .dark). */
         status: {
@@ -41,6 +52,10 @@ const config: Config = {
             bg: "hsl(var(--status-success-bg))",
             text: "hsl(var(--status-success-text))",
           },
+          active: {
+            bg: "hsl(var(--status-active-bg))",
+            text: "hsl(var(--status-active-text))",
+          },
           completed: {
             bg: "hsl(var(--status-completed-bg))",
             text: "hsl(var(--status-completed-text))",
@@ -52,6 +67,16 @@ const config: Config = {
           neutral: {
             bg: "hsl(var(--status-neutral-bg))",
             text: "hsl(var(--status-neutral-text))",
+          },
+        },
+        portal: {
+          investor: {
+            bg: "hsl(var(--portal-investor-bg))",
+            text: "hsl(var(--portal-investor-text))",
+          },
+          issuer: {
+            bg: "hsl(var(--portal-issuer-bg))",
+            text: "hsl(var(--portal-issuer-text))",
           },
         },
         background: 'hsl(var(--background))',

@@ -7,7 +7,6 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Textarea } from "../../components/ui/textarea";
-import { Badge } from "../../components/ui/badge";
 import { Checkbox } from "../../components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import {
@@ -43,6 +42,7 @@ import {
   ConfirmDialog,
   PageShell,
   DirectorShareholdersUnifiedSection,
+  VerifiedBadge,
 } from "@cashsouk/ui";
 import {
   issuerContentMaxWidthClassName,
@@ -830,7 +830,6 @@ export default function ProfilePage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setDevViewAsMember((prev) => !prev)}
-                  className="h-9 rounded-xl"
                 >
                   {devViewAsMember ? "Exit Member View" : "View as Member"}
                 </Button>
@@ -889,13 +888,7 @@ export default function ProfilePage() {
                         Identity details verified during onboarding
                       </p>
                     </div>
-                    <Badge
-                      variant="outline"
-                      className="bg-emerald-50 text-emerald-700 border-emerald-200"
-                    >
-                      <ShieldCheckIcon className="h-3.5 w-3.5 mr-1" />
-                      Verified
-                    </Badge>
+                    <VerifiedBadge />
                   </div>
                   <div className="p-6 space-y-4">
                     <div className="grid gap-4 sm:grid-cols-2">

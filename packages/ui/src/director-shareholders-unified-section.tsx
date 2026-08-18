@@ -10,8 +10,8 @@ import {
   formatPeopleIdentityLine,
   formatPeopleRolesLine,
   formatPeopleRolesLineTitleCase,
-  getFinalStatusBadgeClassName,
   getFinalStatusLabel,
+  getFinalStatusToken,
   isMissingGovernmentIdPerson,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
@@ -25,7 +25,7 @@ import { DirectorShareholderCtosEmptyAlert } from "./director-shareholder-ctos-e
 import { DirectorShareholderUnresolvedIdentitySection } from "./director-shareholder-unresolved-identity-card";
 import { Input } from "./components/input";
 import { Button } from "./components/button";
-import { Badge } from "./components/badge";
+import { StatusBadge } from "./components/status-badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,7 +66,7 @@ function isDirectorLikeRow(r: DirectorShareholderDisplayRow): boolean {
 
 function isIndividualShareholderOnlyRow(r: DirectorShareholderDisplayRow): boolean {
   if (r.type !== "INDIVIDUAL") return false;
-  return !Boolean(r.isDirector) && Boolean(r.isShareholder);
+  return !r.isDirector && Boolean(r.isShareholder);
 }
 
 export function directorShareholderOrgApiBase(
@@ -239,22 +239,18 @@ export function DirectorShareholdersUnifiedSection({
         className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4 sm:flex-row sm:items-start sm:justify-between"
       >
         <div className="min-w-0 flex-1 space-y-1">
-          <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
+          <p className="truncate text-ui font-medium text-foreground">{row.name}</p>
           {identityLine ? (
-            <p className="font-mono text-xs text-muted-foreground">{identityLine}</p>
+            <p className="font-mono text-meta text-muted-foreground">{identityLine}</p>
           ) : null}
-          {email.trim() ? <p className="text-xs text-muted-foreground break-all">{email}</p> : null}
-          <p className="text-xs text-muted-foreground">{rolesLine || "—"}</p>
+          {email.trim() ? <p className="text-meta text-muted-foreground break-all">{email}</p> : null}
+          <p className="text-meta text-muted-foreground">{rolesLine || "—"}</p>
           <div className="pt-0.5">
-            <Badge
-              variant="outline"
-              className={cn(
-                "border-transparent text-[11px] font-normal",
-                getFinalStatusBadgeClassName(finalStatus.tone)
-              )}
-            >
-              {finalStatus.label}
-            </Badge>
+            <StatusBadge
+              label={finalStatus.label}
+              status={getFinalStatusToken(finalStatus.tone)}
+              size="sm"
+            />
           </div>
         </div>
         {showSend ? (
@@ -270,8 +266,7 @@ export function DirectorShareholdersUnifiedSection({
             />
             <Button
               type="button"
-              size="sm"
-              className="h-9 w-full shrink-0 rounded-lg text-xs font-medium sm:text-sm"
+              className="w-full shrink-0"
               disabled={savePending || !email.trim()}
               onClick={() => setConfirmRow(row)}
             >
@@ -288,7 +283,7 @@ export function DirectorShareholdersUnifiedSection({
       <div className="flex items-center justify-between p-6 border-b">
         <div>
           <h2 className="text-lg font-semibold">Directors and Shareholders</h2>
-          <p className="text-sm text-muted-foreground">Directors and shareholders details</p>
+          <p className="text-ui text-muted-foreground">Directors and shareholders details</p>
         </div>
       </div>
       <div className="p-6 space-y-6">
@@ -296,7 +291,7 @@ export function DirectorShareholdersUnifiedSection({
           <DirectorShareholderCtosEmptyAlert message={resolvedCtosEmptyWarning} />
         ) : null}
         {emptyAll ? (
-          <p className="text-sm text-muted-foreground text-center py-8">
+          <p className="text-ui text-muted-foreground text-center py-8">
             {resolvedCtosEmptyWarning
               ? "No directors or shareholders are available from CTOS."
               : "No directors or shareholders listed."}

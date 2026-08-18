@@ -40,7 +40,7 @@ export function StickyFormFooter({
         <div className="shrink-0">{back}</div>
         <div
           className={cn(
-            "min-w-0 flex-1 text-center text-sm",
+            "min-w-0 flex-1 text-center text-ui",
             saveState === "unsaved" && "text-status-action-text",
             saveState === "saved" && "text-status-success-text",
             saveState === "saving" && "text-muted-foreground",

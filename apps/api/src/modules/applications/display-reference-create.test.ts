@@ -2,7 +2,14 @@ const mockTx: any = {
   application: {
     create: jest.fn(),
     update: jest.fn(),
+    findUnique: jest.fn(),
     findUniqueOrThrow: jest.fn(),
+  },
+  applicationAuditLog: {
+    create: jest.fn(),
+  },
+  user: {
+    findUnique: jest.fn(),
   },
   displayReferenceAllocation: {
     create: jest.fn(),
@@ -40,7 +47,10 @@ describe("ApplicationService createApplication display reference", () => {
     jest.clearAllMocks();
     mockTx.application.create.mockReset();
     mockTx.application.update.mockReset();
+    mockTx.application.findUnique.mockReset();
     mockTx.application.findUniqueOrThrow.mockReset();
+    mockTx.applicationAuditLog.create.mockReset();
+    mockTx.user.findUnique.mockReset();
     mockTx.displayReferenceAllocation.create.mockReset();
     mockTx.displayReferenceAllocation.findUnique.mockReset();
     mockPrisma.product.findUnique.mockReset();
@@ -55,6 +65,14 @@ describe("ApplicationService createApplication display reference", () => {
       created_at: new Date("2026-08-10T01:00:00.000Z"),
       display_reference: null,
     });
+    mockTx.application.findUnique.mockResolvedValue({ issuer_organization_id: "org_1" });
+    mockTx.user.findUnique.mockResolvedValue({
+      user_id: "user_1",
+      first_name: "Ada",
+      last_name: "Admin",
+      email: "ada@example.com",
+    });
+    mockTx.applicationAuditLog.create.mockResolvedValue({});
     mockTx.application.update.mockResolvedValue({});
     mockTx.application.findUniqueOrThrow.mockResolvedValue({
       id: "app_1",

@@ -87,7 +87,7 @@ export function ListToolbar({
           {countLabel != null ? (
             <Badge
               variant="outline"
-              className="pointer-events-none h-auto px-3 py-1.5 text-sm font-normal text-muted-foreground"
+              className="pointer-events-none h-auto px-3 py-1.5 text-ui font-normal text-muted-foreground"
             >
               {countLabel}
             </Badge>

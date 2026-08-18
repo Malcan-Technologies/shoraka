@@ -27,18 +27,18 @@ export function DetailHeader({
       {...props}
     >
       {breadcrumb ? (
-        <div className="text-sm text-muted-foreground">{breadcrumb}</div>
+        <div className="text-ui text-muted-foreground">{breadcrumb}</div>
       ) : null}
       <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0 space-y-2">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
+            <h1 className="text-page-title">
               {title}
             </h1>
             {status}
           </div>
           {facts ? (
-            <div className="text-[15px] leading-6 text-muted-foreground">
+            <div className="text-ui text-muted-foreground">
               {facts}
             </div>
           ) : null}

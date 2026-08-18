@@ -132,7 +132,7 @@ export function ChangePasswordDialog({
       <DialogContent className="rounded-2xl sm:max-w-[450px]">
         <DialogHeader>
           <DialogTitle>Change Password</DialogTitle>
-          <DialogDescription className="text-[15px]">
+          <DialogDescription className="text-ui">
             Enter your current password and choose a new password. Your new
             password must be at least 8 characters and contain uppercase,
             lowercase, and a number.

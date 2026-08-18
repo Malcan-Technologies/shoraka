@@ -316,7 +316,7 @@ export default function ContractDetailsPage() {
               <MetricBox label="Rejected" value={`${stats.rejected}`} />
               <MetricBox label="Unfinanced" value={`${stats.unfinanced}`} />
             </div>
-            <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-4 text-sm leading-6 md:text-[15px] md:leading-7">
+            <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-4 text-sm leading-6 md:text-ui md:leading-7">
               <p className="text-base font-semibold text-foreground">
                 Breakdown of approved invoices
               </p>

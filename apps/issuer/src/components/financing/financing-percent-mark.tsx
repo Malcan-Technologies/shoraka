@@ -28,7 +28,7 @@ export function FinancingPercentMark({
       <span className="text-3xl font-semibold tabular-nums tracking-tight text-foreground sm:text-4xl">
         {rate != null ? `${Math.round(rate)}%` : EM}
       </span>
-      <span className="mt-1 text-[11px] font-normal leading-4 text-muted-foreground">
+      <span className="mt-1 text-meta font-normal leading-4 text-muted-foreground">
         {centerLabel}
       </span>
     </div>

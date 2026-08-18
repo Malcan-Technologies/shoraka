@@ -44,7 +44,7 @@ function OfferStatusBadge({ offerStatus }: { offerStatus: OfferStatus }) {
 
 function InvoiceScopeBadge({ contractId }: { contractId: string | null }) {
   if (contractId) {
-    return <StatusBadge label="Under contract" status="completed" />;
+    return <StatusBadge label="Under contract" status="submitted" />;
   }
   return <StatusBadge label="Standalone" status="neutral" />;
 }
@@ -252,7 +252,7 @@ export function DashboardInvoiceCard({
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="h-8 rounded-lg border-status-action-text/30 bg-status-action-bg px-3 text-xs font-medium text-status-action-text hover:bg-status-action-bg"
+                      className="border-status-action-text/30 bg-status-action-bg text-status-action-text hover:bg-status-action-bg"
                       onClick={() =>
                         router.push(
                           `/applications?applicationIds=${encodeURIComponent(
@@ -289,13 +289,13 @@ export function DashboardInvoiceCard({
               <FinancingKpiTile label="Financing" value={formatMoney(row.financingAmount)} />
             </div>
 
-            <p className="text-[13px] leading-5 text-muted-foreground">{fundingLabel}</p>
+            <p className="text-ui leading-5 text-muted-foreground">{fundingLabel}</p>
 
             <div className="grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-2">
               <div className="min-w-0 space-y-2">
                 <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
                 {row.note?.id ? (
-                  <p className="text-[17px] leading-7 text-foreground">
+                  <p className="text-ui leading-7 text-foreground">
                     <span className="font-normal text-muted-foreground">Note: </span>
                     <Link
                       href={`/financing/notes/${row.note.id}`}
@@ -309,7 +309,7 @@ export function DashboardInvoiceCard({
                   <LabelValue label="Note">{EM_DASH}</LabelValue>
                 )}
                 {row.contractId ? (
-                  <p className="text-[17px] leading-7 text-foreground">
+                  <p className="text-ui leading-7 text-foreground">
                     <span className="font-normal text-muted-foreground">Contract: </span>
                     <Link
                       href={`/financing/contracts/${row.contractId}`}

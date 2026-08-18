@@ -44,7 +44,7 @@ describe("admin organization detail presentation", () => {
 
   it("uses balanced column mins instead of a giant table min-width", () => {
     expect(table).toContain("overflow-hidden rounded-xl border");
-    expect(table).toContain("odd:bg-muted/40 hover:bg-muted");
+    expect(table).toContain("adminActionRowClass");
     expect(table).not.toContain("min-w-[72rem]");
     expect(table).not.toContain('className="w-[1%] whitespace-nowrap"');
     expect(table).toContain("min-w-[11.5rem] w-[13rem]");
@@ -55,7 +55,7 @@ describe("admin organization detail presentation", () => {
 
   it("uses the shared StatusBadge for people status", () => {
     expect(table).toContain("StatusBadge");
-    expect(table).toContain("finalStatusToneToToken");
+    expect(table).toContain("getDirectorFinalStatusToken");
     expect(table).not.toContain("getFinalStatusBadgeClassName");
     expect(table).toContain('label={finalStatus.label}');
     expect(table).toContain('className="text-xs whitespace-nowrap"');

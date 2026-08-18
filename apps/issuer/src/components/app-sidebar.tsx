@@ -142,7 +142,7 @@ function ApplyForFinancingCard({
                 <p className="text-sm font-semibold text-sidebar-foreground">
                   Apply for financing
                 </p>
-                <p className="text-[13px] leading-5 text-muted-foreground">
+                <p className="text-ui leading-5 text-muted-foreground">
                   Available after onboarding is complete.
                 </p>
               </div>
@@ -182,7 +182,7 @@ function ApplyForFinancingCard({
       >
         <div className="mb-3 space-y-1 group-data-[collapsible=icon]:hidden">
           <p className="text-sm font-semibold text-sidebar-foreground">Ready to get funded?</p>
-          <p className="text-[13px] leading-5 text-muted-foreground">
+          <p className="text-ui leading-5 text-muted-foreground">
             Start a new financing application in a few steps.
           </p>
         </div>

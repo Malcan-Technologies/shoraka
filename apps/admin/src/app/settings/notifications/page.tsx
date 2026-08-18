@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAdminNotifications } from "@cashsouk/config";
 import { usePermissions } from "../../../hooks/use-permissions";
 import type {
@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "../../../components/ui/select";
 import { Badge } from "../../../components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger, useHeader } from "@cashsouk/ui";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
 import { toast } from "sonner";
 import {
   Send,
@@ -50,14 +50,9 @@ import {
   DialogTitle,
 } from "../../../components/ui/dialog";
 import { RequirePermission } from "../../../components/require-permission";
+import { AdminPageHeader } from "../../../components/admin-page-header";
 
 export default function NotificationsAdminPage() {
-  const { setTitle: setHeaderTitle } = useHeader();
-  useEffect(() => {
-    setHeaderTitle("Notification Management");
-    return () => setHeaderTitle("");
-  }, [setHeaderTitle]);
-
   const { can } = usePermissions();
   const canManage = can("notifications.manage");
   const [configPortalFilter, setConfigPortalFilter] = useState<"INVESTOR" | "ISSUER" | "BOTH">(
@@ -251,12 +246,14 @@ export default function NotificationsAdminPage() {
     <RequirePermission permission="notifications.view">
             <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="w-full px-2 md:px-4 py-8 space-y-6">
-          <p className="text-muted-foreground -mt-4">
-            Manage system-wide notification settings and send custom alerts. Broadcast history is in{" "}
+          <AdminPageHeader
+            title="Notifications"
+            description="Manage system-wide notification settings and send custom alerts. Broadcast history is in Audit Logs → Notifications."
+          />
+          <p className="text-muted-foreground -mt-2">
             <Link href="/audit?tab=notifications" className="font-medium text-foreground underline underline-offset-4">
-              Audit Logs → Notifications
+              Open Audit Logs → Notifications
             </Link>
-            .
           </p>
 
           <Tabs defaultValue="config" className="space-y-6">
@@ -364,7 +361,7 @@ export default function NotificationsAdminPage() {
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="flex flex-col items-center gap-1">
-                            <span className="text-[10px] text-muted-foreground">Platform</span>
+                            <span className="text-meta text-muted-foreground">Platform</span>
                             <Switch
                               checked={type.enabled_platform}
                               onCheckedChange={(checked) => handleTogglePlatform(type.id, checked)}
@@ -373,7 +370,7 @@ export default function NotificationsAdminPage() {
                             />
                           </div>
                           <div className="flex flex-col items-center gap-1">
-                            <span className="text-[10px] text-muted-foreground">Email</span>
+                            <span className="text-meta text-muted-foreground">Email</span>
                             <Switch
                               checked={type.enabled_email}
                               onCheckedChange={(checked) => handleToggleEmail(type.id, checked)}
@@ -507,7 +504,7 @@ export default function NotificationsAdminPage() {
                       value={linkPath}
                       onChange={(e) => setLinkPath(e.target.value)}
                     />
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-meta text-muted-foreground">
                       The page the user will be taken to when they click the notification.
                     </p>
                   </div>
@@ -519,7 +516,7 @@ export default function NotificationsAdminPage() {
                         <button
                           type="button"
                           onClick={() => setExpirationType("presets")}
-                          className={`text-[10px] px-2 py-1 rounded-md transition-colors ${
+                          className={`text-meta px-2 py-1 rounded-md transition-colors ${
                             expirationMode === "presets"
                               ? "bg-white shadow-sm font-medium"
                               : "text-muted-foreground hover:text-foreground"
@@ -530,7 +527,7 @@ export default function NotificationsAdminPage() {
                         <button
                           type="button"
                           onClick={() => setExpirationType("custom")}
-                          className={`text-[10px] px-2 py-1 rounded-md transition-colors ${
+                          className={`text-meta px-2 py-1 rounded-md transition-colors ${
                             expirationMode === "custom"
                               ? "bg-white shadow-sm font-medium"
                               : "text-muted-foreground hover:text-foreground"
@@ -564,7 +561,7 @@ export default function NotificationsAdminPage() {
                         min={format(new Date(), "yyyy-MM-dd")}
                       />
                     )}
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-meta text-muted-foreground">
                       {expirationMode === "presets"
                         ? "Choose a standard retention period."
                         : "Select a specific date for this notification to expire."}
@@ -643,7 +640,7 @@ export default function NotificationsAdminPage() {
                           <div className="space-y-0.5">
                             <div className="flex items-center gap-2">
                               <span className="font-medium">{group.name}</span>
-                              <Badge variant="secondary" className="text-[10px]">
+                              <Badge variant="secondary" className="text-meta">
                                 {group.user_ids.length} users
                               </Badge>
                             </div>
@@ -726,7 +723,7 @@ export default function NotificationsAdminPage() {
                 onChange={(e) => setGroupUserIds(e.target.value)}
                 required
               />
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-meta text-muted-foreground">
                 Enter the internal user IDs of the users you want to include in this group.
               </p>
             </div>

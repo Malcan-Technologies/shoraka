@@ -507,7 +507,7 @@ export default function ApplicationDetailPage() {
               Withdraw
             </Button>
             {withdrawDisabled && showViewSignedContract ? (
-              <p className="basis-full text-[13px] leading-5 text-muted-foreground sm:basis-auto sm:max-w-[16rem]">
+              <p className="basis-full text-ui leading-5 text-muted-foreground sm:basis-auto sm:max-w-[16rem]">
                 Withdraw is not available while a signed offer letter is on file.
               </p>
             ) : null}
@@ -566,7 +566,7 @@ export default function ApplicationDetailPage() {
             <TabsTrigger value="offer" className="gap-1.5 rounded-lg">
               Offer
               {pendingOfferCount > 0 ? (
-                <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-[11px] text-primary-foreground">
+                <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-meta text-primary-foreground">
                   {pendingOfferCount}
                 </Badge>
               ) : null}
@@ -575,7 +575,7 @@ export default function ApplicationDetailPage() {
           <TabsTrigger value="invoices" className="gap-1.5 rounded-lg">
             Invoices
             {invoicesNeedingAction > 0 ? (
-              <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-[11px] text-primary-foreground">
+              <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-meta text-primary-foreground">
                 {invoicesNeedingAction}
               </Badge>
             ) : null}
@@ -722,7 +722,7 @@ export default function ApplicationDetailPage() {
                       <CardTitle className="text-xl sm:text-2xl">Signed offer</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-[15px] leading-6 text-muted-foreground">
+                      <p className="text-ui leading-6 text-muted-foreground">
                         There is no offer waiting for a response. You can download signed offer
                         letters from Documents.
                       </p>
@@ -749,7 +749,7 @@ export default function ApplicationDetailPage() {
               return (
                 <div className="grid gap-4 lg:grid-cols-[minmax(15rem,18rem)_minmax(0,1fr)] lg:items-start">
                   <aside className="rounded-2xl border border-border bg-card p-2 shadow-sm">
-                    <p className="px-3 pb-2 pt-1 text-[13px] font-medium text-muted-foreground">
+                    <p className="px-3 pb-2 pt-1 text-ui font-medium text-muted-foreground">
                       Offers to review
                     </p>
                     <nav className="flex flex-col gap-1" aria-label="Select offer">
@@ -768,7 +768,7 @@ export default function ApplicationDetailPage() {
                           <span className="block text-sm font-semibold">Contract offer</span>
                           <span
                             className={cn(
-                              "mt-0.5 block text-[13px] leading-5",
+                              "mt-0.5 block text-ui leading-5",
                               contractSelected ? "text-primary/80" : "text-muted-foreground"
                             )}
                           >
@@ -796,7 +796,7 @@ export default function ApplicationDetailPage() {
                             </span>
                             <span
                               className={cn(
-                                "mt-0.5 block text-[13px] leading-5",
+                                "mt-0.5 block text-ui leading-5",
                                 selected ? "text-primary/80" : "text-muted-foreground"
                               )}
                             >
@@ -862,10 +862,10 @@ export default function ApplicationDetailPage() {
                       className="flex flex-wrap items-center justify-between gap-3 px-6 py-3"
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-[15px] font-medium text-foreground">
+                        <p className="truncate text-ui font-medium text-foreground">
                           {doc.name}
                         </p>
-                        <p className="text-[13px] text-muted-foreground">{doc.source}</p>
+                        <p className="text-ui text-muted-foreground">{doc.source}</p>
                       </div>
                       <Button
                         variant="outline"
@@ -922,16 +922,16 @@ export default function ApplicationDetailPage() {
                           ) : null}
                         </div>
                         <div className={cn("min-w-0 flex-1", !isLast && "pb-6")}>
-                          <p className="text-[15px] font-medium leading-6 text-foreground">
+                          <p className="text-ui font-medium leading-6 text-foreground">
                             {item.label}
                           </p>
                           {item.description ? (
-                            <p className="mt-0.5 text-[13px] leading-5 text-muted-foreground">
+                            <p className="mt-0.5 text-ui leading-5 text-muted-foreground">
                               {item.description}
                             </p>
                           ) : null}
                           {item.at ? (
-                            <p className="mt-1 text-[13px] text-muted-foreground">
+                            <p className="mt-1 text-ui text-muted-foreground">
                               {format(new Date(item.at), "d MMM yyyy, h:mm a")}
                             </p>
                           ) : null}

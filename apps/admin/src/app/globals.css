@@ -27,9 +27,9 @@
   }
 }
 
-/* Override base p/li size inside onboarding/AML instruction blocks to match CardDescription */
+/* Match CardDescription (text-ui) inside onboarding/AML instruction blocks */
 .instruction-steps ol li,
 .instruction-steps p.instruction-conclusion {
-  font-size: 0.875rem;
-  line-height: 1.625;
+  font-size: var(--text-ui);
+  line-height: 1.5rem;
 }

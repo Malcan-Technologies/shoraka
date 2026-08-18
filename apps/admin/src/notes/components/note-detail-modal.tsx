@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
+import { getAdminStatusToken } from "@/lib/admin-status-token";
+import { getNoteFundingStatusToken } from "@/notes/utils/funding-progress";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@cashsouk/ui";
+import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import { useNoteDetail } from "../hooks/use-note-detail";
 import {
   useCloseNoteFunding,
@@ -94,9 +95,18 @@ export function NoteDetailModal({ noteId, open, onOpenChange }: NoteDetailModalP
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">{note.status.replace(/_/g, " ")}</Badge>
-                  <Badge variant="secondary">{note.listingStatus.replace(/_/g, " ")}</Badge>
-                  <Badge variant="secondary">{note.fundingStatus.replace(/_/g, " ")}</Badge>
+                  <StatusBadge
+                    label={note.status.replace(/_/g, " ")}
+                    status={getAdminStatusToken(note.status)}
+                  />
+                  <StatusBadge
+                    label={note.listingStatus.replace(/_/g, " ")}
+                    status={getAdminStatusToken(note.listingStatus)}
+                  />
+                  <StatusBadge
+                    label={note.fundingStatus.replace(/_/g, " ")}
+                    status={getNoteFundingStatusToken(note)}
+                  />
                 </div>
                 <div className="flex gap-2">
                   <Button
