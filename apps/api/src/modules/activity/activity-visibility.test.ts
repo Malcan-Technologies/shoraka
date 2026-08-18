@@ -294,6 +294,9 @@ describe("activity visibility matrix", () => {
         isNoteActivityVisible("investor", "NOTE_CAMPAIGN_RESUMED", {}, { investorCommitted: true })
       ).toBe(true);
       expect(
+        isNoteActivityVisible("investor", "NOTE_CAMPAIGN_RESUMED", {}, { investorCommitted: false })
+      ).toBe(false);
+      expect(
         isNoteActivityVisible("investor", "NOTE_MARKED_DEFAULT", {}, { investorCommitted: false })
       ).toBe(false);
     });

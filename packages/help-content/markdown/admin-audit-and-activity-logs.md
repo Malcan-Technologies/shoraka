@@ -43,7 +43,7 @@ Use the organization timeline for:
 
 - Onboarding start, resume, cancellation, reset, rejection, and status updates.
 - RegTank KYC, KYB, AML, COD, and SSM/T&C approval milestones when those flows write onboarding logs.
-- Admin actions such as final onboarding approval, AML approval, SSM approval, onboarding approval, or onboarding restart/cancellation.
+- Admin actions such as final onboarding approval, AML approval, SSM approval, onboarding approval, onboarding restart/cancellation, or organization profile updates.
 - Investor-specific sophisticated status changes.
 
 The timeline is best for answering "what happened to this organization?" rather than searching across all users.

@@ -86,6 +86,9 @@ describe("Note audit cutover", () => {
 
   it("event catalogues match between API and types", () => {
     expect([...TYPES_NOTE_EVENTS]).toEqual([...NOTE_AUDIT_EVENTS]);
+    expect(NOTE_AUDIT_EVENTS).toHaveLength(37);
+    expect(NOTE_AUDIT_EVENTS).toContain("NOTE_CAMPAIGN_PAUSED");
+    expect(NOTE_AUDIT_EVENTS).toContain("NOTE_CAMPAIGN_RESUMED");
   });
 
   it("implements the approved catalogue and not dropped events", () => {

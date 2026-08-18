@@ -18,7 +18,7 @@
 - `NoteAdminAction` / `note_admin_actions` **removed**.
 - Title/summary-only edits, featured settings, and prospectus draft saves remain intentionally unaudited.
 - Investor-wallet withdrawals are PaymentAuditLog (Phase 9). GatewayPayment events are PaymentAuditLog.
-- There is **no** canonical/global `AuditEvent` table.
+- There is **no** canonical/global `AuditEvent` table. Live catalogue: **177** reserved IDs, **174** active writers, **3** retired (A040/A052/A053). A175 is OnboardingAuditLog. A176/A177 are NoteAuditLog.
 
 ---
 
@@ -58,7 +58,7 @@ Known limitations (not fixed in the cleanup):
 - `LegalDocumentAcceptance` remains legal acceptance source of truth.
 - CTOS report rows remain report source of truth.
 - Audit is never workflow state. No User/org/RegTank FKs on `OnboardingAuditLog` (scalar historical ids only). Append-only create.
-- Reserved onboarding IDs A039–A055 remain 17 reserved/catalogued IDs. Current active onboarding event types: 14. Retired / no current writer: `ONBOARDING_RESUMED` (A040), `CTOS_REPORT_RECEIVED` (A052), and `CORPORATE_ENTITIES_UPDATED` (A053). Historical rows remain readable. IDs are not reused.
+- Reserved onboarding IDs: **18** = original A039–A055 plus later-appended A175 (`ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`). Current active onboarding event types: **15**. Retired / no current writer: `ONBOARDING_RESUMED` (A040), `CTOS_REPORT_RECEIVED` (A052), and `CORPORATE_ENTITIES_UPDATED` (A053). Historical rows remain readable. IDs are not reused. Live catalogue is **177** reserved IDs (A001–A177) with **174** active writers.
 - Onboarding audit records CashSouk business actions, stages, decisions, and outcomes. Detailed provider synchronization remains in its source-of-truth storage (`corporate_entities`, `director_kyc_status`, `RegTankOnboarding.webhook_payloads`) and is not duplicated as onboarding audit noise.
 - `DIRECTOR_KYC_STATUS_UPDATED` writes only when an existing director newly becomes `APPROVED` or `REJECTED`.
 - `ONBOARDING_STATUS_CHANGED` is the core stage event, including review landing, amendment requested, and amendment resubmission. Admin Organization contextual history includes it. Dedicated SSM/AML/approval/final/reject/restart events do not also write a sibling A044 row.
@@ -83,10 +83,10 @@ CashSouk does not have a single audit system. It has **many specialized tables**
 ### Current architecture (factual)
 
 - **Auth/security:** `AccessAuditLog` (signup/login/logout) + `SecurityAuditLog` (RBAC, profile, invitations, membership, notification config). No User FK; history survives User deletion. `UserSession` is session SOT; Cognito is auth authority. Legacy `AccessLog` / `SecurityLog` removed.
-- **Onboarding:** `OnboardingAuditLog` is the sole onboarding/compliance history table (append-only). Organization `onboarding_status`/flags, `RegTankOnboarding`, `LegalDocumentAcceptance`, and CTOS rows remain SOT. Audit is never workflow state. Legacy `OnboardingLog` / `onboarding_logs` removed. A039–A055 are 17 reserved/catalogued IDs with 14 current active event types; A040, A052, and A053 are retired (historical rows readable). `DIRECTOR_KYC_STATUS_UPDATED` is outcome-only (`APPROVED`/`REJECTED`). `AML_APPROVED` links `onboarding_id` to `reg_tank_onboarding.id` when the writer already has the session.
+- **Onboarding:** `OnboardingAuditLog` is the sole onboarding/compliance history table (append-only). Organization `onboarding_status`/flags, `RegTankOnboarding`, `LegalDocumentAcceptance`, and CTOS rows remain SOT. Audit is never workflow state. Legacy `OnboardingLog` / `onboarding_logs` removed. Onboarding has **18** reserved IDs (A039–A055 original block + appended A175) and **15** active writers; A040, A052, and A053 are retired (historical rows readable). `DIRECTOR_KYC_STATUS_UPDATED` is outcome-only (`APPROVED`/`REJECTED`). `AML_APPROVED` links `onboarding_id` to `reg_tank_onboarding.id` when the writer already has the session. A175 is admin organization-profile history (issuer/investor Activity HIDE).
 - **Applications:** `ApplicationAuditLog` (`application_audit_logs`) is the application/review/contract/invoice history table (append-only, no Application/User FKs). `ApplicationReview` / `ApplicationReviewItem` are current review status. `ApplicationReviewRemark` is cycle-scoped amendment remark SOT. `ApplicationRevision` is comparison/snapshot SOT. Resubmit comparison reads `ApplicationRevision` + remarks, never audit. Legacy `ApplicationLog` / `application_logs` and `ApplicationReviewEvent` / `application_review_events` **removed**.
 - **Signing:** `SigningAuditLog` (`signing_audit_logs`) is the signing history table (append-only). Envelope graph / `SigningCloudEkyc` remain signing SOT. `GET /v1/applications/:id/logs` merges Application + Signing audit rows. Envelope log APIs read `SigningAuditLog` only.
-- **Notes:** `NoteAuditLog` (`note_audit_logs`) is the sole Note-domain history table (append-only, no Note/User/org FKs). Ledger, `NotePayment`, `NoteSettlement`, `NoteInvestment`, `WithdrawalInstruction`, `ShorakaTradeOrder`, prospectus models, and `Note` remain SOT. Activity feed reads a **subset** of `NoteAuditLog` types. `NoteEvent` / `note_events` and `NoteAdminAction` / `note_admin_actions` **removed**. Title/summary edits, featured settings, and prospectus draft saves are intentionally unaudited.
+- **Notes:** `NoteAuditLog` (`note_audit_logs`) is the sole Note-domain history table (append-only, no Note/User/org FKs). Ledger, `NotePayment`, `NoteSettlement`, `NoteInvestment`, `WithdrawalInstruction`, `ShorakaTradeOrder`, prospectus models, and `Note` remain SOT. Activity feed reads a **subset** of `NoteAuditLog` types. `NoteEvent` / `note_events` and `NoteAdminAction` / `note_admin_actions` **removed**. Title/summary edits, featured settings, and prospectus draft saves are intentionally unaudited. Catalogue count is **37** (A115–A149 original + appended A176 `NOTE_CAMPAIGN_PAUSED` / A177 `NOTE_CAMPAIGN_RESUMED`). Pause/resume are listing-axis events, not `NOTE_UNPUBLISHED` / `NOTE_PUBLISHED`.
 - **Legal admin:** dedicated `LegalAdminAuditLog`. User open/accept is **not** that table; it is `LegalDocumentAcceptance` updated **in place**. Legacy `LegalDocumentAuditLog` / `legal_document_audit_logs` has been removed.
 - **Payments:** `GatewayPayment` is payment-state SOT; `PaymentAuditLog` is the sole payment business-audit history (append-only, no FKs). `GatewayWebhookEvent` remains provider transport/replay evidence and is **updated** after processing. `InvestorBalance` / `InvestorBalanceTransaction` remain wallet/cash statement SOT. `WithdrawalInstruction`, `GatewayPaymentReceipt`, and `GatewayReconException` remain withdrawal/receipt/recon SOT. Legacy `GatewayPaymentEvent` / `gateway_payment_events` **removed**.
 - **Products:** `ProductAuditLog` is append-only and is not deleted on product rollback. Legacy `ProductLog` / `product_logs` has been removed.
@@ -192,8 +192,8 @@ Sole security/admin-control table. Distinguishes `actor_user_id` vs `subject_use
 #### OnboardingAuditLog → `onboarding_audit_logs` · ONBOARDING · **A**
 
 Sole onboarding/compliance history table. Append-only create. Required `metadata` Json. `occurred_at` + `created_at`. No `updated_at`. No User/org/RegTank FKs (scalar historical ids only).  
-Reserved IDs (17): `ONBOARDING_STARTED`, `ONBOARDING_RESUMED` (retired, historical rows readable), `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `CTOS_REPORT_RECEIVED` (retired, `ctos_reports` still persisted), `CORPORATE_ENTITIES_UPDATED` (retired, `corporate_entities` still persisted), `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED` (APPROVED/REJECTED outcomes only).  
-Current active onboarding event types: 14. `AML_APPROVED.onboarding_id` is optional linkage to `reg_tank_onboarding.id` when the writer already knows the session. **REMOVED:** `OnboardingLog` / `onboarding_logs`. Audit is never workflow state.
+Reserved IDs (18): original A039–A055 plus appended A175 `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`. Types: `ONBOARDING_STARTED`, `ONBOARDING_RESUMED` (retired, historical rows readable), `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `CTOS_REPORT_RECEIVED` (retired, `ctos_reports` still persisted), `CORPORATE_ENTITIES_UPDATED` (retired, `corporate_entities` still persisted), `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED` (APPROVED/REJECTED outcomes only), `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`.
+Current active onboarding event types: **15**. `AML_APPROVED.onboarding_id` is optional linkage to `reg_tank_onboarding.id` when the writer already knows the session. **REMOVED:** `OnboardingLog` / `onboarding_logs`. Audit is never workflow state. There is **no** canonical/global `AuditEvent` table. Live catalogue: **177** reserved / **174** active / **3** retired.
 
 #### ApplicationAuditLog → `application_audit_logs` · APPLICATION · **A**
 
@@ -282,7 +282,7 @@ Create-only for bulk send. Legacy `NotificationLog` / `notification_logs` has be
 
 ## 4. Complete Business Mutation Inventory
 
-IDs are report-only original inventory case numbers (A001…). They are **not** the current catalogue A001–A174 IDs (for example, original case A049 here is admin refresh-corporate-entities, while catalogue A049 is `AML_APPROVED`). Trigger paths in this section were captured before Phase 4 Access/Security cutover. **Current writers are AccessAuditLog / SecurityAuditLog / OnboardingAuditLog as documented in the header and §5–§7.** Historical `LOGIN`/`access_logs` labels in the table below are not live.
+IDs are report-only original inventory case numbers (A001…). They are **not** the current catalogue A001–A177 IDs (for example, original case A049 here is admin refresh-corporate-entities, while catalogue A049 is `AML_APPROVED`). Trigger paths in this section were captured before Phase 4 Access/Security cutover. **Current writers are AccessAuditLog / SecurityAuditLog / OnboardingAuditLog as documented in the header and §5–§7.** Historical `LOGIN`/`access_logs` labels in the table below are not live.
 
 Actor: USER / ADMIN / SYSTEM / PROVIDER / EXTERNAL SIGNER / WEBHOOK.
 
@@ -492,7 +492,7 @@ Created on ingest; **`updateMany` processed_at/error** in `webhook-service.ts`.
 | legal_admin_audit_logs | `GET /v1/admin/legal-document-audit-logs` + export | Admin `/audit` legal | action → event_type filters | MEDIUM |
 | legal_document_acceptances | acceptance-admin + user required/pending | Compliance UI + **onboarding gate** `hasCompletedRequiredAcceptances` | **HIGH** |
 | note_audit_logs | `GET admin notes/:id/events` + note detail mapper | Admin note timeline | full history newest-first; no hidden 50 cap | MEDIUM |
-| note_audit_logs | `NoteLogAdapter` | Activity | **subset only** (NOTE_CREATED/PUBLISHED/FUNDING_*/ACTIVATED, INVESTMENT_COMMITTED, SETTLEMENT_POSTED, DISBURSEMENT_COMPLETED, REPAYMENT_SUBMITTED, NOTE_MARKED_DEFAULT). Only `NOTE_ACTIVATED` is “Note Active”. | MEDIUM |
+| note_audit_logs | `NoteLogAdapter` | Activity | **subset only** (NOTE_CREATED/PUBLISHED/UNPUBLISHED/CAMPAIGN_PAUSED/CAMPAIGN_RESUMED/FUNDING_*/ACTIVATED, INVESTMENT_COMMITTED, SETTLEMENT_POSTED, DISBURSEMENT_COMPLETED, REPAYMENT_*, NOTE_MARKED_DEFAULT, plus issuer terms/servicing rules). Investor pause/resume requires COMMITTED|CONFIRMED|SETTLED. Only `NOTE_ACTIVATED` is “Note Active”. | MEDIUM |
 | payment_audit_logs | `getGatewayPaymentDetail` `events[]` | Admin payment detail timeline | typed metadata; not payment SOT | MEDIUM |
 | gateway_webhook_events | webhook-service findFirst/update | **Idempotency / processing** | HIGH transport |
 | notification_broadcast_audit_logs | `GET /v1/notifications/admin/logs` | Admin notification logs | type → notification_type_id; target → audience_type | MEDIUM |
@@ -519,7 +519,7 @@ Retired with `AccessLog`/`SecurityLog`: `LOGIN`, `SIGNUP`, `LOGOUT`, `ROLE_SWITC
 
 ### Onboarding (`OnboardingAuditLog`)
 
-Current writers (14): `ONBOARDING_STARTED`, `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED` (APPROVED/REJECTED outcomes only).  
+Current writers (**15**): `ONBOARDING_STARTED`, `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED` (APPROVED/REJECTED outcomes only), `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`.
 Retired, still reserved (historical rows readable): `ONBOARDING_RESUMED`, `CTOS_REPORT_RECEIVED`, `CORPORATE_ENTITIES_UPDATED`.  
 `AML_APPROVED` `onboarding_id` links to `reg_tank_onboarding.id` when the current writer already has that session (KYB/KYC webhooks, admin AML refresh, admin Approve AML). Self-service AML sync may leave it NULL.  
 Issuer Company clean happy path: `ONBOARDING_STARTED` → `ONBOARDING_STATUS_CHANGED` (Verification Submitted) → `SSM_APPROVED` → optional `DIRECTOR_KYC_STATUS_UPDATED` (final APPROVED/REJECTED only) → `ONBOARDING_APPROVED` → `AML_APPROVED` → `ONBOARDING_FINAL_APPROVAL_COMPLETED`. No A040/A052/A053 and no sibling A044 beside those milestone events.  
@@ -535,11 +535,12 @@ Signing package events are **not** on this table; they belong to `SigningAuditLo
 
 `SIGNING_PACKAGE_CREATED/SENT/COMPLETED/VOIDED/DECLINED/EXPIRED`, `SIGNING_RECIPIENT_COMPLETED/DECLINED`, `SIGNING_EKYC_STARTED/VERIFIED/FAILED`, `SIGNING_REMINDER_SENT`.
 
-### Note
+### Note (`NOTE_AUDIT_EVENTS` — 37 current)
 
-Written: NOTE_CREATED_FROM_INVOICE, UPDATE_DRAFT, UPDATE_FEATURED_SETTINGS, PUBLISH, UNPUBLISH, CLOSE_FUNDING, FAIL_FUNDING, ACTIVATE, INVESTMENT_COMMITTED, ISSUER_DISBURSEMENT_WITHDRAWAL_CREATED, PAYMENT_RECEIVED, ISSUER_PAYMENT_SUBMITTED, PAYMENT_APPROVED, PAYMENT_REJECTED, SETTLEMENT_PREVIEWED/APPROVED/POSTED, OVERDUE_LATE_CHARGE_CHECKED, LATE_CHARGE_APPROVED, ARREARS_LETTER_GENERATED, DEFAULT_LETTER_GENERATED, NOTE_DEFAULT_MARKED, WITHDRAWAL_*, SERVICE_FEE_*, SHORAKA_ORDER_SUBMITTED, SHORAKA_CERTIFICATE_FETCHED, PROSPECTUS_REVIEW_CREATE/SAVE/APPROVE, PROSPECTUS_APPROVAL_INVALIDATED_SOURCE/EDIT.  
-**DEFINED NEVER WRITTEN:** ISSUER_RESIDUAL_WITHDRAWAL_CREATED (sort helper).  
-Admin action_type CREATE_FROM_INVOICE vs event NOTE_CREATED_FROM_INVOICE — **INCONSISTENT NAMING**.
+`NOTE_CREATED`, `NOTE_TERMS_UPDATED`, `NOTE_PROSPECTUS_REVIEW_CREATED`, `NOTE_PROSPECTUS_APPROVED`, `NOTE_PROSPECTUS_INVALIDATED`, `NOTE_PUBLISHED`, `NOTE_UNPUBLISHED`, `NOTE_CAMPAIGN_PAUSED`, `NOTE_CAMPAIGN_RESUMED`, `INVESTMENT_COMMITTED`, `NOTE_FUNDING_CLOSED`, `NOTE_FUNDING_FAILED`, `NOTE_ACTIVATED`, `NOTE_SERVICING_STATUS_CHANGED`, `NOTE_MARKED_DEFAULT`, disbursement/residual/repayment/settlement/service-fee/Shoraka/letter events, `TRUSTEE_SIGNATURE_UPDATED`.
+A176/A177 are campaign listing pause/resume (note stays `PUBLISHED`, funding stays `OPEN`). They are not `NOTE_UNPUBLISHED` / `NOTE_PUBLISHED`.
+Title/summary edits, featured settings, and prospectus draft saves remain intentionally unaudited.
+Historical `NoteEvent` / `NoteAdminAction` names in §4 (NOTE_CREATED_FROM_INVOICE, UPDATE_FEATURED_SETTINGS, …) are **pre-cutover** and are not live writers.
 
 ### Product
 

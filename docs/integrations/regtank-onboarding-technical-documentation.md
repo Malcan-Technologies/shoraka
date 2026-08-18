@@ -428,7 +428,7 @@ Initiates personal (individual) onboarding for an organization.
    - Resume of an existing session does **not** write `ONBOARDING_RESUMED` (retired; historical rows remain readable)
    - Includes request metadata (IP, user agent)
 
-**Onboarding audit (current source, A039–A055):** 17 reserved/catalogued IDs; 14 current active event types. Retired / no current writer: `ONBOARDING_RESUMED` (A040), `CTOS_REPORT_RECEIVED` (A052), `CORPORATE_ENTITIES_UPDATED` (A053). Historical rows remain readable. IDs are not reused.
+**Onboarding audit (current source):** 18 reserved/catalogued IDs (original A039–A055 plus later-appended A175); 15 current active event types. Retired / no current writer: `ONBOARDING_RESUMED` (A040), `CTOS_REPORT_RECEIVED` (A052), `CORPORATE_ENTITIES_UPDATED` (A053). Historical rows remain readable. IDs are not reused. A175 `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN` is an admin organization-profile event on `OnboardingAuditLog`, not a RegTank session event.
 
 - `AML_APPROVED` `onboarding_id` is optional linkage to `reg_tank_onboarding.id` (CashSouk cuid, not COD/KYB/KYC ids) when the writer already knows the session: KYB main-company webhook, personal KYC webhook, admin corporate AML refresh, admin personal onboarding refresh, admin Approve AML. Self-service AML sync may leave it NULL. Provider ids stay in metadata. This does not change AML approval logic.
 - Director Confirm & Send (Company org COMPLETED → Issuer/Investor Profile → Directors and Shareholders → Confirm & Send → Confirm) creates a new RegTank individual onboarding and writes `DIRECTOR_ONBOARDING_INVITATION_SENT` (A054). There is no separate resend endpoint.

@@ -466,7 +466,7 @@ Incomplete onboarding steps (`terms`, `fee`, `verify`) redirect off `/` to the m
 
 Onboarding audit records CashSouk business actions, stages, decisions, and outcomes. Detailed provider synchronization remains in its source-of-truth storage and is not duplicated as onboarding audit noise.
 
-**Reserved/catalogued IDs:** A039–A055 (17). **Current active onboarding event types:** 14. **Retired / no current writer:** A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`. Historical rows remain readable. IDs are not reused. Overall audit catalogue remains **174 reserved/catalogued IDs** (A001–A174), with **171 currently active event types** that have at least one writer.
+**Reserved/catalogued IDs:** 18 = original A039–A055 plus later-appended A175 (ONB-018 `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`). **Current active onboarding event types:** 15. **Retired / no current writer:** A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`. Historical rows remain readable. IDs are not reused. Overall audit catalogue is **177 reserved/catalogued IDs** (A001–A177), with **174 currently active event types** that have at least one writer.
 
 | ID | Event | Current writer |
 |---|---|---|
@@ -487,6 +487,7 @@ Onboarding audit records CashSouk business actions, stages, decisions, and outco
 | A053 | `CORPORATE_ENTITIES_UPDATED` | Retired — `corporate_entities` still updates |
 | A054 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | Yes — Issuer or Investor COMPANY org, after onboarding is COMPLETED: Profile → Directors and Shareholders → Confirm & Send → Confirm. No separate resend endpoint. Not Organization Member Resend / Admin invitation resend / Admin CTOS Fetch. |
 | A055 | `DIRECTOR_KYC_STATUS_UPDATED` | Yes — `APPROVED` / `REJECTED` outcomes only. Intermediate KYC/provider statuses stay on `director_kyc_status`. |
+| A175 | `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN` | Yes — admin PATCH of issuer/investor organization profile. Target is the organization. Bank values and nested corporate values are not stored. Issuer/investor Activity HIDE. |
 
 **Issuer Company clean happy path:** `ONBOARDING_STARTED` → `ONBOARDING_STATUS_CHANGED` (Verification Submitted) → `SSM_APPROVED` → optional `DIRECTOR_KYC_STATUS_UPDATED` (final APPROVED/REJECTED only) → `ONBOARDING_APPROVED` → `AML_APPROVED` → `ONBOARDING_FINAL_APPROVAL_COMPLETED`. Status: `IN_PROGRESS` → `PENDING_SSM_REVIEW` → `PENDING_APPROVAL` → `PENDING_AML` → `PENDING_FINAL_APPROVAL` → `COMPLETED`. Must not contain A040/A052/A053 or intermediate director KYC audit rows.
 

@@ -623,14 +623,24 @@ describe("Activity presentation copy", () => {
           contentVersion: 3,
         }).description
       ).toBe("The prospectus was approved (version 3).");
-      expect(formatNoteActivity("issuer", "NOTE_CAMPAIGN_PAUSED").title).toBe("Campaign Paused");
-      expect(formatNoteActivity("investor", "NOTE_CAMPAIGN_RESUMED").title).toBe("Campaign Resumed");
+      expect(formatNoteActivity("issuer", "NOTE_CAMPAIGN_PAUSED")).toEqual({
+        title: "Campaign Paused",
+        description:
+          "Your campaign was temporarily closed to new investment. Existing commitments are held.",
+      });
+      expect(formatNoteActivity("investor", "NOTE_CAMPAIGN_RESUMED")).toEqual({
+        title: "Campaign Resumed",
+        description: "The campaign is open for investment again.",
+      });
       expect(
         formatOnboardingActivity("admin", "ORGANIZATION_PROFILE_UPDATED_BY_ADMIN", {
           actorName: "Ada Admin",
           changedFields: ["name", "phoneNumber"],
-        }).title
-      ).toBe("Organization Profile Updated");
+        })
+      ).toEqual({
+        title: "Organization Profile Updated",
+        description: "Ada Admin updated name, phoneNumber.",
+      });
     });
 
     it("returns generic fallbacks for unknown events", () => {

@@ -8398,16 +8398,16 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
-Reserved/catalogued event IDs: 17 (A039–A055). Do not renumber or reuse IDs.
-Current active onboarding event types: 14
+Reserved/catalogued event IDs: **18**. Original module block **A039–A055** (ONB-001–ONB-017) plus later-appended **A175** (ONB-018). IDs were appended globally after A174; the original A039–A055 block is not renumbered.
+Current active onboarding event types: **15**
 Retired / no current writer: 3 (A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`)
-Range: A039-A055
+Range: A039–A055 (original) + A175 (appended)
 Admin Location: /audit → Onboarding (`/audit?tab=onboarding`)
 Permission: onboarding.view
 
 Onboarding audit records CashSouk business actions, stages, decisions, and outcomes. Detailed provider synchronization remains in its source-of-truth storage and is not duplicated as onboarding audit noise.
 
-**Status (A039–A055):**
+**Status (A039–A055 original block + appended A175):**
 
 | ID | Event | Status |
 |---|---|---|
@@ -8428,6 +8428,7 @@ Onboarding audit records CashSouk business actions, stages, decisions, and outco
 | A053 | `CORPORATE_ENTITIES_UPDATED` | RETIRED. Current writer: none. Historical rows: supported/readable. ID reused: no. `corporate_entities` persistence remains active. |
 | A054 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | ACTIVE. Issuer or Investor COMPANY Profile → Directors and Shareholders → Confirm & Send → Confirm, after company onboarding is COMPLETED. |
 | A055 | `DIRECTOR_KYC_STATUS_UPDATED` | ACTIVE — OUTCOME ONLY (`APPROVED` / `REJECTED` on an existing director). |
+| A175 | `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN` | ACTIVE. Admin PATCH of issuer/investor organization profile. Appended globally as A175 (ONB-018); not inserted into A039–A055. |
 
 **GOOD ONBOARDING AUDIT:** Onboarding Started; Verification Submitted; Amendment Requested; Verification Resubmitted; SSM Approved; Onboarding Approved; AML Approved; Director Verification Approved/Rejected; Onboarding Completed; Onboarding Rejected.
 
@@ -8447,8 +8448,8 @@ The clean happy path must **not** contain `ONBOARDING_RESUMED`, `CTOS_REPORT_REC
 
 - Admin Global Onboarding Audit (`/audit?tab=onboarding`): active meaningful onboarding events plus historical retired A040/A052/A053 rows; A044 visible.
 - Admin curated Activity (`isOnboardingActivityVisible` admin): all types except `USER_ONBOARDING_STATUS_UPDATED`. Historical retired rows remain readable/formattable.
-- Admin Organization contextual history (`use-organization-logs.ts`): includes A044 meaningful stage transitions and A055 final director outcomes; includes historical `ONBOARDING_RESUMED` if present; excludes A052 and A053; does not show intermediate director KYC noise.
-- Issuer/investor activity: meaningful user-facing onboarding milestones only (STARTED, RESTARTED, review/amendment A044, APPROVED, REJECTED, COMPLETED). No CTOS admin detail. No corporate entity sync. No intermediate director KYC. `ONBOARDING_RESUMED` is not user-facing. `ONBOARDING_FINAL_APPROVAL_COMPLETED` is not directly user-facing; presentation uses completion semantics via `ONBOARDING_COMPLETED`. A054: Admin visible; Issuer COMPANY activity visible where current rule allows; Investor activity hidden. A055 issuer CONDITIONAL on APPROVED/REJECTED.
+- Admin Organization contextual history (`use-organization-logs.ts`): includes A044 meaningful stage transitions and A055 final director outcomes; includes A175 organization profile updates; includes historical `ONBOARDING_RESUMED` if present; excludes A052 and A053; does not show intermediate director KYC noise.
+- Issuer/investor activity: meaningful user-facing onboarding milestones only (STARTED, RESTARTED, review/amendment A044, APPROVED, REJECTED, COMPLETED). No CTOS admin detail. No corporate entity sync. No intermediate director KYC. `ONBOARDING_RESUMED` is not user-facing. `ONBOARDING_FINAL_APPROVAL_COMPLETED` is not directly user-facing; presentation uses completion semantics via `ONBOARDING_COMPLETED`. A054: Admin visible; Issuer COMPANY activity visible where current rule allows; Investor activity hidden. A055 issuer CONDITIONAL on APPROVED/REJECTED. A175 issuer/investor HIDE.
 
 **Manual QA — company happy path:**
 
@@ -8478,6 +8479,11 @@ The clean happy path must **not** contain `ONBOARDING_RESUMED`, `CTOS_REPORT_REC
 - [ ] Investor Personal happy path
 - [ ] Investor Company sanity path
 - [ ] Sophisticated Investor status change
+- [ ] Admin organization profile scalar edit → one A175
+- [ ] Scalar no-op PATCH → no A175
+- [ ] Bank-only PATCH → A175 with `bankAccountDetailsChanged: true` and no account numbers
+- [ ] Corporate nested PATCH → A175 with `corporateOnboardingChangedFields` names only
+- [ ] A175 hidden on issuer/investor Activity
 
 **Manual QA — company COD WAIT:** expect `ONBOARDING_STATUS_CHANGED`; no `CORPORATE_ENTITIES_UPDATED`; no intermediate `DIRECTOR_KYC_STATUS_UPDATED`.
 
@@ -8502,6 +8508,9 @@ The clean happy path must **not** contain `ONBOARDING_RESUMED`, `CTOS_REPORT_REC
 | A053 | ONB-015 | `CORPORATE_ENTITIES_UPDATED` | SHOW (historical) | SHOW (historical) | HIDE | HIDE |
 | A054 | ONB-016 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | SHOW | SHOW | CONDITIONAL | HIDE |
 | A055 | ONB-017 | `DIRECTOR_KYC_STATUS_UPDATED` | SHOW | SHOW | CONDITIONAL | HIDE |
+| A175 | ONB-018 | `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN` | SHOW | SHOW | HIDE | HIDE |
+
+Original module range is A039–A055. A175 was appended globally after A174; it belongs to Onboarding and is listed here for the module index.
 
 # A039 — ONBOARDING_STARTED
 
@@ -24511,8 +24520,8 @@ Admin raw: Application Detail → Audit History (merged) and `GET /envelopes/:id
 
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
-Events: 35
-Range: A115-A149
+Events: **37**
+Range: A115–A149 (original NOTE-001–NOTE-035) + later-appended A176–A177 (NOTE-036–NOTE-037). IDs were appended globally after A174; the original A115–A149 block is not renumbered.
 Admin Location: Note Detail → Audit History (`GET /v1/admin/notes/:id/audit-history`). TRUSTEE_SIGNATURE_UPDATED: Platform Finance → Trustee → Audit History
 Permission: notes.view (note-scoped); platform_settings.view (trustee signature)
 
@@ -24553,6 +24562,10 @@ Permission: notes.view (note-scoped); platform_settings.view (trustee signature)
 | A147 | NOTE-033 | `ARREARS_LETTER_GENERATED` | SHOW | SHOW | HIDE | HIDE |
 | A148 | NOTE-034 | `DEFAULT_NOTICE_GENERATED` | SHOW | SHOW | HIDE | HIDE |
 | A149 | NOTE-035 | `TRUSTEE_SIGNATURE_UPDATED` | SHOW | HIDE | HIDE | HIDE |
+| A176 | NOTE-036 | `NOTE_CAMPAIGN_PAUSED` | SHOW | SHOW | SHOW | CONDITIONAL |
+| A177 | NOTE-037 | `NOTE_CAMPAIGN_RESUMED` | SHOW | SHOW | SHOW | CONDITIONAL |
+
+Original module range is A115–A149. A176–A177 were appended globally after A174; they belong to Note and are listed here for the module index.
 
 # A115 — NOTE_CREATED
 
@@ -38780,7 +38793,7 @@ Used by 1 event(s):
 
 ### `actorEmail`
 
-Used by 169 event(s):
+Used by 172 event(s):
 
 - A001 `USER_SIGNED_UP`
 - A002 `USER_LOGGED_IN`
@@ -38951,10 +38964,13 @@ Used by 169 event(s):
 - A167 `PAYMENT_RECONCILIATION_EXCEPTION_DETECTED`
 - A168 `PAYMENT_RECONCILIATION_EXCEPTION_RESOLVED`
 - A174 `NOTIFICATION_BROADCAST_PROCESSED`
+- A175 `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`
+- A176 `NOTE_CAMPAIGN_PAUSED`
+- A177 `NOTE_CAMPAIGN_RESUMED`
 
 ### `actorName`
 
-Used by 169 event(s):
+Used by 172 event(s):
 
 - A001 `USER_SIGNED_UP`
 - A002 `USER_LOGGED_IN`
@@ -39125,6 +39141,9 @@ Used by 169 event(s):
 - A167 `PAYMENT_RECONCILIATION_EXCEPTION_DETECTED`
 - A168 `PAYMENT_RECONCILIATION_EXCEPTION_RESOLVED`
 - A174 `NOTIFICATION_BROADCAST_PROCESSED`
+- A175 `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`
+- A176 `NOTE_CAMPAIGN_PAUSED`
+- A177 `NOTE_CAMPAIGN_RESUMED`
 
 ### `actualAmount`
 
@@ -39178,7 +39197,7 @@ Used by 1 event(s):
 
 ### `after`
 
-Used by 7 event(s):
+Used by 8 event(s):
 
 - A006 `USER_PROFILE_UPDATED`
 - A007 `USER_PROFILE_UPDATED_BY_ADMIN`
@@ -39187,6 +39206,7 @@ Used by 7 event(s):
 - A057 `LEGAL_DOCUMENT_UPDATED`
 - A116 `NOTE_TERMS_UPDATED`
 - A170 `PRODUCT_UPDATED`
+- A175 `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`
 
 ### `amount`
 
@@ -39278,7 +39298,7 @@ Used by 5 event(s):
 
 ### `before`
 
-Used by 7 event(s):
+Used by 8 event(s):
 
 - A006 `USER_PROFILE_UPDATED`
 - A007 `USER_PROFILE_UPDATED_BY_ADMIN`
@@ -39287,12 +39307,19 @@ Used by 7 event(s):
 - A057 `LEGAL_DOCUMENT_UPDATED`
 - A116 `NOTE_TERMS_UPDATED`
 - A170 `PRODUCT_UPDATED`
+- A175 `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`
 
 ### `blockedAmount`
 
 Used by 1 event(s):
 
 - A157 `PAYMENT_REFUND_WALLET_REVERSAL_FAILED`
+
+### `bankAccountDetailsChanged`
+
+Used by 1 event(s):
+
+- A175 `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`
 
 ### `capturedAt`
 
@@ -39306,6 +39333,12 @@ Used by 1 event(s):
 
 - A137 `SHORAKA_CERTIFICATE_RECEIVED`
 
+### `corporateOnboardingChangedFields`
+
+Used by 1 event(s):
+
+- A175 `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`
+
 ### `changedCount`
 
 Used by 1 event(s):
@@ -39314,7 +39347,7 @@ Used by 1 event(s):
 
 ### `changedFields`
 
-Used by 12 event(s):
+Used by 13 event(s):
 
 - A006 `USER_PROFILE_UPDATED`
 - A007 `USER_PROFILE_UPDATED_BY_ADMIN`
@@ -39328,6 +39361,7 @@ Used by 12 event(s):
 - A165 `INVESTOR_WITHDRAWAL_SUBMITTED_TO_TRUSTEE`
 - A166 `INVESTOR_WITHDRAWAL_COMPLETED`
 - A170 `PRODUCT_UPDATED`
+- A175 `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`
 
 ### `changedSections`
 
@@ -39945,13 +39979,15 @@ Used by 2 event(s):
 
 ### `newFundingStatus`
 
-Used by 5 event(s):
+Used by 7 event(s):
 
 - A120 `NOTE_PUBLISHED`
 - A121 `NOTE_UNPUBLISHED`
 - A123 `NOTE_FUNDING_CLOSED`
 - A124 `NOTE_FUNDING_FAILED`
 - A125 `NOTE_ACTIVATED`
+- A176 `NOTE_CAMPAIGN_PAUSED`
+- A177 `NOTE_CAMPAIGN_RESUMED`
 
 ### `newKycStatus`
 
@@ -39959,17 +39995,13 @@ Used by 1 event(s):
 
 - A055 `DIRECTOR_KYC_STATUS_UPDATED`
 
+### `newIsFeatured`
+
+Used by 1 event(s):
+
+- A176 `NOTE_CAMPAIGN_PAUSED`
+
 ### `newListingStatus`
-
-Used by 5 event(s):
-
-- A120 `NOTE_PUBLISHED`
-- A121 `NOTE_UNPUBLISHED`
-- A123 `NOTE_FUNDING_CLOSED`
-- A124 `NOTE_FUNDING_FAILED`
-- A125 `NOTE_ACTIVATED`
-
-### `newNoteStatus`
 
 Used by 7 event(s):
 
@@ -39978,8 +40010,22 @@ Used by 7 event(s):
 - A123 `NOTE_FUNDING_CLOSED`
 - A124 `NOTE_FUNDING_FAILED`
 - A125 `NOTE_ACTIVATED`
+- A176 `NOTE_CAMPAIGN_PAUSED`
+- A177 `NOTE_CAMPAIGN_RESUMED`
+
+### `newNoteStatus`
+
+Used by 9 event(s):
+
+- A120 `NOTE_PUBLISHED`
+- A121 `NOTE_UNPUBLISHED`
+- A123 `NOTE_FUNDING_CLOSED`
+- A124 `NOTE_FUNDING_FAILED`
+- A125 `NOTE_ACTIVATED`
 - A126 `NOTE_SERVICING_STATUS_CHANGED`
 - A127 `NOTE_MARKED_DEFAULT`
+- A176 `NOTE_CAMPAIGN_PAUSED`
+- A177 `NOTE_CAMPAIGN_RESUMED`
 
 ### `newOwnerUserId`
 
@@ -40038,7 +40084,7 @@ Used by 4 event(s):
 
 ### `newServicingStatus`
 
-Used by 7 event(s):
+Used by 9 event(s):
 
 - A120 `NOTE_PUBLISHED`
 - A121 `NOTE_UNPUBLISHED`
@@ -40047,6 +40093,8 @@ Used by 7 event(s):
 - A125 `NOTE_ACTIVATED`
 - A126 `NOTE_SERVICING_STATUS_CHANGED`
 - A127 `NOTE_MARKED_DEFAULT`
+- A176 `NOTE_CAMPAIGN_PAUSED`
+- A177 `NOTE_CAMPAIGN_RESUMED`
 
 ### `newSsmApproved`
 
@@ -40339,13 +40387,15 @@ Used by 1 event(s):
 
 ### `previousFundingStatus`
 
-Used by 5 event(s):
+Used by 7 event(s):
 
 - A120 `NOTE_PUBLISHED`
 - A121 `NOTE_UNPUBLISHED`
 - A123 `NOTE_FUNDING_CLOSED`
 - A124 `NOTE_FUNDING_FAILED`
 - A125 `NOTE_ACTIVATED`
+- A176 `NOTE_CAMPAIGN_PAUSED`
+- A177 `NOTE_CAMPAIGN_RESUMED`
 
 ### `previousKycStatus`
 
@@ -40353,15 +40403,23 @@ Used by 1 event(s):
 
 - A055 `DIRECTOR_KYC_STATUS_UPDATED`
 
+### `previousIsFeatured`
+
+Used by 1 event(s):
+
+- A176 `NOTE_CAMPAIGN_PAUSED`
+
 ### `previousListingStatus`
 
-Used by 5 event(s):
+Used by 7 event(s):
 
 - A120 `NOTE_PUBLISHED`
 - A121 `NOTE_UNPUBLISHED`
 - A123 `NOTE_FUNDING_CLOSED`
 - A124 `NOTE_FUNDING_FAILED`
 - A125 `NOTE_ACTIVATED`
+- A176 `NOTE_CAMPAIGN_PAUSED`
+- A177 `NOTE_CAMPAIGN_RESUMED`
 
 ### `previousMimeType`
 
@@ -40371,7 +40429,7 @@ Used by 1 event(s):
 
 ### `previousNoteStatus`
 
-Used by 7 event(s):
+Used by 9 event(s):
 
 - A120 `NOTE_PUBLISHED`
 - A121 `NOTE_UNPUBLISHED`
@@ -40380,6 +40438,8 @@ Used by 7 event(s):
 - A125 `NOTE_ACTIVATED`
 - A126 `NOTE_SERVICING_STATUS_CHANGED`
 - A127 `NOTE_MARKED_DEFAULT`
+- A176 `NOTE_CAMPAIGN_PAUSED`
+- A177 `NOTE_CAMPAIGN_RESUMED`
 
 ### `previousOrgStatus`
 
@@ -40457,7 +40517,7 @@ Used by 4 event(s):
 
 ### `previousServicingStatus`
 
-Used by 7 event(s):
+Used by 9 event(s):
 
 - A120 `NOTE_PUBLISHED`
 - A121 `NOTE_UNPUBLISHED`
@@ -40466,6 +40526,8 @@ Used by 7 event(s):
 - A125 `NOTE_ACTIVATED`
 - A126 `NOTE_SERVICING_STATUS_CHANGED`
 - A127 `NOTE_MARKED_DEFAULT`
+- A176 `NOTE_CAMPAIGN_PAUSED`
+- A177 `NOTE_CAMPAIGN_RESUMED`
 
 ### `previousSsmApproved`
 
@@ -41282,6 +41344,7 @@ Visible curated activity titles only (HIDE = omitted). Copy is from `packages/ty
 | A054 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | Issuer | Director Invitation Sent |
 | A055 | `DIRECTOR_KYC_STATUS_UPDATED` | Admin Activity | Director Verification Approved \| Rejected (historical Action Required \| Updated) |
 | A055 | `DIRECTOR_KYC_STATUS_UPDATED` | Issuer | Director Verification Approved \| Rejected (historical Action Needed \| Updated) |
+| A175 | `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN` | Admin Activity | Organization Profile Updated |
 | A063 | `APPLICATION_CREATED` | Admin Activity | Application Created |
 | A063 | `APPLICATION_CREATED` | Issuer | Application Created |
 | A064 | `APPLICATION_SUBMITTED` | Admin Activity | Application Submitted |
@@ -41372,6 +41435,12 @@ Visible curated activity titles only (HIDE = omitted). Copy is from `packages/ty
 | A120 | `NOTE_PUBLISHED` | Issuer | Note Published |
 | A121 | `NOTE_UNPUBLISHED` | Admin Activity | Note Unpublished |
 | A121 | `NOTE_UNPUBLISHED` | Issuer | Note Unpublished |
+| A176 | `NOTE_CAMPAIGN_PAUSED` | Admin Activity | Campaign Paused |
+| A176 | `NOTE_CAMPAIGN_PAUSED` | Issuer | Campaign Paused |
+| A176 | `NOTE_CAMPAIGN_PAUSED` | Investor | Campaign Paused |
+| A177 | `NOTE_CAMPAIGN_RESUMED` | Admin Activity | Campaign Resumed |
+| A177 | `NOTE_CAMPAIGN_RESUMED` | Issuer | Campaign Resumed |
+| A177 | `NOTE_CAMPAIGN_RESUMED` | Investor | Campaign Resumed |
 | A122 | `INVESTMENT_COMMITTED` | Admin Activity | Investment Committed |
 | A122 | `INVESTMENT_COMMITTED` | Investor | Investment Committed |
 | A123 | `NOTE_FUNDING_CLOSED` | Admin Activity | Funding Closed |
@@ -41444,6 +41513,8 @@ Events whose Admin Activity, Issuer, or Investor visibility is CONDITIONAL.
 | A123 | `NOTE_FUNDING_CLOSED` | Investor | active NoteInvestment COMMITTED|CONFIRMED|SETTLED |
 | A124 | `NOTE_FUNDING_FAILED` | Investor | active COMMITTED|CONFIRMED|SETTLED membership OR RELEASED on this note |
 | A125 | `NOTE_ACTIVATED` | Investor | active NoteInvestment COMMITTED|CONFIRMED|SETTLED |
+| A176 | `NOTE_CAMPAIGN_PAUSED` | Investor | active NoteInvestment COMMITTED|CONFIRMED|SETTLED (not RELEASED, not CANCELLED) |
+| A177 | `NOTE_CAMPAIGN_RESUMED` | Investor | active NoteInvestment COMMITTED|CONFIRMED|SETTLED (not RELEASED, not CANCELLED) |
 | A126 | `NOTE_SERVICING_STATUS_CHANGED` | Investor | investorCommitted AND newServicingStatus in LATE|ARREARS|DEFAULTED |
 | A127 | `NOTE_MARKED_DEFAULT` | Investor | active NoteInvestment COMMITTED|CONFIRMED|SETTLED |
 | A143 | `SETTLEMENT_POSTED` | Investor | preview_snapshot.allocations contains viewer organizationId |
@@ -41467,6 +41538,8 @@ How an investor is allowed to see an event. CANCELLED `NoteInvestment` rows do n
 | A123 | `NOTE_FUNDING_CLOSED` | CONDITIONAL: active NoteInvestment in COMMITTED|CONFIRMED|SETTLED. |
 | A124 | `NOTE_FUNDING_FAILED` | CONDITIONAL: active membership (COMMITTED|CONFIRMED|SETTLED) **or** RELEASED. `failFunding` releases COMMITTED investments then writes this event; the adapter treats RELEASED as committed for this event only. |
 | A125 | `NOTE_ACTIVATED` | CONDITIONAL: active NoteInvestment in COMMITTED|CONFIRMED|SETTLED. |
+| A176 | `NOTE_CAMPAIGN_PAUSED` | CONDITIONAL: active NoteInvestment in COMMITTED|CONFIRMED|SETTLED. Not RELEASED. Not CANCELLED. Never-invested cannot see it. |
+| A177 | `NOTE_CAMPAIGN_RESUMED` | CONDITIONAL: active NoteInvestment in COMMITTED|CONFIRMED|SETTLED. Not RELEASED. Not CANCELLED. Never-invested cannot see it. |
 | A126 | `NOTE_SERVICING_STATUS_CHANGED` | CONDITIONAL: investorCommitted AND `newServicingStatus` in LATE|ARREARS|DEFAULTED. CURRENT/PARTIAL/ADVANCE_PAID/SETTLED stay hidden from investors. |
 | A127 | `NOTE_MARKED_DEFAULT` | CONDITIONAL: active NoteInvestment in COMMITTED|CONFIRMED|SETTLED. |
 | A143 | `SETTLEMENT_POSTED` | CONDITIONAL: `NoteSettlement.preview_snapshot.allocations` contains an entry whose `investorOrganizationId` equals the viewer org. |
@@ -41501,7 +41574,7 @@ How an investor is allowed to see an event. CANCELLED `NoteInvestment` rows do n
 
 # Source verification footer
 
-Date: **2026-08-17**. Source: current tree after the Onboarding Audit redesign.
+Date: **2026-08-19**. Source: current tree after A175–A177 (admin organization profile + campaign pause/resume). Original A001–A174 IDs unchanged.
 
 ## VERIFIED counts
 
@@ -41510,11 +41583,11 @@ Date: **2026-08-17**. Source: current tree after the Onboarding Audit redesign.
 | Catalogue arrays in this document (Access 3 + Security 35 + Onboarding 18 reserved + Legal 7 + Application 40 + Signing 12 + Note 37 + Payment 19 + Product 5 + Notification 1) | 177 reserved/catalogued IDs | VERIFIED |
 | `ACCESS_AUDIT_EVENTS` `apps/api/src/modules/auth/audit/events.ts` | 3 | VERIFIED |
 | `SECURITY_AUDIT_EVENTS` `apps/api/src/modules/security/audit/events.ts` | 35 | VERIFIED |
-| `ONBOARDING_AUDIT_EVENTS` `apps/api/src/modules/onboarding/audit/events.ts` | 17 reserved IDs (14 current active onboarding event types; A040, A052, and A053 in `RETIRED_ONBOARDING_AUDIT_EVENTS`) | VERIFIED |
+| `ONBOARDING_AUDIT_EVENTS` `apps/api/src/modules/onboarding/audit/events.ts` | 18 reserved IDs (15 current active onboarding event types; A040, A052, and A053 in `RETIRED_ONBOARDING_AUDIT_EVENTS`; A175 appended) | VERIFIED |
 | `LEGAL_ADMIN_AUDIT_EVENTS` `apps/api/src/modules/legal-documents/audit/events.ts` | 7 | VERIFIED |
 | `APPLICATION_AUDIT_EVENTS` `apps/api/src/modules/applications/audit/events.ts` | 40 | VERIFIED |
 | `SIGNING_AUDIT_EVENTS` `apps/api/src/modules/signing/audit/events.ts` | 12 | VERIFIED |
-| `NOTE_AUDIT_EVENTS` `apps/api/src/modules/notes/audit/events.ts` | 35 | VERIFIED |
+| `NOTE_AUDIT_EVENTS` `apps/api/src/modules/notes/audit/events.ts` | 37 (A115–A149 original + A176–A177 appended) | VERIFIED |
 | `PAYMENT_AUDIT_EVENTS` `apps/api/src/modules/payment/audit/events.ts` | 19 | VERIFIED |
 | `PRODUCT_AUDIT_EVENTS` `apps/api/src/modules/products/audit/events.ts` | 5 | VERIFIED |
 | `NOTIFICATION_BROADCAST_AUDIT_EVENTS` `apps/api/src/modules/notification/audit/events.ts` | 1 | VERIFIED |
@@ -41538,34 +41611,67 @@ Visibility gates: `packages/types/src/activity-visibility.ts` plus payment/note 
 
 # A175 — ORGANIZATION_PROFILE_UPDATED_BY_ADMIN
 
+**Status: ACTIVE**
+
 Source Case: ONB-018
 Module: Onboarding
 Audit Model: OnboardingAuditLog
 DB Table: onboarding_audit_logs
 
+Appended globally after A174. Not inserted into the original A039–A055 block. Not a Security/`USER_PROFILE_UPDATED_BY_ADMIN` event (that targets a user).
+
 ## 1. What this event means
 
-An admin completed an organization profile update on issuer or investor organization fields (name, phone, address, names, optional bank-details-changed flag, optional corporate onboarding nested keys). This is not a user-profile event.
+An admin completed an organization profile update on an issuer or investor organization. Evidence that organization identity/contact fields (and optionally a bank-details submission and/or corporate nested keys) changed. This is not user-profile history, not membership/role history, and not `CORPORATE_ENTITIES_UPDATED` (retired; that tracked `corporate_entities` JSON).
 
 ## 2. When it logs
 
-`PATCH /v1/admin/organizations/:portal/:id` via `updateAdminOrganizationProfile`, in the same transaction as the organization update, only when at least one scalar field, bank payload, or corporate nested key actually changed.
+`PATCH /v1/admin/organizations/:portal/:id` → `AdminService.updateOrganizationProfile` → `updateAdminOrganizationProfile` in `apps/api/src/modules/admin/organization-admin-profile.ts`. Written with `writeOnboardingAuditLog` in the same Prisma `$transaction` as the issuer/investor organization update, after the SOT update, only when `changedFields.length > 0`.
+
+`changedFields` is built from:
+- scalar inequality via `changedFieldsOf(before, after)` on `name`, `phoneNumber`, `address`, `firstName`, `lastName`, `middleName`
+- plus `"bankAccountDetails"` when `input.bankAccountDetails !== undefined`
+- plus `"corporateOnboardingData"` when any nested corporate patch key is present
+
+Permission: `organizations.manage`.
 
 ## 3. When it does NOT log / no-op
 
-Empty PATCH. Same-value scalar PATCH with no bank/corporate keys. Do not write `USER_PROFILE_UPDATED_BY_ADMIN`.
+- Empty PATCH (every body field `undefined`) → HTTP 400 `VALIDATION_ERROR` `"No profile fields to update"`; no audit row.
+- True scalar no-op: same stored scalar values and no `bankAccountDetails` / `corporateOnboardingData` keys → SOT `update` still runs; **no audit row**.
+- Organization not found → 404; no audit row.
+- Corporate nested keys on a non-`COMPANY` org → 400; no audit row.
+- Do not write `USER_PROFILE_UPDATED_BY_ADMIN`.
+
+Bank/corporate **presence** currently counts as a change even if identical values are resubmitted. The writer does **not** deep-equal bank JSON or nested corporate values. Resubmitting the same bank payload writes another A175 row with `bankAccountDetailsChanged: true`.
 
 ## 4. Top-level audit row
 
+Append-only `OnboardingAuditLog` / `onboarding_audit_logs`. No User/org FKs.
+
 | Column | Current writer behavior |
 |---|---|
+| `id` | cuid, generated |
+| `onboarding_id` | **null** (not a RegTank session event) |
 | `event_type` | `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN` |
-| `actor_type` / `actor_user_id` | Admin from `auditContextFromAdminRequest` |
-| `organization_id` / `organization_kind` / `organization_type` | Target org |
-| `target_type` / `target_id` | `ORGANIZATION` / org id |
-| `source` / `portal` | API / ADMIN |
+| `occurred_at` / `created_at` | DB default `now()` |
+| `actor_type` | `ADMIN` from `auditContextFromAdminRequest` |
+| `actor_user_id` | Admin `req.user.user_id` |
+| `subject_user_id` | Organization `owner_user_id` |
+| `organization_id` | Patched organization id (same as `target_id`) |
+| `organization_kind` | `ISSUER` or `INVESTOR` from the `:portal` path |
+| `organization_type` | Org `type` (`PERSONAL` or `COMPANY`) |
+| `target_type` | `ORGANIZATION` |
+| `target_id` | Organization id |
+| `source` | `API` |
+| `portal` | `ADMIN` |
+| `ip_address` / `user_agent` / `correlation_id` | Request context (`getClientIp`, `user-agent` header, correlation id) |
+| `idempotency_key` | **Always null** |
+| `metadata` | Parsed by `parseOnboardingAuditMetadata` |
 
 ## 5. EXACT METADATA STRUCTURE
+
+Zod: `organizationProfileUpdatedSchema` in `apps/api/src/modules/onboarding/audit/metadata.ts`. Extra keys are stripped. `jsonScalar` = `string | number | boolean | null`.
 
 ```ts
 {
@@ -41579,84 +41685,488 @@ Empty PATCH. Same-value scalar PATCH with no bank/corporate keys. Do not write `
 }
 ```
 
-`before`/`after` are scalar org fields only (`name`, `phoneNumber`, `address`, `firstName`, `lastName`, `middleName`). Bank account numbers are not stored.
+`changedFields` is `z.array(z.string())` — **not** an enum of allowed names. `before` / `after` are `z.record(jsonScalar)` — **not** constrained to the six scalar keys, but the writer always sends exactly those six.
 
-## 6. Visibility
+### field cards
 
-| Surface | Decision |
-|---|---|
-| Admin raw (Onboarding) | SHOW |
-| Admin Activity (org) | SHOW |
-| Issuer Activity | HIDE |
-| Investor Activity | HIDE |
+#### `actorName`
 
-Writer: `writeOnboardingAuditLog` in `organization-admin-profile.ts`. Tests: onboarding cutover, activity presentation/visibility, `organization-admin-profile.test.ts`.
+- **Type:** string | null
+- **Required:** Yes (key present)
+- **Nullable:** Yes
+- **Allowed values:** Any string, or null
+- **Writer source:** `writeOnboardingAuditLog` injects via `loadAuditActorSnapshot` from `actor_user_id`
+- **Current writer:** Always written. First+last name or null
+- **Example:** `"Ada Admin"` or `null`
+
+Admin curated activity may interpolate this into the description. Issuer/investor presentation never reads it (event is HIDE).
+
+#### `actorEmail`
+
+- **Type:** string | null
+- **Required:** Yes (key present)
+- **Nullable:** Yes
+- **Allowed values:** Any string, or null
+- **Writer source:** `loadAuditActorSnapshot`
+- **Current writer:** Always written
+- **Example:** `"ada@cashsouk.com"` or `null`
+
+Stored for raw audit. Curated titles do not print it.
+
+#### `changedFields`
+
+- **Type:** string[]
+- **Required:** Yes
+- **Nullable:** No
+- **Allowed values:** Unconstrained strings. Writer emits scalar names that actually differed (`name`, `phoneNumber`, `address`, `firstName`, `lastName`, `middleName`) and may also emit `"bankAccountDetails"` and/or `"corporateOnboardingData"` as flags. Those flag names are **not** keys in `before`/`after`.
+- **Writer source:** `changedFieldsOf(before, after)` then optional flag pushes
+- **Current writer:** Always populated when a row is written (`length > 0`)
+- **Example:** `["name","phoneNumber"]` or `["bankAccountDetails"]`
+
+#### `before`
+
+- **Type:** Record of scalar JSON (`string | number | boolean | null`)
+- **Required:** Yes
+- **Nullable:** No (object always present)
+- **Allowed values:** Writer always sends all six keys: `name`, `phoneNumber`, `address`, `firstName`, `lastName`, `middleName`. Missing stored values are written as `null` (`value ?? null`). **Full snapshot, not changed-only.**
+- **Writer source:** Current org row before update
+- **Current writer:** Always populated
+- **Example:** `{"name":"Acme","phoneNumber":"+60123456789","address":null,"firstName":"Aisha","lastName":"Tan","middleName":null}`
+
+`firstName` / `middleName` / `lastName` columns exist on both issuer and investor organizations, including COMPANY rows where they may be unused/null.
+
+#### `after`
+
+- **Type:** Record of scalar JSON (`string | number | boolean | null`)
+- **Required:** Yes
+- **Nullable:** No
+- **Allowed values:** Same six keys. Patched fields use the request value (`?? null`); unpatched fields copy `before`
+- **Writer source:** Merged intended scalars
+- **Current writer:** Always populated
+- **Example:** `{"name":"Acme Sdn Bhd","phoneNumber":"+60123456789","address":null,"firstName":"Aisha","lastName":"Tan","middleName":null}`
+
+#### `bankAccountDetailsChanged`
+
+- **Type:** boolean
+- **Required:** Yes
+- **Nullable:** No
+- **Allowed values:** `true` if `input.bankAccountDetails !== undefined`; otherwise `false`
+- **Writer source:** Request key presence, **not** deep equality
+- **Current writer:** Always populated
+- **Example:** `true`
+
+**Privacy:** account numbers, bank names, account-holder names, IDs, and raw bank JSON are **not** stored.
+
+#### `corporateOnboardingChangedFields`
+
+- **Type:** string[]
+- **Required:** No (omitted when empty)
+- **Nullable:** No when present
+- **Allowed values:** Writer emits nested key names only: `website`, `industry`, `entityType`, `numberOfEmployees`, `annualRevenue`, `tinNumber`, `businessName`, `addresses.business`, `addresses.registered`, `personInCharge.name`, `personInCharge.position`, `personInCharge.email`, `personInCharge.contactNumber`. Zod is `z.array(z.string())`, not an enum.
+- **Writer source:** Which nested patch keys were `!== undefined`
+- **Current writer:** Included only when length > 0
+- **Example:** `["website","personInCharge.email"]`
+
+**Privacy:** nested corporate **values** (TIN, revenue, PIC email/phone, addresses) are **not** stored — names of changed keys only.
+
+## 6. Source of truth
+
+`IssuerOrganization` / `InvestorOrganization` remain SOT (`name`, `phone_number`, `address`, `first_name`, `last_name`, `middle_name`, `bank_account_details`, `corporate_onboarding_data`). `OnboardingAuditLog` is append-only history with no FKs.
+
+## 7. Transaction / audit failure behavior
+
+`writeOnboardingAuditLog` is in-transaction and **throws** on Zod/parse/create failure. The surrounding Prisma transaction rolls back the organization update. Scalar no-op skips the writer after the update callback returns. Empty PATCH never opens the transaction.
+
+## 8. Writer(s)
+
+- `apps/api/src/modules/admin/organization-admin-profile.ts` (`updateAdminOrganizationProfile`)
+- `apps/api/src/modules/admin/service.ts` (`updateOrganizationProfile` → context from `auditContextFromAdminRequest`)
+- `writeOnboardingAuditLog` in `apps/api/src/modules/onboarding/audit/writer.ts`
+
+## 9. ADMIN RAW AUDIT
+
+**Visibility:** SHOW
+
+SHOW on `/audit?tab=onboarding`, permission `onboarding.view`. Reader default `event_type in ONBOARDING_AUDIT_EVENTS` includes A175. Filter dropdown uses `ONBOARDING_AUDIT_EVENTS`. Opened via **View** into `AuditLogDetailSheet` (`JSON.stringify` metadata). Label via `formatAuditEventLabel` → `formatOnboardingActivity` title **Organization Profile Updated**.
+
+**Title:** Organization Profile Updated
+
+**Description:** Full typed metadata in AuditLogDetailSheet (before/after objects, boolean `bankAccountDetailsChanged`, string arrays).
+
+## 10. ADMIN CURATED ACTIVITY
+
+**Visibility:** SHOW
+
+SHOW. `isOnboardingActivityVisible("admin")` is true (not in `ADMIN_ORGANIZATION_HIDDEN`). Admin organization Activity (`use-organization-logs.ts`) includes this event type. Icon `PencilSquareIcon`.
+
+**Title:** Organization Profile Updated
+
+**Description:** `{actorName} updated {changedFields joined by comma}.` or `{actorName} updated the organization profile.` Field **names** only, not before/after values. Example: `Ada Admin updated name, phoneNumber.`
+
+## 11. ISSUER ACTIVITY
+
+**Visibility:** HIDE
+
+HIDE. Not in `ONBOARDING_USER_FACING`. `getOnboardingActivityEventTypes("issuer")` omits it. `OrganizationLogAdapter` does not query it for issuer portal.
+
+**Title:** N/A
+
+**Description:** N/A
+
+## 12. INVESTOR ACTIVITY
+
+**Visibility:** HIDE
+
+HIDE. Same as issuer.
+
+**Title:** N/A
+
+**Description:** N/A
+
+## 13. Presentation metadata safety
+
+Curated copy uses `changedFields` names only. Phone, address, and names sit in raw metadata (same class as Security user-profile snapshots) but are **not** interpolated into Activity descriptions. Bank numbers and nested corporate values are absent from metadata.
+
+## 14. Current UI behavior
+
+Admin raw: `/audit?tab=onboarding`. Export: `OnboardingLogsExportButton` / `GET` onboarding-logs export; unfiltered export includes A175; metadata JSON must not contain bank account numbers. Admin org detail (Issuers/Investors) Activity timeline paginates this type. Sort: `occurred_at desc, id desc`.
+
+## 15. Manual verification checklist
+
+- [ ] Event writes to `onboarding_audit_logs`
+- [ ] event_type `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`
+- [ ] occurred_at correct
+- [ ] actor_type ADMIN and actor_user_id is the admin
+- [ ] organization_id is the org; organization_kind ISSUER or INVESTOR
+- [ ] target ORGANIZATION / org id (not user)
+- [ ] subject_user_id is owner
+- [ ] onboarding_id is null
+- [ ] Admin org scalar profile edit writes one row
+- [ ] exact before/after six scalars
+- [ ] bank data not leaked (no account numbers / holder names / raw bank JSON)
+- [ ] corporate nested values not leaked
+- [ ] scalar no-op creates no event
+- [ ] bank-only input: `changedFields` includes `bankAccountDetails`, `bankAccountDetailsChanged` true
+- [ ] corporate-only input: `corporateOnboardingChangedFields` names only
+- [ ] issuer/investor Activity hidden
+- [ ] raw Audit shows the row
+- [ ] org Activity shows the row
+- [ ] Activity description does not print before/after values
+- [ ] CSV/export includes A175 when unfiltered
+- [ ] RBAC `organizations.manage` for write; `onboarding.view` for raw read
 
 # A176 — NOTE_CAMPAIGN_PAUSED
+
+**Status: ACTIVE**
 
 Source Case: NOTE-036
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
 
+Appended globally after A174. Not inserted into the original A115–A149 block. **Not** `NOTE_UNPUBLISHED`.
+
 ## 1. What this event means
 
-Admin paused a live campaign: note `status` stays `PUBLISHED`, `funding_status` stays `OPEN`, `listing_status` becomes `UNPUBLISHED`, featured flags are cleared. Existing commitments are held. This is not `NOTE_UNPUBLISHED` (which returns the note to DRAFT / NOT_OPEN).
+Admin paused a live campaign/listing. The note stays in its published funding lifecycle. The marketplace listing is taken down and featured state is cleared. Existing commitments are **held**, not released.
+
+This is not unpublish-to-draft.
 
 ## 2. When it logs
 
-`POST /v1/admin/notes/:id/listing/pause` → `NotesService.pauseListing`, same transaction as the listing update.
+`POST /v1/admin/notes/:id/listing/pause` → `NoteService.pauseListing` in `apps/api/src/modules/notes/service.ts`. Written with `writeNoteAuditFromActor` in the same `$transaction` as the listing mutation, after `updateMany` count === 1 and the `NoteListing` upsert.
 
-## 3. When it does NOT log
+Requires: `status=PUBLISHED`, `funding_status=OPEN`, `listing_status=PUBLISHED`, and at least one investment. Permission: `notes.manage`. Actor from `getActor(req, res, "ADMIN")`.
 
-Note not published+open+listed. Notes with zero commitments must unpublish instead.
+## 3. When it does NOT log / no-op
+
+- Note missing → 404; no audit.
+- Not published+open+listed → 409 `NOTE_LISTING_NOT_PAUSABLE`; no audit.
+- Zero investments → 409 `NOTE_HAS_NO_COMMITMENTS` (must unpublish instead); no audit.
+- Optimistic `updateMany` predicate fails (`count !== 1`, including a second pause when listing is already `UNPUBLISHED`) → 409; **no audit row**.
+- Unpublish path writes `NOTE_UNPUBLISHED`, never this event.
+
+## 4. Top-level audit row
+
+Append-only `NoteAuditLog` / `note_audit_logs`. No Note/User/org FKs.
+
+| Column | Current writer behavior |
+|---|---|
+| `id` | cuid |
+| `note_id` | Note id (required) |
+| `event_type` | `NOTE_CAMPAIGN_PAUSED` |
+| `occurred_at` / `created_at` | DB default `now()` |
+| `actor_type` | `ADMIN` (`noteAuditContextFromActor`: portal ADMIN or role ADMIN) |
+| `actor_user_id` | Admin user id |
+| `organization_id` | `note.issuer_organization_id` resolved by the writer |
+| `organization_kind` | `ISSUER` when organization_id is set |
+| `target_type` | `NOTE` |
+| `target_id` | Note id |
+| `source` | `API` |
+| `portal` | `ADMIN` |
+| `ip_address` / `user_agent` / `correlation_id` | Actor context from the request |
+| `idempotency_key` | **null** |
+| `metadata` | Parsed by `parseNoteAuditMetadata` |
 
 ## 5. EXACT METADATA STRUCTURE
 
-Status axes (`previous*` / `new*` for note, listing, funding, servicing) plus optional `previousIsFeatured` / `newIsFeatured`.
+Zod: `campaignPausedSchema` in `apps/api/src/modules/notes/audit/metadata.ts` (status axes + featured booleans). Writer always sends all axes via `noteStatusAxes` plus featured flags.
 
-## 6. Visibility
+```ts
+{
+  actorName: string | null;
+  actorEmail: string | null;
+  previousNoteStatus?: string;
+  newNoteStatus?: string;
+  previousListingStatus?: string;
+  newListingStatus?: string;
+  previousFundingStatus?: string;
+  newFundingStatus?: string;
+  previousServicingStatus?: string;
+  newServicingStatus?: string;
+  previousIsFeatured?: boolean;
+  newIsFeatured?: boolean;
+}
+```
 
-| Surface | Decision |
-|---|---|
-| Admin raw | SHOW |
-| Admin Activity | SHOW |
-| Issuer Activity | SHOW |
-| Investor Activity | CONDITIONAL: committed investor |
+Pause reason and commitment counts are **not** in the schema. Product has no pause-reason field. Commitments are not mutated.
 
-Writer: `writeNoteAuditFromActor`. Tests: note cutover, note-log adapter, activity presentation/visibility.
+### field cards
+
+#### `actorName` / `actorEmail`
+
+Same writer injection as other Note events (`loadAuditActorSnapshot`). Required keys, nullable values.
+
+#### `previousNoteStatus` / `newNoteStatus`
+
+- **Type:** string | undefined (Zod optional; writer always sends)
+- **Writer source:** `note.status` before/after
+- **Typical pause values:** both `PUBLISHED` — lifecycle does **not** move to DRAFT
+
+#### `previousListingStatus` / `newListingStatus`
+
+- **Typical pause values:** `PUBLISHED` → `UNPUBLISHED` (the listing mutation)
+
+#### `previousFundingStatus` / `newFundingStatus`
+
+- **Typical pause values:** both `OPEN` — funding does **not** close
+
+#### `previousServicingStatus` / `newServicingStatus`
+
+- Unchanged servicing axis from the note row
+
+#### `previousIsFeatured` / `newIsFeatured`
+
+- **Type:** boolean | undefined (Zod optional; writer always sends)
+- **Writer source:** `note.is_featured` / `result.is_featured`
+- **SOT:** pause sets `is_featured: false` and clears `featured_rank` / `featured_from` / `featured_until`
+- **Typical:** `true`→`false` or `false`→`false`. Metadata proves featured was cleared when it had been true.
+
+## 6. Source of truth
+
+`Note.status` remains `PUBLISHED`. `Note.funding_status` remains `OPEN`. `Note.listing_status` becomes `UNPUBLISHED`. `NoteListing` upserts `status=UNPUBLISHED`, `unpublished_at=now`. Featured columns cleared. `NoteInvestment` rows are not released. Audit is not SOT.
+
+## 7. Transaction / audit failure behavior
+
+Same `$transaction` as `updateMany` + listing upsert. If `count !== 1`, throw before audit. Writer throw rolls back the listing mutation. Second pause cannot create a duplicate row because the predicate no longer matches.
+
+## 8. Writer(s)
+
+- `apps/api/src/modules/notes/service.ts` `pauseListing`
+- `writeNoteAuditFromActor` in `apps/api/src/modules/notes/audit/writer.ts`
+
+## 9. ADMIN RAW AUDIT
+
+**Visibility:** SHOW
+
+SHOW. Note Detail → Audit History (`GET /v1/admin/notes/:id/audit-history`), permission `notes.view`. Full history for the note (no type filter). Label: `formatAuditEventLabel` title-cases to **Note Campaign Paused**. Metadata JSON in `AuditLogDetailSheet`.
+
+**Title:** Note Campaign Paused (raw title-case)
+
+**Description:** Full typed metadata.
+
+## 10. ADMIN CURATED ACTIVITY
+
+**Visibility:** SHOW
+
+`isNoteActivityVisible("admin")` is true for every note event.
+
+**Title:** Campaign Paused
+
+**Description:** The campaign was temporarily closed to new investment. Existing commitments are held.
+
+## 11. ISSUER ACTIVITY
+
+**Visibility:** SHOW
+
+Included in `NOTE_ISSUER_SHOW`.
+
+**Title:** Campaign Paused
+
+**Description:** Your campaign was temporarily closed to new investment. Existing commitments are held.
+
+## 12. INVESTOR ACTIVITY
+
+**Visibility:** CONDITIONAL
+
+`NOTE_INVESTOR_COMMITTED_EVENTS` plus `investorCommitted === true`.
+
+Exact condition from `NoteLogAdapter`: active `NoteInvestment` on that note in **COMMITTED | CONFIRMED | SETTLED**. **Not** RELEASED (RELEASED is special-cased only for `NOTE_FUNDING_FAILED`). **Not** CANCELLED. Never-invested investors cannot see it.
+
+**Title:** Campaign Paused
+
+**Description:** The campaign was temporarily closed to new investment. Existing commitments are held.
+
+## 13. Presentation metadata safety
+
+Copy does not say unpublished, draft, or first published. Does not print featured flags, statuses, or investment ids. File hashes / provider terms stay out.
+
+## 14. Current UI behavior
+
+Admin Campaign tab pause action. Raw Audit History on the note. Activity CSV: `formatNoteActivityEventLabel` → **Campaign paused**; metadata serialized as JSON (status axes + featured booleans; no bank data). Sort: `occurred_at desc, id desc`. Pagination: note audit-history page/pageSize.
+
+## 15. Manual verification checklist
+
+- [ ] Pause campaign
+- [ ] listing PUBLISHED → UNPUBLISHED
+- [ ] note status stays PUBLISHED
+- [ ] funding stays OPEN
+- [ ] featured cleared; metadata `previousIsFeatured` / `newIsFeatured` prove it when it changed
+- [ ] commitments still held (not RELEASED)
+- [ ] one `NOTE_CAMPAIGN_PAUSED` row; not `NOTE_UNPUBLISHED`
+- [ ] actor ADMIN; target NOTE; issuer organization_id
+- [ ] issuer Activity visible
+- [ ] committed investor Activity visible
+- [ ] never-invested investor hidden
+- [ ] RELEASED/CANCELLED investor hidden
+- [ ] second pause → 409 and no duplicate audit row
+- [ ] raw Audit History shows the row
+- [ ] CSV label Campaign paused
+- [ ] copy does not say unpublished
 
 # A177 — NOTE_CAMPAIGN_RESUMED
+
+**Status: ACTIVE**
 
 Source Case: NOTE-037
 Module: Note
 Audit Model: NoteAuditLog
 DB Table: note_audit_logs
 
+Appended globally after A174. **Not** `NOTE_PUBLISHED`.
+
 ## 1. What this event means
 
-Admin resumed a paused campaign: note stays `PUBLISHED` + `OPEN`, `listing_status` returns to `PUBLISHED`. This is not first-time `NOTE_PUBLISHED` (no draft→published, no funding OPEN transition, no prospectus freeze).
+Admin resumed a paused campaign. Listing returns to PUBLISHED. The note remains in its existing published/open-funding lifecycle. This is **not** first-time publish (no draft→published, no first funding OPEN, no prospectus freeze). Featured is **not** automatically restored.
 
 ## 2. When it logs
 
-`POST /v1/admin/notes/:id/listing/resume` → `NotesService.resumeListing`, same transaction as the listing update.
+`POST /v1/admin/notes/:id/listing/resume` → `NoteService.resumeListing`. Written with `writeNoteAuditFromActor` in the same `$transaction` after `updateMany` count === 1 and the `NoteListing` upsert.
 
-## 3. When it does NOT log
+Requires: `status=PUBLISHED`, `funding_status=OPEN`, `listing_status=UNPUBLISHED`. Permission: `notes.manage`. Actor `getActor(..., "ADMIN")`.
 
-Note not published+open with listing unpublished.
+## 3. When it does NOT log / no-op
+
+- Note missing → 404.
+- Not published+open with listing unpublished → 409 `NOTE_LISTING_NOT_RESUMABLE`.
+- Optimistic `updateMany` `count !== 1` (including a second resume when listing is already `PUBLISHED`) → 409; **no audit row**.
+- Publish path writes `NOTE_PUBLISHED`, never this event.
+
+## 4. Top-level audit row
+
+Same NoteAuditLog columns as A176 except `event_type` = `NOTE_CAMPAIGN_RESUMED`. Actor ADMIN, target NOTE / note id, organization_id issuer org, organization_kind ISSUER, source API, portal ADMIN, idempotency_key null.
 
 ## 5. EXACT METADATA STRUCTURE
 
-Status axes only (`previous*` / `new*` for note, listing, funding, servicing).
+Zod: **`unpublishedSchema`** (shared with `NOTE_UNPUBLISHED`) — status axes only. **No** `previousIsFeatured` / `newIsFeatured` in schema or writer payload.
 
-## 6. Visibility
+```ts
+{
+  actorName: string | null;
+  actorEmail: string | null;
+  previousNoteStatus?: string;
+  newNoteStatus?: string;
+  previousListingStatus?: string;
+  newListingStatus?: string;
+  previousFundingStatus?: string;
+  newFundingStatus?: string;
+  previousServicingStatus?: string;
+  newServicingStatus?: string;
+}
+```
 
-| Surface | Decision |
-|---|---|
-| Admin raw | SHOW |
-| Admin Activity | SHOW |
-| Issuer Activity | SHOW |
-| Investor Activity | CONDITIONAL: committed investor |
+Writer always sends axes via `noteStatusAxes`. Typical listing: `UNPUBLISHED` → `PUBLISHED`. Typical note/funding: both remain `PUBLISHED` / `OPEN`.
 
-Writer: `writeNoteAuditFromActor`. Tests: note cutover, note-log adapter, activity presentation/visibility.
+Featured is not in this event. Pause (A176) is the featured-clearing evidence. Resume SOT only sets `listing_status=PUBLISHED` and does not set `is_featured` back to true.
 
+## 6. Source of truth
+
+`Note.listing_status` becomes `PUBLISHED`. `Note.status` stays `PUBLISHED`. `Note.funding_status` stays `OPEN`. `NoteListing` update: `status=PUBLISHED`, `unpublished_at=null` (create path may set `published_at`/`opens_at` if a listing row was missing). Featured columns are not restored. Audit is not SOT.
+
+## 7. Transaction / audit failure behavior
+
+Same `$transaction` as resume `updateMany` + listing upsert. Predicate miss throws before audit. Writer throw rolls back. Second resume cannot duplicate because listing is already PUBLISHED.
+
+## 8. Writer(s)
+
+- `apps/api/src/modules/notes/service.ts` `resumeListing`
+- `writeNoteAuditFromActor`
+
+## 9. ADMIN RAW AUDIT
+
+**Visibility:** SHOW
+
+Same note Audit History surface as A176. Raw label title-cases to **Note Campaign Resumed**.
+
+**Title:** Note Campaign Resumed (raw title-case)
+
+**Description:** Full typed metadata (status axes; no featured keys).
+
+## 10. ADMIN CURATED ACTIVITY
+
+**Visibility:** SHOW
+
+**Title:** Campaign Resumed
+
+**Description:** The campaign is open for investment again.
+
+## 11. ISSUER ACTIVITY
+
+**Visibility:** SHOW
+
+**Title:** Campaign Resumed
+
+**Description:** Your campaign is open for investment again.
+
+## 12. INVESTOR ACTIVITY
+
+**Visibility:** CONDITIONAL
+
+Same membership rule as A176: COMMITTED | CONFIRMED | SETTLED only. Not RELEASED, not CANCELLED, not never-invested.
+
+**Title:** Campaign Resumed
+
+**Description:** The campaign is open for investment again.
+
+## 13. Presentation metadata safety
+
+Copy does not say the note was published for the first time. Does not claim featured restoration.
+
+## 14. Current UI behavior
+
+Admin Campaign tab resume action. Note Audit History. Activity CSV: **Campaign resumed**. Sort/pagination same as other note audit rows.
+
+## 15. Manual verification checklist
+
+- [ ] Resume campaign
+- [ ] listing UNPUBLISHED → PUBLISHED
+- [ ] note stays PUBLISHED; funding stays OPEN
+- [ ] no `NOTE_PUBLISHED` row
+- [ ] featured not falsely restored in SOT
+- [ ] metadata has no featured fields
+- [ ] one `NOTE_CAMPAIGN_RESUMED` row
+- [ ] actor ADMIN; target NOTE; issuer org
+- [ ] same visibility rules as pause
+- [ ] second resume → 409 and no duplicate
+- [ ] raw Audit History shows the row
+- [ ] CSV label Campaign resumed
