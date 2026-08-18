@@ -114,7 +114,6 @@
     "pino": "^8.17.2",
     "pino-http": "^8.6.1",
     "pino-pretty": "^10.3.1",
-    "pizzip": "^3.2.0",
     "playwright": "^1.40.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",

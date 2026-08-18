@@ -10,6 +10,7 @@ import {
   resolveAcceptanceDocumentsFromWorkflow,
   workflowHasAcceptanceDocuments,
 } from "./acceptance-documents";
+import { workflowHasSigningPackage } from "./signing-envelopes";
 import {
   ACCEPTANCE_DEADLINE_WORKFLOW_KEY,
   DEFAULT_ACCEPTANCE_DEADLINE,
@@ -422,6 +423,35 @@ export function resolveActiveOfferDeadlineIso(
  */
 export function workflowUsesOfferAcceptanceFlow(workflow: unknown): boolean {
   return workflowHasAcceptanceDocuments(workflow);
+}
+
+/**
+ * Admin Acceptance tab: document review and/or the signing-package hub.
+ * Signing-only products (no acceptance documents) still get this tab.
+ */
+export function workflowShowsAcceptanceReviewSection(workflow: unknown): boolean {
+  return workflowUsesOfferAcceptanceFlow(workflow) || workflowHasSigningPackage(workflow);
+}
+
+/**
+ * True when the Acceptance tab should be APPROVED: the hub is visible and the
+ * primary offer (contract, or standalone invoice) is already accepted.
+ */
+export function isAcceptanceHubCompleteFromOffer(input: {
+  workflow: unknown;
+  structureType?: string | null;
+  contractStatus?: string | null;
+  invoices?: Array<{ contract_id?: string | null; status?: string | null }>;
+}): boolean {
+  if (!workflowShowsAcceptanceReviewSection(input.workflow)) return false;
+  if (input.structureType === "invoice_only") {
+    return (input.invoices ?? []).some(
+      (invoice) =>
+        (invoice.contract_id == null || invoice.contract_id === "") &&
+        invoice.status === "APPROVED"
+    );
+  }
+  return input.contractStatus === "APPROVED";
 }
 
 /**

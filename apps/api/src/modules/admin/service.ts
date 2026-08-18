@@ -84,6 +84,8 @@ import {
   isOfferAcceptanceResendBlocked,
   isPhaseDeadlineExpired,
   workflowUsesOfferAcceptanceFlow,
+  workflowShowsAcceptanceReviewSection,
+  isAcceptanceHubCompleteFromOffer,
   shouldShowAcceptanceDocumentsReviewSection,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
@@ -895,7 +897,7 @@ export class AdminService {
     if (
       shouldShowAcceptanceDocumentsReviewSection(
         structureType,
-        workflowUsesOfferAcceptanceFlow(workflow)
+        workflowShowsAcceptanceReviewSection(workflow)
       )
     ) {
       visibleSections.add("acceptance_documents");
@@ -6257,6 +6259,14 @@ export class AdminService {
         id,
         application
       );
+    } else {
+      await this.ensureAcceptanceHubReviewApprovedIfOfferComplete(
+        repository,
+        id,
+        application,
+        sectionPolicy.productWorkflow,
+        structureType
+      );
     }
     const sectionOrder = getReviewSectionOrder(structureType);
     const orderedRequiredSections = sectionOrder.filter((section) =>
@@ -6915,6 +6925,62 @@ export class AdminService {
         reviewed_at: new Date(),
       },
     });
+  }
+
+  /**
+   * Signing-only products never create an acceptance_documents review row during
+   * doc review. Once the primary offer is accepted, mark the tab APPROVED so the
+   * admin status dot matches the completed signing package.
+   */
+  private async ensureAcceptanceHubReviewApprovedIfOfferComplete(
+    repository: AdminRepository,
+    applicationId: string,
+    application: {
+      contract?: { status?: string } | null;
+      invoices?: Array<{ contract_id?: string | null; status?: string }>;
+      application_reviews?: { section: string; status: string }[];
+    },
+    workflow: unknown,
+    structureType?: string | null
+  ): Promise<void> {
+    if (
+      !isAcceptanceHubCompleteFromOffer({
+        workflow,
+        structureType,
+        contractStatus: application.contract?.status ?? null,
+        invoices: application.invoices,
+      })
+    ) {
+      return;
+    }
+    const existing = application.application_reviews?.find(
+      (review) => review.section === "acceptance_documents"
+    );
+    if (existing?.status === "APPROVED") {
+      return;
+    }
+    await repository.ensureApplicationReviewSection(applicationId, "acceptance_documents");
+    await prisma.applicationReview.update({
+      where: {
+        application_id_section: {
+          application_id: applicationId,
+          section: "acceptance_documents",
+        },
+      },
+      data: {
+        status: ReviewStepStatus.APPROVED,
+        reviewer_user_id: null,
+        reviewed_at: new Date(),
+      },
+    });
+    const reviews = application.application_reviews ?? [];
+    const index = reviews.findIndex((review) => review.section === "acceptance_documents");
+    if (index >= 0) {
+      reviews[index] = { ...reviews[index], status: "APPROVED" };
+    } else {
+      reviews.push({ section: "acceptance_documents", status: "APPROVED" });
+    }
+    application.application_reviews = reviews;
   }
 
   /**

@@ -42,6 +42,7 @@ import {
   offerAcceptanceIsStep1Editable,
   resolveStatusAfterOfferAcceptanceSubmit,
   workflowUsesOfferAcceptanceFlow,
+  workflowShowsAcceptanceReviewSection,
   buildAcknowledgedTermsSnapshot,
 } from "@cashsouk/types";
 import {
@@ -2310,6 +2311,7 @@ export class ApplicationService {
       signingCompletion: options?.signingCompletion,
     });
     const contractId = application.contract_id;
+    const workflow = await this.getProductWorkflowForApplication(application);
 
     const responseMeta = await prisma.$transaction(async (tx) => {
       const lockedContractRows = await tx.$queryRaw<
@@ -2416,7 +2418,7 @@ export class ApplicationService {
       });
 
       // Primary offer ceremony complete → Acceptance section APPROVED (alongside Contract).
-      if (action === "accept" && getOfferAcceptanceFromOfferDetails(offer)) {
+      if (action === "accept" && workflowShowsAcceptanceReviewSection(workflow)) {
         await tx.applicationReview.upsert({
           where: {
             application_id_section: {
@@ -2654,6 +2656,8 @@ export class ApplicationService {
       application as { invoices?: { id: string; details?: { number?: string | number } }[] },
       invoiceId
     );
+    const workflow = await this.getProductWorkflowForApplication(application);
+    const isInvoiceOnlyPrimary = !application.contract_id;
     const responseMeta = await prisma.$transaction(async (tx) => {
       const lockedInvoiceRows = await tx.$queryRaw<
         { status: string; offer_details: Prisma.JsonValue | null }[]
@@ -2797,7 +2801,11 @@ export class ApplicationService {
       }
 
       // Invoice-only primary offer ceremony complete → Acceptance section APPROVED.
-      if (action === "accept" && getOfferAcceptanceFromOfferDetails(offer)) {
+      if (
+        action === "accept" &&
+        isInvoiceOnlyPrimary &&
+        workflowShowsAcceptanceReviewSection(workflow)
+      ) {
         await tx.applicationReview.upsert({
           where: {
             application_id_section: {
