@@ -5,7 +5,7 @@ import {
   isPrerequisiteSectionSatisfied,
   REVIEW_SECTION_ORDER,
   shouldShowAcceptanceDocumentsReviewSection,
-  workflowUsesOfferAcceptanceFlow,
+  workflowShowsAcceptanceReviewSection,
   type ReviewSection,
 } from "@cashsouk/types";
 
@@ -100,7 +100,7 @@ export function getReviewTabDescriptorsFromWorkflow(
   if (
     shouldShowAcceptanceDocumentsReviewSection(
       structureType,
-      workflowUsesOfferAcceptanceFlow(workflow)
+      workflowShowsAcceptanceReviewSection(workflow)
     )
   ) {
     stepTabs.push({

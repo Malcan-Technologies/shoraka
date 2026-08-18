@@ -12,6 +12,7 @@ import {
   getOfferAcceptanceStatusPresentation,
   getOfferPhaseDeadlineDisplay,
   isOfferAcceptanceDocumentsVisibleToAdmin,
+  workflowHasAcceptanceDocuments,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 import { StatusBadge } from "@cashsouk/ui";
@@ -211,9 +212,10 @@ export function AcceptanceSection({
     [supportingDocuments]
   );
 
+  const productHasAcceptanceDocuments = workflowHasAcceptanceDocuments(workflow);
   const showAcceptanceDocuments =
-    isInheritedAcceptance ||
-    isAcceptanceDocumentsSectionActive(acceptanceOfferDetails);
+    productHasAcceptanceDocuments &&
+    (isInheritedAcceptance || isAcceptanceDocumentsSectionActive(acceptanceOfferDetails));
 
   const inheritedSourceHref =
     inheritedSourceApplication?.productId && inheritedSourceApplication.id
@@ -264,6 +266,10 @@ export function AcceptanceSection({
           </div>
         ) : null}
         {(() => {
+          if (showSigningHub && !productHasAcceptanceDocuments) {
+            return null;
+          }
+
           const documentsList = (
             <DocumentsSection
               supportingDocuments={supportingDocuments}
@@ -316,10 +322,12 @@ export function AcceptanceSection({
             );
           }
 
-          if (!showAcceptanceDocuments) {
+          if (!productHasAcceptanceDocuments || !showAcceptanceDocuments) {
             return (
               <p className="text-sm text-muted-foreground">
-                No acceptance documents to review yet.
+                {productHasAcceptanceDocuments
+                  ? "No acceptance documents to review yet."
+                  : "No acceptance documents are configured for this product."}
               </p>
             );
           }

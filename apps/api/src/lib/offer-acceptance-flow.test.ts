@@ -4,6 +4,8 @@ import {
   isOfferAcceptanceResendBlocked,
   resolveStatusAfterOfferAcceptanceSubmit,
   workflowUsesOfferAcceptanceFlow,
+  workflowShowsAcceptanceReviewSection,
+  isAcceptanceHubCompleteFromOffer,
 } from "@cashsouk/types";
 
 /** Minimal financing_type step — same shape admin/issuer resolve from frozen product_version. */
@@ -55,6 +57,63 @@ describe("workflowUsesOfferAcceptanceFlow", () => {
         })
       )
     ).toBe(false);
+  });
+});
+
+describe("workflowShowsAcceptanceReviewSection", () => {
+  it("is true when a signing package is configured even without acceptance documents", () => {
+    expect(
+      workflowShowsAcceptanceReviewSection(
+        financingWorkflow({
+          signing_packages: { documents: [{ key: "facility_agreement", name: "Facility Agreement" }] },
+        })
+      )
+    ).toBe(true);
+  });
+
+  it("is false when neither acceptance documents nor signing documents exist", () => {
+    expect(workflowShowsAcceptanceReviewSection(financingWorkflow({}))).toBe(false);
+    expect(
+      workflowShowsAcceptanceReviewSection(
+        financingWorkflow({ signing_packages: { documents: [] } })
+      )
+    ).toBe(false);
+  });
+});
+
+describe("isAcceptanceHubCompleteFromOffer", () => {
+  const signingOnly = financingWorkflow({
+    signing_packages: { documents: [{ key: "facility", name: "Facility" }] },
+  });
+
+  it("is true for a signed contract offer on a signing-only product", () => {
+    expect(
+      isAcceptanceHubCompleteFromOffer({
+        workflow: signingOnly,
+        structureType: "new_contract",
+        contractStatus: "APPROVED",
+      })
+    ).toBe(true);
+  });
+
+  it("is false until the contract offer is approved", () => {
+    expect(
+      isAcceptanceHubCompleteFromOffer({
+        workflow: signingOnly,
+        structureType: "new_contract",
+        contractStatus: "OFFER_SENT",
+      })
+    ).toBe(false);
+  });
+
+  it("is true for invoice-only when a standalone invoice is approved", () => {
+    expect(
+      isAcceptanceHubCompleteFromOffer({
+        workflow: signingOnly,
+        structureType: "invoice_only",
+        invoices: [{ contract_id: null, status: "APPROVED" }],
+      })
+    ).toBe(true);
   });
 });
 
