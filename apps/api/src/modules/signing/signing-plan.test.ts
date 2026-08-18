@@ -17,6 +17,8 @@ import {
   rollupEnvelopeStatus,
   needsSigningEnvelope,
   canDirectAcceptInvoice,
+  workflowHasSigningPackage,
+  resolveCompletedSigningEnvelopeWhere,
   SIGNING_PACKAGES_WORKFLOW_KEY,
   SIGNING_TEMPLATE_WORKFLOW_KEY,
   SIGNING_TEMPLATE_DOCUMENT_CATEGORY_KEY,
@@ -384,6 +386,65 @@ describe("writeSigningPackagesConfig", () => {
     expect(next.some_other).toBe(true);
     expect(next[SIGNING_TEMPLATE_WORKFLOW_KEY]).toBeUndefined();
     expect(next[SIGNING_PACKAGES_WORKFLOW_KEY]).toEqual(packages);
+  });
+});
+
+describe("workflowHasSigningPackage", () => {
+  const signingWorkflow = [
+    {
+      id: "financing_type_1",
+      config: {
+        [SIGNING_PACKAGES_WORKFLOW_KEY]: {
+          documents: [{ key: "facility", name: "Facility Agreement", source: "TEMPLATE", order: 0 }],
+        },
+      },
+    },
+  ];
+
+  it("is false when signing_packages is missing or has no documents", () => {
+    expect(workflowHasSigningPackage(undefined)).toBe(false);
+    expect(workflowHasSigningPackage([])).toBe(false);
+    expect(
+      workflowHasSigningPackage([
+        { id: "financing_type_1", config: { [SIGNING_PACKAGES_WORKFLOW_KEY]: { documents: [] } } },
+      ])
+    ).toBe(false);
+  });
+
+  it("is true when the workflow defines at least one signing document", () => {
+    expect(workflowHasSigningPackage(signingWorkflow)).toBe(true);
+  });
+});
+
+describe("resolveCompletedSigningEnvelopeWhere", () => {
+  it("looks up the invoice envelope for invoice-only notes", () => {
+    expect(
+      resolveCompletedSigningEnvelopeWhere({
+        sourceInvoiceId: "inv-1",
+        sourceContractId: null,
+        invoiceContractId: null,
+      })
+    ).toEqual({ invoice_id: "inv-1" });
+  });
+
+  it("looks up the contract envelope for contract-linked invoices", () => {
+    expect(
+      resolveCompletedSigningEnvelopeWhere({
+        sourceInvoiceId: "inv-1",
+        sourceContractId: "con-1",
+        invoiceContractId: "con-1",
+      })
+    ).toEqual({ contract_id: "con-1" });
+  });
+
+  it("looks up the contract envelope when the note has no invoice", () => {
+    expect(
+      resolveCompletedSigningEnvelopeWhere({
+        sourceInvoiceId: null,
+        sourceContractId: "con-1",
+        invoiceContractId: null,
+      })
+    ).toEqual({ contract_id: "con-1" });
   });
 });
 

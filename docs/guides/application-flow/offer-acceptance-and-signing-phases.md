@@ -122,8 +122,9 @@ Stale `offer_acknowledgements` keys on saved products are stripped on product sa
   2. **Acceptance documents** — nested under offer acceptance when active (`PENDING_ADMIN_REVIEW`+ or uploads exist); Download all beside the documents heading
   3. **Signing package** — remind / void / history; signed PDF **View / Download** inline on each package document row when `signed_s3_key` is set (including the offer letter when keyed)
 - Actions on acceptance docs drive `CHANGES_REQUESTED` / `APPROVED_FOR_SIGNING` / reject-withdraw.
-- Signing package create/send messaging stays issuer-side; admin panel disables until `APPROVED_FOR_SIGNING`.
-- Tab visibility: show Acceptance when `workflowUsesOfferAcceptanceFlow` (product has `acceptance_documents`).
+- Signing package create/send messaging stays issuer-side; admin panel disables until `APPROVED_FOR_SIGNING` when the phased acceptance flow is in use.
+- Tab visibility: show Acceptance when `workflowShowsAcceptanceReviewSection` (product has `acceptance_documents` **or** a signing package with documents). Signing-only products skip the documents block and show the signing hub only.
+- Issuer with no acceptance documents keeps the existing direct signing stepper (no upload / admin-review step).
 - **Structure-aware tab order** (`getReviewSectionOrder`):
   - Contract / default: `… → Contract → Acceptance → Invoice`
   - Invoice-only: `… → Customer → Invoice → Acceptance`
@@ -131,7 +132,7 @@ Stale `offer_acknowledgements` keys on saved products are stripped on product sa
   - Contract: underwriting approved + Contract `OFFER_SENT` or `APPROVED` (Send Offer unlocks Acceptance; Contract cannot be manually approved)
   - Invoice-only: underwriting + Customer approved + Invoice `OFFER_SENT` or `APPROVED`
 - **Post-send handoff (v1):** after successful Send Offer on Contract, or on Invoice for invoice-only, toast + switch to the Acceptance tab. Contract-linked invoice send does **not** jump.
-- On envelope / primary-offer accept: Contract (or Invoice) review → `APPROVED`; Acceptance review section → `APPROVED`. Doc-item sync does not finalize Acceptance to `APPROVED` while `offer_acceptance` is still in progress.
+- On envelope / primary-offer accept: Contract (or Invoice) review → `APPROVED`; Acceptance review section → `APPROVED` (including signing-only products with no acceptance documents).
 - Acceptance stays **visible-only** (not required for final application approval). Send Offer remains on Contract / Invoice (v1).
 
 ## Gates
@@ -148,7 +149,7 @@ Presence-only gate for send is **replaced** by admin-approved for this flow when
 
 1. **Done — Config + types + Step 1 UI + submit API** — `acceptance_documents`, `offer_acceptance` on `offer_details`, issuer upload-only Step 1, remove upload from Step 3 when acceptance phase applies.
 2. **Done — Admin gate** — block create/send until approved; wire review outcomes to `offer_acceptance.status`; admin panel copy.
-3. **Done — Admin review linearity (Slice A)** — structure-aware tab order + Acceptance prerequisites + tab visibility via `workflowUsesOfferAcceptanceFlow`.
+3. **Done — Admin review linearity (Slice A)** — structure-aware tab order + Acceptance prerequisites + tab visibility via `workflowShowsAcceptanceReviewSection`.
 4. **Done — Acceptance hub (Slice B)** — Signing package + offer-acceptance summary in the Acceptance tab (status → docs → signing); no page-level signing panel.
 5. **Done — Signed downloads + post-send handoff (Slice C)** — inline View/Download on Signing package document rows when `signed_s3_key` is set; after Send Offer (Contract / invoice-only), toast + focus Acceptance.
 6. **Done — Phase clocks** — Acceptance + signing deadlines (product config, stamps, API gates, hourly job with reminders, durable `OFFER_EXPIRED` + resend). Still deferred: HTML merge templates; Send Offer → Acceptance (v2).

@@ -44,8 +44,6 @@ import {
   computeNetExpectedReturnRatePercent,
   deriveGrossProfitAndServiceFeeFromNet,
   INVESTOR_RETURN_RATE_DISPLAY_DECIMALS,
-  SIGNING_PACKAGES_WORKFLOW_KEY,
-  SIGNING_TEMPLATE_WORKFLOW_KEY,
   collectAcceptanceDocumentReviewKeys,
   isNoteFullyFunded,
   isSoukscoreRiskRating,
@@ -53,8 +51,10 @@ import {
   meetsMinimumFunding,
   normalizeNoteCapacityAmount,
   NOTE_MONEY_TOLERANCE,
+  resolveCompletedSigningEnvelopeWhere,
   roundNoteMoney,
   workflowHasRequiredAcceptanceDocuments,
+  workflowHasSigningPackage,
 } from "@cashsouk/types";
 import {
   creditInvestorBalance,
@@ -168,21 +168,6 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 function generateNoteEntityId(): string {
   const compactUuid = randomUUID().replace(/-/g, "");
   return `c${compactUuid.slice(0, 24)}`;
-}
-
-function workflowHasSigningPackage(workflow: unknown): boolean {
-  if (!Array.isArray(workflow)) return false;
-  for (const step of workflow) {
-    const config = asRecord((step as { config?: unknown }).config);
-    if (!config) continue;
-    if (
-      config[SIGNING_PACKAGES_WORKFLOW_KEY] != null ||
-      config[SIGNING_TEMPLATE_WORKFLOW_KEY] != null
-    ) {
-      return true;
-    }
-  }
-  return false;
 }
 
 function findFinancingTypeWorkflowStep(
@@ -1244,18 +1229,25 @@ export class NoteService {
     if (!workflow) return;
 
     if (workflowHasSigningPackage(workflow)) {
-      const completedEnvelope = await prisma.signingEnvelope.findFirst({
-        where: {
-          application_id: note.source_application_id,
-          status: "COMPLETED",
-          ...(note.source_invoice_id
-            ? { invoice_id: note.source_invoice_id }
-            : note.source_contract_id
-              ? { contract_id: note.source_contract_id }
-              : {}),
-        },
-        select: { id: true },
+      let invoiceContractId: string | null = null;
+      if (note.source_invoice_id) {
+        const invoice = await prisma.invoice.findUnique({
+          where: { id: note.source_invoice_id },
+          select: { contract_id: true },
+        });
+        invoiceContractId = invoice?.contract_id ?? null;
+      }
+      const envelopeWhere = resolveCompletedSigningEnvelopeWhere({
+        sourceInvoiceId: note.source_invoice_id,
+        sourceContractId: note.source_contract_id,
+        invoiceContractId,
       });
+      const completedEnvelope = envelopeWhere
+        ? await prisma.signingEnvelope.findFirst({
+            where: { status: "COMPLETED", ...envelopeWhere },
+            select: { id: true },
+          })
+        : null;
       if (!completedEnvelope) {
         throw new AppError(
           409,

@@ -388,6 +388,31 @@ export function resolveSigningTemplateForOffer(input: {
 }
 
 /**
+ * Resolve the product signing template from a workflow (frozen or live).
+ * Empty defaults when no `signing_packages` / legacy `signing_template` is present.
+ */
+export function resolveSigningTemplateFromWorkflow(workflow: unknown): SigningTemplateConfig {
+  if (!Array.isArray(workflow)) {
+    return parseSigningTemplateConfig(null);
+  }
+  for (const step of workflow) {
+    const config = asRecord((step as { config?: unknown } | null)?.config);
+    if (
+      config[SIGNING_PACKAGES_WORKFLOW_KEY] != null ||
+      config[SIGNING_TEMPLATE_WORKFLOW_KEY] != null
+    ) {
+      return parseSigningPackagesConfig(config);
+    }
+  }
+  return parseSigningTemplateConfig(null);
+}
+
+/** True when the workflow defines at least one signing-package document. */
+export function workflowHasSigningPackage(workflow: unknown): boolean {
+  return resolveSigningTemplateFromWorkflow(workflow).documents.length > 0;
+}
+
+/**
  * Whether this offer kind requires a signing envelope.
  * Contract-linked invoices (`invoiceContractId` set) skip envelopes and use direct accept
  * after the contract package is COMPLETED.
@@ -399,6 +424,31 @@ export function needsSigningEnvelope(input: {
 }): boolean {
   if (input.kind === "contract") return true;
   return input.invoiceContractId == null || input.invoiceContractId === "";
+}
+
+/**
+ * Prisma `where` for the completed envelope a note must have before marketplace publish.
+ * Contract-linked invoices reuse the contract package; invoice-only notes use the invoice package.
+ */
+export function resolveCompletedSigningEnvelopeWhere(input: {
+  sourceInvoiceId?: string | null;
+  sourceContractId?: string | null;
+  invoiceContractId?: string | null;
+}): { invoice_id: string } | { contract_id: string } | null {
+  const invoiceId = input.sourceInvoiceId?.trim() || null;
+  const linkedContractId = input.invoiceContractId?.trim() || null;
+  const sourceContractId = input.sourceContractId?.trim() || null;
+
+  if (
+    invoiceId &&
+    needsSigningEnvelope({ kind: "invoice", invoiceContractId: linkedContractId })
+  ) {
+    return { invoice_id: invoiceId };
+  }
+
+  const contractId = linkedContractId || sourceContractId;
+  if (contractId) return { contract_id: contractId };
+  return invoiceId ? { invoice_id: invoiceId } : null;
 }
 
 /**
