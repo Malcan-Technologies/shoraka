@@ -71,7 +71,10 @@ export function isInheritedContractAcceptanceReview(
   return structureType === "existing_contract";
 }
 
-/** Admin Acceptance tab visibility (live ceremony or inherited read-only mirror). */
+/**
+ * Admin Acceptance tab visibility (live ceremony or inherited read-only mirror).
+ * Pass `workflowShowsAcceptanceReviewSection(workflow)` so signing-only products still get the tab.
+ */
 export function shouldShowAcceptanceDocumentsReviewSection(
   _structureType: string | null | undefined,
   usesOfferAcceptanceFlow: boolean

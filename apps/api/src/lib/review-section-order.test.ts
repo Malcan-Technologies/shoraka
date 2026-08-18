@@ -9,6 +9,7 @@ import {
   applicationPrimaryOfferUsesContractAcceptance,
   shouldShowAcceptanceDocumentsReviewSection,
   isInheritedContractAcceptanceReview,
+  workflowShowsAcceptanceReviewSection,
 } from "@cashsouk/types";
 
 describe("getReviewSectionOrder", () => {
@@ -88,6 +89,19 @@ describe("acceptance visibility helpers", () => {
     expect(shouldShowAcceptanceDocumentsReviewSection("invoice_only", true)).toBe(true);
     expect(shouldShowAcceptanceDocumentsReviewSection("existing_contract", true)).toBe(true);
     expect(shouldShowAcceptanceDocumentsReviewSection("existing_contract", false)).toBe(false);
+    expect(
+      shouldShowAcceptanceDocumentsReviewSection(
+        "new_contract",
+        workflowShowsAcceptanceReviewSection([
+          {
+            id: "financing_type_1",
+            config: {
+              signing_packages: { documents: [{ key: "facility", name: "Facility" }] },
+            },
+          },
+        ])
+      )
+    ).toBe(true);
   });
 
   it("flags existing_contract acceptance as inherited review", () => {
