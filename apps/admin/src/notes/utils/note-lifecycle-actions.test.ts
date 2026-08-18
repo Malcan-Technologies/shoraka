@@ -38,12 +38,12 @@ function note(overrides: Partial<NoteDetail> = {}): NoteDetail {
 }
 
 describe("published listing lifecycle actions", () => {
-  const publishedOpen = {
+  const publishedOpen: Partial<NoteDetail> = {
     status: NoteStatus.PUBLISHED,
     listingStatus: NoteListingStatus.PUBLISHED,
     fundingStatus: NoteFundingStatus.OPEN,
     prospectus: {
-      status: "PUBLISHED" as const,
+      status: "PUBLISHED",
       displayStatus: "Published",
       contentVersion: 1,
       lastSavedAt: null,

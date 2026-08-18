@@ -61,9 +61,6 @@ const FEES_HEADER_TOOLTIP =
 const PROFIT_RATE_HEADER_TOOLTIP =
   "Profit per annum (%). Deducted during settlement when calculating the residual refund to the issuer.";
 
-const PROFIT_RATE_HEADER_TOOLTIP =
-  "Profit per annum (%). Deducted during settlement when calculating the residual refund to the issuer.";
-
 /** Min widths (px) for scrollable columns; extra space is shared across them. */
 const COL_MIN = {
   invoiceNumber: 132,

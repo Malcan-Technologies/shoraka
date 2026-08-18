@@ -66,7 +66,7 @@ function isDirectorLikeRow(r: DirectorShareholderDisplayRow): boolean {
 
 function isIndividualShareholderOnlyRow(r: DirectorShareholderDisplayRow): boolean {
   if (r.type !== "INDIVIDUAL") return false;
-  return !Boolean(r.isDirector) && Boolean(r.isShareholder);
+  return !r.isDirector && Boolean(r.isShareholder);
 }
 
 export function directorShareholderOrgApiBase(

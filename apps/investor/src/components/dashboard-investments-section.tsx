@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useOrganization } from "@cashsouk/config";
 import {
@@ -93,15 +93,11 @@ export function InvestorInvestmentsList({
     return () => clearTimeout(timer);
   }, [search]);
 
-  const isFirstDebouncedSearchPageReset = useRef(true);
-  useEffect(() => {
-    if (!showStatusFilter) return;
-    if (isFirstDebouncedSearchPageReset.current) {
-      isFirstDebouncedSearchPageReset.current = false;
-      return;
-    }
+  const [searchPageKey, setSearchPageKey] = useState(debouncedSearch);
+  if (showStatusFilter && searchPageKey !== debouncedSearch) {
+    setSearchPageKey(debouncedSearch);
     setCurrentPage(1);
-  }, [debouncedSearch, showStatusFilter]);
+  }
 
   const sortedNotes = useMemo(() => sortInvestorInvestments(notes, "most_relevant"), [notes]);
 
@@ -113,21 +109,20 @@ export function InvestorInvestmentsList({
     return [...labels].sort((a, b) => a.localeCompare(b));
   }, [sortedNotes]);
 
-  useEffect(() => {
-    if (statusFilter === "all") return;
-    if (!availableStatusLabels.includes(statusFilter)) {
-      setStatusFilter("all");
-      setCurrentPage(1);
-    }
-  }, [availableStatusLabels, statusFilter]);
+  const effectiveStatusFilter =
+    statusFilter === "all" || availableStatusLabels.includes(statusFilter) ? statusFilter : "all";
+  if (statusFilter !== effectiveStatusFilter) {
+    setStatusFilter("all");
+    setCurrentPage(1);
+  }
 
   const normalizedSearch = debouncedSearch.trim().toLowerCase();
 
   const filteredNotes = useMemo(() => {
     return sortedNotes.filter((note) => {
       const matchesStatus =
-        statusFilter === "all" ||
-        getNoteDerivedStatusLabel(note, { viewer: "investor" }) === statusFilter;
+        effectiveStatusFilter === "all" ||
+        getNoteDerivedStatusLabel(note, { viewer: "investor" }) === effectiveStatusFilter;
       const matchesSearch = matchesInvestmentsSearch(note, normalizedSearch);
       const matchesIndustry =
         industryFilter === "all" || (note.issuerIndustry?.trim() ?? "") === industryFilter;
@@ -162,7 +157,7 @@ export function InvestorInvestmentsList({
     profitFilter,
     riskFilter,
     sortedNotes,
-    statusFilter,
+    effectiveStatusFilter,
     tenorFilter,
   ]);
 

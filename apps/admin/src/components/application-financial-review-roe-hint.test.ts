@@ -7,7 +7,11 @@ describe("application financial review ROE hint", () => {
       join(__dirname, "application-financial-review-content.tsx"),
       "utf8"
     );
-    expect(source).toContain('formulaHint: "Profit after tax ÷ net worth."');
-    expect(source).not.toMatch(/formulaHint:\s*"Profit after tax ÷ paid-up capital\."/);
+    expect(source).toContain(
+      'formulaHint: "CTOS: return_on_equity only. Issuer: PAT ÷ net worth from submitted lines."'
+    );
+    expect(source).not.toMatch(
+      /id: "return_of_equity"[\s\S]*?formulaHint:\s*"Profit after tax ÷ paid-up capital\."/
+    );
   });
 });
