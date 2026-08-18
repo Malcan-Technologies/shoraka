@@ -132,7 +132,7 @@ export function AcceptanceDocumentsConfig({
     onPendingTemplateChange?.(index, null);
     if (hadPending) return;
     const item = items[index];
-    updateDoc(index, { ...item, template: undefined });
+    updateDoc(index, { ...item, template: undefined, generated_document_type: undefined });
   };
 
   return (
@@ -177,6 +177,7 @@ export function AcceptanceDocumentsConfig({
                 item={item}
                 index={index}
                 variant="card"
+                generatedDocumentContext="acceptance_documents"
                 pendingFile={pendingFiles[index] ?? null}
                 onUpdate={(updates) => updateDoc(index, updates)}
                 onRemove={() => removeDoc(index)}

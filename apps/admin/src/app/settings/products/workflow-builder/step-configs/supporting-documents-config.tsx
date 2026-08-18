@@ -18,6 +18,7 @@ import {
   WorkflowDocumentRowEditor,
   type WorkflowDocumentRowShape,
 } from "./workflow-document-row-editor";
+import { serializeWorkflowDocumentRow } from "@cashsouk/types";
 
 const CATEGORY_KEYS = ["financial_docs", "legal_docs", "compliance_docs", "others"] as const;
 const CATEGORY_LABELS: Record<(typeof CATEGORY_KEYS)[number], string> = {
@@ -107,8 +108,9 @@ export function SupportingDocumentsConfig({
       delete payload[ENABLED_CATEGORIES_KEY];
       const enabled = nextEnabled ?? enabledCategories;
       CATEGORY_KEYS.forEach((key) => {
-        if (enabled.includes(key)) payload[key] = nextLists[key];
-        else delete payload[key];
+        if (enabled.includes(key)) {
+          payload[key] = nextLists[key].map((row) => serializeWorkflowDocumentRow(row));
+        } else delete payload[key];
       });
       onChange(payload);
     },
@@ -193,7 +195,7 @@ export function SupportingDocumentsConfig({
     onPendingTemplateChange?.(key, index, null);
     if (hadPending) return;
     const item = lists[key][index];
-    updateDoc(key, index, { ...item, template: undefined });
+    updateDoc(key, index, { ...item, template: undefined, generated_document_type: undefined });
   };
 
   const availableToAdd = CATEGORY_KEYS.filter((k) => !enabledCategories.includes(k));
@@ -310,6 +312,7 @@ function CategorySection({
               key={index}
               item={item}
               index={index}
+              generatedDocumentContext="supporting_documents"
               pendingFile={pendingFiles[slotKeyFn(categoryKey, index)] ?? null}
               onUpdate={(updates) => onUpdate(index, updates)}
               onRemove={() => onRemove(index)}
