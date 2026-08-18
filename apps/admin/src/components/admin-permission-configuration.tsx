@@ -103,6 +103,16 @@ function slugifyRoleKey(value: string): string {
 }
 
 function permissionLabel(permission: AdminPermission): string {
+  const overrides: Partial<Record<AdminPermission, string>> = {
+    "users.view": "User Accounts - View",
+    "users.manage": "User Accounts - Manage",
+    "organizations.view": "Issuers & Investors - View",
+    "organizations.manage": "Issuers & Investors - Manage",
+  };
+  if (overrides[permission]) {
+    return overrides[permission]!;
+  }
+
   return permission
     .split(".")
     .map((part) =>

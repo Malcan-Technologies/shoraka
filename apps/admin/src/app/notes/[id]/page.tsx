@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { ArrowPathIcon, BanknotesIcon, DocumentTextIcon, MapIcon } from "@heroicons/react/24/outline";
+import { ArrowPathIcon, BanknotesIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,24 +17,27 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Card, CardContent } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { NoteStatusBadge, Skeleton, StatusBadge } from "@cashsouk/ui";
+import { NoteStatusBadge, Skeleton, StatusBadge, getNoteDerivedStatusToken } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
-import { isNoteSettlementPosted } from "@cashsouk/types";
+import { isNoteSettlementPosted, type NoteDetail } from "@cashsouk/types";
 import { useNoteDetail } from "@/notes/hooks/use-note-detail";
 import {
   useCloseNoteFunding,
   useFailNoteFunding,
+  usePauseNoteListing,
   usePublishNote,
+  useResumeNoteListing,
   useUpdateNoteFeatured,
   useUnpublishNote,
 } from "@/notes/hooks/use-notes";
 import { LedgerPanel } from "@/notes/components/ledger-panel";
+import { NoteCampaignActions } from "@/notes/components/note-campaign-actions";
 import { NoteLifecycleCard } from "@/notes/components/note-lifecycle-card";
 import {
   NoteProspectusStatusCard,
 } from "@/notes/components/note-prospectus-status-card";
 import { NoteInvestorsPanel } from "@/notes/components/note-investors-panel";
+import { useOpenAdminProspectusPdf } from "@/notes/hooks/use-prospectus-review";
 import { getNoteCommercialTermRows } from "@/notes/utils/note-commercial-terms";
 import { NoteTimelinePanel } from "@/notes/components/note-timeline-panel";
 import { SettlementPanel } from "@/notes/components/settlement-panel";
@@ -42,10 +45,10 @@ import { SourceApplicationPanel } from "@/notes/components/source-application-pa
 import { IssuerPayoutCard } from "@/notes/components/issuer-payout-card";
 import { NoteWorkflowTabHeader } from "@/notes/components/note-workflow-tab-header";
 import {
-  AdminCollapsibleCard,
   AdminDetailTabPanel,
   AdminDetailTabs,
   AdminEntityHeader,
+  AdminEntitySummaryCard,
   AdminMetricProgress,
   AdminNextActionBanner,
   AdminRelatedRecordsRail,
@@ -60,26 +63,19 @@ import {
 import {
   findNoteDisbursementWithdrawal,
   isNoteDetailTabId,
+  NOTE_REFERENCE_TAB_TOKEN,
   noteDetailTabStatusToken,
   noteLatePaymentTabStatusToken,
-  resolveNoteActivityTabToken,
+  resolveNoteCampaignTabStatus,
   resolveNoteDetailNextAction,
   resolveNoteDisbursementTabStatus,
-  resolveNoteInvestorsTabToken,
-  resolveNoteLedgerTabToken,
-  resolveNoteOverviewTabStatus,
   resolveNoteServicingTabStatus,
   type NoteDetailTabId,
 } from "@/notes/utils/note-detail-next-action";
-import {
-  getNoteLifecycleCardTone,
-  type NoteLifecycleAction,
-} from "@/notes/utils/note-lifecycle-actions";
+import { type NoteLifecycleAction } from "@/notes/utils/note-lifecycle-actions";
 import { resolveNoteSourceLinkage } from "@/notes/utils/note-source-linkage";
-import { isNoteLifecycleVisuallyComplete } from "@/notes/utils/settlement-trustee-workflow";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { adminTabStatusLabel } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
 import {
@@ -94,18 +90,61 @@ import {
   maturityCountdownClass,
 } from "@/notes/utils/maturity-countdown";
 
+function getNotePaymentDueSummary(note: NoteDetail) {
+  const paymentDueDate = getNotePaymentDueDate(note);
+  const settled = isNoteSettlementPosted(note);
+  const defaulted = note.status === "DEFAULTED" || note.servicingStatus === "DEFAULTED";
+  const highlight =
+    !settled &&
+    (note.status === "ACTIVE" ||
+      note.status === "ARREARS" ||
+      note.status === "DEFAULTED" ||
+      note.servicingStatus === "LATE" ||
+      note.servicingStatus === "ARREARS");
+
+  return {
+    label: "Payment due",
+    value: paymentDueDate ? format(new Date(paymentDueDate), "dd MMM yyyy") : "Not set",
+    hint: settled
+      ? "Settled"
+      : defaulted
+        ? "Defaulted"
+        : (formatPaymentDueHint(paymentDueDate) ?? undefined),
+    accentClassName: maturityCountdownClass(calendarDaysUntilMaturity(paymentDueDate), {
+      highlight,
+      variant: "date" as const,
+      settled,
+    }),
+  };
+}
+
 function PageSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Skeleton className="h-10 w-10 rounded-lg" />
-        <div className="space-y-2">
-          <Skeleton className="h-6 w-56" />
-          <Skeleton className="h-4 w-36" />
+      <Skeleton className="h-8 w-24" />
+      <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+        <div className="p-6 md:p-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-3">
+              <Skeleton className="h-12 w-12 rounded-xl" />
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-7 w-72 max-w-full" />
+                <Skeleton className="h-4 w-48" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:flex">
+              <Skeleton className="h-20 w-full rounded-xl sm:w-48" />
+              <Skeleton className="h-20 w-full rounded-xl sm:w-48" />
+            </div>
+          </div>
+          <Skeleton className="mt-6 h-28 w-full rounded-xl" />
+        </div>
+        <div className="border-t bg-muted/40 px-6 py-4 md:px-8">
+          <Skeleton className="h-12 w-full" />
         </div>
       </div>
       <Skeleton className="h-20 w-full rounded-2xl" />
-      <Skeleton className="h-56 w-full rounded-2xl" />
       <Skeleton className="h-56 w-full rounded-2xl" />
     </div>
   );
@@ -135,6 +174,20 @@ const noteActionCopy: Record<
     confirmLabel: "Unpublish",
     successLabel: "Note unpublished",
   },
+  pauseListing: {
+    title: "Pause campaign?",
+    description:
+      "This temporarily hides the listing from the investor marketplace. Existing commitments stay in place and funds are not returned. You can resume funding later, or fail funding if you need to refund investors.",
+    confirmLabel: "Pause campaign",
+    successLabel: "Campaign paused",
+  },
+  resumeListing: {
+    title: "Resume campaign?",
+    description:
+      "This republishes the listing on the investor marketplace. Funding remains open and existing commitments are unchanged.",
+    confirmLabel: "Resume campaign",
+    successLabel: "Campaign resumed",
+  },
   closeFunding: {
     title: "Close funding?",
     description:
@@ -145,9 +198,9 @@ const noteActionCopy: Record<
   failFunding: {
     title: "Fail funding?",
     description:
-      "This will mark the marketplace funding attempt as unsuccessful. Investor commitments should be released or refunded according to the payment rail model.",
+      "This marks the funding attempt as unsuccessful. Each committed investment is released and that investor's committed amount is credited back to their wallet. The note cannot be reopened.",
     confirmLabel: "Fail Funding",
-    successLabel: "Funding failed",
+    successLabel: "Funding failed — committed amounts returned to investor wallets",
     destructive: true,
   },
 };
@@ -163,9 +216,12 @@ export default function NoteDetailPage() {
 
   const publishNote = usePublishNote();
   const unpublishNote = useUnpublishNote();
+  const pauseListing = usePauseNoteListing();
+  const resumeListing = useResumeNoteListing();
   const closeFunding = useCloseNoteFunding();
   const failFunding = useFailNoteFunding();
   const updateNoteFeatured = useUpdateNoteFeatured();
+  const openProspectusPdf = useOpenAdminProspectusPdf();
   const [pendingAction, setPendingAction] = React.useState<NoteLifecycleAction | null>(null);
   const [featuredEnabled, setFeaturedEnabled] = React.useState(false);
 
@@ -173,10 +229,19 @@ export default function NoteDetailPage() {
     () => ({
       publish: publishNote.isPending,
       unpublish: unpublishNote.isPending,
+      pauseListing: pauseListing.isPending,
+      resumeListing: resumeListing.isPending,
       closeFunding: closeFunding.isPending,
       failFunding: failFunding.isPending,
     }),
-    [publishNote.isPending, unpublishNote.isPending, closeFunding.isPending, failFunding.isPending]
+    [
+      publishNote.isPending,
+      unpublishNote.isPending,
+      pauseListing.isPending,
+      resumeListing.isPending,
+      closeFunding.isPending,
+      failFunding.isPending,
+    ]
   );
 
   const disbursementWithdrawal = React.useMemo(
@@ -187,7 +252,6 @@ export default function NoteDetailPage() {
     () => (note ? resolveNoteDetailNextAction(note) : null),
     [note]
   );
-  const lifecycleCardTone = note ? getNoteLifecycleCardTone(note) : null;
   const { activeTab, setActiveTab } = useAdminDetailTabState<NoteDetailTabId>({
     isValidTab: isNoteDetailTabId,
     computedTab: nextAction?.tabId ?? null,
@@ -195,21 +259,18 @@ export default function NoteDetailPage() {
 
   const tabs = React.useMemo<AdminDetailTab<NoteDetailTabId>[]>(() => {
     if (!note) return [];
-    const overviewToken = noteDetailTabStatusToken(resolveNoteOverviewTabStatus(note));
+    const campaignToken = noteDetailTabStatusToken(resolveNoteCampaignTabStatus(note));
     const disbursementToken = noteDetailTabStatusToken(resolveNoteDisbursementTabStatus(note));
     const servicingToken = noteDetailTabStatusToken(resolveNoteServicingTabStatus(note));
     const latePaymentPhase = resolveLatePaymentTimeline(note).phase;
     const latePaymentToken = noteLatePaymentTabStatusToken(latePaymentPhase);
-    const investorsToken = resolveNoteInvestorsTabToken(note);
-    const ledgerToken = resolveNoteLedgerTabToken(note);
-    const activityToken = resolveNoteActivityTabToken(note);
 
     return [
       {
-        id: "overview",
-        label: "Overview",
-        statusToken: overviewToken,
-        statusLabel: adminTabStatusLabel(overviewToken),
+        id: "campaign",
+        label: "Campaign",
+        statusToken: campaignToken,
+        statusLabel: adminTabStatusLabel(campaignToken),
       },
       {
         id: "disbursement",
@@ -230,22 +291,14 @@ export default function NoteDetailPage() {
         statusLabel: LATE_PAYMENT_WORKFLOW_BADGE[latePaymentPhase].label,
       },
       {
-        id: "investors",
-        label: "Investors",
-        statusToken: investorsToken,
-        statusLabel: adminTabStatusLabel(investorsToken),
-      },
-      {
         id: "ledger",
         label: "Ledger",
-        statusToken: ledgerToken,
-        statusLabel: adminTabStatusLabel(ledgerToken),
+        statusToken: NOTE_REFERENCE_TAB_TOKEN,
       },
       {
         id: "activity",
         label: "Activity",
-        statusToken: activityToken,
-        statusLabel: adminTabStatusLabel(activityToken),
+        statusToken: NOTE_REFERENCE_TAB_TOKEN,
       },
     ];
   }, [note]);
@@ -256,6 +309,8 @@ export default function NoteDetailPage() {
     const actions: Record<NoteLifecycleAction, () => Promise<unknown>> = {
       publish: () => publishNote.mutateAsync(note.id),
       unpublish: () => unpublishNote.mutateAsync(note.id),
+      pauseListing: () => pauseListing.mutateAsync(note.id),
+      resumeListing: () => resumeListing.mutateAsync(note.id),
       closeFunding: () => closeFunding.mutateAsync(note.id),
       failFunding: () => failFunding.mutateAsync(note.id),
     };
@@ -273,6 +328,8 @@ export default function NoteDetailPage() {
   const confirmPending =
     publishNote.isPending ||
     unpublishNote.isPending ||
+    pauseListing.isPending ||
+    resumeListing.isPending ||
     closeFunding.isPending ||
     failFunding.isPending;
 
@@ -300,60 +357,19 @@ export default function NoteDetailPage() {
   };
 
   const linkage = note ? resolveNoteSourceLinkage(note) : null;
-  const resolvedTab: NoteDetailTabId = activeTab ?? nextAction?.tabId ?? "overview";
+  const resolvedTab: NoteDetailTabId = activeTab ?? nextAction?.tabId ?? "campaign";
   const headerMetrics = React.useMemo(() => {
     if (!note) return [];
-    const paymentDueDate = getNotePaymentDueDate(note);
-    const paymentDueDays = calendarDaysUntilMaturity(paymentDueDate);
-    const settled = isNoteSettlementPosted(note);
-    const defaulted = note.status === "DEFAULTED" || note.servicingStatus === "DEFAULTED";
-    const highlightPaymentDue =
-      !settled &&
-      (note.status === "ACTIVE" ||
-        note.status === "ARREARS" ||
-        note.status === "DEFAULTED" ||
-        note.servicingStatus === "LATE" ||
-        note.servicingStatus === "ARREARS");
     const servicingMetrics = isNoteActiveLoan(note)
       ? [
           {
             label: "Settlement amount",
             value: formatCurrency(note.settlementAmount),
           },
-          {
-            label: "Payment due",
-            value: paymentDueDate ? format(new Date(paymentDueDate), "dd MMM yyyy") : "Not set",
-            hint: settled
-              ? "Settled"
-              : defaulted
-                ? "Defaulted"
-                : (formatPaymentDueHint(paymentDueDate) ?? undefined),
-            accentClassName: maturityCountdownClass(paymentDueDays, {
-              highlight: highlightPaymentDue,
-              variant: "date",
-              settled,
-            }),
-          },
         ]
       : [];
-    return [
-      ...servicingMetrics,
-      {
-        label: "Investors",
-        value: (
-          <button
-            type="button"
-            className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            onClick={() => setActiveTab("investors")}
-            aria-label={`Open Investors tab, ${note.investments.length} investor${note.investments.length === 1 ? "" : "s"}`}
-          >
-            {note.investments.length}
-          </button>
-        ),
-      },
-      ...getNoteCommercialTermRows(note),
-    ];
-  }, [note, setActiveTab]);
+    return [...servicingMetrics, ...getNoteCommercialTermRows(note)];
+  }, [note]);
 
   return (
     <RequirePermission permission="notes.view">
@@ -371,6 +387,8 @@ export default function NoteDetailPage() {
             {note && nextAction && linkage ? (
               <div className="space-y-6">
                 <AdminEntityHeader
+                  variant="hero"
+                  tone={getNoteDerivedStatusToken(note)}
                   backHref="/notes"
                   backLabel="Notes"
                   eyebrow="Note detail"
@@ -402,8 +420,26 @@ export default function NoteDetailPage() {
                     </>
                   }
                   metrics={headerMetrics}
+                  summaryCards={[
+                    <AdminEntitySummaryCard key="payment-due" {...getNotePaymentDueSummary(note)} />,
+                    <AdminEntitySummaryCard
+                      key="investors"
+                      label="Investors"
+                      value={
+                        <button
+                          type="button"
+                          className="appearance-none bg-transparent p-0 text-inherit underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          onClick={() => setActiveTab("campaign")}
+                          aria-label={`Open Campaign tab, ${note.investments.length} investor${note.investments.length === 1 ? "" : "s"}`}
+                        >
+                          {note.investments.length}
+                        </button>
+                      }
+                    />,
+                  ]}
                   visualization={
                     <AdminMetricProgress
+                      variant="hero"
                       percent={note.fundingPercent}
                       leftLabel="Funded"
                       leftValue={formatCurrency(note.fundedAmount)}
@@ -414,37 +450,6 @@ export default function NoteDetailPage() {
                       indicatorClassName={getNoteFundingIndicatorClass(note)}
                       accentClassName={getNoteFundingAccentClass(note)}
                     />
-                  }
-                  actions={
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <div
-                            className={cn(
-                              "flex items-center gap-2 rounded-full border px-3 py-1.5",
-                              !canManage && "cursor-not-allowed opacity-60"
-                            )}
-                          >
-                            <span className="text-meta font-medium text-muted-foreground">
-                              Featured
-                            </span>
-                            <Switch
-                              id="note-featured-toggle"
-                              checked={featuredEnabled}
-                              onCheckedChange={(checked) =>
-                                void handleToggleFeatured(Boolean(checked))
-                              }
-                              disabled={updateNoteFeatured.isPending || !canManage}
-                            />
-                          </div>
-                        </TooltipTrigger>
-                        {!canManage ? (
-                          <TooltipContent side="bottom" className="max-w-xs">
-                            You do not have permission to perform this action.
-                          </TooltipContent>
-                        ) : null}
-                      </Tooltip>
-                    </TooltipProvider>
                   }
                 />
 
@@ -467,24 +472,31 @@ export default function NoteDetailPage() {
                       value={resolvedTab}
                       onValueChange={setActiveTab}
                     >
-                      <AdminDetailTabPanel value="overview" preserveMount>
-                        {/* The stage map is the orientation view, so it stays open until the note is finished. */}
-                        <AdminCollapsibleCard
-                          title="Lifecycle"
-                          description="Publication, funding, disbursement, and settlement stages."
-                          icon={MapIcon}
-                          needsAction={lifecycleCardTone === "action"}
-                          waiting={lifecycleCardTone === "waiting"}
-                          defaultOpen={!isNoteLifecycleVisuallyComplete(note)}
-                        >
-                          <NoteLifecycleCard
+                      <AdminDetailTabPanel value="campaign" preserveMount>
+                        <div className="space-y-6">
+                          <NoteProspectusStatusCard
+                            note={note}
+                            onOpenWorkspace={() => router.push(`/notes/${note.id}/prospectus`)}
+                            onViewProspectus={() => {
+                              void openProspectusPdf.mutateAsync(note.id).catch((err) => {
+                                toast.error(
+                                  err instanceof Error ? err.message : "Prospectus PDF is not available"
+                                );
+                              });
+                            }}
+                            viewPending={openProspectusPdf.isPending}
+                          />
+                          <NoteCampaignActions
                             note={note}
                             pending={lifecyclePending}
                             onRequestAction={(action) => setPendingAction(action)}
                             canManage={canManage}
-                            unframed
+                            featuredEnabled={featuredEnabled}
+                            featuredPending={updateNoteFeatured.isPending}
+                            onToggleFeatured={(nextValue) => void handleToggleFeatured(nextValue)}
                           />
-                        </AdminCollapsibleCard>
+                          <NoteInvestorsPanel note={note} />
+                        </div>
                       </AdminDetailTabPanel>
 
                       <AdminDetailTabPanel value="disbursement" preserveMount>
@@ -508,8 +520,8 @@ export default function NoteDetailPage() {
                               <div className="rounded-xl border border-dashed bg-muted/20 p-4">
                                 <p className="text-ui font-medium">Disbursement not started</p>
                                 <p className="mt-1 text-meta text-muted-foreground">
-                                  Close funding on this note to create the issuer disbursement
-                                  workflow. The Overview tab shows the next funding action.
+                                  Close funding on the Campaign tab to create the issuer
+                                  disbursement workflow.
                                 </p>
                               </div>
                             )}
@@ -530,10 +542,6 @@ export default function NoteDetailPage() {
                         />
                       </div>
 
-                      <AdminDetailTabPanel value="investors" preserveMount>
-                        <NoteInvestorsPanel note={note} />
-                      </AdminDetailTabPanel>
-
                       <AdminDetailTabPanel value="ledger" preserveMount>
                         <LedgerPanel note={note} />
                       </AdminDetailTabPanel>
@@ -544,12 +552,8 @@ export default function NoteDetailPage() {
                     </AdminDetailTabs>
                   }
                 >
+                  <NoteLifecycleCard note={note} />
                   <SourceApplicationPanel note={note} />
-                  <NoteProspectusStatusCard
-                    layout="rail"
-                    note={note}
-                    onReviewProspectus={() => router.push(`/notes/${note.id}/prospectus`)}
-                  />
                 </AdminRelatedRecordsRail>
               </div>
             ) : null}

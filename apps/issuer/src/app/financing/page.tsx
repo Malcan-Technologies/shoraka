@@ -375,7 +375,7 @@ function IssuerFinancingPageContent() {
       <div className={cn("min-w-0 max-w-full", issuerPageGutterClassName)}>
         <PageShell
           title="Financing"
-          description="Your contracts, invoices, and notes across all products."
+          description="Your facilities, invoices, and notes across all products."
           action={
             <ApplyForFinancingButton className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95" />
           }
@@ -413,7 +413,7 @@ function IssuerFinancingPageContent() {
       <Tabs value={tab} onValueChange={onTabChange} className="w-full">
         <TabsList>
           <TabsTrigger value={TAB_CONTRACTS} className="gap-1.5">
-            Contracts
+            Facilities
             {contractsActionableCount > 0 ? (
               <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-meta text-primary-foreground">
                 {contractsActionableCount}
@@ -446,7 +446,7 @@ function IssuerFinancingPageContent() {
               <ListToolbar
                 searchValue={contractSearch}
                 onSearchChange={setContractSearch}
-                searchPlaceholder="Search contracts by title, customer, or product"
+                searchPlaceholder="Search facilities by title, customer, or product"
                 appliedFilters={contractChips}
                 onClearFilters={clearContractFilters}
                 onReload={() => {
@@ -454,7 +454,7 @@ function IssuerFinancingPageContent() {
                 }}
                 isLoading={isLoading}
                 countLabel={`${filteredContracts.length} ${
-                  filteredContracts.length === 1 ? "contract" : "contracts"
+                  filteredContracts.length === 1 ? "facility" : "facilities"
                 }${contractsActive ? ` of ${contracts.length}` : ""}`}
                 filterGroups={
                   <FinancingContractFilterToolbar
@@ -471,14 +471,14 @@ function IssuerFinancingPageContent() {
 
               {contracts.length === 0 ? (
                 <EmptyState
-                  title="No contract financing yet"
-                  message="Apply for financing to open a contract facility."
+                  title="No facility financing yet"
+                  message="Apply for financing to open a facility."
                   action={applyCta}
                 />
               ) : filteredContracts.length === 0 ? (
                 <EmptyState
                   variant="no-results"
-                  title="No matching contracts"
+                  title="No matching facilities"
                   message="Try clearing filters or adjusting your search."
                   action={
                     <Button variant="outline" className="rounded-xl" onClick={clearContractFilters}>
@@ -490,7 +490,7 @@ function IssuerFinancingPageContent() {
                 <>
                   <FinancingAttentionList
                     attentionCount={orderedContracts.attention.length}
-                    itemLabelPlural="contracts"
+                    itemLabelPlural="facilities"
                     attentionOnPage={pagedAttentionContracts.map((c) => (
                       <DashboardContractCard
                         key={c.id}
@@ -513,7 +513,7 @@ function IssuerFinancingPageContent() {
                     onPageChange={setContractPage}
                     onPageSizeChange={setContractPageSize}
                     pageSizeOptions={PAGE_SIZE_OPTIONS}
-                    itemLabel="contracts"
+                    itemLabel="facilities"
                   />
                 </>
               )}

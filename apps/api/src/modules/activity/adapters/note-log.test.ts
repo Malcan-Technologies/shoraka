@@ -57,6 +57,16 @@ describe("NoteLogAdapter", () => {
     });
 
     expect(
+      adapter.buildPresentation("PAUSE_LISTING", {
+        noteReference: "NOTE-001",
+      })
+    ).toEqual({
+      title: "Campaign Paused",
+      description:
+        "Note NOTE-001 was temporarily closed to new investment. Existing commitments are held.",
+    });
+
+    expect(
       adapter.buildPresentation("SETTLEMENT_POSTED", {
         noteTitle: "Bridge Note",
       })

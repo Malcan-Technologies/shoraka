@@ -6,6 +6,7 @@ import {
   getNoteFundingStatusToken,
   isNoteActiveLoan,
   isNoteFundingComplete,
+  isNoteFundingFailed,
   isNoteFundingOpen,
 } from "./funding-progress";
 
@@ -20,11 +21,19 @@ describe("note funding progress colours", () => {
     expect(isNoteFundingComplete({ fundingStatus: "FUNDED" })).toBe(true);
     expect(isNoteFundingComplete({ fundingStatus: "CLOSED" })).toBe(true);
     expect(isNoteFundingComplete({ fundingStatus: "FAILED" })).toBe(true);
+    expect(isNoteFundingComplete({ status: "FAILED_FUNDING", fundingStatus: "OPEN" })).toBe(true);
     expect(isNoteFundingComplete({ status: "REPAID", fundingStatus: "CLOSED" })).toBe(true);
     expect(isNoteFundingComplete({ fundingStatus: "NOT_OPEN" })).toBe(false);
   });
 
-  it("fills the bar blue while open and green once funding has ended", () => {
+  it("treats FAILED funding status and FAILED_FUNDING note status as failed", () => {
+    expect(isNoteFundingFailed({ fundingStatus: "FAILED" })).toBe(true);
+    expect(isNoteFundingFailed({ status: "FAILED_FUNDING", fundingStatus: "OPEN" })).toBe(true);
+    expect(isNoteFundingFailed({ fundingStatus: "FUNDED" })).toBe(false);
+    expect(isNoteFundingFailed({ fundingStatus: "CLOSED" })).toBe(false);
+  });
+
+  it("fills the bar blue while open, green when funded, and red when funding failed", () => {
     expect(getNoteFundingProgressClass({ fundingStatus: "OPEN" })).toBe("bg-status-submitted-bg");
     expect(getNoteFundingIndicatorClass({ fundingStatus: "OPEN" })).toBe(
       "bg-status-submitted-text"
@@ -36,16 +45,28 @@ describe("note funding progress colours", () => {
     expect(getNoteFundingIndicatorClass({ fundingStatus: "CLOSED" })).toBe(
       "bg-status-success-text"
     );
-    expect(getNoteFundingIndicatorClass({ fundingStatus: "FAILED" })).toBe(
-      "bg-status-success-text"
+    expect(getNoteFundingProgressClass({ fundingStatus: "FAILED" })).toBe(
+      "bg-status-rejected-bg"
     );
+    expect(getNoteFundingIndicatorClass({ fundingStatus: "FAILED" })).toBe(
+      "bg-status-rejected-text"
+    );
+    expect(
+      getNoteFundingIndicatorClass({ status: "FAILED_FUNDING", fundingStatus: "CLOSED" })
+    ).toBe("bg-status-rejected-text");
+    expect(
+      getNoteFundingProgressClass({ status: "FAILED_FUNDING", fundingStatus: "OPEN" })
+    ).toBe("bg-status-rejected-bg");
+    expect(
+      getNoteFundingIndicatorClass({ status: "FAILED_FUNDING", fundingStatus: "OPEN" })
+    ).toBe("bg-status-rejected-text");
     expect(getNoteFundingProgressClass({ fundingStatus: "NOT_OPEN" })).toBe("bg-muted");
     expect(getNoteFundingIndicatorClass({ fundingStatus: "NOT_OPEN" })).toBe(
       "bg-status-neutral-text"
     );
   });
 
-  it("accents funded copy blue when open and green when closed", () => {
+  it("accents funded copy blue when open, green when closed, and red when funding failed", () => {
     expect(getNoteFundingAccentClass({ fundingStatus: "OPEN" })).toBe(
       "text-status-submitted-text"
     );
@@ -58,7 +79,9 @@ describe("note funding progress colours", () => {
     expect(getNoteFundingAccentClass({ status: "REPAID", fundingStatus: "CLOSED" })).toBe(
       "text-status-success-text"
     );
-    expect(getNoteFundingAccentClass({ fundingStatus: "FAILED" })).toBeUndefined();
+    expect(getNoteFundingAccentClass({ fundingStatus: "FAILED" })).toBe(
+      "text-status-rejected-text"
+    );
     expect(getNoteFundingAccentClass({ fundingStatus: "NOT_OPEN" })).toBeUndefined();
   });
 

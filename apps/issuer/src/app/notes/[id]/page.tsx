@@ -583,7 +583,7 @@ export default function IssuerNoteDetailPage() {
                     href={`/financing/contracts/${note.sourceContractId}`}
                     className="text-primary underline-offset-4 hover:underline"
                   >
-                    {contractTitleLabel ? `Contract: ${contractTitleLabel}` : "Contract"}
+                    {contractTitleLabel ? `Facility: ${contractTitleLabel}` : "Facility"}
                   </Link>
                 </>
               ) : null}

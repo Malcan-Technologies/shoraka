@@ -160,9 +160,9 @@ WHAT THE USER SEES (STATUS ALIAS)
   OFFER_EXPIRED               Offer Expired
 
   Admin-only display labels (application status):
-  CONTRACT_PENDING             Contract Pending
-  CONTRACT_SENT                Contract Sent
-  CONTRACT_ACCEPTED            Contract Accepted
+  CONTRACT_PENDING             Facility Pending
+  CONTRACT_SENT                Facility Sent
+  CONTRACT_ACCEPTED            Facility Accepted
   INVOICE_ACCEPTED             Invoice Accepted
   SIGNING_PENDING              Signing Pending
   INVOICE_PENDING              Invoice Pending

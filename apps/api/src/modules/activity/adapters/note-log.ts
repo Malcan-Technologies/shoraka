@@ -26,6 +26,8 @@ const SHARED_EVENT_TYPES = ["FAIL_FUNDING", "ACTIVATE", "WITHDRAWAL_COMPLETED", 
 const ISSUER_ONLY_EVENT_TYPES = [
   "NOTE_CREATED_FROM_INVOICE",
   "PUBLISH",
+  "PAUSE_LISTING",
+  "RESUME_LISTING",
   "CLOSE_FUNDING",
   "ISSUER_PAYMENT_SUBMITTED",
 ] as const;
@@ -107,6 +109,20 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
           description: noteLabel
             ? `${this.capitalize(noteLabel)} is now live and open for investment.`
             : "The note is now live and open for investment.",
+        };
+      case "PAUSE_LISTING":
+        return {
+          title: "Campaign Paused",
+          description: noteLabel
+            ? `${this.capitalize(noteLabel)} was temporarily closed to new investment. Existing commitments are held.`
+            : "The campaign was temporarily closed to new investment. Existing commitments are held.",
+        };
+      case "RESUME_LISTING":
+        return {
+          title: "Campaign Resumed",
+          description: noteLabel
+            ? `${this.capitalize(noteLabel)} is open for investment again.`
+            : "The campaign is open for investment again.",
         };
       case "CLOSE_FUNDING":
         return {

@@ -1,4 +1,5 @@
 import * as React from "react";
+import Link from "next/link";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import {
@@ -36,6 +37,7 @@ import {
 import { EyeIcon } from "@heroicons/react/24/outline";
 import { adminActionRowClass, adminRejectedRowClass } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
+import { resolveNoteFacilityLink } from "@/notes/utils/note-source-linkage";
 
 type NotesTableRowProps =
   | {
@@ -134,6 +136,33 @@ function noteRowHighlightClass(note: NoteListItem): string {
   return adminActionRowClass(noteRowNeedsAdminAction(note));
 }
 
+function FacilityCell({
+  contractId,
+  displayReference,
+}: {
+  contractId: string | null;
+  displayReference?: string | null;
+}) {
+  const facility = resolveNoteFacilityLink({ contractId, displayReference });
+  if (!facility) {
+    return (
+      <TableCell className="min-w-0 overflow-hidden">
+        <span className="text-muted-foreground">—</span>
+      </TableCell>
+    );
+  }
+  return (
+    <TableCell className="min-w-0 overflow-hidden" title={facility.label}>
+      <Link
+        href={facility.href}
+        className="block truncate font-mono text-xs font-medium text-primary underline-offset-4 hover:underline"
+      >
+        {facility.label}
+      </Link>
+    </TableCell>
+  );
+}
+
 function NoteRow({ note, onViewDetails }: NoteRowProps) {
   const fundingProgress = Math.min(Math.max(note.fundingPercent, 0), 100);
   const settlementPosted = isNoteSettlementPosted(note);
@@ -169,9 +198,10 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
       <TableCell className="min-w-0 overflow-hidden">
         <SoukscoreRiskRatingBadge riskRating={note.riskRating} />
       </TableCell>
-      <TableCell className="min-w-0 overflow-hidden truncate" title={note.paymasterName ?? "—"}>
-        {note.paymasterName ?? "—"}
-      </TableCell>
+      <FacilityCell
+        contractId={note.sourceContractId}
+        displayReference={note.sourceContractDisplayReference}
+      />
       <TableCell className="min-w-0 overflow-hidden truncate">{formatCurrency(note.settlementAmount)}</TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <div className="flex min-w-0 items-center justify-between gap-2">
@@ -253,9 +283,10 @@ function ReadyInvoiceRow({
       <TableCell className="min-w-0 overflow-hidden">
         <SoukscoreRiskRatingBadge riskRating={invoice.riskRating} />
       </TableCell>
-      <TableCell className="min-w-0 overflow-hidden truncate" title={invoice.paymasterName ?? "-"}>
-        {invoice.paymasterName ?? "-"}
-      </TableCell>
+      <FacilityCell
+        contractId={invoice.contractId}
+        displayReference={invoice.contractDisplayReference}
+      />
       <TableCell className="min-w-0 overflow-hidden truncate">
         {formatCurrency(invoice.invoiceAmount)}
       </TableCell>

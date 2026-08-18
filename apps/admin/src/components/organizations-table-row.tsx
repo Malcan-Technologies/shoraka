@@ -20,6 +20,9 @@ import {
 } from "@/lib/organization-status";
 import { adminActionRowClass } from "@/lib/admin-status-token";
 import { OrganizationTypeBadge } from "@/components/organization-type-badge";
+import { accountHref } from "@/lib/admin-directory-hrefs";
+import { usePermissions } from "@/hooks/use-permissions";
+import { organizationListDisplayName } from "@/organizations/utils/organizations-table-sort";
 
 interface OrganizationsTableRowProps {
   organization: OrganizationResponse;
@@ -34,12 +37,11 @@ export function OrganizationsTableRow({
   showOnboardingFee = false,
   onViewDetails,
 }: OrganizationsTableRowProps) {
-  const displayName =
-    organization.type === "COMPANY"
-      ? organization.name || "Unnamed Company"
-      : `${organization.owner.firstName} ${organization.owner.lastName}`;
+  const { can } = usePermissions();
+  const canViewAccounts = can("users.view");
+  const displayName = organizationListDisplayName(organization);
   const ownerName = `${organization.owner.firstName} ${organization.owner.lastName}`.trim();
-  const ownerHref = `/users/${encodeURIComponent(organization.owner.userId)}`;
+  const ownerHref = accountHref(organization.owner.userId);
   const onboardingPresentation = getOrganizationOnboardingPresentation(
     organization.onboardingStatus
   );
@@ -64,7 +66,7 @@ export function OrganizationsTableRow({
           </div>
           <div className="min-w-0">
             <div className="truncate font-medium" title={displayName}>
-              {organization.type === "COMPANY" ? (
+              {organization.type === "COMPANY" || !canViewAccounts ? (
                 displayName
               ) : (
                 <Link href={ownerHref} className="hover:text-primary hover:underline">
@@ -97,9 +99,13 @@ export function OrganizationsTableRow({
                 title={organization.owner.email}
               >
                 Owner:{" "}
-                <Link href={ownerHref} className="hover:text-primary hover:underline">
-                  {ownerName || organization.owner.email}
-                </Link>
+                {canViewAccounts ? (
+                  <Link href={ownerHref} className="hover:text-primary hover:underline">
+                    {ownerName || organization.owner.email}
+                  </Link>
+                ) : (
+                  ownerName || organization.owner.email
+                )}
               </div>
             )}
           </div>

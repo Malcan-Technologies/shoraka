@@ -36,12 +36,12 @@ export function ContractApplicationsTable({
     <Table>
       <TableHeader>
         <TableRow className="hover:bg-transparent">
-          <TableHead className="pl-4">Application</TableHead>
+          <TableHead>Application</TableHead>
           <TableHead>Requested</TableHead>
           <TableHead className="hidden md:table-cell">Submitted</TableHead>
           <TableHead>Status</TableHead>
           <TableHead className="hidden lg:table-cell">Updated</TableHead>
-          <TableHead className="text-right pr-4">Review</TableHead>
+          <TableHead className="text-right">Review</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -53,7 +53,7 @@ export function ContractApplicationsTable({
               adminActionRowClass(getAdminStatusToken(application.status))
             )}
           >
-            <TableCell className="pl-4 font-mono text-meta font-medium">
+            <TableCell className="font-mono text-meta font-medium">
               {formatApplicationReference({
                 displayReference: application.displayReference,
                 id: application.id,
@@ -73,7 +73,7 @@ export function ContractApplicationsTable({
             <TableCell className="hidden text-muted-foreground lg:table-cell">
               {format(new Date(application.updatedAt), "dd MMM yyyy")}
             </TableCell>
-            <TableCell className="pr-4 text-right">
+            <TableCell className="text-right">
               {application.productId ? (
                 <Button variant="ghost" size="sm" asChild>
                   <Link

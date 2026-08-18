@@ -164,7 +164,7 @@ adminNotesRouter.post("/", requirePermission("notes.create"), handler);
 |---|---|
 | `apps/api/src/lib/auth/middleware.ts` | `requireAuth`, `requireRole`, `requirePermission`, `requireAnyPermission`, `hasPermission` |
 | `apps/api/src/lib/auth/rbac.ts` | `resolveAdminAccess()` — loads permissions from DB |
-| `apps/api/src/modules/admin/controller.ts` | Dashboard, Users, Organizations, Roles, Audit, Onboarding, Applications, Contracts |
+| `apps/api/src/modules/admin/controller.ts` | Dashboard, User Accounts, Issuers, Investors, Roles, Audit, Onboarding, Applications, Facilities |
 | `apps/api/src/modules/notes/controller.ts` | Notes, Bucket Balances, Repayments, Platform Finance Settings, Investments, Disbursements |
 | `apps/api/src/modules/notification/controller.ts` | Notifications |
 | `apps/api/src/modules/legal-documents/admin-controller.ts` | Legal Documents management |
@@ -241,23 +241,23 @@ Signed contract/invoice offer letter PDFs (`GET .../offers/.../signed-letter`) a
 | Backend | `apps/api/src/modules/admin/controller.ts` |
 | Frontend page | `apps/admin/src/app/onboarding-approval/page.tsx` |
 
-### Users
+### User Accounts
 
 | | |
 |---|---|
 | View | `users.view` |
 | Mutations | `users.manage` |
 | Backend | `apps/api/src/modules/admin/controller.ts` |
-| Frontend pages | `apps/admin/src/app/users/page.tsx`, `apps/admin/src/app/users/[id]/page.tsx` |
+| Frontend pages | `apps/admin/src/app/accounts/page.tsx`, `apps/admin/src/app/accounts/[id]/page.tsx` |
 
-### Organizations
+### Issuers & Investors
 
 | | |
 |---|---|
 | View | `organizations.view` |
 | Mutations (sophisticated toggle, CTOS generation) | `organizations.manage` |
 | Backend | `apps/api/src/modules/admin/controller.ts` |
-| Frontend pages | `apps/admin/src/app/organizations/page.tsx`, `apps/admin/src/app/organizations/[portal]/[id]/page.tsx` |
+| Frontend pages | `apps/admin/src/app/issuers/page.tsx`, `apps/admin/src/app/issuers/[id]/page.tsx`, `apps/admin/src/app/investors/page.tsx`, `apps/admin/src/app/investors/[id]/page.tsx` |
 
 ### CTOS / SSM (context-scoped routes)
 
@@ -346,7 +346,7 @@ These systems and permissions no longer exist:
 | Backend | `apps/api/src/modules/notes/controller.ts` (`adminInvestmentsRouter`) |
 | Frontend page | `apps/admin/src/app/investments/page.tsx` |
 
-### Contracts
+### Facilities
 
 | | |
 |---|---|
@@ -354,7 +354,7 @@ These systems and permissions no longer exist:
 | Mutations (resign offer) | `contracts.manage` |
 | Backend | `apps/api/src/modules/admin/controller.ts` |
 | Frontend pages | `apps/admin/src/app/contracts/page.tsx`, `apps/admin/src/app/contracts/[id]/page.tsx` |
-| Notes | Contract tab inside Application Review uses `applications.contract.manage`, not `contracts.manage` |
+| Notes | Facility tab inside Application Review uses `applications.contract.manage`, not `contracts.manage` |
 
 ### Bucket Balances
 
@@ -536,7 +536,7 @@ The following permissions are **not** in this list because they have active back
 - [ ] Applications list and detail accessible
 - [ ] Section workflow buttons disabled
 - [ ] Comment box works — adding a comment succeeds
-- [ ] Direct URL to `/notes`, `/users`, etc. shows Access Denied
+- [ ] Direct URL to `/notes`, `/accounts`, etc. shows Access Denied
 
 ### Role with `roles.view` only
 

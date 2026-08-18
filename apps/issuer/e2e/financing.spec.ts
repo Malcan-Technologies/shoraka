@@ -34,7 +34,7 @@ async function expectFinancingShellOrLogin(
 test.describe("Issuer Financing", () => {
   test("/financing loads or redirects to login", async ({ page }) => {
     await page.goto("/financing");
-    await expectFinancingShellOrLogin(page, /Contracts/i);
+    await expectFinancingShellOrLogin(page, /Facilities/i);
   });
 
   test("/financing?tab=invoices loads Invoices tab or login", async ({ page }) => {

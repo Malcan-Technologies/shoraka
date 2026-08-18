@@ -3,7 +3,7 @@ import { format } from "date-fns";
 
 /**
  * Shared typography and layout tokens for admin application review sections.
- * Aligned with BRANDING.md and used by Business, Contract, Company tabs.
+ * Aligned with BRANDING.md and used by Business, Facility, Company tabs.
  */
 
 export const REVIEW_EMPTY_LABEL = "Not provided";

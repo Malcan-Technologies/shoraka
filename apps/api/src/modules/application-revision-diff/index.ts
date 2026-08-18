@@ -34,7 +34,7 @@ const SECTION_LABELS: Record<(typeof APPLICATION_JSON_KEYS)[number], string> = {
   declarations: "Declarations",
   review_and_submit: "Review and submit",
   last_completed_step: "Application progress",
-  contract_id: "Linked contract",
+  contract_id: "Linked facility",
 };
 
 const VOLATILE_SNAPSHOT_KEYS = new Set(["created_at", "updated_at"]);
@@ -211,8 +211,8 @@ function pathToSectionKey(path: string): string {
 }
 
 function sectionLabelForKey(sectionKey: string): string {
-  if (sectionKey === "contract") return "Contract";
-  if (sectionKey === "contract_details") return "Contract details";
+  if (sectionKey === "contract") return "Facility";
+  if (sectionKey === "contract_details") return "Facility details";
   if (sectionKey === "invoices") return "Invoices";
   const k = sectionKey as (typeof APPLICATION_JSON_KEYS)[number];
   return SECTION_LABELS[k] ?? sectionKey;

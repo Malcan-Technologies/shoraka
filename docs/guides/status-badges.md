@@ -92,9 +92,9 @@ Issuer and investor portals use the same six tokens with yellow/blue flipped for
 | DRAFT | Draft |
 | SUBMITTED | Submitted |
 | UNDER_REVIEW | Under Review |
-| CONTRACT_PENDING | Contract Pending |
-| CONTRACT_SENT | Contract Sent |
-| CONTRACT_ACCEPTED | Contract Accepted |
+| CONTRACT_PENDING | Facility Pending |
+| CONTRACT_SENT | Facility Sent |
+| CONTRACT_ACCEPTED | Facility Accepted |
 | INVOICE_ACCEPTED | Invoice Accepted |
 | SIGNING_PENDING | Signing Pending |
 | INVOICE_PENDING | Invoice Pending |
@@ -112,7 +112,7 @@ Issuer and investor portals use the same six tokens with yellow/blue flipped for
 **ARCHIVED:** Never shown in admin or issuer listing or filter. Excluded from both; API excludes ARCHIVED from admin applications list.
 
 **Admin vs Issuer:**
-- Admin: raw labels (Contract Pending, Contract Sent, Invoice Pending, Invoices Sent).
+- Admin: raw labels (Facility Pending, Facility Sent, Invoice Pending, Invoices Sent).
 - Issuer card: collapsed to "Under Review" for those; uses getStatusPresentationByBadgeKey.
 
 **AMENDMENT_REQUESTED:** API status. Mapped to badge key `amendment_requested` → "Action Required".

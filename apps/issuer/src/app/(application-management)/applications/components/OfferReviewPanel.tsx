@@ -112,10 +112,10 @@ const PROFIT_RATE_TOOLTIP =
   "Profit per annum (%). Deducted during settlement when calculating the residual refund to the issuer.";
 
 const CONTRACT_FACILITY_FEE_RATE_TOOLTIP =
-  "Facility fee is deducted from each invoice financing disbursement under this contract.";
+  "Facility fee is deducted from each invoice financing disbursement under this facility.";
 
 const CONTRACT_FACILITY_FEE_CAP_TOOLTIP =
-  "Maximum total facility fee that can be collected for this contract.";
+  "Maximum total facility fee that can be collected for this facility.";
 
 export type OfferReviewPanelProps = {
   type: "contract" | "invoice";
@@ -1055,8 +1055,8 @@ export function OfferReviewPanel({
 
   const facilityFeeEstimatedTooltip =
     expectedFacilityFeeNumber != null && expectedFacilityFeeNumber > 0
-      ? "Deducted from disbursement when funding closes. For contract financing, this is collected progressively until the facility fee cap is reached."
-      : "Deducted from disbursement when funding closes. For contract financing, this is collected progressively until the facility fee cap is reached. No facility fee applies here because the cap has already been reached.";
+      ? "Deducted from disbursement when funding closes. For facility financing, this is collected progressively until the facility fee cap is reached."
+      : "Deducted from disbursement when funding closes. For facility financing, this is collected progressively until the facility fee cap is reached. No facility fee applies here because the cap has already been reached.";
 
   const summarySecondLabel = type === "contract" ? "Approved facility:" : "Invoice value:";
   const summarySecondValue =
@@ -1167,7 +1167,7 @@ export function OfferReviewPanel({
 
     if (!envelope) {
       const createResponse = await apiClient.createIssuerSigningEnvelope(applicationId, {
-        title: type === "contract" ? "Contract offer signing package" : "Invoice offer signing package",
+        title: type === "contract" ? "Facility offer signing package" : "Invoice offer signing package",
         contractId: type === "contract" ? contractId ?? null : null,
         invoiceId,
         bindings: signerBindings,
@@ -2575,7 +2575,7 @@ export function OfferReviewPanel({
             {canDirectAccept
               ? "No signing package is required for this invoice. Review the terms, then accept or decline."
               : (modalMode.ui === "accept_decline" && modalMode.blockedMessage) ||
-                "Finish contract signing first before accepting this invoice offer."}
+                "Finish facility signing first before accepting this invoice offer."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -2636,7 +2636,7 @@ export function OfferReviewPanel({
   const headingBadges = (
     <>
       <Badge variant="outline" className="font-normal">
-        {type === "contract" ? "Contract" : "Invoice"}
+        {type === "contract" ? "Facility" : "Invoice"}
       </Badge>
       <Badge
         variant="secondary"

@@ -310,7 +310,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
           : fallbackDescription;
       case ApplicationLogEventType.CONTRACT_OFFER_SENT:
         return contractRef
-          ? `A contract offer for ${contractRef} is ready for your review and response.`
+          ? `A facility offer for ${contractRef} is ready for your review and response.`
           : fallbackDescription;
       case ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_SUBMITTED:
         return contractRef
@@ -470,7 +470,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
 
   private asContractReference(references?: ActivityReferences | null) {
     const contract = references?.contractNumber ?? references?.contractId;
-    return contract ? `contract ${contract}` : undefined;
+    return contract ? `facility ${contract}` : undefined;
   }
 
   private asInvoiceReference(references?: ActivityReferences | null) {
@@ -522,40 +522,40 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         description: "Your financing application completed successfully.",
       },
       [ApplicationLogEventType.CONTRACT_OFFER_SENT]: {
-        title: "Contract Offer Sent",
-        description: "A contract offer is ready for your review and response.",
+        title: "Facility Offer Sent",
+        description: "A facility offer is ready for your review and response.",
       },
       [ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_SUBMITTED]: {
-        title: "Contract Acceptance Submitted",
+        title: "Facility Acceptance Submitted",
         description: "You submitted offer acceptance documents for CashSouk review.",
       },
       [ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED]: {
-        title: "Contract Acceptance Resubmitted",
+        title: "Facility Acceptance Resubmitted",
         description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
       },
       [ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED]: {
-        title: "Contract Offer Signed",
-        description: "All signers completed the contract offer signing package.",
+        title: "Facility Offer Signed",
+        description: "All signers completed the facility offer signing package.",
       },
       [ApplicationLogEventType.CONTRACT_OFFER_REJECTED]: {
-        title: "Contract Offer Declined",
-        description: "The contract offer was declined and this application is now closed.",
+        title: "Facility Offer Declined",
+        description: "The facility offer was declined and this application is now closed.",
       },
       [ApplicationLogEventType.CONTRACT_OFFER_RETRACTED]: {
-        title: "Contract Offer Retracted",
-        description: "The contract offer was withdrawn before it was accepted.",
+        title: "Facility Offer Retracted",
+        description: "The facility offer was withdrawn before it was accepted.",
       },
       [ApplicationLogEventType.CONTRACT_OFFER_EXPIRED]: {
-        title: "Contract Offer Expired",
-        description: "The contract offer expired. A new offer can be sent from the Contract tab.",
+        title: "Facility Offer Expired",
+        description: "The facility offer expired. A new offer can be sent from the Facility tab.",
       },
       [ApplicationLogEventType.CONTRACT_SIGNING_DEADLINE_EXTENDED]: {
         title: "Signing Deadline Extended",
         description: "CashSouk extended the signing deadline so you can complete the signing package.",
       },
       [ApplicationLogEventType.CONTRACT_WITHDRAWN]: {
-        title: "Contract Withdrawn",
-        description: "The contract linked to this application was withdrawn.",
+        title: "Facility Withdrawn",
+        description: "The facility linked to this application was withdrawn.",
       },
       [ApplicationLogEventType.INVOICE_OFFER_SENT]: {
         title: "Invoice Offer Sent",

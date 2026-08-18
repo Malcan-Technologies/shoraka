@@ -17,6 +17,8 @@ export type AdminMetricProgressProps = {
   accentClassName?: string;
   /** Extra line under the bar (e.g. notes drawing on a facility). */
   footer?: React.ReactNode;
+  /** `hero` is the inset used inside `AdminEntityHeader variant="hero"`. */
+  variant?: "panel" | "hero";
   className?: string;
 };
 
@@ -35,20 +37,29 @@ export function AdminMetricProgress({
   indicatorClassName,
   accentClassName,
   footer,
+  variant = "panel",
   className,
 }: AdminMetricProgressProps) {
   const clamped = Math.min(Math.max(percent, 0), 100);
+  const hero = variant === "hero";
+  const valueClass = hero
+    ? "mt-1 truncate text-section-title tabular-nums tracking-tight"
+    : "mt-1 truncate text-body font-semibold";
 
   return (
-    <div className={cn("rounded-xl border bg-muted/20 p-4", className)}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div
+      className={cn(
+        "rounded-xl p-4",
+        hero ? "border border-border bg-muted/50 md:p-5" : "border border-border bg-muted/20",
+        className
+      )}
+    >
+      <div className={cn("flex flex-wrap justify-between gap-3", hero ? "items-end" : "items-start")}>
         <div className="min-w-0">
           <div className={cn("text-meta", accentClassName ?? "text-muted-foreground")}>
             {leftLabel}
           </div>
-          <div className={cn("mt-1 truncate text-body font-semibold", accentClassName)}>
-            {leftValue}
-          </div>
+          <div className={cn(valueClass, accentClassName)}>{leftValue}</div>
           {leftHint ? (
             <div className="mt-1 text-meta text-muted-foreground">{leftHint}</div>
           ) : null}
@@ -57,7 +68,7 @@ export function AdminMetricProgress({
           <div className={cn("text-meta", accentClassName ?? "text-muted-foreground")}>
             {rightLabel}
           </div>
-          <div className={cn("mt-1 text-body font-semibold", accentClassName)}>{rightValue}</div>
+          <div className={cn(valueClass, accentClassName)}>{rightValue}</div>
           {rightHint ? (
             <div className="mt-1 text-meta text-muted-foreground">{rightHint}</div>
           ) : null}
@@ -65,7 +76,7 @@ export function AdminMetricProgress({
       </div>
       <Progress
         value={clamped}
-        className={cn("mt-4 h-3", barClassName)}
+        className={cn(hero ? "mt-5 h-3.5" : "mt-4 h-3", barClassName)}
         indicatorClassName={indicatorClassName}
       />
       {footer ? <div className="mt-3 text-meta text-muted-foreground">{footer}</div> : null}

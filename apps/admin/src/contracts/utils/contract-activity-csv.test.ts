@@ -18,8 +18,8 @@ function event(overrides: Partial<AdminContractActivityEvent> = {}): AdminContra
 
 describe("formatContractActivityEventLabel", () => {
   it("maps known contract events and title-cases unknown types", () => {
-    expect(formatContractActivityEventLabel("CONTRACT_OFFER_SENT")).toBe("Contract offer sent");
-    expect(formatContractActivityEventLabel("CONTRACT_OFFER_ACCEPTED")).toBe("Contract offer signed");
+    expect(formatContractActivityEventLabel("CONTRACT_OFFER_SENT")).toBe("Facility offer sent");
+    expect(formatContractActivityEventLabel("CONTRACT_OFFER_ACCEPTED")).toBe("Facility offer signed");
     expect(formatContractActivityEventLabel("CUSTOM_EVENT_TYPE")).toBe("Custom Event Type");
   });
 });
@@ -35,7 +35,7 @@ describe("buildContractActivityCsv", () => {
     const lines = csv.split("\n");
     expect(lines[0]).toContain("createdAt");
     expect(lines[0]).toContain("event");
-    expect(lines[1]).toContain("Contract offer sent");
+    expect(lines[1]).toContain("Facility offer sent");
     expect(lines[1]).toContain("CONTRACT_OFFER_SENT");
     expect(lines[1]).toContain("Facility set at 500k");
     expect(lines[1]).toContain("500000");

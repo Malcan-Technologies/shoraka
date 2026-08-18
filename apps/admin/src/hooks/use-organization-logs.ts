@@ -20,6 +20,7 @@ const ONBOARDING_EVENT_TYPES: OnboardingEventType[] = [
   "TNC_ACCEPTED",
   "KYC_APPROVED",
   "KYB_APPROVED",
+  "PROFILE_UPDATED",
 ];
 
 const PAGE_SIZE = 10;

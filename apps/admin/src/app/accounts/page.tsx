@@ -9,6 +9,7 @@ import { UsersTableToolbar } from "../../components/users-table-toolbar";
 import { useUsers } from "../../hooks/use-users";
 import { RequirePermission } from "../../components/require-permission";
 import { AdminPageHeader } from "../../components/admin-page-header";
+import { usePermissions } from "../../hooks/use-permissions";
 import type { GetUsersParams, UserRole } from "@cashsouk/types";
 
 const ROLE_TABS = [
@@ -24,8 +25,10 @@ function isRoleTabId(value: string): value is RoleTabId {
   return ROLE_TABS.some((tab) => tab.id === value);
 }
 
-export default function UsersPage() {
+export default function UserAccountsPage() {
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
+  const canView = can("users.view");
   const [searchQuery, setSearchQuery] = React.useState("");
   const [roleFilter, setRoleFilter] = React.useState<RoleTabId>("all");
   const [investorOnboardedFilter, setInvestorOnboardedFilter] = React.useState("all");
@@ -63,7 +66,7 @@ export default function UsersPage() {
     return params;
   }, [currentPage, pageSize, searchQuery, roleFilter, investorOnboardedFilter, issuerOnboardedFilter]);
 
-  const { data, isLoading, error } = useUsers(apiParams);
+  const { data, isLoading, error } = useUsers(apiParams, { enabled: canView });
 
   const handleReload = () => {
     queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
@@ -91,8 +94,8 @@ export default function UsersPage() {
             <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="w-full space-y-6 px-2 py-8 md:px-4">
           <AdminPageHeader
-            title="Users"
-            description="Search and manage platform users across investor, issuer, and admin roles."
+            title="User Accounts"
+            description="Search and manage platform user accounts across investor, issuer, and admin roles."
           />
           <UsersTableToolbar
             searchQuery={searchQuery}
@@ -111,7 +114,7 @@ export default function UsersPage() {
 
           {error && (
             <div className="text-center py-8 text-destructive">
-              Error loading users: {error instanceof Error ? error.message : "Unknown error"}
+              Error loading user accounts: {error instanceof Error ? error.message : "Unknown error"}
             </div>
           )}
 

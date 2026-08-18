@@ -51,9 +51,9 @@ export const STEP_KEY_DISPLAY: Record<ApplicationStepKey, StepKeyDisplay> = {
     pageTitle: "How would you like to apply for financing?",
   },
   contract_details: {
-    title: "Contract Details",
-    pageTitle: "Provide Contract and Customer Details",
-    description: "Help us understand your contract and your customer billed under this invoice",
+    title: "Facility Details",
+    pageTitle: "Provide Facility and Customer Details",
+    description: "Help us understand your facility and your customer billed under this invoice",
   },
   invoice_details: {
     title: "Invoice Details",

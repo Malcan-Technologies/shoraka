@@ -1038,8 +1038,8 @@ const hasChanges = !isEdit
                         className={INPUT_CLASS}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Default Facility Fee rate for new contract offers. Allowed range: 0% to 100%, up to 2 decimal
-                        places. Admin can override this value before sending the contract offer.
+                        Default Facility Fee rate for new facility offers. Allowed range: 0% to 100%, up to 2 decimal
+                        places. Admin can override this value before sending the facility offer.
                       </p>
                     </div>
                   </div>

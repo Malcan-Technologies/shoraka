@@ -2,6 +2,7 @@ import {
   getAdminStatusToken,
   getDirectorFinalStatusToken,
   adminActionRowClass,
+  adminHeroTintClass,
   adminRejectedRowClass,
   adminTabStatusLabel,
   pickHighestAdminTabToken,
@@ -112,5 +113,17 @@ describe("admin tab token helpers", () => {
     expect(adminTabStatusLabel("success")).toBe("Done");
     expect(adminTabStatusLabel("rejected")).toBe("Closed");
     expect(adminTabStatusLabel("neutral")).toBe("Not started");
+  });
+});
+
+describe("adminHeroTintClass", () => {
+  it("mixes the badge fill into the card so the hero is lighter than the chip", () => {
+    expect(adminHeroTintClass("submitted")).toContain("--status-submitted-bg");
+    expect(adminHeroTintClass("submitted")).toContain("/0.35");
+    expect(adminHeroTintClass("action")).toContain("--status-action-bg");
+    expect(adminHeroTintClass("success")).toContain("--status-success-bg");
+    expect(adminHeroTintClass("rejected")).toContain("--status-rejected-bg");
+    expect(adminHeroTintClass("active")).toContain("--status-active-bg");
+    expect(adminHeroTintClass("neutral")).toContain("--status-neutral-bg");
   });
 });

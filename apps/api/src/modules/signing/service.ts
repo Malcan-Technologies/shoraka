@@ -375,11 +375,11 @@ export class SigningService {
   }): { contractId: string | null; invoiceId: string | null } {
     const { application, contractId, invoiceId } = input;
     if (contractId && invoiceId) {
-      throw new AppError(400, "VALIDATION_ERROR", "Choose either a contract or invoice offer, not both.");
+      throw new AppError(400, "VALIDATION_ERROR", "Choose either a facility or invoice offer, not both.");
     }
     if (contractId) {
       if (application.contract_id !== contractId || application.contract?.status !== ContractStatus.OFFER_SENT) {
-        throw new AppError(400, "INVALID_STATE", "Contract offer is not available for signing.");
+        throw new AppError(400, "INVALID_STATE", "Facility offer is not available for signing.");
       }
       return { contractId, invoiceId: null };
     }
@@ -1364,7 +1364,7 @@ export class SigningService {
         !contract.offer_details ||
         typeof contract.offer_details !== "object"
       ) {
-        throw new AppError(400, "INVALID_STATE", "Contract offer details are not available.");
+        throw new AppError(400, "INVALID_STATE", "Facility offer details are not available.");
       }
       generated = await generateContractOfferLetterBuffer(
         contract.id,
@@ -1372,7 +1372,7 @@ export class SigningService {
         signatories
       );
     } else {
-      throw new AppError(400, "INVALID_STATE", "Generated offer letter needs a contract or invoice target.");
+      throw new AppError(400, "INVALID_STATE", "Generated offer letter needs a facility or invoice target.");
     }
 
     if (generated.signsets.length !== orderedAssignments.length) {

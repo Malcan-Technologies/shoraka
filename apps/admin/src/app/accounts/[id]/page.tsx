@@ -6,7 +6,6 @@ import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
 import {
-  ArrowLeftIcon,
   BuildingOffice2Icon,
   EyeIcon,
   IdentificationIcon,
@@ -14,7 +13,6 @@ import {
   UserIcon,
 } from "@heroicons/react/24/outline";
 import type { UserDetailResponse, UserOrganizationSummary } from "@cashsouk/types";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +32,10 @@ import { OrganizationTypeBadge } from "@/components/organization-type-badge";
 import { UserRoleBadges } from "@/components/user-role-badges";
 import { getOrganizationOnboardingPresentation } from "@/lib/organization-status";
 import { adminActionRowClass } from "@/lib/admin-status-token";
+import {
+  AdminEntityHeader,
+  AdminEntitySummaryCard,
+} from "@/components/admin-detail";
 import { EditUserDialog } from "@/components/edit-user-dialog";
 import {
   useUpdateUserId,
@@ -43,6 +45,7 @@ import {
 } from "@/hooks/use-users";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
+import { accountHref, orgHref } from "@/lib/admin-directory-hrefs";
 
 type OrganizationTab = "all" | "investor" | "issuer";
 
@@ -69,16 +72,31 @@ function buildDraft(user: UserDetailResponse): UserDraft {
 function PageSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Skeleton className="h-12 w-12 rounded-xl" />
-        <div className="space-y-2">
-          <Skeleton className="h-6 w-48" />
-          <Skeleton className="h-4 w-64" />
+      <Skeleton className="h-8 w-24" />
+      <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+        <div className="p-6 md:p-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-3">
+              <Skeleton className="h-12 w-12 rounded-xl" />
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-7 w-72 max-w-full" />
+                <Skeleton className="h-4 w-48" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:flex">
+              <Skeleton className="h-20 w-full rounded-xl sm:w-48" />
+              <Skeleton className="h-20 w-full rounded-xl sm:w-48" />
+              <Skeleton className="h-20 w-full rounded-xl sm:w-48" />
+            </div>
+          </div>
+        </div>
+        <div className="border-t px-6 py-4 md:px-8">
+          <Skeleton className="h-12 w-full" />
         </div>
       </div>
       <Skeleton className="h-48 w-full rounded-2xl" />
       <Skeleton className="h-72 w-full rounded-2xl" />
-      <Skeleton className="h-64 w-full rounded-2xl" />
     </div>
   );
 }
@@ -102,64 +120,62 @@ function AccountSummaryCard({ user }: { user: UserDetailResponse }) {
   const displayName = `${user.first_name} ${user.last_name}`.trim() || user.email;
 
   return (
-    <Card className="rounded-2xl">
-      <CardContent className="pt-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-              <UserIcon className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold">{displayName}</h2>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <Badge variant="outline" className="font-mono">
-                  {user.user_id}
-                </Badge>
-                <StatusBadge
-                  label={user.email_verified ? "Email verified" : "Email unverified"}
-                  status={user.email_verified ? "success" : "action"}
-                />
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-foreground">Roles</span>
-                <UserRoleBadges roles={user.roles} />
-              </div>
-              <p className="mt-2 text-sm text-muted-foreground">{user.email}</p>
-            </div>
-          </div>
-          <div className="grid gap-3 text-right sm:grid-cols-3">
-            <div>
-              <div className="text-2xl font-semibold">{user.stats.investorOrganizations}</div>
-              <div className="text-xs text-muted-foreground">Investor orgs</div>
-            </div>
-            <div>
-              <div className="text-2xl font-semibold">{user.stats.issuerOrganizations}</div>
-              <div className="text-xs text-muted-foreground">Issuer orgs</div>
-            </div>
-            <div>
-              <div className="text-2xl font-semibold">{user.stats.accessLogs}</div>
-              <div className="text-xs text-muted-foreground">Access logs</div>
-            </div>
-          </div>
-        </div>
-
-        <Separator className="my-5" />
-
-        <div className="grid gap-4 md:grid-cols-4">
-          <DetailRow label="Phone" value={user.phone || "—"} />
-          <DetailRow
-            label="Password Changed"
-            value={
-              user.password_changed_at
-                ? formatDistanceToNow(new Date(user.password_changed_at), { addSuffix: true })
-                : "Never"
-            }
+    <AdminEntityHeader
+      variant="hero"
+      tone={user.email_verified ? "success" : "action"}
+      backHref="/accounts"
+      backLabel="User Accounts"
+      eyebrow="Account detail"
+      title={displayName}
+      subtitle={
+        <>
+          <span className="font-mono">{user.user_id}</span>
+          {" · "}
+          {user.email}
+        </>
+      }
+      icon={UserIcon}
+      chips={
+        <>
+          <StatusBadge
+            label={user.email_verified ? "Email verified" : "Email unverified"}
+            status={user.email_verified ? "success" : "action"}
           />
-          <DetailRow label="Created" value={format(new Date(user.created_at), "PPp")} />
-          <DetailRow label="Updated" value={formatDistanceToNow(new Date(user.updated_at), { addSuffix: true })} />
-        </div>
-      </CardContent>
-    </Card>
+          <UserRoleBadges roles={user.roles} />
+        </>
+      }
+      summaryCards={[
+        <AdminEntitySummaryCard
+          key="investor-orgs"
+          label="Investor orgs"
+          value={user.stats.investorOrganizations}
+        />,
+        <AdminEntitySummaryCard
+          key="issuer-orgs"
+          label="Issuer orgs"
+          value={user.stats.issuerOrganizations}
+        />,
+        <AdminEntitySummaryCard
+          key="access-logs"
+          label="Access logs"
+          value={user.stats.accessLogs}
+        />,
+      ]}
+      metrics={[
+        { label: "Phone", value: user.phone || "—" },
+        {
+          label: "Password changed",
+          value: user.password_changed_at
+            ? formatDistanceToNow(new Date(user.password_changed_at), { addSuffix: true })
+            : "Never",
+        },
+        { label: "Created", value: format(new Date(user.created_at), "PPp") },
+        {
+          label: "Updated",
+          value: formatDistanceToNow(new Date(user.updated_at), { addSuffix: true }),
+        },
+      ]}
+    />
   );
 }
 
@@ -408,6 +424,8 @@ function OrganizationsTable({
 }
 
 function OrganizationRow({ organization }: { organization: UserOrganizationSummary }) {
+  const { can } = usePermissions();
+  const canViewOrgs = can("organizations.view");
   const title =
     organization.name ??
     (organization.type === "COMPANY" ? "Unnamed company" : "Personal organization");
@@ -446,12 +464,16 @@ function OrganizationRow({ organization }: { organization: UserOrganizationSumma
         {format(new Date(organization.updatedAt), "dd MMM yyyy")}
       </TableCell>
       <TableCell>
-        <Button asChild variant="ghost" size="sm" className="h-8 px-2">
-          <Link href={`/organizations/${organization.portal}/${encodeURIComponent(organization.id)}`}>
-            <EyeIcon className="h-4 w-4 mr-1" />
-            View
-          </Link>
-        </Button>
+        {canViewOrgs ? (
+          <Button asChild variant="ghost" size="sm" className="h-8 px-2">
+            <Link href={orgHref(organization.portal, organization.id)}>
+              <EyeIcon className="h-4 w-4 mr-1" />
+              View
+            </Link>
+          </Button>
+        ) : (
+          <span className="text-sm text-muted-foreground">—</span>
+        )}
       </TableCell>
     </TableRow>
   );
@@ -460,10 +482,11 @@ function OrganizationRow({ organization }: { organization: UserOrganizationSumma
 export default function UserDetailPage() {
   const { can } = usePermissions();
   const canManage = can("users.manage");
+  const canView = can("users.view");
   const params = useParams();
   const router = useRouter();
   const routeUserId = params.id as string;
-  const { data: user, isLoading, error } = useUserDetail(routeUserId);
+  const { data: user, isLoading, error } = useUserDetail(routeUserId, { enabled: canView });
   const updateUserId = useUpdateUserId();
   const updateProfile = useUpdateUserProfile();
   const updateOnboarding = useUpdateUserOnboarding();
@@ -532,7 +555,7 @@ export default function UserDetailPage() {
       setShowConfirmDialog(false);
       toast.success("User updated successfully");
       if (effectiveUserId !== routeUserId) {
-        router.replace(`/users/${encodeURIComponent(effectiveUserId)}`);
+        router.replace(accountHref(effectiveUserId));
       }
     } catch (saveError) {
       toast.error(saveError instanceof Error ? saveError.message : "Failed to update user");
@@ -544,43 +567,37 @@ export default function UserDetailPage() {
   return (
     <RequirePermission permission="users.view">
       <>
-            <div className="flex items-center gap-2 px-4 pt-4 md:px-6">
-        <Button variant="ghost" size="sm" onClick={() => router.push("/users")} className="gap-1.5">
-          <ArrowLeftIcon className="h-4 w-4" />
-          Users
-        </Button>
-      </div>
-<div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 pt-0">
-        <div className="w-full space-y-6 px-2 py-8 md:px-4">
-          {isLoading ? <PageSkeleton /> : null}
+        <div className="flex-1 overflow-y-auto">
+          <div className="w-full space-y-6 px-4 py-6 md:px-6 md:py-8 lg:px-8">
+            {isLoading ? <PageSkeleton /> : null}
 
-          {error ? (
-            <div className="rounded-lg border border-destructive/30 p-4 text-sm text-destructive">
-              Error loading user: {error instanceof Error ? error.message : "Unknown error"}
-            </div>
-          ) : null}
+            {error ? (
+              <div className="py-8 text-center text-destructive">
+                Error loading user: {error instanceof Error ? error.message : "Unknown error"}
+              </div>
+            ) : null}
 
-          {user && draft ? (
-            <>
-              <AccountSummaryCard user={user} />
-              <EditAccountCard
-                user={user}
-                draft={draft}
-                onDraftChange={setDraft}
-                onSave={() => setShowConfirmDialog(true)}
-                saving={isSaving}
-                canManage={canManage}
-              />
-              <AccountMetadataCard user={user} />
-              <OrganizationsTable
-                user={user}
-                activeTab={organizationTab}
-                onTabChange={setOrganizationTab}
-              />
-            </>
-          ) : null}
+            {user && draft ? (
+              <>
+                <AccountSummaryCard user={user} />
+                <EditAccountCard
+                  user={user}
+                  draft={draft}
+                  onDraftChange={setDraft}
+                  onSave={() => setShowConfirmDialog(true)}
+                  saving={isSaving}
+                  canManage={canManage}
+                />
+                <AccountMetadataCard user={user} />
+                <OrganizationsTable
+                  user={user}
+                  activeTab={organizationTab}
+                  onTabChange={setOrganizationTab}
+                />
+              </>
+            ) : null}
+          </div>
         </div>
-      </div>
 
       <EditUserDialog
         open={showConfirmDialog}

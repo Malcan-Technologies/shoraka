@@ -321,7 +321,7 @@ describe("prospectus review action visibility", () => {
     expect(approved.preview).toBe(true);
     expect(approved.approve).toBe(false);
     expect(approved.backToNote).toBe(true);
-    expect(approved.viewProspectus).toBe(false);
+    expect(approved.viewProspectus).toBe(true);
 
     const publishedNote = getProspectusActionVisibility({
       step: 3,
@@ -356,6 +356,19 @@ describe("prospectus review action visibility", () => {
     expect(published.saveDraft).toBe(false);
     expect(published.preview).toBe(false);
     expect(published.viewProspectus).toBe(true);
+  });
+
+  it("treats an unlisted leftover PUBLISHED freeze as Draft (re-approve required)", () => {
+    const unlisted = getProspectusActionVisibility({
+      step: 3,
+      status: "PUBLISHED",
+      canManage: true,
+      notePublished: false,
+    });
+    expect(unlisted.saveDraft).toBe(true);
+    expect(unlisted.preview).toBe(true);
+    expect(unlisted.approve).toBe(true);
+    expect(unlisted.viewProspectus).toBe(false);
   });
 
   it("blocks approval readiness when required checklist items are incomplete", () => {

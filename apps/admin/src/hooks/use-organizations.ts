@@ -4,7 +4,7 @@ import type { GetOrganizationsParams } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-export function useOrganizations(params: GetOrganizationsParams) {
+export function useOrganizations(params: GetOrganizationsParams, options?: { enabled?: boolean }) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
@@ -17,6 +17,7 @@ export function useOrganizations(params: GetOrganizationsParams) {
       }
       return response.data;
     },
+    enabled: options?.enabled ?? true,
     staleTime: 0,
     refetchOnMount: true,
   });

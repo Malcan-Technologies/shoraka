@@ -60,7 +60,7 @@ describe("Offer letter download", () => {
     });
 
     it("returns 400 when no pending offer", async () => {
-      const err = new Error("No pending contract offer") as Error & { statusCode?: number };
+      const err = new Error("No pending facility offer") as Error & { statusCode?: number };
       err.statusCode = 400;
       (applicationService.getContractOfferLetter as jest.Mock).mockRejectedValue(err);
 

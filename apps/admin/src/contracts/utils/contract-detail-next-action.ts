@@ -72,16 +72,8 @@ export function resolveContractDocumentsTabToken(hasDocument: boolean): StatusTo
   return hasDocument ? "success" : "neutral";
 }
 
-export function resolveContractActivityTabToken(
-  activity: Array<{ eventType: string }> | undefined,
-  status: string
-): StatusToken {
-  if (!activity || activity.length === 0) return "neutral";
-  const statusToken = getAdminStatusToken(status);
-  if (statusToken === "success" || statusToken === "active") return "success";
-  if (statusToken === "rejected") return "rejected";
-  return "submitted";
-}
+/** Activity is always present and has no workflow status. */
+export const CONTRACT_REFERENCE_TAB_TOKEN = "neutral" as const satisfies StatusToken;
 
 export type ContractDetailNextAction = {
   tabId: ContractDetailTabId;
@@ -91,7 +83,7 @@ export type ContractDetailNextAction = {
 };
 
 /**
- * Contracts are read-only here, so the only admin work a contract can surface
+ * Facilities are read-only here, so the only admin work a facility can surface
  * is a linked application that still needs review.
  */
 export function resolveContractDetailNextAction(
@@ -104,8 +96,8 @@ export function resolveContractDetailNextAction(
     tabId: "applications",
     title:
       pending.length === 1
-        ? "An application on this contract needs review"
-        : `${pending.length} applications on this contract need review`,
+        ? "An application on this facility needs review"
+        : `${pending.length} applications on this facility need review`,
     description:
       pending.length === 1
         ? "One linked application is waiting on CashSouk. Open it from the Applications tab to continue the review."

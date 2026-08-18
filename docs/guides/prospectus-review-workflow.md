@@ -102,9 +102,21 @@ Published renderers prefer frozen `resolvedPublicationContent` and must not re-r
 
 Not used for investor mapping or automatic prefill in this workflow. Future suggestion source only after finance/disclosure approval.
 
-## Reopen
+## Reopen / unpublish
 
-Allowed only while Note is still `DRAFT` and unpublished. Prior approval metadata remains on the row for audit. Published Notes require a future amendment/republication flow (out of scope).
+Pause (commitments held) does **not** invalidate the prospectus freeze.
+
+Unpublish is allowed only with **zero** investor commitments. It:
+
+- Returns the Note to `DRAFT` and hides the listing
+- Reopens Prospectus Review as `DRAFT` with previously filled `draft_content` kept
+- Clears the current freeze pointers (`approved_content`, `approved_publication_id`, …)
+- Keeps prior `note_prospectus_publications` rows for audit
+- Logs `UNPUBLISH` and `PROSPECTUS_APPROVAL_INVALIDATED_UNPUBLISH`
+
+The officer must **Approve** again before marketplace publish. Approve creates a new publication id and increments `content_version` (`PROSPECTUS_REVIEW_APPROVE`). Listed notes with investors cannot unpublish, so their freeze cannot change.
+
+Allowed only while Note is still `DRAFT` and unpublished. Published Notes with commitments stay frozen.
 
 ## Permissions
 

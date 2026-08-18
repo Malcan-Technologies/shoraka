@@ -38,14 +38,14 @@ export function ContractsTableToolbar({
     <ListToolbar
       searchQuery={searchQuery}
       onSearchChange={onSearchChange}
-      searchPlaceholder="Search by CashSouk reference, contract number, or organization..."
+      searchPlaceholder="Search by CashSouk reference, facility number, or organization..."
       statusFilters={statusFilters}
       onStatusFiltersChange={onStatusFiltersChange}
       statusOptions={STATUS_OPTIONS}
       totalCount={totalCount}
       filteredCount={filteredCount}
-      itemLabelSingular="contract"
-      itemLabelPlural="contracts"
+      itemLabelSingular="facility"
+      itemLabelPlural="facilities"
       onClearFilters={onClearFilters}
       onRefresh={onRefresh}
       isLoading={isLoading}

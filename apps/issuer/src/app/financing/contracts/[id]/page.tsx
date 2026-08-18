@@ -115,7 +115,7 @@ export default function ContractDetailsPage() {
         : EM_DASH;
 
   const productLabel =
-    row?.productName?.trim() ? displayCell(row.productName) : "Contract Financing";
+    row?.productName?.trim() ? displayCell(row.productName) : "Facility financing";
 
   const shellClass = cn(
     issuerMainContentClassName,
@@ -129,7 +129,7 @@ export default function ContractDetailsPage() {
       <div className={shellClass}>
         <EmptyState
           title="Select an organisation"
-          message="Choose an organisation to view this contract."
+          message="Choose an organisation to view this facility."
         />
       </div>
     );
@@ -147,7 +147,7 @@ export default function ContractDetailsPage() {
     return (
       <div className={shellClass}>
         <EmptyState
-          title="Could not load contract"
+          title="Could not load facility"
           message={error instanceof Error ? error.message : "Unknown error"}
           action={
             <Button asChild variant="outline" className="rounded-xl">
@@ -163,8 +163,8 @@ export default function ContractDetailsPage() {
     return (
       <div className={shellClass}>
         <EmptyState
-          title="Contract not found"
-          message="This contract is not available or you do not have access."
+          title="Facility not found"
+          message="This facility is not available or you do not have access."
           action={
             <Button asChild variant="outline" className="rounded-xl">
               <Link href="/financing?tab=contracts">Back to Financing</Link>
@@ -202,7 +202,7 @@ export default function ContractDetailsPage() {
               Financing
             </Link>
             <span aria-hidden>›</span>
-            <span className="text-foreground">Contract {displayCell(contractHeading)}</span>
+            <span className="text-foreground">Facility {displayCell(contractHeading)}</span>
           </nav>
         }
         title={displayCell(contractHeading)}
@@ -347,7 +347,7 @@ export default function ContractDetailsPage() {
           {invoices.length === 0 ? (
             <EmptyState
               title="No invoices yet"
-              message="Invoices financed under this contract will appear here."
+              message="Invoices financed under this facility will appear here."
             />
           ) : filteredInvoices.length === 0 ? (
             <EmptyState

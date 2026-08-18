@@ -1192,15 +1192,15 @@ export class ApplicationService {
         const contract = await this.contractRepository.findById(structureData.existing_contract_id);
 
         if (!contract) {
-          throw new AppError(404, "CONTRACT_NOT_FOUND", "The selected contract does not exist.");
+          throw new AppError(404, "CONTRACT_NOT_FOUND", "The selected facility does not exist.");
         }
 
         if (contract.issuer_organization_id !== application.issuer_organization_id) {
-          throw new AppError(403, "FORBIDDEN", "Cannot link contract from a different organization.");
+          throw new AppError(403, "FORBIDDEN", "Cannot link a facility from a different organization.");
         }
 
         if (contract.status !== "APPROVED") {
-          throw new AppError(400, "INVALID_CONTRACT_STATUS", "Only approved contracts can be linked to applications.");
+          throw new AppError(400, "INVALID_CONTRACT_STATUS", "Only approved facilities can be linked to applications.");
         }
 
         updateData.contract = { connect: { id: structureData.existing_contract_id } };
@@ -1952,7 +1952,7 @@ export class ApplicationService {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
     if (!application.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract");
+      throw new AppError(400, "INVALID_STATE", "Application has no facility");
     }
     const workflow = await this.getProductWorkflowForApplication(application);
     if (!workflowUsesOfferAcceptanceFlow(workflow)) {
@@ -1978,11 +1978,11 @@ export class ApplicationService {
       >`SELECT status, offer_details FROM contracts WHERE id = ${contractId} FOR UPDATE`;
       const contract = locked[0];
       if (!contract || contract.status !== "OFFER_SENT") {
-        throw new AppError(400, "INVALID_STATE", "No pending contract offer to accept");
+        throw new AppError(400, "INVALID_STATE", "No pending facility offer to accept");
       }
       const offer = (contract.offer_details as Record<string, unknown> | null) ?? null;
       if (!offer) {
-        throw new AppError(400, "INVALID_STATE", "Contract has no offer details");
+        throw new AppError(400, "INVALID_STATE", "Facility has no offer details");
       }
       const acceptance = getOfferAcceptanceFromOfferDetails(offer);
       previousAcceptanceStatus = acceptance?.status ?? null;
@@ -2274,7 +2274,7 @@ export class ApplicationService {
         throw new AppError(
           400,
           "CONTRACT_SIGNING_INCOMPLETE",
-          "Finish contract signing before accepting this invoice offer."
+          "Finish facility signing before accepting this invoice offer."
         );
       }
     }
@@ -2303,7 +2303,7 @@ export class ApplicationService {
     }
 
     if (!application.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract");
+      throw new AppError(400, "INVALID_STATE", "Application has no facility");
     }
     await this.assertPhasedOfferDirectAcceptBlocked({
       application,
@@ -2325,16 +2325,16 @@ export class ApplicationService {
 
       const contract = lockedContractRows[0];
       if (!contract) {
-        throw new AppError(404, "NOT_FOUND", "Contract not found");
+        throw new AppError(404, "NOT_FOUND", "Facility not found");
       }
 
       if (contract.status !== "OFFER_SENT") {
-        throw new AppError(400, "INVALID_STATE", "No pending contract offer to respond to");
+        throw new AppError(400, "INVALID_STATE", "No pending facility offer to respond to");
       }
 
       const offer = contract.offer_details as Record<string, unknown> | null;
       if (!offer || typeof offer !== "object") {
-        throw new AppError(400, "INVALID_STATE", "Contract has no offer details");
+        throw new AppError(400, "INVALID_STATE", "Facility has no offer details");
       }
 
       assertAcceptanceDeadlineOpen(getOfferAcceptanceFromOfferDetails(offer));
@@ -2611,7 +2611,7 @@ export class ApplicationService {
       throw new AppError(
         400,
         "CONTRACT_SIGNING_INCOMPLETE",
-        "Finish contract signing before accepting this invoice offer."
+        "Finish facility signing before accepting this invoice offer."
       );
     }
 
@@ -2959,7 +2959,7 @@ export class ApplicationService {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
     if (!application.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract");
+      throw new AppError(400, "INVALID_STATE", "Application has no facility");
     }
 
     const contract = await prisma.contract.findUnique({
@@ -2967,16 +2967,16 @@ export class ApplicationService {
       select: { status: true, offer_details: true },
     });
     if (!contract) {
-      throw new AppError(404, "NOT_FOUND", "Contract not found");
+      throw new AppError(404, "NOT_FOUND", "Facility not found");
     }
     const allowedStatuses = ["OFFER_SENT", "OFFER_EXPIRED", "APPROVED", "REJECTED"] as const;
     if (!allowedStatuses.includes(contract.status as (typeof allowedStatuses)[number])) {
-      throw new AppError(400, "INVALID_STATE", "No contract offer to download");
+      throw new AppError(400, "INVALID_STATE", "No facility offer to download");
     }
 
     const offer = contract.offer_details as Record<string, unknown> | null;
     if (!offer || typeof offer !== "object") {
-      throw new AppError(400, "INVALID_STATE", "Contract has no offer details");
+      throw new AppError(400, "INVALID_STATE", "Facility has no offer details");
     }
 
     const acceptanceExpiresAt = getOfferAcceptanceFromOfferDetails(offer)?.acceptance_expires_at;
@@ -3163,7 +3163,7 @@ export class ApplicationService {
 
     const application = await this.repository.findById(applicationId);
     if (!application?.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract");
+      throw new AppError(400, "INVALID_STATE", "Application has no facility");
     }
 
     const key = await this.resolveSignedOfferLetterS3KeyFromEnvelope({

@@ -113,9 +113,9 @@ const STATUS_PRESENTATION: Record<string, Omit<StatusPresentation, "label"> & { 
   DRAFT: { ...groupPresentation("neutral"), label: "Draft" },
   SUBMITTED: { ...groupPresentation("admin_action"), label: "Submitted" },
   UNDER_REVIEW: { ...groupPresentation("admin_action"), label: "Under Review" },
-  CONTRACT_PENDING: { ...groupPresentation("admin_action"), label: "Contract Pending" },
-  CONTRACT_SENT: { ...groupPresentation("issuer_action"), label: "Contract Sent" },
-  CONTRACT_ACCEPTED: { ...groupPresentation("admin_action"), label: "Contract Accepted" },
+  CONTRACT_PENDING: { ...groupPresentation("admin_action"), label: "Facility Pending" },
+  CONTRACT_SENT: { ...groupPresentation("issuer_action"), label: "Facility Sent" },
+  CONTRACT_ACCEPTED: { ...groupPresentation("admin_action"), label: "Facility Accepted" },
   INVOICE_ACCEPTED: { ...groupPresentation("admin_action"), label: "Invoice Accepted" },
   SIGNING_PENDING: { ...groupPresentation("admin_action"), label: "Signing Pending" },
   INVOICE_PENDING: { ...groupPresentation("admin_action"), label: "Invoice Pending" },
@@ -345,7 +345,7 @@ export function getStatusPresentationByBadgeKey(
 
 /**
  * Get status presentation for admin/issuer badges. Use for ApplicationStatusBadge, ReviewStepStatusBadge.
- * Admin: uses raw STATUS_PRESENTATION (Contract Pending, Contract Sent, etc.).
+ * Admin: uses raw STATUS_PRESENTATION (Facility Pending, Facility Sent, etc.).
  * Issuer card: uses collapsed BADGE_KEY_PRESENTATION via getStatusPresentationByBadgeKey.
  */
 export function getStatusPresentation(

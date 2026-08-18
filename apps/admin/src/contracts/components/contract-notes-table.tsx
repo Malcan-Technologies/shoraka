@@ -21,7 +21,7 @@ export function ContractNotesTable({ notes }: { notes: AdminContractNoteSummary[
       <div className="rounded-xl border border-dashed bg-muted/20 p-4">
         <p className="text-ui font-medium">No notes yet</p>
         <p className="mt-1 text-meta text-muted-foreground">
-          Notes are created from approved invoices on this contract&apos;s applications. Any note
+          Notes are created from approved invoices on this facility&apos;s applications. Any note
           issued against this facility will be listed here.
         </p>
       </div>
@@ -32,11 +32,11 @@ export function ContractNotesTable({ notes }: { notes: AdminContractNoteSummary[
     <Table>
       <TableHeader>
         <TableRow className="hover:bg-transparent">
-          <TableHead className="pl-4">Note</TableHead>
+          <TableHead>Note</TableHead>
           <TableHead>Title</TableHead>
           <TableHead>Status</TableHead>
           <TableHead className="hidden md:table-cell">Source invoice</TableHead>
-          <TableHead className="text-right pr-4">Open</TableHead>
+          <TableHead className="text-right">Open</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -50,7 +50,7 @@ export function ContractNotesTable({ notes }: { notes: AdminContractNoteSummary[
                 adminActionRowClass(status.token)
               )}
             >
-              <TableCell className="pl-4 font-mono text-meta font-medium">
+              <TableCell className="font-mono text-meta font-medium">
                 {note.noteReference}
               </TableCell>
               <TableCell className="min-w-0 max-w-[18rem]">
@@ -73,7 +73,7 @@ export function ContractNotesTable({ notes }: { notes: AdminContractNoteSummary[
                   <span className="text-muted-foreground">—</span>
                 )}
               </TableCell>
-              <TableCell className="pr-4 text-right">
+              <TableCell className="text-right">
                 <Button variant="ghost" size="sm" asChild>
                   <Link href={`/notes/${encodeURIComponent(note.id)}`}>View</Link>
                 </Button>

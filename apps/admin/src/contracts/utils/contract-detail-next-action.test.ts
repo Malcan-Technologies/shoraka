@@ -2,9 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import type { AdminContractApplicationSummary } from "@cashsouk/types";
 import {
+  CONTRACT_REFERENCE_TAB_TOKEN,
   contractApplicationsNeedingAction,
   isContractDetailTabId,
-  resolveContractActivityTabToken,
   resolveContractApplicationsTabToken,
   resolveContractDetailNextAction,
   resolveContractDocumentsTabToken,
@@ -98,7 +98,7 @@ describe("resolveContractDetailNextAction", () => {
 
     expect(nextAction).toEqual({
       tabId: "applications",
-      title: "An application on this contract needs review",
+      title: "An application on this facility needs review",
       description:
         "One linked application is waiting on CashSouk. Open it from the Applications tab to continue the review.",
       ctaLabel: "Open Applications",
@@ -110,7 +110,7 @@ describe("resolveContractDetailNextAction", () => {
       applications: [application("SUBMITTED"), application("RESUBMITTED"), application("APPROVED")],
     });
 
-    expect(nextAction?.title).toBe("2 applications on this contract need review");
+    expect(nextAction?.title).toBe("2 applications on this facility need review");
     expect(nextAction?.tabId).toBe("applications");
   });
 });
@@ -141,15 +141,19 @@ describe("contract detail default tab", () => {
     expect(viewSource).toContain("resolveContractFacilityOfferTabToken");
     expect(viewSource).toContain("resolveContractNotesTabToken");
     expect(viewSource).toContain("resolveContractDocumentsTabToken");
-    expect(viewSource).toContain("resolveContractActivityTabToken");
+    expect(viewSource).toContain("CONTRACT_REFERENCE_TAB_TOKEN");
     expect(viewSource).toContain('id: "activity"');
     expect(viewSource).toContain("AdminDetailCardHeader");
     expect(viewSource).toContain("ContractActivityPanel");
     expect(viewSource).not.toContain("ContractTabHeading");
     expect(viewSource).toContain("AdminMetricProgress");
+    expect(viewSource).toContain('variant="hero"');
+    expect(viewSource).toContain("AdminEntitySummaryCard");
+    expect(viewSource).toContain("getContractHeaderEndDate");
     expect(viewSource).toContain("getContractHeaderMetrics");
     expect(viewSource).toContain("metrics={headerMetrics}");
     expect(viewSource).toContain("formatContractFacilityNoteCount");
+    expect(viewSource).toContain('setActiveTab("notes")');
     expect(viewSource).not.toContain("Approved Facility");
     expect(viewSource).not.toContain("title=\"Contract information\"");
     expect(viewSource).not.toContain("label=\"Created\"");
@@ -163,10 +167,15 @@ describe("admin detail tab dots", () => {
     "utf8"
   );
 
-  it("renders mini status-badge dots using the shared wash and fill tokens", () => {
-    expect(tabsSource).toContain("STATUS_TOKEN_BG_CLASS");
-    expect(tabsSource).toContain("STATUS_TOKEN_DOT_CLASS");
-    expect(tabsSource).toContain("h-1.5 w-1.5 rounded-full");
+  it("centers the strip and uses the same bare status dots as application review tabs", () => {
+    expect(tabsSource).toContain("justify-center gap-2");
+    expect(tabsSource).toContain("STATUS_BADGE_GROUPS");
+    expect(tabsSource).toContain("h-2 w-2 shrink-0 rounded-full");
+    expect(tabsSource).toContain("bg-amber-400 dark:bg-amber-300");
+    expect(tabsSource).toContain("STATUS_BADGE_GROUPS.completed.dotClass");
+    expect(tabsSource).toContain("STATUS_BADGE_GROUPS.admin_action.dotClass");
+    expect(tabsSource).not.toContain("STATUS_TOKEN_DOT_CLASS");
+    expect(tabsSource).not.toContain("STATUS_TOKEN_BG_CLASS");
   });
 });
 
@@ -211,16 +220,7 @@ describe("contract tab dots", () => {
     expect(resolveContractDocumentsTabToken(true)).toBe("success");
   });
 
-  it("dots Activity from the originating application audit trail", () => {
-    expect(resolveContractActivityTabToken([], "ACTIVE")).toBe("neutral");
-    expect(resolveContractActivityTabToken([{ eventType: "CONTRACT_OFFER_SENT" }], "OFFER_SENT")).toBe(
-      "submitted"
-    );
-    expect(
-      resolveContractActivityTabToken([{ eventType: "CONTRACT_OFFER_ACCEPTED" }], "ACTIVE")
-    ).toBe("success");
-    expect(
-      resolveContractActivityTabToken([{ eventType: "CONTRACT_OFFER_REJECTED" }], "WITHDRAWN")
-    ).toBe("rejected");
+  it("keeps Activity grey because it has no workflow status", () => {
+    expect(CONTRACT_REFERENCE_TAB_TOKEN).toBe("neutral");
   });
 });

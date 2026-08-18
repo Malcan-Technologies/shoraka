@@ -222,9 +222,9 @@ describe("getIssuerOfferActionCta", () => {
     expect(cta.isAcceptanceChangesRequested).toBe(true);
   });
 
-  it("uses Review Contract Financing Offer for PENDING_ISSUER contract scope", () => {
+  it("uses Review Facility Financing Offer for PENDING_ISSUER contract scope", () => {
     const cta = getIssuerOfferActionCta("PENDING_ISSUER", { scope: "contract" });
-    expect(cta.label).toBe("Review Contract Financing Offer");
+    expect(cta.label).toBe("Review Facility Financing Offer");
     expect(cta.hint).toBeNull();
     expect(cta.buttonVariant).toBe("reviewOffer");
   });

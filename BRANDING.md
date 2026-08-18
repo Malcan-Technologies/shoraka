@@ -276,6 +276,7 @@ Each has one shared implementation. Use it rather than rebuilding.
 | **Loading** | Skeletons shaped like the real content. Never a bare `"Loading…"` string |
 | **Pagination** | Page size, `Showing X–Y of Z`, prev/next. Same component on every list |
 | **Detail page** | Breadcrumb › title + status › key facts › action cluster › tabbed sections |
+| **Entity hero** | Admin entity-detail card in `AdminEntityHeader` (`variant="hero"`). Back link, then a card tinted with a 35% wash of the status-badge fill (`tone` / `adminHeroTintClass`) — lighter than the chip. Identity + up to 3 top-right summary cards, optional progress bar below, facts strip. Used on notes, facilities, issuers, investors, and user accounts — do not rebuild per page |
 | **Destructive confirm** | Names the object and the consequence; confirm button is `destructive`; irreversible actions say so |
 | **Sticky form footer** | Back left, primary right, save state in between. Never scrolls away on long forms |
 

@@ -30,6 +30,7 @@ export function normalizeProspectusWorkflowStatus(
 /**
  * User-facing status. Note and Prospectus must not drift after a successful publish
  * transaction; if they disagree, prefer not treating as Published for investors.
+ * Unlisted leftover PUBLISHED (after unpublish) displays as Draft — re-approval is required.
  */
 export function getProspectusDisplayStatus(input: {
   reviewStatus: string | null | undefined;
@@ -37,7 +38,6 @@ export function getProspectusDisplayStatus(input: {
 }): ProspectusDisplayStatus {
   const workflow = normalizeProspectusWorkflowStatus(input.reviewStatus);
   if (workflow === "PUBLISHED" && input.notePublished) return "Published";
-  if (workflow === "PUBLISHED" && !input.notePublished) return "Approved";
   if (workflow === "APPROVED" && input.notePublished) return "Published";
   if (workflow === "APPROVED") return "Approved";
   return "Draft";

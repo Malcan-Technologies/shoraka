@@ -12,7 +12,7 @@ export function useContractDetail(contractId?: string) {
     queryKey: contractId ? contractsKeys.detail(contractId) : [...contractsKeys.all, "detail", "pending"],
     queryFn: async () => {
       if (!contractId) {
-        throw new Error("Contract ID is required");
+        throw new Error("Facility ID is required");
       }
       const response = await apiClient.getAdminContractDetail(contractId);
       if (!response.success) {

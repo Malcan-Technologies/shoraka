@@ -44,7 +44,7 @@ function OfferStatusBadge({ offerStatus }: { offerStatus: OfferStatus }) {
 
 function InvoiceScopeBadge({ contractId }: { contractId: string | null }) {
   if (contractId) {
-    return <StatusBadge label="Under contract" status="submitted" />;
+    return <StatusBadge label="Under facility" status="submitted" />;
   }
   return <StatusBadge label="Standalone" status="neutral" />;
 }
@@ -310,12 +310,12 @@ export function DashboardInvoiceCard({
                 )}
                 {row.contractId ? (
                   <p className="text-ui leading-7 text-foreground">
-                    <span className="font-normal text-muted-foreground">Contract: </span>
+                    <span className="font-normal text-muted-foreground">Facility: </span>
                     <Link
                       href={`/financing/contracts/${row.contractId}`}
                       className="inline-flex min-w-0 max-w-full items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
                     >
-                      <span className="min-w-0 truncate">View contract</span>
+                      <span className="min-w-0 truncate">View facility</span>
                       <LinkIcon className="h-4 w-4 shrink-0 text-primary" aria-hidden />
                     </Link>
                   </p>

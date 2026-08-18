@@ -69,7 +69,7 @@ export function resolveReviewOfferModalMode(input: {
     ui: "accept_decline",
     canAccept: false,
     blockedMessage:
-      "Finish contract signing first before accepting this invoice offer.",
+      "Finish facility signing first before accepting this invoice offer.",
   };
 }
 

@@ -288,7 +288,7 @@ function PrimitivesHarness() {
           breadcrumb={<span>Applications › #A3F91C2B</span>}
           title="Application #A3F91C2B"
           status={<StatusBadge status="action" label="Offer received" />}
-          facts="Acme Sdn Bhd · Contract financing · submitted 12 Mar 2026"
+          facts="Acme Sdn Bhd · Facility financing · submitted 12 Mar 2026"
           actions={
             <>
               <div className="rounded-xl bg-status-action-bg p-0.5">
@@ -396,7 +396,7 @@ export default function StatusExamplesPage() {
           <p className="mt-1 text-ui text-muted-foreground">
             Dev-only. Six viewer-centric tokens (yellow/blue flip by seat). Indigo and sky are leftover CSS — do not use them on issuer/investor workflow chips.
             {" "}
-            <code className="text-meta">@cashsouk/ui</code>. Admin: raw labels. Issuer: collapsed (e.g. Contract Pending → Under Review).
+            <code className="text-meta">@cashsouk/ui</code>. Admin: raw labels. Issuer: collapsed (e.g. Facility Pending → Under Review).
           </p>
         </header>
 
@@ -476,7 +476,7 @@ export default function StatusExamplesPage() {
 
         <Section title="Badges — Admin view (all)">
           <p className="mb-3 text-sm text-muted-foreground">
-            Raw labels: Contract Pending, Contract Sent, Invoice Pending, etc.
+            Raw labels: Facility Pending, Facility Sent, Invoice Pending, etc.
           </p>
           <div className="flex flex-wrap gap-3">
             {STATUS_EXAMPLE_KEYS.map((key) => {

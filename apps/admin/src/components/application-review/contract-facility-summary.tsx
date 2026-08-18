@@ -22,7 +22,7 @@ export function ContractFacilitySummary({
     <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border bg-muted/20 px-4 py-3">
       <div className="flex flex-wrap items-center gap-6">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">Contract Facility</p>
+          <p className="text-sm font-medium text-muted-foreground">Approved Facility</p>
           <p className="text-[15px] leading-7 font-semibold tabular-nums">
             {formatCurrency(contractFacility)}
           </p>

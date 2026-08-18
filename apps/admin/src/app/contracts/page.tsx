@@ -81,13 +81,13 @@ export default function ContractsPage() {
         <div className="w-full space-y-6 px-2 py-8 md:px-4">
           <section className="space-y-4">
             <AdminPageHeader
-              title="Contracts"
-              description="Track contract status and facility values across issuer organizations"
+              title="Facilities"
+              description="Track facility status and utilisation across issuer organizations"
             />
 
             {error && (
               <div className="text-center py-8 text-destructive">
-                Error loading contracts:{" "}
+                Error loading facilities:{" "}
                 {error instanceof Error ? error.message : "Unknown error"}
               </div>
             )}

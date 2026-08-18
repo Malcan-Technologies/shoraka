@@ -24,13 +24,19 @@ function formatHeaderMoney(value: unknown): string {
   return formatCurrency(amount);
 }
 
+/** End date for the facility hero KPI card. */
+export function getContractHeaderEndDate(
+  contractDetails: Record<string, unknown> | null | undefined
+): string {
+  return formatHeaderDate(contractDetails?.end_date);
+}
+
 /** Compact commercial facts for the contract detail header. Omits created/updated. */
 export function getContractHeaderMetrics(
   contractDetails: Record<string, unknown> | null | undefined
 ): ContractHeaderMetric[] {
   return [
     { label: "Start date", value: formatHeaderDate(contractDetails?.start_date) },
-    { label: "End date", value: formatHeaderDate(contractDetails?.end_date) },
     { label: "Contract value", value: formatHeaderMoney(contractDetails?.value) },
     { label: "Financing", value: formatHeaderMoney(contractDetails?.financing) },
   ];

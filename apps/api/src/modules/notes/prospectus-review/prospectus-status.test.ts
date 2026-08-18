@@ -22,6 +22,9 @@ describe("prospectus status helpers", () => {
     expect(getProspectusDisplayStatus({ reviewStatus: "PUBLISHED", notePublished: true })).toBe(
       "Published"
     );
+    expect(getProspectusDisplayStatus({ reviewStatus: "PUBLISHED", notePublished: false })).toBe(
+      "Draft"
+    );
     expect(formatProspectusListBadge("Draft")).toBe("Prospectus Draft");
     expect(formatProspectusListBadge("Approved")).toBe("Prospectus Approved");
     expect(formatProspectusListBadge("Published")).toBe("Prospectus Published");

@@ -3,7 +3,6 @@ import {
   getProspectusDisplayStatus,
   hasSettlementTrusteeMovementFromPoolSummary,
   isSoukscoreRiskRating,
-  normalizeProspectusWorkflowStatus,
   roundNoteMoney,
   type IssuerResidualPayoutListStatus,
   type NoteProspectusSummary,
@@ -18,18 +17,24 @@ type NoteWithRelations = Prisma.NoteGetPayload<{
 
 function mapProspectusSummary(note: NoteWithRelations): NoteProspectusSummary {
   const review = note.prospectus_review;
-  const notePublished = note.status === "PUBLISHED" || Boolean(note.published_at);
+  const notePublished = note.status === "PUBLISHED";
   const displayStatus = getProspectusDisplayStatus({
     reviewStatus: review?.status ?? "DRAFT",
     notePublished,
   });
+  const status =
+    displayStatus === "Published"
+      ? "PUBLISHED"
+      : displayStatus === "Approved"
+        ? "APPROVED"
+        : "DRAFT";
   return {
-    status: normalizeProspectusWorkflowStatus(review?.status),
+    status,
     displayStatus,
     contentVersion: review?.content_version ?? null,
     lastSavedAt: review?.updated_at?.toISOString() ?? null,
-    approvedAt: review?.approved_at?.toISOString() ?? null,
-    publishedAt: note.published_at?.toISOString() ?? null,
+    approvedAt: status === "DRAFT" ? null : review?.approved_at?.toISOString() ?? null,
+    publishedAt: notePublished ? note.published_at?.toISOString() ?? null : null,
   };
 }
 
@@ -435,6 +440,7 @@ export function mapNoteListItem(note: NoteWithRelations) {
     issuerIndustry: resolveIssuerIndustry(note),
     sourceApplicationId: note.source_application_id,
     sourceContractId: note.source_contract_id,
+    sourceContractDisplayReference: null,
     sourceInvoiceId: note.source_invoice_id,
     issuerOrganizationId: note.issuer_organization_id,
     issuerName: resolveIssuerName(note),

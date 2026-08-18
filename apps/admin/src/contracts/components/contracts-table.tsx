@@ -1,4 +1,8 @@
+"use client";
+
 import * as React from "react";
+import { Skeleton } from "@cashsouk/ui";
+import type { ContractListItem } from "@cashsouk/types";
 import {
   Table,
   TableBody,
@@ -7,10 +11,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Skeleton } from "@cashsouk/ui";
-import { ContractsTableRow } from "./contracts-table-row";
-import type { ContractListItem } from "@cashsouk/types";
+import { SortableTableHead } from "@/shared/admin-list/components/sortable-table-head";
 import { TablePagination } from "@/shared/admin-list/components/table-pagination";
+import { timestampOrNull } from "@/shared/admin-list/table-sort";
+import { useTableSort } from "@/shared/admin-list/use-table-sort";
+import { ContractsTableRow } from "./contracts-table-row";
+
+type ContractsSortColumn = "value" | "utilization" | "updated";
 
 interface ContractsTableProps {
   contracts: ContractListItem[];
@@ -42,6 +49,14 @@ function TableSkeleton() {
   );
 }
 
+function contractsSortValue(contract: ContractListItem, column: ContractsSortColumn): number | null {
+  if (column === "value") return contract.contractValue;
+  if (column === "updated") return timestampOrNull(contract.updatedAt);
+  return contract.approvedFacility > 0
+    ? (contract.utilizedFacility / contract.approvedFacility) * 100
+    : null;
+}
+
 export function ContractsTable({
   contracts,
   loading,
@@ -54,6 +69,10 @@ export function ContractsTable({
   const totalPages = Math.ceil(totalContracts / pageSize);
   const startIndex = (currentPage - 1) * pageSize + 1;
   const endIndex = Math.min(currentPage * pageSize, totalContracts);
+  const { sortedRows, sortColumn, sortDirection, onSort } = useTableSort(
+    contracts,
+    contractsSortValue
+  );
 
   return (
     <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
@@ -61,28 +80,49 @@ export function ContractsTable({
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead className="text-sm font-semibold">Contract Ref</TableHead>
-              <TableHead className="text-sm font-semibold">Contract Number</TableHead>
-              <TableHead className="text-sm font-semibold">Contract Title</TableHead>
+              <TableHead className="text-sm font-semibold">Facility Ref</TableHead>
+              <TableHead className="text-sm font-semibold">Number</TableHead>
+              <TableHead className="text-sm font-semibold">Title</TableHead>
               <TableHead className="text-sm font-semibold">Organization</TableHead>
-              <TableHead className="text-sm font-semibold">Contract Value</TableHead>
-              <TableHead className="text-sm font-semibold">Utilization</TableHead>
+              <SortableTableHead
+                column="value"
+                label="Value"
+                className="text-sm font-semibold"
+                activeColumn={sortColumn}
+                direction={sortDirection}
+                onSort={onSort}
+              />
+              <SortableTableHead
+                column="utilization"
+                label="Utilization"
+                className="text-sm font-semibold"
+                activeColumn={sortColumn}
+                direction={sortDirection}
+                onSort={onSort}
+              />
               <TableHead className="text-sm font-semibold">Status</TableHead>
-              <TableHead className="text-sm font-semibold">Updated</TableHead>
+              <SortableTableHead
+                column="updated"
+                label="Updated"
+                className="text-sm font-semibold"
+                activeColumn={sortColumn}
+                direction={sortDirection}
+                onSort={onSort}
+              />
               <TableHead className="text-sm font-semibold">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableSkeleton />
-            ) : contracts.length === 0 ? (
+            ) : sortedRows.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
-                  No contracts found
+                  No facilities found
                 </TableCell>
               </TableRow>
             ) : (
-              contracts.map((contract) => (
+              sortedRows.map((contract) => (
                 <ContractsTableRow
                   key={contract.id}
                   contract={contract}

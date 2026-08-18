@@ -116,13 +116,13 @@ export class InvoiceService {
   private async verifyContractAccess(contractId: string, userId: string): Promise<any> {
     const contract = await this.contractRepository.findById(contractId);
     if (!contract) {
-      throw new AppError(404, "CONTRACT_NOT_FOUND", "Contract not found");
+      throw new AppError(404, "CONTRACT_NOT_FOUND", "Facility not found");
     }
 
     const organizationId = contract.issuer_organization_id;
     const organization = (contract as any).issuer_organization;
     if (!organization) {
-      throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found for this contract");
+      throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found for this facility");
     }
 
     if (organization.owner_user_id === userId) {
@@ -136,7 +136,7 @@ export class InvoiceService {
     );
 
     if (!member) {
-      throw new AppError(403, "FORBIDDEN", "You do not have access to this contract.");
+      throw new AppError(403, "FORBIDDEN", "You do not have access to this facility.");
     }
 
     return contract;

@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import {
   Table,
@@ -13,6 +15,10 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import { useRouter } from "next/navigation";
 import type { OrganizationResponse, PortalType } from "@cashsouk/types";
+import { orgHref } from "@/lib/admin-directory-hrefs";
+import { SortableTableHead } from "@/shared/admin-list/components/sortable-table-head";
+import { useTableSort } from "@/shared/admin-list/use-table-sort";
+import { organizationsSortValue } from "@/organizations/utils/organizations-table-sort";
 
 interface OrganizationsTableProps {
   portal: PortalType;
@@ -94,12 +100,16 @@ export function OrganizationsTable({
   const endIndex = Math.min(currentPage * pageSize, totalOrganizations);
 
   const router = useRouter();
+  const { sortedRows, sortColumn, sortDirection, onSort } = useTableSort(
+    organizations,
+    organizationsSortValue
+  );
 
   // Investor: 12 columns (risk + sophisticated + deposit + wallet + invested), Issuer: 9 columns
   const columnCount = portal === "investor" ? 12 : 9;
 
   const handleViewDetails = (org: OrganizationResponse) => {
-    router.push(`/organizations/${org.portal}/${org.id}`);
+    router.push(orgHref(org.portal, org.id));
   };
 
   return (
@@ -109,38 +119,107 @@ export function OrganizationsTable({
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="text-sm font-semibold min-w-[180px] max-w-[280px]">Organization</TableHead>
-                <TableHead className="text-sm font-semibold">Type</TableHead>
+                <SortableTableHead
+                  column="organization"
+                  label="Organization"
+                  className="min-w-[180px] max-w-[280px]"
+                  activeColumn={sortColumn}
+                  direction={sortDirection}
+                  onSort={onSort}
+                />
+                <SortableTableHead
+                  column="type"
+                  label="Type"
+                  activeColumn={sortColumn}
+                  direction={sortDirection}
+                  onSort={onSort}
+                />
                 <TableHead className="text-sm font-semibold">Onboarding</TableHead>
-                <TableHead className="text-sm font-semibold">Risk</TableHead>
+                <SortableTableHead
+                  column="risk"
+                  label="Risk"
+                  activeColumn={sortColumn}
+                  direction={sortDirection}
+                  onSort={onSort}
+                />
                 {portal === "investor" && (
                   <>
-                    <TableHead className="text-sm font-semibold">Sophisticated</TableHead>
-                    <TableHead className="text-sm font-semibold">Deposit</TableHead>
-                    <TableHead className="text-sm font-semibold text-right">Wallet</TableHead>
-                    <TableHead className="text-sm font-semibold text-right">Invested</TableHead>
+                    <SortableTableHead
+                      column="sophisticated"
+                      label="Sophisticated"
+                      activeColumn={sortColumn}
+                      direction={sortDirection}
+                      onSort={onSort}
+                    />
+                    <SortableTableHead
+                      column="deposit"
+                      label="Deposit"
+                      activeColumn={sortColumn}
+                      direction={sortDirection}
+                      onSort={onSort}
+                    />
+                    <SortableTableHead
+                      column="wallet"
+                      label="Wallet"
+                      className="text-right [&>button]:ml-auto"
+                      activeColumn={sortColumn}
+                      direction={sortDirection}
+                      onSort={onSort}
+                    />
+                    <SortableTableHead
+                      column="invested"
+                      label="Invested"
+                      className="text-right [&>button]:ml-auto"
+                      activeColumn={sortColumn}
+                      direction={sortDirection}
+                      onSort={onSort}
+                    />
                   </>
                 )}
                 {portal === "issuer" && (
-                  <TableHead className="text-sm font-semibold">Onboarding Fee</TableHead>
+                  <SortableTableHead
+                    column="onboardingFee"
+                    label="Onboarding Fee"
+                    activeColumn={sortColumn}
+                    direction={sortDirection}
+                    onSort={onSort}
+                  />
                 )}
-                <TableHead className="text-sm font-semibold">Members</TableHead>
-                <TableHead className="text-sm font-semibold">Created</TableHead>
-                <TableHead className="text-sm font-semibold">Updated</TableHead>
+                <SortableTableHead
+                  column="members"
+                  label="Members"
+                  activeColumn={sortColumn}
+                  direction={sortDirection}
+                  onSort={onSort}
+                />
+                <SortableTableHead
+                  column="created"
+                  label="Created"
+                  activeColumn={sortColumn}
+                  direction={sortDirection}
+                  onSort={onSort}
+                />
+                <SortableTableHead
+                  column="updated"
+                  label="Updated"
+                  activeColumn={sortColumn}
+                  direction={sortDirection}
+                  onSort={onSort}
+                />
                 <TableHead className="text-sm font-semibold">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableSkeleton portal={portal} />
-              ) : organizations.length === 0 ? (
+              ) : sortedRows.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={columnCount} className="text-center py-10 text-muted-foreground">
-                    No organizations found
+                    {portal === "issuer" ? "No issuers found" : "No investors found"}
                   </TableCell>
                 </TableRow>
               ) : (
-                organizations.map((org) => (
+                sortedRows.map((org) => (
                   <OrganizationsTableRow
                     key={`${org.portal}-${org.id}`}
                     organization={org}

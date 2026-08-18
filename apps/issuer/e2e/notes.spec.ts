@@ -19,7 +19,7 @@ async function expectFinancingNotesSurface(page: import("@playwright/test").Page
     await expect(page.getByRole("tab", { name: /Notes/i })).toBeVisible();
     await expect(
       page.getByText(
-        /Your contracts, invoices, and notes|Search notes|No notes yet|notes across all products/i
+        /Your facilities, invoices, and notes|Search notes|No notes yet|notes across all products/i
       )
     ).toBeVisible();
   }
