@@ -99,6 +99,9 @@ export function buildAcceptanceDocumentsStepConfig(
         allow_multiple: row.allow_multiple,
         allowed_types: row.allowed_types,
         ...(row.template ? { template: row.template } : {}),
+        ...(row.generated_document_type
+          ? { generated_document_type: row.generated_document_type }
+          : {}),
       })),
     },
   };

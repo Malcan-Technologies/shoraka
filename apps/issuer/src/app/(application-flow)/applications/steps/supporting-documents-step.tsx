@@ -27,7 +27,9 @@ import { useDevTools } from "@/app/(application-flow)/applications/components/de
 import {
   acceptanceDocScopeKeyMatchesRow,
   slugForAcceptanceDocName,
+  type GeneratedDocumentTypeKey,
 } from "@cashsouk/types";
+import { downloadGeneratedDocument } from "@/lib/download-generated-document";
 import {
   Dialog,
   DialogClose,
@@ -225,6 +227,7 @@ type RawWorkflowDoc = {
   name?: string;
   allow_multiple?: boolean;
   template?: { s3_key?: string };
+  generated_document_type?: GeneratedDocumentTypeKey;
   allowed_types?: unknown;
   required?: boolean;
 };
@@ -233,6 +236,7 @@ export type SupportingCategoryDocument = {
   title: string;
   allowMultiple: boolean;
   template?: { s3_key?: string };
+  generatedDocumentType?: GeneratedDocumentTypeKey;
   allowedTypes: string[];
   required: boolean;
   workflowDocumentIndex: number;
@@ -444,6 +448,7 @@ export function SupportingDocumentsStep({
           title: doc?.name ?? "—",
           allowMultiple: doc?.allow_multiple === true,
           template: doc?.template,
+          generatedDocumentType: doc?.generated_document_type,
           allowedTypes: resolveIssuerAllowedTypes(doc ?? {}),
           required: doc?.required !== false,
           workflowDocumentIndex,
@@ -477,6 +482,45 @@ export function SupportingDocumentsStep({
       return mode ? "multiple" : "single";
     },
     [categories]
+  );
+
+  const handleDownloadTemplate = React.useCallback(
+    async (document: SupportingCategoryDocument) => {
+      const generatedType = document.generatedDocumentType;
+      if (generatedType) {
+        await downloadGeneratedDocument({
+          applicationId,
+          typeKey: generatedType,
+          getAccessToken,
+        });
+        return;
+      }
+
+      const templateS3Key = document.template?.s3_key?.trim();
+      if (!templateS3Key) return;
+
+      const token = await getAccessToken();
+      if (!token) {
+        toast.error("Authentication required");
+        return;
+      }
+
+      const resp = await fetch(`${API_URL}/v1/s3/download-url`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ s3Key: templateS3Key }),
+      });
+      const j = await resp.json().catch(() => null);
+      if (j?.success && j.data?.downloadUrl) {
+        window.open(j.data.downloadUrl, "_blank");
+      } else {
+        toast.error("Could not download template");
+      }
+    },
+    [applicationId, getAccessToken]
   );
 
 
@@ -1076,6 +1120,9 @@ export function SupportingDocumentsStep({
                       const fileList = uploadedFiles[key] ?? [];
                       const hasFiles = fileList.length > 0;
                       const templateS3Key = document.template?.s3_key;
+                      const generatedDocumentType = document.generatedDocumentType;
+                      const showTemplateDownload =
+                        Boolean(templateS3Key?.trim()) || Boolean(generatedDocumentType);
                       const groupKey =
                         category.groupKey ??
                         Object.keys(stepConfig?.config || {})[categoryIndex] ??
@@ -1341,7 +1388,7 @@ export function SupportingDocumentsStep({
                                   : "flex-col gap-1 lg:self-start lg:border-t-0 lg:pt-0 lg:min-w-[12rem] lg:w-[12rem] lg:shrink-0 lg:border-l lg:border-border lg:pl-3"
                               )}
                             >
-                              {templateS3Key ? (
+                              {showTemplateDownload ? (
                                 <button
                                   type="button"
                                   disabled={!isEditable}
@@ -1349,21 +1396,9 @@ export function SupportingDocumentsStep({
                                     docActionLinkClass,
                                     isEditable ? supportingDocTemplateOn : supportingDocActionOff
                                   )}
-                                  onClick={async () => {
+                                  onClick={() => {
                                     if (!isEditable) return;
-                                    const token = await getAccessToken();
-                                    const resp = await fetch(`${API_URL}/v1/s3/download-url`, {
-                                      method: "POST",
-                                      headers: {
-                                        Authorization: `Bearer ${token}`,
-                                        "Content-Type": "application/json",
-                                      },
-                                      body: JSON.stringify({ s3Key: templateS3Key }),
-                                    });
-                                    const j = await resp.json();
-                                    if (j?.success && j.data?.downloadUrl) {
-                                      window.open(j.data.downloadUrl, "_blank");
-                                    }
+                                    void handleDownloadTemplate(document);
                                   }}
                                 >
                                   <ArrowDownTrayIcon className="h-3.5 w-3.5 shrink-0" />

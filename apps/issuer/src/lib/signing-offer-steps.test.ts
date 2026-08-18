@@ -1,5 +1,6 @@
 import {
   compareSigningOfferStepOrder,
+  buildAcceptanceDocumentsStepConfig,
   getCurrentSigningOfferStepId,
   getSigningOfferStepIndex,
   getSigningOfferSteps,
@@ -100,6 +101,28 @@ describe("hasAcceptanceDocuments", () => {
         },
       ])
     ).toBe(false);
+  });
+});
+
+describe("buildAcceptanceDocumentsStepConfig", () => {
+  it("includes generated_document_type on acceptance rows", () => {
+    const config = buildAcceptanceDocumentsStepConfig([
+      {
+        id: "financing_type_1",
+        config: {
+          acceptance_documents: [
+            {
+              name: "Letter of Offer",
+              generated_document_type: "arf_contract_facility_loo",
+            },
+          ],
+        },
+      },
+    ]);
+
+    const rows = config.config.acceptance_documents as Array<Record<string, unknown>>;
+    expect(rows[0]?.generated_document_type).toBe("arf_contract_facility_loo");
+    expect(rows[0]?.template).toBeUndefined();
   });
 });
 
