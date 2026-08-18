@@ -11,6 +11,7 @@ import {
   ACCOUNT_SCOPED_MODULE_CODES,
   ORGANIZATION_MODULE_CODES,
   PRODUCT_SCOPED_MODULE_CODES,
+  RECEIPT_MODULE_CODES,
 } from "./types";
 import { normalizeAndValidateProductCode } from "./product-code";
 import { generateSecureSuffix } from "./suffix";
@@ -48,6 +49,12 @@ function isOrganizationModuleInput(
   input: GenerateDisplayReferenceInput
 ): input is Extract<GenerateDisplayReferenceInput, { moduleCode: "ISS" | "IVT" }> {
   return (ORGANIZATION_MODULE_CODES as readonly string[]).includes(input.moduleCode);
+}
+
+function isReceiptModuleInput(
+  input: GenerateDisplayReferenceInput
+): input is Extract<GenerateDisplayReferenceInput, { moduleCode: "RCP" }> {
+  return (RECEIPT_MODULE_CODES as readonly string[]).includes(input.moduleCode);
 }
 
 function allocationUsesProductCode(input: AllocateDisplayReferenceBaseInput): boolean {
@@ -99,6 +106,17 @@ export function generateDisplayReference(input: GenerateDisplayReferenceInput): 
       const maybeCode = inputRecord.productCode;
       if (typeof maybeCode === "string" && maybeCode.trim().length > 0) {
         throw new Error("Organization references must not include a product code.");
+      }
+    }
+    return `${input.moduleCode}-${yearMonth}-${suffix}`;
+  }
+
+  if (isReceiptModuleInput(input)) {
+    const inputRecord = input as unknown as Record<string, unknown>;
+    if ("productCode" in inputRecord) {
+      const maybeCode = inputRecord.productCode;
+      if (typeof maybeCode === "string" && maybeCode.trim().length > 0) {
+        throw new Error("Receipt references must not include a product code.");
       }
     }
     return `${input.moduleCode}-${yearMonth}-${suffix}`;
@@ -190,7 +208,7 @@ async function resolveExistingEntityAllocation(
     }
   } else if (existing.product_code != null) {
     throw new DisplayReferenceConflictError(
-      `Display reference allocation conflict for ${input.entityType}:${input.entityId}. Existing allocation has product code ${existing.product_code} but account/organization modules must not use product codes.`
+      `Display reference allocation conflict for ${input.entityType}:${input.entityId}. Existing allocation has product code ${existing.product_code} but this module must not use product codes.`
     );
   }
 
@@ -294,6 +312,8 @@ function baseInputFromAllocationInput(
     case "ISS":
     case "IVT":
       return { moduleCode, referenceDate, entityType, entityId };
+    case "RCP":
+      return { moduleCode: "RCP", referenceDate, entityType, entityId };
     default: {
       const unsupported: never = moduleCode;
       throw new Error(`Unsupported display reference module: ${unsupported}`);

@@ -1161,15 +1161,6 @@ model GatewayPaymentReceipt {
   @@map("gateway_payment_receipts")
 }
 
-/// Daily running sequence for RCP-YYYYMMDD-NNN receipt numbers (Asia/Kuala_Lumpur date).
-model ReceiptDailyCounter {
-  date_key   String   @id
-  last_value Int      @default(0)
-  updated_at DateTime @updatedAt
-
-  @@map("receipt_daily_counters")
-}
-
 /// Durable checkpoint for a Curlec order-create attempt. Written before the
 /// remote Curlec call and updated with the remote order id immediately after
 /// success, so a failed local GatewayPayment insert can recover the same order

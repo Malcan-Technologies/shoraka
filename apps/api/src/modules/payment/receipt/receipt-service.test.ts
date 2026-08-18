@@ -85,6 +85,7 @@ function createDbMock(overrides?: {
   };
 
   const existing = overrides?.existingReceipt ?? null;
+  let currentReceipt: Record<string, unknown> | null = existing;
 
   return {
     gatewayPayment: {
@@ -95,28 +96,30 @@ function createDbMock(overrides?: {
       findUnique: jest.fn(async () => null),
     },
     gatewayPaymentReceipt: {
-      findUnique: jest.fn(async () => existing),
+      findUnique: jest.fn(async () => currentReceipt),
       findMany: jest.fn(async () => []),
-      create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({
-        ...receiptRow,
-        ...data,
-      })),
-      update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({
-        ...receiptRow,
-        ...existing,
-        ...data,
-      })),
+      create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
+        currentReceipt = { ...receiptRow, ...data };
+        return currentReceipt;
+      }),
+      update: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
+        currentReceipt = { ...receiptRow, ...currentReceipt, ...data };
+        return currentReceipt;
+      }),
     },
     $transaction: jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
       const tx = {
         gatewayPaymentReceipt: {
-          findUnique: jest.fn(async () => existing),
-          create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({
-            ...receiptRow,
-            ...data,
-          })),
+          findUnique: jest.fn(async () => currentReceipt),
+          create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
+            currentReceipt = { ...receiptRow, ...data };
+            return currentReceipt;
+          }),
         },
-        $queryRaw: jest.fn(async () => [{ last_value: 1 }]),
+        displayReferenceAllocation: {
+          create: jest.fn(async () => ({})),
+          findUnique: jest.fn(async () => null),
+        },
       };
       return fn(tx);
     }),
@@ -181,13 +184,68 @@ describe("generateGatewayPaymentReceipt", () => {
 
     expect(result?.status).toBe(GatewayPaymentReceiptStatus.GENERATED);
     expect(result?.purpose_label).toBe("Issuer Registration Fee");
+    expect(result?.receipt_number).toMatch(/^RCP-202608-[A-Z0-9]{3}$/);
     expect(renderReceiptHtmlToPdfBuffer).toHaveBeenCalledTimes(1);
     expect(putS3ObjectBuffer).toHaveBeenCalledWith(
       expect.objectContaining({
-        key: "receipts/2026/08/RCP-20260803-001.pdf",
+        key: expect.stringMatching(/^receipts\/2026\/08\/RCP-202608-[A-Z0-9]{3}\.pdf$/),
         contentType: "application/pdf",
       })
     );
+  });
+
+  it("reloads the winner outside the transaction when create hits a unique constraint", async () => {
+    const db = createDbMock();
+    const winner = {
+      id: "rcp_winner",
+      receipt_number: "RCP-202608-WIN",
+      gateway_payment_id: "pay_1",
+      payment_purpose: GatewayPaymentPurpose.ISSUER_ONBOARDING_FEE,
+      purpose_label: "Issuer Registration Fee",
+      status: GatewayPaymentReceiptStatus.GENERATED,
+      pdf_s3_key: "receipts/2026/08/RCP-202608-WIN.pdf",
+      merchant_snapshot: null,
+      amount: { toNumber: () => 150 },
+      currency: "MYR",
+      payment_method: "fpx",
+      payment_date: new Date("2026-08-03T02:00:00.000Z"),
+      curlec_payment_id: "pay_curlec_1",
+      curlec_order_id: "order_1",
+      related_reference: "SSM-1",
+      payer_name: null,
+      payer_company_name: "Issuer Co",
+      payer_email: null,
+      payer_phone: null,
+      wallet_credited: false,
+      created_at: new Date("2026-08-03T02:00:00.000Z"),
+    };
+    const allocationCreate = jest.fn(async () => ({}));
+    db.gatewayPaymentReceipt.findUnique = jest
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(winner);
+    db.$transaction = jest.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
+      const tx = {
+        gatewayPaymentReceipt: {
+          findUnique: jest.fn(async () => null),
+          create: jest.fn(async () => {
+            throw { code: "P2002", meta: { target: ["gateway_payment_id"] } };
+          }),
+        },
+        displayReferenceAllocation: {
+          create: allocationCreate,
+          findUnique: jest.fn(async () => null),
+        },
+      };
+      return fn(tx);
+    });
+
+    const result = await generateGatewayPaymentReceipt("pay_1", db as never);
+
+    expect(result?.receipt_number).toBe("RCP-202608-WIN");
+    expect(allocationCreate).toHaveBeenCalledTimes(1);
+    expect(db.$transaction).toHaveBeenCalledTimes(1);
+    expect(renderReceiptHtmlToPdfBuffer).not.toHaveBeenCalled();
   });
 
   it("does not regenerate when a PDF was already issued", async () => {
@@ -229,7 +287,7 @@ describe("generateGatewayPaymentReceipt", () => {
 
     const result = await generateGatewayPaymentReceipt("pay_1", db as never);
     expect(result?.status).toBe(GatewayPaymentReceiptStatus.FAILED);
-    expect(result?.receipt_number ?? "RCP-20260803-001").toBe("RCP-20260803-001");
+    expect(result?.receipt_number).toMatch(/^RCP-202608-[A-Z0-9]{3}$/);
     expect(db.gatewayPaymentReceipt.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({

@@ -54,6 +54,16 @@ describe("display-reference generator", () => {
     }
   );
 
+  it("generates receipt format without product segment", () => {
+    const ref = generateDisplayReference({
+      moduleCode: "RCP",
+      referenceDate: new Date("2026-08-10T01:00:00Z"),
+    });
+    expect(ref).toMatch(/^RCP-202608-[A-Z0-9]{3}$/);
+    expect(ref).not.toMatch(/^RCP-\d{8}-/);
+    expect(ref).not.toContain("-ARF-");
+  });
+
   it("fails when product-scoped module has no product code", () => {
     expect(() =>
       generateDisplayReference({
@@ -81,6 +91,16 @@ describe("display-reference generator", () => {
         referenceDate: new Date("2026-08-10T01:00:00Z"),
       } as unknown as any)
     ).toThrow("must not include a product code");
+  });
+
+  it("rejects product code for receipt module at runtime", () => {
+    expect(() =>
+      generateDisplayReference({
+        moduleCode: "RCP",
+        productCode: "ARF",
+        referenceDate: new Date("2026-08-10T01:00:00Z"),
+      } as unknown as any)
+    ).toThrow("Receipt references must not include a product code.");
   });
 
   it("uses Malaysia timezone for YYYYMM boundaries", () => {
@@ -197,6 +217,30 @@ describe("display-reference allocator", () => {
 
     expect(ref).toMatch(/^ISS-202608-[A-Z0-9]{3}$/);
     expect(tx.displayReferenceAllocation.create.mock.calls[0][0].data.product_code).toBeNull();
+  });
+
+  it("stores null product_code for receipt modules", async () => {
+    const persist = jest.fn(async () => undefined);
+    const tx = {
+      displayReferenceAllocation: {
+        create: jest.fn(async () => ({})),
+        findUnique: jest.fn(async () => null),
+      },
+    };
+    const input: AllocateDisplayReferenceInput = {
+      moduleCode: "RCP",
+      referenceDate: new Date("2026-08-10T01:00:00.000Z"),
+      entityType: "gateway_payment_receipt",
+      entityId: "rcp_1",
+      tx: tx as any,
+    };
+
+    const ref = await allocateDisplayReference(input, persist);
+
+    expect(ref).toMatch(/^RCP-202608-[A-Z0-9]{3}$/);
+    expect(tx.displayReferenceAllocation.create.mock.calls[0][0].data.product_code).toBeNull();
+    expect(tx.displayReferenceAllocation.create.mock.calls[0][0].data.module_code).toBe("RCP");
+    expect(persist).toHaveBeenCalledWith(tx, ref);
   });
 
   it("retries on unique collisions and succeeds", async () => {

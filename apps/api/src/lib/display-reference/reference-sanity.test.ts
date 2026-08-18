@@ -12,6 +12,7 @@ const mockDb: any = {
   withdrawalInstruction: { findMany: jest.fn() },
   issuerOrganization: { findMany: jest.fn() },
   investorOrganization: { findMany: jest.fn() },
+  gatewayPaymentReceipt: { findMany: jest.fn(), findUnique: jest.fn() },
 };
 
 describe("checkDisplayReferenceSanity", () => {
@@ -25,6 +26,8 @@ describe("checkDisplayReferenceSanity", () => {
     mockDb.withdrawalInstruction.findMany.mockResolvedValue([]);
     mockDb.issuerOrganization.findMany.mockResolvedValue([]);
     mockDb.investorOrganization.findMany.mockResolvedValue([]);
+    mockDb.gatewayPaymentReceipt.findMany.mockResolvedValue([]);
+    mockDb.gatewayPaymentReceipt.findUnique.mockResolvedValue(null);
   });
 
   it("flags malformed allocations and module mismatches", async () => {
@@ -68,5 +71,72 @@ describe("checkDisplayReferenceSanity", () => {
     expect(report.issues.some((issue) => issue.code === "ORGANIZATION_HAS_PRODUCT_CODE")).toBe(
       true
     );
+  });
+
+  it("accepts canonical RCP allocations and ignores legacy daily receipt numbers", async () => {
+    mockDb.displayReferenceAllocation.findMany.mockResolvedValue([
+      {
+        id: "alloc_rcp",
+        display_reference: "RCP-202608-K7P",
+        module_code: "RCP",
+        product_code: null,
+        entity_type: "gateway_payment_receipt",
+        entity_id: "rcp_new",
+        allocated_at: new Date(),
+      },
+    ]);
+    mockDb.gatewayPaymentReceipt.findUnique.mockResolvedValue({
+      receipt_number: "RCP-202608-K7P",
+    });
+    mockDb.gatewayPaymentReceipt.findMany.mockResolvedValue([
+      { id: "rcp_new", receipt_number: "RCP-202608-K7P" },
+      { id: "rcp_old", receipt_number: "RCP-20260803-001" },
+    ]);
+    mockDb.application.findUnique = jest.fn();
+    mockDb.contract.findUnique = jest.fn();
+    mockDb.invoice.findUnique = jest.fn();
+    mockDb.note.findUnique = jest.fn();
+    mockDb.noteSettlement.findUnique = jest.fn();
+    mockDb.withdrawalInstruction.findUnique = jest.fn();
+    mockDb.issuerOrganization.findUnique = jest.fn();
+    mockDb.investorOrganization.findUnique = jest.fn();
+
+    const report = await checkDisplayReferenceSanity(mockDb);
+
+    expect(report.ok).toBe(true);
+    expect(report.issues.some((issue) => issue.code === "ALLOCATION_ROW_MISSING")).toBe(false);
+  });
+
+  it("flags product_code on RCP allocations", async () => {
+    mockDb.displayReferenceAllocation.findMany.mockResolvedValue([
+      {
+        id: "alloc_rcp",
+        display_reference: "RCP-202608-K7P",
+        module_code: "RCP",
+        product_code: "ARF",
+        entity_type: "gateway_payment_receipt",
+        entity_id: "rcp_new",
+        allocated_at: new Date(),
+      },
+    ]);
+    mockDb.gatewayPaymentReceipt.findUnique.mockResolvedValue({
+      receipt_number: "RCP-202608-K7P",
+    });
+    mockDb.gatewayPaymentReceipt.findMany.mockResolvedValue([
+      { id: "rcp_new", receipt_number: "RCP-202608-K7P" },
+    ]);
+    mockDb.application.findUnique = jest.fn();
+    mockDb.contract.findUnique = jest.fn();
+    mockDb.invoice.findUnique = jest.fn();
+    mockDb.note.findUnique = jest.fn();
+    mockDb.noteSettlement.findUnique = jest.fn();
+    mockDb.withdrawalInstruction.findUnique = jest.fn();
+    mockDb.issuerOrganization.findUnique = jest.fn();
+    mockDb.investorOrganization.findUnique = jest.fn();
+
+    const report = await checkDisplayReferenceSanity(mockDb);
+
+    expect(report.ok).toBe(false);
+    expect(report.issues.some((issue) => issue.code === "RECEIPT_HAS_PRODUCT_CODE")).toBe(true);
   });
 });
