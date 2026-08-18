@@ -16,6 +16,9 @@ import { z } from "zod";
 import { logApplicationActivity } from "./logs/service";
 import { ActivityPortal } from "./logs/types";
 import { readSigningCloudConfigFromEnv } from "../signingcloud/signingcloud-api";
+import {
+  createGeneratedDocumentApplicationRouter,
+} from "../generated-documents/controller";
 
 /**
  * Get authenticated user ID from request
@@ -550,6 +553,11 @@ export function createApplicationRouter(): Router {
         next(e);
       }
     }
+  );
+  router.use(
+    "/:id/generated-documents",
+    requireAuth,
+    createGeneratedDocumentApplicationRouter()
   );
   router.delete("/:id/document", requireAuth, deleteDocument);
   router.patch("/:id/step", requireAuth, updateApplicationStep);

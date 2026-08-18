@@ -20,6 +20,10 @@ export function resolveContractLooTemplatePath(): string {
   );
 }
 
+export function readContractLooTemplateBytes(): Buffer {
+  return fs.readFileSync(resolveContractLooTemplatePath());
+}
+
 export function renderContractLooDocx(data: ContractLooMergeData): Buffer {
   const templatePath = resolveContractLooTemplatePath();
   const content = fs.readFileSync(templatePath);

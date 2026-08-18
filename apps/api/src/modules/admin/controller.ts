@@ -1,4 +1,7 @@
-import { Router, Request, Response, NextFunction } from "express";
+import {
+  createAdminGeneratedDocumentApplicationRouter,
+  createGeneratedDocumentCatalogRouter,
+} from "../generated-documents/controller";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AdminService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
@@ -2394,6 +2397,18 @@ router.get(
       next(error);
     }
   }
+);
+
+router.use(
+  "/generated-document-types",
+  requirePermission("applications.view"),
+  createGeneratedDocumentCatalogRouter()
+);
+
+router.use(
+  "/applications/:id/generated-documents",
+  requirePermission("applications.view"),
+  createAdminGeneratedDocumentApplicationRouter()
 );
 
 /**
