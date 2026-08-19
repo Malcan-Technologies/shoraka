@@ -13,6 +13,7 @@ export function legalDocumentsReviewCopy(mode: LegalDocumentsReviewMode): {
   title: string;
   description: string;
   buttonLabel: string;
+  cardInstruction: string;
   nonOwnerDescription: string;
   emptyTitle: string;
   emptyDescription: string;
@@ -22,7 +23,9 @@ export function legalDocumentsReviewCopy(mode: LegalDocumentsReviewMode): {
       title: "Updated legal documents",
       description:
         "Some legal documents have been updated. Please review and accept them before starting new transactions. Your account remains active.",
-      buttonLabel: "Accept updated documents",
+      buttonLabel: "Accept and proceed",
+      cardInstruction:
+        "Open each document, confirm you accept it, then continue.",
       nonOwnerDescription:
         "Your organization owner must accept these documents before new transactions can begin.",
       emptyTitle: "No updated documents",
@@ -34,6 +37,7 @@ export function legalDocumentsReviewCopy(mode: LegalDocumentsReviewMode): {
     title: "Legal documents",
     description: "Review and accept each required document to continue onboarding.",
     buttonLabel: "Accept and Continue",
+    cardInstruction: "Open each document, confirm you accept it, then continue.",
     nonOwnerDescription:
       "Your organization owner must accept these documents before onboarding can continue.",
     emptyTitle: "Legal documents unavailable",

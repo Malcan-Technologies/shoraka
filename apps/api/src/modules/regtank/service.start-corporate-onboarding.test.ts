@@ -66,6 +66,10 @@ jest.mock("../../lib/prisma", () => ({
   },
 }));
 
+jest.mock("../payment/onboarding-fee-service", () => ({
+  assertIssuerOnboardingFeePaid: jest.fn(),
+}));
+
 jest.mock("../../config/regtank", () => ({
   getRegTankConfig: () => ({
     redirectUrlInvestor: "https://investor.example.com",
@@ -706,5 +710,32 @@ describe("RegTankService.startCorporateOnboarding company auto-regeneration", ()
     const result = await service.startPersonalOnboarding(makeReq(), "USR01", "org-personal-1", "investor");
     expect(result.requestId).toBe("LD001");
     expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows an organization member to start corporate verification", async () => {
+    mockFindInvestorOrganizationById.mockResolvedValue({
+      ...makeCompanyOrg(),
+      members: [{ user_id: "MEM01" }],
+    });
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({ status: "URL_GENERATED", verify_link_expires_at: nowPlus(120_000) })
+    );
+    mockUserFindUnique.mockResolvedValue({
+      user_id: "MEM01",
+      email: "member@test.com",
+      first_name: "Org",
+      last_name: "Member",
+    });
+
+    const service = new RegTankService();
+    const result = await service.startCorporateOnboarding(
+      makeReq(),
+      "MEM01",
+      "org-company-1",
+      "investor",
+      "Company Org"
+    );
+
+    expect(result.requestId).toBe("COD0001");
   });
 });

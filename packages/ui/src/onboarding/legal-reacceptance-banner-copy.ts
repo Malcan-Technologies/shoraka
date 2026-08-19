@@ -1,26 +1,21 @@
 export type LegalReacceptancePortal = "issuer" | "investor";
 
-export function legalReacceptanceBannerTitle(isOwner: boolean): string {
-  return isOwner
-    ? "Legal documents require your attention"
-    : "Legal documents require acceptance";
+export function legalReacceptanceBannerTitle(_isOwner: boolean): string {
+  return "Legal documents require your attention";
 }
 
 export function legalReacceptanceBannerDescription(
   portalType: LegalReacceptancePortal,
-  isOwner: boolean
+  _isOwner: boolean
 ): string {
-  if (!isOwner) {
-    return "Your organization owner must review and accept the latest legal documents before new transactions can begin.";
-  }
   if (portalType === "issuer") {
     return "Review and accept the latest documents before starting a new financing application.";
   }
   return "Review and accept the latest documents before making a new investment.";
 }
 
-export function legalReacceptanceBannerCtaLabel(isOwner: boolean): string {
-  return isOwner ? "Review documents" : "View documents";
+export function legalReacceptanceBannerCtaLabel(_isOwner: boolean): string {
+  return "Review documents";
 }
 
 /** Horizontal padding aligned with each portal’s dashboard gutters. */

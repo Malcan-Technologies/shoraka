@@ -66,6 +66,25 @@ type ResolvedCompanyOnboardingResponse = {
   expiredIn: number;
 };
 
+type OrgAccessRow = {
+  owner_user_id: string;
+  members?: { user_id: string }[];
+};
+
+function assertOrganizationMemberOrOwner(
+  organization: OrgAccessRow | null,
+  userId: string
+): asserts organization is OrgAccessRow {
+  if (!organization) {
+    throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found");
+  }
+  const isOwner = organization.owner_user_id === userId;
+  const isMember = organization.members?.some((member) => member.user_id === userId) === true;
+  if (!isOwner && !isMember) {
+    throw new AppError(403, "FORBIDDEN", "You do not have access to this organization");
+  }
+}
+
 const REUSABLE_PERSONAL_ONBOARDING_STATUSES = new Set<string>([
   "URL_GENERATED",
   "IN_PROGRESS",
@@ -888,14 +907,7 @@ export class RegTankService {
         ? await this.organizationRepository.findInvestorOrganizationById(organizationId)
         : await this.organizationRepository.findIssuerOrganizationById(organizationId);
 
-    if (!organization) {
-      throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found");
-    }
-
-    // Verify user owns the organization
-    if (organization.owner_user_id !== userId) {
-      throw new AppError(403, "FORBIDDEN", "Only the organization owner can start onboarding");
-    }
+    assertOrganizationMemberOrOwner(organization, userId);
 
     // Check if organization is already completed
     if (organization.onboarding_status === OnboardingStatus.COMPLETED) {
@@ -1380,14 +1392,7 @@ export class RegTankService {
         ? await this.organizationRepository.findInvestorOrganizationById(organizationId)
         : await this.organizationRepository.findIssuerOrganizationById(organizationId);
 
-    if (!organization) {
-      throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found");
-    }
-
-    // Verify user owns the organization
-    if (organization.owner_user_id !== userId) {
-      throw new AppError(403, "FORBIDDEN", "Only the organization owner can start onboarding");
-    }
+    assertOrganizationMemberOrOwner(organization, userId);
 
     // Check if organization is already completed
     if (organization.onboarding_status === OnboardingStatus.COMPLETED) {
@@ -2963,15 +2968,13 @@ export class RegTankService {
       );
     }
 
-    // Verify access
+    // Verify access — any owner or member can restart verification
     const organization =
       portalType === "investor"
         ? await this.organizationRepository.findInvestorOrganizationById(organizationId)
         : await this.organizationRepository.findIssuerOrganizationById(organizationId);
 
-    if (!organization || organization.owner_user_id !== userId) {
-      throw new AppError(403, "FORBIDDEN", "Only the organization owner can retry onboarding");
-    }
+    assertOrganizationMemberOrOwner(organization, userId);
 
     if (portalType === "issuer") {
       await assertIssuerOnboardingFeePaid(prisma, organizationId);

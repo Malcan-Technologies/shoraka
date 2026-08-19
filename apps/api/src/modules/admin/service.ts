@@ -166,7 +166,11 @@ import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-deta
 import { assertMaturityForSendInvoiceOffer } from "../products/validate-financial-config";
 import { extractSubmittedAtFromWebhookPayloads } from "./extract-submitted-at";
 import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
-import { patchOfferAcceptance } from "../applications/offer-acceptance";
+import { patchOfferAcceptance, patchOfferAcceptanceUnchecked } from "../applications/offer-acceptance";
+import {
+  hasAnyRejectedAcceptanceDocumentItems,
+  shouldRestoreWithdrawnOfferForAcceptanceReview,
+} from "../applications/acceptance-document-review-sync";
 import {
   acceptanceDeadlinePatchOnChangesRequested,
   buildOfferAcceptanceOnSend,
@@ -7434,6 +7438,114 @@ export class AdminService {
   }
 
   /**
+   * When reviewers unwind an acceptance-doc rejection (Set to Pending / approve), restore offers
+   * that were withdrawn by the legacy per-item reject path so phase sync can proceed.
+   */
+  private async maybeRestoreOfferAfterAcceptanceDocumentRejectionUnwind(
+    applicationId: string,
+    application: {
+      financing_type?: unknown;
+      product_version?: number | null;
+      acceptance_documents?: unknown;
+      contract?: {
+        id: string;
+        status: string;
+        withdraw_reason?: WithdrawReason | null;
+        offer_details?: unknown;
+      } | null;
+      invoices?: Array<{
+        id: string;
+        status: string;
+        contract_id?: string | null;
+        withdraw_reason?: WithdrawReason | null;
+        offer_details?: unknown;
+      }>;
+      application_review_items?: Array<{ item_type: string; item_id: string; status: string }>;
+    }
+  ): Promise<void> {
+    const workflow = await this.loadApplicationProductWorkflow(application);
+    if (!workflowUsesOfferAcceptanceFlow(workflow)) {
+      return;
+    }
+
+    const docKeys = collectAcceptanceDocumentReviewKeys(
+      workflow,
+      application.acceptance_documents
+    );
+    const documentRows =
+      application.application_review_items?.filter((r) => r.item_type === "document") ?? [];
+    const statusByKey = new Map(documentRows.map((r) => [r.item_id, r.status]));
+    const hasRejectedItems = hasAnyRejectedAcceptanceDocumentItems(docKeys, statusByKey);
+
+    const restoreOfferDetails = (
+      offer: Record<string, unknown>
+    ): Record<string, unknown> | null => {
+      const acceptance = getOfferAcceptanceFromOfferDetails(offer);
+      if (!acceptance?.submitted_at) {
+        return null;
+      }
+      const next = { ...offer };
+      delete next.responded_at;
+      delete next.responded_by_user_id;
+      delete next.rejection_reason;
+      return patchOfferAcceptanceUnchecked(next, { status: "PENDING_ADMIN_REVIEW" });
+    };
+
+    const contract = application.contract;
+    if (
+      contract?.id &&
+      contract.offer_details &&
+      shouldRestoreWithdrawnOfferForAcceptanceReview({
+        entityStatus: contract.status,
+        withdrawReason: contract.withdraw_reason ?? null,
+        offerAcceptanceStatus: getOfferAcceptanceFromOfferDetails(contract.offer_details)?.status,
+        hasRejectedItems,
+      })
+    ) {
+      const offer = (contract.offer_details as Record<string, unknown>) ?? {};
+      const restoredOffer = restoreOfferDetails(offer);
+      if (restoredOffer) {
+        await prisma.contract.update({
+          where: { id: contract.id },
+          data: {
+            status: "OFFER_SENT",
+            withdraw_reason: null,
+            offer_details: restoredOffer as Prisma.InputJsonValue,
+          },
+        });
+      }
+    }
+
+    for (const invoice of application.invoices ?? []) {
+      if (invoice.contract_id) continue;
+      if (!invoice.offer_details) continue;
+      if (
+        !shouldRestoreWithdrawnOfferForAcceptanceReview({
+          entityStatus: invoice.status,
+          withdrawReason: invoice.withdraw_reason ?? null,
+          offerAcceptanceStatus: getOfferAcceptanceFromOfferDetails(invoice.offer_details)?.status,
+          hasRejectedItems,
+        })
+      ) {
+        continue;
+      }
+      const offer = (invoice.offer_details as Record<string, unknown>) ?? {};
+      const restoredOffer = restoreOfferDetails(offer);
+      if (!restoredOffer) {
+        continue;
+      }
+      await prisma.invoice.update({
+        where: { id: invoice.id, application_id: applicationId },
+        data: {
+          status: "OFFER_SENT",
+          withdraw_reason: null,
+          offer_details: restoredOffer as Prisma.InputJsonValue,
+        },
+      });
+    }
+  }
+
+  /**
    * Keep offer_acceptance.status aligned with acceptance-doc review items.
    * - Amendment → CHANGES_REQUESTED (only after Step 1 was submitted); restamps acceptance clock
    * - Clearing all amendment flags rolls CHANGES_REQUESTED → PENDING_ADMIN_REVIEW
@@ -7466,6 +7578,50 @@ export class AdminService {
   ): Promise<void> {
     const workflow = await this.loadApplicationProductWorkflow(application);
     if (!workflowUsesOfferAcceptanceFlow(workflow)) return;
+
+    await this.maybeRestoreOfferAfterAcceptanceDocumentRejectionUnwind(
+      applicationId,
+      application
+    );
+
+    const refreshed = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: {
+        financing_type: true,
+        product_version: true,
+        acceptance_documents: true,
+        contract: {
+          select: {
+            id: true,
+            status: true,
+            withdraw_reason: true,
+            offer_details: true,
+          },
+        },
+        invoices: {
+          select: {
+            id: true,
+            status: true,
+            contract_id: true,
+            withdraw_reason: true,
+            offer_details: true,
+          },
+        },
+        application_review_items: {
+          select: { item_type: true, item_id: true, status: true },
+        },
+      },
+    });
+    if (refreshed) {
+      application = {
+        ...application,
+        ...refreshed,
+        contract: refreshed.contract ?? application.contract ?? null,
+        invoices: refreshed.invoices ?? application.invoices,
+        application_review_items:
+          refreshed.application_review_items ?? application.application_review_items,
+      };
+    }
 
     const docKeys = collectAcceptanceDocumentReviewKeys(
       workflow,
@@ -9424,97 +9580,6 @@ export class AdminService {
     }
   }
 
-  /** Withdraw active offers and stamp phase REJECTED when an acceptance document is rejected. */
-  private async withdrawOffersForAcceptanceRejection(
-    applicationId: string,
-    application: {
-      contract_id?: string | null;
-      contract?: { id?: string; status?: string; offer_details?: unknown } | null;
-      invoices?: Array<{
-        id: string;
-        status: string;
-        contract_id?: string | null;
-        offer_details?: unknown;
-      }>;
-    },
-    reviewerUserId: string,
-    remark: string
-  ): Promise<void> {
-    const now = new Date().toISOString();
-    const contract = application.contract;
-    if (
-      application.contract_id &&
-      contract &&
-      contract.status === "OFFER_SENT" &&
-      contract.offer_details
-    ) {
-      const offer = (contract.offer_details as Record<string, unknown>) ?? {};
-      const acceptance = getOfferAcceptanceFromOfferDetails(offer);
-      let updatedOffer: Record<string, unknown> = {
-        ...offer,
-        responded_at: now,
-        responded_by_user_id: reviewerUserId,
-        rejection_reason: remark,
-      };
-      if (acceptance) {
-        updatedOffer = patchOfferAcceptance(updatedOffer, { status: "REJECTED" });
-      }
-      await prisma.contract.update({
-        where: { id: application.contract_id },
-        data: {
-          status: "WITHDRAWN",
-          offer_details: updatedOffer as Prisma.InputJsonValue,
-          withdraw_reason: WithdrawReason.OFFER_REJECTED,
-        },
-      });
-    }
-
-    for (const invoice of application.invoices ?? []) {
-      if (invoice.contract_id) continue;
-      if (invoice.status !== "OFFER_SENT" || !invoice.offer_details) continue;
-      const offer = (invoice.offer_details as Record<string, unknown>) ?? {};
-      const acceptance = getOfferAcceptanceFromOfferDetails(offer);
-      let updatedOffer: Record<string, unknown> = {
-        ...offer,
-        responded_at: now,
-        responded_by_user_id: reviewerUserId,
-        rejection_reason: remark,
-      };
-      if (acceptance) {
-        updatedOffer = patchOfferAcceptance(updatedOffer, { status: "REJECTED" });
-      }
-      await prisma.invoice.update({
-        where: { id: invoice.id },
-        data: {
-          status: "WITHDRAWN",
-          offer_details: updatedOffer as Prisma.InputJsonValue,
-          withdraw_reason: WithdrawReason.OFFER_REJECTED,
-        },
-      });
-    }
-
-    await prisma.applicationReview.upsert({
-      where: {
-        application_id_section: {
-          application_id: applicationId,
-          section: "acceptance_documents",
-        },
-      },
-      create: {
-        application_id: applicationId,
-        section: "acceptance_documents",
-        status: ReviewStepStatus.REJECTED,
-        reviewer_user_id: reviewerUserId,
-        reviewed_at: new Date(),
-      },
-      update: {
-        status: ReviewStepStatus.REJECTED,
-        reviewer_user_id: reviewerUserId,
-        reviewed_at: new Date(),
-      },
-    });
-  }
-
   private async assertNoActiveSigningPackageForAcceptanceActions(
     applicationId: string,
     application: {
@@ -9936,24 +10001,6 @@ export class AdminService {
       );
     }
 
-    if (itemType === "document" && itemId.startsWith("acceptance_documents:")) {
-      await this.withdrawOffersForAcceptanceRejection(
-        applicationId,
-        application as {
-          contract_id?: string | null;
-          contract?: { id?: string; status?: string; offer_details?: unknown } | null;
-          invoices?: Array<{
-            id: string;
-            status: string;
-            contract_id?: string | null;
-            offer_details?: unknown;
-          }>;
-        },
-        reviewerUserId,
-        remark
-      );
-    }
-
     if (itemType === "invoice") {
       const invoiceId = this.resolveInvoiceIdFromScopeKey(
         application as { invoices?: { id: string; details?: { number?: string | number } }[] },
@@ -9980,7 +10027,37 @@ export class AdminService {
         logContext
       );
       nextApp = await repository.getApplicationById(applicationId);
-      // Acceptance reject withdraws offers and sets REJECTED — do not re-sync phase from docs.
+      if (itemId.startsWith("acceptance_documents:") && nextApp) {
+        await this.syncOfferAcceptancePhaseFromAcceptanceDocs(
+          applicationId,
+          nextApp as {
+            financing_type?: unknown;
+            product_version?: number | null;
+            supporting_documents?: unknown;
+            acceptance_documents?: unknown;
+            contract?: {
+              id: string;
+              status: string;
+              withdraw_reason?: WithdrawReason | null;
+              offer_details?: unknown;
+            } | null;
+            invoices?: Array<{
+              id: string;
+              status: string;
+              contract_id?: string | null;
+              withdraw_reason?: WithdrawReason | null;
+              offer_details?: unknown;
+            }>;
+            application_review_items?: Array<{
+              item_type: string;
+              item_id: string;
+              status: string;
+            }>;
+          },
+          reviewerUserId
+        );
+        nextApp = await repository.getApplicationById(applicationId);
+      }
     }
     if (itemType === "invoice" && nextApp) {
       await this.syncInvoiceDetailsSectionFromItems(

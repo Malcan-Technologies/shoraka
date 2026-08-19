@@ -829,6 +829,7 @@ export class OrganizationService {
 
   /**
    * Accept Terms and Conditions for an organization.
+   * Any owner or member with org access can accept.
    * When published onboarding legal PDFs exist, all required versions must already be ACCEPTED.
    */
   async acceptTnc(
@@ -837,17 +838,7 @@ export class OrganizationService {
     organizationId: string,
     portalType: PortalType
   ): Promise<{ success: boolean; tncAccepted: boolean }> {
-    // Verify access
     const organization = await this.getOrganization(userId, organizationId, portalType);
-
-    // Only owner can accept T&C
-    if (organization.owner_user_id !== userId) {
-      throw new AppError(
-        403,
-        "FORBIDDEN",
-        "Only the organization owner can accept Terms and Conditions"
-      );
-    }
 
     const audience = portalType === "investor" ? "INVESTOR" : "ISSUER";
     const legalStatus = await legalDocumentAcceptanceService.hasCompletedRequiredAcceptances(

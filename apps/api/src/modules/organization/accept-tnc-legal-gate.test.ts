@@ -25,6 +25,10 @@ jest.mock("../legal-documents/acceptance-service", () => ({
   },
 }));
 
+jest.mock("../payment/onboarding-fee-service", () => ({
+  assertIssuerOnboardingFeePaid: jest.fn(),
+}));
+
 jest.mock("./repository", () => ({
   OrganizationRepository: jest.fn().mockImplementation(() => ({
     findInvestorOrganizationById: (...args: unknown[]) =>
@@ -135,4 +139,28 @@ describe("acceptTnc legal document gate", () => {
       expect(advanceOnboardingStatusFromFlags).toHaveBeenCalled();
     }
   );
+
+  it("allows an organization member to accept tnc", async () => {
+    mockFindIssuerOrganizationById.mockResolvedValue(
+      ownerOrg({
+        members: [{ user_id: "member1" }],
+      })
+    );
+    mockHasCompletedRequiredAcceptances.mockResolvedValue({
+      hasRequiredDocuments: true,
+      allAccepted: true,
+    });
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+      user_id: "member1",
+      email: "member@example.com",
+    });
+
+    const result = await service.acceptTnc(mockReq, "member1", "org1", "issuer");
+
+    expect(result).toEqual({ success: true, tncAccepted: true });
+    expect(prisma.issuerOrganization.update).toHaveBeenCalledWith({
+      where: { id: "org1" },
+      data: { tnc_accepted: true },
+    });
+  });
 });
