@@ -12,9 +12,9 @@ import { LEGAL_REACCEPTANCE_REDIRECT } from "./use-legal-reacceptance-gate";
 describe("LegalReacceptanceBanner copy and layout helpers", () => {
   const source = readFileSync(join(__dirname, "legal-reacceptance-banner.tsx"), "utf8");
 
-  it("uses the shared attention title for owners", () => {
+  it("uses the shared attention title", () => {
     expect(legalReacceptanceBannerTitle(true)).toBe("Legal documents require your attention");
-    expect(legalReacceptanceBannerTitle(false)).toBe("Legal documents require acceptance");
+    expect(legalReacceptanceBannerTitle(false)).toBe("Legal documents require your attention");
   });
 
   it("uses issuer financing copy and investor investment copy for owners", () => {
@@ -24,10 +24,11 @@ describe("LegalReacceptanceBanner copy and layout helpers", () => {
     expect(legalReacceptanceBannerDescription("investor", true)).not.toContain("updated");
   });
 
-  it("keeps a short non-owner message without saying updated", () => {
+  it("asks every member to review and accept", () => {
     const text = legalReacceptanceBannerDescription("issuer", false);
-    expect(text).toContain("organization owner");
-    expect(text).not.toContain("updated");
+    expect(text).toContain("Review and accept");
+    expect(text).not.toContain("organization owner");
+    expect(legalReacceptanceBannerCtaLabel(false)).toBe("Review documents");
   });
 
   it("links Review documents to /legal-updates", () => {

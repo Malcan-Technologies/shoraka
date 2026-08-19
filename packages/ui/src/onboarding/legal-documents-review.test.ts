@@ -30,6 +30,7 @@ describe("legal documents review modes and copy", () => {
       title: "Legal documents",
       description: "Review and accept each required document to continue onboarding.",
       buttonLabel: "Accept and Continue",
+      cardInstruction: "Open each document, confirm you accept it, then continue.",
       nonOwnerDescription:
         "Your organization owner must accept these documents before onboarding can continue.",
       emptyTitle: "Legal documents unavailable",
@@ -40,7 +41,9 @@ describe("legal documents review modes and copy", () => {
       title: "Updated legal documents",
       description:
         "Some legal documents have been updated. Please review and accept them before starting new transactions. Your account remains active.",
-      buttonLabel: "Accept updated documents",
+      buttonLabel: "Accept and proceed",
+      cardInstruction:
+        "Open each document, confirm you accept it, then continue.",
       nonOwnerDescription:
         "Your organization owner must accept these documents before new transactions can begin.",
       emptyTitle: "No updated documents",
@@ -96,5 +99,11 @@ describe("legal documents review modes and copy", () => {
     expect(reviewSource).toContain("/v1/legal-documents/versions/${doc.versionId}/accept");
     expect(reviewSource).toContain("/v1/legal-documents/versions/${versionId}/open");
     expect(bannerSource).toContain('href="/legal-updates"');
+  });
+
+  it("lets any organization member accept on the re-acceptance page", () => {
+    expect(reviewSource).toContain('mode === "reacceptance" || isOwner');
+    expect(reviewSource).toContain("copy.buttonLabel");
+    expect(reviewSource).toContain("copy.cardInstruction");
   });
 });

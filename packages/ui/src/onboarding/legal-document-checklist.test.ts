@@ -29,5 +29,7 @@ describe("legal document checklist UI", () => {
     expect(reviewSource).toContain("LegalDocumentChecklistShell");
     expect(reviewSource).toContain("mode === \"onboarding\"");
     expect(reviewSource).toContain("mode === \"reacceptance\"");
+    expect(reviewSource).toContain("canAccept");
+    expect(reviewSource).toContain("copy.buttonLabel");
   });
 });

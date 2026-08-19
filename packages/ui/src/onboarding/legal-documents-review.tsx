@@ -133,6 +133,9 @@ export function LegalDocumentsReview({
   const isOwner =
     isOrganisationOwner ||
     (activeOrganization?.id === organizationId ? Boolean(activeOrganization.isOwner) : false);
+  // Re-acceptance binds the organization, so any member can complete it.
+  // Onboarding still requires the owner because it also calls acceptTnc.
+  const canAccept = mode === "reacceptance" || isOwner;
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -232,10 +235,10 @@ export function LegalDocumentsReview({
         checked: status === "accepted" || state?.checked === true,
         opening: state?.opening === true,
         canCheck: status === "opened" || status === "accepted",
-        showCheckbox: isOwner,
+        showCheckbox: canAccept,
       };
     });
-  }, [docs, isOwner, localState]);
+  }, [canAccept, docs, localState]);
 
   const handleOpen = async (versionId: string) => {
     setLocalState((prev) => ({
@@ -359,11 +362,12 @@ export function LegalDocumentsReview({
     <LegalDocumentChecklistShell
       title={embedInPageShell ? undefined : copy.title}
       description={
-        embedInPageShell ? undefined : isOwner ? copy.description : copy.nonOwnerDescription
+        embedInPageShell ? undefined : canAccept ? copy.description : copy.nonOwnerDescription
       }
       footer={
-        isOwner ? (
+        canAccept ? (
           <Button
+            type="button"
             onClick={() => void handleContinue()}
             disabled={!allChecked || submitting}
             className="h-11 w-full rounded-xl"
@@ -373,9 +377,9 @@ export function LegalDocumentsReview({
         ) : undefined
       }
     >
-      {embedInPageShell && !isOwner ? (
+      {embedInPageShell ? (
         <p className="border-b px-6 py-4 text-body text-muted-foreground md:px-8">
-          {copy.nonOwnerDescription}
+          {canAccept ? copy.cardInstruction : copy.nonOwnerDescription}
         </p>
       ) : null}
       <LegalDocumentChecklistRows
