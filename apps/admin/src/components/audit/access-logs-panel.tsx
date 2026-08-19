@@ -20,7 +20,6 @@ export function AccessLogsPanel() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [eventTypeFilter, setEventTypeFilter] = React.useState("all");
-  const [statusFilter, setStatusFilter] = React.useState("all");
   const [dateRangeFilter, setDateRangeFilter] = React.useState("all");
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 15;
@@ -33,15 +32,14 @@ export function AccessLogsPanel() {
     };
     if (searchQuery) params.search = searchQuery;
     if (eventTypeFilter !== "all") params.eventType = eventTypeFilter as AccessAuditEventType;
-    if (statusFilter !== "all") params.status = statusFilter as "success" | "failed";
     return params;
-  }, [currentPage, pageSize, searchQuery, eventTypeFilter, statusFilter, dateRangeFilter]);
+  }, [currentPage, pageSize, searchQuery, eventTypeFilter, dateRangeFilter]);
 
   const { data, isLoading, error } = useAccessLogs(apiParams);
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, eventTypeFilter, statusFilter, dateRangeFilter]);
+  }, [searchQuery, eventTypeFilter, dateRangeFilter]);
 
   if (error) {
     return <AdminQueryErrorState error={error} resourceLabel="access logs" />;
@@ -57,8 +55,6 @@ export function AccessLogsPanel() {
         onSearchChange={setSearchQuery}
         eventTypeFilter={eventTypeFilter}
         onEventTypeFilterChange={setEventTypeFilter}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
         dateRangeFilter={dateRangeFilter}
         onDateRangeFilterChange={setDateRangeFilter}
         totalCount={totalLogs}
@@ -66,7 +62,6 @@ export function AccessLogsPanel() {
         onClearFilters={() => {
           setSearchQuery("");
           setEventTypeFilter("all");
-          setStatusFilter("all");
           setDateRangeFilter("all");
           setCurrentPage(1);
         }}
