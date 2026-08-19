@@ -101,9 +101,11 @@ describe("legal documents review modes and copy", () => {
     expect(bannerSource).toContain('href="/legal-updates"');
   });
 
-  it("lets any organization member accept on the re-acceptance page", () => {
-    expect(reviewSource).toContain('mode === "reacceptance" || isOwner');
+  it("lets any organization member review and accept onboarding and re-acceptance documents", () => {
+    expect(reviewSource).toContain("showCheckbox: true");
     expect(reviewSource).toContain("copy.buttonLabel");
     expect(reviewSource).toContain("copy.cardInstruction");
+    expect(reviewSource).toContain("await acceptTnc(organizationId)");
+    expect(reviewSource).not.toContain("isOwner");
   });
 });

@@ -118,24 +118,16 @@ export function LegalDocumentsReview({
   embedInPageShell = false,
 }: LegalDocumentsReviewProps) {
   const { getAccessToken } = useAuthToken();
-  const { acceptTnc, refreshOrganizations, activeOrganization } = useOrganization();
+  const { acceptTnc, refreshOrganizations } = useOrganization();
   const audience = audienceFromPortal(portalType);
   const copy = legalDocumentsReviewCopy(mode);
 
   const [docs, setDocs] = useState<ReviewDoc[]>([]);
-  const [isOrganisationOwner, setIsOrganisationOwner] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [localState, setLocalState] = useState<Record<string, LocalDocState>>({});
   const [error, setError] = useState<string | null>(null);
   const [emptyOnboarding, setEmptyOnboarding] = useState(false);
-
-  const isOwner =
-    isOrganisationOwner ||
-    (activeOrganization?.id === organizationId ? Boolean(activeOrganization.isOwner) : false);
-  // Re-acceptance binds the organization, so any member can complete it.
-  // Onboarding still requires the owner because it also calls acceptTnc.
-  const canAccept = mode === "reacceptance" || isOwner;
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -153,7 +145,6 @@ export function LegalDocumentsReview({
           throw new Error(result.error?.message || "Failed to load pending documents");
         }
         const data = result.data;
-        setIsOrganisationOwner(data.isOrganisationOwner);
         const nextDocs = toReviewDocsFromPending(data.pendingDocuments);
         setDocs(nextDocs);
         setLocalState((prev) => {
@@ -235,10 +226,10 @@ export function LegalDocumentsReview({
         checked: status === "accepted" || state?.checked === true,
         opening: state?.opening === true,
         canCheck: status === "opened" || status === "accepted",
-        showCheckbox: canAccept,
+        showCheckbox: true,
       };
     });
-  }, [canAccept, docs, localState]);
+  }, [docs, localState]);
 
   const handleOpen = async (versionId: string) => {
     setLocalState((prev) => ({
@@ -361,25 +352,21 @@ export function LegalDocumentsReview({
   return (
     <LegalDocumentChecklistShell
       title={embedInPageShell ? undefined : copy.title}
-      description={
-        embedInPageShell ? undefined : canAccept ? copy.description : copy.nonOwnerDescription
-      }
+      description={embedInPageShell ? undefined : copy.description}
       footer={
-        canAccept ? (
-          <Button
-            type="button"
-            onClick={() => void handleContinue()}
-            disabled={!allChecked || submitting}
-            className="h-11 w-full rounded-xl"
-          >
-            {submitting ? "Submitting…" : copy.buttonLabel}
-          </Button>
-        ) : undefined
+        <Button
+          type="button"
+          onClick={() => void handleContinue()}
+          disabled={!allChecked || submitting}
+          className="h-11 w-full rounded-xl"
+        >
+          {submitting ? "Submitting…" : copy.buttonLabel}
+        </Button>
       }
     >
       {embedInPageShell ? (
         <p className="border-b px-6 py-4 text-body text-muted-foreground md:px-8">
-          {canAccept ? copy.cardInstruction : copy.nonOwnerDescription}
+          {copy.cardInstruction}
         </p>
       ) : null}
       <LegalDocumentChecklistRows
