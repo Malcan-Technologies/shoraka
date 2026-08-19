@@ -11,6 +11,7 @@ import {
 } from "@/app/transactions/components/transactions-table";
 import type { TransactionType } from "@/app/transactions/components/transactions.types";
 import { mapActivityEntryToTransaction } from "@/app/transactions/components/transaction-utils";
+import { runningBalancesForActivityEntries } from "@cashsouk/types";
 import {
   useInvestorBalanceActivityAll,
   useInvestorInvestments,
@@ -62,16 +63,13 @@ export function PortfolioTransactionsPanel({
       (a, b) => new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime()
     );
 
-    let runningBalance = Number(activityQuery.data?.summary.availableBalance ?? 0);
-    return sorted.map((entry) => {
-      const tx = mapActivityEntryToTransaction(entry, runningBalance, noteReferenceById);
-      if (entry.direction === "IN") {
-        runningBalance -= entry.amount;
-      } else {
-        runningBalance += entry.amount;
-      }
-      return tx;
-    });
+    const runningBalances = runningBalancesForActivityEntries(
+      sorted,
+      Number(activityQuery.data?.summary.availableBalance ?? 0)
+    );
+    return sorted.map((entry, index) =>
+      mapActivityEntryToTransaction(entry, runningBalances[index], noteReferenceById)
+    );
   }, [activityQuery.data?.entries, activityQuery.data?.summary, noteReferenceById]);
 
   const filteredTransactions = React.useMemo(

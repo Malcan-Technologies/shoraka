@@ -95,6 +95,29 @@ describe("mapActivityEntryToTransaction", () => {
     expect(paid.context).toEqual({ kind: "text", text: "Paid to your bank" });
   });
 
+  it("shows a name-check deposit as received but not yet in cash", () => {
+    const pending = mapActivityEntryToTransaction(
+      entry({
+        id: "gateway:pay_1",
+        source: "GATEWAY_DEPOSIT",
+        direction: "IN",
+        amount: 500,
+        related: { kind: "deposit", status: "NAME_CHECK_PENDING", settledAt: null },
+        affectsAvailableBalance: false,
+      }),
+      1000,
+      notes
+    );
+
+    expect(pending.title).toBe("Deposit received");
+    expect(pending.status).toEqual({ label: "Verifying", tokenStatus: "NAME_CHECK_PENDING" });
+    expect(pending.context).toEqual({
+      kind: "text",
+      text: "Online payment · name verification in progress",
+    });
+    expect(pending.balance).toBe(1000);
+  });
+
   it("keeps a later-released commitment as a debit, and the return as a credit", () => {
     const committed = mapActivityEntryToTransaction(
       entry({

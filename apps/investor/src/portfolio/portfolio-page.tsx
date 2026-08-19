@@ -16,7 +16,7 @@ import {
   useHeader,
 } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
-import { withdrawMinimumError } from "@/components/investor-money-copy";
+import { withdrawMinimumError, withdrawTypedAmountError } from "@/components/investor-money-copy";
 import { InvestNowButton } from "@/components/invest-now-button";
 import { InvestorInvestmentsList } from "@/investments/components/investor-investments-list";
 import { marketplaceKeys, useInvestorPortfolio } from "@/investments/hooks/use-marketplace-notes";
@@ -46,8 +46,13 @@ function PortfolioPageContent() {
   const orgId = activeOrganization?.id;
   const { getAccessToken } = useAuthToken();
 
-  const tab = portfolioTabFromSearchParams(searchParams.get("tab"), searchParams.get("type"));
+  const urlTab = portfolioTabFromSearchParams(searchParams.get("tab"), searchParams.get("type"));
   const typeFilter = transactionTypeFromSearchParam(searchParams.get("type"));
+  const [tab, setTab] = React.useState(urlTab);
+
+  React.useEffect(() => {
+    setTab(urlTab);
+  }, [urlTab]);
 
   const [depositOpen, setDepositOpen] = React.useState(false);
   const [withdrawRequestOpen, setWithdrawRequestOpen] = React.useState(false);
@@ -78,7 +83,11 @@ function PortfolioPageContent() {
       const next = new URLSearchParams(searchParams.toString());
       mutate(next);
       const query = next.toString();
-      router.replace(query ? `${PORTFOLIO_PATH}?${query}` : PORTFOLIO_PATH, { scroll: false });
+      const href = query ? `${PORTFOLIO_PATH}?${query}` : PORTFOLIO_PATH;
+      if (typeof window !== "undefined") {
+        window.history.replaceState(window.history.state, "", href);
+      }
+      router.replace(href, { scroll: false });
     },
     [router, searchParams]
   );
@@ -110,6 +119,7 @@ function PortfolioPageContent() {
 
   function onTabChange(next: string) {
     if (!isPortfolioTab(next)) return;
+    setTab(next);
     replacePortfolioQuery((params) => {
       if (next === PORTFOLIO_TAB_INVESTMENTS) {
         params.delete("tab");
@@ -133,8 +143,14 @@ function PortfolioPageContent() {
 
   function validateWithdrawAmount(): number | null {
     const amount = parseMoneyAmount(withdrawAmount);
-    if (!amount || amount < MIN_WITHDRAWAL_AMOUNT) {
+    const availableBalance = Math.max(0, Number(portfolioQuery.data?.availableBalance ?? 0));
+    if (!amount) {
       setWithdrawError(withdrawMinimumError(MIN_WITHDRAWAL_AMOUNT));
+      return null;
+    }
+    const error = withdrawTypedAmountError(amount, MIN_WITHDRAWAL_AMOUNT, availableBalance);
+    if (error) {
+      setWithdrawError(error);
       return null;
     }
     setWithdrawError(null);
@@ -187,7 +203,7 @@ function PortfolioPageContent() {
             <TabsTrigger value={PORTFOLIO_TAB_TRANSACTIONS}>Transactions</TabsTrigger>
           </TabsList>
 
-          <TabsContent value={PORTFOLIO_TAB_INVESTMENTS} className="mt-6">
+          <TabsContent value={PORTFOLIO_TAB_INVESTMENTS} forceMount className="mt-6 data-[state=inactive]:hidden">
             <InvestorInvestmentsList showStatusFilter />
           </TabsContent>
 
@@ -219,6 +235,7 @@ function PortfolioPageContent() {
           setWithdrawAmount(value);
           if (withdrawError) setWithdrawError(null);
         }}
+        availableBalance={Number(portfolioQuery.data?.availableBalance ?? 0)}
         validationError={withdrawError}
         onSubmit={handleWithdrawSubmit}
         onSeeWithdrawalHistory={handleSeeWithdrawalHistory}

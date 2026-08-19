@@ -92,7 +92,7 @@ Same flow for both; the first successful deposit also sets `deposit_received = t
 3. Webhook `payment.captured` → mark `PAID`, snapshot payer bank details → run **name check**.
 4. **Name check PASS** → in one transaction: credit `InvestorBalance` (source `GATEWAY_DEPOSIT`), set `deposit_received = true` if first deposit, post `INVESTOR_POOL` ledger credit, mark payment `COMPLETED`.
 5. **Name check FAIL** → auto-refund via Curlec Refund API; wallet never credited.
-6. **Name REVIEW or NAME_UNAVAILABLE** → mark `NAME_CHECK_PENDING`; admin approves (credit) or rejects (auto-refund). Wallet never credited until approved.
+6. **Name REVIEW or NAME_UNAVAILABLE** → mark `NAME_CHECK_PENDING`; admin approves (credit) or rejects (auto-refund). Wallet never credited until approved. In-flight payments (`PAID`, `NAME_CHECK_PENDING`, `HELD`, `REFUND_INITIATED`) still appear on investor/admin wallet activity as overlay rows (`affectsAvailableBalance: false`) so the captured bank debit is visible before credit.
 7. **Amount mismatch** → auto-refund; wallet never credited. If refund API fails → `HELD`; admin retries from Gateway Payments detail.
 
 **Name source for the check:** expected name = investor account name (individual full name for `PERSONAL` orgs; company name for `COMPANY` orgs, from org record / `bank_account_details`). Actual name = payer bank account name from Curlec. ⚠️ **Open item (must verify with Curlec before build):** the standard Curlec `GET /v1/payments/:id` for FPX returns only the payer's bank code, not the account holder name, and Smart Collect/TPV is not available in Malaysia. Business has confirmed name check is possible via Razorpay — confirm with the Curlec account manager exactly which API/report exposes the FPX buyer name (FPX messages do carry it). Design the name check as a discrete step that consumes the name from whatever source is available (webhook payload, payment fetch, or settlement report); if no name is available programmatically, the deposit lands in a `NAME_CHECK_PENDING` admin queue where ops verifies against the Curlec dashboard and approves/holds manually. Matching is exact normalized comparison (case/whitespace/punctuation-insensitive); anything else fails to admin review — no fuzzy auto-approval.
@@ -179,7 +179,7 @@ Supporting changes:
 | `POST /v1/applications/:id/processing-fee` | ISSUER + ownership | Create processing fee order |
 | `POST /v1/webhooks/curlec/operating` | signature | Operating merchant webhook ingress |
 | `POST /v1/webhooks/curlec/investor-pool` | signature | Investor Pool merchant webhook ingress |
-| `GET /v1/admin/gateway-payments` | ADMIN | List/filter (purpose, status, org) |
+| `GET /v1/admin/organizations/investor/:id/balance-activity` | ADMIN | Investor wallet activity (ledger + in-flight deposits) |
 | `GET /v1/admin/gateway-payments/:id` | ADMIN | Detail incl. events + name check |
 | `GET /v1/admin/gateway-payments/exceptions/pending-count` | ADMIN | Count of HELD + NAME_CHECK_PENDING |
 | `POST /v1/admin/gateway-payments/:id/name-check/approve` | ADMIN | Approve `NAME_CHECK_PENDING` → credit wallet |
@@ -209,6 +209,7 @@ Goal: every Curlec payment is matched to a `GatewayPayment` and ledger entry; ev
 **Investor portal** (`apps/investor`)
 - Real FPX deposit flow via Curlec Checkout (`deposit-card.tsx`, `deposit-dialog.tsx`, `lib/curlec-checkout.ts`).
 - Status UX for `COMPLETED`, `NAME_CHECK_PENDING`, `REFUND_*`, `HELD`.
+- Transactions table overlays in-flight deposits (Verifying / Needs review) until the wallet is credited.
 - Onboarding deposit step completes when first deposit reaches `COMPLETED`.
 
 **Issuer portal** (`apps/issuer`)
@@ -217,6 +218,7 @@ Goal: every Curlec payment is matched to a `GatewayPayment` and ledger entry; ev
 
 **Admin portal** (`apps/admin`)
 - Finance → Gateway Payments: list/detail, name-check approve/reject, refund actions.
+- Investor detail → Activity: wallet transactions (same rows as the investor table) plus onboarding timeline. Linked records stay as investment positions.
 - Finance → Reconciliation: daily runs, exceptions, manual trigger.
 - Settings → Platform Finance → Gateway Fees tab.
 - Badges: issuer onboarding fee paid, application processing fee paid.

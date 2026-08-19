@@ -23,8 +23,8 @@ import {
 import { parseMoneyAmount } from "@/app/transactions/components/transaction-utils";
 import {
   depositLimitsHint,
-  depositMaximumError,
   depositMinimumError,
+  depositTypedAmountError,
 } from "@/components/investor-money-copy";
 import { PORTFOLIO_TRANSACTIONS_HREF } from "@/portfolio/portfolio-tabs";
 
@@ -92,13 +92,14 @@ export function InvestorDepositForm({
       return;
     }
 
-    if (!parsed || parsed < minAmount) {
+    if (!parsed) {
       onValidationErrorChange(depositMinimumError(minAmount));
       return;
     }
 
-    if (parsed > maxAmount) {
-      onValidationErrorChange(depositMaximumError(maxAmount));
+    const amountError = depositTypedAmountError(parsed, minAmount, maxAmount);
+    if (amountError) {
+      onValidationErrorChange(amountError);
       return;
     }
 
@@ -157,6 +158,13 @@ export function InvestorDepositForm({
 
   const isBusy = createDeposit.isPending || isOpeningCheckout;
   const limitsReady = minAmount != null && maxAmount != null;
+  const parsedAmount = parseMoneyAmount(amount);
+  const liveError = limitsReady
+    ? depositTypedAmountError(parsedAmount, minAmount, maxAmount)
+    : null;
+  const fieldError = liveError ?? validationError;
+  const amountHintId = fieldError ? "deposit-amount-error" : "deposit-amount-hint";
+  const amountInRange = limitsReady && parsedAmount > 0 && !liveError;
 
   return (
     <div className="space-y-5">
@@ -170,17 +178,27 @@ export function InvestorDepositForm({
           }}
           prefix="RM"
           placeholder="0.00"
+          invalid={Boolean(fieldError)}
+          describedBy={amountHintId}
           inputClassName="h-11 rounded-xl"
           disabled={disabled || isBusy || !limitsReady}
         />
-        {validationError ? (
-          <p className="text-ui text-destructive">{validationError}</p>
+        {fieldError ? (
+          <p id="deposit-amount-error" className="text-ui text-destructive">
+            {fieldError}
+          </p>
         ) : depositLimitsQuery.isLoading ? (
-          <p className="text-meta text-muted-foreground">Loading how much you can add…</p>
+          <p id="deposit-amount-hint" className="text-meta text-muted-foreground">
+            Loading how much you can add…
+          </p>
         ) : limitsReady ? (
-          <p className="text-meta text-muted-foreground">{depositLimitsHint(minAmount, maxAmount)}</p>
+          <p id="deposit-amount-hint" className="text-meta text-muted-foreground">
+            {depositLimitsHint(minAmount, maxAmount)}
+          </p>
         ) : (
-          <p className="text-ui text-destructive">We couldn't load deposit limits. Try again shortly.</p>
+          <p id="deposit-amount-hint" className="text-ui text-destructive">
+            We couldn't load deposit limits. Try again shortly.
+          </p>
         )}
       </div>
 
@@ -189,7 +207,7 @@ export function InvestorDepositForm({
           type="button"
           variant="action"
           className="h-11 w-full rounded-xl"
-          disabled={disabled || isBusy || !investorOrganizationId || !limitsReady}
+          disabled={disabled || isBusy || !investorOrganizationId || !amountInRange}
           onClick={() => void handleContinue()}
         >
           {createDeposit.isPending
