@@ -28,18 +28,19 @@ describe("acceptance-document-change helpers", () => {
   });
 
   describe("assertAcceptanceDocumentChangeRequestAllowed", () => {
-    it("allows pending and missing status", () => {
+    it("allows pending, approved, and missing status", () => {
       expect(() => assertAcceptanceDocumentChangeRequestAllowed(undefined)).not.toThrow();
       expect(() => assertAcceptanceDocumentChangeRequestAllowed("PENDING")).not.toThrow();
+      expect(() => assertAcceptanceDocumentChangeRequestAllowed("APPROVED")).not.toThrow();
     });
 
-    it("rejects non-pending statuses", () => {
-      expect(() => assertAcceptanceDocumentChangeRequestAllowed("APPROVED")).toThrow(AppError);
+    it("rejects rejected and amendment-requested statuses", () => {
+      expect(() => assertAcceptanceDocumentChangeRequestAllowed("REJECTED")).toThrow(AppError);
       expect(() => assertAcceptanceDocumentChangeRequestAllowed("AMENDMENT_REQUESTED")).toThrow(
         AppError
       );
       try {
-        assertAcceptanceDocumentChangeRequestAllowed("APPROVED");
+        assertAcceptanceDocumentChangeRequestAllowed("REJECTED");
       } catch (error) {
         expect(error).toBeInstanceOf(AppError);
         expect((error as AppError).code).toBe("INVALID_ACTION");

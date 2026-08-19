@@ -17,6 +17,7 @@ import {
 } from "@cashsouk/types";
 import { StatusBadge } from "@cashsouk/ui";
 import { getAdminStatusToken } from "@/lib/admin-status-token";
+import { getReviewStatusPresentation } from "../status-presentation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DocumentsSection } from "./documents-section";
@@ -64,6 +65,8 @@ export type AcceptanceSectionProps = {
   structureType?: string | null;
   acceptanceReviewMode?: "live" | "inherited";
   inheritedSourceApplication?: { id: string; productId: string | null };
+  /** Derived acceptance_documents section status (same source as review tab dot). */
+  sectionStatus?: string;
 };
 
 function collectAcceptanceDownloadFiles(
@@ -189,6 +192,7 @@ export function AcceptanceSection({
   structureType,
   acceptanceReviewMode = "live",
   inheritedSourceApplication,
+  sectionStatus,
 }: AcceptanceSectionProps) {
   const isInheritedAcceptance = acceptanceReviewMode === "inherited";
   const showSigningHub = typeof applicationId === "string" && applicationId.length > 0;
@@ -297,17 +301,31 @@ export function AcceptanceSection({
 
           if (showSigningHub) {
             const acceptance = getOfferAcceptanceFromOfferDetails(acceptanceOfferDetails);
-            const presentation = acceptance
-              ? getOfferAcceptanceStatusPresentation(acceptance.status)
+            const useSectionReviewBadge =
+              !!sectionStatus &&
+              !!acceptance &&
+              (acceptance.status === "PENDING_ADMIN_REVIEW" ||
+                acceptance.status === "CHANGES_REQUESTED");
+            const sectionPresentation = useSectionReviewBadge
+              ? getReviewStatusPresentation(sectionStatus)
               : null;
+            const phasePresentation =
+              acceptance && !useSectionReviewBadge
+                ? getOfferAcceptanceStatusPresentation(acceptance.status)
+                : null;
+            const badgePresentation = sectionPresentation ?? phasePresentation;
             return (
               <ReviewFieldBlock
                 title="Acceptance documents"
                 titleAside={
-                  presentation && acceptance ? (
+                  badgePresentation ? (
                     <StatusBadge
-                      label={presentation.label}
-                      status={getAdminStatusToken(acceptance.status)}
+                      label={badgePresentation.label}
+                      status={
+                        useSectionReviewBadge
+                          ? getAdminStatusToken(sectionStatus!)
+                          : getAdminStatusToken(acceptance!.status)
+                      }
                     />
                   ) : null
                 }
