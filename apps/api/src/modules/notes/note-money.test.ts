@@ -48,7 +48,14 @@ describe("note money helpers", () => {
     const totals = buildInvestorPortfolioTotals(50.004, 100.004);
     expect(totals.availableBalance).toBe(50);
     expect(totals.totalInvestment).toBe(100);
+    expect(totals.confirmedInvestment).toBe(100);
+    expect(totals.reservedInvestment).toBe(0);
     expect(totals.portfolioTotal).toBe(150);
+
+    const split = buildInvestorPortfolioTotals(50, 180, { reserved: 30, confirmed: 150 });
+    expect(split.totalInvestment).toBe(180);
+    expect(split.reservedInvestment).toBe(30);
+    expect(split.confirmedInvestment).toBe(150);
   });
 
   it("allocates profit cents so lines sum to the pool total", () => {

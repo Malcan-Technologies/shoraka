@@ -613,6 +613,12 @@ export interface OrganizationDetailResponse {
   // Total active invested amount across COMMITTED + CONFIRMED investments (investor portal only)
   investedAmount: number | null;
 
+  // Sum of approved facility lines (issuer portal only)
+  approvedFacilityAmount: number | null;
+
+  // Sum of funded amounts on ACTIVE notes (issuer portal only)
+  activeNotesAmount: number | null;
+
   // RegTank portal link (for viewing in RegTank admin)
   regtankPortalUrl: string | null;
   regtankRequestId: string | null;

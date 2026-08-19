@@ -12,7 +12,7 @@ export {
   partitionByActionable,
 } from "@/lib/issuer-financing-actionable";
 
-/** Sidebar / tab badge: contracts + invoices (+ notes) that still need issuer action. */
+/** Sidebar / tab badge: contracts + invoices (including notes on the invoices tab) that still need issuer action. */
 export function useIssuerFinancingActionableCount(organizationId: string | undefined): {
   contracts: number;
   invoices: number;

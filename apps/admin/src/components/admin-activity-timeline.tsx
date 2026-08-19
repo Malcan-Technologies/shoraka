@@ -1,58 +1,26 @@
- "use client";
+"use client";
 
 /**
- * Guide: docs/guides/admin/activity-timeline.md — Event labels, icons, colors for activity timeline display
- *
- * Imports
- *
- * What this section does:
- * - Imports React and UI primitives used by the timeline component.
- *
- * Why it exists:
- * - Required dependencies for rendering the activity timeline.
- *
- * Data shapes:
- * - Expects activity items with fields: id, event_type, metadata?, created_at, activity?, ip_address?
+ * Guide: docs/guides/admin/activity-timeline.md — Event labels for activity timeline display
  */
 
-/**
- * CHANGE SUMMARY
- *
- * - Switched data source: component now fetches only application-scoped logs via `useApplicationLogs`.
- * - Updated prop: `applicationId` replaces `organizationId`.
- * - Updated total badge to reflect application log count.
- * - Removed cross-adapter pagination controls (no infinite query).
- *
- * Pros:
- * - Shows only application-specific events, matching intent.
- * - Simpler count (accurate for application-level logs).
- *
- * Cons:
- * - Loses aggregated organization-level events.
- * - Pagination now depends on server endpoint; UI no longer paginates client-side.
- */
-
- import * as React from "react";
- import { Badge } from "@/components/ui/badge";
- import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
- import { ScrollArea } from "@/components/ui/scroll-area";
- import { Skeleton } from "@cashsouk/ui";
- import { useApplicationLogs, type ApplicationLogEntry } from "@/hooks/use-application-logs";
- import { formatDistanceToNow, format } from "date-fns";
+import * as React from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { AdminDetailCardHeader } from "@/components/admin-detail";
+import { AdminActivityCsvExportButton } from "@/components/admin-activity-csv-export-button";
 import {
-  ChevronDownIcon,
-  ClockIcon,
-  ArrowPathIcon,
-  DocumentTextIcon,
-  CheckCircleIcon,
-  XCircleIcon,
-  PlayIcon,
-  UserIcon,
-  GlobeAltIcon,
-  ComputerDesktopIcon,
-  ClipboardDocumentCheckIcon,
-  PaperAirplaneIcon,
-} from "@heroicons/react/24/outline";
+  mergeActivityCsvMetadata,
+  type AdminActivityCsvRow,
+} from "@/components/admin-activity-csv";
+import {
+  AdminTimelineDetailCard,
+  AdminVerticalTimeline,
+  AdminVerticalTimelineItem,
+  AdminVerticalTimelineSkeleton,
+} from "@/components/admin-vertical-timeline";
+import { resolveAdminTimelineActorLabel } from "@/components/admin-timeline-originator";
+import { ChevronDownIcon, ClockIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import { formatRemarkAsBullets } from "@/lib/utils";
 import { getReviewTabLabel } from "@/components/application-review/review-registry";
@@ -65,11 +33,17 @@ import type {
 import { ResubmitComparisonModal } from "@/components/resubmit-comparison-modal";
 import { reviewSectionHasResubmitChanges } from "@/lib/review-section-has-resubmit-changes";
 import type { ReviewSectionId } from "@/components/application-review/review-registry";
+import {
+  useApplicationLogs,
+  type ApplicationLogEntry,
+} from "@/hooks/use-application-logs";
 
 type ActivityMetadata = {
   scope_key?: string;
   entityId?: string;
   remark?: string;
+  actorName?: string;
+  organizationName?: string;
   portal?: string;
   portalType?: string;
   device_type?: string;
@@ -91,18 +65,6 @@ function formatItemLabelFromScopeKey(scopeKey: string): string {
   return getItemDisplayNameFromScopeKey(scopeKey);
 }
 
-/**
- * Component props
- *
- * What this section does:
- * - Defines the props for the AdminActivityTimeline component.
- *
- * Why it exists:
- * - The timeline now fetches logs scoped to a single application.
- *
- * Data shape:
- * - applicationId: string | null
- */
 interface AdminActivityTimelineProps {
   applicationId: string | null;
   /** Product id (same as route `productKey`) for workflow tabs in resubmit comparison modal. */
@@ -146,62 +108,6 @@ function formatResubmitTabsOnlyActivity({
   );
 
   return `Changes submitted: ${labels.join(", ")}`;
-}
-
-function getEventIcon(eventType: string): React.ReactElement {
-  switch (eventType) {
-    case "APPLICATION_CREATED":
-      return <PlayIcon className="h-3.5 w-3.5 text-blue-600" />;
-    case "APPLICATION_SUBMITTED":
-    case "APPLICATION_RESUBMITTED":
-      return <ArrowPathIcon className="h-3.5 w-3.5 text-blue-500" />;
-    case "SECTION_REVIEWED_APPROVED":
-    case "ITEM_REVIEWED_APPROVED":
-    case "APPLICATION_APPROVED":
-    case "APPLICATION_COMPLETED":
-      return <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-600" />;
-    case "SECTION_REVIEWED_REJECTED":
-    case "ITEM_REVIEWED_REJECTED":
-    case "APPLICATION_REJECTED":
-      return <XCircleIcon className="h-3.5 w-3.5 text-destructive" />;
-    case "SECTION_REVIEWED_AMENDMENT_REQUESTED":
-    case "ITEM_REVIEWED_AMENDMENT_REQUESTED":
-    case "AMENDMENTS_SUBMITTED":
-      return <DocumentTextIcon className="h-3.5 w-3.5 text-amber-600" />;
-    case "SECTION_REVIEWED_PENDING":
-    case "ITEM_REVIEWED_PENDING":
-    case "APPLICATION_RESET_TO_UNDER_REVIEW":
-      return <ArrowPathIcon className="h-3.5 w-3.5 text-muted-foreground" />;
-    case "CONTRACT_OFFER_SENT":
-    case "INVOICE_OFFER_SENT":
-    case "CONTRACT_OFFER_ACCEPTANCE_SUBMITTED":
-    case "INVOICE_OFFER_ACCEPTANCE_SUBMITTED":
-    case "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING":
-    case "INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING":
-    case "SIGNING_PACKAGE_CREATED":
-    case "SIGNING_PACKAGE_SENT":
-    case "CONTRACT_OFFER_ACCEPTED":
-    case "INVOICE_OFFER_ACCEPTED":
-      return <PaperAirplaneIcon className="h-3.5 w-3.5 text-blue-500" />;
-    case "CONTRACT_OFFER_REJECTED":
-    case "INVOICE_OFFER_REJECTED":
-    case "CONTRACT_OFFER_RETRACTED":
-    case "INVOICE_OFFER_RETRACTED":
-    case "CONTRACT_WITHDRAWN":
-    case "APPLICATION_WITHDRAWN":
-    case "INVOICE_WITHDRAWN":
-      return <XCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />;
-    case "CONTRACT_OFFER_EXPIRED":
-    case "INVOICE_OFFER_EXPIRED":
-      return <ClockIcon className="h-3.5 w-3.5 text-amber-600" />;
-    case "SIGNING_PACKAGE_VOIDED":
-      return <XCircleIcon className="h-3.5 w-3.5 text-amber-600" />;
-    case "CONTRACT_SIGNING_DEADLINE_EXTENDED":
-    case "INVOICE_SIGNING_DEADLINE_EXTENDED":
-      return <ClockIcon className="h-3.5 w-3.5 text-emerald-600" />;
-    default:
-      return <ClockIcon className="h-3.5 w-3.5 text-muted-foreground" />;
-  }
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -311,76 +217,136 @@ function getEventLabel(
   return eventType.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function getEventDotColor(eventType: string): string {
-  switch (eventType) {
-    case "SECTION_REVIEWED_APPROVED":
-    case "ITEM_REVIEWED_APPROVED":
-    case "APPLICATION_APPROVED":
-    case "APPLICATION_COMPLETED":
-      return "bg-emerald-500";
-    case "SECTION_REVIEWED_REJECTED":
-    case "ITEM_REVIEWED_REJECTED":
-    case "APPLICATION_REJECTED":
-      return "bg-destructive";
-    case "SECTION_REVIEWED_AMENDMENT_REQUESTED":
-    case "ITEM_REVIEWED_AMENDMENT_REQUESTED":
-    case "AMENDMENTS_SUBMITTED":
-      return "bg-amber-500";
-    case "SECTION_REVIEWED_PENDING":
-    case "ITEM_REVIEWED_PENDING":
-    case "APPLICATION_RESET_TO_UNDER_REVIEW":
-      return "bg-muted-foreground";
-    case "APPLICATION_WITHDRAWN":
-    case "INVOICE_WITHDRAWN":
-    case "CONTRACT_OFFER_REJECTED":
-    case "INVOICE_OFFER_REJECTED":
-    case "CONTRACT_OFFER_RETRACTED":
-    case "INVOICE_OFFER_RETRACTED":
-    case "CONTRACT_WITHDRAWN":
-      return "bg-muted-foreground";
-    case "CONTRACT_OFFER_EXPIRED":
-    case "INVOICE_OFFER_EXPIRED":
-      return "bg-amber-500";
-    case "CONTRACT_SIGNING_DEADLINE_EXTENDED":
-    case "INVOICE_SIGNING_DEADLINE_EXTENDED":
-      return "bg-emerald-500";
-    case "CONTRACT_OFFER_SENT":
-    case "INVOICE_OFFER_SENT":
-    case "CONTRACT_OFFER_ACCEPTANCE_SUBMITTED":
-    case "INVOICE_OFFER_ACCEPTANCE_SUBMITTED":
-    case "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING":
-    case "INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING":
-    case "SIGNING_PACKAGE_CREATED":
-    case "SIGNING_PACKAGE_SENT":
-    case "CONTRACT_OFFER_ACCEPTED":
-    case "INVOICE_OFFER_ACCEPTED":
-      return "bg-blue-500";
-    case "SIGNING_PACKAGE_VOIDED":
-      return "bg-amber-500";
-    default:
-      return "bg-muted-foreground";
-  }
-}
-
 const ACTIVITY_PAGE_SIZE = 10;
 
 /** Audit-only events: still stored in application_logs but hidden from the timeline UI. */
 const TIMELINE_HIDDEN_EVENT_TYPES = new Set(["SIGNING_PACKAGE_COMPLETED"]);
 
-function TimelineSkeleton() {
+function formatActivityText(activity: ApplicationLogEntry["activity"]): string | null {
+  if (activity == null) return null;
+  if (typeof activity === "string") return activity;
+  if (typeof activity === "number" || typeof activity === "boolean") return String(activity);
+  return JSON.stringify(activity);
+}
+
+function applicationLogToActivityCsvRow(
+  log: ApplicationLogEntry,
+  sectionLabelOverrides?: Record<string, string>
+): AdminActivityCsvRow {
+  const metadata = log.metadata;
+  const actorRaw = metadata?.actorName ?? metadata?.organizationName;
+  const actor =
+    typeof actorRaw === "string" && actorRaw.trim() !== "" ? actorRaw : "";
+  const portalRaw = metadata?.portal ?? metadata?.portalType;
+  return {
+    createdAt: log.created_at,
+    event: getEventLabel(log.event_type, metadata, log.entityId, sectionLabelOverrides),
+    eventType: log.event_type,
+    actor,
+    actorUserId: log.actor_id ?? "",
+    portal: typeof portalRaw === "string" ? portalRaw : "",
+    remark: log.remark ?? formatActivityText(log.activity) ?? "",
+    metadata: mergeActivityCsvMetadata(metadata, {
+      entityId: log.entityId,
+      review_cycle: log.review_cycle,
+      ip_address: log.ip_address,
+    }),
+  };
+}
+
+function ApplicationTimelineDetails({
+  eventType,
+  metadata,
+  remark,
+}: {
+  eventType: string;
+  metadata: ActivityMetadata | null;
+  remark: string | null | undefined;
+}) {
+  const showOffer =
+    eventType === "CONTRACT_OFFER_SENT" || eventType === "INVOICE_OFFER_SENT";
+  const showRejection =
+    (eventType === "CONTRACT_WITHDRAWN" || eventType === "INVOICE_OFFER_REJECTED") &&
+    Boolean(metadata?.rejection_reason);
+  const remarkLines = remark ? formatRemarkAsBullets(String(remark)) : [];
+
+  if (!showOffer && !showRejection && remarkLines.length === 0) return null;
+
   return (
-    <div className="space-y-6">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="flex gap-3">
-          <Skeleton className="h-3 w-3 rounded-full shrink-0 mt-1.5" />
-          <div className="flex-1 space-y-2">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-3 w-32" />
-            <Skeleton className="h-3 w-20" />
-          </div>
+    <AdminTimelineDetailCard>
+      <div className="space-y-3">
+      {showOffer && metadata && eventType === "CONTRACT_OFFER_SENT" ? (
+        <dl className="grid grid-cols-[minmax(7rem,auto)_1fr] gap-x-3 gap-y-1 text-ui">
+          {typeof metadata.offered_facility === "number" ? (
+            <>
+              <dt className="text-muted-foreground">Offered facility</dt>
+              <dd className="tabular-nums">{formatCurrency(metadata.offered_facility)}</dd>
+            </>
+          ) : null}
+          {typeof metadata.requested_facility === "number" ? (
+            <>
+              <dt className="text-muted-foreground">Requested facility</dt>
+              <dd className="tabular-nums">{formatCurrency(metadata.requested_facility)}</dd>
+            </>
+          ) : null}
+          {typeof metadata.acceptance_expires_at === "string" && metadata.acceptance_expires_at ? (
+            <>
+              <dt className="text-muted-foreground">Accept by</dt>
+              <dd className="tabular-nums">
+                {formatPhaseDeadlineAbsolute(metadata.acceptance_expires_at)}
+              </dd>
+            </>
+          ) : null}
+        </dl>
+      ) : null}
+      {showOffer && metadata && eventType === "INVOICE_OFFER_SENT" ? (
+        <dl className="grid grid-cols-[minmax(7rem,auto)_1fr] gap-x-3 gap-y-1 text-ui">
+          {typeof metadata.offered_amount === "number" ? (
+            <>
+              <dt className="text-muted-foreground">Financing amount</dt>
+              <dd className="tabular-nums">{formatCurrency(metadata.offered_amount)}</dd>
+            </>
+          ) : null}
+          {metadata.offered_ratio_percent != null ? (
+            <>
+              <dt className="text-muted-foreground">Financing ratio</dt>
+              <dd className="tabular-nums">{Number(metadata.offered_ratio_percent)}%</dd>
+            </>
+          ) : null}
+          {metadata.offered_profit_rate_percent != null ? (
+            <>
+              <dt className="text-muted-foreground">Profit rate</dt>
+              <dd className="tabular-nums">{Number(metadata.offered_profit_rate_percent)}%</dd>
+            </>
+          ) : null}
+          {typeof metadata.acceptance_expires_at === "string" && metadata.acceptance_expires_at ? (
+            <>
+              <dt className="text-muted-foreground">Accept by</dt>
+              <dd className="tabular-nums">
+                {formatPhaseDeadlineAbsolute(metadata.acceptance_expires_at)}
+              </dd>
+            </>
+          ) : null}
+        </dl>
+      ) : null}
+      {showRejection && metadata?.rejection_reason ? (
+        <div>
+          <p className="text-meta text-muted-foreground">Reason</p>
+          <p className="mt-0.5 text-ui leading-relaxed">{String(metadata.rejection_reason)}</p>
         </div>
-      ))}
-    </div>
+      ) : null}
+      {remarkLines.length > 0 ? (
+        <div>
+          <p className="text-meta text-muted-foreground">Remark</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-ui leading-relaxed">
+            {remarkLines.map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      </div>
+    </AdminTimelineDetailCard>
   );
 }
 
@@ -391,18 +357,6 @@ export function AdminActivityTimeline({
   sectionLabelOverrides,
   visibleReviewSections,
 }: AdminActivityTimelineProps) {
-  /**
-   * Local state / hooks
-   *
-   * What this section does:
-   * - Fetches application-scoped logs via `useApplicationLogs`.
-   *
-   * Why it exists:
-   * - The UI should only render application-level activity (not organization-wide aggregated logs).
-   *
-   * Data shape:
-   * - `data` is an array of logs with fields similar to UnifiedActivity.
-   */
   const { data, isLoading, error } = useApplicationLogs(applicationId);
 
   const logs: ApplicationLogEntry[] = React.useMemo(
@@ -424,190 +378,137 @@ export function AdminActivityTimeline({
 
   const visibleLogs = logs.slice(0, visibleCount);
   const hasMore = logs.length > visibleCount;
-
-  const toggle = (id: string) =>
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
-
-  // Total count updated to reflect only application-scoped logs
   const totalCount = logs.length;
 
-  function getRemarkVariant(eventType: string) {
-    const t = eventType.toUpperCase();
+  const csvRows = React.useMemo(
+    () => (data ?? []).map((log) => applicationLogToActivityCsvRow(log, sectionLabelOverrides)),
+    [data, sectionLabelOverrides]
+  );
 
-    if (t.includes("APPROVED"))
-      return "bg-emerald-50 border-emerald-200 text-emerald-900";
-
-    if (t.includes("REJECTED"))
-      return "bg-red-50 border-red-200 text-red-900";
-
-    if (t.includes("AMENDMENT"))
-      return "bg-amber-50 border-amber-200 text-amber-900";
-
-    return "bg-muted/40 border-border text-foreground";
-  }
+  const toggle = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
 
   return (
     <>
-    <Card className="rounded-2xl flex flex-col overflow-hidden">
-      <CardHeader className="pb-3 shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ClipboardDocumentCheckIcon className="h-5 w-5 text-destructive" />
-            <CardTitle className="text-base font-semibold">Activity Timeline</CardTitle>
-          </div>
-          {totalCount > 0 && (
-            <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
-              {totalCount}
-            </Badge>
+      <Card className="flex flex-col overflow-hidden rounded-2xl">
+        <AdminDetailCardHeader
+          icon={ClockIcon}
+          title="Activity Timeline"
+          description={
+            totalCount === 0
+              ? "No activity logs yet"
+              : `${totalCount} ${totalCount === 1 ? "event" : "events"}`
+          }
+          actions={
+            <AdminActivityCsvExportButton
+              fileName={`application-${applicationId ?? "activity"}-activity.csv`}
+              rows={csvRows}
+            />
+          }
+        />
+
+        <CardContent className="min-h-0 overflow-hidden !px-0">
+          {isLoading && (
+            <div className="px-6 pb-12">
+              <AdminVerticalTimelineSkeleton />
+            </div>
           )}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Application events and status changes
-        </p>
-      </CardHeader>
 
-      <CardContent className="overflow-hidden min-h-0 !px-0 ">
-        {isLoading && (
-          <div className="px-6 pb-12">
-            <TimelineSkeleton />
-          </div>
-        )}
+          {error && (
+            <div className="px-6 pb-12 text-ui text-destructive">Failed to load activity logs</div>
+          )}
 
-        {error && (
-          <div className="px-6 pb-12 text-sm text-destructive">
-            Failed to load activity logs
-          </div>
-        )}
+          {!isLoading && !error && logs.length === 0 && (
+            <div className="px-6 py-8 pb-12 text-center text-ui text-muted-foreground">
+              No activity logs found
+            </div>
+          )}
 
-        {!isLoading && !error && logs.length === 0 && (
-          <div className="px-6 pb-12 text-sm text-muted-foreground text-center py-8">
-            No activity logs found
-          </div>
-        )}
-
-        {!isLoading && logs.length > 0 && (
-          <ScrollArea className="overflow-auto">
-              <div className="px-6 ">
-                <div className="relative">
-                  {/* Vertical timeline line */}
-                  <div className="absolute left-[5px] top-2 bottom-2 w-px bg-border" />
-
-                  <div className="space-y-5">
-                    {visibleLogs.map((log, index) => {
-                      const eventType = log.event_type;
-                      const isFirst = index === 0;
-                      const actorRaw = log.metadata
-                        ? (log.metadata.actorName ?? log.metadata.organizationName)
+          {!isLoading && logs.length > 0 && (
+            <ScrollArea className="overflow-auto">
+              <div className="px-6">
+                <AdminVerticalTimeline
+                  footer={
+                    hasMore ? (
+                      <div className="mt-3 flex justify-center border-t border-border pt-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            setVisibleCount((prev) => Math.min(prev + ACTIVITY_PAGE_SIZE, logs.length))
+                          }
+                        >
+                          <ChevronDownIcon className="mr-1.5 h-4 w-4" aria-hidden />
+                          Show more ({logs.length - visibleCount} remaining)
+                        </Button>
+                      </div>
+                    ) : null
+                  }
+                >
+                  {visibleLogs.map((log) => {
+                    const eventType = log.event_type;
+                    const metadata = log.metadata as ActivityMetadata | null;
+                    const actorRaw = metadata
+                      ? (metadata.actorName ?? metadata.organizationName)
+                      : undefined;
+                    const portal =
+                      metadata?.portal || metadata?.portalType
+                        ? String(metadata.portal || metadata.portalType)
+                        : null;
+                    const actorName = resolveAdminTimelineActorLabel({
+                      actorName: typeof actorRaw === "string" ? actorRaw : null,
+                      actorUserId: log.actor_id,
+                      portal,
+                    });
+                    const remark = log.remark;
+                    const entityId = log.entityId ?? undefined;
+                    const resubmitChanges =
+                      eventType === "APPLICATION_RESUBMITTED"
+                        ? metadata?.resubmit_changes
                         : undefined;
-                      const actorName =
-                        typeof actorRaw === "string" && actorRaw.trim() !== ""
-                          ? actorRaw
-                          : "System";
-                      const metadata = log.metadata as ActivityMetadata | null;
-                      // Prefer canonical top-level fields only.
-                      // Server stores remark/entity_id at top-level. Do NOT read from metadata.
-                      const remark = log.remark;
-                      const entityId = log.entityId ?? undefined;
-                      const resubmitChanges =
-                        eventType === "APPLICATION_RESUBMITTED"
-                          ? metadata?.resubmit_changes
-                          : undefined;
-                      const reviewCycleFromLog =
-                        typeof (log as { review_cycle?: unknown }).review_cycle === "number"
-                          ? (log as { review_cycle: number }).review_cycle
-                          : null;
-                      const canOpenResubmitComparison =
-                        eventType === "APPLICATION_RESUBMITTED" &&
-                        reviewCycleFromLog != null &&
-                        reviewCycleFromLog >= 2;
+                    const reviewCycleFromLog =
+                      typeof (log as { review_cycle?: unknown }).review_cycle === "number"
+                        ? (log as { review_cycle: number }).review_cycle
+                        : null;
+                    const canOpenResubmitComparison =
+                      eventType === "APPLICATION_RESUBMITTED" &&
+                      reviewCycleFromLog != null &&
+                      reviewCycleFromLog >= 2;
 
-                      return (
-                        <div key={log.id} className="relative flex gap-3 pl-0">
-                          {/* Dot indicator */}
-                          <div
-                            className={`relative z-10 mt-1.5 h-[11px] w-[11px] shrink-0 rounded-full border-2 border-card ${getEventDotColor(eventType)} ${isFirst ? "ring-2 ring-primary/20" : ""}`}
-                          />
+                    const tabsOnly =
+                      eventType === "APPLICATION_RESUBMITTED" && resubmitChanges?.field_changes
+                        ? formatResubmitTabsOnlyActivity({
+                            resubmitChanges: resubmitChanges as ResubmitChangesMetadata | undefined,
+                            sectionLabelOverrides,
+                          })
+                        : null;
+                    const description = tabsOnly ?? formatActivityText(log.activity);
+                    const canExpand = Boolean(
+                      remark ||
+                        ((eventType === "CONTRACT_OFFER_SENT" || eventType === "INVOICE_OFFER_SENT") &&
+                          metadata) ||
+                        ((eventType === "CONTRACT_WITHDRAWN" ||
+                          eventType === "INVOICE_OFFER_REJECTED") &&
+                          metadata?.rejection_reason)
+                    );
 
-                          <div className="flex-1 min-w-0 -mt-0.5">
-                            {/* Event label and icon */}
-                            <div className="flex items-center gap-1.5">
-                              {getEventIcon(eventType)}
-                              <span className="text-sm font-medium leading-tight">
-                                {getEventLabel(eventType, metadata, entityId, sectionLabelOverrides)}
-                              </span>
-                            </div>
-
-                            {/* Activity text */}
-                            {(() => {
-                              if (
-                                eventType === "APPLICATION_RESUBMITTED" &&
-                                resubmitChanges?.field_changes
-                              ) {
-                                const tabsOnly = formatResubmitTabsOnlyActivity({
-                                  resubmitChanges: resubmitChanges as ResubmitChangesMetadata | undefined,
-                                  sectionLabelOverrides,
-                                });
-                                if (tabsOnly) {
-                                  return (
-                                    <p
-                                      className={`text-xs text-muted-foreground mt-0.5`}
-                                    >
-                                      {tabsOnly}
-                                    </p>
-                                  );
-                                }
-                              }
-
-                              if (log.activity == null) return null;
-                              return (
-                                <p
-                                  className={`text-xs text-muted-foreground mt-0.5 ${
-                                    eventType === "APPLICATION_RESUBMITTED"
-                                      ? "whitespace-pre-line"
-                                      : "line-clamp-2"
-                                  }`}
-                                >
-                                  {typeof log.activity === "string"
-                                    ? log.activity
-                                    : typeof log.activity === "number" || typeof log.activity === "boolean"
-                                      ? String(log.activity)
-                                      : JSON.stringify(log.activity)}
-                                </p>
-                              );
-                            })()}
-
-                            {/* Actor + context row */}
-                            <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground/70">
-                              <span className="inline-flex items-center gap-0.5">
-                                <UserIcon className="h-3 w-3" />
-                                {actorName}
-                              </span>
-                              {((metadata && (metadata.portal || metadata.portalType)) || undefined) && (
-                                <span className="inline-flex items-center gap-0.5">
-                                  <GlobeAltIcon className="h-3 w-3" />
-                                  {String((metadata && (metadata.portal || metadata.portalType)) || "")}
-                                </span>
-                              )}
-                              {((metadata && (metadata.device_type || metadata.device_info)) || undefined) && (
-                                <span className="inline-flex items-center gap-0.5">
-                                  <ComputerDesktopIcon className="h-3 w-3" />
-                                  {String((metadata && (metadata.device_type || metadata.device_info)) || "")}
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Timestamp */}
-                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
-                              <p
-                                className="text-[11px] text-muted-foreground/70"
-                                title={format(new Date(log.created_at), "PPpp")}
-                              >
-                                {formatDistanceToNow(new Date(log.created_at), {
-                                  addSuffix: true,
-                                })}
-                              </p>
-
-                              {canOpenResubmitComparison && (
+                    return (
+                      <AdminVerticalTimelineItem
+                        key={log.id}
+                        title={getEventLabel(eventType, metadata, entityId, sectionLabelOverrides)}
+                        description={description}
+                        descriptionClassName={
+                          eventType === "APPLICATION_RESUBMITTED" && !tabsOnly
+                            ? "whitespace-pre-line"
+                            : "line-clamp-2"
+                        }
+                        createdAt={log.created_at}
+                        actorLabel={actorName}
+                        portal={portal}
+                        timestampActions={
+                          canOpenResubmitComparison || canExpand ? (
+                            <>
+                              {canOpenResubmitComparison ? (
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -619,173 +520,56 @@ export function AdminActivityTimeline({
                                     });
                                     setComparisonModalOpen(true);
                                   }}
-                                  className="text-xs text-foreground/80 hover:underline font-medium"
+                                  className="hover:text-foreground hover:underline"
                                 >
                                   View comparison
                                 </button>
-                              )}
-
-                              {(remark ||
-                                ((eventType === "CONTRACT_OFFER_SENT" || eventType === "INVOICE_OFFER_SENT") && metadata) ||
-                                ((eventType === "CONTRACT_WITHDRAWN" || eventType === "INVOICE_OFFER_REJECTED") &&
-                                  metadata?.rejection_reason)) && (
+                              ) : null}
+                              {canExpand ? (
                                 <button
                                   type="button"
                                   onClick={() => toggle(log.id)}
-                                  className="text-xs text-foreground/80 hover:underline"
+                                  className="hover:text-foreground hover:underline"
                                 >
                                   {expanded[log.id] ? "Hide details" : "View details"}
                                 </button>
-                              )}
-                            </div>
-
-                            {/* Offer details (CONTRACT_OFFER_SENT / INVOICE_OFFER_SENT) */}
-                            {expanded[log.id] && (eventType === "CONTRACT_OFFER_SENT" || eventType === "INVOICE_OFFER_SENT") && metadata && (
-                              <div className="mt-3 rounded-xl border bg-muted/20 p-4 text-[11px] space-y-2">
-                                {eventType === "CONTRACT_OFFER_SENT" && (
-                                  <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5">
-                                    {typeof metadata.offered_facility === "number" && (
-                                      <>
-                                        <dt className="text-muted-foreground">Offered facility</dt>
-                                        <dd className="font-medium tabular-nums">{formatCurrency(metadata.offered_facility)}</dd>
-                                      </>
-                                    )}
-                                    {typeof metadata.requested_facility === "number" && (
-                                      <>
-                                        <dt className="text-muted-foreground">Requested facility</dt>
-                                        <dd className="tabular-nums">{formatCurrency(metadata.requested_facility)}</dd>
-                                      </>
-                                    )}
-                                    {typeof metadata.acceptance_expires_at === "string" &&
-                                      metadata.acceptance_expires_at && (
-                                      <>
-                                        <dt className="text-muted-foreground">Accept by</dt>
-                                        <dd className="tabular-nums">
-                                          {formatPhaseDeadlineAbsolute(metadata.acceptance_expires_at)}
-                                        </dd>
-                                      </>
-                                    )}
-                                  </dl>
-                                )}
-                                {eventType === "INVOICE_OFFER_SENT" && (
-                                  <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5">
-                                    {typeof metadata.offered_amount === "number" && (
-                                      <>
-                                        <dt className="text-muted-foreground">Financing Amount</dt>
-                                        <dd className="font-medium tabular-nums">{formatCurrency(metadata.offered_amount)}</dd>
-                                      </>
-                                    )}
-                                    {metadata.offered_ratio_percent != null && (
-                                      <>
-                                        <dt className="text-muted-foreground">Financing Ratio</dt>
-                                        <dd className="tabular-nums">{Number(metadata.offered_ratio_percent)}%</dd>
-                                      </>
-                                    )}
-                                    {metadata.offered_profit_rate_percent != null && (
-                                      <>
-                                        <dt className="text-muted-foreground">Profit rate</dt>
-                                        <dd className="tabular-nums">{Number(metadata.offered_profit_rate_percent)}%</dd>
-                                      </>
-                                    )}
-                                    {typeof metadata.acceptance_expires_at === "string" &&
-                                      metadata.acceptance_expires_at && (
-                                      <>
-                                        <dt className="text-muted-foreground">Accept by</dt>
-                                        <dd className="tabular-nums">
-                                          {formatPhaseDeadlineAbsolute(metadata.acceptance_expires_at)}
-                                        </dd>
-                                      </>
-                                    )}
-                                  </dl>
-                                )}
-                              </div>
-                            )}
-
-                            {expanded[log.id] &&
-                              (eventType === "CONTRACT_WITHDRAWN" || eventType === "INVOICE_OFFER_REJECTED") &&
-                              metadata?.rejection_reason && (
-                                <div className="mt-3 rounded-xl border bg-muted/20 p-4 text-[11px] space-y-2">
-                                  <p className="text-[11px] font-bold">Reason</p>
-                                  <p className="text-[11px] font-normal text-foreground leading-relaxed">
-                                    {String(metadata.rejection_reason)}
-                                  </p>
-                                </div>
-                              )}
-
-                          {expanded[log.id] && remark && (
-                            <div className="mt-3 rounded-xl border p-4 text-[11px] space-y-3">
-
-                              {/* Remark */}
-                              <div className="space-y-2">
-                                <p className="text-[11px] font-semibold text-foreground">
-                                  Remark
-                                </p>
-                                <div
-                                  className={`rounded-lg border px-4 py-3 leading-relaxed ${getRemarkVariant(
-                                    log.event_type
-                                  )}`}
-                                >
-                                  {(() => {
-                                    const lines = formatRemarkAsBullets(String(remark));
-                                    if (lines.length === 0) return null;
-                                    return (
-                                      <ul className="list-disc pl-5 space-y-1.5 text-[11px]">
-                                        {lines.map((line, i) => (
-                                          <li key={i} className="pl-0.5 text-[11px]">
-                                            {line}
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    );
-                                  })()}
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {hasMore && (
-                    <div className="mt-3 flex justify-center border-t border-border pt-3">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setVisibleCount((prev) =>
-                            Math.min(prev + ACTIVITY_PAGE_SIZE, logs.length)
-                          )
+                              ) : null}
+                            </>
+                          ) : undefined
                         }
-                      >
-                        <ChevronDownIcon className="mr-1.5 h-4 w-4" aria-hidden />
-                        Show more ({logs.length - visibleCount} remaining)
-                      </Button>
-                    </div>
-                  )}
-                </div>
+                        footer={
+                          expanded[log.id] ? (
+                            <ApplicationTimelineDetails
+                              eventType={eventType}
+                              metadata={metadata}
+                              remark={remark}
+                            />
+                          ) : null
+                        }
+                      />
+                    );
+                  })}
+                </AdminVerticalTimeline>
               </div>
-          </ScrollArea>
-        )}
-      </CardContent>
-    </Card>
-    <ResubmitComparisonModal
-      open={comparisonModalOpen}
-      onOpenChange={(o) => {
-        setComparisonModalOpen(o);
-        if (!o) setComparisonContext(null);
-      }}
-      applicationId={applicationId}
-      productKey={productKey ?? null}
-      reviewCycle={comparisonContext?.reviewCycle ?? null}
-      fieldChanges={comparisonContext?.fieldChanges}
-      reviewTabSections={reviewTabSections}
-      visibleReviewSections={visibleReviewSections}
-    />
+            </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
+      <ResubmitComparisonModal
+        open={comparisonModalOpen}
+        onOpenChange={(o) => {
+          setComparisonModalOpen(o);
+          if (!o) setComparisonContext(null);
+        }}
+        applicationId={applicationId}
+        productKey={productKey ?? null}
+        reviewCycle={comparisonContext?.reviewCycle ?? null}
+        fieldChanges={comparisonContext?.fieldChanges}
+        reviewTabSections={reviewTabSections}
+        visibleReviewSections={visibleReviewSections}
+      />
     </>
   );
 }
 
 export default AdminActivityTimeline;
-

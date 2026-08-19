@@ -1,27 +1,49 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { getFilterableActivityDomains, type GetActivitiesParams } from "@cashsouk/types";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  getDefaultActivityDomains,
+  getFilterableActivityDomains,
+  sameActivityDomainSet,
+  type GetActivitiesParams,
+} from "@cashsouk/types";
+import { useOrganization } from "@cashsouk/config";
+import {
+  ActivityFeed,
+  PageShell,
+  portalPageGutterClassName,
+  useHeader,
+} from "@cashsouk/ui";
+import { cn } from "@/lib/utils";
 import { useActivities } from "../../hooks/use-activities";
-import { Button } from "../../components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
-import { ActivityItem, Skeleton, ActivityToolbar, useHeader } from "@cashsouk/ui";
-import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+
+const PAGE_SIZE = 10;
 
 export default function ActivityPage() {
   const { setTitle } = useHeader();
+  const { activeOrganization } = useOrganization();
+  const onboardingComplete = activeOrganization?.onboardingStatus === "COMPLETED";
   const availableDomains = getFilterableActivityDomains("investor");
+  const defaultDomains = useMemo(
+    () => getDefaultActivityDomains("investor", { onboardingComplete }),
+    [onboardingComplete]
+  );
 
   useEffect(() => {
-    setTitle("Activity");
+    setTitle("");
+    return () => setTitle("");
   }, [setTitle]);
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [domains, setDomains] = useState<NonNullable<GetActivitiesParams["domains"]>>([]);
+  const [domains, setDomains] = useState<NonNullable<GetActivitiesParams["domains"]>>(defaultDomains);
   const [dateRange, setDateRange] = useState("all");
   const [page, setPage] = useState(1);
-  const limit = 10;
+
+  useEffect(() => {
+    setDomains(defaultDomains);
+    setPage(1);
+  }, [defaultDomains]);
 
   const apiDateRangeByUi: Record<string, GetActivitiesParams["dateRange"] | undefined> = {
     all: undefined,
@@ -50,113 +72,53 @@ export default function ActivityPage() {
 
   const { data, isLoading, refetch } = useActivities({
     page,
-    limit,
+    limit: PAGE_SIZE,
     search: debouncedSearch || undefined,
     domains: domains.length > 0 ? domains : undefined,
     dateRange: apiDateRangeByUi[dateRange],
   });
 
-  const activities = data?.activities || [];
   const pagination = data?.pagination;
+  const hasActiveFilters =
+    Boolean(debouncedSearch) ||
+    dateRange !== "all" ||
+    !sameActivityDomainSet(domains, defaultDomains);
 
   const handleClearFilters = () => {
     setSearch("");
-    setDomains([]);
+    setDomains(defaultDomains);
     setDateRange("all");
     setPage(1);
   };
 
   return (
-    <>
-      <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-        <Card className="border-none shadow-none bg-transparent">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7 px-0">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-2xl font-bold">Activities</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0 space-y-6">
-            <ActivityToolbar
-              searchQuery={search}
-              onSearchChange={setSearch}
-              availableDomains={availableDomains}
-              domainFilters={domains}
-              onDomainFiltersChange={handleDomainsChange}
-              dateRangeFilter={dateRange}
-              onDateRangeFilterChange={handleDateRangeChange}
-              totalCount={pagination?.unfilteredTotal || 0}
-              filteredCount={pagination?.total || 0}
-              onClearFilters={handleClearFilters}
-              onReload={() => refetch()}
-              isLoading={isLoading}
-            />
-
-            <div className="rounded-xl border bg-white shadow-sm overflow-hidden">
-              <div className="grid grid-cols-[minmax(0,1fr)_320px] gap-8 px-6 py-3 border-b bg-muted/30 text-sm font-medium text-muted-foreground">
-                <div className="flex-1">Activity</div>
-                <div className="grid grid-cols-[120px_160px] gap-8">
-                  <div>Domain</div>
-                  <div className="text-right">Time</div>
-                </div>
-              </div>
-
-              <div className="divide-y divide-border">
-                {isLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <div key={i} className="flex items-center justify-between py-4 px-6">
-                      <div className="flex flex-col gap-2 flex-1">
-                        <Skeleton className="h-5 w-[200px]" />
-                        <Skeleton className="h-4 w-[300px]" />
-                      </div>
-                      <div className="flex items-center gap-12">
-                        <Skeleton className="h-6 w-[100px] rounded-full" />
-                        <Skeleton className="h-4 w-[140px]" />
-                      </div>
-                    </div>
-                  ))
-                ) : activities.length > 0 ? (
-                  activities.map((activity) => (
-                    <ActivityItem key={activity.id} activity={activity} className="px-6 hover:bg-muted/20" />
-                  ))
-                ) : (
-                  <div className="py-12 text-center text-muted-foreground">
-                    {search ? "No activities found matching your search." : "No activities recorded yet."}
-                  </div>
-                )}
-              </div>
-
-              {pagination && pagination.total > 0 && (
-                <div className="flex items-center justify-between border-t px-6 py-4 bg-white">
-                  <div className="text-sm text-muted-foreground">
-                    Showing {Math.min((page - 1) * limit + 1, pagination.total)}-{Math.min(page * limit, pagination.total)} of {pagination.total}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                    >
-                      <ChevronLeftIcon className="h-4 w-4" />
-                    </Button>
-                    <div className="text-sm font-medium">
-                      Page {page} of {pagination.pages}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
-                      disabled={page === pagination.pages}
-                    >
-                      <ChevronRightIcon className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </>
+    <div className={cn(portalPageGutterClassName, "space-y-6")}>
+      <PageShell
+        title="Activity"
+        description="Milestones across your onboarding and investments."
+      >
+        <ActivityFeed
+          portal="investor"
+          activities={data?.activities ?? []}
+          isLoading={isLoading}
+          searchQuery={search}
+          onSearchChange={setSearch}
+          availableDomains={availableDomains}
+          domainFilters={domains}
+          defaultDomains={defaultDomains}
+          onDomainFiltersChange={handleDomainsChange}
+          dateRangeFilter={dateRange}
+          onDateRangeFilterChange={handleDateRangeChange}
+          totalCount={pagination?.unfilteredTotal || 0}
+          filteredCount={pagination?.total || 0}
+          onClearFilters={handleClearFilters}
+          onReload={() => refetch()}
+          hasActiveFilters={hasActiveFilters}
+          page={page}
+          pageSize={PAGE_SIZE}
+          onPageChange={setPage}
+        />
+      </PageShell>
+    </div>
   );
 }

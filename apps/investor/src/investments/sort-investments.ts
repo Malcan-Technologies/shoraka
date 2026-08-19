@@ -1,4 +1,5 @@
 import { resolveNetExpectedReturnRatePercent, type NoteListItem } from "@cashsouk/types";
+import { compareInvestmentMaturity, getInvestmentRelevanceRank } from "./investment-position-model";
 
 export type InvestmentSortOption =
   | "most_relevant"
@@ -50,12 +51,7 @@ function getMaturityTimestamp(note: NoteListItem) {
 }
 
 function getMostRelevantRank(note: NoteListItem) {
-  const statusLabel = getInvestmentStatusLabel(note);
-  if (statusLabel === "Pending confirmation") return 0;
-  if (statusLabel === "Active") return 1;
-  if (statusLabel === "In progress") return 2;
-  if (statusLabel === "Settled") return 3;
-  return 4;
+  return getInvestmentRelevanceRank(note);
 }
 
 function compareBySortOption(
@@ -73,6 +69,8 @@ function compareBySortOption(
 
   const rankDifference = getMostRelevantRank(left) - getMostRelevantRank(right);
   if (rankDifference !== 0) return rankDifference;
+  const byMaturity = compareInvestmentMaturity(left, right);
+  if (byMaturity !== 0) return byMaturity;
   return getUpdatedTimestamp(right) - getUpdatedTimestamp(left);
 }
 

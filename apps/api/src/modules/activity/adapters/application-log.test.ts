@@ -285,6 +285,34 @@ describe("ApplicationLogAdapter", () => {
     expect(count).toBe(0);
   });
 
+  it("searches application and invoice references", async () => {
+    prisma.applicationLog.findMany.mockResolvedValue([]);
+
+    await adapter.query("user123", { search: "INV-001" });
+
+    expect(prisma.applicationLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            { application_id: { contains: "INV-001", mode: "insensitive" } },
+            {
+              metadata: {
+                path: ["invoice_number"],
+                string_contains: "INV-001",
+              },
+            },
+            {
+              metadata: {
+                path: ["application_reference"],
+                string_contains: "INV-001",
+              },
+            },
+          ]),
+        }),
+      })
+    );
+  });
+
   it("only exposes high-signal application events", () => {
     expect(adapter.getEventTypes()).toContain("APPLICATION_APPROVED");
     expect(adapter.getEventTypes()).toContain("AMENDMENTS_SUBMITTED");

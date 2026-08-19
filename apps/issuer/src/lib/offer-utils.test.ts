@@ -222,11 +222,16 @@ describe("getIssuerOfferActionCta", () => {
     expect(cta.isAcceptanceChangesRequested).toBe(true);
   });
 
-  it("uses Review Facility Financing Offer for PENDING_ISSUER contract scope", () => {
+  it("uses Review Facility Offer for PENDING_ISSUER contract scope", () => {
     const cta = getIssuerOfferActionCta("PENDING_ISSUER", { scope: "contract" });
-    expect(cta.label).toBe("Review Facility Financing Offer");
+    expect(cta.label).toBe("Review Facility Offer");
     expect(cta.hint).toBeNull();
     expect(cta.buttonVariant).toBe("reviewOffer");
+  });
+
+  it("uses Review Invoice Offer for PENDING_ISSUER invoice scope", () => {
+    const cta = getIssuerOfferActionCta("PENDING_ISSUER", { scope: "invoice" });
+    expect(cta.label).toBe("Review Invoice Offer");
   });
 
   it("reads phase from offer_details", () => {

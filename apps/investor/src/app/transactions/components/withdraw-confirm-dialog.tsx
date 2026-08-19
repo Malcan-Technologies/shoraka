@@ -1,14 +1,14 @@
 "use client";
 
-import { formatCurrency } from "@cashsouk/config";
+import { formatCurrency, getBankAccountField, useOrganization } from "@cashsouk/config";
+import { ArrowUpTrayIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  InvestorActionDialog,
+  InvestorActionDialogIcon,
+} from "@/components/investor-action-dialog";
+import { formatBankAccountHint } from "@/components/investor-money-copy";
+import { useOrganizationDetail } from "@/hooks/use-organization-detail";
 
 interface WithdrawConfirmDialogProps {
   open: boolean;
@@ -27,22 +27,30 @@ export function WithdrawConfirmDialog({
   isLoading = false,
   errorMessage = null,
 }: WithdrawConfirmDialogProps) {
+  const { activeOrganization } = useOrganization();
+  const { data: orgDetail } = useOrganizationDetail(activeOrganization?.id, open);
+  const bankName = getBankAccountField(orgDetail?.bankAccountDetails, "Bank");
+  const accountHint = formatBankAccountHint(
+    getBankAccountField(orgDetail?.bankAccountDetails, "Bank account number") || ""
+  );
+  const destination =
+    bankName && accountHint && accountHint !== "Not set"
+      ? `${bankName} · ${accountHint}`
+      : bankName || "your registered bank account";
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-xl p-0" aria-describedby={undefined}>
-        <DialogHeader className="border-b px-6 pb-4 pt-6 text-center">
-          <DialogTitle className="text-xl font-semibold">Withdrawal Request Confirmation</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-2 px-6 py-8 text-center">
-          <p className="text-muted-foreground">You have requested to withdraw</p>
-          <p className="text-3xl font-bold text-primary">{formatCurrency(amount)}</p>
-          {errorMessage ? (
-            <p className="text-sm text-destructive">{errorMessage}</p>
-          ) : null}
-        </div>
-
-        <DialogFooter className="flex-row gap-3 border-t px-6 py-4 sm:justify-between sm:space-x-0">
+    <InvestorActionDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      icon={
+        <InvestorActionDialogIcon>
+          <ArrowUpTrayIcon className="size-6" />
+        </InvestorActionDialogIcon>
+      }
+      title="Confirm withdrawal"
+      description={`We'll send this to ${destination}.`}
+      footer={
+        <>
           <Button
             type="button"
             variant="outline"
@@ -50,7 +58,7 @@ export function WithdrawConfirmDialog({
             onClick={() => onOpenChange(false)}
             disabled={isLoading}
           >
-            Cancel
+            Back
           </Button>
           <Button
             type="button"
@@ -59,17 +67,19 @@ export function WithdrawConfirmDialog({
             onClick={onConfirm}
             disabled={isLoading}
           >
-            {isLoading ? "Submitting…" : "Confirm"}
+            {isLoading ? "Sending…" : "Send withdrawal"}
           </Button>
-        </DialogFooter>
-
-        <p className="border-t px-6 py-4 text-center text-xs text-muted-foreground">
-          This process takes 2-3 business days. By clicking confirm, I accept the{" "}
-          <button type="button" className="text-primary underline-offset-2 hover:underline">
-            Terms and Conditions
-          </button>
+        </>
+      }
+      footnote="Withdrawals usually arrive in 2–3 business days."
+    >
+      <div className="rounded-2xl border border-border bg-muted/40 px-5 py-6 text-center">
+        <p className="text-ui text-muted-foreground">You're withdrawing</p>
+        <p className="mt-2 text-3xl font-semibold tabular-nums tracking-tight text-foreground">
+          {formatCurrency(amount)}
         </p>
-      </DialogContent>
-    </Dialog>
+        {errorMessage ? <p className="mt-3 text-ui text-destructive">{errorMessage}</p> : null}
+      </div>
+    </InvestorActionDialog>
   );
 }

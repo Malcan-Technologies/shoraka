@@ -67,26 +67,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
     }
 
     if (search) {
-      const matchingEventTypes = finalEventTypes.filter((eventType) => {
-        const presentation = this.buildPresentation(eventType, {});
-        const searchTerm = search.toLowerCase();
-
-        return (
-          presentation.title.toLowerCase().includes(searchTerm) ||
-          presentation.description.toLowerCase().includes(searchTerm)
-        );
-      });
-
-      where.OR = [
-        { event_type: { contains: search, mode: "insensitive" } },
-        { event_type: { in: matchingEventTypes } },
-        {
-          metadata: {
-            path: ["remark"],
-            string_contains: search,
-          },
-        },
-      ];
+      where.OR = this.buildSearchClause(search, finalEventTypes);
     }
 
     const records = await prisma.applicationLog.findMany({
@@ -119,26 +100,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
     }
 
     if (search) {
-      const matchingEventTypes = finalEventTypes.filter((eventType) => {
-        const presentation = this.buildPresentation(eventType, {});
-        const searchTerm = search.toLowerCase();
-
-        return (
-          presentation.title.toLowerCase().includes(searchTerm) ||
-          presentation.description.toLowerCase().includes(searchTerm)
-        );
-      });
-
-      where.OR = [
-        { event_type: { contains: search, mode: "insensitive" } },
-        { event_type: { in: matchingEventTypes } },
-        {
-          metadata: {
-            path: ["remark"],
-            string_contains: search,
-          },
-        },
-      ];
+      where.OR = this.buildSearchClause(search, finalEventTypes);
     }
 
     return prisma.applicationLog.count({ where });
@@ -438,6 +400,41 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
     }
 
     return Object.keys(references).length > 0 ? references : null;
+  }
+
+  private buildSearchClause(
+    search: string,
+    finalEventTypes: string[]
+  ): Prisma.ApplicationLogWhereInput["OR"] {
+    const searchTerm = search.toLowerCase();
+    const matchingEventTypes = finalEventTypes.filter((eventType) => {
+      const presentation = this.buildPresentation(eventType, {});
+      return (
+        presentation.title.toLowerCase().includes(searchTerm) ||
+        presentation.description.toLowerCase().includes(searchTerm)
+      );
+    });
+
+    const metadataPaths = [
+      "remark",
+      "application_reference",
+      "contract_number",
+      "contract_reference",
+      "invoice_number",
+      "invoice_reference",
+    ] as const;
+
+    return [
+      { event_type: { contains: search, mode: "insensitive" } },
+      { event_type: { in: matchingEventTypes } },
+      { application_id: { contains: search, mode: "insensitive" } },
+      ...metadataPaths.map((path) => ({
+        metadata: {
+          path: [path],
+          string_contains: search,
+        },
+      })),
+    ];
   }
 
   private readString(value: unknown): string | undefined {

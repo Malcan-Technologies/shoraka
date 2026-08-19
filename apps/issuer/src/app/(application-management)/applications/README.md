@@ -1,12 +1,12 @@
 # Applications Dashboard
 
-List of financing applications. User sees cards with status badges, invoice tables, and actions.
+List of financing applications. Actionable items sit in a taller-card carousel at the top; search and filters apply only to the slim list below.
 
 ## Files
 
 | File | What it does |
 |------|--------------|
-| **page.tsx** | The screen. Renders cards, search, filter, pagination. Dev-only Debug Panel for skeleton/mock testing. |
+| **page.tsx** | The screen. Renders attention carousel, slim cards, search, filter, pagination. Dev-only Debug Panel for skeleton/mock testing. |
 | **status.ts** | Status config (label, color, sort order) and logic. Add/remove statuses here. Filter options come from here. |
 | **use-applications-data.ts** | Fetches from API. Accepts debug overrides (skeleton, mock) for dev testing. Prepares each app for display. |
 | **dev/mockApplications.ts** | Mock generator for Debug Panel. Generates NormalizedApplication cards with varied lifecycle states. |

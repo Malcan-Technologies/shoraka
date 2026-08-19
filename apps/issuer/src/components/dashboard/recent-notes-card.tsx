@@ -21,7 +21,7 @@ export function RecentNotesCard() {
 
   return (
     <Card>
-      <RecentSectionHeader title="Recent notes" viewAllHref="/financing?tab=notes" />
+      <RecentSectionHeader title="Recent notes" viewAllHref="/financing?tab=invoices" />
       <div className="px-5 pb-5 pt-4 md:px-6 md:pb-6 md:pt-5">
         {isLoading ? (
           <p className="py-4 text-body leading-7 text-muted-foreground">Loading...</p>

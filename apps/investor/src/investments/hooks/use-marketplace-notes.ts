@@ -6,8 +6,13 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export const marketplaceKeys = {
   all: ["marketplace-notes"] as const,
-  list: (params: { search: string; page: number; pageSize: number; featuredOnly: boolean }) =>
-    [...marketplaceKeys.all, "list", params] as const,
+  list: (params: {
+    search: string;
+    page: number;
+    pageSize: number;
+    featuredOnly: boolean;
+    includeClosed: boolean;
+  }) => [...marketplaceKeys.all, "list", params] as const,
   detail: (id?: string) => [...marketplaceKeys.all, "detail", id] as const,
   portfolioRoot: ["investor-portfolio"] as const,
   portfolio: (investorOrganizationId?: string) =>
@@ -66,17 +71,25 @@ export function useMarketplaceNotes({
   page = 1,
   pageSize = 24,
   featuredOnly = false,
+  includeClosed = false,
 }: {
   search?: string;
   page?: number;
   pageSize?: number;
   featuredOnly?: boolean;
+  includeClosed?: boolean;
 } = {}) {
   const apiClient = useMarketplaceApiClient();
   return useQuery({
-    queryKey: marketplaceKeys.list({ search, page, pageSize, featuredOnly }),
+    queryKey: marketplaceKeys.list({ search, page, pageSize, featuredOnly, includeClosed }),
     queryFn: async () => {
-      const response = await apiClient.getMarketplaceNotes({ page, pageSize, search, featuredOnly });
+      const response = await apiClient.getMarketplaceNotes({
+        page,
+        pageSize,
+        search,
+        featuredOnly,
+        includeClosed,
+      });
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },

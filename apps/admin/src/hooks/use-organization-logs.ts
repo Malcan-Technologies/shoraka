@@ -25,6 +25,8 @@ const ONBOARDING_EVENT_TYPES: OnboardingEventType[] = [
 
 const PAGE_SIZE = 10;
 
+export const ORGANIZATION_ACTIVITY_EVENT_TYPES: OnboardingEventType[] = ONBOARDING_EVENT_TYPES;
+
 export function useOrganizationLogs(organizationId: string | null) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);

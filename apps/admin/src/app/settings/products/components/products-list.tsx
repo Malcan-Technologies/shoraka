@@ -8,9 +8,8 @@ import {
   useDeleteProduct,
   type UseProductsParams,
 } from "../hooks/use-products";
-import { Input } from "../../../../components/ui/input";
+import { ListToolbar } from "@cashsouk/ui";
 import { Button } from "../../../../components/ui/button";
-import { Badge } from "../../../../components/ui/badge";
 import { Skeleton } from "../../../../components/ui/skeleton";
 import {
   Table,
@@ -28,12 +27,9 @@ import {
   DialogFooter,
 } from "../../../../components/ui/dialog";
 import {
-  MagnifyingGlassIcon,
-  ArrowPathIcon,
   PencilSquareIcon,
   TrashIcon,
   CubeIcon,
-  XMarkIcon,
   PlusIcon,
 } from "@heroicons/react/24/outline";
 import { formatDistanceToNow } from "date-fns";
@@ -126,43 +122,15 @@ export function ProductsList() {
         }
       />
 
-      {/* Toolbar – search, clear, reload, count */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-0 sm:min-w-[200px]">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by name..."
-            value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="h-11 rounded-xl bg-card pl-9"
-            aria-label="Search products by name"
-          />
-        </div>
-        {search && (
-          <Button
-            variant="ghost"
-            onClick={handleClearSearch}
-            className="gap-2 h-11 rounded-xl"
-            aria-label="Clear search"
-          >
-            <XMarkIcon className="h-4 w-4" />
-            Clear
-          </Button>
-        )}
-        <Button
-          variant="outline"
-          onClick={() => invalidateProducts()}
-          disabled={isPending}
-          className="h-11 gap-2 rounded-xl bg-card"
-          aria-label="Refresh list"
-        >
-          <ArrowPathIcon className={`h-4 w-4 ${isPending ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
-        <Badge variant="secondary" className="h-11 px-4 rounded-xl text-sm">
-          {totalCount} {totalCount === 1 ? "product" : "products"}
-        </Badge>
-      </div>
+      <ListToolbar
+        searchValue={search}
+        onSearchChange={handleSearchChange}
+        searchPlaceholder="Search by name..."
+        onClearFilters={search ? handleClearSearch : undefined}
+        onReload={invalidateProducts}
+        isLoading={isPending}
+        countLabel={`${totalCount} ${totalCount === 1 ? "product" : "products"}`}
+      />
 
       {/* Table – scroll horizontally on small screens */}
       <div className="rounded-xl border border-border bg-card overflow-x-auto">

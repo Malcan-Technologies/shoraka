@@ -9,9 +9,17 @@ import {
   ArrowLeftIcon,
   ArrowPathIcon,
   BanknotesIcon,
-  ClipboardDocumentCheckIcon,
+  ClockIcon,
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
+import { AdminDetailCardHeader } from "@/components/admin-detail";
+import { AdminActivityCsvExportButton } from "@/components/admin-activity-csv-export-button";
+import { mergeActivityCsvMetadata } from "@/components/admin-activity-csv";
+import { resolveAdminTimelineActorLabel } from "@/components/admin-timeline-originator";
+import {
+  AdminVerticalTimeline,
+  AdminVerticalTimelineItem,
+} from "@/components/admin-vertical-timeline";
 import { formatCurrency } from "@cashsouk/config";
 import { ApplicationReviewRemarkDialog } from "@/components/application-review-remark-dialog";
 import {
@@ -205,6 +213,19 @@ export default function GatewayPaymentDetailPage() {
   const showNameCheckCard = Boolean(visibility?.showNameCheckCard);
   const showHeldRefundCard = Boolean(visibility?.showHeldRefundCard);
   const timelineEvents = payment?.events ?? [];
+  const activityCsvRows = timelineEvents.map((event) => ({
+    createdAt: event.createdAt,
+    event: formatGatewayEventTitle(event.type, event.reason),
+    eventType: event.type,
+    actor: event.actorName ?? "",
+    actorUserId: event.actorUserId ?? "",
+    portal: "",
+    remark: event.reason ?? "",
+    metadata: mergeActivityCsvMetadata(null, {
+      fromStatus: event.fromStatus,
+      toStatus: event.toStatus,
+    }),
+  }));
 
   const handleRetryRefund = async () => {
     if (!id) return;
@@ -897,72 +918,57 @@ export default function GatewayPaymentDetailPage() {
 
                   <div className="min-w-0 space-y-6">
                     <Card className="flex flex-col overflow-hidden rounded-2xl">
-                      <CardHeader className="shrink-0 pb-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <ClipboardDocumentCheckIcon className="h-5 w-5 text-muted-foreground" />
-                            <CardTitle className="text-base font-semibold">
-                              {GATEWAY_PAYMENT_COPY.activity.title}
-                            </CardTitle>
-                          </div>
-                          {timelineEvents.length > 0 ? (
-                            <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                              {timelineEvents.length}
-                            </Badge>
-                          ) : null}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {GATEWAY_PAYMENT_COPY.activity.description}
-                        </p>
-                      </CardHeader>
+                      <AdminDetailCardHeader
+                        icon={ClockIcon}
+                        title={GATEWAY_PAYMENT_COPY.activity.title}
+                        description={
+                          timelineEvents.length === 0
+                            ? GATEWAY_PAYMENT_COPY.activity.description
+                            : `${timelineEvents.length} ${timelineEvents.length === 1 ? "event" : "events"}`
+                        }
+                        actions={
+                          <AdminActivityCsvExportButton
+                            fileName={`gateway-payment-${id ?? "activity"}-activity.csv`}
+                            rows={activityCsvRows}
+                          />
+                        }
+                      />
                       <CardContent className="min-h-0 overflow-hidden !px-0">
                         {timelineEvents.length === 0 ? (
-                          <div className="px-6 py-8 text-center text-sm text-muted-foreground">
+                          <div className="px-6 py-8 text-center text-ui text-muted-foreground">
                             {GATEWAY_PAYMENT_COPY.activity.empty}
                           </div>
                         ) : (
                           <div className="px-6 pb-6">
-                            <div className="relative">
-                              <div className="absolute bottom-2 left-[5px] top-2 w-px bg-border" />
-                              <div className="space-y-5">
-                                {timelineEvents.map((event, index) => {
-                                  const fromLabel = formatStatusLabel(event.fromStatus);
-                                  const toLabel = formatStatusLabel(event.toStatus);
-                                  const description = formatGatewayEventDescription(
-                                    event.type,
-                                    event.reason
-                                  );
-                                  return (
-                                    <div key={event.id} className="relative flex gap-3 pl-0">
-                                      <div
-                                        className={cn(
-                                          "relative z-10 mt-1.5 h-[11px] w-[11px] shrink-0 rounded-full border-2 border-card bg-primary",
-                                          index === 0 && "ring-2 ring-primary/20"
-                                        )}
-                                      />
-                                      <div className="-mt-0.5 min-w-0 flex-1">
-                                        <p className="text-sm font-medium leading-tight text-foreground">
-                                          {formatGatewayEventTitle(event.type, event.reason)}
-                                        </p>
-                                        <p className="mt-0.5 text-xs text-muted-foreground">
-                                          {formatDate(event.createdAt)}
-                                        </p>
-                                        {fromLabel && toLabel ? (
-                                          <p className="mt-1 text-xs text-muted-foreground">
-                                            {fromLabel} → {toLabel}
-                                          </p>
-                                        ) : null}
-                                        {description ? (
-                                          <p className="mt-1 text-xs leading-5 text-foreground/90">
-                                            {description}
-                                          </p>
-                                        ) : null}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
+                            <AdminVerticalTimeline>
+                              {timelineEvents.map((event) => {
+                                const fromLabel = formatStatusLabel(event.fromStatus);
+                                const toLabel = formatStatusLabel(event.toStatus);
+                                const description = formatGatewayEventDescription(
+                                  event.type,
+                                  event.reason
+                                );
+                                return (
+                                  <AdminVerticalTimelineItem
+                                    key={event.id}
+                                    title={formatGatewayEventTitle(event.type, event.reason)}
+                                    description={description}
+                                    createdAt={event.createdAt}
+                                    actorLabel={resolveAdminTimelineActorLabel({
+                                      actorName: event.actorName,
+                                      actorUserId: event.actorUserId,
+                                      portal: "ADMIN",
+                                    })}
+                                    portal={event.actorUserId ? "ADMIN" : null}
+                                    compactDetails={
+                                      fromLabel && toLabel
+                                        ? [{ label: "Status", value: `${fromLabel} → ${toLabel}` }]
+                                        : undefined
+                                    }
+                                  />
+                                );
+                              })}
+                            </AdminVerticalTimeline>
                           </div>
                         )}
                       </CardContent>

@@ -322,7 +322,7 @@ Both promoted into the sidebar under a **Settings** group. Content and every act
 ### 5.7 Chrome — sidebar, header, footer
 
 - **Sidebar** — two groups per §2.1. Locked items get a lock glyph + explanatory tooltip. The pending-offer count badge on Applications is kept.
-- **Header** — stops duplicating the page title (§1.4). Becomes: sidebar trigger · breadcrumb · (spacer) · organisation switcher · notification bell · avatar menu. The organisation switcher moves out of the sidebar header, where it currently competes with the logo.
+- **Header** — stops duplicating the page title (§1.4). Becomes: sidebar trigger · breadcrumb · (spacer) · notification bell · avatar menu. The organisation switcher sits in the sidebar below the logo, with the menu opening to the right.
 - **Avatar menu** — reduced to Switch to Investor Portal and Log out, since Account and Notifications now have real homes.
 
 ---
@@ -461,11 +461,11 @@ The contract for this redesign. Every interactive affordance in the portal today
 | 94 | Invitation resend / revoke | Members tab |
 | 95 | Document download | Documents tab |
 | 96 | 4 confirm dialogs | Shared `ConfirmDialog` |
-| 97 | Dev "view as member" toggle | Kept, dev-only |
+| 97 | Dev "view as member" toggle | Removed |
 | 98 | `?focus=directors&person=` deep link | Kept |
 | 99 | Account info / Email / Password / Marketing | `/account`, restyled |
 | 100 | Change-password dialog | Kept |
-| 101 | Organisation switcher (+ add organisation) | Moves sidebar → header |
+| 101 | Organisation switcher (+ add organisation) | Sidebar, below the logo |
 | 102 | Sidebar collapse / rail | Kept |
 | 103 | Nav item disabled states + tooltips | Kept; lock glyph replaces `opacity-50` |
 | 104 | Pending-offer count badge | Kept |

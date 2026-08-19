@@ -13,6 +13,7 @@ import {
   resolveInvestorExpectedName,
 } from "./deposit-service";
 import { recordGatewayPaymentEvent, mapGatewayPaymentEvent } from "./gateway-events";
+import { loadUserDisplayNameMap } from "../../lib/user-display-name";
 import { ListGatewayPaymentsQuery } from "./admin-schemas";
 import {
   initiateGatewayPaymentRefund,
@@ -234,6 +235,10 @@ export async function getGatewayPaymentDetail(
   db: PrismaClient = defaultPrisma
 ) {
   const payment = await getGatewayPaymentOrThrow(db, gatewayPaymentId);
+  const actorNameById = await loadUserDisplayNameMap(
+    db,
+    payment.events.map((event) => event.actor_user_id)
+  );
 
   return {
     ...mapListItem(payment),
@@ -254,7 +259,12 @@ export async function getGatewayPaymentDetail(
       payment.metadata && typeof payment.metadata === "object" && !Array.isArray(payment.metadata)
         ? (payment.metadata as Record<string, unknown>)
         : null,
-    events: payment.events.map(mapGatewayPaymentEvent),
+    events: payment.events.map((event) =>
+      mapGatewayPaymentEvent(
+        event,
+        event.actor_user_id ? actorNameById.get(event.actor_user_id) ?? null : null
+      )
+    ),
     receipt: payment.receipt
       ? {
           id: payment.receipt.id,

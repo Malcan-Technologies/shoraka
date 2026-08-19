@@ -84,7 +84,7 @@ export function getIssuerOfferActionCta(
   }
   const scope = options?.scope ?? "invoice";
   return {
-    label: scope === "contract" ? "Review Facility Financing Offer" : "Review Offer",
+    label: scope === "contract" ? "Review Facility Offer" : "Review Invoice Offer",
     hint: null,
     buttonVariant: "reviewOffer",
     isAcceptanceChangesRequested: false,

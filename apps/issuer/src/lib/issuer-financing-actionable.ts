@@ -10,6 +10,7 @@ import {
   type IssuerDashboardContract,
   type IssuerDashboardInvoice,
 } from "@/types/issuer-dashboard";
+import { buildFinancingInvoiceRows, type FinancingInvoiceRow } from "@/components/financing/financing-invoice-rows";
 import { financingOfferHref } from "@/lib/financing-offer-href";
 import { actionsRequiredLabel } from "@/lib/issuer-pending-actions";
 
@@ -63,15 +64,25 @@ export function partitionByActionable<T>(
   return { attention, rest };
 }
 
+export function isFinancingInvoiceRowActionable(row: FinancingInvoiceRow): boolean {
+  return row.kind === "invoice"
+    ? isIssuerInvoiceActionable(row.invoice)
+    : isIssuerNoteActionable(row.note);
+}
+
 export function countIssuerFinancingActionable(input: {
   contracts: readonly IssuerDashboardContract[];
   invoices: readonly IssuerDashboardInvoice[];
   notes: readonly NoteListItem[];
 }): { contracts: number; invoices: number; notes: number; total: number } {
   const contracts = input.contracts.filter(isIssuerContractActionable).length;
-  const invoices = input.invoices.filter(isIssuerInvoiceActionable).length;
-  const notes = input.notes.filter(isIssuerNoteActionable).length;
-  return { contracts, invoices, notes, total: contracts + invoices + notes };
+  const invoiceRows = buildFinancingInvoiceRows(
+    input.invoices,
+    input.notes,
+    isIssuerInvoiceActionable
+  );
+  const invoices = invoiceRows.filter(isFinancingInvoiceRowActionable).length;
+  return { contracts, invoices, notes: 0, total: contracts + invoices };
 }
 
 export type IssuerFinancingPendingAction = {
@@ -116,15 +127,18 @@ export function buildIssuerFinancingPendingAction(input: {
   notes: readonly NoteListItem[];
 }): IssuerFinancingPendingAction | null {
   const actionableContracts = input.contracts.filter(isIssuerContractActionable);
-  const actionableInvoices = input.invoices.filter(isIssuerInvoiceActionable);
-  const actionableNotes = input.notes.filter(isIssuerNoteActionable);
-  const { total, contracts, invoices, notes } = countIssuerFinancingActionable(input);
+  const invoiceRows = buildFinancingInvoiceRows(
+    input.invoices,
+    input.notes,
+    isIssuerInvoiceActionable
+  );
+  const actionableInvoiceRows = invoiceRows.filter(isFinancingInvoiceRowActionable);
+  const { total, contracts, invoices } = countIssuerFinancingActionable(input);
   if (total === 0) return null;
 
   const parts: string[] = [];
   if (contracts > 0) parts.push(`${contracts} ${contracts === 1 ? "facility" : "facilities"}`);
   if (invoices > 0) parts.push(`${invoices} invoice${invoices === 1 ? "" : "s"}`);
-  if (notes > 0) parts.push(`${notes} note${notes === 1 ? "" : "s"}`);
 
   const description =
     parts.length > 0
@@ -142,20 +156,22 @@ export function buildIssuerFinancingPendingAction(input: {
           : "Make changes",
       };
     }),
-    ...actionableInvoices.map((i) => {
-      const modal = asInvoiceForModal(i.invoiceForModal);
+    ...actionableInvoiceRows.map((row) => {
+      if (row.kind === "note") {
+        return {
+          href: `/financing/notes/${row.note.id}`,
+          ctaLabel: "View invoice note",
+        };
+      }
+      const modal = asInvoiceForModal(row.invoice.invoiceForModal);
       const reviewVisible = shouldShowIssuerReviewOfferCta(modal);
       return {
-        href: invoiceActionHref(i),
+        href: invoiceActionHref(row.invoice),
         ctaLabel: reviewVisible
           ? getIssuerOfferActionCtaFromOfferDetails(modal.offer_details, { scope: "invoice" }).label
           : "Make changes",
       };
     }),
-    ...actionableNotes.map((n) => ({
-      href: `/financing/notes/${n.id}`,
-      ctaLabel: "View note",
-    })),
   ];
 
   if (singles.length === 1) {
@@ -168,12 +184,7 @@ export function buildIssuerFinancingPendingAction(input: {
     };
   }
 
-  const tab =
-    actionableContracts.length > 0
-      ? "contracts"
-      : actionableInvoices.length > 0
-        ? "invoices"
-        : "notes";
+  const tab = actionableContracts.length > 0 ? "contracts" : "invoices";
 
   return {
     count: total,

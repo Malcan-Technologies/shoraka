@@ -460,7 +460,7 @@ export default function IssuerNoteDetailPage() {
           {error instanceof Error ? error.message : "Note not found"}
         </div>
         <Button asChild variant="outline" className="mt-4 rounded-xl">
-          <Link href="/financing?tab=notes">Back to Financing</Link>
+          <Link href="/financing?tab=invoices">Back to Financing</Link>
         </Button>
       </div>
     );
@@ -548,17 +548,17 @@ export default function IssuerNoteDetailPage() {
           breadcrumb={
             <nav className="flex flex-wrap items-center gap-1.5">
               <Link
-                href="/financing?tab=notes"
+                href="/financing?tab=invoices"
                 className="hover:text-foreground hover:underline"
               >
                 Financing
               </Link>
               <span aria-hidden>›</span>
               <Link
-                href="/financing?tab=notes"
+                href="/financing?tab=invoices"
                 className="hover:text-foreground hover:underline"
               >
-                Notes
+                Invoices
               </Link>
               <span aria-hidden>›</span>
               <span className="text-foreground">

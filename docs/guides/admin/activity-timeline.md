@@ -63,9 +63,13 @@ The handler verifies the user has access to the application, then calls `getAppl
 
 ## Frontend Behavior
 
-**File:** `apps/admin/src/hooks/use-application-logs.ts` (data fetching), `apps/admin/src/components/admin-activity-timeline.tsx` (display).
+**Shared chrome:** `apps/admin/src/components/admin-vertical-timeline.tsx` — originator avatar on the rail (admin purple, issuer red, investor brown; system uses grey + computer icon), event title with relative time, and an optional name line. Actor ids are resolved to display names at read time (notes, contracts, applications, gateway payments, and organisation logs). Portal is encoded in the avatar colour, not repeated as `ADMIN` / `ISSUER` text. Opaque actor ids are never shown. Device, IP, event-type icons, and a first-item highlight ring are omitted so each row stays scannable. Typography uses brand tokens (`text-ui` for titles and supporting copy; `text-meta` for names and timestamps).
 
-The `useApplicationLogs` hook fetches from `/v1/applications/:id/logs` and normalizes the response. It expects either an array or an envelope with `items` and `pagination`. The timeline component receives `applicationId` and passes it to the hook. It renders each log with an icon, label, optional activity text, actor name, and timestamp. When a log has a `remark` or is an offer event with metadata, a "View details" button expands to show the remark or offer details. The component uses `getEventIcon`, `getEventLabel`, and `getEventDotColor` to map `event_type` to icons, labels, and colors. These mappings are defined in the component; adding a new event type requires updating these functions.
+**Application display:** `apps/admin/src/hooks/use-application-logs.ts` (fetch), `apps/admin/src/components/admin-activity-timeline.tsx` (maps logs into the shared list).
+
+The `useApplicationLogs` hook fetches from `/v1/applications/:id/logs` and normalizes the response. It expects either an array or an envelope with `items` and `pagination`. The timeline component receives `applicationId` and passes it to the hook. It maps each log into the shared item (label, optional activity text, actor name, timestamp). When a log has a `remark` or is an offer event with metadata, a "View details" button expands to show the remark or offer details. Event labels still live in `admin-activity-timeline.tsx`; adding a new event type requires updating `getEventLabel`. Avatar colour comes from the actor portal (`admin` / `issuer` / `investor`) or grey for System.
+
+Issuer, investor, note, contract, and gateway-payment timelines use the same shared list via their domain wrappers. Every timeline header includes **Export CSV**, which downloads a standard audit file (`createdAt, event, eventType, actor, actorUserId, portal, remark, metadata`) via `apps/admin/src/components/admin-activity-csv.ts`.
 
 ---
 
@@ -87,13 +91,15 @@ The `ApplicationLogAdapter` in `apps/api/src/modules/activity/adapters/applicati
 | API route | `apps/api/src/modules/applications/controller.ts` |
 | Activity adapter (org-level) | `apps/api/src/modules/activity/adapters/application-log.ts` |
 | Frontend hook | `apps/admin/src/hooks/use-application-logs.ts` |
-| Timeline component | `apps/admin/src/components/admin-activity-timeline.tsx` |
+| Shared timeline chrome | `apps/admin/src/components/admin-vertical-timeline.tsx` |
+| CSV export | `apps/admin/src/components/admin-activity-csv.ts` |
+| Application timeline | `apps/admin/src/components/admin-activity-timeline.tsx` |
 
 ---
 
 ## Application Log Event Types
 
-All event types that can appear in `application_logs`. Add new mappings in `admin-activity-timeline.tsx` (`getEventIcon`, `getEventLabel`, `getEventDotColor`) when introducing a new type.
+All event types that can appear in `application_logs`. Add new mappings in `admin-activity-timeline.tsx` (`getEventLabel`) when introducing a new type.
 
 **Timeline display:** `SIGNING_PACKAGE_COMPLETED` is written for audit/debug but filtered out of the admin Activity Timeline (`TIMELINE_HIDDEN_EVENT_TYPES`). The terminal signing milestone shown to users is `CONTRACT_OFFER_ACCEPTED` / `INVOICE_OFFER_ACCEPTED` (“Offer Signed”).
 

@@ -28,6 +28,7 @@ import {
 import {
   PageShell,
   ListToolbar,
+  ListToolbarFilterTrigger,
   FilterChips,
   DataTable,
   EmptyState,
@@ -186,9 +187,7 @@ function PrimitivesHarness() {
           onSearchChange={setSearch}
           searchPlaceholder="Search by ID, customer, invoice…"
           filterGroups={
-            <Button variant="outline" size="sm" className="h-11 rounded-xl">
-              Status
-            </Button>
+            <ListToolbarFilterTrigger label="Status" />
           }
           appliedFilters={appliedFilters}
           onClearFilters={() => setChipIds([])}

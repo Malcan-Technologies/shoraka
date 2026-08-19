@@ -57,6 +57,8 @@ function companyOrg(
     sophisticatedInvestorReason: null,
     walletBalance: null,
     investedAmount: null,
+    approvedFacilityAmount: null,
+    activeNotesAmount: null,
     regtankPortalUrl: null,
     regtankRequestId: null,
     codRequestId: null,

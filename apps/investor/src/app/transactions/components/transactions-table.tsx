@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Badge } from "@cashsouk/ui";
-import { FunnelIcon, ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+import { getUserPortalStatusToken } from "@cashsouk/config";
+import { ListToolbar, ListToolbarFilterTrigger, StatusBadge, type FilterChip } from "@cashsouk/ui";
+import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,7 +16,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import type { Transaction, TransactionContext, TransactionType } from "./transactions.types";
-import { TRANSACTION_TYPE_FILTER_OPTIONS } from "./transactions.types";
+import {
+  TRANSACTION_TYPE_FILTER_LABELS,
+  TRANSACTION_TYPE_FILTER_OPTIONS,
+} from "./transactions.types";
 import {
   formatTransactionDateTime,
   getTransactionAmountToneClassName,
@@ -24,7 +28,7 @@ import {
 } from "./transaction-utils";
 
 const DESKTOP_TABLE =
-  "hidden lg:grid lg:grid-cols-[minmax(0,1fr)_12rem_12rem_auto] lg:gap-x-6";
+  "hidden lg:grid lg:grid-cols-[minmax(0,1fr)_10rem_12rem_12rem_auto] lg:gap-x-6";
 
 const DESKTOP_ROW = "col-span-full grid grid-cols-subgrid [grid-column:1/-1]";
 
@@ -69,6 +73,24 @@ function MoneyHeaderCell({ label }: { label: string }) {
   );
 }
 
+function TransactionStatusBadge({
+  tx,
+  showEmpty = true,
+}: {
+  tx: Transaction;
+  showEmpty?: boolean;
+}) {
+  if (!tx.status) {
+    return showEmpty ? <p className="text-sm text-muted-foreground">—</p> : null;
+  }
+  return (
+    <StatusBadge
+      label={tx.status.label}
+      status={getUserPortalStatusToken(tx.status.tokenStatus)}
+    />
+  );
+}
+
 function TransactionContextSubtitle({ context }: { context: TransactionContext }) {
   if (context.kind === "empty") {
     return <p className="text-sm text-muted-foreground">—</p>;
@@ -99,44 +121,26 @@ export interface TransactionFilters {
 interface TransactionsTableProps {
   transactions: Transaction[];
   totalCount: number;
+  unfilteredCount: number;
   page: number;
   pageSize: number;
+  searchValue: string;
+  onSearchChange: (value: string) => void;
   filters: TransactionFilters;
   onFiltersChange: (filters: TransactionFilters) => void;
   onPageChange: (page: number) => void;
+  onReload?: () => void;
+  isLoading?: boolean;
+  toolbarActions?: React.ReactNode;
+  showHeading?: boolean;
 }
 
-function FilterButton({
-  label,
-  activeCount,
-  children,
-}: {
-  label: string;
-  activeCount: number;
-  children: React.ReactNode;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="h-10 gap-2 rounded-xl bg-card">
-          <FunnelIcon className="h-4 w-4" />
-          {label}
-          {activeCount > 0 ? (
-            <Badge
-              variant="secondary"
-              className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary p-0 text-xs text-primary-foreground"
-            >
-              {activeCount}
-            </Badge>
-          ) : null}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        {children}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
+const TIME_RANGE_LABELS: Record<TransactionFilters["timeRange"], string> = {
+  all: "All time",
+  "7d": "Last 7 days",
+  "30d": "Last 30 days",
+  "90d": "Last 90 days",
+};
 
 function DesktopTransactionRow({ tx }: { tx: Transaction }) {
   const amountToneClassName = getTransactionAmountToneClassName(tx.direction);
@@ -144,8 +148,11 @@ function DesktopTransactionRow({ tx }: { tx: Transaction }) {
   return (
     <div className={cn(DESKTOP_ROW, "border-b border-border py-4 last:border-b-0")}>
       <TableCell className="min-w-0 pl-6">
-        <p className="font-medium">{tx.type}</p>
+        <p className="font-medium">{tx.title}</p>
         <TransactionContextSubtitle context={tx.context} />
+      </TableCell>
+      <TableCell className="self-center">
+        <TransactionStatusBadge tx={tx} />
       </TableCell>
       <MoneyTableCell
         {...splitSignedTransactionAmount(tx.direction, tx.amount)}
@@ -167,8 +174,9 @@ function MobileTransactionRow({ tx }: { tx: Transaction }) {
   return (
     <div className="space-y-2 px-6 py-4">
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="font-medium">{tx.type}</p>
+        <div className="min-w-0 space-y-1.5">
+          <p className="font-medium">{tx.title}</p>
+          <TransactionStatusBadge tx={tx} showEmpty={false} />
           <TransactionContextSubtitle context={tx.context} />
         </div>
         <div className={cn("shrink-0 font-medium tabular-nums", amountToneClassName)}>
@@ -190,11 +198,18 @@ function MobileTransactionRow({ tx }: { tx: Transaction }) {
 export function TransactionsTable({
   transactions,
   totalCount,
+  unfilteredCount,
   page,
   pageSize,
+  searchValue,
+  onSearchChange,
   filters,
   onFiltersChange,
   onPageChange,
+  onReload,
+  isLoading = false,
+  toolbarActions,
+  showHeading = true,
 }: TransactionsTableProps) {
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const start = totalCount === 0 ? 0 : (page - 1) * pageSize + 1;
@@ -202,47 +217,104 @@ export function TransactionsTable({
 
   const typeActive = filters.type !== "all" ? 1 : 0;
   const timeActive = filters.timeRange !== "all" ? 1 : 0;
+  const hasFilters =
+    typeActive + timeActive > 0 || searchValue.trim() !== "";
+  const appliedFilters: FilterChip[] = [];
+  if (filters.type !== "all") {
+    appliedFilters.push({
+      id: "type",
+      label: `Type: ${TRANSACTION_TYPE_FILTER_LABELS[filters.type]}`,
+      onRemove: () => onFiltersChange({ ...filters, type: "all" }),
+    });
+  }
+  if (filters.timeRange !== "all") {
+    appliedFilters.push({
+      id: "time",
+      label: TIME_RANGE_LABELS[filters.timeRange],
+      onRemove: () => onFiltersChange({ ...filters, timeRange: "all" }),
+    });
+  }
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      {showHeading ? (
         <div className="flex items-center gap-2">
           <h2 className="text-xl font-semibold">Transactions</h2>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <FilterButton label="Transaction type" activeCount={typeActive}>
-            <DropdownMenuLabel>Transaction type</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={filters.type}
-              onValueChange={(value) =>
-                onFiltersChange({ ...filters, type: value as TransactionFilters["type"] })
+      ) : null}
+      <ListToolbar
+        searchValue={searchValue}
+        onSearchChange={onSearchChange}
+        searchPlaceholder="Search by type, status, note, or amount"
+        appliedFilters={appliedFilters}
+        onClearFilters={
+          hasFilters
+            ? () => {
+                onSearchChange("");
+                onFiltersChange({ type: "all", timeRange: "all" });
               }
-            >
-              <DropdownMenuRadioItem value="all">All types</DropdownMenuRadioItem>
-              {TRANSACTION_TYPE_FILTER_OPTIONS.map((type) => (
-                <DropdownMenuRadioItem key={type} value={type}>
-                  {type}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </FilterButton>
+            : undefined
+        }
+        onReload={onReload}
+        isLoading={isLoading}
+        countLabel={
+          hasFilters
+            ? `${totalCount} of ${unfilteredCount} ${
+                unfilteredCount === 1 ? "transaction" : "transactions"
+              }`
+            : `${totalCount} ${totalCount === 1 ? "transaction" : "transactions"}`
+        }
+        filterGroups={
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <ListToolbarFilterTrigger label="Type" count={typeActive} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Transaction type</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={filters.type}
+                  onValueChange={(value) =>
+                    onFiltersChange({ ...filters, type: value as TransactionFilters["type"] })
+                  }
+                >
+                  <DropdownMenuRadioItem value="all">All types</DropdownMenuRadioItem>
+                  {TRANSACTION_TYPE_FILTER_OPTIONS.map((type) => (
+                    <DropdownMenuRadioItem key={type} value={type}>
+                      {TRANSACTION_TYPE_FILTER_LABELS[type]}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-          <FilterButton label="Time" activeCount={timeActive}>
-            <DropdownMenuLabel>Time</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={filters.timeRange}
-              onValueChange={(value) =>
-                onFiltersChange({ ...filters, timeRange: value as TransactionFilters["timeRange"] })
-              }
-            >
-              <DropdownMenuRadioItem value="all">All time</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="7d">Last 7 days</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="30d">Last 30 days</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="90d">Last 90 days</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </FilterButton>
-        </div>
-      </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <ListToolbarFilterTrigger label="Time" count={timeActive} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Time</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={filters.timeRange}
+                  onValueChange={(value) =>
+                    onFiltersChange({
+                      ...filters,
+                      timeRange: value as TransactionFilters["timeRange"],
+                    })
+                  }
+                >
+                  <DropdownMenuRadioItem value="all">All time</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="7d">Last 7 days</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="30d">Last 30 days</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="90d">Last 90 days</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        }
+      >
+        {toolbarActions}
+      </ListToolbar>
 
       <div className="overflow-hidden rounded-xl border bg-white shadow-sm">
         <div className={cn(DESKTOP_TABLE, "divide-y divide-border")}>
@@ -253,6 +325,7 @@ export function TransactionsTable({
             )}
           >
             <TableCell className="min-w-0 pl-6">Transaction</TableCell>
+            <TableCell>Status</TableCell>
             <MoneyHeaderCell label="Amount" />
             <MoneyHeaderCell label="Balance" />
             <TableCell className="pr-6 whitespace-nowrap">Time</TableCell>

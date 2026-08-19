@@ -117,13 +117,13 @@ describe("admin tab token helpers", () => {
 });
 
 describe("adminHeroTintClass", () => {
-  it("mixes the badge fill into the card so the hero is lighter than the chip", () => {
-    expect(adminHeroTintClass("submitted")).toContain("--status-submitted-bg");
-    expect(adminHeroTintClass("submitted")).toContain("/0.35");
-    expect(adminHeroTintClass("action")).toContain("--status-action-bg");
-    expect(adminHeroTintClass("success")).toContain("--status-success-bg");
-    expect(adminHeroTintClass("rejected")).toContain("--status-rejected-bg");
-    expect(adminHeroTintClass("active")).toContain("--status-active-bg");
-    expect(adminHeroTintClass("neutral")).toContain("--status-neutral-bg");
+  it("maps the badge token onto the shared hero wash modifier", () => {
+    expect(adminHeroTintClass("submitted")).toBe("admin-hero-tint-submitted");
+    expect(adminHeroTintClass("action")).toBe("admin-hero-tint-action");
+    expect(adminHeroTintClass("success")).toBe("admin-hero-tint-success");
+    expect(adminHeroTintClass("rejected")).toBe("admin-hero-tint-rejected");
+    expect(adminHeroTintClass("active")).toBe("admin-hero-tint-active");
+    expect(adminHeroTintClass("neutral")).toBe("admin-hero-tint-neutral");
+    expect(adminHeroTintClass("in-progress")).toBe("admin-hero-tint-in-progress");
   });
 });

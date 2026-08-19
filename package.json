@@ -4,7 +4,8 @@
   "private": true,
   "description": "P2P Lending Platform - Monorepo",
   "scripts": {
-    "dev": "turbo run dev --parallel",
+    "dev": "bash ./scripts/prune-next-dev-cache.sh && turbo run dev --parallel",
+    "clean:next": "rm -rf apps/admin/.next apps/investor/.next apps/issuer/.next apps/landing/.next",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",

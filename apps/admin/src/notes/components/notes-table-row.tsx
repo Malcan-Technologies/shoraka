@@ -243,7 +243,7 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
         highlightCountdown={!settlementPosted}
         settled={settlementPosted}
       />
-      <TableCell className="min-w-0 overflow-hidden">
+      <TableCell className="whitespace-nowrap">
         <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => onViewDetails(note)}>
           <EyeIcon className="h-4 w-4 mr-1" />
           View
@@ -307,14 +307,13 @@ function ReadyInvoiceRow({
         <span className="text-muted-foreground">—</span>
       </TableCell>
       <MaturityCell maturityDate={invoice.maturityDate} />
-      <TableCell className="min-w-0 overflow-hidden">
+      <TableCell className="whitespace-nowrap">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className={!canCreate ? "inline-flex w-full cursor-not-allowed" : "w-full"}>
+              <span className={!canCreate ? "inline-flex cursor-not-allowed" : "inline-flex"}>
                 <Button
                   size="sm"
-                  className="w-full truncate px-2"
                   onClick={() => onCreateNote(invoice)}
                   disabled={creatingInvoiceId === invoice.invoiceId || !canCreate}
                 >
