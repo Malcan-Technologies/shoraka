@@ -14,16 +14,18 @@ export function isAcceptanceDocumentsAmendmentQueueScope(
   return scopeKey.startsWith("acceptance_documents:");
 }
 
-/** Request change is only allowed while the acceptance document row is still pending. */
+const ACCEPTANCE_DOCUMENT_CHANGE_ALLOWED_STATUSES = new Set(["PENDING", "APPROVED"]);
+
+/** Request change while the acceptance document row is pending or already approved. */
 export function assertAcceptanceDocumentChangeRequestAllowed(
   currentStatus: string | null | undefined
 ): void {
   const status = (currentStatus ?? "PENDING").toUpperCase();
-  if (status !== "PENDING") {
+  if (!ACCEPTANCE_DOCUMENT_CHANGE_ALLOWED_STATUSES.has(status)) {
     throw new AppError(
       400,
       "INVALID_ACTION",
-      "Request change is only allowed for pending acceptance documents"
+      "Request change is only allowed for pending or approved acceptance documents"
     );
   }
 }
