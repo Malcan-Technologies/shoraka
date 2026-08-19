@@ -467,7 +467,9 @@ export function DocumentList({
                   showReject={!lockItemPrimaryReviewActions}
                   showRequestAmendment={
                     !lockItemPrimaryReviewActions &&
-                    (documentKind !== "acceptance" || status === "PENDING")
+                    (documentKind !== "acceptance" ||
+                      status === "PENDING" ||
+                      status === "APPROVED")
                   }
                   requestAmendmentLabel={
                     documentKind === "acceptance" ? "Request change" : "Request Amendment"

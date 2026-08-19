@@ -474,6 +474,7 @@ export function SectionContent({
                 }
               : undefined
           }
+          sectionStatus={sectionStatus}
         />
       );
     }
