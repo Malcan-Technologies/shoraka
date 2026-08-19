@@ -80,6 +80,7 @@ import {
 } from "../notification/registry";
 import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
 import { listOrganizationLinkedRecords } from "./organization-linked-records";
+import { sumApprovedFacilityAmount } from "./organization-header-metrics";
 import { updateAdminOrganizationProfile } from "./organization-admin-profile";
 import {
   assertAcceptanceDocumentChangeRequestAllowed,
@@ -2701,6 +2702,8 @@ export class AdminService {
     sophisticatedInvestorReason: string | null;
     walletBalance: number | null;
     investedAmount: number | null;
+    approvedFacilityAmount: number | null;
+    activeNotesAmount: number | null;
     regtankPortalUrl: string | null;
     regtankRequestId: string | null;
     codRequestId: string | null;
@@ -2825,6 +2828,23 @@ export class AdminService {
             })
           )._sum.amount?.toNumber() ?? 0
         : null;
+
+    let approvedFacilityAmount: number | null = null;
+    let activeNotesAmount: number | null = null;
+    if (portal === "issuer") {
+      const [approvedContracts, activeNotesSum] = await Promise.all([
+        prisma.contract.findMany({
+          where: { issuer_organization_id: id, status: "APPROVED" },
+          select: { status: true, contract_details: true },
+        }),
+        prisma.note.aggregate({
+          where: { issuer_organization_id: id, status: "ACTIVE" },
+          _sum: { funded_amount: true },
+        }),
+      ]);
+      approvedFacilityAmount = sumApprovedFacilityAmount(approvedContracts);
+      activeNotesAmount = activeNotesSum._sum.funded_amount?.toNumber() ?? 0;
+    }
 
     return {
       id: org.id,
@@ -2998,6 +3018,8 @@ export class AdminService {
           ? (org.investor_balance?.available_amount?.toNumber() ?? 0)
           : null,
       investedAmount,
+      approvedFacilityAmount,
+      activeNotesAmount,
       // Build RegTank portal URL from latest onboarding record
       regtankRequestId: org.regtank_onboarding?.[0]?.request_id ?? null,
       codRequestId,

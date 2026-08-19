@@ -106,7 +106,7 @@ describe("buildInvestorBalanceStatement", () => {
       balance: 1200,
     });
     expect(statement.rows[1]).toMatchObject({
-      type: "Investment",
+      type: "Investment committed",
       description: "Note 20260101-ABC",
       moneyIn: null,
       moneyOut: 150,

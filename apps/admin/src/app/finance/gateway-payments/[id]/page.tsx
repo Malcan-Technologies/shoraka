@@ -9,8 +9,17 @@ import {
   ArrowLeftIcon,
   ArrowPathIcon,
   BanknotesIcon,
+  ClockIcon,
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
+import { AdminDetailCardHeader } from "@/components/admin-detail";
+import { AdminActivityCsvExportButton } from "@/components/admin-activity-csv-export-button";
+import { mergeActivityCsvMetadata } from "@/components/admin-activity-csv";
+import { resolveAdminTimelineActorLabel } from "@/components/admin-timeline-originator";
+import {
+  AdminVerticalTimeline,
+  AdminVerticalTimelineItem,
+} from "@/components/admin-vertical-timeline";
 import { formatCurrency } from "@cashsouk/config";
 import { ApplicationReviewRemarkDialog } from "@/components/application-review-remark-dialog";
 import {
@@ -46,11 +55,29 @@ import {
 import {
   GATEWAY_PAYMENT_COPY,
   formatAmountMismatchDescription,
+  formatGatewayEventDescription,
+  formatGatewayEventTitle,
   formatGatewayPaymentFailureReason,
   hasUncertainAmountMismatchRefund,
 } from "./gateway-payment-copy";
-import { ContextualAuditHistoryPanel } from "@/components/audit/contextual-audit-history-panel";
-import { paymentAuditToDetail } from "@/components/audit/contextual-audit-mappers";
+import type { PaymentAuditLogDto } from "@cashsouk/types";
+
+function readAuditMetaString(metadata: Record<string, unknown>, key: string): string | null {
+  const value = metadata[key];
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function gatewayAuditTimelineFields(event: PaymentAuditLogDto) {
+  return {
+    type: event.eventType,
+    reason: readAuditMetaString(event.metadata, "reason"),
+    fromStatus: readAuditMetaString(event.metadata, "previousStatus"),
+    toStatus: readAuditMetaString(event.metadata, "newStatus"),
+    createdAt: event.occurredAt,
+    actorName: event.actor.displayName,
+    actorUserId: event.actor.userId,
+  };
+}
 
 const RECEIPT_STATUS_LABEL: Record<string, string> = {
   PENDING: "Being prepared",
@@ -81,6 +108,11 @@ function formatPendingDuration(fromIso: string) {
 
 function senToDisplayMyr(sen: number) {
   return formatCurrency(sen / 100);
+}
+
+function formatStatusLabel(status: string | null | undefined) {
+  if (!status) return null;
+  return STATUS_LABEL[status] ?? status;
 }
 
 function PageSkeleton() {
@@ -199,6 +231,22 @@ export default function GatewayPaymentDetailPage() {
   const showNameCheckCard = Boolean(visibility?.showNameCheckCard);
   const showHeldRefundCard = Boolean(visibility?.showHeldRefundCard);
   const timelineEvents = payment?.events ?? [];
+  const activityCsvRows = timelineEvents.map((event) => {
+    const fields = gatewayAuditTimelineFields(event);
+    return {
+      createdAt: fields.createdAt,
+      event: formatGatewayEventTitle(fields.type, fields.reason),
+      eventType: fields.type,
+      actor: fields.actorName ?? "",
+      actorUserId: fields.actorUserId ?? "",
+      portal: "",
+      remark: fields.reason ?? "",
+      metadata: mergeActivityCsvMetadata(null, {
+        fromStatus: fields.fromStatus,
+        toStatus: fields.toStatus,
+      }),
+    };
+  });
 
   const handleRetryRefund = async () => {
     if (!id) return;
@@ -891,14 +939,60 @@ export default function GatewayPaymentDetailPage() {
 
                   <div className="min-w-0 space-y-6">
                     <Card className="flex flex-col overflow-hidden rounded-2xl">
+                      <AdminDetailCardHeader
+                        icon={ClockIcon}
+                        title={GATEWAY_PAYMENT_COPY.activity.title}
+                        description={
+                          timelineEvents.length === 0
+                            ? GATEWAY_PAYMENT_COPY.activity.description
+                            : `${timelineEvents.length} ${timelineEvents.length === 1 ? "event" : "events"}`
+                        }
+                        actions={
+                          <AdminActivityCsvExportButton
+                            fileName={`gateway-payment-${id ?? "activity"}-activity.csv`}
+                            rows={activityCsvRows}
+                          />
+                        }
+                      />
                       <CardContent className="min-h-0 overflow-hidden !px-0">
-                        <ContextualAuditHistoryPanel
-                          title={GATEWAY_PAYMENT_COPY.activity.title}
-                          description={GATEWAY_PAYMENT_COPY.activity.description}
-                          rows={timelineEvents.map(paymentAuditToDetail)}
-                          emptyMessage={GATEWAY_PAYMENT_COPY.activity.empty}
-                          variant="plain"
-                        />
+                        {timelineEvents.length === 0 ? (
+                          <div className="px-6 py-8 text-center text-ui text-muted-foreground">
+                            {GATEWAY_PAYMENT_COPY.activity.empty}
+                          </div>
+                        ) : (
+                          <div className="px-6 pb-6">
+                            <AdminVerticalTimeline>
+                              {timelineEvents.map((event) => {
+                                const fields = gatewayAuditTimelineFields(event);
+                                const fromLabel = formatStatusLabel(fields.fromStatus);
+                                const toLabel = formatStatusLabel(fields.toStatus);
+                                const description = formatGatewayEventDescription(
+                                  fields.type,
+                                  fields.reason
+                                );
+                                return (
+                                  <AdminVerticalTimelineItem
+                                    key={event.id}
+                                    title={formatGatewayEventTitle(fields.type, fields.reason)}
+                                    description={description}
+                                    createdAt={fields.createdAt}
+                                    actorLabel={resolveAdminTimelineActorLabel({
+                                      actorName: fields.actorName,
+                                      actorUserId: fields.actorUserId,
+                                      portal: "ADMIN",
+                                    })}
+                                    portal={fields.actorUserId ? "ADMIN" : null}
+                                    compactDetails={
+                                      fromLabel && toLabel
+                                        ? [{ label: "Status", value: `${fromLabel} → ${toLabel}` }]
+                                        : undefined
+                                    }
+                                  />
+                                );
+                              })}
+                            </AdminVerticalTimeline>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   </div>

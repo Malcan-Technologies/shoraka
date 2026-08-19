@@ -6,16 +6,16 @@ function event(overrides: Partial<NoteAuditLogDto> = {}): NoteAuditLogDto {
     id: "evt-1",
     noteId: "note-1",
     eventType: "NOTE_PUBLISHED",
-    occurredAt: "2026-08-18T09:00:00.000Z",
-    createdAt: "2026-08-18T09:00:00.000Z",
+    occurredAt: "2026-05-12T14:15:42.000Z",
+    createdAt: "2026-05-12T14:15:42.000Z",
     actor: {
-      type: "USER",
+      type: "ADMIN",
       userId: "user-1",
       displayName: "Ada Admin",
       email: "ada@example.com",
     },
-    organizationId: null,
-    organizationKind: null,
+    organizationId: "org-1",
+    organizationKind: "ISSUER",
     target: { type: "NOTE", id: "note-1" },
     source: "admin",
     portal: "admin",
@@ -54,11 +54,13 @@ describe("buildNoteActivityCsv", () => {
       }),
     ]);
     const lines = csv.split("\n");
-    expect(lines[0]).toContain("occurredAt");
+    expect(lines[0]).toContain("createdAt");
     expect(lines[0]).toContain("event");
+    expect(lines[0]).toContain("actor");
     expect(lines[1]).toContain("Note created");
     expect(lines[1]).toContain("NOTE_CREATED");
     expect(lines[1]).toContain("Issuer said ready");
+    expect(lines[1]).toContain("Ada Admin");
   });
 
   it("exports an empty table with only the header", () => {

@@ -9,7 +9,7 @@ import {
   legalReacceptanceInterceptMessage,
   useLegalReacceptanceGate,
 } from "@cashsouk/ui";
-import { Button } from "./ui/button";
+import { Button, type ButtonProps } from "./ui/button";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +17,7 @@ type InvestNowButtonProps = {
   className?: string;
   href?: string;
   showIcon?: boolean;
+  variant?: ButtonProps["variant"];
   children?: ReactNode;
 };
 
@@ -28,6 +29,7 @@ export function InvestNowButton({
   className,
   href = "/marketplace",
   showIcon = true,
+  variant,
   children = "Invest now",
 }: InvestNowButtonProps) {
   const router = useRouter();
@@ -41,7 +43,7 @@ export function InvestNowButton({
   };
 
   return (
-    <Button asChild className={cn("gap-2", className)}>
+    <Button asChild variant={variant} className={cn("gap-2", className)}>
       <Link href={href} onClick={onClick}>
         {showIcon ? <PlusIcon className="h-4 w-4" /> : null}
         {children}

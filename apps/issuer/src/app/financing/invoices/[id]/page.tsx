@@ -238,9 +238,9 @@ export default function InvoiceDetailPage() {
           <span className="flex flex-wrap items-center gap-2">
             <IssuerFinancingStatusBadge kind={badgeKind} />
             {contractId ? (
-              <StatusBadge label="Under facility" status="submitted" />
+              <StatusBadge label="Part of a facility" status="submitted" />
             ) : (
-              <StatusBadge label="Standalone" status="neutral" />
+              <StatusBadge label="On its own" status="neutral" />
             )}
             {offerStatus === "Offer expired" ? (
               <StatusBadge label="Offer expired" status="rejected" />
@@ -296,7 +296,7 @@ export default function InvoiceDetailPage() {
               <div className="rounded-xl bg-status-action-bg p-0.5">
                 <Button className="rounded-xl" asChild>
                   <Link href={financingOfferHref(applicationId, invoiceId)}>
-                    {offerActionCta?.label ?? "Review Offer"}
+                    {offerActionCta?.label ?? "Review Invoice Offer"}
                   </Link>
                 </Button>
               </div>

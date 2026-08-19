@@ -366,7 +366,6 @@ export default function ProfilePage() {
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState("profile");
   const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
-  const [devViewAsMember, setDevViewAsMember] = React.useState(false);
 
   // Editing states
   const [isEditingProfile, setIsEditingProfile] = React.useState(false);
@@ -414,8 +413,6 @@ export default function ProfilePage() {
     );
     return currentUserMember?.role === "ORGANIZATION_ADMIN";
   }, [activeOrganization, currentUser]);
-
-  const effectiveIsAdmin = devViewAsMember ? false : isCurrentUserAdmin;
 
   const { invitations, resend, revoke } = useOrganizationInvitations(activeOrganization?.id, {
     enabled: isCurrentUserAdmin,
@@ -789,26 +786,15 @@ export default function ProfilePage() {
           title="Organisation"
           description="Company details, members, banking, and documents."
           action={
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="h-11 gap-2 rounded-xl"
-              >
-                <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-                Refresh
-              </Button>
-              {process.env.NODE_ENV === "development" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDevViewAsMember((prev) => !prev)}
-                >
-                  {devViewAsMember ? "Exit Member View" : "View as Member"}
-                </Button>
-              )}
-            </div>
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="h-11 gap-2 rounded-xl"
+            >
+              <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
           }
         >
           <div className="flex items-start gap-4">
@@ -926,7 +912,7 @@ export default function ProfilePage() {
               {!isPersonal && activeOrganization?.id && (
                 <CorporateInfoCard
   organizationId={activeOrganization.id}
-  canEdit={effectiveIsAdmin}
+  canEdit={isCurrentUserAdmin}
 />
               )}
 
@@ -974,7 +960,7 @@ export default function ProfilePage() {
                         Ensure your primary address is up to date
                       </p>
                     </div>
-                    {!isEditingProfile && effectiveIsAdmin ? (
+                    {!isEditingProfile && isCurrentUserAdmin ? (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1006,7 +992,7 @@ export default function ProfilePage() {
                       )}
                     </div>
 
-                    {isEditingProfile && effectiveIsAdmin && (
+                    {isEditingProfile && isCurrentUserAdmin && (
                       <div className="flex justify-end gap-2 pt-4">
                         <Button
                           variant="outline"
@@ -1037,7 +1023,7 @@ export default function ProfilePage() {
                         Where your business operates and is registered
                       </p>
                     </div>
-                    {!isEditingAddresses && effectiveIsAdmin ? (
+                    {!isEditingAddresses && isCurrentUserAdmin ? (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1193,7 +1179,7 @@ export default function ProfilePage() {
                       )}
                     </div>
 
-                    {isEditingAddresses && effectiveIsAdmin && (
+                    {isEditingAddresses && isCurrentUserAdmin && (
                       <div className="flex justify-end gap-2 pt-4">
                         <Button
                           variant="outline"
@@ -1226,7 +1212,7 @@ export default function ProfilePage() {
                       Phone number and email for this organisation
                     </p>
                   </div>
-                  {!isEditingProfile && effectiveIsAdmin ? (
+                  {!isEditingProfile && isCurrentUserAdmin ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -1340,7 +1326,7 @@ export default function ProfilePage() {
                       Where disbursements and payouts are sent
                     </p>
                   </div>
-                  {!isEditingBanking && effectiveIsAdmin ? (
+                  {!isEditingBanking && isCurrentUserAdmin ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -1427,7 +1413,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  {isEditingBanking && effectiveIsAdmin && (
+                  {isEditingBanking && isCurrentUserAdmin && (
                     <div className="flex justify-end gap-2 pt-4">
                       <Button
                         variant="outline"

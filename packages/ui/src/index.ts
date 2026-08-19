@@ -132,6 +132,7 @@ export type { InviteMemberDialogHooks, InviteMemberDialogProps } from "./invite-
 export { ActivityBadge } from "./components/activity-badge";
 export { ActivityItem } from "./components/activity-item";
 export { ActivityToolbar } from "./components/activity-toolbar";
+export { ActivityFeed } from "./components/activity-feed";
 export { NotificationBell } from "./components/notification-bell";
 export { NotificationList } from "./components/notification-list";
 export { NotificationPreferences } from "./components/notification-preferences";
@@ -251,12 +252,18 @@ export type {
   DirectorShareholderPortal,
 } from "./director-shareholders-unified-section";
 
-export { portalContentMaxWidthClassName } from "./lib/portal-layout";
+export { portalContentMaxWidthClassName, portalPageGutterClassName } from "./lib/portal-layout";
 
 export { PageShell, welcomeBackTitle } from "./components/page-shell";
 export type { PageShellProps } from "./components/page-shell";
-export { ListToolbar } from "./components/list-toolbar";
-export type { ListToolbarProps } from "./components/list-toolbar";
+export {
+  ListToolbar,
+  ListToolbarFilterTrigger,
+  listToolbarControlClassName,
+  listToolbarCountClassName,
+  listToolbarFilterCountBadgeClassName,
+} from "./components/list-toolbar";
+export type { ListToolbarProps, ListToolbarFilterTriggerProps } from "./components/list-toolbar";
 export { FilterChips } from "./components/filter-chips";
 export type { FilterChip, FilterChipsProps } from "./components/filter-chips";
 export { DataTable } from "./components/data-table";

@@ -112,7 +112,7 @@ Hardcoded hex button variants (`reviewOffer`, `makeAmendments`) are retired. Use
 
 Admin is an operations console: **yellow** = CashSouk must act; **blue** = waiting on the issuer, investor, signers, or another party; **violet** = live / in force; **green** = finished. Draft stays grey. Arrears stays red. Do not paint every in-flight status yellow.
 
-Use `StatusBadge` from `@cashsouk/ui`. Map domain strings with `getAdminStatusToken` (`apps/admin/src/lib/admin-status-token.ts`). Do not invent a one-off `Badge` + utility class for a workflow status. List rows whose primary (or action-needed) badge is yellow (`action`) use `adminActionRowClass` — a 45% wash of `status-action-bg`, same as dashboard Quick Actions. Arrears rows use `adminRejectedRowClass` — the same 45% wash of `status-rejected-bg`.
+Use `StatusBadge` from `@cashsouk/ui`. Map domain strings with `getAdminStatusToken` (`apps/admin/src/lib/admin-status-token.ts`). Do not invent a one-off `Badge` + utility class for a workflow status. List rows whose primary (or action-needed) badge is yellow (`action`) use `adminActionRowClass` — a 45% wash of `status-action-bg`, same as dashboard next-to-do tiles. Arrears rows use `adminRejectedRowClass` — the same 45% wash of `status-rejected-bg`.
 
 **Chrome (same size everywhere)**
 
@@ -211,7 +211,7 @@ Each portal layout root carries a theme class that re-scopes accent variables.
 .theme-user     { --primary: brand red; /* landing; may diverge from issuer accent treatment */ }
 ```
 
-All three portals share the same nesting: **tinted canvas (`--background`) + pure white cards (`--card`)**. Header and sidebar sit on the tinted chrome; chip-style header controls (org switcher, notifications) use `bg-card`. The header avatar fills its allocated space with no card chrome. Investor **does not use brand red for UI chrome** — only the logo and `destructive` / status-rejected keep warning reds.
+All three portals share the same nesting: **tinted canvas (`--background`) + pure white cards (`--card`)**. Header and sidebar sit on the tinted chrome; chip-style header controls (notifications) use `bg-card`. The organisation switcher sits in the sidebar below the logo and also uses `bg-card`. The header avatar fills its allocated space with no card chrome. Investor **does not use brand red for UI chrome** — only the logo and `destructive` / status-rejected keep warning reds.
 
 **Portal chrome rule:** Canvas, header (`bg-background`), and sidebar use **low-saturation “whisper” tints** (issuer warm red, investor cream, admin cool grey) — never strong washes. `--accent` / `--sidebar-accent` stay in the same family for hover/selection. Solid primary colours are for CTAs and asserts, not page chrome.
 
@@ -259,7 +259,7 @@ Topbar `h-16`, logo left, actions right. Active state: `text-primary` plus a 2px
 ### Badges & chips
 Default fill taupe (`bg-secondary text-secondary-foreground`). **Workflow status** uses `StatusBadge` and §3 / §3.2 — never `accent`, never raw amber/emerald/red utilities. Reserve bright red for genuinely critical information.
 
-**A badge is not a button.** Don't size a non-interactive count to `h-11` beside real buttons — it invites clicks that do nothing.
+**A badge is not a button.** List-toolbar counts use the same `h-11` / `rounded-xl` chrome as filter controls, with a muted grey fill and no pointer events so they do not look clickable.
 
 ---
 

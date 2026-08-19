@@ -2,10 +2,15 @@
 
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { PortalBadge, StatusBadge } from "@cashsouk/ui";
+import {
+  ListToolbar,
+  ListToolbarFilterTrigger,
+  PortalBadge,
+  StatusBadge,
+  type FilterChip,
+} from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -15,12 +20,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LegalAcceptanceDetailSheet } from "@/components/legal-acceptance-detail-sheet";
 import { RequirePermission } from "@/components/require-permission";
@@ -47,12 +53,9 @@ import {
 } from "@cashsouk/types";
 import {
   ArrowDownTrayIcon,
-  ArrowPathIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ClipboardDocumentCheckIcon,
-  MagnifyingGlassIcon,
-  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 
@@ -121,6 +124,43 @@ export default function LegalDocumentAcceptancesPage() {
     Boolean(dateFrom) ||
     Boolean(dateTo);
 
+  const appliedFilters: FilterChip[] = [];
+  if (documentTypeFilter !== "all") {
+    appliedFilters.push({
+      id: "type",
+      label: `Type: ${LEGAL_DOCUMENT_TYPE_LABELS[documentTypeFilter as LegalDocumentType] ?? documentTypeFilter}`,
+      onRemove: () => setDocumentTypeFilter("all"),
+    });
+  }
+  if (audienceFilter !== "all") {
+    appliedFilters.push({
+      id: "audience",
+      label: `Portal: ${AUDIENCE_OPTIONS.find((option) => option.value === audienceFilter)?.label ?? audienceFilter}`,
+      onRemove: () => setAudienceFilter("all"),
+    });
+  }
+  if (statusFilter !== "all") {
+    appliedFilters.push({
+      id: "status",
+      label: `Status: ${legalAcceptanceStatusLabel(statusFilter as LegalAcceptanceStatus)}`,
+      onRemove: () => setStatusFilter("all"),
+    });
+  }
+  if (dateFrom) {
+    appliedFilters.push({
+      id: "date-from",
+      label: `From: ${dateFrom}`,
+      onRemove: () => setDateFrom(""),
+    });
+  }
+  if (dateTo) {
+    appliedFilters.push({
+      id: "date-to",
+      label: `To: ${dateTo}`,
+      onRemove: () => setDateTo(""),
+    });
+  }
+
   const clearFilters = () => {
     setSearchQuery("");
     setDocumentTypeFilter("all");
@@ -175,59 +215,82 @@ export default function LegalDocumentAcceptancesPage() {
             description="Evidence records when users open or accept legal documents"
           />
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative min-w-[200px] flex-1">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, email, or organization..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-11 rounded-xl bg-card pl-9"
-              />
-            </div>
+          <ListToolbar
+            searchValue={searchQuery}
+            onSearchChange={setSearchQuery}
+            searchPlaceholder="Search by name, email, or organization..."
+            appliedFilters={appliedFilters}
+            onClearFilters={hasActiveFilters ? clearFilters : undefined}
+            onReload={handleReload}
+            isLoading={isLoading}
+            countLabel={`${totalCount} ${totalCount === 1 ? "record" : "records"}`}
+            filterGroups={
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <ListToolbarFilterTrigger
+                      label="Type"
+                      count={documentTypeFilter !== "all" ? 1 : 0}
+                    />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>Document type</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                      value={documentTypeFilter}
+                      onValueChange={setDocumentTypeFilter}
+                    >
+                      <DropdownMenuRadioItem value="all">All document types</DropdownMenuRadioItem>
+                      {LEGAL_TYPES.map((type) => (
+                        <DropdownMenuRadioItem key={type.value} value={type.value}>
+                          {type.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-            <Select value={documentTypeFilter} onValueChange={setDocumentTypeFilter}>
-              <SelectTrigger className="h-11 w-[200px] rounded-xl bg-card">
-                <SelectValue placeholder="Document type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All document types</SelectItem>
-                {LEGAL_TYPES.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <ListToolbarFilterTrigger
+                      label="Portal"
+                      count={audienceFilter !== "all" ? 1 : 0}
+                    />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuLabel>Portal</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup value={audienceFilter} onValueChange={setAudienceFilter}>
+                      <DropdownMenuRadioItem value="all">All portals</DropdownMenuRadioItem>
+                      {AUDIENCE_OPTIONS.map((option) => (
+                        <DropdownMenuRadioItem key={option.value} value={option.value}>
+                          {option.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-            <Select value={audienceFilter} onValueChange={setAudienceFilter}>
-              <SelectTrigger className="h-11 w-[140px] rounded-xl bg-card">
-                <SelectValue placeholder="Audience" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All portals</SelectItem>
-                {AUDIENCE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-11 w-[150px] rounded-xl bg-card">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                {LEGAL_ACCEPTANCE_STATUS_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <ListToolbarFilterTrigger
+                      label="Status"
+                      count={statusFilter !== "all" ? 1 : 0}
+                    />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuLabel>Status</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup value={statusFilter} onValueChange={setStatusFilter}>
+                      <DropdownMenuRadioItem value="all">All statuses</DropdownMenuRadioItem>
+                      {LEGAL_ACCEPTANCE_STATUS_OPTIONS.map((option) => (
+                        <DropdownMenuRadioItem key={option.value} value={option.value}>
+                          {option.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            }
+          >
             <Input
               type="date"
               value={dateFrom}
@@ -242,24 +305,6 @@ export default function LegalDocumentAcceptancesPage() {
               className="h-11 w-[160px] rounded-xl bg-card"
               aria-label="Date to"
             />
-
-            {hasActiveFilters ? (
-              <Button variant="ghost" onClick={clearFilters} className="h-11 gap-2 rounded-xl">
-                <XMarkIcon className="h-4 w-4" />
-                Clear
-              </Button>
-            ) : null}
-
-            <Button
-              variant="outline"
-              onClick={handleReload}
-              disabled={isLoading}
-              className="h-11 gap-2 rounded-xl bg-card"
-            >
-              <ArrowPathIcon className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-              Reload
-            </Button>
-
             <Button
               variant="outline"
               onClick={() => void handleExport()}
@@ -269,14 +314,7 @@ export default function LegalDocumentAcceptancesPage() {
               <ArrowDownTrayIcon className="h-4 w-4" />
               {exporting ? "Exporting..." : "Export CSV"}
             </Button>
-
-            <Badge
-              variant="secondary"
-              className="rounded-xl px-3 py-1 text-ui font-medium leading-5"
-            >
-              {totalCount} {totalCount === 1 ? "record" : "records"}
-            </Badge>
-          </div>
+          </ListToolbar>
 
           {error ? (
             <div className="py-8 text-center text-destructive">

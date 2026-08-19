@@ -20,8 +20,8 @@ import {
 } from "@/lib/offer-utils";
 import { cn } from "@/lib/utils";
 import { formatInvoiceReference } from "@cashsouk/types";
+import { FinancingDonut, financingDonutTone } from "./financing-donut";
 import { FinancingKpiTile } from "./financing-kpi-strip";
-import { FinancingPercentMark } from "./financing-percent-mark";
 import {
   EM_DASH,
   FINANCING_ATTENTION_SURFACE,
@@ -44,9 +44,9 @@ function OfferStatusBadge({ offerStatus }: { offerStatus: OfferStatus }) {
 
 function InvoiceScopeBadge({ contractId }: { contractId: string | null }) {
   if (contractId) {
-    return <StatusBadge label="Under facility" status="submitted" />;
+    return <StatusBadge label="Part of a facility" status="submitted" />;
   }
-  return <StatusBadge label="Standalone" status="neutral" />;
+  return <StatusBadge label="On its own" status="neutral" />;
 }
 
 function InvoiceFeeSummary({
@@ -280,7 +280,16 @@ export function DashboardInvoiceCard({
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
           <div className="flex shrink-0 items-center justify-center sm:w-[11rem] sm:justify-start">
-            <FinancingPercentMark percent={financingPercent} centerLabel="Financed" />
+            {row.note ? (
+              <FinancingDonut
+                size="lg"
+                centerLabel="Funded"
+                percent={row.note.fundingProgressPercent}
+                tone={financingDonutTone(row.note)}
+              />
+            ) : (
+              <FinancingDonut size="lg" centerLabel="Financed" percent={financingPercent} />
+            )}
           </div>
 
           <div className="min-w-0 flex-1 space-y-3">
@@ -296,18 +305,16 @@ export function DashboardInvoiceCard({
                 <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
                 {row.note?.id ? (
                   <p className="text-ui leading-7 text-foreground">
-                    <span className="font-normal text-muted-foreground">Note: </span>
+                    <span className="font-normal text-muted-foreground">Funding: </span>
                     <Link
                       href={`/financing/notes/${row.note.id}`}
                       className="inline-flex min-w-0 max-w-full items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
                     >
-                      <span className="min-w-0 truncate">View note</span>
+                      <span className="min-w-0 truncate">View details</span>
                       <LinkIcon className="h-4 w-4 shrink-0 text-primary" aria-hidden />
                     </Link>
                   </p>
-                ) : (
-                  <LabelValue label="Note">{EM_DASH}</LabelValue>
-                )}
+                ) : null}
                 {row.contractId ? (
                   <p className="text-ui leading-7 text-foreground">
                     <span className="font-normal text-muted-foreground">Facility: </span>

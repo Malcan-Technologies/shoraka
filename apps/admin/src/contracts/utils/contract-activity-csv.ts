@@ -1,4 +1,9 @@
 import type { AdminContractActivityEvent } from "@cashsouk/types";
+import {
+  buildAdminActivityCsv,
+  mergeActivityCsvMetadata,
+  type AdminActivityCsvRow,
+} from "@/components/admin-activity-csv";
 
 const EVENT_LABELS: Record<string, string> = {
   APPLICATION_CREATED: "Application created",
@@ -18,6 +23,8 @@ const EVENT_LABELS: Record<string, string> = {
   ITEM_REVIEWED_AMENDMENT_REQUESTED: "Item amendment requested",
   ITEM_REVIEWED_PENDING: "Item reset to pending",
   CONTRACT_OFFER_SENT: "Facility offer sent",
+  CONTRACT_ACCEPTANCE_SUBMITTED: "Acceptance submitted",
+  CONTRACT_ACCEPTANCE_RESUBMITTED: "Acceptance resubmitted",
   CONTRACT_OFFER_ACCEPTANCE_SUBMITTED: "Acceptance submitted",
   CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED: "Acceptance resubmitted",
   CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING: "Acceptance approved for signing",
@@ -31,6 +38,8 @@ const EVENT_LABELS: Record<string, string> = {
   SIGNING_PACKAGE_SENT: "Signing package sent",
   SIGNING_PACKAGE_COMPLETED: "Signing package completed",
   SIGNING_PACKAGE_VOIDED: "Signing package voided",
+  APPLICATION_AMENDMENTS_REQUESTED: "Amendment request sent",
+  APPLICATION_REOPENED_FOR_REVIEW: "Application reset to under review",
   AMENDMENTS_SUBMITTED: "Amendment request sent",
 };
 
@@ -44,37 +53,23 @@ export function formatContractActivityEventLabel(eventType: string) {
   );
 }
 
-function csvCell(value: string) {
-  return `"${value.replace(/"/g, '""')}"`;
-}
-
-function metadataCell(metadata: Record<string, unknown> | null) {
-  if (!metadata || Object.keys(metadata).length === 0) return "";
-  return JSON.stringify(metadata);
+export function contractEventToActivityCsvRow(
+  event: AdminContractActivityEvent
+): AdminActivityCsvRow {
+  return {
+    createdAt: event.createdAt,
+    event: formatContractActivityEventLabel(event.eventType),
+    eventType: event.eventType,
+    actor: event.actorName?.trim() || "",
+    actorUserId: event.actorUserId ?? "",
+    portal: event.portal ?? "",
+    remark: event.remark ?? "",
+    metadata: mergeActivityCsvMetadata(event.metadata, {
+      applicationId: event.applicationId,
+    }),
+  };
 }
 
 export function buildContractActivityCsv(events: AdminContractActivityEvent[]) {
-  const header = [
-    "createdAt",
-    "event",
-    "eventType",
-    "actorName",
-    "actorUserId",
-    "portal",
-    "applicationId",
-    "remark",
-    "metadata",
-  ];
-  const rows = events.map((event) => [
-    event.createdAt,
-    formatContractActivityEventLabel(event.eventType),
-    event.eventType,
-    event.actorName ?? "",
-    event.actorUserId ?? "",
-    event.portal ?? "",
-    event.applicationId ?? "",
-    event.remark ?? "",
-    metadataCell(event.metadata),
-  ]);
-  return [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+  return buildAdminActivityCsv(events.map(contractEventToActivityCsvRow));
 }

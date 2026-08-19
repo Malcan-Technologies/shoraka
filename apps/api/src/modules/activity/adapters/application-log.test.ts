@@ -274,6 +274,39 @@ describe("ApplicationLogAdapter", () => {
     expect(count).toBe(0);
   });
 
+  it("searches application and invoice references", async () => {
+    prisma.application.findMany.mockResolvedValue([{ id: "app_1" }]);
+    prisma.applicationAuditLog.findMany.mockResolvedValue([]);
+
+    await adapter.query("user123", {
+      organizationId: "issuer-org-1",
+      portalType: "issuer",
+      search: "INV-001",
+    });
+
+    expect(prisma.applicationAuditLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            { application_id: { contains: "INV-001", mode: "insensitive" } },
+            {
+              metadata: {
+                path: ["invoice_number"],
+                string_contains: "INV-001",
+              },
+            },
+            {
+              metadata: {
+                path: ["application_reference"],
+                string_contains: "INV-001",
+              },
+            },
+          ]),
+        }),
+      })
+    );
+  });
+
   it("only exposes curated Application activity events", () => {
     expect(adapter.getEventTypes()).toContain("APPLICATION_CREATED");
     expect(adapter.getEventTypes()).toContain("APPLICATION_AMENDMENTS_REQUESTED");

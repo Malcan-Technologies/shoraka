@@ -1,5 +1,9 @@
 export { AdminEntityHeader } from "./admin-entity-header";
-export { HERO_SUMMARY_CARD_LIMIT, heroSummaryClusterClass } from "./admin-entity-header-layout";
+export {
+  HERO_SUMMARY_CARD_LIMIT,
+  heroSummaryClusterClass,
+  type AdminHeroTint,
+} from "./admin-entity-header-layout";
 export type { AdminEntityHeaderMetric, AdminEntityHeaderProps } from "./admin-entity-header";
 export { AdminEntitySummaryCard } from "./admin-entity-summary-card";
 export type { AdminEntitySummaryCardProps } from "./admin-entity-summary-card";
@@ -13,6 +17,8 @@ export { AdminCollapsibleCard } from "./admin-collapsible-card";
 export type { AdminCollapsibleCardProps } from "./admin-collapsible-card";
 export { AdminDetailCardHeader } from "./admin-detail-card-header";
 export type { AdminDetailCardHeaderProps } from "./admin-detail-card-header";
+export { AdminCardEditActions } from "./admin-card-edit-actions";
+export type { AdminCardEditActionsProps } from "./admin-card-edit-actions";
 export { AdminRelatedRecordsRail } from "./admin-related-records-rail";
 export type { AdminRelatedRecordsRailProps } from "./admin-related-records-rail";
 export { useAdminDetailTabState } from "./use-admin-detail-tab-state";

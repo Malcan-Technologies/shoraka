@@ -118,6 +118,9 @@ export interface ActivityReferences {
   contractNumber?: string;
   invoiceId?: string;
   invoiceNumber?: string;
+  noteId?: string;
+  noteReference?: string;
+  envelopeId?: string;
 }
 
 export interface Activity {
@@ -468,6 +471,7 @@ export * from "./onboarding-readiness";
 export * from "./ctos-party-supplement-json";
 export * from "./regtank-iso3166-countries";
 export * from "./notes";
+export * from "./investor-balance-activity";
 export * from "./display-reference";
 export * from "./prospectus-review";
 export * from "./prospectus-status";
@@ -476,6 +480,7 @@ export * from "./prospectus-highlight-recommendations";
 export * from "./prospectus-about-invoice-recommendations";
 export * from "./investor-return-breakdown";
 export * from "./marketplace-note-dates";
+export * from "./marketplace-catalog";
 export * from "./prospectus-calendar";
 export * from "./signing-envelopes";
 export * from "./signing-audit";

@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/prisma";
+import { formatUserDisplayName } from "../../lib/user-display-name";
 import {
   Prisma,
   User,
@@ -1917,9 +1918,9 @@ export class AdminRepository {
         })
       : [];
     const userNameById = new Map(
-      [...users, ...extraActors].map((user) => {
-        const fullName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
-        return [user.user_id, fullName.length > 0 ? fullName : user.email];
+      [...users, ...extraActors].flatMap((user) => {
+        const name = formatUserDisplayName(user);
+        return name ? [[user.user_id, name] as const] : [];
       })
     );
 
@@ -1946,9 +1947,9 @@ export class AdminRepository {
       updatedAt: contract.updated_at,
       contractDetails: contract.contract_details ? contractDetails : null,
       offerDetails: contract.offer_details ? offerDetails : null,
-      offerSentByUserName: sentByUserId ? userNameById.get(sentByUserId) ?? sentByUserId : null,
+      offerSentByUserName: sentByUserId ? userNameById.get(sentByUserId) ?? null : null,
       offerRespondedByUserName: respondedByUserId
-        ? userNameById.get(respondedByUserId) ?? respondedByUserId
+        ? userNameById.get(respondedByUserId) ?? null
         : null,
       customerDetails: contract.customer_details ? customerDetails : null,
       applications,

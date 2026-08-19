@@ -81,7 +81,7 @@ const SCENARIOS: Array<{
   maturityDateNull?: boolean;
 }> = [
   { appStatus: "DRAFT", contractStatus: null, invoiceStatuses: [], type: "Generic", hasContract: false, invoiceCount: 0 },
-  /** Offer Received — Facility: shows "Review Facility Financing Offer". */
+  /** Offer Received — Facility: shows "Review Facility Offer". */
   { appStatus: "SUBMITTED", contractStatus: "OFFER_SENT", invoiceStatuses: [], type: "Facility financing", hasContract: true, invoiceCount: 0, hasExpiry: true },
   /** Offer Received — Invoice: shows "Review Invoice Financing Offer" on card. */
   { appStatus: "SUBMITTED", contractStatus: null, invoiceStatuses: ["OFFER_SENT"], type: "Invoice financing", hasContract: false, invoiceCount: 1, hasExpiry: true, hasDocumentS3Key: true },

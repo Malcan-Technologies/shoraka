@@ -177,7 +177,7 @@ describe("Note audit cutover", () => {
 
   it("writes NOTE_CREATED after durable create and skips idempotent existing notes", () => {
     const chunk = methodChunk(notes, "createFromInvoiceSource", 9000);
-    expect(chunk).toMatch(/if \(existing\) return mapNoteDetail\(existing\)/);
+    expect(chunk).toMatch(/if \(existing\) return(?: await)? mapNoteDetail\(existing\)/);
     expect(chunk).toMatch(/NOTE_CREATED/);
     expect(chunk).toMatch(/sourceType: "INVOICE"/);
     expect(chunk).not.toMatch(/NOTE_CREATED_FROM_INVOICE/);

@@ -51,6 +51,7 @@ function baseNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     featuredFrom: null,
     featuredUntil: null,
     featuredActive: false,
+    investorCount: 0,
     maturityDate: null,
     listingClosesAt: null,
     activatedAt: null,
@@ -566,7 +567,8 @@ describe("standalone vs contract-linked notes", () => {
       path.join(__dirname, "../../components/admin-detail/admin-metric-progress.tsx"),
       "utf8"
     );
-    expect(headerSource).toContain("tone ? adminHeroTintClass(tone)");
+    expect(headerSource).toContain("adminHeroTintModifierClass");
+    expect(headerSource).toContain('heroTint?: AdminHeroTint');
     expect(headerSource).toContain('variant?: "plain" | "hero"');
     expect(headerSource).toContain("summaryCards?: React.ReactNode[]");
     expect(headerSource).toContain("HERO_SUMMARY_CARD_LIMIT");

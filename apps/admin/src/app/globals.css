@@ -33,3 +33,64 @@
   font-size: var(--text-ui);
   line-height: 1.5rem;
 }
+
+@layer components {
+  /* Shared hero wash: right-to-left primary/status tint + diamond lattice */
+  .admin-hero-surface {
+    border-color: hsl(var(--admin-hero-tint) / 0.2);
+    background-color: hsl(var(--card));
+    background-image: linear-gradient(
+      to bottom left,
+      hsl(var(--admin-hero-tint) / 0.1),
+      hsl(var(--admin-hero-tint) / 0.04) 45%,
+      hsl(var(--card))
+    );
+  }
+
+  .admin-hero-pattern {
+    background-image:
+      repeating-linear-gradient(
+        45deg,
+        hsl(var(--admin-hero-tint) / 0.11) 0 1px,
+        transparent 1px 18px
+      ),
+      repeating-linear-gradient(
+        -45deg,
+        hsl(var(--admin-hero-tint) / 0.08) 0 1px,
+        transparent 1px 18px
+      );
+    mask-image: linear-gradient(to bottom left, black 12%, transparent 78%);
+    -webkit-mask-image: linear-gradient(to bottom left, black 12%, transparent 78%);
+  }
+
+  .admin-hero-tint-issuer {
+    --admin-hero-tint: var(--primary);
+  }
+  .admin-hero-tint-investor {
+    --admin-hero-tint: var(--portal-investor-text);
+  }
+  .admin-hero-tint-action {
+    --admin-hero-tint: var(--status-action-text);
+  }
+  .admin-hero-tint-submitted {
+    --admin-hero-tint: var(--status-submitted-text);
+  }
+  .admin-hero-tint-in-progress {
+    --admin-hero-tint: var(--status-in-progress-text);
+  }
+  .admin-hero-tint-success {
+    --admin-hero-tint: var(--status-success-text);
+  }
+  .admin-hero-tint-active {
+    --admin-hero-tint: var(--status-active-text);
+  }
+  .admin-hero-tint-completed {
+    --admin-hero-tint: var(--status-completed-text);
+  }
+  .admin-hero-tint-rejected {
+    --admin-hero-tint: var(--status-rejected-text);
+  }
+  .admin-hero-tint-neutral {
+    --admin-hero-tint: var(--status-neutral-text);
+  }
+}

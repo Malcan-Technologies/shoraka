@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { StatusBadge } from "@cashsouk/ui";
+import { ListToolbar, ListToolbarFilterTrigger, StatusBadge, type FilterChip } from "@cashsouk/ui";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
@@ -63,9 +63,6 @@ import {
   DocumentIcon,
   ArrowPathIcon,
   PlusIcon,
-  MagnifyingGlassIcon,
-  XMarkIcon,
-  FunnelIcon,
   PencilSquareIcon,
   ArchiveBoxIcon,
   ArrowUpTrayIcon,
@@ -302,6 +299,24 @@ export default function LegalDocumentsPage() {
   const totalCount = data?.pagination.totalCount ?? 0;
   const totalPages = data?.pagination.totalPages ?? 0;
   const hasActiveFilters = Boolean(searchQuery) || statusFilter !== "all";
+  const statusChipLabel =
+    statusFilter === "DRAFT"
+      ? "Draft"
+      : statusFilter === "PUBLISHED"
+        ? "Published"
+        : statusFilter === "ARCHIVED"
+          ? "Archived"
+          : statusFilter;
+  const appliedFilters: FilterChip[] =
+    statusFilter === "all"
+      ? []
+      : [
+          {
+            id: "status",
+            label: `Status: ${statusChipLabel}`,
+            onRemove: () => setStatusFilter("all"),
+          },
+        ];
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin", "legal-documents"] });
@@ -738,64 +753,35 @@ export default function LegalDocumentsPage() {
               }
             />
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative min-w-[200px] flex-1">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search by type…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-11 rounded-xl bg-card pl-9"
-                />
-              </div>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
-                    <FunnelIcon className="h-4 w-4" />
-                    Status
-                    {statusFilter !== "all" ? (
-                      <Badge variant="secondary" className="ml-1">
-                        1
-                      </Badge>
-                    ) : null}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuLabel>Status</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup value={statusFilter} onValueChange={setStatusFilter}>
-                    <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="DRAFT">Draft</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="PUBLISHED">Published</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="ARCHIVED">Archived</DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {hasActiveFilters ? (
-                <Button variant="ghost" onClick={clearFilters} className="h-11 gap-2 rounded-xl">
-                  <XMarkIcon className="h-4 w-4" />
-                  Clear
-                </Button>
-              ) : null}
-
-              <Button
-                variant="outline"
-                onClick={() => invalidate()}
-                disabled={isLoading}
-                className="h-11 gap-2 rounded-xl bg-card"
-              >
-                <ArrowPathIcon className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-                Reload
-              </Button>
-
-              <Badge
-                variant="secondary"
-                className="rounded-xl px-3 py-1 text-[13px] font-medium leading-5"
-              >
-                {totalCount} {totalCount === 1 ? "document" : "documents"}
-              </Badge>
-            </div>
+            <ListToolbar
+              searchValue={searchQuery}
+              onSearchChange={setSearchQuery}
+              searchPlaceholder="Search by type…"
+              appliedFilters={appliedFilters}
+              onClearFilters={hasActiveFilters ? clearFilters : undefined}
+              onReload={invalidate}
+              isLoading={isLoading}
+              countLabel={`${totalCount} ${totalCount === 1 ? "document" : "documents"}`}
+              filterGroups={
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <ListToolbarFilterTrigger
+                      label="Status"
+                      count={statusFilter !== "all" ? 1 : 0}
+                    />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuLabel>Status</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup value={statusFilter} onValueChange={setStatusFilter}>
+                      <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="DRAFT">Draft</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="PUBLISHED">Published</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="ARCHIVED">Archived</DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              }
+            />
 
             <div className="rounded-xl border border-border bg-card">
               <Table>

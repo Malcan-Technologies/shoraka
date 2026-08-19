@@ -1,4 +1,9 @@
 import type { NoteAuditLogDto } from "@cashsouk/types";
+import {
+  buildAdminActivityCsv,
+  mergeActivityCsvMetadata,
+  type AdminActivityCsvRow,
+} from "@/components/admin-activity-csv";
 
 const EVENT_LABELS: Record<string, string> = {
   NOTE_CREATED: "Note created",
@@ -31,7 +36,9 @@ const EVENT_LABELS: Record<string, string> = {
   SERVICE_FEE_TRUSTEE_LETTER_SUBMITTED: "Settlement trustee letter submitted",
   SERVICE_FEE_TRUSTEE_INSTRUCTION_COMPLETED: "Settlement trustee instruction completed",
   NOTE_DEFAULT_MARKED: "Default marked",
+  NOTE_MARKED_DEFAULT: "Default marked",
   SHORAKA_ORDER_SUBMITTED: "Tawarruq order submitted",
+  SHORAKA_CERTIFICATE_RECEIVED: "Tawarruq Certificate fetched",
   SHORAKA_CERTIFICATE_FETCHED: "Tawarruq Certificate fetched",
 };
 
@@ -46,35 +53,22 @@ export function formatNoteActivityEventLabel(eventType: string) {
   return label;
 }
 
-function csvCell(value: string) {
-  return `"${value.replace(/"/g, '""')}"`;
-}
-
-function metadataCell(metadata: Record<string, unknown> | null) {
-  if (!metadata || Object.keys(metadata).length === 0) return "";
-  return JSON.stringify(metadata);
+export function noteAuditLogToActivityCsvRow(event: NoteAuditLogDto): AdminActivityCsvRow {
+  return {
+    createdAt: event.occurredAt,
+    event: formatNoteActivityEventLabel(event.eventType),
+    eventType: event.eventType,
+    actor: event.actor.displayName?.trim() || "",
+    actorUserId: event.actor.userId ?? "",
+    portal: event.portal ?? "",
+    remark: "",
+    metadata: mergeActivityCsvMetadata(event.metadata, {
+      actorType: event.actor.type,
+      correlationId: event.correlationId,
+    }),
+  };
 }
 
 export function buildNoteActivityCsv(events: NoteAuditLogDto[]) {
-  const header = [
-    "occurredAt",
-    "event",
-    "eventType",
-    "actorUserId",
-    "actorType",
-    "portal",
-    "correlationId",
-    "metadata",
-  ];
-  const rows = events.map((event) => [
-    event.occurredAt,
-    formatNoteActivityEventLabel(event.eventType),
-    event.eventType,
-    event.actor.userId ?? "",
-    event.actor.type ?? "",
-    event.portal ?? "",
-    event.correlationId ?? "",
-    metadataCell(event.metadata),
-  ]);
-  return [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+  return buildAdminActivityCsv(events.map(noteAuditLogToActivityCsvRow));
 }

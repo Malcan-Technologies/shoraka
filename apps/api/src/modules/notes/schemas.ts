@@ -86,6 +86,10 @@ export const getNotesQuerySchema = z.object({
     .enum(["true", "false", "1", "0"])
     .transform((value) => value === "true" || value === "1")
     .optional(),
+  includeClosed: z
+    .enum(["true", "false", "1", "0"])
+    .transform((value) => value === "true" || value === "1")
+    .optional(),
   excludeRepaid: z
     .enum(["true", "false", "1", "0"])
     .transform((value) => value === "true" || value === "1")

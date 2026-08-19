@@ -1,5 +1,10 @@
 import type { ActivityAudience } from "./activity-visibility";
 import { toTitleCase } from "./title-case";
+import {
+  getFilterableActivityDomains,
+  type ActivityDomain,
+  type ActivityPortal,
+} from "./activity-config";
 
 export type ActivityPresentation = {
   title: string;
@@ -1186,4 +1191,126 @@ export function formatPaymentActivity(
 
 export function audienceFromPortal(portalType?: "investor" | "issuer"): ActivityAudience {
   return portalType === "investor" ? "investor" : "issuer";
+}
+
+/** Viewer-centric tokens for issuer/investor activity rows. Same six as StatusBadge. */
+export type ActivityStatusToken =
+  | "action"
+  | "submitted"
+  | "success"
+  | "active"
+  | "rejected"
+  | "neutral";
+
+export const ACTIVITY_STATUS_LABEL: Record<ActivityStatusToken, string> = {
+  action: "Action needed",
+  submitted: "Waiting",
+  success: "Complete",
+  active: "Live",
+  rejected: "Failed",
+  neutral: "Closed",
+};
+
+const ACTIVITY_STATUS_BY_EVENT: Record<string, ActivityStatusToken> = {
+  ONBOARDING_STARTED: "action",
+  ONBOARDING_REJECTED: "rejected",
+  ONBOARDING_FINAL_APPROVAL_COMPLETED: "success",
+  ONBOARDING_APPROVED: "success",
+  ONBOARDING_COMPLETED: "success",
+
+  APPLICATION_CREATED: "action",
+  APPLICATION_SUBMITTED: "submitted",
+  APPLICATION_RESUBMITTED: "submitted",
+  APPLICATION_AMENDMENTS_REQUESTED: "action",
+  APPLICATION_COMPLETED: "success",
+  APPLICATION_REJECTED: "rejected",
+  APPLICATION_WITHDRAWN: "neutral",
+
+  CONTRACT_OFFER_SENT: "action",
+  CONTRACT_ACCEPTANCE_SUBMITTED: "submitted",
+  CONTRACT_ACCEPTANCE_RESUBMITTED: "submitted",
+  CONTRACT_OFFER_ACCEPTED: "success",
+  CONTRACT_OFFER_REJECTED: "rejected",
+  CONTRACT_OFFER_RETRACTED: "neutral",
+  CONTRACT_OFFER_EXPIRED: "rejected",
+  CONTRACT_SIGNING_DEADLINE_EXTENDED: "submitted",
+  CONTRACT_WITHDRAWN: "neutral",
+
+  INVOICE_OFFER_SENT: "action",
+  INVOICE_ACCEPTANCE_SUBMITTED: "submitted",
+  INVOICE_ACCEPTANCE_RESUBMITTED: "submitted",
+  INVOICE_OFFER_ACCEPTED: "success",
+  INVOICE_OFFER_REJECTED: "rejected",
+  INVOICE_OFFER_RETRACTED: "neutral",
+  INVOICE_OFFER_EXPIRED: "rejected",
+  INVOICE_SIGNING_DEADLINE_EXTENDED: "submitted",
+  INVOICE_WITHDRAWN: "neutral",
+
+  SIGNING_PACKAGE_SENT: "action",
+
+  NOTE_CREATED: "action",
+  NOTE_PUBLISHED: "submitted",
+  NOTE_CAMPAIGN_PAUSED: "neutral",
+  NOTE_CAMPAIGN_RESUMED: "submitted",
+  NOTE_FUNDING_CLOSED: "submitted",
+  NOTE_FUNDING_FAILED: "rejected",
+  NOTE_ACTIVATED: "active",
+  DISBURSEMENT_COMPLETED: "active",
+  REPAYMENT_SUBMITTED: "submitted",
+  INVESTMENT_COMMITTED: "success",
+  SETTLEMENT_POSTED: "success",
+  NOTE_MARKED_DEFAULT: "rejected",
+};
+
+export function getActivityStatusToken(eventType: string): ActivityStatusToken {
+  return ACTIVITY_STATUS_BY_EVENT[eventType] ?? "neutral";
+}
+
+export function getActivityStatusLabel(eventType: string): string {
+  return ACTIVITY_STATUS_LABEL[getActivityStatusToken(eventType)];
+}
+
+export function getDefaultActivityDomains(
+  portal: ActivityPortal,
+  options?: { onboardingComplete?: boolean }
+): ActivityDomain[] {
+  if (options?.onboardingComplete !== true) {
+    return [];
+  }
+  return getFilterableActivityDomains(portal).filter((domain) => domain !== "onboarding");
+}
+
+export function sameActivityDomainSet(a: ActivityDomain[], b: ActivityDomain[]): boolean {
+  if (a.length !== b.length) return false;
+  const right = new Set(b);
+  return a.every((domain) => right.has(domain));
+}
+
+export function getActivityHref(
+  activity: {
+    domain: ActivityDomain;
+    event_type: string;
+    references?: {
+      applicationId?: string;
+      contractId?: string;
+      invoiceId?: string;
+      noteId?: string;
+    } | null;
+  },
+  portal: ActivityPortal
+): string | null {
+  const refs = activity.references ?? {};
+
+  if (portal === "issuer") {
+    if (refs.invoiceId) return `/financing/invoices/${refs.invoiceId}`;
+    if (refs.contractId) return `/financing/contracts/${refs.contractId}`;
+    if (refs.applicationId) return `/applications/${refs.applicationId}`;
+    if (refs.noteId) return `/financing/notes/${refs.noteId}`;
+    if (activity.domain === "onboarding") return "/profile";
+    return null;
+  }
+
+  if (refs.noteId) return `/investments/${refs.noteId}`;
+  if (activity.domain === "onboarding") return "/profile";
+  return null;
 }

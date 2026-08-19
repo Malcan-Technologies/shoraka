@@ -17,6 +17,7 @@ import {
   UserCircleIcon,
   DocumentTextIcon,
   BanknotesIcon,
+  ClockIcon,
   QuestionMarkCircleIcon,
   LockClosedIcon,
   PlusIcon,
@@ -25,6 +26,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { OrganizationSwitcher } from "@/components/organization-switcher";
 import {
   Tooltip,
   TooltipContent,
@@ -250,13 +252,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return (
       <Sidebar collapsible="icon" {...props}>
         <SidebarHeader>
-          <div className="flex h-16 items-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
-            <Skeleton className="h-14 w-14 rounded group-data-[collapsible=icon]:block hidden" />
+          <div className="flex h-12 items-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
+            <Skeleton className="h-10 w-10 rounded group-data-[collapsible=icon]:block hidden" />
             <div className="flex items-center group-data-[collapsible=icon]:hidden">
               <Skeleton className="h-8 w-8 rounded" />
               <Skeleton className="ml-2 h-4 w-16" />
             </div>
           </div>
+          <Skeleton className="h-12 w-full rounded-md" />
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>
@@ -289,7 +292,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="flex h-12 items-center justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
+        <div className="flex h-12 items-center justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-2">
           <div className="relative w-full">
             <Image
               src="/shoraka_favicon.svg"
@@ -304,6 +307,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </div>
           </div>
         </div>
+        <OrganizationSwitcher />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -322,6 +326,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <Link href="/">
                       <HomeIcon className="h-4 w-4" />
                       <span>Dashboard</span>
+                    </Link>
+                  </SidebarMenuButton>
+                )}
+              </SidebarMenuItem>
+
+              <SidebarMenuItem>
+                {isDisabled ? (
+                  <LockedNavButton
+                    icon={ClockIcon}
+                    label="Activity"
+                    tooltip={workNavLockedTooltip}
+                  />
+                ) : (
+                  <SidebarMenuButton asChild isActive={pathname === "/activity"} tooltip="Activity">
+                    <Link href="/activity">
+                      <ClockIcon className="h-4 w-4" />
+                      <span>Activity</span>
                     </Link>
                   </SidebarMenuButton>
                 )}

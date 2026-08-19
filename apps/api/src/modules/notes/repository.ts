@@ -41,6 +41,7 @@ export class NoteRepository {
       issuerOrganizationId,
       paymaster,
       featuredOnly,
+      includeClosed,
       excludeRepaid,
       excludeFullySettledRegistryNotes,
     } = params;
@@ -97,6 +98,21 @@ export class NoteRepository {
           path: ["name"],
           string_contains: paymaster,
         },
+      });
+    }
+    if (includeClosed) {
+      and.push({
+        OR: [
+          {
+            status: NoteStatus.PUBLISHED,
+            listing_status: NoteListingStatus.PUBLISHED,
+            funding_status: NoteFundingStatus.OPEN,
+          },
+          {
+            listing_status: NoteListingStatus.CLOSED,
+            funding_status: { in: [NoteFundingStatus.FUNDED, NoteFundingStatus.FAILED] },
+          },
+        ],
       });
     }
     if (featuredOnly) {

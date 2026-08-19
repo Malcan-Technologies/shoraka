@@ -272,9 +272,17 @@ describe("NoteLogAdapter", () => {
 
     const completed = adapter.transform(records[0] as never);
     expect(completed.title).toBe("Disbursement Completed");
+    expect(completed.references).toEqual({
+      noteId: "note_1",
+      noteReference: "NOTE-001",
+    });
 
     const activated = adapter.transform(records[1] as never);
     expect(activated.title).toBe("Note Activated");
+    expect(activated.references).toEqual({
+      noteId: "note_1",
+      noteReference: "NOTE-001",
+    });
   });
 
   it("only exposes curated high-signal note events", () => {

@@ -1,8 +1,7 @@
 "use client";
 
-import { Suspense } from "react";
 import { useEffect, useMemo, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../lib/auth";
 import {
@@ -12,15 +11,14 @@ import {
 } from "@cashsouk/config";
 import { checkAndRedirectForPendingInvitation } from "../lib/invitation-redirect";
 import { Button } from "../components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { PlusIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { DirectorShareholderAlertCard } from "../components/director-shareholder-alert-card";
 import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboarding-status-card";
 import { RecentApplicationsCard } from "../components/dashboard/recent-applications-card";
 import { RecentFinancingCard } from "../components/dashboard/recent-financing-card";
+import { RecentActivityCard } from "../components/dashboard/recent-activity-card";
 import { NextActionBanner } from "../components/dashboard/next-action-banner";
-import { IssuerActivityList } from "../components/activity/issuer-activity-list";
 import { AccountOverviewCard } from "../components/account-overview-card";
 import { RepaymentPerformanceCard } from "../components/repayment-performance-card";
 import { PageShell, welcomeBackTitle } from "@cashsouk/ui";
@@ -51,8 +49,6 @@ function onboardingStepCta(stepId: string | undefined): { href: string; label: s
 function IssuerDashboardContent() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const activeTab = searchParams.get("tab") === "activity" ? "activity" : "overview";
   const {
     activeOrganization,
     isLoading: isOrgLoading,
@@ -125,14 +121,6 @@ function IssuerDashboardContent() {
 
     hasRedirected.current = false;
   }, [isAuthenticated, isOrgLoading, activeOrganization, organizations, router]);
-
-  const handleTabChange = (value: string) => {
-    if (value === "activity") {
-      router.replace("/?tab=activity", { scroll: false });
-    } else {
-      router.replace("/", { scroll: false });
-    }
-  };
 
   if (isAuthenticated === null || isOrgLoading || !canShowDashboard) {
     return (
@@ -215,17 +203,7 @@ function IssuerDashboardContent() {
           ) : null
         }
       >
-        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="h-11 w-full justify-start rounded-xl bg-muted p-1 sm:w-auto">
-            <TabsTrigger value="overview" className="rounded-lg px-4">
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="activity" className="rounded-lg px-4">
-              Activity
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="overview" className="mt-6 space-y-8">
+        <div className="space-y-8">
             {activeOrganization?.type === "COMPANY" ? (
               <DirectorShareholderAlertCard
                 visiblePeople={visiblePeopleForDsAlert}
@@ -316,32 +294,15 @@ function IssuerDashboardContent() {
                   <RecentApplicationsCard />
                   <RecentFinancingCard organizationId={activeOrganization?.id} />
                 </div>
+                <RecentActivityCard />
               </div>
             ) : null}
-          </TabsContent>
-
-          <TabsContent value="activity" className="mt-6">
-            <IssuerActivityList embedded />
-          </TabsContent>
-        </Tabs>
+        </div>
       </PageShell>
     </div>
   );
 }
 
 export default function IssuerDashboardPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center">
-          <div className="space-y-4 text-center">
-            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-primary" />
-            <p className="text-muted-foreground">Loading...</p>
-          </div>
-        </div>
-      }
-    >
-      <IssuerDashboardContent />
-    </Suspense>
-  );
+  return <IssuerDashboardContent />;
 }

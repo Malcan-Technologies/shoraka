@@ -7,6 +7,21 @@ import { cn } from "@/lib/utils";
 const EM = "\u2014";
 
 /** Donut for financing cards — compact KPI accent or large hero mark. */
+export function financingDonutTone(input: {
+  fundingStatus?: string | null;
+  servicingStatus?: string | null;
+}): "primary" | "foreground" {
+  const funding = String(input.fundingStatus ?? "").toUpperCase();
+  const servicing = String(input.servicingStatus ?? "").toUpperCase();
+  if (funding === "FUNDED" || funding === "FAILED" || funding === "CLOSED") {
+    return "foreground";
+  }
+  if (servicing && servicing !== "NOT_STARTED") {
+    return "foreground";
+  }
+  return "primary";
+}
+
 export function FinancingDonut({
   percent,
   className,

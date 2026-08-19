@@ -773,7 +773,7 @@ marketplaceRouter.get(
 publicMarketplaceRouter.get("/notes", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const params = getNotesQuerySchema.parse(req.query);
-    send(res, await noteService.listMarketplace(params));
+    send(res, await noteService.listMarketplace({ ...params, includeClosed: false }));
   } catch (error) {
     next(error);
   }

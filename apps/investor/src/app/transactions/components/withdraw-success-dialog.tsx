@@ -3,12 +3,7 @@
 import { CheckIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { InvestorActionDialog } from "@/components/investor-action-dialog";
 
 interface WithdrawSuccessDialogProps {
   open: boolean;
@@ -18,35 +13,33 @@ interface WithdrawSuccessDialogProps {
 
 export function WithdrawSuccessDialog({ open, onOpenChange, amount }: WithdrawSuccessDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-xl px-6 py-8 text-center">
-        <DialogTitle className="sr-only">Withdrawal submitted successfully</DialogTitle>
-        <DialogDescription className="sr-only">
-          Your withdrawal request for {formatCurrency(amount)} has been submitted successfully. The
-          amount will be credited to your account within 2-3 business days.
-        </DialogDescription>
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-800">
-          <CheckIcon className="h-8 w-8 text-white" strokeWidth={2.5} />
+    <InvestorActionDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      icon={
+        <div className="flex size-11 items-center justify-center rounded-2xl bg-status-success-bg text-status-success-text">
+          <CheckIcon className="size-6" strokeWidth={2.2} />
         </div>
-
-        <div className="mt-6 space-y-2">
-          <p className="text-muted-foreground">Your withdrawal request for</p>
-          <p className="text-3xl font-bold text-primary">{formatCurrency(amount)}</p>
-          <p className="text-lg font-semibold">has been submitted successfully</p>
-          <p className="text-sm text-muted-foreground">
-            The amount will be credited to your account within 2-3 business days
-          </p>
-        </div>
-
+      }
+      title="Withdrawal requested"
+      description="We've received your request. It should reach your bank account in 2–3 business days."
+      footer={
         <Button
           type="button"
           variant="action"
-          className="mt-8 h-11 w-full rounded-xl"
+          className="h-11 w-full rounded-xl"
           onClick={() => onOpenChange(false)}
         >
-          OK
+          Done
         </Button>
-      </DialogContent>
-    </Dialog>
+      }
+    >
+      <div className="rounded-2xl border border-border bg-muted/40 px-5 py-6 text-center">
+        <p className="text-ui text-muted-foreground">Amount on the way</p>
+        <p className="mt-2 text-3xl font-semibold tabular-nums tracking-tight text-foreground">
+          {formatCurrency(amount)}
+        </p>
+      </div>
+    </InvestorActionDialog>
   );
 }

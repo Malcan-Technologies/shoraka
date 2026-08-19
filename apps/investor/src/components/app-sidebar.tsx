@@ -11,6 +11,8 @@ import {
   useOrganization,
   isAddingNewOrganizationRoute,
   canAccessApplicantAccount,
+  getOnboardingStep,
+  type OnboardingFlowStep,
 } from "@cashsouk/config";
 import {
   HomeIcon,
@@ -19,7 +21,6 @@ import {
   QuestionMarkCircleIcon,
   ArrowTrendingUpIcon,
   ChartBarSquareIcon,
-  BanknotesIcon,
   LockClosedIcon,
   BuildingOffice2Icon,
 } from "@heroicons/react/24/outline";
@@ -27,6 +28,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { OrganizationSwitcher } from "@/components/organization-switcher";
 import {
   Tooltip,
   TooltipContent,
@@ -47,6 +49,7 @@ import {
   useSidebar,
 } from "@cashsouk/ui";
 import { useInvestorPortfolio } from "@/investments/hooks/use-marketplace-notes";
+import { isPortfolioNavActive } from "@/portfolio/portfolio-tabs";
 import { cn } from "@/lib/utils";
 
 function subscribeMounted() {
@@ -61,32 +64,23 @@ function getServerSnapshot() {
   return false;
 }
 
-const ADDING_ORGANISATION_TOOLTIP = "Finish adding your organisation to unlock this.";
-const REJECTED_ONBOARDING_TOOLTIP = "Onboarding was not approved.";
-const COMPLETED_ONBOARDING_UNLOCK_TOOLTIP = "Available after onboarding is complete.";
-const LOCKED_TOOLTIP_CONTENT_CLASSNAME =
-  "max-w-[260px] whitespace-normal break-words text-left leading-5";
-
-function verificationKindLabel(orgType: string | undefined): "identity" | "business" {
-  return orgType === "PERSONAL" ? "identity" : "business";
-}
-
-function workNavUnlockTooltip(orgType: string | undefined): string {
-  return `Available after ${verificationKindLabel(orgType)} verification is complete.`;
-}
-
-function accountAccessUnlockTooltip(orgType: string | undefined): string {
-  return `Available after ${verificationKindLabel(orgType)} verification is complete and your account is approved to continue.`;
-}
-
-function sidebarLockTooltip(params: {
-  addingOrganisation: boolean;
-  rejected: boolean;
-  unlockCopy: string;
-}): string {
-  if (params.addingOrganisation) return ADDING_ORGANISATION_TOOLTIP;
-  if (params.rejected) return REJECTED_ONBOARDING_TOOLTIP;
-  return params.unlockCopy;
+function unlockTooltipForStep(step: OnboardingFlowStep | null): string {
+  switch (step) {
+    case "account":
+      return "Create your organisation account to unlock this";
+    case "terms":
+      return "Accept the user agreement to unlock this";
+    case "fee":
+      return "Pay the onboarding fee to unlock this";
+    case "verify":
+      return "Complete identity verification to unlock this";
+    case "deposit":
+      return "Complete your first deposit to unlock this";
+    case "approval":
+      return "Available after your organisation is approved";
+    default:
+      return "Complete onboarding to unlock this";
+  }
 }
 
 function LockedNavButton({
@@ -109,7 +103,7 @@ function LockedNavButton({
           </SidebarMenuButton>
         </span>
       </TooltipTrigger>
-      <TooltipContent side="right" align="center" className={LOCKED_TOOLTIP_CONTENT_CLASSNAME}>
+      <TooltipContent side="right" align="center">
         {tooltip}
       </TooltipContent>
     </Tooltip>
@@ -151,7 +145,7 @@ function InvestNowCard({
               <LockClosedIcon className="hidden h-4 w-4 text-muted-foreground group-data-[collapsible=icon]:block" />
             </div>
           </TooltipTrigger>
-          <TooltipContent side="right" align="center" className={LOCKED_TOOLTIP_CONTENT_CLASSNAME}>
+          <TooltipContent side="right" align="center">
             {lockedTooltip}
           </TooltipContent>
         </Tooltip>
@@ -220,23 +214,27 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const isFeaturesDisabled =
     isOnboardingPage || ((isDisabled || isPendingApproval) && !allowsAccountAccess);
 
-  const isRejected = activeOrganization?.onboardingStatus === "REJECTED";
-  const tooltipContext = {
-    addingOrganisation: isOnboardingPage,
-    rejected: Boolean(isRejected),
-  };
-  const workNavLockedTooltip = sidebarLockTooltip({
-    ...tooltipContext,
-    unlockCopy: workNavUnlockTooltip(activeOrganization?.type),
-  });
-  const accountAccessLockedTooltip = sidebarLockTooltip({
-    ...tooltipContext,
-    unlockCopy: accountAccessUnlockTooltip(activeOrganization?.type),
-  });
-  const completedOnboardingLockedTooltip = sidebarLockTooltip({
-    ...tooltipContext,
-    unlockCopy: COMPLETED_ONBOARDING_UNLOCK_TOOLTIP,
-  });
+  const lockedTooltip = useMemo(() => {
+    if (isOnboardingPage) {
+      return "Finish adding your organisation to unlock this";
+    }
+    if (isPendingApproval) {
+      return "Available after your organisation is approved";
+    }
+    const step = getOnboardingStep(activeOrganization, "investor");
+    return unlockTooltipForStep(step);
+  }, [activeOrganization, isOnboardingPage, isPendingApproval]);
+
+  const settingsLockedTooltip = useMemo(() => {
+    if (isOnboardingPage) {
+      return "Finish adding your organisation to unlock this";
+    }
+    if (isPendingApproval && !allowsAccountAccess) {
+      return "Available after your organisation is approved";
+    }
+    const step = getOnboardingStep(activeOrganization, "investor");
+    return unlockTooltipForStep(step);
+  }, [activeOrganization, allowsAccountAccess, isOnboardingPage, isPendingApproval]);
 
   const mounted = React.useSyncExternalStore(
     subscribeMounted,
@@ -248,13 +246,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return (
       <Sidebar collapsible="icon" {...props}>
         <SidebarHeader>
-          <div className="flex h-16 items-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
-            <Skeleton className="h-14 w-14 rounded group-data-[collapsible=icon]:block hidden" />
+          <div className="flex h-12 items-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
+            <Skeleton className="h-10 w-10 rounded group-data-[collapsible=icon]:block hidden" />
             <div className="flex items-center group-data-[collapsible=icon]:hidden">
               <Skeleton className="h-8 w-8 rounded" />
               <Skeleton className="ml-2 h-4 w-16" />
             </div>
           </div>
+          <Skeleton className="h-12 w-full rounded-md" />
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>
@@ -292,7 +291,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="flex h-12 items-center justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
+        <div className="flex h-12 items-center justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-2">
           <div className="relative w-full">
             <Image
               src="/shoraka_favicon.svg"
@@ -307,6 +306,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </div>
           </div>
         </div>
+        <OrganizationSwitcher />
       </SidebarHeader>
 
       <SidebarContent>
@@ -316,7 +316,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenu>
               <SidebarMenuItem>
                 {isDisabled ? (
-                  <LockedNavButton icon={HomeIcon} label="Dashboard" tooltip={workNavLockedTooltip} />
+                  <LockedNavButton icon={HomeIcon} label="Dashboard" tooltip={lockedTooltip} />
                 ) : (
                   <SidebarMenuButton asChild isActive={pathname === "/"} tooltip="Dashboard">
                     <Link href="/">
@@ -329,7 +329,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
               <SidebarMenuItem>
                 {isDisabled ? (
-                  <LockedNavButton icon={ClockIcon} label="Activity" tooltip={workNavLockedTooltip} />
+                  <LockedNavButton icon={ClockIcon} label="Activity" tooltip={lockedTooltip} />
                 ) : (
                   <SidebarMenuButton asChild isActive={pathname === "/activity"} tooltip="Activity">
                     <Link href="/activity">
@@ -345,7 +345,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <LockedNavButton
                     icon={ArrowTrendingUpIcon}
                     label="Marketplace"
-                    tooltip={accountAccessLockedTooltip}
+                    tooltip={lockedTooltip}
                   />
                 ) : (
                   <SidebarMenuButton
@@ -365,39 +365,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 {isFeaturesDisabled ? (
                   <LockedNavButton
                     icon={ChartBarSquareIcon}
-                    label="Investments"
-                    tooltip={accountAccessLockedTooltip}
+                    label="Portfolio"
+                    tooltip={lockedTooltip}
                   />
                 ) : (
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === "/investments" || pathname.startsWith("/investments/")}
-                    tooltip="Investments"
+                    isActive={isPortfolioNavActive(pathname)}
+                    tooltip="Portfolio"
                   >
                     <Link href="/investments">
                       <ChartBarSquareIcon className="h-4 w-4" />
-                      <span>Investments</span>
-                    </Link>
-                  </SidebarMenuButton>
-                )}
-              </SidebarMenuItem>
-
-              <SidebarMenuItem>
-                {isFeaturesDisabled ? (
-                  <LockedNavButton
-                    icon={BanknotesIcon}
-                    label="Transactions"
-                    tooltip={accountAccessLockedTooltip}
-                  />
-                ) : (
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === "/transactions"}
-                    tooltip="Transactions"
-                  >
-                    <Link href="/transactions">
-                      <BanknotesIcon className="h-4 w-4" />
-                      <span>Transactions</span>
+                      <span>Portfolio</span>
                     </Link>
                   </SidebarMenuButton>
                 )}
@@ -419,7 +398,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <LockedNavButton
                     icon={BuildingOffice2Icon}
                     label="Organisation"
-                    tooltip={accountAccessLockedTooltip}
+                    tooltip={settingsLockedTooltip}
                   />
                 ) : (
                   <SidebarMenuButton
@@ -440,7 +419,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <LockedNavButton
                     icon={UserCircleIcon}
                     label="My account"
-                    tooltip={accountAccessLockedTooltip}
+                    tooltip={settingsLockedTooltip}
                   />
                 ) : (
                   <SidebarMenuButton
@@ -475,7 +454,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
 
       <SidebarFooter className="mt-auto border-t border-sidebar-border pt-2">
-        <InvestNowCard locked={investLocked} lockedTooltip={completedOnboardingLockedTooltip} />
+        <InvestNowCard locked={investLocked} lockedTooltip={lockedTooltip} />
 
       </SidebarFooter>
       <SidebarRail />

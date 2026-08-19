@@ -9,20 +9,22 @@ import { Label } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  InvestorActionDialog,
+  InvestorActionDialogIcon,
+} from "@/components/investor-action-dialog";
+import { cn } from "@/lib/utils";
+import {
+  STATEMENT_PERIOD_PRESETS,
+  matchStatementPeriodPreset,
+  mytTodayKey,
+  statementPeriodRange,
+  type StatementPeriodPreset,
+} from "./statement-period";
 
 interface StatementDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   investorOrganizationId?: string;
-  startDate: string;
-  endDate: string;
-  onStartDateChange: (value: string) => void;
-  onEndDateChange: (value: string) => void;
 }
 
 function validateDates(startDate: string, endDate: string): string | null {
@@ -31,18 +33,69 @@ function validateDates(startDate: string, endDate: string): string | null {
   return null;
 }
 
+function StatementDateInput({
+  id,
+  label,
+  value,
+  max,
+  disabled,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  max: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id} className="text-ui font-medium">
+        {label}
+      </Label>
+      <Input
+        id={id}
+        type="date"
+        value={value}
+        max={max}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        className={cn(
+          "h-11 rounded-xl",
+          value
+            ? "text-foreground"
+            : "text-muted-foreground [&::-webkit-calendar-picker-indicator]:opacity-40 [&::-webkit-datetime-edit]:text-muted-foreground [&::-webkit-datetime-edit-fields-wrapper]:text-muted-foreground"
+        )}
+      />
+    </div>
+  );
+}
+
 export function StatementDialog({
   open,
   onOpenChange,
   investorOrganizationId,
-  startDate,
-  endDate,
-  onStartDateChange,
-  onEndDateChange,
 }: StatementDialogProps) {
   const { getAccessToken } = useAuthToken();
   const apiClient = React.useMemo(() => createApiClient(undefined, getAccessToken), [getAccessToken]);
   const [isDownloading, setIsDownloading] = React.useState(false);
+  const [startDate, setStartDate] = React.useState("");
+  const [endDate, setEndDate] = React.useState("");
+  const today = mytTodayKey();
+  const selectedPreset = matchStatementPeriodPreset(startDate, endDate);
+
+  React.useEffect(() => {
+    if (!open) return;
+    setStartDate("");
+    setEndDate("");
+    setIsDownloading(false);
+  }, [open]);
+
+  function applyPreset(preset: StatementPeriodPreset) {
+    const range = statementPeriodRange(preset);
+    setStartDate(range.startDate);
+    setEndDate(range.endDate);
+  }
 
   async function handleDownload(format: ExportInvestorBalanceStatementParams["format"]) {
     const error = validateDates(startDate, endDate);
@@ -81,68 +134,85 @@ export function StatementDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-xl p-0" aria-describedby={undefined}>
-        <DialogHeader className="border-b px-6 pb-4 pt-6 text-center">
-          <DialogTitle className="text-xl font-semibold">Statement</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4 px-6 py-6">
-          <p className="text-center text-sm text-muted-foreground">Select statement period</p>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="statement-start" className="text-sm font-medium">
-                Starting from
-              </Label>
-              <Input
-                id="statement-start"
-                type="date"
-                value={startDate}
-                onChange={(event) => onStartDateChange(event.target.value)}
-                className="h-11 rounded-xl"
+    <InvestorActionDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      icon={
+        <InvestorActionDialogIcon>
+          <ArrowDownTrayIcon className="size-6" />
+        </InvestorActionDialogIcon>
+      }
+      title="Download statement"
+      description="Choose a period, then download PDF or CSV."
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            className="h-11 flex-1 rounded-xl"
+            onClick={() => handleDownload("csv")}
+            disabled={isDownloading}
+          >
+            <ArrowDownTrayIcon className="h-4 w-4" />
+            {isDownloading ? "Downloading…" : "CSV"}
+          </Button>
+          <Button
+            type="button"
+            variant="action"
+            className="h-11 flex-1 rounded-xl"
+            onClick={() => handleDownload("pdf")}
+            disabled={isDownloading}
+          >
+            <ArrowDownTrayIcon className="h-4 w-4" />
+            {isDownloading ? "Downloading…" : "PDF"}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-ui text-muted-foreground">Quick period</p>
+        <div className="flex flex-wrap gap-2">
+          {STATEMENT_PERIOD_PRESETS.map((preset) => {
+            const selected = selectedPreset === preset.id;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                aria-pressed={selected}
                 disabled={isDownloading}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="statement-end" className="text-sm font-medium">
-                End date
-              </Label>
-              <Input
-                id="statement-end"
-                type="date"
-                value={endDate}
-                onChange={(event) => onEndDateChange(event.target.value)}
-                className="h-11 rounded-xl"
-                disabled={isDownloading}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              className="h-11 gap-2 rounded-xl border-primary text-primary hover:bg-primary/5"
-              onClick={() => handleDownload("csv")}
-              disabled={isDownloading}
-            >
-              <ArrowDownTrayIcon className="h-4 w-4" />
-              {isDownloading ? "Downloading..." : "Download as CSV"}
-            </Button>
-            <Button
-              type="button"
-              variant="action"
-              className="h-11 gap-2 rounded-xl"
-              onClick={() => handleDownload("pdf")}
-              disabled={isDownloading}
-            >
-              <ArrowDownTrayIcon className="h-4 w-4" />
-              {isDownloading ? "Downloading..." : "Download as PDF"}
-            </Button>
-          </div>
+                onClick={() => applyPreset(preset.id)}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-ui transition-colors",
+                  selected
+                    ? "border-primary bg-primary/5 text-primary"
+                    : "border-border bg-background text-muted-foreground hover:border-foreground/20 hover:text-foreground"
+                )}
+              >
+                {preset.label}
+              </button>
+            );
+          })}
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <StatementDateInput
+          id="statement-start"
+          label="From"
+          value={startDate}
+          max={today}
+          disabled={isDownloading}
+          onChange={setStartDate}
+        />
+        <StatementDateInput
+          id="statement-end"
+          label="To"
+          value={endDate}
+          max={today}
+          disabled={isDownloading}
+          onChange={setEndDate}
+        />
+      </div>
+    </InvestorActionDialog>
   );
 }

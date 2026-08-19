@@ -235,6 +235,8 @@ export interface NoteListItem extends NoteMoneySummary {
   featuredFrom: string | null;
   featuredUntil: string | null;
   featuredActive: boolean;
+  /** Unique investor organisations with a non-cancelled commitment on this note. */
+  investorCount: number;
   maturityDate: string | null;
   /** Marketplace listing close time (`note_listings.closes_at`); used for funding-window countdown. */
   listingClosesAt: string | null;
@@ -867,6 +869,10 @@ export interface NotesResponse {
 export interface InvestorPortfolioResponse {
   portfolioTotal: number;
   totalInvestment: number;
+  /** Capital reserved on open listings (`COMMITTED`). */
+  reservedInvestment: number;
+  /** Capital in live notes (`CONFIRMED`). */
+  confirmedInvestment: number;
   availableBalance: number;
   investmentCount: number;
 }
@@ -887,6 +893,16 @@ export interface InvestorPortfolioHistoryResponse {
   generatedAt: string;
 }
 
+export type InvestorBalanceActivityRelatedKind = "investment" | "withdrawal";
+
+/** Current lifecycle of the investment or withdrawal this ledger row belongs to. */
+export interface InvestorBalanceActivityRelated {
+  kind: InvestorBalanceActivityRelatedKind;
+  status: string;
+  /** `confirmedAt` for investments, `completedAt` for withdrawals. */
+  settledAt: string | null;
+}
+
 export interface InvestorBalanceActivityEntry {
   id: string;
   investorOrganizationId: string;
@@ -899,6 +915,7 @@ export interface InvestorBalanceActivityEntry {
   metadata: Record<string, unknown> | null;
   postedAt: string;
   createdAt: string;
+  related: InvestorBalanceActivityRelated | null;
 }
 
 export interface InvestorBalanceActivityResponse {

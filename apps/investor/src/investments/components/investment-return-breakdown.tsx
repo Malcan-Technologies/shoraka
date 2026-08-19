@@ -61,18 +61,18 @@ export function InvestmentReturnBreakdownCard({ note, className }: InvestmentRet
         );
 
   return (
-    <div className={cn("space-y-5 rounded-3xl border border-border bg-card p-4 md:p-6", className)}>
+    <div className={cn("space-y-5 rounded-2xl border border-border bg-card p-4 shadow-sm md:p-5", className)}>
       <div className="space-y-1">
-        <h3 className="text-lg font-semibold text-foreground">Settlement breakdown</h3>
-        <p className="text-sm text-muted-foreground">
+        <h3 className="text-section-title">Settlement breakdown</h3>
+        <p className="text-ui text-muted-foreground">
           This shows the actual values credited after settlement, including principal returned,
           service fee deducted from profit, and any ta&apos;widh compensation received.
         </p>
       </div>
 
       <div className="space-y-3">
-        <p className="text-sm font-medium text-foreground">Realized values</p>
-        <div className="space-y-2 rounded-xl border border-border/60 bg-muted/10 p-3">
+        <p className="text-ui font-medium text-foreground">Realized values</p>
+        <div className="space-y-2 rounded-xl border border-border bg-muted/40 p-3">
           <BreakdownRow label="Principal returned" value={formatCurrency(principalReturned)} />
           {summary.receivedProfitGrossAmount > 0.005 ? (
             <BreakdownRow
@@ -121,7 +121,7 @@ export function InvestmentReturnBreakdownCard({ note, className }: InvestmentRet
 export function MarketplaceReturnRateTooltip() {
   return (
     <InfoTooltip
-      content="Advertised return reflects the gross contractual profit rate before any service fee is deducted at repayment."
+      content="Advertised return is the annualized gross contractual profit rate, based on the note's maturity, before any service fee is deducted at repayment."
       iconClassName="h-3.5 w-3.5"
     />
   );

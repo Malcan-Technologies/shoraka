@@ -1,24 +1,19 @@
 "use client";
 
-import { StatusBadge } from "@cashsouk/ui";
+import { ListToolbar, ListToolbarFilterTrigger, StatusBadge, type FilterChip } from "@cashsouk/ui";
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
-  ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
   ClipboardDocumentIcon,
-  FunnelIcon,
-  MagnifyingGlassIcon,
-  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import type { CurlecGatewayAccount, GatewayPaymentPurpose } from "@cashsouk/types";
 import { formatCurrency } from "@cashsouk/config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -189,7 +184,6 @@ function GatewayPaymentsTableContent({
   const [searchInput, setSearchInput] = useState(qFromUrl);
   const [debouncedSearch, setDebouncedSearch] = useState(qFromUrl.trim());
   const [currentPage, setCurrentPage] = useState(1);
-  const [isSpinning, setIsSpinning] = useState(false);
 
   // Restore list state when URL changes (shared links / browser back-forward).
   useEffect(() => {
@@ -280,12 +274,30 @@ function GatewayPaymentsTableContent({
     setCurrentPage(1);
   }, []);
 
-  const handleRefresh = () => {
-    setIsSpinning(true);
-    void refetch().finally(() => {
-      window.setTimeout(() => setIsSpinning(false), 400);
+  const appliedFilters: FilterChip[] = [];
+  if (filter !== "all") {
+    appliedFilters.push({
+      id: "status",
+      label: `Status: ${STATUS_FILTER_OPTIONS.find((option) => option.value === filter)?.label ?? filter}`,
+      onRemove: () => setFilter("all"),
     });
-  };
+  }
+  if (gatewayAccount !== "ALL") {
+    appliedFilters.push({
+      id: "account",
+      label: `Account: ${getGatewayAccountLabel(gatewayAccount)}`,
+      onRemove: () => setGatewayAccount("ALL"),
+    });
+  }
+  if (purpose !== "all") {
+    appliedFilters.push({
+      id: "purpose",
+      label: `Purpose: ${
+        PURPOSE_FILTER_OPTIONS.find((option) => option.value === purpose)?.label ?? purpose
+      }`,
+      onRemove: () => setPurpose("all"),
+    });
+  }
 
   const emptyCopy = useMemo(() => {
     if (hasActiveFilters) {
@@ -307,110 +319,73 @@ function GatewayPaymentsTableContent({
           <section className="space-y-4">
             <AdminPageHeader title={title} description={description} />
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative min-w-[12rem] flex-1">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={searchInput}
-                  onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder="Search by reference, organisation, purpose, or amount…"
-                  className="h-11 rounded-xl bg-card pl-9"
-                  aria-label="Search gateway payments"
-                />
-              </div>
+            <ListToolbar
+              searchValue={searchInput}
+              onSearchChange={setSearchInput}
+              searchPlaceholder="Search by reference, organisation, purpose, or amount…"
+              appliedFilters={appliedFilters}
+              onClearFilters={hasActiveFilters ? clearFilters : undefined}
+              onReload={() => {
+                void refetch();
+              }}
+              isLoading={isLoading || isFetching}
+              countLabel={
+                isLoading ? "Loading…" : `${total} ${total === 1 ? "payment" : "payments"}`
+              }
+              filterGroups={
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <ListToolbarFilterTrigger label="Filters" count={activeFilterCount} />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuLabel>Status</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                      value={filter}
+                      onValueChange={(value) => {
+                        if (isGatewayFilter(value)) setFilter(value);
+                      }}
+                    >
+                      {STATUS_FILTER_OPTIONS.map((option) => (
+                        <DropdownMenuRadioItem key={option.value} value={option.value}>
+                          {option.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
-                    <FunnelIcon className="h-4 w-4" />
-                    Filters
-                    {activeFilterCount > 0 ? (
-                      <Badge
-                        variant="secondary"
-                        className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary p-0 text-xs text-primary-foreground"
-                      >
-                        {activeFilterCount}
-                      </Badge>
-                    ) : null}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-64">
-                  <DropdownMenuLabel>Status</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={filter}
-                    onValueChange={(value) => {
-                      if (isGatewayFilter(value)) setFilter(value);
-                    }}
-                  >
-                    {STATUS_FILTER_OPTIONS.map((option) => (
-                      <DropdownMenuRadioItem key={option.value} value={option.value}>
-                        {option.label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Gateway account</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                      value={gatewayAccount}
+                      onValueChange={(value) => {
+                        if (isGatewayAccountFilter(value)) setGatewayAccount(value);
+                      }}
+                    >
+                      <DropdownMenuRadioItem value="ALL">All accounts</DropdownMenuRadioItem>
+                      {GATEWAY_ACCOUNT_OPTIONS.map((option) => (
+                        <DropdownMenuRadioItem key={option.value} value={option.value}>
+                          {option.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
 
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Gateway account</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={gatewayAccount}
-                    onValueChange={(value) => {
-                      if (isGatewayAccountFilter(value)) setGatewayAccount(value);
-                    }}
-                  >
-                    <DropdownMenuRadioItem value="ALL">All accounts</DropdownMenuRadioItem>
-                    {GATEWAY_ACCOUNT_OPTIONS.map((option) => (
-                      <DropdownMenuRadioItem key={option.value} value={option.value}>
-                        {option.label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Purpose</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={purpose}
-                    onValueChange={(value) => {
-                      if (isPurposeFilter(value)) setPurpose(value);
-                    }}
-                  >
-                    {PURPOSE_FILTER_OPTIONS.map((option) => (
-                      <DropdownMenuRadioItem key={option.value} value={option.value}>
-                        {option.label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {hasActiveFilters ? (
-                <Button
-                  variant="ghost"
-                  onClick={clearFilters}
-                  className="h-11 gap-2 rounded-xl"
-                >
-                  <XMarkIcon className="h-4 w-4" />
-                  Clear
-                </Button>
-              ) : null}
-
-              <Button
-                variant="outline"
-                onClick={handleRefresh}
-                disabled={isFetching || isSpinning}
-                className="h-11 gap-2 rounded-xl bg-card"
-              >
-                <ArrowPathIcon
-                  className={`h-4 w-4 ${isFetching || isSpinning ? "animate-spin" : ""}`}
-                />
-                Refresh
-              </Button>
-
-              <Badge variant="secondary" className="h-11 rounded-xl px-4 text-sm">
-                {isLoading
-                  ? "Loading…"
-                  : `${total} ${total === 1 ? "payment" : "payments"}`}
-              </Badge>
-            </div>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel>Purpose</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                      value={purpose}
+                      onValueChange={(value) => {
+                        if (isPurposeFilter(value)) setPurpose(value);
+                      }}
+                    >
+                      {PURPOSE_FILTER_OPTIONS.map((option) => (
+                        <DropdownMenuRadioItem key={option.value} value={option.value}>
+                          {option.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              }
+            />
 
             {error ? (
               <div className="py-8 text-center text-destructive">

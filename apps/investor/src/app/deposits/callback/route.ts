@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { PORTFOLIO_TRANSACTIONS_HREF } from "@/portfolio/portfolio-tabs";
 
 function resolveReturnTo(value: string | null): string {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
-    return "/transactions";
+    return PORTFOLIO_TRANSACTIONS_HREF;
   }
   return value;
 }

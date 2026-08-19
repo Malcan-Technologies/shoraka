@@ -1,4 +1,5 @@
 import {
+  countNoteInvestors,
   formatProspectusListBadge,
   getProspectusDisplayStatus,
   hasSettlementTrusteeMovementFromPoolSummary,
@@ -466,6 +467,12 @@ export function mapNoteListItem(note: NoteWithRelations) {
     featuredFrom: iso(note.featured_from),
     featuredUntil: iso(note.featured_until),
     featuredActive: resolveFeaturedActive(note),
+    investorCount: countNoteInvestors(
+      note.investments.map((investment) => ({
+        investorOrganizationId: investment.investor_organization_id,
+        status: investment.status,
+      }))
+    ),
     maturityDate: iso(note.maturity_date),
     listingClosesAt: note.listing ? iso(note.listing.closes_at) : null,
     activatedAt: iso(note.activated_at),

@@ -23,8 +23,8 @@ If the event is only useful for admin audit, debugging, or detailed review trace
 - Application feed shaping: `apps/api/src/modules/activity/adapters/application-log.ts`
 - Note feed shaping: `apps/api/src/modules/activity/adapters/note-log.ts`
 - Shared row UI: `packages/ui/src/components/activity-item.tsx`
-- Shared badge UI: `packages/ui/src/components/activity-badge.tsx`
-- Shared toolbar UI: `packages/ui/src/components/activity-toolbar.tsx`
+- Shared feed UI: `packages/ui/src/components/activity-feed.tsx`
+- Status + href helpers: `packages/types/src/activity-presentation.ts`
 
 ## Feed fields
 
@@ -33,7 +33,7 @@ Each visible activity item must provide:
 - `domain`: high-level area such as `onboarding`, `application`, or later `note`
 - `title`: short event name users can scan quickly
 - `description`: one sentence that explains what happened or whether action is needed
-- `references` for `application` domain rows when a stable application, contract, or invoice reference exists
+- `references` so the row can link through to the related object
 
 `activity` remains as a backward-compatible alias for `title`, but new work should treat `title` and `description` as the source of truth.
 
@@ -45,10 +45,14 @@ Use a structured `references` object instead of asking the UI to inspect raw met
 - `contractNumber`
 - `invoiceId`
 - `invoiceNumber`
+- `noteId`
+- `noteReference`
 
-Keep `applicationId` as the raw ID and expose the visible issuer-style label separately as `applicationReference`. For contract and invoice rows, prefer `contractNumber` or `invoiceNumber`; keep the underlying IDs as fallback data.
+Keep `applicationId` as the raw ID and expose the visible issuer-style label separately as `applicationReference`. For contract and invoice rows, prefer `contractNumber` or `invoiceNumber`; keep the underlying IDs as fallback data. Note events must include `noteId` so the row can open the note (issuer) or investment (investor).
 
 The adapter should weave these references into the sentence itself, not bolt them on as labels or a separate metadata row. Prefer natural phrasing such as `An invoice offer for invoice INV-12872 is ready for your review and response.`
+
+Map `event_type` to a viewer-centric `StatusBadge` token with `getActivityStatusToken`. Do not colour the row by domain, and do not use indigo or sky on user-portal chips.
 
 ## Domain rules
 
@@ -123,7 +127,7 @@ When adding a new user-facing activity:
 2. Assign the correct `domain`.
 3. Add or update the adapter allowlist so only important events are returned.
 4. Return a clear `title` and one-sentence `description` from the adapter presentation builder.
-5. Include `references` for application-domain rows whenever the log has a stable application, contract, or invoice identifier.
+5. Include `references` whenever the log has a stable application, contract, invoice, or note identifier.
 6. Keep copy user-facing and outcome-oriented.
 7. Add or update focused adapter tests for:
    - visibility allowlisting
@@ -141,7 +145,7 @@ The `note` domain is now used for curated note lifecycle milestones only.
 - issuer-only note events should cover origination, listing, and issuer repayment workflow milestones
 - investor-only note events should cover the investor organization’s own commitment or return milestones
 - when both repayment receipt and settlement payout exist in the lifecycle, prefer the investor-visible payout milestone instead of surfacing both
-- do not surface raw `investor_balance_transactions` rows in `/activity`; those belong on `/transactions` and note-detail money views
+- do not surface raw `investor_balance_transactions` rows in `/activity`; those belong on `/investments?tab=transactions` and note-detail money views
 - hide trustee, Shoraka, settlement-approval, and other operational steps unless they are the clearest user-facing milestone
 
 ## Rule of thumb

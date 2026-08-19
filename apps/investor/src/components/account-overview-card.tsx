@@ -18,6 +18,7 @@ import type { ChartConfig } from "@cashsouk/ui";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { useInvestorPortfolio, useInvestorPortfolioHistory } from "@/investments/hooks/use-marketplace-notes";
+import { PORTFOLIO_TRANSACTIONS_HREF } from "@/portfolio/portfolio-tabs";
 
 interface AccountOverviewCardProps {
   isDisabled?: boolean;
@@ -218,7 +219,7 @@ export function AccountOverviewCard({ isDisabled = false }: AccountOverviewCardP
         {/* Transaction Details Link */}
         <div className="flex justify-end mt-4">
           <Link
-            href="/transactions"
+            href={PORTFOLIO_TRANSACTIONS_HREF}
             className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
           >
             Transaction details

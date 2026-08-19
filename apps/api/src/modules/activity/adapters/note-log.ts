@@ -86,8 +86,13 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
       metadata,
       ip_address: record.ip_address,
       user_agent: record.user_agent,
+      device_info: null,
       created_at: record.occurred_at,
       source_table: "note_audit_logs",
+      references: {
+        noteId: record.note_id ?? undefined,
+        noteReference: record.noteReference ?? undefined,
+      },
     };
   }
 

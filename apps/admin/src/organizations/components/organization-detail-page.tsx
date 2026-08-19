@@ -48,6 +48,7 @@ import { OrganizationKycResponseCard } from "./organization-kyc-response-card";
 import { OrganizationLegalAcceptancesPanel } from "./organization-legal-acceptances-panel";
 import { OrganizationLinkedRecordsPanel } from "./organization-linked-records-panel";
 import { OrganizationPeoplePanel } from "./organization-people-panel";
+import { CopyableText } from "./organization-profile-helpers";
 import { OrganizationProfilePanel } from "./organization-profile-panel";
 import { OrganizationQuickLinksCard } from "./organization-quick-links-card";
 import {
@@ -56,6 +57,10 @@ import {
   organizationTabStatus,
   type OrgDetailTabId,
 } from "@/organizations/utils/organization-detail-tabs";
+
+function formatHeaderAmount(amount: number): string {
+  return formatCurrency(Math.ceil(amount), { decimals: 0 });
+}
 
 function PageSkeleton() {
   return (
@@ -241,6 +246,26 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
         ),
       }
     : null;
+  const emailMetric = org
+    ? {
+        label: "Email",
+        value: org.owner.email.trim() ? (
+          <CopyableText value={org.owner.email.trim()} label="Email" truncate />
+        ) : (
+          "—"
+        ),
+      }
+    : null;
+  const phoneMetric = org
+    ? {
+        label: "Phone",
+        value: org.phoneNumber?.trim() ? (
+          <CopyableText value={org.phoneNumber.trim()} label="Phone" truncate />
+        ) : (
+          "—"
+        ),
+      }
+    : null;
   const onboardedMetric = org
     ? {
         label: "Onboarded",
@@ -248,10 +273,10 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
       }
     : null;
   const headerMetrics =
-    org && ownerMetric
+    org && ownerMetric && emailMetric && phoneMetric
       ? portal === "investor" && onboardedMetric
-        ? [ownerMetric, onboardedMetric]
-        : [ownerMetric]
+        ? [ownerMetric, emailMetric, phoneMetric, onboardedMetric]
+        : [ownerMetric, emailMetric, phoneMetric]
       : [];
   const summaryCards = !org
     ? []
@@ -260,23 +285,26 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
           <AdminEntitySummaryCard
             key="wallet"
             label="Wallet balance"
-            value={formatCurrency(org.walletBalance ?? 0)}
+            value={formatHeaderAmount(org.walletBalance ?? 0)}
           />,
           <AdminEntitySummaryCard
             key="invested"
             label="Invested"
-            value={formatCurrency(org.investedAmount ?? 0)}
+            value={formatHeaderAmount(org.investedAmount ?? 0)}
           />,
         ]
-      : onboardedMetric
-        ? [
-            <AdminEntitySummaryCard
-              key="onboarded"
-              label={onboardedMetric.label}
-              value={onboardedMetric.value}
-            />,
-          ]
-        : [];
+      : [
+          <AdminEntitySummaryCard
+            key="approved-facility"
+            label="Approved facility"
+            value={formatHeaderAmount(org.approvedFacilityAmount ?? 0)}
+          />,
+          <AdminEntitySummaryCard
+            key="active-notes"
+            label="Active notes"
+            value={formatHeaderAmount(org.activeNotesAmount ?? 0)}
+          />,
+        ];
 
   return (
     <RequirePermission permission="organizations.view">
@@ -296,7 +324,7 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
               <div className="space-y-6">
                 <AdminEntityHeader
                   variant="hero"
-                  tone={onboardingPresentation.status}
+                  heroTint={portal === "issuer" ? "issuer" : "investor"}
                   backHref={orgListHref(portal)}
                   backLabel={portal === "issuer" ? "Issuers" : "Investors"}
                   eyebrow={portal === "issuer" ? "Issuer detail" : "Investor detail"}
