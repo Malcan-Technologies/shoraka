@@ -1,6 +1,6 @@
 # Current audit / activity architecture
 
-Living documentation for HEAD `e4e5245f` (`no_fix_55`). Authority: current Prisma schema, event catalogues, writers, readers, adapters, UI, then tests. If this file’s older cutover notes conflict with source, **source wins**.
+Living documentation for `no_fix_55` (includes `b9a26e39` investor wallet / organization Activity tab). Authority: current Prisma schema, event catalogues, writers, readers, adapters, UI, then tests. If this file’s older cutover notes conflict with source, **source wins**.
 
 Do not treat audit as source of truth. Do not invent metadata or event behavior.
 
@@ -69,6 +69,17 @@ Audit is never payment, balance, listing, or review **state**.
 - Admin curated Activity uses AuditLog DTOs through visibility + `format*Activity`.
 - Admin raw Audit History uses AuditLog DTOs (`ContextualAuditHistoryPanel`, global `/audit` tabs).
 - Issuer/investor `/activity` uses `ActivityFeed` over the same AuditLogs.
+- Admin/investor **wallet activity** is cash-statement UI over `InvestorBalanceTransaction` (plus overlay). It is not an AuditLog adapter.
+
+## Three surfaces (do not call all three “audit logs”)
+
+| Surface | What it is | Store |
+|---------|------------|-------|
+| **A. Wallet Activity / cash statement** | Operational money view for an investor organization | `InvestorBalanceTransaction` plus a read-time `GatewayPayment` overlay for uncredited in-flight deposits. **Not** `PaymentAuditLog`. **Not** `/v1/activities`. |
+| **B. Onboarding Activity** | Curated organization onboarding timeline | `OnboardingAuditLog` via current audit DTOs (`eventType`, `occurredAt`, `actor.displayName`, `formatOnboardingActivity`) |
+| **C. Raw Audit History** | Forensic evidence (global `/audit` tabs and contextual Audit History panels) | Matching `*AuditLog` tables |
+
+Pending wallet overlay rows are synthetic at read time (`affectsAvailableBalance: false`). They are not persisted audit evidence and did not add a new audit event. Running balance must skip those rows so they are not double-counted. `PaymentAuditLog` remains historical/compliance evidence for gateway payment, investor-withdrawal, and recon-exception writers.
 
 ## Raw Audit History vs curated Activity
 
@@ -77,7 +88,8 @@ Audit is never payment, balance, listing, or review **state**.
 | Global `/audit` tabs | Raw Access, Security, Onboarding, Product, Legal Documents, Notifications |
 | Application detail | Curated Activity (`RecentActivityCard`) **and** raw Audit History (`ApplicationAuditHistoryCard`) |
 | Note detail | Curated note timeline **and** raw Audit History |
-| Organization detail | Curated onboarding Activity |
+| Organization detail (issuer) | Onboarding Activity only (`OrganizationActivityTimeline` from `OnboardingAuditLog`) |
+| Organization detail (investor) Activity tab | **Wallet Activity first** (cash statement), then Onboarding Activity titled “Onboarding activity”. Two separate data concepts. |
 | Gateway payment / withdrawal / recon / platform finance | Contextual raw Payment or Note audit history; gateway detail also renders a `PaymentAuditLog` timeline |
 
 Access is success-only (`USER_SIGNED_UP`, `USER_LOGGED_IN`, `USER_LOGGED_OUT`). Denials and security failures are Security (`ADMIN_ACCESS_DENIED`, password/email failures, and so on).
@@ -92,6 +104,7 @@ Readers (names often preserved from older APIs):
 - `GET /v1/applications/:id/logs` — merged Application + Signing projection
 - Note events on `NoteDetail.events`; `GET /v1/admin/notes/:id/events` for full history
 - Gateway payment `events[]` from `PaymentAuditLog`
+- Admin investor wallet activity `GET /v1/admin/organizations/investor/:id/balance-activity` — `InvestorBalanceTransaction` + in-flight `GatewayPayment` overlay (not `PaymentAuditLog`)
 
 Activity adapters: `organization-log`, `application-log`, `signing-log`, `note-log`, `payment-log`.
 
@@ -116,6 +129,8 @@ Contextual:
 |---------|------------|
 | Application Activity / Audit History | `applications.view` |
 | Note timeline / Audit History | `notes.view` |
+| Organization detail (onboarding timeline + investor wallet activity) | `organizations.view` |
+| Admin investor wallet activity API `GET /v1/admin/organizations/investor/:id/balance-activity` | `organizations.view` |
 | Gateway payments | `gateway_payments.view` |
 | Investor withdrawals | `investor_withdrawals.view` |
 | Reconciliation | `gateway_reconciliation.view` |
@@ -251,7 +266,7 @@ CashSouk does not have a single audit system. It has **many specialized tables**
 - **Signing:** `SigningAuditLog` (`signing_audit_logs`) is the signing history table (append-only). Envelope graph / `SigningCloudEkyc` remain signing SOT. `GET /v1/applications/:id/logs` merges Application + Signing audit rows. Envelope log APIs read `SigningAuditLog` only.
 - **Notes:** `NoteAuditLog` (`note_audit_logs`) is the sole Note-domain history table (append-only, no Note/User/org FKs). Ledger, `NotePayment`, `NoteSettlement`, `NoteInvestment`, `WithdrawalInstruction`, `ShorakaTradeOrder`, prospectus models, and `Note` remain SOT. Activity feed reads a **subset** of `NoteAuditLog` types. `NoteEvent` / `note_events` and `NoteAdminAction` / `note_admin_actions` **removed**. Title/summary edits, featured settings, and prospectus draft saves are intentionally unaudited. Catalogue count is **37** (A115–A149 original + appended A176 `NOTE_CAMPAIGN_PAUSED` / A177 `NOTE_CAMPAIGN_RESUMED`). Pause/resume are listing-axis events, not `NOTE_UNPUBLISHED` / `NOTE_PUBLISHED`.
 - **Legal admin:** dedicated `LegalAdminAuditLog`. User open/accept is **not** that table; it is `LegalDocumentAcceptance` updated **in place**. Legacy `LegalDocumentAuditLog` / `legal_document_audit_logs` has been removed.
-- **Payments:** `GatewayPayment` is payment-state SOT; `PaymentAuditLog` is the sole payment business-audit history (append-only, no FKs). `GatewayWebhookEvent` remains provider transport/replay evidence and is **updated** after processing. `InvestorBalance` / `InvestorBalanceTransaction` remain wallet/cash statement SOT. `WithdrawalInstruction`, `GatewayPaymentReceipt`, and `GatewayReconException` remain withdrawal/receipt/recon SOT. Legacy `GatewayPaymentEvent` / `gateway_payment_events` **removed**.
+- **Payments:** `GatewayPayment` is payment-state SOT; `PaymentAuditLog` is the sole payment business-audit history (append-only, no FKs). `GatewayWebhookEvent` remains provider transport/replay evidence and is **updated** after processing. `InvestorBalance` / `InvestorBalanceTransaction` remain wallet/cash statement SOT (admin/investor wallet activity, including the read-time in-flight overlay). `WithdrawalInstruction`, `GatewayPaymentReceipt`, and `GatewayReconException` remain withdrawal/receipt/recon SOT. Legacy `GatewayPaymentEvent` / `gateway_payment_events` **removed**.
 - **Products:** `ProductAuditLog` is append-only and is not deleted on product rollback. Legacy `ProductLog` / `product_logs` has been removed.
 - **Notifications:** `NotificationBroadcastAuditLog` for admin bulk send (`NOTIFICATION_BROADCAST_PROCESSED`). In-app `Notification` rows are delivery, not business audit. Legacy `NotificationLog` / `notification_logs` has been removed.
 
@@ -316,8 +331,8 @@ Legend: ✅ inspected · N/A none found · ⚠ leftover/unused
 | SITE DOCUMENTS | N/A removed | tests assert absence | **no model** | N/A | N/A | N/A | N/A | Removed from invest path |
 | NOTIFICATIONS | ✅ | ✅ | ✅ | ✅ | cleanup cron | N/A | NotificationBroadcastAuditLog bulk only | Admin logs + inbox |
 | NOTE / MARKETPLACE | ✅ | ✅ | ✅ | ✅ | listing expiry | N/A | NoteAuditLog | Admin events + activity subset |
-| INVESTMENT / BALANCE | ✅ | ✅ | ✅ | ✅ investor | N/A | Curlec | INVESTMENT_COMMITTED; deposit partial | Investor txs |
-| DEPOSIT / GATEWAY / REFUND / NAME CHECK | ✅ | ✅ | ✅ | ✅ | poller/receipt | Curlec | PaymentAuditLog | Admin payment detail (typed metadata; workflow still GatewayPayment SOT) |
+| INVESTMENT / BALANCE | ✅ | ✅ | ✅ | ✅ investor | N/A | Curlec | INVESTMENT_COMMITTED; deposit partial | Investor/admin wallet activity (cash statement SOT, not `/v1/activities`) |
+| DEPOSIT / GATEWAY / REFUND / NAME CHECK | ✅ | ✅ | ✅ | ✅ | poller/receipt | Curlec | PaymentAuditLog | Admin payment detail (typed metadata; workflow still GatewayPayment SOT). In-flight deposits also overlay wallet activity; overlay is not an audit event. |
 | RECONCILIATION | ✅ | ✅ | ✅ | ✅ | daily recon | Curlec fetch | PaymentAuditLog exception detect/resolve only | Admin recon UI (GatewayReconException SOT) |
 | WITHDRAWAL / DISBURSEMENT | ✅ | ✅ | ✅ | ✅ | N/A | N/A | issuer NoteAuditLog; investor wallet PaymentAuditLog | Admin withdrawals |
 | REPAYMENT / SETTLEMENT / LEDGER | ✅ | ✅ | ✅ | ✅ | N/A | N/A | NoteAuditLog + ledger SOT | Admin note + ledger GET |
@@ -327,7 +342,7 @@ Legend: ✅ inspected · N/A none found · ⚠ leftover/unused
 | PROSPECTUS | ✅ | ✅ | ✅ | ✅ admin/investor | N/A | N/A | NoteAuditLog review/approve/invalidate; draft-save **no**; view **no** | Admin review; investor GET |
 | S3 / UPLOADS | ✅ | ✅ | keys on entities | ✅ | N/A | N/A | none (except legal admin hash) | View/download |
 | BACKGROUND JOBS | ✅ `lib/jobs` | ✅ | ✅ | N/A | ✅ 9 jobs | N/A | mixed | pino |
-| ACTIVITY FEED | ✅ GET | adapters | reads logs | issuer/investor/admin org | N/A | N/A | n/a | `/v1/activities` |
+| ACTIVITY FEED | ✅ GET | adapters | reads logs | issuer/investor `/activity` | N/A | N/A | n/a | `/v1/activities` (curated AuditLog subset). Admin org wallet activity is a different endpoint. |
 | eKYC | ✅ | ✅ | ✅ | external | N/A | via signing | **no audit event** | Signing UI |
 | GUARANTOR AML | ✅ | ✅ | ✅ | ✅ admin | N/A | RegTank | **no ApplicationLog** | Admin application |
 | ISSUER DASHBOARD | ✅ GET | ✅ | N/A | ✅ | N/A | N/A | N/A | read-only |
@@ -625,6 +640,8 @@ Production final approval writes **`ONBOARDING_FINAL_APPROVAL_COMPLETED`**. `Aut
 
 `payment/audit/writer.ts` (`writePaymentAuditLog` / `writeGatewayPaymentAudit` / `writeInvestorWithdrawalAudit` / `writeReconExceptionAudit`). `GET /v1/admin/gateway-payments/:id` `events[]` reads `PaymentAuditLog`. Legacy `GatewayPaymentEvent` / `gateway-events.ts` **removed**.
 
+Admin/investor **wallet activity** does not read or write this table. In-flight deposit overlay rows are built from `GatewayPayment` at read time and must not be documented as `PaymentAuditLog` events.
+
 ### GatewayWebhookEvent
 
 Created on ingest; **`updateMany` processed_at/error** in `webhook-service.ts`.
@@ -663,7 +680,8 @@ Created on ingest; **`updateMany` processed_at/error** in `webhook-service.ts`.
 | gateway_webhook_events | webhook-service findFirst/update | **Idempotency / processing** | HIGH transport |
 | notification_broadcast_audit_logs | `GET /v1/notifications/admin/logs` | Admin notification logs | type → notification_type_id; target → audience_type | MEDIUM |
 | application_revisions | admin resubmit comparison | Compliance/compare | HIGH |
-| investor_balance_transactions / note_ledger_entries | notes/payment services + investor txs page | Accounting | HIGH keep |
+| investor_balance_transactions | `GET /v1/investor/balance/activity`; admin `GET /v1/admin/organizations/investor/:id/balance-activity` (`organizations.view`) | Wallet / cash statement | Posted ledger rows. Uncredited in-flight deposits overlay from `GatewayPayment` (`PAID` / `NAME_CHECK_PENDING` / `HELD` / `REFUND_INITIATED`), `affectsAvailableBalance: false`. **Not** `PaymentAuditLog`. **Not** `/v1/activities`. | HIGH keep |
+| note_ledger_entries | notes/payment services | Note bucket accounting | HIGH keep |
 
 Changing event strings **breaks** activity adapters, issuer `application-timeline.ts` labels, resubmit comparison metadata keys, and AuthService completion detection.
 

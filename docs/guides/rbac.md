@@ -258,6 +258,7 @@ Signed contract/invoice offer letter PDFs (`GET .../offers/.../signed-letter`) a
 | Mutations (sophisticated toggle, CTOS generation) | `organizations.manage` |
 | Backend | `apps/api/src/modules/admin/controller.ts` |
 | Frontend pages | `apps/admin/src/app/issuers/page.tsx`, `apps/admin/src/app/issuers/[id]/page.tsx`, `apps/admin/src/app/investors/page.tsx`, `apps/admin/src/app/investors/[id]/page.tsx` |
+| Investor wallet activity | `GET /v1/admin/organizations/investor/:id/balance-activity` requires `organizations.view`. This is wallet / cash-statement data, not an audit route. |
 
 ### CTOS / SSM (context-scoped routes)
 

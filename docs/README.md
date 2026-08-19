@@ -45,7 +45,7 @@ Current AuditLog architecture (history/evidence, not source of truth):
 
 - **[Current audit architecture](./audit/current-audit-logging-inventory.md)** - Tables, writers, readers, aliases, RBAC
 - **[Manual verification catalogue](./audit/audit-manual-verification-catalogue.md)** - Per-event cards (A001–A177)
-- **[Activity Timeline](./guides/admin/activity-timeline.md)** - Admin Activity vs raw Audit History; issuer/investor ActivityFeed
+- **[Activity Timeline](./guides/admin/activity-timeline.md)** - Admin Activity vs raw Audit History vs wallet cash statement; issuer/investor ActivityFeed
 - **[Activity log inventory](./guides/activity-log-inventory.md)** - Curated `/activity` events and domains
 - **[Activity authoring guide](./guides/activity-log-authoring-guide.md)** - When a log belongs on `/activity`
 
@@ -53,7 +53,7 @@ Current AuditLog architecture (history/evidence, not source of truth):
 
 Admin portal:
 
-- **[Activity Timeline](./guides/admin/activity-timeline.md)** - Curated Activity, raw Audit History, CSV, issuer/investor feeds
+- **[Activity Timeline](./guides/admin/activity-timeline.md)** - Curated Activity, raw Audit History, investor org wallet panel, CSV, issuer/investor feeds
 - **[CTOS financial summary display](./guides/admin/ctos-financial-summary-display.md)** - CTOS-first cells and fallback formulas in application review
 
 

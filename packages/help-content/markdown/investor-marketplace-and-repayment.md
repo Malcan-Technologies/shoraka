@@ -8,7 +8,7 @@ tags:
   - notes
   - repayment
 order: 12
-updated: 2026-08-19
+updated: 2026-08-20
 ---
 
 ## What You're Investing In
@@ -120,4 +120,4 @@ You can withdraw available funds from the **Portfolio** cash bar at any time. Wi
 - Failed listings release commitments back to your wallet automatically.
 - Principal is **always** returned in full on settlement; profit is paid net of the service fee.
 - Late charges are borne by the issuer and do not reduce your returns.
-- The **Portfolio** page is the single place to see notes you have funded and your cash movements. Use the **Investments** tab for positions and the **Transactions** tab for deposits, withdrawals, and ledger activity.
+- The **Portfolio** page is the single place to see notes you have funded and your cash movements. Use the **Investments** tab for positions and the **Transactions** tab for deposits, withdrawals, and ledger activity. In-flight deposits can appear on Transactions before they credit available cash.

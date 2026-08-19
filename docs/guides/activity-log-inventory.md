@@ -51,7 +51,7 @@ Investor `/activity` shows investor-scoped onboarding, curated note milestones, 
 - payment logs follow `PAYMENT_INVESTOR_SHOW` / refund conditional rules
 - application logs are excluded from the investor feed and filters
 
-Investor money movements that are not curated Activity stay on **Portfolio**. Withdraw requests send `withdrawalIntentId`. Do not treat `/investments?tab=transactions` as the current transactions surface.
+Investor money movements that are not curated Activity stay on **Portfolio → Transactions**. That surface is wallet / cash-statement data (`InvestorBalanceTransaction` plus a read-time in-flight `GatewayPayment` overlay). It is **not** `PaymentAuditLog` and is **not** part of `GET /v1/activities`. Withdraw requests send `withdrawalIntentId`. Do not treat `/investments?tab=transactions` as the current transactions surface.
 
 ### Onboarding
 
@@ -172,4 +172,4 @@ These logs still exist as AuditLog rows (or retired historical rows) but are not
 - signing package created / eKYC start-verify internals that are not in the issuer allowlist
 - note operational steps such as Shoraka, trustee letters, settlement preview/approve
 - Access, Security, Legal admin, Product, and Notification broadcasts (raw admin audit only)
-- investor ledger rows that belong on Portfolio / note-detail money views
+- investor ledger / wallet rows that belong on Portfolio / admin org Wallet Activity (cash statement). Those rows are not `/v1/activities` and are not `PaymentAuditLog`.

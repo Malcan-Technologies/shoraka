@@ -152,7 +152,7 @@ The `note` domain is now used for curated note lifecycle milestones only.
 - issuer-only note events should cover origination, listing, and issuer repayment workflow milestones
 - investor-only note events should cover the investor organization’s own commitment or return milestones
 - when both repayment receipt and settlement payout exist in the lifecycle, prefer the investor-visible payout milestone instead of surfacing both
-- do not surface raw `investor_balance_transactions` rows in `/activity`; those belong on Portfolio and note-detail money views
+- do not surface raw `investor_balance_transactions` or pending-deposit overlay rows in `/activity`; those belong on Portfolio and admin org Wallet Activity (cash statement, not audit)
 - hide trustee, Shoraka, settlement-approval, and other operational steps unless they are the clearest user-facing milestone
 
 ## Rule of thumb

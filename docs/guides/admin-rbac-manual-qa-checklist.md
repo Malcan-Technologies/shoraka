@@ -206,6 +206,7 @@ Explicit permission coverage:
 - [ ] Open Issuer / Investor detail:
   - [ ] With `organizations.view` only: management toggle/actions disabled
   - [ ] With `organizations.manage`: enabled
+  - [ ] Investor Activity tab wallet panel: `GET /v1/admin/organizations/investor/:id/balance-activity` allowed with `organizations.view`
 
 Explicit permission coverage:
 - [ ] `organizations.view`

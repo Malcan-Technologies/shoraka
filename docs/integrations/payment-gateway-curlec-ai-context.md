@@ -26,6 +26,8 @@
 | Amount mismatch (auto-refund) | Currency mismatch (`HELD`, no auto-refund) |
 | List URL `filter=review` | UI label “Name check pending” |
 | Curlec header `x-razorpay-*` | Razorpay as product — headers are Curlec/Razorpay-compatible naming |
+| Wallet Activity / cash statement (`InvestorBalanceTransaction` + pending overlay) | `PaymentAuditLog` (gateway payment / withdrawal / recon evidence) |
+| Pending overlay rows (read-time, `affectsAvailableBalance: false`) | Persisted audit events or `/v1/activities` payment rows |
 
 Current product direction: **Curlec / generic Gateway Payment**. Razorpay branding in older docs is historical.
 
@@ -330,8 +332,19 @@ Sources (Prisma `InvestorBalanceTransactionSource`):
 - `GATEWAY_DEPOSIT_REFUND`
 - `GATEWAY_DEPOSIT_REFUND_HOLD`
 
-Helpers: `apps/api/src/modules/notes/investor-balance.ts`  
+Helpers: `apps/api/src/modules/notes/investor-balance.ts`
+
+Overlay / activity mapper: `apps/api/src/modules/notes/investor-balance-activity.ts`
+
 Deposit credit: `creditCompletedDeposit` in `deposit-service.ts`
+
+This is **wallet / cash-statement SOT**, not audit history.
+
+- Investor UI: Portfolio → Transactions via `GET /v1/investor/balance/activity`. Withdraw still sends `withdrawalIntentId`.
+- Admin UI: investor org Activity tab wallet panel via `GET /v1/admin/organizations/investor/:id/balance-activity` (`organizations.view`).
+- Uncredited in-flight deposits (`PAID`, `NAME_CHECK_PENDING`, `HELD`, `REFUND_INITIATED`) overlay as synthetic rows (`affectsAvailableBalance: false`). Running balance must not double-count them. No new `PaymentAuditLog` event is written for the overlay.
+- Posted rows may include `noteReference` so the UI can link to Notes.
+- `PaymentAuditLog` remains the gateway-payment / withdrawal / recon evidence table (admin payment detail timeline). Do not promote overlay rows into that table.
 
 ---
 
@@ -665,7 +678,8 @@ Investor/issuer create-order routes live under their portal payment modules (dep
 Primary models (Prisma):
 
 - `GatewayPayment` — purpose, org FKs, amount, status, Curlec ids, refund fields, settlement, metadata Json, `gatewayAccount`
-- `PaymentAuditLog` — payment business-audit timeline (not `GatewayPaymentEvent`)
+- `PaymentAuditLog` — payment business-audit timeline (not `GatewayPaymentEvent`; not wallet overlay)
+- `InvestorBalance` / `InvestorBalanceTransaction` — wallet / cash-statement SOT
 - `GatewayPaymentReceipt` — official PDF receipt
 - `GatewayOrderAttempt` — durable order-create checkpoint
 - `GatewayWebhookEvent` — raw webhook dedup

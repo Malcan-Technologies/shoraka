@@ -5,7 +5,7 @@ category: Platform Operations
 tags:
   - admin
 order: 30
-updated: 2026-08-19
+updated: 2026-08-20
 ---
 
 ## Purpose
@@ -46,16 +46,23 @@ Permissions: `document_management.view` and `document_management.manage` (manage
 
 ## Organization Activity
 
-Organization detail pages show a curated activity timeline for onboarding history. This is separate from the sidebar Audit pages and is filtered to the organization being viewed.
+Organization detail **Activity** is not a single mixed audit log.
 
-Use the organization timeline for:
+On **investor** organizations the tab shows two panels:
+
+1. **Wallet Activity** (first) — cash statement for that organization (`GET /v1/admin/organizations/investor/:id/balance-activity`). Posted wallet rows plus in-flight deposits that have not credited available cash yet. This is operational money, not Audit History and not `PaymentAuditLog`.
+2. **Onboarding activity** (below) — curated onboarding timeline for that organization.
+
+On **issuer** organizations the tab is the onboarding timeline only.
+
+Use the onboarding timeline for:
 
 - Onboarding start, restart, rejection, approval, completion, and review/amendment status changes.
 - Admin actions such as final onboarding approval, AML approval, SSM approval, onboarding restart, or organization profile updates.
 - Investor-specific sophisticated status changes.
 - Issuer director invitation and director verification outcomes.
 
-The timeline is best for answering "what happened to this organization?" rather than searching across all users. Raw onboarding history for every organization is Audit → Onboarding.
+The onboarding timeline is best for answering "what happened to this organization's onboarding?" rather than searching across all users. Raw onboarding history for every organization is Audit → Onboarding. Wallet rows answer "what happened to this investor's cash?"
 
 ## Application Activity
 
@@ -80,7 +87,7 @@ There is no live `APPLICATION_APPROVED` application audit event. Starting under-
 ## Note, payment, and finance
 
 - Note detail: curated note timeline plus raw Note Audit History (`notes.view`).
-- Gateway payment detail: `PaymentAuditLog` timeline (`gateway_payments.view`). Provider webhook records are not business audit history.
+- Gateway payment detail: `PaymentAuditLog` timeline (`gateway_payments.view`). Provider webhook records are not business audit history. In-flight deposits on the investor org Activity tab are wallet overlay rows, not this timeline.
 - Investor withdrawals: withdrawal detail Audit History (`investor_withdrawals.view`).
 - Reconciliation exceptions: recon Audit History (`gateway_reconciliation.view`).
 - Platform finance trustee signature: Note audit history (`platform_settings.view`).
@@ -101,7 +108,8 @@ Use notification logs for broadcast or one-time custom sends. Automated lifecycl
 | Who published or archived a legal document version? | Audit → Legal Documents (history) plus Legal Documents (current state); acceptances for user evidence |
 | Did a user accept a specific legal document version? | Legal Acceptances |
 | Who changed a product or workflow configuration? | Audit → Product |
-| What happened during this organization's onboarding? | Organization detail → Activity, or Audit → Onboarding |
+| What happened during this organization's onboarding? | Organization detail → Activity (Onboarding activity panel), or Audit → Onboarding |
+| What happened to this investor's cash? | Organization detail → Activity (Wallet Activity panel). This is not Audit History. |
 | What happened during this issuer application review? | Application detail → Activity, then Audit History |
 | Who sent a custom notification? | Audit → Notifications |
 

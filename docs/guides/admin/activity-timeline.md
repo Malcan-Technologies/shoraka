@@ -1,6 +1,6 @@
 # Activity Timeline Guide
 
-How Activity timelines and raw Audit History are stored, fetched, and displayed.
+How Activity timelines, wallet / cash-statement panels, and raw Audit History are stored, fetched, and displayed.
 
 Related:
 
@@ -71,11 +71,31 @@ Titles use `formatApplicationActivity` / `formatSigningActivity`. Invoice number
 
 ## Admin organization Activity
 
-Issuer and investor admin detail pages (`apps/admin/src/organizations/components/organization-detail-page.tsx`) render `OrganizationActivityTimeline` from `OnboardingAuditLog` via `GET /v1/admin/onboarding-logs`.
+Issuer and investor admin detail pages (`apps/admin/src/organizations/components/organization-detail-page.tsx`) share an Activity tab, but the investor tab is **two panels**, not one mixed log.
+
+| Panel | Audience | Data | Store |
+|-------|----------|------|-------|
+| Wallet / balance activity (first) | Investor orgs only | Cash statement: posted `InvestorBalanceTransaction` rows plus a read-time overlay of uncredited in-flight `GatewayPayment` deposits | Wallet SOT. **Not** `PaymentAuditLog`. **Not** `/v1/activities`. |
+| Onboarding Activity (below wallet on investor; only panel on issuer) | Issuer and investor | Curated onboarding timeline titled **“Onboarding activity”** on the investor tab | `OnboardingAuditLog` via `GET /v1/admin/onboarding-logs` |
+
+Do not call wallet rows audit logs. Overlay rows are synthetic (`affectsAvailableBalance: false`); they are not persisted audit evidence and did not add a new audit event. Running balance must not double-count overlay rows. Wallet rows may include `noteReference` links to Notes.
+
+Admin wallet API: `GET /v1/admin/organizations/investor/:id/balance-activity` (`organizations.view`) → `listInvestorBalanceActivityForOrganizations`.
+
+Onboarding timeline mapping (current audit DTO, not legacy `OnboardingLog`):
+
+- `eventType`
+- `occurredAt`
+- `actor.displayName`
+- `formatOnboardingActivity`
+- current organization event allowlist
+- CSV from those DTO fields
+
+Do not document `event_type` / `created_at` / `log.user` as current runtime fields.
 
 Labels come from `formatOnboardingActivity`. Step-aware issuer/investor onboarding tooltips are product UI; onboarding unlock gates and organization `onboarding_status` remain SOT. CTOS / director-shareholder organization detail work is unchanged by the audit store.
 
-Admin organization Activity hides `USER_ONBOARDING_STATUS_UPDATED`. Retired onboarding IDs (`ONBOARDING_RESUMED`, `CTOS_REPORT_RECEIVED`, `CORPORATE_ENTITIES_UPDATED`) have no current writer; historical rows remain readable on raw Onboarding audit.
+Admin organization onboarding Activity hides `USER_ONBOARDING_STATUS_UPDATED`. Retired onboarding IDs (`ONBOARDING_RESUMED`, `CTOS_REPORT_RECEIVED`, `CORPORATE_ENTITIES_UPDATED`) have no current writer; historical rows remain readable on raw Onboarding audit.
 
 ---
 
@@ -146,7 +166,7 @@ Deep links (`getActivityHref`):
 - Issuer: invoice → `/financing/invoices/:id`; contract → `/financing/contracts/:id`; application → `/applications/:id`; note → `/financing/notes/:id`; onboarding → `/profile`
 - Investor: note → `/investments/:id`; onboarding → `/profile`
 
-Investor money movements that are not curated Activity stay on **Portfolio** (withdraw uses `withdrawalIntentId`). Do not document `/investments?tab=transactions` as the current transactions surface.
+Investor money movements that are not curated Activity stay on **Portfolio → Transactions** (cash statement from `GET /v1/investor/balance/activity`, including the same in-flight overlay). Withdraw still sends `withdrawalIntentId`. Do not document `/investments?tab=transactions` as the current transactions surface. Do not treat wallet rows as `/v1/activities` payment events.
 
 Visibility remains the current audit rules (organization scoping, issuer note-terms visibility after publish/unpublish, investor `INVESTMENT_COMMITTED` only for that investor org, committed-note campaign/funding/default events, `SETTLEMENT_POSTED` only when the snapshot allocates to that investor).
 
@@ -181,4 +201,6 @@ Full catalogues: `APPLICATION_AUDIT_EVENTS` and `SIGNING_AUDIT_EVENTS`.
 | ActivityFeed | `packages/ui/src/components/activity-feed.tsx` |
 | CSV export | `apps/admin/src/components/admin-activity-csv.ts` |
 | Application timeline | `apps/admin/src/components/admin-activity-timeline.tsx` |
+| Organization onboarding timeline | `apps/admin/src/components/organization-activity-timeline.tsx` |
+| Organization wallet activity | `apps/admin/src/organizations/components/organization-wallet-activity-panel.tsx` |
 | Global audit tabs | `apps/admin/src/lib/audit-tabs.ts` |
