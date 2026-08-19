@@ -893,13 +893,13 @@ export interface InvestorPortfolioHistoryResponse {
   generatedAt: string;
 }
 
-export type InvestorBalanceActivityRelatedKind = "investment" | "withdrawal";
+export type InvestorBalanceActivityRelatedKind = "investment" | "withdrawal" | "deposit";
 
-/** Current lifecycle of the investment or withdrawal this ledger row belongs to. */
+/** Current lifecycle of the investment, withdrawal, or in-flight deposit this row belongs to. */
 export interface InvestorBalanceActivityRelated {
   kind: InvestorBalanceActivityRelatedKind;
   status: string;
-  /** `confirmedAt` for investments, `completedAt` for withdrawals. */
+  /** `confirmedAt` for investments, `completedAt` for withdrawals, credit time for deposits. */
   settledAt: string | null;
 }
 
@@ -910,12 +910,18 @@ export interface InvestorBalanceActivityEntry {
   amount: number;
   source: string;
   noteId: string | null;
+  noteReference?: string | null;
   noteInvestmentId: string | null;
   idempotencyKey: string;
   metadata: Record<string, unknown> | null;
   postedAt: string;
   createdAt: string;
   related: InvestorBalanceActivityRelated | null;
+  /**
+   * False for in-flight gateway deposits that have not credited the wallet yet
+   * (name check, hold, or refund). Omit or true for posted ledger rows.
+   */
+  affectsAvailableBalance?: boolean;
 }
 
 export interface InvestorBalanceActivityResponse {

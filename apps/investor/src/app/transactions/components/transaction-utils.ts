@@ -75,11 +75,12 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 function buildNoteContext(
   noteId: string | null,
   noteReferenceById: Map<string, string>,
-  prefix?: string
+  prefix?: string,
+  fallbackReference?: string | null
 ): TransactionContext {
   if (!noteId) return { kind: "empty" };
 
-  const rawReference = noteReferenceById.get(noteId);
+  const rawReference = noteReferenceById.get(noteId) ?? fallbackReference ?? null;
   if (rawReference) {
     const display = formatNoteReferenceDisplay(rawReference);
     if (display) {
@@ -105,20 +106,20 @@ function buildActivityContext(
   entry: InvestorBalanceActivityEntry,
   noteReferenceById: Map<string, string>
 ): TransactionContext {
-  const depositDetail = investorActivityDepositDetail(entry.source);
+  const depositDetail = investorActivityDepositDetail(entry.source, entry.related ?? null);
   if (depositDetail) {
     return { kind: "text", text: depositDetail };
   }
 
   if (entry.source === "NOTE_INVESTMENT_COMMIT") {
-    return buildNoteContext(entry.noteId, noteReferenceById);
+    return buildNoteContext(entry.noteId, noteReferenceById, undefined, entry.noteReference);
   }
 
   if (entry.source === "NOTE_INVESTMENT_RELEASE") {
     const meta = asRecord(entry.metadata);
     const prefix =
       meta?.releaseReason === "SETTLEMENT_PAYOUT" ? "Repayment · " : "Returned · ";
-    return buildNoteContext(entry.noteId, noteReferenceById, prefix);
+    return buildNoteContext(entry.noteId, noteReferenceById, prefix, entry.noteReference);
   }
 
   if (entry.source === "INVESTOR_WITHDRAWAL_REQUEST") {
@@ -127,7 +128,7 @@ function buildActivityContext(
   }
 
   if (entry.noteId) {
-    return buildNoteContext(entry.noteId, noteReferenceById);
+    return buildNoteContext(entry.noteId, noteReferenceById, undefined, entry.noteReference);
   }
 
   return { kind: "empty" };

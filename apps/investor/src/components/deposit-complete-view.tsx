@@ -16,7 +16,7 @@ function statusContent(status: GatewayPaymentStatus, amount: number) {
     case "COMPLETED":
       return {
         icon: CheckIcon,
-        iconClassName: "bg-status-success-text",
+        iconClassName: "bg-primary",
         title: "Deposit successful",
         body: (
           <>
@@ -63,7 +63,8 @@ function statusContent(status: GatewayPaymentStatus, amount: number) {
     case "NAME_CHECK_PENDING":
       return {
         icon: ClockIcon,
-        iconClassName: "bg-status-submitted-text",
+        iconClassName: "bg-primary",
+        title: "Deposit received",
         body: (
           <>
             <p className="text-3xl font-bold text-primary">{formatCurrency(amount)}</p>

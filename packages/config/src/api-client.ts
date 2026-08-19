@@ -501,6 +501,21 @@ export class ApiClient {
     );
   }
 
+  async getAdminInvestorBalanceActivity(
+    organizationId: string,
+    params: {
+      page?: number;
+      pageSize?: number;
+    } = {}
+  ): Promise<ApiResponse<InvestorBalanceActivityResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page ?? 1));
+    queryParams.append("pageSize", String(params.pageSize ?? 20));
+    return this.get<InvestorBalanceActivityResponse>(
+      `/v1/admin/organizations/investor/${encodeURIComponent(organizationId)}/balance-activity?${queryParams.toString()}`
+    );
+  }
+
   async updateAdminOrganizationProfile(
     portal: "investor" | "issuer",
     id: string,

@@ -13,6 +13,19 @@ test.describe("Investor Portfolio", () => {
     await expect(page.getByRole("button", { name: /^Withdraw$/i })).toBeVisible();
   });
 
+  test("can open the investments tab from transactions", async ({ page }) => {
+    await page.goto("/investments?tab=transactions");
+    await expect(page.getByRole("tab", { name: /^Transactions$/i })).toHaveAttribute(
+      "data-state",
+      "active"
+    );
+    await page.getByRole("tab", { name: /^Investments$/i }).click();
+    await expect(page.getByRole("tab", { name: /^Investments$/i })).toHaveAttribute(
+      "data-state",
+      "active"
+    );
+  });
+
   test("redirects /transactions to the portfolio cash tab", async ({ page }) => {
     await page.goto("/transactions");
     await expect(page).toHaveURL(/\/investments\?tab=transactions/);

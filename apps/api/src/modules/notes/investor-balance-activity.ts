@@ -1,5 +1,7 @@
 import {
+  pendingDepositActivityId,
   withdrawalIdFromMetadata,
+  type InvestorBalanceActivityEntry,
   type InvestorBalanceActivityRelated,
 } from "@cashsouk/types";
 
@@ -28,6 +30,28 @@ export type ActivityJoinWithdrawal = {
   completedAt: Date | string | null;
 };
 
+export const IN_FLIGHT_DEPOSIT_STATUSES = [
+  "PAID",
+  "NAME_CHECK_PENDING",
+  "HELD",
+  "REFUND_INITIATED",
+] as const;
+
+export type InFlightGatewayDeposit = {
+  id: string;
+  investorOrganizationId: string;
+  amount: number;
+  status: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  nameCheckAt: Date | string | null;
+};
+
+/** Matches `creditCompletedDeposit` in payment/deposit-service.ts. */
+export function gatewayDepositBalanceIdempotencyKey(gatewayPaymentId: string): string {
+  return `gateway-deposit:balance:${gatewayPaymentId}`;
+}
+
 const WITHDRAWAL_MATCH_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function toTime(value: Date | string): number {
@@ -35,7 +59,7 @@ function toTime(value: Date | string): number {
   return Number.isFinite(time) ? time : 0;
 }
 
-function isoOrNull(value: Date | string | null): string | null {
+function isoOrNull(value: Date | string | null | undefined): string | null {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
@@ -133,8 +157,101 @@ export function buildActivityRelatedMap(input: {
         status: withdrawal?.status ?? "DRAFT",
         settledAt: isoOrNull(withdrawal?.completedAt ?? null),
       });
+      continue;
+    }
+
+    if (entry.source === "GATEWAY_DEPOSIT") {
+      relatedByEntryId.set(entry.id, {
+        kind: "deposit",
+        status: "COMPLETED",
+        settledAt: isoOrNull(entry.postedAt),
+      });
     }
   }
 
   return relatedByEntryId;
+}
+
+export function planActivityPageWithPendingOverlay(input: {
+  pendingCount: number;
+  ledgerTotalCount: number;
+  page: number;
+  pageSize: number;
+}): {
+  pendingStart: number;
+  pendingTake: number;
+  ledgerSkip: number;
+  ledgerTake: number;
+  totalCount: number;
+  totalPages: number;
+} {
+  const pendingCount = Math.max(0, input.pendingCount);
+  const ledgerTotalCount = Math.max(0, input.ledgerTotalCount);
+  const page = Math.max(1, input.page);
+  const pageSize = Math.max(1, input.pageSize);
+  const totalCount = pendingCount + ledgerTotalCount;
+  const offset = (page - 1) * pageSize;
+  const pendingStart = Math.min(pendingCount, Math.max(0, offset));
+  const pendingEnd = Math.min(pendingCount, Math.max(0, offset + pageSize));
+  const pendingTake = Math.max(0, pendingEnd - pendingStart);
+  return {
+    pendingStart,
+    pendingTake,
+    ledgerSkip: Math.max(0, offset - pendingCount),
+    ledgerTake: Math.max(0, pageSize - pendingTake),
+    totalCount,
+    totalPages: Math.max(1, Math.ceil(totalCount / pageSize) || 1),
+  };
+}
+
+export function filterUncreditedInFlightDeposits(
+  payments: InFlightGatewayDeposit[],
+  creditedIdempotencyKeys: Iterable<string>
+): InFlightGatewayDeposit[] {
+  const credited = creditedIdempotencyKeys instanceof Set
+    ? creditedIdempotencyKeys
+    : new Set(creditedIdempotencyKeys);
+  return payments.filter(
+    (payment) => !credited.has(gatewayDepositBalanceIdempotencyKey(payment.id))
+  );
+}
+
+export function sortInFlightDepositsNewestFirst(
+  payments: InFlightGatewayDeposit[]
+): InFlightGatewayDeposit[] {
+  return [...payments].sort((left, right) => {
+    const rightTime = toTime(right.nameCheckAt ?? right.updatedAt ?? right.createdAt);
+    const leftTime = toTime(left.nameCheckAt ?? left.updatedAt ?? left.createdAt);
+    return rightTime - leftTime;
+  });
+}
+
+export function buildPendingDepositActivityEntry(
+  payment: InFlightGatewayDeposit,
+  roundAmount: (amount: number) => number = (amount) => amount
+): InvestorBalanceActivityEntry {
+  const postedAt =
+    isoOrNull(payment.nameCheckAt) ??
+    isoOrNull(payment.updatedAt) ??
+    isoOrNull(payment.createdAt) ??
+    new Date(0).toISOString();
+  return {
+    id: pendingDepositActivityId(payment.id),
+    investorOrganizationId: payment.investorOrganizationId,
+    direction: "IN",
+    amount: roundAmount(payment.amount),
+    source: "GATEWAY_DEPOSIT",
+    noteId: null,
+    noteInvestmentId: null,
+    idempotencyKey: `gateway-deposit:pending:${payment.id}`,
+    metadata: { gatewayPaymentId: payment.id },
+    postedAt,
+    createdAt: isoOrNull(payment.createdAt) ?? postedAt,
+    related: {
+      kind: "deposit",
+      status: payment.status,
+      settledAt: null,
+    },
+    affectsAvailableBalance: false,
+  };
 }

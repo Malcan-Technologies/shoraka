@@ -35,6 +35,8 @@ interface OrganizationActivityTimelineProps {
   organizationId: string | null;
   /** `panel` is the full-width activity tab; default `sidebar` keeps the compact rail layout. */
   variant?: "sidebar" | "panel";
+  title?: string;
+  description?: string;
 }
 
 function getEventLabel(eventType: string, metadata?: Record<string, unknown> | null): string {
@@ -130,6 +132,8 @@ function OrganizationActivityTimelineList({
 export function OrganizationActivityTimeline({
   organizationId,
   variant = "sidebar",
+  title = "Activity Timeline",
+  description,
 }: OrganizationActivityTimelineProps) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(
@@ -178,11 +182,12 @@ export function OrganizationActivityTimeline({
     <Card className={isPanel ? "rounded-2xl" : "flex h-full flex-col overflow-hidden rounded-2xl"}>
       <AdminDetailCardHeader
         icon={ClockIcon}
-        title="Activity Timeline"
+        title={title}
         description={
-          totalCount === 0
+          description ??
+          (totalCount === 0
             ? "No activity logs yet"
-            : `${totalCount} ${totalCount === 1 ? "event" : "events"}`
+            : `${totalCount} ${totalCount === 1 ? "event" : "events"}`)
         }
         actions={
           <AdminActivityCsvExportButton

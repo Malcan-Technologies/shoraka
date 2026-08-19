@@ -20,11 +20,35 @@ export function withdrawalIdFromMetadata(
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+export function gatewayPaymentIdFromMetadata(
+  metadata: Record<string, unknown> | null | undefined
+): string | null {
+  const value = metadata?.gatewayPaymentId;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+export function pendingDepositActivityId(gatewayPaymentId: string): string {
+  return `gateway:${gatewayPaymentId}`;
+}
+
+export function activityEntryAffectsAvailableBalance(entry: {
+  affectsAvailableBalance?: boolean;
+}): boolean {
+  return entry.affectsAvailableBalance !== false;
+}
+
 export function investorActivityTypeLabel(
   source: string,
   metadata: Record<string, unknown> | null
 ): string {
-  if (source === "MANUAL_TOPUP" || source === "GATEWAY_DEPOSIT") return "Deposit";
+  if (
+    source === "MANUAL_TOPUP" ||
+    source === "GATEWAY_DEPOSIT" ||
+    source === "GATEWAY_DEPOSIT_REFUND" ||
+    source === "GATEWAY_DEPOSIT_REFUND_HOLD"
+  ) {
+    return "Deposit";
+  }
   if (source === "NOTE_INVESTMENT_COMMIT") return "Investment";
   if (source === "NOTE_INVESTMENT_RELEASE") {
     return asRecord(metadata)?.releaseReason === "SETTLEMENT_PAYOUT" ? "Returns" : "Release";
@@ -58,6 +82,19 @@ export function investorActivityTitle(
     if (status === "COMPLETED") return "Withdrawal paid";
     if (status === "CANCELLED") return "Withdrawal cancelled";
     return "Withdrawal requested";
+  }
+
+  if (source === "MANUAL_TOPUP" || source === "GATEWAY_DEPOSIT") {
+    const status = related?.kind === "deposit" ? related.status : "COMPLETED";
+    if (status === "PAID" || status === "NAME_CHECK_PENDING" || status === "HELD") {
+      return "Deposit received";
+    }
+    if (status === "REFUND_INITIATED") return "Deposit refund";
+    return "Deposit";
+  }
+
+  if (source === "GATEWAY_DEPOSIT_REFUND" || source === "GATEWAY_DEPOSIT_REFUND_HOLD") {
+    return "Deposit refund";
   }
 
   return investorActivityTypeLabel(source, metadata);
@@ -101,6 +138,26 @@ export function investorActivityStatusDisplay(
     return { label: "Awaiting approval", tokenStatus: "PENDING_APPROVAL" };
   }
 
+  if (source === "MANUAL_TOPUP" || source === "GATEWAY_DEPOSIT") {
+    const status = related?.kind === "deposit" ? related.status : "COMPLETED";
+    if (status === "PAID") return { label: "Processing", tokenStatus: "PAID" };
+    if (status === "NAME_CHECK_PENDING") {
+      return { label: "Verifying", tokenStatus: "NAME_CHECK_PENDING" };
+    }
+    if (status === "HELD") return { label: "Needs review", tokenStatus: "HELD" };
+    if (status === "REFUND_INITIATED") {
+      return { label: "Refunding", tokenStatus: "UNDER_REVIEW" };
+    }
+    return { label: "Completed", tokenStatus: "COMPLETED" };
+  }
+
+  if (source === "GATEWAY_DEPOSIT_REFUND_HOLD") {
+    return { label: "Refunding", tokenStatus: "UNDER_REVIEW" };
+  }
+  if (source === "GATEWAY_DEPOSIT_REFUND") {
+    return { label: "Refunded", tokenStatus: "REFUNDED" };
+  }
+
   return null;
 }
 
@@ -117,8 +174,36 @@ export function investorActivityStatusDetail(
   return "Pending CashSouk approval";
 }
 
-export function investorActivityDepositDetail(source: string): string | null {
+export function investorActivityDepositDetail(
+  source: string,
+  related: InvestorBalanceActivityRelated | null = null
+): string | null {
   if (source === "MANUAL_TOPUP") return "Wallet top-up";
-  if (source === "GATEWAY_DEPOSIT") return "Online payment";
-  return null;
+  if (source !== "GATEWAY_DEPOSIT") return null;
+  const status = related?.kind === "deposit" ? related.status : "COMPLETED";
+  if (status === "PAID") return "Online payment · processing";
+  if (status === "NAME_CHECK_PENDING") {
+    return "Online payment · name verification in progress";
+  }
+  if (status === "HELD") return "Online payment · under review";
+  if (status === "REFUND_INITIATED") return "Online payment · refund in progress";
+  return "Online payment";
+}
+
+export function runningBalancesForActivityEntries(
+  entriesNewestFirst: Array<{
+    direction: "IN" | "OUT";
+    amount: number;
+    affectsAvailableBalance?: boolean;
+  }>,
+  availableBalance: number
+): number[] {
+  let running = availableBalance;
+  return entriesNewestFirst.map((entry) => {
+    const shown = running;
+    if (activityEntryAffectsAvailableBalance(entry)) {
+      running += entry.direction === "IN" ? -entry.amount : entry.amount;
+    }
+    return shown;
+  });
 }

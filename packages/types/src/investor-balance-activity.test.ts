@@ -4,6 +4,8 @@ import {
   investorActivityStatusDisplay,
   investorActivityTitle,
   investorActivityTypeLabel,
+  pendingDepositActivityId,
+  runningBalancesForActivityEntries,
   withdrawalIdFromMetadata,
 } from "./investor-balance-activity";
 
@@ -111,11 +113,69 @@ describe("investorActivityDepositDetail", () => {
     expect(investorActivityDepositDetail("GATEWAY_DEPOSIT")).toBe("Online payment");
     expect(investorActivityDepositDetail("NOTE_INVESTMENT_COMMIT")).toBeNull();
   });
+
+  it("explains in-flight gateway deposits", () => {
+    expect(
+      investorActivityDepositDetail("GATEWAY_DEPOSIT", {
+        kind: "deposit",
+        status: "NAME_CHECK_PENDING",
+        settledAt: null,
+      })
+    ).toBe("Online payment · name verification in progress");
+    expect(
+      investorActivityTitle("GATEWAY_DEPOSIT", null, {
+        kind: "deposit",
+        status: "NAME_CHECK_PENDING",
+        settledAt: null,
+      })
+    ).toBe("Deposit received");
+    expect(
+      investorActivityStatusDisplay("GATEWAY_DEPOSIT", {
+        kind: "deposit",
+        status: "NAME_CHECK_PENDING",
+        settledAt: null,
+      })
+    ).toEqual({ label: "Verifying", tokenStatus: "NAME_CHECK_PENDING" });
+    expect(
+      investorActivityStatusDisplay("GATEWAY_DEPOSIT", {
+        kind: "deposit",
+        status: "COMPLETED",
+        settledAt: "2026-08-19T00:00:00.000Z",
+      })
+    ).toEqual({ label: "Completed", tokenStatus: "COMPLETED" });
+  });
 });
 
 describe("withdrawalIdFromMetadata", () => {
   it("reads a stored withdrawal id", () => {
     expect(withdrawalIdFromMetadata({ withdrawalId: "wd_1" })).toBe("wd_1");
     expect(withdrawalIdFromMetadata({ requestedByUserId: "user_1" })).toBeNull();
+  });
+});
+
+describe("runningBalancesForActivityEntries", () => {
+  it("keeps available cash unchanged across in-flight deposits", () => {
+    expect(
+      runningBalancesForActivityEntries(
+        [
+          {
+            direction: "IN",
+            amount: 500,
+            affectsAvailableBalance: false,
+          },
+          {
+            direction: "OUT",
+            amount: 200,
+          },
+        ],
+        800
+      )
+    ).toEqual([800, 800]);
+  });
+});
+
+describe("pendingDepositActivityId", () => {
+  it("namespaces gateway payment ids", () => {
+    expect(pendingDepositActivityId("pay_1")).toBe("gateway:pay_1");
   });
 });

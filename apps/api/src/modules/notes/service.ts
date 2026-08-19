@@ -1,6 +1,9 @@
 import PDFDocument from "pdfkit";
 import {
   ApplicationStatus,
+  GatewayPaymentPurpose,
+  GatewayPaymentStatus,
+  InvestorBalanceTransactionSource,
   InvoiceStatus,
   NoteFundingStatus,
   NoteInvestmentStatus,
@@ -14,7 +17,6 @@ import {
   ServiceFeeTrusteeInstructionStatus,
   NoteStatus,
   ProspectusReviewStatus,
-  InvestorBalanceTransactionSource,
   Prisma,
   UserRole,
   WithdrawalStatus,
@@ -65,7 +67,15 @@ import {
 } from "./investor-balance";
 import { buildFailFundingWalletCredits } from "./fail-funding-refunds";
 import { postLedgerEntry } from "./ledger";
-import { buildActivityRelatedMap } from "./investor-balance-activity";
+import {
+  buildActivityRelatedMap,
+  buildPendingDepositActivityEntry,
+  filterUncreditedInFlightDeposits,
+  gatewayDepositBalanceIdempotencyKey,
+  IN_FLIGHT_DEPOSIT_STATUSES,
+  planActivityPageWithPendingOverlay,
+  sortInFlightDepositsNewestFirst,
+} from "./investor-balance-activity";
 import {
   buildInvestorBalanceStatement,
   buildStatementFilename,
@@ -3736,6 +3746,13 @@ export class NoteService {
     query: z.infer<typeof investorBalanceActivityQuerySchema>
   ) {
     const orgIds = await this.resolveInvestorOrgIds(userId, query.investorOrganizationId);
+    return this.listInvestorBalanceActivityForOrganizations(orgIds, query);
+  }
+
+  async listInvestorBalanceActivityForOrganizations(
+    orgIds: string[],
+    query: z.infer<typeof investorBalanceActivityQuerySchema>
+  ) {
     if (orgIds.length === 0) {
       return {
         entries: [],
@@ -3746,14 +3763,82 @@ export class NoteService {
     }
 
     const where = { investor_organization_id: { in: orgIds } };
-    const [entries, totalCount, allTransactions, balanceRows] = await Promise.all([
-      prisma.investorBalanceTransaction.findMany({
-        where,
-        orderBy: [{ posted_at: "desc" }, { created_at: "desc" }],
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
-      }),
-      prisma.investorBalanceTransaction.count({ where }),
+    const inFlightStatuses = [...IN_FLIGHT_DEPOSIT_STATUSES] as GatewayPaymentStatus[];
+    const pendingPayments = await prisma.gatewayPayment.findMany({
+      where: {
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        investor_organization_id: { in: orgIds },
+        status: { in: inFlightStatuses },
+      },
+      select: {
+        id: true,
+        investor_organization_id: true,
+        amount: true,
+        status: true,
+        created_at: true,
+        updated_at: true,
+        name_check_at: true,
+      },
+    });
+    const creditedKeys =
+      pendingPayments.length === 0
+        ? []
+        : (
+            await prisma.investorBalanceTransaction.findMany({
+              where: {
+                investor_organization_id: { in: orgIds },
+                source: InvestorBalanceTransactionSource.GATEWAY_DEPOSIT,
+                idempotency_key: {
+                  in: pendingPayments.map((payment) =>
+                    gatewayDepositBalanceIdempotencyKey(payment.id)
+                  ),
+                },
+              },
+              select: { idempotency_key: true },
+            })
+          ).map((row) => row.idempotency_key);
+    const pendingDeposits = sortInFlightDepositsNewestFirst(
+      filterUncreditedInFlightDeposits(
+        pendingPayments
+          .filter((payment) => Boolean(payment.investor_organization_id))
+          .map((payment) => ({
+            id: payment.id,
+            investorOrganizationId: payment.investor_organization_id ?? "",
+            amount: toNumber(payment.amount),
+            status: payment.status,
+            createdAt: payment.created_at,
+            updatedAt: payment.updated_at,
+            nameCheckAt: payment.name_check_at,
+          })),
+        creditedKeys
+      )
+    );
+
+    const ledgerTotalCount = await prisma.investorBalanceTransaction.count({ where });
+    const pagePlan = planActivityPageWithPendingOverlay({
+      pendingCount: pendingDeposits.length,
+      ledgerTotalCount,
+      page: query.page,
+      pageSize: query.pageSize,
+    });
+
+    const overlayCandidates = pendingDeposits.slice(
+      pagePlan.pendingStart,
+      pagePlan.pendingStart + pagePlan.pendingTake
+    );
+    const overlayIdempotencyKeys = overlayCandidates.map((payment) =>
+      gatewayDepositBalanceIdempotencyKey(payment.id)
+    );
+
+    const [entries, allTransactions, balanceRows, overlayCredits] = await Promise.all([
+      pagePlan.ledgerTake > 0
+        ? prisma.investorBalanceTransaction.findMany({
+            where,
+            orderBy: [{ posted_at: "desc" }, { created_at: "desc" }],
+            skip: pagePlan.ledgerSkip,
+            take: pagePlan.ledgerTake,
+          })
+        : Promise.resolve([]),
       prisma.investorBalanceTransaction.findMany({
         where,
         select: { direction: true, amount: true },
@@ -3762,6 +3847,16 @@ export class NoteService {
         where: { investor_organization_id: { in: orgIds } },
         select: { available_amount: true },
       }),
+      overlayIdempotencyKeys.length
+        ? prisma.investorBalanceTransaction.findMany({
+            where: {
+              investor_organization_id: { in: orgIds },
+              source: InvestorBalanceTransactionSource.GATEWAY_DEPOSIT,
+              idempotency_key: { in: overlayIdempotencyKeys },
+            },
+            select: { idempotency_key: true },
+          })
+        : Promise.resolve([]),
     ]);
 
     const inTotal = allTransactions
@@ -3782,6 +3877,13 @@ export class NoteService {
           .filter((value): value is string => typeof value === "string" && value.length > 0)
       ),
     ];
+    const noteIds = [
+      ...new Set(
+        entries
+          .map((entry) => entry.note_id)
+          .filter((value): value is string => typeof value === "string" && value.length > 0)
+      ),
+    ];
     const withdrawalOrgIds = [
       ...new Set(
         entries
@@ -3789,7 +3891,7 @@ export class NoteService {
           .map((entry) => entry.investor_organization_id)
       ),
     ];
-    const [investments, withdrawals] = await Promise.all([
+    const [investments, withdrawals, notes] = await Promise.all([
       investmentIds.length
         ? prisma.noteInvestment.findMany({
             where: { id: { in: investmentIds } },
@@ -3812,7 +3914,14 @@ export class NoteService {
             },
           })
         : Promise.resolve([]),
+      noteIds.length
+        ? prisma.note.findMany({
+            where: { id: { in: noteIds } },
+            select: { id: true, note_reference: true },
+          })
+        : Promise.resolve([]),
     ]);
+    const noteReferenceById = new Map(notes.map((note) => [note.id, note.note_reference]));
     const relatedByEntryId = buildActivityRelatedMap({
       entries: entries.map((entry) => ({
         id: entry.id,
@@ -3838,26 +3947,38 @@ export class NoteService {
       })),
     });
 
+    const pendingEntries = filterUncreditedInFlightDeposits(overlayCandidates, [
+      ...creditedKeys,
+      ...overlayCredits.map((row) => row.idempotency_key),
+      ...entries
+        .filter((entry) => entry.source === InvestorBalanceTransactionSource.GATEWAY_DEPOSIT)
+        .map((entry) => entry.idempotency_key),
+    ]).map((payment) =>
+      buildPendingDepositActivityEntry(payment, (amount) => roundNoteMoney(amount, 2))
+    );
+    const ledgerEntries = entries.map((entry) => ({
+      id: entry.id,
+      investorOrganizationId: entry.investor_organization_id,
+      direction: entry.direction,
+      amount: roundNoteMoney(toNumber(entry.amount), 2),
+      source: entry.source,
+      noteId: entry.note_id,
+      noteReference: entry.note_id ? (noteReferenceById.get(entry.note_id) ?? null) : null,
+      noteInvestmentId: entry.note_investment_id,
+      idempotencyKey: entry.idempotency_key,
+      metadata: asRecord(entry.metadata),
+      postedAt: entry.posted_at.toISOString(),
+      createdAt: entry.created_at.toISOString(),
+      related: relatedByEntryId.get(entry.id) ?? null,
+    }));
+
     return {
-      entries: entries.map((entry) => ({
-        id: entry.id,
-        investorOrganizationId: entry.investor_organization_id,
-        direction: entry.direction,
-        amount: roundNoteMoney(toNumber(entry.amount), 2),
-        source: entry.source,
-        noteId: entry.note_id,
-        noteInvestmentId: entry.note_investment_id,
-        idempotencyKey: entry.idempotency_key,
-        metadata: asRecord(entry.metadata),
-        postedAt: entry.posted_at.toISOString(),
-        createdAt: entry.created_at.toISOString(),
-        related: relatedByEntryId.get(entry.id) ?? null,
-      })),
+      entries: [...pendingEntries, ...ledgerEntries],
       pagination: {
         page: query.page,
         pageSize: query.pageSize,
-        totalCount,
-        totalPages: Math.max(1, Math.ceil(totalCount / query.pageSize)),
+        totalCount: pagePlan.totalCount,
+        totalPages: pagePlan.totalPages,
       },
       summary: {
         inTotal: roundNoteMoney(inTotal, 2),

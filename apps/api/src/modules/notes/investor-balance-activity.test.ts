@@ -1,6 +1,10 @@
 import {
   buildActivityRelatedMap,
+  buildPendingDepositActivityEntry,
+  filterUncreditedInFlightDeposits,
+  gatewayDepositBalanceIdempotencyKey,
   matchWithdrawalsToActivityEntries,
+  planActivityPageWithPendingOverlay,
   type ActivityJoinEntry,
 } from "./investor-balance-activity";
 
@@ -122,5 +126,117 @@ describe("buildActivityRelatedMap", () => {
       status: "DRAFT",
       settledAt: null,
     });
+  });
+
+  it("marks posted gateway deposits as completed", () => {
+    const related = buildActivityRelatedMap({
+      entries: [
+        entry({
+          id: "tx_dep",
+          source: "GATEWAY_DEPOSIT",
+          postedAt: "2026-08-19T08:00:00.000Z",
+        }),
+      ],
+      investments: [],
+      withdrawals: [],
+    });
+
+    expect(related.get("tx_dep")).toEqual({
+      kind: "deposit",
+      status: "COMPLETED",
+      settledAt: "2026-08-19T08:00:00.000Z",
+    });
+  });
+});
+
+describe("planActivityPageWithPendingOverlay", () => {
+  it("puts pending deposits on page 1 and shifts later ledger pages", () => {
+    expect(
+      planActivityPageWithPendingOverlay({
+        pendingCount: 3,
+        ledgerTotalCount: 40,
+        page: 1,
+        pageSize: 20,
+      })
+    ).toEqual({
+      pendingStart: 0,
+      pendingTake: 3,
+      ledgerSkip: 0,
+      ledgerTake: 17,
+      totalCount: 43,
+      totalPages: 3,
+    });
+    expect(
+      planActivityPageWithPendingOverlay({
+        pendingCount: 3,
+        ledgerTotalCount: 40,
+        page: 2,
+        pageSize: 20,
+      })
+    ).toEqual({
+      pendingStart: 3,
+      pendingTake: 0,
+      ledgerSkip: 17,
+      ledgerTake: 20,
+      totalCount: 43,
+      totalPages: 3,
+    });
+  });
+});
+
+describe("buildPendingDepositActivityEntry", () => {
+  it("does not affect available cash until the wallet is credited", () => {
+    const entryRow = buildPendingDepositActivityEntry({
+      id: "pay_1",
+      investorOrganizationId: "org_1",
+      amount: 250,
+      status: "NAME_CHECK_PENDING",
+      createdAt: "2026-08-19T09:00:00.000Z",
+      updatedAt: "2026-08-19T09:05:00.000Z",
+      nameCheckAt: "2026-08-19T09:04:00.000Z",
+    });
+
+    expect(entryRow.id).toBe("gateway:pay_1");
+    expect(entryRow.affectsAvailableBalance).toBe(false);
+    expect(entryRow.related).toEqual({
+      kind: "deposit",
+      status: "NAME_CHECK_PENDING",
+      settledAt: null,
+    });
+    expect(
+      filterUncreditedInFlightDeposits(
+        [
+          {
+            id: "pay_1",
+            investorOrganizationId: "org_1",
+            amount: 250,
+            status: "NAME_CHECK_PENDING",
+            createdAt: "2026-08-19T09:00:00.000Z",
+            updatedAt: "2026-08-19T09:05:00.000Z",
+            nameCheckAt: null,
+          },
+        ],
+        [gatewayDepositBalanceIdempotencyKey("pay_1")]
+      )
+    ).toEqual([]);
+  });
+
+  it("drops a pending overlay when a credit lands after the first key lookup", () => {
+    const payment = {
+      id: "pay_race",
+      investorOrganizationId: "org_1",
+      amount: 250,
+      status: "NAME_CHECK_PENDING",
+      createdAt: "2026-08-19T09:00:00.000Z",
+      updatedAt: "2026-08-19T09:05:00.000Z",
+      nameCheckAt: null,
+    };
+    const stillPending = filterUncreditedInFlightDeposits([payment], []);
+    expect(stillPending).toEqual([payment]);
+    expect(
+      filterUncreditedInFlightDeposits(stillPending, [
+        gatewayDepositBalanceIdempotencyKey("pay_race"),
+      ])
+    ).toEqual([]);
   });
 });

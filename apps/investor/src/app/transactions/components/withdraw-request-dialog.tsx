@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { getBankAccountField, useOrganization } from "@cashsouk/config";
 import { Label, MoneyInput } from "@cashsouk/ui";
 import { MinusIcon } from "@heroicons/react/24/outline";
@@ -8,8 +9,14 @@ import {
   InvestorActionDialog,
   InvestorActionDialogIcon,
 } from "@/components/investor-action-dialog";
-import { formatBankAccountHint, withdrawMinimumHint } from "@/components/investor-money-copy";
+import { PROFILE_BANKING_HREF } from "@/app/profile/profile-tabs";
+import {
+  formatBankAccountHint,
+  withdrawLimitsHint,
+  withdrawTypedAmountError,
+} from "@/components/investor-money-copy";
 import { useOrganizationDetail } from "@/hooks/use-organization-detail";
+import { parseMoneyAmount } from "./transaction-utils";
 import { MIN_WITHDRAWAL_AMOUNT } from "./transactions.types";
 
 interface WithdrawRequestDialogProps {
@@ -17,6 +24,7 @@ interface WithdrawRequestDialogProps {
   onOpenChange: (open: boolean) => void;
   amount: string;
   onAmountChange: (value: string) => void;
+  availableBalance: number;
   validationError: string | null;
   onSubmit: () => void;
   onSeeWithdrawalHistory: () => void;
@@ -27,6 +35,7 @@ export function WithdrawRequestDialog({
   onOpenChange,
   amount,
   onAmountChange,
+  availableBalance,
   validationError,
   onSubmit,
   onSeeWithdrawalHistory,
@@ -45,6 +54,16 @@ export function WithdrawRequestDialog({
     : getBankAccountField(bankDetails, "Bank account number") || "Not set";
   const accountHint = formatBankAccountHint(accountNumber);
   const bankReady = !isBankDetailsLoading && bankName !== "Not set" && accountNumber !== "Not set";
+  const maxAmount = Math.max(0, availableBalance);
+  const parsedAmount = parseMoneyAmount(amount);
+  const liveError = withdrawTypedAmountError(
+    parsedAmount,
+    MIN_WITHDRAWAL_AMOUNT,
+    maxAmount
+  );
+  const fieldError = liveError ?? validationError;
+  const amountHintId = fieldError ? "withdraw-amount-error" : "withdraw-amount-hint";
+  const amountInRange = parsedAmount > 0 && !liveError;
 
   return (
     <InvestorActionDialog
@@ -67,7 +86,13 @@ export function WithdrawRequestDialog({
           >
             Cancel
           </Button>
-          <Button type="button" variant="action" className="h-11 flex-1 rounded-xl" onClick={onSubmit}>
+          <Button
+            type="button"
+            variant="action"
+            className="h-11 flex-1 rounded-xl"
+            disabled={!amountInRange || !bankReady}
+            onClick={onSubmit}
+          >
             Review withdrawal
           </Button>
         </>
@@ -89,17 +114,34 @@ export function WithdrawRequestDialog({
           onValueChange={onAmountChange}
           prefix="RM"
           placeholder="0.00"
+          invalid={Boolean(fieldError)}
+          describedBy={amountHintId}
           inputClassName="h-11 rounded-xl"
         />
-        {validationError ? (
-          <p className="text-ui text-destructive">{validationError}</p>
+        {fieldError ? (
+          <p id="withdraw-amount-error" className="text-ui text-destructive">
+            {fieldError}
+          </p>
         ) : (
-          <p className="text-meta text-muted-foreground">{withdrawMinimumHint(MIN_WITHDRAWAL_AMOUNT)}</p>
+          <p id="withdraw-amount-hint" className="text-meta text-muted-foreground">
+            {withdrawLimitsHint(MIN_WITHDRAWAL_AMOUNT, maxAmount)}
+          </p>
         )}
       </div>
 
       <div className="rounded-2xl border border-border bg-muted/40 px-4 py-3">
-        <p className="text-meta text-muted-foreground">Pays to</p>
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-meta text-muted-foreground">Pays to</p>
+          {!isBankDetailsLoading ? (
+            <Link
+              href={PROFILE_BANKING_HREF}
+              className="shrink-0 text-meta text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              onClick={() => onOpenChange(false)}
+            >
+              {bankReady ? "Change bank account" : "Add bank account"}
+            </Link>
+          ) : null}
+        </div>
         {bankReady ? (
           <>
             <p className="mt-1 text-ui font-medium text-foreground">{bankName}</p>
@@ -109,7 +151,7 @@ export function WithdrawRequestDialog({
           <p className="mt-1 text-ui text-muted-foreground">Loading your bank details…</p>
         ) : (
           <p className="mt-1 text-ui text-muted-foreground">
-            Add your bank details in Profile before withdrawing.
+            Add your bank details before withdrawing.
           </p>
         )}
       </div>

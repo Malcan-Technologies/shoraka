@@ -56,6 +56,8 @@ import {
 } from "./schemas";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
+import { noteService } from "../notes/service";
+import { investorBalanceActivityQuerySchema } from "../notes/schemas";
 import {
   listCtosReportsForIssuerOrg,
   listCtosReportsForAdminOrg,
@@ -688,6 +690,38 @@ router.get(
       if (!result) {
         throw new AppError(404, "NOT_FOUND", "Organization not found");
       }
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(
+        error instanceof AppError
+          ? error
+          : error instanceof Error
+            ? new AppError(400, "VALIDATION_ERROR", error.message)
+            : error
+      );
+    }
+  }
+);
+
+router.get(
+  "/organizations/investor/:id/balance-activity",
+  requirePermission("organizations.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const query = investorBalanceActivityQuerySchema.parse(req.query);
+      const org = await prisma.investorOrganization.findUnique({
+        where: { id },
+        select: { id: true },
+      });
+      if (!org) {
+        throw new AppError(404, "NOT_FOUND", "Organization not found");
+      }
+      const result = await noteService.listInvestorBalanceActivityForOrganizations([id], query);
       res.json({
         success: true,
         data: result,

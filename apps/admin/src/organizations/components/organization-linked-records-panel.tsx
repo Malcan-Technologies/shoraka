@@ -107,7 +107,7 @@ export function OrganizationLinkedRecordsPanel({
         title="Linked records"
         description={
           isInvestor
-            ? "Investments connected to this organization."
+            ? "Investments this investor has committed to. Wallet deposits and withdrawals are under Activity."
             : "Applications, facilities, and notes connected to this organization."
         }
       />

@@ -48,6 +48,7 @@ import { OrganizationKycResponseCard } from "./organization-kyc-response-card";
 import { OrganizationLegalAcceptancesPanel } from "./organization-legal-acceptances-panel";
 import { OrganizationLinkedRecordsPanel } from "./organization-linked-records-panel";
 import { OrganizationPeoplePanel } from "./organization-people-panel";
+import { OrganizationWalletActivityPanel } from "./organization-wallet-activity-panel";
 import { CopyableText } from "./organization-profile-helpers";
 import { OrganizationProfilePanel } from "./organization-profile-panel";
 import { OrganizationQuickLinksCard } from "./organization-quick-links-card";
@@ -431,11 +432,26 @@ export function OrganizationDetailPage({ portal }: { portal: PortalType }) {
                         </AdminDetailTabPanel>
                       ) : null}
                       <AdminDetailTabPanel value="activity" preserveMount>
-                        <OrganizationActivityTimeline
-                          key={organizationId}
-                          organizationId={organizationId}
-                          variant="panel"
-                        />
+                        {portal === "investor" ? (
+                          <div className="space-y-6">
+                            <OrganizationWalletActivityPanel
+                              key={`${organizationId}-wallet`}
+                              organizationId={organizationId}
+                            />
+                            <OrganizationActivityTimeline
+                              key={`${organizationId}-onboarding`}
+                              organizationId={organizationId}
+                              variant="panel"
+                              title="Onboarding activity"
+                            />
+                          </div>
+                        ) : (
+                          <OrganizationActivityTimeline
+                            key={organizationId}
+                            organizationId={organizationId}
+                            variant="panel"
+                          />
+                        )}
                       </AdminDetailTabPanel>
                     </AdminDetailTabs>
                   }

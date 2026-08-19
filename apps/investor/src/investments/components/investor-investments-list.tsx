@@ -13,6 +13,7 @@ import {
 } from "@cashsouk/ui";
 import { resolveNetExpectedReturnRatePercent, type NoteListItem } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
+import { InvestNowButton } from "@/components/invest-now-button";
 import { useInvestorInvestments } from "../hooks/use-marketplace-notes";
 import { sortInvestorInvestments } from "../sort-investments";
 import { calendarDaysFromToday, partitionInvestorInvestments } from "../investment-position-model";
@@ -92,6 +93,20 @@ function noteMatchesFilters(
 function paginate<T>(items: T[], page: number, pageSize: number): T[] {
   const start = (page - 1) * pageSize;
   return items.slice(start, start + pageSize);
+}
+
+function InvestmentsEmptyState({ withAction = false }: { withAction?: boolean }) {
+  return (
+    <EmptyState
+      title="No investments yet"
+      message="You have not invested in any notes yet. Browse the marketplace to start building your portfolio."
+      action={
+        withAction ? (
+          <InvestNowButton className="h-11 rounded-xl" />
+        ) : undefined
+      }
+    />
+  );
 }
 
 export function InvestorInvestmentsList({
@@ -231,12 +246,7 @@ export function InvestorInvestmentsList({
             {error instanceof Error ? error.message : "Failed to load investments."}
           </div>
         ) : null}
-        {!isLoading && !error && notes.length === 0 ? (
-          <EmptyState
-            title="No investments yet"
-            message="Explore marketplace notes to start building your portfolio."
-          />
-        ) : null}
+        {!isLoading && !error && notes.length === 0 ? <InvestmentsEmptyState /> : null}
         {!isLoading && !error && previewNotes.length > 0 ? (
           <div className="space-y-3">
             {previewNotes.map((item) => (
@@ -246,10 +256,6 @@ export function InvestorInvestmentsList({
         ) : null}
       </section>
     );
-  }
-
-  if (!showStatusFilter) {
-    return null;
   }
 
   const filteredCount = filteredNotes.length;
@@ -266,17 +272,7 @@ export function InvestorInvestmentsList({
         </div>
       ) : null}
 
-      {!isLoading && !error && notes.length === 0 ? (
-        <EmptyState
-          title="No investments yet"
-          message="You have not invested in any notes yet. Browse the marketplace to start building your portfolio."
-          action={
-            <Button asChild className="rounded-xl">
-              <Link href="/marketplace">Browse marketplace</Link>
-            </Button>
-          }
-        />
-      ) : null}
+      {!isLoading && !error && notes.length === 0 ? <InvestmentsEmptyState withAction /> : null}
 
       {!isLoading && !error && notes.length > 0 ? (
         <>
@@ -295,14 +291,16 @@ export function InvestorInvestmentsList({
             isLoading={isLoading}
             countLabel={countLabel}
             filterGroups={
-              <InvestmentFilterToolbar
-                filters={effectiveFilters}
-                statusLabels={availableStatusLabels}
-                onChange={(next) => {
-                  setFilters(next);
-                  setPage(1);
-                }}
-              />
+              showStatusFilter ? (
+                <InvestmentFilterToolbar
+                  filters={effectiveFilters}
+                  statusLabels={availableStatusLabels}
+                  onChange={(next) => {
+                    setFilters(next);
+                    setPage(1);
+                  }}
+                />
+              ) : undefined
             }
           />
 
