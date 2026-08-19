@@ -2,11 +2,11 @@
 
 Append-only admin audit for bulk notification broadcasts. This is the live writer and reader for admin send history.
 
-Reader: `GET /v1/notifications/admin/logs` (table: `notification_broadcast_audit_logs`). No export in this phase.
+Reader: `GET /v1/notifications/admin/logs` (table: `notification_broadcast_audit_logs`). No export in this phase. Admin UI: `/audit?tab=notifications`, permission `notifications.view`.
 
 The legacy `NotificationLog` model and `notification_logs` table have been **removed**. There is no backfill. `NotificationBroadcastAuditLog` is the sole admin broadcast history.
 
-Per-user inbox/delivery stays in `Notification`. Type/group/preference configuration is not audited here (future SecurityAuditLog).
+Per-user inbox/delivery stays in `Notification`. Type/group/preference configuration is audited on `SecurityAuditLog` (`NOTIFICATION_TYPE_UPDATED`, `NOTIFICATION_GROUP_*`, `USER_NOTIFICATION_PREFERENCE_UPDATED`), not on this table.
 
 ## Event
 

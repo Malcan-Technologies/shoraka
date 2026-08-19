@@ -203,7 +203,7 @@ Function: `holdGatewayPaymentCaptureMismatch` (private in `webhook-service.ts`)
 
 Accepted starting states only: `CREATED` | `EXPIRED` | `PAID`. Claims CREATED/EXPIRED → `PAID`, then `PAID` → `HELD`.
 
-Writes metadata `captureMismatch` (`mismatchType`, `reason`, amounts/currencies, ids, `detectedAt`) and `GatewayPaymentEvent` type `CAPTURE_MISMATCH`.
+Writes metadata `captureMismatch` (`mismatchType`, `reason`, amounts/currencies, ids, `detectedAt`) and `PaymentAuditLog` event `PAYMENT_CAPTURE_MISMATCH_DETECTED`. Legacy/display name `CAPTURE_MISMATCH` / `GatewayPaymentEvent` is not a live writer.
 
 **No** automatic Curlec refund from this hold helper. **No** wallet credit / fee completion / receipt schedule.
 
@@ -420,7 +420,7 @@ Pipeline per request:
 
 | Purpose | Starting (processable) | Condition | Status result | Side effects |
 |---------|------------------------|-----------|---------------|--------------|
-| Any | CREATED/EXPIRED → claim | Currency / (fees: order/id conflict) | → `HELD` | `captureMismatch` + `CAPTURE_MISMATCH` event; no refund; no receipt |
+| Any | CREATED/EXPIRED → claim | Currency / (fees: order/id conflict) | → `HELD` | `captureMismatch` + `PAYMENT_CAPTURE_MISMATCH_DETECTED`; no refund; no receipt |
 | Deposit | processable | Order / payment-id conflict | unchanged (skip) | Webhook marked with error string; **no HELD** |
 | Any | processable | Amount mismatch | via amount-mismatch service (typically `REFUND_INITIATED` or `HELD` if refund create fails) | Auto full refund of **actual** amount; metadata `amountMismatch` + `captureMismatch`; **no** benefit; no success receipt |
 | Deposit | → PAID | Name PASS | → `COMPLETED` | Wallet `GATEWAY_DEPOSIT`; ledger; schedule receipt |
@@ -540,7 +540,7 @@ Helpers:
 | View / Download receipt | GET receipt PDF URL | Opens or downloads PDF |
 | Retry receipt | POST `/receipts/:id/retry` | Retries PDF generation |
 
-Activity timeline: `GatewayPaymentEvent` rows mapped through event copy helpers.
+Activity timeline: `PaymentAuditLog` rows mapped through `gatewayAuditTimelineFields` into `AdminVerticalTimeline`. Provider `GatewayWebhookEvent` rows are not this timeline.
 
 ---
 
@@ -665,7 +665,7 @@ Investor/issuer create-order routes live under their portal payment modules (dep
 Primary models (Prisma):
 
 - `GatewayPayment` — purpose, org FKs, amount, status, Curlec ids, refund fields, settlement, metadata Json, `gatewayAccount`
-- `GatewayPaymentEvent` — audit timeline
+- `PaymentAuditLog` — payment business-audit timeline (not `GatewayPaymentEvent`)
 - `GatewayPaymentReceipt` — official PDF receipt
 - `GatewayOrderAttempt` — durable order-create checkpoint
 - `GatewayWebhookEvent` — raw webhook dedup

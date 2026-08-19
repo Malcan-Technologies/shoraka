@@ -8,6 +8,24 @@
 
 **Authoritative sources.** Prisma models in `apps/api/prisma/schema.prisma`; event catalogues and Zod maps under `apps/api/src/modules/*/audit/`; writers under `apps/api/src/modules/**`; presentation/visibility in `packages/types/src/activity-presentation.ts` and `activity-visibility.ts`; admin raw tabs in `apps/admin/src/lib/audit-tabs.ts`.
 
+## Presentation architecture
+
+`AdminVerticalTimeline`, `ActivityFeed`, `ListToolbar`, and status-token helpers are presentation. They do not own audit data.
+
+```
+Business action → SOT mutation → Audit writer → AuditLog → raw Audit History
+AuditLog → visibility / adapter → presentation helper → Activity timeline / ActivityFeed
+```
+
+Global `/audit` tabs use `ListToolbar` and current catalogue event options. Access is success-only (`USER_SIGNED_UP`, `USER_LOGGED_IN`, `USER_LOGGED_OUT`) with no status filter (`showStatusFilter={false}`). Access denials live on Security.
+
+Admin application detail: curated Activity (`RecentActivityCard`) plus raw Audit History (`ApplicationAuditHistoryCard`). Signing stays `SigningAuditLog`. Live acceptance names are `CONTRACT_ACCEPTANCE_*` / `INVOICE_ACCEPTANCE_*`.
+
+CSV/display aliases such as `LOGIN`, `FAIL_FUNDING`, `SECTION_REVIEWED_*`, `CONTRACT_OFFER_ACCEPTANCE_*`, `NOTE_DEFAULT_MARKED`, and `SHORAKA_CERTIFICATE_FETCHED` are not live writers. See `docs/audit/current-audit-logging-inventory.md` (legacy alias table).
+
+If a card’s “UI location” names a component, verify the current file; do not treat the UI component as the audit store.
+
+
 ## Audit table summary
 
 | Module | A-range | Count | Model | DB table | Admin raw location | Permission |

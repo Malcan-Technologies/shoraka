@@ -2,7 +2,7 @@
 
 **READ-ONLY comparison.** Product code was not modified.
 
-> **Historical snapshot.** This comparison is `origin/main` (`cc58bb43…`) versus `no_fix_55` (`679a1c4c…` plus that working tree). Later living-source changes include: A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, and A053 `CORPORATE_ENTITIES_UPDATED` retired; A055 outcome-only (`APPROVED`/`REJECTED`); A044 amendment/resubmission support; and `AML_APPROVED` `onboarding_id` threading to `reg_tank_onboarding.id` when the session is already known. The tables below are left as written for that git comparison. Living behaviour is in `docs/audit/audit-manual-verification-catalogue.md`.
+> **Historical snapshot.** This comparison is an earlier `origin/main` (`cc58bb43…`) versus `no_fix_55` (`679a1c4c…` plus that working tree). It is **not** the current product architecture and it is **not** the later UI integration on HEAD `e4e5245f`. Later living-source changes include: A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, and A053 `CORPORATE_ENTITIES_UPDATED` retired; A055 outcome-only (`APPROVED`/`REJECTED`); A044 amendment/resubmission support; and `AML_APPROVED` `onboarding_id` threading to `reg_tank_onboarding.id` when the session is already known. The tables below are left as written for that git comparison. Living behaviour is in `docs/audit/current-audit-logging-inventory.md` and `docs/audit/audit-manual-verification-catalogue.md`.
 
 | Side | Git ref | Branch / tree |
 |---|---|---|

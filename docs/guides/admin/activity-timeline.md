@@ -1,47 +1,109 @@
 # Activity Timeline Guide
 
-How admin Activity timelines are stored, fetched, and displayed after the AuditLog cutover.
+How Activity timelines and raw Audit History are stored, fetched, and displayed.
 
-Related: `docs/guides/application/logging-guide.md` (application scenarios), `docs/audit/current-audit-logging-inventory.md` (catalogue and writers).
+Related:
 
----
-
-## Activity vs raw Audit History
-
-**Activity** is a curated, audience-scoped feed. It uses visibility rules and presentation copy. It is not a dump of every audit row.
-
-**Audit History** is the raw append-only evidence for a specific entity (application, note, legal document, product, access, payment). Raw panels keep current AuditLog DTOs; they do not restore legacy `ApplicationLog` / `NoteEvent` / `ProductLog` / success-failure Access semantics.
-
-Do not expose internal metadata, provider webhook payloads, or other organizations’ events in user-facing Activity.
+- `docs/audit/current-audit-logging-inventory.md` — architecture, tables, writers, RBAC
+- `docs/audit/audit-manual-verification-catalogue.md` — per-event catalogue
+- `docs/guides/activity-log-inventory.md` — issuer/investor `/activity` feed
+- `docs/guides/application/logging-guide.md` — application button-to-event scenarios
 
 ---
 
-## Application Activity (admin application detail)
+## Audit is history, not source of truth
 
-The application timeline on the admin application page is a curated view of merged application + signing history.
+Audit rows are append-only evidence that something happened. They are not workflow state, money state, or review state.
 
-**Storage**
+Sources of truth stay on their business tables (`Application` / review / remarks / revisions, `Note` / ledger / investments, `GatewayPayment` / wallet / withdrawals, organization `onboarding_status`, signing envelope graph, and so on). Reconstruct current state from those tables, then use AuditLog for who/when/what metadata.
 
-- `application_audit_logs` (`ApplicationAuditLog`) — application, review, contract, and invoice history
-- `signing_audit_logs` (`SigningAuditLog`) — signing-package history
+## Raw Audit History vs curated Activity
 
-Legacy `application_logs` / `ApplicationLog` has been dropped. Writers are `writeApplicationAuditLog` and `writeSigningAuditLog`. There is no `logApplicationActivity` helper.
+**Raw Audit History** is every matching `*AuditLog` row for an entity or global tab. Admins with the matching permission can open typed metadata, actor snapshots, IP/UA, and CSV export where the page exposes it.
 
-**API**
+**Activity** is a curated, audience-scoped feed. Visibility lives in `packages/types/src/activity-visibility.ts`. Titles and descriptions live in `packages/types/src/activity-presentation.ts`. Status chips use `getActivityStatusToken` (viewer-centric tokens: yellow = you must act, blue = waiting, violet = live, green = complete, grey = closed, red = failed).
 
-`GET /v1/applications/:id/logs` (`getApplicationLogs`) merges both readers newest-first. Actor display names come from the DTO `actor` snapshot (`actor.displayName`), also stored as `metadata.actorName`. This route is a reader projection, not workflow state.
+Do not treat an Activity title as workflow state. Do not dump raw metadata, provider webhook payloads, or other organizations’ events into user-facing Activity.
 
-Admin raw paging uses `getAdminApplicationAuditHistory`.
+## Presentation vs data
 
-**Frontend**
+`AdminVerticalTimeline`, `ActivityFeed`, `ListToolbar`, and status-token helpers are presentation. They do not own audit data.
 
-- Hook: `apps/admin/src/hooks/use-application-logs.ts` (normalizes DTO `eventType` / `occurredAt` / `actor`)
-- Timeline: `apps/admin/src/components/admin-activity-timeline.tsx`
-- Shared chrome: `apps/admin/src/components/admin-vertical-timeline.tsx`
+Approximate data flow:
 
-Titles use `formatApplicationActivity` / `formatSigningActivity` from `@cashsouk/types`. Invoice events include the invoice number in the title when `metadata.invoice_number` is present.
+```
+Business action
+  → SOT mutation
+  → Audit writer
+  → AuditLog row
+  → raw Audit History
+```
 
-`SIGNING_PACKAGE_COMPLETED` is stored for audit but hidden from the curated timeline (`TIMELINE_HIDDEN_EVENT_TYPES`). The terminal signing milestone shown is `CONTRACT_OFFER_ACCEPTED` / `INVOICE_OFFER_ACCEPTED`.
+Where a curated feed exists:
+
+```
+AuditLog
+  → visibility / adapter
+  → presentation helper
+  → Activity timeline or ActivityFeed
+```
+
+Adapter class names such as `ApplicationLogAdapter` and `NoteLogAdapter` are preserved public names. They read current AuditLog tables, not deleted `ApplicationLog` / `NoteEvent` models.
+
+---
+
+## Admin application detail
+
+The application page shows two separate surfaces:
+
+1. **Activity** (`RecentActivityCard` → `admin-activity-timeline.tsx` → `AdminVerticalTimeline`) — curated merged application + signing history.
+2. **Audit History** (`ApplicationAuditHistoryCard` → `ContextualAuditHistoryPanel`) — raw `ApplicationAuditLog` paging via `GET` application audit history (`useApplicationAuditHistory`).
+
+Signing remains a separate store (`SigningAuditLog`). The curated timeline reader `GET /v1/applications/:id/logs` (`getApplicationLogs`) merges Application + Signing newest-first. That route is a reader projection, not a store.
+
+Admin curated timeline additionally hides `SIGNING_PACKAGE_COMPLETED` (`TIMELINE_HIDDEN_EVENT_TYPES`). Terminal offer success on that timeline is `CONTRACT_OFFER_ACCEPTED` / `INVOICE_OFFER_ACCEPTED`. Issuer `/activity` still shows `SIGNING_PACKAGE_COMPLETED` when visibility allows it.
+
+Live application event names include `CONTRACT_ACCEPTANCE_*`, `APPLICATION_AMENDMENTS_REQUESTED`, `APPLICATION_SECTION_REVIEW_UPDATED`, `APPLICATION_ITEM_REVIEW_UPDATED`, and `APPLICATION_REOPENED_FOR_REVIEW`. There is no live `APPLICATION_APPROVED` application audit event. CSV/display maps may still label historical aliases; those aliases are not emitted by current writers.
+
+Titles use `formatApplicationActivity` / `formatSigningActivity`. Invoice numbers appear in copy when metadata includes `invoiceNumber` / `invoice_number`.
+
+---
+
+## Admin organization Activity
+
+Issuer and investor admin detail pages (`apps/admin/src/organizations/components/organization-detail-page.tsx`) render `OrganizationActivityTimeline` from `OnboardingAuditLog` via `GET /v1/admin/onboarding-logs`.
+
+Labels come from `formatOnboardingActivity`. Step-aware issuer/investor onboarding tooltips are product UI; onboarding unlock gates and organization `onboarding_status` remain SOT. CTOS / director-shareholder organization detail work is unchanged by the audit store.
+
+Admin organization Activity hides `USER_ONBOARDING_STATUS_UPDATED`. Retired onboarding IDs (`ONBOARDING_RESUMED`, `CTOS_REPORT_RECEIVED`, `CORPORATE_ENTITIES_UPDATED`) have no current writer; historical rows remain readable on raw Onboarding audit.
+
+---
+
+## Admin note timeline
+
+Note Activity on note detail is a curated `NoteAuditLog` list (`NoteDetail.events`), sorted newest-first with lifecycle tie-breakers in `apps/api/src/modules/notes/admin-note-events-sorting.ts`.
+
+Raw **Audit History** on the same page is `ContextualAuditHistoryPanel` + `useNoteAuditHistory`.
+
+CSV export maps `NoteAuditLogDto` through `noteAuditLogToActivityCsvRow`. Some CSV labels still include legacy aliases (`FAIL_FUNDING`, `CLOSE_FUNDING`, `NOTE_DEFAULT_MARKED`, `SHORAKA_CERTIFICATE_FETCHED`, `UNPUBLISH`). Those strings are display fallbacks, not live `event_type` values.
+
+Live writers emit names such as `NOTE_CREATED`, `NOTE_PUBLISHED`, `NOTE_FUNDING_CLOSED`, `NOTE_FUNDING_FAILED`, `NOTE_ACTIVATED`, `NOTE_MARKED_DEFAULT`, `SHORAKA_CERTIFICATE_RECEIVED`, `DISBURSEMENT_INITIATED`.
+
+`UNPUBLISH` is a prospectus invalidation **reason** (`NOTE_PROSPECTUS_INVALIDATION_REASON.UNPUBLISH`), not an event type. Live unpublish is `NOTE_UNPUBLISHED`.
+
+`CLOSE_FUNDING` appears as withdrawal-instruction **metadata.source** when close-funding auto-creates an issuer disbursement. The matching audit event is `DISBURSEMENT_INITIATED` (and `NOTE_FUNDING_CLOSED` for the funding close itself).
+
+Marketplace product behavior (not audit): authenticated investor marketplace can request `includeClosed: true`; the public marketplace list API forces `includeClosed: false`. Listings expose `investorCount`.
+
+---
+
+## Admin gateway payment timeline
+
+Gateway payment detail (`/finance/gateway-payments/:id`, permission `gateway_payments.view`) renders `AdminVerticalTimeline` from `PaymentAuditLogDto` via `gatewayAuditTimelineFields` (`eventType`, `occurredAt`, `actor.displayName`, status/reason from metadata).
+
+`GatewayPayment` remains payment-state SOT. `GatewayWebhookEvent` remains provider transport/replay evidence and is **not** business audit history.
+
+Investor wallet withdrawals use `PaymentAuditLog`. Investor portal withdraw sends `withdrawalIntentId`, stored on `WithdrawalInstruction.idempotency_key`. Issuer disbursement / residual stay on `NoteAuditLog`.
 
 ---
 
@@ -55,31 +117,52 @@ Titles use `formatApplicationActivity` / `formatSigningActivity` from `@cashsouk
 - Opaque actor ids are never shown
 - Typography: `text-ui` for titles; `text-meta` for names and timestamps
 
-Every timeline header includes **Export CSV** via `apps/admin/src/components/admin-activity-csv.ts` (`createdAt, event, eventType, actor, actorUserId, portal, remark, metadata`). CSV rows are mapped from current Activity/Audit DTOs, not from deleted `NoteEvent` / `GatewayPaymentEvent` fields.
+Timeline headers include **Export CSV** via `apps/admin/src/components/admin-activity-csv.ts`. CSV rows are mapped from current Activity/Audit DTOs.
+
+Global `/audit` tabs use `ListToolbar` chrome and current AuditLog event filters. Access is success-only (`USER_SIGNED_UP`, `USER_LOGGED_IN`, `USER_LOGGED_OUT`) with no status filter. Access denials and security failures live on Security.
 
 ---
 
-## Other admin timelines
+## Issuer / investor ActivityFeed
 
-| Surface | Source | Notes |
-|---------|--------|--------|
-| Organisation Activity | `OnboardingAuditLog` via `GET /v1/admin/onboarding-logs` | Labels from `formatOnboardingActivity`. Hook filters current `ONBOARDING_AUDIT_EVENTS`. |
-| Note Activity | `NoteAuditLog` on `NoteDetail.events` | Visibility-curated note events. CSV from `noteAuditLogToActivityCsvRow`. |
-| Gateway payment Audit History | `PaymentAuditLog` | Display Ivan’s payment detail UI; timeline fields come from PaymentAuditLog (`eventType`, `occurredAt`, `actor.displayName`). Provider webhooks remain SOT, not extra business events. |
-| Legal Documents | `LegalAdminAuditLog` | Raw audit; `document_management.view` |
-| Product | `ProductAuditLog` | Raw audit; `audit.product.view` |
-| Access | `AccessAuditLog` | Success-only Access events. Denied/failures live on Security. |
+Portal pages (`/activity`) use `ActivityFeed` (`packages/ui`). Data comes from `GET /v1/activities` and the adapters in `apps/api/src/modules/activity/adapters/`.
+
+Filterable domains (`packages/types/src/activity-config.ts`):
+
+| Portal | Filterable domains |
+|--------|--------------------|
+| Issuer | onboarding, application, note, signing |
+| Investor | onboarding, note, payment |
+
+Default domain filters (`getDefaultActivityDomains`):
+
+- Onboarding **not** complete: empty default (`[]`) means the API is unfiltered, so all filterable domains including onboarding are shown.
+- Onboarding complete: issuer defaults to `application`, `note`, `signing`; investor defaults to `note`, `payment`. Onboarding remains available via the Area filter.
+
+Investor Activity never includes the application domain. Issuer Activity never includes the payment domain.
+
+Deep links (`getActivityHref`):
+
+- Issuer: invoice → `/financing/invoices/:id`; contract → `/financing/contracts/:id`; application → `/applications/:id`; note → `/financing/notes/:id`; onboarding → `/profile`
+- Investor: note → `/investments/:id`; onboarding → `/profile`
+
+Investor money movements that are not curated Activity stay on **Portfolio** (withdraw uses `withdrawalIntentId`). Do not document `/investments?tab=transactions` as the current transactions surface.
+
+Visibility remains the current audit rules (organization scoping, issuer note-terms visibility after publish/unpublish, investor `INVESTMENT_COMMITTED` only for that investor org, committed-note campaign/funding/default events, `SETTLEMENT_POSTED` only when the snapshot allocates to that investor).
 
 ---
 
-## Organization-level Activity adapters
+## Current application event names (not legacy aliases)
 
-Portal Activity pages (`/activity`) query unified adapters. Adapter class names are preserved (`ApplicationLogAdapter`, `NoteLogAdapter`) but they read current AuditLog tables.
+Use these names in writers, adapters, and admin labels:
 
-- Application adapter: `application_audit_logs`, visibility via `isApplicationActivityVisible`, search includes `application_id` plus metadata paths `remark`, `application_reference`, `contract_number`, `contract_reference`, `invoice_number`, `invoice_reference`
-- Note adapter: `note_audit_logs`, `occurred_at` ordering, `references.noteId` / `noteReference` for `getActivityHref`
+- Acceptance: `CONTRACT_ACCEPTANCE_SUBMITTED`, `CONTRACT_ACCEPTANCE_RESUBMITTED` (not `CONTRACT_OFFER_ACCEPTANCE_*`)
+- Amendments: `APPLICATION_AMENDMENTS_REQUESTED` (not `AMENDMENTS_SUBMITTED`)
+- Section/item review: `APPLICATION_SECTION_REVIEW_UPDATED`, `APPLICATION_ITEM_REVIEW_UPDATED` (not `SECTION_REVIEWED_*` / `ITEM_REVIEWED_*`)
+- Reopen: `APPLICATION_REOPENED_FOR_REVIEW` (not `APPLICATION_RESET_TO_UNDER_REVIEW`)
+- There is no live `APPLICATION_APPROVED` application audit event
 
-Investor Activity only returns events allowed for that investor/org. Issuer/investor presentation copy lives in `packages/types/src/activity-presentation.ts`. Deep links use `getActivityHref`.
+Full catalogues: `APPLICATION_AUDIT_EVENTS` and `SIGNING_AUDIT_EVENTS`.
 
 ---
 
@@ -91,22 +174,11 @@ Investor Activity only returns events allowed for that investor/org. Issuer/inve
 | Application / signing catalogues | `apps/api/src/modules/applications/audit/events.ts`, `apps/api/src/modules/signing/audit/events.ts` |
 | Merged logs API | `apps/api/src/modules/applications/service.ts` (`getApplicationLogs`) |
 | Application Activity adapter | `apps/api/src/modules/activity/adapters/application-log.ts` |
+| Signing / payment adapters | `apps/api/src/modules/activity/adapters/signing-log.ts`, `payment-log.ts` |
 | Note Activity adapter | `apps/api/src/modules/activity/adapters/note-log.ts` |
-| Presentation / visibility | `packages/types/src/activity-presentation.ts`, `packages/types/src/activity-visibility.ts` |
+| Presentation / visibility | `packages/types/src/activity-presentation.ts`, `activity-visibility.ts` |
 | Shared timeline chrome | `apps/admin/src/components/admin-vertical-timeline.tsx` |
+| ActivityFeed | `packages/ui/src/components/activity-feed.tsx` |
 | CSV export | `apps/admin/src/components/admin-activity-csv.ts` |
 | Application timeline | `apps/admin/src/components/admin-activity-timeline.tsx` |
-
----
-
-## Current application event names (not the legacy aliases)
-
-Use these names in writers, adapters, and admin labels:
-
-- Acceptance: `CONTRACT_ACCEPTANCE_SUBMITTED`, `CONTRACT_ACCEPTANCE_RESUBMITTED` (not `CONTRACT_OFFER_ACCEPTANCE_SUBMITTED`)
-- Amendments: `APPLICATION_AMENDMENTS_REQUESTED` (not `AMENDMENTS_SUBMITTED`)
-- Section/item review: `APPLICATION_SECTION_REVIEW_UPDATED`, `APPLICATION_ITEM_REVIEW_UPDATED` (not `SECTION_REVIEWED_*` / `ITEM_REVIEWED_*`)
-- Reopen: `APPLICATION_REOPENED_FOR_REVIEW` (not `APPLICATION_RESET_TO_UNDER_REVIEW`)
-- There is no live `APPLICATION_APPROVED` application audit event
-
-Full catalogues: `APPLICATION_AUDIT_EVENTS` and `SIGNING_AUDIT_EVENTS`.
+| Global audit tabs | `apps/admin/src/lib/audit-tabs.ts` |

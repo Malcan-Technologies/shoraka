@@ -8,10 +8,11 @@ Plain text. Top to bottom.
 Related: logging-guide.md (full scenarios, DB storage, kid-level). You can read
 that file if you need more detail.
 
-The activity timeline shows logs for a single application. It appears on the
-application detail page in the admin portal. GET /v1/applications/:id/logs
-merges application_audit_logs and signing_audit_logs. Legacy application_logs
-has been dropped.
+The activity timeline shows curated logs for a single application. It appears
+on the application detail page in the admin portal (RecentActivityCard).
+Raw Audit History is a separate panel on the same page.
+GET /v1/applications/:id/logs merges application_audit_logs and
+signing_audit_logs. Legacy application_logs has been dropped.
 
 ================================================================================
 ISSUER PORTAL (User actions)
@@ -41,25 +42,25 @@ ADMIN PORTAL (Admin actions)
 
   Action                            Event Type                          Where
   --------------------------------- ----------------------------------- ------
-  Reset to under review             APPLICATION_RESET_TO_UNDER_REVIEW    Timeline
+  Reopen for review                 APPLICATION_REOPENED_FOR_REVIEW      Timeline
+  Start under-review                APPLICATION_REVIEW_STARTED           Admin timeline
   Reject application               APPLICATION_REJECTED                   Timeline
   Send amendment request to issuer  APPLICATION_AMENDMENTS_REQUESTED       Timeline
-  Approve section                   SECTION_REVIEWED_APPROVED            Timeline
-  Reject section                    SECTION_REVIEWED_REJECTED            Timeline
-  Request amendment (section)       SECTION_REVIEWED_AMENDMENT_REQUESTED    Timeline
-  Reset section                     SECTION_REVIEWED_PENDING             Timeline
-  Approve item                      ITEM_REVIEWED_APPROVED               Timeline
-  Reject item                       ITEM_REVIEWED_REJECTED               Timeline
-  Request amendment (item)          ITEM_REVIEWED_AMENDMENT_REQUESTED     Timeline
-  Reset item                        ITEM_REVIEWED_PENDING                Timeline
+  Approve / reject / amend / reset
+  a section                         APPLICATION_SECTION_REVIEW_UPDATED   Raw history;
+                                    (previousStatus / newStatus)         Activity only
+                                                                         if amendment-
+                                                                         required
+  Approve / reject / amend / reset
+  an item                           APPLICATION_ITEM_REVIEW_UPDATED      Raw history
   Send contract offer               CONTRACT_OFFER_SENT                  Timeline
   Send invoice offer                INVOICE_OFFER_SENT                   Timeline
   Retract contract offer            CONTRACT_OFFER_RETRACTED             Timeline
   Retract invoice offer             INVOICE_OFFER_RETRACTED              Timeline
-  Issuer submits acceptance docs    CONTRACT_OFFER_ACCEPTANCE_SUBMITTED  Timeline
-                                    / INVOICE_OFFER_ACCEPTANCE_SUBMITTED
-  Issuer resubmits after changes    CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED Timeline
-                                    / INVOICE_OFFER_ACCEPTANCE_RESUBMITTED
+  Issuer submits acceptance docs    CONTRACT_ACCEPTANCE_SUBMITTED        Timeline
+                                    / INVOICE_ACCEPTANCE_SUBMITTED
+  Issuer resubmits after changes    CONTRACT_ACCEPTANCE_RESUBMITTED      Timeline
+                                    / INVOICE_ACCEPTANCE_RESUBMITTED
   Admin approves for signing        CONTRACT_ACCEPTANCE_APPROVED_FOR_    Timeline
                                     SIGNING / INVOICE_ACCEPTANCE_
                                     APPROVED_FOR_SIGNING
@@ -70,8 +71,13 @@ ADMIN PORTAL (Admin actions)
                                     / INVOICE_SIGNING_DEADLINE_EXTENDED
 
 Notes:
-  SIGNING_PACKAGE_COMPLETED is stored for audit but hidden from the timeline UI;
-  completion is shown via CONTRACT_OFFER_ACCEPTED / INVOICE_OFFER_ACCEPTED.
+  SIGNING_PACKAGE_COMPLETED is stored for audit. Admin application curated
+  Activity hides it; issuer /activity can show it. Completion of the offer is
+  also shown via CONTRACT_OFFER_ACCEPTED / INVOICE_OFFER_ACCEPTED.
+  CSV/display aliases such as SECTION_REVIEWED_*, ITEM_REVIEWED_*,
+  CONTRACT_OFFER_ACCEPTANCE_*, AMENDMENTS_SUBMITTED, and
+  APPLICATION_RESET_TO_UNDER_REVIEW are not emitted by current writers.
+  There is no live APPLICATION_APPROVED application audit event.
 
 ================================================================================
 SYSTEM (Cron / automatic)

@@ -1,4 +1,169 @@
+# Current audit / activity architecture
+
+Living documentation for HEAD `e4e5245f` (`no_fix_55`). Authority: current Prisma schema, event catalogues, writers, readers, adapters, UI, then tests. If this file’s older cutover notes conflict with source, **source wins**.
+
+Do not treat audit as source of truth. Do not invent metadata or event behavior.
+
+## Stores
+
+Live Prisma audit models (append-only; stored ids are historical scalars, not FKs that cascade-delete history):
+
+| Model | Table |
+|-------|--------|
+| AccessAuditLog | access_audit_logs |
+| SecurityAuditLog | security_audit_logs |
+| OnboardingAuditLog | onboarding_audit_logs |
+| LegalAdminAuditLog | legal_admin_audit_logs |
+| ApplicationAuditLog | application_audit_logs |
+| SigningAuditLog | signing_audit_logs |
+| NoteAuditLog | note_audit_logs |
+| PaymentAuditLog | payment_audit_logs |
+| ProductAuditLog | product_audit_logs |
+| NotificationBroadcastAuditLog | notification_broadcast_audit_logs |
+
+There is no canonical/global `AuditEvent` table.
+
+Removed runtime stores (do not document as active): `ApplicationLog`, `NoteEvent`, `NoteAdminAction`, `OnboardingLog`, `ProductLog`, `SecurityLog`, `AccessLog`, `GatewayPaymentEvent`, `ApplicationReviewEvent`, `NotificationLog`, helpers `logApplicationActivity` / `recordGatewayPaymentEvent`. Adapter class names such as `ApplicationLogAdapter` / `NoteLogAdapter` are preserved but read AuditLog tables.
+
+## Catalogue counts (source)
+
+Reserved IDs **A001–A177** (**177**). Active writers **174**. Retired onboarding IDs (readable historical rows, IDs not reused): A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`.
+
+| Module | Count | File |
+|--------|------:|------|
+| Access | 3 | `apps/api/src/modules/auth/audit/events.ts` |
+| Security | 35 | `apps/api/src/modules/security/audit/events.ts` |
+| Onboarding | 18 reserved / 15 active | `apps/api/src/modules/onboarding/audit/events.ts` |
+| Legal | 7 | `apps/api/src/modules/legal-documents/audit/events.ts` |
+| Application | 40 | `apps/api/src/modules/applications/audit/events.ts` |
+| Signing | 12 | `apps/api/src/modules/signing/audit/events.ts` |
+| Note | 37 | `apps/api/src/modules/notes/audit/events.ts` |
+| Payment | 19 | `apps/api/src/modules/payment/audit/events.ts` |
+| Product | 5 | `apps/api/src/modules/products/audit/events.ts` |
+| Notification | 1 | `apps/api/src/modules/notification/audit/events.ts` |
+
+Per-event cards: `docs/audit/audit-manual-verification-catalogue.md`.
+
+## Audit is history, not source of truth
+
+Typical write path:
+
+```
+Business action → SOT mutation → Audit writer → AuditLog row → raw Audit History
+```
+
+Where a curated feed exists:
+
+```
+AuditLog → visibility (`activity-visibility.ts`) → adapter → presentation (`activity-presentation.ts`) → Activity timeline / ActivityFeed
+```
+
+SOT examples: `UserSession` / Cognito; organization `onboarding_status`; `Application` + review/remark/revision tables; signing envelope graph; `Note` / ledger / investments / withdrawals; `GatewayPayment` / wallet / recon; `LegalDocumentAcceptance`; `GatewayWebhookEvent` (provider transport, updated after processing).
+
+Audit is never payment, balance, listing, or review **state**.
+
+## Presentation architecture
+
+`AdminVerticalTimeline`, `ActivityFeed`, `ListToolbar`, and status-token helpers are UI infrastructure. They do not own audit data.
+
+- Admin curated Activity uses AuditLog DTOs through visibility + `format*Activity`.
+- Admin raw Audit History uses AuditLog DTOs (`ContextualAuditHistoryPanel`, global `/audit` tabs).
+- Issuer/investor `/activity` uses `ActivityFeed` over the same AuditLogs.
+
+## Raw Audit History vs curated Activity
+
+| Surface | What it shows |
+|---------|----------------|
+| Global `/audit` tabs | Raw Access, Security, Onboarding, Product, Legal Documents, Notifications |
+| Application detail | Curated Activity (`RecentActivityCard`) **and** raw Audit History (`ApplicationAuditHistoryCard`) |
+| Note detail | Curated note timeline **and** raw Audit History |
+| Organization detail | Curated onboarding Activity |
+| Gateway payment / withdrawal / recon / platform finance | Contextual raw Payment or Note audit history; gateway detail also renders a `PaymentAuditLog` timeline |
+
+Access is success-only (`USER_SIGNED_UP`, `USER_LOGGED_IN`, `USER_LOGGED_OUT`). Denials and security failures are Security (`ADMIN_ACCESS_DENIED`, password/email failures, and so on).
+
+## Writers, readers, adapters
+
+Writers: `apps/api/src/modules/*/audit/writer.ts` (typed to each module’s event union + Zod metadata).
+
+Readers (names often preserved from older APIs):
+
+- Access / Security / Onboarding / Product / Legal / Notification list+export under `/v1/admin/...`
+- `GET /v1/applications/:id/logs` — merged Application + Signing projection
+- Note events on `NoteDetail.events`; `GET /v1/admin/notes/:id/events` for full history
+- Gateway payment `events[]` from `PaymentAuditLog`
+
+Activity adapters: `organization-log`, `application-log`, `signing-log`, `note-log`, `payment-log`.
+
+## Visibility, RBAC, exports
+
+Issuer/investor visibility is not “everything in the table”. See `activity-visibility.ts` and `docs/guides/activity-log-inventory.md`.
+
+Admin global tabs (`apps/admin/src/lib/audit-tabs.ts`):
+
+| Tab | Route | Permission |
+|-----|-------|------------|
+| Access | `/audit?tab=access` | `audit.access.view` |
+| Security | `/audit?tab=security` | `audit.security.view` |
+| Onboarding | `/audit?tab=onboarding` | `onboarding.view` |
+| Product | `/audit?tab=products` | `audit.product.view` |
+| Legal Documents | `/audit?tab=legal-documents` | `document_management.view` |
+| Notifications | `/audit?tab=notifications` | `notifications.view` |
+
+Contextual:
+
+| Surface | Permission |
+|---------|------------|
+| Application Activity / Audit History | `applications.view` |
+| Note timeline / Audit History | `notes.view` |
+| Gateway payments | `gateway_payments.view` |
+| Investor withdrawals | `investor_withdrawals.view` |
+| Reconciliation | `gateway_reconciliation.view` |
+| Platform finance trustee signature | `platform_settings.view` |
+
+CSV export is available on global tabs and admin timelines that expose it. Notification broadcast has no export in this phase.
+
+## Idempotency and transactions
+
+`PaymentAuditLog.idempotency_key` is the dedicated uniqueness path (`PAYMENT_AUDIT_IDEMPOTENCY` in `payment/audit/events.ts`). Investor withdraw uses client `withdrawalIntentId` stored on `WithdrawalInstruction.idempotency_key`.
+
+Legal document mutations and `LegalAdminAuditLog` inserts share one Prisma transaction (S3 stays outside). Application review-started writes the status change and audit row in one transaction. Payment/onboarding/notification paths vary; see the catalogue card. If an audit insert is best-effort, the card says so.
+
+## Legacy / display aliases (not live writers)
+
+Admin CSV/label maps may still recognize historical strings. Unless a current writer emits the name, treat it as a display fallback:
+
+| String | What it is now |
+|--------|----------------|
+| `LOGIN` / `LOGOUT` / `SIGNUP` | Retired Access names. Live: `USER_LOGGED_IN` / `USER_LOGGED_OUT` / `USER_SIGNED_UP` |
+| `LEGAL_VERSION_*` | Retired. Live: `LEGAL_DOCUMENT_VERSION_*` |
+| `CONTRACT_OFFER_ACCEPTANCE_*` | Display alias. Live: `CONTRACT_ACCEPTANCE_*` |
+| `AMENDMENTS_SUBMITTED` | Display alias. Live: `APPLICATION_AMENDMENTS_REQUESTED` |
+| `SECTION_REVIEWED_*` / `ITEM_REVIEWED_*` | Display aliases. Live: `APPLICATION_SECTION_REVIEW_UPDATED` / `APPLICATION_ITEM_REVIEW_UPDATED` |
+| `APPLICATION_RESET_TO_UNDER_REVIEW` | Display alias. Live: `APPLICATION_REOPENED_FOR_REVIEW` |
+| `APPLICATION_APPROVED` | Not a live application audit event (notification type id still exists separately) |
+| `FAIL_FUNDING` | Display alias. Live: `NOTE_FUNDING_FAILED` |
+| `CLOSE_FUNDING` | Display alias **and** issuer-disbursement `metadata.source`. Live event: `NOTE_FUNDING_CLOSED` / `DISBURSEMENT_INITIATED` |
+| `UNPUBLISH` | Prospectus invalidation **reason**. Live event: `NOTE_UNPUBLISHED` |
+| `NOTE_DEFAULT_MARKED` | Display alias. Live: `NOTE_MARKED_DEFAULT` |
+| `SHORAKA_CERTIFICATE_FETCHED` | Display alias. Live: `SHORAKA_CERTIFICATE_RECEIVED` |
+| `OVERDUE_LATE_CHARGE_CHECKED` / `LATE_CHARGE_APPROVED` | Display aliases; no current note writers |
+| `NOTE_CREATED_FROM_INVOICE` / `PUBLISH` / `ACTIVATE` | Display/historical names. Live: `NOTE_CREATED` / `NOTE_PUBLISHED` / `NOTE_ACTIVATED` |
+
+Do not confuse metadata/reason/source values with `event_type`.
+
+## Issuer / investor Activity defaults
+
+See `docs/guides/activity-log-inventory.md`. After onboarding complete: issuer defaults `application`, `note`, `signing`; investor defaults `note`, `payment`.
+
+---
+
+## Historical cutover notes
+
+Phase banners below still describe the live tables after the AuditLog cutover. They are not merge narration. Use the architecture section above as the current map.
+
 **Phase 9 PaymentAuditLog cutover (current state):**
+
 
 - `PaymentAuditLog` (`payment_audit_logs`) is the sole payment/wallet-withdrawal/recon-exception business-audit history table (append-only, no FKs).
 - `GatewayPayment`, `GatewayOrderAttempt`, `GatewayWebhookEvent`, `InvestorBalance`, `InvestorBalanceTransaction`, `WithdrawalInstruction`, `GatewayPaymentReceipt`, `GatewayReconRun`, and `GatewayReconException` remain SOT. Audit is never payment, balance, or reconciliation state.
@@ -22,7 +187,7 @@
 
 ---
 
-
+**Phase 7 ApplicationAuditLog + SigningAuditLog cutover (current state):**
 
 - Legacy `ApplicationLog` / `application_logs` **removed**. No Prisma model, no writers, no readers, no helper module (`logApplicationActivity` / `createApplicationLog`).
 - `ApplicationAuditLog` (`application_audit_logs`) owns application/review/contract/invoice history (append-only, no Application/User FKs).
@@ -33,8 +198,6 @@
 - Activity feed uses ApplicationAuditLog + SigningAuditLog adapters (`ApplicationLogAdapter` is a preserved adapter name).
 - `ApplicationReviewEvent` / `application_review_events` **removed**.
 - Audit tables are never used as workflow state. There is **no** canonical/global `AuditEvent` table.
-
----
 
 **Phase 4 cutover + legacy cleanup (current state):**
 
@@ -94,20 +257,20 @@ CashSouk does not have a single audit system. It has **many specialized tables**
 
 ### Biggest risks
 
-1. **Cascade delete destroys named logs** when a User, Application, Note, or GatewayPayment is deleted.
+1. **Named `*AuditLog` tables have no User/Application/Note FKs**, so deleting a User/Application/Note does not cascade-delete those audit rows. Related **evidence/SOT** tables (acceptances, envelopes, gateway rows, and so on) may still cascade — that is not the AuditLog store.
 2. **`AuthService.cancelOnboarding` is a no-op workflow action** (reads org `onboarding_status` / `onboarded_at` and `RegTankOnboarding`, not audit). Historical `USER_COMPLETED` reader is gone with `OnboardingLog`.
 3. **Legal acceptance evidence is mutated in place** (OPENED → ACCEPTED on one row).
 4. **Payment capture/complete history is `PaymentAuditLog`**; money SOT remains `GatewayPayment` / balance / recon / receipt.
-5. **High-impact admin/org actions have no audit event** (invite create, org members/ownership, platform finance settings, user_id assign, investor withdrawal request).
+5. **Invite create, org members/ownership, trustee signature, public-id change, and investor withdrawal request are audited** (`SecurityAuditLog` invitation/member events, `NoteAuditLog.TRUSTEE_SIGNATURE_UPDATED`, `USER_PUBLIC_ID_CHANGED`, `PaymentAuditLog` `INVESTOR_WITHDRAWAL_*`). Remaining gaps, if any, are in the historical scan tables below — do not treat the pre-cutover “missing invite” bullet as current.
 6. **Product audit history is retained** (`ProductAuditLog`); failed-create rollback does not delete it. Legacy `product_logs` dropped.
-7. **Duplicate / misleading event names** (`LOGIN` twice, `PASSWORD_CHANGED` for failure, contract reject stored as `CONTRACT_WITHDRAWN`, enum `APPLICATION_APPROVED` with no writer).
+7. **Do not treat CSV/display aliases as live writers** (`LOGIN`/`LOGOUT`/`SIGNUP`, `SECTION_REVIEWED_*`, `FAIL_FUNDING`, `APPLICATION_APPROVED` as an application audit event). Live Access events are `USER_*`. Dual `USER_LOGGED_OUT` writers remain a known limitation (typical UI uses one path).
 8. **`ApplicationReviewEvent` / `application_review_events` removed.** `NoteEvent` / `note_events` and `NoteAdminAction` / `note_admin_actions` have been removed.
 
 ### Counts (this scan)
 
 | Metric | Count |
 |---|---|
-| Named audit/history tables | 12 |
+| Named audit/history tables (this historical scan) | 12 (includes evidence tables inspected at the time; live `*AuditLog` models are **10**) |
 | Additional evidence/history/SOT models inspected | 22 |
 | Mutation/business actions classified | 227 |
 | Fully logged (dedicated audit/history event) | ~95 |
@@ -122,6 +285,9 @@ Exact logged/partial/missing split is in §4 and §14. “Partial” means SOT/p
 ---
 
 ## 2. Repository Coverage Checklist
+
+> The numbered scan below is the original cutover inventory. Live stores, event names, and UI are in the architecture section at the top of this file and in `docs/audit/audit-manual-verification-catalogue.md`. Mentions of `recordGatewayPaymentEvent`, `GatewayPaymentEvent`, `LOGIN` as a live Access event, or “missing invite audit” inside later findings are historical unless restated in the architecture section.
+
 
 Legend: ✅ inspected · N/A none found · ⚠ leftover/unused
 
@@ -840,7 +1006,7 @@ Keep specialized SOT even if audit events are added later.
 | ProductLog | **REMOVED** — replaced by `ProductAuditLog` (`product_audit_logs`) |
 | NotificationBroadcastAuditLog | **KEEP AS SPECIALIZED HISTORY** (admin bulk send; not a canonical AuditEvent) |
 | NotificationLog | **REMOVED** — replaced by `NotificationBroadcastAuditLog` (`notification_broadcast_audit_logs`) |
-| GatewayPaymentEvent | **CANDIDATE TO REPLACE** *or* keep payment-specialized — **UNCLEAR** |
+| GatewayPaymentEvent | **REMOVED** — replaced by `PaymentAuditLog` (`payment_audit_logs`). `GatewayWebhookEvent` remains provider evidence, not business audit. |
 | ApplicationReview current rows | **KEEP AS SOURCE OF TRUTH** (not audit) |
 | PlatformFinanceSetting | **KEEP AS SOURCE OF TRUTH** (needs audit events, not replacement) |
 | Notification / NotificationType | **KEEP AS SOURCE OF TRUTH** delivery/config |

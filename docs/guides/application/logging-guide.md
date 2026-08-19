@@ -19,9 +19,10 @@ Think of it like a diary entry. Each entry says:
   - When they did it
   - Which application it was for
 
-These entries show up on the Activity Timeline. The timeline is on the
-application detail page in the admin portal. You scroll down and see a list
-of events. Each event has an icon, a label, who did it, and when.
+Curated Activity is RecentActivityCard on the admin application detail page.
+Raw Audit History is a separate ApplicationAuditHistoryCard on the same page.
+Issuer /activity uses the same ApplicationAuditLog / SigningAuditLog rows
+through visibility adapters. Audit is history, not workflow state.
 
 ================================================================================
 2. WHERE ARE LOGS STORED?
@@ -88,37 +89,43 @@ Step 2: Issuer fills in the form and clicks "Submit".
 6. FULL SCENARIO — ADMIN REVIEWS
 ================================================================================
 
-Step 1: Admin opens the application and clicks "Reset to under review".
+Step 1: Admin reopens the application for review.
 
-  What happens: Status is set back to under review so admin can work on it.
-  Log created: APPLICATION_RESET_TO_UNDER_REVIEW
+  What happens: Status is set back so admin can work on it.
+  Log created: APPLICATION_REOPENED_FOR_REVIEW
   Who: The admin
   Portal: ADMIN
-  Where it shows: Activity timeline
+  Where it shows: Activity timeline and raw Audit History
+  Legacy/display alias APPLICATION_RESET_TO_UNDER_REVIEW is not emitted.
 
 Step 2: Admin reviews a section (a tab). Clicks "Approve" on that section.
 
   What happens: That section is marked approved.
-  Log created: SECTION_REVIEWED_APPROVED
+  Log created: APPLICATION_SECTION_REVIEW_UPDATED
+  Metadata: section, previousStatus, newStatus, optional remarks
   Who: The admin
   Portal: ADMIN
-  Where it shows: Activity timeline
+  Where it shows: raw Audit History. Curated Activity only when newStatus is
+  an amendment-required status.
+  Legacy/display alias SECTION_REVIEWED_* is not emitted.
 
 Step 3: Admin reviews an item (e.g. an invoice). Clicks "Reject" on that item.
 
   What happens: That item is marked rejected.
-  Log created: ITEM_REVIEWED_REJECTED
+  Log created: APPLICATION_ITEM_REVIEW_UPDATED
+  Metadata: itemId, previousStatus, newStatus, optional section/remarks
   Who: The admin
   Portal: ADMIN
-  Where it shows: Activity timeline
+  Where it shows: raw Audit History (hidden from issuer/investor Activity)
+  Legacy/display alias ITEM_REVIEWED_* is not emitted.
 
 Step 4: Admin wants changes. Clicks "Request amendment" on a section.
 
-  What happens: Amendment request is sent to the issuer.
-  Log created: SECTION_REVIEWED_AMENDMENT_REQUESTED
+  What happens: Section status becomes amendment-required.
+  Log created: APPLICATION_SECTION_REVIEW_UPDATED
   Who: The admin
   Portal: ADMIN
-  Where it shows: Activity timeline
+  Where it shows: Activity timeline when newStatus is amendment-required
 
 Step 5: Admin sends the amendment request to the issuer.
 
@@ -127,14 +134,16 @@ Step 5: Admin sends the amendment request to the issuer.
   Who: The admin
   Portal: ADMIN
   Where it shows: Activity timeline
+  Legacy/display alias AMENDMENTS_SUBMITTED is not emitted.
 
-Step 6: Admin approves the whole application. Clicks "Approve application".
+Step 6: Admin starts under-review (SUBMITTED or RESUBMITTED → UNDER_REVIEW).
+There is no live APPLICATION_APPROVED application audit event.
 
-  What happens: Application status becomes approved.
-  Log created: APPLICATION_APPROVED
+  What happens: Application status becomes UNDER_REVIEW.
+  Log created: APPLICATION_REVIEW_STARTED
   Who: The admin
   Portal: ADMIN
-  Where it shows: Activity timeline
+  Where it shows: admin curated Activity (issuer Activity hides this type)
 
 Step 7: Or admin rejects. Clicks "Reject application".
 
@@ -184,7 +193,7 @@ Step 2c: Admin retracts. Clicks "Retract contract offer".
 Step 2d: Offer expires. A cron job runs and withdraws expired offers.
 
   What happens: Contract is withdrawn automatically.
-  Log created: CONTRACT_WITHDRAWN (or OFFER_EXPIRED)
+  Log created: CONTRACT_OFFER_EXPIRED (durable OFFER_EXPIRED; not terminal WITHDRAWN)
   Who: System (cron)
   Portal: ADMIN
   Where it shows: Activity timeline
@@ -237,7 +246,7 @@ Step 2d: Issuer withdraws the invoice. Clicks "Withdraw invoice".
 Step 2e: Offer expires. Cron withdraws.
 
   What happens: Invoice is withdrawn automatically.
-  Log created: INVOICE_WITHDRAWN or OFFER_EXPIRED
+  Log created: INVOICE_OFFER_EXPIRED
   Who: System (cron)
   Portal: ADMIN
   Where it shows: Activity timeline
@@ -309,6 +318,8 @@ SIGNING_PACKAGE_* belong to SigningAuditLog.
   API route                    apps/api/src/modules/applications/controller.ts
   Frontend hook                apps/admin/src/hooks/use-application-logs.ts
   Timeline component           apps/admin/src/components/admin-activity-timeline.tsx
+  Raw Audit History            apps/admin/src/app/applications/[productKey]/[id]/page.tsx
+                               (ApplicationAuditHistoryCard)
 
 ================================================================================
 END

@@ -96,7 +96,7 @@ The active issuer financing flow uses these Prisma models:
 
 Post-origination note schema:
 
-- The note lifecycle now has first-class tables in `apps/api/prisma/schema.prisma`: `Note`, `NoteListing`, `NoteInvestment`, `NotePaymentSchedule`, `NotePayment`, `NoteSettlement`, `NoteLedgerAccount`, `NoteLedgerEntry`, `NoteEvent`, `NoteAdminAction`, `PlatformFinanceSetting`, and `WithdrawalInstruction`.
+- The note lifecycle now has first-class tables in `apps/api/prisma/schema.prisma`: `Note`, `NoteListing`, `NoteInvestment`, `NotePaymentSchedule`, `NotePayment`, `NoteSettlement`, `NoteLedgerAccount`, `NoteLedgerEntry`, `NoteAuditLog`, `PlatformFinanceSetting`, and `WithdrawalInstruction`. Legacy `NoteEvent` / `NoteAdminAction` are removed.
 - Notes are created one per approved invoice. `Note.source_invoice_id` points to the invoice, while `Note.source_application_id` and `Note.source_contract_id` retain origination and paymaster context.
 - `Note` snapshots the accepted context in `product_snapshot`, `issuer_snapshot`, `paymaster_snapshot`, `contract_snapshot`, and `invoice_snapshot` so servicing does not depend on mutable application JSON.
 - The five platform buckets are represented by `NoteLedgerAccount.code`: `INVESTOR_POOL`, `REPAYMENT_POOL`, `OPERATING_ACCOUNT`, `TAWIDH_ACCOUNT`, and `GHARAMAH_ACCOUNT`.

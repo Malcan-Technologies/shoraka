@@ -39,7 +39,7 @@ Evaluation order (first match wins):
 
 **Empty list:** If there are **no** document keys parsed from `supporting_documents`, the derived section status is **PENDING** and sync may no-op.
 
-When the derived status **changes**, the API updates `application_reviews` for `supporting_documents` and writes an **activity** event `SECTION_REVIEWED_<STATUS>` (e.g. `SECTION_REVIEWED_APPROVED`), with metadata `old_status` / `new_status`.
+When the derived status **changes**, the API updates `application_reviews` for `supporting_documents` and writes `APPLICATION_SECTION_REVIEW_UPDATED` with metadata `section`, `previousStatus`, `newStatus` (optional `remarks`). Legacy/display alias `SECTION_REVIEWED_<STATUS>` is not emitted.
 
 ---
 
@@ -81,7 +81,7 @@ The section is recomputed after **document** item actions that change item state
 When **any** document item is **rejected**:
 
 1. **Sibling amendment drafts** — for every **other** document key, any **unsubmitted** item-scope amendment draft (`REQUEST_AMENDMENT`, `submitted_at` null) is **removed**.
-2. **Siblings in `AMENDMENT_REQUESTED`** — each such sibling is **reset to pending** (same behavior as “Set to Pending” on that item, including **`ITEM_REVIEWED_PENDING`** activity logs). Section sync is batched so it runs once after the main reject flow.
+2. **Siblings in `AMENDMENT_REQUESTED`** — each such sibling is **reset to pending** (same behavior as “Set to Pending” on that item, including **`APPLICATION_ITEM_REVIEW_UPDATED`** audit rows). Section sync is batched so it runs once after the main reject flow.
 3. Siblings that were **APPROVED** (or **PENDING** only) are not forced to a new status by this cleanup beyond **draft removal** where a draft existed without a matching row state (edge case).
 
 Then the **section** status is synced from the full matrix (typically **REJECTED** while the rejected item stays rejected).
@@ -119,10 +119,12 @@ Then the **section** status is synced from the full matrix (typically **REJECTED
 
 ## Activity timeline (high level)
 
-- **Item** transitions log `ITEM_REVIEWED_<STATUS>` with `scope_key` = document item id.
-- **Section** transitions log `SECTION_REVIEWED_<STATUS>` for `supporting_documents` when the **derived** section status changes.
-- Peer reject cleanup may emit multiple **`ITEM_REVIEWED_PENDING`** events for siblings, then a **`SECTION_REVIEWED_…`** event for the section once.
-- **Section “Set to Pending”** (documents): resets every document item in the database but does **not** emit one **`ITEM_REVIEWED_PENDING`** per item (avoids a noisy timeline). A single derived **`SECTION_REVIEWED_PENDING`** (or equivalent) is logged when the section status actually changes after sync.
+- **Item** transitions log `APPLICATION_ITEM_REVIEW_UPDATED` with `itemId` (document item id) and `previousStatus` / `newStatus`.
+- **Section** transitions log `APPLICATION_SECTION_REVIEW_UPDATED` for `supporting_documents` when the **derived** section status changes.
+- Peer reject cleanup may emit multiple **`APPLICATION_ITEM_REVIEW_UPDATED`** rows for siblings, then an **`APPLICATION_SECTION_REVIEW_UPDATED`** row for the section once.
+- **Section “Set to Pending”** (documents): resets every document item in the database but does **not** emit one item audit row per item (avoids a noisy timeline). A single derived **`APPLICATION_SECTION_REVIEW_UPDATED`** is logged when the section status actually changes after sync.
+- Curated Activity shows section-review rows only when `newStatus` is amendment-required. Item-review rows stay on raw Audit History.
+- Legacy/display aliases `ITEM_REVIEWED_*` / `SECTION_REVIEWED_*` are not emitted by current writers.
 
 ---
 

@@ -2,7 +2,7 @@
 
 Append-only Product lifecycle audit. This is the sole Product audit history.
 
-Readers: `GET /v1/admin/product-logs` and `GET /v1/admin/product-logs/export` (table: `product_audit_logs`).
+Readers: `GET /v1/admin/product-logs` and `GET /v1/admin/product-logs/export` (table: `product_audit_logs`). Admin UI: `/audit?tab=products` (`ProductLogsPanel` + `ListToolbar`), permission `audit.product.view`. Live events: `PRODUCT_CREATED`, `PRODUCT_UPDATED`, `PRODUCT_INACTIVATED`, `PRODUCT_REACTIVATED`, `PRODUCT_DELETED`.
 
 The legacy `ProductLog` model and `product_logs` table have been removed. There is no backfill; ProductAuditLog is the only writer/reader.
 
