@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { NormalizedApplication } from "../status";
+import { issuerWithdrawBlockedReason } from "./issuer-status-display";
 
 export function ApplicationCardMenu({
   application,
@@ -36,11 +37,14 @@ export function ApplicationCardMenu({
     hasContract &&
     onViewSignedContractOffer;
   const withdrawDisabled = !!isCancelApplicationPending || !application.canWithdraw;
-  const withdrawBlockedReason = !application.canWithdraw
-    ? application.facilityInForceNoInvoices || application.cardStatus.badgeKey === "completed"
-      ? "Withdraw is not available after the facility or invoice has been approved."
-      : "This application can no longer be withdrawn."
-    : null;
+  const withdrawBlockedReason = issuerWithdrawBlockedReason({
+    canWithdraw: application.canWithdraw,
+    applicationStatus: application.applicationStatus,
+    contractStatus: application.contractStatus,
+    invoices: application.invoices,
+    offerAcceptanceStatus: application.offerAcceptanceStatus,
+    facilityInForceNoInvoices: application.facilityInForceNoInvoices,
+  });
 
   return (
     <DropdownMenu>

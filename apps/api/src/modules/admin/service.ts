@@ -6351,6 +6351,7 @@ export class AdminService {
         status: currentStatus,
         contract: application.contract,
         invoices: application.invoices,
+        financing_structure: application.financing_structure,
         signing_envelopes: envelopes,
       });
       if (!canRejectApplication(phase)) {
@@ -6379,6 +6380,7 @@ export class AdminService {
     let updatedApplication;
     if (status === ApplicationStatus.REJECTED) {
       const { voidEnvelopeIds } = await closeApplicationAsRejected(id);
+      const voidFailures: string[] = [];
       for (const envelopeId of voidEnvelopeIds) {
         try {
           await signingService.voidEnvelope(envelopeId, "Application rejected by admin", {
@@ -6386,11 +6388,19 @@ export class AdminService {
             portal: ActivityPortal.ADMIN,
           });
         } catch (voidError) {
+          voidFailures.push(envelopeId);
           logger.error(
             { error: voidError, applicationId: id, envelopeId },
             "Failed to void signing envelope during application rejection"
           );
         }
+      }
+      if (voidFailures.length > 0) {
+        throw new AppError(
+          502,
+          "SIGNING_ENVELOPE_VOID_FAILED",
+          `Application rejected but failed to void signing package(s): ${voidFailures.join(", ")}. Void manually from the Signing tab.`
+        );
       }
       updatedApplication = await repository.getApplicationById(id);
     } else {
@@ -6469,8 +6479,13 @@ export class AdminService {
 
   private resolveApplicationOriginationPhase(application: {
     status: string;
+    financing_structure?: unknown;
     contract?: { status?: string | null; offer_details?: unknown } | null;
-    invoices?: Array<{ status?: string | null; offer_details?: unknown }>;
+    invoices?: Array<{
+      status?: string | null;
+      contract_id?: string | null;
+      offer_details?: unknown;
+    }>;
     signing_envelopes?: Array<{ status?: string | null }>;
   }) {
     return resolveOriginationPhase(
@@ -6478,7 +6493,13 @@ export class AdminService {
         applicationStatus: application.status,
         contract: application.contract,
         invoices: application.invoices,
-        offerAcceptanceStatus: extractPrimaryOfferAcceptanceStatus(application),
+        offerAcceptanceStatus: extractPrimaryOfferAcceptanceStatus({
+          financing_structure: application.financing_structure as {
+            structure_type?: string;
+          } | null,
+          contract: application.contract,
+          invoices: application.invoices,
+        }),
         signingEnvelopes: application.signing_envelopes,
       })
     );
@@ -6489,6 +6510,7 @@ export class AdminService {
     section: ReviewSection,
     application: {
       status: string;
+      financing_structure?: unknown;
       contract?: { status?: string | null } | null;
       invoices?: Array<{ status?: string | null }>;
     }
@@ -9196,27 +9218,55 @@ export class AdminService {
 
   private async assertNoActiveSigningPackageForAcceptanceActions(
     applicationId: string,
-    _application: {
+    application: {
       contract_id?: string | null;
       invoices?: Array<{ id: string; status: string; contract_id?: string | null }>;
     },
     actionLabel: string
   ): Promise<void> {
-    const sentOrCompleted = await prisma.signingEnvelope.findFirst({
-      where: {
-        application_id: applicationId,
-        status: { in: ["SENT", "IN_PROGRESS", "COMPLETED"] },
-      },
-      select: { id: true, status: true },
-    });
-    if (sentOrCompleted) {
-      throw new AppError(
-        400,
-        "ACTIVE_SIGNING_PACKAGE",
-        sentOrCompleted.status === "COMPLETED"
-          ? "Signing is complete; acceptance documents cannot be changed."
-          : `Void the sent signing package before ${actionLabel}.`
-      );
+    const blockingStatuses = ["SENT", "IN_PROGRESS", "COMPLETED"] as const;
+
+    if (application.contract_id) {
+      const sentOrCompleted = await prisma.signingEnvelope.findFirst({
+        where: {
+          application_id: applicationId,
+          contract_id: application.contract_id,
+          status: { in: [...blockingStatuses] },
+        },
+        select: { id: true, status: true },
+      });
+      if (sentOrCompleted) {
+        throw new AppError(
+          400,
+          "ACTIVE_SIGNING_PACKAGE",
+          sentOrCompleted.status === "COMPLETED"
+            ? "Signing is complete; acceptance documents cannot be changed."
+            : `Void the sent signing package before ${actionLabel}.`
+        );
+      }
+      return;
+    }
+
+    for (const invoice of application.invoices ?? []) {
+      if (invoice.contract_id) continue;
+      if (invoice.status !== "OFFER_SENT") continue;
+      const sentOrCompleted = await prisma.signingEnvelope.findFirst({
+        where: {
+          application_id: applicationId,
+          invoice_id: invoice.id,
+          status: { in: [...blockingStatuses] },
+        },
+        select: { id: true, status: true },
+      });
+      if (sentOrCompleted) {
+        throw new AppError(
+          400,
+          "ACTIVE_SIGNING_PACKAGE",
+          sentOrCompleted.status === "COMPLETED"
+            ? "Signing is complete; acceptance documents cannot be changed."
+            : `Void the sent signing package before ${actionLabel}.`
+        );
+      }
     }
   }
 

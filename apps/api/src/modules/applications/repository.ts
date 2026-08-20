@@ -59,7 +59,11 @@ export class ApplicationRepository {
    */
   async listByOrganization(organizationId: string): Promise<Application[]> {
     return prisma.application.findMany({
-      where: { issuer_organization_id: organizationId },
+      where: {
+        issuer_organization_id: organizationId,
+        archived_at: null,
+        status: { not: "ARCHIVED" },
+      },
       orderBy: { created_at: "desc" },
       include: {
         contract: true,

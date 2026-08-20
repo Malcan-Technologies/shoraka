@@ -370,10 +370,12 @@ export class ContractService {
       throw new AppError(400, "BAD_REQUEST", "This facility was already withdrawn.");
     }
 
-    const applications = (contract as { applications?: { id: string }[] }).applications ?? [];
-    for (const appRef of applications) {
-      const linked = await this.applicationRepository.findById(appRef.id);
-      if (!linked) continue;
+    const applicationRefs = (contract as { applications?: { id: string }[] }).applications ?? [];
+    const linkedApplications = (
+      await Promise.all(applicationRefs.map((appRef) => this.applicationRepository.findById(appRef.id)))
+    ).filter((application): application is NonNullable<typeof application> => application != null);
+
+    for (const linked of linkedApplications) {
       const phase = resolveOriginationPhase(
         buildOriginationPhaseInput({
           applicationStatus: linked.status,
@@ -391,58 +393,68 @@ export class ContractService {
     }
 
     const finalReason = reason ?? WithdrawReason.USER_CANCELLED;
+    const activityLogs: Array<{ applicationId: string }> = [];
 
-    const updated = await this.repository.update(id, {
-      status: ContractStatus.WITHDRAWN,
-      withdraw_reason: finalReason,
+    const updated = await prisma.$transaction(async (tx) => {
+      const withdrawnContract = await tx.contract.update({
+        where: { id },
+        data: {
+          status: ContractStatus.WITHDRAWN,
+          withdraw_reason: finalReason,
+        },
+      });
+
+      for (const linked of linkedApplications) {
+        const invoices = (linked as { invoices?: Array<{ status: string }> }).invoices ?? [];
+        const isInvoiceOnly =
+          (linked as { financing_structure?: { structure_type?: string } | null }).financing_structure
+            ?.structure_type === "invoice_only";
+        const nextStatus = computeApplicationStatus(
+          { status: ContractStatus.WITHDRAWN },
+          invoices.map((invoice) => ({ status: invoice.status as InvoiceStatus })),
+          linked.status as ApplicationStatus,
+          { isInvoiceOnly }
+        );
+        await tx.application.update({
+          where: { id: linked.id },
+          data: { status: nextStatus },
+        });
+        await tx.applicationReview.upsert({
+          where: {
+            application_id_section: {
+              application_id: linked.id,
+              section: "contract_details",
+            },
+          },
+          create: {
+            application_id: linked.id,
+            section: "contract_details",
+            status: "WITHDRAWN",
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+          update: {
+            status: "WITHDRAWN",
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+        });
+        if (nextStatus === ApplicationStatus.WITHDRAWN) {
+          activityLogs.push({ applicationId: linked.id });
+        }
+      }
+
+      return withdrawnContract;
     });
 
-    for (const appRef of applications) {
-      const linked = await this.applicationRepository.findById(appRef.id);
-      if (!linked) continue;
-      const invoices = (linked as { invoices?: Array<{ status: string }> }).invoices ?? [];
-      const isInvoiceOnly =
-        (linked as { financing_structure?: { structure_type?: string } | null }).financing_structure
-          ?.structure_type === "invoice_only";
-      const nextStatus = computeApplicationStatus(
-        { status: ContractStatus.WITHDRAWN },
-        invoices.map((invoice) => ({ status: invoice.status as InvoiceStatus })),
-        linked.status as ApplicationStatus,
-        { isInvoiceOnly }
-      );
-      await prisma.application.update({
-        where: { id: appRef.id },
-        data: { status: nextStatus },
+    for (const entry of activityLogs) {
+      await logApplicationActivity({
+        userId,
+        applicationId: entry.applicationId,
+        eventType: "APPLICATION_WITHDRAWN",
+        portal: ActivityPortal.ISSUER,
+        metadata: { withdraw_reason: finalReason },
       });
-      await prisma.applicationReview.upsert({
-        where: {
-          application_id_section: {
-            application_id: appRef.id,
-            section: "contract_details",
-          },
-        },
-        create: {
-          application_id: appRef.id,
-          section: "contract_details",
-          status: "WITHDRAWN",
-          reviewer_user_id: userId,
-          reviewed_at: new Date(),
-        },
-        update: {
-          status: "WITHDRAWN",
-          reviewer_user_id: userId,
-          reviewed_at: new Date(),
-        },
-      });
-      if (nextStatus === ApplicationStatus.WITHDRAWN) {
-        await logApplicationActivity({
-          userId,
-          applicationId: appRef.id,
-          eventType: "APPLICATION_WITHDRAWN",
-          portal: ActivityPortal.ISSUER,
-          metadata: { withdraw_reason: finalReason },
-        });
-      }
     }
 
     return updated;

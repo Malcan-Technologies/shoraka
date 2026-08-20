@@ -96,6 +96,11 @@ describe("resolveOriginationPhase", () => {
       })
     ).toBe("underReview");
   });
+
+  it("returns closed for unrecognized application statuses (fail closed)", () => {
+    expect(resolveOriginationPhase({ applicationStatus: "FUNDED" })).toBe("closed");
+    expect(resolveOriginationPhase({ applicationStatus: "MYSTERY_STATUS" })).toBe("closed");
+  });
 });
 
 describe("origination phase action matrix", () => {
@@ -121,7 +126,16 @@ describe("origination phase action matrix", () => {
   });
 
   it("archive allowed only for draft and closed", () => {
-    expect(phases.filter(canArchiveApplication)).toEqual(["draft", "closed"]);
+    expect(phases.filter((phase) => canArchiveApplication(phase))).toEqual(["draft", "closed"]);
+    expect(canArchiveApplication("closed", { alreadyArchived: true })).toBe(false);
+  });
+
+  it("unknown status denies withdraw, reject, and reset", () => {
+    const unknownPhase = resolveOriginationPhase({ applicationStatus: "FUNDED" });
+    expect(unknownPhase).toBe("closed");
+    expect(canWithdrawApplication(unknownPhase)).toBe(false);
+    expect(canRejectApplication(unknownPhase)).toBe(false);
+    expect(canResetReviewToPending(unknownPhase)).toBe(false);
   });
 
   it("reject allowed until approved", () => {

@@ -20,7 +20,7 @@ This proves the phase matrix and the reject JSON helpers. It does not click the 
 
 ## 2. Seed fixtures
 
-Needs local API database. Defaults to Ivan Issuers (`ivan.chew@malcan.io`). Re-run replaces the same rows — do that after any withdraw / reject / archive.
+Needs local API database. Defaults to the Toyota issuer org (`khai.kit@truestack.my`). Re-run replaces the same rows — do that after any withdraw / reject / archive.
 
 ```bash
 pnpm --filter @cashsouk/api seed-origination-lock-fixtures
@@ -87,7 +87,7 @@ Do **read-only / disable checks first**, then the cases that consume the file. R
 |---|---|---|---|
 | **E1** | Issuer **edit** (`/applications/{id}/edit`) | Product-updated modal → Restart / archive. | Archive works; you can start again. |
 | **B2** (if still submitted) | Issuer | There is no Archive button on in-flight files. From the issuer session: `POST /v1/applications/{id}/archive`. | **400** — only draft or closed files archive. Same for an offer-sent file (**B3**). |
-| **B6** / **E3R** | Issuer list, then archive via `POST /v1/applications/{id}/archive` | Archive a completed or rejected file. | **200.** File disappears from the issuer list. |
+| **E3R** | Issuer list, then archive via `POST /v1/applications/{id}/archive` | Archive a completed or rejected file. | **200.** `archived_at` is set; terminal `status` is preserved. File disappears from the issuer list. |
 | **E4** | Admin | Send Offer again. Issuer: Withdraw still available. Admin: Reject still available (reject a section first). | Status `OFFER_EXPIRED` is not hard-final. Resend works; withdraw / reject still allowed. |
 | **E5** | Both | Look at the status badge. Try creating a Note. | Copy: **“Facility approved.”** Note create stays blocked (no approved invoice). |
 

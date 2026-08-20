@@ -113,7 +113,13 @@ export function useUpdateApplicationStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: ApplicationStatus }) => {
+    mutationFn: async ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: Extract<ApplicationStatus, ApplicationStatus.DRAFT | ApplicationStatus.SUBMITTED | ApplicationStatus.RESUBMITTED>;
+    }) => {
       const response = await apiClient.updateApplicationStatus(id, status);
       if (!response.success) {
         throw new ApiMutationError(response.error.message, response.error.code);

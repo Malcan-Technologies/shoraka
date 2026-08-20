@@ -86,7 +86,9 @@ async function getApplication(req: Request, res: Response, next: NextFunction) {
 
     res.json({
       success: true,
-      data: withDisplayReference(data),
+      data: withDisplayReference(
+        data as { display_reference?: string | null }
+      ),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {
@@ -582,7 +584,9 @@ router.get("/", requireAuth, async function listApplications(req, res, next) {
     const result = await applicationService.listByOrganization(organizationId, userId);
     res.json({
       success: true,
-      data: result.map((application) => withDisplayReference(application)),
+      data: result.map((application) =>
+        withDisplayReference(application as { display_reference?: string | null })
+      ),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {

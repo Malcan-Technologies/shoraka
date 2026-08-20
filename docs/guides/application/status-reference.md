@@ -153,6 +153,10 @@ Offer Received, Action Required). The API status is unchanged.
 COMPLETED with an approved facility and zero approved invoices still means the
 facility is approved; issuer/admin badge copy: **Facility approved**.
 
+Issuer archive of closed files sets `archived_at` and keeps the terminal
+`status` (COMPLETED / REJECTED / WITHDRAWN). Draft archive still uses
+`ARCHIVED`. Archived rows are hidden from the issuer applications list.
+
 ================================================================================
 WHAT THE USER SEES (STATUS ALIAS)
 ================================================================================

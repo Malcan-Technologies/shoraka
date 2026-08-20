@@ -275,6 +275,9 @@ export interface Application {
   created_at: string;
   updated_at: string;
   submitted_at?: string | null;
+  /** Present when loaded from issuer list/detail APIs. */
+  canWithdraw?: boolean;
+  archivedAt?: string | null;
 }
 
 export interface CreateApplicationInput {

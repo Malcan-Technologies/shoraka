@@ -53,6 +53,22 @@ const DEFAULT_ISSUER_EMAIL = "khai.kit@truestack.my";
 const DEFAULT_ISSUER_ORG_NAME = "Toyota";
 const SEED_KIND = "origlock";
 
+function assertSeedEnvironment(): void {
+  const nodeEnv = String(process.env.NODE_ENV ?? "").toLowerCase();
+  const databaseUrl = String(process.env.DATABASE_URL ?? "");
+  if (nodeEnv === "production") {
+    throw new Error("Refusing to run origination-lock seed fixtures in production.");
+  }
+  if (
+    databaseUrl &&
+    !/localhost|127\.0\.0\.1|host\.docker\.internal/i.test(databaseUrl)
+  ) {
+    throw new Error(
+      "Refusing to run origination-lock seed fixtures against a non-local DATABASE_URL. Pass a local database URL or override only in a dedicated dev environment."
+    );
+  }
+}
+
 function seedCuid(kind: string, key: string, index = 0): string {
   const digest = createHash("sha256")
     .update(`${SEED_KIND}|${kind}|${key}|${index}`)
@@ -540,15 +556,9 @@ async function resolveContext() {
     });
   }
   if (!org) {
-    org = await prisma.issuerOrganization.findFirst({ orderBy: { created_at: "asc" } });
-    if (org) {
-      console.warn(
-        `Toyota issuer org not found; using ${org.name} (${org.id}). Pass issuerOrgId to target a specific org.`
-      );
-    }
-  }
-  if (!org) {
-    throw new Error("No issuer organization found. Pass issuerOrgId as the first argument.");
+    throw new Error(
+      `Issuer org not found for ${DEFAULT_ISSUER_EMAIL} / ${DEFAULT_ISSUER_ORG_NAME}. Pass issuerOrgId as the first argument.`
+    );
   }
 
   const products = await prisma.product.findMany({
@@ -929,6 +939,7 @@ async function createFixture(
 }
 
 async function main() {
+  assertSeedEnvironment();
   const ctx = await resolveContext();
   console.log(`Issuer: ${ctx.org.name} (${ctx.org.id})`);
   console.log(`Facility product: ${ctx.facilityProduct.id} v${ctx.facilityProduct.version} ${ctx.facilityProduct.product_code ?? ""}`);

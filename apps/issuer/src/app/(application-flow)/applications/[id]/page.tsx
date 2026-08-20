@@ -66,6 +66,7 @@ import {
   countInvoicesNeedingAction,
   formatApplicationDisplayId,
   getIssuerPlainStatusLabel,
+  issuerWithdrawBlockedReason,
 } from "@/app/(application-management)/applications/components/issuer-status-display";
 
 const DETAIL_TABS = ["summary", "offer", "invoices", "documents", "timeline"] as const;
@@ -317,6 +318,14 @@ export default function ApplicationDetailPage() {
   const showViewSignedContract =
     application.signedContractOfferLetterAvailable && !!application.signedContractOfferLetterS3Key;
   const withdrawDisabled = cancelApplication.isPending || !application.canWithdraw;
+  const withdrawBlockedReason = issuerWithdrawBlockedReason({
+    canWithdraw: application.canWithdraw,
+    applicationStatus: application.applicationStatus,
+    contractStatus: application.contractStatus,
+    invoices: application.invoices,
+    offerAcceptanceStatus: application.offerAcceptanceStatus,
+    facilityInForceNoInvoices: application.facilityInForceNoInvoices,
+  });
 
   const isMountedOfferInvoice = (inv: NormalizedInvoice) =>
     inv.status === "OFFER_SENT" || inv.canReviewOffer;
@@ -508,9 +517,9 @@ export default function ApplicationDetailPage() {
             >
               Withdraw
             </Button>
-            {withdrawDisabled && !application.canWithdraw ? (
+            {withdrawBlockedReason ? (
               <p className="basis-full text-ui leading-5 text-muted-foreground sm:basis-auto sm:max-w-[16rem]">
-                Withdraw is not available after the facility or invoice has been approved.
+                {withdrawBlockedReason}
               </p>
             ) : null}
             <DropdownMenu>

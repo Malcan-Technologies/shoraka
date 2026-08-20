@@ -37,6 +37,27 @@ const ENTITY_BOOKED_STATUSES = new Set<string>(["APPROVED"]);
 
 const TERMINAL_ENVELOPE_STATUSES = new Set<string>(["COMPLETED"]);
 
+/** Application statuses handled explicitly by {@link resolveOriginationPhase}. */
+const RECOGNIZED_APPLICATION_STATUSES = new Set<string>([
+  "DRAFT",
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "CONTRACT_PENDING",
+  "CONTRACT_SENT",
+  "CONTRACT_ACCEPTED",
+  "INVOICE_ACCEPTED",
+  "SIGNING_PENDING",
+  "INVOICE_PENDING",
+  "INVOICES_SENT",
+  "OFFER_EXPIRED",
+  "AMENDMENT_REQUESTED",
+  "RESUBMITTED",
+  "COMPLETED",
+  "WITHDRAWN",
+  "REJECTED",
+  "ARCHIVED",
+]);
+
 export type OriginationPhaseInput = {
   applicationStatus: string;
   contractStatus?: string | null;
@@ -115,6 +136,10 @@ export function resolveOriginationPhase(input: OriginationPhaseInput): Originati
     return "offerLive";
   }
 
+  if (!RECOGNIZED_APPLICATION_STATUSES.has(app)) {
+    return "closed";
+  }
+
   return "underReview";
 }
 
@@ -128,8 +153,41 @@ export function canWithdrawApplication(phase: OriginationPhase): boolean {
   );
 }
 
-export function canArchiveApplication(phase: OriginationPhase): boolean {
+export function canArchiveApplication(
+  phase: OriginationPhase,
+  options?: { alreadyArchived?: boolean }
+): boolean {
+  if (options?.alreadyArchived) {
+    return false;
+  }
   return phase === "draft" || phase === "closed";
+}
+
+/** Issuer list hides draft ARCHIVED status and closed files with archived_at set. */
+export function isApplicationHiddenFromIssuerList(application: {
+  status: string;
+  archivedAt?: string | Date | null;
+  archived_at?: string | Date | null;
+}): boolean {
+  const archivedAt = application.archivedAt ?? application.archived_at ?? null;
+  return norm(application.status) === "ARCHIVED" || archivedAt != null;
+}
+
+/** User-facing copy when issuer withdraw is disabled. */
+export function issuerWithdrawBlockedMessage(
+  phase: OriginationPhase,
+  options?: { facilityInForceNoInvoices?: boolean }
+): string | null {
+  if (canWithdrawApplication(phase)) {
+    return null;
+  }
+  if (phase === "closed") {
+    return "This application can no longer be withdrawn.";
+  }
+  if (phase === "approved" || options?.facilityInForceNoInvoices) {
+    return "Withdraw is not available after the facility or invoice has been approved.";
+  }
+  return "This application can no longer be withdrawn.";
 }
 
 export function canRejectApplication(phase: OriginationPhase): boolean {

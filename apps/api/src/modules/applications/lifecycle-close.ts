@@ -50,47 +50,55 @@ export type CloseApplicationAsRejectedResult = {
 export async function closeApplicationAsRejected(
   applicationId: string
 ): Promise<CloseApplicationAsRejectedResult> {
-  const application = await prisma.application.findUnique({
-    where: { id: applicationId },
-    include: {
-      contract: {
-        select: {
-          id: true,
-          status: true,
-          offer_details: true,
-        },
-      },
-      invoices: {
-        select: {
-          id: true,
-          status: true,
-          offer_details: true,
-        },
-      },
-      signing_envelopes: {
-        select: { id: true, status: true },
-      },
-    },
-  });
-
-  if (!application) {
-    throw new Error(`Application not found: ${applicationId}`);
-  }
-
-  const voidEnvelopeIds =
-    application.signing_envelopes
-      ?.filter((envelope) =>
-        VOIDABLE_ENVELOPE_STATUSES.includes(
-          envelope.status as (typeof VOIDABLE_ENVELOPE_STATUSES)[number]
-        )
-      )
-      .map((envelope) => envelope.id) ?? [];
+  let voidEnvelopeIds: string[] = [];
 
   await prisma.$transaction(async (tx) => {
-    await tx.application.update({
+    const application = await tx.application.findUnique({
       where: { id: applicationId },
+      include: {
+        contract: {
+          select: {
+            id: true,
+            status: true,
+            offer_details: true,
+          },
+        },
+        invoices: {
+          select: {
+            id: true,
+            status: true,
+            offer_details: true,
+          },
+        },
+        signing_envelopes: {
+          select: { id: true, status: true },
+        },
+      },
+    });
+
+    if (!application) {
+      throw new Error(`Application not found: ${applicationId}`);
+    }
+
+    voidEnvelopeIds =
+      application.signing_envelopes
+        ?.filter((envelope) =>
+          VOIDABLE_ENVELOPE_STATUSES.includes(
+            envelope.status as (typeof VOIDABLE_ENVELOPE_STATUSES)[number]
+          )
+        )
+        .map((envelope) => envelope.id) ?? [];
+
+    const updated = await tx.application.updateMany({
+      where: {
+        id: applicationId,
+        status: { notIn: ["REJECTED", "COMPLETED", "WITHDRAWN", "ARCHIVED"] },
+      },
       data: { status: ApplicationStatus.REJECTED },
     });
+    if (updated.count === 0) {
+      throw new Error(`Application cannot be rejected in its current state: ${applicationId}`);
+    }
 
     const contract = application.contract;
     if (contract && shouldRejectEntityStatus(contract.status)) {

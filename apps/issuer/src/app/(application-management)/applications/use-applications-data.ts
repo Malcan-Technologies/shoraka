@@ -29,10 +29,7 @@ import {
   getOfferAcceptanceFromOfferDetails,
   offerAcceptanceAllowsIssuerReviewCta,
   type OfferAcceptanceStatus,
-  buildOriginationPhaseInput,
-  canWithdrawApplication,
   isCompletedWithNoApprovedInvoices,
-  resolveOriginationPhase,
 } from "@cashsouk/types";
 import { useOrganizationApplications } from "@/hooks/use-applications";
 import { getOfferStatus, getOfferPhaseDeadlineDisplay } from "@/lib/offer-utils";
@@ -467,16 +464,7 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     offerPhaseDeadline,
     offerAcceptanceStatus: primaryOfferAcceptanceStatus,
     applicationStatus: String(api.status ?? "DRAFT").toUpperCase(),
-    canWithdraw: canWithdrawApplication(
-      resolveOriginationPhase(
-        buildOriginationPhaseInput({
-          applicationStatus: String(api.status ?? "DRAFT"),
-          contract: contract ? { status: contractStatus } : null,
-          invoices,
-          offerAcceptanceStatus: primaryOfferAcceptanceStatus,
-        })
-      )
-    ),
+    canWithdraw: Boolean((api as { canWithdraw?: boolean }).canWithdraw),
     facilityInForceNoInvoices,
   };
 }

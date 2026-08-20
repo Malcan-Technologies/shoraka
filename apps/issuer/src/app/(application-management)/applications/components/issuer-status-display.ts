@@ -1,6 +1,11 @@
 import { badgeKeyToStatusToken, getStatusPresentationByBadgeKey } from "@cashsouk/config";
 import type { WithdrawReason } from "@cashsouk/types";
-import { formatApplicationReference } from "@cashsouk/types";
+import {
+  buildOriginationPhaseInput,
+  formatApplicationReference,
+  issuerWithdrawBlockedMessage,
+  resolveOriginationPhase,
+} from "@cashsouk/types";
 
 export { badgeKeyToStatusToken };
 
@@ -76,6 +81,28 @@ export function applicationCardStatusLabel(app: {
         ? app.withdrawReason
         : undefined,
     offerAcceptanceStatus: app.offerAcceptanceStatus,
+  });
+}
+
+export function issuerWithdrawBlockedReason(app: {
+  canWithdraw: boolean;
+  applicationStatus: string;
+  contractStatus?: string | null;
+  invoices?: Array<{ status?: string | null }>;
+  offerAcceptanceStatus?: string | null;
+  facilityInForceNoInvoices?: boolean;
+}): string | null {
+  if (app.canWithdraw) return null;
+  const phase = resolveOriginationPhase(
+    buildOriginationPhaseInput({
+      applicationStatus: app.applicationStatus,
+      contract: app.contractStatus ? { status: app.contractStatus } : null,
+      invoices: app.invoices,
+      offerAcceptanceStatus: app.offerAcceptanceStatus,
+    })
+  );
+  return issuerWithdrawBlockedMessage(phase, {
+    facilityInForceNoInvoices: app.facilityInForceNoInvoices,
   });
 }
 

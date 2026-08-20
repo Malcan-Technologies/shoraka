@@ -11,7 +11,7 @@ interface ApplicationStatusBadgeProps {
 
 export function ApplicationStatusBadge({ status, size = "md", label }: ApplicationStatusBadgeProps) {
   const presentation = getReviewStatusPresentation(status);
-  const displayLabel = toTitleCase(label ?? presentation.label);
+  const displayLabel = label ?? toTitleCase(presentation.label);
 
   return (
     <StatusBadge
