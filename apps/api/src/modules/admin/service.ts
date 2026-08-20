@@ -1,11 +1,8 @@
 import { AdminRepository } from "./repository";
 import {
   User,
-  AccessLog,
   UserRole,
   Prisma,
-  OnboardingLog,
-  SecurityLog,
   OrganizationType,
   OnboardingStatus,
   ApplicationStatus,
@@ -14,14 +11,44 @@ import {
   ApplicationGuarantor,
 } from "@prisma/client";
 import { Request } from "express";
-import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
+import { accessAuditLogReader } from "../auth/audit/reader";
+import { securityAuditLogReader } from "../security/audit/reader";
+import {
+  onboardingAuditLogReader,
+  type OnboardingAuditLogDto,
+} from "../onboarding/audit/reader";
+import { writeOnboardingAuditLog } from "../onboarding/audit/writer";
+import {
+  ONBOARDING_AUDIT_TARGET_TYPE,
+  ONBOARDING_RESTART_TRIGGER,
+} from "../onboarding/audit/events";
+import { directorKycFinalOutcomes } from "../onboarding/audit/diff";
+import { writeDirectorKycOutcomeAuditLogs } from "../onboarding/audit/director-kyc-outcomes";
+import {
+  AUDIT_ACTOR_TYPE,
+  AUDIT_PORTAL,
+  AUDIT_SOURCE,
+  auditContextFromAdminRequest,
+  auditContextFromRequest,
+} from "../../lib/audit/context";
+import { changedFieldsOf, permissionDiff, roleDiff } from "../../lib/audit/snapshot";
+import { writeSecurityAuditLog } from "../security/audit/writer";
+import { SECURITY_AUDIT_TARGET_TYPE } from "../security/audit/events";
 import { sendEmail } from "../../lib/email/ses-client";
 import { adminInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
 import { logger } from "../../lib/logger";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
+import {
+  claimAmlApproved,
+  claimFinalApprovalCompleted,
+  claimOnboardingApproved,
+  claimSsmApproved,
+  lockOrganizationRow,
+  readOrganizationOnboardingState,
+} from "../onboarding/utils/onboarding-transition-claims";
 import type {
   GetUsersQuery,
   GetAccessLogsQuery,
@@ -122,8 +149,11 @@ import { extractGovernmentIdFromCorporateUserInfo } from "../regtank/helpers/ext
 import { resolveCorporatePersonMergeKey } from "../regtank/helpers/corporate-person-merge-key";
 import { buildAdminPeopleList, buildDirectorShareholderPeopleList } from "./build-people-list";
 import { notifyIssuerDirectorShareholderActionRequired } from "../notification/director-shareholder-notifications";
-import { logApplicationActivity } from "../applications/logs/service";
-import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
+import {
+  APPLICATION_AUDIT_TARGET_TYPE,
+  adminApplicationAuditContext,
+  writeApplicationAuditLog,
+} from "../applications/audit/writer";
 
 export interface AdminLogContext {
   ipAddress?: string | null;
@@ -418,7 +448,7 @@ export class AdminService {
     req: Request,
     roleKey: string,
     data: UpdateAdminRolePermissionsInput,
-    updatedBy: string
+    _updatedBy: string
   ): Promise<{ role: AdminRoleConfigRecord }> {
     await ensureAdminRoleCatalog(prisma);
 
@@ -440,28 +470,37 @@ export class AdminService {
       }
     }
 
-    const updatedRole = await this.repository.updateAdminRolePermissions(
-      roleKey,
-      [...new Set(data.permissions)],
-      data.badgeColor
-    );
-    const roleCounts = await this.countAdminRoleAssignments();
+    const context = auditContextFromAdminRequest(req);
+    const nextPermissions = [...new Set(data.permissions)];
+    const permDiff = permissionDiff(role.permissions, nextPermissions);
 
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-    await this.repository.createSecurityLog({
-      userId: updatedBy,
-      eventType: "ROLE_PERMISSIONS_UPDATED",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        roleKey,
-        previousPermissions: role.permissions,
-        nextPermissions: updatedRole.permissions,
-        previousBadgeColor: role.badge_color,
-        nextBadgeColor: updatedRole.badge_color,
-      },
+    const updatedRole = await prisma.$transaction(async (tx) => {
+      const updated = await tx.adminRoleConfig.update({
+        where: { key: roleKey },
+        data: { permissions: nextPermissions, badge_color: data.badgeColor },
+      });
+      await writeSecurityAuditLog(
+        {
+          eventType: "ADMIN_ROLE_PERMISSIONS_UPDATED",
+          context,
+          subjectUserId: null,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_ROLE,
+          targetId: roleKey,
+          metadata: {
+            roleKey,
+            roleName: updated.name,
+            ...permDiff,
+            previousPermissions: role.permissions,
+            nextPermissions: updated.permissions,
+            previousBadgeColor: role.badge_color,
+            nextBadgeColor: updated.badge_color,
+          },
+        },
+        tx
+      );
+      return updated;
     });
+    const roleCounts = await this.countAdminRoleAssignments();
 
     return {
       role: this.toAdminRoleConfigRecord(
@@ -474,7 +513,7 @@ export class AdminService {
   async createAdminRole(
     req: Request,
     data: CreateAdminRoleInput,
-    createdBy: string
+    _createdBy: string
   ): Promise<{ role: AdminRoleConfigRecord }> {
     await ensureAdminRoleCatalog(prisma);
 
@@ -487,22 +526,38 @@ export class AdminService {
       throw new AppError(409, "CONFLICT", "An admin role with this key already exists");
     }
 
-    const createdRole = await this.repository.createAdminRoleConfig(data);
-    const roleCounts = await this.countAdminRoleAssignments();
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-
-    await this.repository.createSecurityLog({
-      userId: createdBy,
-      eventType: "ROLE_CREATED",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        roleKey: createdRole.key,
-        roleName: createdRole.name,
-        badgeColor: createdRole.badge_color,
-      },
+    const context = auditContextFromAdminRequest(req);
+    const createdRole = await prisma.$transaction(async (tx) => {
+      const created = await tx.adminRoleConfig.create({
+        data: {
+          key: data.key,
+          name: data.name,
+          description: data.description ?? null,
+          badge_color: data.badgeColor,
+          permissions: [],
+          is_system: false,
+          is_editable: true,
+          is_default: false,
+        },
+      });
+      await writeSecurityAuditLog(
+        {
+          eventType: "ADMIN_ROLE_CREATED",
+          context,
+          subjectUserId: null,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_ROLE,
+          targetId: created.key,
+          metadata: {
+            roleKey: created.key,
+            roleName: created.name,
+            badgeColor: created.badge_color,
+          },
+        },
+        tx
+      );
+      return created;
     });
+    const roleCounts = await this.countAdminRoleAssignments();
 
     return {
       role: this.toAdminRoleConfigRecord(createdRole, roleCounts.get(createdRole.key) ?? 0),
@@ -512,7 +567,7 @@ export class AdminService {
   async deleteAdminRole(
     req: Request,
     roleKey: string,
-    deletedBy: string
+    _deletedBy: string
   ): Promise<{ deletedRoleKey: AdminRoleKey }> {
     await ensureAdminRoleCatalog(prisma);
 
@@ -551,19 +606,23 @@ export class AdminService {
       );
     }
 
-    await this.repository.deleteAdminRoleConfig(role.key);
-
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-    await this.repository.createSecurityLog({
-      userId: deletedBy,
-      eventType: "ROLE_REMOVED",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        deletedRoleKey: role.key,
-        deletedRoleName: role.name,
-      },
+    const context = auditContextFromAdminRequest(req);
+    await prisma.$transaction(async (tx) => {
+      await tx.adminRoleConfig.delete({ where: { key: role.key } });
+      await writeSecurityAuditLog(
+        {
+          eventType: "ADMIN_ROLE_DELETED",
+          context,
+          subjectUserId: null,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_ROLE,
+          targetId: role.key,
+          metadata: {
+            roleKey: role.key,
+            roleName: role.name,
+          },
+        },
+        tx
+      );
     });
 
     return { deletedRoleKey: role.key as AdminRoleKey };
@@ -937,7 +996,6 @@ export class AdminService {
         include: {
           _count: {
             select: {
-              access_logs: true,
               investments: true,
               loans: true,
             },
@@ -1053,7 +1111,7 @@ export class AdminService {
       created_at: user.created_at.toISOString(),
       updated_at: user.updated_at.toISOString(),
       stats: {
-        accessLogs: user._count.access_logs,
+        accessLogs: await accessAuditLogReader.countForUser(user.user_id),
         investments: user._count.investments,
         loans: user._count.loans,
         investorOrganizations: investorOrganizations.length,
@@ -1086,117 +1144,121 @@ export class AdminService {
     const adminRoleRemoved = hadAdminRole && !hasAdminRole;
     const adminRoleAdded = !hadAdminRole && hasAdminRole;
 
-    // If ADMIN role is being removed, deactivate the admin record (if it exists)
-    if (adminRoleRemoved) {
-      const admin = await this.repository.getAdminByUserId(userId);
-      if (admin && admin.status === "ACTIVE") {
-        logger.info(
-          { userId, email: user.email, deactivatedBy: adminUserId },
-          "ADMIN role removed - deactivating admin record"
-        );
-        await this.repository.updateAdminStatus(userId, "INACTIVE");
+    const context = auditContextFromAdminRequest(req);
+    const diff = roleDiff(user.roles, data.roles);
 
-        // Log security event for admin deactivation via role removal
-        const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-        await this.repository.createSecurityLog({
-          userId,
-          eventType: "ROLE_SWITCHED",
-          ipAddress,
-          userAgent,
-          deviceInfo,
-          metadata: {
-            action: "DEACTIVATED_VIA_ROLE_REMOVAL",
-            previousStatus: "ACTIVE",
-            newStatus: "INACTIVE",
-            previousRoles: user.roles,
-            newRoles: data.roles,
-            deactivatedBy: adminUserId,
-          },
-        });
-      }
-    }
-
-    // If ADMIN role is being added, activate the admin record (if it exists) or create a new one
-    if (adminRoleAdded) {
-      const admin = await this.repository.getAdminByUserId(userId);
-
-      if (admin) {
-        // Admin record exists - reactivate it (preserving existing role_description)
-        if (admin.status === "INACTIVE") {
+    const updatedUser = await prisma.$transaction(async (tx) => {
+      if (adminRoleRemoved) {
+        const admin = await tx.admin.findUnique({ where: { user_id: userId } });
+        if (admin && admin.status === "ACTIVE") {
           logger.info(
-            {
-              userId,
-              email: user.email,
-              roleDescription: admin.role_description,
-              activatedBy: adminUserId,
-            },
-            "ADMIN role added - reactivating existing admin record with previous role description"
+            { userId, email: user.email, deactivatedBy: adminUserId },
+            "ADMIN role removed - deactivating admin record"
           );
-          await this.repository.updateAdminStatus(userId, "ACTIVE");
+          await tx.admin.update({
+            where: { user_id: userId },
+            data: { status: "INACTIVE" },
+          });
+          await writeSecurityAuditLog(
+            {
+              eventType: "ADMIN_USER_DEACTIVATED",
+              context,
+              subjectUserId: userId,
+              targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+              targetId: userId,
+              metadata: {
+                previousStatus: "ACTIVE",
+                newStatus: "INACTIVE",
+                previousRoles: user.roles,
+                newRoles: data.roles,
+              },
+            },
+            tx
+          );
+        }
+      }
 
-          // Log security event for admin reactivation via role addition
-          const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-          await this.repository.createSecurityLog({
-            userId,
-            eventType: "ROLE_SWITCHED",
-            ipAddress,
-            userAgent,
-            deviceInfo,
-            metadata: {
-              action: "ACTIVATED_VIA_ROLE_ADDITION",
-              previousStatus: "INACTIVE",
-              newStatus: "ACTIVE",
-              previousRoles: user.roles,
-              newRoles: data.roles,
-              roleDescription: admin.role_description,
-              activatedBy: adminUserId,
+      if (adminRoleAdded) {
+        const admin = await tx.admin.findUnique({ where: { user_id: userId } });
+        if (admin) {
+          if (admin.status === "INACTIVE") {
+            logger.info(
+              {
+                userId,
+                email: user.email,
+                roleDescription: admin.role_description,
+                activatedBy: adminUserId,
+              },
+              "ADMIN role added - reactivating existing admin record with previous role description"
+            );
+            await tx.admin.update({
+              where: { user_id: userId },
+              data: { status: "ACTIVE" },
+            });
+            await writeSecurityAuditLog(
+              {
+                eventType: "ADMIN_USER_REACTIVATED",
+                context,
+                subjectUserId: userId,
+                targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+                targetId: userId,
+                metadata: {
+                  previousStatus: "INACTIVE",
+                  newStatus: "ACTIVE",
+                  previousRoles: user.roles,
+                  newRoles: data.roles,
+                },
+              },
+              tx
+            );
+          }
+        } else {
+          logger.info(
+            { userId, email: user.email, activatedBy: adminUserId },
+            "ADMIN role added - creating new admin record with SUPER_ADMIN role"
+          );
+          const superAdminRole = await tx.adminRoleConfig.findUnique({
+            where: { key: AdminRole.SUPER_ADMIN },
+          });
+          await tx.admin.create({
+            data: {
+              user_id: userId,
+              role_id: superAdminRole?.id ?? null,
+              role_description: AdminRole.SUPER_ADMIN,
+              status: "ACTIVE",
             },
           });
         }
-      } else {
-        // No admin record exists - create a new one with SUPER_ADMIN role
-        logger.info(
-          { userId, email: user.email, activatedBy: adminUserId },
-          "ADMIN role added - creating new admin record with SUPER_ADMIN role"
-        );
-        await this.repository.createAdmin(userId, AdminRole.SUPER_ADMIN);
       }
-    }
 
-    // Validate that user has required roles for onboarding flags
-    const hasInvestorRole = data.roles.includes(UserRole.INVESTOR);
-    const hasIssuerRole = data.roles.includes(UserRole.ISSUER);
+      const hasInvestorRole = data.roles.includes(UserRole.INVESTOR);
+      const hasIssuerRole = data.roles.includes(UserRole.ISSUER);
+      const userUpdate: Prisma.UserUpdateInput = { roles: { set: data.roles } };
+      if (!hasInvestorRole && user.investor_account.length > 0) {
+        userUpdate.investor_account = { set: [] };
+      }
+      if (!hasIssuerRole && user.issuer_account.length > 0) {
+        userUpdate.issuer_account = { set: [] };
+      }
 
-    // If removing INVESTOR role, reset investor onboarding
-    // If removing ISSUER role, reset issuer onboarding
-    const updateData: Prisma.UserUpdateInput = { roles: { set: data.roles } };
-    if (!hasInvestorRole && user.investor_account.length > 0) {
-      updateData.investor_account = { set: [] };
-    }
-    if (!hasIssuerRole && user.issuer_account.length > 0) {
-      updateData.issuer_account = { set: [] };
-    }
+      const updated = await tx.user.update({
+        where: { user_id: userId },
+        data: userUpdate,
+      });
 
-    const updatedUser = await this.repository.updateUserRoles(userId, data.roles);
+      await writeSecurityAuditLog(
+        {
+          eventType: "USER_ROLES_UPDATED",
+          context,
+          subjectUserId: userId,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+          targetId: userId,
+          metadata: diff,
+        },
+        tx
+      );
 
-    // Create access log for admin action
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    await this.repository.createAccessLog({
-      userId: adminUserId,
-      eventType: adminRoleRemoved ? "ROLE_REMOVED" : "ROLE_ADDED",
-      portal: "admin",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      success: true,
-      metadata: {
-        targetUserId: userId,
-        targetUserEmail: user.email,
-        newRoles: data.roles,
-        previousRoles: user.roles,
-        adminRoleRemoved,
-      },
+      return updated;
     });
 
     return updatedUser;
@@ -1209,7 +1271,7 @@ export class AdminService {
     req: Request,
     userId: string,
     data: UpdateUserOnboardingInput,
-    adminUserId: string
+    _adminUserId: string
   ): Promise<User> {
     const user = await this.repository.getUserById(userId);
     if (!user) {
@@ -1238,14 +1300,10 @@ export class AdminService {
     }
 
     const rolesChanged = JSON.stringify(updatedRoles.sort()) !== JSON.stringify(user.roles.sort());
+    const previousInvestorOnboarded = user.investor_account.length > 0;
+    const previousIssuerOnboarded = user.issuer_account.length > 0;
+    const context = auditContextFromAdminRequest(req);
 
-    const updatedUser = await this.repository.updateUserOnboarding(
-      userId,
-      data,
-      rolesChanged ? updatedRoles : undefined
-    );
-
-    // Fetch latest organizations for logging
     const [latestInvestorOrg, latestIssuerOrg] = await Promise.all([
       prisma.investorOrganization.findFirst({
         where: { owner_user_id: userId },
@@ -1257,61 +1315,61 @@ export class AdminService {
       }),
     ]);
 
-    // Create onboarding logs for the target user(s) when their onboarding status is updated
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    return prisma.$transaction(async (tx) => {
+      const updatedUser = await this.repository.updateUserOnboarding(
+        userId,
+        data,
+        rolesChanged ? updatedRoles : undefined,
+        tx
+      );
 
-    // Create onboarding log for investor if status changed
-    const previousInvestorOnboarded = user.investor_account.length > 0;
-    if (
-      data.investorOnboarded !== undefined &&
-      data.investorOnboarded !== previousInvestorOnboarded
-    ) {
-      await this.repository.createOnboardingLog({
-        userId: userId,
-        role: UserRole.INVESTOR,
-        eventType: "ONBOARDING_STATUS_UPDATED",
-        portal: "investor",
-        ipAddress,
-        userAgent,
-        deviceInfo,
-        deviceType,
-        organizationName: latestInvestorOrg?.name || undefined,
-        investorOrganizationId: latestInvestorOrg?.id || undefined,
-        issuerOrganizationId: undefined,
-        metadata: {
-          updatedBy: adminUserId,
-          previousStatus: previousInvestorOnboarded,
-          newStatus: data.investorOnboarded,
-          adminAction: true,
-        },
-      });
-    }
+      if (
+        data.investorOnboarded !== undefined &&
+        data.investorOnboarded !== previousInvestorOnboarded
+      ) {
+        await writeOnboardingAuditLog(
+          {
+            eventType: "USER_ONBOARDING_STATUS_UPDATED",
+            context,
+            subjectUserId: userId,
+            organizationId: latestInvestorOrg?.id ?? null,
+            organizationKind: "INVESTOR",
+            organizationType: latestInvestorOrg?.type ?? null,
+            targetType: ONBOARDING_AUDIT_TARGET_TYPE.USER,
+            targetId: userId,
+            metadata: {
+              portal: "investor",
+              previousAccountMarker: user.investor_account,
+              newAccountMarker: updatedUser.investor_account,
+            },
+          },
+          tx
+        );
+      }
 
-    // Create onboarding log for issuer if status changed
-    const previousIssuerOnboarded = user.issuer_account.length > 0;
-    if (data.issuerOnboarded !== undefined && data.issuerOnboarded !== previousIssuerOnboarded) {
-      await this.repository.createOnboardingLog({
-        userId: userId,
-        role: UserRole.ISSUER,
-        eventType: "ONBOARDING_STATUS_UPDATED",
-        portal: "issuer",
-        ipAddress,
-        userAgent,
-        deviceInfo,
-        deviceType,
-        organizationName: latestIssuerOrg?.name || undefined,
-        investorOrganizationId: undefined,
-        issuerOrganizationId: latestIssuerOrg?.id || undefined,
-        metadata: {
-          updatedBy: adminUserId,
-          previousStatus: previousIssuerOnboarded,
-          newStatus: data.issuerOnboarded,
-          adminAction: true,
-        },
-      });
-    }
+      if (data.issuerOnboarded !== undefined && data.issuerOnboarded !== previousIssuerOnboarded) {
+        await writeOnboardingAuditLog(
+          {
+            eventType: "USER_ONBOARDING_STATUS_UPDATED",
+            context,
+            subjectUserId: userId,
+            organizationId: latestIssuerOrg?.id ?? null,
+            organizationKind: "ISSUER",
+            organizationType: latestIssuerOrg?.type ?? null,
+            targetType: ONBOARDING_AUDIT_TARGET_TYPE.USER,
+            targetId: userId,
+            metadata: {
+              portal: "issuer",
+              previousAccountMarker: user.issuer_account,
+              newAccountMarker: updatedUser.issuer_account,
+            },
+          },
+          tx
+        );
+      }
 
-    return updatedUser;
+      return updatedUser;
+    });
   }
 
   /**
@@ -1321,79 +1379,60 @@ export class AdminService {
     req: Request,
     userId: string,
     data: UpdateUserProfileInput,
-    adminUserId: string
+    _adminUserId: string
   ): Promise<User> {
     const user = await this.repository.getUserById(userId);
     if (!user) {
       throw new Error("User not found");
     }
 
-    // Admins can always edit names (no restrictions)
-    // Note: This is the admin service, so admins can edit any user's name
-    const isChangingName = data.firstName !== undefined || data.lastName !== undefined;
-    const hasCompletedOnboarding =
-      user.investor_account.length > 0 || user.issuer_account.length > 0;
+    const context = auditContextFromAdminRequest(req);
+    const before = {
+      firstName: user.first_name,
+      lastName: user.last_name,
+      phone: user.phone,
+    };
 
-    const updatedUser = await this.repository.updateUserProfile(userId, data);
+    return prisma.$transaction(async (tx) => {
+      const updateData: Record<string, string | null> = {};
+      if (data.firstName !== undefined) updateData.first_name = data.firstName;
+      if (data.lastName !== undefined) updateData.last_name = data.lastName;
+      if (data.phone !== undefined) updateData.phone = data.phone;
 
-    // Create access log for admin action
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    await this.repository.createAccessLog({
-      userId: adminUserId,
-      eventType: "PROFILE_UPDATED",
-      portal: "admin",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      success: true,
-      metadata: {
-        targetUserId: userId,
-        targetUserEmail: user.email,
-        updatedFields: Object.keys(data).filter(
-          (k) => data[k as keyof UpdateUserProfileInput] !== undefined
-        ),
-        previousValues: {
-          firstName: user.first_name,
-          lastName: user.last_name,
-          phone: user.phone,
-        },
-        nameLockedOverride: hasCompletedOnboarding && isChangingName,
-      },
-    });
-
-    // Create security log if admin changed name of onboarded user
-    if (hasCompletedOnboarding && isChangingName) {
-      await this.repository.createSecurityLog({
-        userId: userId,
-        eventType: "PROFILE_UPDATED",
-        ipAddress,
-        userAgent,
-        deviceInfo,
-        metadata: {
-          updatedBy: adminUserId,
-          updatedFields: Object.keys(data).filter(
-            (k) => data[k as keyof UpdateUserProfileInput] !== undefined
-          ),
-          previousValues: {
-            firstName: user.first_name,
-            lastName: user.last_name,
-          },
-          adminOverride: true,
-        },
+      const updatedUser = await tx.user.update({
+        where: { user_id: userId },
+        data: updateData,
       });
-    }
 
-    return updatedUser;
+      const after = {
+        firstName: updatedUser.first_name,
+        lastName: updatedUser.last_name,
+        phone: updatedUser.phone,
+      };
+      const changedFields = changedFieldsOf(before, after);
+      if (changedFields.length > 0) {
+        await writeSecurityAuditLog(
+          {
+            eventType: "USER_PROFILE_UPDATED_BY_ADMIN",
+            context,
+            subjectUserId: userId,
+            targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+            targetId: userId,
+            metadata: { changedFields, before, after },
+          },
+          tx
+        );
+      }
+
+      return updatedUser;
+    });
   }
 
   /**
    * List access logs with pagination and filters
    */
   async listAccessLogs(params: GetAccessLogsQuery): Promise<{
-    logs: (AccessLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    })[];
+    logs: Awaited<ReturnType<typeof accessAuditLogReader.findAll>>["logs"];
     pagination: {
       page: number;
       pageSize: number;
@@ -1401,7 +1440,7 @@ export class AdminService {
       totalPages: number;
     };
   }> {
-    const { logs, total } = await this.repository.getAccessLogs(params);
+    const { logs, total } = await accessAuditLogReader.findAll(params);
     const totalPages = Math.ceil(total / params.pageSize);
 
     return {
@@ -1415,22 +1454,12 @@ export class AdminService {
     };
   }
 
-  /**
-   * Get access log by ID
-   */
-  async getAccessLogById(logId: string): Promise<(AccessLog & { user: User }) | null> {
-    return this.repository.getAccessLogById(logId);
+  async getAccessLogById(logId: string) {
+    return accessAuditLogReader.findById(logId);
   }
 
-  /**
-   * Export access logs (returns all matching logs without pagination)
-   */
-  async exportAccessLogs(params: Omit<GetAccessLogsQuery, "page" | "pageSize">): Promise<
-    (AccessLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    })[]
-  > {
-    return this.repository.getAllAccessLogsForExport(params);
+  async exportAccessLogs(params: Omit<GetAccessLogsQuery, "page" | "pageSize">) {
+    return accessAuditLogReader.findAllForExport(params);
   }
 
   /**
@@ -1571,23 +1600,43 @@ export class AdminService {
   /**
    * Update user's 5-letter ID (admin only)
    */
-  async updateUserId(userId: string, newUserId: string): Promise<{ user_id: string }> {
-    // Check if user exists
+  async updateUserId(
+    req: Request,
+    userId: string,
+    newUserId: string
+  ): Promise<{ user_id: string }> {
     const user = await prisma.user.findUnique({ where: { user_id: userId } });
     if (!user) {
       throw new AppError(404, "NOT_FOUND", "User not found");
     }
 
-    // Update user_id and let database unique constraint handle conflicts
-    try {
-      const updatedUser = await prisma.user.update({
-        where: { user_id: userId },
-        data: { user_id: newUserId },
-      });
+    const context = auditContextFromAdminRequest(req);
 
-      return { user_id: updatedUser.user_id! };
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const updatedUser = await tx.user.update({
+          where: { user_id: userId },
+          data: { user_id: newUserId },
+        });
+
+        await writeSecurityAuditLog(
+          {
+            eventType: "USER_PUBLIC_ID_CHANGED",
+            context,
+            subjectUserId: newUserId,
+            targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+            targetId: newUserId,
+            metadata: {
+              previousUserId: userId,
+              newUserId,
+            },
+          },
+          tx
+        );
+
+        return { user_id: updatedUser.user_id };
+      });
     } catch (error) {
-      // Handle unique constraint violation (P2002 is Prisma's code for unique constraint errors)
       if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
         throw new AppError(409, "CONFLICT", "This User ID is already assigned to another user");
       }
@@ -1630,7 +1679,7 @@ export class AdminService {
     req: Request,
     userId: string,
     data: UpdateAdminRoleInput,
-    updatedBy: string
+    _updatedBy: string
   ): Promise<User & { admin: { role_description: string } | null }> {
     const user = await this.repository.getUserById(userId);
     if (!user) {
@@ -1664,21 +1713,31 @@ export class AdminService {
       }
     }
 
-    await this.repository.updateAdminRole(userId, data.roleDescription);
+    const context = auditContextFromAdminRequest(req);
+    const roleConfig = await this.requireAdminRoleConfig(data.roleDescription);
 
-    // Log ROLE_SWITCHED event in SecurityLog
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-    await this.repository.createSecurityLog({
-      userId,
-      eventType: "ROLE_SWITCHED",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        previousRole,
-        newRole: data.roleDescription,
-        updatedBy,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.admin.update({
+        where: { user_id: userId },
+        data: {
+          role_id: roleConfig.id,
+          role_description: data.roleDescription,
+        },
+      });
+      await writeSecurityAuditLog(
+        {
+          eventType: "ADMIN_USER_ROLE_CHANGED",
+          context,
+          subjectUserId: userId,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+          targetId: userId,
+          metadata: {
+            previousRole,
+            newRole: data.roleDescription,
+          },
+        },
+        tx
+      );
     });
 
     const updatedUser = await this.repository.getUserById(userId);
@@ -1729,33 +1788,41 @@ export class AdminService {
       }
     }
 
-    // Update admin status to INACTIVE
-    await this.repository.updateAdminStatus(userId, "INACTIVE");
+    const context = auditContextFromAdminRequest(req);
+    const previousRoles = user.roles;
+    const newRoles = user.roles.filter((role) => role !== UserRole.ADMIN);
 
-    // Remove ADMIN role from user.roles to sync with /users page
-    if (user.roles.includes(UserRole.ADMIN)) {
-      logger.info(
-        { userId, email: user.email, deactivatedBy },
-        "Removing ADMIN role from user.roles to sync with /users page"
+    await prisma.$transaction(async (tx) => {
+      await tx.admin.update({
+        where: { user_id: userId },
+        data: { status: "INACTIVE" },
+      });
+      if (user.roles.includes(UserRole.ADMIN)) {
+        logger.info(
+          { userId, email: user.email, deactivatedBy },
+          "Removing ADMIN role from user.roles to sync with /users page"
+        );
+        await tx.user.update({
+          where: { user_id: userId },
+          data: { roles: { set: newRoles } },
+        });
+      }
+      await writeSecurityAuditLog(
+        {
+          eventType: "ADMIN_USER_DEACTIVATED",
+          context,
+          subjectUserId: userId,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+          targetId: userId,
+          metadata: {
+            previousStatus: "ACTIVE",
+            newStatus: "INACTIVE",
+            previousRoles,
+            newRoles: user.roles.includes(UserRole.ADMIN) ? newRoles : previousRoles,
+          },
+        },
+        tx
       );
-      const updatedRoles = user.roles.filter((role) => role !== UserRole.ADMIN);
-      await this.repository.updateUserRoles(userId, updatedRoles);
-    }
-
-    // Log ROLE_SWITCHED event (deactivating admin access)
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-    await this.repository.createSecurityLog({
-      userId,
-      eventType: "ROLE_SWITCHED",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        action: "DEACTIVATED",
-        previousStatus: "ACTIVE",
-        newStatus: "INACTIVE",
-        deactivatedBy,
-      },
     });
 
     return this.repository.getUserById(userId) as Promise<User>;
@@ -1772,52 +1839,68 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "User not found");
     }
 
-    // Add ADMIN role to user.roles if missing (to sync with /users page)
-    if (!user.roles.includes(UserRole.ADMIN)) {
-      logger.info(
-        { userId, email: user.email, reactivatedBy },
-        "Adding ADMIN role to user.roles to sync with /users page"
-      );
-      const updatedRoles = [...user.roles, UserRole.ADMIN];
-      await this.repository.updateUserRoles(userId, updatedRoles);
+    const admin = await this.repository.getAdminByUserId(userId);
+    if (admin?.status === "ACTIVE") {
+      throw new AppError(400, "VALIDATION_ERROR", "Admin is already active");
     }
 
-    // Check if admin record exists
-    let admin = await this.repository.getAdminByUserId(userId);
+    const context = auditContextFromAdminRequest(req);
+    const previousRoles = user.roles;
+    const newRoles = user.roles.includes(UserRole.ADMIN)
+      ? user.roles
+      : [...user.roles, UserRole.ADMIN];
 
-    // If no admin record exists, create one with SUPER_ADMIN as default role
-    // This handles cases where users have ADMIN role but no admin record
-    if (!admin) {
-      logger.info(
-        { userId, email: user.email, reactivatedBy },
-        "Admin record not found - creating new admin record with SUPER_ADMIN role"
-      );
-      admin = await this.repository.createAdmin(userId, AdminRole.SUPER_ADMIN);
-      // Admin record is created with ACTIVE status by default, so we're done
-    } else {
-      // Admin record exists - check status
-      if (admin.status === "ACTIVE") {
-        throw new AppError(400, "VALIDATION_ERROR", "Admin is already active");
+    await prisma.$transaction(async (tx) => {
+      if (!user.roles.includes(UserRole.ADMIN)) {
+        logger.info(
+          { userId, email: user.email, reactivatedBy },
+          "Adding ADMIN role to user.roles to sync with /users page"
+        );
+        await tx.user.update({
+          where: { user_id: userId },
+          data: { roles: { set: newRoles } },
+        });
       }
 
-      // Update admin status to ACTIVE
-      await this.repository.updateAdminStatus(userId, "ACTIVE");
-    }
+      if (!admin) {
+        logger.info(
+          { userId, email: user.email, reactivatedBy },
+          "Admin record not found - creating new admin record with SUPER_ADMIN role"
+        );
+        const superAdminRole = await tx.adminRoleConfig.findUnique({
+          where: { key: AdminRole.SUPER_ADMIN },
+        });
+        await tx.admin.create({
+          data: {
+            user_id: userId,
+            role_id: superAdminRole?.id ?? null,
+            role_description: AdminRole.SUPER_ADMIN,
+            status: "ACTIVE",
+          },
+        });
+      } else {
+        await tx.admin.update({
+          where: { user_id: userId },
+          data: { status: "ACTIVE" },
+        });
+      }
 
-    // Log ROLE_SWITCHED event (reactivating admin access)
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-    await this.repository.createSecurityLog({
-      userId,
-      eventType: "ROLE_SWITCHED",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        action: "REACTIVATED",
-        previousStatus: "INACTIVE",
-        newStatus: "ACTIVE",
-        reactivatedBy,
-      },
+      await writeSecurityAuditLog(
+        {
+          eventType: "ADMIN_USER_REACTIVATED",
+          context,
+          subjectUserId: userId,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+          targetId: userId,
+          metadata: {
+            previousStatus: admin?.status === "ACTIVE" ? "ACTIVE" : "INACTIVE",
+            newStatus: "ACTIVE",
+            previousRoles,
+            newRoles,
+          },
+        },
+        tx
+      );
     });
 
     return this.repository.getUserById(userId) as Promise<User>;
@@ -1827,9 +1910,18 @@ export class AdminService {
    * Generate invitation URL without sending email
    */
   async generateInvitationUrl(
+    req: Request,
     data: InviteAdminInput,
-    invitedBy: string
-  ): Promise<{ inviteUrl: string; token: string }> {
+    invitedBy: string,
+    options?: { writeLinkGenerated?: boolean }
+  ): Promise<{
+    inviteUrl: string;
+    token: string;
+    invitationId: string;
+    email: string;
+    expiresAt: Date;
+    created: boolean;
+  }> {
     const inviter = await this.repository.getUserById(invitedBy);
     if (!inviter) {
       throw new AppError(404, "NOT_FOUND", "Inviter not found");
@@ -1837,10 +1929,9 @@ export class AdminService {
 
     await this.requireAdminRoleConfig(data.roleDescription);
 
-    // Use placeholder email if not provided (for link-based invitations)
     const email = data.email?.toLowerCase() || `invitation-${Date.now()}@cashsouk.com`;
+    const context = auditContextFromAdminRequest(req);
 
-    // Check if invitation already exists for this email and role
     const existingInvitation = await prisma.adminInvitation.findFirst({
       where: {
         email,
@@ -1851,39 +1942,74 @@ export class AdminService {
       orderBy: { created_at: "desc" },
     });
 
-    let token: string;
-    if (existingInvitation) {
-      // Reuse existing invitation token
-      token = existingInvitation.token;
-    } else {
-      // Generate secure token
-      token = randomBytes(32).toString("hex");
-      const expiryHours = parseInt(process.env.INVITATION_TOKEN_EXPIRY_HOURS || "24", 10);
-      const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+    const invitation = existingInvitation
+      ? existingInvitation
+      : await prisma.$transaction(async (tx) => {
+          const token = randomBytes(32).toString("hex");
+          const expiryHours = parseInt(process.env.INVITATION_TOKEN_EXPIRY_HOURS || "24", 10);
+          const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+          const created = await tx.adminInvitation.create({
+            data: {
+              email,
+              role_description: data.roleDescription,
+              token,
+              expires_at: expiresAt,
+              invited_by_user_id: invitedBy,
+            },
+          });
+          await writeSecurityAuditLog(
+            {
+              eventType: "ADMIN_INVITATION_CREATED",
+              context,
+              subjectUserId: null,
+              targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_INVITATION,
+              targetId: created.id,
+              metadata: {
+                invitationId: created.id,
+                email: created.email,
+                role: created.role_description,
+                expiresAt: created.expires_at.toISOString(),
+              },
+            },
+            tx
+          );
+          return created;
+        });
 
-      // Create invitation record
-      await this.repository.createAdminInvitation({
-        email,
-        roleDescription: data.roleDescription,
-        token,
-        expiresAt,
-        invitedByUserId: invitedBy,
+    if (options?.writeLinkGenerated) {
+      await writeSecurityAuditLog({
+        eventType: "ADMIN_INVITATION_LINK_GENERATED",
+        context,
+        subjectUserId: null,
+        targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_INVITATION,
+        targetId: invitation.id,
+        metadata: {
+          invitationId: invitation.id,
+          email: invitation.email,
+          role: invitation.role_description,
+          expiresAt: invitation.expires_at.toISOString(),
+        },
       });
     }
 
-    // Generate invitation URL
-    // Use ADMIN_PORTAL_URL if set, otherwise fall back to ADMIN_URL, then default
     const adminPortalUrl = process.env.ADMIN_URL || "http://localhost:3003";
-    const inviteUrl = `${adminPortalUrl}/callback?invitation=${token}&role=${data.roleDescription}`;
+    const inviteUrl = `${adminPortalUrl}/callback?invitation=${invitation.token}&role=${data.roleDescription}`;
 
-    return { inviteUrl, token };
+    return {
+      inviteUrl,
+      token: invitation.token,
+      invitationId: invitation.id,
+      email: invitation.email,
+      expiresAt: invitation.expires_at,
+      created: !existingInvitation,
+    };
   }
 
   /**
    * Invite admin user (sends email if email provided)
    */
   async inviteAdmin(
-    _req: Request,
+    req: Request,
     data: InviteAdminInput,
     invitedBy: string
   ): Promise<{ inviteUrl: string; messageId?: string; emailSent: boolean; emailError?: string }> {
@@ -1895,7 +2021,7 @@ export class AdminService {
     const invitedRole = await this.requireAdminRoleConfig(data.roleDescription);
 
     // Generate invitation URL (creates invitation record if needed)
-    const { inviteUrl } = await this.generateInvitationUrl(data, invitedBy);
+    const { inviteUrl } = await this.generateInvitationUrl(req, data, invitedBy);
 
     // Send email via SES only if email is provided
     let messageId: string | undefined;
@@ -2017,57 +2143,91 @@ export class AdminService {
       }
     }
 
-    // Add ADMIN role if not present
-    const updatedRoles = [...user.roles];
-    if (!updatedRoles.includes(UserRole.ADMIN)) {
-      updatedRoles.push(UserRole.ADMIN);
-      await this.repository.updateUserRoles(user.user_id, updatedRoles);
-    }
-
-    // Create or update Admin record
-    let admin = await this.repository.getAdminByUserId(user.user_id);
-    if (!admin) {
-      admin = await this.repository.createAdmin(user.user_id, invitation.role_description);
-    } else {
-      // Update role description if different
-      if (admin.role_description !== invitation.role_description) {
-        admin = await this.repository.updateAdminRole(user.user_id, invitation.role_description);
-      }
-      // Ensure status is ACTIVE - CRITICAL: This reactivates deactivated admins
-      if (admin.status !== "ACTIVE") {
-        // Update status and use the returned updated admin object
-        admin = await this.repository.updateAdminStatus(user.user_id, "ACTIVE");
-      }
-    }
-
-    // Mark invitation as accepted
-    await this.repository.acceptAdminInvitation(data.token);
-
-    // Log ROLE_ADDED event
-    const { ipAddress, userAgent, deviceInfo } = extractRequestMetadata(req);
-    await this.repository.createSecurityLog({
-      userId: user.user_id,
-      eventType: "ROLE_ADDED",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      metadata: {
-        addedRole: "ADMIN",
-        roleDescription: invitation.role_description,
-        invitationToken: data.token,
-        invitationType: invitation.email.startsWith("invitation-") ? "link" : "email",
-      },
+    const context = auditContextFromRequest(req, {
+      actorType: AUDIT_ACTOR_TYPE.ADMIN,
+      actorUserId: user.user_id,
+      portal: AUDIT_PORTAL.ADMIN,
+      source: AUDIT_SOURCE.API,
     });
 
-    // Refresh user to get updated roles
-    const updatedUser = await this.repository.getUserById(user.user_id);
-    // Refresh admin to ensure we have the latest status (especially after status update)
-    const refreshedAdmin = await this.repository.getAdminByUserId(user.user_id);
+    const { updatedUser, admin } = await prisma.$transaction(async (tx) => {
+      const updatedRoles = [...user.roles];
+      if (!updatedRoles.includes(UserRole.ADMIN)) {
+        updatedRoles.push(UserRole.ADMIN);
+        await tx.user.update({
+          where: { user_id: user.user_id },
+          data: { roles: { set: updatedRoles } },
+        });
+      }
+
+      let adminRecord = await tx.admin.findUnique({ where: { user_id: user.user_id } });
+      if (!adminRecord) {
+        const roleConfig = await tx.adminRoleConfig.findUnique({
+          where: { key: invitation.role_description },
+        });
+        adminRecord = await tx.admin.create({
+          data: {
+            user_id: user.user_id,
+            role_id: roleConfig?.id ?? null,
+            role_description: invitation.role_description,
+            status: "ACTIVE",
+          },
+        });
+      } else {
+        const adminUpdate: { role_id?: string | null; role_description?: string; status?: "ACTIVE" | "INACTIVE" } =
+          {};
+        if (adminRecord.role_description !== invitation.role_description) {
+          const roleConfig = await tx.adminRoleConfig.findUnique({
+            where: { key: invitation.role_description },
+          });
+          adminUpdate.role_id = roleConfig?.id ?? null;
+          adminUpdate.role_description = invitation.role_description;
+        }
+        if (adminRecord.status !== "ACTIVE") {
+          adminUpdate.status = "ACTIVE";
+        }
+        if (Object.keys(adminUpdate).length > 0) {
+          adminRecord = await tx.admin.update({
+            where: { user_id: user.user_id },
+            data: adminUpdate,
+          });
+        }
+      }
+
+      await tx.adminInvitation.update({
+        where: { token: data.token },
+        data: {
+          accepted: true,
+          accepted_at: new Date(),
+        },
+      });
+
+      await writeSecurityAuditLog(
+        {
+          eventType: "ADMIN_INVITATION_ACCEPTED",
+          context,
+          subjectUserId: user.user_id,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_INVITATION,
+          targetId: invitation.id,
+          metadata: {
+            invitationId: invitation.id,
+            email: user.email,
+            role: invitation.role_description,
+            expiresAt: invitation.expires_at.toISOString(),
+          },
+        },
+        tx
+      );
+
+      const nextUser = await tx.user.findUnique({ where: { user_id: user.user_id } });
+      return { updatedUser: nextUser!, admin: adminRecord };
+    });
+
     return {
-      user: updatedUser!,
+      user: updatedUser,
       admin: {
-        role_description: refreshedAdmin?.role_description || admin.role_description,
-        status: (refreshedAdmin?.status || admin.status) as "ACTIVE" | "INACTIVE",
+        role_description: admin.role_description,
+        status: admin.status as "ACTIVE" | "INACTIVE",
       },
     };
   }
@@ -2076,17 +2236,7 @@ export class AdminService {
    * Get security logs
    */
   async getSecurityLogs(params: GetSecurityLogsQuery): Promise<{
-    logs: Array<{
-      id: string;
-      user_id: string;
-      event_type: string;
-      ip_address: string | null;
-      user_agent: string | null;
-      device_info: string | null;
-      metadata: unknown;
-      created_at: Date;
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    }>;
+    logs: Awaited<ReturnType<typeof securityAuditLogReader.findAll>>["logs"];
     pagination: {
       page: number;
       pageSize: number;
@@ -2094,7 +2244,7 @@ export class AdminService {
       totalPages: number;
     };
   }> {
-    const { logs, total } = await this.repository.getSecurityLogs(params);
+    const { logs, total } = await securityAuditLogReader.findAll(params);
     const totalPages = Math.ceil(total / params.pageSize);
 
     return {
@@ -2108,15 +2258,8 @@ export class AdminService {
     };
   }
 
-  /**
-   * Export security logs
-   */
-  async exportSecurityLogs(params: Omit<GetSecurityLogsQuery, "page" | "pageSize">): Promise<
-    (SecurityLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-    })[]
-  > {
-    return this.repository.getAllSecurityLogsForExport(params);
+  async exportSecurityLogs(params: Omit<GetSecurityLogsQuery, "page" | "pageSize">) {
+    return securityAuditLogReader.findAllForExport(params);
   }
 
   /**
@@ -2151,7 +2294,7 @@ export class AdminService {
    * Resend admin invitation email (by invitation ID)
    */
   async resendInvitation(
-    _req: Request,
+    req: Request,
     invitationId: string,
     invitedBy: string
   ): Promise<{ messageId?: string; emailSent: boolean; emailError?: string }> {
@@ -2220,6 +2363,21 @@ export class AdminService {
         },
         "Admin invitation resent via email"
       );
+
+      await writeSecurityAuditLog({
+        eventType: "ADMIN_INVITATION_RESENT",
+        context: auditContextFromAdminRequest(req),
+        subjectUserId: null,
+        targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_INVITATION,
+        targetId: invitation.id,
+        metadata: {
+          invitationId: invitation.id,
+          email: invitation.email,
+          role: invitation.role_description,
+          expiresAt: invitation.expires_at.toISOString(),
+          emailSent: true,
+        },
+      });
     } catch (error) {
       emailSent = false;
       emailError = error instanceof Error ? error.message : String(error);
@@ -2252,20 +2410,24 @@ export class AdminService {
       throw new AppError(400, "VALIDATION_ERROR", "Cannot revoke an accepted invitation");
     }
 
-    // Delete the invitation
-    await this.repository.deleteAdminInvitation(invitationId);
-
-    // Log the action
-    await this.repository.createSecurityLog({
-      userId: revokedBy,
-      eventType: "INVITATION_REVOKED",
-      ipAddress: req.ip,
-      userAgent: req.get("user-agent"),
-      metadata: {
-        invitationId,
-        email: invitation.email,
-        roleDescription: invitation.role_description,
-      },
+    await prisma.$transaction(async (tx) => {
+      await tx.adminInvitation.delete({ where: { id: invitationId } });
+      await writeSecurityAuditLog(
+        {
+          eventType: "ADMIN_INVITATION_REVOKED",
+          context: auditContextFromAdminRequest(req),
+          subjectUserId: null,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_INVITATION,
+          targetId: invitationId,
+          metadata: {
+            invitationId,
+            email: invitation.email,
+            role: invitation.role_description,
+            expiresAt: invitation.expires_at.toISOString(),
+          },
+        },
+        tx
+      );
     });
 
     logger.info(
@@ -2283,35 +2445,20 @@ export class AdminService {
    * List onboarding logs with pagination and filters
    */
   async listOnboardingLogs(params: GetOnboardingLogsQuery): Promise<{
-    logs: (OnboardingLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-      organizationName?: string | null;
-      organizationType?: OrganizationType | null;
-    })[];
+    logs: OnboardingAuditLogDto[];
     total: number;
   }> {
-    const { logs, total } = await this.repository.getOnboardingLogs(params);
-    return { logs, total };
+    return onboardingAuditLogReader.findAll(params);
   }
 
-  /**
-   * Get onboarding log by ID
-   */
-  async getOnboardingLogById(logId: string): Promise<(OnboardingLog & { user: User }) | null> {
-    return this.repository.getOnboardingLogById(logId);
+  async getOnboardingLogById(logId: string): Promise<OnboardingAuditLogDto | null> {
+    return onboardingAuditLogReader.findById(logId);
   }
 
-  /**
-   * Export onboarding logs
-   */
-  async exportOnboardingLogs(params: Omit<GetOnboardingLogsQuery, "page" | "pageSize">): Promise<
-    (OnboardingLog & {
-      user: { first_name: string; last_name: string; email: string; roles: UserRole[] };
-      organizationName?: string | null;
-      organizationType?: OrganizationType | null;
-    })[]
-  > {
-    return this.repository.getAllOnboardingLogsForExport(params);
+  async exportOnboardingLogs(
+    params: Omit<GetOnboardingLogsQuery, "page" | "pageSize">
+  ): Promise<OnboardingAuditLogDto[]> {
+    return onboardingAuditLogReader.findAllForExport(params);
   }
 
   /**
@@ -2342,9 +2489,6 @@ export class AdminService {
       updateData.issuerOnboarded = false;
     }
 
-    const updatedUser = await this.repository.updateUserOnboarding(userId, updateData);
-
-    // Fetch the latest organization for logging
     const latestOrg =
       data.portal === "investor"
         ? (
@@ -2362,43 +2506,33 @@ export class AdminService {
           })
         )[0];
 
-    // Create onboarding log
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    await this.repository.createOnboardingLog({
-      userId: userId,
-      role: data.portal === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
-      eventType: "ONBOARDING_RESET",
-      portal: data.portal,
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      organizationName: latestOrg?.name || undefined,
-      investorOrganizationId: data.portal === "investor" ? latestOrg?.id : undefined,
-      issuerOrganizationId: data.portal === "issuer" ? latestOrg?.id : undefined,
-      metadata: {
-        resetBy: adminUserId,
-        previousStatus: true,
-        newStatus: false,
-        adminAction: true,
-      },
-    });
+    const previousMarker =
+      data.portal === "investor" ? user.investor_account : user.issuer_account;
+    const context = auditContextFromAdminRequest(req);
 
-    // Create access log for admin action
-    await this.repository.createAccessLog({
-      userId: adminUserId,
-      eventType: "ONBOARDING_RESET",
-      portal: "admin",
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      success: true,
-      metadata: {
-        targetUserId: userId,
-        targetUserEmail: user.email,
-        portal: data.portal,
-      },
+    const updatedUser = await prisma.$transaction(async (tx) => {
+      const next = await this.repository.updateUserOnboarding(userId, updateData, undefined, tx);
+      await writeOnboardingAuditLog(
+        {
+          eventType: "ONBOARDING_RESET",
+          context,
+          subjectUserId: userId,
+          organizationId: latestOrg?.id ?? null,
+          organizationKind: data.portal === "investor" ? "INVESTOR" : "ISSUER",
+          organizationType: latestOrg?.type ?? null,
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.USER,
+          targetId: userId,
+          metadata: {
+            statusScope: "USER_ACCOUNT_MARKER",
+            organizationStateReset: false,
+            portal: data.portal,
+            previousAccountMarker: previousMarker,
+            newAccountMarker: data.portal === "investor" ? next.investor_account : next.issuer_account,
+          },
+        },
+        tx
+      );
+      return next;
     });
 
     logger.info(
@@ -2551,6 +2685,12 @@ export class AdminService {
     regtankPortalUrl: string | null;
     regtankRequestId: string | null;
     codRequestId: string | null;
+    tncAccepted: boolean;
+    onboardingFeePaid: boolean;
+    ssmApproved: boolean;
+    onboardingApproved: boolean;
+    amlApproved: boolean;
+    regtankSessionStatus: string | null;
     corporateOnboardingData?: {
       basicInfo?: {
         tinNumber?: string;
@@ -2827,6 +2967,7 @@ export class AdminService {
                   ? (ctosPartySupplements ?? null)
                   : (investorCtosPartySupplements ?? null),
               corporateEntities: org.corporate_entities ?? null,
+              parentCorporateRequestId: codRequestId,
             });
             return {
               people: partyBuild.people,
@@ -2860,6 +3001,13 @@ export class AdminService {
       // Build RegTank portal URL from latest onboarding record
       regtankRequestId: org.regtank_onboarding?.[0]?.request_id ?? null,
       codRequestId,
+      tncAccepted: Boolean(org.tnc_accepted),
+      onboardingFeePaid: portal === "issuer" ? Boolean(org.onboarding_fee_paid_at) : false,
+      ssmApproved:
+        portal === "investor" ? Boolean(org.ssm_approved) : Boolean(org.ssm_checked),
+      onboardingApproved: Boolean(org.onboarding_approved),
+      amlApproved: Boolean(org.aml_approved),
+      regtankSessionStatus: org.regtank_onboarding?.[0]?.status ?? null,
       regtankPortalUrl: (() => {
         const requestId = org.regtank_onboarding?.[0]?.request_id;
         if (!requestId) return null;
@@ -2885,15 +3033,13 @@ export class AdminService {
     portal: "issuer" | "investor",
     organizationId: string,
     input: UpdateAdminOrganizationProfileBody,
-    adminUserId: string
+    _adminUserId: string
   ) {
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
     return updateAdminOrganizationProfile({
       portal,
       organizationId,
-      adminUserId,
       input,
-      requestMeta: { ipAddress, userAgent, deviceInfo, deviceType },
+      context: auditContextFromAdminRequest(req),
     });
   }
 
@@ -2966,6 +3112,7 @@ export class AdminService {
    * Fetches latest COD details and updates corporate_entities in the database.
    */
   async refreshOrganizationCorporateEntities(
+    _req: Request,
     organizationId: string,
     portal: PortalType
   ): Promise<{ success: boolean; message: string }> {
@@ -2982,17 +3129,33 @@ export class AdminService {
     const codDetails = await this.regTankApiClient.getCorporateOnboardingDetails(onboarding.request_id);
     const corporateEntities = extractCorporateEntities(codDetails);
 
-    if (portal === "investor") {
-      await prisma.investorOrganization.update({
-        where: { id: organizationId },
-        data: { corporate_entities: corporateEntities as Prisma.InputJsonValue },
-      });
-    } else {
-      await prisma.issuerOrganization.update({
-        where: { id: organizationId },
-        data: { corporate_entities: corporateEntities as Prisma.InputJsonValue },
-      });
-    }
+    await prisma.$transaction(async (tx) => {
+      await lockOrganizationRow(tx, portal, organizationId);
+      const locked =
+        portal === "investor"
+          ? await tx.investorOrganization.findUnique({
+              where: { id: organizationId },
+              select: { corporate_entities: true },
+            })
+          : await tx.issuerOrganization.findUnique({
+              where: { id: organizationId },
+              select: { corporate_entities: true },
+            });
+      if (!locked) return;
+
+      if (portal === "investor") {
+        await tx.investorOrganization.update({
+          where: { id: organizationId },
+          data: { corporate_entities: corporateEntities as Prisma.InputJsonValue },
+        });
+      } else {
+        await tx.issuerOrganization.update({
+          where: { id: organizationId },
+          data: { corporate_entities: corporateEntities as Prisma.InputJsonValue },
+        });
+      }
+
+    });
 
     logger.info(
       { organizationId, portal, codRequestId: onboarding.request_id },
@@ -3007,6 +3170,7 @@ export class AdminService {
    * Only applicable for investor portal organizations
    */
   async updateSophisticatedStatus(
+    req: Request,
     organizationId: string,
     isSophisticatedInvestor: boolean,
     reason: string,
@@ -3027,34 +3191,45 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Investor organization not found");
     }
 
-    await prisma.investorOrganization.update({
-      where: { id: organizationId },
-      data: {
-        is_sophisticated_investor: isSophisticatedInvestor,
-        sophisticated_investor_reason: reason,
-      },
-    });
+    if (
+      org.is_sophisticated_investor === isSophisticatedInvestor &&
+      (org.sophisticated_investor_reason ?? "") === reason
+    ) {
+      return { success: true };
+    }
 
-    // Log the sophisticated status update event
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: org.owner_user_id,
-        role: UserRole.INVESTOR,
-        event_type: "SOPHISTICATED_STATUS_UPDATED",
-        portal: "investor",
-        organization_name: org.name,
-        investor_organization_id: organizationId,
-        issuer_organization_id: null,
-        metadata: {
-          organizationId,
-          previousStatus: org.is_sophisticated_investor,
-          previousReason: org.sophisticated_investor_reason,
-          newStatus: isSophisticatedInvestor,
-          newReason: reason,
-          updatedBy: adminUserId || "admin",
-          action: isSophisticatedInvestor ? "granted" : "revoked",
+    const action = isSophisticatedInvestor ? "GRANTED" : "REVOKED";
+    const context = auditContextFromAdminRequest(req);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.investorOrganization.update({
+        where: { id: organizationId },
+        data: {
+          is_sophisticated_investor: isSophisticatedInvestor,
+          sophisticated_investor_reason: reason,
         },
-      },
+      });
+
+      await writeOnboardingAuditLog(
+        {
+          eventType: "INVESTOR_SOPHISTICATED_STATUS_UPDATED",
+          context,
+          subjectUserId: org.owner_user_id,
+          organizationId,
+          organizationKind: "INVESTOR",
+          organizationType: null,
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: organizationId,
+          metadata: {
+            previousValue: org.is_sophisticated_investor,
+            newValue: isSophisticatedInvestor,
+            previousReason: org.sophisticated_investor_reason,
+            newReason: reason,
+            action,
+          },
+        },
+        tx
+      );
     });
 
     logger.info(
@@ -3199,6 +3374,7 @@ export class AdminService {
       issuerDirectorAmlStatus: organizationForPeople?.director_aml_status ?? null,
       ctosPartySupplements: organizationForPeople?.ctos_party_supplements ?? null,
       corporateEntities: existingResponse.corporateEntities ?? null,
+      parentCorporateRequestId: refreshed.request_id,
     });
 
     return {
@@ -3736,10 +3912,8 @@ export class AdminService {
     // Mark the old onboarding record as cancelled
     await this.regTankRepository.cancelOnboarding(onboardingId, cancelReason);
 
-    // Extract request metadata for logging
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
     const isInvestorPortal = onboarding.portal_type === "investor";
-    const role = isInvestorPortal ? UserRole.INVESTOR : UserRole.ISSUER;
+    const context = auditContextFromAdminRequest(req);
 
     // Determine organization ID
     const organizationId = isInvestorPortal
@@ -3768,59 +3942,58 @@ export class AdminService {
 
     // Reset the organization's onboarding status to PENDING and clear all approval-related fields
     // User will need to click "Yes, Restart Onboarding" to set it to IN_PROGRESS
-    if (isInvestorPortal && onboarding.investor_organization_id) {
-      await prisma.investorOrganization.update({
-        where: { id: onboarding.investor_organization_id },
-        data: {
-          onboarding_status: "PENDING",
-          is_sophisticated_investor: false,
-          onboarding_approved: false,
-          aml_approved: false,
-          tnc_accepted: false,
-          deposit_received: false,
-          ssm_approved: false,
-          admin_approved_at: null,
-          onboarded_at: null,
-        },
-      });
-    } else if (onboarding.issuer_organization_id) {
-      await prisma.issuerOrganization.update({
-        where: { id: onboarding.issuer_organization_id },
-        data: {
-          onboarding_status: "PENDING",
-          onboarding_approved: false,
-          aml_approved: false,
-          tnc_accepted: false,
-          ssm_checked: false,
-          admin_approved_at: null,
-          onboarded_at: null,
-        },
-      });
-    }
+    await prisma.$transaction(async (tx) => {
+      if (isInvestorPortal && onboarding.investor_organization_id) {
+        await tx.investorOrganization.update({
+          where: { id: onboarding.investor_organization_id },
+          data: {
+            onboarding_status: "PENDING",
+            is_sophisticated_investor: false,
+            onboarding_approved: false,
+            aml_approved: false,
+            tnc_accepted: false,
+            deposit_received: false,
+            ssm_approved: false,
+            admin_approved_at: null,
+            onboarded_at: null,
+          },
+        });
+      } else if (onboarding.issuer_organization_id) {
+        await tx.issuerOrganization.update({
+          where: { id: onboarding.issuer_organization_id },
+          data: {
+            onboarding_status: "PENDING",
+            onboarding_approved: false,
+            aml_approved: false,
+            tnc_accepted: false,
+            ssm_checked: false,
+            admin_approved_at: null,
+            onboarded_at: null,
+          },
+        });
+      }
 
-    // Log the cancellation/restart event
-    await this.repository.createOnboardingLog({
-      userId: onboarding.user_id,
-      role,
-      eventType: "ONBOARDING_CANCELLED",
-      portal: onboarding.portal_type,
-      ipAddress,
-      userAgent,
-      deviceInfo,
-      deviceType,
-      organizationName: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
-      investorOrganizationId: onboarding.investor_organization_id || undefined,
-      issuerOrganizationId: onboarding.issuer_organization_id || undefined,
-      metadata: {
-        cancelledOnboardingId: onboardingId,
-        cancelledRequestId: onboarding.request_id,
-        newRequestId: nextRequestId,
-        previousStatus: onboarding.status,
-        cancelledBy: adminUserId,
-        reason: "Restart requested by admin",
-        organizationType: onboarding.organization_type,
-        organizationId,
-      },
+      await writeOnboardingAuditLog(
+        {
+          eventType: "ONBOARDING_RESTARTED",
+          context,
+          subjectUserId: onboarding.user_id,
+          onboardingId,
+          organizationId: organizationId ?? null,
+          organizationKind: isInvestorPortal ? "INVESTOR" : "ISSUER",
+          organizationType: onboarding.organization_type,
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: organizationId ?? onboardingId,
+          metadata: {
+            trigger: ONBOARDING_RESTART_TRIGGER.ADMIN_RESTART,
+            previousRequestId: onboarding.request_id,
+            newRequestId: nextRequestId,
+            previousStatus: onboarding.status,
+            onboardingType: onboarding.onboarding_type === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
+          },
+        },
+        tx
+      );
     });
 
     logger.info(
@@ -3962,15 +4135,7 @@ export class AdminService {
         }
       }
 
-      // Update investor organization
-      await prisma.investorOrganization.update({
-        where: { id: org.id },
-        data: {
-          onboarding_status: "COMPLETED",
-          onboarded_at: new Date(),
-          admin_approved_at: new Date(),
-        },
-      });
+      // Organization COMPLETED is applied with the audit row below.
     } else if (!isInvestor && onboarding.issuer_organization) {
       const issuerOrg = onboarding.issuer_organization;
 
@@ -4016,15 +4181,54 @@ export class AdminService {
         }
       }
 
-      // Update issuer organization
-      await prisma.issuerOrganization.update({
-        where: { id: org.id },
-        data: {
-          onboarding_status: "COMPLETED",
-          onboarded_at: new Date(),
-          admin_approved_at: new Date(),
-        },
+      // Organization COMPLETED is applied with the audit row below.
+    }
+
+    const previousOrgStatus = org.onboarding_status;
+    const context = auditContextFromAdminRequest(req);
+    const claimed = await prisma.$transaction(async (tx) => {
+      const won = await claimFinalApprovalCompleted({
+        organizationId: org.id,
+        portalType: isInvestor ? "investor" : "issuer",
+        db: tx,
       });
+      if (!won) return false;
+      await writeOnboardingAuditLog(
+        {
+          eventType: "ONBOARDING_FINAL_APPROVAL_COMPLETED",
+          context,
+          subjectUserId: onboarding.user_id,
+          onboardingId,
+          organizationId: org.id,
+          organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
+          organizationType: onboarding.organization_type,
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: org.id,
+          metadata: {
+            previousStatus: previousOrgStatus,
+            newStatus: "COMPLETED",
+            approvedBy: adminUserId,
+          },
+        },
+        tx
+      );
+      return true;
+    });
+
+    if (!claimed) {
+      const latest = await readOrganizationOnboardingState(
+        prisma,
+        isInvestor ? "investor" : "issuer",
+        org.id
+      );
+      if (latest?.onboarding_status === OnboardingStatus.COMPLETED) {
+        throw new AppError(400, "ALREADY_COMPLETED", "Onboarding is already completed");
+      }
+      throw new AppError(
+        400,
+        "INVALID_STEP",
+        "Final approval is only allowed when onboarding_status is PENDING_FINAL_APPROVAL"
+      );
     }
 
     // Update RegTank onboarding status to COMPLETED
@@ -4103,36 +4307,6 @@ export class AdminService {
       },
       "[Final Approval] ✓ Successfully updated regtank_onboarding.status to COMPLETED"
     );
-
-    // Create onboarding log entries
-    // Create FINAL_APPROVAL_COMPLETED log (replaces USER_COMPLETED)
-    // Use FINAL_APPROVAL_COMPLETED for both corporate and personal onboarding
-    const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
-    const eventType = "FINAL_APPROVAL_COMPLETED";
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: onboarding.user_id,
-        event_type: eventType,
-        role: isInvestor ? "INVESTOR" : "ISSUER",
-        portal: onboarding.portal_type,
-        ip_address:
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-        user_agent: req.headers["user-agent"] || null,
-        device_info: null,
-        device_type: null,
-        organization_name: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
-        investor_organization_id: onboarding.investor_organization_id || undefined,
-        issuer_organization_id: onboarding.issuer_organization_id || undefined,
-        metadata: {
-          organizationId: org.id,
-          organizationType: onboarding.organization_type,
-          portalType: onboarding.portal_type,
-          approvedBy: adminUserId,
-          regtankRequestId: onboarding.request_id,
-          isCorporateOnboarding,
-        },
-      },
-    });
 
     logger.info(
       {
@@ -4225,42 +4399,63 @@ export class AdminService {
       );
     }
 
-    // Update the organization's aml_approved flag
-    const now = new Date();
-    if (isInvestor && onboarding.investor_organization) {
-      await prisma.investorOrganization.update({
-        where: { id: org.id },
-        data: {
-          aml_approved: true,
-        },
-      });
-    } else if (!isInvestor && onboarding.issuer_organization) {
-      await prisma.issuerOrganization.update({
-        where: { id: org.id },
-        data: {
-          aml_approved: true,
-        },
-      });
-    }
-
-    await advanceOnboardingStatusFromFlags({
-      organizationId: org.id,
-      portalType: isInvestor ? "investor" : "issuer",
-      reason: "ADMIN_APPROVE_AML_SCREENING",
-    });
-
-    const orgAfterAml = isInvestor
-      ? await prisma.investorOrganization.findUnique({
-          where: { id: org.id },
-          select: { onboarding_status: true },
-        })
-      : await prisma.issuerOrganization.findUnique({
-          where: { id: org.id },
-          select: { onboarding_status: true },
-        });
-
-    // For corporate onboarding, update regtank_onboarding.status to APPROVED
+    const previousStatus = org.onboarding_status;
+    const context = auditContextFromAdminRequest(req);
     const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
+
+    await prisma.$transaction(async (tx) => {
+      const claimed = await claimAmlApproved({
+        organizationId: org.id,
+        portalType: isInvestor ? "investor" : "issuer",
+        db: tx,
+      });
+      if (!claimed) {
+        throw new AppError(400, "ALREADY_APPROVED", "AML screening is already approved");
+      }
+
+      await advanceOnboardingStatusFromFlags({
+        organizationId: org.id,
+        portalType: isInvestor ? "investor" : "issuer",
+        reason: "ADMIN_APPROVE_AML_SCREENING",
+        db: tx,
+      });
+
+      const after = isInvestor
+        ? await tx.investorOrganization.findUnique({
+            where: { id: org.id },
+            select: { onboarding_status: true },
+          })
+        : await tx.issuerOrganization.findUnique({
+            where: { id: org.id },
+            select: { onboarding_status: true },
+          });
+
+      await writeOnboardingAuditLog(
+        {
+          eventType: "AML_APPROVED",
+          context,
+          subjectUserId: onboarding.user_id,
+          onboardingId,
+          organizationId: org.id,
+          organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
+          organizationType: onboarding.organization_type,
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: org.id,
+          metadata: {
+            provider: "ADMIN",
+            screeningKind: isCorporateOnboarding ? "KYB" : "KYC",
+            previousApproved: false,
+            newApproved: true,
+            previousStatus,
+            newStatus: after?.onboarding_status,
+            trigger: "ADMIN_APPROVE_AML_SCREENING",
+          },
+        },
+        tx
+      );
+
+      return after;
+    });
     if (isCorporateOnboarding) {
       await this.regTankRepository.updateStatus(onboarding.request_id, {
         status: "APPROVED",
@@ -4279,35 +4474,6 @@ export class AdminService {
         "[AML Approval] Updated regtank_onboarding.status to APPROVED for corporate onboarding"
       );
     }
-
-    // Create onboarding log entry
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: onboarding.user_id,
-        event_type: "AML_APPROVED",
-        role: isInvestor ? "INVESTOR" : "ISSUER",
-        portal: onboarding.portal_type,
-        ip_address:
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-        user_agent: req.headers["user-agent"] || null,
-        device_info: null,
-        device_type: null,
-        organization_name: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
-        investor_organization_id: onboarding.investor_organization_id || undefined,
-        issuer_organization_id: onboarding.issuer_organization_id || undefined,
-        metadata: {
-          organizationId: org.id,
-          organizationType: onboarding.organization_type,
-          portalType: onboarding.portal_type,
-          onboardingRequestId: onboarding.request_id,
-          isCorporateOnboarding,
-          previousStatus: org.onboarding_status,
-          newStatus: orgAfterAml?.onboarding_status,
-          approvedBy: adminUserId,
-          approvedAt: now.toISOString(),
-        },
-      },
-    });
 
     logger.info(
       {
@@ -4392,58 +4558,53 @@ export class AdminService {
       );
     }
 
-    const now = new Date();
-    if (isInvestor && onboarding.investor_organization) {
-      await prisma.investorOrganization.update({
-        where: { id: org.id },
-        data: {
-          ssm_approved: true,
-          onboarding_status: OnboardingStatus.PENDING_APPROVAL,
-        },
-      });
-    } else if (!isInvestor && onboarding.issuer_organization) {
-      await prisma.issuerOrganization.update({
-        where: { id: org.id },
-        data: {
-          ssm_checked: true,
-          onboarding_status: OnboardingStatus.PENDING_APPROVAL,
-        },
-      });
-    }
+    const previousSsmApproved = isInvestor
+      ? Boolean(onboarding.investor_organization?.ssm_approved)
+      : Boolean(onboarding.issuer_organization?.ssm_checked);
+    const context = auditContextFromAdminRequest(req);
 
-    // Create onboarding log entry with dedicated SSM_APPROVED event type
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: onboarding.user_id,
-        event_type: "SSM_APPROVED",
-        role: isInvestor ? "INVESTOR" : "ISSUER",
-        portal: onboarding.portal_type,
-        ip_address:
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-        user_agent: req.headers["user-agent"] || null,
-        device_info: null,
-        device_type: null,
-        organization_name: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
-        investor_organization_id: onboarding.investor_organization_id || undefined,
-        issuer_organization_id: onboarding.issuer_organization_id || undefined,
-        metadata: {
+    await prisma.$transaction(async (tx) => {
+      const claimed = await claimSsmApproved({
+        organizationId: org.id,
+        portalType: isInvestor ? "investor" : "issuer",
+        db: tx,
+      });
+      if (!claimed) {
+        throw new AppError(
+          400,
+          "INVALID_STEP",
+          "CTOS approval is only allowed when onboarding_status is PENDING_SSM_REVIEW"
+        );
+      }
+
+      await writeOnboardingAuditLog(
+        {
+          eventType: "SSM_APPROVED",
+          context,
+          subjectUserId: onboarding.user_id,
+          onboardingId,
           organizationId: org.id,
+          organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
           organizationType: onboarding.organization_type,
-          portalType: onboarding.portal_type,
-          approvedBy: adminUserId,
-          regtankRequestId: onboarding.request_id,
-          adminApprovedAt: now.toISOString(),
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: org.id,
+          metadata: {
+            previousSsmApproved,
+            newSsmApproved: true,
+            previousStatus: org.onboarding_status,
+            newStatus: OnboardingStatus.PENDING_APPROVAL,
+          },
         },
-      },
-    });
+        tx
+      );
 
-    await advanceOnboardingStatusFromFlags({
-      organizationId: org.id,
-      portalType: isInvestor ? "investor" : "issuer",
-      reason: "ADMIN_APPROVE_SSM_VERIFICATION",
+      await advanceOnboardingStatusFromFlags({
+        organizationId: org.id,
+        portalType: isInvestor ? "investor" : "issuer",
+        reason: "ADMIN_APPROVE_SSM_VERIFICATION",
+        db: tx,
+      });
     });
-
-    // SSM_APPROVED log already created above, no need for additional ONBOARDING_STATUS_UPDATED log
 
     logger.info(
       {
@@ -4521,51 +4682,69 @@ export class AdminService {
       throw new AppError(400, "ALREADY_APPROVED", "Onboarding has already been approved");
     }
 
-    const now = new Date();
-    if (isInvestor && onboarding.investor_organization) {
-      await prisma.investorOrganization.update({
-        where: { id: org.id },
-        data: {
-          onboarding_approved: true,
-        },
-      });
-    } else if (!isInvestor && onboarding.issuer_organization) {
-      await prisma.issuerOrganization.update({
-        where: { id: org.id },
-        data: {
-          onboarding_approved: true,
-        },
-      });
-    }
+    const previousStatus = org.onboarding_status;
+    const context = auditContextFromAdminRequest(req);
 
-    await advanceOnboardingStatusFromFlags({
-      organizationId: org.id,
-      portalType: isInvestor ? "investor" : "issuer",
-      reason: "ADMIN_APPROVE_ONBOARDING_SUBMISSION",
-    });
+    await prisma.$transaction(async (tx) => {
+      const claimed = await claimOnboardingApproved({
+        organizationId: org.id,
+        portalType: isInvestor ? "investor" : "issuer",
+        db: tx,
+      });
+      if (!claimed) {
+        const latest = await readOrganizationOnboardingState(
+          tx,
+          isInvestor ? "investor" : "issuer",
+          org.id
+        );
+        if (latest?.onboarding_approved) {
+          throw new AppError(400, "ALREADY_APPROVED", "Onboarding has already been approved");
+        }
+        throw new AppError(
+          400,
+          "INVALID_STEP",
+          "Onboarding approval is only allowed when onboarding_status is PENDING_APPROVAL"
+        );
+      }
 
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: onboarding.user_id,
-        event_type: "ONBOARDING_APPROVED",
-        role: isInvestor ? "INVESTOR" : "ISSUER",
-        portal: onboarding.portal_type,
-        ip_address:
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-        user_agent: req.headers["user-agent"] || null,
-        device_info: null,
-        device_type: null,
-        organization_name: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
-        investor_organization_id: onboarding.investor_organization_id || undefined,
-        issuer_organization_id: onboarding.issuer_organization_id || undefined,
-        metadata: {
+      await advanceOnboardingStatusFromFlags({
+        organizationId: org.id,
+        portalType: isInvestor ? "investor" : "issuer",
+        reason: "ADMIN_APPROVE_ONBOARDING_SUBMISSION",
+        db: tx,
+      });
+
+      const after = isInvestor
+        ? await tx.investorOrganization.findUnique({
+            where: { id: org.id },
+            select: { onboarding_status: true },
+          })
+        : await tx.issuerOrganization.findUnique({
+            where: { id: org.id },
+            select: { onboarding_status: true },
+          });
+
+      await writeOnboardingAuditLog(
+        {
+          eventType: "ONBOARDING_APPROVED",
+          context,
+          subjectUserId: onboarding.user_id,
+          onboardingId,
           organizationId: org.id,
-          portalType: onboarding.portal_type,
-          approvedBy: adminUserId,
-          approvedAt: now.toISOString(),
-          regtankRequestId: onboarding.request_id,
+          organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
+          organizationType: onboarding.organization_type,
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: org.id,
+          metadata: {
+            previousApproved: false,
+            newApproved: true,
+            previousStatus,
+            newStatus: after?.onboarding_status,
+            trigger: "ADMIN_APPROVE_ONBOARDING_SUBMISSION",
+          },
         },
-      },
+        tx
+      );
     });
 
     logger.info(
@@ -4589,7 +4768,7 @@ export class AdminService {
    * Fetches COD details and EOD details for each director to update their KYC statuses
    */
   async refreshCorporateOnboardingStatus(
-    _req: Request,
+    req: Request,
     onboardingId: string,
     adminUserId: string
   ): Promise<{
@@ -4684,43 +4863,36 @@ export class AdminService {
         });
 
         if (shouldApply) {
-          if (isInvestor) {
-            await prisma.investorOrganization.update({
-              where: { id: org.id },
-              data: { onboarding_approved: true },
+          const context = auditContextFromAdminRequest(req);
+          await prisma.$transaction(async (tx) => {
+            const claimed = await claimOnboardingApproved({
+              organizationId: org.id,
+              portalType: isInvestor ? "investor" : "issuer",
+              db: tx,
             });
-          } else {
-            await prisma.issuerOrganization.update({
-              where: { id: org.id },
-              data: { onboarding_approved: true },
-            });
-          }
-          onboardingApproved = true;
-
-          try {
-            await prisma.onboardingLog.create({
-              data: {
-                user_id: onboarding.user_id,
-                event_type: "ONBOARDING_STATUS_UPDATED",
-                role: isInvestor ? "INVESTOR" : "ISSUER",
-                portal: onboarding.portal_type,
-                organization_name: org.name ?? undefined,
-                investor_organization_id: isInvestor ? org.id : undefined,
-                issuer_organization_id: isInvestor ? undefined : org.id,
+            if (!claimed) return;
+            await writeOnboardingAuditLog(
+              {
+                eventType: "ONBOARDING_APPROVED",
+                context,
+                subjectUserId: onboarding.user_id,
+                onboardingId,
+                organizationId: org.id,
+                organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
+                organizationType: onboarding.organization_type,
+                targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+                targetId: org.id,
                 metadata: {
-                  organizationId: org.id,
-                  trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH",
+                  previousApproved: false,
+                  newApproved: true,
                   previousStatus: org.onboarding_status,
-                  codStatus: codStatusRaw,
+                  trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH",
                 },
               },
-            });
-          } catch (logError) {
-            logger.error(
-              { error: logError instanceof Error ? logError.message : String(logError), organizationId: org.id },
-              "[Admin Refresh] Failed to write onboarding log (non-blocking)"
+              tx
             );
-          }
+          });
+          onboardingApproved = true;
         }
 
         const { changed } = await advanceOnboardingStatusFromFlags({
@@ -5162,28 +5334,57 @@ export class AdminService {
       }
 
       // Update organization with refreshed director KYC statuses and corporate entities
-      const updateData: {
-        director_kyc_status: Prisma.InputJsonValue;
-        corporate_entities?: Prisma.InputJsonValue;
-      } = {
-        director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
-      };
+      const refreshContext = auditContextFromAdminRequest(req);
+      const refreshPortal = isInvestor ? "investor" : "issuer";
+      await prisma.$transaction(async (tx) => {
+        await lockOrganizationRow(tx, refreshPortal, org.id);
+        const locked =
+          isInvestor
+            ? await tx.investorOrganization.findUnique({
+                where: { id: org.id },
+                select: { director_kyc_status: true, corporate_entities: true },
+              })
+            : await tx.issuerOrganization.findUnique({
+                where: { id: org.id },
+                select: { director_kyc_status: true, corporate_entities: true },
+              });
+        if (!locked) return;
 
-      if (corporateEntitiesUpdated && updatedCorporateEntities) {
-        updateData.corporate_entities = updatedCorporateEntities as Prisma.InputJsonValue;
-      }
+        const updateData: {
+          director_kyc_status: Prisma.InputJsonValue;
+          corporate_entities?: Prisma.InputJsonValue;
+        } = {
+          director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
+        };
+        if (corporateEntitiesUpdated && updatedCorporateEntities) {
+          updateData.corporate_entities = updatedCorporateEntities as Prisma.InputJsonValue;
+        }
 
-      if (isInvestor) {
-        await prisma.investorOrganization.update({
-          where: { id: org.id },
-          data: updateData,
-        });
-      } else {
-        await prisma.issuerOrganization.update({
-          where: { id: org.id },
-          data: updateData,
-        });
-      }
+        if (isInvestor) {
+          await tx.investorOrganization.update({
+            where: { id: org.id },
+            data: updateData,
+          });
+        } else {
+          await tx.issuerOrganization.update({
+            where: { id: org.id },
+            data: updateData,
+          });
+        }
+
+        await writeDirectorKycOutcomeAuditLogs(
+          {
+            outcomes: directorKycFinalOutcomes(locked.director_kyc_status, directorKycStatus),
+            context: refreshContext,
+            subjectUserId: onboarding.user_id,
+            onboardingId,
+            organizationId: org.id,
+            organizationKind: isInvestor ? "INVESTOR" : "ISSUER",
+            organizationType: "COMPANY",
+          },
+          tx
+        );
+      });
 
       logger.info(
         {
@@ -5316,6 +5517,7 @@ export class AdminService {
         organizationName: org.name,
         codRequestId,
         trigger: "ADMIN_MANUAL_AML_REFRESH",
+        onboardingId,
       });
 
       logger.info(
@@ -5528,7 +5730,7 @@ export class AdminService {
    * record exists — apply the shared personal AML milestone from a live KYC query.
    */
   private async refreshPersonalOnboardingStatus(
-    onboarding: { request_id: string; reference_id: string; portal_type: string },
+    onboarding: { id: string; request_id: string; reference_id: string; portal_type: string },
     org: { id: string; name: string | null; onboarding_status: OnboardingStatus; onboarding_approved: boolean; aml_approved: boolean; kyc_id?: string | null },
     isInvestor: boolean,
     adminUserId: string
@@ -5661,6 +5863,7 @@ export class AdminService {
           organizationName: afterOnboarding?.name ?? org.name,
           kycId,
           trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH_PERSONAL",
+          onboardingId: onboarding.id,
         });
         refreshedSources.push("KYC");
         amlProviderStatus = milestone.rawStatus;
@@ -6159,7 +6362,8 @@ export class AdminService {
 
   /**
    * Full JSON snapshots for before/after resubmit comparison (admin).
-   * `reviewCycle` is the cycle stored on APPLICATION_RESUBMITTED logs (the new cycle after resubmit).
+   * `nextReviewCycle` is the cycle after resubmit. Remarks come from ApplicationReviewRemark
+   * for review cycle N-1 — never from ApplicationLog or ApplicationAuditLog.
    */
   async getResubmitComparisonSnapshots(applicationId: string, nextReviewCycle: number) {
     const application = await prisma.application.findUnique({
@@ -6172,12 +6376,21 @@ export class AdminService {
 
     const prevCycle = nextReviewCycle - 1;
 
-    const [nextRev, prevRev] = await Promise.all([
+    const [nextRev, prevRev, remarks] = await Promise.all([
       prisma.applicationRevision.findFirst({
         where: { application_id: applicationId, review_cycle: nextReviewCycle },
       }),
       prisma.applicationRevision.findFirst({
         where: { application_id: applicationId, review_cycle: prevCycle },
+      }),
+      prisma.applicationReviewRemark.findMany({
+        where: {
+          application_id: applicationId,
+          review_cycle: prevCycle,
+          action_type: "REQUEST_AMENDMENT",
+          submitted_at: { not: null },
+        },
+        orderBy: { created_at: "asc" },
       }),
     ]);
 
@@ -6201,42 +6414,16 @@ export class AdminService {
       "[admin] getResubmitComparisonSnapshots"
     );
 
-    const resubmitLog = await prisma.applicationLog.findFirst({
-      where: {
-        application_id: applicationId,
-        event_type: "APPLICATION_RESUBMITTED",
-        review_cycle: nextReviewCycle,
-      },
-      orderBy: { created_at: "desc" },
-      select: { metadata: true },
-    });
-
-    const meta = resubmitLog?.metadata;
-    let amendment_remarks: ResubmitComparisonAmendmentRemark[] | undefined;
-    if (isPlainObjectRecord(meta)) {
-      const raw = meta.amendment_remarks;
-      if (Array.isArray(raw)) {
-        const parsed: ResubmitComparisonAmendmentRemark[] = [];
-        for (const item of raw) {
-          if (!isPlainObjectRecord(item)) continue;
-          const remark = typeof item.remark === "string" ? item.remark : "";
-          if (remark.length === 0) continue;
-          parsed.push({
-            scope: typeof item.scope === "string" ? item.scope : "",
-            scope_key: typeof item.scope_key === "string" ? item.scope_key : "",
-            remark,
-            author_user_id: typeof item.author_user_id === "string" ? item.author_user_id : "",
-            submitted_at:
-              item.submitted_at === null
-                ? null
-                : typeof item.submitted_at === "string"
-                  ? item.submitted_at
-                  : null,
-          });
-        }
-        amendment_remarks = parsed.length > 0 ? parsed : undefined;
-      }
-    }
+    const amendment_remarks: ResubmitComparisonAmendmentRemark[] | undefined =
+      remarks.length > 0
+        ? remarks.map((row) => ({
+            scope: row.scope,
+            scope_key: row.scope_key,
+            remark: row.remark,
+            author_user_id: row.author_user_id,
+            submitted_at: row.submitted_at ? row.submitted_at.toISOString() : null,
+          }))
+        : undefined;
 
     return {
       previous_review_cycle: prevCycle,
@@ -6389,13 +6576,18 @@ export class AdminService {
         },
         select: { id: true },
       });
+      const rejectAuditContext = adminApplicationAuditContext(userId, {
+        ipAddress: logContext?.ipAddress,
+        userAgent: logContext?.userAgent,
+      });
       const voidFailures: string[] = [];
       for (const { id: envelopeId } of voidableEnvelopes) {
         try {
-          await signingService.voidEnvelope(envelopeId, "Application rejected by admin", {
-            userId,
-            portal: ActivityPortal.ADMIN,
-          });
+          await signingService.voidEnvelope(
+            envelopeId,
+            "Application rejected by admin",
+            rejectAuditContext
+          );
         } catch (voidError) {
           if (voidError instanceof AppError && voidError.code === "SIGNING_ENVELOPE_NOT_VOIDABLE") {
             continue;
@@ -6414,32 +6606,40 @@ export class AdminService {
           `Failed to void signing package(s): ${voidFailures.join(", ")}. The application was not rejected.`
         );
       }
-      await closeApplicationAsRejected(id);
+      await closeApplicationAsRejected(id, {
+        context: rejectAuditContext,
+        previousStatus: currentStatus,
+      });
       updatedApplication = await repository.getApplicationById(id);
     } else {
-      updatedApplication = await repository.updateApplicationStatus(id, status);
-    }
-
-    if (status === ApplicationStatus.UNDER_REVIEW) {
-      await logApplicationActivity({
-        userId,
-        applicationId: id,
-        portal: ActivityPortal.ADMIN,
-        eventType: "APPLICATION_RESET_TO_UNDER_REVIEW",
-        metadata: { previous_status: currentStatus },
-        ipAddress: logContext?.ipAddress ?? undefined,
-        userAgent: logContext?.userAgent ?? undefined,
-        deviceInfo: logContext?.deviceInfo ?? undefined,
-      });
-    } else if (status === ApplicationStatus.REJECTED) {
-      await logApplicationActivity({
-        userId,
-        applicationId: id,
-        portal: ActivityPortal.ADMIN,
-        eventType: "APPLICATION_REJECTED",
-        ipAddress: logContext?.ipAddress ?? undefined,
-        userAgent: logContext?.userAgent ?? undefined,
-        deviceInfo: logContext?.deviceInfo ?? undefined,
+      updatedApplication = await prisma.$transaction(async (tx) => {
+        const updated = await tx.application.update({
+          where: { id },
+          data: { status },
+          include: {
+            issuer_organization: true,
+          },
+        });
+        if (status === ApplicationStatus.UNDER_REVIEW) {
+          await writeApplicationAuditLog(
+            {
+              eventType: "APPLICATION_REOPENED_FOR_REVIEW",
+              context: adminApplicationAuditContext(userId, {
+                ipAddress: logContext?.ipAddress,
+                userAgent: logContext?.userAgent,
+              }),
+              applicationId: id,
+              targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+              targetId: id,
+              metadata: {
+                previousStatus: currentStatus,
+                newStatus: "UNDER_REVIEW",
+              },
+            },
+            tx
+          );
+        }
+        return updated;
       });
     }
 
@@ -6731,7 +6931,9 @@ export class AdminService {
       application_reviews?: { section: string; status: string }[];
       financing_type?: unknown;
       financing_structure?: unknown;
-    }
+    },
+    reviewerUserId?: string,
+    logContext?: AdminLogContext
   ): Promise<void> {
     const appStatus = (application.status as ApplicationStatus) ?? ApplicationStatus.UNDER_REVIEW;
     const structure = application.financing_structure as { structure_type?: string } | null | undefined;
@@ -6773,7 +6975,38 @@ export class AdminService {
       offerAcceptanceStatus,
     });
     if (targetStatus !== appStatus) {
-      await repository.updateApplicationStatus(applicationId, targetStatus);
+      const startedReview =
+        (appStatus === ApplicationStatus.SUBMITTED ||
+          appStatus === ApplicationStatus.RESUBMITTED) &&
+        targetStatus === ApplicationStatus.UNDER_REVIEW;
+
+      if (startedReview && reviewerUserId) {
+        await prisma.$transaction(async (tx) => {
+          await tx.application.update({
+            where: { id: applicationId },
+            data: { status: targetStatus },
+          });
+          await writeApplicationAuditLog(
+            {
+              eventType: "APPLICATION_REVIEW_STARTED",
+              context: adminApplicationAuditContext(reviewerUserId, {
+                ipAddress: logContext?.ipAddress,
+                userAgent: logContext?.userAgent,
+              }),
+              applicationId,
+              targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+              targetId: applicationId,
+              metadata: {
+                previousStatus: appStatus,
+                newStatus: "UNDER_REVIEW",
+              },
+            },
+            tx
+          );
+        });
+      } else {
+        await repository.updateApplicationStatus(applicationId, targetStatus);
+      }
     }
   }
 
@@ -6789,12 +7022,20 @@ export class AdminService {
       application_reviews?: { section: string; status: string }[];
       financing_type?: unknown;
       financing_structure?: unknown;
-    }
+    },
+    reviewerUserId?: string,
+    logContext?: AdminLogContext
   ) {
-    await this.syncAdminStageStatus(repository, applicationId, {
-      ...application,
-      status: application.status ?? appStatus,
-    });
+    await this.syncAdminStageStatus(
+      repository,
+      applicationId,
+      {
+        ...application,
+        status: application.status ?? appStatus,
+      },
+      reviewerUserId,
+      logContext
+    );
   }
 
   /**
@@ -7084,24 +7325,31 @@ export class AdminService {
       return;
     }
 
-    await repository.ensureApplicationReviewSection(applicationId, "supporting_documents");
-    await repository.updateSectionReviewStatus(
-      applicationId,
-      "supporting_documents",
-      target,
-      reviewerUserId
-    );
-
-    await this.logReviewActivity(
-      applicationId,
-      "section",
-      "supporting_documents",
-      current,
-      target,
-      reviewerUserId,
-      null,
-      logContext
-    );
+    await prisma.$transaction(async (tx) => {
+      await repository.ensureApplicationReviewSection(
+        applicationId,
+        "supporting_documents",
+        tx
+      );
+      await repository.updateSectionReviewStatus(
+        applicationId,
+        "supporting_documents",
+        target,
+        reviewerUserId,
+        tx
+      );
+      await this.logReviewActivity(
+        applicationId,
+        "section",
+        "supporting_documents",
+        current,
+        target,
+        reviewerUserId,
+        null,
+        logContext,
+        tx
+      );
+    });
 
     if (target === "APPROVED") {
       await repository.removeDraftAmendment(applicationId, "section", "supporting_documents");
@@ -7165,24 +7413,31 @@ export class AdminService {
       return;
     }
 
-    await repository.ensureApplicationReviewSection(applicationId, "acceptance_documents");
-    await repository.updateSectionReviewStatus(
-      applicationId,
-      "acceptance_documents",
-      target,
-      reviewerUserId
-    );
-
-    await this.logReviewActivity(
-      applicationId,
-      "section",
-      "acceptance_documents",
-      current,
-      target,
-      reviewerUserId,
-      null,
-      logContext
-    );
+    await prisma.$transaction(async (tx) => {
+      await repository.ensureApplicationReviewSection(
+        applicationId,
+        "acceptance_documents",
+        tx
+      );
+      await repository.updateSectionReviewStatus(
+        applicationId,
+        "acceptance_documents",
+        target,
+        reviewerUserId,
+        tx
+      );
+      await this.logReviewActivity(
+        applicationId,
+        "section",
+        "acceptance_documents",
+        current,
+        target,
+        reviewerUserId,
+        null,
+        logContext,
+        tx
+      );
+    });
 
     if (target === "APPROVED") {
       await repository.removeDraftAmendment(applicationId, "section", "acceptance_documents");
@@ -7305,7 +7560,8 @@ export class AdminService {
       }>;
       application_review_items?: Array<{ item_type: string; item_id: string; status: string }>;
     },
-    reviewerUserId: string
+    reviewerUserId: string,
+    logContext?: AdminLogContext
   ): Promise<void> {
     const workflow = await this.loadApplicationProductWorkflow(application);
     if (!workflowUsesOfferAcceptanceFlow(workflow)) return;
@@ -7431,20 +7687,34 @@ export class AdminService {
             ? acceptanceDeadlinePatchOnChangesRequested(workflow, now, current)
             : {}),
         });
-        await prisma.contract.update({
-          where: { id: contract.id },
-          data: { offer_details: updated as Prisma.InputJsonValue },
-        });
-        if (target === "APPROVED_FOR_SIGNING") {
-          await logApplicationActivity({
-            userId: reviewerUserId,
-            applicationId,
-            entityId: contract.id,
-            portal: ActivityPortal.ADMIN,
-            eventType: ApplicationLogEventType.CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING,
-            metadata: { contract_id: contract.id },
+        await prisma.$transaction(async (tx) => {
+          await tx.contract.update({
+            where: { id: contract.id },
+            data: { offer_details: updated as Prisma.InputJsonValue },
           });
-        }
+          if (target === "APPROVED_FOR_SIGNING" || target === "CHANGES_REQUESTED") {
+            await writeApplicationAuditLog(
+              {
+                eventType:
+                  target === "APPROVED_FOR_SIGNING"
+                    ? "CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING"
+                    : "CONTRACT_ACCEPTANCE_CHANGES_REQUESTED",
+                context: adminApplicationAuditContext(reviewerUserId, {
+                  ipAddress: logContext?.ipAddress,
+                  userAgent: logContext?.userAgent,
+                }),
+                applicationId,
+                targetType: APPLICATION_AUDIT_TARGET_TYPE.CONTRACT,
+                targetId: contract.id,
+                metadata: {
+                  previousStatus: current.status,
+                  newStatus: target,
+                },
+              },
+              tx
+            );
+          }
+        });
       }
     }
 
@@ -7468,20 +7738,34 @@ export class AdminService {
           ? acceptanceDeadlinePatchOnChangesRequested(workflow, now, current)
           : {}),
       });
-      await prisma.invoice.update({
-        where: { id: invoice.id },
-        data: { offer_details: updated as Prisma.InputJsonValue },
-      });
-      if (target === "APPROVED_FOR_SIGNING") {
-        await logApplicationActivity({
-          userId: reviewerUserId,
-          applicationId,
-          entityId: invoice.id,
-          portal: ActivityPortal.ADMIN,
-          eventType: ApplicationLogEventType.INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING,
-          metadata: { invoice_id: invoice.id },
+      await prisma.$transaction(async (tx) => {
+        await tx.invoice.update({
+          where: { id: invoice.id },
+          data: { offer_details: updated as Prisma.InputJsonValue },
         });
-      }
+        if (target === "APPROVED_FOR_SIGNING" || target === "CHANGES_REQUESTED") {
+          await writeApplicationAuditLog(
+            {
+              eventType:
+                target === "APPROVED_FOR_SIGNING"
+                  ? "INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING"
+                  : "INVOICE_ACCEPTANCE_CHANGES_REQUESTED",
+              context: adminApplicationAuditContext(reviewerUserId, {
+                ipAddress: logContext?.ipAddress,
+                userAgent: logContext?.userAgent,
+              }),
+              applicationId,
+              targetType: APPLICATION_AUDIT_TARGET_TYPE.INVOICE,
+              targetId: invoice.id,
+              metadata: {
+                previousStatus: current.status,
+                newStatus: target,
+              },
+            },
+            tx
+          );
+        }
+      });
     }
 
     await this.persistApplicationStatusFromOfferPhase(applicationId);
@@ -7577,28 +7861,39 @@ export class AdminService {
       return;
     }
 
-    await repository.ensureApplicationReviewSection(applicationId, "invoice_details");
-    await repository.updateSectionReviewStatus(
-      applicationId,
-      "invoice_details",
-      target,
-      reviewerUserId
-    );
-
-    await this.logReviewActivity(
-      applicationId,
-      "section",
-      "invoice_details",
-      current,
-      target,
-      reviewerUserId,
-      null,
-      logContext
-    );
+    await prisma.$transaction(async (tx) => {
+      await repository.ensureApplicationReviewSection(applicationId, "invoice_details", tx);
+      await repository.updateSectionReviewStatus(
+        applicationId,
+        "invoice_details",
+        target,
+        reviewerUserId,
+        tx
+      );
+      await this.logReviewActivity(
+        applicationId,
+        "section",
+        "invoice_details",
+        current,
+        target,
+        reviewerUserId,
+        null,
+        logContext,
+        tx
+      );
+    });
 
     if (target === "APPROVED") {
       await repository.removeDraftAmendment(applicationId, "section", "invoice_details");
     }
+  }
+
+  private reviewSectionPrefixFromScopeKey(scopeKey: string): string | undefined {
+    if (scopeKey.startsWith("supporting_documents:")) return "supporting_documents";
+    if (scopeKey.startsWith("acceptance_documents:")) return "acceptance_documents";
+    if (scopeKey.startsWith("invoice_details:")) return "invoice_details";
+    const colon = scopeKey.indexOf(":");
+    return colon > 0 ? scopeKey.slice(0, colon) : undefined;
   }
 
   private async logReviewActivity(
@@ -7609,24 +7904,48 @@ export class AdminService {
     newStatus: string,
     reviewerUserId: string | null,
     remark: string | null,
-    logContext?: AdminLogContext
+    logContext?: AdminLogContext,
+    db: Prisma.TransactionClient | typeof prisma = prisma,
+    includeSubmittedRemarks = false
   ): Promise<void> {
     if (!reviewerUserId) return;
-    const isSection = scope === "section";
-    const eventType = isSection ? `SECTION_REVIEWED_${newStatus}` : `ITEM_REVIEWED_${newStatus}`;
+    const previousStatus = oldStatus ?? "PENDING";
+    if (previousStatus === newStatus) return;
 
-    await logApplicationActivity({
-      userId: reviewerUserId,
-      applicationId,
-      eventType,
-      remark: remark ?? undefined,
-      entityId: isSection ? undefined : scopeKey,
-      portal: ActivityPortal.ADMIN,
-      metadata: { old_status: oldStatus, new_status: newStatus, scope, scope_key: scopeKey },
-      ipAddress: logContext?.ipAddress ?? undefined,
-      userAgent: logContext?.userAgent ?? undefined,
-      deviceInfo: logContext?.deviceInfo ?? undefined,
-    });
+    const isSection = scope === "section";
+    const metadata: Record<string, unknown> = {
+      previousStatus,
+      newStatus,
+    };
+    if (isSection) {
+      metadata.section = scopeKey;
+    } else {
+      metadata.itemId = scopeKey;
+      const section = this.reviewSectionPrefixFromScopeKey(scopeKey);
+      if (section) metadata.section = section;
+    }
+    if (includeSubmittedRemarks && newStatus === "AMENDMENT_REQUESTED" && remark) {
+      metadata.remarks = remark;
+    }
+
+    await writeApplicationAuditLog(
+      {
+        eventType: isSection
+          ? "APPLICATION_SECTION_REVIEW_UPDATED"
+          : "APPLICATION_ITEM_REVIEW_UPDATED",
+        context: adminApplicationAuditContext(reviewerUserId, {
+          ipAddress: logContext?.ipAddress,
+          userAgent: logContext?.userAgent,
+        }),
+        applicationId,
+        targetType: isSection
+          ? APPLICATION_AUDIT_TARGET_TYPE.REVIEW_SECTION
+          : APPLICATION_AUDIT_TARGET_TYPE.REVIEW_ITEM,
+        targetId: scopeKey,
+        metadata,
+      },
+      db
+    );
   }
 
   private assertAcceptanceReviewNotInherited(application: {
@@ -7687,51 +8006,6 @@ export class AdminService {
     return `invoice_details:${idx}:${sanitized}`;
   }
 
-  private getContractReference(application: {
-    contract_id?: string | null;
-    contract?: { contract_details?: { number?: string | number } | null } | null;
-  }) {
-    const contractId = application.contract_id ?? undefined;
-    const contractNumber = application.contract?.contract_details?.number;
-
-    return {
-      contractId,
-      contractNumber:
-        contractNumber != null && String(contractNumber).trim() !== ""
-          ? String(contractNumber).trim()
-          : undefined,
-    };
-  }
-
-  private getInvoiceReference(
-    application: { invoices?: { id: string; details?: { number?: string | number } }[] },
-    invoiceKey: string
-  ) {
-    const invoices = application.invoices ?? [];
-    const byId = invoices.find((invoice) => invoice.id === invoiceKey);
-    const matchedInvoice =
-      byId ??
-      invoices.find(
-        (invoice) => this.resolveInvoiceScopeKeyById(application, invoice.id) === invoiceKey
-      );
-
-    if (!matchedInvoice) {
-      return {
-        invoiceId: undefined,
-        invoiceNumber: undefined,
-      };
-    }
-
-    const invoiceNumber = matchedInvoice.details?.number;
-    return {
-      invoiceId: matchedInvoice.id,
-      invoiceNumber:
-        invoiceNumber != null && String(invoiceNumber).trim() !== ""
-          ? String(invoiceNumber).trim()
-          : undefined,
-    };
-  }
-
   async patchContractCustomerLargePrivateCompany(
     applicationId: string,
     isLargePrivateCompany: boolean,
@@ -7743,7 +8017,9 @@ export class AdminService {
       repository,
       applicationId,
       application.status as ApplicationStatus,
-      application
+      application,
+      reviewerUserId,
+      logContext
     );
     this.ensureContractOfferActionAllowed(application);
 
@@ -7774,25 +8050,38 @@ export class AdminService {
       throw new AppError(400, "INVALID_STATE", "Customer details are missing; cannot save confirmation");
     }
 
+    const previousValue = (existing as Record<string, unknown>).is_large_private_company === true;
+    if (previousValue === isLargePrivateCompany) {
+      return repository.getApplicationById(applicationId);
+    }
+
     const merged = {
       ...(existing as Record<string, unknown>),
       is_large_private_company: isLargePrivateCompany,
     };
 
-    await prisma.contract.update({
-      where: { id: contractId },
-      data: { customer_details: merged as Prisma.InputJsonValue },
-    });
-
-    await logApplicationActivity({
-      userId: reviewerUserId,
-      applicationId,
-      portal: ActivityPortal.ADMIN,
-      eventType: "CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED",
-      metadata: { is_large_private_company: isLargePrivateCompany },
-      ipAddress: logContext?.ipAddress ?? undefined,
-      userAgent: logContext?.userAgent ?? undefined,
-      deviceInfo: logContext?.deviceInfo ?? undefined,
+    await prisma.$transaction(async (tx) => {
+      await tx.contract.update({
+        where: { id: contractId },
+        data: { customer_details: merged as Prisma.InputJsonValue },
+      });
+      await writeApplicationAuditLog(
+        {
+          eventType: "CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED",
+          context: adminApplicationAuditContext(reviewerUserId, {
+            ipAddress: logContext?.ipAddress,
+            userAgent: logContext?.userAgent,
+          }),
+          applicationId,
+          targetType: APPLICATION_AUDIT_TARGET_TYPE.CONTRACT,
+          targetId: contractId,
+          metadata: {
+            previousValue,
+            newValue: isLargePrivateCompany,
+          },
+        },
+        tx
+      );
     });
 
     return repository.getApplicationById(applicationId);
@@ -7810,7 +8099,9 @@ export class AdminService {
       repository,
       applicationId,
       application.status as ApplicationStatus,
-      application
+      application,
+      reviewerUserId,
+      logContext
     );
     this.ensureContractOfferActionAllowed(application);
 
@@ -7952,21 +8243,34 @@ export class AdminService {
         },
       });
 
-      await tx.applicationReviewEvent.create({
-        data: {
-          application_id: applicationId,
-          event_type: "CONTRACT_OFFER_SENT",
-          scope: "section",
-          scope_key: "contract_details",
-          new_status: "OFFER_SENT",
-          reviewer_user_id: reviewerUserId,
-          remark: `Facility offer sent: ${offeredFacility}`,
-        },
-      });
       await tx.application.update({
         where: { id: applicationId },
         data: { status: ApplicationStatus.CONTRACT_SENT },
       });
+
+      const contractDetailsNumber =
+        contractDetails?.number != null && String(contractDetails.number).trim() !== ""
+          ? String(contractDetails.number).trim()
+          : undefined;
+      await writeApplicationAuditLog(
+        {
+          eventType: "CONTRACT_OFFER_SENT",
+          context: adminApplicationAuditContext(reviewerUserId, {
+            ipAddress: logContext?.ipAddress,
+            userAgent: logContext?.userAgent,
+          }),
+          applicationId,
+          targetType: APPLICATION_AUDIT_TARGET_TYPE.CONTRACT,
+          targetId: contractId,
+          metadata: {
+            previousStatus: lockedContract.status,
+            newStatus: "OFFER_SENT",
+            offeredFacility,
+            ...(contractDetailsNumber ? { contractNumber: contractDetailsNumber } : {}),
+          },
+        },
+        tx
+      );
 
       const acceptanceExpiresAt = stampOfferAcceptance
         ? (getOfferAcceptanceFromOfferDetails(offerDetails)?.acceptance_expires_at ?? null)
@@ -7977,36 +8281,6 @@ export class AdminService {
         previousVersion,
         acceptanceExpiresAt,
       };
-    });
-
-    const contractReference = this.getContractReference(
-      application as {
-        contract_id?: string | null;
-        contract?: { contract_details?: { number?: string | number } | null } | null;
-      }
-    );
-
-    await logApplicationActivity({
-      userId: reviewerUserId,
-      applicationId,
-      entityId: contractReference.contractId,
-      portal: ActivityPortal.ADMIN,
-      eventType: "CONTRACT_OFFER_SENT",
-      metadata: {
-        ...(contractReference.contractId ? { contract_id: contractReference.contractId } : {}),
-        ...(contractReference.contractNumber
-          ? { contract_number: contractReference.contractNumber }
-          : {}),
-        requested_facility: contractOfferMeta.requestedFacility,
-        offered_facility: offeredFacility,
-        version: contractOfferMeta.previousVersion + 1,
-        ...(contractOfferMeta.acceptanceExpiresAt
-          ? { acceptance_expires_at: contractOfferMeta.acceptanceExpiresAt }
-          : {}),
-      },
-      ipAddress: logContext?.ipAddress ?? undefined,
-      userAgent: logContext?.userAgent ?? undefined,
-      deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
     try {
@@ -8058,7 +8332,6 @@ export class AdminService {
 
     const now = new Date();
     const nowIso = now.toISOString();
-    let signingExpiresAt: string | null = null;
 
     await prisma.$transaction(async (tx) => {
       const locked = await tx.contract.findUnique({
@@ -8091,10 +8364,13 @@ export class AdminService {
       }
 
       const deadlinePatch = signingDeadlinePatchOnExtend(workflow, nowIso, current);
-      signingExpiresAt =
+      const newDeadline =
         typeof deadlinePatch.signing_expires_at === "string"
           ? deadlinePatch.signing_expires_at
           : null;
+      if (!newDeadline) {
+        throw new AppError(500, "INTERNAL_ERROR", "Signing deadline extension did not produce a new deadline");
+      }
 
       const nextStatus =
         current.status === "SIGNING_IN_PROGRESS" ? "APPROVED_FOR_SIGNING" : current.status;
@@ -8137,21 +8413,25 @@ export class AdminService {
           data: { status: ApplicationStatus.CONTRACT_SENT },
         });
       }
-    });
 
-    await logApplicationActivity({
-      userId: reviewerUserId,
-      applicationId,
-      entityId: contractId,
-      portal: ActivityPortal.ADMIN,
-      eventType: "CONTRACT_SIGNING_DEADLINE_EXTENDED",
-      metadata: {
-        contract_id: contractId,
-        signing_expires_at: signingExpiresAt,
-      },
-      ipAddress: logContext?.ipAddress ?? undefined,
-      userAgent: logContext?.userAgent ?? undefined,
-      deviceInfo: logContext?.deviceInfo ?? undefined,
+      await writeApplicationAuditLog(
+        {
+          eventType: "CONTRACT_SIGNING_DEADLINE_EXTENDED",
+          context: adminApplicationAuditContext(reviewerUserId, {
+            ipAddress: logContext?.ipAddress,
+            userAgent: logContext?.userAgent,
+          }),
+          applicationId,
+          targetType: APPLICATION_AUDIT_TARGET_TYPE.CONTRACT,
+          targetId: contractId,
+          metadata: {
+            previousDeadline: expiresAt,
+            newDeadline,
+            clock: "SIGNING",
+          },
+        },
+        tx
+      );
     });
 
     return repository.getApplicationById(applicationId);
@@ -8173,7 +8453,9 @@ export class AdminService {
       repository,
       applicationId,
       application.status as ApplicationStatus,
-      application
+      application,
+      reviewerUserId,
+      logContext
     );
 
     const invoice = (application.invoices as { id: string; details?: Record<string, unknown> }[] | undefined)?.find(
@@ -8372,16 +8654,6 @@ export class AdminService {
         await refreshContractFacilityValues(application.contract_id, tx);
       }
 
-      await tx.applicationReviewEvent.create({
-        data: {
-          application_id: applicationId,
-          event_type: "INVOICE_OFFER_SENT",
-          scope: "item",
-          scope_key: scopeKey,
-          new_status: "OFFER_SENT",
-          reviewer_user_id: reviewerUserId,
-        },
-      });
       const invoiceStatuses = (
         await tx.invoice.findMany({
           where: { application_id: applicationId },
@@ -8400,6 +8672,25 @@ export class AdminService {
         details.number != null && details.number !== ""
           ? String(details.number).trim()
           : null;
+      await writeApplicationAuditLog(
+        {
+          eventType: "INVOICE_OFFER_SENT",
+          context: adminApplicationAuditContext(reviewerUserId, {
+            ipAddress: logContext?.ipAddress,
+            userAgent: logContext?.userAgent,
+          }),
+          applicationId,
+          targetType: APPLICATION_AUDIT_TARGET_TYPE.INVOICE,
+          targetId: invoiceId,
+          metadata: {
+            previousStatus: lockedInvoice.status,
+            newStatus: "OFFER_SENT",
+            offeredAmount,
+            ...(invoiceNumber ? { invoiceNumber } : {}),
+          },
+        },
+        tx
+      );
       const acceptanceExpiresAt = stampOfferAcceptance
         ? (getOfferAcceptanceFromOfferDetails(offerDetails)?.acceptance_expires_at ?? null)
         : null;
@@ -8410,30 +8701,6 @@ export class AdminService {
         platformFeeStored,
         acceptanceExpiresAt,
       };
-    });
-
-    await logApplicationActivity({
-      userId: reviewerUserId,
-      applicationId,
-      entityId: invoiceId,
-      portal: ActivityPortal.ADMIN,
-      eventType: "INVOICE_OFFER_SENT",
-      metadata: {
-        invoice_id: invoiceId,
-        invoice_number: invoiceOfferMeta.invoiceNumber,
-        requested_amount: invoiceOfferMeta.requestedAmount,
-        offered_amount: offeredAmount,
-        offered_ratio_percent: offeredRatioPercent,
-        offered_profit_rate_percent: offeredProfitRatePercent,
-        platform_fee_rate_percent: invoiceOfferMeta.platformFeeStored,
-        version: invoiceOfferMeta.previousVersion + 1,
-        ...(invoiceOfferMeta.acceptanceExpiresAt
-          ? { acceptance_expires_at: invoiceOfferMeta.acceptanceExpiresAt }
-          : {}),
-      },
-      ipAddress: logContext?.ipAddress ?? undefined,
-      userAgent: logContext?.userAgent ?? undefined,
-      deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
     try {
@@ -8497,7 +8764,6 @@ export class AdminService {
 
     const now = new Date();
     const nowIso = now.toISOString();
-    let signingExpiresAt: string | null = null;
     const scopeKey = this.resolveInvoiceScopeKeyById(
       application as { invoices?: { id: string; details?: { number?: string | number } }[] },
       invoiceId
@@ -8541,10 +8807,13 @@ export class AdminService {
       }
 
       const deadlinePatch = signingDeadlinePatchOnExtend(workflow, nowIso, current);
-      signingExpiresAt =
+      const newDeadline =
         typeof deadlinePatch.signing_expires_at === "string"
           ? deadlinePatch.signing_expires_at
           : null;
+      if (!newDeadline) {
+        throw new AppError(500, "INTERNAL_ERROR", "Signing deadline extension did not produce a new deadline");
+      }
 
       const nextStatus =
         current.status === "SIGNING_IN_PROGRESS" ? "APPROVED_FOR_SIGNING" : current.status;
@@ -8579,21 +8848,25 @@ export class AdminService {
           data: { status: ApplicationStatus.INVOICES_SENT },
         });
       }
-    });
 
-    await logApplicationActivity({
-      userId: reviewerUserId,
-      applicationId,
-      entityId: invoiceId,
-      portal: ActivityPortal.ADMIN,
-      eventType: "INVOICE_SIGNING_DEADLINE_EXTENDED",
-      metadata: {
-        invoice_id: invoiceId,
-        signing_expires_at: signingExpiresAt,
-      },
-      ipAddress: logContext?.ipAddress ?? undefined,
-      userAgent: logContext?.userAgent ?? undefined,
-      deviceInfo: logContext?.deviceInfo ?? undefined,
+      await writeApplicationAuditLog(
+        {
+          eventType: "INVOICE_SIGNING_DEADLINE_EXTENDED",
+          context: adminApplicationAuditContext(reviewerUserId, {
+            ipAddress: logContext?.ipAddress,
+            userAgent: logContext?.userAgent,
+          }),
+          applicationId,
+          targetType: APPLICATION_AUDIT_TARGET_TYPE.INVOICE,
+          targetId: invoiceId,
+          metadata: {
+            previousDeadline: expiresAt,
+            newDeadline,
+            clock: "SIGNING",
+          },
+        },
+        tx
+      );
     });
 
     return repository.getApplicationById(applicationId);
@@ -8607,12 +8880,13 @@ export class AdminService {
     repository: AdminRepository,
     applicationId: string,
     _itemType: "invoice" | "document",
-    itemId: string
+    itemId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ): Promise<void> {
     const scopeKeys = new Set<string>([itemId]);
     await Promise.all(
       Array.from(scopeKeys).map((scopeKey) =>
-        repository.removeDraftAmendment(applicationId, "item", scopeKey)
+        repository.removeDraftAmendment(applicationId, "item", scopeKey, db)
       )
     );
   }
@@ -8625,12 +8899,13 @@ export class AdminService {
     repository: AdminRepository,
     applicationId: string,
     _itemType: "invoice" | "document",
-    itemId: string
+    itemId: string,
+    db: Prisma.TransactionClient | typeof prisma = prisma
   ): Promise<void> {
     const scopeKeys = new Set<string>([itemId]);
     await Promise.all(
       Array.from(scopeKeys).map((scopeKey) =>
-        repository.removeReviewRemark(applicationId, "item", scopeKey)
+        repository.removeReviewRemark(applicationId, "item", scopeKey, db)
       )
     );
   }
@@ -8653,7 +8928,9 @@ export class AdminService {
       repository,
       applicationId,
       application.status as ApplicationStatus,
-      application
+      application,
+      reviewerUserId,
+      logContext
     );
     if (section === "supporting_documents" || section === "acceptance_documents") {
       throw new AppError(
@@ -8683,39 +8960,43 @@ export class AdminService {
     );
     const oldStatus = existing?.status ?? "PENDING";
 
-    await repository.updateSectionReviewStatus(
-      applicationId,
-      section,
-      ReviewStepStatus.APPROVED,
-      reviewerUserId
-    );
-    const remarkValue = remark?.trim() || null;
-    if (remarkValue) {
-      await repository.upsertReviewRemark(
+    await prisma.$transaction(async (tx) => {
+      await repository.updateSectionReviewStatus(
+        applicationId,
+        section,
+        ReviewStepStatus.APPROVED,
+        reviewerUserId,
+        tx
+      );
+      const remarkValue = remark?.trim() || null;
+      if (remarkValue) {
+        await repository.upsertReviewRemark(
+          applicationId,
+          "section",
+          section,
+          "APPROVE",
+          remarkValue,
+          reviewerUserId,
+          tx
+        );
+      }
+      await this.logReviewActivity(
         applicationId,
         "section",
         section,
-        "APPROVE",
-        remarkValue,
-        reviewerUserId
+        oldStatus,
+        "APPROVED",
+        reviewerUserId,
+        null,
+        logContext,
+        tx
       );
-    }
-    await this.logReviewActivity(
-      applicationId,
-      "section",
-      section,
-      oldStatus,
-      "APPROVED",
-      reviewerUserId,
-      remarkValue,
-      logContext
-    );
-
-    await repository.removeDraftAmendment(applicationId, "section", section);
+      await repository.removeDraftAmendment(applicationId, "section", section, tx);
+    });
 
     const nextApp = await repository.getApplicationById(applicationId);
     if (nextApp) {
-      await this.syncAdminStageStatus(repository, applicationId, nextApp);
+      await this.syncAdminStageStatus(repository, applicationId, nextApp, reviewerUserId, logContext);
       return repository.getApplicationById(applicationId);
     }
     return nextApp;
@@ -8735,7 +9016,9 @@ export class AdminService {
       repository,
       applicationId,
       application.status as ApplicationStatus,
-      application
+      application,
+      reviewerUserId,
+      logContext
     );
     if (section === "contract_details") {
       this.ensureContractOfferActionAllowed(application);
@@ -8834,7 +9117,8 @@ export class AdminService {
                 status: string;
               }>;
             },
-            reviewerUserId
+            reviewerUserId,
+            logContext
           );
           nextApp = await repository.getApplicationById(applicationId);
         }
@@ -8890,49 +9174,79 @@ export class AdminService {
       );
     }
 
-    await repository.resetSectionReviewToPending(applicationId, section);
-    if (section === "contract_details" && application.contract_id) {
-      const contract = await prisma.contract.findUnique({
-        where: { id: application.contract_id },
-        select: { status: true },
-      });
-      const updateData: Prisma.ContractUpdateInput = {
-        status: "SUBMITTED",
-      };
-      didRetractContractOffer = oldStatus === "OFFER_SENT" || contract?.status === "OFFER_SENT";
-      if (didRetractContractOffer) {
-        updateData.offer_details = Prisma.JsonNull;
-      }
-      await prisma.contract.update({
-        where: { id: application.contract_id },
-        data: updateData,
-      });
-      await this.refreshContractFacilityValues(application.contract_id);
+    const contractId = section === "contract_details" ? application.contract_id : null;
+    const contract =
+      contractId != null
+        ? await prisma.contract.findUnique({
+            where: { id: contractId },
+            select: { status: true },
+          })
+        : null;
+    const contractUpdateData: Prisma.ContractUpdateInput = {
+      status: "SUBMITTED",
+    };
+    didRetractContractOffer = oldStatus === "OFFER_SENT" || contract?.status === "OFFER_SENT";
+    if (didRetractContractOffer) {
+      contractUpdateData.offer_details = Prisma.JsonNull;
     }
-    if (didRetractContractOffer && section === "contract_details") {
-      const contractReference = this.getContractReference(
-        application as {
-          contract_id?: string | null;
-          contract?: { contract_details?: { number?: string | number } | null } | null;
-        }
-      );
+    const structure = application.financing_structure as { structure_type?: string } | null | undefined;
+    const isInvoiceOnly = structure?.structure_type === "invoice_only";
 
-      await logApplicationActivity({
-        userId: reviewerUserId,
+    await prisma.$transaction(async (tx) => {
+      await repository.resetSectionReviewToPending(applicationId, section, tx);
+      if (contractId) {
+        await tx.contract.update({
+          where: { id: contractId },
+          data: contractUpdateData,
+        });
+        await refreshContractFacilityValues(contractId, tx);
+        if (didRetractContractOffer) {
+          await writeApplicationAuditLog(
+            {
+              eventType: "CONTRACT_OFFER_RETRACTED",
+              context: adminApplicationAuditContext(reviewerUserId, {
+                ipAddress: logContext?.ipAddress,
+                userAgent: logContext?.userAgent,
+              }),
+              applicationId,
+              targetType: APPLICATION_AUDIT_TARGET_TYPE.CONTRACT,
+              targetId: contractId,
+              metadata: {
+                previousStatus: contract?.status === "OFFER_SENT" ? "OFFER_SENT" : oldStatus,
+                newStatus: "SUBMITTED",
+              },
+            },
+            tx
+          );
+        }
+      }
+      await this.logReviewActivity(
         applicationId,
-        entityId: contractReference.contractId,
-        portal: ActivityPortal.ADMIN,
-        eventType: "CONTRACT_OFFER_RETRACTED",
-        metadata: {
-          ...(contractReference.contractId ? { contract_id: contractReference.contractId } : {}),
-          ...(contractReference.contractNumber
-            ? { contract_number: contractReference.contractNumber }
-            : {}),
-        },
-        ipAddress: logContext?.ipAddress ?? undefined,
-        userAgent: logContext?.userAgent ?? undefined,
-        deviceInfo: logContext?.deviceInfo ?? undefined,
-      });
+        "section",
+        section,
+        oldStatus,
+        "PENDING",
+        reviewerUserId,
+        null,
+        logContext,
+        tx
+      );
+      await repository.removeDraftAmendment(applicationId, "section", section, tx);
+      if (section === "contract_details") {
+        await tx.application.update({
+          where: { id: applicationId },
+          data: {
+            status: isInvoiceOnly ? ApplicationStatus.UNDER_REVIEW : ApplicationStatus.CONTRACT_PENDING,
+          },
+        });
+      } else if (section === "invoice_details") {
+        await tx.application.update({
+          where: { id: applicationId },
+          data: { status: ApplicationStatus.INVOICE_PENDING },
+        });
+      }
+    });
+    if (didRetractContractOffer && section === "contract_details") {
       try {
         await this.sendIssuerNotification(
           applicationId,
@@ -8949,27 +9263,6 @@ export class AdminService {
           "Failed to send facility offer retracted/reset notification to issuer"
         );
       }
-    }
-    await this.logReviewActivity(
-      applicationId,
-      "section",
-      section,
-      oldStatus,
-      "PENDING",
-      reviewerUserId,
-      null,
-      logContext
-    );
-    await repository.removeDraftAmendment(applicationId, "section", section);
-    if (section === "contract_details") {
-      const structure = application.financing_structure as { structure_type?: string } | null | undefined;
-      const isInvoiceOnly = structure?.structure_type === "invoice_only";
-      await repository.updateApplicationStatus(
-        applicationId,
-        isInvoiceOnly ? ApplicationStatus.UNDER_REVIEW : ApplicationStatus.CONTRACT_PENDING
-      );
-    } else if (section === "invoice_details") {
-      await repository.updateApplicationStatus(applicationId, ApplicationStatus.INVOICE_PENDING);
     }
 
     logger.info({ applicationId, section, reviewerUserId }, "Review section reset to pending");
@@ -8999,7 +9292,9 @@ export class AdminService {
       repository,
       applicationId,
       application.status as ApplicationStatus,
-      application
+      application,
+      reviewerUserId,
+      logContext
     );
     if (itemType === "invoice") {
       await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
@@ -9033,55 +9328,82 @@ export class AdminService {
       }
     }
 
-    await repository.resetItemReviewToPending(applicationId, itemType, itemId);
-    if (itemType === "invoice") {
-      const invoiceId = this.resolveInvoiceIdFromScopeKey(
-        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
-        itemId
-      );
-      if (invoiceId) {
-        const currentInvoice = await prisma.invoice.findUnique({
-          where: { id: invoiceId, application_id: applicationId },
-          select: { status: true },
+    const invoiceIdForReset =
+      itemType === "invoice"
+        ? this.resolveInvoiceIdFromScopeKey(
+            application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+            itemId
+          )
+        : null;
+    const currentInvoice =
+      invoiceIdForReset != null
+        ? await prisma.invoice.findUnique({
+            where: { id: invoiceIdForReset, application_id: applicationId },
+            select: { status: true },
+          })
+        : null;
+    const invoiceUpdateData: Prisma.InvoiceUpdateInput = { status: "SUBMITTED" };
+    didRetractInvoiceOffer =
+      invoiceIdForReset != null &&
+      (oldStatus === "OFFER_SENT" || currentInvoice?.status === "OFFER_SENT");
+    if (didRetractInvoiceOffer) {
+      invoiceUpdateData.offer_details = Prisma.JsonNull;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await repository.resetItemReviewToPending(applicationId, itemType, itemId, tx);
+      if (invoiceIdForReset) {
+        await tx.invoice.update({
+          where: { id: invoiceIdForReset, application_id: applicationId },
+          data: invoiceUpdateData,
         });
-        const updateData: Prisma.InvoiceUpdateInput = {
-          status: "SUBMITTED",
-        };
-        didRetractInvoiceOffer = oldStatus === "OFFER_SENT" || currentInvoice?.status === "OFFER_SENT";
         if (didRetractInvoiceOffer) {
-          updateData.offer_details = Prisma.JsonNull;
+          await writeApplicationAuditLog(
+            {
+              eventType: "INVOICE_OFFER_RETRACTED",
+              context: adminApplicationAuditContext(reviewerUserId, {
+                ipAddress: logContext?.ipAddress,
+                userAgent: logContext?.userAgent,
+              }),
+              applicationId,
+              targetType: APPLICATION_AUDIT_TARGET_TYPE.INVOICE,
+              targetId: invoiceIdForReset,
+              metadata: {
+                previousStatus:
+                  currentInvoice?.status === "OFFER_SENT" ? "OFFER_SENT" : oldStatus,
+                newStatus: "SUBMITTED",
+              },
+            },
+            tx
+          );
         }
-        await prisma.invoice.update({
-          where: { id: invoiceId, application_id: applicationId },
-          data: updateData,
+      }
+      if (!options?.skipItemActivityLog) {
+        await this.logReviewActivity(
+          applicationId,
+          "item",
+          itemId,
+          oldStatus,
+          "PENDING",
+          reviewerUserId,
+          null,
+          logContext,
+          tx
+        );
+      }
+      await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId, tx);
+      await this.clearItemRemarks(repository, applicationId, itemType, itemId, tx);
+      if (itemType === "invoice") {
+        await tx.application.update({
+          where: { id: applicationId },
+          data: { status: ApplicationStatus.INVOICE_PENDING },
         });
       }
-      if (application.contract_id) {
-        await this.refreshContractFacilityValues(application.contract_id);
-      }
+    });
+    if (itemType === "invoice" && application.contract_id) {
+      await this.refreshContractFacilityValues(application.contract_id);
     }
     if (didRetractInvoiceOffer && itemType === "invoice") {
-      const invoiceReference = this.getInvoiceReference(
-        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
-        itemId
-      );
-
-      await logApplicationActivity({
-        userId: reviewerUserId,
-        applicationId,
-        entityId: invoiceReference.invoiceId,
-        portal: ActivityPortal.ADMIN,
-        eventType: "INVOICE_OFFER_RETRACTED",
-        metadata: {
-          ...(invoiceReference.invoiceId ? { invoice_id: invoiceReference.invoiceId } : {}),
-          ...(invoiceReference.invoiceNumber
-            ? { invoice_number: invoiceReference.invoiceNumber }
-            : {}),
-        },
-        ipAddress: logContext?.ipAddress ?? undefined,
-        userAgent: logContext?.userAgent ?? undefined,
-        deviceInfo: logContext?.deviceInfo ?? undefined,
-      });
       try {
         const invoiceNumber = itemId.startsWith("invoice_details:")
           ? itemId.split(":").slice(2).join(":") || null
@@ -9102,23 +9424,6 @@ export class AdminService {
           "Failed to send invoice offer retracted/reset notification to issuer"
         );
       }
-    }
-    if (!options?.skipItemActivityLog) {
-      await this.logReviewActivity(
-        applicationId,
-        "item",
-        itemId,
-        oldStatus,
-        "PENDING",
-        reviewerUserId,
-        null,
-        logContext
-      );
-    }
-    await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
-    await this.clearItemRemarks(repository, applicationId, itemType, itemId);
-    if (itemType === "invoice") {
-      await repository.updateApplicationStatus(applicationId, ApplicationStatus.INVOICE_PENDING);
     }
 
     logger.info({ applicationId, itemType, itemId, reviewerUserId }, "Review item reset to pending");
@@ -9167,7 +9472,8 @@ export class AdminService {
             status: string;
           }>;
         },
-        reviewerUserId
+        reviewerUserId,
+        logContext
       );
       nextApp = await repository.getApplicationById(applicationId);
     }
@@ -9299,7 +9605,9 @@ export class AdminService {
       repository,
       applicationId,
       application.status as ApplicationStatus,
-      application
+      application,
+      reviewerUserId,
+      logContext
     );
     if (section === "supporting_documents" || section === "acceptance_documents") {
       throw new AppError(
@@ -9370,7 +9678,9 @@ export class AdminService {
       repository,
       applicationId,
       application.status as ApplicationStatus,
-      application
+      application,
+      reviewerUserId,
+      logContext
     );
     if (section === "supporting_documents" || section === "acceptance_documents") {
       throw new AppError(
@@ -9467,7 +9777,9 @@ export class AdminService {
       repository,
       applicationId,
       application.status as ApplicationStatus,
-      application
+      application,
+      reviewerUserId,
+      logContext
     );
     if (itemType === "invoice") {
       throw new AppError(
@@ -9489,36 +9801,40 @@ export class AdminService {
     );
     const oldStatus = existing?.status ?? "PENDING";
 
-    await repository.upsertItemReviewStatus(
-      applicationId,
-      itemType,
-      itemId,
-      ReviewStepStatus.APPROVED,
-      reviewerUserId
-    );
-    const remarkValue = remark?.trim() || null;
-    if (remarkValue) {
-      await repository.upsertReviewRemark(
+    await prisma.$transaction(async (tx) => {
+      await repository.upsertItemReviewStatus(
+        applicationId,
+        itemType,
+        itemId,
+        ReviewStepStatus.APPROVED,
+        reviewerUserId,
+        tx
+      );
+      const remarkValue = remark?.trim() || null;
+      if (remarkValue) {
+        await repository.upsertReviewRemark(
+          applicationId,
+          "item",
+          itemId,
+          "APPROVE",
+          remarkValue,
+          reviewerUserId,
+          tx
+        );
+      }
+      await this.logReviewActivity(
         applicationId,
         "item",
         itemId,
-        "APPROVE",
-        remarkValue,
-        reviewerUserId
+        oldStatus,
+        "APPROVED",
+        reviewerUserId,
+        null,
+        logContext,
+        tx
       );
-    }
-    await this.logReviewActivity(
-      applicationId,
-      "item",
-      itemId,
-      oldStatus,
-      "APPROVED",
-      reviewerUserId,
-      remarkValue,
-      logContext
-    );
-
-    await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
+      await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId, tx);
+    });
 
     let nextApp = await repository.getApplicationById(applicationId);
     if (itemType === "document" && nextApp) {
@@ -9555,13 +9871,14 @@ export class AdminService {
               status: string;
             }>;
           },
-          reviewerUserId
+          reviewerUserId,
+          logContext
         );
         nextApp = await repository.getApplicationById(applicationId);
       }
     }
     if (nextApp) {
-      await this.syncAdminStageStatus(repository, applicationId, nextApp);
+      await this.syncAdminStageStatus(repository, applicationId, nextApp, reviewerUserId, logContext);
       nextApp = await repository.getApplicationById(applicationId);
     }
     return nextApp ?? repository.getApplicationById(applicationId);
@@ -9584,7 +9901,9 @@ export class AdminService {
       repository,
       applicationId,
       application.status as ApplicationStatus,
-      application
+      application,
+      reviewerUserId,
+      logContext
     );
     if (itemType === "invoice") {
       await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
@@ -9602,33 +9921,37 @@ export class AdminService {
     );
     const oldStatus = existing?.status ?? "PENDING";
 
-    await repository.upsertItemReviewStatus(
-      applicationId,
-      itemType,
-      itemId,
-      ReviewStepStatus.REJECTED,
-      reviewerUserId
-    );
-    await repository.upsertReviewRemark(
-      applicationId,
-      "item",
-      itemId,
-      "REJECT",
-      remark,
-      reviewerUserId
-    );
-    await this.logReviewActivity(
-      applicationId,
-      "item",
-      itemId,
-      oldStatus,
-      "REJECTED",
-      reviewerUserId,
-      remark,
-      logContext
-    );
-
-    await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
+    await prisma.$transaction(async (tx) => {
+      await repository.upsertItemReviewStatus(
+        applicationId,
+        itemType,
+        itemId,
+        ReviewStepStatus.REJECTED,
+        reviewerUserId,
+        tx
+      );
+      await repository.upsertReviewRemark(
+        applicationId,
+        "item",
+        itemId,
+        "REJECT",
+        remark,
+        reviewerUserId,
+        tx
+      );
+      await this.logReviewActivity(
+        applicationId,
+        "item",
+        itemId,
+        oldStatus,
+        "REJECTED",
+        reviewerUserId,
+        null,
+        logContext,
+        tx
+      );
+      await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId, tx);
+    });
 
     if (itemType === "document") {
       await this.clearSiblingDocumentAmendmentsAfterPeerReject(
@@ -9729,7 +10052,9 @@ export class AdminService {
       repository,
       applicationId,
       application.status as ApplicationStatus,
-      application
+      application,
+      reviewerUserId,
+      logContext
     );
     if (itemType === "invoice") {
       await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
@@ -9750,52 +10075,58 @@ export class AdminService {
       );
     }
 
-    await repository.upsertItemReviewStatus(
-      applicationId,
-      itemType,
-      itemId,
-      ReviewStepStatus.AMENDMENT_REQUESTED,
-      reviewerUserId
-    );
-    // Clear stale draft rows before persisting the committed remark — running after upsert
-    // would delete the remark we just wrote (removeDraftAmendment targets submitted_at=null).
-    await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
-    await repository.upsertReviewRemark(
-      applicationId,
-      "item",
-      itemId,
-      "REQUEST_AMENDMENT",
-      remark,
-      reviewerUserId
-    );
-    if (isAcceptanceDoc) {
-      await repository.markReviewRemarkSubmitted(applicationId, "item", itemId);
-    }
-    await this.logReviewActivity(
-      applicationId,
-      "item",
-      itemId,
-      oldStatus,
-      "AMENDMENT_REQUESTED",
-      reviewerUserId,
-      remark,
-      logContext
-    );
-
-    if (itemType === "invoice") {
-      const invoiceId = this.resolveInvoiceIdFromScopeKey(
-        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
-        itemId
+    await prisma.$transaction(async (tx) => {
+      await repository.upsertItemReviewStatus(
+        applicationId,
+        itemType,
+        itemId,
+        ReviewStepStatus.AMENDMENT_REQUESTED,
+        reviewerUserId,
+        tx
       );
-      if (invoiceId) {
-        await prisma.invoice.update({
-          where: { id: invoiceId, application_id: applicationId },
-          data: { status: "AMENDMENT_REQUESTED" },
-        });
+      // Clear stale draft rows before persisting the committed remark — running after upsert
+      // would delete the remark we just wrote (removeDraftAmendment targets submitted_at=null).
+      await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId, tx);
+      await repository.upsertReviewRemark(
+        applicationId,
+        "item",
+        itemId,
+        "REQUEST_AMENDMENT",
+        remark,
+        reviewerUserId,
+        tx
+      );
+      if (isAcceptanceDoc) {
+        await repository.markReviewRemarkSubmitted(applicationId, "item", itemId, tx);
       }
-      if (application.contract_id) {
-        await this.refreshContractFacilityValues(application.contract_id);
+      await this.logReviewActivity(
+        applicationId,
+        "item",
+        itemId,
+        oldStatus,
+        "AMENDMENT_REQUESTED",
+        reviewerUserId,
+        remark,
+        logContext,
+        tx,
+        isAcceptanceDoc
+      );
+      if (itemType === "invoice") {
+        const invoiceId = this.resolveInvoiceIdFromScopeKey(
+          application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+          itemId
+        );
+        if (invoiceId) {
+          await tx.invoice.update({
+            where: { id: invoiceId, application_id: applicationId },
+            data: { status: "AMENDMENT_REQUESTED" },
+          });
+        }
       }
+    });
+
+    if (application.contract_id) {
+      await this.refreshContractFacilityValues(application.contract_id);
     }
 
     let nextApp = await repository.getApplicationById(applicationId);
@@ -9837,7 +10168,8 @@ export class AdminService {
               status: string;
             }>;
           },
-          reviewerUserId
+          reviewerUserId,
+          logContext
         );
         nextApp = await repository.getApplicationById(applicationId);
       }
@@ -9910,7 +10242,9 @@ export class AdminService {
       repository,
       applicationId,
       application.status as ApplicationStatus,
-      application
+      application,
+      reviewerUserId,
+      logContext
     );
 
     if (isAcceptanceDocumentsAmendmentQueueScope(scope, scopeKey)) {
@@ -9997,28 +10331,6 @@ export class AdminService {
     }
 
     await repository.upsertDraftAmendment(applicationId, scope, scopeKey, remark, reviewerUserId);
-
-    const existing =
-      scope === "section"
-        ? (application.application_reviews as { section: string; status: string }[] | undefined)?.find(
-          (r) => r.section === scopeKey
-        )?.status
-        : (application.application_review_items as { item_type: string; item_id: string; status: string }[] | undefined)?.find(
-          (r) => r.item_type === itemType && r.item_id === itemId
-        )?.status;
-    const oldStatus = existing ?? "PENDING";
-    if (oldStatus !== "AMENDMENT_REQUESTED") {
-      await this.logReviewActivity(
-        applicationId,
-        scope,
-        scopeKey,
-        oldStatus,
-        "AMENDMENT_REQUESTED",
-        reviewerUserId,
-        remark,
-        logContext
-      );
-    }
 
     logger.info({ applicationId, scope, scopeKey, reviewerUserId }, "Pending amendment added");
     let result = await repository.getApplicationById(applicationId);
@@ -10242,7 +10554,9 @@ export class AdminService {
       repository,
       applicationId,
       application.status as ApplicationStatus,
-      application
+      application,
+      reviewerUserId,
+      logContext
     );
 
     const pending = await repository.listPendingAmendments(applicationId);
@@ -10258,6 +10572,7 @@ export class AdminService {
       await tx.applicationReviewRemark.updateMany({
         where: {
           application_id: applicationId,
+          review_cycle: application.review_cycle,
           action_type: "REQUEST_AMENDMENT",
           submitted_at: null,
         },
@@ -10276,27 +10591,27 @@ export class AdminService {
         data: { status: ApplicationStatus.AMENDMENT_REQUESTED },
       });
 
-      await tx.applicationReviewEvent.create({
-        data: {
-          application_id: applicationId,
-          event_type: "AMENDMENTS_SUBMITTED",
-          new_status: "AMENDMENT_REQUESTED",
-          reviewer_user_id: reviewerUserId,
-          remark: `${pending.length} amendment(s) sent to issuer`,
+      const affectedSections = [
+        ...new Set(pending.map((p) => getSectionForPendingAmendment(p.scope, p.scope_key))),
+      ];
+      await writeApplicationAuditLog(
+        {
+          eventType: "APPLICATION_AMENDMENTS_REQUESTED",
+          context: adminApplicationAuditContext(reviewerUserId, {
+            ipAddress: logContext?.ipAddress,
+            userAgent: logContext?.userAgent,
+          }),
+          applicationId,
+          targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+          targetId: applicationId,
+          metadata: {
+            reviewCycle: application.review_cycle,
+            count: pending.length,
+            affectedSections,
+          },
         },
-      });
-    });
-
-    await logApplicationActivity({
-      userId: reviewerUserId,
-      applicationId,
-      portal: ActivityPortal.ADMIN,
-      eventType: "AMENDMENTS_SUBMITTED",
-      remark: `${pending.length} amendment(s) sent to issuer`,
-      metadata: { count: pending.length },
-      ipAddress: logContext?.ipAddress ?? undefined,
-      userAgent: logContext?.userAgent ?? undefined,
-      deviceInfo: logContext?.deviceInfo ?? undefined,
+        tx
+      );
     });
 
     try {

@@ -2,11 +2,7 @@
 
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  ListToolbar,
-  ListToolbarFilterTrigger,
-  type FilterChip,
-} from "@cashsouk/ui";
+import { ListToolbar, ListToolbarFilterTrigger, type FilterChip } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,21 +13,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   useExportLegalDocumentAuditLogs,
@@ -41,7 +22,8 @@ import {
 import {
   LEGAL_DOCUMENT_TYPE_LABELS,
   LEGAL_DOCUMENT_TYPES,
-  type LegalDocumentAuditLogListItem,
+  type LegalAdminAuditEventType,
+  type LegalAdminAuditLogListItem,
   type LegalDocumentType,
 } from "@cashsouk/types";
 import {
@@ -50,103 +32,58 @@ import {
   ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
+import { AuditLogDetailSheet } from "@/components/audit/audit-log-detail-sheet";
+import { AdminQueryErrorState } from "@/components/admin-query-error-state";
+import { formatAuditDateTime } from "@/lib/audit-datetime";
+import {
+  auditExportFilename,
+  downloadAuditExport,
+  truncatedExportDescription,
+} from "@/lib/download-audit-export";
+import { EyeIcon } from "@heroicons/react/24/outline";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-const ITEMS_PER_PAGE = 20;
+const ITEMS_PER_PAGE = 15;
 
 const LEGAL_TYPES = LEGAL_DOCUMENT_TYPES.map((value) => ({
   value,
   label: LEGAL_DOCUMENT_TYPE_LABELS[value],
 }));
 
-const ACTION_OPTIONS = [
+const ACTION_OPTIONS: { value: LegalAdminAuditEventType; label: string }[] = [
   { value: "LEGAL_DOCUMENT_CREATED", label: "Document created" },
   { value: "LEGAL_DOCUMENT_UPDATED", label: "Document updated" },
-  { value: "LEGAL_VERSION_UPLOADED", label: "Version uploaded" },
-  { value: "LEGAL_VERSION_FILE_REPLACED", label: "Version file replaced" },
-  { value: "LEGAL_VERSION_PUBLISHED", label: "Version published" },
-  { value: "LEGAL_VERSION_ARCHIVED", label: "Version archived" },
-  { value: "LEGAL_VERSION_RESTORED", label: "Version restored" },
-] as const;
+  { value: "LEGAL_DOCUMENT_VERSION_UPLOADED", label: "Version uploaded" },
+  { value: "LEGAL_DOCUMENT_VERSION_FILE_REPLACED", label: "Version file replaced" },
+  { value: "LEGAL_DOCUMENT_VERSION_PUBLISHED", label: "Version published" },
+  { value: "LEGAL_DOCUMENT_VERSION_ARCHIVED", label: "Version archived" },
+  { value: "LEGAL_DOCUMENT_VERSION_RESTORED", label: "Version restored" },
+];
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleString("en-MY", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  return formatAuditDateTime(dateStr);
 }
 
-function actionLabel(action: string): string {
-  return ACTION_OPTIONS.find((option) => option.value === action)?.label ?? action;
+function actionLabel(eventType: string): string {
+  return ACTION_OPTIONS.find((option) => option.value === eventType)?.label ?? eventType;
 }
 
-function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="text-sm break-all">{value ?? "—"}</p>
-    </div>
-  );
+function metadataString(metadata: Record<string, unknown>, key: string): string | null {
+  const value = metadata[key];
+  return typeof value === "string" ? value : null;
 }
 
-function AuditLogDetailSheet({
-  log,
-  open,
-  onOpenChange,
-}: {
-  log: LegalDocumentAuditLogListItem | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>Audit log details</SheetTitle>
-          <SheetDescription>Read-only admin legal-document change record.</SheetDescription>
-        </SheetHeader>
-
-        {log ? (
-          <div className="mt-6 space-y-6">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <DetailField label="Audit ID" value={log.id} />
-              <DetailField label="Action" value={actionLabel(log.action)} />
-              <DetailField label="Timestamp" value={formatDate(log.createdAt)} />
-              <DetailField label="Document type" value={log.documentType ?? "—"} />
-              <DetailField label="Version" value={log.versionNumber != null ? `v${log.versionNumber}` : "—"} />
-              <DetailField label="Document hash" value={log.documentHash} />
-              <DetailField label="Legal document ID" value={log.legalDocumentId} />
-              <DetailField label="Version ID" value={log.legalDocumentVersionId} />
-              <DetailField label="Actor" value={log.actorName} />
-              <DetailField label="Actor email" value={log.actorEmail} />
-              <DetailField label="Actor user ID" value={log.actorUserId} />
-              <DetailField label="IP address" value={log.ipAddress} />
-              <DetailField label="User agent" value={log.userAgent} />
-              <DetailField label="Correlation ID" value={log.correlationId} />
-              <DetailField label="Reason" value={log.reason} />
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">Before state</p>
-              <pre className="max-h-48 overflow-auto rounded-lg border bg-muted/30 p-3 text-xs">
-                {log.beforeJson ? JSON.stringify(log.beforeJson, null, 2) : "—"}
-              </pre>
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">After state</p>
-              <pre className="max-h-48 overflow-auto rounded-lg border bg-muted/30 p-3 text-xs">
-                {log.afterJson ? JSON.stringify(log.afterJson, null, 2) : "—"}
-              </pre>
-            </div>
-          </div>
-        ) : null}
-      </SheetContent>
-    </Sheet>
-  );
+function metadataNumber(metadata: Record<string, unknown>, key: string): number | null {
+  const value = metadata[key];
+  return typeof value === "number" ? value : null;
 }
 
 export function LegalDocumentAuditPanel() {
@@ -160,7 +97,7 @@ export function LegalDocumentAuditPanel() {
   const [dateFrom, setDateFrom] = React.useState("");
   const [dateTo, setDateTo] = React.useState("");
   const [exporting, setExporting] = React.useState(false);
-  const [selectedLog, setSelectedLog] = React.useState<LegalDocumentAuditLogListItem | null>(null);
+  const [selectedLog, setSelectedLog] = React.useState<LegalAdminAuditLogListItem | null>(null);
   const [detailOpen, setDetailOpen] = React.useState(false);
 
   const apiParams = React.useMemo((): LegalDocumentAuditLogsParams => {
@@ -238,22 +175,26 @@ export function LegalDocumentAuditPanel() {
     void queryClient.invalidateQueries({ queryKey: ["admin", "legal-document-audit-logs"] });
   };
 
-  const handleExport = async () => {
+  const handleExport = async (format: "csv" | "json") => {
     setExporting(true);
     try {
-      const { page: _page, pageSize: _pageSize, ...exportParams } = apiParams;
-      const blob = await exportLogs(exportParams);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `legal-document-audit-logs-${new Date().toISOString().split("T")[0]}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      const result = await exportLogs({
+        search: apiParams.search,
+        action: apiParams.action,
+        documentType: apiParams.documentType,
+        dateFrom: apiParams.dateFrom,
+        dateTo: apiParams.dateTo,
+        format,
+      });
+      downloadAuditExport(result.blob, auditExportFilename("legal-document-audit-logs", format));
+      if (result.truncated) {
+        toast.warning("Export truncated", { description: truncatedExportDescription() });
+      } else {
+        toast.success(`Legal document audit exported as ${format.toUpperCase()}`);
+      }
     } catch (err) {
       toast.error("Export failed", {
-        description: err instanceof Error ? err.message : "Could not export CSV",
+        description: err instanceof Error ? err.message : "Could not export logs",
       });
     } finally {
       setExporting(false);
@@ -266,13 +207,6 @@ export function LegalDocumentAuditPanel() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-xl font-semibold tracking-tight">Legal document audit</h2>
-        <p className="mt-1 text-[15px] leading-7 text-muted-foreground">
-          Persistent history of admin changes to legal documents and versions
-        </p>
-      </div>
-
       <ListToolbar
         searchValue={searchQuery}
         onSearchChange={setSearchQuery}
@@ -340,22 +274,30 @@ export function LegalDocumentAuditPanel() {
           className="h-11 w-[160px] rounded-xl bg-card"
           aria-label="Date to"
         />
-        <Button
-          variant="outline"
-          onClick={() => void handleExport()}
-          disabled={exporting}
-          className="h-11 gap-2 rounded-xl bg-card"
-        >
-          <ArrowDownTrayIcon className="h-4 w-4" />
-          {exporting ? "Exporting..." : "Export CSV"}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="outline"
+              disabled={exporting}
+              className="h-11 gap-2 rounded-xl bg-card"
+            >
+              <ArrowDownTrayIcon className="h-4 w-4" />
+              {exporting ? "Exporting..." : "Export"}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => void handleExport("csv")} disabled={exporting}>
+              Export as CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => void handleExport("json")} disabled={exporting}>
+              Export as JSON
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </ListToolbar>
 
       {error ? (
-        <div className="py-8 text-center text-destructive">
-          Error loading audit logs:{" "}
-          {error instanceof Error ? error.message : "Unknown error"}
-        </div>
+        <AdminQueryErrorState error={error} resourceLabel="legal document audit" />
       ) : null}
 
       <div className="rounded-xl border border-border bg-card">
@@ -392,19 +334,23 @@ export function LegalDocumentAuditPanel() {
               logs.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                    {formatDate(row.createdAt)}
+                    {formatDate(row.occurredAt)}
                   </TableCell>
-                  <TableCell className="text-sm">{actionLabel(row.action)}</TableCell>
+                  <TableCell className="text-sm">{actionLabel(row.eventType)}</TableCell>
                   <TableCell className="max-w-[200px] truncate text-sm">
-                    {row.documentType
-                      ? LEGAL_DOCUMENT_TYPE_LABELS[row.documentType]
-                      : (row.legalDocumentId ?? "—")}
+                    {metadataString(row.metadata, "documentType")
+                      ? LEGAL_DOCUMENT_TYPE_LABELS[
+                          metadataString(row.metadata, "documentType") as LegalDocumentType
+                        ]
+                      : row.legalDocumentId}
                   </TableCell>
                   <TableCell className="text-sm tabular-nums">
-                    {row.versionNumber != null ? `v${row.versionNumber}` : "—"}
+                    {metadataNumber(row.metadata, "versionNumber") != null
+                      ? `v${metadataNumber(row.metadata, "versionNumber")}`
+                      : "—"}
                   </TableCell>
                   <TableCell className="max-w-[160px] truncate text-sm">
-                    {row.actorName ?? row.actorEmail ?? "—"}
+                    {row.actor.displayName ?? row.actor.email ?? "—"}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {row.ipAddress ?? "—"}
@@ -418,7 +364,8 @@ export function LegalDocumentAuditPanel() {
                         setDetailOpen(true);
                       }}
                     >
-                      View details
+                      <EyeIcon className="mr-1 h-4 w-4" />
+                      View
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -456,7 +403,52 @@ export function LegalDocumentAuditPanel() {
         ) : null}
       </div>
 
-      <AuditLogDetailSheet log={selectedLog} open={detailOpen} onOpenChange={setDetailOpen} />
+      <AuditLogDetailSheet
+        log={
+          selectedLog
+            ? {
+                id: selectedLog.id,
+                eventType: selectedLog.eventType,
+                eventLabel: actionLabel(selectedLog.eventType),
+                occurredAt: selectedLog.occurredAt,
+                createdAt: selectedLog.createdAt,
+                actorType: selectedLog.actor.type,
+                actorName: selectedLog.actor.displayName,
+                actorEmail: selectedLog.actor.email,
+                actorUserId: selectedLog.actor.userId,
+                targetType: selectedLog.target.type,
+                targetId: selectedLog.target.id,
+                source: selectedLog.source,
+                portal: selectedLog.portal,
+                ipAddress: selectedLog.ipAddress,
+                userAgent: selectedLog.userAgent,
+                correlationId: selectedLog.correlationId,
+                extraFields: [
+                  { label: "Legal document ID", value: selectedLog.legalDocumentId },
+                  { label: "Version ID", value: selectedLog.legalDocumentVersionId },
+                  {
+                    label: "Document type",
+                    value: metadataString(selectedLog.metadata, "documentType"),
+                  },
+                  {
+                    label: "Version",
+                    value:
+                      metadataNumber(selectedLog.metadata, "versionNumber") != null
+                        ? `v${metadataNumber(selectedLog.metadata, "versionNumber")}`
+                        : null,
+                  },
+                  { label: "File hash", value: metadataString(selectedLog.metadata, "fileHash") },
+                  { label: "Reason", value: metadataString(selectedLog.metadata, "reasonCode") },
+                ],
+                metadata: selectedLog.metadata,
+              }
+            : null
+        }
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        title="Legal Documents audit"
+        description="Read-only admin legal-document change record."
+      />
     </div>
   );
 }

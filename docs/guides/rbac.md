@@ -258,6 +258,7 @@ Signed contract/invoice offer letter PDFs (`GET .../offers/.../signed-letter`) a
 | Mutations (sophisticated toggle, CTOS generation) | `organizations.manage` |
 | Backend | `apps/api/src/modules/admin/controller.ts` |
 | Frontend pages | `apps/admin/src/app/issuers/page.tsx`, `apps/admin/src/app/issuers/[id]/page.tsx`, `apps/admin/src/app/investors/page.tsx`, `apps/admin/src/app/investors/[id]/page.tsx` |
+| Investor wallet activity | `GET /v1/admin/organizations/investor/:id/balance-activity` requires `organizations.view`. This is wallet / cash-statement data, not an audit route. |
 
 ### CTOS / SSM (context-scoped routes)
 
@@ -299,12 +300,14 @@ Do not block any notification tab behind `notifications.manage`.
 
 | | |
 |---|---|
-| Access Logs | `audit.access.view` |
-| Security Logs | `audit.security.view` |
-| Product Logs | `audit.product.view` |
-| Backend | `apps/api/src/modules/admin/controller.ts`, product log controller |
-| Frontend page | `apps/admin/src/app/audit/page.tsx` (tabs: Access, Security, Products) |
-| Notes | Audit pages are read-only. Search/filter/export use the same view permission. There is no Document Logs tab. |
+| Access | `audit.access.view` |
+| Security | `audit.security.view` |
+| Onboarding | `onboarding.view` |
+| Product | `audit.product.view` |
+| Legal Documents | `document_management.view` |
+| Notifications | `notifications.view` |
+| Frontend page | `apps/admin/src/app/audit/page.tsx` (`/audit` tabs: Access, Security, Onboarding, Product, Legal Documents, Notifications) |
+| Notes | Six global tabs only. Application, Signing, Note, and Payment history are contextual, not global `/audit` tabs. Search/filter/export use the same view permission. There is no Document Logs tab. |
 
 ### Legal Documents
 

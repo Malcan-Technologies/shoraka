@@ -77,7 +77,7 @@ Resubmits the application. The amendments service:
 3. Skips `financial*` and `review_and_submit` for acknowledgement checks.
 4. Compares `requiredSectionKeys` with `amendment_acknowledged_workflow_ids` (converted to step keys by stripping `_\d+`). If any required step is missing, throws `MISSING_ACKNOWLEDGEMENTS`.
 5. In a transaction: deletes `REQUEST_AMENDMENT` remarks, deletes `AMENDMENT_REQUESTED` review items and review records, creates an `ApplicationRevision` snapshot, increments `review_cycle`, clears `amendment_acknowledged_workflow_ids`, and sets status to `RESUBMITTED`.
-6. Creates an `ApplicationLog` entry with `event_type: "APPLICATION_RESUBMITTED"`.
+6. Writes `APPLICATION_RESUBMITTED` to `ApplicationAuditLog`. Resubmit comparison does not read this row; it uses `ApplicationRevision` + `ApplicationReviewRemark`.
 
 ---
 

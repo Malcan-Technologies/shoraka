@@ -381,6 +381,8 @@ describe("buildUnifiedPeople", () => {
     expect(rows[0]?.matchKey).toBe("900101101111");
     expect(rows[0]?.roles).toEqual(expect.arrayContaining(["DIRECTOR", "SHAREHOLDER"]));
     expect(rows[0]?.sharePercentage).toBe(60);
+    expect(rows[0]?.directorEodRequestId).toBe("EOD04651");
+    expect(rows[0]?.shareholderEodRequestId).toBe("EOD04650");
   });
 
   it("buildDirectorShareholderPeopleList: COD05079 same-email people stay separate; EXPIRED without KYC still listed", () => {
@@ -902,5 +904,48 @@ describe("buildUnifiedPeople", () => {
     });
     expect(result.listSource).toBe("ONBOARDING");
     expect(result.people).toEqual([]);
+  });
+
+  it("keeps director EOD separate from KYC screening id and stamps parent COD", () => {
+    const rows = buildUnifiedPeople({
+      parentCorporateRequestId: "COD05463",
+      ctos: null,
+      issuerDirectorKycStatus: {
+        directors: [
+          {
+            governmentIdNumber: "050616101789",
+            kycStatus: "APPROVED",
+            kycId: "KYC00006",
+            eodRequestId: "EOD06803",
+            email: "max@example.com",
+          },
+        ],
+      },
+      issuerDirectorAmlStatus: { directors: [], individualShareholders: [], businessShareholders: [] },
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [
+          {
+            eodRequestId: "EOD06803",
+            personalInfo: {
+              fullName: "max chng",
+              email: "max@example.com",
+              formContent: {
+                content: [{ fieldName: "Government ID Number", fieldValue: "050616-10-1789" }],
+              },
+            },
+          },
+        ],
+        shareholders: [],
+        corporateShareholders: [],
+      },
+    });
+
+    const person = rows.find((r) => r.entityType === "INDIVIDUAL");
+    expect(person?.parentCorporateRequestId).toBe("COD05463");
+    expect(person?.directorEodRequestId).toBe("EOD06803");
+    expect(person?.shareholderEodRequestId).toBeNull();
+    expect(person?.screeningRequestId).toBe("KYC00006");
+    expect(person?.requestId).toBe("KYC00006");
   });
 });

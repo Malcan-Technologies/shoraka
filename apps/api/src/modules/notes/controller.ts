@@ -15,6 +15,7 @@ import {
   applicationIdParamSchema,
   bucketAccountParamSchema,
   bucketActivityQuerySchema,
+  noteAuditHistoryQuerySchema,
   createInvestmentSchema,
   createNoteFromApplicationSchema,
   createWithdrawalSchema,
@@ -462,6 +463,20 @@ adminNotesRouter.get(
   } catch (error) {
     next(error);
   }
+  }
+);
+
+adminNotesRouter.get(
+  "/:id/audit-history",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const query = noteAuditHistoryQuerySchema.parse(req.query);
+      send(res, await noteService.listAuditHistory(id, query));
+    } catch (error) {
+      next(error);
+    }
   }
 );
 
@@ -981,6 +996,17 @@ platformFinanceSettingsRouter.patch(
   }
   }
 );
+platformFinanceSettingsRouter.get(
+  "/trustee-signature/audit",
+  requirePermission("platform_settings.view"),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      send(res, await noteService.listTrusteeSignatureAudit());
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 platformFinanceSettingsRouter.post(
   "/trustee-signature/upload-url",
   requirePermission("platform_settings.manage"),
@@ -1044,6 +1070,19 @@ withdrawalsRouter.get(
   async (_req: Request, res: Response, next: NextFunction) => {
     try {
       send(res, await noteService.getPendingInvestorWithdrawalsCount());
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+withdrawalsRouter.get(
+  "/:id/events",
+  requirePermission("investor_withdrawals.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      send(res, await noteService.listInvestorWithdrawalEvents(id));
     } catch (error) {
       next(error);
     }

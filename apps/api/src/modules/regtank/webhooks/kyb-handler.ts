@@ -269,6 +269,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
             userId: onboarding.user_id,
             organizationName: orgForName?.name ?? null,
             trigger: "REGTANK_KYB_MAIN_COMPANY_APPROVED",
+            onboardingId: onboarding.id,
             extraMetadata: {
               kybRequestId: requestId,
               onboardingRequestId: onboarding.request_id,

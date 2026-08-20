@@ -4,6 +4,7 @@ import {
   ORGANIZATION_MODULE_CODES,
   PRODUCT_SCOPED_MODULE_CODES,
   ACCOUNT_SCOPED_MODULE_CODES,
+  RECEIPT_MODULE_CODES,
 } from "./types";
 import { isValidProductCode } from "./product-code";
 
@@ -41,6 +42,7 @@ const ACCOUNT_SCOPED_WDL_PATTERN = /^WDL-(\d{6})-([A-Z0-9]{3})$/;
 const ORGANIZATION_PATTERN = new RegExp(
   `^(${ORGANIZATION_MODULE_CODES.join("|")})-(\\d{6})-([A-Z0-9]{3})$`
 );
+const RECEIPT_CANONICAL_PATTERN = /^RCP-(\d{6})-([A-Z0-9]{3})$/;
 
 type EntityReferenceLookup = {
   entityType: string;
@@ -63,6 +65,10 @@ function parseReferenceParts(reference: string): {
   const organization = reference.match(ORGANIZATION_PATTERN);
   if (organization) {
     return { moduleCode: organization[1], productCode: null };
+  }
+  const receipt = reference.match(RECEIPT_CANONICAL_PATTERN);
+  if (receipt) {
+    return { moduleCode: "RCP", productCode: null };
   }
   return null;
 }
@@ -128,6 +134,13 @@ async function loadEntityReference(
         select: { display_reference: true },
       });
       return row?.display_reference ?? null;
+    }
+    case "gateway_payment_receipt": {
+      const row = await db.gatewayPaymentReceipt.findUnique({
+        where: { id: entityId },
+        select: { receipt_number: true },
+      });
+      return row?.receipt_number ?? null;
     }
     default:
       return null;
@@ -211,6 +224,7 @@ export async function checkDisplayReferenceSanity(
     const isOrganization = (ORGANIZATION_MODULE_CODES as readonly string[]).includes(
       allocation.module_code
     );
+    const isReceipt = (RECEIPT_MODULE_CODES as readonly string[]).includes(allocation.module_code);
 
     if (isProductScopedAllocation) {
       if (!allocation.product_code) {
@@ -263,6 +277,18 @@ export async function checkDisplayReferenceSanity(
         code: "ORGANIZATION_HAS_PRODUCT_CODE",
         severity: "error",
         message: `Organization allocation ${allocation.display_reference} must not include product_code`,
+        allocationId: allocation.id,
+        entityType: allocation.entity_type,
+        entityId: allocation.entity_id,
+        displayReference: allocation.display_reference,
+      });
+    }
+
+    if (isReceipt && allocation.product_code) {
+      issues.push({
+        code: "RECEIPT_HAS_PRODUCT_CODE",
+        severity: "error",
+        message: `Receipt allocation ${allocation.display_reference} must not include product_code`,
         allocationId: allocation.id,
         entityType: allocation.entity_type,
         entityId: allocation.entity_id,
@@ -411,6 +437,20 @@ export async function checkDisplayReferenceSanity(
         entityId: row.id,
         reference: row.display_reference,
       })),
+    },
+    {
+      entityType: "gateway_payment_receipt",
+      rows: (
+        await db.gatewayPaymentReceipt.findMany({
+          select: { id: true, receipt_number: true },
+        })
+      )
+        .filter((row) => RECEIPT_CANONICAL_PATTERN.test(row.receipt_number))
+        .map((row) => ({
+          entityType: "gateway_payment_receipt",
+          entityId: row.id,
+          reference: row.receipt_number,
+        })),
     },
   ];
 

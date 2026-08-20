@@ -19,8 +19,12 @@ class MockAdapter implements AuditLogAdapter<MockRecord> {
     private mockData: MockRecord[]
   ) {}
 
-  async query(_userId: string, _filters: ActivityFilters): Promise<MockRecord[]> {
-    return this.mockData;
+  async query(_userId: string, filters: ActivityFilters): Promise<MockRecord[]> {
+    const sorted = [...this.mockData].sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+    const offset = filters.offset ?? 0;
+    const limit = filters.limit;
+    if (limit == null) return sorted.slice(offset);
+    return sorted.slice(offset, offset + limit);
   }
 
   async count(_userId: string, _filters: ActivityFilters): Promise<number> {
@@ -179,5 +183,81 @@ describe("AuditLogAggregator", () => {
     expect(result.activities.map((activity) => activity.domain)).toEqual(["note", "onboarding"]);
     expect(result.total).toBe(2);
     expect(result.unfilteredTotal).toBe(2);
+  });
+
+  it("should exclude payment activities for issuer-scoped requests", async () => {
+    const aggregator = new AuditLogAggregator();
+    (aggregator as any).adapters = [];
+
+    aggregator.registerAdapter(
+      new MockAdapter("Note", "organization", "note", [
+        { id: "1", created_at: new Date("2026-01-01T10:00:00Z"), user_id: userId, text: "Note" },
+      ])
+    );
+    aggregator.registerAdapter(
+      new MockAdapter("Payment", "organization", "payment", [
+        { id: "2", created_at: new Date("2026-01-01T11:00:00Z"), user_id: userId, text: "Payment" },
+      ])
+    );
+
+    const result = await aggregator.aggregate(userId, {
+      limit: 10,
+      offset: 0,
+      portalType: "issuer",
+    });
+
+    expect(result.activities.map((activity) => activity.domain)).toEqual(["note"]);
+    expect(result.total).toBe(1);
+  });
+
+  it("returns a complete first page and a complete deep page across adapters", async () => {
+    const aggregator = new AuditLogAggregator();
+    (aggregator as any).adapters = [];
+
+    const onboarding = Array.from({ length: 8 }, (_, i) => ({
+      id: `onb-${i}`,
+      user_id: userId,
+      text: `Onboarding ${i}`,
+      created_at: new Date(Date.UTC(2026, 0, 1, 12, i)),
+    }));
+    const notes = Array.from({ length: 8 }, (_, i) => ({
+      id: `note-${i}`,
+      user_id: userId,
+      text: `Note ${i}`,
+      created_at: new Date(Date.UTC(2026, 0, 1, 12, i, 30)),
+    }));
+
+    aggregator.registerAdapter(new MockAdapter("Onboarding", "organization", "onboarding", onboarding));
+    aggregator.registerAdapter(new MockAdapter("Note", "organization", "note", notes));
+
+    const first = await aggregator.aggregate(userId, { limit: 5, offset: 0 });
+    expect(first.activities).toHaveLength(5);
+    expect(first.total).toBe(16);
+
+    const deep = await aggregator.aggregate(userId, { limit: 5, offset: 10 });
+    expect(deep.activities).toHaveLength(5);
+    expect(deep.activities.map((activity) => activity.id)).not.toEqual(
+      first.activities.map((activity) => activity.id)
+    );
+  });
+
+  it("keeps merge order deterministic when timestamps tie", async () => {
+    const aggregator = new AuditLogAggregator();
+    (aggregator as any).adapters = [];
+    const tied = new Date("2026-01-01T10:00:00Z");
+
+    aggregator.registerAdapter(
+      new MockAdapter("A", "organization", "onboarding", [
+        { id: "b", user_id: userId, text: "B", created_at: tied },
+      ])
+    );
+    aggregator.registerAdapter(
+      new MockAdapter("B", "organization", "note", [
+        { id: "a", user_id: userId, text: "A", created_at: tied },
+      ])
+    );
+
+    const result = await aggregator.aggregate(userId, { limit: 10, offset: 0 });
+    expect(result.activities.map((activity) => activity.id)).toEqual(["b", "a"]);
   });
 });

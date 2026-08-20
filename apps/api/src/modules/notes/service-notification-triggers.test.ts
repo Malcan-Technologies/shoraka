@@ -12,6 +12,15 @@ jest.mock("../../lib/prisma", () => ({
   },
 }));
 
+jest.mock("./audit/writer", () => {
+  const actual = jest.requireActual<typeof import("./audit/writer")>("./audit/writer");
+  return {
+    ...actual,
+    writeNoteAuditFromActor: jest.fn().mockResolvedValue(undefined),
+    writeNoteAuditLog: jest.fn().mockResolvedValue(undefined),
+  };
+});
+
 jest.mock("./repository", () => ({
   noteInclude: {},
   noteRepository: {
@@ -79,7 +88,7 @@ describe("NoteService notification triggers", () => {
           reference: null as string | null,
         }),
       },
-      noteEvent: { create: jest.fn().mockResolvedValue({}) },
+      noteAuditLog: { create: jest.fn().mockResolvedValue({}) },
       noteLedgerAccount: {
         findUnique: jest.fn().mockResolvedValue({ id: "acct-repayment-pool" }),
       },

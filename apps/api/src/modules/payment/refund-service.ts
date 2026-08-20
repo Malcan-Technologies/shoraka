@@ -1,6 +1,5 @@
 import {
   GatewayPayment,
-  GatewayPaymentEventType,
   GatewayPaymentPurpose,
   GatewayPaymentStatus,
   NameCheckResult,
@@ -15,7 +14,14 @@ import { prisma as defaultPrisma } from "../../lib/prisma";
 import { debitInvestorBalanceForGatewayRefund, blockInvestorBalanceForGatewayRefundHold, releaseInvestorBalanceGatewayRefundHold } from "../notes/investor-balance";
 import { postLedgerEntry } from "../notes/ledger";
 import { createCurlecClient } from "./curlec-client";
-import { recordGatewayPaymentEvent } from "./gateway-events";
+import {
+  PAYMENT_AUDIT_PROVIDER,
+  adminPaymentAuditContext,
+  gatewayPaymentAmount,
+  webhookPaymentAuditContext,
+  writeGatewayPaymentAudit,
+} from "./audit/writer";
+import { PAYMENT_AUDIT_IDEMPOTENCY } from "./audit/events";
 import { myrDecimalToSen, senToMyrDecimal } from "./money";
 import { markGatewayPaymentReceiptRefunded } from "./receipt/receipt-service";
 import { assertTransition } from "./state";
@@ -59,6 +65,105 @@ function nameCheckResultForReason(reason: AutoRefundReason): NameCheckResult | n
     default:
       return null;
   }
+}
+
+function refundAuditContext(actorUserId?: string) {
+  return actorUserId ? adminPaymentAuditContext(actorUserId) : webhookPaymentAuditContext();
+}
+
+async function writeRefundInitiatedAudit(
+  tx: Prisma.TransactionClient,
+  payment: GatewayPayment,
+  input: {
+    actorUserId?: string;
+    previousStatus: GatewayPaymentStatus;
+    refundId?: string | null;
+    reason: string;
+    amount?: number;
+  }
+) {
+  await writeGatewayPaymentAudit(
+    payment,
+    {
+      eventType: "PAYMENT_REFUND_INITIATED",
+      context: refundAuditContext(input.actorUserId),
+      idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.refundInitiated(payment.id, input.refundId),
+      metadata: {
+        amount: input.amount ?? gatewayPaymentAmount(payment),
+        currency: payment.currency,
+        purpose: payment.purpose,
+        providerReference: input.refundId ?? payment.refund_reference,
+        reason: input.reason,
+        previousStatus: input.previousStatus,
+        newStatus: GatewayPaymentStatus.REFUND_INITIATED,
+      },
+    },
+    tx
+  );
+}
+
+async function writeRefundedAudit(
+  tx: Prisma.TransactionClient,
+  payment: GatewayPayment,
+  input: {
+    actorUserId?: string;
+    previousStatus: GatewayPaymentStatus;
+    refundId?: string | null;
+    reason?: string;
+  }
+) {
+  await writeGatewayPaymentAudit(
+    payment,
+    {
+      eventType: "PAYMENT_REFUNDED",
+      context: refundAuditContext(input.actorUserId),
+      idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.refunded(payment.id),
+      metadata: {
+        amount: gatewayPaymentAmount(payment),
+        currency: payment.currency,
+        purpose: payment.purpose,
+        providerReference: input.refundId ?? payment.refund_reference,
+        reason: input.reason ?? "Provider confirmed the refund",
+        previousStatus: input.previousStatus,
+        newStatus: GatewayPaymentStatus.REFUNDED,
+      },
+    },
+    tx
+  );
+}
+
+async function writeWalletReversalFailedAudit(
+  tx: Prisma.TransactionClient,
+  payment: GatewayPayment,
+  input: {
+    actorUserId?: string;
+    previousStatus: GatewayPaymentStatus;
+    newStatus: GatewayPaymentStatus;
+    refundId?: string | null;
+    blockedAmount?: number;
+    failureCode?: string | null;
+    fundsProtected: boolean;
+    balanceTransactionId?: string | null;
+  }
+) {
+  await writeGatewayPaymentAudit(
+    payment,
+    {
+      eventType: "PAYMENT_REFUND_WALLET_REVERSAL_FAILED",
+      context: refundAuditContext(input.actorUserId),
+      idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.walletReversalFailed(payment.id),
+      metadata: {
+        refundId: input.refundId ?? payment.refund_reference,
+        blockedAmount: input.blockedAmount,
+        failureCode: input.failureCode ?? null,
+        fundsProtected: input.fundsProtected,
+        balanceTransactionId: input.balanceTransactionId ?? null,
+        previousStatus: input.previousStatus,
+        newStatus: input.newStatus,
+      },
+    },
+    tx
+  );
 }
 
 async function markRefundHeldFallback(
@@ -141,6 +246,21 @@ export async function initiateGatewayPaymentRefund(
     });
     if (claimed.count === 1) {
       payment = { ...payment, status: GatewayPaymentStatus.PAID };
+      await writeGatewayPaymentAudit(payment, {
+        eventType: "PAYMENT_CAPTURED",
+        context: refundAuditContext(input.actorUserId),
+        idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.captured(payment.id),
+        metadata: {
+          purpose: payment.purpose,
+          amount: gatewayPaymentAmount(payment),
+          currency: payment.currency,
+          provider: PAYMENT_AUDIT_PROVIDER,
+          gatewayAccount: payment.gatewayAccount,
+          providerPaymentId: payment.curlec_payment_id,
+          providerOrderId: payment.curlec_order_id,
+          capturedAt: new Date().toISOString(),
+        },
+      });
     } else {
       const current = await db.gatewayPayment.findUniqueOrThrow({ where: { id: payment.id } });
       payment = current;
@@ -279,22 +399,12 @@ export async function initiateGatewayPaymentRefund(
       await clearIssuerOnboardingFeePaidAt(tx, current.issuer_organization_id);
     }
 
-    await recordGatewayPaymentEvent(tx, {
-      gatewayPaymentId: payment.id,
-      type: GatewayPaymentEventType.REFUND_INITIATED,
+    await writeRefundInitiatedAudit(tx, current, {
       actorUserId: input.actorUserId,
-      fromStatus: current.status,
-      toStatus: GatewayPaymentStatus.REFUND_INITIATED,
-      reason: notes,
-      metadata: {
-        auto: !input.actorUserId,
-        refundId: refund.id,
-        reason: input.reason,
-        gatewayAccount: payment.gatewayAccount,
-        purpose: payment.purpose,
-        amountSen: refundAmountSen,
-        source: input.actorUserId ? "admin_retry" : "automatic",
-      },
+      previousStatus: current.status,
+      refundId: refund.id,
+      reason: input.reason,
+      amount: senToMyrDecimal(refundAmountSen).toNumber(),
     });
   });
 
@@ -362,17 +472,11 @@ async function holdForWalletReversalFailure(
           metadata: rest as Prisma.InputJsonValue,
         },
       });
-      await recordGatewayPaymentEvent(tx, {
-        gatewayPaymentId: paymentId,
-        type: GatewayPaymentEventType.REFUNDED,
+      await writeRefundedAudit(tx, current, {
         actorUserId: input.actorUserId,
-        fromStatus: current.status,
-        toStatus: GatewayPaymentStatus.REFUNDED,
+        previousStatus: current.status,
+        refundId: input.refundId ?? current.refund_reference,
         reason: "Wallet reversal already present — completed after prior failure path",
-        metadata: {
-          refundId: input.refundId ?? current.refund_reference,
-          purpose: current.purpose,
-        },
       });
       return;
     }
@@ -427,25 +531,6 @@ async function holdForWalletReversalFailure(
       if (newlyBlocked > 0 && !holdKeys.includes(holdKey)) {
         holdKeys.push(holdKey);
       }
-      if (newlyBlocked > 0) {
-        await recordGatewayPaymentEvent(tx, {
-          gatewayPaymentId: paymentId,
-          type: GatewayPaymentEventType.REFUND_WALLET_REVERSAL_FAILED,
-          actorUserId: input.actorUserId,
-          fromStatus: current.status,
-          toStatus:
-            current.status === GatewayPaymentStatus.REFUND_INITIATED
-              ? GatewayPaymentStatus.HELD
-              : current.status,
-          reason: "Wallet funds blocked pending refund reversal retry",
-          metadata: {
-            event: "wallet_funds_blocked",
-            blockedAmount: newlyBlocked,
-            holdIdempotencyKey: holdKey,
-            refundId: input.refundId ?? current.refund_reference,
-          },
-        });
-      }
     }
 
     const totalBlocked = blockedSoFar + newlyBlocked;
@@ -481,23 +566,14 @@ async function holdForWalletReversalFailure(
       },
     });
 
-    await recordGatewayPaymentEvent(tx, {
-      gatewayPaymentId: paymentId,
-      type: GatewayPaymentEventType.REFUND_WALLET_REVERSAL_FAILED,
+    await writeWalletReversalFailedAudit(tx, current, {
       actorUserId: input.actorUserId,
-      fromStatus: current.status,
-      toStatus: GatewayPaymentStatus.HELD,
-      reason: marker.error,
-      metadata: {
-        event: "wallet_reversal_failed",
-        refundId: marker.refundId,
-        gatewayAccount: input.gatewayAccount,
-        failureCode: marker.failureCode,
-        failureCategory: marker.failureCategory,
-        blockedAmount: marker.blockedAmount,
-        fundsProtected: marker.fundsProtected,
-        attemptCount: marker.attemptCount,
-      },
+      previousStatus: current.status,
+      newStatus: GatewayPaymentStatus.HELD,
+      refundId: marker.refundId,
+      blockedAmount: marker.blockedAmount,
+      failureCode: marker.failureCode,
+      fundsProtected: marker.fundsProtected,
     });
   });
 }
@@ -805,20 +881,6 @@ async function adoptExternalCurlecRefundFromCompleted(
       blockedAmount = blockResult.blockedAmount;
       if (blockedAmount > 0) {
         holdKeys.push(holdKey);
-        await recordGatewayPaymentEvent(tx, {
-          gatewayPaymentId: current.id,
-          type: GatewayPaymentEventType.REFUND_INITIATED,
-          actorUserId: input.actorUserId,
-          fromStatus: GatewayPaymentStatus.COMPLETED,
-          toStatus: GatewayPaymentStatus.REFUND_INITIATED,
-          reason: "Wallet funds blocked after external Curlec refund detected",
-          metadata: {
-            event: "wallet_funds_blocked",
-            blockedAmount,
-            holdIdempotencyKey: holdKey,
-            refundId: input.refundId,
-          },
-        });
       }
     }
 
@@ -868,21 +930,11 @@ async function adoptExternalCurlecRefundFromCompleted(
       await clearIssuerOnboardingFeePaidAt(tx, current.issuer_organization_id);
     }
 
-    await recordGatewayPaymentEvent(tx, {
-      gatewayPaymentId: current.id,
-      type: GatewayPaymentEventType.REFUND_INITIATED,
+    await writeRefundInitiatedAudit(tx, current, {
       actorUserId: input.actorUserId,
-      fromStatus: GatewayPaymentStatus.COMPLETED,
-      toStatus: GatewayPaymentStatus.REFUND_INITIATED,
+      previousStatus: GatewayPaymentStatus.COMPLETED,
+      refundId: input.refundId,
       reason: "External Curlec refund detected on completed payment",
-      metadata: {
-        event: "external_curlec_refund_detected",
-        refundId: input.refundId,
-        purpose: current.purpose,
-        detectedOnEvent: input.detectedOnEvent,
-        fundsProtected: externalMarker.fundsProtected ?? null,
-        blockedAmount,
-      },
     });
   });
 
@@ -955,18 +1007,11 @@ export async function completeGatewayPaymentRefund(
         await clearIssuerOnboardingFeePaidAt(tx, current.issuer_organization_id);
       }
 
-      await recordGatewayPaymentEvent(tx, {
-        gatewayPaymentId: working.id,
-        type: GatewayPaymentEventType.REFUNDED,
+      await writeRefundedAudit(tx, current, {
         actorUserId: input.actorUserId,
-        fromStatus: current.status,
-        toStatus: GatewayPaymentStatus.REFUNDED,
-        metadata: {
-          refundId: input.refundId ?? current.refund_reference,
-          purpose: current.purpose,
-          event: "wallet_reversal_completed",
-          externalCurlecRefund: Boolean(readExternalCurlecRefundMarker(baseMetadata)),
-        },
+        previousStatus: current.status,
+        refundId: input.refundId ?? current.refund_reference,
+        reason: "Provider confirmed the refund",
       });
       completed = true;
     });
@@ -1097,27 +1142,6 @@ export async function retryWalletReversalForConfirmedRefund(
     }
   }
 
-  await db.$transaction(async (tx) => {
-    await recordGatewayPaymentEvent(tx, {
-      gatewayPaymentId: payment.id,
-      type: GatewayPaymentEventType.REFUND_WALLET_REVERSAL_FAILED,
-      actorUserId: input.actorUserId,
-      fromStatus: GatewayPaymentStatus.HELD,
-      toStatus: GatewayPaymentStatus.HELD,
-      reason:
-        input.source === "automatic"
-          ? "Automatic wallet reversal retry started"
-          : "Admin wallet reversal retry started",
-      metadata: {
-        event:
-          input.source === "automatic"
-            ? "automatic_wallet_reversal_retry_started"
-            : "admin_wallet_reversal_retry_started",
-        refundId: refundId ?? null,
-      },
-    });
-  });
-
   await completeGatewayPaymentRefund(
     payment,
     { refundId, actorUserId: input.actorUserId },
@@ -1227,18 +1251,6 @@ export async function failGatewayPaymentRefund(
           } as Prisma.InputJsonValue,
         },
       });
-      await recordGatewayPaymentEvent(tx, {
-        gatewayPaymentId: payment.id,
-        type: GatewayPaymentEventType.REFUND_WALLET_REVERSAL_FAILED,
-        fromStatus: GatewayPaymentStatus.COMPLETED,
-        toStatus: GatewayPaymentStatus.COMPLETED,
-        reason: "External Curlec refund failed — completed payment unchanged",
-        metadata: {
-          event: "external_curlec_refund_failed",
-          refundId: input.refundId ?? null,
-          purpose: current.purpose,
-        },
-      });
     });
     return;
   }
@@ -1315,18 +1327,6 @@ export async function failGatewayPaymentRefund(
         );
       }
 
-      await recordGatewayPaymentEvent(tx, {
-        gatewayPaymentId: payment.id,
-        type: GatewayPaymentEventType.REFUND_INITIATED,
-        fromStatus: GatewayPaymentStatus.REFUND_INITIATED,
-        toStatus: GatewayPaymentStatus.COMPLETED,
-        reason: "External Curlec refund failed — restored completed payment and released holds",
-        metadata: {
-          event: "external_curlec_refund_failed_restored",
-          refundId: input.refundId ?? external.refundId,
-          purpose: current.purpose,
-        },
-      });
       return;
     }
 
@@ -1459,18 +1459,10 @@ export async function adoptGatewayRefundCreated(
         refund_reference: current.refund_reference ?? input.refundId,
       },
     });
-    await recordGatewayPaymentEvent(tx, {
-      gatewayPaymentId: payment.id,
-      type: GatewayPaymentEventType.REFUND_INITIATED,
-      fromStatus: GatewayPaymentStatus.HELD,
-      toStatus: GatewayPaymentStatus.REFUND_INITIATED,
+    await writeRefundInitiatedAudit(tx, current, {
+      previousStatus: GatewayPaymentStatus.HELD,
+      refundId: input.refundId,
       reason: "Curlec refund.created recovered pending refund",
-      metadata: {
-        refundId: input.refundId,
-        purpose: current.purpose,
-        source: "refund_created_webhook",
-        recoverableHold: "autoRefundFailed",
-      },
     });
   });
 

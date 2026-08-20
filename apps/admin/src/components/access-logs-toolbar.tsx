@@ -1,3 +1,6 @@
+"use client";
+
+import * as React from "react";
 import { ListToolbar, ListToolbarFilterTrigger, type FilterChip } from "@cashsouk/ui";
 import {
   DropdownMenu,
@@ -9,21 +12,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { AccessLogsExportButton } from "./access-logs-export-button";
-import type { ExportAccessLogsParams, EventType } from "@cashsouk/types";
-
-const EVENT_TYPE_OPTIONS: { value: EventType; label: string }[] = [
-  { value: "LOGIN", label: "Login" },
-  { value: "LOGOUT", label: "Logout" },
-  { value: "SIGNUP", label: "Signup" },
-  { value: "PASSWORD_CHANGED", label: "Password changed" },
-  { value: "EMAIL_CHANGED", label: "Email changed" },
-  { value: "ROLE_ADDED", label: "Role added" },
-  { value: "ROLE_SWITCHED", label: "Role switched" },
-  { value: "USER_COMPLETED", label: "User completed" },
-  { value: "ONBOARDING_STATUS_UPDATED", label: "Onboarding status updated" },
-  { value: "KYC_STATUS_UPDATED", label: "KYC status updated" },
-  { value: "PROFILE_UPDATED", label: "Profile updated" },
-];
+import type { ExportAccessLogsParams, ExportSecurityLogsParams } from "@cashsouk/types";
 
 const DATE_LABELS: Record<string, string> = {
   "24h": "Last 24 hours",
@@ -41,17 +30,24 @@ interface AccessLogsToolbarProps {
   onSearchChange: (value: string) => void;
   eventTypeFilter: string;
   onEventTypeFilterChange: (value: string) => void;
-  statusFilter: string;
-  onStatusFilterChange: (value: string) => void;
+  statusFilter?: string;
+  onStatusFilterChange?: (value: string) => void;
   dateRangeFilter: string;
   onDateRangeFilterChange: (value: string) => void;
   totalCount: number;
   filteredCount: number;
   onClearFilters: () => void;
-  exportFilters?: Omit<ExportAccessLogsParams, "format" | "page" | "pageSize">;
+  exportKind: "access" | "security";
+  exportFilters?: Omit<ExportAccessLogsParams, "format" | "page" | "pageSize"> | Omit<
+    ExportSecurityLogsParams,
+    "format" | "page" | "pageSize"
+  >;
   onRefresh?: () => void;
   isLoading?: boolean;
-  allowedEventTypes?: EventType[];
+  eventTypeOptions: { value: string; label: string }[];
+  showStatusFilter?: boolean;
+  hideExport?: boolean;
+  exportButton?: React.ReactNode;
 }
 
 export function AccessLogsToolbar({
@@ -59,31 +55,32 @@ export function AccessLogsToolbar({
   onSearchChange,
   eventTypeFilter,
   onEventTypeFilterChange,
-  statusFilter,
+  statusFilter = "all",
   onStatusFilterChange,
   dateRangeFilter,
   onDateRangeFilterChange,
   totalCount,
   filteredCount,
   onClearFilters,
+  exportKind,
   exportFilters,
   onRefresh,
   isLoading = false,
-  allowedEventTypes,
+  eventTypeOptions,
+  showStatusFilter = false,
+  hideExport = false,
+  exportButton,
 }: AccessLogsToolbarProps) {
-  const filteredEventTypes = allowedEventTypes
-    ? EVENT_TYPE_OPTIONS.filter((opt) => allowedEventTypes.includes(opt.value))
-    : EVENT_TYPE_OPTIONS;
-
+  const statusActive = showStatusFilter && statusFilter !== "all";
   const hasFilters =
-    searchQuery !== "" ||
+    Boolean(searchQuery) ||
     eventTypeFilter !== "all" ||
-    statusFilter !== "all" ||
+    statusActive ||
     dateRangeFilter !== "all";
 
   const activeFilterCount = [
     eventTypeFilter !== "all",
-    statusFilter !== "all",
+    statusActive,
     dateRangeFilter !== "all",
   ].filter(Boolean).length;
 
@@ -92,16 +89,16 @@ export function AccessLogsToolbar({
     appliedFilters.push({
       id: "event",
       label: `Event: ${
-        EVENT_TYPE_OPTIONS.find((opt) => opt.value === eventTypeFilter)?.label ?? eventTypeFilter
+        eventTypeOptions.find((opt) => opt.value === eventTypeFilter)?.label ?? eventTypeFilter
       }`,
       onRemove: () => onEventTypeFilterChange("all"),
     });
   }
-  if (statusFilter !== "all") {
+  if (statusActive) {
     appliedFilters.push({
       id: "status",
       label: `Status: ${STATUS_LABELS[statusFilter] ?? statusFilter}`,
-      onRemove: () => onStatusFilterChange("all"),
+      onRemove: () => onStatusFilterChange?.("all"),
     });
   }
   if (dateRangeFilter !== "all") {
@@ -116,7 +113,7 @@ export function AccessLogsToolbar({
     <ListToolbar
       searchValue={searchQuery}
       onSearchChange={onSearchChange}
-      searchPlaceholder="Search by user name, email, or User ID..."
+      searchPlaceholder="Search by name or email"
       appliedFilters={appliedFilters}
       onClearFilters={hasFilters ? onClearFilters : undefined}
       onReload={onRefresh}
@@ -133,21 +130,26 @@ export function AccessLogsToolbar({
             <DropdownMenuLabel>Event type</DropdownMenuLabel>
             <DropdownMenuRadioGroup value={eventTypeFilter} onValueChange={onEventTypeFilterChange}>
               <DropdownMenuRadioItem value="all">All events</DropdownMenuRadioItem>
-              {filteredEventTypes.map((opt) => (
+              {eventTypeOptions.map((opt) => (
                 <DropdownMenuRadioItem key={opt.value} value={opt.value}>
                   {opt.label}
                 </DropdownMenuRadioItem>
               ))}
             </DropdownMenuRadioGroup>
-
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Status</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={statusFilter} onValueChange={onStatusFilterChange}>
-              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="success">Success</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="failed">Failed</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-
+            {showStatusFilter ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Status</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={statusFilter}
+                  onValueChange={(value) => onStatusFilterChange?.(value)}
+                >
+                  <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="success">Success</DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value="failed">Failed</DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+              </>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuLabel>Date range</DropdownMenuLabel>
             <DropdownMenuRadioGroup value={dateRangeFilter} onValueChange={onDateRangeFilterChange}>
@@ -160,7 +162,11 @@ export function AccessLogsToolbar({
         </DropdownMenu>
       }
     >
-      {exportFilters ? <AccessLogsExportButton filters={exportFilters} /> : null}
+      {exportButton
+        ? exportButton
+        : !hideExport && exportFilters
+          ? <AccessLogsExportButton kind={exportKind} filters={exportFilters} />
+          : null}
     </ListToolbar>
   );
 }

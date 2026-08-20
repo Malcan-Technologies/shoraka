@@ -29,14 +29,14 @@ export function LateDefaultPanel({ note }: { note: NoteDetail }) {
 
   const generatedLetters = React.useMemo(() => {
     return note.events
-      .filter((event) => event.eventType === "ARREARS_LETTER_GENERATED" || event.eventType === "DEFAULT_LETTER_GENERATED")
+      .filter((event) => event.eventType === "ARREARS_LETTER_GENERATED" || event.eventType === "DEFAULT_NOTICE_GENERATED")
       .map((event) => {
         const s3Key = event.metadata?.s3Key;
         return {
           id: event.id,
           type: event.eventType === "ARREARS_LETTER_GENERATED" ? "Arrears" : "Default",
           s3Key: typeof s3Key === "string" ? s3Key : null,
-          createdAt: event.createdAt,
+          createdAt: event.occurredAt,
         };
       });
   }, [note.events]);

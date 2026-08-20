@@ -16,10 +16,14 @@ const mockFindInvestorOrganizationById = jest.fn();
 const mockFindIssuerOrganizationById = jest.fn();
 const mockUpdateInvestorOrganizationOnboarding = jest.fn().mockResolvedValue(undefined);
 
-const mockCreateOnboardingLog = jest.fn().mockResolvedValue(undefined);
-
 const mockUserFindUnique = jest.fn();
-const mockOnboardingLogCreate = jest.fn().mockResolvedValue(undefined);
+const mockOnboardingAuditCreate = jest.fn().mockResolvedValue({});
+
+function auditEventTypes(): string[] {
+  return mockOnboardingAuditCreate.mock.calls.map(
+    (call) => (call[0] as { data?: { event_type?: string } })?.data?.event_type ?? ""
+  );
+}
 
 jest.mock("./repository", () => ({
   RegTankRepository: jest.fn().mockImplementation(() => ({
@@ -49,19 +53,13 @@ jest.mock("../organization/repository", () => ({
   })),
 }));
 
-jest.mock("../auth/repository", () => ({
-  AuthRepository: jest.fn().mockImplementation(() => ({
-    createOnboardingLog: (...args: unknown[]) => mockCreateOnboardingLog(...args),
-  })),
-}));
-
 jest.mock("../../lib/prisma", () => ({
   prisma: {
     user: {
       findUnique: (...args: unknown[]) => mockUserFindUnique(...args),
     },
-    onboardingLog: {
-      create: (...args: unknown[]) => mockOnboardingLogCreate(...args),
+    onboardingAuditLog: {
+      create: (...args: unknown[]) => mockOnboardingAuditCreate(...args),
     },
   },
 }));
@@ -136,7 +134,10 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
       requestId: "LD0001",
       status: "PROCESSING",
     });
-    mockCreateOnboarding.mockResolvedValue({});
+    mockCreateOnboarding.mockImplementation(async (data: { requestId?: string }) => ({
+      id: "rt_created",
+      request_id: data.requestId ?? "LD_NEW",
+    }));
     mockCancelOnboarding.mockResolvedValue({});
   });
 
@@ -156,6 +157,7 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
     expect(mockRestartOnboarding).not.toHaveBeenCalled();
     expect(mockCreateIndividualOnboarding).not.toHaveBeenCalled();
     expect(mockGetOnboardingDetails).toHaveBeenCalledWith("LD0001");
+    expect(auditEventTypes()).toEqual([]);
   });
 
   it("active revision LD83641-R03 query returns PROCESSING and reuses existing link", async () => {
@@ -688,5 +690,47 @@ describe("RegTankService.startPersonalOnboarding stale-link handling", () => {
     expect(result.requestId).toBe("COD0001");
     expect(mockCreateCorporateOnboarding).toHaveBeenCalledTimes(1);
     expect(mockRestartOnboarding).not.toHaveBeenCalled();
+  });
+
+  it("first persisted personal session writes ONBOARDING_STARTED", async () => {
+    mockFindByOrganizationId.mockResolvedValue(null);
+
+    const service = new RegTankService();
+    await service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor");
+
+    expect(auditEventTypes()).toEqual(["ONBOARDING_STARTED"]);
+  });
+
+  it("meaningful resume from PENDING does not write ONBOARDING_RESUMED", async () => {
+    mockFindInvestorOrganizationById.mockResolvedValue(makePersonalOrg(OnboardingStatus.PENDING));
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({
+        status: "PROCESSING",
+        verify_link_expires_at: nowPlus(120_000),
+      })
+    );
+
+    const service = new RegTankService();
+    await service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor");
+
+    expect(auditEventTypes()).toEqual([]);
+  });
+
+  it("expired session restart writes ONBOARDING_RESTARTED with EXPIRED_SESSION", async () => {
+    mockFindByOrganizationId.mockResolvedValue(
+      makeExistingRow({
+        status: "EXPIRED",
+        verify_link_expires_at: nowMinus(60_000),
+      })
+    );
+
+    const service = new RegTankService();
+    await service.startPersonalOnboarding(makeReq(), "USR01", "org1", "investor");
+
+    expect(auditEventTypes()).toEqual(["ONBOARDING_RESTARTED"]);
+    const payload = mockOnboardingAuditCreate.mock.calls[0]?.[0] as {
+      data?: { metadata?: { trigger?: string } };
+    };
+    expect(payload.data?.metadata?.trigger).toBe("EXPIRED_SESSION");
   });
 });

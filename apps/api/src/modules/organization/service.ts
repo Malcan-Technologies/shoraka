@@ -29,9 +29,17 @@ import {
 } from "@aws-sdk/client-cognito-identity-provider";
 import { formatRolesForCognito } from "../../lib/auth/cognito";
 import { Request } from "express";
-import { extractRequestMetadata } from "../../lib/http/request-utils";
-import { getPortalFromRole } from "../../lib/role-detector";
-import { AuthRepository } from "../auth/repository";
+import {
+  AUDIT_ACTOR_TYPE,
+  AUDIT_PORTAL,
+  organizationKindFromPortalType,
+  auditContextFromRequest,
+} from "../../lib/audit/context";
+import { writeSecurityAuditLog } from "../security/audit/writer";
+import { SECURITY_AUDIT_TARGET_TYPE } from "../security/audit/events";
+import { writeOnboardingAuditLog } from "../onboarding/audit/writer";
+import { ONBOARDING_AUDIT_TARGET_TYPE } from "../onboarding/audit/events";
+import { claimLegacyOnboardingCompleted } from "../onboarding/utils/onboarding-transition-claims";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
 import { legalDocumentAcceptanceService } from "../legal-documents/acceptance-service";
 import { sendEmail } from "../../lib/email/ses-client";
@@ -126,6 +134,14 @@ function ctosPartySupplementOrgWhere(
   throw new AppError(400, "VALIDATION_ERROR", "CTOS party supplements require issuer or investor portal");
 }
 
+function orgAuditContext(req: Request, portalType: PortalType, actorUserId: string) {
+  return auditContextFromRequest(req, {
+    actorType: AUDIT_ACTOR_TYPE.USER,
+    actorUserId,
+    portal: portalType === "investor" ? AUDIT_PORTAL.INVESTOR : AUDIT_PORTAL.ISSUER,
+  });
+}
+
 async function findCtosPartySupplementForOrg(
   portalType: PortalType,
   organizationId: string,
@@ -186,11 +202,9 @@ async function upsertCtosPartySupplementOnboardingJson(
 
 export class OrganizationService {
   private repository: OrganizationRepository;
-  private authRepository: AuthRepository;
 
   constructor() {
     this.repository = new OrganizationRepository();
-    this.authRepository = new AuthRepository();
   }
 
   /**
@@ -460,7 +474,7 @@ export class OrganizationService {
    * In the future, this will be triggered by RegTank webhook.
    */
   async completeOnboarding(
-    _req: Request,
+    req: Request,
     userId: string,
     organizationId: string,
     portalType: PortalType
@@ -484,59 +498,70 @@ export class OrganizationService {
 
     logger.info({ organizationId, portalType, userId }, "Completing organization onboarding");
 
-    const updatedOrg =
-      portalType === "investor"
-        ? await this.repository.updateInvestorOrganizationOnboarding(
-          organizationId,
-          OnboardingStatus.COMPLETED
-        )
-        : await this.repository.updateIssuerOrganizationOnboarding(
-          organizationId,
-          OnboardingStatus.COMPLETED
-        );
-
-    logger.info({ organizationId, portalType }, "Organization onboarding completed");
-
-    // Update user's account array: replace 'temp' with organization ID
-    const user = await prisma.user.findUnique({
-      where: { user_id: userId },
+    const previousStatus = organization.onboarding_status;
+    const context = auditContextFromRequest(req, {
+      actorType: AUDIT_ACTOR_TYPE.USER,
+      portal: portalType === "investor" ? AUDIT_PORTAL.INVESTOR : AUDIT_PORTAL.ISSUER,
     });
 
-    if (user) {
-      const accountArrayField = portalType === "investor" ? "investor_account" : "issuer_account";
-      const currentArray = portalType === "investor" ? user.investor_account : user.issuer_account;
-
-      // Find the first 'temp' and replace it with the organization ID
-      const tempIndex = currentArray.indexOf("temp");
-      if (tempIndex !== -1) {
-        const updatedArray = [...currentArray];
-        updatedArray[tempIndex] = organizationId;
-
-        await prisma.user.update({
-          where: { user_id: userId },
-          data: {
-            [accountArrayField]: { set: updatedArray },
-          },
-        });
-
-        logger.info(
-          { userId, organizationId, portalType, accountArray: updatedArray },
-          "User account array updated with organization ID"
-        );
-      } else {
-        logger.warn(
-          { userId, organizationId, portalType, currentArray },
-          "No 'temp' placeholder found in user account array"
-        );
+    const updatedOrg = await prisma.$transaction(async (tx) => {
+      const claimed = await claimLegacyOnboardingCompleted({
+        organizationId,
+        portalType,
+        db: tx,
+      });
+      if (!claimed) {
+        throw new AppError(400, "ALREADY_COMPLETED", "Onboarding is already completed");
       }
 
-      // Note: USER_COMPLETED log is only created when final approval is completed by admin
-      // See apps/api/src/modules/admin/service.ts completeFinalApproval()
-      logger.info(
-        { userId, organizationId, portalType },
-        "Organization onboarding status updated to COMPLETED"
+      const next =
+        portalType === "investor"
+          ? await tx.investorOrganization.findUniqueOrThrow({ where: { id: organizationId } })
+          : await tx.issuerOrganization.findUniqueOrThrow({ where: { id: organizationId } });
+
+      const user = await tx.user.findUnique({
+        where: { user_id: userId },
+      });
+
+      if (user) {
+        const accountArrayField = portalType === "investor" ? "investor_account" : "issuer_account";
+        const currentArray = portalType === "investor" ? user.investor_account : user.issuer_account;
+        const tempIndex = currentArray.indexOf("temp");
+        if (tempIndex !== -1) {
+          const updatedArray = [...currentArray];
+          updatedArray[tempIndex] = organizationId;
+          await tx.user.update({
+            where: { user_id: userId },
+            data: {
+              [accountArrayField]: { set: updatedArray },
+            },
+          });
+        }
+      }
+
+      await writeOnboardingAuditLog(
+        {
+          eventType: "ONBOARDING_COMPLETED",
+          context,
+          subjectUserId: userId,
+          organizationId,
+          organizationKind: organizationKindFromPortalType(portalType),
+          organizationType: organization.type,
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: organizationId,
+          metadata: {
+            completionMethod: "LEGACY_COMPLETE_ONBOARDING",
+            previousStatus,
+            newStatus: OnboardingStatus.COMPLETED,
+          },
+        },
+        tx
       );
-    }
+
+      return next;
+    });
+
+    logger.info({ organizationId, portalType }, "Organization onboarding completed");
 
     return updatedOrg;
   }
@@ -544,11 +569,12 @@ export class OrganizationService {
   /**
    * Add a member (director or regular member) to an organization
    */
-  async addMember(
+    async addMember(
     userId: string,
     organizationId: string,
     portalType: PortalType,
-    input: AddMemberInput
+    input: AddMemberInput,
+    req: Request
   ): Promise<{ success: boolean; member: { id: string; email: string; role: string } }> {
     // Verify access
     const organization = await this.getOrganization(userId, organizationId, portalType);
@@ -591,20 +617,44 @@ export class OrganizationService {
       "Adding member to organization"
     );
 
-    // Add the member
-    if (portalType === "investor") {
-      await this.repository.addOrganizationMember({
-        userId: targetUser.user_id,
-        investorOrganizationId: organizationId,
-        role,
-      });
-    } else {
-      await this.repository.addOrganizationMember({
-        userId: targetUser.user_id,
-        issuerOrganizationId: organizationId,
-        role,
-      });
-    }
+    await prisma.$transaction(async (tx) => {
+      if (portalType === "investor") {
+        await this.repository.addOrganizationMember(
+          {
+            userId: targetUser.user_id,
+            investorOrganizationId: organizationId,
+            role,
+          },
+          tx
+        );
+      } else {
+        await this.repository.addOrganizationMember(
+          {
+            userId: targetUser.user_id,
+            issuerOrganizationId: organizationId,
+            role,
+          },
+          tx
+        );
+      }
+      await writeSecurityAuditLog(
+        {
+          eventType: "ORGANIZATION_MEMBER_JOINED",
+          context: orgAuditContext(req, portalType, userId),
+          subjectUserId: targetUser.user_id,
+          organizationId,
+          organizationKind: organizationKindFromPortalType(portalType),
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ORGANIZATION_MEMBER,
+          targetId: targetUser.user_id,
+          metadata: {
+            memberUserId: targetUser.user_id,
+            memberEmail: targetUser.email,
+            newRole: role,
+          },
+        },
+        tx
+      );
+    });
 
     return {
       success: true,
@@ -623,7 +673,8 @@ export class OrganizationService {
     userId: string,
     organizationId: string,
     targetUserId: string,
-    portalType: PortalType
+    portalType: PortalType,
+    req: Request
   ): Promise<{ success: boolean }> {
     // Verify access
     const organization = await this.getOrganization(userId, organizationId, portalType);
@@ -667,11 +718,33 @@ export class OrganizationService {
 
     logger.info({ organizationId, targetUserId }, "Removing member from organization");
 
-    if (portalType === "investor") {
-      await this.repository.removeInvestorOrganizationMember(organizationId, targetUserId);
-    } else {
-      await this.repository.removeIssuerOrganizationMember(organizationId, targetUserId);
-    }
+    await prisma.$transaction(async (tx) => {
+      if (portalType === "investor") {
+        await tx.organizationMember.deleteMany({
+          where: { investor_organization_id: organizationId, user_id: targetUserId },
+        });
+      } else {
+        await tx.organizationMember.deleteMany({
+          where: { issuer_organization_id: organizationId, user_id: targetUserId },
+        });
+      }
+      await writeSecurityAuditLog(
+        {
+          eventType: "ORGANIZATION_MEMBER_REMOVED",
+          context: orgAuditContext(req, portalType, userId),
+          subjectUserId: targetUserId,
+          organizationId,
+          organizationKind: organizationKindFromPortalType(portalType),
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ORGANIZATION_MEMBER,
+          targetId: targetUserId,
+          metadata: {
+            memberUserId: targetUserId,
+            previousRole: targetMember.role,
+          },
+        },
+        tx
+      );
+    });
 
     return { success: true };
   }
@@ -760,7 +833,7 @@ export class OrganizationService {
    * When published onboarding legal PDFs exist, all required versions must already be ACCEPTED.
    */
   async acceptTnc(
-    req: Request,
+    _req: Request,
     userId: string,
     organizationId: string,
     portalType: PortalType
@@ -819,41 +892,6 @@ export class OrganizationService {
       reason: "USER_ACCEPT_TNC",
     });
 
-    // Log the T&C acceptance event
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-    const portal = getPortalFromRole(role);
-
-    // Get user for logging
-    const user = await prisma.user.findUnique({
-      where: { user_id: userId },
-    });
-
-    if (user) {
-      await this.authRepository.createOnboardingLog({
-        userId: user.user_id,
-        role,
-        eventType: "TNC_APPROVED",
-        portal,
-        ipAddress,
-        userAgent,
-        deviceInfo,
-        deviceType,
-        organizationName: organization.name || undefined,
-        investorOrganizationId: portalType === "investor" ? organizationId : undefined,
-        issuerOrganizationId: portalType === "issuer" ? organizationId : undefined,
-        metadata: {
-          organizationId,
-          organizationType: organization.type,
-          organizationName: organization.name,
-          role,
-          legalDocumentsRequired: legalStatus.hasRequiredDocuments,
-        },
-      });
-
-      logger.info({ userId, organizationId, portalType, role }, "T&C acceptance event logged");
-    }
-
     return { success: true, tncAccepted: true };
   }
 
@@ -864,7 +902,8 @@ export class OrganizationService {
     userId: string,
     organizationId: string,
     portalType: PortalType,
-    input: InviteMemberInput
+    input: InviteMemberInput,
+    req: Request
   ): Promise<{ success: boolean; invitationId: string; emailSent: boolean; invitationUrl?: string; emailError?: string }> {
     // Verify access
     const organization = await this.getOrganization(userId, organizationId, portalType);
@@ -903,33 +942,59 @@ export class OrganizationService {
     // Generate invitation token
     const token = randomBytes(32).toString("hex");
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+    expiresAt.setDate(expiresAt.getDate() + 7);
 
-    // Create invitation
-    let invitation;
-    if (portalType === "investor") {
-      invitation = await this.repository.createInvestorOrganizationInvitation({
-        email,
-        role: input.role === "ORGANIZATION_ADMIN"
-          ? OrganizationMemberRole.ORGANIZATION_ADMIN
-          : OrganizationMemberRole.ORGANIZATION_MEMBER,
-        investorOrganizationId: organizationId,
-        token,
-        expiresAt,
-        invitedByUserId: userId,
-      });
-    } else {
-      invitation = await this.repository.createIssuerOrganizationInvitation({
-        email,
-        role: input.role === "ORGANIZATION_ADMIN"
-          ? OrganizationMemberRole.ORGANIZATION_ADMIN
-          : OrganizationMemberRole.ORGANIZATION_MEMBER,
-        issuerOrganizationId: organizationId,
-        token,
-        expiresAt,
-        invitedByUserId: userId,
-      });
-    }
+    const invitation = await prisma.$transaction(async (tx) => {
+      const created =
+        portalType === "investor"
+          ? await tx.investorOrganizationInvitation.create({
+              data: {
+                email,
+                role:
+                  input.role === "ORGANIZATION_ADMIN"
+                    ? OrganizationMemberRole.ORGANIZATION_ADMIN
+                    : OrganizationMemberRole.ORGANIZATION_MEMBER,
+                investor_organization_id: organizationId,
+                token,
+                expires_at: expiresAt,
+                invited_by_user_id: userId,
+              },
+            })
+          : await tx.issuerOrganizationInvitation.create({
+              data: {
+                email,
+                role:
+                  input.role === "ORGANIZATION_ADMIN"
+                    ? OrganizationMemberRole.ORGANIZATION_ADMIN
+                    : OrganizationMemberRole.ORGANIZATION_MEMBER,
+                issuer_organization_id: organizationId,
+                token,
+                expires_at: expiresAt,
+                invited_by_user_id: userId,
+              },
+            });
+
+      await writeSecurityAuditLog(
+        {
+          eventType: "ORGANIZATION_MEMBER_INVITED",
+          context: orgAuditContext(req, portalType, userId),
+          subjectUserId: null,
+          organizationId,
+          organizationKind: organizationKindFromPortalType(portalType),
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ORGANIZATION_INVITATION,
+          targetId: created.id,
+          metadata: {
+            invitationId: created.id,
+            email: created.email,
+            memberEmail: input.email?.toLowerCase() ?? null,
+            role: created.role,
+            expiresAt: created.expires_at.toISOString(),
+          },
+        },
+        tx
+      );
+      return created;
+    });
 
     // Send invitation email
     const inviter = await prisma.user.findUnique({
@@ -1003,7 +1068,8 @@ export class OrganizationService {
     userId: string,
     organizationId: string,
     portalType: PortalType,
-    input: { email?: string; role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER" }
+    input: { email?: string; role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER" },
+    req: Request
   ): Promise<{ invitationUrl: string; token: string }> {
     // Verify access
     const organization = await this.getOrganization(userId, organizationId, portalType);
@@ -1062,29 +1128,55 @@ export class OrganizationService {
       expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
 
       // Create invitation record
-      if (portalType === "investor") {
-        await this.repository.createInvestorOrganizationInvitation({
-          email,
-          role: input.role === "ORGANIZATION_ADMIN"
-            ? OrganizationMemberRole.ORGANIZATION_ADMIN
-            : OrganizationMemberRole.ORGANIZATION_MEMBER,
-          investorOrganizationId: organizationId,
-          token,
-          expiresAt,
-          invitedByUserId: userId,
-        });
-      } else {
-        await this.repository.createIssuerOrganizationInvitation({
-          email,
-          role: input.role === "ORGANIZATION_ADMIN"
-            ? OrganizationMemberRole.ORGANIZATION_ADMIN
-            : OrganizationMemberRole.ORGANIZATION_MEMBER,
-          issuerOrganizationId: organizationId,
-          token,
-          expiresAt,
-          invitedByUserId: userId,
-        });
-      }
+      await prisma.$transaction(async (tx) => {
+        const created =
+          portalType === "investor"
+            ? await tx.investorOrganizationInvitation.create({
+                data: {
+                  email,
+                  role:
+                    input.role === "ORGANIZATION_ADMIN"
+                      ? OrganizationMemberRole.ORGANIZATION_ADMIN
+                      : OrganizationMemberRole.ORGANIZATION_MEMBER,
+                  investor_organization_id: organizationId,
+                  token,
+                  expires_at: expiresAt,
+                  invited_by_user_id: userId,
+                },
+              })
+            : await tx.issuerOrganizationInvitation.create({
+                data: {
+                  email,
+                  role:
+                    input.role === "ORGANIZATION_ADMIN"
+                      ? OrganizationMemberRole.ORGANIZATION_ADMIN
+                      : OrganizationMemberRole.ORGANIZATION_MEMBER,
+                  issuer_organization_id: organizationId,
+                  token,
+                  expires_at: expiresAt,
+                  invited_by_user_id: userId,
+                },
+              });
+        await writeSecurityAuditLog(
+          {
+            eventType: "ORGANIZATION_MEMBER_INVITED",
+            context: orgAuditContext(req, portalType, userId),
+            subjectUserId: null,
+            organizationId,
+            organizationKind: organizationKindFromPortalType(portalType),
+            targetType: SECURITY_AUDIT_TARGET_TYPE.ORGANIZATION_INVITATION,
+            targetId: created.id,
+            metadata: {
+              invitationId: created.id,
+              email: created.email,
+              memberEmail: input.email?.toLowerCase() ?? null,
+              role: created.role,
+              expiresAt: created.expires_at.toISOString(),
+            },
+          },
+          tx
+        );
+      });
     }
 
     // Generate invitation URL
@@ -1103,7 +1195,8 @@ export class OrganizationService {
    */
   async acceptInvitation(
     userId: string,
-    input: AcceptOrganizationInvitationInput
+    input: AcceptOrganizationInvitationInput,
+    req: Request
   ): Promise<{ success: boolean; organizationId: string; portalType: PortalType }> {
     // Find invitation by token
     const invitation = await this.repository.findInvitationByToken(input.token);
@@ -1177,23 +1270,61 @@ export class OrganizationService {
       }
     }
 
-    // Add member to organization
-    if (invitation.investor_organization_id) {
-      await this.repository.addOrganizationMember({
-        userId,
-        investorOrganizationId: invitation.investor_organization_id,
-        role: invitation.role,
-      });
-    } else {
-      await this.repository.addOrganizationMember({
-        userId,
-        issuerOrganizationId: invitation.issuer_organization_id!,
-        role: invitation.role,
-      });
-    }
+    const organizationId = invitation.investor_organization_id || invitation.issuer_organization_id!;
+    const portalType: PortalType = invitation.investor_organization_id ? "investor" : "issuer";
 
-    // Mark invitation as accepted
-    await this.repository.acceptInvitation(input.token);
+    await prisma.$transaction(async (tx) => {
+      if (invitation.investor_organization_id) {
+        await this.repository.addOrganizationMember(
+          {
+            userId,
+            investorOrganizationId: invitation.investor_organization_id,
+            role: invitation.role,
+          },
+          tx
+        );
+      } else {
+        await this.repository.addOrganizationMember(
+          {
+            userId,
+            issuerOrganizationId: invitation.issuer_organization_id!,
+            role: invitation.role,
+          },
+          tx
+        );
+      }
+
+      if (invitation.investor_organization_id) {
+        await tx.investorOrganizationInvitation.update({
+          where: { token: input.token },
+          data: { accepted: true, accepted_at: new Date() },
+        });
+      } else {
+        await tx.issuerOrganizationInvitation.update({
+          where: { token: input.token },
+          data: { accepted: true, accepted_at: new Date() },
+        });
+      }
+
+      await writeSecurityAuditLog(
+        {
+          eventType: "ORGANIZATION_MEMBER_JOINED",
+          context: orgAuditContext(req, portalType, userId),
+          subjectUserId: userId,
+          organizationId,
+          organizationKind: organizationKindFromPortalType(portalType),
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ORGANIZATION_MEMBER,
+          targetId: userId,
+          metadata: {
+            memberUserId: userId,
+            memberEmail: user.email,
+            newRole: invitation.role,
+            invitationId: invitation.id,
+          },
+        },
+        tx
+      );
+    });
 
     logger.info(
       {
@@ -1274,7 +1405,8 @@ export class OrganizationService {
     userId: string,
     organizationId: string,
     portalType: PortalType,
-    invitationId: string
+    invitationId: string,
+    req: Request
   ): Promise<{ success: boolean; emailSent: boolean; emailError?: string; invitationUrl?: string }> {
     // Verify access
     await this.getOrganization(userId, organizationId, portalType);
@@ -1350,6 +1482,21 @@ export class OrganizationService {
 
       emailSent = true;
       logger.info({ invitationId }, "Invitation email resent");
+      await writeSecurityAuditLog({
+        eventType: "ORGANIZATION_INVITATION_RESENT",
+        context: orgAuditContext(req, portalType, userId),
+        subjectUserId: null,
+        organizationId,
+        organizationKind: organizationKindFromPortalType(portalType),
+        targetType: SECURITY_AUDIT_TARGET_TYPE.ORGANIZATION_INVITATION,
+        targetId: invitationId,
+        metadata: {
+          invitationId,
+          email: invitation.email,
+          role: invitation.role,
+          expiresAt: invitation.expires_at.toISOString(),
+        },
+      });
     } catch (error) {
       const emailError = error instanceof Error ? error.message : String(error);
       logger.error({ error: emailError, invitationId }, "Failed to resend invitation email");
@@ -1366,12 +1513,42 @@ export class OrganizationService {
     userId: string,
     organizationId: string,
     portalType: PortalType,
-    invitationId: string
+    invitationId: string,
+    req: Request
   ): Promise<{ success: boolean }> {
     // Verify access
     await this.getOrganization(userId, organizationId, portalType);
 
-    await this.repository.revokeInvitation(invitationId, portalType);
+    const existing =
+      portalType === "investor"
+        ? await prisma.investorOrganizationInvitation.findUnique({ where: { id: invitationId } })
+        : await prisma.issuerOrganizationInvitation.findUnique({ where: { id: invitationId } });
+
+    await prisma.$transaction(async (tx) => {
+      if (portalType === "investor") {
+        await tx.investorOrganizationInvitation.delete({ where: { id: invitationId } });
+      } else {
+        await tx.issuerOrganizationInvitation.delete({ where: { id: invitationId } });
+      }
+      await writeSecurityAuditLog(
+        {
+          eventType: "ORGANIZATION_INVITATION_REVOKED",
+          context: orgAuditContext(req, portalType, userId),
+          subjectUserId: null,
+          organizationId,
+          organizationKind: organizationKindFromPortalType(portalType),
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ORGANIZATION_INVITATION,
+          targetId: invitationId,
+          metadata: {
+            invitationId,
+            email: existing?.email ?? "",
+            role: existing?.role ?? "",
+            expiresAt: existing?.expires_at.toISOString() ?? null,
+          },
+        },
+        tx
+      );
+    });
 
     logger.info({ invitationId, organizationId }, "Invitation revoked");
 
@@ -1384,7 +1561,8 @@ export class OrganizationService {
   async leaveOrganization(
     userId: string,
     organizationId: string,
-    portalType: PortalType
+    portalType: PortalType,
+    req: Request
   ): Promise<{ success: boolean }> {
     // Verify access
     const organization = await this.getOrganization(userId, organizationId, portalType);
@@ -1422,11 +1600,33 @@ export class OrganizationService {
     }
 
     // Remove member
-    if (portalType === "investor") {
-      await this.repository.removeInvestorOrganizationMember(organizationId, userId);
-    } else {
-      await this.repository.removeIssuerOrganizationMember(organizationId, userId);
-    }
+    await prisma.$transaction(async (tx) => {
+      if (portalType === "investor") {
+        await tx.organizationMember.deleteMany({
+          where: { investor_organization_id: organizationId, user_id: userId },
+        });
+      } else {
+        await tx.organizationMember.deleteMany({
+          where: { issuer_organization_id: organizationId, user_id: userId },
+        });
+      }
+      await writeSecurityAuditLog(
+        {
+          eventType: "ORGANIZATION_MEMBER_LEFT",
+          context: orgAuditContext(req, portalType, userId),
+          subjectUserId: userId,
+          organizationId,
+          organizationKind: organizationKindFromPortalType(portalType),
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ORGANIZATION_MEMBER,
+          targetId: userId,
+          metadata: {
+            memberUserId: userId,
+            previousRole: userMember.role,
+          },
+        },
+        tx
+      );
+    });
 
     logger.info({ userId, organizationId, portalType, wasOwner: isOwner }, "Member left organization");
 
@@ -1440,7 +1640,8 @@ export class OrganizationService {
     userId: string,
     organizationId: string,
     portalType: PortalType,
-    input: ChangeMemberRoleInput
+    input: ChangeMemberRoleInput,
+    req: Request
   ): Promise<{ success: boolean }> {
     // Verify access
     const organization = await this.getOrganization(userId, organizationId, portalType);
@@ -1496,7 +1697,36 @@ export class OrganizationService {
         ? OrganizationMemberRole.ORGANIZATION_ADMIN
         : OrganizationMemberRole.ORGANIZATION_MEMBER;
 
-    await this.repository.updateMemberRole(organizationId, input.userId, newRole, portalType);
+    await prisma.$transaction(async (tx) => {
+      if (portalType === "investor") {
+        const member = await tx.organizationMember.findFirstOrThrow({
+          where: { investor_organization_id: organizationId, user_id: input.userId },
+        });
+        await tx.organizationMember.update({ where: { id: member.id }, data: { role: newRole } });
+      } else {
+        const member = await tx.organizationMember.findFirstOrThrow({
+          where: { issuer_organization_id: organizationId, user_id: input.userId },
+        });
+        await tx.organizationMember.update({ where: { id: member.id }, data: { role: newRole } });
+      }
+      await writeSecurityAuditLog(
+        {
+          eventType: "ORGANIZATION_MEMBER_ROLE_UPDATED",
+          context: orgAuditContext(req, portalType, userId),
+          subjectUserId: input.userId,
+          organizationId,
+          organizationKind: organizationKindFromPortalType(portalType),
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ORGANIZATION_MEMBER,
+          targetId: input.userId,
+          metadata: {
+            memberUserId: input.userId,
+            previousRole: targetMember.role,
+            newRole,
+          },
+        },
+        tx
+      );
+    });
 
     logger.info(
       { organizationId, targetUserId: input.userId, newRole },
@@ -1513,7 +1743,8 @@ export class OrganizationService {
     userId: string,
     organizationId: string,
     portalType: PortalType,
-    input: { newOwnerId: string }
+    input: { newOwnerId: string },
+    req: Request
   ): Promise<{ success: boolean }> {
     // Verify access
     const organization = await this.getOrganization(userId, organizationId, portalType);
@@ -1537,44 +1768,46 @@ export class OrganizationService {
       throw new AppError(400, "INVALID_TRANSFER", "Cannot transfer ownership to yourself");
     }
 
-    // Update owner_user_id and ensure new owner is an admin
-    if (portalType === "investor") {
-      await prisma.$transaction([
-        // Update organization owner
-        prisma.investorOrganization.update({
+    await prisma.$transaction(async (tx) => {
+      if (portalType === "investor") {
+        await tx.investorOrganization.update({
           where: { id: organizationId },
           data: { owner_user_id: input.newOwnerId },
-        }),
-        // Ensure new owner has admin role
-        prisma.organizationMember.updateMany({
-          where: {
-            user_id: input.newOwnerId,
-            investor_organization_id: organizationId,
-          },
-          data: {
-            role: OrganizationMemberRole.ORGANIZATION_ADMIN,
-          },
-        }),
-      ]);
-    } else {
-      await prisma.$transaction([
-        // Update organization owner
-        prisma.issuerOrganization.update({
+        });
+        await tx.organizationMember.updateMany({
+          where: { user_id: input.newOwnerId, investor_organization_id: organizationId },
+          data: { role: OrganizationMemberRole.ORGANIZATION_ADMIN },
+        });
+      } else {
+        await tx.issuerOrganization.update({
           where: { id: organizationId },
           data: { owner_user_id: input.newOwnerId },
-        }),
-        // Ensure new owner has admin role
-        prisma.organizationMember.updateMany({
-          where: {
-            user_id: input.newOwnerId,
-            issuer_organization_id: organizationId,
+        });
+        await tx.organizationMember.updateMany({
+          where: { user_id: input.newOwnerId, issuer_organization_id: organizationId },
+          data: { role: OrganizationMemberRole.ORGANIZATION_ADMIN },
+        });
+      }
+      await writeSecurityAuditLog(
+        {
+          eventType: "ORGANIZATION_OWNERSHIP_TRANSFERRED",
+          context: orgAuditContext(req, portalType, userId),
+          subjectUserId: input.newOwnerId,
+          organizationId,
+          organizationKind: organizationKindFromPortalType(portalType),
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: organizationId,
+          metadata: {
+            memberUserId: input.newOwnerId,
+            previousOwnerUserId: userId,
+            newOwnerUserId: input.newOwnerId,
+            previousRole: newOwnerMember.role,
+            newRole: OrganizationMemberRole.ORGANIZATION_ADMIN,
           },
-          data: {
-            role: OrganizationMemberRole.ORGANIZATION_ADMIN,
-          },
-        }),
-      ]);
-    }
+        },
+        tx
+      );
+    });
 
     logger.info(
       { organizationId, previousOwner: userId, newOwner: input.newOwnerId, portalType },
@@ -1785,6 +2018,7 @@ export class OrganizationService {
    * Reuses RegTankAPIClient.createIndividualOnboarding; persists sent state on ctos_party_supplements.onboarding_json.
    */
   async sendDirectorCtosPartyOnboarding(
+    req: Request,
     userId: string,
     organizationId: string,
     portalType: PortalType,
@@ -1984,6 +2218,25 @@ export class OrganizationService {
       mergedSend as Prisma.InputJsonValue,
       entities.directorKycStatus
     );
+
+    await writeOnboardingAuditLog({
+      eventType: "DIRECTOR_ONBOARDING_INVITATION_SENT",
+      context: auditContextFromRequest(req, {
+        actorType: AUDIT_ACTOR_TYPE.USER,
+        portal: portalType === "investor" ? AUDIT_PORTAL.INVESTOR : AUDIT_PORTAL.ISSUER,
+      }),
+      subjectUserId: organization.owner_user_id,
+      organizationId,
+      organizationKind: organizationKindFromPortalType(portalType),
+      organizationType: "COMPANY",
+      targetType: ONBOARDING_AUDIT_TARGET_TYPE.DIRECTOR,
+      targetId: pk,
+      metadata: {
+        directorEmail: supplementEmail,
+        partyKey: pk,
+        requestId,
+      },
+    });
 
     if (verifyLink) {
       try {

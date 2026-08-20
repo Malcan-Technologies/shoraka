@@ -94,4 +94,4 @@ Helpers: `resolveRequestedInvoiceAmount`, `resolveOfferedAmount`, `resolveOffere
 
 Issuer invoice save also **warns** (does not block) when requested financing exceeds remaining capacity.
 
-Occupancy changes write `CONTRACT_FACILITY_OCCUPANCY_UPDATED` on `application_logs` (and `FACILITY_OCCUPANCY_UPDATED` on the note) when utilized / available / repaid change.
+Occupancy SOT lives on `contract_details` (`utilized_facility`, `available_facility`, `pending_facility`, `repaid_facility`). Material utilized / available / repaid changes write `CONTRACT_FACILITY_OCCUPANCY_UPDATED` to `ApplicationAuditLog` only — and only for invoice accept, funding close, funding fail, and note repayment. Silent refresh (invoice create/update/delete/withdraw, offer send/retract, amendment, expiry, recompute) updates SOT without an occupancy audit row. There is no `NoteAuditLog` occupancy event.

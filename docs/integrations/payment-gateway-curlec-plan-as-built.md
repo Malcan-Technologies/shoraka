@@ -55,7 +55,7 @@ Key locations for the implemented integration:
 |---|---|
 | Payment module | `apps/api/src/modules/payment/` |
 | Prisma schema | `GatewayPayment`, `GatewayWebhookEvent`, `GatewayReconRun`, `GatewayReconException` in `apps/api/prisma/schema.prisma` |
-| Investor wallet | `InvestorBalance` + `InvestorBalanceTransaction` (sources include `GATEWAY_DEPOSIT`); helpers in `apps/api/src/modules/notes/investor-balance.ts` |
+| Investor wallet | `InvestorBalance` + `InvestorBalanceTransaction` (sources include `GATEWAY_DEPOSIT`); overlay mapper in `apps/api/src/modules/notes/investor-balance-activity.ts` |
 | Deposit gate | `InvestorOrganization.deposit_received`; enforced in `NoteService.createInvestment` |
 | Dev test-topup | `POST /v1/investor/balance/test-topup` — blocked when `NODE_ENV=production` |
 | Platform ledger | `NoteLedgerEntry` with `gateway_payment_id`; buckets `INVESTOR_POOL`, `OPERATING_ACCOUNT`, etc. |
@@ -92,7 +92,7 @@ Same flow for both; the first successful deposit also sets `deposit_received = t
 3. Webhook `payment.captured` → mark `PAID`, snapshot payer bank details → run **name check**.
 4. **Name check PASS** → in one transaction: credit `InvestorBalance` (source `GATEWAY_DEPOSIT`), set `deposit_received = true` if first deposit, post `INVESTOR_POOL` ledger credit, mark payment `COMPLETED`.
 5. **Name check FAIL** → auto-refund via Curlec Refund API; wallet never credited.
-6. **Name REVIEW or NAME_UNAVAILABLE** → mark `NAME_CHECK_PENDING`; admin approves (credit) or rejects (auto-refund). Wallet never credited until approved. In-flight payments (`PAID`, `NAME_CHECK_PENDING`, `HELD`, `REFUND_INITIATED`) still appear on investor/admin wallet activity as overlay rows (`affectsAvailableBalance: false`) so the captured bank debit is visible before credit.
+6. **Name REVIEW or NAME_UNAVAILABLE** → mark `NAME_CHECK_PENDING`; admin approves (credit) or rejects (auto-refund). Wallet never credited until approved. In-flight payments (`PAID`, `NAME_CHECK_PENDING`, `HELD`, `REFUND_INITIATED`) still appear on investor/admin **wallet activity** as read-time overlay rows (`affectsAvailableBalance: false`) so the captured bank debit is visible before credit. Overlay rows are synthetic cash-statement rows, not persisted audit evidence and not `PaymentAuditLog` events. Running balance must skip them.
 7. **Amount mismatch** → auto-refund; wallet never credited. If refund API fails → `HELD`; admin retries from Gateway Payments detail.
 
 **Name source for the check:** expected name = investor account name (individual full name for `PERSONAL` orgs; company name for `COMPANY` orgs, from org record / `bank_account_details`). Actual name = payer bank account name from Curlec. ⚠️ **Open item (must verify with Curlec before build):** the standard Curlec `GET /v1/payments/:id` for FPX returns only the payer's bank code, not the account holder name, and Smart Collect/TPV is not available in Malaysia. Business has confirmed name check is possible via Razorpay — confirm with the Curlec account manager exactly which API/report exposes the FPX buyer name (FPX messages do carry it). Design the name check as a discrete step that consumes the name from whatever source is available (webhook payload, payment fetch, or settlement report); if no name is available programmatically, the deposit lands in a `NAME_CHECK_PENDING` admin queue where ops verifies against the Curlec dashboard and approves/holds manually. Matching is exact normalized comparison (case/whitespace/punctuation-insensitive); anything else fails to admin review — no fuzzy auto-approval.
@@ -179,7 +179,7 @@ Supporting changes:
 | `POST /v1/applications/:id/processing-fee` | ISSUER + ownership | Create processing fee order |
 | `POST /v1/webhooks/curlec/operating` | signature | Operating merchant webhook ingress |
 | `POST /v1/webhooks/curlec/investor-pool` | signature | Investor Pool merchant webhook ingress |
-| `GET /v1/admin/organizations/investor/:id/balance-activity` | ADMIN | Investor wallet activity (ledger + in-flight deposits) |
+| `GET /v1/admin/organizations/investor/:id/balance-activity` | ADMIN (`organizations.view`) | Investor wallet / cash-statement activity. Posted `InvestorBalanceTransaction` plus read-time overlay of uncredited in-flight deposits. **Not** `PaymentAuditLog`. **Not** `/v1/activities`. |
 | `GET /v1/admin/gateway-payments/:id` | ADMIN | Detail incl. events + name check |
 | `GET /v1/admin/gateway-payments/exceptions/pending-count` | ADMIN | Count of HELD + NAME_CHECK_PENDING |
 | `POST /v1/admin/gateway-payments/:id/name-check/approve` | ADMIN | Approve `NAME_CHECK_PENDING` → credit wallet |
@@ -208,8 +208,8 @@ Goal: every Curlec payment is matched to a `GatewayPayment` and ledger entry; ev
 
 **Investor portal** (`apps/investor`)
 - Real FPX deposit flow via Curlec Checkout (`deposit-card.tsx`, `deposit-dialog.tsx`, `lib/curlec-checkout.ts`).
-- Status UX for `COMPLETED`, `NAME_CHECK_PENDING`, `REFUND_*`, `HELD`.
-- Transactions table overlays in-flight deposits (Verifying / Needs review) until the wallet is credited.
+- Status UX for `COMPLETED`, `NAME_CHECK_PENDING`, `REFUND_*`, `HELD`. User-portal `NAME_CHECK_PENDING` maps to the waiting/`submitted` status token.
+- **Portfolio → Transactions** is the wallet / cash-statement table (`GET /v1/investor/balance/activity`). It overlays in-flight deposits until the wallet is credited. Withdraw still sends `withdrawalIntentId`.
 - Onboarding deposit step completes when first deposit reaches `COMPLETED`.
 
 **Issuer portal** (`apps/issuer`)
@@ -217,8 +217,8 @@ Goal: every Curlec payment is matched to a `GatewayPayment` and ledger entry; ev
 - Application submit step: processing fee payment before submit.
 
 **Admin portal** (`apps/admin`)
-- Finance → Gateway Payments: list/detail, name-check approve/reject, refund actions.
-- Investor detail → Activity: wallet transactions (same rows as the investor table) plus onboarding timeline. Linked records stay as investment positions.
+- Finance → Gateway Payments: list/detail, name-check approve/reject, refund actions. Detail timeline is `PaymentAuditLog` (historical evidence), not the wallet overlay.
+- Investor detail → Activity tab: **Wallet Activity first** (same cash-statement rows as Portfolio, via `GET /v1/admin/organizations/investor/:id/balance-activity`), then **Onboarding activity** (`OnboardingAuditLog`). Linked records stay as investment positions. Issuer Activity tab is onboarding timeline only.
 - Finance → Reconciliation: daily runs, exceptions, manual trigger.
 - Settings → Platform Finance → Gateway Fees tab.
 - Badges: issuer onboarding fee paid, application processing fee paid.

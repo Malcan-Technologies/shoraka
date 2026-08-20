@@ -460,9 +460,44 @@ Incomplete onboarding steps (`terms`, `fee`, `verify`) redirect off `/` to the m
 
 ---
 
-## 18. `OnboardingLog`
+## 18. `OnboardingAuditLog`
 
-**Model:** `onboarding_logs` in `schema.prisma`. Written from **`AuthRepository.createOnboardingLog`**, **`prisma.onboardingLog.create`** in AML milestone, admin flows, webhooks — event types include `ONBOARDING_STATUS_UPDATED`, `SSM_APPROVED`, `AML_APPROVED`, `ONBOARDING_APPROVED`, `FINAL_APPROVAL_COMPLETED`, `TNC_APPROVED`, etc.
+**Model:** `onboarding_audit_logs` in `schema.prisma`. Sole onboarding/compliance history table. Written only via **`writeOnboardingAuditLog`**. Organization `onboarding_status`/flags remain workflow SOT; `RegTankOnboarding` remains provider-session SOT; `LegalDocumentAcceptance` remains legal acceptance SOT; CTOS rows remain report SOT; `corporate_entities` and `director_kyc_status` remain current snapshots. Audit is never workflow state.
+
+Onboarding audit records CashSouk business actions, stages, decisions, and outcomes. Detailed provider synchronization remains in its source-of-truth storage and is not duplicated as onboarding audit noise.
+
+**Reserved/catalogued IDs:** 18 = original A039–A055 plus later-appended A175 (ONB-018 `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`). **Current active onboarding event types:** 15. **Retired / no current writer:** A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`. Historical rows remain readable. IDs are not reused. Overall audit catalogue is **178 reserved/catalogued IDs** (A001–A178), with **175 currently active event types** that have at least one writer.
+
+| ID | Event | Current writer |
+|---|---|---|
+| A039 | `ONBOARDING_STARTED` | Yes |
+| A040 | `ONBOARDING_RESUMED` | Retired |
+| A041 | `ONBOARDING_RESTARTED` | Yes |
+| A042 | `ONBOARDING_RESET` | Yes |
+| A043 | `USER_ONBOARDING_STATUS_UPDATED` | Yes |
+| A044 | `ONBOARDING_STATUS_CHANGED` | Yes — core stage event, including review landing, amendment requested, and verification resubmitted. Titles: Verification Submitted / Amendment Requested / Verification Resubmitted; unexpected fallback Onboarding Stage Updated. Does not duplicate SSM/AML/approval/final/reject/restart decision events. |
+| A045 | `ONBOARDING_APPROVED` | Yes |
+| A046 | `ONBOARDING_REJECTED` | Yes |
+| A047 | `ONBOARDING_FINAL_APPROVAL_COMPLETED` | Yes |
+| A048 | `ONBOARDING_COMPLETED` | Yes — legacy writer while the legacy API exists. Presentation may use completion semantics. |
+| A049 | `AML_APPROVED` | Yes. `onboarding_id` is optional linkage to `reg_tank_onboarding.id` (CashSouk cuid, not COD/KYB/KYC ids) when the writer already knows the session: KYB main-company webhook, personal KYC webhook, admin corporate AML refresh, admin personal onboarding refresh, admin Approve AML. Self-service AML sync may leave it NULL. Provider ids stay in metadata. Does not change AML approval logic. |
+| A050 | `SSM_APPROVED` | Yes |
+| A051 | `INVESTOR_SOPHISTICATED_STATUS_UPDATED` | Yes |
+| A052 | `CTOS_REPORT_RECEIVED` | Retired — CTOS SOAP fetch still inserts a new `ctos_reports` row (repeated Fetch inserts another row). Only the onboarding audit breadcrumb was removed. |
+| A053 | `CORPORATE_ENTITIES_UPDATED` | Retired — `corporate_entities` still updates |
+| A054 | `DIRECTOR_ONBOARDING_INVITATION_SENT` | Yes — Issuer or Investor COMPANY org, after onboarding is COMPLETED: Profile → Directors and Shareholders → Confirm & Send → Confirm. No separate resend endpoint. Not Organization Member Resend / Admin invitation resend / Admin CTOS Fetch. |
+| A055 | `DIRECTOR_KYC_STATUS_UPDATED` | Yes — `APPROVED` / `REJECTED` outcomes only. Intermediate KYC/provider statuses stay on `director_kyc_status`. |
+| A175 | `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN` | Yes — admin PATCH of issuer/investor organization profile. Target is the organization. Bank values and nested corporate values are not stored. Issuer/investor Activity HIDE. |
+
+**Issuer Company clean happy path:** `ONBOARDING_STARTED` → `ONBOARDING_STATUS_CHANGED` (Verification Submitted) → `SSM_APPROVED` → optional `DIRECTOR_KYC_STATUS_UPDATED` (final APPROVED/REJECTED only) → `ONBOARDING_APPROVED` → `AML_APPROVED` → `ONBOARDING_FINAL_APPROVAL_COMPLETED`. Status: `IN_PROGRESS` → `PENDING_SSM_REVIEW` → `PENDING_APPROVAL` → `PENDING_AML` → `PENDING_FINAL_APPROVAL` → `COMPLETED`. Must not contain A040/A052/A053 or intermediate director KYC audit rows.
+
+**Amendment branch:** `PENDING_SSM_REVIEW` / `PENDING_APPROVAL` → `PENDING_AMENDMENT` writes A044 titled Amendment Requested. Then `PENDING_AMENDMENT` → `PENDING_SSM_REVIEW` writes A044 titled Verification Resubmitted. Do not add noisy provider-sync events around these transitions.
+
+**Visibility (current source):** Admin global Onboarding Audit shows active meaningful events plus historical retired rows; A044 is visible. Admin organization contextual history includes A044 meaningful stage transitions and A055 final director outcomes; excludes A052 and A053; does not show intermediate director KYC. Issuer/investor activity shows meaningful user-facing milestones only. A054: Admin visible; Issuer COMPANY activity visible where the current rule allows; Investor activity hidden.
+
+**REMOVED:** `OnboardingLog` / `onboarding_logs`.
+
+Known limitations (not fixed here): `retryOnboarding` can persist a new provider session without `ONBOARDING_RESTARTED`; company auto-regenerate may label a stale/cancelled session as `EXPIRED_SESSION`; legacy complete-onboarding routes still emit `ONBOARDING_COMPLETED`; user cancel remains a no-op workflow action.
 
 ---
 

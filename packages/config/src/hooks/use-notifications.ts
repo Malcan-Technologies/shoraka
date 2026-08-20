@@ -130,9 +130,10 @@ export function useAdminNotifications(
     search?: string;
     type?: string;
     target?: string;
+    includeLogs?: boolean;
   } = {}
 ) {
-  const { limit = 20, offset = 0, search, type, target } = options;
+  const { limit = 20, offset = 0, search, type, target, includeLogs = true } = options;
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
   const apiClient = createApiClient(undefined, getAccessToken);
@@ -184,6 +185,9 @@ export function useAdminNotifications(
       const response = await apiClient.sendAdminNotification(data);
       if ("error" in response) throw new Error(response.error.message);
       return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-notification-logs"] });
     },
   });
 
@@ -258,7 +262,7 @@ export function useAdminNotifications(
       if ("error" in response) throw new Error(response.error.message);
       return response.data;
     },
-    enabled: !!getAccessToken,
+    enabled: !!getAccessToken && includeLogs,
   });
 
   return {

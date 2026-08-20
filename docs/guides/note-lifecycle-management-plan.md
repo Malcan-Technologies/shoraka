@@ -2,6 +2,8 @@
 
 This document proposes the future note lifecycle from the point where an approved source invoice becomes an investable note. It covers marketplace listing, investor funding, admin controls, repayments, late payments, partial and advance payments, issuer residual returns, ledger requirements, and implementation phases.
 
+> **Audit names in this plan:** where this file says `NoteEvent` / `NoteAdminAction`, the live store is `NoteAuditLog`. Those plan names are not active Prisma models.
+
 ## Scope
 
 The note lifecycle starts after issuer origination produces approved invoices. A contract can have multiple invoices, and each approved invoice can become its own note.

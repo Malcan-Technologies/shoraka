@@ -3,11 +3,15 @@ import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { ContractRepository } from "../contracts/repository";
 import { AppError } from "../../lib/http/error-handler";
-import { logApplicationActivity } from "../applications/logs/service";
-import { ActivityPortal } from "../applications/logs/types";
 import { Invoice } from "@prisma/client";
 import { ApplicationStatus, ContractStatus, InvoiceStatus, WithdrawReason } from "@cashsouk/types";
 import { computeApplicationStatus } from "../applications/lifecycle";
+import { prisma } from "../../lib/prisma";
+import {
+  APPLICATION_AUDIT_TARGET_TYPE,
+  issuerApplicationAuditContext,
+  writeApplicationAuditLog,
+} from "../applications/audit/writer";
 import {
   generateApplicationDocumentKey,
   parseApplicationDocumentKey,
@@ -580,37 +584,49 @@ async deleteInvoice(id: string, userId: string) {
     }
 
     const finalReason = reason ?? WithdrawReason.USER_CANCELLED;
+    const previousStatus = invoice.status;
+    const applicationId = invoice.application_id;
 
-    const updated = await this.repository.update(id, {
-      status: InvoiceStatus.WITHDRAWN,
-      withdraw_reason: finalReason,
-    });
-
-    await this.refreshLinkedContractFacilities(
-      invoice.contract_id,
-      (invoice as { application?: { contract_id?: string | null } }).application?.contract_id
-    );
-
-    if (invoice.application_id) {
-      const details = invoice.details as Record<string, unknown> | null;
-      const invoiceNumber = details?.number != null ? String(details.number) : undefined;
-      await logApplicationActivity({
-        userId,
-        applicationId: invoice.application_id,
-        eventType: "INVOICE_WITHDRAWN",
-        portal: ActivityPortal.ISSUER,
-        entityId: id,
-        metadata: {
-          invoice_id: id,
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.invoice.update({
+        where: { id },
+        data: {
+          status: InvoiceStatus.WITHDRAWN,
           withdraw_reason: finalReason,
-          ...(invoiceNumber ? { invoice_number: invoiceNumber } : {}),
         },
       });
 
-      const allInvoices = await this.repository.findByApplicationId(invoice.application_id);
-      const app = await this.applicationRepository.findById(invoice.application_id);
+      if (!applicationId) {
+        return next;
+      }
+
+      const details = invoice.details as Record<string, unknown> | null;
+      const invoiceNumber = details?.number != null ? String(details.number) : undefined;
+
+      await writeApplicationAuditLog(
+        {
+          eventType: "INVOICE_WITHDRAWN",
+          context: issuerApplicationAuditContext(userId),
+          applicationId,
+          targetType: APPLICATION_AUDIT_TARGET_TYPE.INVOICE,
+          targetId: id,
+          metadata: {
+            previousStatus,
+            newStatus: "WITHDRAWN",
+            withdrawReason: finalReason,
+            ...(invoiceNumber ? { invoiceNumber } : {}),
+          },
+        },
+        tx
+      );
+
+      const allInvoices = await tx.invoice.findMany({ where: { application_id: applicationId } });
+      const app = await tx.application.findUnique({
+        where: { id: applicationId },
+        select: { status: true, contract_id: true, financing_structure: true },
+      });
       const contract = app?.contract_id
-        ? await this.contractRepository.findById(app.contract_id)
+        ? await tx.contract.findUnique({ where: { id: app.contract_id }, select: { status: true } })
         : null;
       const currentStatus = (app?.status as ApplicationStatus) ?? ApplicationStatus.DRAFT;
       const isInvoiceOnly =
@@ -622,20 +638,34 @@ async deleteInvoice(id: string, userId: string) {
         { isInvoiceOnly }
       );
       if (newStatus === ApplicationStatus.WITHDRAWN && currentStatus !== ApplicationStatus.WITHDRAWN) {
-        const { prisma } = await import("../../lib/prisma");
-        await prisma.application.update({
-          where: { id: invoice.application_id },
+        await tx.application.update({
+          where: { id: applicationId },
           data: { status: ApplicationStatus.WITHDRAWN },
         });
-        await logApplicationActivity({
-          userId,
-          applicationId: invoice.application_id,
-          eventType: "APPLICATION_WITHDRAWN",
-          portal: ActivityPortal.ISSUER,
-          metadata: { withdraw_reason: finalReason },
-        });
+        await writeApplicationAuditLog(
+          {
+            eventType: "APPLICATION_WITHDRAWN",
+            context: issuerApplicationAuditContext(userId),
+            applicationId,
+            targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+            targetId: applicationId,
+            metadata: {
+              previousStatus: currentStatus,
+              newStatus: "WITHDRAWN",
+              withdrawReason: finalReason,
+            },
+          },
+          tx
+        );
       }
-    }
+
+      return next;
+    });
+
+    await this.refreshLinkedContractFacilities(
+      invoice.contract_id,
+      (invoice as { application?: { contract_id?: string | null } }).application?.contract_id
+    );
 
     return updated;
   }

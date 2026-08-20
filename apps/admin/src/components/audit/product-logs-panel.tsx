@@ -26,11 +26,22 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProductLogs, useExportProductLogs } from "@/hooks/use-product-logs";
 import { AdminQueryErrorState } from "@/components/admin-query-error-state";
+import { AuditLogDetailSheet } from "@/components/audit/audit-log-detail-sheet";
+import { formatAuditEventLabel } from "@/lib/audit-tabs";
+import { formatAuditDateTime } from "@/lib/audit-datetime";
+import {
+  auditExportFilename,
+  downloadAuditExport,
+  truncatedExportDescription,
+} from "@/lib/download-audit-export";
+import { toast } from "sonner";
+import type { ProductLogResponse } from "@cashsouk/types";
 import {
   ArrowDownTrayIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CubeIcon,
+  EyeIcon,
 } from "@heroicons/react/24/outline";
 import type { ProductEventType, GetProductLogsParams } from "@cashsouk/types";
 import { DATE_RANGES } from "@cashsouk/config";
@@ -38,17 +49,13 @@ import { DATE_RANGES } from "@cashsouk/config";
 const PRODUCT_EVENT_TYPES: { value: ProductEventType; label: string; color: string }[] = [
   { value: "PRODUCT_CREATED", label: "Created", color: "bg-green-500" },
   { value: "PRODUCT_UPDATED", label: "Updated", color: "bg-blue-500" },
+  { value: "PRODUCT_INACTIVATED", label: "Inactivated", color: "bg-amber-500" },
+  { value: "PRODUCT_REACTIVATED", label: "Reactivated", color: "bg-violet-500" },
   { value: "PRODUCT_DELETED", label: "Deleted", color: "bg-red-500" },
 ];
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-MY", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatAuditDateTime(dateStr);
 }
 
 function getEventTypeBadge(eventType: ProductEventType) {
@@ -77,6 +84,8 @@ export function ProductLogsPanel() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [eventTypeFilter, setEventTypeFilter] = React.useState<string>("all");
   const [dateRangeFilter, setDateRangeFilter] = React.useState<string>("all");
+  const [selectedLog, setSelectedLog] = React.useState<ProductLogResponse | null>(null);
+  const [detailOpen, setDetailOpen] = React.useState(false);
 
   const getExportLogs = useExportProductLogs();
 
@@ -138,24 +147,23 @@ export function ProductLogsPanel() {
 
   const handleExport = async (format: "csv" | "json") => {
     try {
-      const blob = await getExportLogs({
+      const result = await getExportLogs({
         search: searchQuery || undefined,
         eventType:
           eventTypeFilter !== "all" ? (eventTypeFilter as ProductEventType) : undefined,
         dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
         format,
       });
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `product-logs-${new Date().toISOString().split("T")[0]}.${format}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      downloadAuditExport(result.blob, auditExportFilename("product-logs", format));
+      if (result.truncated) {
+        toast.warning("Export truncated", { description: truncatedExportDescription() });
+      } else {
+        toast.success(`Product logs exported as ${format.toUpperCase()}`);
+      }
     } catch (error) {
-      console.error("Export failed:", error);
+      toast.error("Failed to export product logs", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
     }
   };
 
@@ -233,6 +241,7 @@ export function ProductLogsPanel() {
               <TableHead>Product</TableHead>
               <TableHead>IP Address</TableHead>
               <TableHead>Device</TableHead>
+              <TableHead className="text-right">Details</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -257,11 +266,14 @@ export function ProductLogsPanel() {
                   <TableCell>
                     <Skeleton className="h-5 w-32" />
                   </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-16" />
+                  </TableCell>
                 </TableRow>
               ))
             ) : logs.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                   <CubeIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p>No product logs found</p>
                   <p className="text-sm mt-1">Product changes will be recorded here</p>
@@ -269,39 +281,32 @@ export function ProductLogsPanel() {
               </TableRow>
             ) : (
               logs.map((log) => {
-                const metadata = log.metadata as Record<string, unknown> | null;
-                const workflow = (metadata?.workflow as unknown[]) ?? [];
-                const first = workflow[0] as
-                  | { config?: { name?: string; type?: { name?: string } } }
-                  | undefined;
+                const metadata = log.metadata ?? {};
                 const productName =
-                  (first?.config?.name as string) ||
-                  (first?.config?.type?.name as string) ||
-                  "";
-                const productId = log.product_id ?? "";
+                  typeof metadata.productName === "string" ? metadata.productName : "";
+                const productId = log.productId;
+                const actorName = log.actor.displayName || log.actor.userId || "—";
+                const actorEmail = log.actor.email || "";
 
                 return (
                   <TableRow key={log.id}>
                     <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                      {formatDate(log.created_at)}
+                      {formatDate(log.occurredAt)}
                     </TableCell>
                     <TableCell className="text-sm min-w-[180px] max-w-[280px]">
                       <div className="min-w-0">
-                        <p
-                          className="font-medium text-sm truncate"
-                          title={`${log.user.first_name} ${log.user.last_name}`}
-                        >
-                          {log.user.first_name} {log.user.last_name}
+                        <p className="font-medium text-sm truncate" title={actorName}>
+                          {actorName}
                         </p>
                         <p
                           className="text-xs text-muted-foreground truncate"
-                          title={log.user.email}
+                          title={actorEmail || undefined}
                         >
-                          {log.user.email}
+                          {actorEmail || "—"}
                         </p>
                       </div>
                     </TableCell>
-                    <TableCell>{getEventTypeBadge(log.event_type)}</TableCell>
+                    <TableCell>{getEventTypeBadge(log.eventType)}</TableCell>
                     <TableCell className="text-sm">
                       <div className="max-w-[250px] min-w-[140px]">
                         <p
@@ -321,10 +326,24 @@ export function ProductLogsPanel() {
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {log.ip_address || "—"}
+                      {log.ipAddress || "—"}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
-                      {log.device_info || "—"}
+                      {log.deviceInfo || "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 px-2"
+                        onClick={() => {
+                          setSelectedLog(log);
+                          setDetailOpen(true);
+                        }}
+                      >
+                        <EyeIcon className="mr-1 h-4 w-4" />
+                        View
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
@@ -361,6 +380,38 @@ export function ProductLogsPanel() {
           </div>
         )}
       </div>
+
+      <AuditLogDetailSheet
+        log={
+          selectedLog
+            ? {
+                id: selectedLog.id,
+                eventType: selectedLog.eventType,
+                eventLabel: formatAuditEventLabel(selectedLog.eventType),
+                occurredAt: selectedLog.occurredAt,
+                createdAt: selectedLog.createdAt,
+                actorType: selectedLog.actor.type,
+                actorName: selectedLog.actor.displayName ?? null,
+                actorEmail: selectedLog.actor.email ?? null,
+                actorUserId: selectedLog.actor.userId,
+                targetType: selectedLog.target.type,
+                targetId: selectedLog.target.id,
+                source: selectedLog.source,
+                portal: selectedLog.portal,
+                ipAddress: selectedLog.ipAddress,
+                userAgent: selectedLog.userAgent,
+                deviceInfo: selectedLog.deviceInfo,
+                correlationId: selectedLog.correlationId,
+                extraFields: [{ label: "Product ID", value: selectedLog.productId }],
+                metadata: selectedLog.metadata,
+              }
+            : null
+        }
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        title="Product audit"
+        description="Read-only product configuration change record."
+      />
     </div>
   );
 }

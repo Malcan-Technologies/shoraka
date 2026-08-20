@@ -6,6 +6,7 @@ import { useEffect, useState, useRef } from "react";
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle } from "@cashsouk/ui";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { Navbar } from "../../components/navbar";
+import { resolveAuthErrorPageAction } from "../../lib/auth-error-page";
 
 /**
  * Logout from Cognito and redirect to landing page
@@ -57,14 +58,21 @@ async function logoutFromCognito() {
 function AuthErrorPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const errorCode = searchParams.get("error");
   const message = searchParams.get("message") || "Authentication failed. Please try again.";
   const wasPreviouslyAdmin = searchParams.get("wasPreviouslyAdmin") === "true";
   const [countdown, setCountdown] = useState(wasPreviouslyAdmin ? 5 : 0);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const hasInitiatedLogout = useRef(false);
+  const pageAction = resolveAuthErrorPageAction(errorCode);
 
   useEffect(() => {
+    if (pageAction === "go-home") {
+      router.replace("/");
+      return;
+    }
+
     // If user was never an admin, logout immediately and redirect
     if (!wasPreviouslyAdmin && !hasInitiatedLogout.current) {
       hasInitiatedLogout.current = true;
@@ -84,7 +92,21 @@ function AuthErrorPageContent() {
         logoutFromCognito();
       }
     }
-  }, [countdown, wasPreviouslyAdmin]);
+  }, [countdown, wasPreviouslyAdmin, pageAction, router]);
+
+  if (pageAction === "go-home") {
+    return (
+      <>
+        <Navbar />
+        <main className="min-h-screen bg-background flex items-center justify-center p-6 pt-24">
+          <div className="text-center space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground">Returning to home...</p>
+          </div>
+        </main>
+      </>
+    );
+  }
 
   const handleRetryLogin = () => {
     // Redirect to get-started page to initiate new login

@@ -12,6 +12,15 @@ jest.mock("../../lib/prisma", () => ({
   },
 }));
 
+jest.mock("./audit/writer", () => {
+  const actual = jest.requireActual<typeof import("./audit/writer")>("./audit/writer");
+  return {
+    ...actual,
+    writeNoteAuditFromActor: jest.fn().mockResolvedValue(undefined),
+    writeNoteAuditLog: jest.fn().mockResolvedValue(undefined),
+  };
+});
+
 jest.mock("./repository", () => ({
   noteInclude: {},
   noteRepository: {
@@ -40,6 +49,7 @@ import { prisma } from "../../lib/prisma";
 import * as noteLifecycle from "../notification/note-lifecycle-notifications";
 import { noteRepository } from "./repository";
 import { NoteService } from "./service";
+import { writeNoteAuditFromActor } from "./audit/writer";
 
 describe("NoteService recordPayment issuer on behalf", () => {
   const issuerActor = { userId: "issuer-1", role: "ISSUER", portal: "ISSUER" };
@@ -81,7 +91,7 @@ describe("NoteService recordPayment issuer on behalf", () => {
           reference: null as string | null,
         }),
       },
-      noteEvent: { create: jest.fn().mockResolvedValue({}) },
+      noteAuditLog: { create: jest.fn().mockResolvedValue({}) },
       note: {
         findUniqueOrThrow: jest.fn().mockResolvedValue({ ...baseNote }),
       },
@@ -125,7 +135,7 @@ describe("NoteService recordPayment issuer on behalf", () => {
           reference: null as string | null,
         }),
       },
-      noteEvent: { create: jest.fn().mockResolvedValue({}) },
+      noteAuditLog: { create: jest.fn().mockResolvedValue({}) },
       note: {
         findUniqueOrThrow: jest.fn().mockResolvedValue({ ...baseNote }),
       },
@@ -145,15 +155,16 @@ describe("NoteService recordPayment issuer on behalf", () => {
       issuerActor
     );
 
-    expect(tx.noteEvent.create).toHaveBeenCalledWith(
+    expect(writeNoteAuditFromActor).toHaveBeenCalledWith(
+      issuerActor,
       expect.objectContaining({
-        data: expect.objectContaining({
-          metadata: expect.not.objectContaining({
-            pendingTawidhAmount: expect.anything(),
-            pendingGharamahAmount: expect.anything(),
-          }),
+        eventType: "REPAYMENT_SUBMITTED",
+        metadata: expect.not.objectContaining({
+          pendingTawidhAmount: expect.anything(),
+          pendingGharamahAmount: expect.anything(),
         }),
-      })
+      }),
+      expect.anything()
     );
   });
 

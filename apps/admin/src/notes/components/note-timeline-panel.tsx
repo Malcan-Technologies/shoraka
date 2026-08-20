@@ -5,7 +5,7 @@ import {
   ClockIcon,
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
-import type { NoteDetail, NoteEvent } from "@cashsouk/types";
+import type { NoteAuditLogDto, NoteDetail } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AdminDetailCardHeader } from "@/components/admin-detail";
@@ -19,19 +19,19 @@ import { AdminActivityCsvExportButton } from "@/components/admin-activity-csv-ex
 import { resolveAdminTimelineActorLabel } from "@/components/admin-timeline-originator";
 import {
   formatNoteActivityEventLabel,
-  noteEventToActivityCsvRow,
+  noteAuditLogToActivityCsvRow,
 } from "@/notes/utils/note-activity-csv";
 import {
   extractNoteTimelineDetails,
   noteDocumentFileName,
 } from "@/notes/utils/note-timeline-details";
 
-function extractS3Key(event: NoteEvent) {
+function extractS3Key(event: NoteAuditLogDto) {
   const s3Key = event.metadata?.s3Key;
   return typeof s3Key === "string" && s3Key.trim() ? s3Key : null;
 }
 
-function buildDownloadName(event: NoteEvent) {
+function buildDownloadName(event: NoteAuditLogDto) {
   if (event.eventType === "ARREARS_LETTER_GENERATED") return `arrears-letter-${event.noteId}.pdf`;
   if (event.eventType === "SERVICE_FEE_TRUSTEE_LETTER_GENERATED") {
     return `settlement-trustee-letter-${event.noteId}.pdf`;
@@ -43,7 +43,7 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
   const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
     useAdminS3DocumentViewDownload();
   const totalCount = note.events.length;
-  const csvRows = note.events.map(noteEventToActivityCsvRow);
+  const csvRows = note.events.map(noteAuditLogToActivityCsvRow);
 
   return (
     <Card className="rounded-2xl">
@@ -77,10 +77,10 @@ export function NoteTimelinePanel({ note }: { note: NoteDetail }) {
                 <AdminVerticalTimelineItem
                   key={event.id}
                   title={formatNoteActivityEventLabel(event.eventType)}
-                  createdAt={event.createdAt}
+                  createdAt={event.occurredAt}
                   actorLabel={resolveAdminTimelineActorLabel({
-                    actorName: event.actorName,
-                    actorUserId: event.actorUserId,
+                    actorName: event.actor.displayName,
+                    actorUserId: event.actor.userId,
                     portal: event.portal,
                   })}
                   portal={event.portal}

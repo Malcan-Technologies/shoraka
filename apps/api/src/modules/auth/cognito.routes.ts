@@ -7,9 +7,24 @@ import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { getEnv } from "../../config/env";
 import { detectRoleFromRequest, getPortalFromRole } from "../../lib/role-detector";
+import { resolveCognitoLogoutAuditPortal } from "./cognito-logout-portal";
+import {
+  oauthAuthErrorUrl,
+  resolveAdminPortalAuthorizationDeniedRedirect,
+} from "./cognito-callback-redirect";
+import { resolveCognitoAdminAccessDeniedClassification } from "./cognito-admin-access-denied";
 import { UserRole } from "@prisma/client";
-import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AppError } from "../../lib/http/error-handler";
+import {
+  AUDIT_ACTOR_TYPE,
+  AUDIT_PORTAL,
+  AUDIT_SOURCE,
+  auditContextFromRequest,
+  auditPortalFromLegacy,
+} from "../../lib/audit/context";
+import { writeAccessAuditLogBestEffort } from "./audit/writer";
+import { writeSecurityAuditLogBestEffort } from "../security/audit/writer";
+import { SECURITY_AUDIT_TARGET_TYPE } from "../security/audit/events";
 import {
   CognitoIdentityProviderClient,
   AdminUserGlobalSignOutCommand,
@@ -155,13 +170,12 @@ router.get("/callback", async (req: Request, res: Response) => {
     if (!encryptedState) {
       // Redirect to user-friendly error page for missing state
       const env = getEnv();
-      const errorUrl = new URL(`${env.FRONTEND_URL}/auth-error`);
-      errorUrl.searchParams.set("error", "missing_state");
-      errorUrl.searchParams.set(
-        "message",
-        "Authentication session is missing. Please sign in again."
+      return res.redirect(
+        oauthAuthErrorUrl(env.FRONTEND_URL, {
+          error: "missing_state",
+          message: "Authentication session is missing. Please sign in again.",
+        })
       );
-      return res.redirect(errorUrl.toString());
     }
 
     let stateData;
@@ -176,10 +190,12 @@ router.get("/callback", async (req: Request, res: Response) => {
       // Redirect to user-friendly error page instead of throwing JSON error
       // This handles cases where user clicks back button and tries to reuse expired state
       const env = getEnv();
-      const errorUrl = new URL(`${env.FRONTEND_URL}/auth-error`);
-      errorUrl.searchParams.set("error", "expired_session");
-      errorUrl.searchParams.set("message", "Your login session has expired. Please sign in again.");
-      return res.redirect(errorUrl.toString());
+      return res.redirect(
+        oauthAuthErrorUrl(env.FRONTEND_URL, {
+          error: "expired_session",
+          message: "Your login session has expired. Please sign in again.",
+        })
+      );
     }
 
     logger.info(
@@ -474,8 +490,13 @@ router.get("/callback", async (req: Request, res: Response) => {
       "User synced via repository (upsert with user_id assignment)"
     );
 
-    // Extract request metadata early (needed for both success and error cases)
-    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    const callbackAuditContext = auditContextFromRequest(req, {
+      actorType: AUDIT_ACTOR_TYPE.USER,
+      actorUserId: user.user_id,
+      source: AUDIT_SOURCE.API,
+      portal: auditPortalFromLegacy(getPortalFromRole(requestedRole)),
+    });
+    callbackAuditContext.correlationId = correlationId;
 
     // Handle admin invitation token if present (from OAuth state or query parameter)
     const invitationToken =
@@ -638,55 +659,37 @@ router.get("/callback", async (req: Request, res: Response) => {
           "User attempted to access admin portal without ADMIN role or with inactive status"
         );
 
-        // Check if user has an admin record (even if INACTIVE) to determine if they were previously an admin
-        const adminRecord = await prisma.admin.findUnique({
-          where: { user_id: user.user_id },
-          select: { id: true, status: true },
-        });
-        const wasPreviouslyAdmin = !!adminRecord;
+        const deniedClassification = resolveCognitoAdminAccessDeniedClassification(hasAdminRole);
 
-        // Log failed admin access attempt
-        await prisma.accessLog.create({
-          data: {
-            user_id: user.user_id,
-            event_type: "LOGIN",
-            portal: "admin",
-            ip_address: ipAddress,
-            user_agent: userAgent,
-            device_info: deviceInfo,
-            device_type: deviceType,
-            success: false,
-            metadata: {
-              requestedRole,
-              userRoles: user.roles,
-              hasAdminRole,
-              adminStatus,
-              wasPreviouslyAdmin,
-              reason: !hasAdminRole ? "User does not have ADMIN role" : "Admin account is inactive",
-            },
+        await writeSecurityAuditLogBestEffort({
+          eventType: "ADMIN_ACCESS_DENIED",
+          context: {
+            ...callbackAuditContext,
+            actorType: deniedClassification.actorType,
+            portal: AUDIT_PORTAL.ADMIN,
+          },
+          subjectUserId: user.user_id,
+          targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_ROUTE,
+          targetId: req.path || "/callback",
+          metadata: {
+            method: req.method,
+            path: req.originalUrl || req.path,
+            reasonCode: deniedClassification.reasonCode,
           },
         });
 
-        // Redirect to landing page with error message
-        // This breaks the infinite loop where Cognito auto-authenticates the same user
-        // User will need to manually navigate to admin portal again with correct credentials
+        // Authenticated non-admin / inactive admin is an authorization rejection,
+        // not an authentication failure. Send them to landing home so they do not
+        // see a failed-authentication page.
         const env = getEnv();
-        const errorUrl = new URL(`${env.FRONTEND_URL}/auth-error`);
-        errorUrl.searchParams.set("error", "admin_access_denied");
-        errorUrl.searchParams.set(
-          "message",
-          !hasAdminRole
-            ? "You do not have admin access. Please contact support if you believe this is an error."
-            : "Your admin account is inactive. Please contact support to reactivate your account."
-        );
-        errorUrl.searchParams.set("wasPreviouslyAdmin", wasPreviouslyAdmin ? "true" : "false");
+        const landingUrl = resolveAdminPortalAuthorizationDeniedRedirect(env.FRONTEND_URL);
 
         logger.info(
-          { correlationId, userId: user.user_id, redirectUrl: errorUrl.toString() },
-          "Redirecting non-admin or inactive admin user to landing page with error"
+          { correlationId, userId: user.user_id, redirectUrl: landingUrl },
+          "Redirecting non-admin or inactive admin user to landing home"
         );
 
-        return res.redirect(errorUrl.toString());
+        return res.redirect(landingUrl);
       }
     }
 
@@ -704,22 +707,19 @@ router.get("/callback", async (req: Request, res: Response) => {
 
     const portal = getPortalFromRole(activeRole);
 
-    // Create access log
-    await prisma.accessLog.create({
-      data: {
-        user_id: user.user_id,
-        event_type: isSignup ? "SIGNUP" : "LOGIN",
-        portal,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-        device_info: deviceInfo,
-        device_type: deviceType,
-        success: true,
-        metadata: {
-          requestedRole,
-          activeRole,
-          roles: user.roles,
-        },
+    await writeAccessAuditLogBestEffort({
+      eventType: isSignup ? "USER_SIGNED_UP" : "USER_LOGGED_IN",
+      context: {
+        ...callbackAuditContext,
+        portal: auditPortalFromLegacy(portal),
+        actorUserId: user.user_id,
+      },
+      userId: user.user_id,
+      metadata: {
+        loginMethod: "COGNITO_OAUTH",
+        requestedRole,
+        activeRole,
+        roles: user.roles,
       },
     });
 
@@ -905,32 +905,31 @@ router.get("/callback", async (req: Request, res: Response) => {
       "Callback error"
     );
 
-    // Redirect to user-friendly error page instead of showing JSON error
     const env = getEnv();
-    const errorUrl = new URL(`${env.FRONTEND_URL}/auth-error`);
+    const errorParams =
+      error instanceof AppError
+        ? {
+            error: error.code,
+            message:
+              error.code === "INVALID_STATE" || error.code === "MISSING_STATE"
+                ? "Your login session has expired. Please sign in again."
+                : error.code === "TOKEN_EXCHANGE_FAILED"
+                  ? "Authentication failed. Please try signing in again."
+                  : error.code === "COGNITO_ERROR"
+                    ? "Authentication service error. Please try again."
+                    : error.message,
+          }
+        : error instanceof z.ZodError
+          ? {
+              error: "VALIDATION_ERROR",
+              message: "Invalid authentication request. Please try again.",
+            }
+          : {
+              error: "unknown_error",
+              message: "An unexpected error occurred. Please try again.",
+            };
 
-    if (error instanceof AppError) {
-      // Map specific error codes to user-friendly messages
-      let userMessage = error.message;
-      if (error.code === "INVALID_STATE" || error.code === "MISSING_STATE") {
-        userMessage = "Your login session has expired. Please sign in again.";
-      } else if (error.code === "TOKEN_EXCHANGE_FAILED") {
-        userMessage = "Authentication failed. Please try signing in again.";
-      } else if (error.code === "COGNITO_ERROR") {
-        userMessage = "Authentication service error. Please try again.";
-      }
-
-      errorUrl.searchParams.set("error", error.code);
-      errorUrl.searchParams.set("message", userMessage);
-    } else if (error instanceof z.ZodError) {
-      errorUrl.searchParams.set("error", "VALIDATION_ERROR");
-      errorUrl.searchParams.set("message", "Invalid authentication request. Please try again.");
-    } else {
-      errorUrl.searchParams.set("error", "unknown_error");
-      errorUrl.searchParams.set("message", "An unexpected error occurred. Please try again.");
-    }
-
-    return res.redirect(errorUrl.toString());
+    return res.redirect(oauthAuthErrorUrl(env.FRONTEND_URL, errorParams));
   }
 });
 
@@ -948,27 +947,8 @@ router.get("/logout", async (req: Request, res: Response) => {
   const token = tokenFromHeader || tokenFromQuery;
 
   let cognitoSub: string | undefined;
-  let portal: string | undefined;
   let userId: string | undefined;
-
-  // Try to detect portal from referer/origin if token doesn't have it
-  // This helps when logout is called without a valid token
-  const referer = req.get("referer") || req.get("origin");
-  if (referer && !portal) {
-    try {
-      const url = new URL(referer);
-      const hostname = url.hostname.toLowerCase();
-      if (hostname.includes("admin")) {
-        portal = "admin";
-      } else if (hostname.includes("investor")) {
-        portal = "investor";
-      } else if (hostname.includes("issuer")) {
-        portal = "issuer";
-      }
-    } catch {
-      // Ignore URL parsing errors
-    }
-  }
+  let logoutAuditPortal: ReturnType<typeof resolveCognitoLogoutAuditPortal> = null;
 
   if (token) {
     try {
@@ -984,31 +964,30 @@ router.get("/logout", async (req: Request, res: Response) => {
 
       if (user) {
         userId = user.user_id;
-        const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+        logoutAuditPortal = resolveCognitoLogoutAuditPortal({
+          queryPortal: req.query.portal,
+          referer: req.get("referer"),
+          origin: req.get("origin"),
+        });
 
-        // Determine portal from user's roles if not detected from referer
-        if (!portal && user.roles.length > 0) {
-          portal = getPortalFromRole(user.roles[0]);
-        }
-
-        // Create access log before signing out
-        await prisma.accessLog.create({
-          data: {
-            user_id: user.user_id,
-            event_type: "LOGOUT",
-            portal: portal || null,
-            ip_address: ipAddress,
-            user_agent: userAgent,
-            device_info: deviceInfo,
-            device_type: deviceType,
-            success: true,
-            metadata: {
-              roles: user.roles,
-            },
+        await writeAccessAuditLogBestEffort({
+          eventType: "USER_LOGGED_OUT",
+          context: auditContextFromRequest(req, {
+            actorType: AUDIT_ACTOR_TYPE.USER,
+            actorUserId: user.user_id,
+            portal: logoutAuditPortal,
+            source: AUDIT_SOURCE.API,
+          }),
+          userId: user.user_id,
+          metadata: {
+            roles: user.roles,
           },
         });
 
-        logger.info({ correlationId, userId: user.user_id, portal }, "Logout access log created");
+        logger.info(
+          { correlationId, userId: user.user_id, portal: logoutAuditPortal },
+          "Logout access log created"
+        );
       }
     } catch (error) {
       // If token is invalid/expired, log warning but continue with logout
@@ -1069,7 +1048,10 @@ router.get("/logout", async (req: Request, res: Response) => {
   // Frontend will handle the redirect to Cognito logout URL
 
   // Return success response - let frontend handle redirect
-  logger.info({ correlationId, userId, portal }, "Logout completed - returning success");
+  logger.info(
+    { correlationId, userId, portal: logoutAuditPortal },
+    "Logout completed - returning success"
+  );
   return res.json({
     success: true,
     message: "Logged out successfully",

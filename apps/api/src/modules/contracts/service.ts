@@ -2,8 +2,6 @@ import { ContractRepository } from "./repository";
 import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { AppError } from "../../lib/http/error-handler";
-import { logApplicationActivity } from "../applications/logs/service";
-import { ActivityPortal } from "../applications/logs/types";
 import { ApplicationReviewRemark, Contract, Prisma } from "@prisma/client";
 import {
   ApplicationStatus,
@@ -16,6 +14,11 @@ import {
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "../applications/lifecycle";
 import { prisma } from "../../lib/prisma";
+import {
+  APPLICATION_AUDIT_TARGET_TYPE,
+  issuerApplicationAuditContext,
+  writeApplicationAuditLog,
+} from "../applications/audit/writer";
 import {
   generateContractDocumentKey,
   generateContractDocumentKeyWithVersion,
@@ -393,7 +396,8 @@ export class ContractService {
     }
 
     const finalReason = reason ?? WithdrawReason.USER_CANCELLED;
-    const activityLogs: Array<{ applicationId: string }> = [];
+    const previousStatus = contract.status;
+    const auditContext = issuerApplicationAuditContext(userId);
 
     const updated = await prisma.$transaction(async (tx) => {
       const withdrawnContract = await tx.contract.update({
@@ -439,23 +443,42 @@ export class ContractService {
             reviewed_at: new Date(),
           },
         });
+        await writeApplicationAuditLog(
+          {
+            eventType: "CONTRACT_WITHDRAWN",
+            context: auditContext,
+            applicationId: linked.id,
+            targetType: APPLICATION_AUDIT_TARGET_TYPE.CONTRACT,
+            targetId: id,
+            metadata: {
+              previousStatus,
+              newStatus: "WITHDRAWN",
+              withdrawReason: finalReason,
+            },
+          },
+          tx
+        );
         if (nextStatus === ApplicationStatus.WITHDRAWN) {
-          activityLogs.push({ applicationId: linked.id });
+          await writeApplicationAuditLog(
+            {
+              eventType: "APPLICATION_WITHDRAWN",
+              context: auditContext,
+              applicationId: linked.id,
+              targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+              targetId: linked.id,
+              metadata: {
+                previousStatus: linked.status,
+                newStatus: "WITHDRAWN",
+                withdrawReason: finalReason,
+              },
+            },
+            tx
+          );
         }
       }
 
       return withdrawnContract;
     });
-
-    for (const entry of activityLogs) {
-      await logApplicationActivity({
-        userId,
-        applicationId: entry.applicationId,
-        eventType: "APPLICATION_WITHDRAWN",
-        portal: ActivityPortal.ISSUER,
-        metadata: { withdraw_reason: finalReason },
-      });
-    }
 
     return updated;
   }

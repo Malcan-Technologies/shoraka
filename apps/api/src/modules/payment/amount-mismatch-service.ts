@@ -1,13 +1,18 @@
 import {
   GatewayPayment,
-  GatewayPaymentEventType,
   GatewayPaymentStatus,
   Prisma,
   PrismaClient,
 } from "@prisma/client";
 import { logger } from "../../lib/logger";
 import { prisma as defaultPrisma } from "../../lib/prisma";
-import { recordGatewayPaymentEvent } from "./gateway-events";
+import {
+  PAYMENT_AUDIT_PROVIDER,
+  gatewayPaymentAmount,
+  webhookPaymentAuditContext,
+  writeGatewayPaymentAudit,
+} from "./audit/writer";
+import { PAYMENT_AUDIT_IDEMPOTENCY } from "./audit/events";
 import { initiateGatewayPaymentRefund } from "./refund-service";
 
 export type AmountMismatchInput = {
@@ -69,8 +74,6 @@ export async function handleGatewayPaymentAmountMismatch(
       return;
     }
 
-    let fromStatus = current.status;
-
     if (input.claimCapture) {
       if (
         current.status === GatewayPaymentStatus.CREATED ||
@@ -91,12 +94,30 @@ export async function handleGatewayPaymentAmountMismatch(
           working = refreshed;
           return;
         }
-        fromStatus = GatewayPaymentStatus.PAID;
-      } else if (current.status === GatewayPaymentStatus.PAID) {
-        fromStatus = GatewayPaymentStatus.PAID;
-      } else if (current.status === GatewayPaymentStatus.HELD) {
-        fromStatus = GatewayPaymentStatus.HELD;
-      } else {
+        const claimedPayment = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: current.id } });
+        await writeGatewayPaymentAudit(
+          claimedPayment,
+          {
+            eventType: "PAYMENT_CAPTURED",
+            context: webhookPaymentAuditContext(),
+            idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.captured(claimedPayment.id),
+            metadata: {
+              purpose: claimedPayment.purpose,
+              amount: gatewayPaymentAmount(claimedPayment),
+              currency: claimedPayment.currency,
+              provider: PAYMENT_AUDIT_PROVIDER,
+              gatewayAccount: claimedPayment.gatewayAccount,
+              providerPaymentId: claimedPayment.curlec_payment_id,
+              providerOrderId: claimedPayment.curlec_order_id,
+              capturedAt: new Date().toISOString(),
+            },
+          },
+          tx
+        );
+      } else if (
+        current.status !== GatewayPaymentStatus.PAID &&
+        current.status !== GatewayPaymentStatus.HELD
+      ) {
         working = current;
         return;
       }
@@ -144,22 +165,23 @@ export async function handleGatewayPaymentAmountMismatch(
     });
 
     if (!priorMismatch) {
-      await recordGatewayPaymentEvent(tx, {
-        gatewayPaymentId: latest.id,
-        type: GatewayPaymentEventType.CAPTURE_MISMATCH,
-        actorUserId: input.actorUserId,
-        fromStatus,
-        toStatus: fromStatus,
-        reason: `Amount mismatch detected: expected ${input.expectedSen} sen, captured ${input.actualSen} sen`,
-        metadata: {
-          expectedSen: input.expectedSen,
-          actualSen: input.actualSen,
-          currency: latest.currency,
-          purpose: latest.purpose,
-          curlecPaymentId: input.curlecPaymentId,
-          source: "automatic",
+      await writeGatewayPaymentAudit(
+        latest,
+        {
+          eventType: "PAYMENT_CAPTURE_MISMATCH_DETECTED",
+          context: webhookPaymentAuditContext(),
+          idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.captureMismatch(latest.id),
+          metadata: {
+            mismatchType: "AMOUNT_MISMATCH",
+            expectedSen: input.expectedSen,
+            actualSen: input.actualSen,
+            currency: latest.currency,
+            providerPaymentId: input.curlecPaymentId,
+            providerOrderId: input.curlecOrderId ?? latest.curlec_order_id,
+          },
         },
-      });
+        tx
+      );
     }
 
     working = await tx.gatewayPayment.findUniqueOrThrow({ where: { id: latest.id } });

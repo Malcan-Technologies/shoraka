@@ -25,7 +25,11 @@ import { Button } from "@/components/ui/button";
 import { formatRemarkAsBullets } from "@/lib/utils";
 import { getReviewTabLabel } from "@/components/application-review/review-registry";
 import { formatCurrency } from "@cashsouk/config";
-import { getItemDisplayNameFromScopeKey, formatPhaseDeadlineAbsolute } from "@cashsouk/types";
+import {
+  formatApplicationActivity,
+  formatPhaseDeadlineAbsolute,
+  formatSigningActivity,
+} from "@cashsouk/types";
 import type {
   ResubmitChangesMetadata,
   ResubmitFieldChangeItem,
@@ -60,10 +64,6 @@ type ActivityMetadata = {
   rejection_reason?: string;
   resubmit_changes?: ResubmitChangesMetadata;
 };
-
-function formatItemLabelFromScopeKey(scopeKey: string): string {
-  return getItemDisplayNameFromScopeKey(scopeKey);
-}
 
 interface AdminActivityTimelineProps {
   applicationId: string | null;
@@ -110,117 +110,56 @@ function formatResubmitTabsOnlyActivity({
   return `Changes submitted: ${labels.join(", ")}`;
 }
 
-const ACTION_LABELS: Record<string, string> = {
-  SECTION_REVIEWED_APPROVED: "Section Approved",
-  SECTION_REVIEWED_REJECTED: "Section Rejected",
-  SECTION_REVIEWED_AMENDMENT_REQUESTED: "Section Amendment Requested",
-  SECTION_REVIEWED_PENDING: "Section Reset to Pending",
-  ITEM_REVIEWED_APPROVED: "Approved",
-  ITEM_REVIEWED_REJECTED: "Rejected",
-  ITEM_REVIEWED_AMENDMENT_REQUESTED: "Amendment Requested",
-  ITEM_REVIEWED_PENDING: "Reset to Pending",
-};
+function resolveSectionLabel(
+  metadata?: Record<string, unknown> | null,
+  sectionLabelOverrides?: Record<string, string>
+): string | undefined {
+  const scopeKey = metadata?.section ?? metadata?.scope_key;
+  if (scopeKey == null || String(scopeKey).trim() === "") return undefined;
+  return sectionLabelOverrides?.[String(scopeKey)] ?? getReviewTabLabel(String(scopeKey));
+}
+
+function invoiceNumberTitle(eventType: string, metadata?: Record<string, unknown> | null): string | null {
+  const invoiceNumber = metadata?.invoice_number;
+  if (typeof invoiceNumber !== "string" || invoiceNumber.trim() === "") return null;
+  switch (eventType) {
+    case "INVOICE_OFFER_SENT":
+      return `Invoice ${invoiceNumber} Offer Sent`;
+    case "INVOICE_ACCEPTANCE_SUBMITTED":
+    case "INVOICE_ACCEPTANCE_RESUBMITTED":
+      return `Invoice ${invoiceNumber} Acceptance Submitted`;
+    case "INVOICE_OFFER_ACCEPTED":
+      return `Invoice ${invoiceNumber} Offer Accepted`;
+    case "INVOICE_OFFER_REJECTED":
+      return `Invoice ${invoiceNumber} Offer Rejected`;
+    case "INVOICE_WITHDRAWN":
+      return `Invoice ${invoiceNumber} Withdrawn`;
+    case "INVOICE_OFFER_EXPIRED":
+      return `Invoice ${invoiceNumber} Offer Expired`;
+    default:
+      return null;
+  }
+}
 
 function getEventLabel(
   eventType: string,
   metadata?: Record<string, unknown> | null,
-  entityId?: string | null,
+  _entityId?: string | null,
   sectionLabelOverrides?: Record<string, string>
 ): string {
-  const baseLabels: Record<string, string> = {
-    APPLICATION_CREATED: "Application Created",
-    APPLICATION_SUBMITTED: "Application Submitted",
-    APPLICATION_RESUBMITTED: "Application Resubmitted",
-    APPLICATION_APPROVED: "Application Approved",
-    APPLICATION_REJECTED: "Application Rejected",
-    APPLICATION_WITHDRAWN: "Application Withdrawn",
-    APPLICATION_COMPLETED: "Application Completed",
-    APPLICATION_RESET_TO_UNDER_REVIEW: "Application Reset to Under Review",
-    CONTRACT_OFFER_SENT: "Facility Offer Sent",
-    CONTRACT_OFFER_ACCEPTANCE_SUBMITTED: "Facility Offer Acceptance Submitted",
-    CONTRACT_ACCEPTANCE_APPROVED_FOR_SIGNING: "Facility Acceptance Approved for Signing",
-    CONTRACT_OFFER_ACCEPTED: "Facility Offer Signed",
-    CONTRACT_OFFER_REJECTED: "Facility Offer Withdrawn",
-    CONTRACT_OFFER_RETRACTED: "Facility Offer Retracted",
-    CONTRACT_FACILITY_OCCUPANCY_UPDATED: "Facility Occupancy Updated",
-    CONTRACT_OFFER_EXPIRED: "Facility Offer Expired",
-    CONTRACT_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
-    CONTRACT_WITHDRAWN: "Facility Offer Withdrawn",
-    INVOICE_OFFER_SENT: "Invoice Offer Sent",
-    INVOICE_OFFER_ACCEPTANCE_SUBMITTED: "Invoice Offer Acceptance Submitted",
-    INVOICE_ACCEPTANCE_APPROVED_FOR_SIGNING: "Invoice Acceptance Approved for Signing",
-    INVOICE_OFFER_ACCEPTED: "Invoice Offer Signed",
-    INVOICE_OFFER_REJECTED: "Invoice Offer Rejected",
-    INVOICE_OFFER_RETRACTED: "Invoice Offer Retracted",
-    INVOICE_OFFER_EXPIRED: "Invoice Offer Expired",
-    INVOICE_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
-    INVOICE_WITHDRAWN: "Invoice Withdrawn",
-    SIGNING_PACKAGE_CREATED: "Signing Package Created",
-    SIGNING_PACKAGE_SENT: "Signing Package Sent",
-    SIGNING_PACKAGE_VOIDED: "Signing Package Voided",
-    AMENDMENTS_SUBMITTED: "Amendment Request Sent",
-  };
-  if (eventType === "INVOICE_OFFER_SENT") {
-    const invoiceNumber = metadata?.invoice_number;
-    return invoiceNumber != null && invoiceNumber !== ""
-      ? `Invoice ${invoiceNumber} Offer Sent`
-      : "Invoice Offer Sent";
+  const invoiceTitle = invoiceNumberTitle(eventType, metadata);
+  if (invoiceTitle) return invoiceTitle;
+  if (eventType.startsWith("SIGNING_")) {
+    return formatSigningActivity("admin", eventType, metadata ?? undefined).title;
   }
-  if (eventType === "INVOICE_OFFER_ACCEPTANCE_SUBMITTED") {
-    const invoiceNumber = metadata?.invoice_number;
-    return invoiceNumber != null && invoiceNumber !== ""
-      ? `Invoice ${invoiceNumber} Acceptance Submitted`
-      : "Invoice Offer Acceptance Submitted";
-  }
-  if (eventType === "INVOICE_OFFER_ACCEPTED") {
-    const invoiceNumber = metadata?.invoice_number;
-    return invoiceNumber != null && invoiceNumber !== ""
-      ? `Invoice ${invoiceNumber} Offer Signed`
-      : "Invoice Offer Signed";
-  }
-  if (eventType === "INVOICE_OFFER_REJECTED") {
-    const invoiceNumber = metadata?.invoice_number;
-    return invoiceNumber != null && invoiceNumber !== ""
-      ? `Invoice ${invoiceNumber} Offer Rejected`
-      : "Invoice Offer Rejected";
-  }
-  if (eventType === "INVOICE_WITHDRAWN") {
-    const invoiceNumber = metadata?.invoice_number;
-    return invoiceNumber != null && invoiceNumber !== ""
-      ? `Invoice ${invoiceNumber} Withdrawn`
-      : "Invoice Withdrawn";
-  }
-  if (eventType === "INVOICE_OFFER_EXPIRED") {
-    const invoiceNumber = metadata?.invoice_number;
-    return invoiceNumber != null && invoiceNumber !== ""
-      ? `Invoice ${invoiceNumber} Offer Expired`
-      : "Invoice Offer Expired";
-  }
-  if (baseLabels[eventType]) return baseLabels[eventType];
-
-  const actionLabel = ACTION_LABELS[eventType];
-  if (actionLabel) {
-    if (eventType.startsWith("SECTION_REVIEWED_")) {
-      const scopeKey = metadata?.scope_key;
-      const sectionLabel = scopeKey
-        ? (sectionLabelOverrides?.[String(scopeKey)] ?? getReviewTabLabel(String(scopeKey)))
-        : "";
-      return sectionLabel ? `${sectionLabel} ${actionLabel}` : actionLabel;
-    }
-    if (eventType.startsWith("ITEM_REVIEWED_")) {
-      const scopeKey = (entityId ?? metadata?.scope_key) as string | undefined;
-      const itemName = scopeKey ? formatItemLabelFromScopeKey(scopeKey) : "";
-      return itemName ? `${itemName} ${actionLabel}` : actionLabel;
-    }
-    return actionLabel;
-  }
-
-  return eventType.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+  return formatApplicationActivity("admin", eventType, metadata ?? undefined, {
+    sectionLabel: resolveSectionLabel(metadata, sectionLabelOverrides),
+  }).title;
 }
 
 const ACTIVITY_PAGE_SIZE = 10;
 
-/** Audit-only events: still stored in application_logs but hidden from the timeline UI. */
+/** Signing envelope rollup is stored on SigningAuditLog but hidden from curated Activity. */
 const TIMELINE_HIDDEN_EVENT_TYPES = new Set(["SIGNING_PACKAGE_COMPLETED"]);
 
 function formatActivityText(activity: ApplicationLogEntry["activity"]): string | null {

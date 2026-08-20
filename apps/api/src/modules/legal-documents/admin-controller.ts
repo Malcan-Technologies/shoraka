@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { requirePermission } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { legalDocumentService } from "./service";
+import { auditContextFromAdminRequest } from "./audit/context";
 import {
   createLegalDocumentSchema,
   createVersionSchema,
@@ -48,8 +49,7 @@ router.post(
       const validated = createLegalDocumentSchema.parse(req.body);
       const document = await legalDocumentService.createDefinition(
         validated,
-        req.user.user_id,
-        req
+        auditContextFromAdminRequest(req, res)
       );
       res.status(201).json({
         success: true,
@@ -141,8 +141,7 @@ router.post(
       const version = await legalDocumentService.replaceDraftFile(
         req.params.versionId,
         validated,
-        req.user.user_id,
-        req
+        auditContextFromAdminRequest(req, res)
       );
       res.json({
         success: true,
@@ -174,7 +173,7 @@ router.post(
         req.params.versionId,
         validated,
         req.user.user_id,
-        req
+        auditContextFromAdminRequest(req, res)
       );
       res.json({
         success: true,
@@ -204,7 +203,7 @@ router.post(
       const version = await legalDocumentService.archiveVersion(
         req.params.versionId,
         req.user.user_id,
-        req
+        auditContextFromAdminRequest(req, res)
       );
       res.json({
         success: true,
@@ -228,7 +227,7 @@ router.post(
       const version = await legalDocumentService.restoreVersion(
         req.params.versionId,
         req.user.user_id,
-        req
+        auditContextFromAdminRequest(req, res)
       );
       res.json({
         success: true,
@@ -270,8 +269,7 @@ router.patch(
       const document = await legalDocumentService.updateDefinition(
         req.params.id,
         validated,
-        req.user.user_id,
-        req
+        auditContextFromAdminRequest(req, res)
       );
       res.json({
         success: true,
@@ -334,7 +332,7 @@ router.post(
         req.params.id,
         validated,
         req.user.user_id,
-        req
+        auditContextFromAdminRequest(req, res)
       );
       res.status(201).json({
         success: true,

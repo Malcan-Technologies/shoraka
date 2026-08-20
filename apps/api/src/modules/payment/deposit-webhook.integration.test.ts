@@ -198,7 +198,7 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
     await prisma.gatewayPaymentReceipt.deleteMany({
       where: { gateway_payment_id: gatewayPaymentId },
     });
-    await prisma.gatewayPaymentEvent.deleteMany({
+    await prisma.paymentAuditLog.deleteMany({
       where: { gateway_payment_id: gatewayPaymentId },
     });
     if (createdEventIds.length > 0) {
@@ -298,6 +298,18 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
     });
     expect(ledgerEntry?.direction).toBe(NoteLedgerDirection.CREDIT);
     expect(ledgerEntry?.amount.toNumber()).toBe(250);
+
+    const auditTypes = (
+      await prisma.paymentAuditLog.findMany({
+        where: { gateway_payment_id: gatewayPaymentId },
+      })
+    ).map((row) => row.event_type);
+    expect(auditTypes).toEqual(
+      expect.arrayContaining(["PAYMENT_CAPTURED", "INVESTOR_DEPOSIT_RECEIVED"])
+    );
+    expect(auditTypes).not.toContain("PAYMENT_NAME_CHECK_PENDING");
+    expect(auditTypes.filter((type) => type === "PAYMENT_CAPTURED")).toHaveLength(1);
+    expect(auditTypes.filter((type) => type === "INVESTOR_DEPOSIT_RECEIVED")).toHaveLength(1);
   });
 
   it("investor-pool route matches only INVESTOR_POOL payment", async () => {
@@ -403,6 +415,11 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
       },
     });
     expect(balanceTxCount).toBe(1);
+    expect(
+      await prisma.paymentAuditLog.count({
+        where: { gateway_payment_id: gatewayPaymentId, event_type: "PAYMENT_CAPTURED" },
+      })
+    ).toBe(1);
   });
 
   it("does not double-credit when a second event arrives after COMPLETED", async () => {
@@ -510,6 +527,16 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
       where: { investor_organization_id: orgId },
     });
     expect(balanceTxCount).toBe(0);
+
+    const auditTypes = (
+      await prisma.paymentAuditLog.findMany({
+        where: { gateway_payment_id: gatewayPaymentId },
+      })
+    ).map((row) => row.event_type);
+    expect(auditTypes).toEqual(
+      expect.arrayContaining(["PAYMENT_CAPTURED", "PAYMENT_NAME_CHECK_PENDING"])
+    );
+    expect(auditTypes).not.toContain("INVESTOR_DEPOSIT_RECEIVED");
   });
 
   it("routes ambiguous payer names to name check review without refunding", async () => {
@@ -598,11 +625,12 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
     });
     expect(receiptCount).toBe(0);
 
-    const events = await prisma.gatewayPaymentEvent.findMany({
+    const events = await prisma.paymentAuditLog.findMany({
       where: { gateway_payment_id: gatewayPaymentId },
-      orderBy: { created_at: "desc" },
+      orderBy: { occurred_at: "desc" },
     });
-    expect(events[0]?.reason).toBe("Currency mismatch");
+    expect(events[0]?.event_type).toBe("PAYMENT_CAPTURE_MISMATCH_DETECTED");
+    expect(events[0]?.metadata).toMatchObject({ mismatchType: "CURRENCY_MISMATCH" });
   });
 
   it("credits only once under concurrent processing", async () => {
@@ -654,5 +682,9 @@ describeIntegration("investor deposit webhook processing (M5)", () => {
       where: { id: gatewayPaymentId },
     });
     expect(payment.status).toBe(GatewayPaymentStatus.COMPLETED);
+    const captured = await prisma.paymentAuditLog.count({
+      where: { gateway_payment_id: gatewayPaymentId, event_type: "PAYMENT_CAPTURED" },
+    });
+    expect(captured).toBe(1);
   });
 });

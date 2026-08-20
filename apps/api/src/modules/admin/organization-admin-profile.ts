@@ -1,7 +1,11 @@
+import type { Prisma } from "@prisma/client";
 import type { UpdateAdminOrganizationProfileInput } from "@cashsouk/types";
-import { UserRole } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
+import type { AuditRequestContext } from "../../lib/audit/context";
+import { changedFieldsOf } from "../../lib/audit/snapshot";
+import { writeOnboardingAuditLog } from "../onboarding/audit/writer";
+import { ONBOARDING_AUDIT_TARGET_TYPE } from "../onboarding/audit/events";
 
 function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
@@ -60,19 +64,37 @@ export function summarizeProfilePatch(
   };
 }
 
+function asAuditScalar(value: string | null | undefined): string | null {
+  return value ?? null;
+}
+
+function corporateOnboardingChangedFields(
+  patch: NonNullable<UpdateAdminOrganizationProfileInput["corporateOnboardingData"]>
+): string[] {
+  const fields: string[] = [];
+  if (patch.website !== undefined) fields.push("website");
+  if (patch.industry !== undefined) fields.push("industry");
+  if (patch.entityType !== undefined) fields.push("entityType");
+  if (patch.numberOfEmployees !== undefined) fields.push("numberOfEmployees");
+  if (patch.annualRevenue !== undefined) fields.push("annualRevenue");
+  if (patch.tinNumber !== undefined) fields.push("tinNumber");
+  if (patch.businessName !== undefined) fields.push("businessName");
+  if (patch.addresses?.business !== undefined) fields.push("addresses.business");
+  if (patch.addresses?.registered !== undefined) fields.push("addresses.registered");
+  if (patch.personInCharge?.name !== undefined) fields.push("personInCharge.name");
+  if (patch.personInCharge?.position !== undefined) fields.push("personInCharge.position");
+  if (patch.personInCharge?.email !== undefined) fields.push("personInCharge.email");
+  if (patch.personInCharge?.contactNumber !== undefined) fields.push("personInCharge.contactNumber");
+  return fields;
+}
+
 export async function updateAdminOrganizationProfile(params: {
   portal: "issuer" | "investor";
   organizationId: string;
-  adminUserId: string;
   input: UpdateAdminOrganizationProfileInput;
-  requestMeta: {
-    ipAddress?: string;
-    userAgent?: string;
-    deviceInfo?: string;
-    deviceType?: string;
-  };
+  context: AuditRequestContext;
 }): Promise<{ success: true }> {
-  const { portal, organizationId, adminUserId, input, requestMeta } = params;
+  const { portal, organizationId, input, context } = params;
   const hasField = Object.values(input).some((value) => value !== undefined);
   if (!hasField) {
     throw new AppError(400, "VALIDATION_ERROR", "No profile fields to update");
@@ -135,46 +157,70 @@ export async function updateAdminOrganizationProfile(params: {
     );
   }
 
-  if (portal === "issuer") {
-    await prisma.issuerOrganization.update({
-      where: { id: organizationId },
-      data: updateData,
-    });
-  } else {
-    await prisma.investorOrganization.update({
-      where: { id: organizationId },
-      data: updateData,
-    });
-  }
+  const before = {
+    name: asAuditScalar(org.name),
+    phoneNumber: asAuditScalar(org.phone_number),
+    address: asAuditScalar(org.address),
+    firstName: asAuditScalar(org.first_name),
+    lastName: asAuditScalar(org.last_name),
+    middleName: asAuditScalar(org.middle_name),
+  };
+  const after = {
+    name: input.name !== undefined ? asAuditScalar(input.name) : before.name,
+    phoneNumber: input.phoneNumber !== undefined ? asAuditScalar(input.phoneNumber) : before.phoneNumber,
+    address: input.address !== undefined ? asAuditScalar(input.address) : before.address,
+    firstName: input.firstName !== undefined ? asAuditScalar(input.firstName) : before.firstName,
+    lastName: input.lastName !== undefined ? asAuditScalar(input.lastName) : before.lastName,
+    middleName: input.middleName !== undefined ? asAuditScalar(input.middleName) : before.middleName,
+  };
+  const changedFields = [...changedFieldsOf(before, after)];
+  const bankAccountDetailsChanged = input.bankAccountDetails !== undefined;
+  if (bankAccountDetailsChanged) changedFields.push("bankAccountDetails");
+  const corporateChanged =
+    input.corporateOnboardingData !== undefined
+      ? corporateOnboardingChangedFields(input.corporateOnboardingData)
+      : [];
+  if (corporateChanged.length > 0) changedFields.push("corporateOnboardingData");
 
-  const { updatedFields, bankFieldsChanged } = summarizeProfilePatch(input);
-  await prisma.onboardingLog.create({
-    data: {
-      user_id: org.owner_user_id,
-      investor_organization_id: portal === "investor" ? organizationId : null,
-      issuer_organization_id: portal === "issuer" ? organizationId : null,
-      organization_name: (input.name ?? org.name) || undefined,
-      role: portal === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
-      event_type: "PROFILE_UPDATED",
-      portal,
-      ip_address: requestMeta.ipAddress,
-      user_agent: requestMeta.userAgent,
-      device_info: requestMeta.deviceInfo,
-      device_type: requestMeta.deviceType,
-      metadata: {
-        updatedBy: adminUserId,
-        updatedFields,
-        bankFieldsChanged,
-        previousValues: {
-          name: org.name,
-          phoneNumber: org.phone_number,
-          address: org.address,
-          firstName: org.first_name,
-          lastName: org.last_name,
-          middleName: org.middle_name,
+  await prisma.$transaction(async (tx) => {
+    if (portal === "issuer") {
+      await tx.issuerOrganization.update({
+        where: { id: organizationId },
+        data: updateData as Prisma.IssuerOrganizationUpdateInput,
+      });
+    } else {
+      await tx.investorOrganization.update({
+        where: { id: organizationId },
+        data: updateData as Prisma.InvestorOrganizationUpdateInput,
+      });
+    }
+
+    if (changedFields.length === 0) {
+      return;
+    }
+
+    await writeOnboardingAuditLog(
+      {
+        eventType: "ORGANIZATION_PROFILE_UPDATED_BY_ADMIN",
+        context,
+        subjectUserId: org.owner_user_id,
+        organizationId,
+        organizationKind: portal === "investor" ? "INVESTOR" : "ISSUER",
+        organizationType: org.type,
+        targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+        targetId: organizationId,
+        metadata: {
+          changedFields,
+          before,
+          after,
+          bankAccountDetailsChanged,
+          ...(corporateChanged.length > 0
+            ? { corporateOnboardingChangedFields: corporateChanged }
+            : {}),
         },
       },
-    },
+      tx
+    );
   });
 
   return { success: true };

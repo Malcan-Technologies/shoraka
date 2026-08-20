@@ -72,7 +72,36 @@ const mockInvestorOrgFindUnique = jest.fn();
 const mockIssuerOrgFindUnique = jest.fn();
 const mockInvestorOrgUpdate = jest.fn(() => Promise.resolve());
 const mockIssuerOrgUpdate = jest.fn(() => Promise.resolve());
-const mockOnboardingLogCreate = jest.fn(() => Promise.resolve());
+const mockOnboardingAuditCreate = jest.fn(() => Promise.resolve());
+const mockUserFindUnique = jest.fn(() =>
+  Promise.resolve({ first_name: "Admin", last_name: "User", email: "admin@example.com" })
+);
+
+jest.mock("../../lib/http/request-utils", () => ({
+  ...jest.requireActual("../../lib/http/request-utils"),
+  getClientIp: () => "127.0.0.1",
+}));
+
+const prismaTx = {
+  $queryRaw: jest.fn(() => Promise.resolve([{ id: "org-1" }])),
+  investorOrganization: {
+    findUnique: (...args: unknown[]) => mockInvestorOrgFindUnique(...args),
+    update: (...args: unknown[]) => mockInvestorOrgUpdate(...args),
+    updateMany: jest.fn(() => Promise.resolve({ count: 1 })),
+  },
+  issuerOrganization: {
+    findUnique: (...args: unknown[]) => mockIssuerOrgFindUnique(...args),
+    update: (...args: unknown[]) => mockIssuerOrgUpdate(...args),
+    updateMany: jest.fn(() => Promise.resolve({ count: 1 })),
+  },
+  user: {
+    findUnique: (...args: unknown[]) => mockUserFindUnique(...args),
+  },
+  onboardingAuditLog: {
+    create: (...args: unknown[]) => mockOnboardingAuditCreate(...args),
+  },
+};
+
 jest.mock("../../lib/prisma", () => ({
   prisma: {
     regTankOnboarding: {
@@ -81,14 +110,21 @@ jest.mock("../../lib/prisma", () => ({
     investorOrganization: {
       findUnique: (...args: unknown[]) => mockInvestorOrgFindUnique(...args),
       update: (...args: unknown[]) => mockInvestorOrgUpdate(...args),
+      updateMany: jest.fn(() => Promise.resolve({ count: 1 })),
     },
     issuerOrganization: {
       findUnique: (...args: unknown[]) => mockIssuerOrgFindUnique(...args),
       update: (...args: unknown[]) => mockIssuerOrgUpdate(...args),
+      updateMany: jest.fn(() => Promise.resolve({ count: 1 })),
     },
-    onboardingLog: {
-      create: (...args: unknown[]) => mockOnboardingLogCreate(...args),
+    user: {
+      findUnique: (...args: unknown[]) => mockUserFindUnique(...args),
     },
+    onboardingAuditLog: {
+      create: (...args: unknown[]) => mockOnboardingAuditCreate(...args),
+    },
+    $queryRaw: jest.fn(() => Promise.resolve([{ id: "org-1" }])),
+    $transaction: async (fn: (tx: typeof prismaTx) => Promise<unknown>) => fn(prismaTx),
   },
 }));
 
@@ -175,7 +211,12 @@ describe("AdminService.refreshOnboardingStatus — personal", () => {
       expect.objectContaining({ requestId: "LD001", status: "APPROVED" })
     );
     expect(mockApplyPersonalAmlMilestoneFromLiveKyc).toHaveBeenCalledWith(
-      expect.objectContaining({ organizationId: "org-1", kycId: "KYC001", userId: "admin-1" })
+      expect.objectContaining({
+        organizationId: "org-1",
+        kycId: "KYC001",
+        userId: "admin-1",
+        onboardingId: "onboarding-1",
+      })
     );
     expect(result.advanced).toBe(true);
     expect(result.onboardingStatus).toBe(OnboardingStatus.PENDING_FINAL_APPROVAL);

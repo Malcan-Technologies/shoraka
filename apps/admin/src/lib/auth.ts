@@ -3,6 +3,12 @@
 import { useEffect, useRef } from "react";
 import { useAuthToken } from "@cashsouk/config";
 import { useCurrentUser } from "../hooks/use-current-user";
+import {
+  isAdminPortalUser,
+  resolveAdminAuthRedirect,
+  resolveAuthGuardView,
+  unauthorizedAdminExitUrl,
+} from "./admin-auth-gate";
 
 const LANDING_URL = process.env.NEXT_PUBLIC_LANDING_URL || "http://localhost:3000";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -24,6 +30,45 @@ export function redirectToLanding() {
   if (typeof window !== "undefined") {
     window.location.href = LANDING_URL;
   }
+}
+
+function clearLocalCognitoCookies() {
+  const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
+  const cookieDomain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || "localhost";
+
+  if (!clientId) {
+    return;
+  }
+
+  const cookies = document.cookie.split(";");
+
+  cookies.forEach((cookie) => {
+    const cookieName = cookie.split("=")[0].trim();
+    if (cookieName.startsWith("CognitoIdentityServiceProvider")) {
+      document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${cookieDomain};`;
+      document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+    }
+  });
+}
+
+async function notifyBackendAdminLogout(accessToken: string | null) {
+  const headers: HeadersInit = { "Content-Type": "application/json" };
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
+  }
+
+  await fetch(`${API_URL}/v1/auth/cognito/logout?portal=admin`, {
+    method: "GET",
+    credentials: "include",
+    headers,
+  });
+}
+
+function landingHomeUrl() {
+  return unauthorizedAdminExitUrl(
+    process.env.NEXT_PUBLIC_LANDING_URL ||
+      (process.env.NODE_ENV === "production" ? "https://cashsouk.com" : "http://localhost:3000")
+  );
 }
 
 /**
@@ -49,40 +94,15 @@ export async function logout(
     // Ignore - continue with logout
   }
 
-  const clientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
-  const cookieDomain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || "localhost";
-
-  if (clientId) {
-    const cookies = document.cookie.split(";");
-
-    cookies.forEach((cookie) => {
-      const cookieName = cookie.split("=")[0].trim();
-      if (cookieName.startsWith("CognitoIdentityServiceProvider")) {
-        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${cookieDomain};`;
-        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-      }
-    });
-  }
+  clearLocalCognitoCookies();
 
   try {
-    const headers: HeadersInit = { "Content-Type": "application/json" };
-    if (accessToken) {
-      headers["Authorization"] = `Bearer ${accessToken}`;
-    }
-
-    await fetch(`${API_URL}/v1/auth/cognito/logout?portal=admin`, {
-      method: "GET",
-      credentials: "include",
-      headers,
-    });
+    await notifyBackendAdminLogout(accessToken);
   } catch {
     // Ignore - continue with redirect
   }
 
-  const landingUrl =
-    process.env.NEXT_PUBLIC_LANDING_URL ||
-    (process.env.NODE_ENV === "production" ? "https://cashsouk.com" : "http://localhost:3000");
-
+  const landingUrl = landingHomeUrl();
   let cognitoDomain = process.env.NEXT_PUBLIC_COGNITO_DOMAIN;
   const cognitoClientId = process.env.NEXT_PUBLIC_COGNITO_CLIENT_ID;
 
@@ -99,51 +119,70 @@ export async function logout(
 }
 
 /**
+ * Authenticated non-admin (or inactive admin) must leave Admin without going
+ * through Cognito Hosted UI logout or /auth-error. Amplify global signOut can
+ * trigger an OAuth logout that lands on the callback → auth-error page.
+ */
+export async function exitUnauthorizedAdmin(getAccessToken: () => Promise<string | null>) {
+  if (typeof window === "undefined") return;
+
+  let accessToken: string | null = null;
+  try {
+    accessToken = await getAccessToken();
+  } catch {
+    // Ignore - token may already be expired
+  }
+
+  clearLocalCognitoCookies();
+
+  try {
+    await notifyBackendAdminLogout(accessToken);
+  } catch {
+    // Ignore - continue with redirect
+  }
+
+  window.location.replace(landingHomeUrl());
+}
+
+/**
  * Hook to check authentication and verify ADMIN role.
  * Uses the centralized useCurrentUser hook for data fetching (React Query handles deduplication).
  * Auto-redirects to Cognito login if not authenticated.
  * Logs out and redirects if user doesn't have ADMIN role.
  */
 export function useAuth() {
-  const { getAccessToken, signOut } = useAuthToken();
-  const { data, isLoading, isError, error } = useCurrentUser();
+  const { getAccessToken } = useAuthToken();
+  const { data, isPending, isError } = useCurrentUser();
   const redirectingRef = useRef(false);
 
   const user = data?.user;
-  const hasAdminRole = user?.roles.includes("ADMIN") ?? false;
-  const isAdminActive = user?.admin?.status === "ACTIVE";
-  const canAccessAdmin = hasAdminRole && isAdminActive;
+  const canAccessAdmin = isAdminPortalUser(user);
+  const skipGuard =
+    typeof window !== "undefined" && window.location.pathname === "/callback";
+  const redirect = resolveAdminAuthRedirect({ isPending, isError, user });
+  const gate = resolveAuthGuardView({ skipGuard, isPending, isError, user });
 
   useEffect(() => {
-    if (typeof window !== "undefined" && window.location.pathname === "/callback") {
+    if (skipGuard || redirectingRef.current) {
       return;
     }
 
-    if (redirectingRef.current) {
-      return;
-    }
-
-    if (isLoading) {
-      return;
-    }
-
-    if (isError || !user) {
+    if (redirect === "login") {
       redirectingRef.current = true;
       redirectToLogin();
       return;
     }
 
-    if (!canAccessAdmin) {
+    if (redirect === "logout") {
       redirectingRef.current = true;
-      logout(signOut, getAccessToken);
+      exitUnauthorizedAdmin(getAccessToken);
     }
-  }, [isLoading, isError, user, canAccessAdmin, signOut, getAccessToken, error]);
-
-  const isAuthenticated = !isLoading && !isError && !!user && canAccessAdmin;
+  }, [skipGuard, redirect, getAccessToken]);
 
   return {
-    isAuthenticated: isLoading ? null : isAuthenticated,
-    hasAdminRole: isLoading ? null : canAccessAdmin,
+    isAuthenticated: canAccessAdmin ? true : isPending ? null : false,
+    hasAdminRole: canAccessAdmin ? true : isPending ? null : false,
+    gate,
     token: null,
   };
 }

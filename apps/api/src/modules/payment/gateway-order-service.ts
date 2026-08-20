@@ -17,6 +17,13 @@ import { createCurlecClient } from "./curlec-client";
 import { resolveGatewayAccountForPurpose } from "./gateway-account";
 import { myrToSen } from "./money";
 import type { ActorContext } from "./deposit-service";
+import {
+  PAYMENT_AUDIT_PROVIDER,
+  gatewayPaymentAmount,
+  paymentAuditContextFromActor,
+  writeGatewayPaymentAudit,
+} from "./audit/writer";
+import { PAYMENT_AUDIT_IDEMPOTENCY } from "./audit/events";
 
 export type CreateGatewayOrderParams = {
   purpose: GatewayPaymentPurpose;
@@ -291,6 +298,24 @@ export async function createGatewayOrder(
       "Gateway order was created but local payment persistence failed. Please retry with the same intent."
     );
   }
+
+  await writeGatewayPaymentAudit(
+    payment,
+    {
+      eventType: "PAYMENT_INITIATED",
+      context: paymentAuditContextFromActor(actor),
+      idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.initiated(payment.id),
+      metadata: {
+        purpose: payment.purpose,
+        amount: gatewayPaymentAmount(payment),
+        currency: payment.currency,
+        provider: PAYMENT_AUDIT_PROVIDER,
+        gatewayAccount: payment.gatewayAccount,
+        providerOrderId: payment.curlec_order_id,
+      },
+    },
+    db
+  );
 
   await defaultPrisma.gatewayOrderAttempt.update({
     where: { id: attemptId },

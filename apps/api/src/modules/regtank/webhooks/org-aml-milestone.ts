@@ -1,9 +1,18 @@
-import { OnboardingStatus, UserRole } from "@prisma/client";
+import { OnboardingStatus } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import { logger } from "../../../lib/logger";
 import type { PortalType } from "../types";
 import { advanceOnboardingStatusFromFlags } from "../../onboarding/utils/advance-onboarding-status";
+import { claimAmlApproved } from "../../onboarding/utils/onboarding-transition-claims";
 import { getRegTankAPIClient } from "../api-client";
+import { writeOnboardingAuditLog } from "../../onboarding/audit/writer";
+import { ONBOARDING_AUDIT_TARGET_TYPE } from "../../onboarding/audit/events";
+import {
+  AUDIT_ACTOR_TYPE,
+  auditPortalFromLegacy,
+  organizationKindFromPortalType,
+  webhookAuditContext,
+} from "../../../lib/audit/context";
 
 /**
  * Result of an AML milestone check/apply attempt.
@@ -58,18 +67,19 @@ export async function maybeAdvanceOrgAfterAmlScreeningCleared(params: {
   organizationName?: string | null;
   trigger: string;
   extraMetadata?: Record<string, unknown>;
+  onboardingId?: string | null;
 }): Promise<AmlMilestoneOutcome> {
-  const { organizationId, portalType, userId, organizationName, trigger, extraMetadata } = params;
+  const { organizationId, portalType, trigger, extraMetadata, onboardingId } = params;
   const isInvestor = portalType === "investor";
 
   const org = isInvestor
     ? await prisma.investorOrganization.findUnique({
         where: { id: organizationId },
-        select: { onboarding_status: true, aml_approved: true, name: true },
+        select: { onboarding_status: true, aml_approved: true, name: true, owner_user_id: true, type: true },
       })
     : await prisma.issuerOrganization.findUnique({
         where: { id: organizationId },
-        select: { onboarding_status: true, aml_approved: true, name: true },
+        select: { onboarding_status: true, aml_approved: true, name: true, owner_user_id: true, type: true },
       });
 
   if (!org) {
@@ -119,69 +129,74 @@ export async function maybeAdvanceOrgAfterAmlScreeningCleared(params: {
   }
 
   let setAmlFlag = false;
-  if (!org.aml_approved) {
-    if (isInvestor) {
-      await prisma.investorOrganization.update({
-        where: { id: organizationId },
-        data: { aml_approved: true },
-      });
-    } else {
-      await prisma.issuerOrganization.update({
-        where: { id: organizationId },
-        data: { aml_approved: true },
-      });
-    }
-    setAmlFlag = true;
-    logger.info(
-      { organizationId, trigger, onboardingStatus: previousStatus },
-      "[AML milestone] Set aml_approved from confirmed RegTank approval"
-    );
-  }
-
-  const { changed } = await advanceOnboardingStatusFromFlags({
-    organizationId,
-    portalType: portalType as "investor" | "issuer",
-    reason: trigger,
-  });
-
-  const after = isInvestor
-    ? await prisma.investorOrganization.findUnique({
-        where: { id: organizationId },
-        select: { onboarding_status: true },
-      })
-    : await prisma.issuerOrganization.findUnique({
-        where: { id: organizationId },
-        select: { onboarding_status: true },
-      });
-
-  if (setAmlFlag) {
-    try {
-      await prisma.onboardingLog.create({
-        data: {
-          user_id: userId,
-          event_type: "ONBOARDING_STATUS_UPDATED",
-          role: isInvestor ? UserRole.INVESTOR : UserRole.ISSUER,
-          portal: portalType,
-          organization_name: organizationName ?? org.name ?? undefined,
-          investor_organization_id: isInvestor ? organizationId : undefined,
-          issuer_organization_id: isInvestor ? undefined : organizationId,
-          metadata: {
-            organizationId,
-            trigger,
-            previousStatus,
-            newStatus: after?.onboarding_status,
-            amlApproved: true,
-            ...extraMetadata,
-          },
-        },
-      });
-    } catch (e) {
-      logger.error(
-        { error: e instanceof Error ? e.message : String(e), organizationId, trigger },
-        "[AML milestone] Failed to write onboarding log (non-blocking)"
+  const after = await prisma.$transaction(async (tx) => {
+    setAmlFlag = await claimAmlApproved({
+      organizationId,
+      portalType,
+      db: tx,
+    });
+    if (setAmlFlag) {
+      logger.info(
+        { organizationId, trigger, onboardingStatus: previousStatus },
+        "[AML milestone] Set aml_approved from confirmed RegTank approval"
       );
     }
-  }
+
+    await advanceOnboardingStatusFromFlags({
+      organizationId,
+      portalType: portalType as "investor" | "issuer",
+      reason: trigger,
+      db: tx,
+    });
+
+    const next = isInvestor
+      ? await tx.investorOrganization.findUnique({
+          where: { id: organizationId },
+          select: { onboarding_status: true },
+        })
+      : await tx.issuerOrganization.findUnique({
+          where: { id: organizationId },
+          select: { onboarding_status: true },
+        });
+
+    if (setAmlFlag) {
+      const providerReference =
+        typeof extraMetadata?.kycRequestId === "string"
+          ? extraMetadata.kycRequestId
+          : typeof extraMetadata?.kybRequestId === "string"
+            ? extraMetadata.kybRequestId
+            : undefined;
+      await writeOnboardingAuditLog(
+        {
+          eventType: "AML_APPROVED",
+          context: webhookAuditContext({
+            actorType: AUDIT_ACTOR_TYPE.INTEGRATION,
+            portal: auditPortalFromLegacy(portalType),
+          }),
+          subjectUserId: org.owner_user_id,
+          onboardingId,
+          organizationId,
+          organizationKind: organizationKindFromPortalType(portalType as "investor" | "issuer"),
+          organizationType: org.type,
+          targetType: ONBOARDING_AUDIT_TARGET_TYPE.ORGANIZATION,
+          targetId: organizationId,
+          metadata: {
+            provider: "REGTANK",
+            screeningKind: trigger.includes("KYB") ? "KYB" : "KYC",
+            providerReference,
+            previousApproved: false,
+            newApproved: true,
+            previousStatus,
+            newStatus: next?.onboarding_status,
+            trigger,
+          },
+        },
+        tx
+      );
+    }
+
+    return next;
+  });
 
   logger.info(
     { organizationId, trigger, previousStatus, newStatus: after?.onboarding_status },
@@ -194,7 +209,7 @@ export async function maybeAdvanceOrgAfterAmlScreeningCleared(params: {
     approved: true,
     amlApproved: true,
     onboardingStatus: after?.onboarding_status ?? previousStatus,
-    advanced: changed || after?.onboarding_status !== previousStatus,
+    advanced: after?.onboarding_status !== previousStatus,
   };
 }
 
@@ -282,8 +297,9 @@ export async function applyCorporateAmlMilestoneFromLiveKyb(params: {
   organizationName?: string | null;
   codRequestId: string;
   trigger: string;
+  onboardingId?: string | null;
 }): Promise<AmlMilestoneOutcome> {
-  const { codRequestId, ...rest } = params;
+  const { codRequestId, onboardingId, ...rest } = params;
   const { approved, rawStatus } = await checkMainCompanyKybApprovedLive(codRequestId);
 
   if (!approved) {
@@ -304,6 +320,7 @@ export async function applyCorporateAmlMilestoneFromLiveKyb(params: {
 
   const outcome = await maybeAdvanceOrgAfterAmlScreeningCleared({
     ...rest,
+    onboardingId,
     extraMetadata: { codRequestId, rawStatus, source: "LIVE_KYB_QUERY" },
   });
   return { ...outcome, rawStatus, approved: true };
@@ -320,8 +337,9 @@ export async function applyPersonalAmlMilestoneFromLiveKyc(params: {
   organizationName?: string | null;
   kycId: string;
   trigger: string;
+  onboardingId?: string | null;
 }): Promise<AmlMilestoneOutcome> {
-  const { kycId, ...rest } = params;
+  const { kycId, onboardingId, ...rest } = params;
   const apiClient = getRegTankAPIClient();
   let rawStatus: string | null = null;
 
@@ -356,6 +374,7 @@ export async function applyPersonalAmlMilestoneFromLiveKyc(params: {
 
   const outcome = await maybeAdvanceOrgAfterAmlScreeningCleared({
     ...rest,
+    onboardingId,
     extraMetadata: { kycId, rawStatus, source: "LIVE_KYC_QUERY" },
   });
   return { ...outcome, rawStatus, approved: true };

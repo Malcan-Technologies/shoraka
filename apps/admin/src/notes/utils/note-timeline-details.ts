@@ -1,4 +1,4 @@
-import type { NoteEvent } from "@cashsouk/types";
+import type { NoteAuditLogDto } from "@cashsouk/types";
 import {
   formatAdminTimelineValue,
   type AdminTimelineDetail,
@@ -55,7 +55,7 @@ function pushDetail(
   rows.push({ key, label, value });
 }
 
-export function extractNoteTimelineDetails(event: NoteEvent): {
+export function extractNoteTimelineDetails(event: NoteAuditLogDto): {
   compact: AdminTimelineDetail[];
   prose: AdminTimelineDetail[];
 } {

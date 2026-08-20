@@ -20,18 +20,13 @@ jest.mock("../service", () => ({
 }));
 
 const mockUpdateInvestorOrganizationOnboarding = jest.fn();
+const mockFindInvestorOrganizationById = jest.fn();
 jest.mock("../../organization/repository", () => ({
   OrganizationRepository: jest.fn().mockImplementation(() => ({
-    findInvestorOrganizationById: jest.fn(),
+    findInvestorOrganizationById: (...args: unknown[]) => mockFindInvestorOrganizationById(...args),
     findIssuerOrganizationById: jest.fn(),
     updateInvestorOrganizationOnboarding: (...args: unknown[]) => mockUpdateInvestorOrganizationOnboarding(...args),
     updateIssuerOrganizationOnboarding: jest.fn(),
-  })),
-}));
-
-jest.mock("../../auth/repository", () => ({
-  AuthRepository: jest.fn().mockImplementation(() => ({
-    createOnboardingLog: jest.fn(),
   })),
 }));
 
@@ -41,9 +36,73 @@ jest.mock("../../notification/service", () => ({
   })),
 }));
 
+let investorOrg: Record<string, unknown> = {
+  onboarding_status: "PENDING",
+  onboarding_approved: false,
+  type: OrganizationType.PERSONAL,
+  name: "Ada",
+};
+const auditCreates: Array<{ data: { event_type: string } }> = [];
+let updateChain = Promise.resolve();
+
+function matchesWhere(row: Record<string, unknown>, where: Record<string, unknown>): boolean {
+  for (const [key, expected] of Object.entries(where)) {
+    if (key === "id") continue;
+    const actual = row[key];
+    if (expected && typeof expected === "object" && !Array.isArray(expected)) {
+      const clause = expected as Record<string, unknown>;
+      if (Array.isArray(clause.in) && !clause.in.includes(actual)) return false;
+      if (Array.isArray(clause.notIn) && clause.notIn.includes(actual)) return false;
+      if ("not" in clause && actual === clause.not) return false;
+      continue;
+    }
+    if (actual !== expected) return false;
+  }
+  return true;
+}
+
+function serializedUpdateMany({
+  where,
+  data,
+}: {
+  where: Record<string, unknown>;
+  data: Record<string, unknown>;
+}) {
+  const run = async () => {
+    if (!matchesWhere(investorOrg, where)) return { count: 0 };
+    investorOrg = { ...investorOrg, ...data };
+    return { count: 1 };
+  };
+  const next = updateChain.then(run, run);
+  updateChain = next.then(
+    () => undefined,
+    () => undefined
+  );
+  return next;
+}
+
+const txClient = {
+  investorOrganization: { updateMany: serializedUpdateMany },
+  onboardingAuditLog: {
+    create: (args: { data: { event_type: string } }) => {
+      auditCreates.push(args);
+      return Promise.resolve({});
+    },
+  },
+  user: {
+    findUnique: jest.fn(() =>
+      Promise.resolve({ first_name: "Ada", last_name: "Admin", email: "ada@example.com" })
+    ),
+  },
+};
+
 jest.mock("../../../lib/prisma", () => ({
   prisma: {
     ctosPartySupplement: { update: jest.fn() },
+    user: txClient.user,
+    onboardingAuditLog: txClient.onboardingAuditLog,
+    investorOrganization: { updateMany: serializedUpdateMany },
+    $transaction: async (fn: (tx: typeof txClient) => Promise<unknown>) => fn(txClient),
   },
 }));
 
@@ -72,6 +131,21 @@ function baseOnboardingRow(overrides: Record<string, unknown> = {}) {
 describe("IndividualOnboardingWebhookHandler", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    investorOrg = {
+      onboarding_status: "PENDING",
+      onboarding_approved: false,
+      type: OrganizationType.PERSONAL,
+      name: "Ada",
+    };
+    auditCreates.length = 0;
+    updateChain = Promise.resolve();
+    mockFindInvestorOrganizationById.mockImplementation(async () => ({
+      id: "org-1",
+      type: OrganizationType.PERSONAL,
+      onboarding_status: investorOrg.onboarding_status,
+      onboarding_approved: investorOrg.onboarding_approved,
+      name: "Ada",
+    }));
   });
 
   it("immediate exact match performs one lookup", async () => {
@@ -246,5 +320,88 @@ describe("IndividualOnboardingWebhookHandler", () => {
       "LD83612-R03",
       expect.anything()
     );
+  });
+
+  it("duplicate LIVENESS_PASSED writes one ONBOARDING_STATUS_CHANGED", async () => {
+    mockFindByRequestId.mockResolvedValue(baseOnboardingRow());
+    const handler = new IndividualOnboardingWebhookHandler();
+    const payload = {
+      requestId: "LD001-R01",
+      status: "LIVENESS_PASSED",
+      type: "INDIVIDUAL",
+    };
+
+    await (handler as any).handle(payload);
+    await (handler as any).handle(payload);
+
+    const statusChanged = auditCreates.filter((row) => row.data.event_type === "ONBOARDING_STATUS_CHANGED");
+    expect(investorOrg.onboarding_status).toBe("PENDING_APPROVAL");
+    expect(statusChanged).toHaveLength(1);
+  });
+
+  it("liveness then WAIT_FOR_APPROVAL writes one ONBOARDING_STATUS_CHANGED", async () => {
+    mockFindByRequestId.mockResolvedValue(baseOnboardingRow());
+    const handler = new IndividualOnboardingWebhookHandler();
+
+    await (handler as any).handle({
+      requestId: "LD001-R01",
+      status: "LIVENESS_PASSED",
+      type: "INDIVIDUAL",
+    });
+    await (handler as any).handle({
+      requestId: "LD001-R01",
+      status: "WAIT_FOR_APPROVAL",
+      type: "INDIVIDUAL",
+    });
+
+    const statusChanged = auditCreates.filter((row) => row.data.event_type === "ONBOARDING_STATUS_CHANGED");
+    expect(investorOrg.onboarding_status).toBe("PENDING_APPROVAL");
+    expect(statusChanged).toHaveLength(1);
+  });
+
+  it("concurrent identical LIVENESS_PASSED writes one ONBOARDING_STATUS_CHANGED", async () => {
+    mockFindByRequestId.mockResolvedValue(baseOnboardingRow());
+    const handler = new IndividualOnboardingWebhookHandler();
+    const payload = {
+      requestId: "LD001-R01",
+      status: "LIVENESS_PASSED",
+      type: "INDIVIDUAL",
+    };
+
+    await Promise.all([(handler as any).handle(payload), (handler as any).handle(payload)]);
+
+    expect(investorOrg.onboarding_status).toBe("PENDING_APPROVAL");
+    expect(auditCreates.filter((row) => row.data.event_type === "ONBOARDING_STATUS_CHANGED")).toHaveLength(1);
+  });
+
+  it("duplicate REJECTED writes one ONBOARDING_REJECTED", async () => {
+    mockFindByRequestId.mockResolvedValue(baseOnboardingRow());
+    const handler = new IndividualOnboardingWebhookHandler();
+    const payload = {
+      requestId: "LD001-R01",
+      status: "REJECTED",
+      type: "INDIVIDUAL",
+    };
+
+    await (handler as any).handle(payload);
+    await (handler as any).handle(payload);
+
+    expect(investorOrg.onboarding_status).toBe("REJECTED");
+    expect(auditCreates.filter((row) => row.data.event_type === "ONBOARDING_REJECTED")).toHaveLength(1);
+  });
+
+  it("concurrent identical REJECTED writes one ONBOARDING_REJECTED", async () => {
+    mockFindByRequestId.mockResolvedValue(baseOnboardingRow());
+    const handler = new IndividualOnboardingWebhookHandler();
+    const payload = {
+      requestId: "LD001-R01",
+      status: "REJECTED",
+      type: "INDIVIDUAL",
+    };
+
+    await Promise.all([(handler as any).handle(payload), (handler as any).handle(payload)]);
+
+    expect(investorOrg.onboarding_status).toBe("REJECTED");
+    expect(auditCreates.filter((row) => row.data.event_type === "ONBOARDING_REJECTED")).toHaveLength(1);
   });
 });

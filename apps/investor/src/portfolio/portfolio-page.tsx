@@ -27,6 +27,10 @@ import { WithdrawRequestDialog } from "@/app/transactions/components/withdraw-re
 import { WithdrawSuccessDialog } from "@/app/transactions/components/withdraw-success-dialog";
 import { MIN_WITHDRAWAL_AMOUNT } from "@/app/transactions/components/transactions.types";
 import { parseMoneyAmount } from "@/app/transactions/components/transaction-utils";
+import {
+  clearInvestorWithdrawalIntent,
+  getOrCreateInvestorWithdrawalIntent,
+} from "@/lib/investor-withdrawal-intent";
 import { PortfolioCashBar } from "./portfolio-cash-bar";
 import { PortfolioTransactionsPanel } from "./portfolio-transactions-panel";
 import { transactionTypeFromSearchParam } from "./portfolio-transactions-model";
@@ -95,14 +99,17 @@ function PortfolioPageContent() {
   const requestWithdrawalMutation = useMutation({
     mutationFn: async () => {
       if (!orgId) throw new Error("No investor organization selected");
+      const withdrawalIntentId = getOrCreateInvestorWithdrawalIntent(orgId, confirmedAmount);
       const response = await apiClient.requestInvestorWithdrawal({
         amount: confirmedAmount,
         investorOrganizationId: orgId,
+        withdrawalIntentId,
       });
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
     onSuccess: () => {
+      if (orgId) clearInvestorWithdrawalIntent(orgId);
       setWithdrawConfirmOpen(false);
       setWithdrawSuccessOpen(true);
       setWithdrawAmount("");

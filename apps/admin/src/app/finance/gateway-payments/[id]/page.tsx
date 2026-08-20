@@ -60,6 +60,24 @@ import {
   formatGatewayPaymentFailureReason,
   hasUncertainAmountMismatchRefund,
 } from "./gateway-payment-copy";
+import type { PaymentAuditLogDto } from "@cashsouk/types";
+
+function readAuditMetaString(metadata: Record<string, unknown>, key: string): string | null {
+  const value = metadata[key];
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
+function gatewayAuditTimelineFields(event: PaymentAuditLogDto) {
+  return {
+    type: event.eventType,
+    reason: readAuditMetaString(event.metadata, "reason"),
+    fromStatus: readAuditMetaString(event.metadata, "previousStatus"),
+    toStatus: readAuditMetaString(event.metadata, "newStatus"),
+    createdAt: event.occurredAt,
+    actorName: event.actor.displayName,
+    actorUserId: event.actor.userId,
+  };
+}
 
 const RECEIPT_STATUS_LABEL: Record<string, string> = {
   PENDING: "Being prepared",
@@ -213,19 +231,22 @@ export default function GatewayPaymentDetailPage() {
   const showNameCheckCard = Boolean(visibility?.showNameCheckCard);
   const showHeldRefundCard = Boolean(visibility?.showHeldRefundCard);
   const timelineEvents = payment?.events ?? [];
-  const activityCsvRows = timelineEvents.map((event) => ({
-    createdAt: event.createdAt,
-    event: formatGatewayEventTitle(event.type, event.reason),
-    eventType: event.type,
-    actor: event.actorName ?? "",
-    actorUserId: event.actorUserId ?? "",
-    portal: "",
-    remark: event.reason ?? "",
-    metadata: mergeActivityCsvMetadata(null, {
-      fromStatus: event.fromStatus,
-      toStatus: event.toStatus,
-    }),
-  }));
+  const activityCsvRows = timelineEvents.map((event) => {
+    const fields = gatewayAuditTimelineFields(event);
+    return {
+      createdAt: fields.createdAt,
+      event: formatGatewayEventTitle(fields.type, fields.reason),
+      eventType: fields.type,
+      actor: fields.actorName ?? "",
+      actorUserId: fields.actorUserId ?? "",
+      portal: "",
+      remark: fields.reason ?? "",
+      metadata: mergeActivityCsvMetadata(null, {
+        fromStatus: fields.fromStatus,
+        toStatus: fields.toStatus,
+      }),
+    };
+  });
 
   const handleRetryRefund = async () => {
     if (!id) return;
@@ -942,24 +963,25 @@ export default function GatewayPaymentDetailPage() {
                           <div className="px-6 pb-6">
                             <AdminVerticalTimeline>
                               {timelineEvents.map((event) => {
-                                const fromLabel = formatStatusLabel(event.fromStatus);
-                                const toLabel = formatStatusLabel(event.toStatus);
+                                const fields = gatewayAuditTimelineFields(event);
+                                const fromLabel = formatStatusLabel(fields.fromStatus);
+                                const toLabel = formatStatusLabel(fields.toStatus);
                                 const description = formatGatewayEventDescription(
-                                  event.type,
-                                  event.reason
+                                  fields.type,
+                                  fields.reason
                                 );
                                 return (
                                   <AdminVerticalTimelineItem
                                     key={event.id}
-                                    title={formatGatewayEventTitle(event.type, event.reason)}
+                                    title={formatGatewayEventTitle(fields.type, fields.reason)}
                                     description={description}
-                                    createdAt={event.createdAt}
+                                    createdAt={fields.createdAt}
                                     actorLabel={resolveAdminTimelineActorLabel({
-                                      actorName: event.actorName,
-                                      actorUserId: event.actorUserId,
+                                      actorName: fields.actorName,
+                                      actorUserId: fields.actorUserId,
                                       portal: "ADMIN",
                                     })}
-                                    portal={event.actorUserId ? "ADMIN" : null}
+                                    portal={fields.actorUserId ? "ADMIN" : null}
                                     compactDetails={
                                       fromLabel && toLabel
                                         ? [{ label: "Status", value: `${fromLabel} → ${toLabel}` }]

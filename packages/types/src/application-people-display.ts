@@ -97,11 +97,26 @@ export type ApplicationPersonRow = {
     riskScore?: string | number | null;
   } | null;
   /**
-   * Best RegTank id for links: with supplement, `screening.requestId` then top-level onboarding `requestId`; else issuer KYC/KYB then EOD/COD.
+   * Legacy mixed id (screening preferred over onboarding). Do not use for Admin RegTank onboarding View.
+   * Prefer {@link ApplicationPersonRow.directorEodRequestId}, {@link ApplicationPersonRow.shareholderEodRequestId},
+   * {@link ApplicationPersonRow.parentCorporateRequestId}, and {@link ApplicationPersonRow.screeningRequestId}.
    */
   requestId?: string | null;
   /** Set when row is built from `ctos_party_supplements`: which id won for {@link ApplicationPersonRow.requestId}. */
   requestIdType?: "SCREENING" | "ONBOARDING" | null;
+  /**
+   * Parent company COD from the organization's corporate `reg_tank_onboarding` session (e.g. COD05463).
+   * Used with a person EOD for `/app/onboardingCorporate/{COD}/{EOD}`.
+   */
+  parentCorporateRequestId?: string | null;
+  /** Director liveness/onboarding id (EOD) from `director_kyc_status` / `corporate_entities`. */
+  directorEodRequestId?: string | null;
+  /** Shareholder liveness/onboarding id (EOD) when this person is also (or only) a shareholder. */
+  shareholderEodRequestId?: string | null;
+  /** This corporate-shareholder company's own COD — not the parent organization's COD. */
+  partyCorporateRequestId?: string | null;
+  /** KYC/KYB screening id only. Never used as the primary onboarding View identifier. */
+  screeningRequestId?: string | null;
   /** IC front image URL from issuer `corporate_entities` (director/shareholder `documents`). */
   icFrontUrl?: string | null;
   /** IC back image URL from issuer `corporate_entities` (director/shareholder `documents`). */
@@ -141,32 +156,194 @@ function kybScreeningHasRisk(screening: ApplicationPersonRow["screening"]): bool
   return s.length > 0;
 }
 
+export type RegtankPortalLink = {
+  label: string;
+  url: string;
+  requestId: string;
+};
+
+function trimRegtankId(id: string | null | undefined): string {
+  return String(id ?? "").trim();
+}
+
+function isCorporateRequestId(id: string): boolean {
+  return id.startsWith("COD");
+}
+
+function isPersonOnboardingRequestId(id: string): boolean {
+  return id.startsWith("EOD") || id.startsWith("LD");
+}
+
+function isScreeningRequestId(id: string): boolean {
+  return id.startsWith("KYC") || id.startsWith("KYB");
+}
+
+/** Organization-level company COD (header Open in RegTank). */
+export function getRegtankCorporateOnboardingUrl(corporateRequestId: string | null | undefined): string | null {
+  const id = trimRegtankId(corporateRequestId);
+  if (!id || !isCorporateRequestId(id)) return null;
+  const base = getRegtankClientPortalBaseUrl();
+  return `${base}/app/onboardingCorporate/${encodeURIComponent(id)}?archived=false`;
+}
+
+/** Corporate director/shareholder child of a COD session. */
+export function getRegtankCorporatePersonOnboardingUrl(
+  corporateRequestId: string | null | undefined,
+  personRequestId: string | null | undefined
+): string | null {
+  const cod = trimRegtankId(corporateRequestId);
+  const eod = trimRegtankId(personRequestId);
+  if (!cod || !eod || !isCorporateRequestId(cod) || !isPersonOnboardingRequestId(eod)) return null;
+  const base = getRegtankClientPortalBaseUrl();
+  return `${base}/app/onboardingCorporate/${encodeURIComponent(cod)}/${encodeURIComponent(eod)}`;
+}
+
+/** Standalone personal onboarding (LD/EOD liveness). Not for COD-child directors. */
+export function getRegtankLivenessUrl(requestId: string | null | undefined): string | null {
+  const id = trimRegtankId(requestId);
+  if (!id || !isPersonOnboardingRequestId(id)) return null;
+  const base = getRegtankClientPortalBaseUrl();
+  return `${base}/app/liveness/${encodeURIComponent(id)}?archived=false`;
+}
+
+export function getRegtankScreeningLink(
+  person: Pick<ApplicationPersonRow, "screeningRequestId" | "screening" | "requestId">
+): string | null {
+  const id = trimRegtankId(person.screeningRequestId) || trimRegtankId(person.requestId);
+  if (!id || !isScreeningRequestId(id)) return null;
+  const base = getRegtankClientPortalBaseUrl();
+  const enc = encodeURIComponent(id);
+  if (id.startsWith("KYC")) {
+    return `${base}/app/screen-kyc/result/${enc}`;
+  }
+  const suffix = kybScreeningHasRisk(person.screening) ? "/riskAssessment" : "";
+  return `${base}/app/screen-kyb/result/${enc}${suffix}`;
+}
+
 /**
- * Deep link into RegTank **client** portal for this row’s primary `requestId` (admin opens in new tab).
- * Mirrors `buildRegTankPortalUrl` (API) and onboarding application `regtankPortalUrl` / KYC-KYB paths.
+ * Admin people-table onboarding View links.
+ * Company persons use COD + EOD; corporate shareholders use their own COD; standalone LD/EOD uses liveness.
+ */
+export function getRegtankOnboardingViewLinks(
+  person: Pick<
+    ApplicationPersonRow,
+    | "entityType"
+    | "parentCorporateRequestId"
+    | "directorEodRequestId"
+    | "shareholderEodRequestId"
+    | "partyCorporateRequestId"
+  >
+): RegtankPortalLink[] {
+  if (person.entityType === "CORPORATE") {
+    const ownCod = trimRegtankId(person.partyCorporateRequestId);
+    const url = getRegtankCorporateOnboardingUrl(ownCod);
+    if (!url || !ownCod) return [];
+    return [{ label: "View", url, requestId: ownCod }];
+  }
+
+  const parentCod = trimRegtankId(person.parentCorporateRequestId);
+  const directorEod = trimRegtankId(person.directorEodRequestId);
+  const shareholderEod = trimRegtankId(person.shareholderEodRequestId);
+  const directorOk = Boolean(directorEod && isPersonOnboardingRequestId(directorEod));
+  const shareholderOk = Boolean(shareholderEod && isPersonOnboardingRequestId(shareholderEod));
+
+  if (parentCod && isCorporateRequestId(parentCod)) {
+    if (directorOk && shareholderOk && directorEod !== shareholderEod) {
+      const directorUrl = getRegtankCorporatePersonOnboardingUrl(parentCod, directorEod);
+      const shareholderUrl = getRegtankCorporatePersonOnboardingUrl(parentCod, shareholderEod);
+      const links: RegtankPortalLink[] = [];
+      if (directorUrl) links.push({ label: "Director", url: directorUrl, requestId: directorEod });
+      if (shareholderUrl) links.push({ label: "Shareholder", url: shareholderUrl, requestId: shareholderEod });
+      return links;
+    }
+    const eod = directorOk ? directorEod : shareholderOk ? shareholderEod : "";
+    const url = getRegtankCorporatePersonOnboardingUrl(parentCod, eod);
+    if (!url || !eod) return [];
+    return [{ label: "View", url, requestId: eod }];
+  }
+
+  const standalone = directorOk ? directorEod : shareholderOk ? shareholderEod : "";
+  if (!standalone.startsWith("LD")) return [];
+  const liveness = getRegtankLivenessUrl(standalone);
+  if (!liveness) return [];
+  return [{ label: "View", url: liveness, requestId: standalone }];
+}
+
+export type RegtankColumnDisplayRow = {
+  groupLabel: string;
+  requestId: string;
+  url: string | null;
+  kind: "onboarding" | "screening";
+};
+
+function regtankColumnOnboardingGroupLabel(
+  person: Pick<ApplicationPersonRow, "entityType" | "roles">,
+  link: RegtankPortalLink
+): string {
+  if (link.label === "Director" || link.label === "Shareholder") return link.label;
+  if (person.entityType === "CORPORATE") return "Corporate Shareholder";
+  const roles = (person.roles ?? []).map((r) => String(r).toUpperCase());
+  const hasDirector = roles.includes("DIRECTOR");
+  const hasShareholder = roles.includes("SHAREHOLDER");
+  if (hasDirector && !hasShareholder) return "Director";
+  if (hasShareholder && !hasDirector) return "Shareholder";
+  return "Onboarding";
+}
+
+/**
+ * People-table RegTank column rows (ids + existing portal URLs).
+ * Parent COD is not included; screening stays a separate row.
+ */
+export function getRegtankColumnDisplayRows(
+  person: Pick<
+    ApplicationPersonRow,
+    | "entityType"
+    | "roles"
+    | "parentCorporateRequestId"
+    | "directorEodRequestId"
+    | "shareholderEodRequestId"
+    | "partyCorporateRequestId"
+    | "screeningRequestId"
+    | "screening"
+    | "requestId"
+  >
+): RegtankColumnDisplayRow[] {
+  const rows: RegtankColumnDisplayRow[] = getRegtankOnboardingViewLinks(person).map((link) => ({
+    groupLabel: regtankColumnOnboardingGroupLabel(person, link),
+    requestId: link.requestId,
+    url: link.url,
+    kind: "onboarding",
+  }));
+
+  const screeningId = trimRegtankId(person.screeningRequestId);
+  if (screeningId) {
+    rows.push({
+      groupLabel: "Screening",
+      requestId: screeningId,
+      url: getRegtankScreeningLink(person),
+      kind: "screening",
+    });
+  }
+  return rows;
+}
+
+/**
+ * Deep link from a legacy mixed `requestId` (screening, COD, or standalone liveness).
+ * Admin director/shareholder onboarding View must use {@link getRegtankOnboardingViewLinks} instead.
  */
 export function getRegtankLink(
   person: Pick<ApplicationPersonRow, "requestId" | "entityType" | "screening">
 ): string | null {
-  const id = String(person.requestId ?? "").trim();
+  const id = trimRegtankId(person.requestId);
   if (!id) return null;
-  const base = getRegtankClientPortalBaseUrl();
-  const enc = encodeURIComponent(id);
 
-  if (id.startsWith("KYC")) {
-    return `${base}/app/screen-kyc/result/${enc}/scoring`;
+  if (isScreeningRequestId(id)) {
+    return getRegtankScreeningLink({ ...person, screeningRequestId: id });
   }
-  if (id.startsWith("KYB")) {
-    const suffix = kybScreeningHasRisk(person.screening) ? "/riskAssessment" : "";
-    return `${base}/app/screen-kyb/result/${enc}${suffix}`;
+  if (isCorporateRequestId(id)) {
+    return getRegtankCorporateOnboardingUrl(id);
   }
-  if (id.startsWith("COD")) {
-    return `${base}/app/onboardingCorporate/${enc}?archived=false`;
-  }
-  if (id.startsWith("LD") || id.startsWith("EOD")) {
-    return `${base}/app/liveness/${enc}?archived=false`;
-  }
-  return null;
+  return getRegtankLivenessUrl(id);
 }
 
 export type DisplayStatusPerson = {

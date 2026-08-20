@@ -14,6 +14,10 @@ jest.mock("../../lib/prisma", () => ({
     platformFinanceSetting: {
       upsert: jest.fn(),
     },
+    $transaction: jest.fn(async (fn: (tx: unknown) => unknown) => {
+      const mocked = jest.requireMock("../../lib/prisma") as { prisma: Record<string, unknown> };
+      return fn(mocked.prisma);
+    }),
   },
 }));
 

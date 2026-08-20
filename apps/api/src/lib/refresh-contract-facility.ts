@@ -8,6 +8,11 @@ import {
   type InvoiceForFacilityRefresh,
 } from "./contract-facility";
 import { prisma } from "./prisma";
+import type { AuditRequestContext } from "./audit/context";
+import {
+  APPLICATION_AUDIT_TARGET_TYPE,
+  writeApplicationAuditLog,
+} from "../modules/applications/audit/writer";
 
 type ContractFacilityDb = PrismaClient | Prisma.TransactionClient;
 
@@ -18,14 +23,11 @@ export type FacilityOccupancyReason =
   | "NOTE_REPAID";
 
 export type FacilityOccupancyAudit = {
-  userId: string;
-  applicationId?: string | null;
-  portal?: string | null;
+  context: AuditRequestContext;
   reason: FacilityOccupancyReason;
+  applicationId?: string | null;
   noteId?: string | null;
   invoiceId?: string | null;
-  createdAt?: Date;
-  actorRole?: string | null;
 };
 
 function mapInvoicesWithNotes(
@@ -78,20 +80,7 @@ function occupancyMateriallyChanged(
   );
 }
 
-function occupancyRemark(reason: FacilityOccupancyReason, after: ContractFacilitySnapshot): string {
-  if (reason === "NOTE_REPAID") {
-    return `Repayment released facility occupancy. Available restored to RM ${after.availableFacility.toLocaleString("en-MY")}.`;
-  }
-  if (reason === "FUNDING_CLOSED") {
-    return `Facility occupancy true-up to funded principal RM ${after.utilizedFacility.toLocaleString("en-MY")}.`;
-  }
-  if (reason === "FUNDING_FAILED") {
-    return "Failed funding released the reserved facility occupancy.";
-  }
-  return `Invoice draw reserved RM ${after.utilizedFacility.toLocaleString("en-MY")} against the facility.`;
-}
-
-export async function recordFacilityOccupancyAudit(
+async function recordFacilityOccupancyAudit(
   db: ContractFacilityDb,
   input: {
     contractId: string;
@@ -102,52 +91,35 @@ export async function recordFacilityOccupancyAudit(
   }
 ): Promise<void> {
   if (!occupancyMateriallyChanged(input.before, input.after)) return;
+  if (!input.applicationId) return;
 
-  const createdAt = input.audit.createdAt ?? new Date();
-  const metadata = {
-    reason: input.audit.reason,
-    contract_id: input.contractId,
-    note_id: input.audit.noteId ?? null,
-    invoice_id: input.audit.invoiceId ?? null,
-    before: {
-      utilized_facility: input.before.utilizedFacility,
-      available_facility: input.before.availableFacility,
-      repaid_facility: input.before.repaidFacility,
-    },
-    after: {
-      utilized_facility: input.after.utilizedFacility,
-      available_facility: input.after.availableFacility,
-      repaid_facility: input.after.repaidFacility,
-      pending_facility: input.after.pendingFacility,
-    },
-  };
-
-  await db.applicationLog.create({
-    data: {
-      user_id: input.audit.userId,
-      application_id: input.applicationId,
-      event_type: "CONTRACT_FACILITY_OCCUPANCY_UPDATED",
-      entity_id: input.contractId,
-      portal: input.audit.portal ?? null,
-      remark: occupancyRemark(input.audit.reason, input.after),
-      metadata,
-      created_at: createdAt,
-    },
-  });
-
-  if (input.audit.noteId) {
-    await db.noteEvent.create({
-      data: {
-        note_id: input.audit.noteId,
-        event_type: "FACILITY_OCCUPANCY_UPDATED",
-        actor_user_id: input.audit.userId,
-        actor_role: input.audit.actorRole ?? null,
-        portal: input.audit.portal ?? null,
-        metadata,
-        created_at: createdAt,
+  await writeApplicationAuditLog(
+    {
+      eventType: "CONTRACT_FACILITY_OCCUPANCY_UPDATED",
+      context: input.audit.context,
+      applicationId: input.applicationId,
+      targetType: APPLICATION_AUDIT_TARGET_TYPE.CONTRACT,
+      targetId: input.contractId,
+      metadata: {
+        reason: input.audit.reason,
+        contract_id: input.contractId,
+        note_id: input.audit.noteId ?? null,
+        invoice_id: input.audit.invoiceId ?? null,
+        before: {
+          utilized_facility: input.before.utilizedFacility,
+          available_facility: input.before.availableFacility,
+          repaid_facility: input.before.repaidFacility,
+        },
+        after: {
+          utilized_facility: input.after.utilizedFacility,
+          available_facility: input.after.availableFacility,
+          repaid_facility: input.after.repaidFacility,
+          pending_facility: input.after.pendingFacility,
+        },
       },
-    });
-  }
+    },
+    db
+  );
 }
 
 /**
@@ -223,12 +195,16 @@ export async function refreshContractFacilityForNote(
     Partial<Pick<FacilityOccupancyAudit, "noteId" | "invoiceId" | "applicationId">>
 ): Promise<void> {
   if (!note.source_contract_id) return;
-  await refreshContractFacilityValues(note.source_contract_id, db, audit
-    ? {
-        ...audit,
-        noteId: audit.noteId ?? note.id ?? null,
-        invoiceId: audit.invoiceId ?? note.source_invoice_id ?? null,
-        applicationId: audit.applicationId ?? note.source_application_id ?? null,
-      }
-    : undefined);
+  await refreshContractFacilityValues(
+    note.source_contract_id,
+    db,
+    audit
+      ? {
+          ...audit,
+          noteId: audit.noteId ?? note.id ?? null,
+          invoiceId: audit.invoiceId ?? note.source_invoice_id ?? null,
+          applicationId: audit.applicationId ?? note.source_application_id ?? null,
+        }
+      : undefined
+  );
 }

@@ -74,6 +74,9 @@ export function OrganizationQuickLinksCard({
         {org.type === "COMPANY" && org.codRequestId ? (
           <QuickLink label="COD" value={org.codRequestId} />
         ) : null}
+        {org.type !== "COMPANY" && org.regtankRequestId ? (
+          <QuickLink label="RegTank" value={org.regtankRequestId} />
+        ) : null}
         {org.type === "COMPANY" ? (
           <div className="space-y-1">
             <div className="text-meta text-muted-foreground">Members</div>

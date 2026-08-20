@@ -19,6 +19,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RequirePermission } from "@/components/require-permission";
+import { ContextualAuditHistoryPanel } from "@/components/audit/contextual-audit-history-panel";
+import { paymentAuditToDetail } from "@/components/audit/contextual-audit-mappers";
+import { useWithdrawalAudit } from "@/hooks/use-withdrawal-audit";
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import { usePermissions } from "@/hooks/use-permissions";
 import { formatWithdrawalReference } from "@cashsouk/types";
@@ -67,6 +70,11 @@ export default function InvestorWithdrawalDetailPage() {
   const canManage = can("investor_withdrawals.manage");
 
   const { data: withdrawal, isLoading, error, refetch, isFetching } = useAdminWithdrawal(id);
+  const {
+    data: withdrawalAudit,
+    isLoading: withdrawalAuditLoading,
+    error: withdrawalAuditError,
+  } = useWithdrawalAudit(id);
   const { handleViewDocument, viewDocumentPending } = useAdminS3DocumentViewDownload();
   const generateLetter = useGenerateWithdrawalLetter();
   const markSubmitted = useMarkWithdrawalSubmitted();
@@ -370,6 +378,13 @@ export default function InvestorWithdrawalDetailPage() {
                     </Card>
                   </div>
                 </div>
+
+                <ContextualAuditHistoryPanel
+                  rows={(withdrawalAudit ?? []).map(paymentAuditToDetail)}
+                  isLoading={withdrawalAuditLoading}
+                  error={withdrawalAuditError instanceof Error ? withdrawalAuditError : null}
+                  emptyMessage="No audit records found"
+                />
               </>
             )}
           </div>

@@ -2,13 +2,10 @@ import { BaseWebhookHandler } from "./base-webhook-handler";
 import { RegTankEODWebhook } from "../types";
 import { logger } from "../../../lib/logger";
 import { RegTankRepository } from "../repository";
-import { AuthRepository } from "../../auth/repository";
 import { AmlIdentityRepository } from "../aml-identity-repository";
-import { UserRole } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
-import { OrganizationRepository } from "../../organization/repository";
 import { getRegTankAPIClient } from "../api-client";
 import { mapRegTankKycScreeningStatusToAmlStatus } from "../helpers/regtank-kyc-screening-to-aml-status";
 import {
@@ -17,6 +14,14 @@ import {
   isEodParentFamilyMatch,
   logWebhookFamilyTypeMismatch,
 } from "./onboarding-webhook-guards";
+import { directorKycFinalOutcomes, directorKycMaterialChange } from "../../onboarding/audit/diff";
+import { writeDirectorKycOutcomeAuditLogs } from "../../onboarding/audit/director-kyc-outcomes";
+import { lockOrganizationRow } from "../../onboarding/utils/onboarding-transition-claims";
+import {
+  auditPortalFromLegacy,
+  organizationKindFromPortalType,
+  webhookAuditContext,
+} from "../../../lib/audit/context";
 
 type DirectorKycJsonRow = {
   eodRequestId: string;
@@ -114,16 +119,12 @@ function computeDirectorMatch(
  */
 export class EODWebhookHandler extends BaseWebhookHandler {
   private repository: RegTankRepository;
-  private authRepository: AuthRepository;
-  private organizationRepository: OrganizationRepository;
   private amlIdentityRepository: AmlIdentityRepository;
   private apiClient: ReturnType<typeof getRegTankAPIClient>;
 
   constructor() {
     super();
     this.repository = new RegTankRepository();
-    this.authRepository = new AuthRepository();
-    this.organizationRepository = new OrganizationRepository();
     this.amlIdentityRepository = new AmlIdentityRepository();
     this.apiClient = getRegTankAPIClient();
   }
@@ -270,56 +271,7 @@ export class EODWebhookHandler extends BaseWebhookHandler {
       "[EOD Webhook] EOD webhook processed and appended to parent COD onboarding record"
     );
 
-    // Create onboarding log entry for EOD webhook
     const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
-    const portalType = onboarding.portal_type as PortalType;
-    const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
-
-    try {
-      const eventType = statusUpper === "APPROVED" ? "EOD_APPROVED" : statusUpper === "REJECTED" ? "EOD_REJECTED" : "EOD_WEBHOOK";
-
-      await this.authRepository.createOnboardingLog({
-        userId: onboarding.user_id,
-        role,
-        eventType,
-        portal: portalType,
-        organizationName: onboarding.investor_organization?.name || onboarding.issuer_organization?.name || undefined,
-        investorOrganizationId: onboarding.investor_organization_id || undefined,
-        issuerOrganizationId: onboarding.issuer_organization_id || undefined,
-        metadata: {
-          eodRequestId,
-          codRequestId: onboarding.request_id,
-          status: statusUpper,
-          confidence,
-          kycId,
-          organizationId: organizationId || null,
-          onboardingType: onboarding.onboarding_type,
-        },
-      });
-
-      logger.debug(
-        {
-          eodRequestId,
-          codRequestId: onboarding.request_id,
-          userId: onboarding.user_id,
-          role,
-          eventType,
-          portalType,
-        },
-        "[EOD Webhook] Created EOD onboarding log entry"
-      );
-    } catch (logError) {
-      // Log error but don't fail the webhook processing
-      logger.error(
-        {
-          error: logError instanceof Error ? logError.message : String(logError),
-          eodRequestId,
-          codRequestId: onboarding.request_id,
-          userId: onboarding.user_id,
-        },
-        "[EOD Webhook] Failed to create EOD onboarding log entry (non-blocking)"
-      );
-    }
 
     // Update director KYC status in parent organization's director_kyc_status JSON field
     if (organizationId) {
@@ -327,117 +279,133 @@ export class EODWebhookHandler extends BaseWebhookHandler {
         const portalType = onboarding.portal_type as PortalType;
         const kycStatus = statusRaw;
 
-        const applyDirectorKycMatchUpdate = async (
-          portal: PortalType,
-          org: { director_kyc_status: unknown } | null | undefined
-        ): Promise<void> => {
-          if (!org?.director_kyc_status) return;
-          const directorKycStatus = org.director_kyc_status as DirectorKycJsonContainer;
-          const directors = directorKycStatus.directors;
-          if (!Array.isArray(directors) || directors.length === 0) return;
+        const applyDirectorKycMatchUpdate = async (portal: PortalType): Promise<void> => {
+          await prisma.$transaction(async (tx) => {
+            await lockOrganizationRow(tx, portal, organizationId);
+            const org =
+              portal === "investor"
+                ? await tx.investorOrganization.findUnique({
+                    where: { id: organizationId },
+                    select: { director_kyc_status: true },
+                  })
+                : await tx.issuerOrganization.findUnique({
+                    where: { id: organizationId },
+                    select: { director_kyc_status: true },
+                  });
+            if (!org?.director_kyc_status) return;
+            const directorKycStatus = org.director_kyc_status as DirectorKycJsonContainer;
+            const directors = directorKycStatus.directors;
+            if (!Array.isArray(directors) || directors.length === 0) return;
 
-          const directorEodRequestIds = directors.map((d) => d.eodRequestId ?? "");
-          const directorShareholderEodRequestIds = directors.map((d) => d.shareholderEodRequestId ?? null);
-          logger.info(
-            {
-              incomingEodRequestId: eodRequestId,
-              directorEodRequestIds,
-              directorShareholderEodRequestIds,
-              codRequestId: onboarding.request_id,
-              organizationId,
-            },
-            "[EOD Webhook] Director KYC update: matching incoming EOD id to stored rows"
-          );
-
-          const match = computeDirectorMatch(directors, eodRequestId, payload);
-          if (!match) {
-            logger.warn(
+            const directorEodRequestIds = directors.map((d) => d.eodRequestId ?? "");
+            const directorShareholderEodRequestIds = directors.map((d) => d.shareholderEodRequestId ?? null);
+            logger.info(
               {
-                eodRequestId,
+                incomingEodRequestId: eodRequestId,
                 directorEodRequestIds,
                 directorShareholderEodRequestIds,
-                payloadIcKeyPresent: Boolean(extractGovernmentIdFromEodPayload(payload)),
                 codRequestId: onboarding.request_id,
                 organizationId,
               },
-              "[EOD Webhook] No director row matched this EOD webhook (eodRequestId, shareholderEodRequestId, or governmentIdNumber on payload)"
+              "[EOD Webhook] Director KYC update: matching incoming EOD id to stored rows"
             );
-            return;
-          }
 
-          if (match.matchedBy === "governmentIdNumber") {
-            logger.info(
-              {
-                eodRequestId,
-                codRequestId: onboarding.request_id,
-                organizationId,
-                matchedIndex: match.index,
-              },
-              "[EOD Webhook] Matched director row by governmentIdNumber (IC) fallback; applying KYC status"
-            );
-          }
-
-          const updatedDirectors = directors.map((director, i) => {
-            if (i !== match.index) return director;
-            const next: DirectorKycJsonRow = {
-              ...director,
-              kycStatus,
-              kycId: kycId || director.kycId,
-              lastUpdated: new Date().toISOString(),
-            };
-            if (match.matchedBy === "governmentIdNumber" && !next.eodRequestId?.trim()) {
-              next.eodRequestId = eodRequestId;
+            const match = computeDirectorMatch(directors, eodRequestId, payload);
+            if (!match) {
+              logger.warn(
+                {
+                  eodRequestId,
+                  directorEodRequestIds,
+                  directorShareholderEodRequestIds,
+                  payloadIcKeyPresent: Boolean(extractGovernmentIdFromEodPayload(payload)),
+                  codRequestId: onboarding.request_id,
+                  organizationId,
+                },
+                "[EOD Webhook] No director row matched this EOD webhook (eodRequestId, shareholderEodRequestId, or governmentIdNumber on payload)"
+              );
+              return;
             }
-            return next;
+
+            if (match.matchedBy === "governmentIdNumber") {
+              logger.info(
+                {
+                  eodRequestId,
+                  codRequestId: onboarding.request_id,
+                  organizationId,
+                  matchedIndex: match.index,
+                },
+                "[EOD Webhook] Matched director row by governmentIdNumber (IC) fallback; applying KYC status"
+              );
+            }
+
+            const updatedDirectors = directors.map((director, i) => {
+              if (i !== match.index) return director;
+              const next: DirectorKycJsonRow = {
+                ...director,
+                kycStatus,
+                kycId: kycId || director.kycId,
+                lastUpdated: new Date().toISOString(),
+              };
+              if (match.matchedBy === "governmentIdNumber" && !next.eodRequestId?.trim()) {
+                next.eodRequestId = eodRequestId;
+              }
+              return next;
+            });
+
+            const nextJson: DirectorKycJsonContainer = {
+              ...directorKycStatus,
+              directors: updatedDirectors,
+              lastSyncedAt: new Date().toISOString(),
+            };
+
+            const kycDiff = directorKycMaterialChange(org.director_kyc_status, nextJson);
+            if (!kycDiff.changed) return;
+
+            if (portal === "investor") {
+              await tx.investorOrganization.update({
+                where: { id: organizationId },
+                data: { director_kyc_status: nextJson as Prisma.InputJsonValue },
+              });
+            } else {
+              await tx.issuerOrganization.update({
+                where: { id: organizationId },
+                data: { director_kyc_status: nextJson as Prisma.InputJsonValue },
+              });
+            }
+
+            logger.info(
+              {
+                eodRequestId,
+                codRequestId: onboarding.request_id,
+                organizationId,
+                kycStatus,
+                kycId,
+                matchedBy: match.matchedBy,
+              },
+              `[EOD Webhook] Updated director KYC status in ${portal} organization`
+            );
+
+            await writeDirectorKycOutcomeAuditLogs(
+              {
+                outcomes: directorKycFinalOutcomes(org.director_kyc_status, nextJson),
+                context: webhookAuditContext({
+                  portal: auditPortalFromLegacy(portal),
+                }),
+                subjectUserId: onboarding.user_id,
+                onboardingId: onboarding.id,
+                organizationId,
+                organizationKind: organizationKindFromPortalType(portal),
+                organizationType: "COMPANY",
+              },
+              tx
+            );
           });
-
-          const nextJson: DirectorKycJsonContainer = {
-            ...directorKycStatus,
-            directors: updatedDirectors,
-            lastSyncedAt: new Date().toISOString(),
-          };
-
-          if (portal === "investor") {
-            await prisma.investorOrganization.update({
-              where: { id: organizationId },
-              data: { director_kyc_status: nextJson as Prisma.InputJsonValue },
-            });
-            logger.info(
-              {
-                eodRequestId,
-                codRequestId: onboarding.request_id,
-                organizationId,
-                kycStatus,
-                kycId,
-                matchedBy: match.matchedBy,
-              },
-              "[EOD Webhook] Updated director KYC status in investor organization"
-            );
-          } else {
-            await prisma.issuerOrganization.update({
-              where: { id: organizationId },
-              data: { director_kyc_status: nextJson as Prisma.InputJsonValue },
-            });
-            logger.info(
-              {
-                eodRequestId,
-                codRequestId: onboarding.request_id,
-                organizationId,
-                kycStatus,
-                kycId,
-                matchedBy: match.matchedBy,
-              },
-              "[EOD Webhook] Updated director KYC status in issuer organization"
-            );
-          }
         };
 
         if (portalType === "investor") {
-          const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
-          await applyDirectorKycMatchUpdate("investor", org);
+          await applyDirectorKycMatchUpdate("investor");
         } else {
-          const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
-          await applyDirectorKycMatchUpdate("issuer", org);
+          await applyDirectorKycMatchUpdate("issuer");
         }
       } catch (error) {
         logger.error(

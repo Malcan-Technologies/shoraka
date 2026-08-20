@@ -15,10 +15,11 @@ jest.mock("../repository", () => ({
 }));
 
 const mockFindInvestorOrganizationById = jest.fn().mockResolvedValue({ id: "org-1", name: "Test Org" });
+const mockFindIssuerOrganizationById = jest.fn().mockResolvedValue({ id: "org-issuer-1", name: "Issuer Co" });
 jest.mock("../../organization/repository", () => ({
   OrganizationRepository: jest.fn().mockImplementation(() => ({
     findInvestorOrganizationById: (...args: unknown[]) => mockFindInvestorOrganizationById(...args),
-    findIssuerOrganizationById: jest.fn(),
+    findIssuerOrganizationById: (...args: unknown[]) => mockFindIssuerOrganizationById(...args),
   })),
 }));
 
@@ -88,6 +89,54 @@ describe("KYBWebhookHandler", () => {
     expect(mockUpdateStatus).not.toHaveBeenCalled();
     // Main-company KYB Approved still runs the AML milestone helper (unchanged behavior).
     expect(mockMaybeAdvance).toHaveBeenCalledTimes(1);
+    expect(mockMaybeAdvance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        portalType: "investor",
+        trigger: "REGTANK_KYB_MAIN_COMPANY_APPROVED",
+        onboardingId: "row-1",
+        extraMetadata: expect.objectContaining({
+          kybRequestId: "KYB001",
+          onboardingRequestId: "COD001",
+        }),
+      })
+    );
+  });
+
+  it("issuer company main-company KYB Approved passes reg_tank_onboarding.id, not the COD/KYB provider ids", async () => {
+    mockFindByRequestId.mockResolvedValue(
+      baseCodOnboardingRow({
+        id: "issuer-onboarding-1",
+        request_id: "COD05463",
+        investor_organization_id: null,
+        issuer_organization_id: "org-issuer-1",
+        portal_type: "issuer",
+      })
+    );
+    const handler = new KYBWebhookHandler("ACURIS");
+
+    await (handler as any).handle({
+      requestId: "KYB00103",
+      onboardingId: "COD05463",
+      status: "Approved",
+    });
+
+    expect(mockMaybeAdvance).toHaveBeenCalledTimes(1);
+    expect(mockMaybeAdvance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-issuer-1",
+        portalType: "issuer",
+        trigger: "REGTANK_KYB_MAIN_COMPANY_APPROVED",
+        onboardingId: "issuer-onboarding-1",
+        extraMetadata: expect.objectContaining({
+          kybRequestId: "KYB00103",
+          onboardingRequestId: "COD05463",
+        }),
+      })
+    );
+    const call = mockMaybeAdvance.mock.calls[0]?.[0] as { onboardingId?: string };
+    expect(call.onboardingId).not.toBe("COD05463");
+    expect(call.onboardingId).not.toBe("KYB00103");
   });
 
   it("B4: KYB unknown status is preserved but does not alter onboarding lifecycle status", async () => {

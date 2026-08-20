@@ -40,6 +40,9 @@ import { NoteInvestorsPanel } from "@/notes/components/note-investors-panel";
 import { useOpenAdminProspectusPdf } from "@/notes/hooks/use-prospectus-review";
 import { getNoteCommercialTermRows } from "@/notes/utils/note-commercial-terms";
 import { NoteTimelinePanel } from "@/notes/components/note-timeline-panel";
+import { ContextualAuditHistoryPanel } from "@/components/audit/contextual-audit-history-panel";
+import { noteAuditToDetail } from "@/components/audit/contextual-audit-mappers";
+import { useNoteAuditHistory } from "@/hooks/use-note-audit-history";
 import { SettlementPanel } from "@/notes/components/settlement-panel";
 import { SourceApplicationPanel } from "@/notes/components/source-application-panel";
 import { IssuerPayoutCard } from "@/notes/components/issuer-payout-card";
@@ -89,6 +92,24 @@ import {
   formatPaymentDueHint,
   maturityCountdownClass,
 } from "@/notes/utils/maturity-countdown";
+
+function NoteAuditHistoryCard({ noteId }: { noteId: string }) {
+  const [page, setPage] = React.useState(1);
+  const pageSize = 15;
+  const { data, isLoading, error } = useNoteAuditHistory(noteId, page, pageSize);
+  return (
+    <ContextualAuditHistoryPanel
+      rows={(data?.logs ?? []).map(noteAuditToDetail)}
+      isLoading={isLoading}
+      error={error instanceof Error ? error : null}
+      emptyMessage="No audit records found"
+      page={page}
+      pageSize={pageSize}
+      totalCount={data?.pagination.totalCount}
+      onPageChange={setPage}
+    />
+  );
+}
 
 function getNotePaymentDueSummary(note: NoteDetail) {
   const paymentDueDate = getNotePaymentDueDate(note);
@@ -547,7 +568,10 @@ export default function NoteDetailPage() {
                       </AdminDetailTabPanel>
 
                       <AdminDetailTabPanel value="activity" preserveMount>
-                        <NoteTimelinePanel note={note} />
+                        <div className="space-y-6">
+                          <NoteTimelinePanel note={note} />
+                          <NoteAuditHistoryCard noteId={note.id} />
+                        </div>
                       </AdminDetailTabPanel>
                     </AdminDetailTabs>
                   }

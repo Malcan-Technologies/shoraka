@@ -56,14 +56,42 @@ export function readWalletReversalFailure(metadata: Record<string, unknown> | nu
 export function readRefundRequestedAt(
   payment: {
     metadata: Record<string, unknown> | null;
-    events?: Array<{ type: string; createdAt: string }>;
+    events?: Array<{ type?: string; eventType?: string; createdAt?: string; occurredAt?: string }>;
   } | null
 ) {
   if (!payment) return null;
   const attempt = payment.metadata?.refundAttempt as { requestedAt?: string } | undefined;
   if (typeof attempt?.requestedAt === "string") return attempt.requestedAt;
-  const event = payment.events?.find((item) => item.type === "REFUND_INITIATED");
-  return event?.createdAt ?? null;
+  const event = payment.events?.find(
+    (item) => item.eventType === "PAYMENT_REFUND_INITIATED" || item.type === "REFUND_INITIATED"
+  );
+  return event?.occurredAt ?? event?.createdAt ?? null;
+}
+
+export function gatewayAuditEventView(event: {
+  id: string;
+  eventType: string;
+  occurredAt: string;
+  metadata: Record<string, unknown>;
+}) {
+  const reason =
+    typeof event.metadata.reason === "string"
+      ? event.metadata.reason
+      : typeof event.metadata.mismatchType === "string"
+        ? event.metadata.mismatchType
+        : null;
+  const fromStatus =
+    typeof event.metadata.previousStatus === "string" ? event.metadata.previousStatus : null;
+  const toStatus = typeof event.metadata.newStatus === "string" ? event.metadata.newStatus : null;
+  return {
+    id: event.id,
+    eventType: event.eventType,
+    occurredAt: event.occurredAt,
+    reason,
+    fromStatus,
+    toStatus,
+    metadata: event.metadata,
+  };
 }
 
 /** Production visibility rules for Gateway Payment detail actions/cards. */

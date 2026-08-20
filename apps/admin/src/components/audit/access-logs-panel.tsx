@@ -6,20 +6,20 @@ import { AccessLogsTable } from "@/components/access-logs-table";
 import { AccessLogsToolbar } from "@/components/access-logs-toolbar";
 import { useAccessLogs } from "@/hooks/use-access-logs";
 import { AdminQueryErrorState } from "@/components/admin-query-error-state";
-import type { EventType, GetAccessLogsParams } from "@cashsouk/types";
+import { ACCESS_AUDIT_EVENTS, type AccessAuditEventType, type GetAccessLogsParams } from "@cashsouk/types";
 
-const ACCESS_EVENT_TYPES: EventType[] = [
-  "LOGIN",
-  "LOGOUT",
-  "SIGNUP",
-  "KYC_STATUS_UPDATED",
-];
+const ACCESS_EVENT_OPTIONS = ACCESS_AUDIT_EVENTS.map((value) => ({
+  value,
+  label: value
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase()),
+}));
 
 export function AccessLogsPanel() {
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = React.useState("");
   const [eventTypeFilter, setEventTypeFilter] = React.useState("all");
-  const [statusFilter, setStatusFilter] = React.useState("all");
   const [dateRangeFilter, setDateRangeFilter] = React.useState("all");
   const [currentPage, setCurrentPage] = React.useState(1);
   const pageSize = 15;
@@ -30,50 +30,23 @@ export function AccessLogsPanel() {
       pageSize,
       dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
     };
-
-    if (searchQuery) {
-      params.search = searchQuery;
-    }
-
-    if (eventTypeFilter !== "all") {
-      params.eventType = eventTypeFilter as EventType;
-    }
-
-    if (statusFilter !== "all") {
-      params.status = statusFilter as "success" | "failed";
-    }
-
+    if (searchQuery) params.search = searchQuery;
+    if (eventTypeFilter !== "all") params.eventType = eventTypeFilter as AccessAuditEventType;
     return params;
-  }, [currentPage, pageSize, searchQuery, eventTypeFilter, statusFilter, dateRangeFilter]);
+  }, [currentPage, pageSize, searchQuery, eventTypeFilter, dateRangeFilter]);
 
-  const { data, isLoading, error } = useAccessLogs({
-    ...apiParams,
-    allowedEventTypes: ACCESS_EVENT_TYPES,
-  });
-
-  const handleReload = () => {
-    queryClient.invalidateQueries({ queryKey: ["admin", "access-logs"] });
-  };
-
-  const handleClearFilters = () => {
-    setSearchQuery("");
-    setEventTypeFilter("all");
-    setStatusFilter("all");
-    setDateRangeFilter("all");
-    setCurrentPage(1);
-  };
+  const { data, isLoading, error } = useAccessLogs(apiParams);
 
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, eventTypeFilter, statusFilter, dateRangeFilter]);
-
-  const logs = data?.logs || [];
-  const totalLogs = data?.pagination.totalCount || 0;
-  const loading = isLoading;
+  }, [searchQuery, eventTypeFilter, dateRangeFilter]);
 
   if (error) {
     return <AdminQueryErrorState error={error} resourceLabel="access logs" />;
   }
+
+  const logs = data?.logs || [];
+  const totalLogs = data?.pagination.totalCount || 0;
 
   return (
     <div className="space-y-6">
@@ -82,35 +55,53 @@ export function AccessLogsPanel() {
         onSearchChange={setSearchQuery}
         eventTypeFilter={eventTypeFilter}
         onEventTypeFilterChange={setEventTypeFilter}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
         dateRangeFilter={dateRangeFilter}
         onDateRangeFilterChange={setDateRangeFilter}
         totalCount={totalLogs}
         filteredCount={totalLogs}
-        onClearFilters={handleClearFilters}
-        onRefresh={handleReload}
+        onClearFilters={() => {
+          setSearchQuery("");
+          setEventTypeFilter("all");
+          setDateRangeFilter("all");
+          setCurrentPage(1);
+        }}
+        onRefresh={() => queryClient.invalidateQueries({ queryKey: ["admin", "access-logs"] })}
         isLoading={isLoading}
-        allowedEventTypes={ACCESS_EVENT_TYPES}
+        eventTypeOptions={ACCESS_EVENT_OPTIONS}
+        showStatusFilter={false}
+        exportKind="access"
         exportFilters={{
           search: searchQuery || undefined,
-          eventType: eventTypeFilter !== "all" ? (eventTypeFilter as EventType) : undefined,
-          eventTypes: eventTypeFilter === "all" ? ACCESS_EVENT_TYPES : undefined,
-          status: statusFilter !== "all" ? (statusFilter as "success" | "failed") : undefined,
+          eventType: eventTypeFilter !== "all" ? (eventTypeFilter as AccessAuditEventType) : undefined,
           dateRange: dateRangeFilter as "24h" | "7d" | "30d" | "all",
         }}
       />
-
       <AccessLogsTable
         logs={logs.map((log) => ({
-          ...log,
-          created_at: new Date(log.created_at),
+          id: log.id,
+          eventType: log.eventType,
+          occurredAt: log.occurredAt,
+          createdAt: log.createdAt,
+          actorName: log.actor.displayName,
+          actorEmail: log.actor.email,
+          actorType: log.actor.type,
+          actorUserId: log.actor.userId,
+          targetType: log.target.type,
+          targetId: log.target.id,
+          source: log.source,
+          portal: log.portal,
+          ipAddress: log.ipAddress,
+          userAgent: log.userAgent,
+          deviceInfo: log.deviceInfo,
+          correlationId: log.correlationId,
+          metadata: log.metadata,
         }))}
-        loading={loading}
+        loading={isLoading}
         currentPage={currentPage}
         pageSize={pageSize}
         totalLogs={totalLogs}
         onPageChange={setCurrentPage}
+        emptyLabel="No access logs found"
       />
     </div>
   );

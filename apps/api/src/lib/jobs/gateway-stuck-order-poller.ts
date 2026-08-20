@@ -1,12 +1,15 @@
 import {
   GatewayPayment,
-  GatewayPaymentEventType,
   GatewayPaymentStatus,
   PrismaClient,
 } from "@prisma/client";
 import { prisma as defaultPrisma } from "../prisma";
 import { logger } from "../logger";
-import { recordGatewayPaymentEvent } from "../../modules/payment/gateway-events";
+import {
+  systemPaymentAuditContext,
+  writeGatewayPaymentAudit,
+} from "../../modules/payment/audit/writer";
+import { PAYMENT_AUDIT_IDEMPOTENCY } from "../../modules/payment/audit/events";
 import { assertTransition } from "../../modules/payment/state";
 import { syncGatewayPaymentFromCurlec } from "../../modules/payment/webhook-service";
 import { recoverHeldAmountMismatchRefunds } from "../../modules/payment/amount-mismatch-service";
@@ -61,13 +64,21 @@ export async function processStaleGatewayPayment(
       where: { id: payment.id },
       data: { status: GatewayPaymentStatus.EXPIRED },
     });
-    await recordGatewayPaymentEvent(tx, {
-      gatewayPaymentId: payment.id,
-      type: GatewayPaymentEventType.EXPIRED,
-      fromStatus: GatewayPaymentStatus.CREATED,
-      toStatus: GatewayPaymentStatus.EXPIRED,
-      reason: `Abandoned checkout — no Curlec capture after ${STALE_CREATED_MINUTES} minutes`,
-    });
+    await writeGatewayPaymentAudit(
+      current,
+      {
+        eventType: "PAYMENT_EXPIRED",
+        context: systemPaymentAuditContext({ correlationId: CRON_CORRELATION_ID }),
+        idempotencyKey: PAYMENT_AUDIT_IDEMPOTENCY.expired(current.id),
+        metadata: {
+          purpose: current.purpose,
+          previousStatus: GatewayPaymentStatus.CREATED,
+          newStatus: GatewayPaymentStatus.EXPIRED,
+          reason: `Abandoned checkout — no Curlec capture after ${STALE_CREATED_MINUTES} minutes`,
+        },
+      },
+      tx
+    );
     expired = true;
   });
 

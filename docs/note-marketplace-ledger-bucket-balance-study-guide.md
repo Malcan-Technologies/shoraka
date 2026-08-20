@@ -1,5 +1,7 @@
 # Note, Marketplace, Ledger, Bucket Balance, and Repayment Study Guide
 
+> **Audit store:** live note history is `NoteAuditLog` (`note_audit_logs`). Glossary rows below that name `NoteEvent` / `NoteAdminAction` are historical. Do not treat those models as active. See `docs/audit/current-audit-logging-inventory.md`.
+
 ## Table of Contents
 
 - ## 1. Big Picture
@@ -84,8 +86,7 @@ Below are the **main models used by this lifecycle** (fields are the important o
 | `NoteSettlement` | Settlement batch + saved preview snapshot | Admin | Admin settlement panel | `id`, `note_id`, `payment_id`, `status`, `settlement_type`, `gross_receipt_amount`, `investor_principal`, `investor_profit_gross`, `service_fee_amount`, `investor_profit_net`, `tawidh_amount`, `gharamah_amount`, `issuer_residual_amount`, `preview_snapshot`, `approved_by_user_id`, `approved_at`, `posted_at`, `idempotency_key` |
 | `NoteLedgerAccount` | Ledger “bucket” definition | Ledger code | Admin bucket balances | `id`, `code` (unique), `name`, `type`, `currency`, `is_system` |
 | `NoteLedgerEntry` | Immutable ledger postings | Ledger code + admin reads | Admin ledger panel + bucket balances | `id`, `note_id`, `account_id`, `settlement_id`, `payment_id`, `direction`, `amount`, `description`, `idempotency_key` (unique), `posted_at`, `metadata` |
-| `NoteEvent` | Timeline/audit event log | Admin UI | Admin note timeline | `id`, `note_id`, `event_type`, `actor_user_id`, `actor_role`, `portal`, `correlation_id`, `metadata` |
-| `NoteAdminAction` | Admin action log (before/after) | Admin UI | Admin note timeline/audit | `id`, `note_id`, `action_type`, `actor_user_id`, `reason`, `before_state`, `after_state`, `correlation_id` |
+| `NoteAuditLog` | Timeline/audit event log | Admin UI | Admin note timeline + Audit History | `id`, `event_type`, `occurred_at`, actor snapshot, `portal`, `correlation_id`, `metadata` (no Note FK) |
 | `WithdrawalInstruction` | Withdrawal instruction (letter + status) | Admin | Admin withdrawals | `id`, `note_id`, `investor_organization_id`, `issuer_organization_id`, `status`, `withdrawal_type`, `amount`, `letter_s3_key`, `generated_at`, `submitted_to_trustee_at` |
 | `InvestorBalance` | Investor available cash | Investor UI + backend | Investor portfolio pages | `id`, `investor_organization_id` (unique), `available_amount` |
 | `InvestorBalanceTransaction` | Investor cash movements (audit) | Investor UI + backend | Investor balance activity | `id`, `investor_organization_id`, `direction`, `amount`, `source`, `note_id`, `note_investment_id`, `idempotency_key` (unique), `posted_at` |
@@ -321,7 +322,7 @@ UI button “Turn Into Note” calls backend endpoint `POST /from-invoice/:invoi
 
 ### 7. Confirmed from code
 - Notes Registry source invoice table shows “Turn Into Note” only when the invoice doesn’t already have a note.
-- Backend Note creation creates `Note` + `NotePaymentSchedule` and logs `NoteEvent` and `NoteAdminAction`.
+- Backend Note creation creates `Note` + `NotePaymentSchedule` and writes `NoteAuditLog` (`NOTE_CREATED`).
 
 ### 8. Needs code/business confirmation
 - None for this step.

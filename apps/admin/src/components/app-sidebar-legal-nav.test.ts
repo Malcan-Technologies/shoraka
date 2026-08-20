@@ -45,6 +45,10 @@ describe("admin platform sidebar navigation", () => {
     expect(source).not.toMatch(/title:\s*"Documents"/);
   });
 
+  it("labels the audit nav item Audit Logs", () => {
+    expect(source).toContain("<span>Audit Logs</span>");
+  });
+
   it("does not keep the old Users or Organizations directory URLs", () => {
     expect(source).not.toMatch(/url:\s*"\/users"/);
     expect(source).not.toMatch(/url:\s*"\/organizations"/);
