@@ -89,7 +89,7 @@ Do **read-only / disable checks first**, then the cases that consume the file. R
 | **B2** (if still submitted) | Issuer | There is no Archive button on in-flight files. From the issuer session: `POST /v1/applications/{id}/archive`. | **400** — only draft or closed files archive. Same for an offer-sent file (**B3**). |
 | **B6** / **E3R** | Issuer list, then archive via `POST /v1/applications/{id}/archive` | Archive a completed or rejected file. | **200.** File disappears from the issuer list. |
 | **E4** | Admin | Send Offer again. Issuer: Withdraw still available. Admin: Reject still available (reject a section first). | Status `OFFER_EXPIRED` is not hard-final. Resend works; withdraw / reject still allowed. |
-| **E5** | Both | Look at the status badge. Try creating a Note. | Copy: **“Facility in force — no invoices financed.”** Note create stays blocked (no approved invoice). |
+| **E5** | Both | Look at the status badge. Try creating a Note. | Copy: **“Facility approved.”** Note create stays blocked (no approved invoice). |
 
 Issuer archive of closed files is API-only today (the UI archive path is the draft version-mismatch restart). E2/E3 are still worth hitting once with the issuer session cookie.
 

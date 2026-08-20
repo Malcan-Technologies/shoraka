@@ -499,7 +499,7 @@ const FIXTURES: FixtureSpec[] = [
   {
     key: "E5",
     cases: "E5",
-    what: "Completed, facility in force, no approved invoices",
+    what: "Completed, facility approved, no approved invoices",
     structure: "new_contract",
     appStatus: "COMPLETED",
     contractStatus: "APPROVED",

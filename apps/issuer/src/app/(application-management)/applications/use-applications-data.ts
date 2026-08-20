@@ -419,7 +419,7 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
   if (facilityInForceNoInvoices) {
     cardStatus = {
       ...cardStatus,
-      displayLabel: "Facility in force — no invoices financed",
+      displayLabel: "Facility approved",
     };
   }
 

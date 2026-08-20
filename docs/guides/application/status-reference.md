@@ -151,7 +151,7 @@ Issuer list cards collapse many admin stages into urgency aliases (Under Review,
 Offer Received, Action Required). The API status is unchanged.
 
 COMPLETED with an approved facility and zero approved invoices still means the
-facility is in force; copy should say no invoices were financed.
+facility is approved; issuer/admin badge copy: **Facility approved**.
 
 ================================================================================
 WHAT THE USER SEES (STATUS ALIAS)

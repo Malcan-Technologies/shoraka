@@ -65,7 +65,7 @@ export function ApplicationSlimCard({
   const statusToken = badgeKeyToStatusToken(cardStatus.badgeKey);
   const needsAttention = isIssuerApplicationActionable(application);
   const statusLabel = application.facilityInForceNoInvoices
-    ? "Facility in force — no invoices financed"
+    ? "Facility approved"
     : getIssuerCardStatusLabel(cardStatus.badgeKey, {
     withdrawReason:
       cardStatus.badgeKey === "withdrawn" ||

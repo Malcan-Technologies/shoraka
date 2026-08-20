@@ -304,7 +304,7 @@ export default function ApplicationDetailPage() {
   const isDraft = application.status === "draft";
   const hasContract = application.type === "Facility financing";
   const statusLabel = application.facilityInForceNoInvoices
-    ? "Facility in force — no invoices financed"
+    ? "Facility approved"
     : getIssuerPlainStatusLabel(
     application.cardStatus.badgeKey,
     application.cardStatus.badgeKey === "withdrawn" ||

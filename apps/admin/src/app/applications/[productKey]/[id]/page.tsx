@@ -855,7 +855,7 @@ export default function DynamicApplicationDetailPage() {
                     status={app.status}
                     label={
                       facilityInForceNoInvoices
-                        ? "Facility in force — no invoices financed"
+                        ? "Facility approved"
                         : undefined
                     }
                   />
