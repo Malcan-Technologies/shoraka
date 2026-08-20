@@ -15365,15 +15365,15 @@ DB Table: application_audit_logs
 
 ## 1. What this event means
 
-The application was withdrawn (issuer withdraw, or companion write when a contract withdraw cascades).
+The application was withdrawn. Written only when application `status` actually becomes `WITHDRAWN` (issuer cancel, or contract/invoice withdraw rollup).
 
 ## 2. When it logs
 
-`apps/api/src/modules/applications/service.ts` and `apps/api/src/modules/contracts/service.ts` (cascade).
+`apps/api/src/modules/applications/service.ts` (issuer cancel, only if `newStatus === WITHDRAWN`), `apps/api/src/modules/contracts/service.ts` (cascade when the application becomes `WITHDRAWN`), and `apps/api/src/modules/invoices/service.ts` (cascade when the application becomes `WITHDRAWN`).
 
 ## 3. When it does NOT log / no-op
 
-Already-terminal applications fail state checks. Contract-only withdraw also writes `CONTRACT_WITHDRAWN`.
+Already-terminal applications fail state checks. Contract-only or invoice-only withdraw that does not move the application to `WITHDRAWN` does not write this event. Contract withdraw also writes `CONTRACT_WITHDRAWN`.
 
 ## 4. Top-level audit row
 
@@ -15473,8 +15473,9 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 
 ## 8. Writer(s)
 
-- `apps/api/src/modules/applications/service.ts` — withdraw
-- `apps/api/src/modules/contracts/service.ts` — cascade
+- `apps/api/src/modules/applications/service.ts` — withdraw, only if status becomes `WITHDRAWN`
+- `apps/api/src/modules/contracts/service.ts` — cascade, only if status becomes `WITHDRAWN`
+- `apps/api/src/modules/invoices/service.ts` — cascade, only if status becomes `WITHDRAWN`
 - `writeApplicationAuditLog`
 
 ## 9. ADMIN RAW AUDIT
@@ -15558,11 +15559,11 @@ DB Table: application_audit_logs
 
 ## 1. What this event means
 
-The application was rejected (issuer-facing reject or admin reject).
+The application was rejected by admin (`closeApplicationAsRejected`). Issuer HTTP cannot set `REJECTED` (`PATCH /v1/applications/:id/status` allows `DRAFT` | `SUBMITTED` | `RESUBMITTED` only).
 
 ## 2. When it logs
 
-`apps/api/src/modules/applications/service.ts` and `apps/api/src/modules/admin/service.ts`.
+`apps/api/src/modules/applications/lifecycle-close.ts` (`closeApplicationAsRejected`), called from `apps/api/src/modules/admin/service.ts`.
 
 ## 3. When it does NOT log / no-op
 
@@ -15578,7 +15579,7 @@ Append-only `ApplicationAuditLog` / `application_audit_logs`.
 | `application_id` | Application id (required) |
 | `event_type` | `APPLICATION_REJECTED` |
 | `occurred_at` / `created_at` | DB default `now()` |
-| `actor_type` / `actor_user_id` | Issuer user or admin reviewer |
+| `actor_type` / `actor_user_id` | Admin reviewer (`ADMIN`) |
 | `organization_id` | Issuer organization (resolved from application unless overridden) |
 | `organization_kind` | `ISSUER` when organization_id is set, else null |
 | `target_type` | `APPLICATION` |
@@ -15666,8 +15667,8 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 
 ## 8. Writer(s)
 
-- `apps/api/src/modules/applications/service.ts`
-- `apps/api/src/modules/admin/service.ts`
+- `apps/api/src/modules/applications/lifecycle-close.ts` — `closeApplicationAsRejected`
+- `apps/api/src/modules/admin/service.ts` — admin reject caller
 - `writeApplicationAuditLog`
 
 ## 9. ADMIN RAW AUDIT
@@ -15751,15 +15752,15 @@ DB Table: application_audit_logs
 
 ## 1. What this event means
 
-The application was archived. Hidden from curated activity.
+The issuer archived the application. Hidden from curated activity. Draft archive sets `status = ARCHIVED`. Closed-file archive sets `archived_at` and keeps the terminal `status` (`COMPLETED` / `REJECTED` / `WITHDRAWN`).
 
 ## 2. When it logs
 
-`apps/api/src/modules/applications/service.ts` archive.
+`apps/api/src/modules/applications/service.ts` `archiveApplication`.
 
 ## 3. When it does NOT log / no-op
 
-Draft delete is `APPLICATION_DRAFT_DELETED`. Archive of non-archivable states fails before audit.
+Draft delete is `APPLICATION_DRAFT_DELETED`. Archive of non-archivable states fails before audit. Already-archived files (`archived_at` set or `status = ARCHIVED`) fail before audit.
 
 ## 4. Top-level audit row
 
@@ -15771,7 +15772,7 @@ Append-only `ApplicationAuditLog` / `application_audit_logs`.
 | `application_id` | Application id (required) |
 | `event_type` | `APPLICATION_ARCHIVED` |
 | `occurred_at` / `created_at` | DB default `now()` |
-| `actor_type` / `actor_user_id` | Issuer user or admin reviewer |
+| `actor_type` / `actor_user_id` | Issuer user (`USER`) |
 | `organization_id` | Issuer organization (resolved from application unless overridden) |
 | `organization_kind` | `ISSUER` when organization_id is set, else null |
 | `target_type` | `APPLICATION` |
@@ -15788,6 +15789,7 @@ Append-only `ApplicationAuditLog` / `application_audit_logs`.
   actorEmail: string | null;
   previousStatus?: string;
   newStatus?: string;
+  archivedAt?: string;
 }
 ```
 
@@ -15824,7 +15826,7 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Nullable:** No (when present)
 - **Allowed values:** Prior status string
 - **Writer source:** Entity before mutation
-- **Current writer:** Usually set on status transitions
+- **Current writer:** Set on both draft and closed-file archive
 - **Example:** Example not safely inferable from source.
 
 #### `newStatus`
@@ -15834,13 +15836,23 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Nullable:** No (when present)
 - **Allowed values:** New status string
 - **Writer source:** Entity after mutation
-- **Current writer:** Usually set on status transitions
-- **Example:** Example not safely inferable from source.
+- **Current writer:** Draft archive writes `ARCHIVED`. Closed-file archive does not set this key; terminal status is unchanged.
+- **Example:** `"ARCHIVED"` on draft archive
+
+#### `archivedAt`
+
+- **Type:** string | undefined
+- **Required:** No
+- **Nullable:** No (when present)
+- **Allowed values:** ISO timestamp
+- **Writer source:** `archiveApplication` `now.toISOString()`
+- **Current writer:** Closed-file archive only. Draft archive omits this key.
+- **Example:** `"2026-08-20T00:00:00.000Z"`
 
 
 ## 6. Source of truth
 
-`Application`, `ApplicationRevision`, `ApplicationReview` / `ApplicationReviewItem` / `ApplicationReviewRemark`, contract/invoice `offer_details`, and uploaded document slots remain SOT. Resubmit comparison reads revisions + cycle-scoped remarks — never audit. Audit is never workflow state.
+`Application`, `ApplicationRevision`, `ApplicationReview` / `ApplicationReviewItem` / `ApplicationReviewRemark`, contract/invoice `offer_details`, and uploaded document slots remain SOT. Resubmit comparison reads revisions + cycle-scoped remarks — never audit. Audit is never workflow state. Closed-file archive SOT is `Application.archived_at`, not `status = ARCHIVED`.
 
 ## 7. Transaction / audit failure behavior
 
@@ -15848,7 +15860,7 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 
 ## 8. Writer(s)
 
-- `apps/api/src/modules/applications/service.ts` — archive
+- `apps/api/src/modules/applications/service.ts` — `archiveApplication`
 - `writeApplicationAuditLog`
 
 ## 9. ADMIN RAW AUDIT

@@ -301,7 +301,7 @@ Authority is `git show origin/main:<path>` versus the current working tree. Prio
 
 Answer whether useful functionality, data, metadata, readers, UI, permissions, filters, export, history, or business evidence from `origin/main` disappeared.
 
-This is not limited to the live catalogue (now **177** reserved IDs / **174** active writers; this comparison was written against the A001–A174 cutover). Every old audit/log/history writer and reader found on `origin/main` is classified.
+This is not limited to the live catalogue (then **177** reserved IDs / **174** active writers; this comparison was written against the A001–A174 cutover). Living totals are in `docs/audit/current-audit-logging-inventory.md` (**178** reserved / **175** active). Every old audit/log/history writer and reader found on `origin/main` is classified.
 
 ---
 

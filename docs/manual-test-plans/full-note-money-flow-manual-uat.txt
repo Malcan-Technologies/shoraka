@@ -1648,8 +1648,7 @@ Tables written if note is funded:
 - withdrawal_instructions
 - contracts if facility fee is charged
 - note_ledger_entries
-- note_events
-- note_admin_actions
+- note_audit_logs (NoteAuditLog; Admin Note Detail timeline and Audit History)
 - notifications through notification service
 
 Tables written if note fails:
@@ -1657,8 +1656,7 @@ Tables written if note fails:
 - note_investments
 - investor_balances
 - investor_balance_transactions
-- note_events
-- note_admin_actions
+- note_audit_logs (NoteAuditLog; Admin Note Detail timeline and Audit History)
 - notifications through notification service
 
 Statuses changed if funded:
@@ -1898,8 +1896,7 @@ Tables read/written:
 - note_investments
 - investor_balances
 - investor_balance_transactions
-- note_events
-- note_admin_actions
+- note_audit_logs (NoteAuditLog; Admin Note Detail timeline and Audit History)
 
 Statuses changed:
 - notes.status = FAILED_FUNDING.
@@ -2056,7 +2053,7 @@ Tables read:
 
 Tables written:
 - notes, only when applyOverdueLateCharge changes servicing status.
-- note_events.
+- note_audit_logs (NoteAuditLog), only when servicing/note status actually changes (`NOTE_SERVICING_STATUS_CHANGED`). A no-op overdue check writes no audit row.
 - S3 if arrears/default letter is generated.
 
 Statuses changed:
@@ -2088,7 +2085,7 @@ Manual calculation:
 Expected DB result:
 - notes.servicing_status = LATE or ARREARS.
 - notes.status = ARREARS only if arrears threshold reached.
-- note_events contains OVERDUE_LATE_CHARGE_CHECKED.
+- If servicing status actually changed, note_audit_logs contains NOTE_SERVICING_STATUS_CHANGED (Admin Note Detail timeline / Audit History). OVERDUE_LATE_CHARGE_CHECKED is not a live writer.
 
 Negative case:
 - If payment is not overdue after grace, status should not change to LATE/ARREARS.
@@ -2121,7 +2118,7 @@ Tables read:
 Tables written:
 - note_payments
 - note_ledger_entries
-- note_events
+- note_audit_logs (NoteAuditLog; Admin Note Detail timeline and Audit History)
 
 Statuses changed:
 - note_payments.status = PENDING for issuer-submitted payment needing review.
@@ -2175,7 +2172,7 @@ Tables written:
 - note_payments
 - withdrawal_instructions if issuer residual exists
 - notes
-- note_events
+- note_audit_logs (NoteAuditLog; Admin Note Detail timeline and Audit History)
 
 Statuses changed:
 - note_settlements: PREVIEW -> APPROVED -> POSTED.
@@ -2227,7 +2224,7 @@ Tables written:
 - withdrawal_instructions
 - note_ledger_entries for issuer payable debit when issuer payout is completed
 - note_settlements for service fee trustee workflow
-- note_events
+- note_audit_logs (NoteAuditLog; Admin Note Detail timeline and Audit History)
 - notes when issuer disbursement/residual completion changes note status
 
 Money/bucket movement:

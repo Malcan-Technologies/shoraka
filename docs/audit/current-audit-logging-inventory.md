@@ -374,7 +374,7 @@ Sole security/admin-control table. Distinguishes `actor_user_id` vs `subject_use
 
 Sole onboarding/compliance history table. Append-only create. Required `metadata` Json. `occurred_at` + `created_at`. No `updated_at`. No User/org/RegTank FKs (scalar historical ids only).  
 Reserved IDs (18): original A039–A055 plus appended A175 `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`. Types: `ONBOARDING_STARTED`, `ONBOARDING_RESUMED` (retired, historical rows readable), `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `CTOS_REPORT_RECEIVED` (retired, `ctos_reports` still persisted), `CORPORATE_ENTITIES_UPDATED` (retired, `corporate_entities` still persisted), `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED` (APPROVED/REJECTED outcomes only), `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`.
-Current active onboarding event types: **15**. `AML_APPROVED.onboarding_id` is optional linkage to `reg_tank_onboarding.id` when the writer already knows the session. **REMOVED:** `OnboardingLog` / `onboarding_logs`. Audit is never workflow state. There is **no** canonical/global `AuditEvent` table. Live catalogue: **177** reserved / **174** active / **3** retired.
+Current active onboarding event types: **15**. `AML_APPROVED.onboarding_id` is optional linkage to `reg_tank_onboarding.id` when the writer already knows the session. **REMOVED:** `OnboardingLog` / `onboarding_logs`. Audit is never workflow state. There is **no** canonical/global `AuditEvent` table. Live catalogue: **178** reserved / **175** active / **3** retired.
 
 #### ApplicationAuditLog → `application_audit_logs` · APPLICATION · **A**
 
@@ -463,7 +463,7 @@ Create-only for bulk send. Legacy `NotificationLog` / `notification_logs` has be
 
 ## 4. Complete Business Mutation Inventory
 
-IDs are report-only original inventory case numbers (A001…). They are **not** the current catalogue A001–A177 IDs (for example, original case A049 here is admin refresh-corporate-entities, while catalogue A049 is `AML_APPROVED`). Trigger paths in this section were captured before Phase 4 Access/Security cutover. **Current writers are AccessAuditLog / SecurityAuditLog / OnboardingAuditLog as documented in the header and §5–§7.** Historical `LOGIN`/`access_logs` labels in the table below are not live.
+IDs are report-only original inventory case numbers (A001…). They are **not** the current catalogue A001–A178 IDs (for example, original case A049 here is admin refresh-corporate-entities, while catalogue A049 is `AML_APPROVED`). Trigger paths in this section were captured before Phase 4 Access/Security cutover. **Current writers are AccessAuditLog / SecurityAuditLog / OnboardingAuditLog as documented in the header and §5–§7.** Historical `LOGIN`/`access_logs` labels in the table below are not live.
 
 Actor: USER / ADMIN / SYSTEM / PROVIDER / EXTERNAL SIGNER / WEBHOOK.
 
