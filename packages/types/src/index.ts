@@ -275,6 +275,9 @@ export interface Application {
   created_at: string;
   updated_at: string;
   submitted_at?: string | null;
+  /** Present when loaded from issuer list/detail APIs. */
+  canWithdraw?: boolean;
+  archivedAt?: string | null;
 }
 
 export interface CreateApplicationInput {
@@ -490,6 +493,7 @@ export * from "./note-audit";
 export * from "./payment-audit";
 export * from "./acceptance-documents";
 export * from "./offer-acceptance";
+export * from "./origination-phase";
 export * from "./offer-phase-deadline-display";
 export * from "./guarantors";
 export * from "./company-name-normalization";

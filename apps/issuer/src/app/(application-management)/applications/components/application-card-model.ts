@@ -119,11 +119,22 @@ export function applicationCardSubStatus(app: NormalizedApplication): string {
   if (app.status === "draft") return "Continue when you are ready";
   const invoiceCount = app.invoices.length;
   const invoicesNeedingAction = countInvoicesNeedingAction(app.invoices);
-  return `${invoiceCount} invoice${invoiceCount === 1 ? "" : "s"}${
-    invoicesNeedingAction > 0
-      ? ` · ${invoicesNeedingAction} need${invoicesNeedingAction === 1 ? "s" : ""} action`
-      : ""
-  }`;
+
+  if (invoiceCount > 1) {
+    return `${invoiceCount} invoices${
+      invoicesNeedingAction > 0
+        ? ` · ${invoicesNeedingAction} need${invoicesNeedingAction === 1 ? "s" : ""} action`
+        : ""
+    }`;
+  }
+
+  if (invoiceCount === 1) {
+    const inv = app.invoices[0]!;
+    const label = inv.displayReference?.trim() || inv.number?.trim() || "Invoice";
+    return invoicesNeedingAction > 0 ? `${label} · Needs action` : label;
+  }
+
+  return "No invoice yet";
 }
 
 export type ApplicationCardActionKind =

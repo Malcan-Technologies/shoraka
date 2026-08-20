@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { NormalizedApplication } from "../status";
+import { issuerWithdrawBlockedReason } from "./issuer-status-display";
 
 export function ApplicationCardMenu({
   application,
@@ -35,7 +36,15 @@ export function ApplicationCardMenu({
     !!application.signedContractOfferLetterS3Key &&
     hasContract &&
     onViewSignedContractOffer;
-  const withdrawDisabled = !!isCancelApplicationPending || !!showViewSignedContract;
+  const withdrawDisabled = !!isCancelApplicationPending || !application.canWithdraw;
+  const withdrawBlockedReason = issuerWithdrawBlockedReason({
+    canWithdraw: application.canWithdraw,
+    applicationStatus: application.applicationStatus,
+    contractStatus: application.contractStatus,
+    invoices: application.invoices,
+    offerAcceptanceStatus: application.offerAcceptanceStatus,
+    facilityInForceNoInvoices: application.facilityInForceNoInvoices,
+  });
 
   return (
     <DropdownMenu>
@@ -91,10 +100,8 @@ export function ApplicationCardMenu({
             >
               {isCancelApplicationPending ? "Withdrawing…" : "Withdraw application"}
             </DropdownMenuItem>
-            {showViewSignedContract ? (
-              <p className="px-2 py-1.5 text-ui text-muted-foreground">
-                Withdraw is not available while a signed offer letter is on file.
-              </p>
+            {withdrawBlockedReason ? (
+              <p className="px-2 py-1.5 text-ui text-muted-foreground">{withdrawBlockedReason}</p>
             ) : null}
           </>
         )}

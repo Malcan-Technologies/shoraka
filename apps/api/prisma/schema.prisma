@@ -384,6 +384,7 @@ model Application {
   contract_id                         String?
   submitted_at                        DateTime?
   display_reference                   String?                   @unique
+  archived_at                         DateTime?
   contract_originated                 Contract[]                @relation("ContractOriginatingApplication")
   application_revisions               ApplicationRevision[]
   application_review_items            ApplicationReviewItem[]
@@ -397,6 +398,7 @@ model Application {
   signing_envelopes                   SigningEnvelope[]
 
   @@index([display_reference])
+  @@index([issuer_organization_id, archived_at])
   @@map("applications")
 }
 

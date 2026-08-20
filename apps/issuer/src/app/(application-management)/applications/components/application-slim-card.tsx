@@ -15,9 +15,9 @@ import {
   getApplicationCardPrimaryAction,
 } from "./application-card-model";
 import {
+  applicationCardStatusLabel,
   badgeKeyToStatusToken,
   formatApplicationDisplayId,
-  getIssuerCardStatusLabel,
 } from "./issuer-status-display";
 
 export function ApplicationSlimCard({
@@ -37,15 +37,7 @@ export function ApplicationSlimCard({
   const displayId = formatApplicationDisplayId(application.id, application.displayReference);
   const statusToken = badgeKeyToStatusToken(cardStatus.badgeKey);
   const needsAttention = isIssuerApplicationActionable(application);
-  const statusLabel = getIssuerCardStatusLabel(cardStatus.badgeKey, {
-    withdrawReason:
-      cardStatus.badgeKey === "withdrawn" ||
-      cardStatus.badgeKey === "declined" ||
-      cardStatus.badgeKey === "offer_expired"
-        ? application.withdrawReason
-        : undefined,
-    offerAcceptanceStatus: application.offerAcceptanceStatus,
-  });
+  const statusLabel = applicationCardStatusLabel(application);
   const action = getApplicationCardPrimaryAction(application);
 
   return (

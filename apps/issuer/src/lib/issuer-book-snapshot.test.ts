@@ -50,6 +50,9 @@ function makeApp(overrides: Partial<NormalizedApplication> = {}): NormalizedAppl
     contractStatus: null,
     signedContractOfferLetterAvailable: false,
     signedContractOfferLetterS3Key: null,
+    applicationStatus: "SUBMITTED",
+    canWithdraw: true,
+    facilityInForceNoInvoices: false,
     ...overrides,
   };
 }

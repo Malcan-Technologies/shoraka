@@ -71,6 +71,7 @@ const rejectedSchema = z.object({
 const archivedSchema = z.object({
   ...snapshotFields,
   ...previousNewStatus,
+  archivedAt: z.string().optional(),
 });
 
 const draftDeletedSchema = z.object({

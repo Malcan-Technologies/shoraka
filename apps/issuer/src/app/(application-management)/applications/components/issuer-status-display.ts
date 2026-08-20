@@ -1,6 +1,11 @@
 import { badgeKeyToStatusToken, getStatusPresentationByBadgeKey } from "@cashsouk/config";
 import type { WithdrawReason } from "@cashsouk/types";
-import { formatApplicationReference } from "@cashsouk/types";
+import {
+  buildOriginationPhaseInput,
+  formatApplicationReference,
+  issuerWithdrawBlockedMessage,
+  resolveOriginationPhase,
+} from "@cashsouk/types";
 
 export { badgeKeyToStatusToken };
 
@@ -60,6 +65,45 @@ export function getIssuerCardStatusLabel(
     return "Changes requested";
   }
   return getIssuerPlainStatusLabel(badgeKey, options?.withdrawReason);
+}
+
+export function applicationCardStatusLabel(app: {
+  cardStatus: { badgeKey: string };
+  withdrawReason?: WithdrawReason;
+  offerAcceptanceStatus?: string | null;
+  facilityInForceNoInvoices: boolean;
+}): string {
+  if (app.facilityInForceNoInvoices) return "Facility approved";
+  const key = app.cardStatus.badgeKey;
+  return getIssuerCardStatusLabel(key, {
+    withdrawReason:
+      key === "withdrawn" || key === "declined" || key === "offer_expired"
+        ? app.withdrawReason
+        : undefined,
+    offerAcceptanceStatus: app.offerAcceptanceStatus,
+  });
+}
+
+export function issuerWithdrawBlockedReason(app: {
+  canWithdraw: boolean;
+  applicationStatus: string;
+  contractStatus?: string | null;
+  invoices?: Array<{ status?: string | null }>;
+  offerAcceptanceStatus?: string | null;
+  facilityInForceNoInvoices?: boolean;
+}): string | null {
+  if (app.canWithdraw) return null;
+  const phase = resolveOriginationPhase(
+    buildOriginationPhaseInput({
+      applicationStatus: app.applicationStatus,
+      contract: app.contractStatus ? { status: app.contractStatus } : null,
+      invoices: app.invoices,
+      offerAcceptanceStatus: app.offerAcceptanceStatus,
+    })
+  );
+  return issuerWithdrawBlockedMessage(phase, {
+    facilityInForceNoInvoices: app.facilityInForceNoInvoices,
+  });
 }
 
 /** Invoices needing work on the Invoices tab (amendments / rejected). Offer review lives on the Offer tab. */

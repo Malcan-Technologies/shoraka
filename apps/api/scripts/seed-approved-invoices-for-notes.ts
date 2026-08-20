@@ -38,7 +38,10 @@ const SEED_ISSUER_ORG_ID = "seed_notes_issuer_org_a";
 const SEED_PRODUCT_ID = "seed_notes_product_invoice_financing";
 const SEED_CONTRACT_ID = "seed_notes_contract_a";
 const SEED_APP_INVOICE_ONLY_ID = "seed_notes_app_invoice_only_a";
-const SEED_APP_NEW_CONTRACT_ID = "seed_notes_app_new_contract_b";
+const SEED_APP_INVOICE_ONLY_B_ID = "seed_notes_app_invoice_only_b";
+const SEED_APP_NEW_CONTRACT_ID = "seed_notes_app_new_contract_c";
+const SEED_APP_NEW_CONTRACT_D_ID = "seed_notes_app_new_contract_d";
+const SEED_APP_INVOICE_ONLY_E_ID = "seed_notes_app_invoice_only_e";
 const SEED_OWNER_EMAIL = "seed_notes_issuer_owner@example.com";
 const SEED_OWNER_COGNITO_SUB = "seed_notes_issuer_owner_sub_abc";
 
@@ -318,65 +321,53 @@ async function ensureFixedContractAndApplications() {
     category: "invoice_financing",
   } satisfies Record<string, unknown>;
 
-  await prisma.application.upsert({
-    where: { id: SEED_APP_INVOICE_ONLY_ID },
-    update: {
-      issuer_organization_id: SEED_ISSUER_ORG_ID,
-      product_version: 1,
-      status: ApplicationStatus.COMPLETED,
-      last_completed_step: 9,
-      financing_type: applicationFinancingType as Prisma.InputJsonValue,
-      financing_structure: { structure_type: "invoice_only", existing_contract_id: null } as Prisma.InputJsonValue,
-      contract_id: null,
-    },
-    create: {
-      id: SEED_APP_INVOICE_ONLY_ID,
-      issuer_organization_id: SEED_ISSUER_ORG_ID,
-      product_version: 1,
-      status: ApplicationStatus.COMPLETED,
-      last_completed_step: 9,
-      submitted_at: new Date(),
-      financing_type: applicationFinancingType as Prisma.InputJsonValue,
-      financing_structure: { structure_type: "invoice_only", existing_contract_id: null } as Prisma.InputJsonValue,
-      contract_id: null,
-      company_details: Prisma.JsonNull,
-      business_details: Prisma.JsonNull,
-      financial_statements: Prisma.JsonNull,
-      supporting_documents: Prisma.JsonNull,
-      declarations: Prisma.JsonNull,
-      review_and_submit: Prisma.JsonNull,
-    },
-  });
+  const upsertCompletedApp = async (
+    id: string,
+    structureType: "invoice_only" | "new_contract",
+    contractId: string | null
+  ) => {
+    await prisma.application.upsert({
+      where: { id },
+      update: {
+        issuer_organization_id: SEED_ISSUER_ORG_ID,
+        product_version: 1,
+        status: ApplicationStatus.COMPLETED,
+        last_completed_step: 9,
+        financing_type: applicationFinancingType as Prisma.InputJsonValue,
+        financing_structure: {
+          structure_type: structureType,
+          existing_contract_id: null,
+        } as Prisma.InputJsonValue,
+        contract_id: contractId,
+      },
+      create: {
+        id,
+        issuer_organization_id: SEED_ISSUER_ORG_ID,
+        product_version: 1,
+        status: ApplicationStatus.COMPLETED,
+        last_completed_step: 9,
+        submitted_at: new Date(),
+        financing_type: applicationFinancingType as Prisma.InputJsonValue,
+        financing_structure: {
+          structure_type: structureType,
+          existing_contract_id: null,
+        } as Prisma.InputJsonValue,
+        contract_id: contractId,
+        company_details: Prisma.JsonNull,
+        business_details: Prisma.JsonNull,
+        financial_statements: Prisma.JsonNull,
+        supporting_documents: Prisma.JsonNull,
+        declarations: Prisma.JsonNull,
+        review_and_submit: Prisma.JsonNull,
+      },
+    });
+  };
 
-  await prisma.application.upsert({
-    where: { id: SEED_APP_NEW_CONTRACT_ID },
-    update: {
-      issuer_organization_id: SEED_ISSUER_ORG_ID,
-      product_version: 1,
-      status: ApplicationStatus.COMPLETED,
-      last_completed_step: 9,
-      financing_type: applicationFinancingType as Prisma.InputJsonValue,
-      financing_structure: { structure_type: "new_contract", existing_contract_id: null } as Prisma.InputJsonValue,
-      contract_id: SEED_CONTRACT_ID,
-    },
-    create: {
-      id: SEED_APP_NEW_CONTRACT_ID,
-      issuer_organization_id: SEED_ISSUER_ORG_ID,
-      product_version: 1,
-      status: ApplicationStatus.COMPLETED,
-      last_completed_step: 9,
-      submitted_at: new Date(),
-      financing_type: applicationFinancingType as Prisma.InputJsonValue,
-      financing_structure: { structure_type: "new_contract", existing_contract_id: null } as Prisma.InputJsonValue,
-      contract_id: SEED_CONTRACT_ID,
-      company_details: Prisma.JsonNull,
-      business_details: Prisma.JsonNull,
-      financial_statements: Prisma.JsonNull,
-      supporting_documents: Prisma.JsonNull,
-      declarations: Prisma.JsonNull,
-      review_and_submit: Prisma.JsonNull,
-    },
-  });
+  await upsertCompletedApp(SEED_APP_INVOICE_ONLY_ID, "invoice_only", null);
+  await upsertCompletedApp(SEED_APP_INVOICE_ONLY_B_ID, "invoice_only", null);
+  await upsertCompletedApp(SEED_APP_INVOICE_ONLY_E_ID, "invoice_only", null);
+  await upsertCompletedApp(SEED_APP_NEW_CONTRACT_ID, "new_contract", SEED_CONTRACT_ID);
+  await upsertCompletedApp(SEED_APP_NEW_CONTRACT_D_ID, "new_contract", SEED_CONTRACT_ID);
 }
 
 function buildFreshInvoiceSpecs(runId: string, count: number): SeedInvoiceSpec[] {
@@ -451,7 +442,7 @@ function buildFixedInvoiceSpecs(): SeedInvoiceSpec[] {
     {
       label: "platform fee only",
       fixedId: FIXED_INVOICE_IDS[1],
-      applicationId: SEED_APP_INVOICE_ONLY_ID,
+      applicationId: SEED_APP_INVOICE_ONLY_B_ID,
       contractId: null,
       invoiceNumber: "INV-SEED-NOTES-002",
       maturityDate: maturityDateStr(150),
@@ -475,7 +466,7 @@ function buildFixedInvoiceSpecs(): SeedInvoiceSpec[] {
     {
       label: "platform + facility fee",
       fixedId: FIXED_INVOICE_IDS[3],
-      applicationId: SEED_APP_NEW_CONTRACT_ID,
+      applicationId: SEED_APP_NEW_CONTRACT_D_ID,
       contractId: SEED_CONTRACT_ID,
       invoiceNumber: "INV-SEED-NOTES-004",
       maturityDate: maturityDateStr(210),
@@ -487,7 +478,7 @@ function buildFixedInvoiceSpecs(): SeedInvoiceSpec[] {
     {
       label: "maturity today",
       fixedId: FIXED_INVOICE_IDS[4],
-      applicationId: SEED_APP_INVOICE_ONLY_ID,
+      applicationId: SEED_APP_INVOICE_ONLY_E_ID,
       contractId: null,
       invoiceNumber: "INV-SEED-NOTES-005",
       maturityDate: maturityDateTodayLocalStr(),
@@ -699,16 +690,13 @@ async function seedFreshMode(count: number) {
   const runId = makeRunId();
   const ownerUserId = await ensureOwnerUser();
   const { issuerOrgId, issuerOrgName } = await ensureSharedSeedInfrastructure(ownerUserId);
-  const application = await createFreshApplication(runId);
 
-  const specs = buildFreshInvoiceSpecs(runId, count).map((spec) => ({
-    ...spec,
-    applicationId: application.id,
-  }));
+  const specs = buildFreshInvoiceSpecs(runId, count);
 
   const createdIds: string[] = [];
   for (const spec of specs) {
-    const invoice = await createInvoiceFromSpec(spec);
+    const application = await createFreshApplication(`${runId}-${spec.invoiceNumber}`);
+    const invoice = await createInvoiceFromSpec({ ...spec, applicationId: application.id });
     createdIds.push(invoice.id);
   }
 

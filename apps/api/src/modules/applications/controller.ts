@@ -72,7 +72,9 @@ async function getApplication(req: Request, res: Response, next: NextFunction) {
 
     res.json({
       success: true,
-      data: withDisplayReference(data),
+      data: withDisplayReference(
+        data as { display_reference?: string | null }
+      ),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {
@@ -159,7 +161,11 @@ async function cancelApplication(req: Request, res: Response, next: NextFunction
   try {
     const { id } = applicationIdParamSchema.parse(req.params);
     const userId = getUserId(req);
-    const application = await applicationService.cancelApplication(id, userId);
+    const application = await applicationService.cancelApplication(
+      id,
+      userId,
+      auditContextFromRequest(req)
+    );
 
     res.json({
       success: true,
@@ -268,7 +274,7 @@ async function deleteDocument(req: Request, res: Response, next: NextFunction) {
 }
 
 const updateStatusSchema = z.object({
-  status: z.enum(["DRAFT", "SUBMITTED", "RESUBMITTED", "REJECTED", "ARCHIVED"]),
+  status: z.enum(["DRAFT", "SUBMITTED", "RESUBMITTED"]),
 });
 
 /**
@@ -564,7 +570,9 @@ router.get("/", requireAuth, async function listApplications(req, res, next) {
     const result = await applicationService.listByOrganization(organizationId, userId);
     res.json({
       success: true,
-      data: result.map((application) => withDisplayReference(application)),
+      data: result.map((application) =>
+        withDisplayReference(application as { display_reference?: string | null })
+      ),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {

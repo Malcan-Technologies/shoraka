@@ -66,7 +66,12 @@ function hasPendingAmlIndividuals(individuals: ApplicationPersonRow[]): boolean 
 }
 
 function isFinalApplicationStatus(status: string | null | undefined): boolean {
-  return status === "FUNDED" || status === "COMPLETED";
+  return (
+    status === "COMPLETED" ||
+    status === "REJECTED" ||
+    status === "WITHDRAWN" ||
+    status === "ARCHIVED"
+  );
 }
 
 async function resetFinancialReviewAfterCtosUpdateIfNeeded(params: {

@@ -29,6 +29,7 @@ import {
   getOfferAcceptanceFromOfferDetails,
   offerAcceptanceAllowsIssuerReviewCta,
   type OfferAcceptanceStatus,
+  isCompletedWithNoApprovedInvoices,
 } from "@cashsouk/types";
 import { useOrganizationApplications } from "@/hooks/use-applications";
 import { getOfferStatus, getOfferPhaseDeadlineDisplay } from "@/lib/offer-utils";
@@ -420,6 +421,17 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     };
   }
 
+  const facilityInForceNoInvoices = isCompletedWithNoApprovedInvoices(
+    String(api.status ?? "DRAFT"),
+    invoices.map((invoice) => String(invoice.status ?? ""))
+  );
+  if (facilityInForceNoInvoices) {
+    cardStatus = {
+      ...cardStatus,
+      displayLabel: "Facility approved",
+    };
+  }
+
   return {
     id: api.id,
     displayReference: api.displayReference ?? (api as { display_reference?: string | null }).display_reference ?? null,
@@ -451,6 +463,9 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     signedContractOfferLetterS3Key,
     offerPhaseDeadline,
     offerAcceptanceStatus: primaryOfferAcceptanceStatus,
+    applicationStatus: String(api.status ?? "DRAFT").toUpperCase(),
+    canWithdraw: Boolean((api as { canWithdraw?: boolean }).canWithdraw),
+    facilityInForceNoInvoices,
   };
 }
 

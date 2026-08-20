@@ -57,15 +57,15 @@ type SeedSpec = {
 
 const SPECS: SeedSpec[] = [
   { key: "draft", status: "DRAFT", structure: "new_contract", contractStatus: "DRAFT", invoiceStatus: "DRAFT", invoiceCount: 1, lastCompletedStep: 3, daysAgo: 1 },
-  { key: "submitted", status: "SUBMITTED", structure: "new_contract", contractStatus: "SUBMITTED", invoiceStatus: "SUBMITTED", invoiceCount: 2, submitted: true, daysAgo: 2 },
-  { key: "under_review", status: "UNDER_REVIEW", structure: "invoice_only", contractStatus: "SUBMITTED", invoiceStatus: "SUBMITTED", invoiceCount: 2, submitted: true, daysAgo: 3 },
-  { key: "amendment", status: "AMENDMENT_REQUESTED", structure: "new_contract", contractStatus: "AMENDMENT_REQUESTED", invoiceStatus: "AMENDMENT_REQUESTED", invoiceCount: 2, submitted: true, daysAgo: 4 },
-  { key: "resubmitted", status: "RESUBMITTED", structure: "new_contract", contractStatus: "SUBMITTED", invoiceStatus: "SUBMITTED", invoiceCount: 2, submitted: true, daysAgo: 5 },
-  { key: "offer_sent", status: "SUBMITTED", structure: "new_contract", contractStatus: "OFFER_SENT", invoiceStatus: "OFFER_SENT", invoiceCount: 2, submitted: true, daysAgo: 6, withOfferDetails: true },
+  { key: "submitted", status: "SUBMITTED", structure: "new_contract", contractStatus: "SUBMITTED", invoiceStatus: "SUBMITTED", invoiceCount: 1, submitted: true, daysAgo: 2 },
+  { key: "under_review", status: "UNDER_REVIEW", structure: "invoice_only", contractStatus: "SUBMITTED", invoiceStatus: "SUBMITTED", invoiceCount: 1, submitted: true, daysAgo: 3 },
+  { key: "amendment", status: "AMENDMENT_REQUESTED", structure: "new_contract", contractStatus: "AMENDMENT_REQUESTED", invoiceStatus: "AMENDMENT_REQUESTED", invoiceCount: 1, submitted: true, daysAgo: 4 },
+  { key: "resubmitted", status: "RESUBMITTED", structure: "new_contract", contractStatus: "SUBMITTED", invoiceStatus: "SUBMITTED", invoiceCount: 1, submitted: true, daysAgo: 5 },
+  { key: "offer_sent", status: "SUBMITTED", structure: "new_contract", contractStatus: "OFFER_SENT", invoiceStatus: "OFFER_SENT", invoiceCount: 1, submitted: true, daysAgo: 6, withOfferDetails: true },
   { key: "contract_pending", status: "CONTRACT_PENDING", structure: "new_contract", contractStatus: "APPROVED", invoiceStatus: "SUBMITTED", invoiceCount: 1, submitted: true, daysAgo: 7 },
-  { key: "invoices_sent", status: "INVOICES_SENT", structure: "invoice_only", contractStatus: "SUBMITTED", invoiceStatus: "OFFER_SENT", invoiceCount: 3, submitted: true, daysAgo: 8, withOfferDetails: true },
-  { key: "approved", status: "COMPLETED", structure: "new_contract", contractStatus: "APPROVED", invoiceStatus: "APPROVED", invoiceCount: 2, submitted: true, daysAgo: 10 },
-  { key: "completed", status: "COMPLETED", structure: "invoice_only", contractStatus: "APPROVED", invoiceStatus: "APPROVED", invoiceCount: 2, submitted: true, daysAgo: 14 },
+  { key: "invoices_sent", status: "INVOICES_SENT", structure: "invoice_only", contractStatus: "SUBMITTED", invoiceStatus: "OFFER_SENT", invoiceCount: 1, submitted: true, daysAgo: 8, withOfferDetails: true },
+  { key: "approved", status: "COMPLETED", structure: "new_contract", contractStatus: "APPROVED", invoiceStatus: "APPROVED", invoiceCount: 1, submitted: true, daysAgo: 10 },
+  { key: "completed", status: "COMPLETED", structure: "invoice_only", contractStatus: "APPROVED", invoiceStatus: "APPROVED", invoiceCount: 1, submitted: true, daysAgo: 14 },
   { key: "withdrawn", status: "WITHDRAWN", structure: "new_contract", contractStatus: "WITHDRAWN", invoiceStatus: "WITHDRAWN", invoiceCount: 1, submitted: true, daysAgo: 12 },
   { key: "rejected", status: "REJECTED", structure: "new_contract", contractStatus: "REJECTED", invoiceStatus: "REJECTED", invoiceCount: 1, submitted: true, daysAgo: 15 },
   // ARCHIVED is listed but issuer GET /applications/:id currently blocks ARCHIVED — keep for list coverage only.
@@ -216,7 +216,7 @@ async function main() {
       },
     });
 
-    const invoiceInputs = generateInvoiceDetailsList(spec.invoiceCount ?? 2);
+    const invoiceInputs = generateInvoiceDetailsList(spec.invoiceCount ?? 1);
     for (let i = 0; i < invoiceInputs.length; i++) {
       const invoiceId = seedCuid("inv", spec.key, i + 1);
       const details = buildInvoiceDetails(invoiceInputs[i]);

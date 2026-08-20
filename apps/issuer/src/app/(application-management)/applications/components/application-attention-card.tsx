@@ -15,9 +15,9 @@ import {
   getApplicationCardPrimaryAction,
 } from "./application-card-model";
 import {
+  applicationCardStatusLabel,
   badgeKeyToStatusToken,
   formatApplicationDisplayId,
-  getIssuerCardStatusLabel,
 } from "./issuer-status-display";
 import { AttentionCardHeading } from "@/components/attention-type-title";
 import { attentionKindFromApplicationType } from "@/components/attention-type";
@@ -37,15 +37,7 @@ export function ApplicationAttentionCard({
 }) {
   const action = getApplicationCardPrimaryAction(application);
   const statusToken = badgeKeyToStatusToken(application.cardStatus.badgeKey);
-  const statusLabel = getIssuerCardStatusLabel(application.cardStatus.badgeKey, {
-    withdrawReason:
-      application.cardStatus.badgeKey === "withdrawn" ||
-      application.cardStatus.badgeKey === "declined" ||
-      application.cardStatus.badgeKey === "offer_expired"
-        ? application.withdrawReason
-        : undefined,
-    offerAcceptanceStatus: application.offerAcceptanceStatus,
-  });
+  const statusLabel = applicationCardStatusLabel(application);
   const displayId = formatApplicationDisplayId(application.id, application.displayReference);
   const kind = attentionKindFromApplicationType(application.type);
   const ctaLabel =

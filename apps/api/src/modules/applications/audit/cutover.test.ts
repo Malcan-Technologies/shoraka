@@ -188,6 +188,9 @@ describe("Application audit cutover", () => {
     expect(adminService).toMatch(/eventType: "APPLICATION_REOPENED_FOR_REVIEW"/);
     expect(applicationService).toMatch(/eventType: "APPLICATION_WITHDRAWN"/);
     expect(applicationService).toMatch(/eventType: "APPLICATION_REJECTED"/);
+    expect(readSrc("modules/applications/lifecycle-close.ts")).toMatch(
+      /eventType: "APPLICATION_REJECTED"/
+    );
     expect(applicationService).toMatch(/eventType: "APPLICATION_ARCHIVED"/);
     expect(applicationService).toMatch(/eventType: "APPLICATION_DRAFT_DELETED"/);
     expect(applicationService).toMatch(/eventType: "APPLICATION_COMPLETED"/);

@@ -104,6 +104,8 @@ import {
   InvoiceStatus,
   WithdrawReason,
   canDirectAcceptInvoice,
+  canArchiveApplication,
+  canWithdrawApplication,
   getFinancialYearEndComputationDetails,
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
@@ -129,6 +131,10 @@ import {
   allocateDisplayReference,
   resolveApplicationProductCode,
 } from "../../lib/display-reference";
+import {
+  enrichApplicationOriginationFields,
+  resolveApplicationOriginationPhase,
+} from "./origination-guards";
 
 function financialToNum(v: unknown): number {
   if (typeof v === "number" && !Number.isNaN(v)) return v;
@@ -137,7 +143,12 @@ function financialToNum(v: unknown): number {
 }
 
 function isFinalApplicationStatus(status: string | null | undefined): boolean {
-  return status === "FUNDED" || status === "COMPLETED";
+  return (
+    status === "COMPLETED" ||
+    status === "REJECTED" ||
+    status === "WITHDRAWN" ||
+    status === "ARCHIVED"
+  );
 }
 
 /** Business rules for v2 per-year financial blocks (no bsdd). */
@@ -854,7 +865,16 @@ export class ApplicationService {
     }
 
     // ARCHIVED apps remain readable on the detail page; edit/mutations enforce status separately.
-    return application;
+    const envelopes = await prisma.signingEnvelope.findMany({
+      where: { application_id: id },
+      select: { status: true },
+    });
+    return enrichApplicationOriginationFields(
+      application as Parameters<typeof enrichApplicationOriginationFields>[0] & {
+        display_reference?: string | null;
+      },
+      envelopes
+    );
   }
 
   /**
@@ -896,6 +916,20 @@ export class ApplicationService {
     }
 
     const applications = await this.repository.listByOrganization(organizationId);
+    const appIds = applications.map((application) => application.id);
+    const envelopes =
+      appIds.length === 0
+        ? []
+        : await prisma.signingEnvelope.findMany({
+            where: { application_id: { in: appIds } },
+            select: { application_id: true, status: true },
+          });
+    const envelopesByApplication = new Map<string, Array<{ status: string }>>();
+    for (const envelope of envelopes) {
+      const list = envelopesByApplication.get(envelope.application_id) ?? [];
+      list.push({ status: envelope.status });
+      envelopesByApplication.set(envelope.application_id, list);
+    }
 
     const org = await prisma.issuerOrganization.findUnique({
       where: { id: organizationId },
@@ -915,12 +949,18 @@ export class ApplicationService {
       directorShareholderAmlPending = hasActionableDirectorShareholder(people);
     }
 
-    return applications.map((application) => ({
-      ...application,
-      directorShareholderAmlPending: isFinalApplicationStatus(application.status)
-        ? false
-        : directorShareholderAmlPending,
-    }));
+    return applications.map((application) => {
+      const enriched = enrichApplicationOriginationFields(
+        application as Parameters<typeof enrichApplicationOriginationFields>[0],
+        envelopesByApplication.get(application.id) ?? []
+      );
+      return {
+        ...enriched,
+        directorShareholderAmlPending: isFinalApplicationStatus(application.status)
+          ? false
+          : directorShareholderAmlPending,
+      };
+    });
   }
 
   /**
@@ -1449,12 +1489,64 @@ export class ApplicationService {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
 
+    const archivedAt = (application as { archived_at?: Date | null }).archived_at;
+    if (archivedAt || application.status === "ARCHIVED") {
+      throw new AppError(400, "INVALID_STATE", "This application is already archived.");
+    }
+
+    const envelopes = await prisma.signingEnvelope.findMany({
+      where: { application_id: id },
+      select: { status: true },
+    });
+    const phase = resolveApplicationOriginationPhase({
+      status: application.status,
+      contract: (application as { contract?: { status?: string | null; offer_details?: unknown } | null }).contract,
+      invoices: (application as { invoices?: Array<{ status?: string | null; offer_details?: unknown }> }).invoices,
+      financing_structure: (application as { financing_structure?: unknown }).financing_structure,
+      signing_envelopes: envelopes,
+    });
+    if (!canArchiveApplication(phase, { alreadyArchived: !!archivedAt })) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "Only draft or closed applications can be archived. Withdraw or wait until the file is closed first."
+      );
+    }
+
+    const now = new Date();
+    if (phase === "draft") {
+      return prisma.$transaction(async (tx) => {
+        const updated = await tx.application.update({
+          where: { id },
+          data: {
+            status: "ARCHIVED",
+            updated_at: now,
+          },
+        });
+        await writeApplicationAuditLog(
+          {
+            eventType: "APPLICATION_ARCHIVED",
+            context: auditContext,
+            applicationId: id,
+            targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+            targetId: id,
+            metadata: {
+              previousStatus: application.status,
+              newStatus: "ARCHIVED",
+            },
+          },
+          tx
+        );
+        return updated;
+      });
+    }
+
     return prisma.$transaction(async (tx) => {
       const updated = await tx.application.update({
         where: { id },
         data: {
-          status: "ARCHIVED",
-          updated_at: new Date(),
+          archived_at: now,
+          updated_at: now,
         },
       });
       await writeApplicationAuditLog(
@@ -1466,7 +1558,7 @@ export class ApplicationService {
           targetId: id,
           metadata: {
             previousStatus: application.status,
-            newStatus: "ARCHIVED",
+            archivedAt: now.toISOString(),
           },
         },
         tx
@@ -1478,7 +1570,11 @@ export class ApplicationService {
   /**
    * Cancel an application (issuer-only). Withdraws active invoices and contract only.
    */
-  async cancelApplication(id: string, userId: string): Promise<Application> {
+  async cancelApplication(
+    id: string,
+    userId: string,
+    auditContext: AuditRequestContext = issuerApplicationAuditContext(userId)
+  ): Promise<Application> {
     await this.verifyApplicationAccess(id, userId);
 
     const application = await this.repository.findById(id);
@@ -1487,24 +1583,78 @@ export class ApplicationService {
     }
 
     const status = application.status as ApplicationStatus;
+    const contract =
+      (
+        application as {
+          contract?: { id: string; status?: string; offer_details?: unknown } | null;
+        }
+      ).contract ?? null;
+    const invoices =
+      (application as { invoices?: Array<{ id: string; status: string; offer_details?: unknown }> }).invoices ?? [];
+    const envelopes = await prisma.signingEnvelope.findMany({
+      where: { application_id: id },
+      select: { id: true, status: true },
+    });
+    const phase = resolveApplicationOriginationPhase({
+      status,
+      contract,
+      invoices,
+      financing_structure: (application as { financing_structure?: unknown }).financing_structure,
+      signing_envelopes: envelopes,
+    });
 
-    if (status === ApplicationStatus.WITHDRAWN) {
-      throw new AppError(400, "BAD_REQUEST", "This application has already been withdrawn and cannot be cancelled again.");
+    if (!canWithdrawApplication(phase)) {
+      throw new AppError(
+        400,
+        "BAD_REQUEST",
+        phase === "closed"
+          ? "This application can no longer be cancelled."
+          : "This application can no longer be withdrawn after a facility or invoice has been approved."
+      );
     }
 
-    if (
-      status === ApplicationStatus.COMPLETED ||
-      status === ApplicationStatus.REJECTED ||
-      status === ApplicationStatus.ARCHIVED
-    ) {
-      throw new AppError(400, "BAD_REQUEST", "This application can no longer be cancelled.");
-    }
-
-    const contract = (application as any).contract ?? null;
-    const invoices = (application as any).invoices ?? [];
+    const voidableIds = envelopes
+      .filter((envelope) => ["DRAFT", "SENT", "IN_PROGRESS"].includes(envelope.status))
+      .map((envelope) => envelope.id);
 
     await prisma.$transaction(async (tx) => {
-      for (const invoice of invoices) {
+      const locked = await tx.application.findUnique({
+        where: { id },
+        include: {
+          contract: {
+            select: { id: true, status: true, offer_details: true },
+          },
+          invoices: {
+            select: { id: true, status: true, offer_details: true },
+          },
+        },
+      });
+      if (!locked) {
+        throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+      }
+
+      const lockedEnvelopes = await tx.signingEnvelope.findMany({
+        where: { application_id: id },
+        select: { status: true },
+      });
+      const lockedPhase = resolveApplicationOriginationPhase({
+        status: locked.status,
+        contract: locked.contract,
+        invoices: locked.invoices,
+        financing_structure: locked.financing_structure,
+        signing_envelopes: lockedEnvelopes,
+      });
+      if (!canWithdrawApplication(lockedPhase)) {
+        throw new AppError(
+          400,
+          "BAD_REQUEST",
+          lockedPhase === "closed"
+            ? "This application can no longer be cancelled."
+            : "This application can no longer be withdrawn after a facility or invoice has been approved."
+        );
+      }
+
+      for (const invoice of locked.invoices ?? []) {
         if (
           invoice.status !== InvoiceStatus.APPROVED &&
           invoice.status !== InvoiceStatus.REJECTED &&
@@ -1520,14 +1670,15 @@ export class ApplicationService {
         }
       }
 
+      const lockedContract = locked.contract;
       if (
-        contract &&
-        contract.status !== ContractStatus.APPROVED &&
-        contract.status !== ContractStatus.WITHDRAWN &&
-        contract.status !== ContractStatus.REJECTED
+        lockedContract &&
+        lockedContract.status !== ContractStatus.APPROVED &&
+        lockedContract.status !== ContractStatus.WITHDRAWN &&
+        lockedContract.status !== ContractStatus.REJECTED
       ) {
         await tx.contract.update({
-          where: { id: contract.id },
+          where: { id: lockedContract.id },
           data: {
             status: ContractStatus.WITHDRAWN,
             withdraw_reason: WithdrawReason.USER_CANCELLED,
@@ -1539,7 +1690,7 @@ export class ApplicationService {
         where: { application_id: id },
       });
 
-      const contractId = contract?.id ?? (application as { contract_id?: string }).contract_id;
+      const contractId = lockedContract?.id ?? locked.contract_id;
       const updatedContract = contractId
         ? await tx.contract.findUnique({ where: { id: contractId } })
         : null;
@@ -1549,25 +1700,31 @@ export class ApplicationService {
       }
 
       const isInvoiceOnly =
-        (application as { financing_structure?: { structure_type?: string } }).financing_structure
-          ?.structure_type === "invoice_only";
+        (locked.financing_structure as { structure_type?: string } | null)?.structure_type ===
+        "invoice_only";
       const newStatus = computeApplicationStatus(
         updatedContract as { status: ContractStatus } | null,
         updatedInvoices.map((i) => ({ status: i.status as InvoiceStatus })),
-        status,
+        locked.status as ApplicationStatus,
         { isInvoiceOnly }
       );
 
-      await tx.application.update({
-        where: { id },
+      const statusWrite = await tx.application.updateMany({
+        where: {
+          id,
+          status: locked.status,
+        },
         data: { status: newStatus as unknown as DbApplicationStatus },
       });
+      if (statusWrite.count === 0) {
+        throw new AppError(409, "CONFLICT", "Application status changed during withdrawal.");
+      }
 
       if (newStatus === ApplicationStatus.WITHDRAWN) {
         await writeApplicationAuditLog(
           {
             eventType: "APPLICATION_WITHDRAWN",
-            context: issuerApplicationAuditContext(userId),
+            context: auditContext,
             applicationId: id,
             targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
             targetId: id,
@@ -1581,6 +1738,24 @@ export class ApplicationService {
         );
       }
     });
+
+    if (voidableIds.length > 0) {
+      const { signingService } = await import("../signing/service");
+      for (const envelopeId of voidableIds) {
+        try {
+          await signingService.voidEnvelope(
+            envelopeId,
+            "Application withdrawn by issuer",
+            auditContext
+          );
+        } catch (voidError) {
+          logger.error(
+            { error: voidError, applicationId: id, envelopeId },
+            "Failed to void signing envelope during application withdrawal"
+          );
+        }
+      }
+    }
 
     const updated = await this.repository.findById(id);
     if (!updated) {

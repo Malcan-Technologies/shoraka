@@ -52,6 +52,7 @@ import {
   formatDate,
 } from "@/components/financing/utils";
 import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
+import { financeInvoiceApplicationHref } from "@/lib/finance-invoice-application-href";
 import { formatContractReference } from "@cashsouk/types";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
 
@@ -275,6 +276,11 @@ function ContractDetailsPageContent() {
         }
         actions={
           <>
+            {row.contractStatus === "APPROVED" ? (
+              <Button className="rounded-xl" asChild>
+                <Link href={financeInvoiceApplicationHref(contractId)}>Finance an invoice</Link>
+              </Button>
+            ) : null}
             {showReviewOffer ? (
               <div className="rounded-xl bg-status-action-bg p-0.5">
                 <Button className="rounded-xl" asChild>
@@ -416,6 +422,13 @@ function ContractDetailsPageContent() {
                 <EmptyState
                   title="No invoices yet"
                   message="Invoices financed under this facility will appear here."
+                  action={
+                    row.contractStatus === "APPROVED" ? (
+                      <Button className="rounded-xl" asChild>
+                        <Link href={financeInvoiceApplicationHref(contractId)}>Finance an invoice</Link>
+                      </Button>
+                    ) : undefined
+                  }
                 />
               ) : filteredInvoices.length === 0 ? (
                 <EmptyState

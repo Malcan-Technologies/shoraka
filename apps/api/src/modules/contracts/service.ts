@@ -6,9 +6,13 @@ import { ApplicationReviewRemark, Contract, Prisma } from "@prisma/client";
 import {
   ApplicationStatus,
   ContractStatus,
+  InvoiceStatus,
   WithdrawReason,
   parseScopeKey,
+  buildOriginationPhaseInput,
+  resolveOriginationPhase,
 } from "@cashsouk/types";
+import { computeApplicationStatus } from "../applications/lifecycle";
 import { prisma } from "../../lib/prisma";
 import {
   APPLICATION_AUDIT_TARGET_TYPE,
@@ -369,12 +373,34 @@ export class ContractService {
       throw new AppError(400, "BAD_REQUEST", "This facility was already withdrawn.");
     }
 
+    const applicationRefs = (contract as { applications?: { id: string }[] }).applications ?? [];
+    const linkedApplications = (
+      await Promise.all(applicationRefs.map((appRef) => this.applicationRepository.findById(appRef.id)))
+    ).filter((application): application is NonNullable<typeof application> => application != null);
+
+    for (const linked of linkedApplications) {
+      const phase = resolveOriginationPhase(
+        buildOriginationPhaseInput({
+          applicationStatus: linked.status,
+          contract: { status: contract.status },
+          invoices: (linked as { invoices?: Array<{ status?: string | null }> }).invoices,
+        })
+      );
+      if (phase === "approved" || phase === "closed") {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "This facility is linked to an approved or closed application and cannot be withdrawn."
+        );
+      }
+    }
+
     const finalReason = reason ?? WithdrawReason.USER_CANCELLED;
     const previousStatus = contract.status;
-    const applications = (contract as { applications?: { id: string }[] }).applications ?? [];
+    const auditContext = issuerApplicationAuditContext(userId);
 
     const updated = await prisma.$transaction(async (tx) => {
-      const next = await tx.contract.update({
+      const withdrawnContract = await tx.contract.update({
         where: { id },
         data: {
           status: ContractStatus.WITHDRAWN,
@@ -382,20 +408,30 @@ export class ContractService {
         },
       });
 
-      for (const app of applications) {
+      for (const linked of linkedApplications) {
+        const invoices = (linked as { invoices?: Array<{ status: string }> }).invoices ?? [];
+        const isInvoiceOnly =
+          (linked as { financing_structure?: { structure_type?: string } | null }).financing_structure
+            ?.structure_type === "invoice_only";
+        const nextStatus = computeApplicationStatus(
+          { status: ContractStatus.WITHDRAWN },
+          invoices.map((invoice) => ({ status: invoice.status as InvoiceStatus })),
+          linked.status as ApplicationStatus,
+          { isInvoiceOnly }
+        );
         await tx.application.update({
-          where: { id: app.id },
-          data: { status: "WITHDRAWN" },
+          where: { id: linked.id },
+          data: { status: nextStatus },
         });
         await tx.applicationReview.upsert({
           where: {
             application_id_section: {
-              application_id: app.id,
+              application_id: linked.id,
               section: "contract_details",
             },
           },
           create: {
-            application_id: app.id,
+            application_id: linked.id,
             section: "contract_details",
             status: "WITHDRAWN",
             reviewer_user_id: userId,
@@ -410,8 +446,8 @@ export class ContractService {
         await writeApplicationAuditLog(
           {
             eventType: "CONTRACT_WITHDRAWN",
-            context: issuerApplicationAuditContext(userId),
-            applicationId: app.id,
+            context: auditContext,
+            applicationId: linked.id,
             targetType: APPLICATION_AUDIT_TARGET_TYPE.CONTRACT,
             targetId: id,
             metadata: {
@@ -422,23 +458,26 @@ export class ContractService {
           },
           tx
         );
-        await writeApplicationAuditLog(
-          {
-            eventType: "APPLICATION_WITHDRAWN",
-            context: issuerApplicationAuditContext(userId),
-            applicationId: app.id,
-            targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
-            targetId: app.id,
-            metadata: {
-              newStatus: "WITHDRAWN",
-              withdrawReason: finalReason,
+        if (nextStatus === ApplicationStatus.WITHDRAWN) {
+          await writeApplicationAuditLog(
+            {
+              eventType: "APPLICATION_WITHDRAWN",
+              context: auditContext,
+              applicationId: linked.id,
+              targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
+              targetId: linked.id,
+              metadata: {
+                previousStatus: linked.status,
+                newStatus: "WITHDRAWN",
+                withdrawReason: finalReason,
+              },
             },
-          },
-          tx
-        );
+            tx
+          );
+        }
       }
 
-      return next;
+      return withdrawnContract;
     });
 
     return updated;
