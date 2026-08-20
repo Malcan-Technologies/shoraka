@@ -95,7 +95,8 @@ import {
   type ContractOfferDetails,
   type InvoiceOfferDetails,
 } from "./offer-letter-pdf";
-import { computeContractFacilitySnapshot } from "../../lib/contract-facility";
+import { refreshContractFacilityValues } from "../../lib/refresh-contract-facility";
+import { resolveOfferedFacility } from "../../lib/contract-facility";
 import { resolveOfferedPlatformFeeRatePercent } from "../../lib/invoice-offer";
 import {
   ApplicationStatus,
@@ -1543,6 +1544,10 @@ export class ApplicationService {
         ? await tx.contract.findUnique({ where: { id: contractId } })
         : null;
 
+      if (contractId) {
+        await refreshContractFacilityValues(contractId, tx);
+      }
+
       const isInvoiceOnly =
         (application as { financing_structure?: { structure_type?: string } }).financing_structure
           ?.structure_type === "invoice_only";
@@ -1950,6 +1955,7 @@ export class ApplicationService {
             data: { status: "SUBMITTED" as any },
           });
         }
+        await refreshContractFacilityValues(application.contract_id);
       }
     }
 
@@ -2505,7 +2511,7 @@ export class ApplicationService {
       const now = new Date().toISOString();
       /** Issuer rejecting offer = withdraw financing request. Admin reject = REJECTED. */
       const newStatus = action === "accept" ? "APPROVED" : "WITHDRAWN";
-      const offeredFacility = Number(offer.offered_facility) || 0;
+      const offeredFacility = resolveOfferedFacility(offer);
       const requestedFacility = Number(offer.requested_facility) || 0;
       const facilityFeeRatePercentRaw =
         typeof offer.facility_fee_rate_percent === "number" ? offer.facility_fee_rate_percent : 0;
@@ -2528,14 +2534,11 @@ export class ApplicationService {
       }
 
       const cd = (contract.contract_details as Record<string, unknown>) || {};
-      const utilizedFacility = typeof cd.utilized_facility === "number" ? cd.utilized_facility : 0;
       const mergedDetails =
         action === "accept"
           ? {
             ...cd,
             approved_facility: offeredFacility,
-            utilized_facility: utilizedFacility,
-            available_facility: offeredFacility - utilizedFacility,
             facility_fee_rate_percent: facilityFeeRatePercent,
             facility_fee_paid_amount:
               typeof cd.facility_fee_paid_amount === "number" && Number.isFinite(cd.facility_fee_paid_amount)
@@ -2556,6 +2559,8 @@ export class ApplicationService {
             : {}),
         },
       });
+
+      await refreshContractFacilityValues(contractId, tx);
 
       await tx.applicationReview.upsert({
         where: {
@@ -2914,37 +2919,6 @@ export class ApplicationService {
         },
       });
 
-      if (application.contract_id) {
-        const contract = await tx.contract.findUnique({
-          where: { id: application.contract_id },
-          include: { invoices: true },
-        });
-        if (contract) {
-          const contractDetails = contract.contract_details as Record<string, unknown> | null;
-          const { approvedFacility, utilizedFacility, availableFacility } =
-            computeContractFacilitySnapshot(
-              contract.status,
-              contractDetails,
-              contract.invoices.map((linkedInvoice) => ({
-                status: linkedInvoice.status,
-                details: (linkedInvoice.details as Record<string, unknown> | null) ?? null,
-                offer_details: (linkedInvoice.offer_details as Record<string, unknown> | null) ?? null,
-              }))
-            );
-          await tx.contract.update({
-            where: { id: application.contract_id },
-            data: {
-              contract_details: {
-                ...(contractDetails && typeof contractDetails === "object" ? contractDetails : {}),
-                approved_facility: approvedFacility,
-                utilized_facility: utilizedFacility,
-                available_facility: availableFacility,
-              },
-            },
-          });
-        }
-      }
-
       if (scopeKey) {
         await tx.applicationReviewItem.upsert({
           where: {
@@ -3128,6 +3102,20 @@ export class ApplicationService {
             },
           },
           tx
+        );
+      }
+      if (application.contract_id) {
+        await refreshContractFacilityValues(
+          application.contract_id,
+          tx,
+          action === "accept"
+            ? {
+                context: offerContext,
+                reason: "INVOICE_ACCEPTED",
+                applicationId,
+                invoiceId,
+              }
+            : undefined
         );
       }
       if (appStatus === ApplicationStatus.COMPLETED) {

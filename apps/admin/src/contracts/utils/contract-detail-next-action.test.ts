@@ -207,7 +207,7 @@ describe("contract tab dots", () => {
     ).toBe("success");
   });
 
-  it("dots Notes from the highest child-note status", () => {
+  it("dots Drawdowns from the highest child-note status", () => {
     expect(resolveContractNotesTabToken([])).toBe("neutral");
     expect(
       resolveContractNotesTabToken([{ status: "REPAID" }, { status: "FUNDING" }])

@@ -19,11 +19,18 @@ import {
   EM_DASH,
   FINANCING_ARREARS_SURFACE,
   FINANCING_ATTENTION_SURFACE,
+  InvestorCommitmentLine,
   LabelValue,
   displayCell,
   formatDate,
   formatMoney,
 } from "./utils";
+import { MarketplaceCampaignFacts } from "./marketplace-campaign-facts";
+import {
+  buildIssuerMarketplaceCampaign,
+  issuerCampaignCloseLabel,
+  issuerCampaignDaysLeftLabel,
+} from "./marketplace-campaign";
 import {
   isIssuerNoteActionable,
   isIssuerNoteInArrears,
@@ -151,6 +158,11 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
   const donutTone = financingDonutTone(note);
   const inArrears = isIssuerNoteInArrears(note);
   const needsAttention = isIssuerNoteActionable(note);
+  const campaign = buildIssuerMarketplaceCampaign(note);
+  const campaignCloseLabel = issuerCampaignCloseLabel(
+    formatDate(campaign.closesAt),
+    issuerCampaignDaysLeftLabel(campaign.daysLeft, campaign.raising)
+  );
 
   return (
     <article
@@ -230,6 +242,15 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
               />
             </div>
 
+            {campaign.raising ? (
+              <MarketplaceCampaignFacts note={note} />
+            ) : (
+              <InvestorCommitmentLine
+                fundedAmount={note.fundedAmount}
+                investorCount={note.investorCount}
+              />
+            )}
+
             <div className="grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-2">
               <div className="min-w-0 space-y-2">
                 <LabelValue label="Paymaster">{displayCell(note.paymasterName)}</LabelValue>
@@ -261,6 +282,10 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
                 ) : null}
               </div>
               <div className="min-w-0 space-y-2">
+                <LabelValue label="Campaign closes">
+                  {campaign.closesAt ? campaignCloseLabel : EM_DASH}
+                </LabelValue>
+                <LabelValue label="Min to succeed">{`${campaign.minimumPercent}%`}</LabelValue>
                 <LabelValue label="Maturity date">{formatDate(note.maturityDate)}</LabelValue>
               </div>
             </div>

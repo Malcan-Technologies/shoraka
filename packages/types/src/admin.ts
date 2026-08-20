@@ -478,6 +478,7 @@ export const APPLICATION_AUDIT_EVENTS = [
   "INVOICE_OFFER_ACCEPTED",
   "INVOICE_OFFER_REJECTED",
   "INVOICE_WITHDRAWN",
+  "CONTRACT_FACILITY_OCCUPANCY_UPDATED",
 ] as const;
 
 export type ApplicationAuditEventType = (typeof APPLICATION_AUDIT_EVENTS)[number];
@@ -1305,6 +1306,10 @@ export interface AdminContractNoteSummary {
   status: string;
   sourceApplicationId: string;
   sourceInvoiceId: string | null;
+  /** Note target — the facility drawdown, same basis as utilized facility. */
+  targetAmount: number;
+  /** Marketplace fill. 0 until funding starts. */
+  fundedAmount: number;
 }
 
 /** Contract audit row sourced from `application_audit_logs` (no dedicated contract_logs table). */

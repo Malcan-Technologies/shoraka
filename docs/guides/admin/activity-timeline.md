@@ -63,7 +63,7 @@ Signing remains a separate store (`SigningAuditLog`). The curated timeline reade
 
 Admin curated timeline additionally hides `SIGNING_PACKAGE_COMPLETED` (`TIMELINE_HIDDEN_EVENT_TYPES`). Terminal offer success on that timeline is `CONTRACT_OFFER_ACCEPTED` / `INVOICE_OFFER_ACCEPTED`. Issuer `/activity` still shows `SIGNING_PACKAGE_COMPLETED` when visibility allows it.
 
-Live application event names include `CONTRACT_ACCEPTANCE_*`, `APPLICATION_AMENDMENTS_REQUESTED`, `APPLICATION_SECTION_REVIEW_UPDATED`, `APPLICATION_ITEM_REVIEW_UPDATED`, and `APPLICATION_REOPENED_FOR_REVIEW`. There is no live `APPLICATION_APPROVED` application audit event. CSV/display maps may still label historical aliases; those aliases are not emitted by current writers.
+Live application event names include `CONTRACT_ACCEPTANCE_*`, `APPLICATION_AMENDMENTS_REQUESTED`, `APPLICATION_SECTION_REVIEW_UPDATED`, `APPLICATION_ITEM_REVIEW_UPDATED`, `APPLICATION_REOPENED_FOR_REVIEW`, and `CONTRACT_FACILITY_OCCUPANCY_UPDATED` (A178). Occupancy is admin Application / Contract Activity SHOW, issuer/investor `/activity` HIDE, and raw Application Audit History SHOW. There is no live `APPLICATION_APPROVED` application audit event. CSV/display maps may still label historical aliases; those aliases are not emitted by current writers.
 
 Titles use `formatApplicationActivity` / `formatSigningActivity`. Invoice numbers appear in copy when metadata includes `invoiceNumber` / `invoice_number`.
 

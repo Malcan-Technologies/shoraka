@@ -546,6 +546,23 @@ export function formatApplicationActivity(
         title: "Facility Withdrawn",
         description: "The facility was withdrawn.",
       };
+    case "CONTRACT_FACILITY_OCCUPANCY_UPDATED": {
+      const reason = readString(record, "reason");
+      const reasonCopy =
+        reason === "INVOICE_ACCEPTED"
+          ? "an invoice was accepted"
+          : reason === "FUNDING_CLOSED"
+            ? "funding closed"
+            : reason === "FUNDING_FAILED"
+              ? "funding failed"
+              : reason === "NOTE_REPAID"
+                ? "a note was repaid"
+                : "a facility change";
+      return {
+        title: "Facility Utilization Updated",
+        description: `Facility usage was updated after ${reasonCopy}.`,
+      };
+    }
     case "INVOICE_OFFER_SENT":
       return {
         title: "Invoice Offer Sent",
@@ -1235,6 +1252,7 @@ const ACTIVITY_STATUS_BY_EVENT: Record<string, ActivityStatusToken> = {
   CONTRACT_OFFER_EXPIRED: "rejected",
   CONTRACT_SIGNING_DEADLINE_EXTENDED: "submitted",
   CONTRACT_WITHDRAWN: "neutral",
+  CONTRACT_FACILITY_OCCUPANCY_UPDATED: "submitted",
 
   INVOICE_OFFER_SENT: "action",
   INVOICE_ACCEPTANCE_SUBMITTED: "submitted",

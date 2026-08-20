@@ -22,8 +22,10 @@ import type {
   GetAdminContractsQuery,
 } from "./schemas";
 import {
+  resolveApprovedFacilityForRefresh,
   resolveRequestedFacility,
   resolveOfferedFacility,
+  parseFacilityJsonAmount,
 } from "../../lib/contract-facility";
 import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
 
@@ -1694,9 +1696,12 @@ export class AdminRepository {
 
     const transformedContracts = contracts.map((contract) => {
       const contractDetails = (contract.contract_details ?? {}) as Record<string, unknown>;
-      const contractValue = Number(contractDetails.value ?? contractDetails.financing ?? 0);
-      const approvedFacility = Number(contractDetails.approved_facility ?? 0);
-      const utilizedFacility = Number(contractDetails.utilized_facility ?? 0);
+      const contractValue =
+        parseFacilityJsonAmount(contractDetails.value) ??
+        parseFacilityJsonAmount(contractDetails.financing) ??
+        0;
+      const approvedFacility = resolveApprovedFacilityForRefresh(contract.status, contractDetails);
+      const utilizedFacility = parseFacilityJsonAmount(contractDetails.utilized_facility) ?? 0;
 
       return {
         id: contract.id,
@@ -1753,6 +1758,8 @@ export class AdminRepository {
       status: string;
       sourceApplicationId: string;
       sourceInvoiceId: string | null;
+      targetAmount: number;
+      fundedAmount: number;
     }[];
     activity: {
       id: string;
@@ -1828,7 +1835,7 @@ export class AdminRepository {
         ? offerDetails.requested_facility
         : resolveRequestedFacility(contractDetails);
     const offeredFacility = resolveOfferedFacility(offerDetails);
-    const approvedFacility = Number(contractDetails.approved_facility ?? 0);
+    const approvedFacility = resolveApprovedFacilityForRefresh(contract.status, contractDetails);
 
     const applications = contract.applications.map((application) => {
       let requestedAmount = 0;
@@ -1836,13 +1843,16 @@ export class AdminRepository {
       if (application.invoices.length > 0) {
         requestedAmount = application.invoices.reduce((sum, invoice) => {
           const details = (invoice.details ?? {}) as Record<string, unknown>;
-          const invoiceValue = Number(details.value ?? 0);
-          const financingRatio = Number(details.financing_ratio_percent ?? 80);
+          const invoiceValue = parseFacilityJsonAmount(details.value) ?? 0;
+          const financingRatio = parseFacilityJsonAmount(details.financing_ratio_percent) ?? 80;
           return sum + (invoiceValue * financingRatio) / 100;
         }, 0);
       } else if (application.contract?.contract_details) {
         const appContractDetails = application.contract.contract_details as Record<string, unknown>;
-        requestedAmount = Number(appContractDetails.value ?? appContractDetails.approved_facility ?? 0);
+        requestedAmount =
+          parseFacilityJsonAmount(appContractDetails.value) ??
+          parseFacilityJsonAmount(appContractDetails.approved_facility) ??
+          0;
       }
 
       return {
@@ -1894,6 +1904,8 @@ export class AdminRepository {
           status: true,
           source_application_id: true,
           source_invoice_id: true,
+          target_amount: true,
+          funded_amount: true,
         },
       }),
       prisma.applicationAuditLog.findMany({
@@ -1960,6 +1972,8 @@ export class AdminRepository {
         status: note.status,
         sourceApplicationId: note.source_application_id,
         sourceInvoiceId: note.source_invoice_id,
+        targetAmount: note.target_amount.toNumber(),
+        fundedAmount: note.funded_amount.toNumber(),
       })),
       activity: activityLogs.map((log) => {
         const metadata = (log.metadata as Record<string, unknown> | null) ?? {};

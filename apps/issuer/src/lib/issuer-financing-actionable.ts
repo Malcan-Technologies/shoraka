@@ -13,11 +13,9 @@ import {
 import { buildFinancingInvoiceRows, type FinancingInvoiceRow } from "@/components/financing/financing-invoice-rows";
 import { financingOfferHref } from "@/lib/financing-offer-href";
 import { actionsRequiredLabel } from "@/lib/issuer-pending-actions";
+import { isIssuerContractActionable } from "@/lib/issuer-contract-actionable";
 
-export function isIssuerContractActionable(contract: IssuerDashboardContract): boolean {
-  if ((contract.actionRequiredApplicationIds ?? []).length > 0) return true;
-  return shouldShowIssuerReviewOfferCta(asContractForModal(contract.contractForModal));
-}
+export { isIssuerContractActionable } from "@/lib/issuer-contract-actionable";
 
 export function isIssuerInvoiceActionable(invoice: IssuerDashboardInvoice): boolean {
   if ((invoice.actionRequiredApplicationIds ?? []).length > 0) return true;

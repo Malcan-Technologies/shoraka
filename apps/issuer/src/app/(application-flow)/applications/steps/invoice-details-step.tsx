@@ -31,8 +31,8 @@
  *    - Editing maximum financing amount uses ceil(amount ÷ invoice value × 100), then clamps to that range.
  *
  * 9. Facility limit
- *    - Total financing amount across all invoices
- *      must not exceed the approved facility limit.
+ *    - Requested financing above remaining available is a warning, not a hard block.
+ *      Admin can still size or accept the offer.
  */
 
 
@@ -52,9 +52,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/app/(application-flow)/applications/components/date-input";
 import { Trash2 } from "lucide-react";
-import { createApiClient, useAuthToken, ApiClient } from "@cashsouk/config";
+import { createApiClient, useAuthToken, ApiClient, resolveApprovedFacility } from "@cashsouk/config";
 import { toast } from "sonner";
-import { XMarkIcon, CloudArrowUpIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, CloudArrowUpIcon, InformationCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { Slider } from "@cashsouk/ui";
 import { cn } from "@cashsouk/ui";
 import {
@@ -697,10 +697,10 @@ export default function InvoiceDetailsStep({
   };
 
   const cd = application?.contract?.contract_details;
-  const approvedFacility =
-    typeof cd?.approved_facility === "number" && cd.approved_facility > 0
-      ? cd.approved_facility
-      : 0;
+  const approvedFacility = resolveApprovedFacility(
+    application?.contract?.status ?? "",
+    cd as Record<string, unknown> | null | undefined
+  );
   const contractFinancing =
     typeof cd?.financing === "number"
       ? cd.financing
@@ -708,7 +708,11 @@ export default function InvoiceDetailsStep({
 
   /** For existing_contract: use stored available_facility from backend (approved - utilized, utilized = approved invoices only). */
   const storedAvailableFacility =
-    typeof cd?.available_facility === "number" ? cd.available_facility : null;
+    typeof cd?.available_facility === "number"
+      ? cd.available_facility
+      : cd?.available_facility != null
+        ? parseMoney(String(cd.available_facility))
+        : null;
 
   const structureType =
     effectiveStructureType ?? application?.financing_structure?.structure_type;
@@ -727,6 +731,7 @@ export default function InvoiceDetailsStep({
   const allRowsValid = invoices.every((inv) => validateRow(inv));
 
   let validationError = "";
+  let facilityCapacityWarning = "";
   const shouldRunValidation =
     isInitialized &&
     !isLoadingInvoices &&
@@ -811,10 +816,10 @@ export default function InvoiceDetailsStep({
     }
 
     /** Facility limit only for new_contract and existing_contract (invoice_only has no facility). */
-    if (!isInvoiceOnly && !validationError) {
+    if (!isInvoiceOnly) {
       const amountToCheck = isExistingContract ? nonApprovedFinancingAmount : totalFinancingAmount;
       if (amountToCheck > facilityLimit) {
-        validationError = `Total financing amount (RM ${formatMoney(amountToCheck)}) exceeds facility limit (RM ${formatMoney(facilityLimit)}).`;
+        facilityCapacityWarning = `Total financing amount (RM ${formatMoney(amountToCheck)}) exceeds remaining facility capacity (RM ${formatMoney(facilityLimit)}). You can still save; CashSouk may size the offer.`;
       }
     }
 
@@ -1703,6 +1708,12 @@ export default function InvoiceDetailsStep({
               <div className="mx-3 bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 mt-4">
                 <XMarkIcon className="h-5 w-5" />
                 {validationError}
+              </div>
+            )}
+            {facilityCapacityWarning && (
+              <div className="mx-3 mt-4 flex items-center gap-2 rounded-xl border border-border bg-muted/20 px-4 py-3 text-sm font-medium text-foreground">
+                <ExclamationTriangleIcon className="h-5 w-5 shrink-0 text-muted-foreground" />
+                {facilityCapacityWarning}
               </div>
             )}
           </div>

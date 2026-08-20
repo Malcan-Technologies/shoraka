@@ -1,7 +1,7 @@
-import { formatCurrency } from "@cashsouk/config";
+import { formatCurrency, resolveOfferedAmount } from "@cashsouk/config";
 import { getIssuerOfferActionCta } from "@/lib/offer-utils";
 import { issuerApplicationActionHref } from "@/lib/issuer-pending-actions";
-import type { NormalizedApplication } from "../status";
+import type { NormalizedApplication, NormalizedInvoice } from "../status";
 import { countInvoicesNeedingAction } from "./issuer-status-display";
 
 /** Soft card wash (≈45% of badge fill) so attention reads without overpowering content. */
@@ -17,15 +17,102 @@ export const ATTENTION_SURFACE: Record<string, string> = {
   neutral: "border-status-neutral-text/15 bg-[hsl(var(--status-neutral-bg)/0.45)]",
 };
 
+function parseFormattedAmount(value: string | null | undefined): number | null {
+  if (value == null || value === "—" || value === "N/A") return null;
+  const parsed = Number(String(value).replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function invoiceOfferedAmount(inv: NormalizedInvoice): number {
+  if (inv.offeredAmount != null && inv.offeredAmount > 0) return inv.offeredAmount;
+  const fromDetails = resolveOfferedAmount(inv.offer_details);
+  if (fromDetails > 0) return fromDetails;
+  return parseFormattedAmount(inv.financingOffered) ?? 0;
+}
+
+function invoiceOfferedTotal(
+  app: NormalizedApplication,
+  statuses?: ReadonlySet<string>
+): number {
+  return app.invoices.reduce((sum, inv) => {
+    if (statuses && !statuses.has(invoiceStatus(inv))) return sum;
+    return sum + invoiceOfferedAmount(inv);
+  }, 0);
+}
+
+const OUTSTANDING_INVOICE_OFFER_STATUSES = new Set(["OFFER_SENT", "OFFER_EXPIRED"]);
+const AMENDMENT_INVOICE_STATUSES = new Set(["AMENDMENT_REQUESTED"]);
+
+function invoiceRequestedTotal(
+  app: NormalizedApplication,
+  statuses?: ReadonlySet<string>
+): number {
+  return app.invoices.reduce((sum, inv) => {
+    if (statuses && !statuses.has(invoiceStatus(inv))) return sum;
+    return sum + (inv.appliedFinancing ?? 0);
+  }, 0);
+}
+
+function invoiceStatus(inv: NormalizedInvoice): string {
+  return String(inv.status ?? "").toUpperCase();
+}
+
+function hasActiveInvoiceOffer(app: NormalizedApplication): boolean {
+  return app.invoices.some((inv) => {
+    const status = invoiceStatus(inv);
+    return status === "OFFER_SENT" || status === "OFFER_EXPIRED";
+  });
+}
+
+function isFacilityOfferActive(app: NormalizedApplication): boolean {
+  const status = String(app.contractStatus ?? "").toUpperCase();
+  return status === "OFFER_SENT" || status === "OFFER_EXPIRED";
+}
+
+function hasInvoiceAmendment(app: NormalizedApplication): boolean {
+  return app.invoices.some((inv) => invoiceStatus(inv) === "AMENDMENT_REQUESTED");
+}
+
+/**
+ * Amount the issuer should see on the application card.
+ * Offer and approved financing beat requested amounts; contract value is never used.
+ * Amendments show the invoice being changed, not the approved facility.
+ */
+export function resolveApplicationHeadlineAmount(app: NormalizedApplication): number | null {
+  if (!isFacilityOfferActive(app) && hasActiveInvoiceOffer(app)) {
+    const offered = invoiceOfferedTotal(app, OUTSTANDING_INVOICE_OFFER_STATUSES);
+    if (offered > 0) return offered;
+  }
+
+  if (isFacilityOfferActive(app) && app.offeredFacilityAmount != null && app.offeredFacilityAmount > 0) {
+    return app.offeredFacilityAmount;
+  }
+
+  if (hasInvoiceAmendment(app)) {
+    const amending = invoiceRequestedTotal(app, AMENDMENT_INVOICE_STATUSES);
+    if (amending > 0) return amending;
+  }
+
+  if (app.approvedFacilityAmount != null && app.approvedFacilityAmount > 0) {
+    return app.approvedFacilityAmount;
+  }
+
+  if (app.type !== "Facility financing") {
+    const offered = invoiceOfferedTotal(app);
+    if (offered > 0) return offered;
+  }
+
+  if (app.facilityApplied != null && app.facilityApplied > 0) return app.facilityApplied;
+
+  const requestedInvoices = invoiceRequestedTotal(app);
+  if (requestedInvoices > 0) return requestedInvoices;
+
+  return null;
+}
+
 export function applicationHeadlineAmount(app: NormalizedApplication): string {
-  if (app.facilityApplied != null) return formatCurrency(app.facilityApplied);
-  if (app.contractValue != null) return formatCurrency(app.contractValue);
-  const invoiceSum = app.invoices.reduce(
-    (sum, inv) => sum + (inv.appliedFinancing ?? inv.value ?? 0),
-    0
-  );
-  if (invoiceSum > 0) return formatCurrency(invoiceSum);
-  return "—";
+  const amount = resolveApplicationHeadlineAmount(app);
+  return amount != null ? formatCurrency(amount) : "—";
 }
 
 export function applicationCardSubStatus(app: NormalizedApplication): string {

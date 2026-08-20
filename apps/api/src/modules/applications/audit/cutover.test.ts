@@ -193,6 +193,18 @@ describe("Application audit cutover", () => {
     expect(applicationService).toMatch(/eventType: "APPLICATION_COMPLETED"/);
   });
 
+  it("occupancy writes ApplicationAuditLog only, never NoteEvent", () => {
+    const refresh = readSrc("lib/refresh-contract-facility.ts");
+    expect(APPLICATION_AUDIT_EVENTS).toContain("CONTRACT_FACILITY_OCCUPANCY_UPDATED");
+    expect(refresh).toMatch(/writeApplicationAuditLog/);
+    expect(refresh).toMatch(/CONTRACT_FACILITY_OCCUPANCY_UPDATED/);
+    expect(refresh).not.toMatch(/applicationLog\.create/);
+    expect(refresh).not.toMatch(/noteEvent\.create/);
+    expect(refresh).not.toMatch(/(?<!CONTRACT_)FACILITY_OCCUPANCY_UPDATED/);
+    expect(notes).not.toMatch(/writeApplicationAuditLog/);
+    expect(notes).not.toMatch(/(?<!CONTRACT_)FACILITY_OCCUPANCY_UPDATED/);
+  });
+
   it("writes APPLICATION_RESUBMITTED once in amendments, not via PATCH status", () => {
     const resubmitCount = (amendments.match(/eventType: "APPLICATION_RESUBMITTED"/g) ?? []).length;
     expect(resubmitCount).toBe(1);

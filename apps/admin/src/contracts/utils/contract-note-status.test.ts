@@ -11,6 +11,8 @@ function note(status: string): AdminContractNoteSummary {
     status,
     sourceApplicationId: "app-1",
     sourceInvoiceId: "inv-1",
+    targetAmount: 8000,
+    fundedAmount: 0,
   };
 }
 
@@ -45,5 +47,7 @@ describe("ContractNotesTable action row", () => {
     expect(tableSource).toContain("adminActionRowClass(status.token)");
     expect(tableSource).toContain("odd:bg-muted/40 hover:bg-muted");
     expect(tableSource).toContain("cn(");
+    expect(tableSource).toContain("formatCurrency(note.targetAmount)");
+    expect(tableSource).toContain(">Amount<");
   });
 });

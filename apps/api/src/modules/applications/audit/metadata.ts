@@ -199,6 +199,24 @@ const invoiceWithdrawnSchema = z.object({
   invoiceNumber: z.string().optional(),
 });
 
+const occupancyAmountsSchema = z.object({
+  utilized_facility: z.number(),
+  available_facility: z.number(),
+  repaid_facility: z.number(),
+});
+
+const occupancyUpdatedSchema = z.object({
+  ...snapshotFields,
+  reason: z.enum(["INVOICE_ACCEPTED", "FUNDING_CLOSED", "FUNDING_FAILED", "NOTE_REPAID"]),
+  contract_id: z.string(),
+  note_id: z.string().nullable(),
+  invoice_id: z.string().nullable(),
+  before: occupancyAmountsSchema,
+  after: occupancyAmountsSchema.extend({
+    pending_facility: z.number(),
+  }),
+});
+
 const metadataByEvent = {
   APPLICATION_CREATED: createdSchema,
   APPLICATION_SUBMITTED: submittedSchema,
@@ -240,6 +258,7 @@ const metadataByEvent = {
   INVOICE_OFFER_ACCEPTED: offerAcceptedSchema,
   INVOICE_OFFER_REJECTED: offerRejectedSchema,
   INVOICE_WITHDRAWN: invoiceWithdrawnSchema,
+  CONTRACT_FACILITY_OCCUPANCY_UPDATED: occupancyUpdatedSchema,
 } as const satisfies Record<ApplicationAuditEventType, z.ZodTypeAny>;
 
 export function parseApplicationAuditMetadata(

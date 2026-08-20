@@ -27,7 +27,7 @@ Removed runtime stores (do not document as active): `ApplicationLog`, `NoteEvent
 
 ## Catalogue counts (source)
 
-Reserved IDs **A001–A177** (**177**). Active writers **174**. Retired onboarding IDs (readable historical rows, IDs not reused): A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`.
+Reserved IDs **A001–A178** (**178**). Active writers **175**. Retired onboarding IDs (readable historical rows, IDs not reused): A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`.
 
 | Module | Count | File |
 |--------|------:|------|
@@ -35,7 +35,7 @@ Reserved IDs **A001–A177** (**177**). Active writers **174**. Retired onboardi
 | Security | 35 | `apps/api/src/modules/security/audit/events.ts` |
 | Onboarding | 18 reserved / 15 active | `apps/api/src/modules/onboarding/audit/events.ts` |
 | Legal | 7 | `apps/api/src/modules/legal-documents/audit/events.ts` |
-| Application | 40 | `apps/api/src/modules/applications/audit/events.ts` |
+| Application | 41 | `apps/api/src/modules/applications/audit/events.ts` |
 | Signing | 12 | `apps/api/src/modules/signing/audit/events.ts` |
 | Note | 37 | `apps/api/src/modules/notes/audit/events.ts` |
 | Payment | 19 | `apps/api/src/modules/payment/audit/events.ts` |
@@ -198,7 +198,7 @@ Phase banners below still describe the live tables after the AuditLog cutover. T
 - `NoteAdminAction` / `note_admin_actions` **removed**.
 - Title/summary-only edits, featured settings, and prospectus draft saves remain intentionally unaudited.
 - Investor-wallet withdrawals are PaymentAuditLog (Phase 9). GatewayPayment events are PaymentAuditLog.
-- There is **no** canonical/global `AuditEvent` table. Live catalogue: **177** reserved IDs, **174** active writers, **3** retired (A040/A052/A053). A175 is OnboardingAuditLog. A176/A177 are NoteAuditLog.
+- There is **no** canonical/global `AuditEvent` table. Live catalogue: **178** reserved IDs, **175** active writers, **3** retired (A040/A052/A053). A175 is OnboardingAuditLog. A176/A177 are NoteAuditLog. A178 is ApplicationAuditLog occupancy.
 
 ---
 
@@ -236,7 +236,7 @@ Known limitations (not fixed in the cleanup):
 - `LegalDocumentAcceptance` remains legal acceptance source of truth.
 - CTOS report rows remain report source of truth.
 - Audit is never workflow state. No User/org/RegTank FKs on `OnboardingAuditLog` (scalar historical ids only). Append-only create.
-- Reserved onboarding IDs: **18** = original A039–A055 plus later-appended A175 (`ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`). Current active onboarding event types: **15**. Retired / no current writer: `ONBOARDING_RESUMED` (A040), `CTOS_REPORT_RECEIVED` (A052), and `CORPORATE_ENTITIES_UPDATED` (A053). Historical rows remain readable. IDs are not reused. Live catalogue is **177** reserved IDs (A001–A177) with **174** active writers.
+- Reserved onboarding IDs: **18** = original A039–A055 plus later-appended A175 (`ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`). Current active onboarding event types: **15**. Retired / no current writer: `ONBOARDING_RESUMED` (A040), `CTOS_REPORT_RECEIVED` (A052), and `CORPORATE_ENTITIES_UPDATED` (A053). Historical rows remain readable. IDs are not reused. Live catalogue is **178** reserved IDs (A001–A178) with **175** active writers.
 - Onboarding audit records CashSouk business actions, stages, decisions, and outcomes. Detailed provider synchronization remains in its source-of-truth storage (`corporate_entities`, `director_kyc_status`, `RegTankOnboarding.webhook_payloads`) and is not duplicated as onboarding audit noise.
 - `DIRECTOR_KYC_STATUS_UPDATED` writes only when an existing director newly becomes `APPROVED` or `REJECTED`.
 - `ONBOARDING_STATUS_CHANGED` is the core stage event, including review landing, amendment requested, and amendment resubmission. Admin Organization contextual history includes it. Dedicated SSM/AML/approval/final/reject/restart events do not also write a sibling A044 row.
@@ -614,7 +614,7 @@ Production final approval writes **`ONBOARDING_FINAL_APPROVAL_COMPLETED`**. `Aut
 
 ### ApplicationAuditLog
 
-`writeApplicationAuditLog` (`apps/api/src/modules/applications/audit/writer.ts`) only. Live callers: applications controller/service, admin/service, amendments/service, contracts/service, invoices/service, CTOS, acceptance-signing-expiry job. Append-only create. Legacy `logApplicationActivity` / `createApplicationLog` / `applications/logs/*` **removed**.
+`writeApplicationAuditLog` (`apps/api/src/modules/applications/audit/writer.ts`) only. Live callers: applications controller/service, admin/service, amendments/service, contracts/service, invoices/service, CTOS, acceptance-signing-expiry job, and `lib/refresh-contract-facility.ts` (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`). Append-only create. Legacy `logApplicationActivity` / `createApplicationLog` / `applications/logs/*` **removed**.
 
 ### SigningAuditLog
 
@@ -712,7 +712,7 @@ Activity UI curated subset: STARTED, RESTARTED, review/amendment STATUS_CHANGED,
 
 ### Application (`APPLICATION_AUDIT_EVENTS`)
 
-`APPLICATION_CREATED/SUBMITTED/REVIEW_STARTED/RESUBMITTED/AMENDMENT_ACKNOWLEDGED/AMENDMENTS_REQUESTED/REOPENED_FOR_REVIEW/WITHDRAWN/REJECTED/ARCHIVED/DRAFT_DELETED/COMPLETED`, section/item review updated, document upload/remove/replace, contract/invoice offer/acceptance/expiry/withdraw events including `CONTRACT_OFFER_REJECTED`.  
+`APPLICATION_CREATED/SUBMITTED/REVIEW_STARTED/RESUBMITTED/AMENDMENT_ACKNOWLEDGED/AMENDMENTS_REQUESTED/REOPENED_FOR_REVIEW/WITHDRAWN/REJECTED/ARCHIVED/DRAFT_DELETED/COMPLETED`, section/item review updated, document upload/remove/replace, contract/invoice offer/acceptance/expiry/withdraw events including `CONTRACT_OFFER_REJECTED`, and `CONTRACT_FACILITY_OCCUPANCY_UPDATED` (A178; ApplicationAuditLog only; admin Activity SHOW, issuer/investor Activity HIDE).  
 Signing package events are **not** on this table; they belong to `SigningAuditLog`.
 
 ### Signing (`SIGNING_AUDIT_EVENTS`)

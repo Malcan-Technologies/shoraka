@@ -1,5 +1,6 @@
+import { useMemo } from "react";
 import { createApiClient, useAuthToken, type ApplicationLogEntry } from "@cashsouk/config";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -81,6 +82,27 @@ function normalizeLogItem(d: Record<string, unknown>): ApplicationLogEntry {
   };
 }
 
+async function fetchApplicationLogs(
+  apiClient: ReturnType<typeof createApiClient>,
+  applicationId: string
+): Promise<ApplicationLogEntry[]> {
+  const response = await apiClient.getApplicationLogs(applicationId);
+  if (!response.success) {
+    throw new Error(response.error.message || "Failed to fetch application logs");
+  }
+
+  const raw = response.data;
+  let items: Record<string, unknown>[] = [];
+
+  if (Array.isArray(raw)) {
+    items = raw as Record<string, unknown>[];
+  } else if (raw && typeof raw === "object" && Array.isArray((raw as { items?: unknown }).items)) {
+    items = (raw as { items: Record<string, unknown>[] }).items;
+  }
+
+  return items.map(normalizeLogItem);
+}
+
 export function useApplicationLogs(applicationId: string | null) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
@@ -89,21 +111,7 @@ export function useApplicationLogs(applicationId: string | null) {
     queryKey: issuerApplicationLogsKeys.list(applicationId),
     queryFn: async () => {
       if (!applicationId) throw new Error("Application ID is required");
-      const response = await apiClient.getApplicationLogs(applicationId);
-      if (!response.success) {
-        throw new Error(response.error.message || "Failed to fetch application logs");
-      }
-
-      const raw = response.data;
-      let items: Record<string, unknown>[] = [];
-
-      if (Array.isArray(raw)) {
-        items = raw as Record<string, unknown>[];
-      } else if (raw && typeof raw === "object" && Array.isArray((raw as { items?: unknown }).items)) {
-        items = (raw as { items: Record<string, unknown>[] }).items;
-      }
-
-      return items.map(normalizeLogItem);
+      return fetchApplicationLogs(apiClient, applicationId);
     },
     enabled: !!applicationId,
     staleTime: 60_000,
@@ -113,5 +121,27 @@ export function useApplicationLogs(applicationId: string | null) {
     data: query.data ?? [],
     isLoading: query.isLoading,
     error: query.error,
+  };
+}
+
+export function useApplicationLogsMany(applicationIds: readonly string[]) {
+  const uniqueIds = useMemo(
+    () => [...new Set(applicationIds.filter((id) => id.trim().length > 0))].sort(),
+    [applicationIds]
+  );
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  const queries = useQueries({
+    queries: uniqueIds.map((applicationId) => ({
+      queryKey: issuerApplicationLogsKeys.list(applicationId),
+      queryFn: () => fetchApplicationLogs(apiClient, applicationId),
+      staleTime: 60_000,
+    })),
+  });
+
+  return {
+    data: queries.flatMap((query) => query.data ?? []),
+    isLoading: uniqueIds.length > 0 && queries.some((query) => query.isPending),
   };
 }

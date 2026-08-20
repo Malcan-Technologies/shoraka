@@ -12,6 +12,7 @@ import {
   resolveApprovedFacility,
   resolveRequestedFacility,
 } from "@cashsouk/config";
+import { sumPendingInvoiceFacility, parseFacilityAmount } from "@/contracts/utils/contract-facility-metrics";
 import { FinancialSection } from "./sections/financial-section";
 import { BusinessSection } from "./sections/business-section";
 import { DocumentsSection } from "./sections/documents-section";
@@ -589,13 +590,19 @@ export function SectionContent({
       const contractStatus = sectionStatusMap?.get("contract_details") ?? "";
       const approvedFacility =
         (resolveApprovedFacility(contractStatus, cd) || resolveRequestedFacility(cd)) as number;
+      const utilizedFacility = parseFacilityAmount(cd?.utilized_facility) ?? 0;
+      const pendingFacility = sumPendingInvoiceFacility(mergedInvoices);
+      const storedAvailable = parseFacilityAmount(cd?.available_facility);
       const availableFacility =
-        typeof cd?.available_facility === "number" ? cd.available_facility : approvedFacility;
-      const utilizedFacility =
-        typeof cd?.utilized_facility === "number" ? cd.utilized_facility : 0;
+        storedAvailable != null ? storedAvailable : approvedFacility - utilizedFacility;
       const contractFacility =
         app.contract && approvedFacility > 0
-          ? { contractFacility: approvedFacility, availableFacility, utilizedFacility }
+          ? {
+              contractFacility: approvedFacility,
+              availableFacility,
+              utilizedFacility,
+              pendingFacility,
+            }
           : undefined;
       return (
         <InvoiceSection

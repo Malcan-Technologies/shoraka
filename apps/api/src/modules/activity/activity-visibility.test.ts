@@ -210,6 +210,12 @@ describe("activity visibility matrix", () => {
       ).toBe(false);
     });
 
+    it("shows occupancy updates on admin activity and hides them from issuer and investor", () => {
+      expect(isApplicationActivityVisible("admin", "CONTRACT_FACILITY_OCCUPANCY_UPDATED")).toBe(true);
+      expect(isApplicationActivityVisible("issuer", "CONTRACT_FACILITY_OCCUPANCY_UPDATED")).toBe(false);
+      expect(isApplicationActivityVisible("investor", "CONTRACT_FACILITY_OCCUPANCY_UPDATED")).toBe(false);
+    });
+
     it("never shows application events to investors", () => {
       expect(isApplicationActivityVisible("investor", "APPLICATION_SUBMITTED")).toBe(false);
       expect(

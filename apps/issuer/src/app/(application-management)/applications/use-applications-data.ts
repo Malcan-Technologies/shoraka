@@ -21,6 +21,7 @@ import {
   resolveOfferedPlatformFeeRatePercent,
   resolveRequestedInvoiceAmount,
   resolveApprovedFacility,
+  resolveOfferedFacility,
   resolveRequestedFacility,
 } from "@cashsouk/config";
 import {
@@ -229,6 +230,7 @@ function prepareInvoice(
     maturityDate: details.maturity_date ? String(details.maturity_date) : null,
     value: invoiceValue,
     appliedFinancing,
+    offeredAmount: offeredAmount > 0 ? offeredAmount : null,
     document: documentName,
     documentS3Key,
     financingOffered,
@@ -315,10 +317,17 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
   const contractTitle = (contractDetails.title ? String(contractDetails.title) : contractDetails.contract_title ? String(contractDetails.contract_title) : null) as string | null;
 
   let contractValue: number | null = null;
-  const facilityAppliedVal = resolveRequestedFacility(contractDetails);
-  const facilityApplied = facilityAppliedVal > 0 ? facilityAppliedVal : null;
-  if (contractDetails.contract_value != null) contractValue = Number(contractDetails.contract_value);
-  else if (contractDetails.value != null) contractValue = Number(contractDetails.value);
+  const requestedApplied = resolveRequestedFacility({
+    financing: contractDetails.financing,
+    facility_applied: contractDetails.facility_applied,
+  });
+  const facilityApplied = requestedApplied > 0 ? requestedApplied : null;
+  const fromContractValue = numberOrNull(contractDetails.contract_value);
+  const fromValue = numberOrNull(contractDetails.value);
+  if (fromContractValue != null) contractValue = fromContractValue;
+  else if (fromValue != null) contractValue = fromValue;
+  const offeredFacilityVal = resolveOfferedFacility(contract?.offer_details);
+  const offeredFacilityAmount = offeredFacilityVal > 0 ? offeredFacilityVal : null;
 
   let approvedFacility = "N/A";
   let approvedFacilityAmount: number | null = null;
@@ -329,8 +338,11 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
   } else if (contractStatus === "APPROVED") {
     const ras = api.review_and_submit;
     if (ras?.approved_facility != null) {
-      approvedFacilityAmount = Number(ras.approved_facility);
-      approvedFacility = formatCurrency(approvedFacilityAmount);
+      const fallbackApproved = numberOrNull(ras.approved_facility);
+      if (fallbackApproved != null && fallbackApproved > 0) {
+        approvedFacilityAmount = fallbackApproved;
+        approvedFacility = formatCurrency(fallbackApproved);
+      }
     }
   }
 
@@ -421,6 +433,7 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     submittedAt,
     contractValue,
     facilityApplied,
+    offeredFacilityAmount,
     approvedFacility,
     approvedFacilityAmount,
     facilityFeeRatePercent,

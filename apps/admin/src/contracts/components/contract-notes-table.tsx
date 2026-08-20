@@ -1,5 +1,6 @@
 import * as React from "react";
 import Link from "next/link";
+import { formatCurrency } from "@cashsouk/config";
 import { StatusBadge } from "@cashsouk/ui";
 import type { AdminContractNoteSummary } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
@@ -19,10 +20,10 @@ export function ContractNotesTable({ notes }: { notes: AdminContractNoteSummary[
   if (notes.length === 0) {
     return (
       <div className="rounded-xl border border-dashed bg-muted/20 p-4">
-        <p className="text-ui font-medium">No notes yet</p>
+        <p className="text-ui font-medium">No drawdowns yet</p>
         <p className="mt-1 text-meta text-muted-foreground">
-          Notes are created from approved invoices on this facility&apos;s applications. Any note
-          issued against this facility will be listed here.
+          Each note issued from an approved invoice is a drawdown on this facility. Amounts come
+          from the note target, the same figure that updates utilized facility.
         </p>
       </div>
     );
@@ -35,6 +36,7 @@ export function ContractNotesTable({ notes }: { notes: AdminContractNoteSummary[
           <TableHead>Note</TableHead>
           <TableHead>Title</TableHead>
           <TableHead>Status</TableHead>
+          <TableHead className="text-right">Amount</TableHead>
           <TableHead className="hidden md:table-cell">Source invoice</TableHead>
           <TableHead className="text-right">Open</TableHead>
         </TableRow>
@@ -60,6 +62,14 @@ export function ContractNotesTable({ notes }: { notes: AdminContractNoteSummary[
               </TableCell>
               <TableCell>
                 <StatusBadge label={status.label} status={status.token} />
+              </TableCell>
+              <TableCell className="text-right tabular-nums">
+                <p className="font-medium">{formatCurrency(note.targetAmount)}</p>
+                {note.fundedAmount > 0 && note.fundedAmount !== note.targetAmount ? (
+                  <p className="text-meta text-muted-foreground">
+                    Funded {formatCurrency(note.fundedAmount)}
+                  </p>
+                ) : null}
               </TableCell>
               <TableCell className="hidden max-w-[14rem] md:table-cell">
                 {note.sourceInvoiceId ? (

@@ -25,6 +25,7 @@ function makeInvoice(overrides: Partial<NormalizedInvoice> & { id: string }): No
     maturityDate: "2026-06-15",
     value: 50000 + Math.floor(Math.random() * 100000),
     appliedFinancing: 40000,
+    offeredAmount: null,
     document: "invoice.pdf",
     documentS3Key: null,
     contractId: null,
@@ -160,6 +161,7 @@ export function generateMockApplications(count: number): NormalizedApplication[]
           maturityDate: matDate,
           value: invValue,
           appliedFinancing: invApplied,
+          offeredAmount: hasOffer ? Math.floor(invApplied * 1.1) : null,
           document: DOCUMENT_NAMES[j % DOCUMENT_NAMES.length],
           documentS3Key: invDocS3,
           status: invStatus,
@@ -234,6 +236,10 @@ export function generateMockApplications(count: number): NormalizedApplication[]
       submittedAt,
       contractValue: contractVal,
       facilityApplied,
+      offeredFacilityAmount:
+        scenario.contractStatus === "OFFER_SENT" || scenario.contractStatus === "OFFER_EXPIRED"
+          ? (facilityApplied ?? 180000)
+          : null,
       approvedFacility,
       approvedFacilityAmount,
       facilityFeeRatePercent,

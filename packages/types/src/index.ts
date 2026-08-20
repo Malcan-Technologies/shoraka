@@ -347,6 +347,8 @@ export interface ContractDetails {
   approved_facility: number | null;
   utilized_facility: number | null;
   available_facility: number | null;
+  pending_facility?: number | null;
+  repaid_facility?: number | null;
   document?: {
     s3_key: string;
     file_name: string;

@@ -49,3 +49,12 @@ export function formatNoteInvestorCount(count: number): string {
   if (count === 1) return "1 investor";
   return `${count} investors`;
 }
+
+export function formatNoteInvestorCommitment(
+  formattedAmount: string,
+  investorCount: number
+): string {
+  if (investorCount <= 0) return `${formattedAmount} committed`;
+  if (investorCount === 1) return `${formattedAmount} committed by 1 investor`;
+  return `${formattedAmount} committed by ${investorCount} investors`;
+}

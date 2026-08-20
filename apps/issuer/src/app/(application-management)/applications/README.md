@@ -19,6 +19,8 @@ List of financing applications. Actionable items sit in a taller-card carousel a
 4. **Sort** — By status (rejected first, draft last), then by date
 5. **Page** — Renders cards. Uses STATUS from status.ts for badge label/color. Filter dropdown uses FILTER_STATUSES.
 
+Card headline amounts follow the current stage: invoice or facility offer when one is outstanding, approved facility once the line is in force, otherwise requested financing. Contract value is not used.
+
 ## Filter
 
 Issuer-focused filters answer: "Which applications need action? What type? When submitted?"

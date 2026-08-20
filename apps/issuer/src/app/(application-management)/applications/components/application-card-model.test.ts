@@ -1,4 +1,4 @@
-import type { NormalizedApplication } from "../status";
+import type { NormalizedApplication, NormalizedInvoice } from "../status";
 import {
   applicationAttentionHeadline,
   applicationCardSubStatus,
@@ -9,6 +9,10 @@ import {
 
 jest.mock("@cashsouk/config", () => ({
   formatCurrency: (value: number) => `RM ${value}`,
+  resolveOfferedAmount: (offer: { offered_amount?: number } | null | undefined) => {
+    const value = offer?.offered_amount;
+    return typeof value === "number" && value > 0 ? value : 0;
+  },
   getStatusPresentationByBadgeKey: () => ({ color: "bg-mock", label: "Mock" }),
   getStatusColorAndLabel: () => ({ color: "bg-mock", label: "Mock" }),
   resolveIssuerInvoiceStatusBadgeKey: (status: string | undefined) =>
@@ -34,6 +38,7 @@ function makeApp(overrides: Partial<NormalizedApplication> = {}): NormalizedAppl
     submittedAt: "2026-08-01",
     contractValue: null,
     facilityApplied: 125000,
+    offeredFacilityAmount: null,
     approvedFacility: "—",
     approvedFacilityAmount: null,
     facilityFeeRatePercent: null,
@@ -48,41 +53,189 @@ function makeApp(overrides: Partial<NormalizedApplication> = {}): NormalizedAppl
   };
 }
 
+function makeInvoice(overrides: Partial<NormalizedInvoice> = {}): NormalizedInvoice {
+  return {
+    id: "inv_1",
+    number: "INV-1",
+    contractId: null,
+    maturityDate: null,
+    value: 30,
+    appliedFinancing: 25,
+    offeredAmount: null,
+    document: "invoice.pdf",
+    documentS3Key: null,
+    financingOffered: "—",
+    platformFee: "—",
+    profitRate: "—",
+    status: "SUBMITTED",
+    offerStatus: null,
+    canReviewOffer: false,
+    signedOfferLetterAvailable: false,
+    signedOfferLetterS3Key: null,
+    reasonOrRemarks: null,
+    ...overrides,
+  };
+}
+
 describe("applicationHeadlineAmount", () => {
-  it("prefers facility applied, then contract value, then invoice sum", () => {
+  it("shows requested financing, not contract value", () => {
     expect(applicationHeadlineAmount(makeApp({ facilityApplied: 10 }))).toBe("RM 10");
     expect(
       applicationHeadlineAmount(makeApp({ facilityApplied: null, contractValue: 20 }))
-    ).toBe("RM 20");
+    ).toBe("—");
     expect(
       applicationHeadlineAmount(
         makeApp({
           facilityApplied: null,
-          contractValue: null,
-          invoices: [
-            {
-              id: "inv_1",
-              number: "INV-1",
-              contractId: null,
-              maturityDate: null,
-              value: 30,
-              appliedFinancing: 25,
-              document: "invoice.pdf",
-              documentS3Key: null,
-              financingOffered: "—",
-              platformFee: "—",
-              profitRate: "—",
-              status: "OFFER_SENT",
-              offerStatus: "Offer received",
-              canReviewOffer: true,
-              signedOfferLetterAvailable: false,
-              signedOfferLetterS3Key: null,
-              reasonOrRemarks: null,
-            },
-          ],
+          contractValue: 20,
+          invoices: [makeInvoice({ appliedFinancing: 25 })],
         })
       )
     ).toBe("RM 25");
+  });
+
+  it("uses only outstanding invoice offers, not already-approved ones", () => {
+    expect(
+      applicationHeadlineAmount(
+        makeApp({
+          type: "Facility financing",
+          contractValue: 500_000_000,
+          facilityApplied: 500_000_000,
+          approvedFacilityAmount: 100_000,
+          contractStatus: "APPROVED",
+          invoices: [
+            makeInvoice({
+              id: "inv_approved",
+              status: "APPROVED",
+              appliedFinancing: 213_860,
+              offeredAmount: 205_190,
+            }),
+            makeInvoice({
+              id: "inv_offer",
+              status: "OFFER_SENT",
+              offerStatus: "Offer received",
+              canReviewOffer: true,
+              appliedFinancing: 46_172,
+              offeredAmount: 40_740,
+            }),
+          ],
+        })
+      )
+    ).toBe("RM 40740");
+  });
+
+  it("shows the invoice financing offer instead of contract value", () => {
+    expect(
+      applicationHeadlineAmount(
+        makeApp({
+          type: "Facility financing",
+          contractValue: 2_500_000,
+          facilityApplied: 2_000_000,
+          approvedFacilityAmount: 1_800_000,
+          contractStatus: "APPROVED",
+          invoices: [
+            makeInvoice({
+              status: "OFFER_SENT",
+              offerStatus: "Offer received",
+              canReviewOffer: true,
+              appliedFinancing: 25,
+              offeredAmount: 18,
+            }),
+          ],
+        })
+      )
+    ).toBe("RM 18");
+  });
+
+  it("shows the offered facility while a facility offer is outstanding", () => {
+    expect(
+      applicationHeadlineAmount(
+        makeApp({
+          type: "Facility financing",
+          contractStatus: "OFFER_SENT",
+          contractValue: 2_500_000,
+          facilityApplied: 2_000_000,
+          offeredFacilityAmount: 1_500_000,
+        })
+      )
+    ).toBe("RM 1500000");
+  });
+
+  it("shows offered invoice financing on invoice-only applications", () => {
+    expect(
+      applicationHeadlineAmount(
+        makeApp({
+          type: "Invoice financing",
+          facilityApplied: null,
+          contractValue: null,
+          invoices: [
+            makeInvoice({
+              status: "OFFER_SENT",
+              offerStatus: "Offer received",
+              canReviewOffer: true,
+              appliedFinancing: 25,
+              offeredAmount: 22,
+            }),
+          ],
+        })
+      )
+    ).toBe("RM 22");
+  });
+
+  it("shows requested financing on invoices that need amendment, not the approved facility", () => {
+    expect(
+      applicationHeadlineAmount(
+        makeApp({
+          type: "Facility financing",
+          status: "AMENDMENT_REQUESTED",
+          cardStatus: {
+            badgeKey: "amendment_requested",
+            displayLabel: "Action Required",
+            showReviewOffer: false,
+            showMakeAmendments: true,
+          },
+          contractStatus: "APPROVED",
+          contractValue: 500_000_000,
+          facilityApplied: 500_000_000,
+          approvedFacilityAmount: 100_000,
+          invoices: [
+            makeInvoice({
+              id: "inv_approved",
+              status: "APPROVED",
+              appliedFinancing: 213_860,
+              offeredAmount: 205_190,
+            }),
+            makeInvoice({
+              id: "inv_amend",
+              status: "AMENDMENT_REQUESTED",
+              value: 5_000_000,
+              appliedFinancing: 3_800_000,
+            }),
+          ],
+        })
+      )
+    ).toBe("RM 3800000");
+  });
+
+  it("shows the approved facility once the line is in force and no invoice offer is pending", () => {
+    expect(
+      applicationHeadlineAmount(
+        makeApp({
+          type: "Facility financing",
+          contractStatus: "APPROVED",
+          cardStatus: {
+            badgeKey: "completed",
+            displayLabel: "Completed",
+            showReviewOffer: false,
+            showMakeAmendments: false,
+          },
+          contractValue: 2_500_000,
+          facilityApplied: 2_000_000,
+          approvedFacilityAmount: 1_800_000,
+          invoices: [makeInvoice({ status: "APPROVED", appliedFinancing: 25, offeredAmount: 18 })],
+        })
+      )
+    ).toBe("RM 1800000");
   });
 });
 
@@ -91,27 +244,7 @@ describe("applicationCardSubStatus", () => {
     expect(
       applicationCardSubStatus(
         makeApp({
-          invoices: [
-            {
-              id: "inv_1",
-              number: "INV-1",
-              contractId: null,
-              maturityDate: null,
-              value: 30,
-              appliedFinancing: 25,
-              document: "invoice.pdf",
-              documentS3Key: null,
-              financingOffered: "—",
-              platformFee: "—",
-              profitRate: "—",
-              status: "AMENDMENT_REQUESTED",
-              offerStatus: null,
-              canReviewOffer: false,
-              signedOfferLetterAvailable: false,
-              signedOfferLetterS3Key: null,
-              reasonOrRemarks: null,
-            },
-          ],
+          invoices: [makeInvoice({ status: "AMENDMENT_REQUESTED" })],
         })
       )
     ).toBe("1 invoice · 1 needs action");
@@ -140,25 +273,13 @@ describe("getApplicationCardPrimaryAction", () => {
         contractId: "ctr_1",
         contractStatus: "APPROVED",
         invoices: [
-          {
-            id: "inv_1",
-            number: "INV-1",
+          makeInvoice({
             contractId: "ctr_1",
-            maturityDate: null,
-            value: 30,
-            appliedFinancing: 25,
-            document: "invoice.pdf",
-            documentS3Key: null,
-            financingOffered: "—",
-            platformFee: "—",
-            profitRate: "—",
             status: "OFFER_SENT",
             offerStatus: "Offer received",
             canReviewOffer: true,
-            signedOfferLetterAvailable: false,
-            signedOfferLetterS3Key: null,
-            reasonOrRemarks: null,
-          },
+            offeredAmount: 18,
+          }),
         ],
       })
     );

@@ -1,8 +1,8 @@
 # Audit manual verification catalogue
 
-**Purpose.** Source-authoritative, human-readable manual verification catalogue of **177 reserved/catalogued event IDs** (A001–A177). IDs are stable and are not reused when a writer is retired. Distinguish **reserved event IDs** from **current active writers**. Each card is the checklist a reviewer uses to confirm the write (or retired/no-writer status), the Zod metadata, the source of truth, transaction behavior, and the three activity surfaces (admin curated, issuer, investor) plus admin raw.
+**Purpose.** Source-authoritative, human-readable manual verification catalogue of **178 reserved/catalogued event IDs** (A001–A178). IDs are stable and are not reused when a writer is retired. Distinguish **reserved event IDs** from **current active writers**. Each card is the checklist a reviewer uses to confirm the write (or retired/no-writer status), the Zod metadata, the source of truth, transaction behavior, and the three activity surfaces (admin curated, issuer, investor) plus admin raw.
 
-**Date.** 2026-08-19 — A175–A177 added for admin organization profile update and note campaign pause/resume. Prior source remains the Onboarding Audit redesign through A174.
+**Date.** 2026-08-20 — A178 added for revolving contract facility occupancy (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`). Prior: 2026-08-19 A175–A177 for admin organization profile update and note campaign pause/resume.
 
 **How to use this document.** Do not treat activity titles as workflow state. Do not treat audit rows as source of truth. Verify the named table, then the SOT row, then visibility. Hidden activity is recorded as Title: N/A / Description: N/A.
 
@@ -34,13 +34,13 @@ If a card’s “UI location” names a component, verify the current file; do n
 | Security | A004–A038 | 35 | SecurityAuditLog | security_audit_logs | `/audit` → Security (`/audit?tab=security`) | `audit.security.view` |
 | Onboarding | A039–A055, A175 | 18 reserved (15 active writers; A040, A052, and A053 retired) | OnboardingAuditLog | onboarding_audit_logs | `/audit` → Onboarding (`/audit?tab=onboarding`) | `onboarding.view` |
 | Legal | A056–A062 | 7 | LegalAdminAuditLog | legal_admin_audit_logs | `/audit` → Legal Documents (`/audit?tab=legal-documents`) | `document_management.view` |
-| Application | A063–A102 | 40 | ApplicationAuditLog | application_audit_logs | Application Detail → Audit History | `applications.view` |
+| Application | A063–A102, A178 | 41 | ApplicationAuditLog | application_audit_logs | Application Detail → Audit History | `applications.view` |
 | Signing | A103–A114 | 12 | SigningAuditLog | signing_audit_logs | Application Detail → Audit History (merged) + envelope logs | `applications.view` |
 | Note | A115–A149, A176–A177 | 37 | NoteAuditLog | note_audit_logs | Note Detail → Audit History; trustee signature on Platform Finance | `notes.view` / `platform_settings.view` |
 | Payment | A150–A168 | 19 | PaymentAuditLog | payment_audit_logs | Gateway Payment / Investor Withdrawal / Reconciliation Audit | gateway / `investor_withdrawals.view` / `gateway_reconciliation.view` |
 | Product | A169–A173 | 5 | ProductAuditLog | product_audit_logs | `/audit` → Products (`/audit?tab=products`) | `audit.product.view` |
 | Notification | A174 | 1 | NotificationBroadcastAuditLog | notification_broadcast_audit_logs | `/audit` → Notifications (`/audit?tab=notifications`) | `notifications.view` |
-| **Total** | **A001–A177** | **177 reserved/catalogued IDs** (174 currently active event types with at least one writer; A040, A052, and A053 retired, IDs not reused) | | | | |
+| **Total** | **A001–A178** | **178 reserved/catalogued IDs** (175 currently active event types with at least one writer; A040, A052, and A053 retired, IDs not reused) | | | | |
 
 
 ## Visibility summary
@@ -53,13 +53,13 @@ Computed from the event cards in this catalogue (not from memory).
 | Security | 35 | 35 | 0 / 0 / 35 | 0 / 0 / 35 | 0 / 0 / 35 |
 | Onboarding | 18 | 18 | 17 / 0 / 1 | 5 / 3 / 10 | 5 / 2 / 11 |
 | Legal | 7 | 7 | 0 / 0 / 7 | 0 / 0 / 7 | 0 / 0 / 7 |
-| Application | 40 | 40 | 31 / 1 / 8 | 30 / 1 / 9 | 0 / 0 / 40 |
+| Application | 41 | 41 | 32 / 1 / 8 | 30 / 1 / 10 | 0 / 0 / 41 |
 | Signing | 12 | 12 | 9 / 0 / 3 | 7 / 0 / 5 | 0 / 0 / 12 |
 | Note | 37 | 37 | 36 / 0 / 1 | 15 / 1 / 21 | 0 / 9 / 28 |
 | Payment | 19 | 19 | 0 / 0 / 19 | 0 / 0 / 19 | 7 / 2 / 10 |
 | Product | 5 | 5 | 0 / 0 / 5 | 0 / 0 / 5 | 0 / 0 / 5 |
 | Notification | 1 | 1 | 0 / 0 / 1 | 0 / 0 / 1 | 0 / 0 / 1 |
-| **Total** | **177** | **177** | **93 / 1 / 83** | **57 / 5 / 115** | **12 / 13 / 152** |
+| **Total** | **178** | **178** | **94 / 1 / 83** | **57 / 5 / 116** | **12 / 13 / 153** |
 
 Onboarding visibility counts include the 18 reserved IDs. Retired A040 / A052 / A053 remain SHOW on admin raw and SHOW (historical) on admin curated Activity if old rows exist; issuer/investor HIDE. Admin Organization contextual history excludes A052 and A053. Admin Activity HIDE is only `USER_ONBOARDING_STATUS_UPDATED`. Issuer/investor CONDITIONAL includes review/amendment `ONBOARDING_STATUS_CHANGED`. A175 is admin org Activity SHOW and issuer/investor HIDE.
 
@@ -13994,8 +13994,8 @@ Admin `/audit?tab=legal-documents`, permission `document_management.view`, `Audi
 
 Audit Model: ApplicationAuditLog
 DB Table: application_audit_logs
-Events: 40
-Range: A063-A102
+Events: 41
+Range: A063-A102 (original) + A178 (appended)
 Admin Location: Application Detail → Audit History (`GET /v1/admin/applications/:id/audit-history`)
 Permission: applications.view
 
@@ -14041,6 +14041,9 @@ Permission: applications.view
 | A100 | APP-038 | `INVOICE_OFFER_ACCEPTED` | SHOW | SHOW | SHOW | HIDE |
 | A101 | APP-039 | `INVOICE_OFFER_REJECTED` | SHOW | SHOW | SHOW | HIDE |
 | A102 | APP-040 | `INVOICE_WITHDRAWN` | SHOW | SHOW | SHOW | HIDE |
+| A178 | APP-041 | `CONTRACT_FACILITY_OCCUPANCY_UPDATED` | SHOW | SHOW | HIDE | HIDE |
+
+Original module range is A063–A102. A178 was appended globally after A177; it belongs to Application and is listed here for the module index.
 
 # A063 — APPLICATION_CREATED
 
@@ -38985,6 +38988,7 @@ Used by 172 event(s):
 - A175 `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`
 - A176 `NOTE_CAMPAIGN_PAUSED`
 - A177 `NOTE_CAMPAIGN_RESUMED`
+- A178 `CONTRACT_FACILITY_OCCUPANCY_UPDATED`
 
 ### `actorName`
 
@@ -41426,6 +41430,7 @@ Visible curated activity titles only (HIDE = omitted). Copy is from `packages/ty
 | A101 | `INVOICE_OFFER_REJECTED` | Issuer | Invoice Offer Declined |
 | A102 | `INVOICE_WITHDRAWN` | Admin Activity | Invoice Withdrawn |
 | A102 | `INVOICE_WITHDRAWN` | Issuer | Invoice Withdrawn |
+| A178 | `CONTRACT_FACILITY_OCCUPANCY_UPDATED` | Admin Activity | Facility Utilization Updated |
 | A103 | `SIGNING_PACKAGE_CREATED` | Admin Activity | Signing Package Created |
 | A104 | `SIGNING_PACKAGE_SENT` | Admin Activity | Signing Package Sent |
 | A104 | `SIGNING_PACKAGE_SENT` | Issuer | Signing Package Sent |
@@ -41592,26 +41597,26 @@ How an investor is allowed to see an event. CANCELLED `NoteInvestment` rows do n
 
 # Source verification footer
 
-Date: **2026-08-19**. Source: current tree after A175–A177 (admin organization profile + campaign pause/resume). Original A001–A174 IDs unchanged.
+Date: **2026-08-20**. Source: current tree after A178 (contract facility occupancy). Original A001–A177 IDs unchanged.
 
 ## VERIFIED counts
 
 | Source | Count | Result |
 |---|---:|---|
-| Catalogue arrays in this document (Access 3 + Security 35 + Onboarding 18 reserved + Legal 7 + Application 40 + Signing 12 + Note 37 + Payment 19 + Product 5 + Notification 1) | 177 reserved/catalogued IDs | VERIFIED |
+| Catalogue arrays in this document (Access 3 + Security 35 + Onboarding 18 reserved + Legal 7 + Application 41 + Signing 12 + Note 37 + Payment 19 + Product 5 + Notification 1) | 178 reserved/catalogued IDs | VERIFIED |
 | `ACCESS_AUDIT_EVENTS` `apps/api/src/modules/auth/audit/events.ts` | 3 | VERIFIED |
 | `SECURITY_AUDIT_EVENTS` `apps/api/src/modules/security/audit/events.ts` | 35 | VERIFIED |
 | `ONBOARDING_AUDIT_EVENTS` `apps/api/src/modules/onboarding/audit/events.ts` | 18 reserved IDs (15 current active onboarding event types; A040, A052, and A053 in `RETIRED_ONBOARDING_AUDIT_EVENTS`; A175 appended) | VERIFIED |
 | `LEGAL_ADMIN_AUDIT_EVENTS` `apps/api/src/modules/legal-documents/audit/events.ts` | 7 | VERIFIED |
-| `APPLICATION_AUDIT_EVENTS` `apps/api/src/modules/applications/audit/events.ts` | 40 | VERIFIED |
+| `APPLICATION_AUDIT_EVENTS` `apps/api/src/modules/applications/audit/events.ts` | 41 (A063–A102 original + A178 appended) | VERIFIED |
 | `SIGNING_AUDIT_EVENTS` `apps/api/src/modules/signing/audit/events.ts` | 12 | VERIFIED |
 | `NOTE_AUDIT_EVENTS` `apps/api/src/modules/notes/audit/events.ts` | 37 (A115–A149 original + A176–A177 appended) | VERIFIED |
 | `PAYMENT_AUDIT_EVENTS` `apps/api/src/modules/payment/audit/events.ts` | 19 | VERIFIED |
 | `PRODUCT_AUDIT_EVENTS` `apps/api/src/modules/products/audit/events.ts` | 5 | VERIFIED |
 | `NOTIFICATION_BROADCAST_AUDIT_EVENTS` `apps/api/src/modules/notification/audit/events.ts` | 1 | VERIFIED |
-| Zod `metadataByEvent` / `schemas` maps (one schema per catalogue event, including retired IDs so historical rows still parse) | 177 | VERIFIED |
-| Current writers (`eventType: "…"` call sites in `apps/api/src/modules/**` plus jobs/middleware) | 174 currently active event types with at least one writer; A040, A052, and A053 have none | VERIFIED |
-| Admin raw coverage (global `/audit` tabs, application/note contextual history, trustee, gateway, withdrawal, recon) | 177 reserved/catalogued IDs remain readable | VERIFIED |
+| Zod `metadataByEvent` / `schemas` maps (one schema per catalogue event, including retired IDs so historical rows still parse) | 178 | VERIFIED |
+| Current writers (`eventType: "…"` call sites in `apps/api/src/modules/**` plus jobs/middleware) | 175 currently active event types with at least one writer; A040, A052, and A053 have none | VERIFIED |
+| Admin raw coverage (global `/audit` tabs, application/note contextual history, trustee, gateway, withdrawal, recon) | 178 reserved/catalogued IDs remain readable | VERIFIED |
 
 ## Writer notes that affect verification
 
@@ -42188,3 +42193,155 @@ Admin Campaign tab resume action. Note Audit History. Activity CSV: **Campaign r
 - [ ] second resume → 409 and no duplicate
 - [ ] raw Audit History shows the row
 - [ ] CSV label Campaign resumed
+
+# A178 — CONTRACT_FACILITY_OCCUPANCY_UPDATED
+
+**Status: ACTIVE**
+
+Source Case: APP-041
+Module: Application
+Audit Model: ApplicationAuditLog
+DB Table: application_audit_logs
+
+Appended globally after A177. Not inserted into the original A063–A102 block. **Not** a NoteAuditLog event. There is no `FACILITY_OCCUPANCY_UPDATED` note event.
+
+## 1. What this event means
+
+Live revolving occupancy on a contract facility changed after a causal business action. Occupancy SOT is `contract_details` (`utilized_facility`, `available_facility`, `pending_facility`, `repaid_facility`). This row is history of a material utilized / available / repaid change, not workflow state.
+
+## 2. When it logs
+
+`apps/api/src/lib/refresh-contract-facility.ts` → `writeApplicationAuditLog`, only when the caller passes occupancy audit context **and** utilized / available / repaid actually changed.
+
+Callers:
+
+- `INVOICE_ACCEPTED` — `applications/service.ts` invoice offer accept (issuer USER + ISSUER + API, or SYSTEM + INTERNAL on signing completion)
+- `FUNDING_CLOSED` — `notes/service.ts` `closeFunding` (current admin `ActorContext`)
+- `FUNDING_FAILED` — `notes/service.ts` `failFunding` (current admin `ActorContext`)
+- `NOTE_REPAID` — settlement posted without trustee, trustee-complete repaid path, and legacy residual withdrawal complete (current admin `ActorContext`)
+
+## 3. When it does NOT log / no-op
+
+No occupancy audit row when utilized, available, and repaid are unchanged (pending-only changes included). Silent SOT refresh without this event: invoice create / update / delete / withdraw, admin offer send / retract, amendment, section / item review, expiry job, recompute script, bookkeeping-only refresh, contract accept available-line update, reject paths.
+
+## 4. Top-level audit row
+
+Append-only `ApplicationAuditLog` / `application_audit_logs`.
+
+| Column | Current writer behavior |
+|---|---|
+| `id` | cuid |
+| `application_id` | Linked / originating application (required; skip write if missing) |
+| `event_type` | `CONTRACT_FACILITY_OCCUPANCY_UPDATED` |
+| `occurred_at` / `created_at` | DB default `now()` |
+| `actor_type` / `actor_user_id` | Reused from the causal action (`AuditRequestContext`) |
+| `organization_id` | Issuer organization resolved from the application |
+| `organization_kind` | `ISSUER` when organization_id is set |
+| `target_type` | `CONTRACT` |
+| `target_id` | Contract id |
+| `source` / `portal` / `ip` / `ua` / `correlation_id` | Causal actor context |
+| `idempotency_key` | null |
+| `metadata` | Parsed by `parseApplicationAuditMetadata` |
+
+## 5. EXACT METADATA STRUCTURE
+
+Zod: `occupancyUpdatedSchema` in `apps/api/src/modules/applications/audit/metadata.ts`. Writer injects `actorName` / `actorEmail`. `approved_facility` is **not** in metadata.
+
+```ts
+{
+  actorName: string | null;
+  actorEmail: string | null;
+  reason: "INVOICE_ACCEPTED" | "FUNDING_CLOSED" | "FUNDING_FAILED" | "NOTE_REPAID";
+  contract_id: string;
+  note_id: string | null;
+  invoice_id: string | null;
+  before: {
+    utilized_facility: number;
+    available_facility: number;
+    repaid_facility: number;
+  };
+  after: {
+    utilized_facility: number;
+    available_facility: number;
+    repaid_facility: number;
+    pending_facility: number;
+  };
+}
+```
+
+## 6. Source of truth
+
+`contract.contract_details` occupancy fields remain SOT. Note funded/target amounts, invoice offer amounts, and note status/funding/servicing remain the occupancy inputs. Audit is not occupancy state.
+
+## 7. Transaction / audit failure behavior
+
+Invoice accept writes in the same Prisma transaction as the invoice mutation. Note funding close/fail and repayment refresh after the note transaction commits. Writer parse/insert failure on in-tx accept rolls back the invoice mutation. Failed occupancy write after a committed note mutation does not roll back the note (refresh is post-commit, matching Ivan's call sites).
+
+## 8. Writer(s)
+
+- `apps/api/src/lib/refresh-contract-facility.ts`
+- `writeApplicationAuditLog`
+
+## 9. ADMIN RAW AUDIT
+
+**Visibility:** SHOW
+
+Application Detail → Audit History. Permission `applications.view`. Contract activity also includes `CONTRACT_*` rows.
+
+**Title:** Raw event row
+
+**Description:** Full typed metadata in AuditLogDetailSheet.
+
+## 10. ADMIN CURATED ACTIVITY
+
+**Visibility:** SHOW
+
+Included in `APPLICATION_ADMIN_SHOW`. Admin application timeline uses `formatApplicationActivity`. Contract CSV label: **Facility utilization updated**.
+
+**Title:** Facility Utilization Updated
+
+**Description:** Facility usage was updated after {invoice was accepted | funding closed | funding failed | a note was repaid}.
+
+## 11. ISSUER ACTIVITY
+
+**Visibility:** HIDE
+
+Not in `APPLICATION_ISSUER_SHOW`. Issuer `/activity` does not fetch this type. Issuer application/facility timelines also omit it from their local label maps. Issuers already see the causal milestone (invoice accepted, funding closed, repayment).
+
+**Title:** N/A
+
+**Description:** N/A
+
+## 12. INVESTOR ACTIVITY
+
+**Visibility:** HIDE
+
+Application activity is never shown to investors.
+
+**Title:** N/A
+
+**Description:** N/A
+
+## 13. Presentation metadata safety
+
+Curated copy uses `reason` only as a human phrase. Do not print utilized/available/repaid amounts, contract ids, note ids, or invoice ids in Activity. Those stay in raw metadata.
+
+## 14. Current UI behavior
+
+Admin Application Activity and Contract Activity. Raw Application Audit History. Issuer/investor `/activity` hidden. Occupancy SOT still drives issuer/admin facility cards independently of this event.
+
+## 15. Manual verification checklist
+
+- [ ] Invoice accept with occupancy change → one A178 row; actor matches the accept action
+- [ ] Signing-completion invoice accept → SYSTEM actor, `actorUserId` null, source INTERNAL
+- [ ] Funding close with occupancy change → one A178 row; admin actor
+- [ ] Funding fail with occupancy change → one A178 row; admin actor
+- [ ] Note repaid with occupancy change → one A178 row; admin actor
+- [ ] No-op recalculation (utilized/available/repaid unchanged) → no A178
+- [ ] Pending-only change → no A178
+- [ ] Invoice create/update/delete/withdraw, offer send/retract, amendment, expiry, recompute → SOT updated, no A178
+- [ ] No `NoteAuditLog` / `FACILITY_OCCUPANCY_UPDATED` row
+- [ ] Admin Activity shows Facility Utilization Updated
+- [ ] Issuer/investor Activity hide occupancy
+- [ ] Raw Audit History shows the row
+- [ ] Existing A001–A177 numbering unchanged
