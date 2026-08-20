@@ -34,7 +34,7 @@ Use **Save and Continue** to move forward and **Back** to fix an earlier screen.
 
 ## After Financing Type
 
-Follow the progress bar. The middle steps are **only** what your product includes. Examples you might see (not every product has all of them) include **Company Details**, **Business & Guarantor Details**, **Financial Statements**, **Upload Supporting Documents**, **Provide Facility and Customer Details**, **Upload invoice(s)**, or a **Financing Structure** style question. Your product may use other labels or skip some of these entirely.
+Follow the progress bar. The middle steps are **only** what your product includes. Examples you might see (not every product has all of them) include **Company Details**, **Business & Guarantor Details**, **Financial Statements**, **Upload Supporting Documents**, **Provide Facility and Customer Details**, **Upload invoice**, or a **Financing Structure** style question. Your product may use other labels or skip some of these entirely.
 
 ## When you see Financing Structure
 
@@ -42,14 +42,14 @@ Some products ask **How would you like to apply for financing?** with three choi
 
 **Submit a new facility**  
 *My invoice is under a facility that hasn't been approved by Cashsouk*  
-For a **new** facility CashSouk has not approved yet. You will enter facility and customer details where the form asks. Invoice steps depend on the product.
+For a **new** facility CashSouk has not approved yet. You will enter facility and customer details where the form asks. You may add **one** invoice on this application now, or originate the facility first and finance an invoice later from the facility page.
 
 **Use an existing facility**  
 *My invoice is under a facility already approved by Cashsouk*  
-When you already have an approved CashSouk facility. Choose it in **Select an existing facility**. If you see **No existing facilities**, pick another path or complete an approved facility first. Details may **prefill** from the facility you pick.
+When you already have an approved CashSouk facility. Choose it in **Select an existing facility**. Each application finances **one** invoice. To finance another invoice against the same facility, start a new application (for example from the facility page).
 
 **Invoice-only financing**  
-*I want to finance my invoice(s) without a facility*  
+*I want to finance my invoice without a facility*  
 When the product supports invoice-led financing without a full new-facility path. You still complete customer or paymaster details where the product requires them.
 
 ## Declarations and submit

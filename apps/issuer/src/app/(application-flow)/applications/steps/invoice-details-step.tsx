@@ -116,6 +116,9 @@ export function generateMockData(): Record<string, unknown> {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+const MAX_ONE_INVOICE_MESSAGE =
+  "Applications allow only one invoice. Remove extra invoices or start a new application for another invoice.";
+
 import { parseISO, parse, isValid, format } from "date-fns";
 import { maturityMeetsMinimumMonthsFrom } from "@cashsouk/config";
 
@@ -441,19 +444,22 @@ export default function InvoiceDetailsStep({
 
   const addInvoice = () => {
     const defaultRatio = productConfig?.min_financing_ratio_percent ?? 60;
-    setInvoices((s) => [
-      ...s,
-      {
-        id: crypto.randomUUID(),
-        isPersisted: false,
-        number: "",
-        value: "",
-        maturity_date: "",
-        financing_ratio_percent: defaultRatio,
-        document: null,
-        status: "DRAFT",
-      },
-    ]);
+    setInvoices((s) => {
+      if (s.length >= 1) return s;
+      return [
+        ...s,
+        {
+          id: crypto.randomUUID(),
+          isPersisted: false,
+          number: "",
+          value: "",
+          maturity_date: "",
+          financing_ratio_percent: defaultRatio,
+          document: null,
+          status: "DRAFT",
+        },
+      ];
+    });
   };
 
   const updateInvoiceField = <K extends keyof LocalInvoice>(id: string, field: K, value: LocalInvoice[K]) => {
@@ -740,8 +746,10 @@ export default function InvoiceDetailsStep({
   const isInvoiceOnly = structureType === "invoice_only";
   const isExistingContract = structureType === "existing_contract";
 
-  /** Invoice-only applications allow only one invoice; existing rows are never removed automatically. */
-  const maxInvoicesReached = isInvoiceOnly && invoices.length >= 1;
+  /** Applications allow at most one invoice; legacy files may still have more. */
+  const maxInvoicesReached = invoices.length >= 1;
+  const isGrandfatherMultiInvoice = invoices.length > 1;
+  const canRemoveInvoiceRow = isGrandfatherMultiInvoice || structureType === "new_contract";
 
   let productConfig: InvoiceConfig | null = null;
   try {
@@ -823,11 +831,10 @@ export default function InvoiceDetailsStep({
       }
     }
 
-    if (!validationError && isInvoiceOnly) {
+    if (!validationError) {
       const nonEmptyInvoiceCount = invoices.filter((inv) => !isRowEmpty(inv)).length;
       if (nonEmptyInvoiceCount > 1) {
-        validationError =
-          "Invoice-only financing allows one invoice. Remove extra invoices or change financing structure on the previous step.";
+        validationError = MAX_ONE_INVOICE_MESSAGE;
       }
     }
   }
@@ -848,7 +855,11 @@ export default function InvoiceDetailsStep({
     }
 
     if (validationError) {
-      toast.error("Please fix the highlighted fields");
+      toast.error(
+        validationError === MAX_ONE_INVOICE_MESSAGE
+          ? MAX_ONE_INVOICE_MESSAGE
+          : "Please fix the highlighted fields"
+      );
       throw new Error("VALIDATION_INVOICES");
     }
 
@@ -861,6 +872,9 @@ export default function InvoiceDetailsStep({
     for (const invoiceId of Object.keys(deletedInvoices)) {
       await apiClient.deleteInvoice(invoiceId);
     }
+
+    const persistedCount = invoices.filter((row) => row.isPersisted).length;
+    let createdThisSave = 0;
 
     for (const inv of invoices) {
       if (isRowEmpty(inv)) continue;
@@ -884,6 +898,11 @@ export default function InvoiceDetailsStep({
       let currentS3Key = lastS3Keys[inv.id] || lastS3Keys[invoiceId];
 
       if (!inv.isPersisted) {
+        if (persistedCount + createdThisSave >= 1) {
+          toast.error(MAX_ONE_INVOICE_MESSAGE);
+          throw new Error("VALIDATION_MAX_INVOICES");
+        }
+
         const createPayload: Parameters<ApiClient["createInvoice"]>[0] = {
           applicationId,
           details: {
@@ -910,9 +929,21 @@ export default function InvoiceDetailsStep({
 
         const createResp = await apiClient.createInvoice(createPayload);
         if (!createResp.success) {
-          throw new Error("Failed to create invoice");
+          const isMaxInvoices = createResp.error.code === "MAX_INVOICES_REACHED";
+          toast.error(
+            isMaxInvoices
+              ? createResp.error.message || MAX_ONE_INVOICE_MESSAGE
+              : createResp.error.message || "Failed to create invoice"
+          );
+          throw new Error(isMaxInvoices ? "VALIDATION_MAX_INVOICES" : "VALIDATION_CREATE_INVOICE");
         }
         invoiceId = createResp.data.id;
+        createdThisSave += 1;
+        setInvoices((prev) =>
+          prev.map((row) =>
+            row.id === inv.id ? { ...row, id: invoiceId, isPersisted: true } : row
+          )
+        );
       } else {
         /**
          * UPDATE EXISTING INVOICES
@@ -1078,8 +1109,6 @@ export default function InvoiceDetailsStep({
       setIsLoadingInvoices(true);
       try {
         const apiClient = createApiClient(API_URL, getAccessToken);
-        const isExistingContract = application?.financing_structure?.structure_type === "existing_contract";
-        const contractId = application?.contract_id;
 
         const toLocalInvoice = (it: Invoice & { withdraw_reason?: WithdrawReason | string | null }): LocalInvoice => {
           const d = it.details;
@@ -1124,35 +1153,15 @@ export default function InvoiceDetailsStep({
         let mapped: LocalInvoice[];
 
         const resp = await apiClient.getInvoicesByApplication(applicationId);
-        if (!isApiSuccess(resp)) return;
+        if (!isApiSuccess(resp)) {
+          if (mounted) setIsInitialized(true);
+          return;
+        }
         const items = resp.data;
 
         if (isAmendmentMode) {
-          /**
-           * AMENDMENT: Show all invoices (SUBMITTED, APPROVED, REJECTED, WITHDRAWN, DRAFT).
-           * For existing_contract, application fetch includes contract-linked invoices.
-           */
           mapped = items.map(toLocalInvoice);
-        } else if (isExistingContract && contractId) {
-          /**
-           * EXISTING CONTRACT (non-amendment): Contract invoices (SUBMITTED/APPROVED) + DRAFT.
-           * DRAFT can be removed if user switches structure.
-           */
-          const contractResp = await apiClient.getInvoicesByContract(contractId);
-          const contractItems = isApiSuccess(contractResp)
-            ? contractResp.data.filter(
-              (it) => it.status === InvoiceStatus.APPROVED || it.status === InvoiceStatus.SUBMITTED
-            )
-            : [];
-          const contractIds = new Set(contractItems.map((it) => it.id));
-          const appDrafts = items.filter(
-            (it) => it.status === InvoiceStatus.DRAFT && !contractIds.has(it.id)
-          );
-          mapped = [...contractItems.map(toLocalInvoice), ...appDrafts.map(toLocalInvoice)];
         } else {
-          /**
-           * INVOICE_ONLY / NEW_CONTRACT: DRAFT only (not related to contract).
-           */
           const filtered = items.filter((it) => it.status === InvoiceStatus.DRAFT);
           mapped = filtered.map(toLocalInvoice);
         }
@@ -1175,7 +1184,7 @@ export default function InvoiceDetailsStep({
           setIsInitialized(true);
         }
       } catch {
-        // Non-fatal: continue with empty list
+        if (mounted) setIsInitialized(true);
       } finally {
         if (mounted) {
           setIsLoadingInvoices(false);
@@ -1188,6 +1197,14 @@ export default function InvoiceDetailsStep({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applicationId, application, application?.financing_structure?.structure_type, application?.contract_id, isAmendmentMode]);
+
+  React.useEffect(() => {
+    if (!isInitialized || isLoadingInvoices || readOnly) return;
+    if (structureType === "new_contract") return;
+    if (invoices.length > 0) return;
+    addInvoice();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInitialized, isLoadingInvoices, readOnly, structureType, invoices.length]);
 
   if (isLoadingApplication || devTools?.showSkeletonDebug) {
     return (
@@ -1294,21 +1311,28 @@ export default function InvoiceDetailsStep({
             <div className="flex items-start justify-between">
               <div>
                 <h3 className={applicationFlowSectionTitleClassName}>
-                  Invoices
+                  {isGrandfatherMultiInvoice ? "Invoices" : "Invoice"}
                 </h3>
                 <p className="text-sm text-muted-foreground mt-1">
                   {maxInvoicesReached
-                    ? "Invoice-only applications allow only one invoice."
-                    : "Add invoices below. Rows are local until you Save and Continue."}
+                    ? structureType === "new_contract"
+                      ? "This application already has an invoice. Start a new application to finance another invoice against this facility."
+                      : "Applications allow only one invoice."
+                    : structureType === "new_contract"
+                      ? "You can add one invoice now, or originate the facility first and finance an invoice later from the facility page."
+                      : "Provide the invoice for this application. Rows are local until you Save and Continue."}
                 </p>
               </div>
+              {!maxInvoicesReached ? (
               <Button
+                type="button"
                 onClick={addInvoice}
-                disabled={readOnly || maxInvoicesReached}
+                disabled={readOnly}
                 className="bg-primary text-primary-foreground shrink-0"
               >
                 Add invoice
               </Button>
+              ) : null}
             </div>
             <div className={applicationFlowSectionDividerClassName} />
 
@@ -1317,9 +1341,24 @@ export default function InvoiceDetailsStep({
               <InvoiceErrorCard groups={invoiceAmendmentGroups} />
             )}
 
-            {/* ================= Table ================= */}
+            {/* ================= Table / empty state ================= */}
             <div className="mt-4 px-3">
-              {!isLoadingInvoices && (
+              {!isLoadingInvoices && invoices.length === 0 ? (
+                <div className="rounded-xl border border-dashed bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+                  {structureType === "new_contract" ? (
+                    <p>
+                      No invoice added yet. Click <span className="font-medium text-foreground">Add invoice</span> if
+                      you want to finance one with this facility application, or continue without an invoice.
+                    </p>
+                  ) : (
+                    <p>
+                      No invoice yet. Click <span className="font-medium text-foreground">Add invoice</span> to provide
+                      the invoice for this application.
+                    </p>
+                  )}
+                </div>
+              ) : null}
+              {!isLoadingInvoices && invoices.length > 0 ? (
                 <div className="border rounded-xl bg-card overflow-hidden">
                   <div className="overflow-x-auto">
                     <Table className="table-fixed w-full">
@@ -1424,7 +1463,7 @@ export default function InvoiceDetailsStep({
                             Documents
                           </TableHead>
 
-                          <TableHead className="w-[50px]" />
+                          {canRemoveInvoiceRow ? <TableHead className="w-[50px]" /> : null}
                         </TableRow>
                       </TableHeader>
 
@@ -1668,6 +1707,7 @@ export default function InvoiceDetailsStep({
                                 )}
                               </TableCell>
 
+                              {canRemoveInvoiceRow ? (
                               <TableCell className="p-2">
                                 <Button
                                   variant="ghost"
@@ -1683,24 +1723,27 @@ export default function InvoiceDetailsStep({
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
                               </TableCell>
+                              ) : null}
                             </TableRow>
                           );
                         })}
 
                         {/* TOTAL */}
+                        {isGrandfatherMultiInvoice ? (
                         <TableRow className="bg-muted/10">
                           <TableCell colSpan={5} />
                           <TableCell className="p-2 font-semibold text-xs tabular-nums">
                             RM {formatMoney(totalFinancingAmount)}
                             <div className="text-xs text-muted-foreground font-normal">Total</div>
                           </TableCell>
-                          <TableCell colSpan={2} />
+                          <TableCell colSpan={canRemoveInvoiceRow ? 2 : 1} />
                         </TableRow>
+                        ) : null}
                       </TableBody>
                     </Table>
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
 
             {/* ================= Validation ================= */}

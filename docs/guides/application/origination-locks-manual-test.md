@@ -54,10 +54,10 @@ Do **read-only / disable checks first**, then the cases that consume the file. R
 | **B2** | Issuer detail | Withdraw. Then check admin queue. | App + non-final children `WITHDRAWN`. File leaves the admin queue. |
 | **B3** | Issuer detail | Withdraw. | App `WITHDRAWN`. Facility `WITHDRAWN` / `OFFER_REJECTED`. |
 | **B4** | Issuer detail | Withdraw. Admin → Signing package. | Withdraw allowed. Envelope **VOIDED**. Issuer cannot keep signing. |
-| **B5** | Issuer detail | Confirm application Withdraw is disabled. Withdraw **one invoice** (ids printed by the seed). | Application Withdraw disabled (API 400 if forced). Per-invoice withdraw works. App stays **not** `WITHDRAWN`. |
+| **B5** | Issuer detail | Confirm application Withdraw is disabled. Withdraw **the invoice** (id printed by the seed). | Application Withdraw disabled (API 400 if forced). Per-invoice withdraw works. App stays **not** `WITHDRAWN`. |
 | **B6** | Issuer detail | Try Withdraw. | Disabled / API 400. |
-| **B7** | Issuer detail | Withdraw **one** of the offer-sent invoices. | App stays open (`INVOICES_SENT` / invoice-pending). |
-| **B8** | Issuer detail | Withdraw the remaining live invoice (the other is already withdrawn). | App becomes `WITHDRAWN`. |
+| **B7** | Issuer detail | Withdraw the offer-sent invoice. | App becomes `WITHDRAWN` (single invoice on this application). |
+| **B8** | Issuer detail | Withdraw the submitted invoice on **B8**. | App becomes `WITHDRAWN`. |
 
 ### Pending / retract / reopen (C)
 

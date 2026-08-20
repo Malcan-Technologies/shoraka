@@ -1,6 +1,8 @@
 /**
  * Cascade-close an application as REJECTED: non-final children + offer phases.
  * Application status write is included; call from admin final reject only.
+ * Caller must void open signing envelopes first — this will not persist REJECTED
+ * while DRAFT/SENT/IN_PROGRESS envelopes remain.
  */
 
 import {
@@ -10,10 +12,20 @@ import {
   InvoiceStatus,
 } from "@cashsouk/types";
 import type { Prisma } from "@prisma/client";
+import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
 import { patchOfferAcceptanceUnchecked } from "./offer-acceptance";
 
-const VOIDABLE_ENVELOPE_STATUSES = ["DRAFT", "SENT", "IN_PROGRESS"] as const;
+export const VOIDABLE_ENVELOPE_STATUSES = ["DRAFT", "SENT", "IN_PROGRESS"] as const;
+const VOIDABLE_ENVELOPE_STATUS_SET = new Set<string>(VOIDABLE_ENVELOPE_STATUSES);
+
+export function getVoidableEnvelopeIds(
+  envelopes: Array<{ id: string; status: string | null | undefined }>
+): string[] {
+  return envelopes
+    .filter((envelope) => VOIDABLE_ENVELOPE_STATUS_SET.has(String(envelope.status ?? "").toUpperCase()))
+    .map((envelope) => envelope.id);
+}
 
 const SKIP_REJECT_ENTITY_STATUSES = new Set<string>(["APPROVED", "REJECTED", "WITHDRAWN"]);
 
@@ -39,19 +51,11 @@ export function rejectOfferDetailsJson(
   return patchOfferAcceptanceUnchecked(record, { status: "REJECTED" }) as Prisma.InputJsonValue;
 }
 
-export type CloseApplicationAsRejectedResult = {
-  voidEnvelopeIds: string[];
-};
-
 /**
  * Reject non-final contract/invoices and offer phases inside a transaction.
- * Returns envelope ids that should be voided after commit (signing service side effects).
+ * Open signing envelopes must already be voided; otherwise this throws and leaves status unchanged.
  */
-export async function closeApplicationAsRejected(
-  applicationId: string
-): Promise<CloseApplicationAsRejectedResult> {
-  let voidEnvelopeIds: string[] = [];
-
+export async function closeApplicationAsRejected(applicationId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const application = await tx.application.findUnique({
       where: { id: applicationId },
@@ -80,14 +84,14 @@ export async function closeApplicationAsRejected(
       throw new Error(`Application not found: ${applicationId}`);
     }
 
-    voidEnvelopeIds =
-      application.signing_envelopes
-        ?.filter((envelope) =>
-          VOIDABLE_ENVELOPE_STATUSES.includes(
-            envelope.status as (typeof VOIDABLE_ENVELOPE_STATUSES)[number]
-          )
-        )
-        .map((envelope) => envelope.id) ?? [];
+    const openEnvelopeIds = getVoidableEnvelopeIds(application.signing_envelopes ?? []);
+    if (openEnvelopeIds.length > 0) {
+      throw new AppError(
+        409,
+        "INVALID_STATE",
+        "Cannot reject application while signing packages are still open"
+      );
+    }
 
     const updated = await tx.application.updateMany({
       where: {
@@ -126,6 +130,4 @@ export async function closeApplicationAsRejected(
       });
     }
   });
-
-  return { voidEnvelopeIds };
 }

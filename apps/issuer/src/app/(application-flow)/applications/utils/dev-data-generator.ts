@@ -112,7 +112,7 @@ export interface InvoiceRowInput {
 /** Invoice data for invoice details step. Maturity today or future; value > 0; financing_ratio 60–80. Random count 1–5. */
 export function generateInvoiceData(): { invoices: InvoiceRowInput[] } {
   const today = new Date();
-  const count = randomInt(1, 5);
+  const count = 1;
   const invoices: InvoiceRowInput[] = [];
   const usedNumbers = new Set<string>();
 

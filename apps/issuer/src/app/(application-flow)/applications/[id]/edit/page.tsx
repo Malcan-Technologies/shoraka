@@ -85,6 +85,7 @@ import { SupportingDocumentsStep } from "../../steps/supporting-documents-step";
 // dialog components are used by modal components directly
 import { useProductVersionGuard } from "@/hooks/use-product-version-guard";
 import { VersionMismatchModal } from "@/components/VersionMismatchModal";
+import { EXISTING_CONTRACT_PREFILL_STORAGE_KEY } from "@/lib/finance-invoice-application-href";
 import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
 import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 import { useIssuerUnsavedNavigation } from "@/contexts/issuer-unsaved-navigation-context";
@@ -1723,6 +1724,7 @@ function EditApplicationPageBody() {
 
       if (currentStepKey === "financing_structure" && !devPreviewAmendment) {
         sessionStorage.removeItem("cashsouk:financing_structure_override");
+        sessionStorage.removeItem(EXISTING_CONTRACT_PREFILL_STORAGE_KEY);
         setSessionStructureType(null);
       }
 
@@ -1737,6 +1739,7 @@ function EditApplicationPageBody() {
       }
       if (currentStepKey === "financing_structure") {
         sessionStorage.removeItem("cashsouk:financing_structure_override");
+        sessionStorage.removeItem(EXISTING_CONTRACT_PREFILL_STORAGE_KEY);
         setSessionStructureType(null);
         if (getApiMutationErrorCode(err) === "STRUCTURE_CHANGE_BLOCKED") {
           toast.error(
@@ -1746,6 +1749,14 @@ function EditApplicationPageBody() {
           );
           return;
         }
+      }
+      if (getApiMutationErrorCode(err) === "MAX_INVOICES_REACHED") {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Applications allow only one invoice. Remove extra invoices or start a new application for another invoice."
+        );
+        return;
       }
       toast.error("Something went wrong. Please try again.");
     } finally {

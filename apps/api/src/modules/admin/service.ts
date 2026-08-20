@@ -140,7 +140,10 @@ import { assertMaturityForSendInvoiceOffer } from "../products/validate-financia
 import { extractSubmittedAtFromWebhookPayloads } from "./extract-submitted-at";
 import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
 import { patchOfferAcceptance } from "../applications/offer-acceptance";
-import { closeApplicationAsRejected } from "../applications/lifecycle-close";
+import {
+  closeApplicationAsRejected,
+  VOIDABLE_ENVELOPE_STATUSES,
+} from "../applications/lifecycle-close";
 import {
   acceptanceDeadlinePatchOnChangesRequested,
   buildOfferAcceptanceOnSend,
@@ -6379,15 +6382,24 @@ export class AdminService {
 
     let updatedApplication;
     if (status === ApplicationStatus.REJECTED) {
-      const { voidEnvelopeIds } = await closeApplicationAsRejected(id);
+      const voidableEnvelopes = await prisma.signingEnvelope.findMany({
+        where: {
+          application_id: id,
+          status: { in: [...VOIDABLE_ENVELOPE_STATUSES] },
+        },
+        select: { id: true },
+      });
       const voidFailures: string[] = [];
-      for (const envelopeId of voidEnvelopeIds) {
+      for (const { id: envelopeId } of voidableEnvelopes) {
         try {
           await signingService.voidEnvelope(envelopeId, "Application rejected by admin", {
             userId,
             portal: ActivityPortal.ADMIN,
           });
         } catch (voidError) {
+          if (voidError instanceof AppError && voidError.code === "SIGNING_ENVELOPE_NOT_VOIDABLE") {
+            continue;
+          }
           voidFailures.push(envelopeId);
           logger.error(
             { error: voidError, applicationId: id, envelopeId },
@@ -6399,9 +6411,10 @@ export class AdminService {
         throw new AppError(
           502,
           "SIGNING_ENVELOPE_VOID_FAILED",
-          `Application rejected but failed to void signing package(s): ${voidFailures.join(", ")}. Void manually from the Signing tab.`
+          `Failed to void signing package(s): ${voidFailures.join(", ")}. The application was not rejected.`
         );
       }
+      await closeApplicationAsRejected(id);
       updatedApplication = await repository.getApplicationById(id);
     } else {
       updatedApplication = await repository.updateApplicationStatus(id, status);

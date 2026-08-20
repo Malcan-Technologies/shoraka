@@ -5,7 +5,7 @@
  * PART 1 — WHAT WE HAVE (the problem)
  * =============================================================================
  *
- * One application can have many statuses at once:
+ * One application can have many statuses at once (and legacy files may still have multiple invoices):
  *   - The application itself has a status (e.g. SUBMITTED)
  *   - The contract (if any) has a status (e.g. OFFER_SENT)
  *   - Each invoice has a status (e.g. one is DRAFT, one is OFFER_SENT, one is APPROVED)

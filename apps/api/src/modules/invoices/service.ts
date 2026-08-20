@@ -5,7 +5,7 @@ import { ContractRepository } from "../contracts/repository";
 import { AppError } from "../../lib/http/error-handler";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal } from "../applications/logs/types";
-import { Invoice, Prisma } from "@prisma/client";
+import { Invoice } from "@prisma/client";
 import { ApplicationStatus, ContractStatus, InvoiceStatus, WithdrawReason } from "@cashsouk/types";
 import { computeApplicationStatus } from "../applications/lifecycle";
 import {
@@ -168,25 +168,16 @@ export class InvoiceService {
     try {
       const { prisma } = await import("../../lib/prisma");
       return await prisma.$transaction(async (tx) => {
-        const locked = await tx.$queryRaw<
-          { financing_structure: Prisma.JsonValue | null }[]
-        >`SELECT financing_structure FROM applications WHERE id = ${applicationId} FOR UPDATE`;
-        const lockedApplication = locked[0];
-        const structureType = (
-          lockedApplication?.financing_structure as { structure_type?: string } | null
-        )?.structure_type;
-
-        if (structureType === "invoice_only") {
-          const existingInvoiceCount = await tx.invoice.count({
-            where: { application_id: applicationId },
-          });
-          if (existingInvoiceCount >= 1) {
-            throw new AppError(
-              400,
-              "MAX_INVOICES_REACHED",
-              "Invoice-only applications allow only one invoice."
-            );
-          }
+        await tx.$queryRaw`SELECT id FROM applications WHERE id = ${applicationId} FOR UPDATE`;
+        const existingInvoiceCount = await tx.invoice.count({
+          where: { application_id: applicationId },
+        });
+        if (existingInvoiceCount >= 1) {
+          throw new AppError(
+            400,
+            "MAX_INVOICES_REACHED",
+            "Applications allow only one invoice."
+          );
         }
 
         const applicationRow = await tx.application.findUnique({

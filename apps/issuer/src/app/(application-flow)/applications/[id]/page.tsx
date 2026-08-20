@@ -426,8 +426,15 @@ export default function ApplicationDetailPage() {
                   value: application.contractTitle ?? "—",
                 },
                 {
-                  label: "Invoices added",
-                  value: String(application.invoices.length),
+                  label: "Invoice",
+                  value:
+                    application.invoices.length === 0
+                      ? "None yet"
+                      : application.invoices.length === 1
+                        ? application.invoices[0]!.displayReference?.trim() ||
+                          application.invoices[0]!.number?.trim() ||
+                          "Added"
+                        : `${application.invoices.length} invoices`,
                 },
                 {
                   label: "Last updated",
@@ -611,6 +618,15 @@ export default function ApplicationDetailPage() {
                     ? [{ label: "Contract title", value: application.contractTitle }]
                     : []),
                   { label: "Customer", value: application.customer },
+                  {
+                    label: "Invoice",
+                    value:
+                      application.invoices.length === 0
+                        ? "—"
+                        : application.invoices[0]!.displayReference?.trim() ||
+                          application.invoices[0]!.number?.trim() ||
+                          "—",
+                  },
                   {
                     label: "Contract value",
                     value:

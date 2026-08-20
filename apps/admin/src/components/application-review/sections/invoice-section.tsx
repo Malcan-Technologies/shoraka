@@ -14,6 +14,20 @@ import {
 } from "../comparison-document-pair";
 import { formatCurrency, resolveOfferedAmount } from "@cashsouk/config";
 import type { SoukscoreRiskRating } from "@cashsouk/types";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
+import {
+  applicationTableHeaderBgClass,
+  applicationTableRowClass,
+  applicationTableWrapperClass,
+} from "@/components/application-review/application-table-styles";
 
 export interface InvoiceSectionProps {
   /** Live application id — used to resolve signed offer-letter availability from envelopes. */
@@ -25,7 +39,15 @@ export interface InvoiceSectionProps {
     offer_details?: unknown;
     offer_signing?: unknown;
   }[];
-  /** Invoice IDs that are from other applications (same contract) - read-only, actions locked */
+  /** Invoices on the same facility but owned by other applications (read-only context). */
+  otherFacilityInvoices?: {
+    id: string;
+    application_id: string;
+    details?: unknown;
+    status?: string;
+    offer_details?: unknown;
+  }[];
+  /** @deprecated Other-contract rows are shown in otherFacilityInvoices instead. */
   readOnlyInvoiceIds?: Set<string>;
   /** When set, shows Approved Facility, Available Facility and Utilized Facility above the invoice list (facility applications only) */
   contractFacility?: {
@@ -112,9 +134,73 @@ function invoiceFinancingRatioDisplay(inv: { details?: unknown } | undefined): s
   return String(v);
 }
 
+function invoiceFinancingAmountDisplay(inv: {
+  details?: unknown;
+  offer_details?: unknown;
+}): string {
+  const offered = resolveOfferedAmount(inv.offer_details as Record<string, unknown> | null);
+  if (offered > 0) return formatCurrency(offered);
+  const d = inv.details as Record<string, unknown> | null | undefined;
+  const value = d?.value;
+  const ratio = d?.financing_ratio_percent ?? d?.financingRatioPercent;
+  const valueNum = typeof value === "number" ? value : Number(String(value ?? "").replace(/,/g, ""));
+  const ratioNum = typeof ratio === "number" ? ratio : Number(String(ratio ?? "").replace(/,/g, ""));
+  if (Number.isFinite(valueNum) && Number.isFinite(ratioNum) && valueNum > 0) {
+    return formatCurrency((valueNum * ratioNum) / 100);
+  }
+  return REVIEW_EMPTY_LABEL;
+}
+
+function FacilityOtherInvoicesTable({
+  invoices,
+}: {
+  invoices: NonNullable<InvoiceSectionProps["otherFacilityInvoices"]>;
+}) {
+  if (invoices.length === 0) return null;
+
+  return (
+    <div className="mb-6 space-y-2">
+      <h4 className="text-sm font-semibold text-foreground">Other invoices on this facility</h4>
+      <p className="text-meta text-muted-foreground">
+        These invoices belong to other applications. Review and send offers on this application&apos;s
+        invoice below.
+      </p>
+      <div className={applicationTableWrapperClass}>
+        <Table>
+          <TableHeader className={applicationTableHeaderBgClass}>
+            <TableRow>
+              <TableHead className="text-sm font-semibold">Invoice</TableHead>
+              <TableHead className="text-sm font-semibold">Status</TableHead>
+              <TableHead className="text-sm font-semibold text-right">Financing</TableHead>
+              <TableHead className="text-sm font-semibold">Application</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {invoices.map((inv) => (
+              <TableRow key={inv.id} className={applicationTableRowClass}>
+                <TableCell className="text-ui">{invoiceDetailString(inv, "number")}</TableCell>
+                <TableCell>
+                  <ReviewStepStatusBadge status={inv.status ?? "PENDING"} />
+                </TableCell>
+                <TableCell className="text-ui text-right tabular-nums">
+                  {invoiceFinancingAmountDisplay(inv)}
+                </TableCell>
+                <TableCell className="font-mono text-meta text-muted-foreground">
+                  {inv.application_id}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
 export function InvoiceSection({
   applicationId,
   invoices,
+  otherFacilityInvoices,
   readOnlyInvoiceIds,
   contractFacility,
   reviewItems,
@@ -239,6 +325,9 @@ export function InvoiceSection({
           pendingFacility={contractFacility.pendingFacility}
         />
       )}
+      {otherFacilityInvoices && otherFacilityInvoices.length > 0 ? (
+        <FacilityOtherInvoicesTable invoices={otherFacilityInvoices} />
+      ) : null}
       {invoices?.length ? (
         <InvoiceList
           applicationId={applicationId}

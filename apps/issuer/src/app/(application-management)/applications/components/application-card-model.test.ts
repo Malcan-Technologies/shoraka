@@ -243,14 +243,41 @@ describe("applicationHeadlineAmount", () => {
 });
 
 describe("applicationCardSubStatus", () => {
-  it("counts invoices that need amendment or were rejected", () => {
+  it("shows invoice reference for a single invoice", () => {
     expect(
       applicationCardSubStatus(
         makeApp({
-          invoices: [makeInvoice({ status: "AMENDMENT_REQUESTED" })],
+          invoices: [makeInvoice({ number: "INV-1001", displayReference: "INV-ARF-202608-ABC" })],
         })
       )
-    ).toBe("1 invoice · 1 needs action");
+    ).toBe("INV-ARF-202608-ABC");
+  });
+
+  it("flags a single invoice that needs action", () => {
+    expect(
+      applicationCardSubStatus(
+        makeApp({
+          invoices: [makeInvoice({ status: "AMENDMENT_REQUESTED", number: "INV-1001" })],
+        })
+      )
+    ).toBe("INV-1001 · Needs action");
+  });
+
+  it("shows no invoice yet when the application has none", () => {
+    expect(applicationCardSubStatus(makeApp({ invoices: [] }))).toBe("No invoice yet");
+  });
+
+  it("counts invoices on legacy multi-invoice applications", () => {
+    expect(
+      applicationCardSubStatus(
+        makeApp({
+          invoices: [
+            makeInvoice({ status: "AMENDMENT_REQUESTED" }),
+            makeInvoice({ id: "inv_2", status: "SUBMITTED" }),
+          ],
+        })
+      )
+    ).toBe("2 invoices · 1 needs action");
   });
 });
 

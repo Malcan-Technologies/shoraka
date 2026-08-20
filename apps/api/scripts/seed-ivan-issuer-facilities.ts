@@ -227,7 +227,13 @@ const DRAWDOWN_INVOICES = [
   { key: "approved_drawdown", index: 3, number: "FAC-APPR-005", value: 40_000, ratio: 80, offered: 30_000, status: "OFFER_SENT" as const },
 ] as const;
 
-const ALL_APP_KEYS = [...FACILITY_STAGES.map((s) => s.key), "approved_drawdown"];
+const ALL_APP_KEYS = [
+  ...FACILITY_STAGES.map((s) => s.key),
+  "approved_inv_2",
+  "drawdown_1",
+  "drawdown_2",
+  "drawdown_3",
+];
 
 async function deletePrevious(orgId: string) {
   const appIds = ALL_APP_KEYS.map((key) => seedCuid("app", key));
@@ -395,6 +401,20 @@ async function main() {
   const approvedRespondedAt = daysAgo(16).toISOString();
 
   for (const inv of APPROVED_INVOICES) {
+    const appId =
+      inv.index === 1 ? approvedAppId : seedCuid("app", `approved_inv_${inv.index}`);
+    if (inv.index !== 1) {
+      await createApplicationShell({
+        appId,
+        orgId: org.id,
+        productVersion: product.version,
+        status: "COMPLETED",
+        createdAt: daysAgo(18),
+        submitted: true,
+        structureType: "existing_contract",
+        contractId: approvedContractId,
+      });
+    }
     const details = buildInvoiceDetails({
       number: inv.number,
       value: inv.value,
@@ -404,7 +424,7 @@ async function main() {
     await prisma.invoice.create({
       data: {
         id: seedCuid("inv", inv.key, inv.index),
-        application_id: approvedAppId,
+        application_id: appId,
         contract_id: approvedContractId,
         details: details as Prisma.InputJsonValue,
         offer_details: invoiceOfferDetails({
@@ -422,19 +442,18 @@ async function main() {
     });
   }
 
-  const drawdownAppId = seedCuid("app", "approved_drawdown");
-  await createApplicationShell({
-    appId: drawdownAppId,
-    orgId: org.id,
-    productVersion: product.version,
-    status: "INVOICE_PENDING",
-    createdAt: daysAgo(3),
-    submitted: true,
-    structureType: "existing_contract",
-    contractId: approvedContractId,
-  });
-
   for (const inv of DRAWDOWN_INVOICES) {
+    const drawdownAppId = seedCuid("app", `drawdown_${inv.index}`);
+    await createApplicationShell({
+      appId: drawdownAppId,
+      orgId: org.id,
+      productVersion: product.version,
+      status: "INVOICE_PENDING",
+      createdAt: daysAgo(3),
+      submitted: true,
+      structureType: "existing_contract",
+      contractId: approvedContractId,
+    });
     const details = buildInvoiceDetails({
       number: inv.number,
       value: inv.value,

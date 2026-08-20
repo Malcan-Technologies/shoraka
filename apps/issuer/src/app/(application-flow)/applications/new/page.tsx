@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   useHeader,
   SidebarTrigger,
@@ -31,6 +31,7 @@ import {
   MOCK_FINANCING_TYPE_PRODUCTS,
   USE_MOCK_FINANCING_TYPE_CATALOG,
 } from "../lib/mock-financing-type-catalog";
+import { EXISTING_CONTRACT_PREFILL_STORAGE_KEY } from "@/lib/finance-invoice-application-href";
 
 /**
  * NEW APPLICATION PAGE
@@ -46,6 +47,8 @@ import {
  */
 export default function NewApplicationPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const prefillContractId = searchParams.get("contractId");
   const { activeOrganization, isLoading: isOrgLoading } = useOrganization();
   const { shouldIntercept, loading: legalGateLoading } = useLegalReacceptanceGate("issuer");
 
@@ -301,6 +304,10 @@ export default function NewApplicationPage() {
 
       // Clear unsaved and go to step 2 (next step after selecting product)
       setHasUnsavedChanges(false);
+      if (prefillContractId) {
+        sessionStorage.setItem(EXISTING_CONTRACT_PREFILL_STORAGE_KEY, prefillContractId);
+        sessionStorage.setItem("cashsouk:financing_structure_override", "existing_contract");
+      }
       router.push(`/applications/${application.id}/edit?step=2`);
     } catch {
       // Error already shown by mutation hook

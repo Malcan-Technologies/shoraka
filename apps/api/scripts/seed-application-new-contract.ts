@@ -60,7 +60,7 @@ async function main() {
     },
   });
 
-  const invoiceInputs = generateInvoiceDetailsList(10);
+  const invoiceInputs = generateInvoiceDetailsList(1);
   const application = await prisma.application.create({
     data: {
       issuer_organization_id: issuerOrg.id,

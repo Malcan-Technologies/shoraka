@@ -57,8 +57,8 @@ export const STEP_KEY_DISPLAY: Record<ApplicationStepKey, StepKeyDisplay> = {
   },
   invoice_details: {
     title: "Invoice Details",
-    pageTitle: "Upload invoice(s)",
-    description: "Provide the invoice(s) to apply for financing",
+    pageTitle: "Upload invoice",
+    description: "Provide the invoice to apply for financing",
   },
   company_details: {
     title: "Company Details",

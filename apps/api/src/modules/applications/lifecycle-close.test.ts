@@ -1,4 +1,4 @@
-import { shouldRejectEntityStatus, rejectOfferDetailsJson } from "./lifecycle-close";
+import { shouldRejectEntityStatus, rejectOfferDetailsJson, getVoidableEnvelopeIds } from "./lifecycle-close";
 
 describe("shouldRejectEntityStatus", () => {
   it("skips already-terminal entities", () => {
@@ -35,5 +35,24 @@ describe("rejectOfferDetailsJson", () => {
         offer_acceptance: { status: "COMPLETED", submitted_at: "2026-01-01" },
       })
     ).toBeUndefined();
+  });
+});
+
+describe("getVoidableEnvelopeIds", () => {
+  it("returns only DRAFT, SENT, and IN_PROGRESS envelopes", () => {
+    expect(
+      getVoidableEnvelopeIds([
+        { id: "draft", status: "DRAFT" },
+        { id: "sent", status: "SENT" },
+        { id: "progress", status: "IN_PROGRESS" },
+        { id: "completed", status: "COMPLETED" },
+        { id: "voided", status: "VOIDED" },
+        { id: "declined", status: "DECLINED" },
+      ])
+    ).toEqual(["draft", "sent", "progress"]);
+  });
+
+  it("ignores missing statuses", () => {
+    expect(getVoidableEnvelopeIds([{ id: "empty", status: null }])).toEqual([]);
   });
 });
