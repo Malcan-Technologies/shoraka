@@ -47,33 +47,19 @@
  * - Returns invoice snapshot for application-level persistence
  */
 import * as React from "react";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { DateInput } from "@/app/(application-flow)/applications/components/date-input";
-import { Trash2 } from "lucide-react";
 import { createApiClient, useAuthToken, ApiClient, resolveApprovedFacility } from "@cashsouk/config";
 import { toast } from "sonner";
-import { XMarkIcon, CloudArrowUpIcon, InformationCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
-import { Slider } from "@cashsouk/ui";
+import { ExclamationTriangleIcon, TrashIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { cn } from "@cashsouk/ui";
-import {
-  issuerFieldChromeClassName,
-  issuerFieldFocusClassName,
-} from "@/lib/issuer-input-chrome";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIssuerProducts } from "@/hooks/use-products";
+import { useInvoicesByContract } from "@/hooks/use-invoices";
 import {
-  applicationFlowAmendmentTargetTableRowClassName,
-  applicationFlowLockedTableRowClassName,
   applicationFlowSectionDividerClassName,
   applicationFlowSectionTitleClassName,
   applicationFlowStepOuterClassName,
-  formInputDisabledClassName,
   formLabelClassName,
-  withFieldError,
-  fieldTooltipContentClassName,
-  fieldTooltipTriggerClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
 import {
   WithdrawReason,
@@ -86,30 +72,26 @@ import {
   ApiResponse,
   ApiError,
 } from "@cashsouk/types";
-import { StatusBadge } from "../components/invoice-status-badge";
 import { InvoiceErrorCard } from "../components/amendments";
+import { StatusBadge } from "@/app/(application-flow)/applications/components/invoice-status-badge";
 import { formatMoney, parseMoney } from "@cashsouk/ui";
-import { MoneyInput } from "@cashsouk/ui";
 import { InvoiceDetailsSkeleton } from "@/app/(application-flow)/applications/components/invoice-details-skeleton";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { generateInvoiceData } from "../utils/dev-data-generator";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { FileDisplayBadge } from "../components/file-display-badge";
+import {
+  InvoiceFormFields,
+  invoiceTabLabel,
+  type InvoiceFieldErrors,
+  type InvoiceFormModel,
+} from "@/app/(application-flow)/applications/components/invoice-form-fields";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const valueClassName = "text-ui leading-7 text-foreground font-medium";
 
-const invoiceTableFieldChrome = cn(
-  "h-9 text-xs px-3 placeholder:text-muted-foreground",
-  issuerFieldChromeClassName,
-  issuerFieldFocusClassName
-);
+const OTHER_FACILITY_INVOICE_HELPER =
+  "This invoice belongs to another application and cannot be edited here.";
 
-const invoiceTableReadonlyCellChrome = cn(
-  "flex h-9 shrink-0 items-center justify-center px-2 text-meta font-semibold tabular-nums text-foreground",
-  issuerFieldChromeClassName
-);
-
-/** Mock data for dev Auto Fill Step. Random 1–5 invoices. */
+/** Mock data for dev Auto Fill Step. One invoice. */
 export function generateMockData(): Record<string, unknown> {
   return generateInvoiceData();
 }
@@ -277,17 +259,52 @@ function clampedRoundedFinancingRatio(
 /**
  * LOCAL INVOICE STATE SHAPE
  */
-type LocalInvoice = {
-  id: string;
-  isPersisted: boolean;
-  number: string;
-  value: string;
-  maturity_date: string;
-  financing_ratio_percent?: number;
-  status?: string;
-  withdraw_reason?: WithdrawReason;
-  document?: { file_name: string; file_size?: number; s3_key?: string; uploaded_at?: string } | null;
-};
+type LocalInvoice = InvoiceFormModel;
+
+function toLocalInvoice(it: Invoice & { withdraw_reason?: WithdrawReason | string | null }): LocalInvoice {
+  const d = it.details;
+  const wr = it.withdraw_reason;
+  const withdraw_reason =
+    wr === WithdrawReason.USER_CANCELLED || wr === WithdrawReason.OFFER_REJECTED
+      ? wr
+      : undefined;
+  return {
+    id: it.id,
+    isPersisted: true,
+    number: d.number || "",
+    status: it.status || InvoiceStatus.DRAFT,
+    withdraw_reason,
+    value: d.value != null ? formatMoney(d.value) : "",
+    maturity_date: (() => {
+      if (!d.maturity_date) return "";
+      if (/^\d{4}-\d{2}-\d{2}$/.test(d.maturity_date)) {
+        const parsed = parseISO(d.maturity_date);
+        if (isValid(parsed)) return format(parsed, "d/M/yyyy");
+      }
+      return d.maturity_date || "";
+    })(),
+    financing_ratio_percent: (() => {
+      const raw = d.financing_ratio_percent;
+      if (raw == null) return 60;
+      if (typeof raw === "string" && raw.trim() === "") return 60;
+      const n = typeof raw === "number" ? raw : Number(raw);
+      return Number.isFinite(n) ? Math.round(n) : 60;
+    })(),
+    document: d.document
+      ? {
+          file_name: d.document.file_name,
+          file_size: d.document.file_size,
+          s3_key: d.document.s3_key,
+          uploaded_at: (d.document as { uploaded_at?: string }).uploaded_at,
+        }
+      : null,
+    displayReference: it.displayReference ?? null,
+  };
+}
+
+function invoiceTabId(kind: "this" | "other", id: string) {
+  return `${kind}:${id}`;
+}
 
 interface InvoiceRemarkItem {
   scope?: string;
@@ -332,9 +349,12 @@ export default function InvoiceDetailsStep({
   const [isLoadingApplication, setIsLoadingApplication] = React.useState(true);
   const [isLoadingInvoices, setIsLoadingInvoices] = React.useState(true);
   const [isInitialized, setIsInitialized] = React.useState(false);
+  const [hasSubmitted, setHasSubmitted] = React.useState(false);
+  const [activeInvoiceTab, setActiveInvoiceTab] = React.useState<string | null>(null);
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
   const { data: productsData } = useIssuerProducts({ page: 1, pageSize: 100 });
+  const { data: contractInvoicesData } = useInvoicesByContract(application?.contract_id ?? undefined);
 
   /** Parse remark text: split by /n for bullets, else by newline. Returns trimmed non-empty lines. */
   const parseRemarkBullets = React.useCallback((text: string): string[] => {
@@ -442,14 +462,29 @@ export default function InvoiceDetailsStep({
     else devTools?.clearAutoFillForStep("invoice_details");
   }, [devTools]);
 
+  const otherFacilityInvoices = React.useMemo(() => {
+    if (!contractInvoicesData?.length) return [] as LocalInvoice[];
+    const thisIds = new Set(invoices.filter((inv) => inv.isPersisted).map((inv) => inv.id));
+    return contractInvoicesData
+      .filter((inv) => inv.status !== InvoiceStatus.WITHDRAWN)
+      .filter((inv) => inv.application_id !== applicationId)
+      .filter((inv) => !thisIds.has(inv.id))
+      .map(toLocalInvoice);
+  }, [contractInvoicesData, invoices, applicationId]);
+
+  const otherFacilityNumbers = React.useMemo(() => {
+    return new Set(otherFacilityInvoices.map((inv) => inv.number.trim()).filter(Boolean));
+  }, [otherFacilityInvoices]);
+
   const addInvoice = () => {
     const defaultRatio = productConfig?.min_financing_ratio_percent ?? 60;
+    const id = crypto.randomUUID();
     setInvoices((s) => {
       if (s.length >= 1) return s;
       return [
         ...s,
         {
-          id: crypto.randomUUID(),
+          id,
           isPersisted: false,
           number: "",
           value: "",
@@ -460,6 +495,7 @@ export default function InvoiceDetailsStep({
         },
       ];
     });
+    setActiveInvoiceTab(invoiceTabId("this", id));
   };
 
   const updateInvoiceField = <K extends keyof LocalInvoice>(id: string, field: K, value: LocalInvoice[K]) => {
@@ -591,8 +627,15 @@ export default function InvoiceDetailsStep({
       .map((inv) => inv.number.trim())
       .filter(Boolean);
 
-    const unique = new Set(numbers);
-    return unique.size !== numbers.length;
+    if (new Set(numbers).size !== numbers.length) return true;
+    return numbers.some((number) => otherFacilityNumbers.has(number));
+  };
+
+  const isDuplicateNumber = (inv: LocalInvoice) => {
+    const number = inv.number.trim();
+    if (!number) return false;
+    const localCount = invoices.filter((row) => !isRowEmpty(row) && row.number.trim() === number).length;
+    return localCount > 1 || otherFacilityNumbers.has(number);
   };
 
   /**
@@ -785,11 +828,11 @@ export default function InvoiceDetailsStep({
       validationError = "Product configuration is incomplete. Min and max financing ratio must be set in the product workflow.";
     }
     if (!validationError && hasPartialRows) {
-      validationError = "Please complete all invoice details. Rows cannot have partial data.";
+        validationError = "Please complete all invoice details before saving.";
     }
 
     if (!validationError && hasDuplicateInvoiceNumbers()) {
-      validationError = "Invoice numbers must be unique. Duplicate invoice numbers are not allowed.";
+      validationError = "Invoice numbers must be unique on this facility.";
     }
 
     // Validate all invoice constraints (maturity date, value limits, contract window)
@@ -839,7 +882,54 @@ export default function InvoiceDetailsStep({
     }
   }
 
+  const fieldErrorsByInvoiceId = React.useMemo(() => {
+    const map: Record<string, InvoiceFieldErrors> = {};
+    if (!hasSubmitted) return map;
+    for (const inv of invoices) {
+      if (isRowEmpty(inv)) continue;
+      const errors: InvoiceFieldErrors = {};
+      const hasNumber = Boolean(String(inv.number).trim());
+      const hasValue = inv.value !== "";
+      const hasDate = Boolean(String(inv.maturity_date).trim());
+      const hasDocument = Boolean(inv.document) || Boolean(selectedFiles[inv.id]);
+      if (isRowPartial(inv)) {
+        if (!hasNumber) errors.number = "Invoice number is required";
+        if (!hasValue) errors.value = "Invoice value is required";
+        if (!hasDate) errors.maturity_date = "Maturity date is required";
+        if (!hasDocument) errors.document = "Document is required";
+      }
+      if (hasNumber && isDuplicateNumber(inv)) {
+        errors.number = "This invoice number is already used on this facility";
+      }
+      const constraintError = validateInvoiceConstraints(inv, productConfig);
+      if (constraintError) {
+        if (
+          constraintError.includes("Invalid date") ||
+          constraintError.includes("past") ||
+          constraintError.includes("month") ||
+          constraintError.includes("contract start")
+        ) {
+          errors.maturity_date = constraintError;
+        } else if (constraintError.includes("Financing amount")) {
+          errors.financing_amount = constraintError;
+        }
+      }
+      if (productConfig && !isRowEmpty(inv)) {
+        const minR = productConfig.min_financing_ratio_percent ?? 60;
+        const maxR = productConfig.max_financing_ratio_percent ?? 80;
+        const ratio = inv.financing_ratio_percent ?? minR;
+        if (ratio < minR || ratio > maxR) {
+          errors.financing_ratio_percent = `Financing ratio must be between ${minR}% and ${maxR}%.`;
+        }
+      }
+      map[inv.id] = errors;
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasSubmitted, invoices, selectedFiles, productConfig, otherFacilityNumbers]);
+
   const saveFunction = async () => {
+    setHasSubmitted(true);
     /**
      * VALIDATION CHECK
      *
@@ -930,18 +1020,32 @@ export default function InvoiceDetailsStep({
         const createResp = await apiClient.createInvoice(createPayload);
         if (!createResp.success) {
           const isMaxInvoices = createResp.error.code === "MAX_INVOICES_REACHED";
+          const isDuplicate = createResp.error.code === "DUPLICATE_INVOICE_NUMBER";
           toast.error(
             isMaxInvoices
               ? createResp.error.message || MAX_ONE_INVOICE_MESSAGE
               : createResp.error.message || "Failed to create invoice"
           );
-          throw new Error(isMaxInvoices ? "VALIDATION_MAX_INVOICES" : "VALIDATION_CREATE_INVOICE");
+          throw new Error(
+            isMaxInvoices
+              ? "VALIDATION_MAX_INVOICES"
+              : isDuplicate
+                ? "VALIDATION_DUPLICATE_INVOICE_NUMBER"
+                : "VALIDATION_CREATE_INVOICE"
+          );
         }
         invoiceId = createResp.data.id;
         createdThisSave += 1;
         setInvoices((prev) =>
           prev.map((row) =>
-            row.id === inv.id ? { ...row, id: invoiceId, isPersisted: true } : row
+            row.id === inv.id
+              ? {
+                  ...row,
+                  id: invoiceId,
+                  isPersisted: true,
+                  displayReference: createResp.data.displayReference ?? row.displayReference,
+                }
+              : row
           )
         );
       } else {
@@ -966,7 +1070,15 @@ export default function InvoiceDetailsStep({
         } else if (application?.contract_id) {
           updatePayload.contractId = application.contract_id;
         }
-        await apiClient.updateInvoice(invoiceId, updatePayload);
+        const updateResp = await apiClient.updateInvoice(invoiceId, updatePayload);
+        if (!updateResp.success) {
+          toast.error(updateResp.error.message || "Failed to update invoice");
+          throw new Error(
+            updateResp.error.code === "DUPLICATE_INVOICE_NUMBER"
+              ? "VALIDATION_DUPLICATE_INVOICE_NUMBER"
+              : "VALIDATION_UPDATE_INVOICE"
+          );
+        }
       }
 
       const file = selectedFiles[inv.id] || selectedFiles[invoiceId];
@@ -1026,7 +1138,11 @@ export default function InvoiceDetailsStep({
       } else if (application?.contract_id) {
         finalUpdatePayload.contractId = application.contract_id;
       }
-      await apiClient.updateInvoice(invoiceId, finalUpdatePayload);
+      const documentUpdateResp = await apiClient.updateInvoice(invoiceId, finalUpdatePayload);
+      if (!documentUpdateResp.success) {
+        toast.error(documentUpdateResp.error.message || "Failed to save invoice document");
+        throw new Error("VALIDATION_UPDATE_INVOICE");
+      }
       setLastS3Keys((prev) => ({
         ...prev,
         [invoiceId]: s3Key,
@@ -1110,46 +1226,6 @@ export default function InvoiceDetailsStep({
       try {
         const apiClient = createApiClient(API_URL, getAccessToken);
 
-        const toLocalInvoice = (it: Invoice & { withdraw_reason?: WithdrawReason | string | null }): LocalInvoice => {
-          const d = it.details;
-          const wr = it.withdraw_reason;
-          const withdraw_reason =
-            wr === WithdrawReason.USER_CANCELLED || wr === WithdrawReason.OFFER_REJECTED
-              ? wr
-              : undefined;
-          return {
-            id: it.id,
-            isPersisted: true,
-            number: d.number || "",
-            status: it.status || InvoiceStatus.DRAFT,
-            withdraw_reason,
-            value: d.value != null ? formatMoney(d.value) : "",
-            maturity_date: (() => {
-              if (!d.maturity_date) return "";
-              if (/^\d{4}-\d{2}-\d{2}$/.test(d.maturity_date)) {
-                const parsed = parseISO(d.maturity_date);
-                if (isValid(parsed)) return format(parsed, "d/M/yyyy");
-              }
-              return d.maturity_date || "";
-            })(),
-            financing_ratio_percent: (() => {
-              const raw = d.financing_ratio_percent;
-              if (raw == null) return 60;
-              if (typeof raw === "string" && raw.trim() === "") return 60;
-              const n = typeof raw === "number" ? raw : Number(raw);
-              return Number.isFinite(n) ? Math.round(n) : 60;
-            })(),
-            document: d.document
-              ? {
-                file_name: d.document.file_name,
-                file_size: d.document.file_size,
-                s3_key: d.document.s3_key,
-                uploaded_at: (d.document as { uploaded_at?: string }).uploaded_at,
-              }
-              : null,
-          };
-        };
-
         let mapped: LocalInvoice[];
 
         const resp = await apiClient.getInvoicesByApplication(applicationId);
@@ -1205,6 +1281,86 @@ export default function InvoiceDetailsStep({
     addInvoice();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInitialized, isLoadingInvoices, readOnly, structureType, invoices.length]);
+
+  const thisInvoiceTabs = invoices.map((inv) => ({
+    id: invoiceTabId("this", inv.id),
+    kind: "this" as const,
+    invoice: inv,
+    index: invoices.findIndex((row) => row.id === inv.id),
+    label: invoiceTabLabel(inv),
+  }));
+  const otherInvoiceTabs = otherFacilityInvoices.map((inv) => ({
+    id: invoiceTabId("other", inv.id),
+    kind: "other" as const,
+    invoice: inv,
+    index: -1,
+    label: invoiceTabLabel(inv),
+  }));
+  const invoiceSwitcherTabs = [...otherInvoiceTabs, ...thisInvoiceTabs];
+  const showInvoiceTabStrip = invoiceSwitcherTabs.length > 1;
+  const defaultInvoiceTabId =
+    thisInvoiceTabs[thisInvoiceTabs.length - 1]?.id ?? otherInvoiceTabs[0]?.id ?? null;
+  const selectedInvoiceTabId = invoiceSwitcherTabs.some((tab) => tab.id === activeInvoiceTab)
+    ? activeInvoiceTab
+    : defaultInvoiceTabId;
+
+  const financingAmountTooltip = (() => {
+    const lines: string[] = [
+      "Financing amount is calculated from the invoice value and financing ratio.",
+      "If you edit this amount, the financing ratio will update automatically.",
+    ];
+    const limits: string[] = [];
+    if (typeof productConfig?.min_invoice_value === "number") {
+      limits.push(`Min RM ${formatMoney(productConfig.min_invoice_value)}`);
+    }
+    if (typeof productConfig?.max_invoice_value === "number") {
+      limits.push(`Max RM ${formatMoney(productConfig.max_invoice_value)}`);
+    }
+    if (limits.length > 0) {
+      lines.push(`Per invoice financing limit:\n${limits.join("\n")}`);
+    }
+    return lines.join("\n\n");
+  })();
+
+  function isThisInvoiceEditable(inv: LocalInvoice, invIndex: number): boolean {
+    const isInvFlagged = invoicesWithRemarks.has(invIndex);
+    const isSubmittedEditableInAmendment =
+      isAmendmentMode &&
+      !readOnly &&
+      inv.status === "SUBMITTED" &&
+      (isInvFlagged || sectionInvoiceAmendment);
+
+    let isEditable =
+      !readOnly &&
+      (inv.status === "DRAFT" ||
+        inv.status === "AMENDMENT_REQUESTED" ||
+        !inv.status ||
+        isSubmittedEditableInAmendment);
+
+    if (isAmendmentMode && !readOnly && hasItemLevelInvoiceRemarks) {
+      if (inv.status === "DRAFT" || !inv.status) {
+        /* keep new / draft rows usable */
+      } else {
+        isEditable =
+          (inv.status === "AMENDMENT_REQUESTED" ||
+            (inv.status === "SUBMITTED" && isInvFlagged)) &&
+          !readOnly;
+      }
+    }
+    return isEditable;
+  }
+
+  const selectedInvoiceTab = invoiceSwitcherTabs.find((tab) => tab.id === selectedInvoiceTabId);
+  const selectedThisInvoiceTab =
+    selectedInvoiceTab?.kind === "this" ? selectedInvoiceTab : undefined;
+  const selectedPersistedInvoice =
+    selectedInvoiceTab?.invoice.isPersisted ? selectedInvoiceTab.invoice : null;
+  const invoiceToRemove =
+    selectedThisInvoiceTab &&
+    canRemoveInvoiceRow &&
+    isThisInvoiceEditable(selectedThisInvoiceTab.invoice, selectedThisInvoiceTab.index)
+      ? selectedThisInvoiceTab.invoice
+      : null;
 
   if (isLoadingApplication || devTools?.showSkeletonDebug) {
     return (
@@ -1306,461 +1462,192 @@ export default function InvoiceDetailsStep({
         )}
 
         {/* ================= Invoice Details ================= */}
-        {isLoadingApplication || devTools?.showSkeletonDebug ? null : (
-          <div className="space-y-4">
-            <div className="flex items-start justify-between">
-              <div>
+        <section className="space-y-3">
+          <div>
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
                 <h3 className={applicationFlowSectionTitleClassName}>
                   {isGrandfatherMultiInvoice ? "Invoices" : "Invoice"}
                 </h3>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {maxInvoicesReached
-                    ? structureType === "new_contract"
-                      ? "This application already has an invoice. Start a new application to finance another invoice against this facility."
-                      : "Applications allow only one invoice."
-                    : structureType === "new_contract"
-                      ? "You can add one invoice now, or originate the facility first and finance an invoice later from the facility page."
-                      : "Provide the invoice for this application. Rows are local until you Save and Continue."}
-                </p>
+                {selectedPersistedInvoice ? (
+                  <StatusBadge
+                    status={selectedPersistedInvoice.status}
+                    withdrawReason={selectedPersistedInvoice.withdraw_reason}
+                  />
+                ) : null}
               </div>
-              {!maxInvoicesReached ? (
-              <Button
-                type="button"
-                onClick={addInvoice}
-                disabled={readOnly}
-                className="bg-primary text-primary-foreground shrink-0"
-              >
-                Add invoice
-              </Button>
+              {invoiceToRemove ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  aria-label="Remove invoice"
+                  onClick={() => deleteInvoice(invoiceToRemove)}
+                >
+                  <TrashIcon className="h-4 w-4" aria-hidden />
+                  Remove
+                </Button>
               ) : null}
             </div>
+            <p className="text-sm text-muted-foreground mt-1">
+              {maxInvoicesReached
+                ? structureType === "new_contract"
+                  ? "This application already has an invoice. Start a new application to finance another invoice against this facility."
+                  : "Applications allow only one invoice."
+                : structureType === "new_contract"
+                  ? "You can add one invoice now, or originate the facility first and finance an invoice later from the facility page."
+                  : "Provide the invoice for this application. Details stay local until you Save and Continue."}
+            </p>
             <div className={applicationFlowSectionDividerClassName} />
-
-            {/* Item-level invoice amendment remarks above table */}
-            {invoiceAmendmentGroups.length > 0 && (
-              <InvoiceErrorCard groups={invoiceAmendmentGroups} />
-            )}
-
-            {/* ================= Table / empty state ================= */}
-            <div className="mt-4 px-3">
-              {!isLoadingInvoices && invoices.length === 0 ? (
-                <div className="rounded-xl border border-dashed bg-card px-4 py-8 text-center text-sm text-muted-foreground">
-                  {structureType === "new_contract" ? (
-                    <p>
-                      No invoice added yet. Click <span className="font-medium text-foreground">Add invoice</span> if
-                      you want to finance one with this facility application, or continue without an invoice.
-                    </p>
-                  ) : (
-                    <p>
-                      No invoice yet. Click <span className="font-medium text-foreground">Add invoice</span> to provide
-                      the invoice for this application.
-                    </p>
-                  )}
-                </div>
-              ) : null}
-              {!isLoadingInvoices && invoices.length > 0 ? (
-                <div className="border rounded-xl bg-card overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <Table className="table-fixed w-full">
-                      <TableHeader className="bg-muted/20">
-                        <TableRow>
-                          <TableHead className="w-[140px] whitespace-nowrap text-xs font-semibold">
-                            Invoice
-                          </TableHead>
-
-                          <TableHead className="w-[100px] whitespace-nowrap text-xs font-semibold">
-                            Status
-                          </TableHead>
-
-                          <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
-                            <div className="inline-flex items-center gap-0.5">
-                              Maturity Date
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span className={fieldTooltipTriggerClassName}>
-                                    <InformationCircleIcon className="h-4 w-4" />
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                                  Invoice maturity date is the deadline when your customer is required to pay for this
-                                  invoice. For example, if your invoice date is 1st of January, and your payment term is
-                                  60 days, the maturity date is 1st of March.
-                                </TooltipContent>
-                              </Tooltip>
-                            </div>
-                          </TableHead>
-
-                          <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
-                            Invoice Value
-                          </TableHead>
-
-                          <TableHead className="w-[170px] text-xs font-semibold">
-                            <div className="flex justify-center">
-                              <div className="inline-flex items-center gap-0.5 whitespace-nowrap">
-                              <span>Financing Ratio</span>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span
-                                    className={fieldTooltipTriggerClassName}
-                                    aria-label="About financing ratio"
-                                  >
-                                    <InformationCircleIcon className="h-4 w-4" />
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent
-                                  side="top"
-                                  sideOffset={2}
-                                  className={fieldTooltipContentClassName}
-                                >
-                                  Allowed ratio: {displayMinRatio}%–{displayMaxRatio}%. If you edit the financing
-                                  amount, the ratio will round up and stay within this range.
-                                </TooltipContent>
-                              </Tooltip>
-                              </div>
-                            </div>
-                          </TableHead>
-
-                          <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold">
-                            <div className="inline-flex items-center gap-0.5">
-                              <span className="whitespace-nowrap">Financing Amount</span>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <span
-                                    className={fieldTooltipTriggerClassName}
-                                    aria-label="About financing amount"
-                                  >
-                                    <InformationCircleIcon className="h-4 w-4" />
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent
-                                  side="top"
-                                  sideOffset={2}
-                                  className={fieldTooltipContentClassName}
-                                >
-                                  {(() => {
-                                    const lines: string[] = [
-                                      "Financing amount is calculated from the invoice value and financing ratio.",
-                                      "If you edit this amount, the financing ratio will update automatically.",
-                                    ];
-                                    const limits: string[] = [];
-                                    if (typeof productConfig?.min_invoice_value === "number") {
-                                      limits.push(`Min RM ${formatMoney(productConfig.min_invoice_value)}`);
-                                    }
-                                    if (typeof productConfig?.max_invoice_value === "number") {
-                                      limits.push(`Max RM ${formatMoney(productConfig.max_invoice_value)}`);
-                                    }
-                                    if (limits.length > 0) {
-                                      lines.push(`Per invoice financing limit:\n${limits.join("\n")}`);
-                                    }
-                                    return lines.join("\n\n");
-                                  })()}
-                                </TooltipContent>
-                              </Tooltip>
-                            </div>
-                          </TableHead>
-
-                          <TableHead className="w-[160px] whitespace-nowrap text-xs font-semibold">
-                            Documents
-                          </TableHead>
-
-                          {canRemoveInvoiceRow ? <TableHead className="w-[50px]" /> : null}
-                        </TableRow>
-                      </TableHeader>
-
-                      <TableBody>
-                        {/* APPLICATION INVOICES */}
-                        {invoices.map((inv, invIndex) => {
-                          const minRatio = productConfig?.min_financing_ratio_percent ?? 60;
-                          const maxRatio = productConfig?.max_financing_ratio_percent ?? 80;
-                          const ratioNum = clampedRoundedFinancingRatio(
-                            inv.financing_ratio_percent,
-                            minRatio,
-                            maxRatio
-                          );
-                          const value = parseMoney(inv.value);
-                          const financingAmount = value * (ratioNum / 100);
-                          const isInvFlagged = invoicesWithRemarks.has(invIndex);
-                          const isSubmittedEditableInAmendment =
-                            isAmendmentMode &&
-                            !readOnly &&
-                            inv.status === "SUBMITTED" &&
-                            (isInvFlagged || sectionInvoiceAmendment);
-
-                          let isEditable =
-                            !readOnly &&
-                            (inv.status === "DRAFT" ||
-                              inv.status === "AMENDMENT_REQUESTED" ||
-                              !inv.status ||
-                              isSubmittedEditableInAmendment);
-
-                          if (isAmendmentMode && !readOnly && hasItemLevelInvoiceRemarks) {
-                            if (inv.status === "DRAFT" || !inv.status) {
-                              /* keep new / draft rows usable */
-                            } else {
-                              isEditable =
-                                (inv.status === "AMENDMENT_REQUESTED" ||
-                                  (inv.status === "SUBMITTED" && isInvFlagged)) &&
-                                !readOnly;
-                            }
-                          }
-
-                          const rowLocked = !isEditable;
-
-                          return (
-                            <TableRow
-                              key={inv.id}
-                              className={cn(
-                                rowLocked && applicationFlowLockedTableRowClassName,
-                                isEditable &&
-                                  isInvFlagged &&
-                                  applicationFlowAmendmentTargetTableRowClassName
-                              )}
-                            >
-                              <TableCell className="p-2">
-                                <Input
-                                  value={inv.number}
-                                  disabled={!isEditable}
-                                  onChange={(e) => updateInvoiceField(inv.id, "number", e.target.value)}
-                                  placeholder="Enter invoice"
-                                  className={cn(
-                                    withFieldError(
-                                      invoiceTableFieldChrome,
-                                      isRowPartial(inv)
-                                    ),
-                                    !isEditable && formInputDisabledClassName
-                                  )}
-                                />
-                              </TableCell>
-
-                              <TableCell className="p-2">
-                                <StatusBadge status={inv.status} withdrawReason={inv.withdraw_reason} />
-                              </TableCell>
-
-                              <TableCell className="p-2">
-                                <DateInput
-                                  value={inv.maturity_date || ""}
-                                  onChange={(v) => updateInvoiceField(inv.id, "maturity_date", v)}
-                                  disabled={!isEditable}
-                                  className={!isEditable ? "cursor-not-allowed" : undefined}
-                                  isInvalid={isRowPartial(inv)}
-                                  size="compact"
-                                  placeholder="Enter date"
-                                />
-                              </TableCell>
-
-                              <TableCell className="p-2">
-                                <MoneyInput
-                                  value={inv.value}
-                                  onValueChange={(v) => {
-                                    clearFinancingAmountDraft(inv.id);
-                                    updateInvoiceField(inv.id, "value", v);
-                                  }}
-                                  placeholder="0.00"
-                                  prefix="RM"
-                                  disabled={!isEditable}
-                                  inputClassName={cn(
-                                    withFieldError(
-                                      invoiceTableFieldChrome,
-                                      isRowPartial(inv)
-                                    ),
-                                    !isEditable && formInputDisabledClassName
-                                  )}
-                                />
-                              </TableCell>
-
-                              <TableCell className="p-2 align-middle text-center">
-                                <div className="inline-flex max-w-full items-center gap-2 text-left">
-                                  <div
-                                    className={cn(
-                                      invoiceTableReadonlyCellChrome,
-                                      !isEditable
-                                        ? "bg-muted"
-                                        : "bg-background"
-                                    )}
-                                  >
-                                    {ratioNum}%
-                                  </div>
-
-                                  <div className="w-28 shrink-0">
-                                    <Slider
-                                      min={minRatio}
-                                      max={maxRatio}
-                                      step={1}
-                                      value={[ratioNum]}
-                                      disabled={!isEditable}
-                                      onValueChange={(value) => {
-                                        clearFinancingAmountDraft(inv.id);
-                                        updateInvoiceField(
-                                          inv.id,
-                                          "financing_ratio_percent",
-                                          Math.round(value[0])
-                                        );
-                                      }}
-                                      className={cn(
-                                        "relative w-full max-w-full",
-                                        !isEditable &&
-                                          "opacity-100 [&_[data-disabled]]:opacity-100 [&_.relative.h-2]:bg-muted [&_span.absolute]:bg-muted-foreground/50 [&_button]:border-muted-foreground/50 [&_button]:bg-muted"
-                                      )}
-                                    />
-                                    <div className="mt-0.5 flex justify-between text-meta font-medium text-muted-foreground tabular-nums">
-                                      <span>{minRatio}%</span>
-                                      <span>{maxRatio}%</span>
-                                    </div>
-                                  </div>
-                                </div>
-                              </TableCell>
-
-                              <TableCell className="p-2">
-                                <div className="flex min-w-0 flex-col gap-0.5">
-                                  <div className="flex h-9 w-full items-center">
-                                    <MoneyInput
-                                      value={
-                                        financingAmountDraftById[inv.id] ??
-                                        (financingAmount > 0 ? formatMoney(financingAmount) : "")
-                                      }
-                                      onValueChange={(v) =>
-                                        setFinancingAmountDraftById((p) => ({ ...p, [inv.id]: v }))
-                                      }
-                                      onBlurComplete={(formatted) => {
-                                        clearFinancingAmountDraft(inv.id);
-                                        if (formatted === "") {
-                                          updateInvoiceField(inv.id, "financing_ratio_percent", minRatio);
-                                          return;
-                                        }
-                                        syncRatioFromFinancingAmountString(
-                                          inv.id,
-                                          formatted,
-                                          minRatio,
-                                          maxRatio
-                                        );
-                                      }}
-                                      placeholder="0.00"
-                                      prefix="RM"
-                                      disabled={!isEditable || parseMoney(inv.value) <= 0}
-                                      className="min-w-0"
-                                      inputClassName={cn(
-                                        invoiceTableFieldChrome,
-                                        (!isEditable || parseMoney(inv.value) <= 0) && formInputDisabledClassName
-                                      )}
-                                    />
-                                  </div>
-                                  <p className="text-meta leading-tight text-muted-foreground tabular-nums">
-                                    Based on {ratioNum}% ratio
-                                  </p>
-                                </div>
-                              </TableCell>
-
-                              <TableCell className="p-2 min-w-0 overflow-hidden">
-                                {inv.document ? (
-                                  <FileDisplayBadge
-                                    fileName={inv.document.file_name}
-                                    size="sm"
-                                    locked={!isEditable}
-                                    className={cn(
-                                      "min-w-0 max-w-full",
-                                      isEditable && "bg-background"
-                                    )}
-                                    trailing={
-                                      isEditable ? (
-                                        <button
-                                        type="button"
-                                        onClick={() => {
-                                          if (inv.document?.s3_key) {
-                                            setLastS3Keys((prev) => ({
-                                              ...prev,
-                                              [inv.id]: inv.document!.s3_key!,
-                                            }));
-                                          }
-                                          updateInvoiceField(inv.id, "document", null);
-                                          setSelectedFiles((prev) => {
-                                            const copy = { ...prev };
-                                            delete copy[inv.id];
-                                            return copy;
-                                          });
-                                        }}
-                                        className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
-                                      >
-                                        <XMarkIcon className="h-3 w-3" />
-                                      </button>
-                                      ) : undefined
-                                    }
-                                  />
-                                ) : isEditable ? (
-                                  <label className="inline-flex items-center gap-1 text-xs font-medium text-primary cursor-pointer hover:opacity-80 h-8">
-                                    <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
-                                    <span className="truncate">Upload</span>
-                                    <Input
-                                      type="file"
-                                      accept="application/pdf"
-                                      className="hidden"
-                                      disabled={!isEditable}
-                                      onChange={(e) => {
-                                        const f = e.target.files?.[0];
-                                        if (f) handleFileChange(inv.id, f, inv.document?.s3_key);
-                                      }}
-                                    />
-                                  </label>
-                                ) : (
-                                  <span className="inline-flex h-8 items-center gap-1 rounded-md border border-input bg-muted px-2 text-xs text-muted-foreground shadow-sm">
-                                    Locked
-                                  </span>
-                                )}
-                              </TableCell>
-
-                              {canRemoveInvoiceRow ? (
-                              <TableCell className="p-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  disabled={!isEditable}
-                                  onClick={() => deleteInvoice(inv)}
-                                  className={cn(
-                                    !isEditable
-                                      ? "text-muted-foreground cursor-not-allowed"
-                                      : "hover:text-destructive"
-                                  )}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </TableCell>
-                              ) : null}
-                            </TableRow>
-                          );
-                        })}
-
-                        {/* TOTAL */}
-                        {isGrandfatherMultiInvoice ? (
-                        <TableRow className="bg-muted/10">
-                          <TableCell colSpan={5} />
-                          <TableCell className="p-2 font-semibold text-xs tabular-nums">
-                            RM {formatMoney(totalFinancingAmount)}
-                            <div className="text-xs text-muted-foreground font-normal">Total</div>
-                          </TableCell>
-                          <TableCell colSpan={canRemoveInvoiceRow ? 2 : 1} />
-                        </TableRow>
-                        ) : null}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            {/* ================= Validation ================= */}
-            {validationError && (
-              <div className="mx-3 bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 mt-4">
-                <XMarkIcon className="h-5 w-5" />
-                {validationError}
-              </div>
-            )}
-            {facilityCapacityWarning && (
-              <div className="mx-3 mt-4 flex items-center gap-2 rounded-xl border border-border bg-muted/20 px-4 py-3 text-sm font-medium text-foreground">
-                <ExclamationTriangleIcon className="h-5 w-5 shrink-0 text-muted-foreground" />
-                {facilityCapacityWarning}
-              </div>
-            )}
           </div>
-        )}
+
+          {invoiceAmendmentGroups.length > 0 && (
+            <InvoiceErrorCard groups={invoiceAmendmentGroups} />
+          )}
+
+          {!isLoadingInvoices && invoices.length === 0 ? (
+            <div className="rounded-xl border border-dashed bg-card px-4 py-8 text-center text-sm text-muted-foreground">
+              {structureType === "new_contract" ? (
+                <div className="space-y-4">
+                  <p>
+                    No invoice added yet. Click{" "}
+                    <span className="font-medium text-foreground">Add invoice</span> if you want to
+                    finance one with this facility application, or continue without an invoice.
+                  </p>
+                  <Button
+                    type="button"
+                    onClick={addInvoice}
+                    disabled={readOnly}
+                    className="bg-primary text-primary-foreground"
+                  >
+                    Add invoice
+                  </Button>
+                </div>
+              ) : (
+                <p>No invoice on this application yet.</p>
+              )}
+            </div>
+          ) : null}
+
+          {!isLoadingInvoices && invoiceSwitcherTabs.length > 0 && selectedInvoiceTabId ? (
+            <Tabs
+              value={selectedInvoiceTabId}
+              onValueChange={setActiveInvoiceTab}
+              className="w-full"
+            >
+              {showInvoiceTabStrip ? (
+                <div className="mb-4 w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl bg-muted p-1">
+                  <TabsList className="flex h-auto min-h-11 w-max min-w-full flex-nowrap justify-start gap-1 bg-transparent p-0 text-muted-foreground">
+                    {invoiceSwitcherTabs.map((tab) => (
+                      <TabsTrigger
+                        key={tab.id}
+                        value={tab.id}
+                        className="shrink-0 rounded-lg px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm sm:px-4"
+                      >
+                        {tab.label}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                </div>
+              ) : null}
+
+              {otherInvoiceTabs.map((tab) => (
+                <TabsContent key={tab.id} value={tab.id} className="mt-0 focus-visible:outline-none">
+                  <InvoiceFormFields
+                    invoice={tab.invoice}
+                    minRatio={displayMinRatio}
+                    maxRatio={displayMaxRatio}
+                    isEditable={false}
+                    helperText={OTHER_FACILITY_INVOICE_HELPER}
+                    financingAmountTooltip={financingAmountTooltip}
+                  />
+                </TabsContent>
+              ))}
+
+              {thisInvoiceTabs.map((tab) => {
+                const inv = tab.invoice;
+                const invIndex = tab.index;
+                const isEditable = isThisInvoiceEditable(inv, invIndex);
+                return (
+                  <TabsContent key={tab.id} value={tab.id} className="mt-0 focus-visible:outline-none">
+                    <InvoiceFormFields
+                      invoice={inv}
+                      minRatio={displayMinRatio}
+                      maxRatio={displayMaxRatio}
+                      isEditable={isEditable}
+                      isAmendmentTarget={isEditable && invoicesWithRemarks.has(invIndex)}
+                      pendingFile={selectedFiles[inv.id]}
+                      fieldErrors={fieldErrorsByInvoiceId[inv.id]}
+                      financingAmountDraft={financingAmountDraftById[inv.id]}
+                      financingAmountTooltip={financingAmountTooltip}
+                      onNumberChange={(value) => updateInvoiceField(inv.id, "number", value)}
+                      onMaturityDateChange={(value) =>
+                        updateInvoiceField(inv.id, "maturity_date", value)
+                      }
+                      onValueChange={(value) => {
+                        clearFinancingAmountDraft(inv.id);
+                        updateInvoiceField(inv.id, "value", value);
+                      }}
+                      onRatioChange={(value) => {
+                        clearFinancingAmountDraft(inv.id);
+                        updateInvoiceField(inv.id, "financing_ratio_percent", value);
+                      }}
+                      onFinancingAmountDraftChange={(value) =>
+                        setFinancingAmountDraftById((p) => ({ ...p, [inv.id]: value }))
+                      }
+                      onFinancingAmountCommit={(formatted) => {
+                        clearFinancingAmountDraft(inv.id);
+                        if (formatted === "") {
+                          updateInvoiceField(
+                            inv.id,
+                            "financing_ratio_percent",
+                            displayMinRatio
+                          );
+                          return;
+                        }
+                        syncRatioFromFinancingAmountString(
+                          inv.id,
+                          formatted,
+                          displayMinRatio,
+                          displayMaxRatio
+                        );
+                      }}
+                      onFileSelect={(file) => handleFileChange(inv.id, file, inv.document?.s3_key)}
+                      onRemoveFile={() => {
+                        if (inv.document?.s3_key) {
+                          setLastS3Keys((prev) => ({
+                            ...prev,
+                            [inv.id]: inv.document!.s3_key!,
+                          }));
+                        }
+                        updateInvoiceField(inv.id, "document", null);
+                        setSelectedFiles((prev) => {
+                          const copy = { ...prev };
+                          delete copy[inv.id];
+                          return copy;
+                        });
+                      }}
+                    />
+                  </TabsContent>
+                );
+              })}
+            </Tabs>
+          ) : null}
+
+          {hasSubmitted && validationError ? (
+            <div className="mx-3 bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 mt-4">
+              <XMarkIcon className="h-5 w-5" />
+              {validationError}
+            </div>
+          ) : null}
+          {facilityCapacityWarning ? (
+            <div className="mx-3 mt-4 flex items-center gap-2 rounded-xl border border-border bg-muted/20 px-4 py-3 text-sm font-medium text-foreground">
+              <ExclamationTriangleIcon className="h-5 w-5 shrink-0 text-muted-foreground" />
+              {facilityCapacityWarning}
+            </div>
+          ) : null}
+        </section>
       </div>
     </>
   );

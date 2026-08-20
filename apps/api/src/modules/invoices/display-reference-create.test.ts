@@ -3,12 +3,13 @@ const mockTx: any = {
   application: {
     findUnique: jest.fn(),
   },
-  invoice: {
-    count: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    findUniqueOrThrow: jest.fn(),
-  },
+    invoice: {
+      count: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
+      findMany: jest.fn(),
+    },
   displayReferenceAllocation: {
     create: jest.fn(),
     findUnique: jest.fn(),
@@ -38,6 +39,8 @@ describe("InvoiceService createInvoice display reference", () => {
     mockTx.invoice.create.mockReset();
     mockTx.invoice.update.mockReset();
     mockTx.invoice.findUniqueOrThrow.mockReset();
+    mockTx.invoice.findMany.mockReset();
+    mockTx.invoice.findMany.mockResolvedValue([]);
     mockTx.displayReferenceAllocation.create.mockReset();
     mockTx.displayReferenceAllocation.findUnique.mockReset();
 

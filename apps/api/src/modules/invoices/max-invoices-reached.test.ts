@@ -3,12 +3,13 @@ const mockTx: any = {
   application: {
     findUnique: jest.fn(),
   },
-  invoice: {
-    count: jest.fn(),
-    create: jest.fn(),
-    update: jest.fn(),
-    findUniqueOrThrow: jest.fn(),
-  },
+    invoice: {
+      count: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
+      findMany: jest.fn(),
+    },
   displayReferenceAllocation: {
     create: jest.fn(),
     findUnique: jest.fn(),
