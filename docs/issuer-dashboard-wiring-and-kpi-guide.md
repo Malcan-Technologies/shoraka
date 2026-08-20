@@ -120,9 +120,11 @@ Major payload sections:
 | `contracts[].customerName` | `Contract.customer_details` | `customer?.name` | Customer name |
 | `contracts[].contractStartDate` | `Contract.contract_details` | `start_date` | Period start |
 | `contracts[].contractEndDate` | `Contract.contract_details` | `end_date` | Period end |
-| `contracts[].approvedFacilityAmount` | `Contract.contract_details` | `approved_facility` serialized to string with 2 decimals | Approved facility |
-| `contracts[].utilizedFacilityAmount` | `Contract.contract_details` | `utilized_facility` serialized to string with 2 decimals | Utilized facility |
-| `contracts[].availableFacilityAmount` | `Contract.contract_details` | `available_facility` serialized to string with 2 decimals | Available facility |
+| `contracts[].approvedFacilityAmount` | Live occupancy | `approved_facility` when contract is APPROVED | Approved facility ceiling |
+| `contracts[].utilizedFacilityAmount` | Live occupancy | Funded principal after close; reserved at offer amount while raising | Live utilized (does not include pending or repaid) |
+| `contracts[].availableFacilityAmount` | Live occupancy | `approved − utilized` (may be negative) | Remaining capacity |
+| `contracts[].pendingFacilityAmount` | Live occupancy | SUBMITTED + OFFER_SENT committed advances | Display only; does not occupy the line |
+| `contracts[].repaidFacilityAmount` | Live occupancy | Settled draws at funded principal | Released occupancy |
 | `contracts[].activeNotesCount` | `Note` | `COUNT(contract notes where Note.status = ACTIVE)` | Active notes count |
 | `contracts[].contractStatus` | `Contract` | `c.status` | Main status badge driver |
 | `contracts[].actionRequiredApplicationIds` | `Application` | Dedupe all application ids referencing the contract where `Application.status = AMENDMENT_REQUESTED` | Drives “Action required (N)” |
@@ -296,13 +298,16 @@ Invoice card UI is implemented in `DashboardInvoiceCard` inside:
 | Note no | DTO: `IssuerDashboardInvoice.note.noteReference` + note id | If `row.note?.id` exists and `noteRef !== EM_DASH`: renders a clickable link `/notes/${row.note.id}` with `LinkIcon`; else shows plain text | Note reference |
 | Customer | DTO: `IssuerDashboardInvoice.customerName` | `displayCell(row.customerName)` | Customer name |
 | Submission date | DTO: `IssuerDashboardInvoice.submissionDate` | `formatDate(row.submissionDate)` | Displayed submission date |
-| Funding deadline | DTO: `note.fundingDeadline` | shown when `row.note?.fundingDeadline`, else `—` | Investor funding close date (see note mapping below) |
+| Campaign closes | DTO: `note.fundingDeadline` | date plus days left while the listing is open | Marketplace listing close (`note_listings.closes_at`) |
+| Min to succeed | DTO: `note.minimumFundingPercent` | defaults to 80% | Minimum raise required for funding to succeed |
 | Maturity date | mixed | `maturityRaw = invDetails?.maturity_date ?? row.note?.maturityDate ?? null` then `formatDate(maturityRaw)` | Repayment/maturity date |
 | Invoice value | DTO: `IssuerDashboardInvoice.invoiceValue` | `formatMoney(row.invoiceValue)` | Money amount |
 | Financing amount | DTO: `IssuerDashboardInvoice.financingAmount` | `formatMoney(row.financingAmount)` | Money amount |
 | Marketplace label | **Not shown in current invoice card UI** | Present in DTO note mapping (`marketplaceStatusLabel`) but not rendered here | Needs code/business confirmation |
 | Funding progress | DTO note | `progress = resolveFundingProgressPercent(row.note)` then used for progress bar width | `fundingProgressPercent` (or 0) |
 | Funding status text | DTO note | `fundingLabel = resolveFundingStatusText(row.note)` then `FundingStatusLine` | “Funding status …” human string |
+| Investors | DTO: `note.investorCount` | `formatNoteInvestorCommitment(formatMoney(fundedAmount), investorCount)` | Same “RM X committed by N investors” line as marketplace |
+| Marketplace raise (open listing) | note listing + funding | `% funded · % min · still open`, campaign close, threshold help | Same live-raise facts investors see on marketplace cards |
 | Action menu behavior | Current UI | **No 3-dot menu exists in this invoice card component** | Needs code/business confirmation (if menus exist elsewhere) |
 
 Note: “Funding deadline” is the investor funding close date coming from note listing closes_at (not invoice due date).
@@ -507,11 +512,14 @@ Needs code/business confirmation:
 
 ## 13. Action Required / Amendment mapping
 
-Amendment is Application-based, so the dashboard does **not** decide based on `Contract.status` or `Invoice.status`.
+Amendment is still Application-based. Financing **Facilities** only treats the **facility** as needing attention when the contract itself needs issuer action:
 
-Instead, it uses:
+- facility offer to review (`OFFER_SENT` / acceptance docs), or
+- `Contract.status = AMENDMENT_REQUESTED`
 
-- `Application.status = AMENDMENT_REQUESTED`
+An already-approved line stays in Financing → Facilities when a tied invoice is in amendment. That work lives on Applications (and on the invoice, not the facility card). Occupancy refresh keeps `approved_facility` when the **contract** is in amendment, so the ceiling is not wiped to 0.
+
+`actionRequiredApplicationIds` is still computed from applications on the contract with `AMENDMENT_REQUESTED`. It is **not** used to hide an `APPROVED` facility from the list.
 
 ### Backend: how `actionRequiredApplicationIds` is computed
 
@@ -528,18 +536,12 @@ Dashboard cards live in:
 
 - `apps/issuer/src/components/dashboard/financing-section.tsx`
 
-Contract card:
+Contract card (Financing → Facilities):
 
-- shown when `row.actionRequiredApplicationIds.length > 0`
-- button label:
-  - exactly `Action required` when `length === 1`
-  - otherwise `Action required (N)`
-- tooltip text:
-  - singular: `A related application needs amendment. Go to Applications to review and update it.`
-  - plural: `${N} related applications need amendment. Go to Applications to review and update them.`
-- click behavior:
-  - routes to `/applications?applicationIds=${ids.join(",")}` where `ids` is `actionRequiredApplicationIds`
-- “View details” remains in a dropdown and always links to the contract detail page.
+- An `APPROVED` facility stays in the facilities list even when a related application is in amendment.
+- “Action required” on the facility card is shown only when `Contract.status = AMENDMENT_REQUESTED`.
+- Facility offer review still uses the offer CTA and the Needs attention carousel.
+- “View details” always links to the contract detail page.
 
 Invoice card:
 
@@ -553,10 +555,9 @@ Action table (as implemented by the UI for this dashboard component):
 
 | Card type | Condition | UI shown | Click behavior |
 |---|---|---|---|
-| Contract | `0` action-required app ids | no Action required button | none |
-| Contract | `1` action-required app id | Action required + View details | `/applications?applicationIds={id}` |
-| Contract | `2+` action-required app ids | Action required (N) + View details | `/applications?applicationIds={id1},{id2},...` |
-| Invoice | `0` action-required app ids | no Action required button | none |
+| Contract | `APPROVED` (even if a tied invoice app needs amendment) | stays in Facilities list | `/financing/contracts/{id}` |
+| Contract | `AMENDMENT_REQUESTED` | Needs attention + Make amendments | `/applications/{id}/edit` |
+| Contract | facility offer to review | Needs attention + Review offer | application offer tab |
 | Invoice | `1` action-required app id | Action required | `/applications?applicationIds={id}` |
 
 ### Why this matches the amendment edit page
@@ -695,6 +696,7 @@ DTO mapping used by dashboard:
   - `note.listing?.closes_at` => `fundingDeadline` (ISO string)
   - `note.maturity_date` => `maturityDate` (ISO string)
   - `fundingProgressPercent(note.funded_amount, note.target_amount)` => `fundingProgressPercent`
+  - unique non-cancelled `NoteInvestment.investor_organization_id` => `investorCount`
 
 Dashboard behavior when an invoice has no Note:
 

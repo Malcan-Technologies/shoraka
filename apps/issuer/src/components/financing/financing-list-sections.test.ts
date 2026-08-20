@@ -39,6 +39,7 @@ function dashboardNote(overrides: Partial<IssuerDashboardNote> = {}): IssuerDash
     fundingDeadline: null,
     maturityDate: null,
     marketplaceStatusLabel: null,
+    investorCount: 0,
     disbursementBreakdown: null,
     ...overrides,
   };

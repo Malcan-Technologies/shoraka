@@ -24,6 +24,7 @@ import {
   allocateDisplayReference,
   resolveApplicationProductCode,
 } from "../../lib/display-reference";
+import { refreshContractFacilityValues } from "../../lib/refresh-contract-facility";
 
 export class InvoiceService {
   private repository: InvoiceRepository;
@@ -38,6 +39,18 @@ export class InvoiceService {
     this.organizationRepository = new OrganizationRepository();
     this.contractRepository = new ContractRepository();
     this.productRepository = new ProductRepository();
+  }
+
+  private facilityContractIds(...ids: Array<string | null | undefined>): string[] {
+    return [...new Set(ids.filter((id): id is string => Boolean(id)))];
+  }
+
+  private async refreshLinkedContractFacilities(
+    ...ids: Array<string | null | undefined>
+  ): Promise<void> {
+    for (const contractId of this.facilityContractIds(...ids)) {
+      await refreshContractFacilityValues(contractId);
+    }
   }
 
   private async loadWorkflowForApplication(applicationId: string): Promise<unknown | null> {
@@ -353,6 +366,12 @@ export class InvoiceService {
       );
     }
 
+    await this.refreshLinkedContractFacilities(
+      invoice.contract_id,
+      updatedInvoice.contract_id,
+      (applicationRow as { contract_id?: string | null } | null)?.contract_id
+    );
+
     return updatedInvoice;
   } catch (err) {
     if (isNewDocumentUpload && nextS3Key) {
@@ -379,8 +398,14 @@ async deleteInvoice(id: string, userId: string) {
     ? await this.applicationRepository.findById(invoice.application_id)
     : null;
 
+  const previousContractId =
+    invoice.contract_id ??
+    (application as { contract_id?: string | null } | null)?.contract_id ??
+    null;
+
   // delete DB first OR last — your choice
   await this.repository.delete(id);
+  await this.refreshLinkedContractFacilities(previousContractId);
 
   if (
     s3Key &&
@@ -504,6 +529,11 @@ async deleteInvoice(id: string, userId: string) {
       status: InvoiceStatus.WITHDRAWN,
       withdraw_reason: finalReason,
     });
+
+    await this.refreshLinkedContractFacilities(
+      invoice.contract_id,
+      (invoice as { application?: { contract_id?: string | null } }).application?.contract_id
+    );
 
     if (invoice.application_id) {
       const details = invoice.details as Record<string, unknown> | null;

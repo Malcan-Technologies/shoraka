@@ -25,6 +25,7 @@ import {
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
+import { refreshContractFacilityForNote } from "../../lib/refresh-contract-facility";
 import { legalDocumentAcceptanceService } from "../legal-documents/acceptance-service";
 import {
   generatePresignedUploadUrl,
@@ -32,7 +33,10 @@ import {
   getS3ObjectBuffer,
   putS3ObjectBuffer,
 } from "../../lib/s3/client";
-import { resolveApprovedFacilityForRefresh } from "../../lib/contract-facility";
+import {
+  parseFacilityJsonAmount,
+  resolveApprovedFacilityForRefresh,
+} from "../../lib/contract-facility";
 import { computeProgressiveFacilityFee } from "../../lib/facility-fee";
 import {
   resolveOfferedAmount,
@@ -3147,14 +3151,14 @@ export class NoteService {
         const cd = asRecord(lockedContractDetails) ?? {};
         contractDetailsRecord = cd;
 
-        const approvedFacilityAmount = Number(cd.approved_facility) || 0;
+        const approvedFacilityAmount = parseFacilityJsonAmount(cd.approved_facility) ?? 0;
         const facilityFeeRatePercentRaw = cd.facility_fee_rate_percent;
         facilityFeeRatePercent =
           typeof facilityFeeRatePercentRaw === "number" &&
           Number.isFinite(facilityFeeRatePercentRaw)
             ? facilityFeeRatePercentRaw
             : 0;
-        facilityFeePaidBefore = Number(cd.facility_fee_paid_amount) || 0;
+        facilityFeePaidBefore = parseFacilityJsonAmount(cd.facility_fee_paid_amount) ?? 0;
 
         const fundedAmount = toNumber(result.funded_amount);
         const progressive = computeProgressiveFacilityFee({
@@ -3254,6 +3258,12 @@ export class NoteService {
       issuerOrganizationId: updated.issuer_organization_id,
       noteTitle: resolveNoteNotificationTitle(updated),
     });
+    await refreshContractFacilityForNote(updated, prisma, {
+      userId: actor.userId,
+      portal: actor.portal ?? "ADMIN",
+      actorRole: actor.role != null ? String(actor.role) : "ADMIN",
+      reason: "FUNDING_CLOSED",
+    });
     return await mapNoteDetail(updated);
   }
 
@@ -3346,6 +3356,12 @@ export class NoteService {
       issuerOrganizationId: updated.issuer_organization_id,
       noteTitle: resolveNoteNotificationTitle(updated),
       failedInvestorOrganizationIds,
+    });
+    await refreshContractFacilityForNote(updated, prisma, {
+      userId: actor.userId,
+      portal: actor.portal ?? "ADMIN",
+      actorRole: actor.role != null ? String(actor.role) : "ADMIN",
+      reason: "FUNDING_FAILED",
     });
     return await mapNoteDetail(updated);
   }
@@ -4814,6 +4830,12 @@ export class NoteService {
         issuerOrganizationId: settlement.note.issuer_organization_id,
         noteTitle: resolveNoteNotificationTitle(settlement.note),
       });
+      await refreshContractFacilityForNote(settlement.note, prisma, {
+        userId: actor.userId,
+        portal: actor.portal ?? "ADMIN",
+        actorRole: actor.role != null ? String(actor.role) : "ADMIN",
+        reason: "NOTE_REPAID",
+      });
     }
     return this.getAdminNoteDetail(id);
   }
@@ -5424,6 +5446,9 @@ export class NoteService {
           issuer_organization_id: true,
           title: true,
           note_reference: true,
+          source_contract_id: true,
+          source_invoice_id: true,
+          source_application_id: true,
         },
       });
       if (note) {
@@ -5432,6 +5457,12 @@ export class NoteService {
           noteId,
           issuerOrganizationId: note.issuer_organization_id,
           noteTitle: resolveNoteNotificationTitle(note),
+        });
+        await refreshContractFacilityForNote(note, prisma, {
+          userId: actor.userId,
+          portal: actor.portal ?? "ADMIN",
+          actorRole: actor.role != null ? String(actor.role) : "ADMIN",
+          reason: "NOTE_REPAID",
         });
       }
     }
@@ -5966,6 +5997,7 @@ export class NoteService {
     }
 
     const completedAt = new Date();
+    let noteReleasedFromLegacyResidual = false;
     const withdrawal = await prisma.$transaction(async (tx) => {
       if (existing.withdrawal_type === WithdrawalType.ISSUER_DISBURSEMENT) {
         const shorakaTradeOrder = await tx.shorakaTradeOrder.findUnique({
@@ -6067,7 +6099,7 @@ export class NoteService {
             (!settlementNeedsTrustee || settlementTrusteeComplete);
 
           if (canFinalizeNoteFromLegacyResidual) {
-            await tx.note.updateMany({
+            const noteUpdate = await tx.note.updateMany({
               where: {
                 id: existing.note_id,
                 status: { in: [NoteStatus.ACTIVE, NoteStatus.ARREARS, NoteStatus.DEFAULTED] },
@@ -6078,6 +6110,7 @@ export class NoteService {
                 repaid_at: completedAt,
               },
             });
+            noteReleasedFromLegacyResidual = noteUpdate.count > 0;
           }
         }
       }
@@ -6089,6 +6122,23 @@ export class NoteService {
       await this.logEvent(prisma, withdrawal.note_id, "WITHDRAWAL_COMPLETED", actor, {
         withdrawalId: id,
         amount: toNumber(withdrawal.amount),
+      });
+    }
+    if (noteReleasedFromLegacyResidual && existing.note_id) {
+      const note = await prisma.note.findUnique({
+        where: { id: existing.note_id },
+        select: {
+          id: true,
+          source_contract_id: true,
+          source_invoice_id: true,
+          source_application_id: true,
+        },
+      });
+      if (note) await refreshContractFacilityForNote(note, prisma, {
+        userId: actor.userId,
+        portal: actor.portal ?? "ADMIN",
+        actorRole: actor.role != null ? String(actor.role) : "ADMIN",
+        reason: "NOTE_REPAID",
       });
     }
     return this.mapWithdrawal(withdrawal);

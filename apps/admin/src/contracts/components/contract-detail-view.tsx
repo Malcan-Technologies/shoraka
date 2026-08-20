@@ -52,6 +52,7 @@ import {
   getContractUtilizationAccentClass,
   getContractUtilizationProgressClass,
   parseFacilityAmount,
+  resolveContractFacilityFeeCollected,
   resolveContractFacilityMetrics,
 } from "@/contracts/utils/contract-facility-metrics";
 import {
@@ -219,7 +220,7 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
       },
       {
         id: "notes",
-        label: "Notes",
+        label: "Drawdowns",
         statusToken: notesToken,
         statusLabel: adminTabStatusLabel(notesToken),
       },
@@ -258,17 +259,14 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
   });
   const facility = resolveContractFacilityMetrics(data);
   const facilityFeeRatePercent = parseFacilityAmount(contractDetails?.facility_fee_rate_percent);
-  const facilityFeePaidAmount = parseFacilityAmount(contractDetails?.facility_fee_paid_amount);
-  const facilityFeeCap =
-    facilityFeeRatePercent != null ? facility.approved * (facilityFeeRatePercent / 100) : null;
-  const facilityFeeCollectedDisplay =
-    facilityFeeRatePercent != null &&
-    facilityFeeRatePercent > 0 &&
-    facilityFeePaidAmount != null &&
-    facilityFeeCap != null
-      ? `${formatCurrency(facilityFeePaidAmount)} / ${formatCurrency(facilityFeeCap)} cap`
-      : null;
-  const headerMetrics = getContractHeaderMetrics(contractDetails);
+  const facilityFeeCollected = resolveContractFacilityFeeCollected({
+    approved: facility.approved,
+    facilityFeeRatePercent: contractDetails?.facility_fee_rate_percent,
+    facilityFeePaidAmount: contractDetails?.facility_fee_paid_amount,
+  });
+  const headerMetrics = getContractHeaderMetrics(contractDetails, {
+    approvedFacility: facility.approved,
+  });
   const headerDescription = resolveContractHeaderDescription({
     title: data.title,
     description: data.description,
@@ -338,7 +336,7 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
           />,
           <AdminEntitySummaryCard
             key="notes"
-            label="Notes"
+            label="Drawdowns"
             value={
               <button
                 type="button"
@@ -468,7 +466,7 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
         <AdminDetailTabPanel value="facility-offer">
           <ContractFieldsCard
             title="Facility"
-            description="Approved line, utilization, and facility fee."
+            description="Approved line, live utilization, pending invoices, and facility fee."
             icon={BanknotesIcon}
           >
             <div>
@@ -477,8 +475,12 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
                 value={formatCurrency(facility.approved)}
               />
               <ContractDetailRow
-                label="Utilized facility"
+                label="Utilized (live)"
                 value={formatCurrency(facility.utilized)}
+              />
+              <ContractDetailRow
+                label="Pending"
+                value={formatCurrency(facility.pending)}
               />
               <ContractDetailRow
                 label="Available facility"
@@ -507,7 +509,7 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
               />
               <ContractDetailRow
                 label="Facility fee collected"
-                value={facilityFeeCollectedDisplay ?? CONTRACT_EMPTY_LABEL}
+                value={facilityFeeCollected?.display ?? CONTRACT_EMPTY_LABEL}
               />
             </div>
           </ContractFieldsCard>
@@ -619,11 +621,11 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
           <Card className="rounded-2xl">
             <AdminDetailCardHeader
               icon={DocumentDuplicateIcon}
-              title="Notes"
+              title="Drawdowns"
               description={
                 data.notes.length === 0
-                  ? "No notes have used this line of credit"
-                  : `${data.notes.length} ${data.notes.length === 1 ? "note" : "notes"} issued from invoices under this facility`
+                  ? "No drawdowns have used this line of credit"
+                  : `${data.notes.length} ${data.notes.length === 1 ? "drawdown" : "drawdowns"} issued from invoices under this facility`
               }
             />
             <CardContent className={data.notes.length === 0 ? undefined : "p-0"}>

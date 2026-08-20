@@ -22,6 +22,7 @@ const CONTRACT_EVENT_TYPES = new Set<string>([
   ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED,
   ApplicationLogEventType.CONTRACT_OFFER_REJECTED,
   ApplicationLogEventType.CONTRACT_OFFER_RETRACTED,
+  ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED,
   ApplicationLogEventType.CONTRACT_WITHDRAWN,
 ]);
 
@@ -298,6 +299,10 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         return contractRef
           ? `The offer for ${contractRef} was withdrawn before it was accepted.`
           : fallbackDescription;
+      case ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED:
+        return contractRef
+          ? `Live occupancy for ${contractRef} was updated.`
+          : fallbackDescription;
       case ApplicationLogEventType.CONTRACT_WITHDRAWN:
         if (contractRef && applicationRef) {
           return `${this.capitalize(contractRef)} linked to ${applicationRef} was withdrawn.`;
@@ -542,6 +547,10 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         title: "Facility Offer Retracted",
         description: "The facility offer was withdrawn before it was accepted.",
       },
+      [ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED]: {
+        title: "Facility occupancy updated",
+        description: "Live facility occupancy changed after a draw, funding close, or repayment.",
+      },
       [ApplicationLogEventType.CONTRACT_OFFER_EXPIRED]: {
         title: "Facility Offer Expired",
         description: "The facility offer expired. A new offer can be sent from the Facility tab.",
@@ -627,6 +636,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED,
       ApplicationLogEventType.CONTRACT_OFFER_REJECTED,
       ApplicationLogEventType.CONTRACT_OFFER_RETRACTED,
+      ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED,
       ApplicationLogEventType.CONTRACT_OFFER_EXPIRED,
       ApplicationLogEventType.CONTRACT_SIGNING_DEADLINE_EXTENDED,
       ApplicationLogEventType.CONTRACT_WITHDRAWN,

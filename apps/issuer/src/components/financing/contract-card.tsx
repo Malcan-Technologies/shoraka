@@ -20,6 +20,7 @@ import {
   shouldShowIssuerReviewOfferCta,
   type OfferStatus,
 } from "@/lib/offer-utils";
+import { isFacilityAmendmentRequested } from "@/lib/issuer-contract-actionable";
 import { formatContractReference } from "@cashsouk/types";
 import { asContractForModal } from "@/types/issuer-dashboard";
 import { cn } from "@/lib/utils";
@@ -54,7 +55,8 @@ export function DashboardContractCard({
   const router = useRouter();
   const actionRequiredApplicationIds = row.actionRequiredApplicationIds ?? [];
   const actionRequiredCount = actionRequiredApplicationIds.length;
-  const showActionRequired = actionRequiredCount > 0;
+  const facilityNeedsAmendment = isFacilityAmendmentRequested(row.contractStatus);
+  const showActionRequired = facilityNeedsAmendment && actionRequiredCount > 0;
   const actionRequiredLabel =
     actionRequiredCount === 1 ? "Action required" : `Action required (${actionRequiredCount})`;
   const approvedNum = row.approvedFacilityAmount != null ? Number(row.approvedFacilityAmount) : null;
@@ -208,6 +210,11 @@ export function DashboardContractCard({
                 value={formatMoney(row.approvedFacilityAmount)}
               />
             </div>
+            {row.pendingFacilityAmount != null && Number(row.pendingFacilityAmount) > 0 ? (
+              <p className="text-ui leading-6 text-muted-foreground">
+                {formatMoney(row.pendingFacilityAmount)} pending — not occupying the line
+              </p>
+            ) : null}
 
             <div className="grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-2">
               <div className="min-w-0 space-y-2">

@@ -54,7 +54,7 @@ describe("getFacilityAttentionAction", () => {
     expect(action.hint).toBe("You'll review this on your application.");
   });
 
-  it("sends amendments to the application editor", () => {
+  it("sends facility-level amendments to the application editor", () => {
     const action = getFacilityAttentionAction(
       contract({
         contractStatus: "AMENDMENT_REQUESTED",
@@ -65,6 +65,19 @@ describe("getFacilityAttentionAction", () => {
     expect(action.headline).toBe("Make the requested changes");
     expect(action.href).toBe("/applications/app_1/edit");
     expect(action.label).toBe("Make amendments");
+  });
+
+  it("does not treat an approved facility as an amendment task when only a tied invoice needs changes", () => {
+    const action = getFacilityAttentionAction(
+      contract({
+        contractStatus: "APPROVED",
+        contractForModal: { status: "APPROVED" },
+        actionRequiredApplicationIds: ["app_1"],
+      })
+    );
+    expect(action.headline).toBe("This needs your response");
+    expect(action.href).toBe("/financing/contracts/con_1");
+    expect(action.label).toBe("View details");
   });
 });
 

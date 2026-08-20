@@ -1,6 +1,6 @@
 import type { NoteListItem } from "@cashsouk/types";
 import type { IssuerDashboardInvoice } from "@/types/issuer-dashboard";
-import { buildFinancingInvoiceRows } from "./financing-invoice-rows";
+import { buildFinancingInvoiceRows, dashboardNoteFromListItem } from "./financing-invoice-rows";
 
 function invoice(overrides: Partial<IssuerDashboardInvoice> = {}): IssuerDashboardInvoice {
   return {
@@ -97,5 +97,11 @@ describe("buildFinancingInvoiceRows", () => {
       "note_1",
       "note_fac",
     ]);
+  });
+});
+
+describe("dashboardNoteFromListItem", () => {
+  it("copies investor count from the listed note", () => {
+    expect(dashboardNoteFromListItem(note({ investorCount: 3 })).investorCount).toBe(3);
   });
 });

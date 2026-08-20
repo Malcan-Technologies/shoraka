@@ -142,6 +142,7 @@ function getEventLabel(
     CONTRACT_OFFER_ACCEPTED: "Facility Offer Signed",
     CONTRACT_OFFER_REJECTED: "Facility Offer Withdrawn",
     CONTRACT_OFFER_RETRACTED: "Facility Offer Retracted",
+    CONTRACT_FACILITY_OCCUPANCY_UPDATED: "Facility Occupancy Updated",
     CONTRACT_OFFER_EXPIRED: "Facility Offer Expired",
     CONTRACT_SIGNING_DEADLINE_EXTENDED: "Signing Deadline Extended",
     CONTRACT_WITHDRAWN: "Facility Offer Withdrawn",

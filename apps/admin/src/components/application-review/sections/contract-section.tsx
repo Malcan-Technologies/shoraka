@@ -29,7 +29,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePatchContractCustomerLargePrivate } from "@/hooks/use-application-review-actions";
 import { format } from "date-fns";
-import { formatCurrency, resolveRequestedFacility, resolveOfferedFacility } from "@cashsouk/config";
+import { formatCurrency, resolveRequestedFacility, resolveOfferedFacility, resolveApprovedFacility } from "@cashsouk/config";
 import {
   getOfferPhaseDeadlineDisplay,
   previewAcceptanceDeadlineFromWorkflow,
@@ -49,6 +49,7 @@ import {
   formatReviewDate,
   formatFileSize,
 } from "../review-section-styles";
+import { parseFacilityAmount } from "@/contracts/utils/contract-facility-metrics";
 import type { ReviewSectionId } from "../section-types";
 import { ComparisonFieldRow, ComparisonYesNoRadioRow, unknownToTriBool } from "../comparison-field-row";
 import {
@@ -163,6 +164,11 @@ export function ContractSection({
 
   const contractDoc = cd?.document as FileDoc | undefined;
   const requestedFacility = resolveRequestedFacility(cd);
+  const approvedShown = resolveApprovedFacility(contractRowStatus ?? "", cd);
+  const utilizedShown = parseFacilityAmount(cd?.utilized_facility) ?? 0;
+  const availableShown =
+    parseFacilityAmount(cd?.available_facility) ??
+    (approvedShown > 0 ? approvedShown - utilizedShown : 0);
   const contractValue = typeof cd?.value === "number" ? cd.value : 0;
   const persistedOffered = resolveOfferedFacility(offer);
   const offerSentAtRaw =
@@ -631,26 +637,16 @@ export function ContractSection({
                 <div className={reviewValueClass}>{formatReviewDate(cd.start_date as string)}</div>
                 <Label className={reviewLabelClass}>Contract End Date</Label>
                 <div className={reviewValueClass}>{formatReviewDate(cd.end_date as string)}</div>
-                {typeof cd.approved_facility === "number" && cd.approved_facility > 0 && (
+                {approvedShown > 0 ? (
                   <>
                     <Label className={reviewLabelClass}>Approved Facility</Label>
-                    <div className={reviewValueClass}>
-                      {formatCurrency(cd.approved_facility as number)}
-                    </div>
+                    <div className={reviewValueClass}>{formatCurrency(approvedShown)}</div>
                     <Label className={reviewLabelClass}>Utilized Facility</Label>
-                    <div className={reviewValueClass}>
-                      {formatCurrency(
-                        typeof cd.utilized_facility === "number" ? cd.utilized_facility : 0
-                      )}
-                    </div>
+                    <div className={reviewValueClass}>{formatCurrency(utilizedShown)}</div>
                     <Label className={reviewLabelClass}>Available Facility</Label>
-                    <div className={reviewValueClass}>
-                      {formatCurrency(
-                        typeof cd.available_facility === "number" ? cd.available_facility : 0
-                      )}
-                    </div>
+                    <div className={reviewValueClass}>{formatCurrency(availableShown)}</div>
                   </>
-                )}
+                ) : null}
               </div>
             </ReviewFieldBlock>
           )}

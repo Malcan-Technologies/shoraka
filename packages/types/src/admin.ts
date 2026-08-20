@@ -1137,6 +1137,10 @@ export interface AdminContractNoteSummary {
   status: string;
   sourceApplicationId: string;
   sourceInvoiceId: string | null;
+  /** Note target — the facility drawdown, same basis as utilized facility. */
+  targetAmount: number;
+  /** Marketplace fill. 0 until funding starts. */
+  fundedAmount: number;
 }
 
 /** Contract audit row sourced from `application_logs` (no dedicated contract_logs table). */

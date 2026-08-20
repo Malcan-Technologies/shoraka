@@ -1,6 +1,7 @@
 import { formatCurrency } from "@cashsouk/config";
 import {
   computeMarketplaceCommitBounds,
+  formatNoteInvestorCommitment,
   formatNoteReferenceDisplay,
   marketplaceListingKind,
   resolveMarketplaceDaysToMaturity,
@@ -178,10 +179,7 @@ export function marketplaceFailedFundingHelp(minimumPercent: number): string {
 }
 
 export function marketplaceInvestorSummary(note: MarketplaceNote): string {
-  const amount = formatCurrency(note.fundedAmount);
-  if (note.investorCount <= 0) return `${amount} committed`;
-  if (note.investorCount === 1) return `${amount} committed by 1 investor`;
-  return `${amount} committed by ${note.investorCount} investors`;
+  return formatNoteInvestorCommitment(formatCurrency(note.fundedAmount), note.investorCount);
 }
 
 export function marketplaceInvestActionLabel(note: MarketplaceNote): string {

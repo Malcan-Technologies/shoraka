@@ -19,7 +19,7 @@ import { RecentApplicationsCard } from "../components/dashboard/recent-applicati
 import { RecentFinancingCard } from "../components/dashboard/recent-financing-card";
 import { RecentActivityCard } from "../components/dashboard/recent-activity-card";
 import { NextActionBanner } from "../components/dashboard/next-action-banner";
-import { AccountOverviewCard } from "../components/account-overview-card";
+import { WhereThingsStandCard } from "../components/dashboard/where-things-stand-card";
 import { RepaymentPerformanceCard } from "../components/repayment-performance-card";
 import { PageShell, welcomeBackTitle } from "@cashsouk/ui";
 import { useIssuerDashboard } from "../hooks/use-issuer-dashboard";
@@ -276,13 +276,7 @@ function IssuerDashboardContent() {
 
             {isAccountEnabled ? (
               <div className="space-y-8">
-                <AccountOverviewCard
-                  successRate={issuerDashboard?.overview.successRatePercent ?? null}
-                  activeFinancing={issuerDashboard?.overview.activeFinancingAmount ?? null}
-                  pastFinancing={issuerDashboard?.overview.pastFinancingAmount ?? null}
-                  activeNotes={issuerDashboard?.overview.activeNotesCount ?? null}
-                  completedNotes={issuerDashboard?.overview.completedNotesCount ?? null}
-                />
+                <WhereThingsStandCard organizationId={activeOrganization?.id} />
                 <RepaymentPerformanceCard
                   onTimeRate={issuerDashboard?.repaymentPerformance.onTimePercent ?? null}
                   pastDueCount={issuerDashboard?.repaymentPerformance.pastDueCount ?? null}

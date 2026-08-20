@@ -98,6 +98,10 @@ export function ContractsTableRow({ contract, onViewDetails }: ContractsTableRow
         {formatCurrency(contract.contractValue)}
       </TableCell>
 
+      <TableCell className="text-sm font-semibold">
+        {contract.approvedFacility > 0 ? formatCurrency(contract.approvedFacility) : "—"}
+      </TableCell>
+
       <UtilizationCell contract={contract} />
 
       <TableCell>

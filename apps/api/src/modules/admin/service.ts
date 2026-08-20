@@ -127,10 +127,8 @@ export interface AdminLogContext {
   deviceInfo?: string | null;
 }
 import { ProductRepository } from "../products/repository";
-import {
-  computeContractFacilitySnapshot,
-  resolveRequestedFacility,
-} from "../../lib/contract-facility";
+import { resolveRequestedFacility } from "../../lib/contract-facility";
+import { refreshContractFacilityValues } from "../../lib/refresh-contract-facility";
 import { getS3ObjectBuffer } from "../../lib/s3/client";
 import { computeSupportingDocumentsSectionStatus } from "../applications/supporting-documents-section-status";
 import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-details-section-status";
@@ -641,36 +639,11 @@ export class AdminService {
   }
 
   /**
-   * Recompute and update contract facility values (approved_facility, utilized_facility, available_facility).
+   * Recompute revolving occupancy (live utilized, pending, repaid) on contract_details.
    * approved_facility is non-zero only when contract is APPROVED and issuer accepted the offer.
-   * Otherwise 0 (SUBMITTED, OFFER_SENT, REJECTED, DRAFT).
    */
   private async refreshContractFacilityValues(contractId: string): Promise<void> {
-    const contract = await prisma.contract.findUnique({
-      where: { id: contractId },
-      include: { invoices: true },
-    });
-    if (!contract) return;
-    const cd = contract.contract_details as Record<string, unknown> | null;
-    const { approvedFacility, utilizedFacility, availableFacility } = computeContractFacilitySnapshot(
-      contract.status,
-      cd,
-      contract.invoices.map((invoice) => ({
-        status: invoice.status,
-        details: (invoice.details as Record<string, unknown> | null) ?? null,
-        offer_details: (invoice.offer_details as Record<string, unknown> | null) ?? null,
-      }))
-    );
-    const mergedDetails = {
-      ...(cd && typeof cd === "object" ? cd : {}),
-      approved_facility: approvedFacility,
-      utilized_facility: utilizedFacility,
-      available_facility: availableFacility,
-    };
-    await prisma.contract.update({
-      where: { id: contractId },
-      data: { contract_details: mergedDetails },
-    });
+    await refreshContractFacilityValues(contractId);
   }
 
   private ensureContractOfferActionAllowed(
@@ -8397,34 +8370,7 @@ export class AdminService {
       });
 
       if (application.contract_id) {
-        const contract = await tx.contract.findUnique({
-          where: { id: application.contract_id },
-          include: { invoices: true },
-        });
-        if (contract) {
-          const contractDetails = contract.contract_details as Record<string, unknown> | null;
-          const { approvedFacility, utilizedFacility, availableFacility } =
-            computeContractFacilitySnapshot(
-              contract.status,
-              contractDetails,
-              contract.invoices.map((linkedInvoice) => ({
-                status: linkedInvoice.status,
-                details: (linkedInvoice.details as Record<string, unknown> | null) ?? null,
-                offer_details: (linkedInvoice.offer_details as Record<string, unknown> | null) ?? null,
-              }))
-            );
-          await tx.contract.update({
-            where: { id: application.contract_id },
-            data: {
-              contract_details: {
-                ...(contractDetails && typeof contractDetails === "object" ? contractDetails : {}),
-                approved_facility: approvedFacility,
-                utilized_facility: utilizedFacility,
-                available_facility: availableFacility,
-              },
-            },
-          });
-        }
+        await refreshContractFacilityValues(application.contract_id, tx);
       }
 
       await tx.applicationReviewEvent.create({
@@ -8942,18 +8888,10 @@ export class AdminService {
     if (section === "contract_details" && application.contract_id) {
       const contract = await prisma.contract.findUnique({
         where: { id: application.contract_id },
-        select: { status: true, contract_details: true },
+        select: { status: true },
       });
-      const cd = contract?.contract_details as Record<string, unknown> | null;
-      const mergedDetails = {
-        ...(cd && typeof cd === "object" ? cd : {}),
-        approved_facility: 0,
-        utilized_facility: 0,
-        available_facility: 0,
-      };
       const updateData: Prisma.ContractUpdateInput = {
         status: "SUBMITTED",
-        contract_details: mergedDetails as Prisma.InputJsonValue,
       };
       didRetractContractOffer = oldStatus === "OFFER_SENT" || contract?.status === "OFFER_SENT";
       if (didRetractContractOffer) {
@@ -8963,6 +8901,7 @@ export class AdminService {
         where: { id: application.contract_id },
         data: updateData,
       });
+      await this.refreshContractFacilityValues(application.contract_id);
     }
     if (didRetractContractOffer && section === "contract_details") {
       const contractReference = this.getContractReference(
@@ -9832,6 +9771,9 @@ export class AdminService {
           data: { status: "AMENDMENT_REQUESTED" },
         });
       }
+      if (application.contract_id) {
+        await this.refreshContractFacilityValues(application.contract_id);
+      }
     }
 
     let nextApp = await repository.getApplicationById(applicationId);
@@ -10026,6 +9968,9 @@ export class AdminService {
             data: { status: "AMENDMENT_REQUESTED" },
           });
         }
+        if (application.contract_id) {
+          await this.refreshContractFacilityValues(application.contract_id);
+        }
       }
     }
 
@@ -10210,6 +10155,9 @@ export class AdminService {
             data: { status: "SUBMITTED" },
           });
           await repository.updateApplicationStatus(applicationId, ApplicationStatus.INVOICE_PENDING);
+          if (application?.contract_id) {
+            await this.refreshContractFacilityValues(application.contract_id);
+          }
         }
       }
     }

@@ -34,6 +34,7 @@ describe("resolveIssuerInvoiceDashboardBadge arrears/late", () => {
     fundingDeadline: null,
     maturityDate: null,
     marketplaceStatusLabel: null,
+    investorCount: 0,
     disbursementBreakdown: null,
     ...overrides,
   });

@@ -1,4 +1,5 @@
 import { formatContractReference } from "@cashsouk/types";
+import { isFacilityAmendmentRequested } from "@/lib/issuer-contract-actionable";
 import { asContractForModal, type IssuerDashboardContract } from "@/types/issuer-dashboard";
 import { financingOfferHref, OFFER_REVIEW_ON_APPLICATION_HINT } from "@/lib/financing-offer-href";
 import {
@@ -33,7 +34,10 @@ export function getFacilityAttentionAction(row: IssuerDashboardContract): Facili
   }
 
   const ids = row.actionRequiredApplicationIds ?? [];
-  if (ids.length > 0) {
+  if (
+    ids.length > 0 &&
+    isFacilityAmendmentRequested(row.contractStatus)
+  ) {
     return {
       headline: "Make the requested changes",
       href:

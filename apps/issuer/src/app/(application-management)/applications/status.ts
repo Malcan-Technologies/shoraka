@@ -115,6 +115,8 @@ export interface NormalizedInvoice {
   maturityDate: string | null;
   value: number | null;
   appliedFinancing: number | null;
+  /** Numeric invoice offer amount when CashSouk has sent or accepted an offer. */
+  offeredAmount: number | null;
   document: string;
   documentS3Key: string | null;
   financingOffered: string;
@@ -179,6 +181,8 @@ export interface NormalizedApplication {
   submittedAt: string | null;
   contractValue: number | null;
   facilityApplied: number | null;
+  /** Offered facility from the contract offer, when CashSouk has sent one. */
+  offeredFacilityAmount: number | null;
   approvedFacility: string;
   approvedFacilityAmount: number | null;
   facilityFeeRatePercent: number | null;

@@ -26,6 +26,7 @@ import {
   EM_DASH,
   FINANCING_ATTENTION_SURFACE,
   FINANCING_OFFER_ATTENTION_SURFACE,
+  InvestorCommitmentLine,
   IssuerFinancingStatusBadge,
   LabelValue,
   displayCell,
@@ -33,6 +34,12 @@ import {
   formatMoney,
 } from "./utils";
 import { buildInvoiceFeeDisplay, money } from "@/lib/facility-fee-display";
+import { MarketplaceCampaignFacts } from "./marketplace-campaign-facts";
+import {
+  buildIssuerMarketplaceCampaign,
+  issuerCampaignCloseLabel,
+  issuerCampaignDaysLeftLabel,
+} from "./marketplace-campaign";
 
 function OfferStatusBadge({ offerStatus }: { offerStatus: OfferStatus }) {
   if (!offerStatus) return null;
@@ -101,41 +108,6 @@ function InvoiceFeeSummary({
   );
 }
 
-function parseAmount(value: unknown): number | null {
-  if (value == null) return null;
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  const cleaned = String(value)
-    .trim()
-    .replace(/^RM\s*/i, "")
-    .replace(/,/g, "");
-  if (!cleaned) return null;
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : null;
-}
-
-function resolveFinancingPercent(
-  invDetails: { financing_ratio_percent?: number | string } | null | undefined,
-  offerDetails: Record<string, unknown> | null | undefined,
-  invoiceValue: unknown,
-  financingAmount: unknown
-): number | null {
-  const fromDetails = Number(invDetails?.financing_ratio_percent);
-  if (Number.isFinite(fromDetails) && fromDetails > 0) return fromDetails;
-
-  const offered = Number(offerDetails?.offered_ratio_percent);
-  if (Number.isFinite(offered) && offered > 0) return offered;
-
-  const requested = Number(offerDetails?.requested_ratio_percent);
-  if (Number.isFinite(requested) && requested > 0) return requested;
-
-  const invoice = parseAmount(invoiceValue);
-  const financing = parseAmount(financingAmount);
-  if (invoice != null && invoice > 0 && financing != null) {
-    return (financing / invoice) * 100;
-  }
-  return null;
-}
-
 export function DashboardInvoiceCard({
   row,
   offerStatus,
@@ -161,12 +133,6 @@ export function DashboardInvoiceCard({
   const invDetails = invoiceModal?.details;
   const maturityRaw = invDetails?.maturity_date ?? row.note?.maturityDate ?? null;
   const offerDetails = invoiceModal?.offer_details as Record<string, unknown> | null | undefined;
-  const financingPercent = resolveFinancingPercent(
-    invDetails,
-    offerDetails,
-    row.invoiceValue,
-    row.financingAmount
-  );
   const feeDisplay = buildInvoiceFeeDisplay({
     status: row.note?.noteStatus ?? row.invoiceStatus,
     offerDetails,
@@ -195,6 +161,13 @@ export function DashboardInvoiceCard({
     : showActionRequired
       ? FINANCING_ATTENTION_SURFACE
       : null;
+  const campaign = row.note ? buildIssuerMarketplaceCampaign(row.note) : null;
+  const campaignCloseLabel = campaign
+    ? issuerCampaignCloseLabel(
+        formatDate(campaign.closesAt),
+        issuerCampaignDaysLeftLabel(campaign.daysLeft, campaign.raising)
+      )
+    : EM_DASH;
 
   return (
     <article
@@ -288,7 +261,7 @@ export function DashboardInvoiceCard({
                 tone={financingDonutTone(row.note)}
               />
             ) : (
-              <FinancingDonut size="lg" centerLabel="Financed" percent={financingPercent} />
+              <FinancingDonut size="lg" percent={null} />
             )}
           </div>
 
@@ -298,7 +271,19 @@ export function DashboardInvoiceCard({
               <FinancingKpiTile label="Financing" value={formatMoney(row.financingAmount)} />
             </div>
 
-            <p className="text-ui leading-5 text-muted-foreground">{fundingLabel}</p>
+            {campaign?.raising && row.note ? (
+              <MarketplaceCampaignFacts note={row.note} />
+            ) : (
+              <div className="space-y-1.5">
+                <p className="text-ui leading-5 text-muted-foreground">{fundingLabel}</p>
+                {row.note ? (
+                  <InvestorCommitmentLine
+                    fundedAmount={row.note.fundedAmount}
+                    investorCount={row.note.investorCount}
+                  />
+                ) : null}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-2">
               <div className="min-w-0 space-y-2">
@@ -330,9 +315,12 @@ export function DashboardInvoiceCard({
                 <LabelValue label="Submission date">{formatDate(row.submissionDate)}</LabelValue>
               </div>
               <div className="min-w-0 space-y-2">
-                <LabelValue label="Funding deadline">
-                  {row.note?.fundingDeadline ? formatDate(row.note.fundingDeadline) : EM_DASH}
+                <LabelValue label="Campaign closes">
+                  {campaign?.closesAt ? campaignCloseLabel : EM_DASH}
                 </LabelValue>
+                {campaign ? (
+                  <LabelValue label="Min to succeed">{`${campaign.minimumPercent}%`}</LabelValue>
+                ) : null}
                 <LabelValue label="Maturity date">{formatDate(maturityRaw)}</LabelValue>
                 {showFeeSummary ? (
                   <InvoiceFeeSummary

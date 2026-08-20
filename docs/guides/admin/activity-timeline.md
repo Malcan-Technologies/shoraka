@@ -127,6 +127,7 @@ All event types that can appear in `application_logs`. Add new mappings in `admi
 | `CONTRACT_OFFER_ACCEPTED` | applications/service | ISSUER | Terminal signing success: all signers completed and offer commercially accepted (shown as “Contract Offer Signed”) |
 | `CONTRACT_WITHDRAWN` | applications/service | ISSUER, ADMIN | Issuer rejects offer (terminal withdraw) |
 | `CONTRACT_OFFER_RETRACTED` | admin/service | ADMIN | Admin retracts contract offer |
+| `CONTRACT_FACILITY_OCCUPANCY_UPDATED` | refresh-contract-facility | ADMIN, ISSUER | Live occupancy reserved, true-up to funded, or released on repay |
 
 ### Invoice offers
 

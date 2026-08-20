@@ -35,6 +35,7 @@ import {
   collectInvoiceScopeKeys,
   resolveInvoiceScopeKeyForId,
 } from "../../modules/applications/invoice-review-scope";
+import { refreshContractFacilityValues } from "../refresh-contract-facility";
 
 const SYSTEM_USER_ID = "SYS";
 const notificationService = new NotificationService();
@@ -382,12 +383,17 @@ async function expireOffer(params: {
       const application = await tx.application.findUnique({
         where: { id: row.application_id },
         select: {
+          contract_id: true,
           invoices: {
             orderBy: { created_at: "asc" },
             select: { id: true, details: true },
           },
         },
       });
+      const occupancyContractId = row.contract_id ?? application?.contract_id ?? null;
+      if (occupancyContractId) {
+        await refreshContractFacilityValues(occupancyContractId, tx);
+      }
       const scopeKey =
         application != null
           ? resolveInvoiceScopeKeyForId(application.invoices, row.id)

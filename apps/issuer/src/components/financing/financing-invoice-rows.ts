@@ -97,6 +97,7 @@ export function dashboardNoteFromListItem(note: NoteListItem): IssuerDashboardNo
     fundingDeadline: note.listingClosesAt,
     maturityDate: note.maturityDate,
     marketplaceStatusLabel: null,
+    investorCount: note.investorCount ?? 0,
     disbursementBreakdown: null,
   };
 }

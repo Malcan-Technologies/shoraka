@@ -1,6 +1,9 @@
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
-import { parseFacilityAmount } from "./contract-facility-metrics";
+import {
+  parseFacilityAmount,
+  resolveContractFacilityFeeCollected,
+} from "./contract-facility-metrics";
 
 export type ContractHeaderMetric = {
   label: string;
@@ -33,12 +36,34 @@ export function getContractHeaderEndDate(
 
 /** Compact commercial facts for the contract detail header. Omits created/updated. */
 export function getContractHeaderMetrics(
-  contractDetails: Record<string, unknown> | null | undefined
+  contractDetails: Record<string, unknown> | null | undefined,
+  options?: { approvedFacility?: number }
 ): ContractHeaderMetric[] {
+  const approved =
+    options?.approvedFacility != null
+      ? options.approvedFacility
+      : parseFacilityAmount(contractDetails?.approved_facility) ?? 0;
+  const facilityFee = resolveContractFacilityFeeCollected({
+    approved,
+    facilityFeeRatePercent: contractDetails?.facility_fee_rate_percent,
+    facilityFeePaidAmount: contractDetails?.facility_fee_paid_amount,
+  });
+
   return [
     { label: "Start date", value: formatHeaderDate(contractDetails?.start_date) },
     { label: "Contract value", value: formatHeaderMoney(contractDetails?.value) },
-    { label: "Financing", value: formatHeaderMoney(contractDetails?.financing) },
+    {
+      label: "Approved facility",
+      value: formatHeaderMoney(
+        options?.approvedFacility != null
+          ? options.approvedFacility
+          : contractDetails?.approved_facility
+      ),
+    },
+    {
+      label: "Facility fee collected",
+      value: facilityFee?.display ?? "Not set",
+    },
   ];
 }
 

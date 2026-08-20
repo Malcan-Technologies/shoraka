@@ -1,5 +1,6 @@
 import {
   countNoteInvestors,
+  formatNoteInvestorCommitment,
   formatNoteInvestorCount,
   isMarketplaceCatalogNote,
   marketplaceListingKind,
@@ -71,5 +72,15 @@ describe("formatNoteInvestorCount", () => {
     expect(formatNoteInvestorCount(0)).toBe("None yet");
     expect(formatNoteInvestorCount(1)).toBe("1 investor");
     expect(formatNoteInvestorCount(4)).toBe("4 investors");
+  });
+});
+
+describe("formatNoteInvestorCommitment", () => {
+  it("includes the committed amount and investor count", () => {
+    expect(formatNoteInvestorCommitment("RM 32,000", 0)).toBe("RM 32,000 committed");
+    expect(formatNoteInvestorCommitment("RM 32,000", 1)).toBe("RM 32,000 committed by 1 investor");
+    expect(formatNoteInvestorCommitment("RM 32,000", 3)).toBe(
+      "RM 32,000 committed by 3 investors"
+    );
   });
 });
