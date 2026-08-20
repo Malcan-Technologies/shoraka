@@ -44,7 +44,7 @@ Plain-text guides for application status rules and log events:
 Current AuditLog architecture (history/evidence, not source of truth):
 
 - **[Current audit architecture](./audit/current-audit-logging-inventory.md)** - Tables, writers, readers, aliases, RBAC
-- **[Manual verification catalogue](./audit/audit-manual-verification-catalogue.md)** - Per-event cards (A001–A177)
+- **[Manual verification catalogue](./audit/audit-manual-verification-catalogue.md)** - Per-event cards (A001–A178)
 - **[Activity Timeline](./guides/admin/activity-timeline.md)** - Admin Activity vs raw Audit History vs wallet cash statement; issuer/investor ActivityFeed
 - **[Activity log inventory](./guides/activity-log-inventory.md)** - Curated `/activity` events and domains
 - **[Activity authoring guide](./guides/activity-log-authoring-guide.md)** - When a log belongs on `/activity`

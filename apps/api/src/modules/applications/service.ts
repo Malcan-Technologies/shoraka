@@ -2155,21 +2155,6 @@ export class ApplicationService {
           },
           tx
         );
-      } else if (status === "REJECTED" && currentStatus !== "REJECTED") {
-        await writeApplicationAuditLog(
-          {
-            eventType: "APPLICATION_REJECTED",
-            context: auditContext,
-            applicationId: id,
-            targetType: APPLICATION_AUDIT_TARGET_TYPE.APPLICATION,
-            targetId: id,
-            metadata: {
-              previousStatus: currentStatus,
-              newStatus: "REJECTED",
-            },
-          },
-          tx
-        );
       }
       return updated;
     });
