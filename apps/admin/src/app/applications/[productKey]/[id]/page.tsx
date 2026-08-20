@@ -68,6 +68,11 @@ import {
   computeHasPendingDirectorShareholder,
   formatApplicationReference,
   getSectionForScopeKey,
+  getOfferAcceptanceFromOfferDetails,
+  buildOriginationPhaseInput,
+  canRejectApplication,
+  isCompletedWithNoApprovedInvoices,
+  resolveOriginationPhase,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 import { orgHref } from "@/lib/admin-directory-hrefs";
@@ -229,7 +234,7 @@ export default function DynamicApplicationDetailPage() {
     "OFFER_EXPIRED",
   ];
   const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
-  const isFinalApplicationForAmlGate = ["FUNDED", "COMPLETED"].includes(
+  const isFinalApplicationForAmlGate = ["COMPLETED", "REJECTED", "WITHDRAWN", "ARCHIVED"].includes(
     String(app?.status ?? "")
   );
   const applicationContractId =
@@ -563,6 +568,35 @@ export default function DynamicApplicationDetailPage() {
     () => requiredReviewSections.some((section) => sectionStatusMap.get(section) === "REJECTED"),
     [requiredReviewSections, sectionStatusMap]
   );
+  const originationPhase = React.useMemo(() => {
+    if (!app) return "underReview" as const;
+    const invoices = (app.invoices ?? []) as Array<{
+      status?: string;
+      contract_id?: string | null;
+      offer_details?: unknown;
+    }>;
+    const standalone = invoices.find((invoice) => !invoice.contract_id);
+    const offerAcceptanceStatus =
+      getOfferAcceptanceFromOfferDetails(
+        (app.contract as { offer_details?: unknown } | null)?.offer_details
+      )?.status ??
+      getOfferAcceptanceFromOfferDetails(standalone?.offer_details)?.status ??
+      null;
+    return resolveOriginationPhase(
+      buildOriginationPhaseInput({
+        applicationStatus: app.status,
+        contract: app.contract as { status?: string | null } | null,
+        invoices,
+        offerAcceptanceStatus,
+        signingEnvelopes,
+      })
+    );
+  }, [app, signingEnvelopes]);
+  const canPhaseReject = canRejectApplication(originationPhase);
+  const facilityInForceNoInvoices = isCompletedWithNoApprovedInvoices(
+    String(app?.status ?? ""),
+    ((app?.invoices ?? []) as Array<{ status?: string }>).map((invoice) => String(invoice.status ?? ""))
+  );
   const availableReviewSections = React.useMemo(
     () => new Set(effectiveTabDescriptors.map((d) => d.reviewSection)),
     [effectiveTabDescriptors]
@@ -838,6 +872,8 @@ export default function DynamicApplicationDetailPage() {
                   onResetToUnderReview={() => void handleResetToUnderReview()}
                   onRequestAmendment={() => setAmendmentModalOpen(true)}
                   onRejectApplication={() => setRejectApplicationDialogOpen(true)}
+                  rejectBlockedByPhase={!canPhaseReject}
+                  statusLabel={facilityInForceNoInvoices ? "Facility approved" : undefined}
                 />
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_minmax(380px,440px)]">

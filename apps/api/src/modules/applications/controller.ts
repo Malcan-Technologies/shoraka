@@ -86,7 +86,9 @@ async function getApplication(req: Request, res: Response, next: NextFunction) {
 
     res.json({
       success: true,
-      data: withDisplayReference(data),
+      data: withDisplayReference(
+        data as { display_reference?: string | null }
+      ),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {
@@ -273,7 +275,7 @@ async function deleteDocument(req: Request, res: Response, next: NextFunction) {
 }
 
 const updateStatusSchema = z.object({
-  status: z.enum(["DRAFT", "SUBMITTED", "RESUBMITTED", "REJECTED", "ARCHIVED"]),
+  status: z.enum(["DRAFT", "SUBMITTED", "RESUBMITTED"]),
 });
 
 /**
@@ -303,22 +305,6 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
               ? req.headers["user-agent"][0]
               : req.headers["user-agent"]) ?? undefined,
           portal: ActivityPortal.ISSUER,
-        });
-      }
-
-      // Admin flows
-      if (status === "REJECTED") {
-        await logApplicationActivity({
-          userId: callerUserId,
-          applicationId: result.id,
-          eventType: "APPLICATION_REJECTED",
-          reviewCycle: (result as any)?.review_cycle ?? undefined,
-          ipAddress: req.ip ?? undefined,
-          userAgent:
-            (Array.isArray(req.headers["user-agent"])
-              ? req.headers["user-agent"][0]
-              : req.headers["user-agent"]) ?? undefined,
-          portal: ActivityPortal.ADMIN,
         });
       }
     } catch {
@@ -598,7 +584,9 @@ router.get("/", requireAuth, async function listApplications(req, res, next) {
     const result = await applicationService.listByOrganization(organizationId, userId);
     res.json({
       success: true,
-      data: result.map((application) => withDisplayReference(application)),
+      data: result.map((application) =>
+        withDisplayReference(application as { display_reference?: string | null })
+      ),
       correlationId: res.locals.correlationId || "unknown",
     });
   } catch (error) {

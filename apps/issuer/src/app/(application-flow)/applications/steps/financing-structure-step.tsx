@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { SelectionCard } from "@/app/(application-flow)/applications/components/selection-card";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { FinancingStructureSkeleton } from "@/app/(application-flow)/applications/components/financing-structure-skeleton";
+import { EXISTING_CONTRACT_PREFILL_STORAGE_KEY } from "@/lib/finance-invoice-application-href";
 
 /**
  * FINANCING STRUCTURE STEP
@@ -83,12 +84,26 @@ export function FinancingStructureStep({
       | null
       | undefined;
 
-    const initialType = (savedData?.structure_type as FinancingStructureType | undefined) ?? "new_contract";
-    const initialContractId = (savedData?.existing_contract_id as string | undefined) ?? "";
+    const savedType = savedData?.structure_type as FinancingStructureType | undefined;
+    const savedContractId = (savedData?.existing_contract_id as string | undefined) ?? "";
 
-    setSelectedStructure(initialType);
-    setSelectedContractId(initialContractId);
+    if (savedType) {
+      setSelectedStructure(savedType);
+      setSelectedContractId(savedContractId);
+      setIsInitialized(true);
+      return;
+    }
 
+    const prefillContractId = sessionStorage.getItem(EXISTING_CONTRACT_PREFILL_STORAGE_KEY);
+    if (prefillContractId) {
+      setSelectedStructure("existing_contract");
+      setSelectedContractId(prefillContractId);
+      setIsInitialized(true);
+      return;
+    }
+
+    setSelectedStructure("new_contract");
+    setSelectedContractId("");
     setIsInitialized(true);
   }, [application, isInitialized]);
 
@@ -272,7 +287,7 @@ export function FinancingStructureStep({
 
           <SelectionCard
             title="Invoice-only financing"
-            description="I want to finance my invoice(s) without a facility"
+            description="I want to finance my invoice without a facility"
             isSelected={selectedStructure === "invoice_only"}
             onClick={readOnly ? () => {} : () => handleStructureSelect("invoice_only")}
             disabled={readOnly}

@@ -5,7 +5,7 @@ import { ContractRepository } from "../contracts/repository";
 import { AppError } from "../../lib/http/error-handler";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal } from "../applications/logs/types";
-import { Invoice, Prisma } from "@prisma/client";
+import { Invoice } from "@prisma/client";
 import { ApplicationStatus, ContractStatus, InvoiceStatus, WithdrawReason } from "@cashsouk/types";
 import { computeApplicationStatus } from "../applications/lifecycle";
 import {
@@ -43,6 +43,55 @@ export class InvoiceService {
 
   private facilityContractIds(...ids: Array<string | null | undefined>): string[] {
     return [...new Set(ids.filter((id): id is string => Boolean(id)))];
+  }
+
+  private normalizeInvoiceNumber(details: unknown): string | null {
+    if (!details || typeof details !== "object" || Array.isArray(details)) return null;
+    const raw = (details as { number?: unknown }).number;
+    if (raw == null) return null;
+    const trimmed = String(raw).trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  private async assertUniqueInvoiceNumberOnFacility(args: {
+    contractId: string | null | undefined;
+    details: unknown;
+    excludeInvoiceId?: string;
+    tx?: {
+      invoice: {
+        findMany: (query: object) => Promise<Array<{ id: string; details: unknown }>>;
+      };
+    };
+  }): Promise<void> {
+    const contractId = args.contractId;
+    if (!contractId) return;
+    const number = this.normalizeInvoiceNumber(args.details);
+    if (!number) return;
+
+    const client = (args.tx ?? (await import("../../lib/prisma")).prisma) as {
+      invoice: {
+        findMany: (query: object) => Promise<Array<{ id: string; details: unknown }>>;
+      };
+    };
+    const siblings = await client.invoice.findMany({
+      where: {
+        contract_id: contractId,
+        status: { not: InvoiceStatus.WITHDRAWN },
+        ...(args.excludeInvoiceId ? { id: { not: args.excludeInvoiceId } } : {}),
+      },
+      select: { id: true, details: true },
+    });
+
+    const hasDuplicate = siblings.some(
+      (row) => this.normalizeInvoiceNumber(row.details) === number
+    );
+    if (hasDuplicate) {
+      throw new AppError(
+        400,
+        "DUPLICATE_INVOICE_NUMBER",
+        "An invoice with this number already exists on this facility."
+      );
+    }
   }
 
   private async refreshLinkedContractFacilities(
@@ -168,26 +217,23 @@ export class InvoiceService {
     try {
       const { prisma } = await import("../../lib/prisma");
       return await prisma.$transaction(async (tx) => {
-        const locked = await tx.$queryRaw<
-          { financing_structure: Prisma.JsonValue | null }[]
-        >`SELECT financing_structure FROM applications WHERE id = ${applicationId} FOR UPDATE`;
-        const lockedApplication = locked[0];
-        const structureType = (
-          lockedApplication?.financing_structure as { structure_type?: string } | null
-        )?.structure_type;
-
-        if (structureType === "invoice_only") {
-          const existingInvoiceCount = await tx.invoice.count({
-            where: { application_id: applicationId },
-          });
-          if (existingInvoiceCount >= 1) {
-            throw new AppError(
-              400,
-              "MAX_INVOICES_REACHED",
-              "Invoice-only applications allow only one invoice."
-            );
-          }
+        await tx.$queryRaw`SELECT id FROM applications WHERE id = ${applicationId} FOR UPDATE`;
+        const existingInvoiceCount = await tx.invoice.count({
+          where: { application_id: applicationId },
+        });
+        if (existingInvoiceCount >= 1) {
+          throw new AppError(
+            400,
+            "MAX_INVOICES_REACHED",
+            "Applications allow only one invoice."
+          );
         }
+
+        await this.assertUniqueInvoiceNumberOnFacility({
+          contractId,
+          details,
+          tx,
+        });
 
         const applicationRow = await tx.application.findUnique({
           where: { id: applicationId },
@@ -317,6 +363,16 @@ export class InvoiceService {
   if (workflow) {
     assertMaturityForApplication(workflow, updatedDetails as Record<string, unknown>);
   }
+
+  const effectiveContractId =
+    contractId !== undefined
+      ? contractId
+      : (invoice as { contract_id?: string | null }).contract_id;
+  await this.assertUniqueInvoiceNumberOnFacility({
+    contractId: effectiveContractId,
+    details: updatedDetails,
+    excludeInvoiceId: id,
+  });
 
   /**
    * BUILD UPDATE PAYLOAD

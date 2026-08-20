@@ -8,9 +8,13 @@ import { ApplicationReviewRemark, Contract, Prisma } from "@prisma/client";
 import {
   ApplicationStatus,
   ContractStatus,
+  InvoiceStatus,
   WithdrawReason,
   parseScopeKey,
+  buildOriginationPhaseInput,
+  resolveOriginationPhase,
 } from "@cashsouk/types";
+import { computeApplicationStatus } from "../applications/lifecycle";
 import { prisma } from "../../lib/prisma";
 import {
   generateContractDocumentKey,
@@ -366,42 +370,87 @@ export class ContractService {
       throw new AppError(400, "BAD_REQUEST", "This facility was already withdrawn.");
     }
 
-    const finalReason = reason ?? WithdrawReason.USER_CANCELLED;
+    const applicationRefs = (contract as { applications?: { id: string }[] }).applications ?? [];
+    const linkedApplications = (
+      await Promise.all(applicationRefs.map((appRef) => this.applicationRepository.findById(appRef.id)))
+    ).filter((application): application is NonNullable<typeof application> => application != null);
 
-    const updated = await this.repository.update(id, {
-      status: ContractStatus.WITHDRAWN,
-      withdraw_reason: finalReason,
+    for (const linked of linkedApplications) {
+      const phase = resolveOriginationPhase(
+        buildOriginationPhaseInput({
+          applicationStatus: linked.status,
+          contract: { status: contract.status },
+          invoices: (linked as { invoices?: Array<{ status?: string | null }> }).invoices,
+        })
+      );
+      if (phase === "approved" || phase === "closed") {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "This facility is linked to an approved or closed application and cannot be withdrawn."
+        );
+      }
+    }
+
+    const finalReason = reason ?? WithdrawReason.USER_CANCELLED;
+    const activityLogs: Array<{ applicationId: string }> = [];
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const withdrawnContract = await tx.contract.update({
+        where: { id },
+        data: {
+          status: ContractStatus.WITHDRAWN,
+          withdraw_reason: finalReason,
+        },
+      });
+
+      for (const linked of linkedApplications) {
+        const invoices = (linked as { invoices?: Array<{ status: string }> }).invoices ?? [];
+        const isInvoiceOnly =
+          (linked as { financing_structure?: { structure_type?: string } | null }).financing_structure
+            ?.structure_type === "invoice_only";
+        const nextStatus = computeApplicationStatus(
+          { status: ContractStatus.WITHDRAWN },
+          invoices.map((invoice) => ({ status: invoice.status as InvoiceStatus })),
+          linked.status as ApplicationStatus,
+          { isInvoiceOnly }
+        );
+        await tx.application.update({
+          where: { id: linked.id },
+          data: { status: nextStatus },
+        });
+        await tx.applicationReview.upsert({
+          where: {
+            application_id_section: {
+              application_id: linked.id,
+              section: "contract_details",
+            },
+          },
+          create: {
+            application_id: linked.id,
+            section: "contract_details",
+            status: "WITHDRAWN",
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+          update: {
+            status: "WITHDRAWN",
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+        });
+        if (nextStatus === ApplicationStatus.WITHDRAWN) {
+          activityLogs.push({ applicationId: linked.id });
+        }
+      }
+
+      return withdrawnContract;
     });
 
-    const applications = (contract as { applications?: { id: string }[] }).applications ?? [];
-    for (const app of applications) {
-      await prisma.application.update({
-        where: { id: app.id },
-        data: { status: "WITHDRAWN" },
-      });
-      await prisma.applicationReview.upsert({
-        where: {
-          application_id_section: {
-            application_id: app.id,
-            section: "contract_details",
-          },
-        },
-        create: {
-          application_id: app.id,
-          section: "contract_details",
-          status: "WITHDRAWN",
-          reviewer_user_id: userId,
-          reviewed_at: new Date(),
-        },
-        update: {
-          status: "WITHDRAWN",
-          reviewer_user_id: userId,
-          reviewed_at: new Date(),
-        },
-      });
+    for (const entry of activityLogs) {
       await logApplicationActivity({
         userId,
-        applicationId: app.id,
+        applicationId: entry.applicationId,
         eventType: "APPLICATION_WITHDRAWN",
         portal: ActivityPortal.ISSUER,
         metadata: { withdraw_reason: finalReason },

@@ -109,10 +109,10 @@ export interface InvoiceRowInput {
   document?: { file_name: string; file_size: number; s3_key?: string } | null;
 }
 
-/** Invoice data for invoice details step. Maturity today or future; value > 0; financing_ratio 60–80. Random count 1–5. */
+/** Invoice data for invoice details step. Maturity today or future; value > 0; financing_ratio 60–80. One invoice. */
 export function generateInvoiceData(): { invoices: InvoiceRowInput[] } {
   const today = new Date();
-  const count = randomInt(1, 5);
+  const count = 1;
   const invoices: InvoiceRowInput[] = [];
   const usedNumbers = new Set<string>();
 

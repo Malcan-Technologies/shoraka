@@ -97,7 +97,7 @@ async function main() {
     },
   });
 
-  const invoiceInputs = generateInvoiceDetailsList(3);
+  const invoiceInputs = generateInvoiceDetailsList(1);
   for (const input of invoiceInputs) {
     await prisma.invoice.create({
       data: {
@@ -109,7 +109,7 @@ async function main() {
     });
   }
 
-  console.log("\n✅ Application created (existing contract + 3 invoices):");
+  console.log("\n✅ Application created (existing contract + 1 invoice):");
   console.log(`   Application ID: ${application.id}`);
   console.log(`   Contract ID: ${contractId}`);
   console.log(`   Issuer Org: ${issuerOrg.name}`);

@@ -66,6 +66,7 @@ import {
   countInvoicesNeedingAction,
   formatApplicationDisplayId,
   getIssuerPlainStatusLabel,
+  issuerWithdrawBlockedReason,
 } from "@/app/(application-management)/applications/components/issuer-status-display";
 
 const DETAIL_TABS = ["summary", "offer", "invoices", "documents", "timeline"] as const;
@@ -303,7 +304,9 @@ export default function ApplicationDetailPage() {
   const displayId = formatApplicationDisplayId(application.id, application.displayReference);
   const isDraft = application.status === "draft";
   const hasContract = application.type === "Facility financing";
-  const statusLabel = getIssuerPlainStatusLabel(
+  const statusLabel = application.facilityInForceNoInvoices
+    ? "Facility approved"
+    : getIssuerPlainStatusLabel(
     application.cardStatus.badgeKey,
     application.cardStatus.badgeKey === "withdrawn" ||
       application.cardStatus.badgeKey === "declined" ||
@@ -314,7 +317,15 @@ export default function ApplicationDetailPage() {
 
   const showViewSignedContract =
     application.signedContractOfferLetterAvailable && !!application.signedContractOfferLetterS3Key;
-  const withdrawDisabled = cancelApplication.isPending || showViewSignedContract;
+  const withdrawDisabled = cancelApplication.isPending || !application.canWithdraw;
+  const withdrawBlockedReason = issuerWithdrawBlockedReason({
+    canWithdraw: application.canWithdraw,
+    applicationStatus: application.applicationStatus,
+    contractStatus: application.contractStatus,
+    invoices: application.invoices,
+    offerAcceptanceStatus: application.offerAcceptanceStatus,
+    facilityInForceNoInvoices: application.facilityInForceNoInvoices,
+  });
 
   const isMountedOfferInvoice = (inv: NormalizedInvoice) =>
     inv.status === "OFFER_SENT" || inv.canReviewOffer;
@@ -415,8 +426,15 @@ export default function ApplicationDetailPage() {
                   value: application.contractTitle ?? "—",
                 },
                 {
-                  label: "Invoices added",
-                  value: String(application.invoices.length),
+                  label: "Invoice",
+                  value:
+                    application.invoices.length === 0
+                      ? "None yet"
+                      : application.invoices.length === 1
+                        ? application.invoices[0]!.displayReference?.trim() ||
+                          application.invoices[0]!.number?.trim() ||
+                          "Added"
+                        : `${application.invoices.length} invoices`,
                 },
                 {
                   label: "Last updated",
@@ -506,9 +524,9 @@ export default function ApplicationDetailPage() {
             >
               Withdraw
             </Button>
-            {withdrawDisabled && showViewSignedContract ? (
+            {withdrawBlockedReason ? (
               <p className="basis-full text-ui leading-5 text-muted-foreground sm:basis-auto sm:max-w-[16rem]">
-                Withdraw is not available while a signed offer letter is on file.
+                {withdrawBlockedReason}
               </p>
             ) : null}
             <DropdownMenu>
@@ -600,6 +618,15 @@ export default function ApplicationDetailPage() {
                     ? [{ label: "Contract title", value: application.contractTitle }]
                     : []),
                   { label: "Customer", value: application.customer },
+                  {
+                    label: "Invoice",
+                    value:
+                      application.invoices.length === 0
+                        ? "—"
+                        : application.invoices[0]!.displayReference?.trim() ||
+                          application.invoices[0]!.number?.trim() ||
+                          "—",
+                  },
                   {
                     label: "Contract value",
                     value:

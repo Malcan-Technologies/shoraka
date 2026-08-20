@@ -584,14 +584,14 @@ export function SectionContent({
         applicationId && app.contract && contractInvoices.length > 0
           ? contractInvoices.filter((inv) => inv.application_id !== applicationId)
           : [];
-      const mergedInvoices = [...appInvoices, ...otherContractInvoices];
-      const readOnlyInvoiceIds = new Set(otherContractInvoices.map((inv) => inv.id));
       const cd = contract?.contract_details as Record<string, unknown> | null | undefined;
       const contractStatus = sectionStatusMap?.get("contract_details") ?? "";
       const approvedFacility =
         (resolveApprovedFacility(contractStatus, cd) || resolveRequestedFacility(cd)) as number;
       const utilizedFacility = parseFacilityAmount(cd?.utilized_facility) ?? 0;
-      const pendingFacility = sumPendingInvoiceFacility(mergedInvoices);
+      const pendingFacility = sumPendingInvoiceFacility(
+        contractInvoices.length > 0 ? contractInvoices : appInvoices
+      );
       const storedAvailable = parseFacilityAmount(cd?.available_facility);
       const availableFacility =
         storedAvailable != null ? storedAvailable : approvedFacility - utilizedFacility;
@@ -607,8 +607,8 @@ export function SectionContent({
       return (
         <InvoiceSection
           applicationId={signingApplicationId}
-          invoices={mergedInvoices}
-          readOnlyInvoiceIds={readOnlyInvoiceIds}
+          invoices={appInvoices}
+          otherFacilityInvoices={otherContractInvoices}
           contractFacility={contractFacility}
           reviewItems={reviewItems}
           isReviewable={isReviewable}
@@ -636,19 +636,9 @@ export function SectionContent({
               ? (() => {
                   const bApp = sectionComparison.beforeApp;
                   const aApp = sectionComparison.afterApp;
-                  const bContract = bApp.contract as typeof contract | null | undefined;
-                  const aContract = aApp.contract as typeof contract | null | undefined;
-                  const bOther =
-                    applicationId && bContract?.invoices?.length
-                      ? bContract.invoices.filter((inv) => inv.application_id !== applicationId)
-                      : [];
-                  const aOther =
-                    applicationId && aContract?.invoices?.length
-                      ? aContract.invoices.filter((inv) => inv.application_id !== applicationId)
-                      : [];
                   return {
-                    beforeInvoices: [...(bApp.invoices ?? []), ...bOther],
-                    afterInvoices: [...(aApp.invoices ?? []), ...aOther],
+                    beforeInvoices: bApp.invoices ?? [],
+                    afterInvoices: aApp.invoices ?? [],
                     isPathChanged: sectionComparison.isPathChanged,
                   };
                 })()

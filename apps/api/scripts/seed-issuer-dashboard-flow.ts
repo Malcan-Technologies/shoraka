@@ -341,29 +341,11 @@ async function main() {
     financingRatioPercent: ratioFor(8000, 10000),
     maturityDate: maturityDateStr,
   });
-  const invDetails1002 = buildInvoiceDetails({
-    number: "INV-1002",
-    valueRm: 20000,
-    financingRatioPercent: ratioFor(15000, 20000),
-    maturityDate: maturityDateStr,
-  });
-  const invDetails1003 = buildInvoiceDetails({
-    number: "INV-1003",
-    valueRm: 30000,
-    financingRatioPercent: ratioFor(20000, 30000),
-    maturityDate: maturityDateStr,
-  });
 
   const invDetails2001 = buildInvoiceDetails({
     number: "INV-2001",
     valueRm: 15000,
     financingRatioPercent: ratioFor(10000, 15000),
-    maturityDate: maturityDateStr,
-  });
-  const invDetails2002 = buildInvoiceDetails({
-    number: "INV-2002",
-    valueRm: 12000,
-    financingRatioPercent: ratioFor(8000, 12000),
     maturityDate: maturityDateStr,
   });
 
@@ -392,40 +374,6 @@ async function main() {
     },
   });
 
-  await prisma.invoice.upsert({
-    where: { id: INV_1002_ID },
-    create: {
-      id: INV_1002_ID,
-      application_id: APP_INVOICE_ONLY_ID,
-      contract_id: null,
-      details: invDetails1002,
-      status: "SUBMITTED",
-    },
-    update: {
-      application_id: APP_INVOICE_ONLY_ID,
-      contract_id: null,
-      details: invDetails1002,
-      status: "SUBMITTED",
-    },
-  });
-
-  await prisma.invoice.upsert({
-    where: { id: INV_1003_ID },
-    create: {
-      id: INV_1003_ID,
-      application_id: APP_INVOICE_ONLY_ID,
-      contract_id: null,
-      details: invDetails1003,
-      status: "SUBMITTED",
-    },
-    update: {
-      application_id: APP_INVOICE_ONLY_ID,
-      contract_id: null,
-      details: invDetails1003,
-      status: "SUBMITTED",
-    },
-  });
-
   // Application B: new contract => contract_id linked
   await prisma.invoice.upsert({
     where: { id: INV_2001_ID },
@@ -440,23 +388,6 @@ async function main() {
       application_id: APP_NEW_CONTRACT_ID,
       contract_id: CONTRACT_ID,
       details: invDetails2001,
-      status: "SUBMITTED",
-    },
-  });
-
-  await prisma.invoice.upsert({
-    where: { id: INV_2002_ID },
-    create: {
-      id: INV_2002_ID,
-      application_id: APP_NEW_CONTRACT_ID,
-      contract_id: CONTRACT_ID,
-      details: invDetails2002,
-      status: "SUBMITTED",
-    },
-    update: {
-      application_id: APP_NEW_CONTRACT_ID,
-      contract_id: CONTRACT_ID,
-      details: invDetails2002,
       status: "SUBMITTED",
     },
   });
@@ -482,9 +413,7 @@ async function main() {
   // 6) Notes + NoteListing
   // Main dashboard expects:
   // - INV-1001 has NOTE-0001 => shows progress 50%
-  // - INV-1002/1003 have no notes => Note no "-"
   // - INV-2001 has NOTE-0002 => contract detail shows ref + 80% funded
-  // - INV-2002 has NOTE-0003 as ACTIVE => helps test activeNotesCount + utilization derived from notes
 
   const noteOpensAt = new Date("2026-05-12T00:00:00.000Z");
 
@@ -622,11 +551,11 @@ async function main() {
     where: { note_reference: NOTE_REF_0003 },
     create: {
       id: NOTE_0003_ID,
-      source_application_id: APP_NEW_CONTRACT_ID,
+      source_application_id: APP_EXISTING_CONTRACT_ID,
       source_contract_id: CONTRACT_ID,
-      source_invoice_id: INV_2002_ID,
+      source_invoice_id: INV_3001_ID,
       issuer_organization_id: issuerOrg.id,
-      title: "Seed active note for INV-2002",
+      title: "Seed active note for INV-3001",
       note_reference: NOTE_REF_0003,
       product_snapshot: { product_id: PRODUCT_ID },
       issuer_snapshot: buildIssuerSnapshot(),
@@ -645,11 +574,11 @@ async function main() {
       maturity_date: maturityDate,
     },
     update: {
-      source_application_id: APP_NEW_CONTRACT_ID,
+      source_application_id: APP_EXISTING_CONTRACT_ID,
       source_contract_id: CONTRACT_ID,
-      source_invoice_id: INV_2002_ID,
+      source_invoice_id: INV_3001_ID,
       issuer_organization_id: issuerOrg.id,
-      title: "Seed active note for INV-2002",
+      title: "Seed active note for INV-3001",
       product_snapshot: { product_id: PRODUCT_ID },
       issuer_snapshot: buildIssuerSnapshot(),
       paymaster_snapshot: { name: customerName },
@@ -688,7 +617,7 @@ async function main() {
   console.log(`   Issuer Org ID: ${issuerOrg.id}`);
   console.log(`   Contract ID: ${CONTRACT_ID}`);
   console.log(`   Applications: ${APP_INVOICE_ONLY_ID}, ${APP_NEW_CONTRACT_ID}, ${APP_EXISTING_CONTRACT_ID}`);
-  console.log(`   Invoices: INV-1001/2/3, INV-2001/2002, INV-3001`);
+  console.log(`   Invoices: INV-1001, INV-2001, INV-3001`);
   console.log(`   Notes: ${NOTE_REF_0001}, ${NOTE_REF_0002}, ${NOTE_REF_0003}`);
 }
 

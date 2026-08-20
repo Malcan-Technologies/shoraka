@@ -43,6 +43,8 @@ export function ApplicationDetailHero({
   onResetToUnderReview,
   onRequestAmendment,
   onRejectApplication,
+  rejectBlockedByPhase,
+  statusLabel,
 }: {
   productKey: string;
   title: string;
@@ -68,12 +70,18 @@ export function ApplicationDetailHero({
   onResetToUnderReview: () => void;
   onRequestAmendment: () => void;
   onRejectApplication: () => void;
+  rejectBlockedByPhase: boolean;
+  statusLabel?: string;
 }) {
   const isAmendmentRequested = status === "AMENDMENT_REQUESTED";
   const amendmentDisabled =
     isAmendmentRequested || pendingAmendmentCount === 0 || !canAppManage;
   const rejectDisabled =
-    status === "REJECTED" || allSectionsApproved || !hasRejectedSection || !canAppManage;
+    status === "REJECTED" ||
+    allSectionsApproved ||
+    !hasRejectedSection ||
+    !canAppManage ||
+    rejectBlockedByPhase;
   const reference = formatApplicationReference({
     displayReference: displayReference ?? null,
     id: applicationId,
@@ -88,11 +96,13 @@ export function ApplicationDetailHero({
   const rejectTooltip =
     status === "REJECTED"
       ? "Application already rejected"
-      : allSectionsApproved
-        ? "Cannot reject when all sections are approved"
-        : !hasRejectedSection
-          ? "Reject at least one section first"
-          : "Reject the application and notify the issuer";
+      : rejectBlockedByPhase
+        ? "Cannot reject after a facility or invoice has been approved"
+        : allSectionsApproved
+          ? "Cannot reject when all sections are approved"
+          : !hasRejectedSection
+            ? "Reject at least one section first"
+            : "Reject the application and notify the issuer";
 
   return (
     <AdminEntityHeader
@@ -106,7 +116,7 @@ export function ApplicationDetailHero({
       icon={DocumentTextIcon}
       chips={
         <>
-          <ApplicationStatusBadge status={status} />
+          <ApplicationStatusBadge status={status} label={statusLabel} />
           {structureLabel !== "—" ? (
             <StatusBadge label={structureLabel} status="neutral" showDot={false} />
           ) : null}

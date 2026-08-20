@@ -41,6 +41,10 @@ import {
   FINANCING_TYPES,
   isIssuerApplicationActionable,
 } from "./status";
+import {
+  applicationMatchesListSearch,
+  ISSUER_APPLICATIONS_SEARCH_PLACEHOLDER,
+} from "./application-list-search";
 import { useApplicationsData } from "./use-applications-data";
 import { ApplicationSlimCard } from "./components/application-slim-card";
 import { ApplicationAttentionCarousel } from "./components/application-attention-carousel";
@@ -149,14 +153,8 @@ export default function ApplicationsPage() {
 
   const filteredApplications = React.useMemo(() => {
     let list = [...applications];
-    if (search) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (a) =>
-          a.customer.toLowerCase().includes(q) ||
-          a.id.toLowerCase().includes(q) ||
-          a.invoices.some((inv) => inv.number.toLowerCase().includes(q))
-      );
+    if (search.trim()) {
+      list = list.filter((a) => applicationMatchesListSearch(a, search));
     }
     if (applicationIdsFilter.length > 0) {
       const idSet = new Set(applicationIdsFilter);
@@ -223,13 +221,14 @@ export default function ApplicationsPage() {
   const paginatedRest = remainingApplications.slice((page - 1) * perPage, page * perPage);
 
   const totalCount = applications.length;
-  const hasFilters =
-    search !== "" ||
+  const searchQuery = search.trim();
+  const hasNonSearchFilters =
     applicationIdsFilter.length > 0 ||
     statusFilters.length > 0 ||
     financingFilter !== "all" ||
     submittedFilter !== "all" ||
     offerExpiryFilter !== "all";
+  const hasFilters = searchQuery !== "" || hasNonSearchFilters;
 
   const clearApplicationIdsFilter = React.useCallback(() => {
     setApplicationIdsFilter([]);
@@ -258,6 +257,16 @@ export default function ApplicationsPage() {
 
   const appliedFilters = React.useMemo(() => {
     const chips: FilterChip[] = [];
+    if (searchQuery) {
+      chips.push({
+        id: "search",
+        label: `Search: ${searchQuery}`,
+        onRemove: () => {
+          setSearch("");
+          setPage(1);
+        },
+      });
+    }
     for (const key of statusFilters) {
       chips.push({
         id: `status-${key}`,
@@ -317,6 +326,7 @@ export default function ApplicationsPage() {
     }
     return chips;
   }, [
+    searchQuery,
     statusFilters,
     financingFilter,
     submittedFilter,
@@ -468,7 +478,7 @@ export default function ApplicationsPage() {
                 setSearch(value);
                 setPage(1);
               }}
-              searchPlaceholder="Application ID, customer, or invoice number"
+              searchPlaceholder={ISSUER_APPLICATIONS_SEARCH_PLACEHOLDER}
               appliedFilters={appliedFilters}
               onClearFilters={clearAllFilters}
               onReload={() => {
@@ -622,10 +632,25 @@ export default function ApplicationsPage() {
               <EmptyState
                 variant="no-results"
                 title="No matching applications"
-                message="Try a different search or clear your filters."
+                message={
+                  searchQuery
+                    ? `No applications match “${searchQuery}”. Try a reference, customer name, or invoice number.`
+                    : "Try a different search or clear your filters."
+                }
                 action={
-                  <Button variant="outline" className="rounded-xl" onClick={clearAllFilters}>
-                    Clear filters
+                  <Button
+                    variant="outline"
+                    className="rounded-xl"
+                    onClick={() => {
+                      if (searchQuery && !hasNonSearchFilters) {
+                        setSearch("");
+                        setPage(1);
+                        return;
+                      }
+                      clearAllFilters();
+                    }}
+                  >
+                    {searchQuery && !hasNonSearchFilters ? "Clear search" : "Clear filters"}
                   </Button>
                 }
               />

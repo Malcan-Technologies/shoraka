@@ -2303,7 +2303,7 @@ export class ApiClient {
 
   async updateApplicationStatus(
     id: string,
-    status: ApplicationStatus
+    status: Extract<ApplicationStatus, "DRAFT" | "SUBMITTED" | "RESUBMITTED">
   ): Promise<ApiResponse<Application> | ApiError> {
     return this.patch<Application>(`/v1/applications/${id}/status`, { status });
   }
