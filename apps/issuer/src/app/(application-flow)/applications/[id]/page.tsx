@@ -303,7 +303,9 @@ export default function ApplicationDetailPage() {
   const displayId = formatApplicationDisplayId(application.id, application.displayReference);
   const isDraft = application.status === "draft";
   const hasContract = application.type === "Facility financing";
-  const statusLabel = getIssuerPlainStatusLabel(
+  const statusLabel = application.facilityInForceNoInvoices
+    ? "Facility in force — no invoices financed"
+    : getIssuerPlainStatusLabel(
     application.cardStatus.badgeKey,
     application.cardStatus.badgeKey === "withdrawn" ||
       application.cardStatus.badgeKey === "declined" ||
@@ -314,7 +316,7 @@ export default function ApplicationDetailPage() {
 
   const showViewSignedContract =
     application.signedContractOfferLetterAvailable && !!application.signedContractOfferLetterS3Key;
-  const withdrawDisabled = cancelApplication.isPending || showViewSignedContract;
+  const withdrawDisabled = cancelApplication.isPending || !application.canWithdraw;
 
   const isMountedOfferInvoice = (inv: NormalizedInvoice) =>
     inv.status === "OFFER_SENT" || inv.canReviewOffer;
@@ -506,9 +508,9 @@ export default function ApplicationDetailPage() {
             >
               Withdraw
             </Button>
-            {withdrawDisabled && showViewSignedContract ? (
+            {withdrawDisabled && !application.canWithdraw ? (
               <p className="basis-full text-ui leading-5 text-muted-foreground sm:basis-auto sm:max-w-[16rem]">
-                Withdraw is not available while a signed offer letter is on file.
+                Withdraw is not available after the facility or invoice has been approved.
               </p>
             ) : null}
             <DropdownMenu>

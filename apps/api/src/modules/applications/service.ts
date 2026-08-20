@@ -90,6 +90,10 @@ import {
   InvoiceStatus,
   WithdrawReason,
   canDirectAcceptInvoice,
+  canArchiveApplication,
+  canWithdrawApplication,
+  buildOriginationPhaseInput,
+  resolveOriginationPhase,
   getFinancialYearEndComputationDetails,
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
@@ -99,6 +103,7 @@ import {
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
 import {
+  extractPrimaryOfferAcceptanceStatus,
   resolveApplicationStatusAfterCommercialAccept,
   resolveApplicationStatusAfterOfferAcceptanceSubmit,
 } from "./offer-application-status";
@@ -123,7 +128,34 @@ function financialToNum(v: unknown): number {
 }
 
 function isFinalApplicationStatus(status: string | null | undefined): boolean {
-  return status === "FUNDED" || status === "COMPLETED";
+  return (
+    status === "COMPLETED" ||
+    status === "REJECTED" ||
+    status === "WITHDRAWN" ||
+    status === "ARCHIVED"
+  );
+}
+
+function originationPhaseForApplication(application: {
+  status: string;
+  contract?: { status?: string | null; offer_details?: unknown } | null;
+  invoices?: Array<{ status?: string | null; contract_id?: string | null; offer_details?: unknown }>;
+  financing_structure?: unknown;
+  signing_envelopes?: Array<{ status?: string | null }>;
+}) {
+  return resolveOriginationPhase(
+    buildOriginationPhaseInput({
+      applicationStatus: application.status,
+      contract: application.contract,
+      invoices: application.invoices,
+      offerAcceptanceStatus: extractPrimaryOfferAcceptanceStatus({
+        financing_structure: application.financing_structure as { structure_type?: string } | null,
+        contract: application.contract,
+        invoices: application.invoices,
+      }),
+      signingEnvelopes: application.signing_envelopes,
+    })
+  );
 }
 
 /** Business rules for v2 per-year financial blocks (no bsdd). */
@@ -1337,6 +1369,25 @@ export class ApplicationService {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
 
+    const envelopes = await prisma.signingEnvelope.findMany({
+      where: { application_id: id },
+      select: { status: true },
+    });
+    const phase = originationPhaseForApplication({
+      status: application.status,
+      contract: (application as { contract?: { status?: string | null; offer_details?: unknown } | null }).contract,
+      invoices: (application as { invoices?: Array<{ status?: string | null; offer_details?: unknown }> }).invoices,
+      financing_structure: (application as { financing_structure?: unknown }).financing_structure,
+      signing_envelopes: envelopes,
+    });
+    if (!canArchiveApplication(phase)) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "Only draft or closed applications can be archived. Withdraw or wait until the file is closed first."
+      );
+    }
+
     return this.repository.update(id, {
       status: "ARCHIVED",
       updated_at: new Date(),
@@ -1355,21 +1406,35 @@ export class ApplicationService {
     }
 
     const status = application.status as ApplicationStatus;
+    const contract =
+      (
+        application as {
+          contract?: { id: string; status?: string; offer_details?: unknown } | null;
+        }
+      ).contract ?? null;
+    const invoices =
+      (application as { invoices?: Array<{ id: string; status: string; offer_details?: unknown }> }).invoices ?? [];
+    const envelopes = await prisma.signingEnvelope.findMany({
+      where: { application_id: id },
+      select: { id: true, status: true },
+    });
+    const phase = originationPhaseForApplication({
+      status,
+      contract,
+      invoices,
+      financing_structure: (application as { financing_structure?: unknown }).financing_structure,
+      signing_envelopes: envelopes,
+    });
 
-    if (status === ApplicationStatus.WITHDRAWN) {
-      throw new AppError(400, "BAD_REQUEST", "This application has already been withdrawn and cannot be cancelled again.");
+    if (!canWithdrawApplication(phase)) {
+      throw new AppError(
+        400,
+        "BAD_REQUEST",
+        phase === "closed"
+          ? "This application can no longer be cancelled."
+          : "This application can no longer be withdrawn after a facility or invoice has been approved."
+      );
     }
-
-    if (
-      status === ApplicationStatus.COMPLETED ||
-      status === ApplicationStatus.REJECTED ||
-      status === ApplicationStatus.ARCHIVED
-    ) {
-      throw new AppError(400, "BAD_REQUEST", "This application can no longer be cancelled.");
-    }
-
-    const contract = (application as any).contract ?? null;
-    const invoices = (application as any).invoices ?? [];
 
     await prisma.$transaction(async (tx) => {
       for (const invoice of invoices) {
@@ -1426,6 +1491,38 @@ export class ApplicationService {
         where: { id },
         data: { status: newStatus as unknown as DbApplicationStatus },
       });
+
+      const voidableIds = envelopes
+        .filter((envelope) => ["DRAFT", "SENT", "IN_PROGRESS"].includes(envelope.status))
+        .map((envelope) => envelope.id);
+      if (voidableIds.length > 0) {
+        await tx.signingEnvelope.updateMany({
+          where: { id: { in: voidableIds } },
+          data: {
+            status: "VOIDED",
+            voided_at: new Date(),
+            void_reason: "Application withdrawn by issuer",
+          },
+        });
+        await tx.signingDocument.updateMany({
+          where: { envelope_id: { in: voidableIds }, status: { notIn: ["COMPLETED"] } },
+          data: { status: "VOIDED" },
+        });
+        await tx.signingRecipient.updateMany({
+          where: {
+            envelope_id: { in: voidableIds },
+            status: { notIn: ["SIGNED", "DECLINED"] },
+          },
+          data: { status: "DECLINED", declined_at: new Date() },
+        });
+        await tx.signingAssignment.updateMany({
+          where: {
+            envelope_id: { in: voidableIds },
+            status: { notIn: ["SIGNED", "DECLINED"] },
+          },
+          data: { status: "DECLINED" },
+        });
+      }
     });
 
     const updated = await this.repository.findById(id);

@@ -28,6 +28,10 @@ import {
   getOfferAcceptanceFromOfferDetails,
   offerAcceptanceAllowsIssuerReviewCta,
   type OfferAcceptanceStatus,
+  buildOriginationPhaseInput,
+  canWithdrawApplication,
+  isCompletedWithNoApprovedInvoices,
+  resolveOriginationPhase,
 } from "@cashsouk/types";
 import { useOrganizationApplications } from "@/hooks/use-applications";
 import { getOfferStatus, getOfferPhaseDeadlineDisplay } from "@/lib/offer-utils";
@@ -408,6 +412,17 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     };
   }
 
+  const facilityInForceNoInvoices = isCompletedWithNoApprovedInvoices(
+    String(api.status ?? "DRAFT"),
+    invoices.map((invoice) => String(invoice.status ?? ""))
+  );
+  if (facilityInForceNoInvoices) {
+    cardStatus = {
+      ...cardStatus,
+      displayLabel: "Facility in force — no invoices financed",
+    };
+  }
+
   return {
     id: api.id,
     displayReference: api.displayReference ?? (api as { display_reference?: string | null }).display_reference ?? null,
@@ -438,6 +453,18 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     signedContractOfferLetterS3Key,
     offerPhaseDeadline,
     offerAcceptanceStatus: primaryOfferAcceptanceStatus,
+    applicationStatus: String(api.status ?? "DRAFT").toUpperCase(),
+    canWithdraw: canWithdrawApplication(
+      resolveOriginationPhase(
+        buildOriginationPhaseInput({
+          applicationStatus: String(api.status ?? "DRAFT"),
+          contract: contract ? { status: contractStatus } : null,
+          invoices,
+          offerAcceptanceStatus: primaryOfferAcceptanceStatus,
+        })
+      )
+    ),
+    facilityInForceNoInvoices,
   };
 }
 

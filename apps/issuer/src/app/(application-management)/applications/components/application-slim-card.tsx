@@ -64,7 +64,9 @@ export function ApplicationSlimCard({
   const displayId = formatApplicationDisplayId(application.id, application.displayReference);
   const statusToken = badgeKeyToStatusToken(cardStatus.badgeKey);
   const needsAttention = isIssuerApplicationActionable(application);
-  const statusLabel = getIssuerCardStatusLabel(cardStatus.badgeKey, {
+  const statusLabel = application.facilityInForceNoInvoices
+    ? "Facility in force — no invoices financed"
+    : getIssuerCardStatusLabel(cardStatus.badgeKey, {
     withdrawReason:
       cardStatus.badgeKey === "withdrawn" ||
       cardStatus.badgeKey === "declined" ||
@@ -90,7 +92,12 @@ export function ApplicationSlimCard({
     hasContract &&
     onViewSignedContractOffer;
 
-  const withdrawDisabled = !!isCancelApplicationPending || !!showViewSignedContract;
+  const withdrawDisabled = !!isCancelApplicationPending || !application.canWithdraw;
+  const withdrawBlockedReason = !application.canWithdraw
+    ? application.facilityInForceNoInvoices || application.cardStatus.badgeKey === "completed"
+      ? "Withdraw is not available after the facility or invoice has been approved."
+      : "This application can no longer be withdrawn."
+    : null;
 
   let primary: React.ReactNode = (
     <Button size="sm" variant="outline" className="rounded-xl" asChild>
@@ -231,8 +238,10 @@ export function ApplicationSlimCard({
                   </DropdownMenuItem>
                   {showViewSignedContract ? (
                     <p className="px-2 py-1.5 text-xs text-muted-foreground">
-                      Withdraw is not available while a signed offer letter is on file.
+                      Withdraw is not available after the facility or invoice has been approved.
                     </p>
+                  ) : withdrawBlockedReason ? (
+                    <p className="px-2 py-1.5 text-xs text-muted-foreground">{withdrawBlockedReason}</p>
                   ) : null}
                 </>
               )}

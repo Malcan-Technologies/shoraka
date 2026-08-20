@@ -79,6 +79,11 @@ import {
   computeHasPendingDirectorShareholder,
   formatApplicationReference,
   getSectionForScopeKey,
+  getOfferAcceptanceFromOfferDetails,
+  buildOriginationPhaseInput,
+  canRejectApplication,
+  isCompletedWithNoApprovedInvoices,
+  resolveOriginationPhase,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 import {
@@ -240,7 +245,7 @@ export default function DynamicApplicationDetailPage() {
     "OFFER_EXPIRED",
   ];
   const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
-  const isFinalApplicationForAmlGate = ["FUNDED", "COMPLETED"].includes(
+  const isFinalApplicationForAmlGate = ["COMPLETED", "REJECTED", "WITHDRAWN", "ARCHIVED"].includes(
     String(app?.status ?? "")
   );
   const applicationContractId =
@@ -574,6 +579,35 @@ export default function DynamicApplicationDetailPage() {
     () => requiredReviewSections.some((section) => sectionStatusMap.get(section) === "REJECTED"),
     [requiredReviewSections, sectionStatusMap]
   );
+  const originationPhase = React.useMemo(() => {
+    if (!app) return "underReview" as const;
+    const invoices = (app.invoices ?? []) as Array<{
+      status?: string;
+      contract_id?: string | null;
+      offer_details?: unknown;
+    }>;
+    const standalone = invoices.find((invoice) => !invoice.contract_id);
+    const offerAcceptanceStatus =
+      getOfferAcceptanceFromOfferDetails(
+        (app.contract as { offer_details?: unknown } | null)?.offer_details
+      )?.status ??
+      getOfferAcceptanceFromOfferDetails(standalone?.offer_details)?.status ??
+      null;
+    return resolveOriginationPhase(
+      buildOriginationPhaseInput({
+        applicationStatus: app.status,
+        contract: app.contract as { status?: string | null } | null,
+        invoices,
+        offerAcceptanceStatus,
+        signingEnvelopes,
+      })
+    );
+  }, [app, signingEnvelopes]);
+  const canPhaseReject = canRejectApplication(originationPhase);
+  const facilityInForceNoInvoices = isCompletedWithNoApprovedInvoices(
+    String(app?.status ?? ""),
+    ((app?.invoices ?? []) as Array<{ status?: string }>).map((invoice) => String(invoice.status ?? ""))
+  );
   const availableReviewSections = React.useMemo(
     () => new Set(effectiveTabDescriptors.map((d) => d.reviewSection)),
     [effectiveTabDescriptors]
@@ -817,7 +851,14 @@ export default function DynamicApplicationDetailPage() {
                       {formatCurrency(requestedAmount)}
                     </div>
                   </div>
-                  <ApplicationStatusBadge status={app.status} />
+                  <ApplicationStatusBadge
+                    status={app.status}
+                    label={
+                      facilityInForceNoInvoices
+                        ? "Facility in force — no invoices financed"
+                        : undefined
+                    }
+                  />
                   {!isFinalApplicationForAmlGate &&
                   computeHasPendingDirectorShareholder(applicationPeople) ? (
                     <StatusBadge
@@ -915,7 +956,8 @@ export default function DynamicApplicationDetailPage() {
                             className={
                               app.status === "REJECTED" ||
                               allSectionsApproved ||
-                              !hasRejectedSection
+                              !hasRejectedSection ||
+                              !canPhaseReject
                                 ? "inline-flex cursor-not-allowed"
                                 : "inline-flex"
                             }
@@ -928,7 +970,8 @@ export default function DynamicApplicationDetailPage() {
                                 app.status === "REJECTED" ||
                                 allSectionsApproved ||
                                 !hasRejectedSection ||
-                                !canAppManage
+                                !canAppManage ||
+                                !canPhaseReject
                               }
                               title={!canAppManage ? "You do not have permission to perform this action." : undefined}
                               onClick={() => setRejectApplicationDialogOpen(true)}
@@ -944,6 +987,8 @@ export default function DynamicApplicationDetailPage() {
                         >
                           {app.status === "REJECTED"
                             ? "Application already rejected"
+                            : !canPhaseReject
+                              ? "Cannot reject after a facility or invoice has been approved"
                             : allSectionsApproved
                               ? "Cannot reject when all sections are approved"
                               : !hasRejectedSection

@@ -204,6 +204,12 @@ export interface NormalizedApplication {
   offerPhaseDeadline?: import("@/lib/offer-utils").OfferPhaseDeadlineDisplay | null;
   /** Primary offer acceptance phase (contract or invoice-only offer), when present. */
   offerAcceptanceStatus?: string | null;
+  /** Raw API application status (not the card badge key). */
+  applicationStatus: string;
+  /** Application-level withdraw, matching API origination-phase guards. */
+  canWithdraw: boolean;
+  /** COMPLETED with invoices but none approved. */
+  facilityInForceNoInvoices: boolean;
 }
 
 /* =============================================================================

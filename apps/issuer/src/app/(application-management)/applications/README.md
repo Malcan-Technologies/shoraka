@@ -7,6 +7,7 @@ List of financing applications. User sees cards with status badges, invoice tabl
 | File | What it does |
 |------|--------------|
 | **page.tsx** | The screen. Renders cards, search, filter, pagination. Dev-only Debug Panel for skeleton/mock testing. |
+| **application-list-search.ts** | Client-side list search: display refs, short ids, customer, invoice numbers. |
 | **status.ts** | Status config (label, color, sort order) and logic. Add/remove statuses here. Filter options come from here. |
 | **use-applications-data.ts** | Fetches from API. Accepts debug overrides (skeleton, mock) for dev testing. Prepares each app for display. |
 | **dev/mockApplications.ts** | Mock generator for Debug Panel. Generates NormalizedApplication cards with varied lifecycle states. |
@@ -29,6 +30,6 @@ Issuer-focused filters answer: "Which applications need action? What type? When 
 | **Financing** | All, Facility financing, Invoice financing | Financing type |
 | **Date** | Application created, Application submitted | Each: All time, Last 7/30/90 days. Created uses applicationDate; submitted uses submittedAt. |
 | **Customer** | All, or customer name | Filter by customer. |
-| **Search** | Application ID, customer, invoice number | Text search |
+| **Search** | Reference (`APP-ARF-…` / short id), customer, invoice number or `INV-ARF-…` | Client-side text search. Hyphens optional. |
 
-Config in status.ts: FILTER_STATUSES, FINANCING_TYPES. Filter logic in page.tsx.
+Config in status.ts: FILTER_STATUSES, FINANCING_TYPES. Search matching in application-list-search.ts; other filter logic in page.tsx.

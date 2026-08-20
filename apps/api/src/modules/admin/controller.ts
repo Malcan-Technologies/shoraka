@@ -2302,7 +2302,7 @@ router.post(
  *         name: status
  *         schema:
  *           type: string
- *           enum: [DRAFT, SUBMITTED, UNDER_REVIEW, AMENDMENT_REQUESTED, RESUBMITTED, APPROVED, REJECTED, ARCHIVED]
+ *           enum: [DRAFT, SUBMITTED, UNDER_REVIEW, CONTRACT_PENDING, CONTRACT_SENT, CONTRACT_ACCEPTED, INVOICE_ACCEPTED, SIGNING_PENDING, INVOICE_PENDING, INVOICES_SENT, OFFER_EXPIRED, AMENDMENT_REQUESTED, RESUBMITTED, COMPLETED, WITHDRAWN, REJECTED, ARCHIVED]
  *       - in: query
  *         name: statuses
  *         schema:
@@ -2950,7 +2950,7 @@ router.post(
  *             properties:
  *               status:
  *                 type: string
- *                 enum: [UNDER_REVIEW, APPROVED, REJECTED]
+ *                 enum: [UNDER_REVIEW, REJECTED]
  *     responses:
  *       200:
  *         description: Application status updated

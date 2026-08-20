@@ -247,6 +247,11 @@ export function generateMockApplications(count: number): NormalizedApplication[]
       signedContractOfferLetterAvailable:
         scenario.contractStatus === "APPROVED" && !!scenario.hasContract,
       signedContractOfferLetterS3Key: null,
+      applicationStatus: scenario.appStatus,
+      canWithdraw: !["COMPLETED", "REJECTED", "WITHDRAWN", "ARCHIVED", "DRAFT"].includes(
+        scenario.appStatus
+      ) && scenario.contractStatus !== "APPROVED",
+      facilityInForceNoInvoices: false,
     });
   }
 
