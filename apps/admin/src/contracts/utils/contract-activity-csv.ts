@@ -1,4 +1,9 @@
 import type { AdminContractActivityEvent } from "@cashsouk/types";
+import {
+  buildAdminActivityCsv,
+  mergeActivityCsvMetadata,
+  type AdminActivityCsvRow,
+} from "@/components/admin-activity-csv";
 
 const EVENT_LABELS: Record<string, string> = {
   APPLICATION_CREATED: "Application created",
@@ -24,6 +29,7 @@ const EVENT_LABELS: Record<string, string> = {
   CONTRACT_OFFER_ACCEPTED: "Facility offer signed",
   CONTRACT_OFFER_REJECTED: "Facility offer withdrawn",
   CONTRACT_OFFER_RETRACTED: "Facility offer retracted",
+  CONTRACT_FACILITY_OCCUPANCY_UPDATED: "Facility occupancy updated",
   CONTRACT_OFFER_EXPIRED: "Facility offer expired",
   CONTRACT_SIGNING_DEADLINE_EXTENDED: "Signing deadline extended",
   CONTRACT_WITHDRAWN: "Facility offer withdrawn",
@@ -44,37 +50,23 @@ export function formatContractActivityEventLabel(eventType: string) {
   );
 }
 
-function csvCell(value: string) {
-  return `"${value.replace(/"/g, '""')}"`;
-}
-
-function metadataCell(metadata: Record<string, unknown> | null) {
-  if (!metadata || Object.keys(metadata).length === 0) return "";
-  return JSON.stringify(metadata);
+export function contractEventToActivityCsvRow(
+  event: AdminContractActivityEvent
+): AdminActivityCsvRow {
+  return {
+    createdAt: event.createdAt,
+    event: formatContractActivityEventLabel(event.eventType),
+    eventType: event.eventType,
+    actor: event.actorName?.trim() || "",
+    actorUserId: event.actorUserId ?? "",
+    portal: event.portal ?? "",
+    remark: event.remark ?? "",
+    metadata: mergeActivityCsvMetadata(event.metadata, {
+      applicationId: event.applicationId,
+    }),
+  };
 }
 
 export function buildContractActivityCsv(events: AdminContractActivityEvent[]) {
-  const header = [
-    "createdAt",
-    "event",
-    "eventType",
-    "actorName",
-    "actorUserId",
-    "portal",
-    "applicationId",
-    "remark",
-    "metadata",
-  ];
-  const rows = events.map((event) => [
-    event.createdAt,
-    formatContractActivityEventLabel(event.eventType),
-    event.eventType,
-    event.actorName ?? "",
-    event.actorUserId ?? "",
-    event.portal ?? "",
-    event.applicationId ?? "",
-    event.remark ?? "",
-    metadataCell(event.metadata),
-  ]);
-  return [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+  return buildAdminActivityCsv(events.map(contractEventToActivityCsvRow));
 }

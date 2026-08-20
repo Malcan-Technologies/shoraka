@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { ListToolbar, ListToolbarFilterTrigger, type FilterChip } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -27,14 +27,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useProductLogs, useExportProductLogs } from "@/hooks/use-product-logs";
 import { AdminQueryErrorState } from "@/components/admin-query-error-state";
 import {
-  ArrowPathIcon,
-  MagnifyingGlassIcon,
-  XMarkIcon,
   ArrowDownTrayIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CubeIcon,
-  FunnelIcon,
 } from "@heroicons/react/24/outline";
 import type { ProductEventType, GetProductLogsParams } from "@cashsouk/types";
 import { DATE_RANGES } from "@cashsouk/config";
@@ -111,6 +107,24 @@ export function ProductLogsPanel() {
   const hasFilters =
     searchQuery !== "" || eventTypeFilter !== "all" || dateRangeFilter !== "all";
 
+  const appliedFilters: FilterChip[] = [];
+  if (eventTypeFilter !== "all") {
+    appliedFilters.push({
+      id: "event",
+      label: `Event: ${
+        PRODUCT_EVENT_TYPES.find((type) => type.value === eventTypeFilter)?.label ?? eventTypeFilter
+      }`,
+      onRemove: () => setEventTypeFilter("all"),
+    });
+  }
+  if (dateRangeFilter !== "all") {
+    appliedFilters.push({
+      id: "date",
+      label: DATE_RANGES.find((range) => range.value === dateRangeFilter)?.label ?? dateRangeFilter,
+      onRemove: () => setDateRangeFilter("all"),
+    });
+  }
+
   const handleClearFilters = () => {
     setSearchQuery("");
     setEventTypeFilter("all");
@@ -155,71 +169,46 @@ export function ProductLogsPanel() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search by admin name or email..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-11 rounded-xl bg-card pl-9"
-          />
-        </div>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
-              <FunnelIcon className="h-4 w-4" />
-              Filters
-              {(eventTypeFilter !== "all" || dateRangeFilter !== "all") && (
-                <Badge
-                  variant="secondary"
-                  className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-primary text-primary-foreground"
-                >
-                  {[eventTypeFilter !== "all", dateRangeFilter !== "all"].filter(Boolean).length}
-                </Badge>
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56">
-            <DropdownMenuLabel>Event Type</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={eventTypeFilter} onValueChange={setEventTypeFilter}>
-              <DropdownMenuRadioItem value="all">All Events</DropdownMenuRadioItem>
-              {PRODUCT_EVENT_TYPES.map((type) => (
-                <DropdownMenuRadioItem key={type.value} value={type.value}>
-                  {type.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel>Date Range</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={dateRangeFilter} onValueChange={setDateRangeFilter}>
-              {DATE_RANGES.map((range) => (
-                <DropdownMenuRadioItem key={range.value} value={range.value}>
-                  {range.label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        {hasFilters && (
-          <Button variant="ghost" onClick={handleClearFilters} className="gap-2 h-11 rounded-xl">
-            <XMarkIcon className="h-4 w-4" />
-            Clear
-          </Button>
-        )}
-
-        <Button
-          variant="outline"
-          onClick={handleReload}
-          disabled={isLoading}
-          className="h-11 gap-2 rounded-xl bg-card"
-        >
-          <ArrowPathIcon className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
-
+      <ListToolbar
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search by admin name or email..."
+        appliedFilters={appliedFilters}
+        onClearFilters={hasFilters ? handleClearFilters : undefined}
+        onReload={handleReload}
+        isLoading={isLoading}
+        countLabel={`${totalCount} ${totalCount === 1 ? "log" : "logs"}`}
+        filterGroups={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <ListToolbarFilterTrigger
+                label="Filters"
+                count={[eventTypeFilter !== "all", dateRangeFilter !== "all"].filter(Boolean).length}
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>Event type</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={eventTypeFilter} onValueChange={setEventTypeFilter}>
+                <DropdownMenuRadioItem value="all">All events</DropdownMenuRadioItem>
+                {PRODUCT_EVENT_TYPES.map((type) => (
+                  <DropdownMenuRadioItem key={type.value} value={type.value}>
+                    {type.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Date range</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={dateRangeFilter} onValueChange={setDateRangeFilter}>
+                {DATE_RANGES.map((range) => (
+                  <DropdownMenuRadioItem key={range.value} value={range.value}>
+                    {range.label}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      >
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
@@ -232,11 +221,7 @@ export function ProductLogsPanel() {
             <DropdownMenuItem onClick={() => handleExport("json")}>Export as JSON</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-
-        <Badge variant="secondary" className="h-11 px-4 rounded-xl text-sm">
-          {totalCount} {totalCount === 1 ? "log" : "logs"}
-        </Badge>
-      </div>
+      </ListToolbar>
 
       <div className="rounded-xl border border-border bg-card">
         <Table>

@@ -2,17 +2,16 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { FunnelIcon } from "@heroicons/react/24/outline";
 import type { NoteListItem } from "@cashsouk/types";
 import {
   EmptyState,
   ListToolbar,
+  ListToolbarFilterTrigger,
   LoadingState,
   isNoteFullySettled,
   type FilterChip,
 } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -22,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useIssuerNotes } from "@/notes/hooks/use-issuer-notes";
 import { DashboardNoteCard } from "@/components/financing/note-card";
+import { NoteAttentionCard } from "@/components/financing/note-attention-card";
 import { FinancingAttentionList } from "@/components/financing/needs-attention-section";
 import {
   isIssuerNoteActionable,
@@ -49,7 +49,7 @@ function issuerNoteSearchHaystack(note: NoteListItem): string {
     .toLowerCase();
 }
 
-/** Notes list body shared by Financing → Notes tab (and legacy /notes redirect target). */
+/** Notes list body used by the legacy /notes route if the redirect is bypassed. */
 export function IssuerNotesList() {
   const { data, isLoading, error, refetch } = useIssuerNotes();
   const [listFilter, setListFilter] = React.useState<string>(ISSUER_NOTES_FILTER_ALL);
@@ -85,13 +85,6 @@ export function IssuerNotesList() {
 
   const appliedFilters = React.useMemo((): FilterChip[] => {
     const chips: FilterChip[] = [];
-    if (searchQuery.trim()) {
-      chips.push({
-        id: "search",
-        label: `Search: ${searchQuery.trim()}`,
-        onRemove: () => setSearchQuery(""),
-      });
-    }
     if (listFilter === ISSUER_NOTES_FILTER_EXCLUDE_SETTLED) {
       chips.push({
         id: "active",
@@ -100,7 +93,7 @@ export function IssuerNotesList() {
       });
     }
     return chips;
-  }, [searchQuery, listFilter]);
+  }, [listFilter]);
 
   if (error) {
     return (
@@ -132,18 +125,7 @@ export function IssuerNotesList() {
         filterGroups={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
-                <FunnelIcon className="h-4 w-4" />
-                Filters
-                {activeFilterCount > 0 ? (
-                  <Badge
-                    variant="secondary"
-                    className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary p-0 text-xs text-primary-foreground"
-                  >
-                    {activeFilterCount}
-                  </Badge>
-                ) : null}
-              </Button>
+              <ListToolbarFilterTrigger label="Filters" count={activeFilterCount} />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Status</DropdownMenuLabel>
@@ -193,12 +175,15 @@ export function IssuerNotesList() {
         <FinancingAttentionList
           attentionCount={orderedNotes.attention.length}
           itemLabelPlural="notes"
-          attentionOnPage={orderedNotes.attention.map((note) => (
-            <DashboardNoteCard key={note.id} note={note} />
-          ))}
-          restOnPage={orderedNotes.rest.map((note) => (
-            <DashboardNoteCard key={note.id} note={note} />
-          ))}
+          carouselLabel="Notes that need your attention"
+          attentionItems={orderedNotes.attention.map((note) => ({
+            key: note.id,
+            node: <NoteAttentionCard note={note} />,
+          }))}
+          restItems={orderedNotes.rest.map((note) => ({
+            key: note.id,
+            node: <DashboardNoteCard note={note} />,
+          }))}
         />
       )}
     </>

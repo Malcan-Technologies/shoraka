@@ -6,7 +6,7 @@ import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/iss
 import { cn } from "@/lib/utils";
 
 /**
- * Legacy notes list — permanently redirected to /financing?tab=notes.
+ * Legacy notes list — permanently redirected to /financing?tab=invoices.
  * Kept so the route module remains valid if the redirect is bypassed in tests.
  */
 export default function IssuerNotesPage() {

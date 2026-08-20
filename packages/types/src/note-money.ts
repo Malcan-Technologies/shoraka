@@ -98,12 +98,18 @@ export function isNoteFullyFunded(fundedAmount: number, targetAmount: number): b
  * Reconciled investor portfolio totals: headline equals sum of visible parts.
  * `portfolioTotal = round(roundedAvailable + roundedCommitted)`.
  */
-export function buildInvestorPortfolioTotals(availableBalance: number, committed: number) {
+export function buildInvestorPortfolioTotals(
+  availableBalance: number,
+  committed: number,
+  split?: { reserved: number; confirmed: number }
+) {
   const roundedAvailable = roundNoteMoney(availableBalance, NOTE_MONEY_DECIMALS);
   const roundedCommitted = roundNoteMoney(committed, NOTE_MONEY_DECIMALS);
   return {
     availableBalance: roundedAvailable,
     totalInvestment: roundedCommitted,
+    reservedInvestment: roundNoteMoney(split?.reserved ?? 0, NOTE_MONEY_DECIMALS),
+    confirmedInvestment: roundNoteMoney(split?.confirmed ?? committed, NOTE_MONEY_DECIMALS),
     portfolioTotal: roundNoteMoney(
       roundedAvailable + roundedCommitted,
       NOTE_MONEY_DECIMALS

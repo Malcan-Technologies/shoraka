@@ -1,6 +1,9 @@
 import PDFDocument from "pdfkit";
 import {
   ApplicationStatus,
+  GatewayPaymentPurpose,
+  GatewayPaymentStatus,
+  InvestorBalanceTransactionSource,
   InvoiceStatus,
   NoteFundingStatus,
   NoteInvestmentStatus,
@@ -14,7 +17,6 @@ import {
   ServiceFeeTrusteeInstructionStatus,
   NoteStatus,
   ProspectusReviewStatus,
-  InvestorBalanceTransactionSource,
   Prisma,
   UserRole,
   WithdrawalStatus,
@@ -23,6 +25,7 @@ import {
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
+import { refreshContractFacilityForNote } from "../../lib/refresh-contract-facility";
 import { legalDocumentAcceptanceService } from "../legal-documents/acceptance-service";
 import {
   generatePresignedUploadUrl,
@@ -30,7 +33,10 @@ import {
   getS3ObjectBuffer,
   putS3ObjectBuffer,
 } from "../../lib/s3/client";
-import { resolveApprovedFacilityForRefresh } from "../../lib/contract-facility";
+import {
+  parseFacilityJsonAmount,
+  resolveApprovedFacilityForRefresh,
+} from "../../lib/contract-facility";
 import { computeProgressiveFacilityFee } from "../../lib/facility-fee";
 import {
   resolveOfferedAmount,
@@ -45,6 +51,7 @@ import {
   deriveGrossProfitAndServiceFeeFromNet,
   INVESTOR_RETURN_RATE_DISPLAY_DECIMALS,
   collectAcceptanceDocumentReviewKeys,
+  isMarketplaceCatalogNote,
   isNoteFullyFunded,
   isSoukscoreRiskRating,
   maxFundedBeforeMarketplaceCommit,
@@ -63,6 +70,15 @@ import {
 } from "./investor-balance";
 import { buildFailFundingWalletCredits } from "./fail-funding-refunds";
 import { postLedgerEntry } from "./ledger";
+import {
+  buildActivityRelatedMap,
+  buildPendingDepositActivityEntry,
+  filterUncreditedInFlightDeposits,
+  gatewayDepositBalanceIdempotencyKey,
+  IN_FLIGHT_DEPOSIT_STATUSES,
+  planActivityPageWithPendingOverlay,
+  sortInFlightDepositsNewestFirst,
+} from "./investor-balance-activity";
 import {
   buildInvestorBalanceStatement,
   buildStatementFilename,
@@ -1389,7 +1405,7 @@ export class NoteService {
       where: { note_id: id },
       orderBy: { created_at: "desc" },
     });
-    const mapped = mapNoteDetail(note, { withdrawals });
+    const mapped = await mapNoteDetail(note, { withdrawals });
 
     return mapped;
   }
@@ -2174,7 +2190,7 @@ export class NoteService {
     }
 
     const existing = await noteRepository.findBySource(application.id, invoice.id);
-    if (existing) return mapNoteDetail(existing);
+    if (existing) return await mapNoteDetail(existing);
 
     const invoiceDetails = asRecord(invoice.details) ?? {};
     const invoiceOffer = asRecord(invoice.offer_details) ?? {};
@@ -2358,7 +2374,7 @@ export class NoteService {
         throw error;
       });
 
-    return mapNoteDetail(note);
+    return await mapNoteDetail(note);
   }
 
   async updateDraft(id: string, input: z.infer<typeof updateNoteDraftSchema>, actor: ActorContext) {
@@ -2420,7 +2436,7 @@ export class NoteService {
       return result;
     });
 
-    return mapNoteDetail(updated);
+    return await mapNoteDetail(updated);
   }
 
   async updateFeaturedSettings(
@@ -2507,7 +2523,7 @@ export class NoteService {
       return result;
     });
 
-    return mapNoteDetail(updated);
+    return await mapNoteDetail(updated);
   }
 
   async publish(id: string, actor: ActorContext) {
@@ -2666,7 +2682,7 @@ export class NoteService {
       issuerOrganizationId: updated.issuer_organization_id,
       noteTitle: resolveNoteNotificationTitle(updated),
     });
-    return mapNoteDetail(updated);
+    return await mapNoteDetail(updated);
   }
 
   async unpublish(id: string, actor: ActorContext) {
@@ -2714,7 +2730,7 @@ export class NoteService {
       );
       return result;
     });
-    return mapNoteDetail(updated);
+    return await mapNoteDetail(updated);
   }
 
   async pauseListing(id: string, actor: ActorContext) {
@@ -2784,7 +2800,7 @@ export class NoteService {
       );
       return result;
     });
-    return mapNoteDetail(updated);
+    return await mapNoteDetail(updated);
   }
 
   async resumeListing(id: string, actor: ActorContext) {
@@ -2847,7 +2863,7 @@ export class NoteService {
       );
       return result;
     });
-    return mapNoteDetail(updated);
+    return await mapNoteDetail(updated);
   }
 
   async createInvestment(
@@ -3135,14 +3151,14 @@ export class NoteService {
         const cd = asRecord(lockedContractDetails) ?? {};
         contractDetailsRecord = cd;
 
-        const approvedFacilityAmount = Number(cd.approved_facility) || 0;
+        const approvedFacilityAmount = parseFacilityJsonAmount(cd.approved_facility) ?? 0;
         const facilityFeeRatePercentRaw = cd.facility_fee_rate_percent;
         facilityFeeRatePercent =
           typeof facilityFeeRatePercentRaw === "number" &&
           Number.isFinite(facilityFeeRatePercentRaw)
             ? facilityFeeRatePercentRaw
             : 0;
-        facilityFeePaidBefore = Number(cd.facility_fee_paid_amount) || 0;
+        facilityFeePaidBefore = parseFacilityJsonAmount(cd.facility_fee_paid_amount) ?? 0;
 
         const fundedAmount = toNumber(result.funded_amount);
         const progressive = computeProgressiveFacilityFee({
@@ -3242,7 +3258,13 @@ export class NoteService {
       issuerOrganizationId: updated.issuer_organization_id,
       noteTitle: resolveNoteNotificationTitle(updated),
     });
-    return mapNoteDetail(updated);
+    await refreshContractFacilityForNote(updated, prisma, {
+      userId: actor.userId,
+      portal: actor.portal ?? "ADMIN",
+      actorRole: actor.role != null ? String(actor.role) : "ADMIN",
+      reason: "FUNDING_CLOSED",
+    });
+    return await mapNoteDetail(updated);
   }
 
   async failFunding(id: string, actor: ActorContext) {
@@ -3335,7 +3357,13 @@ export class NoteService {
       noteTitle: resolveNoteNotificationTitle(updated),
       failedInvestorOrganizationIds,
     });
-    return mapNoteDetail(updated);
+    await refreshContractFacilityForNote(updated, prisma, {
+      userId: actor.userId,
+      portal: actor.portal ?? "ADMIN",
+      actorRole: actor.role != null ? String(actor.role) : "ADMIN",
+      reason: "FUNDING_FAILED",
+    });
+    return await mapNoteDetail(updated);
   }
 
   async activate(id: string, actor: ActorContext) {
@@ -3402,15 +3430,22 @@ export class NoteService {
       issuerOrganizationId: updated.issuer_organization_id,
       noteTitle: resolveNoteNotificationTitle(updated),
     });
-    return mapNoteDetail(updated);
+    return await mapNoteDetail(updated);
   }
 
   async listMarketplace(params: z.infer<typeof getNotesQuerySchema>) {
     const {
       excludeRepaid: _excludeRepaid,
       excludeFullySettledRegistryNotes: _reg,
+      includeClosed,
       ...marketplaceParams
     } = params;
+    if (includeClosed) {
+      return this.listAdminNotes({
+        ...marketplaceParams,
+        includeClosed: true,
+      });
+    }
     return this.listAdminNotes({
       ...marketplaceParams,
       status: NoteStatus.PUBLISHED,
@@ -3423,9 +3458,11 @@ export class NoteService {
     const note = await noteRepository.findById(id);
     if (
       !note ||
-      note.status !== NoteStatus.PUBLISHED ||
-      note.listing_status !== NoteListingStatus.PUBLISHED ||
-      note.funding_status !== NoteFundingStatus.OPEN
+      !isMarketplaceCatalogNote({
+        status: note.status,
+        listingStatus: note.listing_status,
+        fundingStatus: note.funding_status,
+      })
     ) {
       throw new AppError(404, "NOTE_NOT_FOUND", "Published marketplace note not found");
     }
@@ -3476,7 +3513,13 @@ export class NoteService {
         status: { in: [NoteInvestmentStatus.COMMITTED, NoteInvestmentStatus.CONFIRMED] },
       },
     });
-    const committed = investments.reduce((sum, investment) => sum + toNumber(investment.amount), 0);
+    const reserved = investments
+      .filter((investment) => investment.status === NoteInvestmentStatus.COMMITTED)
+      .reduce((sum, investment) => sum + toNumber(investment.amount), 0);
+    const confirmed = investments
+      .filter((investment) => investment.status === NoteInvestmentStatus.CONFIRMED)
+      .reduce((sum, investment) => sum + toNumber(investment.amount), 0);
+    const committed = reserved + confirmed;
     const balanceRows = await prisma.investorBalance.findMany({
       where: { investor_organization_id: { in: orgIds } },
       select: { available_amount: true },
@@ -3485,7 +3528,10 @@ export class NoteService {
       (sum, row) => sum + toNumber(row.available_amount),
       0
     );
-    const portfolioTotals = buildInvestorPortfolioTotals(availableBalance, committed);
+    const portfolioTotals = buildInvestorPortfolioTotals(availableBalance, committed, {
+      reserved,
+      confirmed,
+    });
     return {
       ...portfolioTotals,
       investmentCount: investments.length,
@@ -3497,6 +3543,13 @@ export class NoteService {
     query: z.infer<typeof investorBalanceActivityQuerySchema>
   ) {
     const orgIds = await this.resolveInvestorOrgIds(userId, query.investorOrganizationId);
+    return this.listInvestorBalanceActivityForOrganizations(orgIds, query);
+  }
+
+  async listInvestorBalanceActivityForOrganizations(
+    orgIds: string[],
+    query: z.infer<typeof investorBalanceActivityQuerySchema>
+  ) {
     if (orgIds.length === 0) {
       return {
         entries: [],
@@ -3507,14 +3560,82 @@ export class NoteService {
     }
 
     const where = { investor_organization_id: { in: orgIds } };
-    const [entries, totalCount, allTransactions, balanceRows] = await Promise.all([
-      prisma.investorBalanceTransaction.findMany({
-        where,
-        orderBy: [{ posted_at: "desc" }, { created_at: "desc" }],
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
-      }),
-      prisma.investorBalanceTransaction.count({ where }),
+    const inFlightStatuses = [...IN_FLIGHT_DEPOSIT_STATUSES] as GatewayPaymentStatus[];
+    const pendingPayments = await prisma.gatewayPayment.findMany({
+      where: {
+        purpose: GatewayPaymentPurpose.INVESTOR_DEPOSIT,
+        investor_organization_id: { in: orgIds },
+        status: { in: inFlightStatuses },
+      },
+      select: {
+        id: true,
+        investor_organization_id: true,
+        amount: true,
+        status: true,
+        created_at: true,
+        updated_at: true,
+        name_check_at: true,
+      },
+    });
+    const creditedKeys =
+      pendingPayments.length === 0
+        ? []
+        : (
+            await prisma.investorBalanceTransaction.findMany({
+              where: {
+                investor_organization_id: { in: orgIds },
+                source: InvestorBalanceTransactionSource.GATEWAY_DEPOSIT,
+                idempotency_key: {
+                  in: pendingPayments.map((payment) =>
+                    gatewayDepositBalanceIdempotencyKey(payment.id)
+                  ),
+                },
+              },
+              select: { idempotency_key: true },
+            })
+          ).map((row) => row.idempotency_key);
+    const pendingDeposits = sortInFlightDepositsNewestFirst(
+      filterUncreditedInFlightDeposits(
+        pendingPayments
+          .filter((payment) => Boolean(payment.investor_organization_id))
+          .map((payment) => ({
+            id: payment.id,
+            investorOrganizationId: payment.investor_organization_id ?? "",
+            amount: toNumber(payment.amount),
+            status: payment.status,
+            createdAt: payment.created_at,
+            updatedAt: payment.updated_at,
+            nameCheckAt: payment.name_check_at,
+          })),
+        creditedKeys
+      )
+    );
+
+    const ledgerTotalCount = await prisma.investorBalanceTransaction.count({ where });
+    const pagePlan = planActivityPageWithPendingOverlay({
+      pendingCount: pendingDeposits.length,
+      ledgerTotalCount,
+      page: query.page,
+      pageSize: query.pageSize,
+    });
+
+    const overlayCandidates = pendingDeposits.slice(
+      pagePlan.pendingStart,
+      pagePlan.pendingStart + pagePlan.pendingTake
+    );
+    const overlayIdempotencyKeys = overlayCandidates.map((payment) =>
+      gatewayDepositBalanceIdempotencyKey(payment.id)
+    );
+
+    const [entries, allTransactions, balanceRows, overlayCredits] = await Promise.all([
+      pagePlan.ledgerTake > 0
+        ? prisma.investorBalanceTransaction.findMany({
+            where,
+            orderBy: [{ posted_at: "desc" }, { created_at: "desc" }],
+            skip: pagePlan.ledgerSkip,
+            take: pagePlan.ledgerTake,
+          })
+        : Promise.resolve([]),
       prisma.investorBalanceTransaction.findMany({
         where,
         select: { direction: true, amount: true },
@@ -3523,6 +3644,16 @@ export class NoteService {
         where: { investor_organization_id: { in: orgIds } },
         select: { available_amount: true },
       }),
+      overlayIdempotencyKeys.length
+        ? prisma.investorBalanceTransaction.findMany({
+            where: {
+              investor_organization_id: { in: orgIds },
+              source: InvestorBalanceTransactionSource.GATEWAY_DEPOSIT,
+              idempotency_key: { in: overlayIdempotencyKeys },
+            },
+            select: { idempotency_key: true },
+          })
+        : Promise.resolve([]),
     ]);
 
     const inTotal = allTransactions
@@ -3536,25 +3667,115 @@ export class NoteService {
       0
     );
 
-    return {
+    const investmentIds = [
+      ...new Set(
+        entries
+          .map((entry) => entry.note_investment_id)
+          .filter((value): value is string => typeof value === "string" && value.length > 0)
+      ),
+    ];
+    const noteIds = [
+      ...new Set(
+        entries
+          .map((entry) => entry.note_id)
+          .filter((value): value is string => typeof value === "string" && value.length > 0)
+      ),
+    ];
+    const withdrawalOrgIds = [
+      ...new Set(
+        entries
+          .filter((entry) => entry.source === InvestorBalanceTransactionSource.INVESTOR_WITHDRAWAL_REQUEST)
+          .map((entry) => entry.investor_organization_id)
+      ),
+    ];
+    const [investments, withdrawals, notes] = await Promise.all([
+      investmentIds.length
+        ? prisma.noteInvestment.findMany({
+            where: { id: { in: investmentIds } },
+            select: { id: true, status: true, confirmed_at: true },
+          })
+        : Promise.resolve([]),
+      withdrawalOrgIds.length
+        ? prisma.withdrawalInstruction.findMany({
+            where: {
+              investor_organization_id: { in: withdrawalOrgIds },
+              withdrawal_type: WithdrawalType.INVESTOR_WITHDRAWAL,
+            },
+            select: {
+              id: true,
+              investor_organization_id: true,
+              amount: true,
+              created_at: true,
+              status: true,
+              completed_at: true,
+            },
+          })
+        : Promise.resolve([]),
+      noteIds.length
+        ? prisma.note.findMany({
+            where: { id: { in: noteIds } },
+            select: { id: true, note_reference: true },
+          })
+        : Promise.resolve([]),
+    ]);
+    const noteReferenceById = new Map(notes.map((note) => [note.id, note.note_reference]));
+    const relatedByEntryId = buildActivityRelatedMap({
       entries: entries.map((entry) => ({
         id: entry.id,
-        investorOrganizationId: entry.investor_organization_id,
-        direction: entry.direction,
-        amount: roundNoteMoney(toNumber(entry.amount), 2),
         source: entry.source,
-        noteId: entry.note_id,
+        investorOrganizationId: entry.investor_organization_id,
+        amount: roundNoteMoney(toNumber(entry.amount), 2),
+        postedAt: entry.posted_at,
         noteInvestmentId: entry.note_investment_id,
-        idempotencyKey: entry.idempotency_key,
         metadata: asRecord(entry.metadata),
-        postedAt: entry.posted_at.toISOString(),
-        createdAt: entry.created_at.toISOString(),
       })),
+      investments: investments.map((investment) => ({
+        id: investment.id,
+        status: investment.status,
+        confirmedAt: investment.confirmed_at,
+      })),
+      withdrawals: withdrawals.map((withdrawal) => ({
+        id: withdrawal.id,
+        investorOrganizationId: withdrawal.investor_organization_id ?? "",
+        amount: roundNoteMoney(toNumber(withdrawal.amount), 2),
+        createdAt: withdrawal.created_at,
+        status: withdrawal.status,
+        completedAt: withdrawal.completed_at,
+      })),
+    });
+
+    const pendingEntries = filterUncreditedInFlightDeposits(overlayCandidates, [
+      ...creditedKeys,
+      ...overlayCredits.map((row) => row.idempotency_key),
+      ...entries
+        .filter((entry) => entry.source === InvestorBalanceTransactionSource.GATEWAY_DEPOSIT)
+        .map((entry) => entry.idempotency_key),
+    ]).map((payment) =>
+      buildPendingDepositActivityEntry(payment, (amount) => roundNoteMoney(amount, 2))
+    );
+    const ledgerEntries = entries.map((entry) => ({
+      id: entry.id,
+      investorOrganizationId: entry.investor_organization_id,
+      direction: entry.direction,
+      amount: roundNoteMoney(toNumber(entry.amount), 2),
+      source: entry.source,
+      noteId: entry.note_id,
+      noteReference: entry.note_id ? (noteReferenceById.get(entry.note_id) ?? null) : null,
+      noteInvestmentId: entry.note_investment_id,
+      idempotencyKey: entry.idempotency_key,
+      metadata: asRecord(entry.metadata),
+      postedAt: entry.posted_at.toISOString(),
+      createdAt: entry.created_at.toISOString(),
+      related: relatedByEntryId.get(entry.id) ?? null,
+    }));
+
+    return {
+      entries: [...pendingEntries, ...ledgerEntries],
       pagination: {
         page: query.page,
         pageSize: query.pageSize,
-        totalCount,
-        totalPages: Math.max(1, Math.ceil(totalCount / query.pageSize)),
+        totalCount: pagePlan.totalCount,
+        totalPages: pagePlan.totalPages,
       },
       summary: {
         inTotal: roundNoteMoney(inTotal, 2),
@@ -3621,6 +3842,69 @@ export class NoteService {
       notes.map((note) => [note.id, note.note_reference ?? note.id])
     );
 
+    const statementInvestmentIds = [
+      ...new Set(
+        ledgerRows
+          .map((row) => row.note_investment_id)
+          .filter((value): value is string => typeof value === "string" && value.length > 0)
+      ),
+    ];
+    const statementWithdrawalOrgIds = [
+      ...new Set(
+        ledgerRows
+          .filter((row) => row.source === InvestorBalanceTransactionSource.INVESTOR_WITHDRAWAL_REQUEST)
+          .map((row) => row.investor_organization_id)
+      ),
+    ];
+    const [statementInvestments, statementWithdrawals] = await Promise.all([
+      statementInvestmentIds.length
+        ? prisma.noteInvestment.findMany({
+            where: { id: { in: statementInvestmentIds } },
+            select: { id: true, status: true, confirmed_at: true },
+          })
+        : Promise.resolve([]),
+      statementWithdrawalOrgIds.length
+        ? prisma.withdrawalInstruction.findMany({
+            where: {
+              investor_organization_id: { in: statementWithdrawalOrgIds },
+              withdrawal_type: WithdrawalType.INVESTOR_WITHDRAWAL,
+            },
+            select: {
+              id: true,
+              investor_organization_id: true,
+              amount: true,
+              created_at: true,
+              status: true,
+              completed_at: true,
+            },
+          })
+        : Promise.resolve([]),
+    ]);
+    const statementRelatedById = buildActivityRelatedMap({
+      entries: ledgerRows.map((row) => ({
+        id: row.id,
+        source: row.source,
+        investorOrganizationId: row.investor_organization_id,
+        amount: roundNoteMoney(toNumber(row.amount), 2),
+        postedAt: row.posted_at,
+        noteInvestmentId: row.note_investment_id,
+        metadata: asRecord(row.metadata),
+      })),
+      investments: statementInvestments.map((investment) => ({
+        id: investment.id,
+        status: investment.status,
+        confirmedAt: investment.confirmed_at,
+      })),
+      withdrawals: statementWithdrawals.map((withdrawal) => ({
+        id: withdrawal.id,
+        investorOrganizationId: withdrawal.investor_organization_id ?? "",
+        amount: roundNoteMoney(toNumber(withdrawal.amount), 2),
+        createdAt: withdrawal.created_at,
+        status: withdrawal.status,
+        completedAt: withdrawal.completed_at,
+      })),
+    });
+
     const entries: StatementLedgerEntry[] = ledgerRows.map((row) => ({
       id: row.id,
       direction: row.direction,
@@ -3629,6 +3913,7 @@ export class NoteService {
       noteId: row.note_id,
       metadata: asRecord(row.metadata),
       postedAt: row.posted_at,
+      related: statementRelatedById.get(row.id) ?? null,
     }));
 
     const statement = buildInvestorBalanceStatement({
@@ -3884,7 +4169,7 @@ export class NoteService {
         },
       },
     });
-    return mapNoteDetail(note, { withdrawals, includeEvents: false });
+    return await mapNoteDetail(note, { withdrawals, includeEvents: false });
   }
 
   async getIssuerShorakaCertificateViewUrl(noteId: string, userId: string) {
@@ -4012,7 +4297,7 @@ export class NoteService {
         paymentId,
       });
     }
-    return mapNoteDetail(updatedNote);
+    return await mapNoteDetail(updatedNote);
   }
 
   async approvePayment(id: string, paymentId: string, actor: ActorContext) {
@@ -4061,7 +4346,7 @@ export class NoteService {
       noteTitle: resolveNoteNotificationTitle(updated),
       paymentId,
     });
-    return mapNoteDetail(updated);
+    return await mapNoteDetail(updated);
   }
 
   async rejectPayment(
@@ -4097,7 +4382,7 @@ export class NoteService {
       });
       return tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
     });
-    return mapNoteDetail(updated);
+    return await mapNoteDetail(updated);
   }
 
   async previewSettlement(
@@ -4544,6 +4829,12 @@ export class NoteService {
         noteId: id,
         issuerOrganizationId: settlement.note.issuer_organization_id,
         noteTitle: resolveNoteNotificationTitle(settlement.note),
+      });
+      await refreshContractFacilityForNote(settlement.note, prisma, {
+        userId: actor.userId,
+        portal: actor.portal ?? "ADMIN",
+        actorRole: actor.role != null ? String(actor.role) : "ADMIN",
+        reason: "NOTE_REPAID",
       });
     }
     return this.getAdminNoteDetail(id);
@@ -5155,6 +5446,9 @@ export class NoteService {
           issuer_organization_id: true,
           title: true,
           note_reference: true,
+          source_contract_id: true,
+          source_invoice_id: true,
+          source_application_id: true,
         },
       });
       if (note) {
@@ -5163,6 +5457,12 @@ export class NoteService {
           noteId,
           issuerOrganizationId: note.issuer_organization_id,
           noteTitle: resolveNoteNotificationTitle(note),
+        });
+        await refreshContractFacilityForNote(note, prisma, {
+          userId: actor.userId,
+          portal: actor.portal ?? "ADMIN",
+          actorRole: actor.role != null ? String(actor.role) : "ADMIN",
+          reason: "NOTE_REPAID",
         });
       }
     }
@@ -5194,7 +5494,7 @@ export class NoteService {
       issuerOrganizationId: updated.issuer_organization_id,
       noteTitle: resolveNoteNotificationTitle(updated),
     });
-    return mapNoteDetail(updated);
+    return await mapNoteDetail(updated);
   }
 
   async getPlatformFinanceSettings() {
@@ -5499,14 +5799,7 @@ export class NoteService {
     const idempotencyKey = `investor-withdrawal:${input.investorOrganizationId}:${randomUUID()}`;
 
     const withdrawal = await prisma.$transaction(async (tx) => {
-      await debitInvestorBalanceForWithdrawal(tx, {
-        investorOrganizationId: input.investorOrganizationId,
-        amount: input.amount,
-        idempotencyKey,
-        metadata: { requestedByUserId: actor.userId } as Prisma.InputJsonValue,
-      });
-
-      return this.createWithdrawalInstructionWithDisplayReference(tx, {
+      const created = await this.createWithdrawalInstructionWithDisplayReference(tx, {
         investor_organization_id: input.investorOrganizationId,
         requested_by_user_id: actor.userId,
         withdrawal_type: WithdrawalType.INVESTOR_WITHDRAWAL,
@@ -5518,6 +5811,18 @@ export class NoteService {
           requestedAt: new Date().toISOString(),
         } as Prisma.InputJsonValue,
       });
+
+      await debitInvestorBalanceForWithdrawal(tx, {
+        investorOrganizationId: input.investorOrganizationId,
+        amount: input.amount,
+        idempotencyKey,
+        metadata: {
+          requestedByUserId: actor.userId,
+          withdrawalId: created.id,
+        } as Prisma.InputJsonValue,
+      });
+
+      return created;
     });
 
     return this.mapWithdrawal(withdrawal);
@@ -5692,6 +5997,7 @@ export class NoteService {
     }
 
     const completedAt = new Date();
+    let noteReleasedFromLegacyResidual = false;
     const withdrawal = await prisma.$transaction(async (tx) => {
       if (existing.withdrawal_type === WithdrawalType.ISSUER_DISBURSEMENT) {
         const shorakaTradeOrder = await tx.shorakaTradeOrder.findUnique({
@@ -5793,7 +6099,7 @@ export class NoteService {
             (!settlementNeedsTrustee || settlementTrusteeComplete);
 
           if (canFinalizeNoteFromLegacyResidual) {
-            await tx.note.updateMany({
+            const noteUpdate = await tx.note.updateMany({
               where: {
                 id: existing.note_id,
                 status: { in: [NoteStatus.ACTIVE, NoteStatus.ARREARS, NoteStatus.DEFAULTED] },
@@ -5804,6 +6110,7 @@ export class NoteService {
                 repaid_at: completedAt,
               },
             });
+            noteReleasedFromLegacyResidual = noteUpdate.count > 0;
           }
         }
       }
@@ -5815,6 +6122,23 @@ export class NoteService {
       await this.logEvent(prisma, withdrawal.note_id, "WITHDRAWAL_COMPLETED", actor, {
         withdrawalId: id,
         amount: toNumber(withdrawal.amount),
+      });
+    }
+    if (noteReleasedFromLegacyResidual && existing.note_id) {
+      const note = await prisma.note.findUnique({
+        where: { id: existing.note_id },
+        select: {
+          id: true,
+          source_contract_id: true,
+          source_invoice_id: true,
+          source_application_id: true,
+        },
+      });
+      if (note) await refreshContractFacilityForNote(note, prisma, {
+        userId: actor.userId,
+        portal: actor.portal ?? "ADMIN",
+        actorRole: actor.role != null ? String(actor.role) : "ADMIN",
+        reason: "NOTE_REPAID",
       });
     }
     return this.mapWithdrawal(withdrawal);
@@ -5946,7 +6270,7 @@ export class NoteService {
   async listEvents(id: string) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
-    return mapNoteDetail(note).events;
+    return (await mapNoteDetail(note)).events;
   }
 
   private mapWithdrawal(

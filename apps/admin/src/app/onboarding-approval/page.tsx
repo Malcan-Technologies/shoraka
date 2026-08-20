@@ -3,9 +3,8 @@
 import * as React from "react";
 import { AdminPageHeader } from "../../components/admin-page-header";
 import { OnboardingQueueTable } from "../../components/onboarding-queue-table";
-import { Input } from "@/components/ui/input";
+import { ListToolbar, ListToolbarFilterTrigger, type FilterChip } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -15,13 +14,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import {
-  MagnifyingGlassIcon,
-  FunnelIcon,
-  XMarkIcon,
-  ArrowPathIcon,
-  ExclamationTriangleIcon,
-} from "@heroicons/react/24/outline";
+import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import {
   useOnboardingApplications,
   useInvalidateOnboardingApplications,
@@ -115,6 +108,35 @@ export default function OnboardingApprovalPage() {
   const applications = data?.applications || [];
   const totalApplications = data?.pagination?.totalCount || 0;
 
+  const appliedFilters: FilterChip[] = [];
+  if (portalFilter !== "all") {
+    appliedFilters.push({
+      id: "portal",
+      label: `Portal: ${portalFilter === "investor" ? "Investor" : "Issuer"}`,
+      onRemove: () => {
+        setPortalFilter("all");
+        setCurrentPage(1);
+      },
+    });
+  }
+  if (typeFilter !== "all") {
+    appliedFilters.push({
+      id: "type",
+      label: `Type: ${typeFilter === "PERSONAL" ? "Personal" : "Company"}`,
+      onRemove: () => {
+        setTypeFilter("all");
+        setCurrentPage(1);
+      },
+    });
+  }
+  if (hasStatusFilter) {
+    appliedFilters.push({
+      id: "status",
+      label: `Status: ${STATUS_OPTIONS.find((option) => option.value === statusFilter)?.label ?? statusFilter}`,
+      onRemove: () => handleStatusChange("ALL"),
+    });
+  }
+
   return (
     <RequirePermission permission="onboarding.view">
       <>
@@ -142,143 +164,90 @@ export default function OnboardingApprovalPage() {
               </div>
             )}
 
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative min-w-[200px] flex-1">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name, email, or company..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-11 rounded-xl bg-card pl-9"
-                />
-              </div>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
-                    <FunnelIcon className="h-4 w-4" />
-                    Portal
-                    {portalFilter !== "all" && (
-                      <Badge
-                        variant="secondary"
-                        className="ml-1 flex h-5 w-5 items-center justify-center rounded-full p-0 text-xs bg-primary text-primary-foreground"
+            <ListToolbar
+              searchValue={searchQuery}
+              onSearchChange={setSearchQuery}
+              searchPlaceholder="Search by name, email, or company..."
+              appliedFilters={appliedFilters}
+              onClearFilters={hasFilters ? handleClearFilters : undefined}
+              onReload={handleReload}
+              isLoading={isLoading || isFetching}
+              countLabel={`${totalApplications} ${
+                totalApplications === 1 ? "application" : "applications"
+              }`}
+              filterGroups={
+                <>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <ListToolbarFilterTrigger
+                        label="Portal"
+                        count={portalFilter !== "all" ? 1 : 0}
+                      />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuLabel>Portal</DropdownMenuLabel>
+                      <DropdownMenuRadioGroup
+                        value={portalFilter}
+                        onValueChange={(value) => {
+                          setPortalFilter(value as PortalFilter);
+                          setCurrentPage(1);
+                        }}
                       >
-                        1
-                      </Badge>
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuLabel>Portal</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={portalFilter}
-                    onValueChange={(v) => {
-                      setPortalFilter(v as PortalFilter);
-                      setCurrentPage(1);
-                    }}
-                  >
-                    <DropdownMenuRadioItem value="all">All Portals</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="investor">Investor</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="issuer">Issuer</DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                        <DropdownMenuRadioItem value="all">All portals</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="investor">Investor</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="issuer">Issuer</DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
-                    <FunnelIcon className="h-4 w-4" />
-                    Type
-                    {typeFilter !== "all" && (
-                      <Badge
-                        variant="secondary"
-                        className="ml-1 flex h-5 w-5 items-center justify-center rounded-full p-0 text-xs bg-primary text-primary-foreground"
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <ListToolbarFilterTrigger label="Type" count={typeFilter !== "all" ? 1 : 0} />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuLabel>Onboarding type</DropdownMenuLabel>
+                      <DropdownMenuRadioGroup
+                        value={typeFilter}
+                        onValueChange={(value) => {
+                          setTypeFilter(value as TypeFilter);
+                          setCurrentPage(1);
+                        }}
                       >
-                        1
-                      </Badge>
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuLabel>Onboarding Type</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup
-                    value={typeFilter}
-                    onValueChange={(v) => {
-                      setTypeFilter(v as TypeFilter);
-                      setCurrentPage(1);
-                    }}
-                  >
-                    <DropdownMenuRadioItem value="all">All Types</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="PERSONAL">Personal</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="COMPANY">Company</DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                        <DropdownMenuRadioItem value="all">All types</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="PERSONAL">Personal</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="COMPANY">Company</DropdownMenuRadioItem>
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
-                    <FunnelIcon className="h-4 w-4" />
-                    Status
-                    {hasStatusFilter && (
-                      <Badge
-                        variant="secondary"
-                        className="ml-1 flex h-5 w-5 items-center justify-center rounded-full p-0 text-xs bg-primary text-primary-foreground"
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <ListToolbarFilterTrigger label="Status" count={hasStatusFilter ? 1 : 0} />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuLabel>Status</DropdownMenuLabel>
+                      <DropdownMenuCheckboxItem
+                        checked={statusFilter === "ALL"}
+                        onCheckedChange={() => handleStatusChange("ALL")}
                       >
-                        1
-                      </Badge>
-                    )}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>Status</DropdownMenuLabel>
-                  <DropdownMenuCheckboxItem
-                    checked={statusFilter === "ALL"}
-                    onCheckedChange={() => handleStatusChange("ALL")}
-                  >
-                    All statuses
-                  </DropdownMenuCheckboxItem>
-                  {STATUS_OPTIONS.map((option) => (
-                    <DropdownMenuCheckboxItem
-                      key={option.value}
-                      checked={statusFilter === option.value}
-                      onCheckedChange={() =>
-                        handleStatusChange(statusFilter === option.value ? "ALL" : option.value)
-                      }
-                    >
-                      {option.label}
-                    </DropdownMenuCheckboxItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {hasFilters && (
-                <Button
-                  variant="ghost"
-                  onClick={handleClearFilters}
-                  className="h-11 gap-2 rounded-xl"
-                >
-                  <XMarkIcon className="h-4 w-4" />
-                  Clear
-                </Button>
-              )}
-
-              <Button
-                variant="outline"
-                onClick={handleReload}
-                disabled={isLoading || isFetching}
-                className="h-11 gap-2 rounded-xl bg-card"
-              >
-                <ArrowPathIcon
-                  className={`h-4 w-4 ${isLoading || isFetching ? "animate-spin" : ""}`}
-                />
-                Refresh
-              </Button>
-
-              <Badge variant="secondary" className="h-11 rounded-xl px-4 text-sm">
-                {totalApplications} {totalApplications === 1 ? "application" : "applications"}
-              </Badge>
-            </div>
+                        All statuses
+                      </DropdownMenuCheckboxItem>
+                      {STATUS_OPTIONS.map((option) => (
+                        <DropdownMenuCheckboxItem
+                          key={option.value}
+                          checked={statusFilter === option.value}
+                          onCheckedChange={() =>
+                            handleStatusChange(statusFilter === option.value ? "ALL" : option.value)
+                          }
+                        >
+                          {option.label}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              }
+            />
 
             <OnboardingQueueTable
               applications={applications}

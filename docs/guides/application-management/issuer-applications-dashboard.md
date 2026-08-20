@@ -167,8 +167,8 @@ Draft, Submitted, Under Review, Action Required, Offer Received, Approved
 - **Offer valid until: DD Mon YYYY** under the Review button
 
 **Buttons:**
-- **Review Facility Financing Offer** (for facility offers) or **Review Offer** (for invoice-only offers)
-- Per-invoice: **Review Offer** (when the facility is approved)
+- **Review Facility Offer** (for facility offers) or **Review Invoice Offer** (for invoice offers)
+- Per-invoice: **Review Invoice Offer** (when the facility is already accepted)
 
 **User can:**
 - Review and accept/reject the offer
@@ -292,8 +292,8 @@ Each invoice row has a **Document** column.
 
 | Context              | Button Text                      |
 |----------------------|----------------------------------|
-| Facility offer       | Review Facility Financing Offer  |
-| Invoice offer        | Review Offer                     |
+| Facility offer       | Review Facility Offer  |
+| Invoice offer        | Review Invoice Offer             |
 | Amendment requested  | Make Amendments                  |
 
 ---

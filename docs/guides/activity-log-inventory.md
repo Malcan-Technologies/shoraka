@@ -6,26 +6,26 @@ This document lists the curated activities now shown on the investor and issuer 
 
 Each visible row now includes:
 
-- a domain badge
+- a workflow status badge (`StatusBadge` with viewer-centric tokens — yellow = you must act, blue = waiting, violet = live, green = complete, grey = closed, red = failed)
 - a short event title
 - a one-sentence description, with application-domain references woven naturally into that sentence when applicable
-- for `application` domain rows, an application reference plus contract or invoice references when applicable
+- a link to the related application, contract, invoice, note, or organisation profile when a stable id exists
 - a timestamp
 
-The feed no longer mirrors every audit log. Low-value internal updates such as section-level and item-level review events are intentionally hidden from users.
+The feed no longer mirrors every audit log. Low-value internal updates such as section-level and item-level review events are intentionally hidden from users. After onboarding is complete, the issuer and investor pages default to hiding onboarding events (still available via the Area filter).
 
-## Domain badges
+## Status badges
 
-- `Onboarding`
-  - Badge tone: submitted/info
-  - Badge classes: `border-transparent bg-status-submitted-bg text-status-submitted-text`
-- `Application`
-  - Badge tone: in progress
-  - Badge classes: `border-transparent bg-status-in-progress-bg text-status-in-progress-text`
-- `Note`
-  - Badge tone: success
-  - Badge classes: `border-transparent bg-status-success-bg text-status-success-text`
-  - Used for curated note lifecycle milestones only
+Do not colour rows by domain (Onboarding / Application / Note). Domain is a filter, not a workflow status. Map `event_type` with `getActivityStatusToken` in `packages/types/src/activity-presentation.ts`. Do not use indigo (`in-progress`) or sky (`completed`) on these chips.
+
+Examples:
+
+- Offer sent / changes requested / signing package sent → `action` (yellow, “Action needed”)
+- Application submitted / note published / payment submitted → `submitted` (blue, “Waiting”)
+- Note active → `active` (violet, “Live”)
+- Approved / signed / investment committed → `success` (green, “Complete”)
+- Withdrawn / cancelled / paused → `neutral` (grey, “Closed”)
+- Rejected / expired / funding failed / defaulted → `rejected` (red, “Failed”)
 
 ## Investor
 
@@ -77,7 +77,7 @@ The investor page shows investor-scoped onboarding activity and curated note mil
   - Title: `Note Defaulted`
   - Description: `Note <reference> was marked in default and requires attention.`
 
-Investor `/activity` does not duplicate raw ledger rows from `/transactions` or note-detail balance activity. Commits, releases, and payouts remain on those dedicated money surfaces unless they also represent a curated note milestone above.
+Investor `/activity` does not duplicate raw ledger rows from `/investments?tab=transactions` or note-detail balance activity. Commits, releases, and payouts remain on those dedicated money surfaces unless they also represent a curated note milestone above.
 For investor payouts, `SETTLEMENT_POSTED` is the visible milestone. `PAYMENT_RECEIVED` remains an internal servicing event and is intentionally hidden from the investor feed to avoid duplicating the same repayment cycle at two nearby steps.
 
 ## Issuer
@@ -136,4 +136,4 @@ These logs still exist as audit records but are intentionally hidden from `/acti
 - note operational steps such as Shoraka or trustee processing details
 - note settlement approval workflow internals
 - note repayment receipt events that are superseded by the investor-facing `Settlement Posted` milestone
-- investor ledger rows that are already covered by `/transactions` and note-detail balance activity
+- investor ledger rows that are already covered by `/investments?tab=transactions` and note-detail balance activity

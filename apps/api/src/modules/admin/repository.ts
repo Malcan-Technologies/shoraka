@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/prisma";
+import { formatUserDisplayName, loadUserDisplayNameMap } from "../../lib/user-display-name";
 import {
   Prisma,
   User,
@@ -27,8 +28,10 @@ import type {
   GetAdminContractsQuery,
 } from "./schemas";
 import {
+  resolveApprovedFacilityForRefresh,
   resolveRequestedFacility,
   resolveOfferedFacility,
+  parseFacilityJsonAmount,
 } from "../../lib/contract-facility";
 import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
 
@@ -1245,16 +1248,7 @@ export class AdminRepository {
     }
 
     // Batch-resolve admin user names
-    let adminNameMap = new Map<string, string>();
-    if (adminUserIds.size > 0) {
-      const adminUsers = await prisma.user.findMany({
-        where: { user_id: { in: [...adminUserIds] } },
-        select: { user_id: true, first_name: true, last_name: true },
-      });
-      adminNameMap = new Map(
-        adminUsers.map((u) => [u.user_id, `${u.first_name} ${u.last_name}`])
-      );
-    }
+    const adminNameMap = await loadUserDisplayNameMap(prisma, [...adminUserIds]);
 
     // Map logs with organization info and resolved admin names
     const logsWithOrgInfo = logs.map((log) => {
@@ -2361,9 +2355,12 @@ export class AdminRepository {
 
     const transformedContracts = contracts.map((contract) => {
       const contractDetails = (contract.contract_details ?? {}) as Record<string, unknown>;
-      const contractValue = Number(contractDetails.value ?? contractDetails.financing ?? 0);
-      const approvedFacility = Number(contractDetails.approved_facility ?? 0);
-      const utilizedFacility = Number(contractDetails.utilized_facility ?? 0);
+      const contractValue =
+        parseFacilityJsonAmount(contractDetails.value) ??
+        parseFacilityJsonAmount(contractDetails.financing) ??
+        0;
+      const approvedFacility = resolveApprovedFacilityForRefresh(contract.status, contractDetails);
+      const utilizedFacility = parseFacilityJsonAmount(contractDetails.utilized_facility) ?? 0;
 
       return {
         id: contract.id,
@@ -2420,6 +2417,8 @@ export class AdminRepository {
       status: string;
       sourceApplicationId: string;
       sourceInvoiceId: string | null;
+      targetAmount: number;
+      fundedAmount: number;
     }[];
     activity: {
       id: string;
@@ -2495,7 +2494,7 @@ export class AdminRepository {
         ? offerDetails.requested_facility
         : resolveRequestedFacility(contractDetails);
     const offeredFacility = resolveOfferedFacility(offerDetails);
-    const approvedFacility = Number(contractDetails.approved_facility ?? 0);
+    const approvedFacility = resolveApprovedFacilityForRefresh(contract.status, contractDetails);
 
     const applications = contract.applications.map((application) => {
       let requestedAmount = 0;
@@ -2503,13 +2502,16 @@ export class AdminRepository {
       if (application.invoices.length > 0) {
         requestedAmount = application.invoices.reduce((sum, invoice) => {
           const details = (invoice.details ?? {}) as Record<string, unknown>;
-          const invoiceValue = Number(details.value ?? 0);
-          const financingRatio = Number(details.financing_ratio_percent ?? 80);
+          const invoiceValue = parseFacilityJsonAmount(details.value) ?? 0;
+          const financingRatio = parseFacilityJsonAmount(details.financing_ratio_percent) ?? 80;
           return sum + (invoiceValue * financingRatio) / 100;
         }, 0);
       } else if (application.contract?.contract_details) {
         const appContractDetails = application.contract.contract_details as Record<string, unknown>;
-        requestedAmount = Number(appContractDetails.value ?? appContractDetails.approved_facility ?? 0);
+        requestedAmount =
+          parseFacilityJsonAmount(appContractDetails.value) ??
+          parseFacilityJsonAmount(appContractDetails.approved_facility) ??
+          0;
       }
 
       return {
@@ -2561,6 +2563,8 @@ export class AdminRepository {
           status: true,
           source_application_id: true,
           source_invoice_id: true,
+          target_amount: true,
+          funded_amount: true,
         },
       }),
       prisma.applicationLog.findMany({
@@ -2582,9 +2586,9 @@ export class AdminRepository {
         })
       : [];
     const userNameById = new Map(
-      [...users, ...extraActors].map((user) => {
-        const fullName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
-        return [user.user_id, fullName.length > 0 ? fullName : user.email];
+      [...users, ...extraActors].flatMap((user) => {
+        const name = formatUserDisplayName(user);
+        return name ? [[user.user_id, name] as const] : [];
       })
     );
 
@@ -2611,9 +2615,9 @@ export class AdminRepository {
       updatedAt: contract.updated_at,
       contractDetails: contract.contract_details ? contractDetails : null,
       offerDetails: contract.offer_details ? offerDetails : null,
-      offerSentByUserName: sentByUserId ? userNameById.get(sentByUserId) ?? sentByUserId : null,
+      offerSentByUserName: sentByUserId ? userNameById.get(sentByUserId) ?? null : null,
       offerRespondedByUserName: respondedByUserId
-        ? userNameById.get(respondedByUserId) ?? respondedByUserId
+        ? userNameById.get(respondedByUserId) ?? null
         : null,
       customerDetails: contract.customer_details ? customerDetails : null,
       applications,
@@ -2624,6 +2628,8 @@ export class AdminRepository {
         status: note.status,
         sourceApplicationId: note.source_application_id,
         sourceInvoiceId: note.source_invoice_id,
+        targetAmount: note.target_amount.toNumber(),
+        fundedAmount: note.funded_amount.toNumber(),
       })),
       activity: activityLogs.map((log) => {
         const metadata = (log.metadata as Record<string, unknown> | null) ?? {};

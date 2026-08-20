@@ -24,6 +24,10 @@ describe("getUserPortalStatusToken", () => {
     expect(getUserPortalStatusToken("UNDER_REVIEW")).toBe("submitted");
     expect(getUserPortalStatusToken("FUNDED")).toBe("submitted");
     expect(getUserPortalStatusToken("VIEWED")).toBe("submitted");
+    expect(getUserPortalStatusToken("COMMITTED")).toBe("submitted");
+    expect(getUserPortalStatusToken("LETTER_GENERATED")).toBe("submitted");
+    expect(getUserPortalStatusToken("NAME_CHECK_PENDING")).toBe("submitted");
+    expect(getUserPortalStatusToken("NAME_CHECK_PENDING")).toBe("submitted");
   });
 
   it("maps live and terminal positives", () => {

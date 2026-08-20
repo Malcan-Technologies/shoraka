@@ -30,6 +30,8 @@ function mockPortfolioApis(page: Page) {
     data: {
       portfolioTotal: 0,
       totalInvestment: 0,
+      confirmedInvestment: 0,
+      reservedInvestment: 0,
       availableBalance: 0,
     },
     correlationId: "e2e",
@@ -162,7 +164,7 @@ async function startDepositFromTransactions(page: Page) {
   await expect(page.getByRole("dialog")).toBeVisible();
 
   await page.locator('input[inputmode="decimal"]').fill("250");
-  await page.getByRole("button", { name: /Pay with FPX/i }).click();
+  await page.getByRole("button", { name: /FPX/i }).click();
 }
 
 test.describe("Investor FPX deposit", () => {

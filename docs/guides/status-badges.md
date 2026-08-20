@@ -85,6 +85,8 @@ Admin list badges use `StatusBadge` from `@cashsouk/ui`:
 
 Issuer and investor portals use the same six tokens with yellow/blue flipped for the viewer (yellow = you must act). Map with `badgeKeyToStatusToken` / `getUserPortalStatusToken` — not `getAdminStatusToken`. Completed is green; draft and withdrawn are grey. Do not use indigo or sky on user-portal workflow chips.
 
+Issuer and investor `/activity` rows use `StatusBadge` with `getActivityStatusToken(eventType)` from `@cashsouk/types`. Colour the **event outcome**, not the domain (Onboarding / Application / Note). Domain stays a filter only.
+
 ## Labels
 
 | API Status | Label |

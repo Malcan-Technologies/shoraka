@@ -37,6 +37,7 @@ function baseNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     featuredFrom: null,
     featuredUntil: null,
     featuredActive: false,
+    investorCount: 0,
     maturityDate: null,
     listingClosesAt: null,
     activatedAt: null,

@@ -79,10 +79,9 @@ test.describe("Issuer Organization Switcher", () => {
     await login(page);
   });
 
-  test("should display organization switcher in header", async ({ page }) => {
+  test("should display organization switcher in sidebar", async ({ page }) => {
     await page.goto("/");
 
-    // Switcher moved from sidebar to header; testid is preserved.
     await expect(page.getByTestId("organization-switcher")).toBeVisible();
   });
 

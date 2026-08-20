@@ -613,6 +613,12 @@ export interface OrganizationDetailResponse {
   // Total active invested amount across COMMITTED + CONFIRMED investments (investor portal only)
   investedAmount: number | null;
 
+  // Sum of approved facility lines (issuer portal only)
+  approvedFacilityAmount: number | null;
+
+  // Sum of funded amounts on ACTIVE notes (issuer portal only)
+  activeNotesAmount: number | null;
+
   // RegTank portal link (for viewing in RegTank admin)
   regtankPortalUrl: string | null;
   regtankRequestId: string | null;
@@ -1131,6 +1137,10 @@ export interface AdminContractNoteSummary {
   status: string;
   sourceApplicationId: string;
   sourceInvoiceId: string | null;
+  /** Note target — the facility drawdown, same basis as utilized facility. */
+  targetAmount: number;
+  /** Marketplace fill. 0 until funding starts. */
+  fundedAmount: number;
 }
 
 /** Contract audit row sourced from `application_logs` (no dedicated contract_logs table). */

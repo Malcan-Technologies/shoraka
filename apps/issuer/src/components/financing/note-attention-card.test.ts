@@ -1,0 +1,70 @@
+import type { NoteListItem } from "@cashsouk/types";
+import { getNoteAttentionAction } from "./note-attention-card-model";
+
+function note(overrides: Partial<NoteListItem> = {}): NoteListItem {
+  return {
+    id: "note_1",
+    noteReference: "NOTE-1",
+    title: "Acme invoice note",
+    productCategory: null,
+    productName: "Invoice financing",
+    issuerIndustry: null,
+    sourceApplicationId: "app_1",
+    sourceContractId: null,
+    sourceContractDisplayReference: null,
+    sourceInvoiceId: "inv_1",
+    issuerOrganizationId: "org_1",
+    issuerName: null,
+    paymasterName: "Acme",
+    riskRating: null,
+    status: "ACTIVE" as NoteListItem["status"],
+    listingStatus: "PUBLISHED" as NoteListItem["listingStatus"],
+    fundingStatus: "FUNDED" as NoteListItem["fundingStatus"],
+    servicingStatus: "CURRENT" as NoteListItem["servicingStatus"],
+    isFeatured: false,
+    featuredRank: null,
+    featuredFrom: null,
+    featuredUntil: null,
+    featuredActive: false,
+    investorCount: 0,
+    maturityDate: "2026-01-01",
+    listingClosesAt: null,
+    activatedAt: null,
+    publishedAt: null,
+    fundingClosedAt: null,
+    repaidAt: null,
+    settlementSummary: null,
+    createdAt: "2026-08-01",
+    updatedAt: "2026-08-01",
+    requestedAmount: 8000,
+    invoiceAmount: 10000,
+    settlementAmount: 8000,
+    targetAmount: 8000,
+    fundedAmount: 8000,
+    fundingPercent: 100,
+    minimumFundingPercent: 80,
+    profitRatePercent: 8,
+    platformFeeRatePercent: 1,
+    serviceFeeRatePercent: 0,
+    ...overrides,
+  };
+}
+
+describe("getNoteAttentionAction", () => {
+  it("asks for repayment proof when the note is in arrears", () => {
+    const action = getNoteAttentionAction(
+      note({
+        status: "ARREARS" as NoteListItem["status"],
+        servicingStatus: "ARREARS" as NoteListItem["servicingStatus"],
+      })
+    );
+    expect(action.headline).toBe("Repayment is in arrears");
+    expect(action.label).toBe("Report repayment");
+  });
+
+  it("names overdue repayment without a formal arrears status", () => {
+    const action = getNoteAttentionAction(note());
+    expect(action.headline).toBe("Repayment is overdue");
+    expect(action.label).toBe("View details");
+  });
+});

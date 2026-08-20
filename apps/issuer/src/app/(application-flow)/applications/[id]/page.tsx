@@ -702,7 +702,6 @@ export default function ApplicationDetailPage() {
                     }
                     invoice={offerType === "invoice" ? offerInvoice : undefined}
                     requiresInvoiceSigning
-                    className={showOfferSwitcher ? "mx-0 max-w-none" : undefined}
                     onClose={() => {
                       void queryClient.invalidateQueries({
                         queryKey: ["application", applicationId],

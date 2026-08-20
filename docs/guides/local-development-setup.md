@@ -411,8 +411,8 @@ docker-compose restart
 # Reinstall dependencies
 pnpm install --frozen-lockfile
 
-# Clear Next.js cache
-rm -rf apps/*/.next
+# Clear Next.js cache (also runs automatically when a portal .next exceeds 1.5GB)
+pnpm clean:next
 ```
 
 ### Prisma Client Out of Sync

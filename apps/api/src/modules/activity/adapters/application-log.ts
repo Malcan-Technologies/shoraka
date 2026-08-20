@@ -22,6 +22,7 @@ const CONTRACT_EVENT_TYPES = new Set<string>([
   ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED,
   ApplicationLogEventType.CONTRACT_OFFER_REJECTED,
   ApplicationLogEventType.CONTRACT_OFFER_RETRACTED,
+  ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED,
   ApplicationLogEventType.CONTRACT_WITHDRAWN,
 ]);
 
@@ -67,26 +68,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
     }
 
     if (search) {
-      const matchingEventTypes = finalEventTypes.filter((eventType) => {
-        const presentation = this.buildPresentation(eventType, {});
-        const searchTerm = search.toLowerCase();
-
-        return (
-          presentation.title.toLowerCase().includes(searchTerm) ||
-          presentation.description.toLowerCase().includes(searchTerm)
-        );
-      });
-
-      where.OR = [
-        { event_type: { contains: search, mode: "insensitive" } },
-        { event_type: { in: matchingEventTypes } },
-        {
-          metadata: {
-            path: ["remark"],
-            string_contains: search,
-          },
-        },
-      ];
+      where.OR = this.buildSearchClause(search, finalEventTypes);
     }
 
     const records = await prisma.applicationLog.findMany({
@@ -119,26 +101,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
     }
 
     if (search) {
-      const matchingEventTypes = finalEventTypes.filter((eventType) => {
-        const presentation = this.buildPresentation(eventType, {});
-        const searchTerm = search.toLowerCase();
-
-        return (
-          presentation.title.toLowerCase().includes(searchTerm) ||
-          presentation.description.toLowerCase().includes(searchTerm)
-        );
-      });
-
-      where.OR = [
-        { event_type: { contains: search, mode: "insensitive" } },
-        { event_type: { in: matchingEventTypes } },
-        {
-          metadata: {
-            path: ["remark"],
-            string_contains: search,
-          },
-        },
-      ];
+      where.OR = this.buildSearchClause(search, finalEventTypes);
     }
 
     return prisma.applicationLog.count({ where });
@@ -336,6 +299,10 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         return contractRef
           ? `The offer for ${contractRef} was withdrawn before it was accepted.`
           : fallbackDescription;
+      case ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED:
+        return contractRef
+          ? `Live occupancy for ${contractRef} was updated.`
+          : fallbackDescription;
       case ApplicationLogEventType.CONTRACT_WITHDRAWN:
         if (contractRef && applicationRef) {
           return `${this.capitalize(contractRef)} linked to ${applicationRef} was withdrawn.`;
@@ -438,6 +405,41 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
     }
 
     return Object.keys(references).length > 0 ? references : null;
+  }
+
+  private buildSearchClause(
+    search: string,
+    finalEventTypes: string[]
+  ): Prisma.ApplicationLogWhereInput["OR"] {
+    const searchTerm = search.toLowerCase();
+    const matchingEventTypes = finalEventTypes.filter((eventType) => {
+      const presentation = this.buildPresentation(eventType, {});
+      return (
+        presentation.title.toLowerCase().includes(searchTerm) ||
+        presentation.description.toLowerCase().includes(searchTerm)
+      );
+    });
+
+    const metadataPaths = [
+      "remark",
+      "application_reference",
+      "contract_number",
+      "contract_reference",
+      "invoice_number",
+      "invoice_reference",
+    ] as const;
+
+    return [
+      { event_type: { contains: search, mode: "insensitive" } },
+      { event_type: { in: matchingEventTypes } },
+      { application_id: { contains: search, mode: "insensitive" } },
+      ...metadataPaths.map((path) => ({
+        metadata: {
+          path: [path],
+          string_contains: search,
+        },
+      })),
+    ];
   }
 
   private readString(value: unknown): string | undefined {
@@ -545,6 +547,10 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         title: "Facility Offer Retracted",
         description: "The facility offer was withdrawn before it was accepted.",
       },
+      [ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED]: {
+        title: "Facility occupancy updated",
+        description: "Live facility occupancy changed after a draw, funding close, or repayment.",
+      },
       [ApplicationLogEventType.CONTRACT_OFFER_EXPIRED]: {
         title: "Facility Offer Expired",
         description: "The facility offer expired. A new offer can be sent from the Facility tab.",
@@ -630,6 +636,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED,
       ApplicationLogEventType.CONTRACT_OFFER_REJECTED,
       ApplicationLogEventType.CONTRACT_OFFER_RETRACTED,
+      ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED,
       ApplicationLogEventType.CONTRACT_OFFER_EXPIRED,
       ApplicationLogEventType.CONTRACT_SIGNING_DEADLINE_EXTENDED,
       ApplicationLogEventType.CONTRACT_WITHDRAWN,

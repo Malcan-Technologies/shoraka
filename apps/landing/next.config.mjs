@@ -1,4 +1,5 @@
 import { DEV_TUNNEL_ORIGINS } from "../../packages/config/dev-tunnel-origins.cjs";
+import { NEXT_DEV_EXPERIMENTAL } from "../../packages/config/next-dev-experimental.cjs";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -21,7 +22,7 @@ const nextConfig = {
     "@cashsouk/icons",
   ],
   experimental: {
-    optimizePackageImports: ["@cashsouk/ui", "@cashsouk/config"],
+    ...NEXT_DEV_EXPERIMENTAL,
   },
   async headers() {
     return [

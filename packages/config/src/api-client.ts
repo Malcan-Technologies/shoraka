@@ -471,6 +471,21 @@ export class ApiClient {
     );
   }
 
+  async getAdminInvestorBalanceActivity(
+    organizationId: string,
+    params: {
+      page?: number;
+      pageSize?: number;
+    } = {}
+  ): Promise<ApiResponse<InvestorBalanceActivityResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page ?? 1));
+    queryParams.append("pageSize", String(params.pageSize ?? 20));
+    return this.get<InvestorBalanceActivityResponse>(
+      `/v1/admin/organizations/investor/${encodeURIComponent(organizationId)}/balance-activity?${queryParams.toString()}`
+    );
+  }
+
   async updateAdminOrganizationProfile(
     portal: "investor" | "issuer",
     id: string,
@@ -2948,6 +2963,7 @@ export class ApiClient {
       pageSize?: number;
       search?: string;
       featuredOnly?: boolean;
+      includeClosed?: boolean;
     } = {}
   ): Promise<ApiResponse<NotesResponse> | ApiError> {
     const queryParams = new URLSearchParams();
@@ -2955,6 +2971,7 @@ export class ApiClient {
     queryParams.append("pageSize", String(params.pageSize ?? 12));
     if (params.search) queryParams.append("search", params.search);
     if (params.featuredOnly) queryParams.append("featuredOnly", "true");
+    if (params.includeClosed) queryParams.append("includeClosed", "true");
     return this.get<NotesResponse>(`/v1/marketplace/notes?${queryParams.toString()}`);
   }
 

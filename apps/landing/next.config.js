@@ -1,6 +1,6 @@
-// next.config.js stays CommonJS; shared list lives in packages/config.
-// eslint-disable-next-line @typescript-eslint/no-require-imports -- CJS config cannot import .cjs via ESM syntax
+/* eslint-disable @typescript-eslint/no-require-imports -- CJS config cannot import .cjs via ESM syntax */
 const { DEV_TUNNEL_ORIGINS } = require("../../packages/config/dev-tunnel-origins.cjs");
+const { NEXT_DEV_EXPERIMENTAL } = require("../../packages/config/next-dev-experimental.cjs");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -23,7 +23,7 @@ const nextConfig = {
     "@cashsouk/icons",
   ],
   experimental: {
-    optimizePackageImports: ["@cashsouk/ui", "@cashsouk/config"],
+    ...NEXT_DEV_EXPERIMENTAL,
   },
   async headers() {
     return [

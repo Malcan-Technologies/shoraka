@@ -1,4 +1,9 @@
 import type { NoteEvent } from "@cashsouk/types";
+import {
+  buildAdminActivityCsv,
+  mergeActivityCsvMetadata,
+  type AdminActivityCsvRow,
+} from "@/components/admin-activity-csv";
 
 const EVENT_LABELS: Record<string, string> = {
   NOTE_CREATED: "Note created",
@@ -46,35 +51,22 @@ export function formatNoteActivityEventLabel(eventType: string) {
   return label;
 }
 
-function csvCell(value: string) {
-  return `"${value.replace(/"/g, '""')}"`;
-}
-
-function metadataCell(metadata: Record<string, unknown> | null) {
-  if (!metadata || Object.keys(metadata).length === 0) return "";
-  return JSON.stringify(metadata);
+export function noteEventToActivityCsvRow(event: NoteEvent): AdminActivityCsvRow {
+  return {
+    createdAt: event.createdAt,
+    event: formatNoteActivityEventLabel(event.eventType),
+    eventType: event.eventType,
+    actor: event.actorName?.trim() || "",
+    actorUserId: event.actorUserId ?? "",
+    portal: event.portal ?? "",
+    remark: "",
+    metadata: mergeActivityCsvMetadata(event.metadata, {
+      actorRole: event.actorRole,
+      correlationId: event.correlationId,
+    }),
+  };
 }
 
 export function buildNoteActivityCsv(events: NoteEvent[]) {
-  const header = [
-    "createdAt",
-    "event",
-    "eventType",
-    "actorUserId",
-    "actorRole",
-    "portal",
-    "correlationId",
-    "metadata",
-  ];
-  const rows = events.map((event) => [
-    event.createdAt,
-    formatNoteActivityEventLabel(event.eventType),
-    event.eventType,
-    event.actorUserId ?? "",
-    event.actorRole ?? "",
-    event.portal ?? "",
-    event.correlationId ?? "",
-    metadataCell(event.metadata),
-  ]);
-  return [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+  return buildAdminActivityCsv(events.map(noteEventToActivityCsvRow));
 }

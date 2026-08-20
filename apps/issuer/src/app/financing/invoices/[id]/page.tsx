@@ -46,8 +46,14 @@ import {
   formatDate,
   formatMoney,
 } from "@/components/financing/utils";
+import { MarketplaceCampaignFacts } from "@/components/financing/marketplace-campaign-facts";
+import {
+  buildIssuerMarketplaceCampaign,
+  issuerCampaignCloseLabel,
+  issuerCampaignDaysLeftLabel,
+} from "@/components/financing/marketplace-campaign";
 import { buildInvoiceFeeDisplay, money } from "@/lib/facility-fee-display";
-import { formatInvoiceReference } from "@cashsouk/types";
+import { formatInvoiceReference, formatNoteInvestorCount } from "@cashsouk/types";
 
 export default function InvoiceDetailPage() {
   const params = useParams();
@@ -213,6 +219,13 @@ export default function InvoiceDetailPage() {
     id: invoiceId,
   });
   const customerName = row?.customerName ?? null;
+  const campaign = row?.note ? buildIssuerMarketplaceCampaign(row.note) : null;
+  const campaignCloseLabel = campaign
+    ? issuerCampaignCloseLabel(
+        formatDate(campaign.closesAt),
+        issuerCampaignDaysLeftLabel(campaign.daysLeft, campaign.raising)
+      )
+    : EM_DASH;
   const hideFeesBeforeAcceptance = offerStatus === "Offer received";
   const showFeesCard =
     (feeDisplay.phase !== "none" && feeDisplay.phase !== "pending") ||
@@ -238,9 +251,9 @@ export default function InvoiceDetailPage() {
           <span className="flex flex-wrap items-center gap-2">
             <IssuerFinancingStatusBadge kind={badgeKind} />
             {contractId ? (
-              <StatusBadge label="Under facility" status="submitted" />
+              <StatusBadge label="Part of a facility" status="submitted" />
             ) : (
-              <StatusBadge label="Standalone" status="neutral" />
+              <StatusBadge label="On its own" status="neutral" />
             )}
             {offerStatus === "Offer expired" ? (
               <StatusBadge label="Offer expired" status="rejected" />
@@ -296,7 +309,7 @@ export default function InvoiceDetailPage() {
               <div className="rounded-xl bg-status-action-bg p-0.5">
                 <Button className="rounded-xl" asChild>
                   <Link href={financingOfferHref(applicationId, invoiceId)}>
-                    {offerActionCta?.label ?? "Review Offer"}
+                    {offerActionCta?.label ?? "Review Invoice Offer"}
                   </Link>
                 </Button>
               </div>
@@ -353,9 +366,26 @@ export default function InvoiceDetailPage() {
               { label: "Customer", value: displayCell(customerName) },
               { label: "Submission date", value: formatDate(row?.submissionDate) },
               {
-                label: "Funding deadline",
-                value: row?.note?.fundingDeadline
-                  ? formatDate(row.note.fundingDeadline)
+                label: "Campaign closes",
+                value: campaign?.closesAt ? campaignCloseLabel : EM_DASH,
+              },
+              {
+                label: "Min to succeed",
+                value: campaign ? `${campaign.minimumPercent}%` : EM_DASH,
+              },
+              {
+                label: "Still open",
+                value:
+                  campaign?.raising && campaign.remainingCapacity > 0
+                    ? formatMoney(campaign.remainingCapacity)
+                    : campaign?.raising
+                      ? "Fully allocated"
+                      : EM_DASH,
+              },
+              {
+                label: "Investors",
+                value: row?.note
+                  ? formatNoteInvestorCount(row.note.investorCount)
                   : EM_DASH,
               },
             ]}
@@ -375,18 +405,24 @@ export default function InvoiceDetailPage() {
             ) : null}
           </div>
           {row?.note ? (
-            <div className="max-w-lg space-y-2">
-              <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
-                <span>Funding progress</span>
-                <span>{Math.round(progress)}%</span>
-              </div>
-              <div className="h-3 w-full overflow-hidden rounded-full border border-border bg-foreground/35 shadow-sm dark:bg-muted">
-                <div
-                  className="h-3 rounded-full bg-foreground"
-                  style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
-                />
-              </div>
-              <FundingStatusLine text={fundingLabel} />
+            <div className="max-w-lg space-y-3">
+              {campaign?.raising ? (
+                <MarketplaceCampaignFacts note={row.note} variant="detail" />
+              ) : (
+                <>
+                  <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Funding progress</span>
+                    <span>{Math.round(progress)}%</span>
+                  </div>
+                  <div className="h-3 w-full overflow-hidden rounded-full border border-border bg-foreground/35 shadow-sm dark:bg-muted">
+                    <div
+                      className="h-3 rounded-full bg-foreground"
+                      style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+                    />
+                  </div>
+                  <FundingStatusLine text={fundingLabel} />
+                </>
+              )}
             </div>
           ) : (
             <p className="text-body leading-7 text-muted-foreground">

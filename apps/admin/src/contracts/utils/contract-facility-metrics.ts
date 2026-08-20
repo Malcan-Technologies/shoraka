@@ -1,3 +1,4 @@
+import { formatCurrency } from "@cashsouk/config";
 import type { AdminContractDetail } from "@cashsouk/types";
 
 /**
@@ -19,7 +20,8 @@ export function parseFacilityAmount(value: unknown): number | null {
 export type ContractFacilityMetrics = {
   approved: number;
   utilized: number;
-  /** Never negative: an over-utilized facility has nothing left to draw. */
+  pending: number;
+  /** May be negative when a live draw exceeds the approved line. */
   available: number;
   /** `null` when there is no approved facility to measure utilization against. */
   utilizationPercent: number | null;
@@ -46,12 +48,48 @@ export function getContractUtilizationAccentClass(
 }
 
 export function formatContractFacilityNoteCount(noteCount: number): string {
-  if (noteCount <= 0) return "No notes have used this line of credit";
-  if (noteCount === 1) return "1 note has used this line of credit";
-  return `${noteCount} notes have used this line of credit`;
+  if (noteCount <= 0) return "No drawdowns have used this line of credit";
+  if (noteCount === 1) return "1 drawdown has used this line of credit";
+  return `${noteCount} drawdowns have used this line of credit`;
 }
 
-type ContractFacilityFields = Pick<AdminContractDetail, "approvedFacility" | "contractDetails">;
+export type ContractFacilityFeeCollected = {
+  paid: number;
+  cap: number;
+  display: string;
+};
+
+export function resolveContractFacilityFeeCap(
+  approved: number,
+  facilityFeeRatePercent: unknown
+): number | null {
+  const rate = parseFacilityAmount(facilityFeeRatePercent);
+  if (rate == null || rate <= 0 || approved <= 0) return null;
+  return approved * (rate / 100);
+}
+
+/** Paid-to-date vs cap from the same contract_details fields the facility tab uses. */
+export function resolveContractFacilityFeeCollected(input: {
+  approved: number;
+  facilityFeeRatePercent: unknown;
+  facilityFeePaidAmount: unknown;
+}): ContractFacilityFeeCollected | null {
+  const paid = parseFacilityAmount(input.facilityFeePaidAmount);
+  const cap = resolveContractFacilityFeeCap(input.approved, input.facilityFeeRatePercent);
+  if (paid == null || cap == null) return null;
+  return {
+    paid,
+    cap,
+    display: `${formatCurrency(paid)} / ${formatCurrency(cap)} cap`,
+  };
+}
+
+type ContractFacilityFields = Pick<
+  AdminContractDetail,
+  "approvedFacility" | "contractDetails" | "status"
+>;
+
+const IN_FORCE_FACILITY_STATUSES = new Set(["APPROVED", "AMENDMENT_REQUESTED"]);
 
 /**
  * Header metrics for the contract detail page. Same JSON source as the
@@ -60,13 +98,59 @@ type ContractFacilityFields = Pick<AdminContractDetail, "approvedFacility" | "co
 export function resolveContractFacilityMetrics(
   contract: ContractFacilityFields
 ): ContractFacilityMetrics {
-  const approved = parseFacilityAmount(contract.approvedFacility) ?? 0;
+  const fromPayload = parseFacilityAmount(contract.approvedFacility);
+  const fromJson = parseFacilityAmount(contract.contractDetails?.approved_facility);
+  const allowJsonApproved = IN_FORCE_FACILITY_STATUSES.has(String(contract.status ?? "").toUpperCase());
+  const approved =
+    fromPayload != null && fromPayload > 0
+      ? fromPayload
+      : allowJsonApproved && fromJson != null && fromJson > 0
+        ? fromJson
+        : fromPayload ?? fromJson ?? 0;
   const utilized = parseFacilityAmount(contract.contractDetails?.utilized_facility) ?? 0;
+  const pending = parseFacilityAmount(contract.contractDetails?.pending_facility) ?? 0;
+  const storedAvailable = parseFacilityAmount(contract.contractDetails?.available_facility);
 
   return {
     approved,
     utilized,
-    available: Math.max(0, approved - utilized),
+    pending,
+    available: storedAvailable ?? approved - utilized,
     utilizationPercent: approved > 0 ? (utilized / approved) * 100 : null,
   };
+}
+
+const PENDING_INVOICE_STATUSES = new Set(["SUBMITTED", "OFFER_SENT", "AMENDMENT_REQUESTED"]);
+
+function invoiceCommittedAmount(invoice: {
+  details?: unknown;
+  offer_details?: unknown;
+}): number {
+  const offer =
+    invoice.offer_details && typeof invoice.offer_details === "object"
+      ? (invoice.offer_details as Record<string, unknown>)
+      : null;
+  const offered = parseFacilityAmount(offer?.offered_amount);
+  if (offered != null && offered > 0) return offered;
+  const details =
+    invoice.details && typeof invoice.details === "object"
+      ? (invoice.details as Record<string, unknown>)
+      : null;
+  const value = parseFacilityAmount(details?.value) ?? 0;
+  const ratio = parseFacilityAmount(details?.financing_ratio_percent) ?? 60;
+  const safeRatio = ratio > 0 ? ratio : 60;
+  return value * (safeRatio / 100);
+}
+
+/** Display-only pending occupancy (does not reduce available). */
+export function sumPendingInvoiceFacility(
+  invoices: Array<{ status?: string; details?: unknown; offer_details?: unknown }>
+): number {
+  let sum = 0;
+  for (const invoice of invoices) {
+    const status = String(invoice.status ?? "").toUpperCase();
+    if (!PENDING_INVOICE_STATUSES.has(status)) continue;
+    sum += invoiceCommittedAmount(invoice);
+  }
+  return sum;
 }

@@ -145,35 +145,16 @@ export const ADMIN_ACTION_SURFACE_CLASS =
 export const ADMIN_WAITING_SURFACE_CLASS =
   "border-status-submitted-text/15 bg-[hsl(var(--status-submitted-bg)/0.45)]";
 
-/** Subtle yellow row wash — same 45% action fill as dashboard Quick Actions. */
+/** Subtle yellow row wash — same 45% action fill as dashboard next-to-do tiles. */
 export const ADMIN_ACTION_ROW_CLASS =
   "bg-[hsl(var(--status-action-bg)/0.45)] hover:bg-[hsl(var(--status-action-bg)/0.45)] odd:bg-[hsl(var(--status-action-bg)/0.45)]";
 
-const ADMIN_HERO_TINT_CLASS: Record<StatusToken, string> = {
-  action:
-    "border-status-action-text/10 bg-[hsl(var(--status-action-bg)/0.35)]",
-  submitted:
-    "border-status-submitted-text/10 bg-[hsl(var(--status-submitted-bg)/0.35)]",
-  "in-progress":
-    "border-status-in-progress-text/10 bg-[hsl(var(--status-in-progress-bg)/0.35)]",
-  success:
-    "border-status-success-text/10 bg-[hsl(var(--status-success-bg)/0.35)]",
-  active:
-    "border-status-active-text/10 bg-[hsl(var(--status-active-bg)/0.35)]",
-  completed:
-    "border-status-completed-text/10 bg-[hsl(var(--status-completed-bg)/0.35)]",
-  rejected:
-    "border-status-rejected-text/10 bg-[hsl(var(--status-rejected-bg)/0.35)]",
-  neutral:
-    "border-status-neutral-text/10 bg-[hsl(var(--status-neutral-bg)/0.35)]",
-};
-
 /**
- * Whisper entity-hero wash: the badge fill at 35% so the card stays lighter
- * than the chip. Pass the same `StatusToken` as the header badge.
+ * Status modifier for the shared entity-hero wash (gradient + lattice).
+ * Color comes from the badge text token so the card stays lighter than the chip.
  */
 export function adminHeroTintClass(token: StatusToken): string {
-  return ADMIN_HERO_TINT_CLASS[token];
+  return `admin-hero-tint-${token}`;
 }
 
 /** Subtle red row wash for arrears / failed notes — same 45% fill as action rows. */

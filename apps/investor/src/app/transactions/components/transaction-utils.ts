@@ -1,7 +1,19 @@
 import { formatCurrency } from "@cashsouk/config";
 import type { InvestorBalanceActivityEntry } from "@cashsouk/types";
-import { formatNoteReferenceDisplay } from "@cashsouk/types";
-import type { Transaction, TransactionContext, TransactionType } from "./transactions.types";
+import {
+  formatNoteReferenceDisplay,
+  investorActivityDepositDetail,
+  investorActivityStatusDetail,
+  investorActivityStatusDisplay,
+  investorActivityTitle,
+  investorActivityTypeLabel,
+} from "@cashsouk/types";
+import {
+  TRANSACTION_TYPE_FILTER_OPTIONS,
+  type Transaction,
+  type TransactionContext,
+  type TransactionType,
+} from "./transactions.types";
 
 export function parseMoneyAmount(value: string): number {
   return Number(value.replaceAll(",", "").replaceAll(" ", "")) || 0;
@@ -63,11 +75,12 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 function buildNoteContext(
   noteId: string | null,
   noteReferenceById: Map<string, string>,
-  prefix?: string
+  prefix?: string,
+  fallbackReference?: string | null
 ): TransactionContext {
   if (!noteId) return { kind: "empty" };
 
-  const rawReference = noteReferenceById.get(noteId);
+  const rawReference = noteReferenceById.get(noteId) ?? fallbackReference ?? null;
   if (rawReference) {
     const display = formatNoteReferenceDisplay(rawReference);
     if (display) {
@@ -82,14 +95,10 @@ export function mapActivitySourceToType(
   source: string,
   metadata: Record<string, unknown> | null
 ): TransactionType {
-  if (source === "MANUAL_TOPUP") return "Deposit";
-  if (source === "NOTE_INVESTMENT_COMMIT") return "Investment";
-  if (source === "NOTE_INVESTMENT_RELEASE") {
-    const meta = asRecord(metadata);
-    if (meta?.releaseReason === "SETTLEMENT_PAYOUT") return "Returns";
-    return "Release";
+  const label = investorActivityTypeLabel(source, metadata);
+  if ((TRANSACTION_TYPE_FILTER_OPTIONS as readonly string[]).includes(label)) {
+    return label as TransactionType;
   }
-  if (source === "INVESTOR_WITHDRAWAL_REQUEST") return "Withdrawal";
   return formatEnumLabel(source) as TransactionType;
 }
 
@@ -97,26 +106,29 @@ function buildActivityContext(
   entry: InvestorBalanceActivityEntry,
   noteReferenceById: Map<string, string>
 ): TransactionContext {
-  if (entry.source === "MANUAL_TOPUP") {
-    return { kind: "text", text: "Wallet top-up" };
+  const depositDetail = investorActivityDepositDetail(entry.source, entry.related ?? null);
+  if (depositDetail) {
+    return { kind: "text", text: depositDetail };
   }
 
   if (entry.source === "NOTE_INVESTMENT_COMMIT") {
-    return buildNoteContext(entry.noteId, noteReferenceById);
+    return buildNoteContext(entry.noteId, noteReferenceById, undefined, entry.noteReference);
   }
 
   if (entry.source === "NOTE_INVESTMENT_RELEASE") {
     const meta = asRecord(entry.metadata);
-    const prefix = meta?.releaseReason === "SETTLEMENT_PAYOUT" ? "Repayment · " : undefined;
-    return buildNoteContext(entry.noteId, noteReferenceById, prefix);
+    const prefix =
+      meta?.releaseReason === "SETTLEMENT_PAYOUT" ? "Repayment · " : "Returned · ";
+    return buildNoteContext(entry.noteId, noteReferenceById, prefix, entry.noteReference);
   }
 
   if (entry.source === "INVESTOR_WITHDRAWAL_REQUEST") {
-    return { kind: "text", text: "Withdrawal request" };
+    const detail = investorActivityStatusDetail(entry.source, entry.related ?? null);
+    return { kind: "text", text: detail ?? "Withdrawal request" };
   }
 
   if (entry.noteId) {
-    return buildNoteContext(entry.noteId, noteReferenceById);
+    return buildNoteContext(entry.noteId, noteReferenceById, undefined, entry.noteReference);
   }
 
   return { kind: "empty" };
@@ -128,12 +140,15 @@ export function mapActivityEntryToTransaction(
   noteReferenceById: Map<string, string>
 ): Transaction {
   const type = mapActivitySourceToType(entry.source, entry.metadata);
+  const status = investorActivityStatusDisplay(entry.source, entry.related ?? null, entry.metadata);
   return {
     id: entry.id,
     type,
+    title: investorActivityTitle(entry.source, entry.metadata, entry.related ?? null),
     direction: entry.direction,
     amount: entry.amount,
     context: buildActivityContext(entry, noteReferenceById),
+    status,
     balance: runningBalance ?? 0,
     postedAt: entry.postedAt,
   };

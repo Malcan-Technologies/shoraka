@@ -13,17 +13,24 @@ import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { Button } from "@/components/ui/button";
 import { issuerSettlementPayoutSummaryFromResidualStatus } from "@/notes/lib/settlement-payout-summary-presenter";
 import { cn } from "@/lib/utils";
-import { FinancingDonut } from "./financing-donut";
+import { FinancingDonut, financingDonutTone } from "./financing-donut";
 import { FinancingKpiTile } from "./financing-kpi-strip";
 import {
   EM_DASH,
   FINANCING_ARREARS_SURFACE,
   FINANCING_ATTENTION_SURFACE,
+  InvestorCommitmentLine,
   LabelValue,
   displayCell,
   formatDate,
   formatMoney,
 } from "./utils";
+import { MarketplaceCampaignFacts } from "./marketplace-campaign-facts";
+import {
+  buildIssuerMarketplaceCampaign,
+  issuerCampaignCloseLabel,
+  issuerCampaignDaysLeftLabel,
+} from "./marketplace-campaign";
 import {
   isIssuerNoteActionable,
   isIssuerNoteInArrears,
@@ -58,17 +65,17 @@ function NoteArrearsAlert({ note }: { note: NoteListItem }) {
     >
       <ExclamationTriangleIcon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
       <div className="min-w-0 space-y-1">
-        <p className="text-ui font-semibold leading-6">This note is in arrears</p>
+        <p className="text-ui font-semibold leading-6">This invoice is in arrears</p>
         <p className="text-ui leading-5 opacity-90">
-          Repayment was not received by the maturity date.{overdueClause} Arrange settlement with
-          the paymaster and submit repayment proof so we can reconcile this note.
+          Payment was not received by the due date.{overdueClause} Arrange payment with your
+          customer and upload proof.
         </p>
       </div>
     </div>
   );
 }
 
-const RISK_TOOLTIP_TEXT = "SoukScore grade for this invoice note";
+const RISK_TOOLTIP_TEXT = "Risk grade for this invoice";
 
 function riskLetterToneClass(grade: string | null): string {
   if (grade === "A" || grade === "B") return "text-status-success-text";
@@ -144,26 +151,18 @@ function SettlementSummaryBlock({ note }: { note: NoteListItem }) {
   );
 }
 
-/** Match admin: brand colour only while funding is open; black once funding closed / servicing. */
-function noteFundingDonutTone(note: NoteListItem): "primary" | "foreground" {
-  const funding = String(note.fundingStatus ?? "").toUpperCase();
-  const servicing = String(note.servicingStatus ?? "").toUpperCase();
-  if (funding === "FUNDED" || funding === "FAILED" || funding === "CLOSED") {
-    return "foreground";
-  }
-  if (servicing && servicing !== "NOT_STARTED") {
-    return "foreground";
-  }
-  return "primary";
-}
-
 export function DashboardNoteCard({ note }: { note: NoteListItem }) {
   const progress = Math.max(0, Math.min(100, note.fundingPercent));
   const noteRef = displayCell(note.noteReference);
   const grade = note.riskRating?.trim() ? note.riskRating.trim().toUpperCase() : null;
-  const donutTone = noteFundingDonutTone(note);
+  const donutTone = financingDonutTone(note);
   const inArrears = isIssuerNoteInArrears(note);
   const needsAttention = isIssuerNoteActionable(note);
+  const campaign = buildIssuerMarketplaceCampaign(note);
+  const campaignCloseLabel = issuerCampaignCloseLabel(
+    formatDate(campaign.closesAt),
+    issuerCampaignDaysLeftLabel(campaign.daysLeft, campaign.raising)
+  );
 
   return (
     <article
@@ -187,7 +186,7 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
             />
             <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1">
               <p className="min-w-0 max-w-full truncate leading-5">
-                <span className="text-sm font-normal leading-5 text-foreground">Note: </span>
+                <span className="text-sm font-normal leading-5 text-foreground">Invoice: </span>
                 <Link
                   href={`/financing/notes/${note.id}`}
                   className="text-sm font-semibold leading-5 text-foreground underline-offset-4 hover:underline"
@@ -243,6 +242,15 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
               />
             </div>
 
+            {campaign.raising ? (
+              <MarketplaceCampaignFacts note={note} />
+            ) : (
+              <InvestorCommitmentLine
+                fundedAmount={note.fundedAmount}
+                investorCount={note.investorCount}
+              />
+            )}
+
             <div className="grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-2">
               <div className="min-w-0 space-y-2">
                 <LabelValue label="Paymaster">{displayCell(note.paymasterName)}</LabelValue>
@@ -274,6 +282,10 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
                 ) : null}
               </div>
               <div className="min-w-0 space-y-2">
+                <LabelValue label="Campaign closes">
+                  {campaign.closesAt ? campaignCloseLabel : EM_DASH}
+                </LabelValue>
+                <LabelValue label="Min to succeed">{`${campaign.minimumPercent}%`}</LabelValue>
                 <LabelValue label="Maturity date">{formatDate(note.maturityDate)}</LabelValue>
               </div>
             </div>

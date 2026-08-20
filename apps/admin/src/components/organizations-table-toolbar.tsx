@@ -1,7 +1,4 @@
-import * as React from "react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { ListToolbar, ListToolbarFilterTrigger, type FilterChip } from "@cashsouk/ui";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,12 +8,23 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import {
-  MagnifyingGlassIcon,
-  FunnelIcon,
-  XMarkIcon,
-  ArrowPathIcon,
-} from "@heroicons/react/24/outline";
+
+const TYPE_LABELS: Record<string, string> = {
+  PERSONAL: "Personal",
+  COMPANY: "Company",
+};
+
+const ONBOARDING_LABELS: Record<string, string> = {
+  PENDING: "Not started",
+  IN_PROGRESS: "In progress",
+  PENDING_SSM_REVIEW: "Pending SSM",
+  PENDING_APPROVAL: "Pending approval",
+  PENDING_AML: "Pending AML",
+  PENDING_AMENDMENT: "Amendment in progress",
+  PENDING_FINAL_APPROVAL: "Pending final approval",
+  COMPLETED: "Completed",
+  REJECTED: "Rejected",
+};
 
 interface OrganizationsTableToolbarProps {
   searchQuery: string;
@@ -45,103 +53,78 @@ export function OrganizationsTableToolbar({
   onRefresh,
   isLoading = false,
 }: OrganizationsTableToolbarProps) {
-  const [isSpinning, setIsSpinning] = React.useState(false);
-
   const hasFilters =
-    searchQuery !== "" ||
-    typeFilter !== "all" ||
-    onboardingStatusFilter !== "all";
+    searchQuery !== "" || typeFilter !== "all" || onboardingStatusFilter !== "all";
 
-  const activeFilterCount = [
-    typeFilter !== "all",
-    onboardingStatusFilter !== "all",
-  ].filter(Boolean).length;
+  const activeFilterCount = [typeFilter !== "all", onboardingStatusFilter !== "all"].filter(
+    Boolean
+  ).length;
 
-  const handleRefresh = () => {
-    setIsSpinning(true);
-    onRefresh?.();
-    setTimeout(() => setIsSpinning(false), 500);
-  };
+  const appliedFilters: FilterChip[] = [];
+  if (typeFilter !== "all") {
+    appliedFilters.push({
+      id: "type",
+      label: `Type: ${TYPE_LABELS[typeFilter] ?? typeFilter}`,
+      onRemove: () => onTypeFilterChange("all"),
+    });
+  }
+  if (onboardingStatusFilter !== "all") {
+    appliedFilters.push({
+      id: "onboarding",
+      label: `Onboarding: ${ONBOARDING_LABELS[onboardingStatusFilter] ?? onboardingStatusFilter}`,
+      onRemove: () => onOnboardingStatusFilterChange("all"),
+    });
+  }
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="relative flex-1">
-        <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search by name, reference, registration number, or owner..."
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="h-11 rounded-xl bg-card pl-9"
-        />
-      </div>
+    <ListToolbar
+      searchValue={searchQuery}
+      onSearchChange={onSearchChange}
+      searchPlaceholder="Search by name, reference, registration number, or owner..."
+      appliedFilters={appliedFilters}
+      onClearFilters={hasFilters ? onClearFilters : undefined}
+      onReload={onRefresh}
+      isLoading={isLoading}
+      countLabel={`${filteredCount} ${
+        filteredCount === 1 ? "organization" : "organizations"
+      }${hasFilters ? ` of ${totalCount}` : ""}`}
+      filterGroups={
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <ListToolbarFilterTrigger label="Filters" count={activeFilterCount} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>Type</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={typeFilter} onValueChange={onTypeFilterChange}>
+              <DropdownMenuRadioItem value="all">All types</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="PERSONAL">Personal</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="COMPANY">Company</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
-            <FunnelIcon className="h-4 w-4" />
-            Filters
-            {activeFilterCount > 0 && (
-              <Badge
-                variant="secondary"
-                className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-primary text-primary-foreground"
-              >
-                {activeFilterCount}
-              </Badge>
-            )}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuLabel>Type</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={typeFilter} onValueChange={onTypeFilterChange}>
-            <DropdownMenuRadioItem value="all">All Types</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="PERSONAL">Personal</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="COMPANY">Company</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Onboarding Status</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={onboardingStatusFilter}
-            onValueChange={onOnboardingStatusFilterChange}
-          >
-            <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="PENDING">Not Started</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="IN_PROGRESS">In Progress</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="PENDING_SSM_REVIEW">Pending SSM</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="PENDING_APPROVAL">Pending Approval</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="PENDING_AML">Pending AML</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="PENDING_AMENDMENT">Amendment in Progress</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="PENDING_FINAL_APPROVAL">Pending Final Approval</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="COMPLETED">Completed</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="REJECTED">Rejected</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      {hasFilters && (
-        <Button variant="ghost" onClick={onClearFilters} className="gap-2 h-11 rounded-xl">
-          <XMarkIcon className="h-4 w-4" />
-          Clear
-        </Button>
-      )}
-
-      {onRefresh && (
-        <Button
-          variant="outline"
-          onClick={handleRefresh}
-          disabled={isLoading || isSpinning}
-          className="h-11 gap-2 rounded-xl bg-card"
-        >
-          <ArrowPathIcon className={`h-4 w-4 ${isLoading || isSpinning ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
-      )}
-
-      <Badge variant="secondary" className="h-11 px-4 rounded-xl text-sm">
-        {filteredCount} {filteredCount === 1 ? "organization" : "organizations"}
-        {hasFilters && ` of ${totalCount}`}
-      </Badge>
-    </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Onboarding status</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={onboardingStatusFilter}
+              onValueChange={onOnboardingStatusFilterChange}
+            >
+              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="PENDING">Not started</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="IN_PROGRESS">In progress</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="PENDING_SSM_REVIEW">Pending SSM</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="PENDING_APPROVAL">Pending approval</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="PENDING_AML">Pending AML</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="PENDING_AMENDMENT">
+                Amendment in progress
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="PENDING_FINAL_APPROVAL">
+                Pending final approval
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="COMPLETED">Completed</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="REJECTED">Rejected</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      }
+    />
   );
 }
-

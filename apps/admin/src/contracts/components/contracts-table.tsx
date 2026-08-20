@@ -17,7 +17,7 @@ import { timestampOrNull } from "@/shared/admin-list/table-sort";
 import { useTableSort } from "@/shared/admin-list/use-table-sort";
 import { ContractsTableRow } from "./contracts-table-row";
 
-type ContractsSortColumn = "value" | "utilization" | "updated";
+type ContractsSortColumn = "value" | "approved" | "utilization" | "updated";
 
 interface ContractsTableProps {
   contracts: ContractListItem[];
@@ -39,6 +39,7 @@ function TableSkeleton() {
           <TableCell><Skeleton className="h-5 w-44" /></TableCell>
           <TableCell><Skeleton className="h-5 w-44" /></TableCell>
           <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+          <TableCell><Skeleton className="h-5 w-24" /></TableCell>
           <TableCell><Skeleton className="h-8 w-40" /></TableCell>
           <TableCell><Skeleton className="h-5 w-20" /></TableCell>
           <TableCell><Skeleton className="h-5 w-24" /></TableCell>
@@ -51,6 +52,7 @@ function TableSkeleton() {
 
 function contractsSortValue(contract: ContractListItem, column: ContractsSortColumn): number | null {
   if (column === "value") return contract.contractValue;
+  if (column === "approved") return contract.approvedFacility;
   if (column === "updated") return timestampOrNull(contract.updatedAt);
   return contract.approvedFacility > 0
     ? (contract.utilizedFacility / contract.approvedFacility) * 100
@@ -93,6 +95,14 @@ export function ContractsTable({
                 onSort={onSort}
               />
               <SortableTableHead
+                column="approved"
+                label="Approved"
+                className="text-sm font-semibold"
+                activeColumn={sortColumn}
+                direction={sortDirection}
+                onSort={onSort}
+              />
+              <SortableTableHead
                 column="utilization"
                 label="Utilization"
                 className="text-sm font-semibold"
@@ -117,7 +127,7 @@ export function ContractsTable({
               <TableSkeleton />
             ) : sortedRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="text-center py-10 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-10 text-muted-foreground">
                   No facilities found
                 </TableCell>
               </TableRow>

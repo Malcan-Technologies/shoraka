@@ -7,6 +7,7 @@ function event(overrides: Partial<NoteEvent> = {}): NoteEvent {
     noteId: "note-1",
     eventType: "NOTE_PUBLISHED",
     actorUserId: "user-1",
+    actorName: "Ada Admin",
     actorRole: "ADMIN",
     portal: "admin",
     correlationId: "corr-1",
@@ -43,9 +44,11 @@ describe("buildNoteActivityCsv", () => {
     const lines = csv.split("\n");
     expect(lines[0]).toContain("createdAt");
     expect(lines[0]).toContain("event");
+    expect(lines[0]).toContain("actor");
     expect(lines[1]).toContain("Note created");
     expect(lines[1]).toContain("NOTE_CREATED");
     expect(lines[1]).toContain("Issuer said ready");
+    expect(lines[1]).toContain("Ada Admin");
   });
 
   it("exports an empty table with only the header", () => {

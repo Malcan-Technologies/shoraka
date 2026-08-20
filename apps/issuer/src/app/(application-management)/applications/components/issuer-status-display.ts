@@ -62,6 +62,23 @@ export function getIssuerCardStatusLabel(
   return getIssuerPlainStatusLabel(badgeKey, options?.withdrawReason);
 }
 
+export function applicationCardStatusLabel(app: {
+  cardStatus: { badgeKey: string };
+  withdrawReason?: WithdrawReason;
+  offerAcceptanceStatus?: string | null;
+  facilityInForceNoInvoices: boolean;
+}): string {
+  if (app.facilityInForceNoInvoices) return "Facility approved";
+  const key = app.cardStatus.badgeKey;
+  return getIssuerCardStatusLabel(key, {
+    withdrawReason:
+      key === "withdrawn" || key === "declined" || key === "offer_expired"
+        ? app.withdrawReason
+        : undefined,
+    offerAcceptanceStatus: app.offerAcceptanceStatus,
+  });
+}
+
 /** Invoices needing work on the Invoices tab (amendments / rejected). Offer review lives on the Offer tab. */
 export function countInvoicesNeedingAction(
   invoices: Array<{ status?: string }>

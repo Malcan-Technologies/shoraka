@@ -1,69 +1,42 @@
 "use client";
 
 import * as React from "react";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@cashsouk/ui";
-import { useOrganizationLogs } from "@/hooks/use-organization-logs";
-import { formatDistanceToNow, format } from "date-fns";
+import { AdminDetailCardHeader } from "@/components/admin-detail";
+import { AdminActivityCsvExportButton } from "@/components/admin-activity-csv-export-button";
 import {
-  CheckCircleIcon,
-  XCircleIcon,
+  mergeActivityCsvMetadata,
+  type AdminActivityCsvRow,
+} from "@/components/admin-activity-csv";
+import {
+  AdminVerticalTimeline,
+  AdminVerticalTimelineItem,
+  AdminVerticalTimelineSkeleton,
+} from "@/components/admin-vertical-timeline";
+import {
+  extractOrganizationTimelineBylineChips,
+  extractOrganizationTimelineCompactDetails,
+} from "@/components/organization-activity-timeline-details";
+import {
+  ORGANIZATION_ACTIVITY_EVENT_TYPES,
+  useOrganizationLogs,
+} from "@/hooks/use-organization-logs";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
+import type { OnboardingLogResponse } from "@cashsouk/types";
+import {
   ClockIcon,
   ArrowPathIcon,
-  DocumentTextIcon,
-  ShieldCheckIcon,
-  StarIcon,
-  PlayIcon,
   ChevronDownIcon,
-  UserIcon,
-  GlobeAltIcon,
-  ComputerDesktopIcon,
 } from "@heroicons/react/24/outline";
 
 interface OrganizationActivityTimelineProps {
   organizationId: string | null;
   /** `panel` is the full-width activity tab; default `sidebar` keeps the compact rail layout. */
   variant?: "sidebar" | "panel";
-}
-
-function getEventIcon(eventType: string) {
-  switch (eventType) {
-    case "ONBOARDING_STARTED":
-      return <PlayIcon className="h-3.5 w-3.5 text-blue-600" />;
-    case "ONBOARDING_RESUMED":
-      return <ArrowPathIcon className="h-3.5 w-3.5 text-blue-500" />;
-    case "ONBOARDING_STATUS_UPDATED":
-      return <ClockIcon className="h-3.5 w-3.5 text-amber-500" />;
-    case "ONBOARDING_CANCELLED":
-      return <XCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />;
-    case "ONBOARDING_REJECTED":
-      return <XCircleIcon className="h-3.5 w-3.5 text-destructive" />;
-    case "ONBOARDING_APPROVED":
-      return <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-600" />;
-    case "AML_APPROVED":
-      return <ShieldCheckIcon className="h-3.5 w-3.5 text-emerald-600" />;
-    case "TNC_APPROVED":
-    case "TNC_ACCEPTED":
-      return <DocumentTextIcon className="h-3.5 w-3.5 text-emerald-600" />;
-    case "SSM_APPROVED":
-      return <DocumentTextIcon className="h-3.5 w-3.5 text-emerald-600" />;
-    case "KYC_APPROVED":
-    case "KYB_APPROVED":
-      return <ShieldCheckIcon className="h-3.5 w-3.5 text-emerald-600" />;
-    case "FINAL_APPROVAL_COMPLETED":
-      return <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-700" />;
-    case "SOPHISTICATED_STATUS_UPDATED":
-      return <StarIcon className="h-3.5 w-3.5 text-violet-600" />;
-    case "FORM_FILLED":
-      return <DocumentTextIcon className="h-3.5 w-3.5 text-blue-500" />;
-    case "ONBOARDING_RESET":
-      return <ArrowPathIcon className="h-3.5 w-3.5 text-amber-600" />;
-    default:
-      return <ClockIcon className="h-3.5 w-3.5 text-muted-foreground" />;
-  }
+  title?: string;
+  description?: string;
 }
 
 function getEventLabel(eventType: string): string {
@@ -96,39 +69,13 @@ function getEventLabel(eventType: string): string {
   );
 }
 
-function getEventDotColor(eventType: string): string {
-  switch (eventType) {
-    case "ONBOARDING_STARTED":
-    case "ONBOARDING_RESUMED":
-    case "FORM_FILLED":
-      return "bg-blue-500";
-    case "ONBOARDING_APPROVED":
-    case "AML_APPROVED":
-    case "TNC_APPROVED":
-    case "TNC_ACCEPTED":
-    case "SSM_APPROVED":
-    case "KYC_APPROVED":
-    case "KYB_APPROVED":
-    case "FINAL_APPROVAL_COMPLETED":
-    case "USER_COMPLETED":
-      return "bg-emerald-500";
-    case "ONBOARDING_CANCELLED":
-    case "ONBOARDING_RESET":
-      return "bg-muted-foreground";
-    case "ONBOARDING_REJECTED":
-      return "bg-destructive";
-    case "SOPHISTICATED_STATUS_UPDATED":
-      return "bg-violet-500";
-    case "ONBOARDING_STATUS_UPDATED":
-      return "bg-amber-500";
-    default:
-      return "bg-muted-foreground";
-  }
+function formatTrigger(trigger: string): string {
+  return trigger
+    .split("_")
+    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
+    .join(" ");
 }
 
-/**
- * Builds a human-readable description from event metadata.
- */
 function buildEventDescription(
   eventType: string,
   metadata: Record<string, unknown> | null
@@ -137,8 +84,7 @@ function buildEventDescription(
 
   switch (eventType) {
     case "ONBOARDING_STATUS_UPDATED":
-      if (metadata.trigger)
-        return `Triggered by ${formatTrigger(String(metadata.trigger))}`;
+      if (metadata.trigger) return `Triggered by ${formatTrigger(String(metadata.trigger))}`;
       return null;
     case "ONBOARDING_REJECTED":
       return metadata.reason
@@ -156,9 +102,7 @@ function buildEventDescription(
       return `${action}${reason}`;
     }
     case "FORM_FILLED":
-      return metadata.section
-        ? `Section: ${String(metadata.section)}`
-        : null;
+      return metadata.section ? `Section: ${String(metadata.section)}` : null;
     case "PROFILE_UPDATED": {
       const fields = Array.isArray(metadata.updatedFields)
         ? metadata.updatedFields.filter((field): field is string => typeof field === "string")
@@ -168,95 +112,33 @@ function buildEventDescription(
     case "AML_APPROVED":
     case "KYB_APPROVED":
     case "KYC_APPROVED":
-      if (metadata.isCorporateOnboarding)
-        return "Corporate onboarding";
+      if (metadata.isCorporateOnboarding) return "Corporate onboarding";
       return null;
     default:
       return null;
   }
 }
 
-function formatTrigger(trigger: string): string {
-  return trigger
-    .split("_")
-    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
-    .join(" ");
+function organizationActorLabel(log: OnboardingLogResponse): string {
+  const userName = [log.user?.first_name, log.user?.last_name].filter(Boolean).join(" ").trim();
+  return userName || log.user?.email?.trim() || log.organizationName?.trim() || "System";
 }
 
-/**
- * Extracts structured metadata details to render as key-value pairs.
- */
-function extractMetadataDetails(
-  eventType: string,
-  metadata: Record<string, unknown> | null
-): { label: string; value: string }[] {
-  if (!metadata) return [];
-
-  const details: { label: string; value: string }[] = [];
-
-  // Status transition
-  if (metadata.previousStatus && metadata.newStatus) {
-    details.push({
-      label: "Transition",
-      value: `${String(metadata.previousStatus)} → ${String(metadata.newStatus)}`,
-    });
-  } else if (metadata.newStatus) {
-    details.push({ label: "Status", value: String(metadata.newStatus) });
-  }
-
-  // Risk info
-  if (metadata.riskLevel) {
-    details.push({ label: "Risk", value: String(metadata.riskLevel) });
-  }
-  if (metadata.riskScore) {
-    details.push({ label: "Score", value: String(metadata.riskScore) });
-  }
-
-  // Actor — prefer resolved name, fall back to shortened ID
-  if (metadata.approvedBy) {
-    details.push({ label: "Approved by", value: String(metadata.approvedByName || shortenId(String(metadata.approvedBy))) });
-  }
-  if (metadata.cancelledBy) {
-    details.push({ label: "Cancelled by", value: String(metadata.cancelledByName || shortenId(String(metadata.cancelledBy))) });
-  }
-  if (metadata.updatedBy) {
-    details.push({ label: "Updated by", value: String(metadata.updatedByName || shortenId(String(metadata.updatedBy))) });
-  }
-  if (metadata.resetBy) {
-    details.push({ label: "Reset by", value: String(metadata.resetByName || shortenId(String(metadata.resetBy))) });
-  }
-
-  // Portal/org type
-  if (metadata.portalType && eventType !== "ONBOARDING_STATUS_UPDATED") {
-    details.push({ label: "Portal", value: String(metadata.portalType) });
-  }
-  if (metadata.organizationType) {
-    details.push({ label: "Type", value: String(metadata.organizationType) });
-  }
-
-  return details;
-}
-
-function shortenId(id: string): string {
-  if (id.length <= 12) return id;
-  return `${id.slice(0, 6)}...${id.slice(-4)}`;
-}
-
-function TimelineSkeleton() {
-  return (
-    <div className="space-y-6">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="flex gap-3">
-          <Skeleton className="h-3 w-3 rounded-full shrink-0 mt-1.5" />
-          <div className="flex-1 space-y-2">
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-3 w-32" />
-            <Skeleton className="h-3 w-20" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+function organizationLogToActivityCsvRow(log: OnboardingLogResponse): AdminActivityCsvRow {
+  return {
+    createdAt: log.created_at,
+    event: getEventLabel(log.event_type),
+    eventType: log.event_type,
+    actor: organizationActorLabel(log),
+    actorUserId: log.user_id,
+    portal: log.portal ?? "",
+    remark: "",
+    metadata: mergeActivityCsvMetadata(log.metadata, {
+      organizationName: log.organizationName,
+      ip_address: log.ip_address,
+      device_type: log.device_type,
+    }),
+  };
 }
 
 function OrganizationActivityTimelineList({
@@ -265,125 +147,66 @@ function OrganizationActivityTimelineList({
   fetchNextPage,
   isFetchingNextPage,
 }: {
-  logs: Array<{
-    id: string;
-    event_type: string;
-    organizationName?: string | null;
-    metadata: Record<string, unknown> | null;
-    portal: string | null;
-    device_type: string | null;
-    ip_address: string | null;
-    created_at: string;
-  }>;
+  logs: OnboardingLogResponse[];
   hasNextPage: boolean | undefined;
   fetchNextPage: () => void;
   isFetchingNextPage: boolean;
 }) {
   return (
-    <>
-      <div className="relative">
-        <div className="absolute left-[5px] top-2 bottom-2 w-px bg-border" />
-        <div className="space-y-5">
-          {logs.map((log, index) => {
-            const eventType = log.event_type;
-            const isFirst = index === 0;
-            const actorName = log.organizationName || "System";
-            const metadata = log.metadata;
-            const description = buildEventDescription(eventType, metadata);
-            const details = extractMetadataDetails(eventType, metadata);
-
-            return (
-              <div key={log.id} className="relative flex gap-3 pl-0">
-                <div
-                  className={`relative z-10 mt-1.5 h-[11px] w-[11px] shrink-0 rounded-full border-2 border-card ${getEventDotColor(eventType)} ${isFirst ? "ring-2 ring-primary/20" : ""}`}
-                />
-                <div className="flex-1 min-w-0 -mt-0.5">
-                  <div className="flex items-center gap-1.5">
-                    {getEventIcon(eventType)}
-                    <span className="text-sm font-medium leading-tight">
-                      {getEventLabel(eventType)}
-                    </span>
-                  </div>
-                  {description && (
-                    <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                      {description}
-                    </p>
-                  )}
-                  {details.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {details.map((d, i) => (
-                        <Badge
-                          key={i}
-                          variant="outline"
-                          className="text-[10px] h-5 px-1.5 font-normal"
-                        >
-                          <span className="text-muted-foreground mr-0.5">{d.label}:</span>
-                          {d.value}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 mt-1 text-[11px] text-muted-foreground/70">
-                    <span className="inline-flex items-center gap-0.5">
-                      <UserIcon className="h-3 w-3" />
-                      {actorName}
-                    </span>
-                    {log.portal && (
-                      <span className="inline-flex items-center gap-0.5">
-                        <GlobeAltIcon className="h-3 w-3" />
-                        {log.portal}
-                      </span>
-                    )}
-                    {log.device_type && (
-                      <span className="inline-flex items-center gap-0.5">
-                        <ComputerDesktopIcon className="h-3 w-3" />
-                        {log.device_type}
-                      </span>
-                    )}
-                  </div>
-                  {log.ip_address && (
-                    <p className="text-[10px] text-muted-foreground/50 font-mono mt-0.5">
-                      {log.ip_address}
-                    </p>
-                  )}
-                  <p
-                    className="text-[11px] text-muted-foreground/70 mt-1"
-                    title={format(new Date(log.created_at), "PPpp")}
-                  >
-                    {formatDistanceToNow(new Date(log.created_at), { addSuffix: true })}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      {hasNextPage && (
-        <div className="mt-4 flex justify-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => fetchNextPage()}
-            disabled={isFetchingNextPage}
-            className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-          >
-            {isFetchingNextPage ? (
-              <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <ChevronDownIcon className="h-3.5 w-3.5" />
-            )}
-            {isFetchingNextPage ? "Loading..." : "Load more"}
-          </Button>
-        </div>
-      )}
-    </>
+    <AdminVerticalTimeline
+      footer={
+        hasNextPage ? (
+          <div className="mt-4 flex justify-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => fetchNextPage()}
+              disabled={isFetchingNextPage}
+              className="gap-1.5 text-ui text-muted-foreground hover:text-foreground"
+            >
+              {isFetchingNextPage ? (
+                <ArrowPathIcon className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <ChevronDownIcon className="h-3.5 w-3.5" />
+              )}
+              {isFetchingNextPage ? "Loading..." : "Load more"}
+            </Button>
+          </div>
+        ) : null
+      }
+    >
+      {logs.map((log) => {
+        const eventType = log.event_type;
+        const metadata = log.metadata;
+        return (
+          <AdminVerticalTimelineItem
+            key={log.id}
+            title={getEventLabel(eventType)}
+            description={buildEventDescription(eventType, metadata)}
+            descriptionClassName="line-clamp-2"
+            createdAt={log.created_at}
+            actorLabel={organizationActorLabel(log)}
+            portal={log.portal}
+            bylineChips={extractOrganizationTimelineBylineChips(metadata)}
+            compactDetails={extractOrganizationTimelineCompactDetails(eventType, metadata)}
+          />
+        );
+      })}
+    </AdminVerticalTimeline>
   );
 }
 
 export function OrganizationActivityTimeline({
   organizationId,
   variant = "sidebar",
+  title = "Activity Timeline",
+  description,
 }: OrganizationActivityTimelineProps) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(
+    process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000",
+    getAccessToken
+  );
   const {
     data,
     isLoading,
@@ -399,45 +222,67 @@ export function OrganizationActivityTimeline({
   );
 
   const totalCount = data?.pages[0]?.pagination.totalCount ?? 0;
-
   const isPanel = variant === "panel";
 
-  return (
-    <Card className={isPanel ? "rounded-2xl" : "rounded-2xl flex flex-col h-full overflow-hidden"}>
-      <CardHeader className="pb-3 shrink-0">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-semibold">Activity Timeline</CardTitle>
-          {totalCount > 0 && (
-            <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
-              {totalCount}
-            </Badge>
-          )}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Organization events and status changes
-        </p>
-      </CardHeader>
+  const loadCsvRows = React.useCallback(async (): Promise<AdminActivityCsvRow[]> => {
+    if (!organizationId) return logs.map(organizationLogToActivityCsvRow);
+    if (logs.length >= totalCount) return logs.map(organizationLogToActivityCsvRow);
 
-      <CardContent className={isPanel ? "pt-0 px-0" : "flex-1 overflow-hidden pt-0 px-0"}>
+    const all: OnboardingLogResponse[] = [];
+    let page = 1;
+    while (true) {
+      const response = await apiClient.getOnboardingLogs({
+        page,
+        pageSize: 100,
+        organizationId,
+        eventTypes: ORGANIZATION_ACTIVITY_EVENT_TYPES,
+      });
+      if (!response.success) throw new Error(response.error.message);
+      all.push(...response.data.logs);
+      if (all.length >= response.data.pagination.totalCount) break;
+      page += 1;
+    }
+    return all.map(organizationLogToActivityCsvRow);
+  }, [apiClient, logs, organizationId, totalCount]);
+
+  return (
+    <Card className={isPanel ? "rounded-2xl" : "flex h-full flex-col overflow-hidden rounded-2xl"}>
+      <AdminDetailCardHeader
+        icon={ClockIcon}
+        title={title}
+        description={
+          description ??
+          (totalCount === 0
+            ? "No activity logs yet"
+            : `${totalCount} ${totalCount === 1 ? "event" : "events"}`)
+        }
+        actions={
+          <AdminActivityCsvExportButton
+            fileName={`organization-${organizationId ?? "activity"}-activity.csv`}
+            rows={loadCsvRows}
+            disabled={totalCount === 0}
+          />
+        }
+      />
+
+      <CardContent className={isPanel ? "px-0 pt-0" : "flex-1 overflow-hidden px-0 pt-0"}>
         {isLoading && (
           <div className="px-6 pb-4">
-            <TimelineSkeleton />
+            <AdminVerticalTimelineSkeleton />
           </div>
         )}
 
         {error && (
-          <div className="px-6 pb-4 text-sm text-destructive">
-            Failed to load activity logs
-          </div>
+          <div className="px-6 pb-4 text-ui text-destructive">Failed to load activity logs</div>
         )}
 
         {!isLoading && !error && logs.length === 0 && (
-          <div className="px-6 pb-4 text-sm text-muted-foreground text-center py-8">
+          <div className="px-6 py-8 pb-4 text-center text-ui text-muted-foreground">
             No activity logs found
           </div>
         )}
 
-        {!isLoading && logs.length > 0 && (
+        {!isLoading && !error && logs.length > 0 && (
           <div className={isPanel ? undefined : "h-full overflow-hidden"}>
             {isPanel ? (
               <div className="px-6 pb-4">

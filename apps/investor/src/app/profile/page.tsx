@@ -51,6 +51,13 @@ import {
 } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
 import {
+  isProfileTab,
+  profileTabFromSearchParam,
+  PROFILE_PATH,
+  PROFILE_TAB_PROFILE,
+  type ProfileTab,
+} from "@/app/profile/profile-tabs";
+import {
   UserIcon,
   BuildingOffice2Icon,
   ShieldCheckIcon,
@@ -358,6 +365,8 @@ export default function ProfilePage() {
 
   const { isAuthenticated } = useAuth();
   const { getAccessToken } = useAuthToken();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const {
     activeOrganization,
     isLoading,
@@ -375,7 +384,9 @@ export default function ProfilePage() {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   const [isRefreshing, setIsRefreshing] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState("profile");
+  const [activeTab, setActiveTab] = React.useState<ProfileTab>(() =>
+    profileTabFromSearchParam(searchParams.get("tab"))
+  );
   const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
 
   // Editing states
@@ -551,10 +562,24 @@ export default function ProfilePage() {
     staleTime: 1000 * 60 * 5,
   });
 
-  const searchParams = useSearchParams();
+  const urlTab = profileTabFromSearchParam(searchParams.get("tab"));
   const focusDirectors = searchParams.get("focus") === "directors";
   const focusedPersonKey = searchParams.get("person");
   const directorsSectionRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    setActiveTab(urlTab);
+  }, [urlTab]);
+
+  function handleTabChange(next: string) {
+    if (!isProfileTab(next)) return;
+    setActiveTab(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === PROFILE_TAB_PROFILE) params.delete("tab");
+    else params.set("tab", next);
+    const query = params.toString();
+    router.replace(query ? `${PROFILE_PATH}?${query}` : PROFILE_PATH, { scroll: false });
+  }
 
   React.useEffect(() => {
     if (!focusDirectors) return;
@@ -839,7 +864,7 @@ export default function ProfilePage() {
           ) : null}
 
           {/* Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <TabsList className="grid w-full grid-cols-3 h-12 rounded-xl bg-muted p-1">
               <TabsTrigger value="profile" className="rounded-lg data-[state=active]:bg-background">
                 Profile

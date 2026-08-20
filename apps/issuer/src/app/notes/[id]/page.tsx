@@ -55,6 +55,7 @@ import {
   REPAYMENT_RECEIPT_SOURCE_ORDER,
 } from "@/notes/lib/repayment-capacity";
 import {
+  formatNoteInvestorCount,
   isSoukscoreRiskRating,
   mapNoteSettlementToPoolSummary,
   NotePaymentSource,
@@ -64,6 +65,13 @@ import {
   type NoteDetail,
   type NoteSettlementPoolSummary,
 } from "@cashsouk/types";
+import { MarketplaceCampaignFacts } from "@/components/financing/marketplace-campaign-facts";
+import {
+  buildIssuerMarketplaceCampaign,
+  issuerCampaignCloseLabel,
+  issuerCampaignDaysLeftLabel,
+} from "@/components/financing/marketplace-campaign";
+import { formatDate } from "@/components/financing/utils";
 import { issuerFieldChromeClassName } from "@/lib/issuer-input-chrome";
 import {
   issuerContentMaxWidthClassName,
@@ -460,7 +468,7 @@ export default function IssuerNoteDetailPage() {
           {error instanceof Error ? error.message : "Note not found"}
         </div>
         <Button asChild variant="outline" className="mt-4 rounded-xl">
-          <Link href="/financing?tab=notes">Back to Financing</Link>
+          <Link href="/financing?tab=invoices">Back to Financing</Link>
         </Button>
       </div>
     );
@@ -504,6 +512,11 @@ export default function IssuerNoteDetailPage() {
         : "Posted settlement allocation below.";
   const riskRating = getRiskRating(note);
   const riskRatingForBadge = riskRating === "—" ? null : riskRating;
+  const campaign = buildIssuerMarketplaceCampaign(note);
+  const campaignCloseLabel = issuerCampaignCloseLabel(
+    formatDate(campaign.closesAt),
+    issuerCampaignDaysLeftLabel(campaign.daysLeft, campaign.raising)
+  );
 
   const invoiceSnapshotRecord = asRecord(note.invoiceSnapshot);
   const invoiceDetailsRecord = asRecord(invoiceSnapshotRecord?.details);
@@ -548,17 +561,17 @@ export default function IssuerNoteDetailPage() {
           breadcrumb={
             <nav className="flex flex-wrap items-center gap-1.5">
               <Link
-                href="/financing?tab=notes"
+                href="/financing?tab=invoices"
                 className="hover:text-foreground hover:underline"
               >
                 Financing
               </Link>
               <span aria-hidden>›</span>
               <Link
-                href="/financing?tab=notes"
+                href="/financing?tab=invoices"
                 className="hover:text-foreground hover:underline"
               >
-                Notes
+                Invoices
               </Link>
               <span aria-hidden>›</span>
               <span className="text-foreground">
@@ -653,15 +666,41 @@ export default function IssuerNoteDetailPage() {
               </div>
             </div>
             <div>
-              <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
-                <span>Funding progress</span>
-                <span>{fundingRatio.toFixed(1)}%</span>
-              </div>
-              <Progress value={fundingProgress} className={`h-3 ${progressClassName}`} />
-              <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-                <span>0%</span>
-                <span>{note.fundingStatus.replace(/_/g, " ")}</span>
-                <span>100%</span>
+              {campaign.raising ? (
+                <MarketplaceCampaignFacts note={note} variant="detail" />
+              ) : (
+                <>
+                  <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+                    <span>Funding progress</span>
+                    <span>{fundingRatio.toFixed(1)}%</span>
+                  </div>
+                  <Progress value={fundingProgress} className={`h-3 ${progressClassName}`} />
+                  <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                    <span>0%</span>
+                    <span>{note.fundingStatus.replace(/_/g, " ")}</span>
+                    <span>100%</span>
+                  </div>
+                </>
+              )}
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                <div>
+                  <div className="text-xs text-muted-foreground">Campaign closes</div>
+                  <div className="mt-1 text-ui font-medium text-foreground">
+                    {campaign.closesAt ? campaignCloseLabel : "—"}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Min to succeed</div>
+                  <div className="mt-1 text-ui font-medium text-foreground">
+                    {campaign.minimumPercent}%
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Investors</div>
+                  <div className="mt-1 text-ui font-medium text-foreground">
+                    {formatNoteInvestorCount(note.investorCount)}
+                  </div>
+                </div>
               </div>
             </div>
           </CardContent>

@@ -1,3 +1,3 @@
 "use client";
 
-export { MarketplacePage as default } from "@/app/investments/page";
+export { MarketplacePage as default } from "@/marketplace/marketplace-page";

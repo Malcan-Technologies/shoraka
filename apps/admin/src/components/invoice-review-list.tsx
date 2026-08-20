@@ -116,6 +116,8 @@ interface InvoiceReviewListProps {
   isSendInvoiceOfferPending?: boolean;
   /** Opens signed offer document using the same document view-url flow. */
   onViewSignedInvoiceOffer?: (invoiceId: string) => void | Promise<void>;
+  /** Remaining revolving capacity (approved − live utilized). Pending does not reduce this. */
+  remainingAvailableFacility?: number;
 }
 
 interface InvoiceDetails {
@@ -183,6 +185,7 @@ export function InvoiceList({
   onSendInvoiceOffer,
   isSendInvoiceOfferPending,
   onViewSignedInvoiceOffer,
+  remainingAvailableFacility,
 }: InvoiceReviewListProps) {
   const [expandedById, setExpandedById] = React.useState<Record<string, boolean>>({});
   const { data: signingEnvelopes = [] } = useAdminSigningEnvelopes(applicationId ?? "");
@@ -1168,6 +1171,14 @@ export function InvoiceList({
                     labelClassName="text-sm font-medium text-muted-foreground"
                     valueClassName="text-ui font-medium"
                   />
+                ) : null}
+                {remainingAvailableFacility != null &&
+                invoiceOfferConfirm.offeredAmount > remainingAvailableFacility ? (
+                  <p className="rounded-xl border border-border bg-muted/20 px-3 py-2 text-ui text-foreground">
+                    This offer ({formatCurrency(invoiceOfferConfirm.offeredAmount)}) exceeds remaining
+                    available facility ({formatCurrency(remainingAvailableFacility)}). You can still
+                    send it.
+                  </p>
                 ) : null}
               </div>
               <DialogFooter className="gap-2 sm:gap-0">

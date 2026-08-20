@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import type { AdminOrganizationAddressInput } from "@cashsouk/types";
 
 export function DetailRow({
@@ -40,18 +41,18 @@ export function DetailRow({
   );
 }
 
-export function CopyableField({
-  label,
+export function CopyableText({
   value,
-  icon: Icon,
+  label,
+  truncate = false,
+  className,
 }: {
+  value: string;
   label: string;
-  value: string | null;
-  icon?: React.ComponentType<{ className?: string }>;
+  truncate?: boolean;
+  className?: string;
 }) {
   const [copied, setCopied] = React.useState(false);
-
-  if (!value) return null;
 
   const handleCopy = async () => {
     try {
@@ -65,6 +66,39 @@ export function CopyableField({
   };
 
   return (
+    <button
+      type="button"
+      onClick={() => void handleCopy()}
+      className={cn(
+        "group inline-flex max-w-full items-center gap-1.5 rounded-sm text-left transition-colors",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+        className
+      )}
+      title={`Copy ${label.toLowerCase()}`}
+      aria-label={`Copy ${label.toLowerCase()}`}
+    >
+      <span className={cn("min-w-0", truncate ? "truncate" : "break-words")}>{value}</span>
+      {copied ? (
+        <ClipboardDocumentCheckIcon className="h-3.5 w-3.5 shrink-0 text-status-success-text" />
+      ) : (
+        <ClipboardIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
+      )}
+    </button>
+  );
+}
+
+export function CopyableField({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: string | null;
+  icon?: React.ComponentType<{ className?: string }>;
+}) {
+  if (!value) return null;
+
+  return (
     <div className="flex items-start gap-3 py-2">
       {Icon ? (
         <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center text-muted-foreground">
@@ -73,19 +107,11 @@ export function CopyableField({
       ) : null}
       <div className="min-w-0 flex-1">
         <div className="text-meta text-muted-foreground">{label}</div>
-        <button
-          type="button"
-          onClick={() => void handleCopy()}
-          className="group mt-0.5 inline-flex cursor-pointer items-center gap-1.5 rounded border bg-background px-2 py-1 text-ui font-medium transition-colors hover:bg-muted"
-          title="Click to copy"
-        >
-          <span className="break-words text-left">{value}</span>
-          {copied ? (
-            <ClipboardDocumentCheckIcon className="h-3.5 w-3.5 shrink-0 text-status-success-text" />
-          ) : (
-            <ClipboardIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
-          )}
-        </button>
+        <CopyableText
+          value={value}
+          label={label}
+          className="mt-0.5 cursor-pointer rounded border bg-background px-2 py-1 text-ui font-medium hover:bg-muted"
+        />
       </div>
     </div>
   );
@@ -113,12 +139,16 @@ export function EditableField({
   onChange,
   multiline = false,
   id,
+  maxLength,
+  inputClassName,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   multiline?: boolean;
   id?: string;
+  maxLength?: number;
+  inputClassName?: string;
 }) {
   const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   return (
@@ -129,16 +159,18 @@ export function EditableField({
       {multiline ? (
         <Textarea
           id={fieldId}
-          className="text-ui"
+          className={cn("text-ui", inputClassName)}
           value={value}
+          maxLength={maxLength}
           onChange={(event) => onChange(event.target.value)}
           rows={3}
         />
       ) : (
         <Input
           id={fieldId}
-          className="text-ui"
+          className={cn("text-ui", inputClassName)}
           value={value}
+          maxLength={maxLength}
           onChange={(event) => onChange(event.target.value)}
         />
       )}

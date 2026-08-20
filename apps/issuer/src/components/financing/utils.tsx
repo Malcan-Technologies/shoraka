@@ -1,4 +1,6 @@
 import React from "react";
+import { UserGroupIcon } from "@heroicons/react/24/outline";
+import { formatNoteInvestorCommitment } from "@cashsouk/types";
 import { StatusBadge, formatMoneyDisplay } from "@cashsouk/ui";
 import {
   getIssuerFinancingStatusPresentation,
@@ -55,6 +57,23 @@ export function formatDate(value: unknown) {
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const yyyy = d.getFullYear();
   return `${dd}/${mm}/${yyyy}`;
+}
+
+export function InvestorCommitmentLine({
+  fundedAmount,
+  investorCount,
+}: {
+  fundedAmount: unknown;
+  investorCount: number;
+}) {
+  return (
+    <p className="flex items-start gap-2 text-ui text-foreground">
+      <UserGroupIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+      <span>
+        {formatNoteInvestorCommitment(formatMoney(fundedAmount), investorCount)}
+      </span>
+    </p>
+  );
 }
 
 export function LabelValue({

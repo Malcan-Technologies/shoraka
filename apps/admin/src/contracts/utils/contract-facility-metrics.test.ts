@@ -1,9 +1,19 @@
+jest.mock("@cashsouk/config", () => ({
+  formatCurrency: (amount: number) =>
+    `RM ${amount.toLocaleString("en-MY", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`,
+}));
+
 import {
   formatContractFacilityNoteCount,
   getContractUtilizationAccentClass,
   getContractUtilizationProgressClass,
   parseFacilityAmount,
+  resolveContractFacilityFeeCollected,
   resolveContractFacilityMetrics,
+  sumPendingInvoiceFacility,
 } from "./contract-facility-metrics";
 
 describe("parseFacilityAmount", () => {
@@ -36,12 +46,14 @@ describe("resolveContractFacilityMetrics", () => {
   it("derives available facility and utilization from the contract JSON", () => {
     const metrics = resolveContractFacilityMetrics({
       approvedFacility: 1000000,
+      status: "APPROVED",
       contractDetails: { utilized_facility: "250,000" },
     });
 
     expect(metrics).toEqual({
       approved: 1000000,
       utilized: 250000,
+      pending: 0,
       available: 750000,
       utilizationPercent: 25,
     });
@@ -50,6 +62,7 @@ describe("resolveContractFacilityMetrics", () => {
   it("treats missing utilization as nothing drawn", () => {
     const metrics = resolveContractFacilityMetrics({
       approvedFacility: 500000,
+      status: "APPROVED",
       contractDetails: null,
     });
 
@@ -58,19 +71,54 @@ describe("resolveContractFacilityMetrics", () => {
     expect(metrics.utilizationPercent).toBe(0);
   });
 
-  it("never reports negative availability when the facility is over-utilized", () => {
+  it("reports negative availability when the facility is overdrawn", () => {
     const metrics = resolveContractFacilityMetrics({
       approvedFacility: 100000,
-      contractDetails: { utilized_facility: 130000 },
+      status: "APPROVED",
+      contractDetails: { utilized_facility: 130000, available_facility: -30000 },
     });
 
-    expect(metrics.available).toBe(0);
+    expect(metrics.available).toBe(-30000);
     expect(metrics.utilizationPercent).toBe(130);
+  });
+
+  it("reads pending occupancy from the contract JSON", () => {
+    const metrics = resolveContractFacilityMetrics({
+      approvedFacility: 100000,
+      status: "APPROVED",
+      contractDetails: { utilized_facility: 0, pending_facility: 46172 },
+    });
+    expect(metrics.pending).toBe(46172);
+    expect(metrics.available).toBe(100000);
+  });
+
+  it("reads approved_facility from JSON when the payload number is missing or zero", () => {
+    const metrics = resolveContractFacilityMetrics({
+      approvedFacility: 0,
+      status: "APPROVED",
+      contractDetails: { approved_facility: "100,000", utilized_facility: "20,000" },
+    });
+    expect(metrics.approved).toBe(100000);
+    expect(metrics.utilized).toBe(20000);
+    expect(metrics.available).toBe(80000);
+    expect(metrics.utilizationPercent).toBe(20);
+  });
+
+  it("does not revive a stored approved line after the offer is retracted", () => {
+    const metrics = resolveContractFacilityMetrics({
+      approvedFacility: 0,
+      status: "SUBMITTED",
+      contractDetails: { approved_facility: 100000, utilized_facility: 0 },
+    });
+    expect(metrics.approved).toBe(0);
+    expect(metrics.available).toBe(0);
+    expect(metrics.utilizationPercent).toBeNull();
   });
 
   it("omits utilization percent when there is no approved facility", () => {
     const metrics = resolveContractFacilityMetrics({
       approvedFacility: 0,
+      status: "APPROVED",
       contractDetails: { utilized_facility: 0 },
     });
 
@@ -98,9 +146,47 @@ describe("getContractUtilizationAccentClass", () => {
 });
 
 describe("formatContractFacilityNoteCount", () => {
-  it("describes how many notes have drawn on the facility", () => {
-    expect(formatContractFacilityNoteCount(0)).toBe("No notes have used this line of credit");
-    expect(formatContractFacilityNoteCount(1)).toBe("1 note has used this line of credit");
-    expect(formatContractFacilityNoteCount(4)).toBe("4 notes have used this line of credit");
+  it("describes how many drawdowns have used the facility", () => {
+    expect(formatContractFacilityNoteCount(0)).toBe("No drawdowns have used this line of credit");
+    expect(formatContractFacilityNoteCount(1)).toBe("1 drawdown has used this line of credit");
+    expect(formatContractFacilityNoteCount(4)).toBe("4 drawdowns have used this line of credit");
+  });
+});
+
+describe("sumPendingInvoiceFacility", () => {
+  it("includes pre-approval amendment invoices in display-only pending", () => {
+    expect(
+      sumPendingInvoiceFacility([
+        { status: "SUBMITTED", offer_details: { offered_amount: 10_000 } },
+        { status: "AMENDMENT_REQUESTED", offer_details: { offered_amount: 20_000 } },
+        { status: "APPROVED", offer_details: { offered_amount: 30_000 } },
+      ])
+    ).toBe(30_000);
+  });
+});
+
+describe("resolveContractFacilityFeeCollected", () => {
+  it("formats paid versus the rate cap on the approved line", () => {
+    expect(
+      resolveContractFacilityFeeCollected({
+        approved: 100_000,
+        facilityFeeRatePercent: 1,
+        facilityFeePaidAmount: 1000,
+      })
+    ).toEqual({
+      paid: 1000,
+      cap: 1000,
+      display: "RM 1,000.00 / RM 1,000.00 cap",
+    });
+  });
+
+  it("returns null when the rate or paid amount is missing", () => {
+    expect(
+      resolveContractFacilityFeeCollected({
+        approved: 100_000,
+        facilityFeeRatePercent: 1,
+        facilityFeePaidAmount: null,
+      })
+    ).toBeNull();
   });
 });

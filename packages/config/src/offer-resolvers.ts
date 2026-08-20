@@ -16,34 +16,40 @@ const REQUESTED_AMOUNT_KEYS = ["applied_financing", "financing_amount"] as const
 
 // --- Contract ---
 
+function parsePositiveAmount(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value > 0 ? value : null;
+  }
+  if (typeof value === "string") {
+    const cleaned = value.replace(/[^0-9.-]/g, "");
+    if (cleaned === "" || cleaned === "-" || cleaned === ".") return null;
+    const n = Number(cleaned);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  return null;
+}
+
 export function resolveRequestedFacility(cd: DetailsLike): number {
   if (!cd || typeof cd !== "object") return 0;
   for (const key of REQUESTED_FACILITY_KEYS) {
-    const v = cd[key];
-    if (typeof v === "number" && Number.isFinite(v) && v > 0) return v;
+    const parsed = parsePositiveAmount(cd[key]);
+    if (parsed != null) return parsed;
   }
   return 0;
 }
 
-/** Approved facility: non-zero only when APPROVED and set from accepted offer. */
+/** Approved facility: non-zero when APPROVED, or in amendment after the issuer already accepted. */
 export function resolveApprovedFacility(
   contractStatus: string,
   cd: DetailsLike
 ): number {
-  if (
-    contractStatus === "APPROVED" &&
-    typeof cd?.approved_facility === "number" &&
-    (cd.approved_facility as number) > 0
-  ) {
-    return cd.approved_facility as number;
-  }
-  return 0;
+  if (contractStatus !== "APPROVED" && contractStatus !== "AMENDMENT_REQUESTED") return 0;
+  return parsePositiveAmount(cd?.approved_facility) ?? 0;
 }
 
 export function resolveOfferedFacility(offer: DetailsLike): number {
   if (!offer || typeof offer !== "object") return 0;
-  const v = offer.offered_facility;
-  return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0;
+  return parsePositiveAmount(offer.offered_facility) ?? 0;
 }
 
 // --- Invoice ---
@@ -51,21 +57,11 @@ export function resolveOfferedFacility(offer: DetailsLike): number {
 export function resolveRequestedInvoiceAmount(details: DetailsLike): number | null {
   if (!details || typeof details !== "object") return null;
   for (const key of REQUESTED_AMOUNT_KEYS) {
-    const v = details[key];
-    if (typeof v === "number" && Number.isFinite(v) && v >= 0) return v;
+    const parsed = parsePositiveAmount(details[key]);
+    if (parsed != null) return parsed;
   }
-  const value =
-    typeof details.value === "number"
-      ? details.value
-      : typeof details.invoice_value === "number"
-        ? details.invoice_value
-        : null;
-  const ratio =
-    typeof details.financing_ratio_percent === "number"
-      ? details.financing_ratio_percent
-      : typeof details.financing_ratio_percent === "string"
-        ? Number(details.financing_ratio_percent)
-        : null;
+  const value = parsePositiveAmount(details.value) ?? parsePositiveAmount(details.invoice_value);
+  const ratio = parsePositiveAmount(details.financing_ratio_percent);
   if (value != null && Number.isFinite(value) && ratio != null && Number.isFinite(ratio)) {
     return Math.round((value * ratio) / 100);
   }
@@ -74,8 +70,7 @@ export function resolveRequestedInvoiceAmount(details: DetailsLike): number | nu
 
 export function resolveOfferedAmount(offer: DetailsLike): number {
   if (!offer || typeof offer !== "object") return 0;
-  const v = offer.offered_amount;
-  return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0;
+  return parsePositiveAmount(offer.offered_amount) ?? 0;
 }
 
 export function resolveOfferedProfitRate(offer: DetailsLike): number | null {

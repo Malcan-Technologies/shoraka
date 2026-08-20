@@ -32,6 +32,7 @@ export interface InvoiceSectionProps {
     contractFacility: number;
     availableFacility: number;
     utilizedFacility: number;
+    pendingFacility?: number;
   };
   reviewItems: { item_type: string; item_id: string; status: string }[];
   isReviewable: boolean;
@@ -235,6 +236,7 @@ export function InvoiceSection({
           contractFacility={contractFacility.contractFacility}
           availableFacility={contractFacility.availableFacility}
           utilizedFacility={contractFacility.utilizedFacility}
+          pendingFacility={contractFacility.pendingFacility}
         />
       )}
       {invoices?.length ? (
@@ -260,6 +262,7 @@ export function InvoiceSection({
           onSendInvoiceOffer={onSendInvoiceOffer}
           isSendInvoiceOfferPending={isSendInvoiceOfferPending}
           onViewSignedInvoiceOffer={onViewSignedInvoiceOffer}
+          remainingAvailableFacility={contractFacility?.availableFacility}
         />
       ) : (
         <p className={reviewEmptyStateClass}>No invoices submitted.</p>

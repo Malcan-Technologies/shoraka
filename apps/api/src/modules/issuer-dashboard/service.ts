@@ -8,6 +8,7 @@ import {
   ApplicationStatus,
   WithdrawalType,
 } from "@prisma/client";
+import { countNoteInvestors } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
 import { OrganizationRepository } from "../organization/repository";
@@ -16,6 +17,10 @@ import {
   decimalToNumber,
   sixMonthsAgoFrom,
 } from "./track-record-aggregates";
+import {
+  computeContractFacilitySnapshot,
+  toFacilityNoteOccupancy,
+} from "../../lib/contract-facility";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -50,6 +55,7 @@ export type IssuerDashboardNoteDto = {
   fundingDeadline: string | null;
   maturityDate: string | null;
   marketplaceStatusLabel: string | null;
+  investorCount: number;
   disbursementBreakdown: {
     grossFundedAmount: string | null;
     platformFeeAmount: string | null;
@@ -93,6 +99,8 @@ export type IssuerDashboardContractDto = {
   approvedFacilityAmount: string | null;
   utilizedFacilityAmount: string | null;
   availableFacilityAmount: string | null;
+  pendingFacilityAmount: string | null;
+  repaidFacilityAmount: string | null;
   facilityFeeCapAmount: string | null;
   facilityFeePaidAmount: string | null;
   facilityFeeRemainingAmount: string | null;
@@ -165,7 +173,8 @@ function mapNoteToDto(
     maturity_date: Date | null;
     listing: { status: string; closes_at: Date | null } | null;
   },
-  disbursementBreakdown?: IssuerDashboardNoteDto["disbursementBreakdown"]
+  disbursementBreakdown?: IssuerDashboardNoteDto["disbursementBreakdown"],
+  investorCount = 0
 ): IssuerDashboardNoteDto {
   const progress = fundingProgressPercent(note.funded_amount, note.target_amount);
   const listingCloses = note.listing?.closes_at ?? null;
@@ -198,6 +207,7 @@ function mapNoteToDto(
     fundingDeadline,
     maturityDate,
     marketplaceStatusLabel,
+    investorCount,
     disbursementBreakdown: disbursementBreakdown ?? null,
   };
 }
@@ -246,6 +256,37 @@ export class IssuerDashboardService {
       where: { issuer_organization_id: organizationId },
       include: { listing: true },
     });
+
+    const noteInvestments =
+      notes.length === 0
+        ? []
+        : await prisma.noteInvestment.findMany({
+            where: { note_id: { in: notes.map((note) => note.id) } },
+            select: {
+              note_id: true,
+              investor_organization_id: true,
+              status: true,
+            },
+          });
+    const investmentsByNoteId = new Map<
+      string,
+      Array<{ investorOrganizationId: string; status: string }>
+    >();
+    for (const investment of noteInvestments) {
+      const list = investmentsByNoteId.get(investment.note_id) ?? [];
+      list.push({
+        investorOrganizationId: investment.investor_organization_id,
+        status: investment.status,
+      });
+      investmentsByNoteId.set(investment.note_id, list);
+    }
+    const investorCountByNoteId = new Map<string, number>();
+    for (const note of notes) {
+      investorCountByNoteId.set(
+        note.id,
+        countNoteInvestors(investmentsByNoteId.get(note.id) ?? [])
+      );
+    }
 
     const disbursementWithdrawals = await prisma.withdrawalInstruction.findMany({
       where: {
@@ -345,16 +386,6 @@ export class IssuerDashboardService {
 
       const details = asRecord(c.contract_details);
       const customer = asRecord(c.customer_details);
-      // Facility amounts should come directly from contract_details.
-      // Treat null/undefined/empty-string as missing (null in DTO) so UI can show "—".
-      const approvedRaw = details?.approved_facility;
-      const approvedNum =
-        approvedRaw !== undefined &&
-        approvedRaw !== null &&
-        String(approvedRaw).trim() !== ""
-          ? decimalToNumber(approvedRaw)
-          : null;
-
       const contractNotes = notesByContractId.get(c.id) ?? [];
 
       const mergedInvoicesById = new Map<string, ApplicationWithRelations["invoices"][number]>();
@@ -364,6 +395,26 @@ export class IssuerDashboardService {
         }
       }
       const contractInvoices = Array.from(mergedInvoicesById.values());
+
+      const occupancy = computeContractFacilitySnapshot(
+        c.status,
+        details,
+        contractInvoices.map((inv) => ({
+          status: inv.status,
+          details: asRecord(inv.details),
+          offer_details: asRecord(inv.offer_details),
+          note: toFacilityNoteOccupancy(notesByInvoiceId.get(inv.id) ?? null),
+        }))
+      );
+
+      const approvedNum = occupancy.approvedFacility > 0 ? occupancy.approvedFacility : null;
+      const utilizedFacilityAmount = occupancy.approvedFacility > 0 ? occupancy.utilizedFacility : null;
+      const availableFacilityAmount =
+        occupancy.approvedFacility > 0 ? occupancy.availableFacility.toFixed(2) : null;
+      const pendingFacilityAmount =
+        occupancy.pendingFacility > 0 ? occupancy.pendingFacility.toFixed(2) : null;
+      const repaidFacilityAmount =
+        occupancy.repaidFacility > 0 ? occupancy.repaidFacility.toFixed(2) : null;
 
       const actionRequiredApplicationIds = [
         ...new Set(
@@ -395,25 +446,6 @@ export class IssuerDashboardService {
         // "Unfinanced" means the approved invoice has no linked Note yet.
         return !notesByInvoiceId.has(i.id);
       }).length;
-
-      const utilizedRaw = details?.utilized_facility;
-      const utilizedNum =
-        utilizedRaw !== undefined &&
-        utilizedRaw !== null &&
-        String(utilizedRaw).trim() !== ""
-          ? decimalToNumber(utilizedRaw)
-          : null;
-      const utilizedFacilityAmount = utilizedNum;
-
-      const availableRaw = details?.available_facility;
-      const availableNum =
-        availableRaw !== undefined &&
-        availableRaw !== null &&
-        String(availableRaw).trim() !== ""
-          ? decimalToNumber(availableRaw)
-          : null;
-      const availableFacilityAmount: string | null =
-        availableNum !== null ? availableNum.toFixed(2) : null;
 
       const facilityFeeRateRaw = details?.facility_fee_rate_percent;
       const facilityFeeRateNum =
@@ -457,6 +489,8 @@ export class IssuerDashboardService {
         utilizedFacilityAmount:
           utilizedFacilityAmount !== null ? utilizedFacilityAmount.toFixed(2) : null,
         availableFacilityAmount,
+        pendingFacilityAmount,
+        repaidFacilityAmount,
         facilityFeeCapAmount: facilityFeeApplies ? facilityFeeCapNum.toFixed(2) : null,
         facilityFeePaidAmount: facilityFeeApplies ? facilityFeePaidNum.toFixed(2) : null,
         facilityFeeRemainingAmount: facilityFeeApplies ? facilityFeeRemainingNum.toFixed(2) : null,
@@ -520,7 +554,13 @@ export class IssuerDashboardService {
           invoiceValue: invVal !== null ? invVal.toFixed(2) : null,
           financingAmount,
           submissionDate: inv.created_at.toISOString(),
-          note: invNote ? mapNoteToDto(invNote, disbursementByNoteId.get(invNote.id)) : null,
+          note: invNote
+            ? mapNoteToDto(
+                invNote,
+                disbursementByNoteId.get(invNote.id),
+                investorCountByNoteId.get(invNote.id) ?? 0
+              )
+            : null,
           actionRequiredApplicationIds:
             app.status === ApplicationStatus.AMENDMENT_REQUESTED ? [app.id] : [],
         });

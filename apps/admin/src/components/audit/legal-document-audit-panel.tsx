@@ -2,9 +2,13 @@
 
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  ListToolbar,
+  ListToolbarFilterTrigger,
+  type FilterChip,
+} from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -14,12 +18,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sheet,
   SheetContent,
@@ -41,11 +46,8 @@ import {
 } from "@cashsouk/types";
 import {
   ArrowDownTrayIcon,
-  ArrowPathIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  MagnifyingGlassIcon,
-  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 
@@ -193,6 +195,36 @@ export function LegalDocumentAuditPanel() {
     Boolean(dateFrom) ||
     Boolean(dateTo);
 
+  const appliedFilters: FilterChip[] = [];
+  if (actionFilter !== "all") {
+    appliedFilters.push({
+      id: "action",
+      label: `Action: ${actionLabel(actionFilter)}`,
+      onRemove: () => setActionFilter("all"),
+    });
+  }
+  if (documentTypeFilter !== "all") {
+    appliedFilters.push({
+      id: "type",
+      label: `Type: ${LEGAL_DOCUMENT_TYPE_LABELS[documentTypeFilter as LegalDocumentType] ?? documentTypeFilter}`,
+      onRemove: () => setDocumentTypeFilter("all"),
+    });
+  }
+  if (dateFrom) {
+    appliedFilters.push({
+      id: "date-from",
+      label: `From: ${dateFrom}`,
+      onRemove: () => setDateFrom(""),
+    });
+  }
+  if (dateTo) {
+    appliedFilters.push({
+      id: "date-to",
+      label: `To: ${dateTo}`,
+      onRemove: () => setDateTo(""),
+    });
+  }
+
   const clearFilters = () => {
     setSearchQuery("");
     setActionFilter("all");
@@ -241,45 +273,59 @@ export function LegalDocumentAuditPanel() {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative min-w-[200px] flex-1">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search by actor, document, or action..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="h-11 rounded-xl bg-card pl-9"
-          />
-        </div>
+      <ListToolbar
+        searchValue={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchPlaceholder="Search by actor, document, or action..."
+        appliedFilters={appliedFilters}
+        onClearFilters={hasActiveFilters ? clearFilters : undefined}
+        onReload={handleReload}
+        isLoading={isLoading}
+        countLabel={`${totalCount} ${totalCount === 1 ? "record" : "records"}`}
+        filterGroups={
+          <>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <ListToolbarFilterTrigger label="Action" count={actionFilter !== "all" ? 1 : 0} />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Action</DropdownMenuLabel>
+                <DropdownMenuRadioGroup value={actionFilter} onValueChange={setActionFilter}>
+                  <DropdownMenuRadioItem value="all">All actions</DropdownMenuRadioItem>
+                  {ACTION_OPTIONS.map((option) => (
+                    <DropdownMenuRadioItem key={option.value} value={option.value}>
+                      {option.label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
-        <Select value={actionFilter} onValueChange={setActionFilter}>
-          <SelectTrigger className="h-11 w-[200px] rounded-xl bg-card">
-            <SelectValue placeholder="Action" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All actions</SelectItem>
-            {ACTION_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={documentTypeFilter} onValueChange={setDocumentTypeFilter}>
-          <SelectTrigger className="h-11 w-[200px] rounded-xl bg-card">
-            <SelectValue placeholder="Document type" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All document types</SelectItem>
-            {LEGAL_TYPES.map((type) => (
-              <SelectItem key={type.value} value={type.value}>
-                {type.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <ListToolbarFilterTrigger
+                  label="Type"
+                  count={documentTypeFilter !== "all" ? 1 : 0}
+                />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Document type</DropdownMenuLabel>
+                <DropdownMenuRadioGroup
+                  value={documentTypeFilter}
+                  onValueChange={setDocumentTypeFilter}
+                >
+                  <DropdownMenuRadioItem value="all">All document types</DropdownMenuRadioItem>
+                  {LEGAL_TYPES.map((type) => (
+                    <DropdownMenuRadioItem key={type.value} value={type.value}>
+                      {type.label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        }
+      >
         <Input
           type="date"
           value={dateFrom}
@@ -294,24 +340,6 @@ export function LegalDocumentAuditPanel() {
           className="h-11 w-[160px] rounded-xl bg-card"
           aria-label="Date to"
         />
-
-        {hasActiveFilters ? (
-          <Button variant="ghost" onClick={clearFilters} className="h-11 gap-2 rounded-xl">
-            <XMarkIcon className="h-4 w-4" />
-            Clear
-          </Button>
-        ) : null}
-
-        <Button
-          variant="outline"
-          onClick={handleReload}
-          disabled={isLoading}
-          className="h-11 gap-2 rounded-xl bg-card"
-        >
-          <ArrowPathIcon className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-          Reload
-        </Button>
-
         <Button
           variant="outline"
           onClick={() => void handleExport()}
@@ -321,14 +349,7 @@ export function LegalDocumentAuditPanel() {
           <ArrowDownTrayIcon className="h-4 w-4" />
           {exporting ? "Exporting..." : "Export CSV"}
         </Button>
-
-        <Badge
-          variant="secondary"
-          className="rounded-xl px-3 py-1 text-[13px] font-medium leading-5"
-        >
-          {totalCount} {totalCount === 1 ? "record" : "records"}
-        </Badge>
-      </div>
+      </ListToolbar>
 
       {error ? (
         <div className="py-8 text-center text-destructive">

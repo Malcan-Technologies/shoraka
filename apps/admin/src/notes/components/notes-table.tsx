@@ -102,19 +102,19 @@ export function NotesTable({
   return (
     <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
       <div className="w-full overflow-x-auto">
-        <Table className="w-full table-fixed">
+        <Table className="w-full min-w-[80rem] table-fixed">
           <colgroup>
             <col className="w-[8%]" />
-            <col className="w-[12%]" />
+            <col className="w-[11%]" />
             <col className="w-[6%]" />
-            <col className="w-[10%]" />
-            <col className="w-[8%]" />
-            <col className="w-[10%]" />
-            <col className="w-[8%]" />
-            <col className="w-[10%]" />
-            <col className="w-[12%]" />
             <col className="w-[9%]" />
-            <col className="w-[7%]" />
+            <col className="w-[8%]" />
+            <col className="w-[9%]" />
+            <col className="w-[8%]" />
+            <col className="w-[9%]" />
+            <col className="w-[10%]" />
+            <col className="w-[8%]" />
+            <col className="w-[14%]" />
           </colgroup>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -149,7 +149,7 @@ export function NotesTable({
                 direction={sortDirection}
                 onSort={onSort}
               />
-              <TableHead className="truncate">Actions</TableHead>
+              <TableHead className="whitespace-nowrap">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>

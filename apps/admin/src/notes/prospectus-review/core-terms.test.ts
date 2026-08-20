@@ -45,6 +45,7 @@ function sampleNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     featuredFrom: null,
     featuredUntil: null,
     featuredActive: false,
+    investorCount: 0,
     maturityDate: "2026-12-31T00:00:00.000Z",
     listingClosesAt: "2026-08-01T00:00:00.000Z",
     activatedAt: null,

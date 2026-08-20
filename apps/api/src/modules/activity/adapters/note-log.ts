@@ -89,6 +89,10 @@ export class NoteLogAdapter implements AuditLogAdapter<NoteActivityRecord> {
       user_agent: record.user_agent,
       created_at: record.created_at,
       source_table: "note_events",
+      references: {
+        noteId: record.note.id,
+        noteReference: record.note.note_reference,
+      },
     };
   }
 

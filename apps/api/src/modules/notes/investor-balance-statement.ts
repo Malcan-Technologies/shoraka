@@ -1,5 +1,11 @@
 import PDFDocument from "pdfkit";
-import { formatNoteReferenceDisplay, roundNoteMoney } from "@cashsouk/types";
+import {
+  formatNoteReferenceDisplay,
+  investorActivityStatusDetail,
+  investorActivityTitle,
+  roundNoteMoney,
+  type InvestorBalanceActivityRelated,
+} from "@cashsouk/types";
 
 export interface InvestorBalanceStatementRow {
   postedAt: string;
@@ -34,6 +40,7 @@ export interface StatementLedgerEntry {
   noteId: string | null;
   metadata: Record<string, unknown> | null;
   postedAt: Date;
+  related?: InvestorBalanceActivityRelated | null;
 }
 
 const STATEMENT_TIMEZONE_OFFSET = "+08:00";
@@ -51,13 +58,8 @@ function formatEnumLabel(value: string) {
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function mapSourceToType(source: string, metadata: Record<string, unknown> | null): string {
-  if (source === "MANUAL_TOPUP") return "Deposit";
-  if (source === "NOTE_INVESTMENT_COMMIT") return "Investment";
-  if (source === "NOTE_INVESTMENT_RELEASE") {
-    return metadata?.releaseReason === "SETTLEMENT_PAYOUT" ? "Returns" : "Release";
-  }
-  return formatEnumLabel(source);
+function mapSourceToType(entry: StatementLedgerEntry): string {
+  return investorActivityTitle(entry.source, asRecord(entry.metadata), entry.related ?? null);
 }
 
 function buildDescription(
@@ -65,6 +67,7 @@ function buildDescription(
   noteReferenceById: Map<string, string>
 ): string {
   if (entry.source === "MANUAL_TOPUP") return "Wallet top-up";
+  if (entry.source === "GATEWAY_DEPOSIT") return "Online payment";
 
   const noteReference = entry.noteId ? noteReferenceById.get(entry.noteId) : undefined;
   const noteLabel = noteReference ? formatNoteReferenceDisplay(noteReference) : entry.noteId ? "Note" : "";
@@ -76,7 +79,11 @@ function buildDescription(
   if (entry.source === "NOTE_INVESTMENT_RELEASE") {
     const meta = asRecord(entry.metadata);
     const prefix = meta?.releaseReason === "SETTLEMENT_PAYOUT" ? "Repayment · " : "";
-    return `${prefix}${noteLabel || "Release"}`.trim();
+    return `${prefix}${noteLabel || "Investment returned"}`.trim();
+  }
+
+  if (entry.source === "INVESTOR_WITHDRAWAL_REQUEST") {
+    return investorActivityStatusDetail(entry.source, entry.related ?? null) ?? "Withdrawal request";
   }
 
   return noteLabel || formatEnumLabel(entry.source);
@@ -135,7 +142,7 @@ export function buildInvestorBalanceStatement(input: {
     runningBalance = applyLedgerDelta(runningBalance, entry.direction, entry.amount);
     return {
       postedAt: entry.postedAt.toISOString(),
-      type: mapSourceToType(entry.source, asRecord(entry.metadata)),
+      type: mapSourceToType(entry),
       description: buildDescription(entry, input.noteReferenceById),
       moneyIn: entry.direction === "IN" ? entry.amount : null,
       moneyOut: entry.direction === "OUT" ? entry.amount : null,
