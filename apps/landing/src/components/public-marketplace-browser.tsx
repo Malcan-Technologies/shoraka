@@ -2,16 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { ChevronLeftIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import {
-  ArrowPathIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  FunnelIcon,
-  MagnifyingGlassIcon,
-  XMarkIcon,
-} from "@heroicons/react/24/outline";
-import {
-  Badge,
   Button,
   DropdownMenu,
   DropdownMenuContent,
@@ -19,7 +11,9 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
-  Input,
+  ListToolbar,
+  ListToolbarFilterTrigger,
+  type FilterChip,
 } from "@cashsouk/ui";
 import {
   SOUKSCORE_RISK_RATING_GRADES,
@@ -323,6 +317,49 @@ export function PublicMarketplaceBrowser({
     profitFilter !== "all" ||
     tenorFilter !== "all";
 
+  const appliedFilters = useMemo((): FilterChip[] => {
+    const chips: FilterChip[] = [];
+    if (industryFilter !== "all") {
+      chips.push({
+        id: "industry",
+        label: `Industry: ${industryFilter}`,
+        onRemove: () => handleIndustryChange("all"),
+      });
+    }
+    if (riskFilter !== "all") {
+      chips.push({
+        id: "risk",
+        label: `Risk: ${riskFilter}`,
+        onRemove: () => handleRiskChange("all"),
+      });
+    }
+    if (profitFilter !== "all") {
+      const labels: Record<string, string> = {
+        low: "Below 14%",
+        mid: "14% - 15%",
+        high: "Above 15%",
+      };
+      chips.push({
+        id: "profit",
+        label: `Profit: ${labels[profitFilter] ?? profitFilter}`,
+        onRemove: () => handleProfitChange("all"),
+      });
+    }
+    if (tenorFilter !== "all") {
+      const labels: Record<string, string> = {
+        short: "Up to 30 days",
+        medium: "31 - 45 days",
+        long: "46+ days",
+      };
+      chips.push({
+        id: "tenor",
+        label: `Tenor: ${labels[tenorFilter] ?? tenorFilter}`,
+        onRemove: () => handleTenorChange("all"),
+      });
+    }
+    return chips;
+  }, [industryFilter, profitFilter, riskFilter, tenorFilter]);
+
   return (
     <div className="space-y-8 md:space-y-10">
       {featuredNotes.length > 0 ? (
@@ -343,30 +380,28 @@ export function PublicMarketplaceBrowser({
 
       {filteredNotes.length > 0 || hasActiveFilters ? (
         <section className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative min-w-[200px] flex-1">
-              <MagnifyingGlassIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by notes, industry, or reference"
-                className="h-11 rounded-xl pl-9"
-              />
-            </div>
+          <ListToolbar
+            searchValue={search}
+            onSearchChange={(value) => {
+              setSearch(value);
+              setCurrentPage(1);
+            }}
+            searchPlaceholder="Search by notes, industry, or reference"
+            appliedFilters={appliedFilters}
+            onClearFilters={hasActiveFilters ? handleClearFilters : undefined}
+            onReload={handleReload}
+            isLoading={isRefreshPending}
+            countLabel={`${filteredListingsCount} ${
+              filteredListingsCount === 1 ? "listing" : "listings"
+            }${hasActiveFilters ? ` of ${nonFeaturedMarketplaceCount}` : ""}`}
+            filterGroups={
+              <>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-11 gap-2 rounded-xl">
-                  <FunnelIcon className="h-4 w-4" />
-                  Industry
-                  {industryFilter !== "all" ? (
-                    <Badge
-                      variant="secondary"
-                      className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary p-0 text-xs text-primary-foreground"
-                    >
-                      1
-                    </Badge>
-                  ) : null}
-                </Button>
+                <ListToolbarFilterTrigger
+                  label="Industry"
+                  count={industryFilter !== "all" ? 1 : 0}
+                />
               </DropdownMenuTrigger>
               <DropdownMenuContent
                 align="end"
@@ -386,18 +421,10 @@ export function PublicMarketplaceBrowser({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-11 gap-2 rounded-xl">
-                  <FunnelIcon className="h-4 w-4" />
-                  Risk score
-                  {riskFilter !== "all" ? (
-                    <Badge
-                      variant="secondary"
-                      className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary p-0 text-xs text-primary-foreground"
-                    >
-                      1
-                    </Badge>
-                  ) : null}
-                </Button>
+                <ListToolbarFilterTrigger
+                  label="Risk score"
+                  count={riskFilter !== "all" ? 1 : 0}
+                />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuLabel>Risk score</DropdownMenuLabel>
@@ -414,18 +441,10 @@ export function PublicMarketplaceBrowser({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-11 gap-2 rounded-xl">
-                  <FunnelIcon className="h-4 w-4" />
-                  Profit
-                  {profitFilter !== "all" ? (
-                    <Badge
-                      variant="secondary"
-                      className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary p-0 text-xs text-primary-foreground"
-                    >
-                      1
-                    </Badge>
-                  ) : null}
-                </Button>
+                <ListToolbarFilterTrigger
+                  label="Profit"
+                  count={profitFilter !== "all" ? 1 : 0}
+                />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-52">
                 <DropdownMenuLabel>Profit band</DropdownMenuLabel>
@@ -440,18 +459,10 @@ export function PublicMarketplaceBrowser({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-11 gap-2 rounded-xl">
-                  <FunnelIcon className="h-4 w-4" />
-                  Tenor
-                  {tenorFilter !== "all" ? (
-                    <Badge
-                      variant="secondary"
-                      className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary p-0 text-xs text-primary-foreground"
-                    >
-                      1
-                    </Badge>
-                  ) : null}
-                </Button>
+                <ListToolbarFilterTrigger
+                  label="Tenor"
+                  count={tenorFilter !== "all" ? 1 : 0}
+                />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>Tenor</DropdownMenuLabel>
@@ -463,34 +474,9 @@ export function PublicMarketplaceBrowser({
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>
             </DropdownMenu>
-
-            {hasActiveFilters ? (
-              <Button variant="ghost" onClick={handleClearFilters} className="h-11 gap-2 rounded-xl">
-                <XMarkIcon className="h-4 w-4" />
-                Clear
-              </Button>
-            ) : null}
-
-            <Button
-              variant="outline"
-              type="button"
-              onClick={handleReload}
-              disabled={isRefreshPending}
-              className="h-11 gap-2 rounded-xl"
-            >
-              <ArrowPathIcon className={`h-4 w-4 ${isRefreshPending ? "animate-spin" : ""}`} />
-              Reload
-            </Button>
-
-            <Badge
-              variant="secondary"
-              className="h-11 rounded-xl border-transparent bg-muted px-4 text-sm font-medium text-muted-foreground"
-            >
-              {filteredListingsCount}{" "}
-              {filteredListingsCount === 1 ? "listing" : "listings"}
-              {hasActiveFilters ? ` of ${nonFeaturedMarketplaceCount}` : null}
-            </Badge>
-          </div>
+              </>
+            }
+          />
 
           {visibleNotes.length > 0 ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 md:items-stretch">

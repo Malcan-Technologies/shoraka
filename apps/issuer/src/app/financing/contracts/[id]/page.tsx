@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { useOrganization } from "@cashsouk/config";
@@ -17,7 +17,10 @@ import {
   formatMoneyDisplay,
 } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIssuerDashboardContract } from "@/hooks/use-issuer-dashboard";
+import { useApplicationLogsMany } from "@/hooks/use-application-logs";
+import { useIssuerNotes } from "@/notes/hooks/use-issuer-notes";
 import {
   issuerContentMaxWidthClassName,
   issuerMainContentClassName,
@@ -31,6 +34,11 @@ import {
   shouldShowIssuerReviewOfferCta,
 } from "@/lib/offer-utils";
 import { DashboardInvoiceCard } from "@/components/financing/invoice-card";
+import { FacilityTransactionsPanel } from "@/components/financing/facility-transactions-panel";
+import {
+  buildFacilityTransactions,
+  uniqueFacilityApplicationIds,
+} from "@/components/financing/facility-transactions";
 import { FinancingInvoiceFilterToolbar } from "@/components/financing/filter-toolbars";
 import {
   DEFAULT_INVOICE_FINANCING_LIST_FILTERS,
@@ -44,8 +52,16 @@ import {
   formatDate,
 } from "@/components/financing/utils";
 import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
+import { financeInvoiceApplicationHref } from "@/lib/finance-invoice-application-href";
 import { formatContractReference } from "@cashsouk/types";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
+
+const FACILITY_TABS = ["invoices", "transactions"] as const;
+type FacilityDetailTab = (typeof FACILITY_TABS)[number];
+
+function isFacilityDetailTab(value: string | null): value is FacilityDetailTab {
+  return value === "invoices" || value === "transactions";
+}
 
 function contractBusinessNumber(contractForModal: unknown): string | null {
   const details = asContractForModal(contractForModal)?.contract_details as
@@ -60,11 +76,17 @@ function formatMoney(value: unknown) {
   return formatMoneyDisplay(value, EM_DASH);
 }
 
-export default function ContractDetailsPage() {
+function ContractDetailsPageContent() {
   const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const contractId = params.id as string;
   const { activeOrganization } = useOrganization();
   const orgId = activeOrganization?.id;
+  const tabFromUrl = searchParams.get("tab");
+  const [tab, setTab] = useState<FacilityDetailTab>(() =>
+    isFacilityDetailTab(tabFromUrl) ? tabFromUrl : "invoices"
+  );
   const [invoiceListFilters, setInvoiceListFilters] = useState<InvoiceFinancingListFiltersState>(
     DEFAULT_INVOICE_FINANCING_LIST_FILTERS
   );
@@ -74,13 +96,49 @@ export default function ContractDetailsPage() {
   }, [contractId]);
 
   const { data, isLoading, isError, error } = useIssuerDashboardContract(orgId, contractId);
+  const { data: notesData, isLoading: notesLoading } = useIssuerNotes();
 
   const row = data?.contract ?? null;
   const invoices = data?.invoices ?? [];
+  const applicationIds = useMemo(
+    () => (row ? uniqueFacilityApplicationIds(row, invoices) : []),
+    [row, invoices]
+  );
+  const { data: applicationLogs, isLoading: logsLoading } = useApplicationLogsMany(applicationIds);
+  const facilityNotes = useMemo(
+    () => (notesData?.notes ?? []).filter((note) => note.sourceContractId === contractId),
+    [notesData?.notes, contractId]
+  );
+  const transactions = useMemo(
+    () =>
+      row
+        ? buildFacilityTransactions({
+            contract: row,
+            invoices,
+            notes: facilityNotes,
+            logs: applicationLogs,
+          })
+        : [],
+    [row, invoices, facilityNotes, applicationLogs]
+  );
   const filteredInvoices = useMemo(
     () => filterInvoices(invoices, { ...invoiceListFilters, customer: "" }),
     [invoices, invoiceListFilters]
   );
+
+  const onTabChange = (value: string) => {
+    if (!isFacilityDetailTab(value)) return;
+    setTab(value);
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("tab", value);
+    const qs = next.toString();
+    router.replace(
+      qs
+        ? `/financing/contracts/${contractId}?${qs}`
+        : `/financing/contracts/${contractId}`,
+      { scroll: false }
+    );
+  };
 
   const approvedNum = row?.approvedFacilityAmount != null ? Number(row.approvedFacilityAmount) : null;
   const utilizedNum = row?.utilizedFacilityAmount != null ? Number(row.utilizedFacilityAmount) : null;
@@ -115,7 +173,7 @@ export default function ContractDetailsPage() {
         : EM_DASH;
 
   const productLabel =
-    row?.productName?.trim() ? displayCell(row.productName) : "Contract Financing";
+    row?.productName?.trim() ? displayCell(row.productName) : "Facility financing";
 
   const shellClass = cn(
     issuerMainContentClassName,
@@ -129,7 +187,7 @@ export default function ContractDetailsPage() {
       <div className={shellClass}>
         <EmptyState
           title="Select an organisation"
-          message="Choose an organisation to view this contract."
+          message="Choose an organisation to view this facility."
         />
       </div>
     );
@@ -147,7 +205,7 @@ export default function ContractDetailsPage() {
     return (
       <div className={shellClass}>
         <EmptyState
-          title="Could not load contract"
+          title="Could not load facility"
           message={error instanceof Error ? error.message : "Unknown error"}
           action={
             <Button asChild variant="outline" className="rounded-xl">
@@ -163,8 +221,8 @@ export default function ContractDetailsPage() {
     return (
       <div className={shellClass}>
         <EmptyState
-          title="Contract not found"
-          message="This contract is not available or you do not have access."
+          title="Facility not found"
+          message="This facility is not available or you do not have access."
           action={
             <Button asChild variant="outline" className="rounded-xl">
               <Link href="/financing?tab=contracts">Back to Financing</Link>
@@ -202,7 +260,7 @@ export default function ContractDetailsPage() {
               Financing
             </Link>
             <span aria-hidden>›</span>
-            <span className="text-foreground">Contract {displayCell(contractHeading)}</span>
+            <span className="text-foreground">Facility {displayCell(contractHeading)}</span>
           </nav>
         }
         title={displayCell(contractHeading)}
@@ -218,6 +276,11 @@ export default function ContractDetailsPage() {
         }
         actions={
           <>
+            {row.contractStatus === "APPROVED" ? (
+              <Button className="rounded-xl" asChild>
+                <Link href={financeInvoiceApplicationHref(contractId)}>Finance an invoice</Link>
+              </Button>
+            ) : null}
             {showReviewOffer ? (
               <div className="rounded-xl bg-status-action-bg p-0.5">
                 <Button className="rounded-xl" asChild>
@@ -316,7 +379,7 @@ export default function ContractDetailsPage() {
               <MetricBox label="Rejected" value={`${stats.rejected}`} />
               <MetricBox label="Unfinanced" value={`${stats.unfinanced}`} />
             </div>
-            <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-4 text-sm leading-6 md:text-[15px] md:leading-7">
+            <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-4 text-sm leading-6 md:text-ui md:leading-7">
               <p className="text-base font-semibold text-foreground">
                 Breakdown of approved invoices
               </p>
@@ -332,61 +395,108 @@ export default function ContractDetailsPage() {
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl">
-        <CardHeader className="space-y-3 sm:flex-row sm:items-start sm:justify-between sm:space-y-0 sm:gap-4">
-          <CardTitle className="text-xl sm:text-2xl">Related invoices</CardTitle>
-          <FinancingInvoiceFilterToolbar
-            rows={invoices}
-            value={invoiceListFilters}
-            onChange={setInvoiceListFilters}
-            onClear={() => setInvoiceListFilters({ ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS })}
-            hideCustomer
-          />
-        </CardHeader>
-        <CardContent>
-          {invoices.length === 0 ? (
-            <EmptyState
-              title="No invoices yet"
-              message="Invoices financed under this contract will appear here."
-            />
-          ) : filteredInvoices.length === 0 ? (
-            <EmptyState
-              variant="no-results"
-              title="No matching invoices"
-              message="Try clearing filters."
-              action={
-                <Button
-                  variant="outline"
-                  className="rounded-xl"
-                  onClick={() =>
-                    setInvoiceListFilters({ ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS })
+      <Tabs value={tab} onValueChange={onTabChange} className="w-full">
+        <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-xl p-1">
+          <TabsTrigger value="invoices" className="rounded-lg">
+            Related invoices
+          </TabsTrigger>
+          <TabsTrigger value="transactions" className="rounded-lg">
+            Transactions
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="invoices" className="mt-6">
+          <Card className="rounded-2xl">
+            <CardHeader className="space-y-3 sm:flex-row sm:items-start sm:justify-between sm:space-y-0 sm:gap-4">
+              <CardTitle className="text-xl sm:text-2xl">Related invoices</CardTitle>
+              <FinancingInvoiceFilterToolbar
+                rows={invoices}
+                value={invoiceListFilters}
+                onChange={setInvoiceListFilters}
+                onClear={() => setInvoiceListFilters({ ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS })}
+                hideCustomer
+              />
+            </CardHeader>
+            <CardContent>
+              {invoices.length === 0 ? (
+                <EmptyState
+                  title="No invoices yet"
+                  message="Invoices financed under this facility will appear here."
+                  action={
+                    row.contractStatus === "APPROVED" ? (
+                      <Button className="rounded-xl" asChild>
+                        <Link href={financeInvoiceApplicationHref(contractId)}>Finance an invoice</Link>
+                      </Button>
+                    ) : undefined
                   }
-                >
-                  Clear filters
-                </Button>
-              }
-            />
-          ) : (
-            <div className="space-y-4">
-              {filteredInvoices.map((inv) => (
-                <DashboardInvoiceCard
-                  key={inv.id}
-                  row={inv}
-                  offerStatus={getOfferStatus(asInvoiceForModal(inv.invoiceForModal))}
-                  contractFeeContext={{
-                    facilityFeeRatePercent: (
-                      modalContract.contract_details as Record<string, unknown> | null
-                    )?.facility_fee_rate_percent,
-                    facilityFeeCapAmount: row.facilityFeeCapAmount,
-                    facilityFeePaidAmount: row.facilityFeePaidAmount,
-                  }}
                 />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              ) : filteredInvoices.length === 0 ? (
+                <EmptyState
+                  variant="no-results"
+                  title="No matching invoices"
+                  message="Try clearing filters."
+                  action={
+                    <Button
+                      variant="outline"
+                      className="rounded-xl"
+                      onClick={() =>
+                        setInvoiceListFilters({ ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS })
+                      }
+                    >
+                      Clear filters
+                    </Button>
+                  }
+                />
+              ) : (
+                <div className="space-y-4">
+                  {filteredInvoices.map((inv) => (
+                    <DashboardInvoiceCard
+                      key={inv.id}
+                      row={inv}
+                      offerStatus={getOfferStatus(asInvoiceForModal(inv.invoiceForModal))}
+                      contractFeeContext={{
+                        facilityFeeRatePercent: (
+                          modalContract.contract_details as Record<string, unknown> | null
+                        )?.facility_fee_rate_percent,
+                        facilityFeeCapAmount: row.facilityFeeCapAmount,
+                        facilityFeePaidAmount: row.facilityFeePaidAmount,
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="transactions" className="mt-6">
+          <FacilityTransactionsPanel
+            rows={transactions}
+            isLoading={transactions.length === 0 && (notesLoading || logsLoading)}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
+  );
+}
+
+export default function ContractDetailsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          className={cn(
+            issuerMainContentClassName,
+            issuerPageGutterClassName,
+            issuerContentMaxWidthClassName
+          )}
+        >
+          <LoadingState variant="detail" />
+        </div>
+      }
+    >
+      <ContractDetailsPageContent />
+    </Suspense>
   );
 }
 

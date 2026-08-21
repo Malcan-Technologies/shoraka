@@ -13,7 +13,6 @@ import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
-  getFinalStatusBadgeClassName,
   isMissingGovernmentIdPerson,
   resolveDirectorShareholderCtosEmptyWarning,
   type ApplicationPersonRow,
@@ -22,7 +21,7 @@ import {
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/card";
 import { Button } from "../components/button";
-import { Badge } from "../components/badge";
+import { StatusBadge } from "../components/status-badge";
 import { OnboardingStepper } from "./onboarding-stepper";
 import { DirectorShareholderCtosEmptyAlert } from "../director-shareholder-ctos-empty-alert";
 import { DirectorShareholderUnresolvedIdentitySection } from "../director-shareholder-unresolved-identity-card";
@@ -211,13 +210,8 @@ export function OnboardingStatusCard({
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Status</span>
-              <Badge
-                variant="outline"
-                className={`border-transparent text-[11px] font-normal ${getFinalStatusBadgeClassName("warning")}`}
-              >
-                Pending Review
-              </Badge>
+              <span className="text-meta text-muted-foreground">Status</span>
+              <StatusBadge label="Pending Review" status="submitted" size="sm" />
             </div>
           </CardContent>
         </Card>

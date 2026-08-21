@@ -1,7 +1,7 @@
 "use client";
 
-import { Check } from "lucide-react";
-import { FunnelIcon } from "@heroicons/react/24/outline";
+import { CheckIcon } from "@heroicons/react/24/outline";
+import { ListToolbarFilterTrigger } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,7 +15,6 @@ import {
   resolveIssuerInvoiceDashboardBadge,
   type IssuerFinancingStatusKind,
 } from "@/lib/issuer-dashboard-labels";
-import { cn } from "@/lib/utils";
 import type { IssuerDashboardContract, IssuerDashboardInvoice } from "@/types/issuer-dashboard";
 import {
   CONTRACT_PERIOD_PRESETS,
@@ -31,6 +30,10 @@ import {
 
 export type FinancingProductOption = { id: string; name: string };
 
+function SelectedMark({ selected }: { selected: boolean }) {
+  return selected ? <CheckIcon className="h-4 w-4 shrink-0 text-foreground" /> : null;
+}
+
 function ProductFilterDropdown({
   productOptions,
   value,
@@ -41,31 +44,18 @@ function ProductFilterDropdown({
   onChange: (next: string) => void;
 }) {
   if (productOptions.length <= 1) return null;
-  const current = productOptions.find((p) => p.id === value);
-  const trigger = value === "" ? "Product" : `Product: ${current?.name ?? value}`;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className={cn(
-            "h-9 max-w-[14rem] gap-1.5 truncate bg-card px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
-            value !== "" && "border-primary/40 bg-muted/50"
-          )}
-        >
-          <FunnelIcon className="h-4 w-4 shrink-0" />
-          <span className="truncate">{trigger}</span>
-        </Button>
+        <ListToolbarFilterTrigger label="Product" count={value !== "" ? 1 : 0} />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56 max-h-[min(24rem,70vh)] overflow-y-auto">
+      <DropdownMenuContent align="end" className="w-56 max-h-[min(24rem,70vh)] overflow-y-auto">
         <DropdownMenuItem
           onClick={() => onChange("")}
           className="flex items-center justify-between gap-2"
         >
           All products
-          {value === "" ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+          <SelectedMark selected={value === ""} />
         </DropdownMenuItem>
         {productOptions.map((p) => (
           <DropdownMenuItem
@@ -74,11 +64,24 @@ function ProductFilterDropdown({
             className="flex items-center justify-between gap-2"
           >
             <span className="min-w-0 truncate">{p.name}</span>
-            {value === p.id ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+            <SelectedMark selected={value === p.id} />
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function ClearFiltersButton({ onClick }: { onClick: () => void }) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      className="h-11 rounded-xl px-3 text-muted-foreground"
+      onClick={onClick}
+    >
+      Clear
+    </Button>
   );
 }
 
@@ -88,12 +91,14 @@ export function FinancingContractFilterToolbar({
   onChange,
   onClear,
   productOptions,
+  showClearButton = true,
 }: {
   rows: IssuerDashboardContract[];
   value: ContractFinancingListFiltersState;
   onChange: (next: ContractFinancingListFiltersState) => void;
   onClear: () => void;
   productOptions?: FinancingProductOption[];
+  showClearButton?: boolean;
 }) {
   const kindsPresent = new Set<IssuerFinancingStatusKind>();
   for (const r of rows) {
@@ -107,38 +112,24 @@ export function FinancingContractFilterToolbar({
     if (t) customers.add(t);
   }
   const customerList = [...customers].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-
-  const statusTrigger =
-    value.statusKind === "all" ? "Status" : `Status: ${getIssuerFinancingStatusPresentation(value.statusKind).label}`;
-  const customerTrigger = value.customer === "" ? "Customer" : `Customer: ${value.customer}`;
-  const periodTrigger =
-    value.periodPreset === "all" ? "Period" : `Period: ${contractPeriodPresetLabel(value.periodPreset)}`;
   const active = contractFinancingFiltersActive(value);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className={cn(
-              "h-9 max-w-[11rem] gap-1.5 truncate bg-card px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
-              value.statusKind !== "all" && "border-primary/40 bg-muted/50"
-            )}
-          >
-            <FunnelIcon className="h-4 w-4 shrink-0" />
-            <span className="truncate">{statusTrigger}</span>
-          </Button>
+          <ListToolbarFilterTrigger
+            label="Status"
+            count={value.statusKind !== "all" ? 1 : 0}
+          />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-52">
+        <DropdownMenuContent align="end" className="w-52">
           <DropdownMenuItem
             onClick={() => onChange({ ...value, statusKind: "all" })}
             className="flex items-center justify-between gap-2"
           >
             All statuses
-            {value.statusKind === "all" ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+            <SelectedMark selected={value.statusKind === "all"} />
           </DropdownMenuItem>
           {statusOptions.map((kind) => {
             const p = getIssuerFinancingStatusPresentation(kind);
@@ -149,7 +140,7 @@ export function FinancingContractFilterToolbar({
                 className="flex items-center justify-between gap-2"
               >
                 <span>{p.label}</span>
-                {value.statusKind === kind ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+                <SelectedMark selected={value.statusKind === kind} />
               </DropdownMenuItem>
             );
           })}
@@ -158,20 +149,12 @@ export function FinancingContractFilterToolbar({
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className={cn(
-              "h-9 max-w-[14rem] gap-1.5 truncate bg-card px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
-              value.periodPreset !== "all" && "border-primary/40 bg-muted/50"
-            )}
-          >
-            <FunnelIcon className="h-4 w-4 shrink-0" />
-            <span className="truncate">{periodTrigger}</span>
-          </Button>
+          <ListToolbarFilterTrigger
+            label="Period"
+            count={value.periodPreset !== "all" ? 1 : 0}
+          />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
+        <DropdownMenuContent align="end" className="w-56">
           {CONTRACT_PERIOD_PRESETS.map((preset) => (
             <DropdownMenuItem
               key={preset}
@@ -179,7 +162,7 @@ export function FinancingContractFilterToolbar({
               className="flex items-center justify-between gap-2"
             >
               <span>{contractPeriodPresetLabel(preset)}</span>
-              {value.periodPreset === preset ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+              <SelectedMark selected={value.periodPreset === preset} />
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
@@ -187,26 +170,18 @@ export function FinancingContractFilterToolbar({
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className={cn(
-              "h-9 max-w-[12rem] gap-1.5 truncate bg-card px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
-              value.customer !== "" && "border-primary/40 bg-muted/50"
-            )}
-          >
-            <FunnelIcon className="h-4 w-4 shrink-0" />
-            <span className="truncate">{customerTrigger}</span>
-          </Button>
+          <ListToolbarFilterTrigger
+            label="Customer"
+            count={value.customer !== "" ? 1 : 0}
+          />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56 max-h-[min(24rem,70vh)] overflow-y-auto">
+        <DropdownMenuContent align="end" className="w-56 max-h-[min(24rem,70vh)] overflow-y-auto">
           <DropdownMenuItem
             onClick={() => onChange({ ...value, customer: "" })}
             className="flex items-center justify-between gap-2"
           >
             All customers
-            {value.customer === "" ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+            <SelectedMark selected={value.customer === ""} />
           </DropdownMenuItem>
           {customerList.map((name) => (
             <DropdownMenuItem
@@ -215,7 +190,7 @@ export function FinancingContractFilterToolbar({
               className="flex items-center justify-between gap-2"
             >
               <span className="min-w-0 truncate">{name}</span>
-              {value.customer === name ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+              <SelectedMark selected={value.customer === name} />
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
@@ -229,17 +204,7 @@ export function FinancingContractFilterToolbar({
         />
       ) : null}
 
-      {active ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-9 px-2 text-sm text-muted-foreground transition-none focus-visible:ring-0 focus-visible:ring-offset-0"
-          onClick={onClear}
-        >
-          Clear
-        </Button>
-      ) : null}
+      {active && showClearButton ? <ClearFiltersButton onClick={onClear} /> : null}
     </div>
   );
 }
@@ -251,14 +216,15 @@ export function FinancingInvoiceFilterToolbar({
   onClear,
   hideCustomer = false,
   productOptions,
+  showClearButton = true,
 }: {
   rows: IssuerDashboardInvoice[];
   value: InvoiceFinancingListFiltersState;
   onChange: (next: InvoiceFinancingListFiltersState) => void;
   onClear: () => void;
-  /** When true, omit Customer control (e.g. contract detail where customer is fixed). */
   hideCustomer?: boolean;
   productOptions?: FinancingProductOption[];
+  showClearButton?: boolean;
 }) {
   const kindsPresent = new Set<IssuerFinancingStatusKind>();
   for (const r of rows) {
@@ -274,14 +240,6 @@ export function FinancingInvoiceFilterToolbar({
     }
   }
   const customerList = [...customers].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-
-  const statusTrigger =
-    value.statusKind === "all" ? "Status" : `Status: ${getIssuerFinancingStatusPresentation(value.statusKind).label}`;
-  const customerTrigger = value.customer === "" ? "Customer" : `Customer: ${value.customer}`;
-  const submissionTrigger =
-    value.submissionPreset === "all"
-      ? "Submission date"
-      : `Submission date: ${invoiceSubmissionPresetLabel(value.submissionPreset)}`;
   const active = hideCustomer
     ? value.statusKind !== "all" || value.submissionPreset !== "all" || value.productId !== ""
     : invoiceFinancingFiltersActive(value);
@@ -290,26 +248,18 @@ export function FinancingInvoiceFilterToolbar({
     <div className="flex flex-wrap items-center gap-2">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className={cn(
-              "h-9 max-w-[11rem] gap-1.5 truncate bg-card px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
-              value.statusKind !== "all" && "border-primary/40 bg-muted/50"
-            )}
-          >
-            <FunnelIcon className="h-4 w-4 shrink-0" />
-            <span className="truncate">{statusTrigger}</span>
-          </Button>
+          <ListToolbarFilterTrigger
+            label="Status"
+            count={value.statusKind !== "all" ? 1 : 0}
+          />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-52">
+        <DropdownMenuContent align="end" className="w-52">
           <DropdownMenuItem
             onClick={() => onChange({ ...value, statusKind: "all" })}
             className="flex items-center justify-between gap-2"
           >
             All statuses
-            {value.statusKind === "all" ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+            <SelectedMark selected={value.statusKind === "all"} />
           </DropdownMenuItem>
           {statusOptions.map((kind) => {
             const p = getIssuerFinancingStatusPresentation(kind);
@@ -320,7 +270,7 @@ export function FinancingInvoiceFilterToolbar({
                 className="flex items-center justify-between gap-2"
               >
                 <span>{p.label}</span>
-                {value.statusKind === kind ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+                <SelectedMark selected={value.statusKind === kind} />
               </DropdownMenuItem>
             );
           })}
@@ -329,20 +279,12 @@ export function FinancingInvoiceFilterToolbar({
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className={cn(
-              "h-9 max-w-[14rem] gap-1.5 truncate bg-card px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
-              value.submissionPreset !== "all" && "border-primary/40 bg-muted/50"
-            )}
-          >
-            <FunnelIcon className="h-4 w-4 shrink-0" />
-            <span className="truncate">{submissionTrigger}</span>
-          </Button>
+          <ListToolbarFilterTrigger
+            label="Submitted in"
+            count={value.submissionPreset !== "all" ? 1 : 0}
+          />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
+        <DropdownMenuContent align="end" className="w-56">
           {INVOICE_SUBMISSION_PRESETS.map((preset) => (
             <DropdownMenuItem
               key={preset}
@@ -350,7 +292,7 @@ export function FinancingInvoiceFilterToolbar({
               className="flex items-center justify-between gap-2"
             >
               <span>{invoiceSubmissionPresetLabel(preset)}</span>
-              {value.submissionPreset === preset ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+              <SelectedMark selected={value.submissionPreset === preset} />
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
@@ -359,26 +301,18 @@ export function FinancingInvoiceFilterToolbar({
       {!hideCustomer ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-9 max-w-[12rem] gap-1.5 truncate bg-card px-3 text-sm font-medium transition-none focus-visible:ring-0 focus-visible:ring-offset-0",
-                value.customer !== "" && "border-primary/40 bg-muted/50"
-              )}
-            >
-              <FunnelIcon className="h-4 w-4 shrink-0" />
-              <span className="truncate">{customerTrigger}</span>
-            </Button>
+            <ListToolbarFilterTrigger
+              label="Customer"
+              count={value.customer !== "" ? 1 : 0}
+            />
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-56 max-h-[min(24rem,70vh)] overflow-y-auto">
+          <DropdownMenuContent align="end" className="w-56 max-h-[min(24rem,70vh)] overflow-y-auto">
             <DropdownMenuItem
               onClick={() => onChange({ ...value, customer: "" })}
               className="flex items-center justify-between gap-2"
             >
               All customers
-              {value.customer === "" ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+              <SelectedMark selected={value.customer === ""} />
             </DropdownMenuItem>
             {customerList.map((name) => (
               <DropdownMenuItem
@@ -387,7 +321,7 @@ export function FinancingInvoiceFilterToolbar({
                 className="flex items-center justify-between gap-2"
               >
                 <span className="min-w-0 truncate">{name}</span>
-                {value.customer === name ? <Check className="h-4 w-4 shrink-0 text-foreground" /> : null}
+                <SelectedMark selected={value.customer === name} />
               </DropdownMenuItem>
             ))}
           </DropdownMenuContent>
@@ -402,17 +336,7 @@ export function FinancingInvoiceFilterToolbar({
         />
       ) : null}
 
-      {active ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-9 px-2 text-sm text-muted-foreground transition-none focus-visible:ring-0 focus-visible:ring-offset-0"
-          onClick={onClear}
-        >
-          Clear
-        </Button>
-      ) : null}
+      {active && showClearButton ? <ClearFiltersButton onClick={onClear} /> : null}
     </div>
   );
 }

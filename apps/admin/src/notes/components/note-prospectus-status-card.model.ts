@@ -10,33 +10,33 @@ export type ProspectusStatusCardModel = {
   heading: string;
   description: string;
   badgeLabel: "Draft" | "Approved" | "Published";
-  primaryLabel: string;
-  secondaryLabel: string | null;
+  /** Opens the prospectus working area (`/notes/:id/prospectus`). */
+  workspaceLabel: string;
+  /** Frozen PDF exists after approval; opens in a new tab. */
+  viewAvailable: boolean;
   /** Red alert card while Prospectus still needs approval. */
   emphasize: boolean;
-  /**
-   * Extra workflow badge tone. Approved and Published use success (green).
-   * Draft stays null → original plain outline Badge.
-   */
-  badgeTone: WorkflowStatusTone | null;
+  /** Draft = grey; Approved and Published = green. */
+  badgeTone: WorkflowStatusTone;
   /** Primary (red) while action is required; outline when reviewing approved/published. */
   actionVariant: ProspectusStatusCardActionVariant;
 };
 
 /** Pure UI model for Admin Note Detail prospectus next-action card. */
 export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusCardModel {
-  const notePublished = note.status === "PUBLISHED" || Boolean(note.publishedAt);
+  const notePublished = note.status === "PUBLISHED";
   const workflow = note.prospectus?.status;
   const display = note.prospectus?.displayStatus;
 
-  if (notePublished || workflow === "PUBLISHED" || display === "Published") {
+  if (notePublished || display === "Published") {
     return {
       phase: "published",
       heading: "Published",
       description: "The Note and its approved prospectus are now visible to investors.",
       badgeLabel: "Published",
-      primaryLabel: "View Prospectus",
-      secondaryLabel: null,
+      // Working area is read-only after listing; Edit would be misleading.
+      workspaceLabel: "Open Review",
+      viewAvailable: true,
       emphasize: false,
       badgeTone: "success",
       actionVariant: "outline",
@@ -49,8 +49,8 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
       heading: "Ready to publish",
       description: "The prospectus is approved and this Note is eligible for publication.",
       badgeLabel: "Approved",
-      primaryLabel: "Review Prospectus",
-      secondaryLabel: null,
+      workspaceLabel: "Edit Prospectus",
+      viewAvailable: true,
       emphasize: false,
       badgeTone: "success",
       actionVariant: "outline",
@@ -63,10 +63,11 @@ export function resolveProspectusStatusCard(note: NoteDetail): ProspectusStatusC
     heading: "Prospectus approval required",
     description: "Review and approve the prospectus before publishing this Note to the marketplace.",
     badgeLabel: "Draft",
-    primaryLabel: "Review Prospectus",
-    secondaryLabel: null,
+    // Approval is the job; Edit undersells the gate.
+    workspaceLabel: "Review Prospectus",
+    viewAvailable: false,
     emphasize: true,
-    badgeTone: null,
+    badgeTone: "neutral",
     actionVariant: "default",
   };
 }

@@ -20,6 +20,7 @@ import {
   shouldShowIssuerReviewOfferCta,
   type OfferStatus,
 } from "@/lib/offer-utils";
+import { isFacilityAmendmentRequested } from "@/lib/issuer-contract-actionable";
 import { formatContractReference } from "@cashsouk/types";
 import { asContractForModal } from "@/types/issuer-dashboard";
 import { cn } from "@/lib/utils";
@@ -54,7 +55,8 @@ export function DashboardContractCard({
   const router = useRouter();
   const actionRequiredApplicationIds = row.actionRequiredApplicationIds ?? [];
   const actionRequiredCount = actionRequiredApplicationIds.length;
-  const showActionRequired = actionRequiredCount > 0;
+  const facilityNeedsAmendment = isFacilityAmendmentRequested(row.contractStatus);
+  const showActionRequired = facilityNeedsAmendment && actionRequiredCount > 0;
   const actionRequiredLabel =
     actionRequiredCount === 1 ? "Action required" : `Action required (${actionRequiredCount})`;
   const approvedNum = row.approvedFacilityAmount != null ? Number(row.approvedFacilityAmount) : null;
@@ -118,7 +120,7 @@ export function DashboardContractCard({
               </p>
               {row.title ? (
                 <p className="min-w-0 max-w-full truncate text-xs text-muted-foreground">
-                  Contract: {displayCell(row.title)}
+                  Facility: {displayCell(row.title)}
                 </p>
               ) : null}
               <IssuerFinancingStatusBadge kind={resolveIssuerContractDashboardBadge(row.contractStatus)} />
@@ -150,7 +152,7 @@ export function DashboardContractCard({
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="h-8 rounded-lg border-status-action-text/30 bg-status-action-bg px-3 text-xs font-medium text-status-action-text hover:bg-status-action-bg"
+                      className="border-status-action-text/30 bg-status-action-bg text-status-action-text hover:bg-status-action-bg"
                       onClick={() =>
                         router.push(
                           `/applications?applicationIds=${encodeURIComponent(
@@ -208,13 +210,18 @@ export function DashboardContractCard({
                 value={formatMoney(row.approvedFacilityAmount)}
               />
             </div>
+            {row.pendingFacilityAmount != null && Number(row.pendingFacilityAmount) > 0 ? (
+              <p className="text-ui leading-6 text-muted-foreground">
+                {formatMoney(row.pendingFacilityAmount)} pending — not occupying the line
+              </p>
+            ) : null}
 
             <div className="grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-2">
               <div className="min-w-0 space-y-2">
                 <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
                 <LabelValue label="Contract period">{contractPeriod}</LabelValue>
                 <LabelValue label="Active notes">{String(row.activeNotesCount)}</LabelValue>
-                <p className="text-[17px] leading-7 text-foreground">
+                <p className="text-ui leading-7 text-foreground">
                   <span className="font-normal text-muted-foreground">Invoices: </span>
                   <span className="font-medium tabular-nums text-foreground">{stats.total}</span>
                 </p>
@@ -234,7 +241,7 @@ export function DashboardContractCard({
                             <InformationCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />
                           </TooltipTrigger>
                           <TooltipContent className="max-w-[260px] whitespace-normal break-words bg-popover px-2 py-1.5 text-popover-foreground shadow-md">
-                            Shows the total facility fee collected so far for this contract.
+                            Shows the total facility fee collected so far for this facility.
                             Facility fee is deducted from each invoice financing disbursement until
                             the cap is reached.
                           </TooltipContent>

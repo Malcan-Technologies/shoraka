@@ -69,7 +69,7 @@ async function main() {
     },
   });
 
-  const invoiceInputs = generateInvoiceDetailsList(3);
+  const invoiceInputs = generateInvoiceDetailsList(1);
   for (const input of invoiceInputs) {
     await prisma.invoice.create({
       data: {

@@ -1,26 +1,43 @@
 import * as React from "react";
+import Link from "next/link";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import {
+  NoteStatusBadge,
   Progress,
   SoukscoreRiskRatingBadge,
-  NOTE_STATUS_BADGE_TONE_CLASS,
-  NoteStatusBadge,
+  StatusBadge,
+  getNoteDerivedStatusToken,
 } from "@cashsouk/ui";
-import type { EligibleNoteInvoice, NoteListItem, NoteSettlementPoolSummary } from "@cashsouk/types";
-import { formatInvoiceReference } from "@cashsouk/types";
+import type { EligibleNoteInvoice, NoteListItem } from "@cashsouk/types";
 import {
+  formatInvoiceReference,
   formatProspectusListBadge,
-  hasSettlementTrusteeMovementFromPoolSummary,
-  isSettlementWrappingUpFromSummary,
+  isNoteSettlementPosted,
+  resolveSettlementTrusteeRegistryState,
+  settlementTrusteeRegistryLabel,
+  settlementTrusteeRegistryNeedsAdminAction,
 } from "@cashsouk/types";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { formatNoteStatus } from "@/notes/utils/format-note-status";
+import {
+  getNoteFundingAccentClass,
+  getNoteFundingIndicatorClass,
+  getNoteFundingProgressClass,
+} from "@/notes/utils/funding-progress";
+import {
+  calendarDaysUntilMaturity,
+  formatMaturityCountdown,
+  isActiveNearMaturity,
+  isNoteInArrears,
+  maturityCountdownClass,
+} from "@/notes/utils/maturity-countdown";
+import { EyeIcon } from "@heroicons/react/24/outline";
+import { adminActionRowClass, adminRejectedRowClass } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
-import { CheckCircleIcon, EyeIcon } from "@heroicons/react/24/outline";
+import { resolveNoteFacilityLink } from "@/notes/utils/note-source-linkage";
 
 type NotesTableRowProps =
   | {
@@ -49,123 +66,129 @@ function formatDate(value: string | null) {
   return value ? format(new Date(value), "dd MMM yyyy") : "—";
 }
 
-function getFundingProgressClass(note: NoteListItem) {
-  if (note.status === "REPAID") {
-    return "bg-muted [&>div]:bg-emerald-500";
-  }
-  if (note.fundingStatus === "FUNDED" || note.fundingStatus === "FAILED") {
-    return "bg-muted [&>div]:bg-black";
-  }
-  return "[&>div]:bg-primary";
-}
-
-function getSettlementRegistryLabel(
-  summary: NoteSettlementPoolSummary
-): { label: string; toneClass: string } | null {
-  if (isSettlementWrappingUpFromSummary(summary)) {
-    return null;
-  }
-  return {
-    label: "Settled",
-    toneClass: NOTE_STATUS_BADGE_TONE_CLASS.success,
-  };
-}
-
-function SettlementRegistryCell({ note }: { note: NoteListItem }) {
-  const summary = note.settlementSummary;
-  if (!summary) {
-    return <span className="text-muted-foreground">-</span>;
-  }
-  const registryLabel = getSettlementRegistryLabel(summary);
+function MaturityCell({
+  maturityDate,
+  highlightCountdown = true,
+  settled = false,
+}: {
+  maturityDate: string | null;
+  highlightCountdown?: boolean;
+  settled?: boolean;
+}) {
+  const dateLabel = formatDate(maturityDate);
+  const countdown = settled ? "Settled" : formatMaturityCountdown(maturityDate);
+  const days = calendarDaysUntilMaturity(maturityDate);
+  const title = countdown ? `${dateLabel} · ${countdown}` : dateLabel;
+  const dateClass = maturityCountdownClass(days, {
+    highlight: highlightCountdown,
+    variant: "date",
+    settled,
+  });
+  const countdownClass = maturityCountdownClass(days, {
+    highlight: highlightCountdown,
+    variant: "countdown",
+    settled,
+  });
   return (
-    <div className="min-w-0">
-      {registryLabel ? (
-        <Badge variant="outline" className={cn("max-w-full truncate", registryLabel.toneClass)}>
-          {registryLabel.label}
-        </Badge>
+    <TableCell className="min-w-0 overflow-hidden" title={title}>
+      <div className={cn("truncate", dateClass)}>{dateLabel}</div>
+      {countdown ? (
+        <div className={cn("truncate text-xs", countdownClass)}>{countdown}</div>
       ) : null}
-      <div className="mt-1 truncate text-xs text-muted-foreground">
-        Repayment {formatCurrency(summary.grossReceiptAmount)}
-      </div>
-      <div className="truncate text-xs text-muted-foreground">
-        Investor {formatCurrency(summary.investorPoolAmount)}
-      </div>
-      <div className="truncate text-xs text-muted-foreground">
-        Ops {formatCurrency(summary.operatingAccountAmount)} · Ta&apos;widh{" "}
-        {formatCurrency(summary.tawidhAccountAmount)} · Gharamah{" "}
-        {formatCurrency(summary.gharamahAccountAmount)}
-      </div>
-    </div>
+    </TableCell>
   );
 }
 
-function ServiceFeeTrusteeRegistryCell({ note }: { note: NoteListItem }) {
-  const summary = note.settlementSummary;
-  if (
-    !summary ||
-    summary.status !== "POSTED" ||
-    !hasSettlementTrusteeMovementFromPoolSummary(summary)
-  ) {
+function SettlementRegistryCell({ note }: { note: NoteListItem }) {
+  if (!isNoteSettlementPosted(note)) {
     return <span className="text-muted-foreground">—</span>;
   }
-  const st = summary.serviceFeeTrusteeStatus;
-  if (st === "COMPLETED") {
-    return (
-      <Badge variant="outline" className={cn("max-w-full truncate", NOTE_STATUS_BADGE_TONE_CLASS.success)}>
-        Complete
-      </Badge>
-    );
+  return <StatusBadge label="Settled" status="success" className="max-w-full truncate" />;
+}
+
+function TrusteeInstructionCell({ note }: { note: NoteListItem }) {
+  const state = resolveSettlementTrusteeRegistryState(note.settlementSummary);
+  const label = settlementTrusteeRegistryLabel(state);
+  if (!label) {
+    return <span className="text-muted-foreground">—</span>;
   }
-  if (st === "SUBMITTED_TO_TRUSTEE") {
+  const status =
+    state === "complete" ? "success" : state === "submitted" ? "submitted" : "action";
+  return (
+    <StatusBadge
+      label={label}
+      status={status}
+      title={label}
+      className="max-w-full truncate"
+    />
+  );
+}
+
+function noteRowNeedsAdminAction(note: NoteListItem): boolean {
+  if (isNoteInArrears(note)) return false;
+  if (getNoteDerivedStatusToken(note) === "action") return true;
+  if (!isNoteSettlementPosted(note) && isActiveNearMaturity(note)) return true;
+  return settlementTrusteeRegistryNeedsAdminAction(note.settlementSummary);
+}
+
+function noteRowHighlightClass(note: NoteListItem): string {
+  if (isNoteInArrears(note)) return adminRejectedRowClass(true);
+  return adminActionRowClass(noteRowNeedsAdminAction(note));
+}
+
+function FacilityCell({
+  contractId,
+  displayReference,
+}: {
+  contractId: string | null;
+  displayReference?: string | null;
+}) {
+  const facility = resolveNoteFacilityLink({ contractId, displayReference });
+  if (!facility) {
     return (
-      <Badge variant="outline" className={cn("max-w-full truncate", NOTE_STATUS_BADGE_TONE_CLASS.info)}>
-        Submitted
-      </Badge>
-    );
-  }
-  if (st === "LETTER_GENERATED") {
-    return (
-      <Badge variant="outline" className="max-w-full truncate border-amber-200 text-amber-900">
-        Letter
-      </Badge>
+      <TableCell className="min-w-0 overflow-hidden">
+        <span className="text-muted-foreground">—</span>
+      </TableCell>
     );
   }
   return (
-    <Badge
-      variant="outline"
-      className={cn("max-w-full truncate", NOTE_STATUS_BADGE_TONE_CLASS.destructive)}
-    >
-      PDF pending
-    </Badge>
+    <TableCell className="min-w-0 overflow-hidden" title={facility.label}>
+      <Link
+        href={facility.href}
+        className="block truncate font-mono text-xs font-medium text-primary underline-offset-4 hover:underline"
+      >
+        {facility.label}
+      </Link>
+    </TableCell>
   );
 }
 
 function NoteRow({ note, onViewDetails }: NoteRowProps) {
   const fundingProgress = Math.min(Math.max(note.fundingPercent, 0), 100);
+  const settlementPosted = isNoteSettlementPosted(note);
   return (
-    <TableRow>
-      <TableCell className="min-w-0 overflow-hidden truncate font-mono text-xs" title={note.noteReference}>
-        {note.noteReference}
+    <TableRow className={noteRowHighlightClass(note)}>
+      <TableCell className="min-w-0 overflow-hidden" title={note.noteReference}>
+        <div className="truncate font-mono text-xs">{note.noteReference}</div>
+        {note.isFeatured ? (
+          <StatusBadge
+            label="Featured"
+            status="active"
+            showDot={false}
+            className="mt-1 shrink-0"
+          />
+        ) : null}
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <div className="flex min-w-0 items-center gap-2">
           <div className="truncate font-medium" title={note.title}>{note.title}</div>
-          {note.isFeatured ? (
-            <Badge
-              variant="secondary"
-              className="shrink-0 border-transparent bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
-            >
-              Featured
-            </Badge>
-          ) : null}
-          {note.prospectus?.displayStatus ? (
-            <Badge
-              variant="outline"
-              className="shrink-0 text-[10px] font-normal"
-              title={formatProspectusListBadge(note.prospectus.displayStatus)}
-            >
-              {formatProspectusListBadge(note.prospectus.displayStatus)}
-            </Badge>
+          {note.prospectus?.displayStatus === "Approved" ||
+          note.prospectus?.displayStatus === "Published" ? (
+            <StatusBadge
+              label={formatProspectusListBadge(note.prospectus.displayStatus)}
+              status="success"
+              className="shrink-0"
+            />
           ) : null}
         </div>
         <div className="truncate text-xs text-muted-foreground" title={note.issuerName ?? "Unknown issuer"}>
@@ -175,29 +198,52 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
       <TableCell className="min-w-0 overflow-hidden">
         <SoukscoreRiskRatingBadge riskRating={note.riskRating} />
       </TableCell>
-      <TableCell className="min-w-0 overflow-hidden truncate" title={note.paymasterName ?? "—"}>
-        {note.paymasterName ?? "—"}
-      </TableCell>
-      <TableCell className="min-w-0 overflow-hidden truncate">{formatCurrency(note.targetAmount)}</TableCell>
+      <FacilityCell
+        contractId={note.sourceContractId}
+        displayReference={note.sourceContractDisplayReference}
+      />
+      <TableCell className="min-w-0 overflow-hidden truncate">{formatCurrency(note.settlementAmount)}</TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <div className="flex min-w-0 items-center justify-between gap-2">
           <span className="shrink-0 font-medium">{note.fundingPercent.toFixed(1)}%</span>
-          <span className="truncate text-xs text-muted-foreground">{formatNoteStatus(note.fundingStatus)}</span>
+          <span
+            className={cn(
+              "truncate text-xs",
+              getNoteFundingAccentClass(note) ?? "text-muted-foreground"
+            )}
+          >
+            {formatNoteStatus(note.fundingStatus)}
+          </span>
         </div>
-        <Progress value={fundingProgress} className={`mt-2 h-2 ${getFundingProgressClass(note)}`} />
-        <div className="truncate text-xs text-muted-foreground">{formatCurrency(note.fundedAmount)} funded</div>
+        <Progress
+          value={fundingProgress}
+          className={cn("mt-2 h-2", getNoteFundingProgressClass(note))}
+          indicatorClassName={getNoteFundingIndicatorClass(note)}
+        />
+        <div
+          className={cn(
+            "truncate text-xs",
+            getNoteFundingAccentClass(note) ?? "text-muted-foreground"
+          )}
+        >
+          {formatCurrency(note.fundedAmount)} funded
+        </div>
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
-        <NoteStatusBadge note={note} />
+        <NoteStatusBadge note={note} marker="dot" />
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <SettlementRegistryCell note={note} />
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
-        <ServiceFeeTrusteeRegistryCell note={note} />
+        <TrusteeInstructionCell note={note} />
       </TableCell>
-      <TableCell className="min-w-0 overflow-hidden truncate">{formatDate(note.maturityDate)}</TableCell>
-      <TableCell className="min-w-0 overflow-hidden">
+      <MaturityCell
+        maturityDate={note.maturityDate}
+        highlightCountdown={!settlementPosted}
+        settled={settlementPosted}
+      />
+      <TableCell className="whitespace-nowrap">
         <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => onViewDetails(note)}>
           <EyeIcon className="h-4 w-4 mr-1" />
           View
@@ -224,7 +270,7 @@ function ReadyInvoiceRow({
     id: invoice.invoiceId,
   });
   return (
-    <TableRow>
+    <TableRow className={adminActionRowClass(true)}>
       <TableCell className="min-w-0 overflow-hidden truncate font-mono text-xs" title={invoiceLabel}>
         {invoiceLabel}
       </TableCell>
@@ -237,11 +283,12 @@ function ReadyInvoiceRow({
       <TableCell className="min-w-0 overflow-hidden">
         <SoukscoreRiskRatingBadge riskRating={invoice.riskRating} />
       </TableCell>
-      <TableCell className="min-w-0 overflow-hidden truncate" title={invoice.paymasterName ?? "-"}>
-        {invoice.paymasterName ?? "-"}
-      </TableCell>
+      <FacilityCell
+        contractId={invoice.contractId}
+        displayReference={invoice.contractDisplayReference}
+      />
       <TableCell className="min-w-0 overflow-hidden truncate">
-        {formatCurrency(invoice.offeredAmount ?? invoice.invoiceAmount)}
+        {formatCurrency(invoice.invoiceAmount)}
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <div className="truncate text-sm text-muted-foreground">Not listed</div>
@@ -251,10 +298,7 @@ function ReadyInvoiceRow({
         </div>
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
-        <Badge variant="outline" className={cn("max-w-full truncate", NOTE_STATUS_BADGE_TONE_CLASS.info)}>
-          <CheckCircleIcon className="mr-1 h-3.5 w-3.5 shrink-0" />
-          Ready
-        </Badge>
+        <StatusBadge label="Ready" status="action" className="max-w-full truncate" />
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
         <span className="text-muted-foreground">-</span>
@@ -262,15 +306,14 @@ function ReadyInvoiceRow({
       <TableCell className="min-w-0 overflow-hidden">
         <span className="text-muted-foreground">—</span>
       </TableCell>
-      <TableCell className="min-w-0 overflow-hidden truncate">{formatDate(invoice.maturityDate)}</TableCell>
-      <TableCell className="min-w-0 overflow-hidden">
+      <MaturityCell maturityDate={invoice.maturityDate} />
+      <TableCell className="whitespace-nowrap">
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className={!canCreate ? "inline-flex w-full cursor-not-allowed" : "w-full"}>
+              <span className={!canCreate ? "inline-flex cursor-not-allowed" : "inline-flex"}>
                 <Button
                   size="sm"
-                  className="w-full truncate px-2"
                   onClick={() => onCreateNote(invoice)}
                   disabled={creatingInvoiceId === invoice.invoiceId || !canCreate}
                 >

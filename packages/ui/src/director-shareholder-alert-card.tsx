@@ -75,14 +75,14 @@ export function DirectorShareholderAlertCard({
     >
       <div
         data-slot="alert-title"
-        className={cn("text-[17px] leading-7 mb-2 font-bold text-primary")}
+        className={cn("text-body mb-2 font-bold text-primary")}
       >
         {copy.title}
       </div>
-      <div data-slot="alert-description" className="text-[15px] leading-7 [&_p]:leading-7 [&_p]:text-[17px]">
+      <div data-slot="alert-description" className="text-ui leading-7 [&_p]:leading-7 [&_p]:text-body">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
           <div className="min-w-0 max-w-[70ch] flex-1 space-y-2">
-            <p className="text-[17px] leading-7 text-foreground">{copy.description}</p>
+            <p className="text-body text-foreground">{copy.description}</p>
             {visibleIndividuals.length > 0 ? (
               <p className="text-sm text-muted-foreground">
                 {submitReadyCount} of {visibleIndividuals.length} directors/shareholders completed
@@ -93,7 +93,7 @@ export function DirectorShareholderAlertCard({
             <Button
               type="button"
               variant="action"
-              className="h-10 shrink-0 rounded-full px-5 text-sm font-semibold sm:self-center"
+              className="shrink-0 rounded-full px-5 sm:self-center"
               onClick={() => {
                 const matchKey = firstNeedAction?.matchKey;
                 if (onGoToProfile) {

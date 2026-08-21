@@ -29,9 +29,11 @@ export {
   SoukscoreRiskRatingBadge,
   deriveNoteStatus,
   getNoteDerivedStatusLabel,
+  getNoteDerivedStatusToken,
   isNoteFullySettled,
   NOTE_STATUS_BADGE_TONE_CLASS,
   presentNoteStatusForViewer,
+  noteToneToStatusToken,
 } from "./components/note-status-badge";
 export type {
   DerivedNoteStatus,
@@ -89,6 +91,7 @@ export {
 } from "./components/chart";
 export type { ChartConfig } from "./components/chart";
 export { cn } from "./lib/utils";
+export { typeScale } from "./lib/typography";
 export {
   DirectorShareholderCtosEmptyAlert,
   type DirectorShareholderCtosEmptyAlertProps,
@@ -129,6 +132,7 @@ export type { InviteMemberDialogHooks, InviteMemberDialogProps } from "./invite-
 export { ActivityBadge } from "./components/activity-badge";
 export { ActivityItem } from "./components/activity-item";
 export { ActivityToolbar } from "./components/activity-toolbar";
+export { ActivityFeed } from "./components/activity-feed";
 export { NotificationBell } from "./components/notification-bell";
 export { NotificationList } from "./components/notification-list";
 export { NotificationPreferences } from "./components/notification-preferences";
@@ -254,12 +258,18 @@ export type {
   DirectorShareholderPortal,
 } from "./director-shareholders-unified-section";
 
-export { portalContentMaxWidthClassName } from "./lib/portal-layout";
+export { portalContentMaxWidthClassName, portalPageGutterClassName } from "./lib/portal-layout";
 
 export { PageShell, welcomeBackTitle } from "./components/page-shell";
 export type { PageShellProps } from "./components/page-shell";
-export { ListToolbar } from "./components/list-toolbar";
-export type { ListToolbarProps } from "./components/list-toolbar";
+export {
+  ListToolbar,
+  ListToolbarFilterTrigger,
+  listToolbarControlClassName,
+  listToolbarCountClassName,
+  listToolbarFilterCountBadgeClassName,
+} from "./components/list-toolbar";
+export type { ListToolbarProps, ListToolbarFilterTriggerProps } from "./components/list-toolbar";
 export { FilterChips } from "./components/filter-chips";
 export type { FilterChip, FilterChipsProps } from "./components/filter-chips";
 export { DataTable } from "./components/data-table";
@@ -270,8 +280,24 @@ export { LoadingState } from "./components/loading-state";
 export type { LoadingStateProps, LoadingStateVariant } from "./components/loading-state";
 export { Pagination } from "./components/pagination";
 export type { PaginationProps } from "./components/pagination";
-export { StatusBadge, STATUS_TOKEN_KEYS } from "./components/status-badge";
+export {
+  StatusBadge,
+  VerifiedBadge,
+  RequiredBadge,
+  STATUS_TOKEN_KEYS,
+  STATUS_TOKEN_DOT_CLASS,
+  STATUS_TOKEN_BG_CLASS,
+  STATUS_BADGE_COMPACT_CLASS,
+} from "./components/status-badge";
 export type { StatusBadgeProps, StatusToken } from "./components/status-badge";
+export { OnboardingOrgStatusBadge } from "./components/onboarding-org-status-badge";
+export {
+  OrganizationSwitcherAvatar,
+  OrganizationSwitcherCaption,
+  organizationTypeLabel,
+} from "./components/organization-switcher-identity";
+export { PortalBadge } from "./components/portal-badge";
+export type { PortalBadgePortal } from "./components/portal-badge";
 export { DetailHeader } from "./components/detail-header";
 export type { DetailHeaderProps } from "./components/detail-header";
 export { DetailSection } from "./components/detail-section";

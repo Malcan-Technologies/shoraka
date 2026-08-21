@@ -105,6 +105,6 @@ describe("display-reference formatters", () => {
         id: "app_id",
       })
     ).toBe("APP-ARF-202608-A82");
-    expect(formatApplicationNotificationRef({ id: "clabcdefghijklmnop" })).toBe("#JKLMNOPQ");
+    expect(formatApplicationNotificationRef({ id: "clabcdefghijklmnop" })).toBe("#IJKLMNOP");
   });
 });

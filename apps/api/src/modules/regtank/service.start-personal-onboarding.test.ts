@@ -66,6 +66,10 @@ jest.mock("../../lib/prisma", () => ({
   },
 }));
 
+jest.mock("../payment/onboarding-fee-service", () => ({
+  assertIssuerOnboardingFeePaid: jest.fn(),
+}));
+
 jest.mock("../../config/regtank", () => ({
   getRegTankConfig: () => ({
     redirectUrlInvestor: "https://investor.example.com",

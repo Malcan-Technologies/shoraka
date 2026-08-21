@@ -21,6 +21,7 @@ import { issuerMainContentClassName, issuerPageGutterClassName } from "@/lib/iss
 import { cn } from "@/lib/utils";
 import { ApplyForFinancingButton } from "@/components/apply-for-financing-button";
 import { useIssuerDashboard } from "@/hooks/use-issuer-dashboard";
+import { useIssuerNotes } from "@/notes/hooks/use-issuer-notes";
 import { useIssuerProducts } from "@/hooks/use-products";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
 import type { IssuerDashboardContract, IssuerDashboardInvoice } from "@/types/issuer-dashboard";
@@ -29,12 +30,27 @@ import { useIssuerFinancingActionableCount } from "@/hooks/use-issuer-financing-
 import {
   isIssuerContractActionable,
   isIssuerInvoiceActionable,
+  isFinancingInvoiceRowActionable,
   partitionByActionable,
 } from "@/lib/issuer-financing-actionable";
 import { DashboardContractCard } from "@/components/financing/contract-card";
 import { DashboardInvoiceCard } from "@/components/financing/invoice-card";
-import { FinancingAttentionList } from "@/components/financing/needs-attention-section";
-import { IssuerNotesList } from "@/notes/components/issuer-notes-list";
+import { DashboardNoteCard } from "@/components/financing/note-card";
+import { FacilityAttentionCard } from "@/components/financing/facility-attention-card";
+import { InvoiceAttentionCard } from "@/components/financing/invoice-attention-card";
+import { NoteAttentionCard } from "@/components/financing/note-attention-card";
+import { FinancingAttentionList, FinancingListSection } from "@/components/financing/needs-attention-section";
+import {
+  buildFinancingInvoiceRows,
+  financingInvoiceRowMatchesFilters,
+  financingInvoiceRowSearchHaystack,
+  type FinancingInvoiceRow,
+} from "@/components/financing/financing-invoice-rows";
+import {
+  isActiveFacility,
+  partitionByPredicate,
+  partitionInvoiceListRows,
+} from "@/components/financing/financing-list-sections";
 import {
   FinancingContractFilterToolbar,
   FinancingInvoiceFilterToolbar,
@@ -46,7 +62,6 @@ import {
   contractFinancingFiltersActive,
   contractPeriodPresetLabel,
   filterContracts,
-  filterInvoices,
   invoiceFinancingFiltersActive,
   invoiceSubmissionPresetLabel,
   type ContractFinancingListFiltersState,
@@ -56,13 +71,17 @@ import { getIssuerFinancingStatusPresentation } from "@/lib/issuer-dashboard-lab
 
 const TAB_CONTRACTS = "contracts";
 const TAB_INVOICES = "invoices";
-const TAB_NOTES = "notes";
 const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
-type FinancingTab = typeof TAB_CONTRACTS | typeof TAB_INVOICES | typeof TAB_NOTES;
+type FinancingTab = typeof TAB_CONTRACTS | typeof TAB_INVOICES;
 
 function isFinancingTab(value: string | null): value is FinancingTab {
-  return value === TAB_CONTRACTS || value === TAB_INVOICES || value === TAB_NOTES;
+  return value === TAB_CONTRACTS || value === TAB_INVOICES;
+}
+
+function tabFromSearchParam(value: string | null): FinancingTab {
+  if (value === "notes") return TAB_INVOICES;
+  return isFinancingTab(value) ? value : TAB_CONTRACTS;
 }
 
 type WorkflowStep = { name?: string; config?: { name?: string } };
@@ -103,14 +122,40 @@ function paginate<T>(items: T[], page: number, pageSize: number): T[] {
   return items.slice(start, start + pageSize);
 }
 
+function renderFinancingContractRow(row: IssuerDashboardContract) {
+  return (
+    <DashboardContractCard
+      row={row}
+      offerStatus={getOfferStatus(asContractForModal(row.contractForModal))}
+    />
+  );
+}
+
+function renderFinancingInvoiceRow(row: FinancingInvoiceRow) {
+  if (row.kind === "note") {
+    return <DashboardNoteCard note={row.note} />;
+  }
+  return (
+    <DashboardInvoiceCard
+      row={row.invoice}
+      offerStatus={getOfferStatus(asInvoiceForModal(row.invoice.invoiceForModal))}
+    />
+  );
+}
+
+function renderFinancingInvoiceAttentionRow(row: FinancingInvoiceRow) {
+  if (row.kind === "note") {
+    return <NoteAttentionCard note={row.note} />;
+  }
+  return <InvoiceAttentionCard row={row.invoice} />;
+}
+
 function IssuerFinancingPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { activeOrganization } = useOrganization();
   const organizationId = activeOrganization?.id;
-  const initialTab: FinancingTab = isFinancingTab(searchParams.get("tab"))
-    ? (searchParams.get("tab") as FinancingTab)
-    : TAB_CONTRACTS;
+  const initialTab: FinancingTab = tabFromSearchParam(searchParams.get("tab"));
   const initialSearch = searchParams.get("search") ?? "";
   const [tab, setTab] = React.useState<FinancingTab>(initialTab);
 
@@ -146,11 +191,11 @@ function IssuerFinancingPageContent() {
 
   // URL → tab + search (client navigations / deep links without remount).
   React.useEffect(() => {
-    const nextTab = isFinancingTab(tabFromUrl) ? tabFromUrl : TAB_CONTRACTS;
+    const nextTab = tabFromSearchParam(tabFromUrl);
     setTab(nextTab);
     if (nextTab === TAB_CONTRACTS) {
       setContractSearch(searchFromUrl);
-    } else if (nextTab === TAB_INVOICES) {
+    } else {
       setInvoiceSearch(searchFromUrl);
     }
   }, [tabFromUrl, searchFromUrl]);
@@ -159,7 +204,7 @@ function IssuerFinancingPageContent() {
     if (!isFinancingTab(next)) return;
     setTab(next);
     if (next === TAB_CONTRACTS) setContractSearch("");
-    if (next === TAB_INVOICES) setInvoiceSearch("");
+    else setInvoiceSearch("");
     replaceFinancingQuery((params) => {
       params.set("tab", next);
       params.delete("search");
@@ -185,16 +230,18 @@ function IssuerFinancingPageContent() {
   }, [tab, contractSearch, invoiceSearch, searchFromUrl, replaceFinancingQuery]);
 
   const { data: dashboard, isLoading, isError, error, refetch } = useIssuerDashboard(organizationId);
+  const { data: notesData, isLoading: isNotesLoading, refetch: refetchNotes } = useIssuerNotes();
   const { data: productsData } = useIssuerProducts({ page: 1, pageSize: 100, search: "" });
   const products = React.useMemo<Product[]>(() => productsData?.products ?? [], [productsData]);
   const productNameMap = React.useMemo(() => buildProductNameMap(products), [products]);
 
   const contracts = React.useMemo(() => dashboard?.contracts ?? [], [dashboard]);
   const invoices = React.useMemo(() => dashboard?.invoices ?? [], [dashboard]);
+  const notes = React.useMemo(() => notesData?.notes ?? [], [notesData?.notes]);
   const financingActionable = useIssuerFinancingActionableCount(organizationId);
   const contractsActionableCount = financingActionable.contracts;
   const invoicesActionableCount = financingActionable.invoices;
-  const notesActionableCount = financingActionable.notes;
+  const invoicesListLoading = isLoading || isNotesLoading;
 
   const productOptions = React.useMemo(
     () => deriveProductOptions(contracts, invoices, productNameMap),
@@ -215,25 +262,21 @@ function IssuerFinancingPageContent() {
     });
   }, [contracts, contractFilters, contractSearch, productNameMap]);
 
-  const filteredInvoices = React.useMemo(() => {
-    const base = filterInvoices(invoices, invoiceFilters);
+  const invoiceRows = React.useMemo(
+    () => buildFinancingInvoiceRows(invoices, notes, isIssuerInvoiceActionable),
+    [invoices, notes]
+  );
+
+  const filteredInvoiceRows = React.useMemo(() => {
+    const base = invoiceRows.filter((row) => financingInvoiceRowMatchesFilters(row, invoiceFilters));
     const q = invoiceSearch.trim().toLowerCase();
     if (!q) return base;
-    return base.filter((i) => {
-      const productName = productNameMap.get(i.productId ?? "") ?? "";
-      const haystack = [
-        i.invoiceNumber,
-        i.customerName,
-        i.note?.noteReference ?? "",
-        productName,
-        i.id,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
+    return base.filter((row) => {
+      const productId = row.kind === "invoice" ? row.invoice.productId : "";
+      const productName = productNameMap.get(productId ?? "") ?? "";
+      return financingInvoiceRowSearchHaystack(row, productName).includes(q);
     });
-  }, [invoices, invoiceFilters, invoiceSearch, productNameMap]);
+  }, [invoiceRows, invoiceFilters, invoiceSearch, productNameMap]);
 
   React.useEffect(() => {
     setContractPage(1);
@@ -257,13 +300,6 @@ function IssuerFinancingPageContent() {
 
   const contractChips = React.useMemo((): FilterChip[] => {
     const chips: FilterChip[] = [];
-    if (contractSearch.trim()) {
-      chips.push({
-        id: "search",
-        label: `Search: ${contractSearch.trim()}`,
-        onRemove: () => setContractSearch(""),
-      });
-    }
     if (contractFilters.statusKind !== "all") {
       chips.push({
         id: "status",
@@ -296,17 +332,10 @@ function IssuerFinancingPageContent() {
       });
     }
     return chips;
-  }, [contractSearch, contractFilters, productOptions]);
+  }, [contractFilters, productOptions]);
 
   const invoiceChips = React.useMemo((): FilterChip[] => {
     const chips: FilterChip[] = [];
-    if (invoiceSearch.trim()) {
-      chips.push({
-        id: "search",
-        label: `Search: ${invoiceSearch.trim()}`,
-        onRemove: () => setInvoiceSearch(""),
-      });
-    }
     if (invoiceFilters.statusKind !== "all") {
       chips.push({
         id: "status",
@@ -339,43 +368,78 @@ function IssuerFinancingPageContent() {
       });
     }
     return chips;
-  }, [invoiceSearch, invoiceFilters, productOptions]);
+  }, [invoiceFilters, productOptions]);
 
   const applyCta = (
     <ApplyForFinancingButton showIcon={false} className="rounded-xl" />
   );
 
-  const orderedContracts = React.useMemo(() => {
-    const { attention, rest } = partitionByActionable(
-      filteredContracts,
-      isIssuerContractActionable
-    );
-    return { attention, rest, ordered: [...attention, ...rest] };
-  }, [filteredContracts]);
-
-  const orderedInvoices = React.useMemo(() => {
-    const { attention, rest } = partitionByActionable(
-      filteredInvoices,
-      isIssuerInvoiceActionable
-    );
-    return { attention, rest, ordered: [...attention, ...rest] };
-  }, [filteredInvoices]);
-
+  const attentionContracts = React.useMemo(
+    () => partitionByActionable(contracts, isIssuerContractActionable).attention,
+    [contracts]
+  );
   const attentionContractIds = React.useMemo(
-    () => new Set(orderedContracts.attention.map((c) => c.id)),
-    [orderedContracts.attention]
+    () => new Set(attentionContracts.map((c) => c.id)),
+    [attentionContracts]
+  );
+
+  const attentionInvoiceRows = React.useMemo(
+    () => partitionByActionable(invoiceRows, isFinancingInvoiceRowActionable).attention,
+    [invoiceRows]
   );
   const attentionInvoiceIds = React.useMemo(
-    () => new Set(orderedInvoices.attention.map((i) => i.id)),
-    [orderedInvoices.attention]
+    () => new Set(attentionInvoiceRows.map((row) => row.id)),
+    [attentionInvoiceRows]
   );
+
+  const listContracts = React.useMemo(
+    () => filteredContracts.filter((c) => !attentionContractIds.has(c.id)),
+    [filteredContracts, attentionContractIds]
+  );
+  const unfilteredListContracts = React.useMemo(
+    () => contracts.filter((c) => !attentionContractIds.has(c.id)),
+    [contracts, attentionContractIds]
+  );
+
+  const listInvoiceRows = React.useMemo(
+    () => filteredInvoiceRows.filter((row) => !attentionInvoiceIds.has(row.id)),
+    [filteredInvoiceRows, attentionInvoiceIds]
+  );
+  const unfilteredListInvoiceRows = React.useMemo(
+    () => invoiceRows.filter((row) => !attentionInvoiceIds.has(row.id)),
+    [invoiceRows, attentionInvoiceIds]
+  );
+
+  const { matched: activeContracts, rest: otherContracts } = React.useMemo(
+    () => partitionByPredicate(listContracts, isActiveFacility),
+    [listContracts]
+  );
+  const invoiceSections = React.useMemo(
+    () => partitionInvoiceListRows(listInvoiceRows),
+    [listInvoiceRows]
+  );
+
+  const contractRestTotal = otherContracts.length;
+  const maxContractRestPage = Math.max(1, Math.ceil(contractRestTotal / contractPageSize) || 1);
+  React.useEffect(() => {
+    if (contractPage > maxContractRestPage) setContractPage(maxContractRestPage);
+  }, [contractPage, maxContractRestPage]);
+
+  const invoiceRestTotal = invoiceSections.other.length;
+  const maxInvoiceRestPage = Math.max(1, Math.ceil(invoiceRestTotal / invoicePageSize) || 1);
+  React.useEffect(() => {
+    if (invoicePage > maxInvoiceRestPage) setInvoicePage(maxInvoiceRestPage);
+  }, [invoicePage, maxInvoiceRestPage]);
+
+  const pagedOtherContracts = paginate(otherContracts, contractPage, contractPageSize);
+  const pagedOtherInvoices = paginate(invoiceSections.other, invoicePage, invoicePageSize);
 
   const financingShell = (children: React.ReactNode) => (
     <div className={issuerMainContentClassName}>
       <div className={cn("min-w-0 max-w-full", issuerPageGutterClassName)}>
         <PageShell
           title="Financing"
-          description="Your contracts, invoices, and notes across all products."
+          description="See your facilities and the invoices you have financed."
           action={
             <ApplyForFinancingButton className="h-11 shrink-0 gap-2 rounded-xl bg-primary font-semibold text-primary-foreground shadow-brand hover:opacity-95" />
           }
@@ -395,27 +459,20 @@ function IssuerFinancingPageContent() {
     );
   }
 
-  const pagedContracts = paginate(orderedContracts.ordered, contractPage, contractPageSize);
-  const pagedInvoices = paginate(orderedInvoices.ordered, invoicePage, invoicePageSize);
-  const pagedAttentionContracts = pagedContracts.filter((c) => attentionContractIds.has(c.id));
-  const pagedRestContracts = pagedContracts.filter((c) => !attentionContractIds.has(c.id));
-  const pagedAttentionInvoices = pagedInvoices.filter((i) => attentionInvoiceIds.has(i.id));
-  const pagedRestInvoices = pagedInvoices.filter((i) => !attentionInvoiceIds.has(i.id));
-
   return financingShell(
     <>
-      {isError && tab !== TAB_NOTES ? (
+      {isError ? (
         <div className="rounded-lg border border-destructive/30 p-4 text-sm text-destructive">
-          {error instanceof Error ? error.message : "Failed to load financing"}
+          {error instanceof Error ? error.message : "We couldn't load your financing."}
         </div>
       ) : null}
 
       <Tabs value={tab} onValueChange={onTabChange} className="w-full">
         <TabsList>
           <TabsTrigger value={TAB_CONTRACTS} className="gap-1.5">
-            Contracts
+            Facilities
             {contractsActionableCount > 0 ? (
-              <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-[11px] text-primary-foreground">
+              <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-meta text-primary-foreground">
                 {contractsActionableCount}
               </Badge>
             ) : null}
@@ -423,16 +480,8 @@ function IssuerFinancingPageContent() {
           <TabsTrigger value={TAB_INVOICES} className="gap-1.5">
             Invoices
             {invoicesActionableCount > 0 ? (
-              <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-[11px] text-primary-foreground">
+              <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-meta text-primary-foreground">
                 {invoicesActionableCount}
-              </Badge>
-            ) : null}
-          </TabsTrigger>
-          <TabsTrigger value={TAB_NOTES} className="gap-1.5">
-            Notes
-            {notesActionableCount > 0 ? (
-              <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-[11px] text-primary-foreground">
-                {notesActionableCount}
               </Badge>
             ) : null}
           </TabsTrigger>
@@ -443,78 +492,90 @@ function IssuerFinancingPageContent() {
             <LoadingState variant="cards" rows={3} />
           ) : (
             <>
-              <ListToolbar
-                searchValue={contractSearch}
-                onSearchChange={setContractSearch}
-                searchPlaceholder="Search contracts by title, customer, or product"
-                appliedFilters={contractChips}
-                onClearFilters={clearContractFilters}
-                onReload={() => {
-                  void refetch();
-                }}
-                isLoading={isLoading}
-                countLabel={`${filteredContracts.length} ${
-                  filteredContracts.length === 1 ? "contract" : "contracts"
-                }${contractsActive ? ` of ${contracts.length}` : ""}`}
-                filterGroups={
-                  <FinancingContractFilterToolbar
-                    rows={contracts}
-                    value={contractFilters}
-                    onChange={setContractFilters}
-                    onClear={() =>
-                      setContractFilters({ ...DEFAULT_CONTRACT_FINANCING_LIST_FILTERS })
-                    }
-                    productOptions={productOptions}
-                  />
-                }
-              />
-
               {contracts.length === 0 ? (
                 <EmptyState
-                  title="No contract financing yet"
-                  message="Apply for financing to open a contract facility."
+                  title="No facilities yet"
+                  message="Apply for financing to get started."
                   action={applyCta}
-                />
-              ) : filteredContracts.length === 0 ? (
-                <EmptyState
-                  variant="no-results"
-                  title="No matching contracts"
-                  message="Try clearing filters or adjusting your search."
-                  action={
-                    <Button variant="outline" className="rounded-xl" onClick={clearContractFilters}>
-                      Clear filters
-                    </Button>
-                  }
                 />
               ) : (
                 <>
                   <FinancingAttentionList
-                    attentionCount={orderedContracts.attention.length}
-                    itemLabelPlural="contracts"
-                    attentionOnPage={pagedAttentionContracts.map((c) => (
-                      <DashboardContractCard
-                        key={c.id}
-                        row={c}
-                        offerStatus={getOfferStatus(asContractForModal(c.contractForModal))}
-                      />
-                    ))}
-                    restOnPage={pagedRestContracts.map((c) => (
-                      <DashboardContractCard
-                        key={c.id}
-                        row={c}
-                        offerStatus={getOfferStatus(asContractForModal(c.contractForModal))}
-                      />
-                    ))}
+                    attentionCount={attentionContracts.length}
+                    carouselLabel="Facilities that need your attention"
+                    attentionItems={attentionContracts.map((c) => ({
+                      key: c.id,
+                      node: <FacilityAttentionCard row={c} />,
+                    }))}
                   />
-                  <Pagination
-                    page={contractPage}
-                    pageSize={contractPageSize}
-                    total={orderedContracts.ordered.length}
-                    onPageChange={setContractPage}
-                    onPageSizeChange={setContractPageSize}
-                    pageSizeOptions={PAGE_SIZE_OPTIONS}
-                    itemLabel="contracts"
+                  <ListToolbar
+                    searchValue={contractSearch}
+                    onSearchChange={setContractSearch}
+                    searchPlaceholder="Search by name or customer"
+                    appliedFilters={contractChips}
+                    onClearFilters={clearContractFilters}
+                    onReload={() => {
+                      void refetch();
+                    }}
+                    isLoading={isLoading}
+                    countLabel={`${listContracts.length} ${
+                      listContracts.length === 1 ? "facility" : "facilities"
+                    }${contractsActive ? ` of ${unfilteredListContracts.length}` : ""}`}
+                    filterGroups={
+                      <FinancingContractFilterToolbar
+                        rows={contracts}
+                        value={contractFilters}
+                        onChange={setContractFilters}
+                        onClear={() =>
+                          setContractFilters({ ...DEFAULT_CONTRACT_FINANCING_LIST_FILTERS })
+                        }
+                        productOptions={productOptions}
+                        showClearButton={false}
+                      />
+                    }
                   />
+                  {listContracts.length === 0 ? (
+                    <EmptyState
+                      variant="no-results"
+                      title="No matching facilities"
+                      message="Try a different search or clear your filters."
+                      action={
+                        <Button variant="outline" className="rounded-xl" onClick={clearContractFilters}>
+                          Clear filters
+                        </Button>
+                      }
+                    />
+                  ) : (
+                    <>
+                      <FinancingListSection
+                        title="Active facilities"
+                        count={activeContracts.length}
+                        items={activeContracts.map((c) => ({
+                          key: c.id,
+                          node: renderFinancingContractRow(c),
+                        }))}
+                      />
+                      <FinancingListSection
+                        title={activeContracts.length > 0 ? "Other facilities" : "Facilities"}
+                        count={contractRestTotal}
+                        items={pagedOtherContracts.map((c) => ({
+                          key: c.id,
+                          node: renderFinancingContractRow(c),
+                        }))}
+                      />
+                      {contractRestTotal > 0 ? (
+                        <Pagination
+                          page={contractPage}
+                          pageSize={contractPageSize}
+                          total={contractRestTotal}
+                          onPageChange={setContractPage}
+                          onPageSizeChange={setContractPageSize}
+                          pageSizeOptions={PAGE_SIZE_OPTIONS}
+                          itemLabel="facilities"
+                        />
+                      ) : null}
+                    </>
+                  )}
                 </>
               )}
             </>
@@ -522,95 +583,128 @@ function IssuerFinancingPageContent() {
         </TabsContent>
 
         <TabsContent value={TAB_INVOICES} className="mt-6 space-y-6">
-          {isLoading ? (
+          {invoicesListLoading ? (
             <LoadingState variant="cards" rows={3} />
           ) : (
             <>
-              <ListToolbar
-                searchValue={invoiceSearch}
-                onSearchChange={setInvoiceSearch}
-                searchPlaceholder="Search invoices by number, customer, note, or product"
-                appliedFilters={invoiceChips}
-                onClearFilters={clearInvoiceFilters}
-                onReload={() => {
-                  void refetch();
-                }}
-                isLoading={isLoading}
-                countLabel={`${filteredInvoices.length} ${
-                  filteredInvoices.length === 1 ? "invoice" : "invoices"
-                }${invoicesActive ? ` of ${invoices.length}` : ""}`}
-                filterGroups={
-                  <FinancingInvoiceFilterToolbar
-                    rows={invoices}
-                    value={invoiceFilters}
-                    onChange={setInvoiceFilters}
-                    onClear={() =>
-                      setInvoiceFilters({ ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS })
-                    }
-                    productOptions={productOptions}
-                  />
-                }
-              />
-
-              {invoices.length === 0 ? (
+              {invoiceRows.length === 0 ? (
                 <EmptyState
-                  title="No invoice financing yet"
-                  message="Apply for financing against an invoice to get started."
+                  title="No invoices yet"
+                  message="Apply for financing to get started."
                   action={applyCta}
-                />
-              ) : filteredInvoices.length === 0 ? (
-                <EmptyState
-                  variant="no-results"
-                  title="No matching invoices"
-                  message="Try clearing filters or adjusting your search."
-                  action={
-                    <Button variant="outline" className="rounded-xl" onClick={clearInvoiceFilters}>
-                      Clear filters
-                    </Button>
-                  }
                 />
               ) : (
                 <>
                   <FinancingAttentionList
-                    attentionCount={orderedInvoices.attention.length}
-                    itemLabelPlural="invoices"
-                    attentionOnPage={pagedAttentionInvoices.map((inv) => (
-                      <DashboardInvoiceCard
-                        key={inv.id}
-                        row={inv}
-                        offerStatus={getOfferStatus(asInvoiceForModal(inv.invoiceForModal))}
-                      />
-                    ))}
-                    restOnPage={pagedRestInvoices.map((inv) => (
-                      <DashboardInvoiceCard
-                        key={inv.id}
-                        row={inv}
-                        offerStatus={getOfferStatus(asInvoiceForModal(inv.invoiceForModal))}
-                      />
-                    ))}
+                    attentionCount={attentionInvoiceRows.length}
+                    carouselLabel="Invoices that need your attention"
+                    attentionItems={attentionInvoiceRows.map((row) => ({
+                      key: row.id,
+                      node: renderFinancingInvoiceAttentionRow(row),
+                    }))}
                   />
-                  <Pagination
-                    page={invoicePage}
-                    pageSize={invoicePageSize}
-                    total={orderedInvoices.ordered.length}
-                    onPageChange={setInvoicePage}
-                    onPageSizeChange={setInvoicePageSize}
-                    pageSizeOptions={PAGE_SIZE_OPTIONS}
-                    itemLabel="invoices"
+                  <ListToolbar
+                    searchValue={invoiceSearch}
+                    onSearchChange={setInvoiceSearch}
+                    searchPlaceholder="Search by number or customer"
+                    appliedFilters={invoiceChips}
+                    onClearFilters={clearInvoiceFilters}
+                    onReload={() => {
+                      void refetch();
+                      void refetchNotes();
+                    }}
+                    isLoading={invoicesListLoading}
+                    countLabel={`${listInvoiceRows.length} ${
+                      listInvoiceRows.length === 1 ? "invoice" : "invoices"
+                    }${invoicesActive ? ` of ${unfilteredListInvoiceRows.length}` : ""}`}
+                    filterGroups={
+                      <FinancingInvoiceFilterToolbar
+                        rows={invoices}
+                        value={invoiceFilters}
+                        onChange={setInvoiceFilters}
+                        onClear={() =>
+                          setInvoiceFilters({ ...DEFAULT_INVOICE_FINANCING_LIST_FILTERS })
+                        }
+                        productOptions={productOptions}
+                        showClearButton={false}
+                      />
+                    }
                   />
+                  {listInvoiceRows.length === 0 ? (
+                    <EmptyState
+                      variant="no-results"
+                      title="No matching invoices"
+                      message="Try a different search or clear your filters."
+                      action={
+                        <Button variant="outline" className="rounded-xl" onClick={clearInvoiceFilters}>
+                          Clear filters
+                        </Button>
+                      }
+                    />
+                  ) : (
+                    <>
+                      <FinancingListSection
+                        title="Active invoices"
+                        count={invoiceSections.active.length}
+                        items={invoiceSections.active.map((row) => ({
+                          key: row.id,
+                          node: renderFinancingInvoiceRow(row),
+                        }))}
+                      />
+                      <FinancingListSection
+                        title="Fully funded"
+                        count={invoiceSections.funded.length}
+                        items={invoiceSections.funded.map((row) => ({
+                          key: row.id,
+                          node: renderFinancingInvoiceRow(row),
+                        }))}
+                      />
+                      <FinancingListSection
+                        title="Funding now"
+                        count={invoiceSections.fundingNow.length}
+                        items={invoiceSections.fundingNow.map((row) => ({
+                          key: row.id,
+                          node: renderFinancingInvoiceRow(row),
+                        }))}
+                      />
+                      <FinancingListSection
+                        title={
+                          invoiceSections.active.length > 0 ||
+                          invoiceSections.funded.length > 0 ||
+                          invoiceSections.fundingNow.length > 0
+                            ? "Other invoices"
+                            : "Invoices"
+                        }
+                        count={invoiceRestTotal}
+                        items={pagedOtherInvoices.map((row) => ({
+                          key: row.id,
+                          node: renderFinancingInvoiceRow(row),
+                        }))}
+                      />
+                      {invoiceRestTotal > 0 ? (
+                        <Pagination
+                          page={invoicePage}
+                          pageSize={invoicePageSize}
+                          total={invoiceRestTotal}
+                          onPageChange={setInvoicePage}
+                          onPageSizeChange={setInvoicePageSize}
+                          pageSizeOptions={PAGE_SIZE_OPTIONS}
+                          itemLabel="invoices"
+                        />
+                      ) : null}
+                    </>
+                  )}
                 </>
               )}
             </>
           )}
         </TabsContent>
-
-        <TabsContent value={TAB_NOTES} className="mt-6 space-y-6">
-          <IssuerNotesList />
-        </TabsContent>
       </Tabs>
+
     </>
   );
 }
+
 
 export default function IssuerFinancingPage() {
   return (

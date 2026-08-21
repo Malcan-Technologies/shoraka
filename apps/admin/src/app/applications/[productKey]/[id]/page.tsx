@@ -2,11 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton, useHeader } from "@cashsouk/ui";
+import { Skeleton } from "@cashsouk/ui";
 import { useApplicationDetail } from "@/hooks/use-application-detail";
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import { useUpdateApplicationStatus } from "@/hooks/use-update-application-status";
@@ -41,14 +39,13 @@ import {
   type ReviewSectionId,
 } from "@/components/application-review";
 import { useProducts } from "@/hooks/use-products";
-import { resolveDisplayProductForNav } from "@/app/settings/products/product-utils";
+import { productName, resolveDisplayProductForNav } from "@/app/settings/products/product-utils";
 import {
   getReviewTabLabel,
   getTabUnlockTooltip,
   isTabUnlocked,
 } from "@/components/application-review/review-registry";
 import { getEffectiveReviewTabDescriptors } from "@/lib/effective-review-tab-descriptors";
-import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -61,17 +58,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  ArrowLeftIcon,
-  ArrowPathIcon,
-  ArrowTopRightOnSquareIcon,
-  PencilSquareIcon,
-  XCircleIcon,
-} from "@heroicons/react/24/outline";
+import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import {
   createApiClient,
-  formatCurrency,
   useAuthToken,
   readInvoiceMaturityMonthsFromWorkflow,
 } from "@cashsouk/config";
@@ -79,13 +68,19 @@ import {
   computeHasPendingDirectorShareholder,
   formatApplicationReference,
   getSectionForScopeKey,
+  getOfferAcceptanceFromOfferDetails,
+  buildOriginationPhaseInput,
+  canRejectApplication,
+  isCompletedWithNoApprovedInvoices,
+  resolveOriginationPhase,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
+import { orgHref } from "@/lib/admin-directory-hrefs";
+import { ApplicationDetailHero } from "@/applications/application-detail-hero";
 import {
-  ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL,
-  ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT,
-} from "@/lib/admin-director-shareholder-review-message";
-import { ApplicationStatusBadge } from "@/components/application-review";
+  applicationFinancingStructureLabel,
+  applicationPaymasterName,
+} from "@/applications/application-hero-facts";
 import {
   isSignedContractOfferLetterAvailable,
   isSignedInvoiceOfferLetterAvailable,
@@ -158,11 +153,9 @@ const SECTION_PERMISSION_MAP: Record<string, AdminPermission> = {
 };
 
 export default function DynamicApplicationDetailPage() {
-  const { setTitle } = useHeader();
   const { can } = usePermissions();
   const canAppManage = can("applications.manage");
   const params = useParams();
-  const router = useRouter();
   const productKey = params.productKey as string;
   const applicationId = params.id as string;
   const { getAccessToken } = useAuthToken();
@@ -190,17 +183,7 @@ export default function DynamicApplicationDetailPage() {
     ? resolveDisplayProductForNav(productsData.products, productKey)
     : undefined;
 
-  React.useEffect(() => {
-    const label = app
-      ? formatApplicationReference({
-          displayReference: (app as { displayReference?: string | null }).displayReference,
-          id: app.id ?? applicationId,
-        })
-      : applicationId.slice(-8).toUpperCase();
-    setTitle(isLoading ? "Loading..." : `Application ${label}`);
-    return () => setTitle("");
-  }, [setTitle, isLoading, applicationId, app]);
-
+  const currentProductName = currentProduct ? productName(currentProduct) : undefined;
   const productDefaultFacilityFeeRatePercent =
     (currentProduct as { default_facility_fee_rate_percent?: number | null })
       ?.default_facility_fee_rate_percent ?? null;
@@ -251,7 +234,7 @@ export default function DynamicApplicationDetailPage() {
     "OFFER_EXPIRED",
   ];
   const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
-  const isFinalApplicationForAmlGate = ["FUNDED", "COMPLETED"].includes(
+  const isFinalApplicationForAmlGate = ["COMPLETED", "REJECTED", "WITHDRAWN", "ARCHIVED"].includes(
     String(app?.status ?? "")
   );
   const applicationContractId =
@@ -585,6 +568,35 @@ export default function DynamicApplicationDetailPage() {
     () => requiredReviewSections.some((section) => sectionStatusMap.get(section) === "REJECTED"),
     [requiredReviewSections, sectionStatusMap]
   );
+  const originationPhase = React.useMemo(() => {
+    if (!app) return "underReview" as const;
+    const invoices = (app.invoices ?? []) as Array<{
+      status?: string;
+      contract_id?: string | null;
+      offer_details?: unknown;
+    }>;
+    const standalone = invoices.find((invoice) => !invoice.contract_id);
+    const offerAcceptanceStatus =
+      getOfferAcceptanceFromOfferDetails(
+        (app.contract as { offer_details?: unknown } | null)?.offer_details
+      )?.status ??
+      getOfferAcceptanceFromOfferDetails(standalone?.offer_details)?.status ??
+      null;
+    return resolveOriginationPhase(
+      buildOriginationPhaseInput({
+        applicationStatus: app.status,
+        contract: app.contract as { status?: string | null } | null,
+        invoices,
+        offerAcceptanceStatus,
+        signingEnvelopes,
+      })
+    );
+  }, [app, signingEnvelopes]);
+  const canPhaseReject = canRejectApplication(originationPhase);
+  const facilityInForceNoInvoices = isCompletedWithNoApprovedInvoices(
+    String(app?.status ?? ""),
+    ((app?.invoices ?? []) as Array<{ status?: string }>).map((invoice) => String(invoice.status ?? ""))
+  );
   const availableReviewSections = React.useMemo(
     () => new Set(effectiveTabDescriptors.map((d) => d.reviewSection)),
     [effectiveTabDescriptors]
@@ -776,6 +788,18 @@ export default function DynamicApplicationDetailPage() {
     }
   };
 
+  const handleResetToUnderReview = async () => {
+    try {
+      await updateStatus.mutateAsync({
+        id: applicationId,
+        status: "UNDER_REVIEW",
+      });
+      toast.success("Application reset to under review");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to reset status");
+    }
+  };
+
   const requestedAmount = React.useMemo(() => {
     if (!app) return 0;
     if (app.invoices && app.invoices.length > 0) {
@@ -799,293 +823,62 @@ export default function DynamicApplicationDetailPage() {
   return (
     <RequirePermission permission="applications.view">
       <>
-      
-            <div className="flex items-center gap-2 px-4 pt-4 md:px-6">
-        <Button variant="ghost" size="sm" onClick={() => router.push(`/applications/${productKey}`)} className="gap-1.5">
-          <ArrowLeftIcon className="h-4 w-4" />
-          Applications
-        </Button>
-      </div>
-<div className="flex-1 overflow-y-auto">
-        <div className="w-full px-4 md:px-6 lg:px-8 py-10 md:py-12 space-y-6">
-          {isLoading && <PageSkeleton />}
+        <div className="flex-1 overflow-y-auto">
+          <div className="w-full space-y-6 px-4 py-6 md:px-6 md:py-8 lg:px-8">
+            {isLoading ? <PageSkeleton /> : null}
 
-          {error && (
-            <div className="py-8 text-center text-destructive">
-              Error loading application: {error instanceof Error ? error.message : "Unknown error"}
-            </div>
-          )}
-
-          {app && (
-            <div className="space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div>
-                    <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                      Requested Facility
-                    </div>
-                    <div className="text-2xl font-bold text-primary">
-                      {formatCurrency(requestedAmount)}
-                    </div>
-                  </div>
-                  <ApplicationStatusBadge status={app.status} size="lg" />
-                  {!isFinalApplicationForAmlGate &&
-                  computeHasPendingDirectorShareholder(applicationPeople) ? (
-                    <span
-                      className="shrink-0 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:text-amber-100"
-                      title={ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT}
-                    >
-                      {ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL}
-                    </span>
-                  ) : null}
-                </div>
-                {isReviewable ? (
-                  <TooltipProvider>
-                    <div className="flex flex-wrap items-center justify-end gap-3">
-                      {app.status === "AMENDMENT_REQUESTED" && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-flex">
-                              <Button
-                                variant="outline"
-                                size="default"
-                                className="gap-2"
-                                disabled={!canAppManage}
-                                title={!canAppManage ? "You do not have permission to perform this action." : undefined}
-                                onClick={async () => {
-                                  try {
-                                    await updateStatus.mutateAsync({
-                                      id: applicationId,
-                                      status: "UNDER_REVIEW",
-                                    });
-                                    toast.success("Application reset to under review");
-                                  } catch (err) {
-                                    toast.error(
-                                      err instanceof Error ? err.message : "Failed to reset status"
-                                    );
-                                  }
-                                }}
-                              >
-                                <ArrowPathIcon className="h-4 w-4" />
-                                Reset to Under Review
-                              </Button>
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent
-                            side="bottom"
-                            className="max-w-xs bg-muted text-muted-foreground"
-                          >
-                            Clear application status so it can be reviewed again
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span
-                            className={
-                              app.status === "AMENDMENT_REQUESTED" || pendingAmendments.length === 0
-                                ? "inline-flex cursor-not-allowed"
-                                : "inline-flex"
-                            }
-                          >
-                            <Button
-                              variant="outline"
-                              size="default"
-                              className="gap-2 border-amber-500/30 bg-amber-500/10 text-amber-800 hover:bg-amber-500/20 hover:text-amber-900 dark:text-amber-200 dark:hover:text-amber-100"
-                              disabled={
-                                app.status === "AMENDMENT_REQUESTED" ||
-                                pendingAmendments.length === 0 ||
-                                !canAppManage
-                              }
-                              title={!canAppManage ? "You do not have permission to perform this action." : undefined}
-                              onClick={() => setAmendmentModalOpen(true)}
-                            >
-                              <PencilSquareIcon className="h-4 w-4" />
-                              Request Amendment
-                              {pendingAmendments.length > 0 && (
-                                <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5">
-                                  {pendingAmendments.length}
-                                </Badge>
-                              )}
-                            </Button>
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="bottom"
-                          className="max-w-xs bg-muted text-muted-foreground"
-                        >
-                          {app.status === "AMENDMENT_REQUESTED"
-                            ? "Amendment already requested; issuer must respond first"
-                            : pendingAmendments.length === 0
-                              ? "Request amendment on at least one section first"
-                              : "Review and send amendment request to issuer"}
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span
-                            className={
-                              app.status === "REJECTED" ||
-                              allSectionsApproved ||
-                              !hasRejectedSection
-                                ? "inline-flex cursor-not-allowed"
-                                : "inline-flex"
-                            }
-                          >
-                            <Button
-                              variant="outline"
-                              size="default"
-                              className="gap-2 border-red-500/30 bg-red-500/10 text-red-800 hover:bg-red-500/20 hover:text-red-900 dark:text-red-200 dark:hover:text-red-100"
-                              disabled={
-                                app.status === "REJECTED" ||
-                                allSectionsApproved ||
-                                !hasRejectedSection ||
-                                !canAppManage
-                              }
-                              title={!canAppManage ? "You do not have permission to perform this action." : undefined}
-                              onClick={() => setRejectApplicationDialogOpen(true)}
-                            >
-                              <XCircleIcon className="h-4 w-4" />
-                              Reject
-                            </Button>
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="bottom"
-                          className="max-w-xs bg-muted text-muted-foreground"
-                        >
-                          {app.status === "REJECTED"
-                            ? "Application already rejected"
-                            : allSectionsApproved
-                              ? "Cannot reject when all sections are approved"
-                              : !hasRejectedSection
-                                ? "Reject at least one section first"
-                                : "Reject the application and notify the issuer"}
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-                  </TooltipProvider>
-                ) : (
-                  <div className="flex flex-wrap items-center gap-3">
-                    <div className="text-sm text-muted-foreground">
-                      Review actions are locked for{" "}
-                      <span className="font-medium">
-                        {app.status.toLowerCase().replace(/_/g, " ")}
-                      </span>{" "}
-                      applications.
-                    </div>
-                  </div>
-                )}
+            {error ? (
+              <div className="py-8 text-center text-destructive">
+                Error loading application: {error instanceof Error ? error.message : "Unknown error"}
               </div>
+            ) : null}
 
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(240px,300px)] xl:grid-cols-[1fr_minmax(260px,320px)] gap-6">
-                <div className="min-w-0 space-y-6">
-                  <Card className="rounded-2xl">
-                    <CardContent className="pt-6">
-                      {(() => {
-                        const structureType = (app.financing_structure as { structure_type?: string } | null)?.structure_type;
-                        const financingStructureLabel =
-                          structureType === "invoice_only"
-                            ? "Invoice only"
-                            : structureType === "new_contract"
-                              ? "New contract"
-                              : structureType === "existing_contract"
-                                ? "Existing contract"
-                                : "—";
-                        const customerDetails = (app.contract as { customer_details?: Record<string, unknown> } | null)?.customer_details ?? {};
-                        const companyDetails = (app as { company_details?: Record<string, unknown> }).company_details ?? {};
-                        const paymaster =
-                          String(
-                            customerDetails.customer_name ??
-                              customerDetails.name ??
-                              companyDetails.customer_name ??
-                              companyDetails.company_name ??
-                              ""
-                          ).trim() || "—";
-                        const productVersion = typeof (app as { product_version?: number }).product_version === "number"
-                          ? String((app as { product_version: number }).product_version)
-                          : "—";
-                        const valueClass = "text-sm font-medium break-words min-w-0";
-                        return (
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-                            <div className="flex flex-col gap-5 min-w-0">
-                              <div className="space-y-1 min-w-0">
-                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                                  Organization
-                                </div>
-                                <div className={valueClass}>{app.issuer_organization.name}</div>
-                              </div>
-                              <div className="space-y-1 min-w-0">
-                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                                  Owner
-                                </div>
-                                <div className={valueClass}>
-                                  {app.issuer_organization.owner.first_name}{" "}
-                                  {app.issuer_organization.owner.last_name}
-                                </div>
-                              </div>
-                              <div className="space-y-1 min-w-0">
-                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                                  Email
-                                </div>
-                                <div className={valueClass}>
-                                  {app.issuer_organization.owner.email}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="space-y-5 min-w-0">
-                              <div className="space-y-1 min-w-0">
-                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                                  Paymaster
-                                </div>
-                                <div className={valueClass}>{paymaster}</div>
-                              </div>
-                              <div className="space-y-1 min-w-0">
-                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                                  Financing Structure
-                                </div>
-                                <div className={valueClass}>{financingStructureLabel}</div>
-                              </div>
-                              <div className="space-y-1 min-w-0">
-                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                                  Product Version
-                                </div>
-                                <div className={valueClass}>{productVersion}</div>
-                              </div>
-                            </div>
-                            <div className="space-y-5 min-w-0">
-                              <div className="space-y-1 min-w-0">
-                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                                  Reference
-                                </div>
-                                <div className={valueClass}>{app.id}</div>
-                              </div>
-                              <div className="space-y-1 min-w-0">
-                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                                  Submitted At
-                                </div>
-                                <div className={valueClass}>
-                                  {app.submitted_at
-                                    ? format(new Date(app.submitted_at), "PPP p")
-                                    : "Not submitted"}
-                                </div>
-                              </div>
-                              <div className="space-y-1 min-w-0">
-                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                                  Last Updated
-                                </div>
-                                <div className={valueClass}>
-                                  {format(new Date(app.updated_at), "PPP p")}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </CardContent>
-                  </Card>
+            {app ? (
+              <div className="space-y-6">
+                <ApplicationDetailHero
+                  productKey={productKey}
+                  title={app.issuer_organization.name || "Unnamed organization"}
+                  applicationId={app.id}
+                  displayReference={(app as { displayReference?: string | null }).displayReference}
+                  productName={currentProductName}
+                  status={app.status}
+                  structureLabel={applicationFinancingStructureLabel(
+                    (app.financing_structure as { structure_type?: string } | null)?.structure_type
+                  )}
+                  directorPending={
+                    !isFinalApplicationForAmlGate &&
+                    computeHasPendingDirectorShareholder(applicationPeople)
+                  }
+                  requestedAmount={requestedAmount}
+                  ownerName={`${app.issuer_organization.owner.first_name} ${app.issuer_organization.owner.last_name}`}
+                  email={app.issuer_organization.owner.email}
+                  paymaster={applicationPaymasterName({
+                    contract: app.contract,
+                    company_details: (app as { company_details?: Record<string, unknown> }).company_details,
+                  })}
+                  productVersion={
+                    typeof (app as { product_version?: number }).product_version === "number"
+                      ? String((app as { product_version: number }).product_version)
+                      : "—"
+                  }
+                  submittedAt={app.submitted_at ?? null}
+                  updatedAt={app.updated_at}
+                  isReviewable={isReviewable}
+                  canAppManage={canAppManage}
+                  pendingAmendmentCount={pendingAmendments.length}
+                  allSectionsApproved={allSectionsApproved}
+                  hasRejectedSection={hasRejectedSection}
+                  actionPending={updateStatus.isPending}
+                  onResetToUnderReview={() => void handleResetToUnderReview()}
+                  onRequestAmendment={() => setAmendmentModalOpen(true)}
+                  onRejectApplication={() => setRejectApplicationDialogOpen(true)}
+                  rejectBlockedByPhase={!canPhaseReject}
+                  statusLabel={facilityInForceNoInvoices ? "Facility approved" : undefined}
+                />
 
-                  <ApplicationReviewTabs
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_minmax(380px,440px)]">
+                  <div className="min-w-0 space-y-6">
+                    <ApplicationReviewTabs
                     sections={reviewSections}
                     tabDescriptors={effectiveTabDescriptors}
                     defaultTabId={defaultReviewTabId}
@@ -1119,9 +912,9 @@ export default function DynamicApplicationDetailPage() {
                           : applicationWithdrawn
                             ? "Application withdrawn"
                             : isContractExistingContract
-                              ? "Contract was approved in a prior application"
+                              ? "Facility was approved in a prior application"
                               : isAcceptanceExistingContract
-                                ? "Acceptance was completed when the linked contract was approved"
+                                ? "Acceptance was completed when the linked facility was approved"
                                 : getTabUnlockTooltip(
                                   descriptor.reviewSection,
                                   sectionStatusMap,
@@ -1228,16 +1021,16 @@ export default function DynamicApplicationDetailPage() {
                                   facilityFeeRatePercent,
                                 });
                                 if (hasAcceptanceTab) {
-                                  toast.success("Contract offer sent — continue on Acceptance");
+                                  toast.success("Facility offer sent — continue on Acceptance");
                                   goToAcceptanceTab();
                                 } else {
-                                  toast.success("Contract offer sent");
+                                  toast.success("Facility offer sent");
                                 }
                               } catch (err) {
                                 toast.error(
                                   err instanceof Error
                                     ? err.message
-                                    : "Failed to send contract offer"
+                                    : "Failed to send facility offer"
                                 );
                               }
                             }}
@@ -1310,7 +1103,11 @@ export default function DynamicApplicationDetailPage() {
                       <RelatedRecordLink
                         label="Issuer Organization"
                         value={app.issuer_organization_id}
-                        href={`/organizations/issuer/${encodeURIComponent(app.issuer_organization_id)}`}
+                        href={
+                          can("organizations.view")
+                            ? orgHref("issuer", app.issuer_organization_id)
+                            : null
+                        }
                         display={
                           app.issuer_organization.name
                             ? `${app.issuer_organization.name} (${app.issuer_organization_id})`
@@ -1318,7 +1115,7 @@ export default function DynamicApplicationDetailPage() {
                         }
                       />
                       <RelatedRecordLink
-                        label="Contract ID"
+                        label="Facility ID"
                         value={applicationContractId}
                         href={applicationContractId ? `/contracts/${encodeURIComponent(applicationContractId)}` : null}
                       />
@@ -1367,7 +1164,7 @@ export default function DynamicApplicationDetailPage() {
                 </div>
               </div>
             </div>
-          )}
+            ) : null}
         </div>
       </div>
 

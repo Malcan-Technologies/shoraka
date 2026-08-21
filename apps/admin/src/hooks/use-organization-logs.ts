@@ -20,9 +20,12 @@ const ONBOARDING_EVENT_TYPES: OnboardingEventType[] = [
   "TNC_ACCEPTED",
   "KYC_APPROVED",
   "KYB_APPROVED",
+  "PROFILE_UPDATED",
 ];
 
 const PAGE_SIZE = 10;
+
+export const ORGANIZATION_ACTIVITY_EVENT_TYPES: OnboardingEventType[] = ONBOARDING_EVENT_TYPES;
 
 export function useOrganizationLogs(organizationId: string | null) {
   const { getAccessToken } = useAuthToken();

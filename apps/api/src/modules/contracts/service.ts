@@ -8,9 +8,13 @@ import { ApplicationReviewRemark, Contract, Prisma } from "@prisma/client";
 import {
   ApplicationStatus,
   ContractStatus,
+  InvoiceStatus,
   WithdrawReason,
   parseScopeKey,
+  buildOriginationPhaseInput,
+  resolveOriginationPhase,
 } from "@cashsouk/types";
+import { computeApplicationStatus } from "../applications/lifecycle";
 import { prisma } from "../../lib/prisma";
 import {
   generateContractDocumentKey,
@@ -40,14 +44,14 @@ export class ContractService {
   private async verifyContractAccess(contractId: string, userId: string): Promise<Contract> {
     const contract = await this.repository.findById(contractId);
     if (!contract) {
-      throw new AppError(404, "CONTRACT_NOT_FOUND", "Contract not found");
+      throw new AppError(404, "CONTRACT_NOT_FOUND", "Facility not found");
     }
 
     const organizationId = contract.issuer_organization_id;
     const organization = (contract as any).issuer_organization;
 
     if (!organization) {
-      throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found for this contract");
+      throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found for this facility");
     }
 
     if (organization.owner_user_id === userId) {
@@ -61,7 +65,7 @@ export class ContractService {
     );
 
     if (!member) {
-      throw new AppError(403, "FORBIDDEN", "You do not have access to this contract.");
+      throw new AppError(403, "FORBIDDEN", "You do not have access to this facility.");
     }
 
     return contract;
@@ -192,7 +196,7 @@ export class ContractService {
       if (structure?.structure_type === "invoice_only") {
         const isClearingContractDetails = data.contract_details === Prisma.JsonNull || data.contract_details === null;
         if (!isClearingContractDetails && data.contract_details != null) {
-          throw new AppError(400, "VALIDATION_ERROR", "Contract financing fields are not allowed for invoice-only structure.");
+          throw new AppError(400, "VALIDATION_ERROR", "Facility financing fields are not allowed for invoice-only structure.");
         }
       }
       if (application && (application as any).status === "AMENDMENT_REQUESTED") {
@@ -208,7 +212,7 @@ export class ContractService {
           }
         });
         if (!hasContractRemark) {
-          throw new AppError(403, "AMENDMENT_BOUNDARY", "Contract edits are locked during amendment unless contract details are requested for amendment.");
+          throw new AppError(403, "AMENDMENT_BOUNDARY", "Facility edits are locked during amendment unless facility details are requested for amendment.");
         }
       }
     }
@@ -265,7 +269,7 @@ export class ContractService {
     const organization = await this.organizationRepository.findIssuerOrganizationById(organizationId);
 
     if (!member && organization?.owner_user_id !== userId) {
-      throw new AppError(403, "FORBIDDEN", "You do not have access to this organization's contracts.");
+      throw new AppError(403, "FORBIDDEN", "You do not have access to this organization's facilities.");
     }
 
     return this.repository.findApprovedByOrganization(organizationId);
@@ -359,49 +363,94 @@ export class ContractService {
     const contract = await this.verifyContractAccess(id, userId);
 
     if (contract.status === ContractStatus.APPROVED) {
-      throw new AppError(400, "BAD_REQUEST", "This contract has already been approved and can no longer be withdrawn.");
+      throw new AppError(400, "BAD_REQUEST", "This facility has already been approved and can no longer be withdrawn.");
     }
 
     if (contract.status === ContractStatus.WITHDRAWN) {
-      throw new AppError(400, "BAD_REQUEST", "This contract was already withdrawn.");
+      throw new AppError(400, "BAD_REQUEST", "This facility was already withdrawn.");
+    }
+
+    const applicationRefs = (contract as { applications?: { id: string }[] }).applications ?? [];
+    const linkedApplications = (
+      await Promise.all(applicationRefs.map((appRef) => this.applicationRepository.findById(appRef.id)))
+    ).filter((application): application is NonNullable<typeof application> => application != null);
+
+    for (const linked of linkedApplications) {
+      const phase = resolveOriginationPhase(
+        buildOriginationPhaseInput({
+          applicationStatus: linked.status,
+          contract: { status: contract.status },
+          invoices: (linked as { invoices?: Array<{ status?: string | null }> }).invoices,
+        })
+      );
+      if (phase === "approved" || phase === "closed") {
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          "This facility is linked to an approved or closed application and cannot be withdrawn."
+        );
+      }
     }
 
     const finalReason = reason ?? WithdrawReason.USER_CANCELLED;
+    const activityLogs: Array<{ applicationId: string }> = [];
 
-    const updated = await this.repository.update(id, {
-      status: ContractStatus.WITHDRAWN,
-      withdraw_reason: finalReason,
+    const updated = await prisma.$transaction(async (tx) => {
+      const withdrawnContract = await tx.contract.update({
+        where: { id },
+        data: {
+          status: ContractStatus.WITHDRAWN,
+          withdraw_reason: finalReason,
+        },
+      });
+
+      for (const linked of linkedApplications) {
+        const invoices = (linked as { invoices?: Array<{ status: string }> }).invoices ?? [];
+        const isInvoiceOnly =
+          (linked as { financing_structure?: { structure_type?: string } | null }).financing_structure
+            ?.structure_type === "invoice_only";
+        const nextStatus = computeApplicationStatus(
+          { status: ContractStatus.WITHDRAWN },
+          invoices.map((invoice) => ({ status: invoice.status as InvoiceStatus })),
+          linked.status as ApplicationStatus,
+          { isInvoiceOnly }
+        );
+        await tx.application.update({
+          where: { id: linked.id },
+          data: { status: nextStatus },
+        });
+        await tx.applicationReview.upsert({
+          where: {
+            application_id_section: {
+              application_id: linked.id,
+              section: "contract_details",
+            },
+          },
+          create: {
+            application_id: linked.id,
+            section: "contract_details",
+            status: "WITHDRAWN",
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+          update: {
+            status: "WITHDRAWN",
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+        });
+        if (nextStatus === ApplicationStatus.WITHDRAWN) {
+          activityLogs.push({ applicationId: linked.id });
+        }
+      }
+
+      return withdrawnContract;
     });
 
-    const applications = (contract as { applications?: { id: string }[] }).applications ?? [];
-    for (const app of applications) {
-      await prisma.application.update({
-        where: { id: app.id },
-        data: { status: "WITHDRAWN" },
-      });
-      await prisma.applicationReview.upsert({
-        where: {
-          application_id_section: {
-            application_id: app.id,
-            section: "contract_details",
-          },
-        },
-        create: {
-          application_id: app.id,
-          section: "contract_details",
-          status: "WITHDRAWN",
-          reviewer_user_id: userId,
-          reviewed_at: new Date(),
-        },
-        update: {
-          status: "WITHDRAWN",
-          reviewer_user_id: userId,
-          reviewed_at: new Date(),
-        },
-      });
+    for (const entry of activityLogs) {
       await logApplicationActivity({
         userId,
-        applicationId: app.id,
+        applicationId: entry.applicationId,
         eventType: "APPLICATION_WITHDRAWN",
         portal: ActivityPortal.ISSUER,
         metadata: { withdraw_reason: finalReason },

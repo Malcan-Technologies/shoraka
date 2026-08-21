@@ -18,7 +18,7 @@ export function YesNoRadioDisplay({
   className?: string;
   comparisonMuted?: boolean;
 }) {
-  const labelClass = "text-sm md:text-base leading-6";
+  const labelClass = "text-ui md:text-body leading-6";
   const selectedLabelClass = cn(
     labelClass,
     comparisonMuted ? "text-muted-foreground font-medium" : "text-foreground"
@@ -27,7 +27,7 @@ export function YesNoRadioDisplay({
 
   if (value === null) {
     return (
-      <span className={cn("text-sm text-muted-foreground", className)}>
+      <span className={cn("text-ui text-muted-foreground", className)}>
         Not provided
       </span>
     );

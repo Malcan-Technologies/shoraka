@@ -34,6 +34,10 @@ jest.mock("../../modules/products/repository", () => ({
   })),
 }));
 
+jest.mock("../refresh-contract-facility", () => ({
+  refreshContractFacilityValues: jest.fn().mockResolvedValue(null),
+}));
+
 import { prisma } from "../prisma";
 import { logApplicationActivity } from "../../modules/applications/logs/service";
 import { runAcceptanceSigningExpiryJob } from "./acceptance-signing-expiry";

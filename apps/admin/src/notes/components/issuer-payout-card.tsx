@@ -15,7 +15,7 @@ import {
 import { formatCurrency } from "@cashsouk/config";
 import type { NoteDetail, WithdrawalInstruction } from "@cashsouk/types";
 import { WithdrawalType, formatWithdrawalReference } from "@cashsouk/types";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -54,13 +54,15 @@ import {
   BeneficiaryDetailsBlock,
   CollapsibleDetailTimeline,
   PoolSummaryCard,
+  WorkflowStepTitle,
 } from "@/notes/components/note-detail-ui-blocks";
 import {
   WORKFLOW_CARD,
   WORKFLOW_SUCCESS_COPY,
   tawarruqWorkflowTone,
   withdrawalWorkflowTone,
-  workflowBadgeClassName,
+  workflowTaskSurfaceClass,
+  workflowToneToStatusToken,
 } from "@/notes/utils/workflow-status-tokens";
 
 type BeneficiaryFields = {
@@ -101,7 +103,7 @@ const STATUS_COPY: Record<
   WithdrawalInstruction["status"],
   { label: string; tone: ReturnType<typeof withdrawalWorkflowTone> }
 > = {
-  DRAFT: { label: "Not generated", tone: "neutral" },
+  DRAFT: { label: "Not generated", tone: "active" },
   LETTER_GENERATED: { label: "Pending trustee submission", tone: "active" },
   SUBMITTED_TO_TRUSTEE: { label: "Submitted to trustee", tone: "warning" },
   COMPLETED: { label: "Disbursed", tone: "success" },
@@ -319,10 +321,18 @@ export function IssuerPayoutCard({
   });
   const statusCopy = STATUS_COPY[status] ?? STATUS_COPY.DRAFT;
   const trusteeBadgeTone = withdrawalWorkflowTone(status);
+  const tawarruqTone = shorakaStateQuery.isPending
+    ? tawarruqWorkflowTone("checking")
+    : hasShorakaCertificate
+      ? tawarruqWorkflowTone("certificate-ready")
+      : shorakaStateQuery.data == null
+        ? tawarruqWorkflowTone("not-submitted")
+        : tawarruqWorkflowTone("in-progress");
   const currentFields = snapshotToFields(withdrawal.beneficiarySnapshot);
   const beneficiaryComplete =
     currentFields.bank_name.trim() !== "" && currentFields.account_number.trim() !== "";
   const payoutComplete = status === "COMPLETED";
+  const payoutTone = withdrawalWorkflowTone(status);
   const disbursementFlowStep: "tawarruq" | "trustee" | "disbursed" | null =
     kind === "DISBURSEMENT" &&
     withdrawal.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT &&
@@ -422,13 +432,7 @@ export function IssuerPayoutCard({
             }
           : null;
 
-  const statusPanelTitle = payoutComplete
-    ? kind === "DISBURSEMENT"
-      ? "Issuer disbursement complete"
-      : "Issuer residual refund complete"
-    : kind === "DISBURSEMENT"
-      ? "Issuer disbursement"
-      : kindCopy.title;
+  const statusPanelTitle = kind === "DISBURSEMENT" ? "Issuer disbursement" : kindCopy.title;
 
   const statusPanelDescription = payoutComplete
     ? kind === "DISBURSEMENT"
@@ -438,35 +442,30 @@ export function IssuerPayoutCard({
       ? "Funding has closed. Pay out the net amount to the issuer via the trustee before servicing begins."
       : kindCopy.description;
 
-  const surfaceClass = payoutComplete
+  const overviewSurfaceClass = payoutComplete
     ? SECTION_COMPLETE_CLASS
     : workflowInProgress
-      ? ACTION_CARD_CLASS
+      ? workflowTaskSurfaceClass(payoutTone)
       : "border-border bg-card";
 
   return (
-    <div className={cn("rounded-xl border p-4", surfaceClass)}>
-      <div
-        className={cn(
-          "rounded-lg border px-3 py-2.5",
-          payoutComplete
-            ? WORKFLOW_CARD.successPanel
-            : workflowInProgress
-              ? WORKFLOW_CARD.activeStep
-              : WORKFLOW_CARD.neutralSection
-        )}
-      >
+    <>
+    <div className="space-y-6">
+      <div className={cn("rounded-xl border p-4", overviewSurfaceClass)}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <div
-                className={cn(
-                  "text-sm font-semibold",
-                  payoutComplete && WORKFLOW_SUCCESS_COPY.title
-                )}
+              <WorkflowStepTitle
+                complete={payoutComplete}
+                completeLabel={
+                  kind === "DISBURSEMENT"
+                    ? "Issuer disbursement complete"
+                    : "Issuer residual refund complete"
+                }
+                className="font-semibold"
               >
                 {statusPanelTitle}
-              </div>
+              </WorkflowStepTitle>
             </div>
             <p
               className={cn(
@@ -513,7 +512,6 @@ export function IssuerPayoutCard({
             </div>
           </div>
         </div>
-      </div>
 
       {withdrawal.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT &&
       withdrawal.grossFundedAmount != null &&
@@ -551,33 +549,34 @@ export function IssuerPayoutCard({
           </div>
         </div>
       ) : null}
+      </div>
 
       {withdrawal.withdrawalType === WithdrawalType.ISSUER_DISBURSEMENT ? (
-        <div className="mt-3 rounded-lg border bg-card p-3">
+        <div className={cn("rounded-xl border p-4", workflowTaskSurfaceClass(tawarruqTone))}>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="text-sm font-medium">Tawarruq transaction</div>
-            {shorakaStateQuery.isPending ? (
-              <Badge variant="outline" className={workflowBadgeClassName("neutral")}>
-                Checking…
-              </Badge>
-            ) : shorakaStateQuery.data == null ? (
-              <Badge variant="outline" className={workflowBadgeClassName("neutral")}>
-                Not submitted
-              </Badge>
+            <WorkflowStepTitle
+              complete={tawarruqTone === "success"}
+              completeLabel="1. Tawarruq complete"
+            >
+              1. Tawarruq transaction
+            </WorkflowStepTitle>
+            {tawarruqTone === "success" ? null : shorakaStateQuery.isPending ? (
+              <StatusBadge label="Checking…" status="neutral" />
             ) : hasShorakaCertificate ? (
-              <Badge
-                variant="outline"
-                className={workflowBadgeClassName(tawarruqWorkflowTone("certificate-ready"))}
-              >
-                Certificate ready
-              </Badge>
+              <StatusBadge
+                label="Certificate ready"
+                status={workflowToneToStatusToken(tawarruqTone)}
+              />
+            ) : shorakaStateQuery.data == null ? (
+              <StatusBadge
+                label="Not submitted"
+                status={workflowToneToStatusToken(tawarruqTone)}
+              />
             ) : (
-              <Badge
-                variant="outline"
-                className={workflowBadgeClassName(tawarruqWorkflowTone("in-progress"))}
-              >
-                In progress
-              </Badge>
+              <StatusBadge
+                label="In progress"
+                status={workflowToneToStatusToken(tawarruqTone)}
+              />
             )}
           </div>
           {hasShorakaCertificate ? (
@@ -691,7 +690,12 @@ export function IssuerPayoutCard({
                       </p>
                     ) : null}
                     {state.cutoffWarning ? (
-                      <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+                      <div
+                        className={cn(
+                          "mt-2 rounded border px-2 py-1.5 text-xs text-status-action-text",
+                          ACTION_CARD_CLASS
+                        )}
+                      >
                         {state.cutoffWarning}
                       </div>
                     ) : null}
@@ -702,7 +706,12 @@ export function IssuerPayoutCard({
           ) : null}
 
           {isMalaysiaUnsafeShorakaSubmitWindow && shorakaStateQuery.data == null ? (
-            <div className="mt-2 rounded border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+            <div
+              className={cn(
+                "mt-2 rounded border px-2 py-1.5 text-xs text-status-action-text",
+                ACTION_CARD_CLASS
+              )}
+            >
               {shorakaUnsafeSubmitWindowMessage}
             </div>
           ) : null}
@@ -801,17 +810,24 @@ export function IssuerPayoutCard({
         </div>
       ) : null}
 
-      <div
-        className={cn(
-          "mt-3 rounded-lg border bg-card p-3",
-          payoutComplete && "border-emerald-200/60"
-        )}
-      >
+      <div className={cn("rounded-xl border p-4", workflowTaskSurfaceClass(trusteeBadgeTone))}>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="text-sm font-medium">Trustee submission</div>
-          <Badge variant="outline" className={workflowBadgeClassName(trusteeBadgeTone)}>
-            {status === "DRAFT" ? "Not generated" : statusCopy.label}
-          </Badge>
+          <WorkflowStepTitle
+            complete={payoutComplete}
+            completeLabel={
+              kind === "DISBURSEMENT"
+                ? "2. Trustee instruction complete"
+                : "Trustee instruction complete"
+            }
+          >
+            {kind === "DISBURSEMENT" ? "2. Trustee instruction" : "Trustee instruction"}
+          </WorkflowStepTitle>
+          {payoutComplete ? null : (
+            <StatusBadge
+              label={status === "DRAFT" ? "Not generated" : statusCopy.label}
+              status={workflowToneToStatusToken(trusteeBadgeTone)}
+            />
+          )}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
           {withdrawalTrusteeDescription(status, kind)}
@@ -832,11 +848,11 @@ export function IssuerPayoutCard({
         ) : null}
         <BeneficiaryDetailsBlock
           accountHolder={
-            currentFields.account_holder || <span className="text-amber-700">missing</span>
+            currentFields.account_holder || <span className="text-status-action-text">missing</span>
           }
-          bankName={currentFields.bank_name || <span className="text-amber-700">missing</span>}
+          bankName={currentFields.bank_name || <span className="text-status-action-text">missing</span>}
           accountNumber={
-            currentFields.account_number || <span className="text-amber-700">missing</span>
+            currentFields.account_number || <span className="text-status-action-text">missing</span>
           }
           showEdit={status === "DRAFT" && canManage}
           onEdit={() => setBeneficiaryDialogOpen(true)}
@@ -952,6 +968,7 @@ export function IssuerPayoutCard({
           ) : null}
         </div>
       </div>
+    </div>
 
       <AlertDialog
         open={confirmAction !== null}
@@ -1023,6 +1040,6 @@ export function IssuerPayoutCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

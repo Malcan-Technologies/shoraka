@@ -39,7 +39,7 @@ export function useIssuerDashboardContract(organizationId: string | undefined, c
         `/v1/issuer/dashboard/contracts/${encodeURIComponent(contractId)}?organizationId=${encodeURIComponent(organizationId)}`
       );
       if (!res.success) {
-        throw new Error(res.error.message || "Failed to load contract");
+        throw new Error(res.error.message || "Failed to load facility");
       }
       return res.data;
     },

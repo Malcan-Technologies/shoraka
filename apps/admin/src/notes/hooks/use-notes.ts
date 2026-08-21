@@ -279,6 +279,33 @@ export function useUnpublishNote() {
   });
 }
 
+function useNoteListingVisibilityAction(action: "pause" | "resume") {
+  const apiClient = useNotesApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response =
+        action === "pause"
+          ? await apiClient.pauseAdminNoteListing(id)
+          : await apiClient.resumeAdminNoteListing(id);
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    onSuccess: (note) => {
+      invalidateAdminRegistries(queryClient);
+      queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
+    },
+  });
+}
+
+export function usePauseNoteListing() {
+  return useNoteListingVisibilityAction("pause");
+}
+
+export function useResumeNoteListing() {
+  return useNoteListingVisibilityAction("resume");
+}
+
 function useNoteAction(action: "close" | "fail" | "activate") {
   const apiClient = useNotesApiClient();
   const queryClient = useQueryClient();

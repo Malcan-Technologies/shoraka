@@ -28,6 +28,7 @@ import {
 import {
   PageShell,
   ListToolbar,
+  ListToolbarFilterTrigger,
   FilterChips,
   DataTable,
   EmptyState,
@@ -48,7 +49,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { APPLICATION_STATUS_PRIORITY } from "@/app/(application-management)/applications/status";
 
-const BADGE_BASE = "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border";
+const BADGE_BASE = "inline-flex items-center rounded-full px-3 py-1 text-ui font-normal border";
 
 const ALL_WITHDRAWN_REASONS: (WithdrawReason | undefined)[] = [
   undefined,
@@ -56,13 +57,14 @@ const ALL_WITHDRAWN_REASONS: (WithdrawReason | undefined)[] = [
 ];
 
 const STATUS_MEANING: Record<StatusToken, string> = {
-  action: "Yellow — pending your response",
-  submitted: "Blue — pending the other side",
-  "in-progress": "Indigo — being worked on",
-  success: "Green — good / active positive",
-  completed: "Sky — finished positive",
-  rejected: "Red — bad / failed / expired",
-  neutral: "Slate — terminal closed / inactive",
+  action: "Yellow — you must act (issuer/investor) or CashSouk must act (admin)",
+  submitted: "Blue — waiting on CashSouk or another party (flips for admin)",
+  "in-progress": "Indigo — leftover token; not used on user-portal workflow chips",
+  success: "Green — completed / approved / settled",
+  active: "Violet — live / in force",
+  completed: "Sky — leftover token; user portals use success green",
+  rejected: "Red — failed / declined / expired / arrears",
+  neutral: "Grey — draft / idle / withdrawn / cancelled",
 };
 
 type DemoRow = { id: string; customer: string; amount: string; status: StatusToken };
@@ -111,7 +113,7 @@ function BadgeItem({
         {!noDot && <span className={cn("mr-1.5 h-1.5 w-1.5 shrink-0 rounded-full", dotClass)} aria-hidden />}
         {label}
       </Badge>
-      {!noMeta && meta && <span className="font-mono text-[10px] text-muted-foreground">{meta}</span>}
+      {!noMeta && meta && <span className="font-mono text-meta text-muted-foreground">{meta}</span>}
     </div>
   );
 }
@@ -145,7 +147,7 @@ function PrimitivesHarness() {
           {STATUS_TOKEN_KEYS.map((token) => (
             <div key={token} className="flex flex-col items-start gap-1">
               <StatusBadge status={token} label={token} />
-              <span className="max-w-[12rem] text-[11px] text-muted-foreground">
+              <span className="max-w-[12rem] text-meta text-muted-foreground">
                 {STATUS_MEANING[token]}
               </span>
             </div>
@@ -185,9 +187,7 @@ function PrimitivesHarness() {
           onSearchChange={setSearch}
           searchPlaceholder="Search by ID, customer, invoice…"
           filterGroups={
-            <Button variant="outline" size="sm" className="h-11 rounded-xl">
-              Status
-            </Button>
+            <ListToolbarFilterTrigger label="Status" />
           }
           appliedFilters={appliedFilters}
           onClearFilters={() => setChipIds([])}
@@ -287,7 +287,7 @@ function PrimitivesHarness() {
           breadcrumb={<span>Applications › #A3F91C2B</span>}
           title="Application #A3F91C2B"
           status={<StatusBadge status="action" label="Offer received" />}
-          facts="Acme Sdn Bhd · Contract financing · submitted 12 Mar 2026"
+          facts="Acme Sdn Bhd · Facility financing · submitted 12 Mar 2026"
           actions={
             <>
               <div className="rounded-xl bg-status-action-bg p-0.5">
@@ -392,9 +392,10 @@ export default function StatusExamplesPage() {
           <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
             Status Badge &amp; Primitives Reference
           </h1>
-          <p className="mt-1 text-[15px] text-muted-foreground">
-            Dev-only. Four semantic colour groups (+ neutral), plus Stage A shared primitives from{" "}
-            <code className="text-xs">@cashsouk/ui</code>. Admin: raw labels. Issuer: collapsed (e.g. Contract Pending → Under Review).
+          <p className="mt-1 text-ui text-muted-foreground">
+            Dev-only. Six viewer-centric tokens (yellow/blue flip by seat). Indigo and sky are leftover CSS — do not use them on issuer/investor workflow chips.
+            {" "}
+            <code className="text-meta">@cashsouk/ui</code>. Admin: raw labels. Issuer: collapsed (e.g. Facility Pending → Under Review).
           </p>
         </header>
 
@@ -474,7 +475,7 @@ export default function StatusExamplesPage() {
 
         <Section title="Badges — Admin view (all)">
           <p className="mb-3 text-sm text-muted-foreground">
-            Raw labels: Contract Pending, Contract Sent, Invoice Pending, etc.
+            Raw labels: Facility Pending, Facility Sent, Invoice Pending, etc.
           </p>
           <div className="flex flex-wrap gap-3">
             {STATUS_EXAMPLE_KEYS.map((key) => {

@@ -15,8 +15,9 @@ import {
   workflowHasAcceptanceDocuments,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
-import { getOfferAcceptancePhaseBadgeClass } from "@cashsouk/config";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@cashsouk/ui";
+import { getAdminStatusToken } from "@/lib/admin-status-token";
+import { getReviewStatusPresentation } from "../status-presentation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DocumentsSection } from "./documents-section";
@@ -64,6 +65,8 @@ export type AcceptanceSectionProps = {
   structureType?: string | null;
   acceptanceReviewMode?: "live" | "inherited";
   inheritedSourceApplication?: { id: string; productId: string | null };
+  /** Derived acceptance_documents section status (same source as review tab dot). */
+  sectionStatus?: string;
 };
 
 function collectAcceptanceDownloadFiles(
@@ -121,7 +124,7 @@ function OfferAcceptanceBlock({
   const isInvoiceOnly = structureType === "invoice_only";
   const emptyHint = isInvoiceOnly
     ? "Send an offer from Invoice to start acceptance."
-    : "Send an offer from Contract to start acceptance.";
+    : "Send an offer from Facility to start acceptance.";
   const deadlineDisplay = getOfferPhaseDeadlineDisplay(offerDetails);
   const showDeadline =
     acceptance &&
@@ -189,6 +192,7 @@ export function AcceptanceSection({
   structureType,
   acceptanceReviewMode = "live",
   inheritedSourceApplication,
+  sectionStatus,
 }: AcceptanceSectionProps) {
   const isInheritedAcceptance = acceptanceReviewMode === "inherited";
   const showSigningHub = typeof applicationId === "string" && applicationId.length > 0;
@@ -247,7 +251,7 @@ export function AcceptanceSection({
       <CardContent className="space-y-10">
         {isInheritedAcceptance ? (
           <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-            Acceptance and signing were completed when this contract was approved
+            Acceptance and signing were completed when this facility was approved
             {inheritedSourceHref ? (
               <>
                 {" "}
@@ -297,17 +301,32 @@ export function AcceptanceSection({
 
           if (showSigningHub) {
             const acceptance = getOfferAcceptanceFromOfferDetails(acceptanceOfferDetails);
-            const presentation = acceptance
-              ? getOfferAcceptanceStatusPresentation(acceptance.status)
+            const useSectionReviewBadge =
+              !!sectionStatus &&
+              !!acceptance &&
+              (acceptance.status === "PENDING_ADMIN_REVIEW" ||
+                acceptance.status === "CHANGES_REQUESTED");
+            const sectionPresentation = useSectionReviewBadge
+              ? getReviewStatusPresentation(sectionStatus)
               : null;
+            const phasePresentation =
+              acceptance && !useSectionReviewBadge
+                ? getOfferAcceptanceStatusPresentation(acceptance.status)
+                : null;
+            const badgePresentation = sectionPresentation ?? phasePresentation;
             return (
               <ReviewFieldBlock
                 title="Acceptance documents"
                 titleAside={
-                  presentation && acceptance ? (
-                    <Badge className={getOfferAcceptancePhaseBadgeClass(acceptance.status)}>
-                      {presentation.label}
-                    </Badge>
+                  badgePresentation ? (
+                    <StatusBadge
+                      label={badgePresentation.label}
+                      status={
+                        useSectionReviewBadge
+                          ? getAdminStatusToken(sectionStatus!)
+                          : getAdminStatusToken(acceptance!.status)
+                      }
+                    />
                   ) : null
                 }
                 titleEnd={showAcceptanceDocuments ? downloadAllButton : undefined}

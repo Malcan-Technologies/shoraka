@@ -2595,7 +2595,7 @@ export function BusinessDetailsStep({
                 )}
               </div>
             ) : fieldsLocked ? (
-              <span className="text-[14px] text-muted-foreground">—</span>
+              <span className="text-ui text-muted-foreground">—</span>
             ) : (
               <label
                 htmlFor="why-section-supporting-documents"

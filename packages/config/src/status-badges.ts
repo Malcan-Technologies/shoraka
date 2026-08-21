@@ -110,12 +110,12 @@ function groupPresentation(
 }
 
 const STATUS_PRESENTATION: Record<string, Omit<StatusPresentation, "label"> & { label?: string }> = {
-  DRAFT: { ...groupPresentation("issuer_action"), label: "Draft" },
+  DRAFT: { ...groupPresentation("neutral"), label: "Draft" },
   SUBMITTED: { ...groupPresentation("admin_action"), label: "Submitted" },
   UNDER_REVIEW: { ...groupPresentation("admin_action"), label: "Under Review" },
-  CONTRACT_PENDING: { ...groupPresentation("admin_action"), label: "Contract Pending" },
-  CONTRACT_SENT: { ...groupPresentation("issuer_action"), label: "Contract Sent" },
-  CONTRACT_ACCEPTED: { ...groupPresentation("admin_action"), label: "Contract Accepted" },
+  CONTRACT_PENDING: { ...groupPresentation("admin_action"), label: "Facility Pending" },
+  CONTRACT_SENT: { ...groupPresentation("issuer_action"), label: "Facility Sent" },
+  CONTRACT_ACCEPTED: { ...groupPresentation("admin_action"), label: "Facility Accepted" },
   INVOICE_ACCEPTED: { ...groupPresentation("admin_action"), label: "Invoice Accepted" },
   SIGNING_PENDING: { ...groupPresentation("admin_action"), label: "Signing Pending" },
   INVOICE_PENDING: { ...groupPresentation("admin_action"), label: "Invoice Pending" },
@@ -295,8 +295,7 @@ const BADGE_KEY_PRESENTATION: Record<string, StatusPresentation> = {
   offer_sent: { ...STATUS_PRESENTATION.OFFER_SENT, label: "Offer Received" } as StatusPresentation,
   accepted: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
   approved: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
-  // Issuer card keys: terminal closed states use neutral (matches badgeKeyToStatusToken / BRANDING.md).
-  completed: { ...groupPresentation("neutral"), label: "Completed" } as StatusPresentation,
+  completed: { ...groupPresentation("completed"), label: "Completed" } as StatusPresentation,
   withdrawn: { ...groupPresentation("neutral", undefined, "withdrawn"), label: "Withdrawn" } as StatusPresentation,
   declined: { ...STATUS_PRESENTATION.DECLINED, label: "Declined" } as StatusPresentation,
   offer_expired: { ...STATUS_PRESENTATION.OFFER_EXPIRED, label: "Offer Expired" } as StatusPresentation,
@@ -346,7 +345,7 @@ export function getStatusPresentationByBadgeKey(
 
 /**
  * Get status presentation for admin/issuer badges. Use for ApplicationStatusBadge, ReviewStepStatusBadge.
- * Admin: uses raw STATUS_PRESENTATION (Contract Pending, Contract Sent, etc.).
+ * Admin: uses raw STATUS_PRESENTATION (Facility Pending, Facility Sent, etc.).
  * Issuer card: uses collapsed BADGE_KEY_PRESENTATION via getStatusPresentationByBadgeKey.
  */
 export function getStatusPresentation(
@@ -361,7 +360,10 @@ export function getStatusPresentation(
     if (withdrawReason === WithdrawReason.OFFER_REJECTED) {
       return { ...STATUS_PRESENTATION.DECLINED, label: "Declined" } as StatusPresentation;
     }
-    return { ...STATUS_PRESENTATION.WITHDRAWN, label: "Withdrawn" } as StatusPresentation;
+    return {
+      ...groupPresentation("neutral", undefined, "withdrawn"),
+      label: "Withdrawn",
+    } as StatusPresentation;
   }
 
   const rawPres = STATUS_PRESENTATION[upper];
@@ -402,4 +404,58 @@ export function getStatusBadgeClass(
   options?: StatusPresentationOptions
 ): string {
   return getStatusPresentation(status, withdrawReason, options).badgeClass;
+}
+
+/**
+ * Viewer-centric StatusBadge tokens for issuer/investor:
+ * yellow/action = you must act · blue/submitted = waiting on CashSouk · green/success = done.
+ */
+export type UserPortalStatusToken =
+  | "action"
+  | "submitted"
+  | "success"
+  | "active"
+  | "rejected"
+  | "neutral";
+
+export function statusBadgeGroupToToken(group: StatusBadgeGroup): UserPortalStatusToken {
+  switch (group) {
+    case "issuer_action":
+      return "action";
+    case "admin_action":
+      return "submitted";
+    case "completed":
+      return "success";
+    case "expired_closed":
+      return "rejected";
+    default:
+      return "neutral";
+  }
+}
+
+/** Collapsed issuer/investor card badge keys → StatusBadge tokens. */
+export function badgeKeyToStatusToken(badgeKey: string): UserPortalStatusToken {
+  switch (badgeKey?.toLowerCase()) {
+    case "draft":
+    case "withdrawn":
+    case "archived":
+      return "neutral";
+    case "amendment_requested":
+    case "offer_sent":
+      return "action";
+    case "submitted":
+    case "resubmitted":
+    case "under_review":
+      return "submitted";
+    case "accepted":
+    case "approved":
+    case "completed":
+      return "success";
+    case "rejected":
+    case "declined":
+    case "offer_expired":
+      return "rejected";
+    default:
+      return "neutral";
+  }
 }

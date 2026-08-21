@@ -1,7 +1,8 @@
-import * as React from "react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import {
+  ListToolbar as SharedListToolbar,
+  ListToolbarFilterTrigger,
+  type FilterChip,
+} from "@cashsouk/ui";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -9,12 +10,6 @@ import {
   DropdownMenuTrigger,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
-import {
-  MagnifyingGlassIcon,
-  FunnelIcon,
-  XMarkIcon,
-  ArrowPathIcon,
-} from "@heroicons/react/24/outline";
 
 interface ListStatusOption {
   value: string;
@@ -60,17 +55,10 @@ export function ListToolbar({
   extraToggleChecked = false,
   onExtraToggleChange,
 }: ListToolbarProps) {
-  const [isSpinning, setIsSpinning] = React.useState(false);
-
   const hasExtraToggle = Boolean(extraToggleLabel && onExtraToggleChange);
-  const hasFilters = searchQuery !== "" || statusFilters.length > 0 || (hasExtraToggle && extraToggleChecked);
+  const hasFilters =
+    searchQuery !== "" || statusFilters.length > 0 || (hasExtraToggle && extraToggleChecked);
   const activeFilterCount = statusFilters.length + (hasExtraToggle && extraToggleChecked ? 1 : 0);
-
-  const handleRefresh = () => {
-    setIsSpinning(true);
-    onRefresh?.();
-    setTimeout(() => setIsSpinning(false), 500);
-  };
 
   const handleStatusToggle = (status: string) => {
     if (statusFilterMode === "single") {
@@ -85,87 +73,66 @@ export function ListToolbar({
     onStatusFiltersChange([...statusFilters, status]);
   };
 
+  const appliedFilters: FilterChip[] = statusFilters.map((value) => ({
+    id: `status-${value}`,
+    label: `Status: ${statusOptions.find((option) => option.value === value)?.label ?? value}`,
+    onRemove: () => handleStatusToggle(value),
+  }));
+  if (hasExtraToggle && extraToggleChecked && extraToggleLabel) {
+    appliedFilters.push({
+      id: "extra",
+      label: extraToggleLabel,
+      onRemove: () => onExtraToggleChange?.(false),
+    });
+  }
+
   return (
-    <div className="flex items-center gap-3">
-      <div className="relative flex-1">
-        <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder={searchPlaceholder}
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="h-11 rounded-xl bg-card pl-9"
-        />
-      </div>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
-            <FunnelIcon className="h-4 w-4" />
-            Filters
-            {activeFilterCount > 0 && (
-              <Badge
-                variant="secondary"
-                className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-primary text-primary-foreground"
+    <SharedListToolbar
+      searchValue={searchQuery}
+      onSearchChange={onSearchChange}
+      searchPlaceholder={searchPlaceholder}
+      appliedFilters={appliedFilters}
+      onClearFilters={hasFilters ? onClearFilters : undefined}
+      onReload={onRefresh}
+      isLoading={isLoading}
+      countLabel={`${filteredCount} ${
+        filteredCount === 1 ? itemLabelSingular : itemLabelPlural
+      }${hasFilters ? ` of ${totalCount}` : ""}`}
+      filterGroups={
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <ListToolbarFilterTrigger label="Filters" count={activeFilterCount} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>Status</DropdownMenuLabel>
+            <DropdownMenuCheckboxItem
+              checked={statusFilters.length === 0}
+              onCheckedChange={() => onStatusFiltersChange([])}
+            >
+              All statuses
+            </DropdownMenuCheckboxItem>
+            {statusOptions.map((option) => (
+              <DropdownMenuCheckboxItem
+                key={option.value}
+                checked={statusFilters.includes(option.value)}
+                onCheckedChange={() => handleStatusToggle(option.value)}
               >
-                {activeFilterCount}
-              </Badge>
-            )}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuLabel>Status</DropdownMenuLabel>
-          <DropdownMenuCheckboxItem
-            checked={statusFilters.length === 0}
-            onCheckedChange={() => onStatusFiltersChange([])}
-          >
-            All statuses
-          </DropdownMenuCheckboxItem>
-          {statusOptions.map((option) => (
-            <DropdownMenuCheckboxItem
-              key={option.value}
-              checked={statusFilters.includes(option.value)}
-              onCheckedChange={() => handleStatusToggle(option.value)}
-            >
-              {option.label}
-            </DropdownMenuCheckboxItem>
-          ))}
-          {hasExtraToggle ? (
-            <DropdownMenuCheckboxItem
-              checked={extraToggleChecked}
-              onCheckedChange={(checked) => {
-                if (!onExtraToggleChange) return;
-                onExtraToggleChange(Boolean(checked));
-              }}
-            >
-              {extraToggleLabel}
-            </DropdownMenuCheckboxItem>
-          ) : null}
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      {hasFilters && (
-        <Button variant="ghost" onClick={onClearFilters} className="gap-2 h-11 rounded-xl">
-          <XMarkIcon className="h-4 w-4" />
-          Clear
-        </Button>
-      )}
-
-      {onRefresh && (
-        <Button
-          variant="outline"
-          onClick={handleRefresh}
-          disabled={isLoading || isSpinning}
-          className="h-11 gap-2 rounded-xl bg-card"
-        >
-          <ArrowPathIcon className={`h-4 w-4 ${isLoading || isSpinning ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
-      )}
-
-      <Badge variant="secondary" className="h-11 px-4 rounded-xl text-sm">
-        {filteredCount} {filteredCount === 1 ? itemLabelSingular : itemLabelPlural}
-        {hasFilters && ` of ${totalCount}`}
-      </Badge>
-    </div>
+                {option.label}
+              </DropdownMenuCheckboxItem>
+            ))}
+            {hasExtraToggle ? (
+              <DropdownMenuCheckboxItem
+                checked={extraToggleChecked}
+                onCheckedChange={(checked) => {
+                  onExtraToggleChange?.(Boolean(checked));
+                }}
+              >
+                {extraToggleLabel}
+              </DropdownMenuCheckboxItem>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      }
+    />
   );
 }

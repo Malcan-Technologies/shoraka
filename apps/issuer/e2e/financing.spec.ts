@@ -34,7 +34,7 @@ async function expectFinancingShellOrLogin(
 test.describe("Issuer Financing", () => {
   test("/financing loads or redirects to login", async ({ page }) => {
     await page.goto("/financing");
-    await expectFinancingShellOrLogin(page, /Contracts/i);
+    await expectFinancingShellOrLogin(page, /Facilities/i);
   });
 
   test("/financing?tab=invoices loads Invoices tab or login", async ({ page }) => {
@@ -42,8 +42,8 @@ test.describe("Issuer Financing", () => {
     await expectFinancingShellOrLogin(page, /Invoices/i);
   });
 
-  test("/financing?tab=notes loads Notes tab or login", async ({ page }) => {
+  test("/financing?tab=notes aliases to Invoices tab or login", async ({ page }) => {
     await page.goto("/financing?tab=notes");
-    await expectFinancingShellOrLogin(page, /Notes/i);
+    await expectFinancingShellOrLogin(page, /Invoices/i);
   });
 });

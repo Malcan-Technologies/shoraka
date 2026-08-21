@@ -1,13 +1,11 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import {
-  ArrowLeftIcon,
-  ArrowPathIcon,
-  DocumentTextIcon,
-} from "@heroicons/react/24/outline";
+import { format } from "date-fns";
+import { ArrowPathIcon, BanknotesIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,86 +16,139 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { Skeleton, useHeader } from "@cashsouk/ui";
+import { Card, CardContent } from "@/components/ui/card";
+import { NoteStatusBadge, Skeleton, StatusBadge, getNoteDerivedStatusToken } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
+import { isNoteSettlementPosted, type NoteDetail } from "@cashsouk/types";
 import { useNoteDetail } from "@/notes/hooks/use-note-detail";
 import {
   useCloseNoteFunding,
   useFailNoteFunding,
+  usePauseNoteListing,
   usePublishNote,
+  useResumeNoteListing,
   useUpdateNoteFeatured,
   useUnpublishNote,
 } from "@/notes/hooks/use-notes";
 import { LedgerPanel } from "@/notes/components/ledger-panel";
+import { NoteCampaignActions } from "@/notes/components/note-campaign-actions";
+import { NoteLifecycleCard } from "@/notes/components/note-lifecycle-card";
 import {
-  NoteLifecycleCard,
-  type NoteLifecycleAction,
-} from "@/notes/components/note-lifecycle-card";
-import { NoteProspectusStatusCard } from "@/notes/components/note-prospectus-status-card";
+  NoteProspectusStatusCard,
+} from "@/notes/components/note-prospectus-status-card";
 import { NoteInvestorsPanel } from "@/notes/components/note-investors-panel";
-import { NoteStatusBadge } from "@cashsouk/ui";
-import { NoteTermsPanel } from "@/notes/components/note-terms-panel";
+import { useOpenAdminProspectusPdf } from "@/notes/hooks/use-prospectus-review";
+import { getNoteCommercialTermRows } from "@/notes/utils/note-commercial-terms";
 import { NoteTimelinePanel } from "@/notes/components/note-timeline-panel";
 import { SettlementPanel } from "@/notes/components/settlement-panel";
 import { SourceApplicationPanel } from "@/notes/components/source-application-panel";
 import { IssuerPayoutCard } from "@/notes/components/issuer-payout-card";
 import { NoteWorkflowTabHeader } from "@/notes/components/note-workflow-tab-header";
 import {
+  AdminDetailTabPanel,
+  AdminDetailTabs,
+  AdminEntityHeader,
+  AdminEntitySummaryCard,
+  AdminMetricProgress,
+  AdminNextActionBanner,
+  AdminRelatedRecordsRail,
+  useAdminDetailTabState,
+  type AdminDetailTab,
+} from "@/components/admin-detail";
+import {
   LATE_PAYMENT_WORKFLOW_BADGE,
+  getNotePaymentDueDate,
   resolveLatePaymentTimeline,
 } from "@/notes/utils/late-payment-workflow";
 import {
-  isNoteLifecycleVisuallyComplete,
-  isSettlementWrappingUp,
-} from "@/notes/utils/settlement-trustee-workflow";
-import { NOTE_WORKFLOW_TAB_BADGE, type SimpleTabStatus } from "@/notes/utils/workflow-status-tokens";
+  findNoteDisbursementWithdrawal,
+  isNoteDetailTabId,
+  NOTE_REFERENCE_TAB_TOKEN,
+  noteDetailTabStatusToken,
+  noteLatePaymentTabStatusToken,
+  resolveNoteCampaignTabStatus,
+  resolveNoteDetailNextAction,
+  resolveNoteDisbursementTabStatus,
+  resolveNoteServicingTabStatus,
+  type NoteDetailTabId,
+} from "@/notes/utils/note-detail-next-action";
+import { type NoteLifecycleAction } from "@/notes/utils/note-lifecycle-actions";
+import { resolveNoteSourceLinkage } from "@/notes/utils/note-source-linkage";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { adminTabStatusLabel } from "@/lib/admin-status-token";
+import { cn } from "@/lib/utils";
 import {
-  isSoukscoreRiskRating,
-  type NoteDetail,
-} from "@cashsouk/types";
+  getNoteFundingAccentClass,
+  getNoteFundingIndicatorClass,
+  getNoteFundingProgressClass,
+  isNoteActiveLoan,
+} from "@/notes/utils/funding-progress";
+import {
+  calendarDaysUntilMaturity,
+  formatPaymentDueHint,
+  maturityCountdownClass,
+} from "@/notes/utils/maturity-countdown";
+
+function getNotePaymentDueSummary(note: NoteDetail) {
+  const paymentDueDate = getNotePaymentDueDate(note);
+  const settled = isNoteSettlementPosted(note);
+  const defaulted = note.status === "DEFAULTED" || note.servicingStatus === "DEFAULTED";
+  const highlight =
+    !settled &&
+    (note.status === "ACTIVE" ||
+      note.status === "ARREARS" ||
+      note.status === "DEFAULTED" ||
+      note.servicingStatus === "LATE" ||
+      note.servicingStatus === "ARREARS");
+
+  return {
+    label: "Payment due",
+    value: paymentDueDate ? format(new Date(paymentDueDate), "dd MMM yyyy") : "Not set",
+    hint: settled
+      ? "Settled"
+      : defaulted
+        ? "Defaulted"
+        : (formatPaymentDueHint(paymentDueDate) ?? undefined),
+    accentClassName: maturityCountdownClass(calendarDaysUntilMaturity(paymentDueDate), {
+      highlight,
+      variant: "date" as const,
+      settled,
+    }),
+  };
+}
 
 function PageSkeleton() {
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Skeleton className="h-10 w-10 rounded-lg" />
-        <div className="space-y-2">
-          <Skeleton className="h-6 w-56" />
-          <Skeleton className="h-4 w-36" />
+      <Skeleton className="h-8 w-24" />
+      <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
+        <div className="p-6 md:p-8">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-3">
+              <Skeleton className="h-12 w-12 rounded-xl" />
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-7 w-72 max-w-full" />
+                <Skeleton className="h-4 w-48" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:flex">
+              <Skeleton className="h-20 w-full rounded-xl sm:w-48" />
+              <Skeleton className="h-20 w-full rounded-xl sm:w-48" />
+            </div>
+          </div>
+          <Skeleton className="mt-6 h-28 w-full rounded-xl" />
+        </div>
+        <div className="border-t bg-muted/40 px-6 py-4 md:px-8">
+          <Skeleton className="h-12 w-full" />
         </div>
       </div>
-      <Skeleton className="h-32 w-full rounded-2xl" />
-      <Skeleton className="h-56 w-full rounded-2xl" />
+      <Skeleton className="h-20 w-full rounded-2xl" />
       <Skeleton className="h-56 w-full rounded-2xl" />
     </div>
   );
 }
-
-function getInvoiceAmount(note: NonNullable<ReturnType<typeof useNoteDetail>["data"]>) {
-  const extended = note as typeof note & { invoiceAmount?: number; settlementAmount?: number };
-  return extended.invoiceAmount ?? extended.settlementAmount ?? note.requestedAmount;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function getRiskRating(note: NoteDetail) {
-  const offerDetails = asRecord(note.invoiceSnapshot?.offer_details);
-  const riskRating = offerDetails?.risk_rating;
-  return isSoukscoreRiskRating(riskRating) ? riskRating : "—";
-}
-
-const TAB_STATUS_BADGE_COPY = NOTE_WORKFLOW_TAB_BADGE;
 
 const noteActionCopy: Record<
   NoteLifecycleAction,
@@ -123,6 +174,20 @@ const noteActionCopy: Record<
     confirmLabel: "Unpublish",
     successLabel: "Note unpublished",
   },
+  pauseListing: {
+    title: "Pause campaign?",
+    description:
+      "This temporarily hides the listing from the investor marketplace. Existing commitments stay in place and funds are not returned. You can resume funding later, or fail funding if you need to refund investors.",
+    confirmLabel: "Pause campaign",
+    successLabel: "Campaign paused",
+  },
+  resumeListing: {
+    title: "Resume campaign?",
+    description:
+      "This republishes the listing on the investor marketplace. Funding remains open and existing commitments are unchanged.",
+    confirmLabel: "Resume campaign",
+    successLabel: "Campaign resumed",
+  },
   closeFunding: {
     title: "Close funding?",
     description:
@@ -133,21 +198,14 @@ const noteActionCopy: Record<
   failFunding: {
     title: "Fail funding?",
     description:
-      "This will mark the marketplace funding attempt as unsuccessful. Investor commitments should be released or refunded according to the payment rail model.",
+      "This marks the funding attempt as unsuccessful. Each committed investment is released and that investor's committed amount is credited back to their wallet. The note cannot be reopened.",
     confirmLabel: "Fail Funding",
-    successLabel: "Funding failed",
+    successLabel: "Funding failed — committed amounts returned to investor wallets",
     destructive: true,
   },
 };
 
 export default function NoteDetailPage() {
-  type NoteDetailTabId =
-    | "disbursement"
-    | "servicing-settlement"
-    | "late-payment"
-    | "ledger"
-    | "investors";
-  const { setTitle } = useHeader();
   const { can } = usePermissions();
   const canManage = can("notes.manage");
   const canDisbursement = can("notes.disbursement.manage");
@@ -156,73 +214,94 @@ export default function NoteDetailPage() {
   const noteId = typeof params.id === "string" ? params.id : "";
   const { data: note, isLoading, error } = useNoteDetail(noteId);
 
-  React.useEffect(() => {
-    setTitle(note?.noteReference ?? "Note detail");
-    return () => setTitle("");
-  }, [setTitle, note?.noteReference]);
   const publishNote = usePublishNote();
   const unpublishNote = useUnpublishNote();
+  const pauseListing = usePauseNoteListing();
+  const resumeListing = useResumeNoteListing();
   const closeFunding = useCloseNoteFunding();
   const failFunding = useFailNoteFunding();
   const updateNoteFeatured = useUpdateNoteFeatured();
+  const openProspectusPdf = useOpenAdminProspectusPdf();
   const [pendingAction, setPendingAction] = React.useState<NoteLifecycleAction | null>(null);
   const [featuredEnabled, setFeaturedEnabled] = React.useState(false);
-  const [activeNoteTab, setActiveNoteTab] = React.useState<NoteDetailTabId>("disbursement");
 
   const lifecyclePending = React.useMemo(
     () => ({
       publish: publishNote.isPending,
       unpublish: unpublishNote.isPending,
+      pauseListing: pauseListing.isPending,
+      resumeListing: resumeListing.isPending,
       closeFunding: closeFunding.isPending,
       failFunding: failFunding.isPending,
     }),
-    [publishNote.isPending, unpublishNote.isPending, closeFunding.isPending, failFunding.isPending]
+    [
+      publishNote.isPending,
+      unpublishNote.isPending,
+      pauseListing.isPending,
+      resumeListing.isPending,
+      closeFunding.isPending,
+      failFunding.isPending,
+    ]
   );
 
-  const disbursementWithdrawal = React.useMemo(() => {
-    const withdrawals = note?.withdrawals ?? [];
-    return withdrawals.find((w) => w.withdrawalType === "ISSUER_DISBURSEMENT") ?? null;
-  }, [note]);
-  const disbursementTabStatus = React.useMemo<SimpleTabStatus>(() => {
-    if (!disbursementWithdrawal) return "not-started";
-    if (disbursementWithdrawal.status === "COMPLETED") return "done";
-    return "needs-action";
-  }, [disbursementWithdrawal]);
-  const servicingSettlementTabStatus = React.useMemo<SimpleTabStatus>(() => {
-    if (!note) return "not-started";
-
-    const isDone = isNoteLifecycleVisuallyComplete(note);
-    if (isDone) return "done";
-
-    const hasPendingPayments = note.payments.some((payment) => payment.status === "PENDING");
-    const hasUnpostedSettlement = note.settlements.some(
-      (settlement) => settlement.status !== "POSTED" && settlement.status !== "VOID"
-    );
-    const isArrearsOrDefault =
-      note.status === "ARREARS" ||
-      note.status === "DEFAULTED" ||
-      note.servicingStatus === "ARREARS" ||
-      note.servicingStatus === "DEFAULTED";
-    if (hasPendingPayments || hasUnpostedSettlement || isArrearsOrDefault) {
-      return "needs-action";
-    }
-
-    const servicingNotStarted =
-      note.servicingStatus === "NOT_STARTED" ||
-      (note.status !== "ACTIVE" &&
-        note.status !== "ARREARS" &&
-        note.status !== "DEFAULTED" &&
-        note.status !== "REPAID");
-    if (servicingNotStarted) return "not-started";
-
-    if (isSettlementWrappingUp(note)) return "in-progress";
-
-    return "needs-action";
-  }, [note]);
-  const latePaymentTimeline = React.useMemo(
-    () => (note ? resolveLatePaymentTimeline(note) : null),
+  const disbursementWithdrawal = React.useMemo(
+    () => (note ? findNoteDisbursementWithdrawal(note) : null),
     [note]
   );
+  const nextAction = React.useMemo(
+    () => (note ? resolveNoteDetailNextAction(note) : null),
+    [note]
+  );
+  const { activeTab, setActiveTab } = useAdminDetailTabState<NoteDetailTabId>({
+    isValidTab: isNoteDetailTabId,
+    computedTab: nextAction?.tabId ?? null,
+  });
+
+  const tabs = React.useMemo<AdminDetailTab<NoteDetailTabId>[]>(() => {
+    if (!note) return [];
+    const campaignToken = noteDetailTabStatusToken(resolveNoteCampaignTabStatus(note));
+    const disbursementToken = noteDetailTabStatusToken(resolveNoteDisbursementTabStatus(note));
+    const servicingToken = noteDetailTabStatusToken(resolveNoteServicingTabStatus(note));
+    const latePaymentPhase = resolveLatePaymentTimeline(note).phase;
+    const latePaymentToken = noteLatePaymentTabStatusToken(latePaymentPhase);
+
+    return [
+      {
+        id: "campaign",
+        label: "Campaign",
+        statusToken: campaignToken,
+        statusLabel: adminTabStatusLabel(campaignToken),
+      },
+      {
+        id: "disbursement",
+        label: "Disbursement",
+        statusToken: disbursementToken,
+        statusLabel: adminTabStatusLabel(disbursementToken),
+      },
+      {
+        id: "servicing",
+        label: "Servicing",
+        statusToken: servicingToken,
+        statusLabel: adminTabStatusLabel(servicingToken),
+      },
+      {
+        id: "late-payment",
+        label: "Late Payment",
+        statusToken: latePaymentToken,
+        statusLabel: LATE_PAYMENT_WORKFLOW_BADGE[latePaymentPhase].label,
+      },
+      {
+        id: "ledger",
+        label: "Ledger",
+        statusToken: NOTE_REFERENCE_TAB_TOKEN,
+      },
+      {
+        id: "activity",
+        label: "Activity",
+        statusToken: NOTE_REFERENCE_TAB_TOKEN,
+      },
+    ];
+  }, [note]);
 
   const runConfirmedAction = async () => {
     if (!note || !pendingAction) return;
@@ -230,6 +309,8 @@ export default function NoteDetailPage() {
     const actions: Record<NoteLifecycleAction, () => Promise<unknown>> = {
       publish: () => publishNote.mutateAsync(note.id),
       unpublish: () => unpublishNote.mutateAsync(note.id),
+      pauseListing: () => pauseListing.mutateAsync(note.id),
+      resumeListing: () => resumeListing.mutateAsync(note.id),
       closeFunding: () => closeFunding.mutateAsync(note.id),
       failFunding: () => failFunding.mutateAsync(note.id),
     };
@@ -247,6 +328,8 @@ export default function NoteDetailPage() {
   const confirmPending =
     publishNote.isPending ||
     unpublishNote.isPending ||
+    pauseListing.isPending ||
+    resumeListing.isPending ||
     closeFunding.isPending ||
     failFunding.isPending;
 
@@ -273,371 +356,241 @@ export default function NoteDetailPage() {
     }
   };
 
+  const linkage = note ? resolveNoteSourceLinkage(note) : null;
+  const resolvedTab: NoteDetailTabId = activeTab ?? nextAction?.tabId ?? "campaign";
+  const headerMetrics = React.useMemo(() => {
+    if (!note) return [];
+    const servicingMetrics = isNoteActiveLoan(note)
+      ? [
+          {
+            label: "Settlement amount",
+            value: formatCurrency(note.settlementAmount),
+          },
+        ]
+      : [];
+    return [...servicingMetrics, ...getNoteCommercialTermRows(note)];
+  }, [note]);
+
   return (
     <RequirePermission permission="notes.view">
       <>
-      
-            <div className="flex items-center gap-2 px-4 pt-4 md:px-6">
-        <Button variant="ghost" size="sm" onClick={() => router.push("/notes")} className="gap-1.5">
-          <ArrowLeftIcon className="h-4 w-4" />
-          Notes
-        </Button>
-      </div>
-<div className="flex-1 overflow-y-auto">
-        <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
-          {isLoading ? <PageSkeleton /> : null}
+        <div className="flex-1 overflow-y-auto">
+          <div className="w-full space-y-6 px-4 py-6 md:px-6 md:py-8 lg:px-8">
+            {isLoading ? <PageSkeleton /> : null}
 
-          {error ? (
-            <div className="py-8 text-center text-destructive">
-              Error loading note: {error instanceof Error ? error.message : "Unknown error"}
-            </div>
-          ) : null}
-
-          {note ? (
-            <div className="space-y-6">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="flex min-w-0 items-start gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                    <DocumentTextIcon className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-xs uppercase tracking-wider text-muted-foreground">
-                      Note Detail
-                    </div>
-                    <h2 className="truncate text-2xl font-bold">{note.title}</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {note.noteReference} · {note.issuerName ?? "Unknown issuer"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-end gap-3">
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className={`flex items-center gap-2 rounded-full border px-3 py-1.5 ${!canManage ? "cursor-not-allowed opacity-60" : ""}`}>
-                          <span className="text-xs font-medium text-muted-foreground">Featured</span>
-                          <Switch
-                            id="note-featured-toggle"
-                            checked={featuredEnabled}
-                            onCheckedChange={(checked) => void handleToggleFeatured(Boolean(checked))}
-                            disabled={updateNoteFeatured.isPending || !canManage}
-                          />
-                        </div>
-                      </TooltipTrigger>
-                      {!canManage && (
-                        <TooltipContent side="bottom" className="max-w-xs">You do not have permission to perform this action.</TooltipContent>
-                      )}
-                    </Tooltip>
-                  </TooltipProvider>
-                  <NoteStatusBadge note={note} showDetail />
-                </div>
+            {error ? (
+              <div className="py-8 text-center text-destructive">
+                Error loading note: {error instanceof Error ? error.message : "Unknown error"}
               </div>
+            ) : null}
 
-              <Card className="rounded-2xl">
-                <CardContent className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-6">
-                  <div>
-                    <div className="text-xs text-muted-foreground">Invoice Amount</div>
-                    <div className="mt-1 text-xl font-semibold">
-                      {formatCurrency(getInvoiceAmount(note))}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Target Amount</div>
-                    <div className="mt-1 text-xl font-semibold">
-                      {formatCurrency(note.targetAmount)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Funded Amount</div>
-                    <div className="mt-1 text-xl font-semibold">
-                      {formatCurrency(note.fundedAmount)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Funding Progress</div>
-                    <div className="mt-1 text-xl font-semibold">
-                      {note.fundingPercent.toFixed(1)}%
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Risk Rating</div>
-                    <div className="mt-1 text-xl font-semibold">{getRiskRating(note)}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Paymaster</div>
-                    <div className="mt-1 text-xl font-semibold">{note.paymasterName ?? "-"}</div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <NoteLifecycleCard
-                note={note}
-                pending={lifecyclePending}
-                onRequestAction={(action) => setPendingAction(action)}
-                canManage={canManage}
-              />
-
-              <NoteProspectusStatusCard
-                note={note}
-                onReviewProspectus={() => router.push(`/notes/${note.id}/prospectus`)}
-              />
-
+            {note && nextAction && linkage ? (
               <div className="space-y-6">
-                <NoteTermsPanel note={note} />
-              </div>
+                <AdminEntityHeader
+                  variant="hero"
+                  tone={getNoteDerivedStatusToken(note)}
+                  backHref="/notes"
+                  backLabel="Notes"
+                  eyebrow="Note detail"
+                  title={note.title}
+                  subtitle={`${note.noteReference} · ${note.issuerName ?? "Unknown issuer"}`}
+                  icon={DocumentTextIcon}
+                  chips={
+                    <>
+                      <NoteStatusBadge note={note} marker="dot" />
+                      {linkage.contractHref ? (
+                        <Link
+                          href={linkage.contractHref}
+                          className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        >
+                          <StatusBadge
+                            label={linkage.typeLabel}
+                            status="neutral"
+                            showDot={false}
+                            className="hover:underline"
+                          />
+                        </Link>
+                      ) : (
+                        <StatusBadge
+                          label={linkage.typeLabel}
+                          status="neutral"
+                          showDot={false}
+                        />
+                      )}
+                    </>
+                  }
+                  metrics={headerMetrics}
+                  summaryCards={[
+                    <AdminEntitySummaryCard key="payment-due" {...getNotePaymentDueSummary(note)} />,
+                    <AdminEntitySummaryCard
+                      key="investors"
+                      label="Investors"
+                      value={
+                        <button
+                          type="button"
+                          className="appearance-none bg-transparent p-0 text-inherit underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          onClick={() => setActiveTab("campaign")}
+                          aria-label={`Open Campaign tab, ${note.investments.length} investor${note.investments.length === 1 ? "" : "s"}`}
+                        >
+                          {note.investments.length}
+                        </button>
+                      }
+                    />,
+                  ]}
+                  visualization={
+                    <AdminMetricProgress
+                      variant="hero"
+                      percent={note.fundingPercent}
+                      leftLabel="Funded"
+                      leftValue={formatCurrency(note.fundedAmount)}
+                      leftHint={`of ${formatCurrency(note.targetAmount)} target`}
+                      rightLabel="Progress"
+                      rightValue={`${note.fundingPercent.toFixed(1)}%`}
+                      barClassName={getNoteFundingProgressClass(note)}
+                      indicatorClassName={getNoteFundingIndicatorClass(note)}
+                      accentClassName={getNoteFundingAccentClass(note)}
+                    />
+                  }
+                />
 
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(300px,380px)]">
-                <div className="min-w-0 space-y-4">
-                  <div className="w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl bg-muted p-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30">
-                    <div className="flex h-10 w-full min-w-max items-center justify-between gap-4 px-0.5 text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setActiveNoteTab("disbursement")}
-                          className={
-                            activeNoteTab === "disbursement"
-                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
-                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                          }
-                        >
-                          <span
-                            aria-hidden
-                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[disbursementTabStatus].dotClass}`}
-                          />
-                          <span className="truncate">Disbursement</span>
-                          <span className="sr-only">
-                            Status: {TAB_STATUS_BADGE_COPY[disbursementTabStatus].label}
-                          </span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setActiveNoteTab("servicing-settlement")}
-                          className={
-                            activeNoteTab === "servicing-settlement"
-                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
-                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                          }
-                        >
-                          <span
-                            aria-hidden
-                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].dotClass}`}
-                          />
-                          <span className="truncate">Servicing &amp; Settlement</span>
-                          <span className="sr-only">
-                            Status: {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
-                          </span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setActiveNoteTab("late-payment")}
-                          className={
-                            activeNoteTab === "late-payment"
-                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
-                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                          }
-                        >
-                          <span
-                            aria-hidden
-                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${
-                              latePaymentTimeline
-                                ? LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].dotClass
-                                : TAB_STATUS_BADGE_COPY["not-started"].dotClass
-                            }`}
-                          />
-                          <span className="truncate">Late Payment</span>
-                          <span className="sr-only">
-                            Status:{" "}
-                            {latePaymentTimeline
-                              ? LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].label
-                              : "Not available"}
-                          </span>
-                        </Button>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span
-                          className="shrink-0 select-none px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70"
-                          aria-hidden
-                        >
-                          Reference
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setActiveNoteTab("ledger")}
-                          className={
-                            activeNoteTab === "ledger"
-                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
-                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                          }
-                        >
-                          <span className="truncate">Ledger</span>
-                          <span className="sr-only">Read-only reference</span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setActiveNoteTab("investors")}
-                          className={
-                            activeNoteTab === "investors"
-                              ? "h-8 shrink-0 rounded-lg bg-background px-3 text-sm shadow-sm"
-                              : "h-8 shrink-0 rounded-lg px-3 text-sm text-muted-foreground hover:bg-background/70 hover:text-foreground"
-                          }
-                        >
-                          <span className="truncate">Investors</span>
-                          <span className="sr-only">Read-only reference</span>
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className={activeNoteTab === "disbursement" ? "space-y-6" : "hidden space-y-6"}>
-                    <Card className="rounded-2xl">
-                      <NoteWorkflowTabHeader
-                        asCardHeader
-                        title="Disbursement"
-                        description="Manage Tawarruq execution, trustee submission, and issuer payout before servicing begins."
-                      />
-                      <CardContent className="space-y-6 pt-0">
-                        {disbursementWithdrawal && disbursementWithdrawal.status !== "CANCELLED" ? (
-                          <IssuerPayoutCard
-                            note={note}
-                            withdrawal={disbursementWithdrawal}
-                            kind="DISBURSEMENT"
-                            servicingBlockedReason={null}
-                            canManage={canDisbursement}
-                          />
-                        ) : (
-                          <div className="rounded-xl border border-dashed bg-muted/20 p-4">
-                            <p className="text-sm font-medium">Disbursement not started</p>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Close funding on this note to create the issuer disbursement workflow.
-                              Check the lifecycle card above for the next funding action.
-                            </p>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <div
-                    className={
-                      activeNoteTab === "servicing-settlement" || activeNoteTab === "late-payment"
-                        ? "space-y-6"
-                        : "hidden space-y-6"
+                {nextAction.tone === "action" ? (
+                  <AdminNextActionBanner
+                    title={nextAction.title}
+                    description={nextAction.description}
+                    ctaLabel={nextAction.ctaLabel}
+                    href={nextAction.href}
+                    onClick={
+                      nextAction.href ? undefined : () => setActiveTab(nextAction.tabId)
                     }
-                  >
-                    <SettlementPanel
-                      note={note}
-                      section={activeNoteTab === "late-payment" ? "late-payment" : "settlement"}
-                    />
-                  </div>
+                  />
+                ) : null}
 
-                  <div className={activeNoteTab === "ledger" ? "space-y-6" : "hidden space-y-6"}>
-                    <NoteWorkflowTabHeader
-                      title="Ledger"
-                      description="Read-only accounting ledger for this note. Export is available from the panel below."
-                    />
-                    <LedgerPanel note={note} />
-                  </div>
+                <AdminRelatedRecordsRail
+                  main={
+                    <AdminDetailTabs
+                      tabs={tabs}
+                      value={resolvedTab}
+                      onValueChange={setActiveTab}
+                    >
+                      <AdminDetailTabPanel value="campaign" preserveMount>
+                        <div className="space-y-6">
+                          <NoteProspectusStatusCard
+                            note={note}
+                            onOpenWorkspace={() => router.push(`/notes/${note.id}/prospectus`)}
+                            onViewProspectus={() => {
+                              void openProspectusPdf.mutateAsync(note.id).catch((err) => {
+                                toast.error(
+                                  err instanceof Error ? err.message : "Prospectus PDF is not available"
+                                );
+                              });
+                            }}
+                            viewPending={openProspectusPdf.isPending}
+                          />
+                          <NoteCampaignActions
+                            note={note}
+                            pending={lifecyclePending}
+                            onRequestAction={(action) => setPendingAction(action)}
+                            canManage={canManage}
+                            featuredEnabled={featuredEnabled}
+                            featuredPending={updateNoteFeatured.isPending}
+                            onToggleFeatured={(nextValue) => void handleToggleFeatured(nextValue)}
+                          />
+                          <NoteInvestorsPanel note={note} />
+                        </div>
+                      </AdminDetailTabPanel>
 
-                  <div className={activeNoteTab === "investors" ? "space-y-6" : "hidden space-y-6"}>
-                    <NoteWorkflowTabHeader
-                      title="Investors"
-                      description="Read-only investor allocations and commitment history for this note."
-                    />
-                    <NoteInvestorsPanel note={note} />
-                  </div>
+                      <AdminDetailTabPanel value="disbursement" preserveMount>
+                        <Card className="rounded-2xl">
+                          <NoteWorkflowTabHeader
+                            icon={BanknotesIcon}
+                            title="Disbursement"
+                            description="Manage Tawarruq execution, trustee submission, and issuer payout before servicing begins."
+                          />
+                          <CardContent className="space-y-6 pt-0">
+                            {disbursementWithdrawal &&
+                            disbursementWithdrawal.status !== "CANCELLED" ? (
+                              <IssuerPayoutCard
+                                note={note}
+                                withdrawal={disbursementWithdrawal}
+                                kind="DISBURSEMENT"
+                                servicingBlockedReason={null}
+                                canManage={canDisbursement}
+                              />
+                            ) : (
+                              <div className="rounded-xl border border-dashed bg-muted/20 p-4">
+                                <p className="text-ui font-medium">Disbursement not started</p>
+                                <p className="mt-1 text-meta text-muted-foreground">
+                                  Close funding on the Campaign tab to create the issuer
+                                  disbursement workflow.
+                                </p>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </AdminDetailTabPanel>
 
-                </div>
-                <div className="min-w-0 space-y-6">
+                      <div
+                        className={
+                          resolvedTab === "servicing" || resolvedTab === "late-payment"
+                            ? "mt-4 space-y-6"
+                            : "hidden"
+                        }
+                      >
+                        <SettlementPanel
+                          note={note}
+                          section={resolvedTab === "late-payment" ? "late-payment" : "settlement"}
+                        />
+                      </div>
+
+                      <AdminDetailTabPanel value="ledger" preserveMount>
+                        <LedgerPanel note={note} />
+                      </AdminDetailTabPanel>
+
+                      <AdminDetailTabPanel value="activity" preserveMount>
+                        <NoteTimelinePanel note={note} />
+                      </AdminDetailTabPanel>
+                    </AdminDetailTabs>
+                  }
+                >
+                  <NoteLifecycleCard note={note} />
                   <SourceApplicationPanel note={note} />
-                  <Card className="rounded-2xl">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Workflow Status</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
-                      <div className="flex items-center justify-between gap-3">
-                        <span>Disbursement</span>
-                        <Badge
-                          variant="outline"
-                          className={`inline-flex items-center gap-1 ${TAB_STATUS_BADGE_COPY[disbursementTabStatus].badgeClass}`}
-                        >
-                          <span
-                            aria-hidden
-                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[disbursementTabStatus].dotClass}`}
-                          />
-                          {TAB_STATUS_BADGE_COPY[disbursementTabStatus].label}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <span>Servicing &amp; Settlement</span>
-                        <Badge
-                          variant="outline"
-                          className={`inline-flex items-center gap-1 ${TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].badgeClass}`}
-                        >
-                          <span
-                            aria-hidden
-                            className={`inline-block h-2 w-2 shrink-0 rounded-full ${TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].dotClass}`}
-                          />
-                          {TAB_STATUS_BADGE_COPY[servicingSettlementTabStatus].label}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <span>Late Payment</span>
-                        {latePaymentTimeline ? (
-                          <Badge
-                            variant="outline"
-                            className={`inline-flex items-center gap-1 ${LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].className}`}
-                          >
-                            <span
-                              aria-hidden
-                              className={`inline-block h-2 w-2 shrink-0 rounded-full ${LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].dotClass}`}
-                            />
-                            {LATE_PAYMENT_WORKFLOW_BADGE[latePaymentTimeline.phase].label}
-                          </Badge>
-                        ) : null}
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <NoteTimelinePanel note={note} />
-                </div>
+                </AdminRelatedRecordsRail>
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
-      </div>
 
-      <AlertDialog
-        open={pendingAction != null}
-        onOpenChange={(open) => {
-          if (!open && !confirmPending) setPendingAction(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{confirmCopy?.title}</AlertDialogTitle>
-            <AlertDialogDescription>{confirmCopy?.description}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={confirmPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(event) => {
-                event.preventDefault();
-                void runConfirmedAction();
-              }}
-              disabled={confirmPending}
-              className={`gap-2 ${confirmCopy?.destructive ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}`}
-            >
-              {confirmPending ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : null}
-              {confirmCopy?.confirmLabel ?? "Confirm"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        <AlertDialog
+          open={pendingAction != null}
+          onOpenChange={(open) => {
+            if (!open && !confirmPending) setPendingAction(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>{confirmCopy?.title}</AlertDialogTitle>
+              <AlertDialogDescription>{confirmCopy?.description}</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={confirmPending}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={(event) => {
+                  event.preventDefault();
+                  void runConfirmedAction();
+                }}
+                disabled={confirmPending}
+                className={cn(
+                  "gap-2",
+                  confirmCopy?.destructive &&
+                    "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                )}
+              >
+                {confirmPending ? <ArrowPathIcon className="h-4 w-4 animate-spin" /> : null}
+                {confirmCopy?.confirmLabel ?? "Confirm"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </>
     </RequirePermission>
   );

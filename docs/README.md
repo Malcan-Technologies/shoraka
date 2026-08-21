@@ -52,7 +52,8 @@ Admin portal and activity timeline:
 Understanding the codebase and infrastructure:
 
 - **[Project Structure](./architecture/project-structure.md)** - Monorepo organization
-- **[AWS Infrastructure](./architecture/aws-infrastructure.md)** - Cloud architecture
+- **[AWS Infrastructure](./architecture/aws-infrastructure.md)** - Cloud architecture (internal)
+- **[External Penetration Test Brief](./architecture/external-pentest-brief.md)** - Public attack-surface brief for external pentest
 
 ### 🚀 Deployment (For Developers & DevOps)
 

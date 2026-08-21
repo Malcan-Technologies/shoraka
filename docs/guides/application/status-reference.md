@@ -137,9 +137,25 @@ INVOICE STATUS
 FINAL VS NON-FINAL
 ================================================================================
 
-Final statuses (no more changes): COMPLETED, REJECTED, WITHDRAWN, OFFER_EXPIRED, ARCHIVED
+Hard-final (origination mutations stop): COMPLETED, REJECTED, WITHDRAWN, ARCHIVED
+Soft-final: OFFER_EXPIRED — the deadline passed, but admin can resend the offer
+            on the same file (or reject / the issuer can withdraw).
+
 Non-final (still in progress): DRAFT, SUBMITTED, OFFER_SENT, AMENDMENT_REQUESTED
 (Contract/invoice entity statuses above; application also has stage overlays.)
+
+SUBMITTED stays until the first admin review action (unopened queue). It does
+not auto-flip to UNDER_REVIEW on issuer submit.
+
+Issuer list cards collapse many admin stages into urgency aliases (Under Review,
+Offer Received, Action Required). The API status is unchanged.
+
+COMPLETED with an approved facility and zero approved invoices still means the
+facility is approved; issuer/admin badge copy: **Facility approved**.
+
+Issuer archive of closed files sets `archived_at` and keeps the terminal
+`status` (COMPLETED / REJECTED / WITHDRAWN). Draft archive still uses
+`ARCHIVED`. Archived rows are hidden from the issuer applications list.
 
 ================================================================================
 WHAT THE USER SEES (STATUS ALIAS)
@@ -160,9 +176,9 @@ WHAT THE USER SEES (STATUS ALIAS)
   OFFER_EXPIRED               Offer Expired
 
   Admin-only display labels (application status):
-  CONTRACT_PENDING             Contract Pending
-  CONTRACT_SENT                Contract Sent
-  CONTRACT_ACCEPTED            Contract Accepted
+  CONTRACT_PENDING             Facility Pending
+  CONTRACT_SENT                Facility Sent
+  CONTRACT_ACCEPTED            Facility Accepted
   INVOICE_ACCEPTED             Invoice Accepted
   SIGNING_PENDING              Signing Pending
   INVOICE_PENDING              Invoice Pending

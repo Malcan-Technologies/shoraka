@@ -40,6 +40,8 @@ import type {
   GetOnboardingApplicationsQuery,
   GetAdminApplicationsQuery,
   GetAdminContractsQuery,
+  GetOrganizationLinkedRecordsQuery,
+  UpdateAdminOrganizationProfileBody,
 } from "./schemas";
 import { RegTankRepository, OnboardingApplicationRecord } from "../regtank/repository";
 import { RegTankAPIClient } from "../regtank/api-client";
@@ -50,6 +52,9 @@ import {
   NotificationTypeIds,
 } from "../notification/registry";
 import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
+import { listOrganizationLinkedRecords } from "./organization-linked-records";
+import { sumApprovedFacilityAmount } from "./organization-header-metrics";
+import { updateAdminOrganizationProfile } from "./organization-admin-profile";
 import {
   assertAcceptanceDocumentChangeRequestAllowed,
   isAcceptanceDocumentItemId,
@@ -95,6 +100,10 @@ import {
   WithdrawReason,
   type SoukscoreRiskRating,
   type OfferAcceptanceStatus,
+  buildOriginationPhaseInput,
+  canRejectApplication,
+  canResetReviewToPending,
+  resolveOriginationPhase,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import { OrganizationRepository } from "../organization/repository";
@@ -122,10 +131,8 @@ export interface AdminLogContext {
   deviceInfo?: string | null;
 }
 import { ProductRepository } from "../products/repository";
-import {
-  computeContractFacilitySnapshot,
-  resolveRequestedFacility,
-} from "../../lib/contract-facility";
+import { resolveRequestedFacility } from "../../lib/contract-facility";
+import { refreshContractFacilityValues } from "../../lib/refresh-contract-facility";
 import { getS3ObjectBuffer } from "../../lib/s3/client";
 import { computeSupportingDocumentsSectionStatus } from "../applications/supporting-documents-section-status";
 import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-details-section-status";
@@ -133,6 +140,10 @@ import { assertMaturityForSendInvoiceOffer } from "../products/validate-financia
 import { extractSubmittedAtFromWebhookPayloads } from "./extract-submitted-at";
 import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
 import { patchOfferAcceptance } from "../applications/offer-acceptance";
+import {
+  closeApplicationAsRejected,
+  VOIDABLE_ENVELOPE_STATUSES,
+} from "../applications/lifecycle-close";
 import {
   acceptanceDeadlinePatchOnChangesRequested,
   buildOfferAcceptanceOnSend,
@@ -148,6 +159,7 @@ import {
   resolveInvoiceCentricApplicationStatus,
 } from "../applications/offer-application-status";
 import { loadInheritedAcceptanceForExistingContract } from "../../lib/contract-originating-application";
+import { signingService } from "../signing/service";
 
 const APPLICATION_ACTION_REQUIRED_STATUSES = [
   ApplicationStatus.SUBMITTED,
@@ -174,7 +186,7 @@ function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
 }
 
 function isFinalApplicationStatusForAmlGuard(status: string | null | undefined): boolean {
-  return status === "FUNDED" || status === "COMPLETED";
+  return status === ApplicationStatus.COMPLETED;
 }
 
 function guarantorNationalityIso2FromSourceData(sourceData: unknown): string | undefined {
@@ -632,49 +644,24 @@ export class AdminService {
   }
 
   /**
-   * Recompute and update contract facility values (approved_facility, utilized_facility, available_facility).
+   * Recompute revolving occupancy (live utilized, pending, repaid) on contract_details.
    * approved_facility is non-zero only when contract is APPROVED and issuer accepted the offer.
-   * Otherwise 0 (SUBMITTED, OFFER_SENT, REJECTED, DRAFT).
    */
   private async refreshContractFacilityValues(contractId: string): Promise<void> {
-    const contract = await prisma.contract.findUnique({
-      where: { id: contractId },
-      include: { invoices: true },
-    });
-    if (!contract) return;
-    const cd = contract.contract_details as Record<string, unknown> | null;
-    const { approvedFacility, utilizedFacility, availableFacility } = computeContractFacilitySnapshot(
-      contract.status,
-      cd,
-      contract.invoices.map((invoice) => ({
-        status: invoice.status,
-        details: (invoice.details as Record<string, unknown> | null) ?? null,
-        offer_details: (invoice.offer_details as Record<string, unknown> | null) ?? null,
-      }))
-    );
-    const mergedDetails = {
-      ...(cd && typeof cd === "object" ? cd : {}),
-      approved_facility: approvedFacility,
-      utilized_facility: utilizedFacility,
-      available_facility: availableFacility,
-    };
-    await prisma.contract.update({
-      where: { id: contractId },
-      data: { contract_details: mergedDetails },
-    });
+    await refreshContractFacilityValues(contractId);
   }
 
   private ensureContractOfferActionAllowed(
     application: { contract_id?: string | null; contract?: { status?: string | null } | null }
   ): void {
     if (!application.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract");
+      throw new AppError(400, "INVALID_STATE", "Application has no facility");
     }
     if (application.contract?.status === "APPROVED") {
       throw new AppError(
         400,
         "OFFER_FINALIZED",
-        "Contract offer was finalized by issuer and cannot be modified"
+        "Facility offer was finalized by issuer and cannot be modified"
       );
     }
   }
@@ -2551,6 +2538,7 @@ export class AdminService {
       firstName: string;
       lastName: string;
       email: string;
+      phone: string | null;
       role: string;
       createdAt: string;
     }[];
@@ -2558,60 +2546,11 @@ export class AdminService {
     sophisticatedInvestorReason: string | null;
     walletBalance: number | null;
     investedAmount: number | null;
+    approvedFacilityAmount: number | null;
+    activeNotesAmount: number | null;
     regtankPortalUrl: string | null;
     regtankRequestId: string | null;
     codRequestId: string | null;
-    applications?: {
-      id: string;
-      status: string;
-      productVersion: number;
-      lastCompletedStep: number;
-      submittedAt: string | null;
-      createdAt: string;
-      updatedAt: string;
-      contractId: string | null;
-    }[];
-    linkedRecords: {
-      applications: {
-        id: string;
-        status: string;
-        productId: string | null;
-        submittedAt: string | null;
-        createdAt: string;
-        updatedAt: string;
-        contractId: string | null;
-        requestedAmount: number | null;
-      }[];
-      contracts: {
-        id: string;
-        title: string | null;
-        contractNumber: string | null;
-        status: string;
-        createdAt: string;
-        updatedAt: string;
-        contractValue: number | null;
-      }[];
-      notes: {
-        id: string;
-        noteReference: string;
-        title: string;
-        status: string;
-        targetAmount: number;
-        fundedAmount: number;
-        createdAt: string;
-        updatedAt: string;
-      }[];
-      investments: {
-        id: string;
-        status: string;
-        amount: number;
-        noteId: string;
-        noteReference: string;
-        noteTitle: string;
-        committedAt: string;
-        updatedAt: string;
-      }[];
-    };
     corporateOnboardingData?: {
       basicInfo?: {
         tinNumber?: string;
@@ -2721,77 +2660,35 @@ export class AdminService {
       latestOrganizationCtosSubjectReports = extras.latestOrganizationCtosSubjectReports;
     }
 
-    const [linkedApplications, linkedContracts, linkedNotes, linkedInvestments] = await Promise.all([
-      portal === "issuer"
-        ? prisma.application.findMany({
-            where: { issuer_organization_id: id },
-            orderBy: { created_at: "desc" },
-            select: {
-              id: true,
-              display_reference: true,
-              status: true,
-              financing_type: true,
-              submitted_at: true,
-              created_at: true,
-              updated_at: true,
-              contract_id: true,
-              invoices: { select: { details: true } },
-              contract: { select: { contract_details: true } },
-            },
-          })
-        : Promise.resolve([]),
-      portal === "issuer"
-        ? prisma.contract.findMany({
-            where: { issuer_organization_id: id },
-            orderBy: { created_at: "desc" },
-            select: {
-              id: true,
-              display_reference: true,
-              status: true,
-              created_at: true,
-              updated_at: true,
-              contract_details: true,
-            },
-          })
-        : Promise.resolve([]),
-      portal === "issuer"
-        ? prisma.note.findMany({
-            where: { issuer_organization_id: id },
-            orderBy: { created_at: "desc" },
-            select: {
-              id: true,
-              note_reference: true,
-              title: true,
-              status: true,
-              target_amount: true,
-              funded_amount: true,
-              created_at: true,
-              updated_at: true,
-            },
-          })
-        : Promise.resolve([]),
-      prisma.noteInvestment.findMany({
-        where:
-          portal === "investor"
-            ? { investor_organization_id: id }
-            : { note: { issuer_organization_id: id } },
-        orderBy: { committed_at: "desc" },
-        select: {
-          id: true,
-          status: true,
-          amount: true,
-          committed_at: true,
-          updated_at: true,
-          note: {
-            select: {
-              id: true,
-              note_reference: true,
-              title: true,
-            },
-          },
-        },
-      }),
-    ]);
+    const investedAmount =
+      portal === "investor"
+        ? (
+            await prisma.noteInvestment.aggregate({
+              where: {
+                investor_organization_id: id,
+                status: { in: ["COMMITTED", "CONFIRMED"] },
+              },
+              _sum: { amount: true },
+            })
+          )._sum.amount?.toNumber() ?? 0
+        : null;
+
+    let approvedFacilityAmount: number | null = null;
+    let activeNotesAmount: number | null = null;
+    if (portal === "issuer") {
+      const [approvedContracts, activeNotesSum] = await Promise.all([
+        prisma.contract.findMany({
+          where: { issuer_organization_id: id, status: "APPROVED" },
+          select: { status: true, contract_details: true },
+        }),
+        prisma.note.aggregate({
+          where: { issuer_organization_id: id, status: "ACTIVE" },
+          _sum: { funded_amount: true },
+        }),
+      ]);
+      approvedFacilityAmount = sumApprovedFacilityAmount(approvedContracts);
+      activeNotesAmount = activeNotesSum._sum.funded_amount?.toNumber() ?? 0;
+    }
 
     return {
       id: org.id,
@@ -2981,6 +2878,7 @@ export class AdminService {
         firstName: m.user.first_name,
         lastName: m.user.last_name,
         email: m.user.email,
+        phone: m.user.phone,
         role: m.role,
         createdAt: m.created_at.toISOString(),
       })),
@@ -2993,17 +2891,9 @@ export class AdminService {
         portal === "investor"
           ? (org.investor_balance?.available_amount?.toNumber() ?? 0)
           : null,
-      investedAmount:
-        portal === "investor"
-          ? linkedInvestments
-              .filter((inv) => inv.status === "COMMITTED" || inv.status === "CONFIRMED")
-              .reduce(
-                (sum, inv) =>
-                  sum +
-                  (typeof inv.amount === "number" ? inv.amount : inv.amount.toNumber?.() ?? 0),
-                0
-              )
-          : null,
+      investedAmount,
+      approvedFacilityAmount,
+      activeNotesAmount,
       // Build RegTank portal URL from latest onboarding record
       regtankRequestId: org.regtank_onboarding?.[0]?.request_id ?? null,
       codRequestId,
@@ -3016,87 +2906,32 @@ export class AdminService {
         }
         return `${baseUrl}/app/liveness/${requestId}?archived=false`;
       })(),
-      // Applications (issuer only)
-      applications: (portal === "issuer" && org.applications)
-        ? org.applications.map((app: { id: string; status: string; product_version: number; last_completed_step: number; submitted_at: Date | null; created_at: Date; updated_at: Date; contract_id: string | null }) => ({
-          id: app.id,
-          status: app.status,
-          productVersion: app.product_version,
-          lastCompletedStep: app.last_completed_step,
-          submittedAt: app.submitted_at?.toISOString() ?? null,
-          createdAt: app.created_at.toISOString(),
-          updatedAt: app.updated_at.toISOString(),
-          contractId: app.contract_id,
-        }))
-        : undefined,
-      linkedRecords: {
-        applications: linkedApplications.map((app) => {
-          const requestedAmount = app.invoices.length > 0
-            ? app.invoices.reduce((sum, invoice) => {
-                const details = isPlainObjectRecord(invoice.details) ? invoice.details : null;
-                const invoiceValue = Number(details?.value ?? 0);
-                const financingRatio = Number(details?.financing_ratio_percent ?? 80);
-                return sum + (invoiceValue * financingRatio) / 100;
-              }, 0)
-            : (() => {
-                const contractDetails = isPlainObjectRecord(app.contract?.contract_details)
-                  ? app.contract.contract_details
-                  : null;
-                const amount = Number(contractDetails?.value ?? contractDetails?.approved_facility ?? 0);
-                return Number.isFinite(amount) && amount > 0 ? amount : null;
-              })();
-          const financingType = isPlainObjectRecord(app.financing_type) ? app.financing_type : null;
-          return {
-            id: app.id,
-            displayReference: app.display_reference ?? null,
-            status: app.status,
-            productId:
-              typeof financingType?.product_id === "string" && financingType.product_id.trim().length > 0
-                ? financingType.product_id.trim()
-                : null,
-            submittedAt: app.submitted_at?.toISOString() ?? null,
-            createdAt: app.created_at.toISOString(),
-            updatedAt: app.updated_at.toISOString(),
-            contractId: app.contract_id,
-            requestedAmount: requestedAmount == null ? null : Number(requestedAmount),
-          };
-        }),
-        contracts: linkedContracts.map((contract) => {
-          const details = isPlainObjectRecord(contract.contract_details) ? contract.contract_details : null;
-          const value = Number(details?.value ?? details?.approved_facility ?? 0);
-          return {
-            id: contract.id,
-            displayReference: contract.display_reference ?? null,
-            title: typeof details?.title === "string" ? details.title : null,
-            contractNumber: typeof details?.number === "string" ? details.number : null,
-            status: contract.status,
-            createdAt: contract.created_at.toISOString(),
-            updatedAt: contract.updated_at.toISOString(),
-            contractValue: Number.isFinite(value) && value > 0 ? value : null,
-          };
-        }),
-        notes: linkedNotes.map((note) => ({
-          id: note.id,
-          noteReference: note.note_reference,
-          title: note.title,
-          status: note.status,
-          targetAmount: Number(note.target_amount),
-          fundedAmount: Number(note.funded_amount),
-          createdAt: note.created_at.toISOString(),
-          updatedAt: note.updated_at.toISOString(),
-        })),
-        investments: linkedInvestments.map((investment) => ({
-          id: investment.id,
-          status: investment.status,
-          amount: Number(investment.amount),
-          noteId: investment.note.id,
-          noteReference: investment.note.note_reference,
-          noteTitle: investment.note.title,
-          committedAt: investment.committed_at.toISOString(),
-          updatedAt: investment.updated_at.toISOString(),
-        })),
-      },
     };
+  }
+
+  async listOrganizationLinkedRecords(
+    portal: "issuer" | "investor",
+    organizationId: string,
+    query: GetOrganizationLinkedRecordsQuery
+  ) {
+    return listOrganizationLinkedRecords(portal, organizationId, query);
+  }
+
+  async updateOrganizationProfile(
+    req: Request,
+    portal: "issuer" | "investor",
+    organizationId: string,
+    input: UpdateAdminOrganizationProfileBody,
+    adminUserId: string
+  ) {
+    const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
+    return updateAdminOrganizationProfile({
+      portal,
+      organizationId,
+      adminUserId,
+      input,
+      requestMeta: { ipAddress, userAgent, deviceInfo, deviceType },
+    });
   }
 
   async notifyIssuerDirectorShareholderActionRequired(
@@ -6038,6 +5873,8 @@ export class AdminService {
       title: string | null;
       issuerOrganizationName: string | null;
       contractValue: number;
+      approvedFacility: number;
+      utilizedFacility: number;
       status: string;
       updatedAt: Date;
     }[];
@@ -6066,7 +5903,7 @@ export class AdminService {
     const repository = new AdminRepository();
     const contract = await repository.getContractById(id);
     if (!contract) {
-      throw new AppError(404, "NOT_FOUND", "Contract not found");
+      throw new AppError(404, "NOT_FOUND", "Facility not found");
     }
     return contract;
   }
@@ -6506,7 +6343,7 @@ export class AdminService {
       select: { contract_id: true },
     });
     if (!application?.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract");
+      throw new AppError(400, "INVALID_STATE", "Application has no facility");
     }
     const s3Key = await this.resolveSignedOfferLetterS3KeyFromEnvelope({
       applicationId,
@@ -6546,11 +6383,22 @@ export class AdminService {
     }
 
     if (status === ApplicationStatus.REJECTED) {
-      if (!this.isFinalizable(currentStatus)) {
+      const envelopes = await prisma.signingEnvelope.findMany({
+        where: { application_id: id },
+        select: { status: true },
+      });
+      const phase = this.resolveApplicationOriginationPhase({
+        status: currentStatus,
+        contract: application.contract,
+        invoices: application.invoices,
+        financing_structure: application.financing_structure,
+        signing_envelopes: envelopes,
+      });
+      if (!canRejectApplication(phase)) {
         throw new AppError(
           400,
           "INVALID_STATE",
-          "Application must be in an active review state before final decision"
+          "Application cannot be rejected after a facility or invoice has been approved"
         );
       }
     }
@@ -6569,7 +6417,45 @@ export class AdminService {
       }
     }
 
-    const updatedApplication = await repository.updateApplicationStatus(id, status);
+    let updatedApplication;
+    if (status === ApplicationStatus.REJECTED) {
+      const voidableEnvelopes = await prisma.signingEnvelope.findMany({
+        where: {
+          application_id: id,
+          status: { in: [...VOIDABLE_ENVELOPE_STATUSES] },
+        },
+        select: { id: true },
+      });
+      const voidFailures: string[] = [];
+      for (const { id: envelopeId } of voidableEnvelopes) {
+        try {
+          await signingService.voidEnvelope(envelopeId, "Application rejected by admin", {
+            userId,
+            portal: ActivityPortal.ADMIN,
+          });
+        } catch (voidError) {
+          if (voidError instanceof AppError && voidError.code === "SIGNING_ENVELOPE_NOT_VOIDABLE") {
+            continue;
+          }
+          voidFailures.push(envelopeId);
+          logger.error(
+            { error: voidError, applicationId: id, envelopeId },
+            "Failed to void signing envelope during application rejection"
+          );
+        }
+      }
+      if (voidFailures.length > 0) {
+        throw new AppError(
+          502,
+          "SIGNING_ENVELOPE_VOID_FAILED",
+          `Failed to void signing package(s): ${voidFailures.join(", ")}. The application was not rejected.`
+        );
+      }
+      await closeApplicationAsRejected(id);
+      updatedApplication = await repository.getApplicationById(id);
+    } else {
+      updatedApplication = await repository.updateApplicationStatus(id, status);
+    }
 
     if (status === ApplicationStatus.UNDER_REVIEW) {
       await logApplicationActivity({
@@ -6637,12 +6523,70 @@ export class AdminService {
     return AdminService.REVIEWABLE_STATUSES.includes(status);
   }
 
-  private isFinalizable(status: ApplicationStatus): boolean {
-    return this.isReviewable(status);
+  private getCorrectionFlowGuidance(): string {
+    return "Terminal applications cannot be reopened through this action.";
   }
 
-  private getCorrectionFlowGuidance(): string {
-    return "Terminal corrections must use a dedicated audited correction flow";
+  private resolveApplicationOriginationPhase(application: {
+    status: string;
+    financing_structure?: unknown;
+    contract?: { status?: string | null; offer_details?: unknown } | null;
+    invoices?: Array<{
+      status?: string | null;
+      contract_id?: string | null;
+      offer_details?: unknown;
+    }>;
+    signing_envelopes?: Array<{ status?: string | null }>;
+  }) {
+    return resolveOriginationPhase(
+      buildOriginationPhaseInput({
+        applicationStatus: application.status,
+        contract: application.contract,
+        invoices: application.invoices,
+        offerAcceptanceStatus: extractPrimaryOfferAcceptanceStatus({
+          financing_structure: application.financing_structure as {
+            structure_type?: string;
+          } | null,
+          contract: application.contract,
+          invoices: application.invoices,
+        }),
+        signingEnvelopes: application.signing_envelopes,
+      })
+    );
+  }
+
+  private async assertResetReviewToPendingAllowed(
+    applicationId: string,
+    section: ReviewSection,
+    application: {
+      status: string;
+      financing_structure?: unknown;
+      contract?: { status?: string | null } | null;
+      invoices?: Array<{ status?: string | null }>;
+    }
+  ): Promise<void> {
+    const envelopes = await prisma.signingEnvelope.findMany({
+      where: { application_id: applicationId },
+      select: { status: true },
+    });
+    const onlyDraft =
+      envelopes.length === 0 || envelopes.every((envelope) => envelope.status === "DRAFT");
+    const phase = this.resolveApplicationOriginationPhase({
+      ...application,
+      signing_envelopes: envelopes,
+    });
+    const isOfferRetract =
+      (section === "contract_details" || section === "invoice_details") && phase === "offerLive";
+    if (isOfferRetract) {
+      return;
+    }
+    if (!canResetReviewToPending(phase, { signingEnvelopesOnlyDraft: onlyDraft })) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "Cannot reset this section in the current application phase"
+      );
+    }
   }
 
   private assertFinancialReviewDirectorShareholderAmlApproved(application: {
@@ -7403,6 +7347,45 @@ export class AdminService {
     const workflow = await this.loadApplicationProductWorkflow(application);
     if (!workflowUsesOfferAcceptanceFlow(workflow)) return;
 
+    const refreshed = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: {
+        financing_type: true,
+        product_version: true,
+        acceptance_documents: true,
+        contract: {
+          select: {
+            id: true,
+            status: true,
+            withdraw_reason: true,
+            offer_details: true,
+          },
+        },
+        invoices: {
+          select: {
+            id: true,
+            status: true,
+            contract_id: true,
+            withdraw_reason: true,
+            offer_details: true,
+          },
+        },
+        application_review_items: {
+          select: { item_type: true, item_id: true, status: true },
+        },
+      },
+    });
+    if (refreshed) {
+      application = {
+        ...application,
+        ...refreshed,
+        contract: refreshed.contract ?? application.contract ?? null,
+        invoices: refreshed.invoices ?? application.invoices,
+        application_review_items:
+          refreshed.application_review_items ?? application.application_review_items,
+      };
+    }
+
     const docKeys = collectAcceptanceDocumentReviewKeys(
       workflow,
       application.acceptance_documents
@@ -7802,7 +7785,7 @@ export class AdminService {
     this.ensureContractOfferActionAllowed(application);
 
     if (!application.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract");
+      throw new AppError(400, "INVALID_STATE", "Application has no facility");
     }
 
     const contractId = application.contract_id;
@@ -7811,7 +7794,7 @@ export class AdminService {
       select: { customer_details: true, status: true },
     });
     if (!contract) {
-      throw new AppError(404, "NOT_FOUND", "Contract not found");
+      throw new AppError(404, "NOT_FOUND", "Facility not found");
     }
 
     const nonEditableStatuses = ["OFFER_SENT", "OFFER_EXPIRED", "APPROVED", "REJECTED", "WITHDRAWN"] as const;
@@ -7819,7 +7802,7 @@ export class AdminService {
       throw new AppError(
         400,
         "INVALID_STATE",
-        "Cannot update customer type after the contract offer was sent or finalized"
+        "Cannot update customer type after the facility offer was sent or finalized"
       );
     }
 
@@ -7869,11 +7852,11 @@ export class AdminService {
     this.ensureContractOfferActionAllowed(application);
 
     if (!application.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract to offer");
+      throw new AppError(400, "INVALID_STATE", "Application has no facility to offer");
     }
 
     const contractId = application.contract_id;
-    await this.assertNoActiveSigningPackage(applicationId, { contractId }, "sending a new contract offer");
+    await this.assertNoActiveSigningPackage(applicationId, { contractId }, "sending a new facility offer");
 
     const workflow = await this.loadApplicationProductWorkflow(application);
     const stampOfferAcceptance = workflowUsesOfferAcceptanceFlow(workflow);
@@ -7909,13 +7892,13 @@ export class AdminService {
       `;
       const lockedContract = lockedContracts[0];
       if (!lockedContract) {
-        throw new AppError(404, "NOT_FOUND", "Contract not found");
+        throw new AppError(404, "NOT_FOUND", "Facility not found");
       }
       if (lockedContract.status === "APPROVED") {
         throw new AppError(
           400,
           "OFFER_FINALIZED",
-          "Contract offer was finalized by issuer and cannot be modified"
+          "Facility offer was finalized by issuer and cannot be modified"
         );
       }
 
@@ -7933,7 +7916,7 @@ export class AdminService {
       const contractDetails = (lockedContract.contract_details as Record<string, unknown> | null) ?? null;
       const requestedFacility = resolveRequestedFacility(contractDetails);
       if (!Number.isFinite(requestedFacility) || requestedFacility <= 0) {
-        throw new AppError(400, "INVALID_STATE", "Contract requested facility is invalid");
+        throw new AppError(400, "INVALID_STATE", "Requested facility is invalid");
       }
       if (offeredFacility > requestedFacility) {
         throw new AppError(
@@ -7977,7 +7960,7 @@ export class AdminService {
         throw new AppError(
           409,
           "CONFLICT",
-          "Contract was modified concurrently. Refresh and retry sending offer."
+          "Facility was modified concurrently. Refresh and retry sending offer."
         );
       }
 
@@ -8014,7 +7997,7 @@ export class AdminService {
           scope_key: "contract_details",
           new_status: "OFFER_SENT",
           reviewer_user_id: reviewerUserId,
-          remark: `Contract offer sent: ${offeredFacility}`,
+          remark: `Facility offer sent: ${offeredFacility}`,
         },
       });
       await tx.application.update({
@@ -8077,7 +8060,7 @@ export class AdminService {
     } catch (notificationError) {
       logger.error(
         { error: notificationError, applicationId, contractId },
-        "Failed to send contract offer notification to issuer"
+        "Failed to send facility offer notification to issuer"
       );
     }
 
@@ -8097,7 +8080,7 @@ export class AdminService {
     this.ensureContractOfferActionAllowed(application);
 
     if (!application.contract_id) {
-      throw new AppError(400, "INVALID_STATE", "Application has no contract to extend");
+      throw new AppError(400, "INVALID_STATE", "Application has no facility to extend");
     }
 
     const contractId = application.contract_id;
@@ -8120,7 +8103,7 @@ export class AdminService {
         select: { id: true, status: true, offer_details: true },
       });
       if (!locked) {
-        throw new AppError(404, "NOT_FOUND", "Contract not found");
+        throw new AppError(404, "NOT_FOUND", "Facility not found");
       }
       if (locked.status !== "OFFER_SENT" && locked.status !== "OFFER_EXPIRED") {
         throw new AppError(
@@ -8423,34 +8406,7 @@ export class AdminService {
       });
 
       if (application.contract_id) {
-        const contract = await tx.contract.findUnique({
-          where: { id: application.contract_id },
-          include: { invoices: true },
-        });
-        if (contract) {
-          const contractDetails = contract.contract_details as Record<string, unknown> | null;
-          const { approvedFacility, utilizedFacility, availableFacility } =
-            computeContractFacilitySnapshot(
-              contract.status,
-              contractDetails,
-              contract.invoices.map((linkedInvoice) => ({
-                status: linkedInvoice.status,
-                details: (linkedInvoice.details as Record<string, unknown> | null) ?? null,
-                offer_details: (linkedInvoice.offer_details as Record<string, unknown> | null) ?? null,
-              }))
-            );
-          await tx.contract.update({
-            where: { id: application.contract_id },
-            data: {
-              contract_details: {
-                ...(contractDetails && typeof contractDetails === "object" ? contractDetails : {}),
-                approved_facility: approvedFacility,
-                utilized_facility: utilizedFacility,
-                available_facility: availableFacility,
-              },
-            },
-          });
-        }
+        await refreshContractFacilityValues(application.contract_id, tx);
       }
 
       await tx.applicationReviewEvent.create({
@@ -8753,7 +8709,7 @@ export class AdminService {
         throw new AppError(
           400,
           "INVALID_ACTION",
-          "Contract and invoice approvals must be finalized by issuer offer response"
+          "Facility and invoice approvals must be finalized by issuer offer response"
         );
       }
     }
@@ -8826,7 +8782,14 @@ export class AdminService {
     }
     if (section === "acceptance_documents") {
       this.assertAcceptanceReviewNotInherited(application);
+      await this.assertNoActiveSigningPackageForAcceptanceActions(
+        applicationId,
+        application,
+        "resetting acceptance documents section"
+      );
     }
+
+    await this.assertResetReviewToPendingAllowed(applicationId, section, application);
 
     if (section === "supporting_documents") {
       const docKeys = [...this.collectDocumentKeys(application.supporting_documents)];
@@ -8960,7 +8923,7 @@ export class AdminService {
       await this.assertNoActiveSigningPackage(
         applicationId,
         { contractId: application.contract_id },
-        "retracting a contract offer"
+        "retracting a facility offer"
       );
     }
 
@@ -8968,18 +8931,10 @@ export class AdminService {
     if (section === "contract_details" && application.contract_id) {
       const contract = await prisma.contract.findUnique({
         where: { id: application.contract_id },
-        select: { status: true, contract_details: true },
+        select: { status: true },
       });
-      const cd = contract?.contract_details as Record<string, unknown> | null;
-      const mergedDetails = {
-        ...(cd && typeof cd === "object" ? cd : {}),
-        approved_facility: 0,
-        utilized_facility: 0,
-        available_facility: 0,
-      };
       const updateData: Prisma.ContractUpdateInput = {
         status: "SUBMITTED",
-        contract_details: mergedDetails as Prisma.InputJsonValue,
       };
       didRetractContractOffer = oldStatus === "OFFER_SENT" || contract?.status === "OFFER_SENT";
       if (didRetractContractOffer) {
@@ -8989,6 +8944,7 @@ export class AdminService {
         where: { id: application.contract_id },
         data: updateData,
       });
+      await this.refreshContractFacilityValues(application.contract_id);
     }
     if (didRetractContractOffer && section === "contract_details") {
       const contractReference = this.getContractReference(
@@ -9027,7 +8983,7 @@ export class AdminService {
       } catch (notificationError) {
         logger.error(
           { error: notificationError, applicationId, section },
-          "Failed to send contract offer retracted/reset notification to issuer"
+          "Failed to send facility offer retracted/reset notification to issuer"
         );
       }
     }
@@ -9310,97 +9266,6 @@ export class AdminService {
     }
   }
 
-  /** Withdraw active offers and stamp phase REJECTED when an acceptance document is rejected. */
-  private async withdrawOffersForAcceptanceRejection(
-    applicationId: string,
-    application: {
-      contract_id?: string | null;
-      contract?: { id?: string; status?: string; offer_details?: unknown } | null;
-      invoices?: Array<{
-        id: string;
-        status: string;
-        contract_id?: string | null;
-        offer_details?: unknown;
-      }>;
-    },
-    reviewerUserId: string,
-    remark: string
-  ): Promise<void> {
-    const now = new Date().toISOString();
-    const contract = application.contract;
-    if (
-      application.contract_id &&
-      contract &&
-      contract.status === "OFFER_SENT" &&
-      contract.offer_details
-    ) {
-      const offer = (contract.offer_details as Record<string, unknown>) ?? {};
-      const acceptance = getOfferAcceptanceFromOfferDetails(offer);
-      let updatedOffer: Record<string, unknown> = {
-        ...offer,
-        responded_at: now,
-        responded_by_user_id: reviewerUserId,
-        rejection_reason: remark,
-      };
-      if (acceptance) {
-        updatedOffer = patchOfferAcceptance(updatedOffer, { status: "REJECTED" });
-      }
-      await prisma.contract.update({
-        where: { id: application.contract_id },
-        data: {
-          status: "WITHDRAWN",
-          offer_details: updatedOffer as Prisma.InputJsonValue,
-          withdraw_reason: WithdrawReason.OFFER_REJECTED,
-        },
-      });
-    }
-
-    for (const invoice of application.invoices ?? []) {
-      if (invoice.contract_id) continue;
-      if (invoice.status !== "OFFER_SENT" || !invoice.offer_details) continue;
-      const offer = (invoice.offer_details as Record<string, unknown>) ?? {};
-      const acceptance = getOfferAcceptanceFromOfferDetails(offer);
-      let updatedOffer: Record<string, unknown> = {
-        ...offer,
-        responded_at: now,
-        responded_by_user_id: reviewerUserId,
-        rejection_reason: remark,
-      };
-      if (acceptance) {
-        updatedOffer = patchOfferAcceptance(updatedOffer, { status: "REJECTED" });
-      }
-      await prisma.invoice.update({
-        where: { id: invoice.id },
-        data: {
-          status: "WITHDRAWN",
-          offer_details: updatedOffer as Prisma.InputJsonValue,
-          withdraw_reason: WithdrawReason.OFFER_REJECTED,
-        },
-      });
-    }
-
-    await prisma.applicationReview.upsert({
-      where: {
-        application_id_section: {
-          application_id: applicationId,
-          section: "acceptance_documents",
-        },
-      },
-      create: {
-        application_id: applicationId,
-        section: "acceptance_documents",
-        status: ReviewStepStatus.REJECTED,
-        reviewer_user_id: reviewerUserId,
-        reviewed_at: new Date(),
-      },
-      update: {
-        status: ReviewStepStatus.REJECTED,
-        reviewer_user_id: reviewerUserId,
-        reviewed_at: new Date(),
-      },
-    });
-  }
-
   private async assertNoActiveSigningPackageForAcceptanceActions(
     applicationId: string,
     application: {
@@ -9409,21 +9274,49 @@ export class AdminService {
     },
     actionLabel: string
   ): Promise<void> {
+    const blockingStatuses = ["SENT", "IN_PROGRESS", "COMPLETED"] as const;
+
     if (application.contract_id) {
-      await this.assertNoActiveSigningPackage(
-        applicationId,
-        { contractId: application.contract_id },
-        actionLabel
-      );
+      const sentOrCompleted = await prisma.signingEnvelope.findFirst({
+        where: {
+          application_id: applicationId,
+          contract_id: application.contract_id,
+          status: { in: [...blockingStatuses] },
+        },
+        select: { id: true, status: true },
+      });
+      if (sentOrCompleted) {
+        throw new AppError(
+          400,
+          "ACTIVE_SIGNING_PACKAGE",
+          sentOrCompleted.status === "COMPLETED"
+            ? "Signing is complete; acceptance documents cannot be changed."
+            : `Void the sent signing package before ${actionLabel}.`
+        );
+      }
+      return;
     }
+
     for (const invoice of application.invoices ?? []) {
       if (invoice.contract_id) continue;
       if (invoice.status !== "OFFER_SENT") continue;
-      await this.assertNoActiveSigningPackage(
-        applicationId,
-        { invoiceId: invoice.id },
-        actionLabel
-      );
+      const sentOrCompleted = await prisma.signingEnvelope.findFirst({
+        where: {
+          application_id: applicationId,
+          invoice_id: invoice.id,
+          status: { in: [...blockingStatuses] },
+        },
+        select: { id: true, status: true },
+      });
+      if (sentOrCompleted) {
+        throw new AppError(
+          400,
+          "ACTIVE_SIGNING_PACKAGE",
+          sentOrCompleted.status === "COMPLETED"
+            ? "Signing is complete; acceptance documents cannot be changed."
+            : `Void the sent signing package before ${actionLabel}.`
+        );
+      }
     }
   }
 
@@ -9473,12 +9366,6 @@ export class AdminService {
       ReviewStepStatus.REJECTED,
       reviewerUserId
     );
-    if (section === "contract_details" && application.contract_id) {
-      await prisma.contract.update({
-        where: { id: application.contract_id },
-        data: { status: "REJECTED" },
-      });
-    }
     await repository.upsertReviewRemark(
       applicationId,
       "section",
@@ -9558,12 +9445,6 @@ export class AdminService {
       remark,
       reviewerUserId
     );
-    if (section === "contract_details" && application.contract_id) {
-      await prisma.contract.update({
-        where: { id: application.contract_id },
-        data: { status: "AMENDMENT_REQUESTED" },
-      });
-    }
     await this.logReviewActivity(
       applicationId,
       "section",
@@ -9797,24 +9678,6 @@ export class AdminService {
       );
     }
 
-    if (itemType === "document" && itemId.startsWith("acceptance_documents:")) {
-      await this.withdrawOffersForAcceptanceRejection(
-        applicationId,
-        application as {
-          contract_id?: string | null;
-          contract?: { id?: string; status?: string; offer_details?: unknown } | null;
-          invoices?: Array<{
-            id: string;
-            status: string;
-            contract_id?: string | null;
-            offer_details?: unknown;
-          }>;
-        },
-        reviewerUserId,
-        remark
-      );
-    }
-
     if (itemType === "invoice") {
       const invoiceId = this.resolveInvoiceIdFromScopeKey(
         application as { invoices?: { id: string; details?: { number?: string | number } }[] },
@@ -9841,7 +9704,37 @@ export class AdminService {
         logContext
       );
       nextApp = await repository.getApplicationById(applicationId);
-      // Acceptance reject withdraws offers and sets REJECTED — do not re-sync phase from docs.
+      if (itemId.startsWith("acceptance_documents:") && nextApp) {
+        await this.syncOfferAcceptancePhaseFromAcceptanceDocs(
+          applicationId,
+          nextApp as {
+            financing_type?: unknown;
+            product_version?: number | null;
+            supporting_documents?: unknown;
+            acceptance_documents?: unknown;
+            contract?: {
+              id: string;
+              status: string;
+              withdraw_reason?: WithdrawReason | null;
+              offer_details?: unknown;
+            } | null;
+            invoices?: Array<{
+              id: string;
+              status: string;
+              contract_id?: string | null;
+              withdraw_reason?: WithdrawReason | null;
+              offer_details?: unknown;
+            }>;
+            application_review_items?: Array<{
+              item_type: string;
+              item_id: string;
+              status: string;
+            }>;
+          },
+          reviewerUserId
+        );
+        nextApp = await repository.getApplicationById(applicationId);
+      }
     }
     if (itemType === "invoice" && nextApp) {
       await this.syncInvoiceDetailsSectionFromItems(
@@ -9936,6 +9829,9 @@ export class AdminService {
           where: { id: invoiceId, application_id: applicationId },
           data: { status: "AMENDMENT_REQUESTED" },
         });
+      }
+      if (application.contract_id) {
+        await this.refreshContractFacilityValues(application.contract_id);
       }
     }
 
@@ -10131,6 +10027,9 @@ export class AdminService {
             data: { status: "AMENDMENT_REQUESTED" },
           });
         }
+        if (application.contract_id) {
+          await this.refreshContractFacilityValues(application.contract_id);
+        }
       }
     }
 
@@ -10315,6 +10214,9 @@ export class AdminService {
             data: { status: "SUBMITTED" },
           });
           await repository.updateApplicationStatus(applicationId, ApplicationStatus.INVOICE_PENDING);
+          if (application?.contract_id) {
+            await this.refreshContractFacilityValues(application.contract_id);
+          }
         }
       }
     }

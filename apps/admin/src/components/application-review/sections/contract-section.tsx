@@ -29,7 +29,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePatchContractCustomerLargePrivate } from "@/hooks/use-application-review-actions";
 import { format } from "date-fns";
-import { formatCurrency, resolveRequestedFacility, resolveOfferedFacility } from "@cashsouk/config";
+import { formatCurrency, resolveRequestedFacility, resolveOfferedFacility, resolveApprovedFacility } from "@cashsouk/config";
 import {
   getOfferPhaseDeadlineDisplay,
   previewAcceptanceDeadlineFromWorkflow,
@@ -49,6 +49,7 @@ import {
   formatReviewDate,
   formatFileSize,
 } from "../review-section-styles";
+import { parseFacilityAmount } from "@/contracts/utils/contract-facility-metrics";
 import type { ReviewSectionId } from "../section-types";
 import { ComparisonFieldRow, ComparisonYesNoRadioRow, unknownToTriBool } from "../comparison-field-row";
 import {
@@ -163,6 +164,11 @@ export function ContractSection({
 
   const contractDoc = cd?.document as FileDoc | undefined;
   const requestedFacility = resolveRequestedFacility(cd);
+  const approvedShown = resolveApprovedFacility(contractRowStatus ?? "", cd);
+  const utilizedShown = parseFacilityAmount(cd?.utilized_facility) ?? 0;
+  const availableShown =
+    parseFacilityAmount(cd?.available_facility) ??
+    (approvedShown > 0 ? approvedShown - utilizedShown : 0);
   const contractValue = typeof cd?.value === "number" ? cd.value : 0;
   const persistedOffered = resolveOfferedFacility(offer);
   const offerSentAtRaw =
@@ -327,7 +333,7 @@ export function ContractSection({
     const rf = (cd: typeof bCd) => (cd ? resolveRequestedFacility(cd) : 0);
     const of = (o: typeof bOffer) => resolveOfferedFacility(o);
     return (
-      <ReviewSectionCard title="Contract Details" icon={DocumentTextIcon} section={section} isReviewable={false}>
+      <ReviewSectionCard title="Facility" icon={DocumentTextIcon} section={section} isReviewable={false}>
         <ReviewFieldBlock title="Offer to Issuer">
           <div className="space-y-2">
             <ComparisonFieldRow
@@ -476,7 +482,7 @@ export function ContractSection({
 
   return (
     <ReviewSectionCard
-      title="Contract Details"
+      title="Facility"
       icon={DocumentTextIcon}
       section={section}
       isReviewable={isReviewable}
@@ -484,7 +490,7 @@ export function ContractSection({
       isActionLocked={isActionLocked || isContractFinalizedByIssuer}
       actionLockTooltip={
         isContractFinalizedByIssuer
-          ? "Contract offer finalized by issuer. No further admin actions are allowed."
+          ? "Facility offer finalized by issuer. No further admin actions are allowed."
           : actionLockTooltip
       }
       sectionStatus={sectionStatus}
@@ -594,7 +600,7 @@ export function ContractSection({
                       aria-invalid={!!facilityFeeRatePercentError}
                     />
                     <div className="text-xs text-muted-foreground">
-                      Facility Fee rate for this contract offer. Allowed range: 0% to 100%, up to 2 decimal places.
+                      Facility Fee rate for this facility offer. Allowed range: 0% to 100%, up to 2 decimal places.
                       This is charged progressively only when invoice financing is disbursed.
                     </div>
                   </div>
@@ -631,26 +637,16 @@ export function ContractSection({
                 <div className={reviewValueClass}>{formatReviewDate(cd.start_date as string)}</div>
                 <Label className={reviewLabelClass}>Contract End Date</Label>
                 <div className={reviewValueClass}>{formatReviewDate(cd.end_date as string)}</div>
-                {typeof cd.approved_facility === "number" && cd.approved_facility > 0 && (
+                {approvedShown > 0 ? (
                   <>
                     <Label className={reviewLabelClass}>Approved Facility</Label>
-                    <div className={reviewValueClass}>
-                      {formatCurrency(cd.approved_facility as number)}
-                    </div>
+                    <div className={reviewValueClass}>{formatCurrency(approvedShown)}</div>
                     <Label className={reviewLabelClass}>Utilized Facility</Label>
-                    <div className={reviewValueClass}>
-                      {formatCurrency(
-                        typeof cd.utilized_facility === "number" ? cd.utilized_facility : 0
-                      )}
-                    </div>
+                    <div className={reviewValueClass}>{formatCurrency(utilizedShown)}</div>
                     <Label className={reviewLabelClass}>Available Facility</Label>
-                    <div className={reviewValueClass}>
-                      {formatCurrency(
-                        typeof cd.available_facility === "number" ? cd.available_facility : 0
-                      )}
-                    </div>
+                    <div className={reviewValueClass}>{formatCurrency(availableShown)}</div>
                   </>
-                )}
+                ) : null}
               </div>
             </ReviewFieldBlock>
           )}
@@ -711,7 +707,7 @@ export function ContractSection({
                     </SelectContent>
                   </Select>
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    Required before you can send the contract offer.
+                    Required before you can send the facility offer.
                   </p>
                 </div>
                 <Label className={reviewLabelClass}>Customer SSM Number</Label>
@@ -781,7 +777,7 @@ export function ContractSection({
           </ReviewFieldBlock>
         </>
       ) : (
-        <p className={reviewEmptyStateClass}>No contract details submitted.</p>
+        <p className={reviewEmptyStateClass}>No facility details submitted.</p>
       )}
       {!hideSectionComments ? (
         <SectionComments comments={comments} onSubmitComment={onAddComment} />
@@ -790,7 +786,7 @@ export function ContractSection({
       <Dialog open={contractOfferConfirmOpen} onOpenChange={setContractOfferConfirmOpen}>
         <DialogContent className="rounded-2xl sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirm Contract Offer</DialogTitle>
+            <DialogTitle>Confirm Facility Offer</DialogTitle>
             <DialogDescription>
               Review the offer details below before sending to the issuer.
             </DialogDescription>

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { OrganizationTypeBadge } from "@/components/organization-type-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -45,7 +46,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   type OnboardingApprovalStatus,
-  getFinalStatusBadgeClassName,
   getFinalStatusLabel,
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
@@ -60,6 +60,7 @@ import {
   ONBOARDING_REFRESH_LOADING_LABEL,
   ONBOARDING_RESTART_LABEL,
 } from "@cashsouk/config";
+import { getDirectorFinalStatusToken } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/use-permissions";
 import {
@@ -76,7 +77,12 @@ import {
   StarIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
-import { DirectorShareholderCtosEmptyAlert, DirectorShareholderUnresolvedIdentitySection } from "@cashsouk/ui";
+import {
+  DirectorShareholderCtosEmptyAlert,
+  DirectorShareholderUnresolvedIdentitySection,
+  PortalBadge,
+  StatusBadge,
+} from "@cashsouk/ui";
 
 type OnboardingPersonRow = PeopleRolesRowInput & {
   matchKey: string;
@@ -144,15 +150,10 @@ function OnboardingPeopleReadonlyCards({
               <p className="text-xs text-muted-foreground font-mono break-all">{idLine}</p>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2 shrink-0 sm:pt-0.5">
-              <Badge
-                variant="outline"
-                className={cn(
-                  "border-transparent text-[11px] font-normal",
-                  getFinalStatusBadgeClassName(finalStatus.tone)
-                )}
-              >
-                {finalStatus.label}
-              </Badge>
+              <StatusBadge
+                label={finalStatus.label}
+                status={getDirectorFinalStatusToken(finalStatus.tone)}
+              />
             </div>
           </div>
         );
@@ -1055,10 +1056,10 @@ export function OnboardingReviewDialog({
               <DialogTitle className="text-xl flex items-center gap-3">
                 Review Onboarding Application
                 {application && (
-                  <Badge variant="outline" className="font-normal">
-                    {application.type === "PERSONAL" ? "Personal" : "Company"}{" "}
-                    {application.portal === "investor" ? "Investor" : "Issuer"}
-                  </Badge>
+                  <span className="inline-flex flex-wrap items-center gap-2 font-normal">
+                    <OrganizationTypeBadge type={application.type} />
+                    <PortalBadge portal={application.portal} />
+                  </span>
                 )}
               </DialogTitle>
               {application && (

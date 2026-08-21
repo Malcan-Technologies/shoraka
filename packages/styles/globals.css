@@ -28,24 +28,36 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 359.6 95.7% 42.6%;
     --radius: 0.8rem;
+    /* Closed type scale (16 / 14 / 12). Use text-body, text-ui, text-meta — not arbitrary px. */
+    --text-body: 1rem;
+    --text-ui: 0.875rem;
+    --text-meta: 0.75rem;
     /* Primary CTA glow — overridden per portal theme when needed */
     --shadow-brand: 0 10px 20px -10px rgba(138, 3, 4, 0.35);
 
-    /* Status meaning tokens — light */
+    /* Status meaning tokens — light. Text is ~800-weight contrast so font-normal labels stay readable. */
     --status-action-bg: 54 96% 95%;
-    --status-action-text: 45 93% 40%;
+    --status-action-text: 32 81% 29%;
     --status-submitted-bg: 214 100% 97%;
-    --status-submitted-text: 221 83% 53%;
+    --status-submitted-text: 224 71% 40%;
     --status-in-progress-bg: 226 100% 97%;
-    --status-in-progress-text: 239 84% 59%;
+    --status-in-progress-text: 244 55% 41%;
     --status-success-bg: 152 76% 90%;
-    --status-success-text: 161 94% 24%;
+    --status-success-text: 163 88% 20%;
+    --status-active-bg: 250 100% 97%;
+    --status-active-text: 263 69% 38%;
     --status-completed-bg: 204 94% 94%;
-    --status-completed-text: 200 98% 32%;
+    --status-completed-text: 201 90% 27%;
     --status-rejected-bg: 0 86% 97%;
-    --status-rejected-text: 0 72% 51%;
+    --status-rejected-text: 0 70% 35%;
     --status-neutral-bg: 210 40% 96%;
-    --status-neutral-text: 215 19% 35%;
+    --status-neutral-text: 215 25% 27%;
+
+    /* Portal identity chips — issuer brand red, investor earth brown */
+    --portal-issuer-bg: 8 45% 95%;
+    --portal-issuer-text: 359.6 95.7% 27.6%;
+    --portal-investor-bg: 34 40% 93%;
+    --portal-investor-text: 29.6 51% 28.8%;
 
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
@@ -76,21 +88,28 @@
     --input: 217.2 32.6% 22%;
     --ring: 359.6 95.7% 62%;
 
-    /* Status meaning tokens — dark */
+    /* Status meaning tokens — dark. Text stays saturated, not pastel. */
     --status-action-bg: 43 50% 12%;
-    --status-action-text: 43 96% 70%;
+    --status-action-text: 43 96% 62%;
     --status-submitted-bg: 217 50% 14%;
-    --status-submitted-text: 213 94% 78%;
+    --status-submitted-text: 213 94% 70%;
     --status-in-progress-bg: 239 40% 16%;
-    --status-in-progress-text: 234 89% 80%;
+    --status-in-progress-text: 234 89% 72%;
     --status-success-bg: 160 50% 12%;
-    --status-success-text: 152 76% 70%;
+    --status-success-text: 152 76% 62%;
+    --status-active-bg: 270 40% 16%;
+    --status-active-text: 258 90% 78%;
     --status-completed-bg: 200 50% 14%;
-    --status-completed-text: 199 89% 74%;
+    --status-completed-text: 199 89% 66%;
     --status-rejected-bg: 0 45% 14%;
-    --status-rejected-text: 0 86% 75%;
+    --status-rejected-text: 0 86% 68%;
     --status-neutral-bg: 217 25% 18%;
-    --status-neutral-text: 214 20% 75%;
+    --status-neutral-text: 214 20% 68%;
+
+    --portal-issuer-bg: 350 28% 16%;
+    --portal-issuer-text: 0 70% 78%;
+    --portal-investor-bg: 30 18% 16%;
+    --portal-investor-text: 32 35% 78%;
 
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
@@ -111,8 +130,8 @@
   
   body {
     @apply bg-background text-foreground antialiased;
-    font-size: 17px;
-    line-height: 1.75;
+    font-size: var(--text-body);
+    line-height: 1.75rem;
   }
   
   h1 {
@@ -132,11 +151,28 @@
   }
   
   p, li {
-    @apply text-[17px] leading-7;
+    @apply leading-7;
   }
   
   small {
-    @apply text-sm leading-6;
+    font-size: var(--text-meta);
+    line-height: 1rem;
+  }
+}
+
+@layer components {
+  .text-page-title {
+    @apply text-3xl font-bold tracking-tight md:text-4xl;
+  }
+  .text-section-title {
+    @apply text-xl font-semibold md:text-2xl;
+  }
+  .text-card-title {
+    @apply font-semibold leading-none tracking-tight;
+    font-size: var(--text-body);
+  }
+  .text-dialog-title {
+    @apply text-lg font-semibold leading-none tracking-tight;
   }
 }
 

@@ -40,7 +40,7 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="alert-title"
-      className={cn("mb-1 font-semibold leading-none tracking-tight text-[17px]", className)}
+      className={cn("mb-1 font-semibold leading-none tracking-tight text-ui", className)}
       {...props}
     />
   );
@@ -50,7 +50,7 @@ function AlertDescription({ className, ...props }: React.ComponentProps<"div">) 
   return (
     <div
       data-slot="alert-description"
-      className={cn("text-[15px] leading-7 [&_p]:leading-7 [&_p]:text-[17px]", className)}
+      className={cn("text-ui leading-7 [&_p]:leading-7 [&_p]:text-ui", className)}
       {...props}
     />
   );

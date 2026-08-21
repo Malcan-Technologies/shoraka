@@ -1,6 +1,7 @@
 import path from "path";
 import { fileURLToPath } from "url";
 import { DEV_TUNNEL_ORIGINS } from "../../packages/config/dev-tunnel-origins.cjs";
+import { NEXT_DEV_EXPERIMENTAL } from "../../packages/config/next-dev-experimental.cjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const monorepoRoot = path.join(/* turbopackIgnore: true */ __dirname, "../..");
@@ -26,18 +27,19 @@ const nextConfig = {
     "@cashsouk/help-content",
   ],
   experimental: {
-    optimizePackageImports: ["@cashsouk/ui"],
+    ...NEXT_DEV_EXPERIMENTAL,
   },
   async redirects() {
     return [
       {
-        source: "/activity",
-        destination: "/?tab=activity",
+        source: "/",
+        has: [{ type: "query", key: "tab", value: "activity" }],
+        destination: "/activity",
         permanent: true,
       },
       {
         source: "/notes",
-        destination: "/financing?tab=notes",
+        destination: "/financing?tab=invoices",
         permanent: true,
       },
       {

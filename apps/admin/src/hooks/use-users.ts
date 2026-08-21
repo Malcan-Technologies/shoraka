@@ -12,7 +12,7 @@ import type {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-export function useUsers(params: GetUsersParams) {
+export function useUsers(params: GetUsersParams, options?: { enabled?: boolean }) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
@@ -25,12 +25,13 @@ export function useUsers(params: GetUsersParams) {
       }
       return response.data;
     },
+    enabled: options?.enabled ?? true,
     staleTime: 0,
     refetchOnMount: true,
   });
 }
 
-export function useUserDetail(userId: string | null) {
+export function useUserDetail(userId: string | null, options?: { enabled?: boolean }) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
@@ -46,7 +47,7 @@ export function useUserDetail(userId: string | null) {
       }
       return response.data.user;
     },
-    enabled: !!userId,
+    enabled: Boolean(userId) && (options?.enabled ?? true),
     staleTime: 0,
   });
 }

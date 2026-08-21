@@ -16,7 +16,7 @@ function statusContent(status: GatewayPaymentStatus, amount: number) {
     case "COMPLETED":
       return {
         icon: CheckIcon,
-        iconClassName: "bg-emerald-600",
+        iconClassName: "bg-primary",
         title: "Deposit successful",
         body: (
           <>
@@ -32,7 +32,7 @@ function statusContent(status: GatewayPaymentStatus, amount: number) {
     case "REFUNDED":
       return {
         icon: ClockIcon,
-        iconClassName: "bg-slate-700",
+        iconClassName: "bg-status-neutral-text",
         title: status === "REFUNDED" ? "Deposit refunded" : "Refund in progress",
         body: (
           <>
@@ -48,7 +48,7 @@ function statusContent(status: GatewayPaymentStatus, amount: number) {
     case "HELD":
       return {
         icon: ExclamationTriangleIcon,
-        iconClassName: "bg-amber-600",
+        iconClassName: "bg-status-rejected-text",
         title: "Deposit could not be processed",
         body: (
           <>
@@ -63,7 +63,7 @@ function statusContent(status: GatewayPaymentStatus, amount: number) {
     case "NAME_CHECK_PENDING":
       return {
         icon: ClockIcon,
-        iconClassName: "bg-slate-700",
+        iconClassName: "bg-primary",
         title: "Deposit received",
         body: (
           <>
@@ -78,7 +78,7 @@ function statusContent(status: GatewayPaymentStatus, amount: number) {
     default:
       return {
         icon: ExclamationTriangleIcon,
-        iconClassName: "bg-destructive",
+        iconClassName: "bg-status-rejected-text",
         title: "Deposit could not be completed",
         body: (
           <>

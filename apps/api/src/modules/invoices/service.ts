@@ -5,7 +5,7 @@ import { ContractRepository } from "../contracts/repository";
 import { AppError } from "../../lib/http/error-handler";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal } from "../applications/logs/types";
-import { Invoice, Prisma } from "@prisma/client";
+import { Invoice } from "@prisma/client";
 import { ApplicationStatus, ContractStatus, InvoiceStatus, WithdrawReason } from "@cashsouk/types";
 import { computeApplicationStatus } from "../applications/lifecycle";
 import {
@@ -24,6 +24,7 @@ import {
   allocateDisplayReference,
   resolveApplicationProductCode,
 } from "../../lib/display-reference";
+import { refreshContractFacilityValues } from "../../lib/refresh-contract-facility";
 
 export class InvoiceService {
   private repository: InvoiceRepository;
@@ -38,6 +39,67 @@ export class InvoiceService {
     this.organizationRepository = new OrganizationRepository();
     this.contractRepository = new ContractRepository();
     this.productRepository = new ProductRepository();
+  }
+
+  private facilityContractIds(...ids: Array<string | null | undefined>): string[] {
+    return [...new Set(ids.filter((id): id is string => Boolean(id)))];
+  }
+
+  private normalizeInvoiceNumber(details: unknown): string | null {
+    if (!details || typeof details !== "object" || Array.isArray(details)) return null;
+    const raw = (details as { number?: unknown }).number;
+    if (raw == null) return null;
+    const trimmed = String(raw).trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  private async assertUniqueInvoiceNumberOnFacility(args: {
+    contractId: string | null | undefined;
+    details: unknown;
+    excludeInvoiceId?: string;
+    tx?: {
+      invoice: {
+        findMany: (query: object) => Promise<Array<{ id: string; details: unknown }>>;
+      };
+    };
+  }): Promise<void> {
+    const contractId = args.contractId;
+    if (!contractId) return;
+    const number = this.normalizeInvoiceNumber(args.details);
+    if (!number) return;
+
+    const client = (args.tx ?? (await import("../../lib/prisma")).prisma) as {
+      invoice: {
+        findMany: (query: object) => Promise<Array<{ id: string; details: unknown }>>;
+      };
+    };
+    const siblings = await client.invoice.findMany({
+      where: {
+        contract_id: contractId,
+        status: { not: InvoiceStatus.WITHDRAWN },
+        ...(args.excludeInvoiceId ? { id: { not: args.excludeInvoiceId } } : {}),
+      },
+      select: { id: true, details: true },
+    });
+
+    const hasDuplicate = siblings.some(
+      (row) => this.normalizeInvoiceNumber(row.details) === number
+    );
+    if (hasDuplicate) {
+      throw new AppError(
+        400,
+        "DUPLICATE_INVOICE_NUMBER",
+        "An invoice with this number already exists on this facility."
+      );
+    }
+  }
+
+  private async refreshLinkedContractFacilities(
+    ...ids: Array<string | null | undefined>
+  ): Promise<void> {
+    for (const contractId of this.facilityContractIds(...ids)) {
+      await refreshContractFacilityValues(contractId);
+    }
   }
 
   private async loadWorkflowForApplication(applicationId: string): Promise<unknown | null> {
@@ -116,13 +178,13 @@ export class InvoiceService {
   private async verifyContractAccess(contractId: string, userId: string): Promise<any> {
     const contract = await this.contractRepository.findById(contractId);
     if (!contract) {
-      throw new AppError(404, "CONTRACT_NOT_FOUND", "Contract not found");
+      throw new AppError(404, "CONTRACT_NOT_FOUND", "Facility not found");
     }
 
     const organizationId = contract.issuer_organization_id;
     const organization = (contract as any).issuer_organization;
     if (!organization) {
-      throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found for this contract");
+      throw new AppError(404, "ORGANIZATION_NOT_FOUND", "Organization not found for this facility");
     }
 
     if (organization.owner_user_id === userId) {
@@ -136,7 +198,7 @@ export class InvoiceService {
     );
 
     if (!member) {
-      throw new AppError(403, "FORBIDDEN", "You do not have access to this contract.");
+      throw new AppError(403, "FORBIDDEN", "You do not have access to this facility.");
     }
 
     return contract;
@@ -155,26 +217,23 @@ export class InvoiceService {
     try {
       const { prisma } = await import("../../lib/prisma");
       return await prisma.$transaction(async (tx) => {
-        const locked = await tx.$queryRaw<
-          { financing_structure: Prisma.JsonValue | null }[]
-        >`SELECT financing_structure FROM applications WHERE id = ${applicationId} FOR UPDATE`;
-        const lockedApplication = locked[0];
-        const structureType = (
-          lockedApplication?.financing_structure as { structure_type?: string } | null
-        )?.structure_type;
-
-        if (structureType === "invoice_only") {
-          const existingInvoiceCount = await tx.invoice.count({
-            where: { application_id: applicationId },
-          });
-          if (existingInvoiceCount >= 1) {
-            throw new AppError(
-              400,
-              "MAX_INVOICES_REACHED",
-              "Invoice-only applications allow only one invoice."
-            );
-          }
+        await tx.$queryRaw`SELECT id FROM applications WHERE id = ${applicationId} FOR UPDATE`;
+        const existingInvoiceCount = await tx.invoice.count({
+          where: { application_id: applicationId },
+        });
+        if (existingInvoiceCount >= 1) {
+          throw new AppError(
+            400,
+            "MAX_INVOICES_REACHED",
+            "Applications allow only one invoice."
+          );
         }
+
+        await this.assertUniqueInvoiceNumberOnFacility({
+          contractId,
+          details,
+          tx,
+        });
 
         const applicationRow = await tx.application.findUnique({
           where: { id: applicationId },
@@ -305,6 +364,16 @@ export class InvoiceService {
     assertMaturityForApplication(workflow, updatedDetails as Record<string, unknown>);
   }
 
+  const effectiveContractId =
+    contractId !== undefined
+      ? contractId
+      : (invoice as { contract_id?: string | null }).contract_id;
+  await this.assertUniqueInvoiceNumberOnFacility({
+    contractId: effectiveContractId,
+    details: updatedDetails,
+    excludeInvoiceId: id,
+  });
+
   /**
    * BUILD UPDATE PAYLOAD
    * Include contractId if provided
@@ -353,6 +422,12 @@ export class InvoiceService {
       );
     }
 
+    await this.refreshLinkedContractFacilities(
+      invoice.contract_id,
+      updatedInvoice.contract_id,
+      (applicationRow as { contract_id?: string | null } | null)?.contract_id
+    );
+
     return updatedInvoice;
   } catch (err) {
     if (isNewDocumentUpload && nextS3Key) {
@@ -379,8 +454,14 @@ async deleteInvoice(id: string, userId: string) {
     ? await this.applicationRepository.findById(invoice.application_id)
     : null;
 
+  const previousContractId =
+    invoice.contract_id ??
+    (application as { contract_id?: string | null } | null)?.contract_id ??
+    null;
+
   // delete DB first OR last — your choice
   await this.repository.delete(id);
+  await this.refreshLinkedContractFacilities(previousContractId);
 
   if (
     s3Key &&
@@ -504,6 +585,11 @@ async deleteInvoice(id: string, userId: string) {
       status: InvoiceStatus.WITHDRAWN,
       withdraw_reason: finalReason,
     });
+
+    await this.refreshLinkedContractFacilities(
+      invoice.contract_id,
+      (invoice as { application?: { contract_id?: string | null } }).application?.contract_id
+    );
 
     if (invoice.application_id) {
       const details = invoice.details as Record<string, unknown> | null;

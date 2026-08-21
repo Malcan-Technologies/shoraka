@@ -5,7 +5,7 @@
 "use client";
 
 import * as React from "react";
-import { Progress } from "@cashsouk/ui";
+import { Progress, StatusBadge, type StatusToken } from "@cashsouk/ui";
 import {
   computeSigningEnvelopeProgress,
   type SigningAssignmentDto,
@@ -13,7 +13,6 @@ import {
   type SigningEnvelopeDto,
   type SigningRecipientDto,
 } from "@cashsouk/types";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -27,32 +26,31 @@ import { CheckIcon } from "@heroicons/react/24/solid";
 
 const STATUS_META: Record<
   SigningAssignmentStatus,
-  { label: string; badgeClass: string; Icon: React.ComponentType<{ className?: string }> }
+  { label: string; status: StatusToken; Icon: React.ComponentType<{ className?: string }> }
 > = {
   PENDING: {
     label: "Pending",
-    badgeClass: "border-transparent bg-status-neutral-bg text-status-neutral-text",
+    status: "neutral",
     Icon: ClockIcon,
   },
   SENT: {
     label: "Email sent",
-    badgeClass: "border-transparent bg-status-action-bg text-status-action-text",
+    status: "action",
     Icon: PaperAirplaneIcon,
   },
   VIEWED: {
     label: "Viewed",
-    badgeClass: "border-transparent bg-status-in-progress-bg text-status-in-progress-text",
+    status: "submitted",
     Icon: EyeIcon,
   },
   SIGNED: {
     label: "Signed",
-    badgeClass:
-      "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300",
+    status: "success",
     Icon: CheckCircleIcon,
   },
   DECLINED: {
     label: "Declined",
-    badgeClass: "border-transparent bg-status-rejected-bg text-status-rejected-text",
+    status: "rejected",
     Icon: XCircleIcon,
   },
 };
@@ -185,13 +183,12 @@ export function SigningProgressMatrix({
                         </div>
 
                         <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
-                          <Badge className={cn("font-normal", meta.badgeClass)}>{meta.label}</Badge>
+                          <StatusBadge label={meta.label} status={meta.status} />
                           {canRemind ? (
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
-                              className="h-7 px-2 text-xs"
                               disabled={remindDisabled}
                               onClick={() => onRemind(recipient.id)}
                             >

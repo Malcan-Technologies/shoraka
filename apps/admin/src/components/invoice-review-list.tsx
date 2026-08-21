@@ -23,6 +23,7 @@ import { ItemActionDropdown } from "@/components/application-review/item-action-
 import { OfferAcceptanceDeadlineConfirmRows } from "@/components/application-review/offer-acceptance-deadline-confirm-rows";
 import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
 import { REVIEW_EMPTY_LABEL } from "@/components/application-review/review-section-styles";
+import { adminActionRowClass, getAdminStatusToken } from "@/lib/admin-status-token";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@cashsouk/ui";
@@ -66,10 +67,10 @@ const PROFIT_RATE_OPTIONS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
 const invoiceExpandReadonlyFieldBlockClass = "space-y-1";
 
 /** Same width for ratio input, profit, and risk so controls line up. */
-const OFFER_CONTROL_WIDTH_CLASS = "h-9 w-full min-w-[5.5rem] max-w-[7rem] rounded-xl border-border bg-background text-[15px]";
+const OFFER_CONTROL_WIDTH_CLASS = "h-9 w-full min-w-[5.5rem] max-w-[7rem] rounded-xl border-border bg-background text-ui";
 
-const invoiceSummaryCellCenterClass = "text-[15px] px-3 py-2 align-middle text-center";
-const invoiceSummaryCellNumericClass = "text-[15px] px-3 py-2 align-middle text-right tabular-nums";
+const invoiceSummaryCellCenterClass = "text-ui px-3 py-2 align-middle text-center";
+const invoiceSummaryCellNumericClass = "text-ui px-3 py-2 align-middle text-right tabular-nums";
 const invoiceSummaryHeadCenterClass = "text-sm font-semibold text-foreground px-3 py-2 text-center";
 const invoiceSummaryHeadNumericClass =
   "text-sm font-semibold text-foreground px-3 py-2 text-right tabular-nums";
@@ -115,6 +116,8 @@ interface InvoiceReviewListProps {
   isSendInvoiceOfferPending?: boolean;
   /** Opens signed offer document using the same document view-url flow. */
   onViewSignedInvoiceOffer?: (invoiceId: string) => void | Promise<void>;
+  /** Remaining revolving capacity (approved − live utilized). Pending does not reduce this. */
+  remainingAvailableFacility?: number;
 }
 
 interface InvoiceDetails {
@@ -182,6 +185,7 @@ export function InvoiceList({
   onSendInvoiceOffer,
   isSendInvoiceOfferPending,
   onViewSignedInvoiceOffer,
+  remainingAvailableFacility,
 }: InvoiceReviewListProps) {
   const [expandedById, setExpandedById] = React.useState<Record<string, boolean>>({});
   const { data: signingEnvelopes = [] } = useAdminSigningEnvelopes(applicationId ?? "");
@@ -383,7 +387,7 @@ export function InvoiceList({
 
   return (
     <div className={applicationTableWrapperClass}>
-      <Table className="text-[15px]">
+      <Table className="text-ui">
         <TableHeader className={applicationTableHeaderBgClass}>
           <TableRow className="hover:bg-transparent border-b border-border">
             <TableHead className="w-10 px-2 py-2 text-center align-middle" />
@@ -448,7 +452,11 @@ export function InvoiceList({
                   className={
                     isRowGreyedOut
                       ? `${applicationTableRowGreyedClass} cursor-pointer`
-                      : `${applicationTableRowClass} cursor-pointer`
+                      : cn(
+                          applicationTableRowClass,
+                          "cursor-pointer",
+                          adminActionRowClass(getAdminStatusToken(status))
+                        )
                   }
                   onClick={(e) => {
                     const t = e.target as HTMLElement;
@@ -488,7 +496,7 @@ export function InvoiceList({
                       : REVIEW_EMPTY_LABEL}
                   </TableCell>
                   <TableCell className={invoiceSummaryCellCenterClass}>
-                    <ReviewStepStatusBadge status={status} size="sm" />
+                    <ReviewStepStatusBadge status={status} />
                   </TableCell>
                   <TableCell
                     data-prevent-invoice-row-toggle
@@ -620,7 +628,7 @@ export function InvoiceList({
                                           <Button
                                             variant="outline"
                                             size="sm"
-                                            className="h-8 rounded-xl gap-1 px-2 text-[15px]"
+                                            className="h-8 rounded-xl gap-1 px-2 text-ui"
                                             onClick={() => onViewDocument(invoiceDocument.s3_key!)}
                                             disabled={isViewDocumentPending}
                                           >
@@ -810,7 +818,7 @@ export function InvoiceList({
                                             }
                                           }}
                                         />
-                                        <span className="shrink-0 text-[15px] text-muted-foreground">
+                                        <span className="shrink-0 text-ui text-muted-foreground">
                                           %
                                         </span>
                                       </div>
@@ -905,7 +913,7 @@ export function InvoiceList({
                                                 }
                                               }}
                                             />
-                                            <span className="shrink-0 text-[15px] text-muted-foreground">%</span>
+                                            <span className="shrink-0 text-ui text-muted-foreground">%</span>
                                           </div>
                                           {financingRatioSliderOpenByInvoiceId[inv.id] ? (
                                             <div
@@ -1117,11 +1125,11 @@ export function InvoiceList({
               <div className="grid gap-3 py-2">
                 <div className="flex justify-between items-baseline">
                   <span className="text-sm font-medium text-muted-foreground">Invoice Number</span>
-                  <span className="text-[15px] font-medium">{invoiceOfferConfirm.invoiceNo}</span>
+                  <span className="text-ui font-medium">{invoiceOfferConfirm.invoiceNo}</span>
                 </div>
                 <div className="flex justify-between items-baseline">
                   <span className="text-sm font-medium text-muted-foreground">Invoice Value</span>
-                  <span className="text-[15px] font-medium tabular-nums">
+                  <span className="text-ui font-medium tabular-nums">
                     {invoiceOfferConfirm.invoiceValue !== null
                       ? formatCurrency(invoiceOfferConfirm.invoiceValue)
                       : REVIEW_EMPTY_LABEL}
@@ -1129,31 +1137,31 @@ export function InvoiceList({
                 </div>
                 <div className="flex justify-between items-baseline">
                   <span className="text-sm font-medium text-muted-foreground">Financing Amount</span>
-                  <span className="text-[15px] font-medium tabular-nums">
+                  <span className="text-ui font-medium tabular-nums">
                     {formatCurrency(invoiceOfferConfirm.offeredAmount)}
                   </span>
                 </div>
                 <div className="flex justify-between items-baseline">
                   <span className="text-sm font-medium text-muted-foreground">Financing Ratio</span>
-                  <span className="text-[15px] font-medium tabular-nums">
+                  <span className="text-ui font-medium tabular-nums">
                     {invoiceOfferConfirm.offeredRatioPercent}%
                   </span>
                 </div>
                 <div className="flex justify-between items-baseline">
                   <span className="text-sm font-medium text-muted-foreground">Profit Rate</span>
-                  <span className="text-[15px] font-medium tabular-nums">
+                  <span className="text-ui font-medium tabular-nums">
                     {invoiceOfferConfirm.offeredProfitRatePercent}%
                   </span>
                 </div>
                 <div className="flex justify-between items-baseline">
                   <span className="text-sm font-medium text-muted-foreground">Platform fee</span>
-                  <span className="text-[15px] font-medium tabular-nums">
+                  <span className="text-ui font-medium tabular-nums">
                     {invoiceOfferConfirm.platformFeeRatePercent}% at disbursement
                   </span>
                 </div>
                 <div className="flex justify-between items-baseline">
                   <span className="text-sm font-medium text-muted-foreground">Risk Rating</span>
-                  <span className="text-[15px] font-medium tabular-nums">
+                  <span className="text-ui font-medium tabular-nums">
                     {invoiceOfferConfirm.risk_rating}
                   </span>
                 </div>
@@ -1161,8 +1169,16 @@ export function InvoiceList({
                   <OfferAcceptanceDeadlineConfirmRows
                     preview={acceptanceDeadlinePreview}
                     labelClassName="text-sm font-medium text-muted-foreground"
-                    valueClassName="text-[15px] font-medium"
+                    valueClassName="text-ui font-medium"
                   />
+                ) : null}
+                {remainingAvailableFacility != null &&
+                invoiceOfferConfirm.offeredAmount > remainingAvailableFacility ? (
+                  <p className="rounded-xl border border-border bg-muted/20 px-3 py-2 text-ui text-foreground">
+                    This offer ({formatCurrency(invoiceOfferConfirm.offeredAmount)}) exceeds remaining
+                    available facility ({formatCurrency(remainingAvailableFacility)}). You can still
+                    send it.
+                  </p>
                 ) : null}
               </div>
               <DialogFooter className="gap-2 sm:gap-0">

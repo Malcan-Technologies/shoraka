@@ -30,6 +30,8 @@ import {
   exportSecurityLogsQuerySchema,
   resetOnboardingSchema,
   getOrganizationsQuerySchema,
+  getOrganizationLinkedRecordsQuerySchema,
+  updateAdminOrganizationProfileSchema,
   getOnboardingApplicationsQuerySchema,
   updateSophisticatedStatusSchema,
   getAdminApplicationsQuerySchema,
@@ -55,6 +57,8 @@ import {
 } from "./schemas";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
+import { noteService } from "../notes/service";
+import { investorBalanceActivityQuerySchema } from "../notes/schemas";
 import {
   listCtosReportsForIssuerOrg,
   listCtosReportsForAdminOrg,
@@ -656,6 +660,106 @@ router.get(
         throw new AppError(404, "NOT_FOUND", "Organization not found");
       }
 
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(
+        error instanceof AppError
+          ? error
+          : error instanceof Error
+            ? new AppError(400, "VALIDATION_ERROR", error.message)
+            : error
+      );
+    }
+  }
+);
+
+router.get(
+  "/organizations/:portal/:id/linked-records",
+  requirePermission("organizations.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id } = req.params;
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "Portal must be 'investor' or 'issuer'");
+      }
+      const query = getOrganizationLinkedRecordsQuerySchema.parse(req.query);
+      const result = await adminService.listOrganizationLinkedRecords(portal, id, query);
+      if (!result) {
+        throw new AppError(404, "NOT_FOUND", "Organization not found");
+      }
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(
+        error instanceof AppError
+          ? error
+          : error instanceof Error
+            ? new AppError(400, "VALIDATION_ERROR", error.message)
+            : error
+      );
+    }
+  }
+);
+
+router.get(
+  "/organizations/investor/:id/balance-activity",
+  requirePermission("organizations.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const query = investorBalanceActivityQuerySchema.parse(req.query);
+      const org = await prisma.investorOrganization.findUnique({
+        where: { id },
+        select: { id: true },
+      });
+      if (!org) {
+        throw new AppError(404, "NOT_FOUND", "Organization not found");
+      }
+      const result = await noteService.listInvestorBalanceActivityForOrganizations([id], query);
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(
+        error instanceof AppError
+          ? error
+          : error instanceof Error
+            ? new AppError(400, "VALIDATION_ERROR", error.message)
+            : error
+      );
+    }
+  }
+);
+
+router.patch(
+  "/organizations/:portal/:id",
+  requirePermission("organizations.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id } = req.params;
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "Portal must be 'investor' or 'issuer'");
+      }
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+      const input = updateAdminOrganizationProfileSchema.parse(req.body);
+      const result = await adminService.updateOrganizationProfile(
+        req,
+        portal,
+        id,
+        input,
+        req.user.user_id
+      );
       res.json({
         success: true,
         data: result,
@@ -2235,7 +2339,7 @@ router.post(
  *         name: status
  *         schema:
  *           type: string
- *           enum: [DRAFT, SUBMITTED, UNDER_REVIEW, AMENDMENT_REQUESTED, RESUBMITTED, APPROVED, REJECTED, ARCHIVED]
+ *           enum: [DRAFT, SUBMITTED, UNDER_REVIEW, CONTRACT_PENDING, CONTRACT_SENT, CONTRACT_ACCEPTED, INVOICE_ACCEPTED, SIGNING_PENDING, INVOICE_PENDING, INVOICES_SENT, OFFER_EXPIRED, AMENDMENT_REQUESTED, RESUBMITTED, COMPLETED, WITHDRAWN, REJECTED, ARCHIVED]
  *       - in: query
  *         name: statuses
  *         schema:
@@ -2895,7 +2999,7 @@ router.post(
  *             properties:
  *               status:
  *                 type: string
- *                 enum: [UNDER_REVIEW, APPROVED, REJECTED]
+ *                 enum: [UNDER_REVIEW, REJECTED]
  *     responses:
  *       200:
  *         description: Application status updated

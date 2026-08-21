@@ -23,7 +23,7 @@ export function ApplicationFlowBlockedBackdrop({
     <>
       {/*
         Mirrors edit/[id] page title stack: mb-4 sm:mb-6, h1 text-xl/sm:text-2xl/md:text-3xl,
-        description text-sm sm:text-[15px] leading-6 sm:leading-7 mt-1
+        description text-sm sm:text-ui leading-6 sm:leading-7 mt-1
       */}
       <div className="mb-4 sm:mb-6">
         <Skeleton className="h-7 sm:h-8 md:h-9 w-full max-w-[20rem] sm:max-w-xl rounded-md" />

@@ -14,7 +14,7 @@ updated: 2026-06-30
 
 Use this guide when you need to understand where note money is, what action to take next, or how a repayment should be allocated. It is written for admin portal users and focuses on day-to-day operations.
 
-A note is created from one approved invoice. If a contract has multiple approved invoices, each invoice can become its own note. The admin portal keeps the note linked to its issuer, paymaster, source application, source contract, and source invoice so you can review the full context when needed.
+A note is created from one approved invoice. If a facility has multiple approved invoices, each invoice can become its own note. The admin portal keeps the note linked to its issuer, paymaster, source application, source facility, and source invoice so you can review the full context when needed.
 
 ## Where To Work
 
@@ -30,12 +30,12 @@ A note is created from one approved invoice. If a contract has multiple approved
 - Use **Finance → Issuer Payouts** to see issuer disbursement withdrawals still in flight (legacy residual withdrawal rows may still appear for older notes).
 - Use **Finance → Service Fee** to see notes whose **settlement trustee instruction** still needs a PDF, trustee submission, or **instruction completed** after settlement is posted.
 - Use **Finance → Buckets** to view the six platform money buckets and inspect activity logs for each bucket.
-- Use the **Dashboard** Quick Actions and Bucket Balances overview cards for an at-a-glance snapshot of what needs attention.
+- Use the **Dashboard** next-to-do queues and Bucket Balances overview cards for an at-a-glance snapshot of what needs attention.
 - Use **Platform Finance Settings** to manage the default grace period, arrears threshold, Ta'widh cap, Gharamah cap, default listing duration, and letter templates.
 
 ### Workflow progress and counters
 
-Sidebar badges, dashboard quick-action counts, queue summaries, and most Note Detail workflow steps update after you complete an in-portal action (record a payment, generate a letter, mark submitted/disbursed, post a settlement, complete settlement trustee instruction, etc.). You usually do not need to refresh the browser. If two admins work simultaneously, the active tab also refetches in the background about once per minute.
+Sidebar badges, dashboard next-to-do counts, queue summaries, and most Note Detail workflow steps update after you complete an in-portal action (record a payment, generate a letter, mark submitted/disbursed, post a settlement, complete settlement trustee instruction, etc.). You usually do not need to refresh the browser. If two admins work simultaneously, the active tab also refetches in the background about once per minute.
 
 **Tawarruq certificate exception:** Lifecycle counters and the disbursement strip reflect the latest Tawarruq, trustee, and settlement state once that state is **fetched and stored** in the portal. A Shoraka callback may update the Tawarruq order status in the database, but it does **not** store the certificate file. The **Certificate** step on the disbursement lifecycle strip completes only after the Tawarruq certificate PDF has been fetched and stored. On Note Detail, click **Query Status** or **Fetch Tawarruq Certificate**, or reload the page, to see the latest certificate state if the page was already open.
 
@@ -128,7 +128,7 @@ Create notes only from approved invoices. Review the invoice, issuer, paymaster,
 When a note is published, it becomes available in the investor marketplace. Investors can commit funds until funding is closed automatically, closed manually, or failed.
 
 - **Publish** makes a reviewed note available to investors. On publish the listing is given a `closes_at` timestamp based on the product&apos;s `marketplace_listing_duration_days` (default 14 days).
-- **Unpublish** removes a note from the marketplace before investor commitments exist.
+- **Unpublish** removes a note from the marketplace before investor commitments exist. The prospectus returns to Draft with previous fields kept; it must be reviewed and approved again before republish. Pause (with commitments) does not change the prospectus.
 - **Close Funding** ends funding for a successfully funded note. Investments are confirmed, the disbursement ledger is posted, and a draft Issuer Disbursement withdrawal is created. The note moves to the Funded stage and waits for disbursement on the **Disbursement** tab.
 - **Fail Funding** closes an open note that did not meet the minimum funding threshold.
 

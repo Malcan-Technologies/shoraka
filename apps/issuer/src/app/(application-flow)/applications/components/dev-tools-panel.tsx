@@ -111,7 +111,7 @@ export function DevToolsPanel({
             key={label}
             variant="outline"
             size="sm"
-            className="w-full justify-start text-xs h-8"
+            className="w-full justify-start"
             onClick={action}
           >
             {label}

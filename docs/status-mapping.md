@@ -13,7 +13,7 @@ The **single badge** next to each person (e.g. “Verified”, “Rejected”, �
 
 **File:** `packages/types/src/director-shareholder-final-status.ts`  
 Effective token: **`getDirectorShareholderEffectiveStatus`** — if normalized **`screening.status`** (AML) is non-empty, **only AML** drives the badge; otherwise **`onboarding.status`** (KYC/KYB) drives it.  
-Badge colors: **`getFinalStatusBadgeClassName(tone)`** — semantic tones: **success** (green, Verified), **warning** (amber, Pending Review), **info** (blue, In Progress), **danger** (red, Rejected / Action Required), **neutral** (gray, Not Started), **expired** (purple, Expired). Light and dark Tailwind utility pairs; no gradients.
+Badge colors: **`getFinalStatusToken(tone)`** + `StatusBadge`, or **`getFinalStatusBadgeClassName(tone)`**. Semantic tones: **success** (green, Verified), **warning** (yellow, you must act), **info** (blue, waiting), **danger** / **expired** (red, Rejected / Expired), **neutral** (grey, Not Started). Status tokens, not purple for expired.
 
 It does **not** read the database directly. It only reads **`screening.status`** and **`onboarding.status`** on the row the API (or issuer client) already built.
 

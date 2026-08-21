@@ -307,6 +307,32 @@ adminNotesRouter.get(
   }
 );
 
+adminNotesRouter.get(
+  "/:id/prospectus",
+  requirePermission("notes.view"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = idParamSchema.parse(req.params);
+      const { getAdminApprovedProspectusPdf } = await import(
+        "./prospectus-review/prospectus-investor-access"
+      );
+      const doc = await getAdminApprovedProspectusPdf(id);
+      send(res, {
+        publicationId: doc.publicationId,
+        contentVersion: doc.contentVersion,
+        pdfViewUrl: doc.pdfViewUrl,
+        pdfExpiresIn: doc.pdfExpiresIn,
+        pdfContentType: doc.pdfContentType,
+        pdfFileName: doc.pdfFileName,
+        pdfSha256: doc.pdfSha256,
+        pdfSnapshotHash: doc.pdfSnapshotHash,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 adminNotesRouter.post(
   "/:id/prospectus-review/preview",
   requirePermission("notes.manage"),
@@ -355,6 +381,32 @@ adminNotesRouter.post(
   try {
     const { id } = idParamSchema.parse(req.params);
     send(res, await noteService.unpublish(id, getActor(req, res, "ADMIN")));
+  } catch (error) {
+    next(error);
+  }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/listing/pause",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    send(res, await noteService.pauseListing(id, getActor(req, res, "ADMIN")));
+  } catch (error) {
+    next(error);
+  }
+  }
+);
+
+adminNotesRouter.post(
+  "/:id/listing/resume",
+  requirePermission("notes.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    send(res, await noteService.resumeListing(id, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
   }
@@ -706,7 +758,7 @@ marketplaceRouter.get(
 publicMarketplaceRouter.get("/notes", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const params = getNotesQuerySchema.parse(req.query);
-    send(res, await noteService.listMarketplace(params));
+    send(res, await noteService.listMarketplace({ ...params, includeClosed: false }));
   } catch (error) {
     next(error);
   }

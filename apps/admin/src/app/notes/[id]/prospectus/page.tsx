@@ -4,7 +4,7 @@ import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { ArrowLeftIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
-import { Skeleton, useHeader } from "@cashsouk/ui";
+import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import {
   normalizeProspectusCompanySize,
   normalizeProspectusConfidenceGrading,
@@ -13,7 +13,6 @@ import {
   type ProspectusReviewStoredContent,
   type ProspectusReviewStatus,
 } from "@cashsouk/types";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -45,6 +44,7 @@ import {
   useProspectusReview,
   useProspectusReviewPreview,
   useSaveProspectusReviewDraft,
+  useOpenAdminProspectusPdf,
 } from "@/notes/hooks/use-prospectus-review";
 import type { ProspectusPreviewPages } from "@/notes/prospectus-review/preview-sheet-utils";
 import {
@@ -57,10 +57,9 @@ import {
   PROSPECTUS_STEP_PAGE_LABEL,
   formatActorDisplayName,
   formatProspectusReviewStatus,
-  prospectusReviewStatusBadgeClassName,
+  prospectusReviewStatusToken,
   type ProspectusWorkflowStepId,
 } from "@/notes/prospectus-review/labels";
-import { cn } from "@/lib/utils";
 import {
   PROSPECTUS_STEP_STATUS_LABEL,
   buildProspectusMissingRequiredFields,
@@ -104,6 +103,7 @@ function ProspectusReviewPageInner() {
 
   const saveDraft = useSaveProspectusReviewDraft(noteId);
   const approve = useApproveProspectusReview(noteId);
+  const openProspectusPdf = useOpenAdminProspectusPdf();
 
   const [step, setStep] = React.useState<ProspectusWorkflowStepId>(0);
   const [pageOneTab, setPageOneTab] = React.useState<
@@ -149,8 +149,8 @@ function ProspectusReviewPageInner() {
   }, [dirty]);
 
   const status = data?.review.status as ProspectusReviewStatus | undefined;
-  const notePublished = note?.status === "PUBLISHED" || note?.publishedAt != null;
-  const locked = notePublished || status === "PUBLISHED";
+  const notePublished = note?.status === "PUBLISHED";
+  const locked = notePublished;
 
   const updateDraft = (
     updater: (prev: ProspectusReviewStoredContent) => ProspectusReviewStoredContent
@@ -225,8 +225,9 @@ function ProspectusReviewPageInner() {
   };
 
   const onViewSavedProspectus = () => {
-    setLivePreviewHtml(null);
-    setPreviewOpen(true);
+    void openProspectusPdf.mutateAsync(noteId).catch((e) => {
+      toast.error(e instanceof Error ? e.message : "Prospectus PDF is not available");
+    });
   };
 
   const openApproveDialog = () => {
@@ -557,7 +558,11 @@ function ProspectusReviewPageInner() {
             </div>
           ) : null}
           {actions.viewProspectus ? (
-            <Button variant="secondary" onClick={onViewSavedProspectus}>
+            <Button
+              variant="secondary"
+              onClick={onViewSavedProspectus}
+              disabled={openProspectusPdf.isPending}
+            >
               View Prospectus
             </Button>
           ) : null}
@@ -595,15 +600,11 @@ function ProspectusReviewPageInner() {
                 <p className="mt-1 truncate text-sm text-muted-foreground">{data.note.title}</p>
               </div>
             </div>
-            <Badge
-              variant="outline"
-              className={cn(
-                "shrink-0",
-                prospectusReviewStatusBadgeClassName(data.review.status, notePublished)
-              )}
-            >
-              {formatProspectusReviewStatus(data.review.status, notePublished)}
-            </Badge>
+            <StatusBadge
+              label={formatProspectusReviewStatus(data.review.status, notePublished)}
+              status={prospectusReviewStatusToken(data.review.status, notePublished)}
+              className="shrink-0"
+            />
           </div>
 
           <Card className="rounded-2xl">
@@ -820,12 +821,6 @@ function ProspectusReviewPageInner() {
 }
 
 export default function ProspectusReviewPage() {
-  const { setTitle } = useHeader();
-  React.useEffect(() => {
-    setTitle("Prospectus Review");
-    return () => setTitle("");
-  }, [setTitle]);
-
   return (
     <RequirePermission permission="notes.view">
       <ProspectusReviewPageInner />

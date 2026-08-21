@@ -66,6 +66,7 @@ import {
   countInvoicesNeedingAction,
   formatApplicationDisplayId,
   getIssuerPlainStatusLabel,
+  issuerWithdrawBlockedReason,
 } from "@/app/(application-management)/applications/components/issuer-status-display";
 
 const DETAIL_TABS = ["summary", "offer", "invoices", "documents", "timeline"] as const;
@@ -302,8 +303,10 @@ export default function ApplicationDetailPage() {
 
   const displayId = formatApplicationDisplayId(application.id, application.displayReference);
   const isDraft = application.status === "draft";
-  const hasContract = application.type === "Contract financing";
-  const statusLabel = getIssuerPlainStatusLabel(
+  const hasContract = application.type === "Facility financing";
+  const statusLabel = application.facilityInForceNoInvoices
+    ? "Facility approved"
+    : getIssuerPlainStatusLabel(
     application.cardStatus.badgeKey,
     application.cardStatus.badgeKey === "withdrawn" ||
       application.cardStatus.badgeKey === "declined" ||
@@ -314,7 +317,15 @@ export default function ApplicationDetailPage() {
 
   const showViewSignedContract =
     application.signedContractOfferLetterAvailable && !!application.signedContractOfferLetterS3Key;
-  const withdrawDisabled = cancelApplication.isPending || showViewSignedContract;
+  const withdrawDisabled = cancelApplication.isPending || !application.canWithdraw;
+  const withdrawBlockedReason = issuerWithdrawBlockedReason({
+    canWithdraw: application.canWithdraw,
+    applicationStatus: application.applicationStatus,
+    contractStatus: application.contractStatus,
+    invoices: application.invoices,
+    offerAcceptanceStatus: application.offerAcceptanceStatus,
+    facilityInForceNoInvoices: application.facilityInForceNoInvoices,
+  });
 
   const isMountedOfferInvoice = (inv: NormalizedInvoice) =>
     inv.status === "OFFER_SENT" || inv.canReviewOffer;
@@ -415,8 +426,15 @@ export default function ApplicationDetailPage() {
                   value: application.contractTitle ?? "—",
                 },
                 {
-                  label: "Invoices added",
-                  value: String(application.invoices.length),
+                  label: "Invoice",
+                  value:
+                    application.invoices.length === 0
+                      ? "None yet"
+                      : application.invoices.length === 1
+                        ? application.invoices[0]!.displayReference?.trim() ||
+                          application.invoices[0]!.number?.trim() ||
+                          "Added"
+                        : `${application.invoices.length} invoices`,
                 },
                 {
                   label: "Last updated",
@@ -506,9 +524,9 @@ export default function ApplicationDetailPage() {
             >
               Withdraw
             </Button>
-            {withdrawDisabled && showViewSignedContract ? (
-              <p className="basis-full text-[13px] leading-5 text-muted-foreground sm:basis-auto sm:max-w-[16rem]">
-                Withdraw is not available while a signed offer letter is on file.
+            {withdrawBlockedReason ? (
+              <p className="basis-full text-ui leading-5 text-muted-foreground sm:basis-auto sm:max-w-[16rem]">
+                {withdrawBlockedReason}
               </p>
             ) : null}
             <DropdownMenu>
@@ -566,7 +584,7 @@ export default function ApplicationDetailPage() {
             <TabsTrigger value="offer" className="gap-1.5 rounded-lg">
               Offer
               {pendingOfferCount > 0 ? (
-                <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-[11px] text-primary-foreground">
+                <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-meta text-primary-foreground">
                   {pendingOfferCount}
                 </Badge>
               ) : null}
@@ -575,7 +593,7 @@ export default function ApplicationDetailPage() {
           <TabsTrigger value="invoices" className="gap-1.5 rounded-lg">
             Invoices
             {invoicesNeedingAction > 0 ? (
-              <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-[11px] text-primary-foreground">
+              <Badge className="h-5 min-w-5 rounded-full bg-primary px-1.5 text-meta text-primary-foreground">
                 {invoicesNeedingAction}
               </Badge>
             ) : null}
@@ -600,6 +618,15 @@ export default function ApplicationDetailPage() {
                     ? [{ label: "Contract title", value: application.contractTitle }]
                     : []),
                   { label: "Customer", value: application.customer },
+                  {
+                    label: "Invoice",
+                    value:
+                      application.invoices.length === 0
+                        ? "—"
+                        : application.invoices[0]!.displayReference?.trim() ||
+                          application.invoices[0]!.number?.trim() ||
+                          "—",
+                  },
                   {
                     label: "Contract value",
                     value:
@@ -626,7 +653,7 @@ export default function ApplicationDetailPage() {
                       <span className="inline-flex items-center gap-1.5">
                         Facility fee rate
                         <InfoTooltip
-                          content="Facility fee is deducted from each invoice financing disbursement under this contract."
+                          content="Facility fee is deducted from each invoice financing disbursement under this facility."
                           iconClassName="h-3.5 w-3.5 shrink-0"
                         />
                       </span>
@@ -643,7 +670,7 @@ export default function ApplicationDetailPage() {
                       <span className="inline-flex items-center gap-1.5">
                         Facility fee cap
                         <InfoTooltip
-                          content="Maximum total facility fee that can be collected for this contract."
+                          content="Maximum total facility fee that can be collected for this facility."
                           iconClassName="h-3.5 w-3.5 shrink-0"
                         />
                       </span>
@@ -670,7 +697,7 @@ export default function ApplicationDetailPage() {
                 <div className="mt-4">
                   <Button variant="link" className="h-auto px-0" asChild>
                     <Link href={`/financing/contracts/${application.contractId}`}>
-                      View contract in Financing
+                      View facility in Financing
                     </Link>
                   </Button>
                 </div>
@@ -700,7 +727,6 @@ export default function ApplicationDetailPage() {
                     }
                     invoice={offerType === "invoice" ? offerInvoice : undefined}
                     requiresInvoiceSigning
-                    className={showOfferSwitcher ? "mx-0 max-w-none" : undefined}
                     onClose={() => {
                       void queryClient.invalidateQueries({
                         queryKey: ["application", applicationId],
@@ -722,7 +748,7 @@ export default function ApplicationDetailPage() {
                       <CardTitle className="text-xl sm:text-2xl">Signed offer</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-[15px] leading-6 text-muted-foreground">
+                      <p className="text-ui leading-6 text-muted-foreground">
                         There is no offer waiting for a response. You can download signed offer
                         letters from Documents.
                       </p>
@@ -749,7 +775,7 @@ export default function ApplicationDetailPage() {
               return (
                 <div className="grid gap-4 lg:grid-cols-[minmax(15rem,18rem)_minmax(0,1fr)] lg:items-start">
                   <aside className="rounded-2xl border border-border bg-card p-2 shadow-sm">
-                    <p className="px-3 pb-2 pt-1 text-[13px] font-medium text-muted-foreground">
+                    <p className="px-3 pb-2 pt-1 text-ui font-medium text-muted-foreground">
                       Offers to review
                     </p>
                     <nav className="flex flex-col gap-1" aria-label="Select offer">
@@ -765,10 +791,10 @@ export default function ApplicationDetailPage() {
                           )}
                           aria-current={contractSelected ? "true" : undefined}
                         >
-                          <span className="block text-sm font-semibold">Contract offer</span>
+                          <span className="block text-sm font-semibold">Facility offer</span>
                           <span
                             className={cn(
-                              "mt-0.5 block text-[13px] leading-5",
+                              "mt-0.5 block text-ui leading-5",
                               contractSelected ? "text-primary/80" : "text-muted-foreground"
                             )}
                           >
@@ -796,7 +822,7 @@ export default function ApplicationDetailPage() {
                             </span>
                             <span
                               className={cn(
-                                "mt-0.5 block text-[13px] leading-5",
+                                "mt-0.5 block text-ui leading-5",
                                 selected ? "text-primary/80" : "text-muted-foreground"
                               )}
                             >
@@ -862,10 +888,10 @@ export default function ApplicationDetailPage() {
                       className="flex flex-wrap items-center justify-between gap-3 px-6 py-3"
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-[15px] font-medium text-foreground">
+                        <p className="truncate text-ui font-medium text-foreground">
                           {doc.name}
                         </p>
-                        <p className="text-[13px] text-muted-foreground">{doc.source}</p>
+                        <p className="text-ui text-muted-foreground">{doc.source}</p>
                       </div>
                       <Button
                         variant="outline"
@@ -922,16 +948,16 @@ export default function ApplicationDetailPage() {
                           ) : null}
                         </div>
                         <div className={cn("min-w-0 flex-1", !isLast && "pb-6")}>
-                          <p className="text-[15px] font-medium leading-6 text-foreground">
+                          <p className="text-ui font-medium leading-6 text-foreground">
                             {item.label}
                           </p>
                           {item.description ? (
-                            <p className="mt-0.5 text-[13px] leading-5 text-muted-foreground">
+                            <p className="mt-0.5 text-ui leading-5 text-muted-foreground">
                               {item.description}
                             </p>
                           ) : null}
                           {item.at ? (
-                            <p className="mt-1 text-[13px] text-muted-foreground">
+                            <p className="mt-1 text-ui text-muted-foreground">
                               {format(new Date(item.at), "d MMM yyyy, h:mm a")}
                             </p>
                           ) : null}

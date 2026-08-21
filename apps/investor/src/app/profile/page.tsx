@@ -6,7 +6,6 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import { Badge } from "../../components/ui/badge";
 import { Checkbox } from "../../components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import {
@@ -25,6 +24,7 @@ import {
   type OrganizationMemberRole,
   type BankAccountDetails,
   type UpdateOrganizationProfileInput,
+  MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import type { ApplicationPersonRow } from "@cashsouk/types";
 import { filterVisiblePeopleRows } from "@cashsouk/types";
@@ -47,8 +47,16 @@ import {
   INVESTOR_DIRECTOR_SHAREHOLDER_ALERT_COPY,
   DirectorShareholdersUnifiedSection,
   portalContentMaxWidthClassName,
+  VerifiedBadge,
 } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
+import {
+  isProfileTab,
+  profileTabFromSearchParam,
+  PROFILE_PATH,
+  PROFILE_TAB_PROFILE,
+  type ProfileTab,
+} from "@/app/profile/profile-tabs";
 import {
   UserIcon,
   BuildingOffice2Icon,
@@ -73,33 +81,6 @@ import {
 } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
-// Malaysian banks list (values match RegTank format)
-const MALAYSIAN_BANKS = [
-  { value: "Affin Bank Berhad", label: "Affin Bank" },
-  { value: "Alliance Bank Malaysia Berhad", label: "Alliance Bank" },
-  { value: "AmBank / AmFinance Berhad", label: "AmBank" },
-  { value: "Bangkok Bank Berhad", label: "Bangkok Bank" },
-  { value: "Bank Islam Malaysia Berhad", label: "Bank Islam" },
-  { value: "Bank Kerjasama Rakyat Malaysia Berhad (Bank Rakyat)", label: "Bank Rakyat" },
-  { value: "Bank Muamalat Malaysia Berhad", label: "Bank Muamalat" },
-  { value: "Bank Pertanian Malaysia Berhad (Agrobank)", label: "Agrobank" },
-  { value: "Bank Simpanan Nasional Berhad (BSN)", label: "BSN" },
-  { value: "Bank of America", label: "Bank of America" },
-  { value: "Bank of China (Malaysia) Berhad", label: "Bank of China" },
-  { value: "CIMB Bank Berhad", label: "CIMB Bank" },
-  { value: "Co-operative Bank of Malaysia Berhad (Co-opbank Pertama)", label: "Co-opbank Pertama" },
-  { value: "Deutsche Bank (Malaysia) Berhad", label: "Deutsche Bank" },
-  { value: "Hong Leong Bank Berhad", label: "Hong Leong Bank" },
-  { value: "JP Morgan Chase Bank Berhad", label: "JP Morgan Chase" },
-  { value: "Maybank / Malayan Banking Berhad", label: "Maybank" },
-  { value: "Public Bank Berhad", label: "Public Bank" },
-  { value: "RHB Bank Berhad", label: "RHB Bank" },
-  { value: "Standard Chartered Bank Malaysia Berhad", label: "Standard Chartered" },
-  { value: "Sumitomo Mitsui Banking Corporation Malaysia Berhad", label: "Sumitomo Mitsui" },
-  { value: "United Overseas Bank (Malaysia) Berhad", label: "UOB Malaysia" },
-  { value: "UOB Bank Berhad", label: "UOB Bank" },
-];
 
 const roleConfig: Record<
   OrganizationMemberRole,
@@ -384,6 +365,8 @@ export default function ProfilePage() {
 
   const { isAuthenticated } = useAuth();
   const { getAccessToken } = useAuthToken();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const {
     activeOrganization,
     isLoading,
@@ -401,7 +384,9 @@ export default function ProfilePage() {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   const [isRefreshing, setIsRefreshing] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState("profile");
+  const [activeTab, setActiveTab] = React.useState<ProfileTab>(() =>
+    profileTabFromSearchParam(searchParams.get("tab"))
+  );
   const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
 
   // Editing states
@@ -577,10 +562,24 @@ export default function ProfilePage() {
     staleTime: 1000 * 60 * 5,
   });
 
-  const searchParams = useSearchParams();
+  const urlTab = profileTabFromSearchParam(searchParams.get("tab"));
   const focusDirectors = searchParams.get("focus") === "directors";
   const focusedPersonKey = searchParams.get("person");
   const directorsSectionRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    setActiveTab(urlTab);
+  }, [urlTab]);
+
+  function handleTabChange(next: string) {
+    if (!isProfileTab(next)) return;
+    setActiveTab(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === PROFILE_TAB_PROFILE) params.delete("tab");
+    else params.set("tab", next);
+    const query = params.toString();
+    router.replace(query ? `${PROFILE_PATH}?${query}` : PROFILE_PATH, { scroll: false });
+  }
 
   React.useEffect(() => {
     if (!focusDirectors) return;
@@ -865,7 +864,7 @@ export default function ProfilePage() {
           ) : null}
 
           {/* Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <TabsList className="grid w-full grid-cols-3 h-12 rounded-xl bg-muted p-1">
               <TabsTrigger value="profile" className="rounded-lg data-[state=active]:bg-background">
                 Profile
@@ -893,13 +892,7 @@ export default function ProfilePage() {
                       Your KYC-verified personal details
                     </p>
                   </div>
-                  <Badge
-                    variant="outline"
-                    className="bg-emerald-50 text-emerald-700 border-emerald-200"
-                  >
-                    <ShieldCheckIcon className="h-3.5 w-3.5 mr-1" />
-                    Verified
-                  </Badge>
+                  <VerifiedBadge />
                 </div>
                 <div className="p-6 space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">

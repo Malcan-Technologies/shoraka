@@ -139,7 +139,7 @@ export function CalendarPopover({
         </button>
       </div>
       <div className="p-1 space-y-1">
-        <div className="grid grid-cols-7 gap-0.5 text-[11px] font-medium text-muted-foreground pb-1 border-b">
+        <div className="grid grid-cols-7 gap-0.5 text-meta font-medium text-muted-foreground pb-1 border-b">
           {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((d) => (
             <div key={d} className="text-center h-5 flex items-center justify-center">
               {d}
@@ -158,7 +158,7 @@ export function CalendarPopover({
                     key={iso}
                     type="button"
                     onClick={() => onSelect(iso)}
-                    className={`h-7 w-7 rounded text-[11px] font-medium ${
+                    className={`h-7 w-7 rounded text-meta font-medium ${
                       isSelected
                         ? "bg-primary text-primary-foreground"
                         : isCurrentMonth

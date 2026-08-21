@@ -334,9 +334,9 @@ export const NOTIFICATION_TEMPLATES: {
     portal: 'issuer',
   },
   [NotificationTypeIds.CONTRACT_OFFER_SENT]: {
-    title: 'Contract Offer Received',
+    title: 'Facility Offer Received',
     message: (data) =>
-      `A contract offer of ${data.offeredFacility.toLocaleString()} has been sent to your application ${getApplicationNotificationRef(data)}.${data.expiresAt ? ` It expires on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.` : ''}`,
+      `A facility offer of ${data.offeredFacility.toLocaleString()} has been sent to your application ${getApplicationNotificationRef(data)}.${data.expiresAt ? ` It expires on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.` : ''}`,
     linkPath: () => `/applications`,
     portal: 'issuer',
   },
@@ -350,14 +350,14 @@ export const NOTIFICATION_TEMPLATES: {
   [NotificationTypeIds.OFFER_RETRACTED_OR_RESET]: {
     title: 'Offer Updated',
     message: (data) =>
-      `${data.offerType === 'contract' ? 'Contract' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} was retracted or reset and is no longer active.`,
+      `${data.offerType === 'contract' ? 'Facility' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} was retracted or reset and is no longer active.`,
     linkPath: () => `/applications`,
     portal: 'issuer',
   },
   [NotificationTypeIds.OFFER_EXPIRED]: {
     title: 'Offer Expired',
     message: (data) =>
-      `${data.offerType === 'contract' ? 'Contract' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} has expired.`,
+      `${data.offerType === 'contract' ? 'Facility' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} has expired.`,
     linkPath: () => `/applications`,
     portal: 'issuer',
   },
@@ -373,7 +373,7 @@ export const NOTIFICATION_TEMPLATES: {
               ? 'in 1 day'
               : `in ${daysBefore} days`
           : 'soon';
-      return `${data.offerType === 'contract' ? 'Contract' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} expires ${windowLabel} on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.`;
+      return `${data.offerType === 'contract' ? 'Facility' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} expires ${windowLabel} on ${formatPhaseDeadlineDateDDMMYYYY(data.expiresAt)}.`;
     },
     linkPath: () => `/applications`,
     portal: 'issuer',

@@ -92,7 +92,7 @@ export function useUpdateContract() {
       queryClient.invalidateQueries({ queryKey: ["application", data.application_id] });
     },
     onError: (error: Error) => {
-      toast.error("Failed to update contract", {
+      toast.error("Failed to update facility", {
         description: error.message,
       });
     },
@@ -117,7 +117,7 @@ export function useUnlinkContract() {
       queryClient.invalidateQueries({ queryKey: ["contracts"] });
     },
     onError: (error: Error) => {
-      toast.error("Failed to unlink contract", {
+      toast.error("Failed to unlink facility", {
         description: error.message,
       });
     },

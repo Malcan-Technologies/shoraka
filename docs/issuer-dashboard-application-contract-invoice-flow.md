@@ -19,10 +19,10 @@ Confirmed from code:
   - `financing_type` (JSON) which stores at least `product_id`.
   - `financing_structure` (JSON) which stores `structure_type` = `new_contract | existing_contract | invoice_only` (and for `existing_contract` also `existing_contract_id`).
   - `contract_id` (nullable FK) which links the application to a `Contract` row (when present).
-  - `invoices[]` (1 application can have many invoice rows).
+  - `invoices[]` (at most **one** invoice per application; a facility still has many invoices over time via separate applications).
 
 Confirmed from code (schema):
-- Application can have multiple invoices: `Application.invoices` (Prisma relation).
+- Application has 0–1 invoice in normal use (`MAX_INVOICES_REACHED` on create). Legacy applications may still have more than one row.
 
 ## 3. What Contract means
 
@@ -52,7 +52,8 @@ Confirmed from code:
   - `offer_details` JSON (set when invoice offer is sent/reviewed)
 
 Confirmed from code:
-- An application can have many invoices.
+- Each application has **at most one** invoice (create is blocked after the first).
+- Additional invoices against the same facility use a **new** `existing_contract` application.
 
 ## 5. Financing structure: Invoice only
 
@@ -74,7 +75,7 @@ Confirmed expected data shape:
 
 Confirmed from code (issuer UI):
 - `contract_details` step creates a new `Contract` row when there isn’t one.
-- `invoice_details` step creates invoices and passes `contract_id` = `application.contract_id`.
+- `invoice_details` step creates **one** invoice for this application and passes `contract_id` = `application.contract_id` when applicable.
 
 Confirmed expected data shape:
 - `Application.financing_structure.structure_type = "new_contract"`
@@ -87,9 +88,8 @@ Confirmed expected data shape:
 Confirmed from code (issuer UI):
 - When user selects `existing_contract`, the wizard filters out the `contract_details` step.
 - The application gets linked to an existing approved contract via backend when `financing_structure` is saved.
-- `invoice_details` step:
-  - fetches contract-linked invoices by contract
-  - and passes `contract_id` = `application.contract_id` for newly created invoices.
+- `invoice_details` step loads **this application's** invoice only; facility occupancy is shown as a summary.
+- New invoices against the facility use a new application (`existing_contract`).
 
 Confirmed expected data shape:
 - `Application.financing_structure.structure_type = "existing_contract"`

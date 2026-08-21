@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
-import { Card, formatMoneyDisplay, NoteStatusBadge, isNoteFullySettled } from "@cashsouk/ui";
+import { Card, formatMoneyDisplay, NoteStatusBadge, isNoteFullySettled, StatusBadge } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
 import type { NoteListItem } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import {
   resolveIssuerInvoiceDashboardBadge,
   type IssuerFinancingStatusKind,
 } from "@/lib/issuer-dashboard-labels";
+import { financingKindToStatusToken } from "@/components/financing/utils";
 import {
   countIssuerFinancingActionable,
   isIssuerContractActionable,
@@ -38,13 +39,14 @@ type Row =
 
 const STATUS_RANK: Record<IssuerFinancingStatusKind, number> = {
   action_required: 0,
-  pending_approval: 1,
-  in_progress: 2,
-  funded: 3,
-  active: 4,
-  draft: 5,
-  completed: 6,
-  unsuccessful: 7,
+  arrears: 1,
+  pending_approval: 2,
+  in_progress: 3,
+  funded: 4,
+  active: 5,
+  draft: 6,
+  completed: 7,
+  unsuccessful: 8,
 };
 
 function rankContract(c: IssuerDashboardContract): number {
@@ -118,9 +120,9 @@ export function RecentFinancingCard({ organizationId }: { organizationId?: strin
       />
       <div className="flex flex-1 flex-col px-5 pb-5 pt-4 md:px-6 md:pb-6 md:pt-5">
         {isLoading ? (
-          <p className="py-4 text-[17px] leading-7 text-muted-foreground">Loading…</p>
+          <p className="py-4 text-body leading-7 text-muted-foreground">Loading…</p>
         ) : visible.length === 0 ? (
-          <p className="py-4 text-[17px] leading-7 text-muted-foreground">
+          <p className="py-4 text-body leading-7 text-muted-foreground">
             No financing activity yet.{" "}
             <Link
               href="/applications/new"
@@ -149,11 +151,7 @@ export function RecentFinancingCard({ organizationId }: { organizationId?: strin
 
 function StatusPill({ kind }: { kind: IssuerFinancingStatusKind }) {
   const p = getIssuerFinancingStatusPresentation(kind);
-  return (
-    <Badge variant={p.variant} className={cn("shrink-0", p.className)}>
-      {p.label}
-    </Badge>
-  );
+  return <StatusBadge label={p.label} status={financingKindToStatusToken(kind)} className="shrink-0" />;
 }
 
 function ContractRow({ row }: { row: IssuerDashboardContract }) {
@@ -166,7 +164,7 @@ function ContractRow({ row }: { row: IssuerDashboardContract }) {
       >
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span className="text-sm text-muted-foreground">Contract:</span>
+            <span className="text-sm text-muted-foreground">Facility:</span>
             <span className="truncate text-sm font-semibold text-foreground">
               {row.title?.trim() || EM}
             </span>
@@ -225,7 +223,7 @@ function NoteRow({ note }: { note: NoteListItem }) {
             Target {formatCurrency(note.targetAmount)} · Funded {note.fundingPercent.toFixed(1)}%
           </p>
         </div>
-        <NoteStatusBadge note={note} className="shrink-0 text-xs font-semibold" />
+        <NoteStatusBadge note={note} className="shrink-0" />
         <ArrowRightIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
       </Link>
     </li>

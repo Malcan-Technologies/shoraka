@@ -113,7 +113,13 @@ export function useUpdateApplicationStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: ApplicationStatus }) => {
+    mutationFn: async ({
+      id,
+      status,
+    }: {
+      id: string;
+      status: Extract<ApplicationStatus, ApplicationStatus.DRAFT | ApplicationStatus.SUBMITTED | ApplicationStatus.RESUBMITTED>;
+    }) => {
       const response = await apiClient.updateApplicationStatus(id, status);
       if (!response.success) {
         throw new ApiMutationError(response.error.message, response.error.code);
@@ -319,7 +325,7 @@ export function useWithdrawContract() {
     }) => {
       const response = await apiClient.withdrawContract(contractId);
       if (!response.success) {
-        throw new Error(response.error.message ?? "Failed to withdraw contract");
+        throw new Error(response.error.message ?? "Failed to withdraw facility");
       }
       return { data: response.data, applicationId, organizationId };
     },
@@ -334,7 +340,7 @@ export function useWithdrawContract() {
       queryClient.invalidateQueries({ queryKey: ["issuer-dashboard-contract"] });
     },
     onError: (error: Error) => {
-      toast.error("Failed to withdraw contract", {
+      toast.error("Failed to withdraw facility", {
         description: error.message,
       });
     },

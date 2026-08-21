@@ -40,7 +40,7 @@ const REVIEW_TAB_LABELS: Record<string, string> = {
   business_details: "Business & Guarantor",
   supporting_documents: "Documents",
   acceptance_documents: "Acceptance",
-  contract_details: "Contract",
+  contract_details: "Facility",
   invoice_details: "Invoice",
   company_details: "Company",
 };
@@ -200,10 +200,10 @@ export function getTabUnlockTooltip(
       parts.push("Send offer from Invoice first");
     }
     if (commercialMissing.includes("contract_details")) {
-      // Invoice-only: contract_details is Customer (manual approve). Contract: Send Offer.
+      // Invoice-only: contract_details is Customer (manual approve). Facility: Send Offer.
       const isInvoiceOnly = structureType === "invoice_only";
       parts.push(
-        isInvoiceOnly ? "Approve Customer section first" : "Send offer from Contract first"
+        isInvoiceOnly ? "Approve Customer section first" : "Send offer from Facility first"
       );
     }
     return parts.join(". ");

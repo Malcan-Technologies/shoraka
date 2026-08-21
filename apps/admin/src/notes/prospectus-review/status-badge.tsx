@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
 import {
   PROSPECTUS_STEP_STATUS_LABEL,
@@ -22,16 +22,11 @@ export function ProspectusStatusBadge({
   className?: string;
 }) {
   return (
-    <Badge
-      variant="outline"
+    <StatusBadge
+      label={PROSPECTUS_STEP_STATUS_LABEL[status]}
+      status={PROSPECTUS_STATUS_BADGE_TONE[status]}
       data-prospectus-status={status}
-      className={cn(
-        PROSPECTUS_STATUS_BADGE_COMPACT_CLASS,
-        PROSPECTUS_STATUS_BADGE_TONE[status],
-        className
-      )}
-    >
-      {PROSPECTUS_STEP_STATUS_LABEL[status]}
-    </Badge>
+      className={cn(PROSPECTUS_STATUS_BADGE_COMPACT_CLASS, className)}
+    />
   );
 }

@@ -12,10 +12,10 @@ export const AMENDMENT_CALLOUT_ICON_WRAP =
 export const AMENDMENT_CALLOUT_BODY = "min-w-0 flex flex-col gap-2 pt-0.5";
 
 export const AMENDMENT_CALLOUT_TITLE =
-  "font-semibold text-[15px] sm:text-base leading-snug tracking-tight";
+  "font-semibold text-ui sm:text-base leading-snug tracking-tight";
 
 export const AMENDMENT_CALLOUT_CONTENT =
-  "text-sm sm:text-[15px] leading-6 sm:leading-7";
+  "text-sm sm:text-ui leading-6 sm:leading-7";
 
 /** Compact remark list under a flagged field (row already carries amendment tint). */
 export const AMENDMENT_INLINE_FEEDBACK_LIST = "text-xs leading-5 text-foreground";

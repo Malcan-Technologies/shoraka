@@ -1,38 +1,13 @@
-import type { StatusToken } from "@cashsouk/ui";
-import { getStatusPresentationByBadgeKey } from "@cashsouk/config";
+import { badgeKeyToStatusToken, getStatusPresentationByBadgeKey } from "@cashsouk/config";
 import type { WithdrawReason } from "@cashsouk/types";
-import { formatApplicationReference } from "@cashsouk/types";
+import {
+  buildOriginationPhaseInput,
+  formatApplicationReference,
+  issuerWithdrawBlockedMessage,
+  resolveOriginationPhase,
+} from "@cashsouk/types";
 
-/**
- * Map collapsed issuer badge keys → shared StatusBadge tokens (viewer-centric):
- * yellow/action = issuer must respond · blue/submitted = waiting on admin ·
- * green/success = good · red/rejected = bad · slate/neutral = terminal/closed.
- */
-export function badgeKeyToStatusToken(badgeKey: string): StatusToken {
-  switch (badgeKey?.toLowerCase()) {
-    case "draft":
-    case "amendment_requested":
-    case "offer_sent":
-      return "action";
-    case "submitted":
-    case "resubmitted":
-    case "under_review":
-      return "submitted";
-    case "accepted":
-    case "approved":
-      return "success";
-    case "rejected":
-    case "declined":
-    case "offer_expired":
-      return "rejected";
-    case "completed":
-    case "withdrawn":
-    case "archived":
-      return "neutral"; // terminal / closed
-    default:
-      return "neutral";
-  }
-}
+export { badgeKeyToStatusToken };
 
 /**
  * Plain-English status for SME issuers (primary badge / card).
@@ -90,6 +65,45 @@ export function getIssuerCardStatusLabel(
     return "Changes requested";
   }
   return getIssuerPlainStatusLabel(badgeKey, options?.withdrawReason);
+}
+
+export function applicationCardStatusLabel(app: {
+  cardStatus: { badgeKey: string };
+  withdrawReason?: WithdrawReason;
+  offerAcceptanceStatus?: string | null;
+  facilityInForceNoInvoices: boolean;
+}): string {
+  if (app.facilityInForceNoInvoices) return "Facility approved";
+  const key = app.cardStatus.badgeKey;
+  return getIssuerCardStatusLabel(key, {
+    withdrawReason:
+      key === "withdrawn" || key === "declined" || key === "offer_expired"
+        ? app.withdrawReason
+        : undefined,
+    offerAcceptanceStatus: app.offerAcceptanceStatus,
+  });
+}
+
+export function issuerWithdrawBlockedReason(app: {
+  canWithdraw: boolean;
+  applicationStatus: string;
+  contractStatus?: string | null;
+  invoices?: Array<{ status?: string | null }>;
+  offerAcceptanceStatus?: string | null;
+  facilityInForceNoInvoices?: boolean;
+}): string | null {
+  if (app.canWithdraw) return null;
+  const phase = resolveOriginationPhase(
+    buildOriginationPhaseInput({
+      applicationStatus: app.applicationStatus,
+      contract: app.contractStatus ? { status: app.contractStatus } : null,
+      invoices: app.invoices,
+      offerAcceptanceStatus: app.offerAcceptanceStatus,
+    })
+  );
+  return issuerWithdrawBlockedMessage(phase, {
+    facilityInForceNoInvoices: app.facilityInForceNoInvoices,
+  });
 }
 
 /** Invoices needing work on the Invoices tab (amendments / rejected). Offer review lives on the Offer tab. */

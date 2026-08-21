@@ -21,6 +21,7 @@ import {
   resolveOfferedPlatformFeeRatePercent,
   resolveRequestedInvoiceAmount,
   resolveApprovedFacility,
+  resolveOfferedFacility,
   resolveRequestedFacility,
 } from "@cashsouk/config";
 import {
@@ -28,6 +29,7 @@ import {
   getOfferAcceptanceFromOfferDetails,
   offerAcceptanceAllowsIssuerReviewCta,
   type OfferAcceptanceStatus,
+  isCompletedWithNoApprovedInvoices,
 } from "@cashsouk/types";
 import { useOrganizationApplications } from "@/hooks/use-applications";
 import { getOfferStatus, getOfferPhaseDeadlineDisplay } from "@/lib/offer-utils";
@@ -229,6 +231,7 @@ function prepareInvoice(
     maturityDate: details.maturity_date ? String(details.maturity_date) : null,
     value: invoiceValue,
     appliedFinancing,
+    offeredAmount: offeredAmount > 0 ? offeredAmount : null,
     document: documentName,
     documentS3Key,
     financingOffered,
@@ -302,11 +305,11 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
   }
 
   const structureType = (api.financing_structure as { structure_type?: string } | undefined)?.structure_type;
-  let type: "Contract financing" | "Invoice financing" | "Generic" = "Generic";
+  let type: "Facility financing" | "Invoice financing" | "Generic" = "Generic";
   if (api.status === "DRAFT" && !structureType) type = "Generic";
   else if (structureType === "invoice_only") type = "Invoice financing";
-  else if (structureType === "existing_contract" || structureType === "new_contract") type = "Contract financing";
-  else type = contract ? "Contract financing" : "Invoice financing";
+  else if (structureType === "existing_contract" || structureType === "new_contract") type = "Facility financing";
+  else type = contract ? "Facility financing" : "Invoice financing";
 
   const contractDetails = (contract?.contract_details ?? {}) as Record<string, unknown>;
   const customerDetails = (contract?.customer_details ?? {}) as Record<string, unknown>;
@@ -315,10 +318,17 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
   const contractTitle = (contractDetails.title ? String(contractDetails.title) : contractDetails.contract_title ? String(contractDetails.contract_title) : null) as string | null;
 
   let contractValue: number | null = null;
-  const facilityAppliedVal = resolveRequestedFacility(contractDetails);
-  const facilityApplied = facilityAppliedVal > 0 ? facilityAppliedVal : null;
-  if (contractDetails.contract_value != null) contractValue = Number(contractDetails.contract_value);
-  else if (contractDetails.value != null) contractValue = Number(contractDetails.value);
+  const requestedApplied = resolveRequestedFacility({
+    financing: contractDetails.financing,
+    facility_applied: contractDetails.facility_applied,
+  });
+  const facilityApplied = requestedApplied > 0 ? requestedApplied : null;
+  const fromContractValue = numberOrNull(contractDetails.contract_value);
+  const fromValue = numberOrNull(contractDetails.value);
+  if (fromContractValue != null) contractValue = fromContractValue;
+  else if (fromValue != null) contractValue = fromValue;
+  const offeredFacilityVal = resolveOfferedFacility(contract?.offer_details);
+  const offeredFacilityAmount = offeredFacilityVal > 0 ? offeredFacilityVal : null;
 
   let approvedFacility = "N/A";
   let approvedFacilityAmount: number | null = null;
@@ -329,8 +339,11 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
   } else if (contractStatus === "APPROVED") {
     const ras = api.review_and_submit;
     if (ras?.approved_facility != null) {
-      approvedFacilityAmount = Number(ras.approved_facility);
-      approvedFacility = formatCurrency(approvedFacilityAmount);
+      const fallbackApproved = numberOrNull(ras.approved_facility);
+      if (fallbackApproved != null && fallbackApproved > 0) {
+        approvedFacilityAmount = fallbackApproved;
+        approvedFacility = formatCurrency(fallbackApproved);
+      }
     }
   }
 
@@ -408,6 +421,17 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     };
   }
 
+  const facilityInForceNoInvoices = isCompletedWithNoApprovedInvoices(
+    String(api.status ?? "DRAFT"),
+    invoices.map((invoice) => String(invoice.status ?? ""))
+  );
+  if (facilityInForceNoInvoices) {
+    cardStatus = {
+      ...cardStatus,
+      displayLabel: "Facility approved",
+    };
+  }
+
   return {
     id: api.id,
     displayReference: api.displayReference ?? (api as { display_reference?: string | null }).display_reference ?? null,
@@ -421,6 +445,7 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     submittedAt,
     contractValue,
     facilityApplied,
+    offeredFacilityAmount,
     approvedFacility,
     approvedFacilityAmount,
     facilityFeeRatePercent,
@@ -438,6 +463,9 @@ export function prepareApplication(api: ApiApplication): NormalizedApplication {
     signedContractOfferLetterS3Key,
     offerPhaseDeadline,
     offerAcceptanceStatus: primaryOfferAcceptanceStatus,
+    applicationStatus: String(api.status ?? "DRAFT").toUpperCase(),
+    canWithdraw: Boolean((api as { canWithdraw?: boolean }).canWithdraw),
+    facilityInForceNoInvoices,
   };
 }
 

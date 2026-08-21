@@ -20,12 +20,13 @@ import {
 } from "@/lib/offer-utils";
 import { cn } from "@/lib/utils";
 import { formatInvoiceReference } from "@cashsouk/types";
+import { FinancingDonut, financingDonutTone } from "./financing-donut";
 import { FinancingKpiTile } from "./financing-kpi-strip";
-import { FinancingPercentMark } from "./financing-percent-mark";
 import {
   EM_DASH,
   FINANCING_ATTENTION_SURFACE,
   FINANCING_OFFER_ATTENTION_SURFACE,
+  InvestorCommitmentLine,
   IssuerFinancingStatusBadge,
   LabelValue,
   displayCell,
@@ -33,6 +34,12 @@ import {
   formatMoney,
 } from "./utils";
 import { buildInvoiceFeeDisplay, money } from "@/lib/facility-fee-display";
+import { MarketplaceCampaignFacts } from "./marketplace-campaign-facts";
+import {
+  buildIssuerMarketplaceCampaign,
+  issuerCampaignCloseLabel,
+  issuerCampaignDaysLeftLabel,
+} from "./marketplace-campaign";
 
 function OfferStatusBadge({ offerStatus }: { offerStatus: OfferStatus }) {
   if (!offerStatus) return null;
@@ -44,9 +51,9 @@ function OfferStatusBadge({ offerStatus }: { offerStatus: OfferStatus }) {
 
 function InvoiceScopeBadge({ contractId }: { contractId: string | null }) {
   if (contractId) {
-    return <StatusBadge label="Under contract" status="completed" />;
+    return <StatusBadge label="Part of a facility" status="submitted" />;
   }
-  return <StatusBadge label="Standalone" status="neutral" />;
+  return <StatusBadge label="On its own" status="neutral" />;
 }
 
 function InvoiceFeeSummary({
@@ -101,41 +108,6 @@ function InvoiceFeeSummary({
   );
 }
 
-function parseAmount(value: unknown): number | null {
-  if (value == null) return null;
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  const cleaned = String(value)
-    .trim()
-    .replace(/^RM\s*/i, "")
-    .replace(/,/g, "");
-  if (!cleaned) return null;
-  const n = Number(cleaned);
-  return Number.isFinite(n) ? n : null;
-}
-
-function resolveFinancingPercent(
-  invDetails: { financing_ratio_percent?: number | string } | null | undefined,
-  offerDetails: Record<string, unknown> | null | undefined,
-  invoiceValue: unknown,
-  financingAmount: unknown
-): number | null {
-  const fromDetails = Number(invDetails?.financing_ratio_percent);
-  if (Number.isFinite(fromDetails) && fromDetails > 0) return fromDetails;
-
-  const offered = Number(offerDetails?.offered_ratio_percent);
-  if (Number.isFinite(offered) && offered > 0) return offered;
-
-  const requested = Number(offerDetails?.requested_ratio_percent);
-  if (Number.isFinite(requested) && requested > 0) return requested;
-
-  const invoice = parseAmount(invoiceValue);
-  const financing = parseAmount(financingAmount);
-  if (invoice != null && invoice > 0 && financing != null) {
-    return (financing / invoice) * 100;
-  }
-  return null;
-}
-
 export function DashboardInvoiceCard({
   row,
   offerStatus,
@@ -161,12 +133,6 @@ export function DashboardInvoiceCard({
   const invDetails = invoiceModal?.details;
   const maturityRaw = invDetails?.maturity_date ?? row.note?.maturityDate ?? null;
   const offerDetails = invoiceModal?.offer_details as Record<string, unknown> | null | undefined;
-  const financingPercent = resolveFinancingPercent(
-    invDetails,
-    offerDetails,
-    row.invoiceValue,
-    row.financingAmount
-  );
   const feeDisplay = buildInvoiceFeeDisplay({
     status: row.note?.noteStatus ?? row.invoiceStatus,
     offerDetails,
@@ -195,6 +161,13 @@ export function DashboardInvoiceCard({
     : showActionRequired
       ? FINANCING_ATTENTION_SURFACE
       : null;
+  const campaign = row.note ? buildIssuerMarketplaceCampaign(row.note) : null;
+  const campaignCloseLabel = campaign
+    ? issuerCampaignCloseLabel(
+        formatDate(campaign.closesAt),
+        issuerCampaignDaysLeftLabel(campaign.daysLeft, campaign.raising)
+      )
+    : EM_DASH;
 
   return (
     <article
@@ -252,7 +225,7 @@ export function DashboardInvoiceCard({
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="h-8 rounded-lg border-status-action-text/30 bg-status-action-bg px-3 text-xs font-medium text-status-action-text hover:bg-status-action-bg"
+                      className="border-status-action-text/30 bg-status-action-bg text-status-action-text hover:bg-status-action-bg"
                       onClick={() =>
                         router.push(
                           `/applications?applicationIds=${encodeURIComponent(
@@ -280,7 +253,16 @@ export function DashboardInvoiceCard({
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
           <div className="flex shrink-0 items-center justify-center sm:w-[11rem] sm:justify-start">
-            <FinancingPercentMark percent={financingPercent} centerLabel="Financed" />
+            {row.note ? (
+              <FinancingDonut
+                size="lg"
+                centerLabel="Funded"
+                percent={row.note.fundingProgressPercent}
+                tone={financingDonutTone(row.note)}
+              />
+            ) : (
+              <FinancingDonut size="lg" percent={null} />
+            )}
           </div>
 
           <div className="min-w-0 flex-1 space-y-3">
@@ -289,33 +271,43 @@ export function DashboardInvoiceCard({
               <FinancingKpiTile label="Financing" value={formatMoney(row.financingAmount)} />
             </div>
 
-            <p className="text-[13px] leading-5 text-muted-foreground">{fundingLabel}</p>
+            {campaign?.raising && row.note ? (
+              <MarketplaceCampaignFacts note={row.note} />
+            ) : (
+              <div className="space-y-1.5">
+                <p className="text-ui leading-5 text-muted-foreground">{fundingLabel}</p>
+                {row.note ? (
+                  <InvestorCommitmentLine
+                    fundedAmount={row.note.fundedAmount}
+                    investorCount={row.note.investorCount}
+                  />
+                ) : null}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-2">
               <div className="min-w-0 space-y-2">
                 <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
                 {row.note?.id ? (
-                  <p className="text-[17px] leading-7 text-foreground">
-                    <span className="font-normal text-muted-foreground">Note: </span>
+                  <p className="text-ui leading-7 text-foreground">
+                    <span className="font-normal text-muted-foreground">Funding: </span>
                     <Link
                       href={`/financing/notes/${row.note.id}`}
                       className="inline-flex min-w-0 max-w-full items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
                     >
-                      <span className="min-w-0 truncate">View note</span>
+                      <span className="min-w-0 truncate">View details</span>
                       <LinkIcon className="h-4 w-4 shrink-0 text-primary" aria-hidden />
                     </Link>
                   </p>
-                ) : (
-                  <LabelValue label="Note">{EM_DASH}</LabelValue>
-                )}
+                ) : null}
                 {row.contractId ? (
-                  <p className="text-[17px] leading-7 text-foreground">
-                    <span className="font-normal text-muted-foreground">Contract: </span>
+                  <p className="text-ui leading-7 text-foreground">
+                    <span className="font-normal text-muted-foreground">Facility: </span>
                     <Link
                       href={`/financing/contracts/${row.contractId}`}
                       className="inline-flex min-w-0 max-w-full items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
                     >
-                      <span className="min-w-0 truncate">View contract</span>
+                      <span className="min-w-0 truncate">View facility</span>
                       <LinkIcon className="h-4 w-4 shrink-0 text-primary" aria-hidden />
                     </Link>
                   </p>
@@ -323,9 +315,12 @@ export function DashboardInvoiceCard({
                 <LabelValue label="Submission date">{formatDate(row.submissionDate)}</LabelValue>
               </div>
               <div className="min-w-0 space-y-2">
-                <LabelValue label="Funding deadline">
-                  {row.note?.fundingDeadline ? formatDate(row.note.fundingDeadline) : EM_DASH}
+                <LabelValue label="Campaign closes">
+                  {campaign?.closesAt ? campaignCloseLabel : EM_DASH}
                 </LabelValue>
+                {campaign ? (
+                  <LabelValue label="Min to succeed">{`${campaign.minimumPercent}%`}</LabelValue>
+                ) : null}
                 <LabelValue label="Maturity date">{formatDate(maturityRaw)}</LabelValue>
                 {showFeeSummary ? (
                   <InvoiceFeeSummary

@@ -61,19 +61,23 @@ export async function getOpenOverrideProposal(
   };
 }
 
-export function mapGatewayPaymentEvent(event: {
-  id: string;
-  type: GatewayPaymentEventType;
-  actor_user_id: string | null;
-  from_status: GatewayPaymentStatus | null;
-  to_status: GatewayPaymentStatus | null;
-  reason: string | null;
-  created_at: Date;
-}) {
+export function mapGatewayPaymentEvent(
+  event: {
+    id: string;
+    type: GatewayPaymentEventType;
+    actor_user_id: string | null;
+    from_status: GatewayPaymentStatus | null;
+    to_status: GatewayPaymentStatus | null;
+    reason: string | null;
+    created_at: Date;
+  },
+  actorName: string | null = null
+) {
   return {
     id: event.id,
     type: event.type,
     actorUserId: event.actor_user_id,
+    actorName,
     fromStatus: event.from_status,
     toStatus: event.to_status,
     reason: event.reason,

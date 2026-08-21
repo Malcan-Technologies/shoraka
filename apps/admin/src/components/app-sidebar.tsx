@@ -9,9 +9,9 @@ import {
   HomeIcon,
   DocumentTextIcon,
   UsersIcon,
+  UserGroupIcon,
   BuildingOffice2Icon,
   ArrowTrendingUpIcon,
-  Cog6ToothIcon,
   ClipboardDocumentListIcon,
   CheckBadgeIcon,
   DocumentCheckIcon,
@@ -22,6 +22,10 @@ import {
   BanknotesIcon,
   ArrowsRightLeftIcon,
   CreditCardIcon,
+  CubeIcon,
+  CalculatorIcon,
+  BellIcon,
+  ShieldCheckIcon,
 } from "@heroicons/react/24/outline";
 
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -214,7 +218,7 @@ const navLifecycleConfig = [
     icon: DocumentCheckIcon,
   },
   {
-    title: "Contracts",
+    title: "Facilities",
     url: "/contracts",
     icon: DocumentDuplicateIcon,
   },
@@ -284,17 +288,18 @@ const gatewayItems: Array<{
 ];
 
 const navDirectory = [
-  { title: "Users", url: "/users", icon: UsersIcon },
-  { title: "Organizations", url: "/organizations", icon: BuildingOffice2Icon },
-  { title: "Legal Documents", url: "/legal-documents", icon: ScaleIcon },
-  { title: "Legal Acceptances", url: "/legal-document-acceptances", icon: ClipboardDocumentCheckIcon },
+  { title: "User Accounts", url: "/accounts", icon: UsersIcon, access: "users" },
+  { title: "Issuers", url: "/issuers", icon: BuildingOffice2Icon, access: "organizations" },
+  { title: "Investors", url: "/investors", icon: UserGroupIcon, access: "organizations" },
+  { title: "Legal Documents", url: "/legal-documents", icon: ScaleIcon, access: "documents" },
+  { title: "Legal Acceptances", url: "/legal-document-acceptances", icon: ClipboardDocumentCheckIcon, access: "documents" },
 ] as const;
 
 const navSettings = [
-  { title: "Products", url: "/settings/products" },
-  { title: "Platform Finance", url: "/settings/platform-finance" },
-  { title: "Notifications", url: "/settings/notifications" },
-  { title: "Roles", url: "/settings/roles" },
+  { title: "Products", url: "/settings/products", icon: CubeIcon },
+  { title: "Platform Finance", url: "/settings/platform-finance", icon: CalculatorIcon },
+  { title: "Notifications", url: "/settings/notifications", icon: BellIcon },
+  { title: "Roles", url: "/settings/roles", icon: ShieldCheckIcon },
 ] as const;
 
 function FinanceCollapsibleGroup({
@@ -497,7 +502,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return (
       (item.title === "Onboarding Approval" && canViewOnboarding) ||
       (item.title === "Applications" && canViewApplications) ||
-      (item.title === "Contracts" && canViewContracts) ||
+      (item.title === "Facilities" && canViewContracts) ||
       (item.title === "Notes" && canViewNotes) ||
       (item.title === "Investments" && canViewInvestments)
     );
@@ -510,15 +515,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const hasVisibleDirectoryNav = canViewUsers || canViewOrganizations || canViewDocuments;
 
-  const settingsSubItems = navSettings.filter((subItem) => {
-    if (subItem.url === "/settings/roles") return canViewRoles;
-    if (subItem.url === "/settings/notifications") return canViewNotifications;
-    if (subItem.url === "/settings/products") return canViewProducts;
-    if (subItem.url === "/settings/platform-finance") return canViewPlatformFinance;
+  const settingsItems = navSettings.filter((item) => {
+    if (item.url === "/settings/roles") return canViewRoles;
+    if (item.url === "/settings/notifications") return canViewNotifications;
+    if (item.url === "/settings/products") return canViewProducts;
+    if (item.url === "/settings/platform-finance") return canViewPlatformFinance;
     return false;
   });
 
-  const hasVisibleSettingsNav = settingsSubItems.length > 0;
+  const hasVisibleSettingsNav = settingsItems.length > 0;
   const hasVisibleUtilityNav = true; // Help always visible
   const showUtilityGroup = hasVisibleUtilityNav || canViewAnyAudit;
 
@@ -568,7 +573,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   const canShow =
                     (item.title === "Onboarding Approval" && canViewOnboarding) ||
                     (item.title === "Applications" && canViewApplications) ||
-                    (item.title === "Contracts" && canViewContracts) ||
+                    (item.title === "Facilities" && canViewContracts) ||
                     (item.title === "Notes" && canViewNotes) ||
                     (item.title === "Investments" && canViewInvestments);
 
@@ -751,10 +756,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <SidebarMenu>
                 {navDirectory.map((item) => {
                   const canShow =
-                    (item.title === "Users" && canViewUsers) ||
-                    (item.title === "Organizations" && canViewOrganizations) ||
-                    (item.title === "Legal Documents" && canViewDocuments) ||
-                    (item.title === "Legal Acceptances" && canViewDocuments);
+                    (item.access === "users" && canViewUsers) ||
+                    (item.access === "organizations" && canViewOrganizations) ||
+                    (item.access === "documents" && canViewDocuments);
                   if (!canShow) return null;
                   const Icon = item.icon;
                   return (
@@ -782,40 +786,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarGroupLabel>Settings</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                <Collapsible
-                  asChild
-                  defaultOpen={pathname.startsWith("/settings")}
-                  className="group/collapsible"
-                >
-                  <SidebarMenuItem>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuButton tooltip="Settings">
-                        <Cog6ToothIcon className="h-4 w-4" />
-                        <span>Settings</span>
-                        <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                {settingsItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={pathname === item.url || pathname.startsWith(`${item.url}/`)}
+                        tooltip={item.title}
+                      >
+                        <Link href={item.url}>
+                          <Icon className="h-4 w-4" />
+                          <span>{item.title}</span>
+                        </Link>
                       </SidebarMenuButton>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <SidebarMenuSub>
-                        {settingsSubItems.map((subItem) => (
-                          <SidebarMenuSubItem key={subItem.title}>
-                            <SidebarMenuSubButton
-                              asChild
-                              isActive={
-                                pathname === subItem.url ||
-                                pathname.startsWith(`${subItem.url}/`)
-                              }
-                            >
-                              <Link href={subItem.url}>
-                                <span>{subItem.title}</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        ))}
-                      </SidebarMenuSub>
-                    </CollapsibleContent>
-                  </SidebarMenuItem>
-                </Collapsible>
+                    </SidebarMenuItem>
+                  );
+                })}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

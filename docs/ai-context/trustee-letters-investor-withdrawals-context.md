@@ -267,7 +267,7 @@ Admin views list / opens detail
 
 ### Investor-side
 
-- **UI:** Investor Transactions page withdrawal modal
+- **UI:** Investor Portfolio Transactions tab withdrawal modal
 - **API:** `POST /v1/investor/balance/withdraw`
 - **Auth:** `requireRole(INVESTOR)` — not admin RBAC
 - **Validations:** org membership, bank details present, minimum amount, sufficient balance
@@ -342,7 +342,7 @@ Manual status update only. TODO in backend for future email integration with PDF
 
 ## 8. Dashboard / sidebar
 
-**Dashboard quick action:** Investor Withdrawals card with pending count (`quick-actions-section.tsx`)
+**Dashboard next-to-do:** Investor Withdrawals tile with pending count (`use-quick-action-queues.ts`)
 
 **Sidebar:** Finance → Investor Withdrawals with badge (`app-sidebar.tsx`, `badgeKey: pendingInvestorWithdrawals`)
 

@@ -57,6 +57,16 @@ describe("NoteLogAdapter", () => {
     });
 
     expect(
+      adapter.buildPresentation("PAUSE_LISTING", {
+        noteReference: "NOTE-001",
+      })
+    ).toEqual({
+      title: "Campaign Paused",
+      description:
+        "Note NOTE-001 was temporarily closed to new investment. Existing commitments are held.",
+    });
+
+    expect(
       adapter.buildPresentation("SETTLEMENT_POSTED", {
         noteTitle: "Bridge Note",
       })
@@ -150,6 +160,10 @@ describe("NoteLogAdapter", () => {
     const transformed = adapter.transform(records[0] as any);
     expect(transformed.title).toBe("Note Active");
     expect(transformed.description).toBe("Note NOTE-001 is now active and servicing has started.");
+    expect(transformed.references).toEqual({
+      noteId: "note_1",
+      noteReference: "NOTE-001",
+    });
   });
 
   it("only exposes curated high-signal note events", () => {

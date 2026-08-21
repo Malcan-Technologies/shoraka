@@ -1,34 +1,34 @@
+"use client";
+
 import * as React from "react";
-import { Input } from "./input";
-import { Button } from "./button";
-import { Badge } from "./badge";
+import {
+  ACTIVITY_DOMAIN_CONFIG,
+  sameActivityDomainSet,
+  type ActivityDomain,
+} from "@cashsouk/types";
+import { ListToolbar, ListToolbarFilterTrigger } from "./list-toolbar";
+import type { FilterChip } from "./filter-chips";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuTrigger,
-  DropdownMenuLabel,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
 } from "./dropdown-menu";
-import {
-  MagnifyingGlassIcon,
-  FunnelIcon,
-  XMarkIcon,
-  ArrowPathIcon,
-} from "@heroicons/react/24/outline";
-import { ACTIVITY_DOMAIN_CONFIG, ActivityDomain } from "@cashsouk/types";
 
 const DATE_RANGES = [
-  { value: "all", label: "All Time" },
-  { value: "24h", label: "Last 24 Hours" },
-  { value: "7d", label: "Last 7 Days" },
-  { value: "30d", label: "Last 30 Days" },
-];
+  { value: "all", label: "All time" },
+  { value: "24h", label: "Last 24 hours" },
+  { value: "7d", label: "Last 7 days" },
+  { value: "30d", label: "Last 30 days" },
+] as const;
 
 interface ActivityToolbarProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
   availableDomains: ActivityDomain[];
   domainFilters: ActivityDomain[];
+  defaultDomains: ActivityDomain[];
   onDomainFiltersChange: (values: ActivityDomain[]) => void;
   dateRangeFilter: string;
   onDateRangeFilterChange: (value: string) => void;
@@ -39,11 +39,20 @@ interface ActivityToolbarProps {
   isLoading?: boolean;
 }
 
+function FilterDot() {
+  return (
+    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+      <span className="h-2 w-2 rounded-full bg-foreground" />
+    </span>
+  );
+}
+
 export function ActivityToolbar({
   searchQuery,
   onSearchChange,
   availableDomains,
   domainFilters,
+  defaultDomains,
   onDomainFiltersChange,
   dateRangeFilter,
   onDateRangeFilterChange,
@@ -53,7 +62,6 @@ export function ActivityToolbar({
   onReload,
   isLoading = false,
 }: ActivityToolbarProps) {
-  const [isSpinning, setIsSpinning] = React.useState(false);
   const domainOptions = React.useMemo(
     () =>
       availableDomains.map((value) => ({
@@ -64,16 +72,49 @@ export function ActivityToolbar({
   );
 
   const isAllDomains = domainFilters.length === 0;
+  const domainsAreDefault = sameActivityDomainSet(domainFilters, defaultDomains);
+  const dateLabel = DATE_RANGES.find((range) => range.value === dateRangeFilter)?.label;
+  const hasFilters =
+    searchQuery !== "" || !domainsAreDefault || dateRangeFilter !== "all";
 
-  const hasFilters = searchQuery !== "" || !isAllDomains || dateRangeFilter !== "all";
-
-  const activeDomainFilterCount = domainFilters.length;
-
-  const handleReload = () => {
-    setIsSpinning(true);
-    onReload?.();
-    setTimeout(() => setIsSpinning(false), 500);
-  };
+  const appliedFilters = React.useMemo<FilterChip[]>(() => {
+    const chips: FilterChip[] = [];
+    if (!domainsAreDefault) {
+      if (isAllDomains) {
+        chips.push({
+          id: "domains-all",
+          label: "All areas",
+          onRemove: () => onDomainFiltersChange(defaultDomains),
+        });
+      } else {
+        for (const domain of domainFilters) {
+          chips.push({
+            id: `domain-${domain}`,
+            label: ACTIVITY_DOMAIN_CONFIG[domain].label,
+            onRemove: () =>
+              onDomainFiltersChange(domainFilters.filter((value) => value !== domain)),
+          });
+        }
+      }
+    }
+    if (dateRangeFilter !== "all" && dateLabel) {
+      chips.push({
+        id: "date",
+        label: dateLabel,
+        onRemove: () => onDateRangeFilterChange("all"),
+      });
+    }
+    return chips;
+  }, [
+    dateLabel,
+    dateRangeFilter,
+    defaultDomains,
+    domainFilters,
+    domainsAreDefault,
+    isAllDomains,
+    onDateRangeFilterChange,
+    onDomainFiltersChange,
+  ]);
 
   const handleToggleDomain = (value: ActivityDomain | "all") => {
     if (value === "all") {
@@ -81,144 +122,83 @@ export function ActivityToolbar({
       return;
     }
 
-    const newFilters = domainFilters.includes(value)
-      ? domainFilters.filter((v) => v !== value)
+    const next = domainFilters.includes(value)
+      ? domainFilters.filter((item) => item !== value)
       : [...domainFilters, value];
-
-    onDomainFiltersChange(newFilters);
+    onDomainFiltersChange(next);
   };
 
-  const FilterDot = () => (
-    <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-      <span className="h-2 w-2 rounded-full bg-foreground" />
-    </span>
+  const countLabel = hasFilters ? (
+    <>
+      {filteredCount} of {totalCount} {totalCount === 1 ? "activity" : "activities"}
+    </>
+  ) : (
+    <>
+      {totalCount} {totalCount === 1 ? "activity" : "activities"}
+    </>
   );
 
   return (
-    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full">
-      <div className="relative flex-1 w-full">
-        <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search activities..."
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="h-11 rounded-xl bg-card pl-9"
-        />
-      </div>
-
-      <div className="flex items-center gap-2 w-full sm:w-auto">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              className="h-11 gap-2 rounded-xl bg-card focus-visible:ring-1 focus-visible:ring-offset-0"
-            >
-              <FunnelIcon className="h-4 w-4" />
-              Domain
-              {activeDomainFilterCount > 0 && (
-                <Badge
-                  variant="default"
-                  className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs shadow-none"
-                >
-                  {activeDomainFilterCount}
-                </Badge>
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 p-1">
-            <DropdownMenuLabel>Domain</DropdownMenuLabel>
-            <DropdownMenuItem
-              className="pl-8 relative"
-              onClick={() => handleToggleDomain("all")}
-            >
-              {isAllDomains && <FilterDot />}
-              All Domains
-            </DropdownMenuItem>
-            {domainOptions.map((opt) => (
-              <DropdownMenuItem
-                key={opt.value}
-                className="pl-8 relative"
-                onClick={() => handleToggleDomain(opt.value)}
-              >
-                {domainFilters.includes(opt.value) && <FilterDot />}
-                {opt.label}
+    <ListToolbar
+      searchValue={searchQuery}
+      onSearchChange={onSearchChange}
+      searchPlaceholder="Search by event or reference"
+      appliedFilters={appliedFilters}
+      onClearFilters={onClearFilters}
+      onReload={onReload}
+      isLoading={isLoading}
+      countLabel={countLabel}
+      filterGroups={
+        <>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <ListToolbarFilterTrigger
+                label="Area"
+                count={!domainsAreDefault && !isAllDomains ? domainFilters.length : 0}
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 p-1">
+              <DropdownMenuLabel>Area</DropdownMenuLabel>
+              <DropdownMenuItem className="relative pl-8" onClick={() => handleToggleDomain("all")}>
+                {isAllDomains ? <FilterDot /> : null}
+                All areas
               </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              className="h-11 gap-2 rounded-xl bg-card focus-visible:ring-1 focus-visible:ring-offset-0"
-            >
-              <FunnelIcon className="h-4 w-4" />
-              Date Range
-              {dateRangeFilter !== "all" && (
-                <Badge
-                  variant="secondary"
-                  className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs shadow-none"
+              {domainOptions.map((opt) => (
+                <DropdownMenuItem
+                  key={opt.value}
+                  className="relative pl-8"
+                  onClick={() => handleToggleDomain(opt.value)}
                 >
-                  1
-                </Badge>
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 p-1">
-            <DropdownMenuLabel>Date Range</DropdownMenuLabel>
-            {DATE_RANGES.map((opt) => (
-              <DropdownMenuItem
-                key={opt.value}
-                className="pl-8 relative"
-                onClick={() => onDateRangeFilterChange(opt.value)}
-              >
-                {dateRangeFilter === opt.value && <FilterDot />}
-                {opt.label}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+                  {domainFilters.includes(opt.value) ? <FilterDot /> : null}
+                  {opt.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-        {hasFilters && (
-          <Button
-            variant="ghost"
-            onClick={onClearFilters}
-            className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"
-          >
-            <XMarkIcon className="h-4 w-4" />
-            <span className="hidden sm:inline">Clear</span>
-          </Button>
-        )}
-
-        {onReload && (
-          <Button
-            variant="outline"
-            onClick={handleReload}
-            disabled={isLoading || isSpinning}
-            className="h-11 w-11 rounded-xl bg-card p-0 focus-visible:ring-1 focus-visible:ring-offset-0 sm:w-auto sm:gap-2 sm:px-3"
-            aria-label="Refresh"
-          >
-            <ArrowPathIcon className={`h-4 w-4 ${isLoading || isSpinning ? "animate-spin" : ""}`} />
-            <span className="hidden sm:inline">Refresh</span>
-          </Button>
-        )}
-
-        <Badge
-          variant="outline"
-          className="h-11 px-4 rounded-xl text-sm font-normal bg-muted/30 border-none whitespace-nowrap text-muted-foreground hover:bg-muted/30"
-        >
-          {hasFilters ? (
-            <>
-              {filteredCount} of {totalCount} activities
-            </>
-          ) : (
-            <>
-              {totalCount} {totalCount === 1 ? "activity" : "activities"}
-            </>
-          )}
-        </Badge>
-      </div>
-    </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <ListToolbarFilterTrigger
+                label="Date"
+                count={dateRangeFilter !== "all" ? 1 : 0}
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 p-1">
+              <DropdownMenuLabel>Date</DropdownMenuLabel>
+              {DATE_RANGES.map((opt) => (
+                <DropdownMenuItem
+                  key={opt.value}
+                  className="relative pl-8"
+                  onClick={() => onDateRangeFilterChange(opt.value)}
+                >
+                  {dateRangeFilter === opt.value ? <FilterDot /> : null}
+                  {opt.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </>
+      }
+    />
   );
 }

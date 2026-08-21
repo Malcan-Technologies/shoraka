@@ -21,6 +21,12 @@ import {
   openCurlecFpxCheckout,
 } from "@/lib/curlec-checkout";
 import { parseMoneyAmount } from "@/app/transactions/components/transaction-utils";
+import {
+  depositLimitsHint,
+  depositMinimumError,
+  depositTypedAmountError,
+} from "@/components/investor-money-copy";
+import { PORTFOLIO_TRANSACTIONS_HREF } from "@/portfolio/portfolio-tabs";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -35,17 +41,13 @@ interface InvestorDepositFormProps {
   onStarted?: () => void;
 }
 
-function formatDepositLimit(amount: number) {
-  return Number.isInteger(amount) ? String(amount) : amount.toFixed(2);
-}
-
 export function InvestorDepositForm({
   investorOrganizationId,
   amount,
   onAmountChange,
   validationError,
   onValidationErrorChange,
-  returnTo = "/transactions",
+  returnTo = PORTFOLIO_TRANSACTIONS_HREF,
   disabled = false,
   onStarted,
 }: InvestorDepositFormProps) {
@@ -86,22 +88,23 @@ export function InvestorDepositForm({
   async function handleContinue() {
     const parsed = parseMoneyAmount(amount);
     if (minAmount == null || maxAmount == null) {
-      toast.error("Deposit limits are still loading. Please try again.");
+      toast.error("We're still loading deposit limits. Try again in a moment.");
       return;
     }
 
-    if (!parsed || parsed < minAmount) {
-      onValidationErrorChange(`Minimum deposit is RM ${formatDepositLimit(minAmount)}`);
+    if (!parsed) {
+      onValidationErrorChange(depositMinimumError(minAmount));
       return;
     }
 
-    if (parsed > maxAmount) {
-      onValidationErrorChange(`Maximum deposit is RM ${formatDepositLimit(maxAmount)}`);
+    const amountError = depositTypedAmountError(parsed, minAmount, maxAmount);
+    if (amountError) {
+      onValidationErrorChange(amountError);
       return;
     }
 
     if (!investorOrganizationId) {
-      toast.error("Select an investor organization first");
+      toast.error("Choose an investor organization first.");
       return;
     }
 
@@ -111,7 +114,7 @@ export function InvestorDepositForm({
       organization: activeOrganization,
     });
     if (!payer.email) {
-      toast.error("We could not find an email address for this account");
+      toast.error("We couldn't find an email for this account.");
       return;
     }
 
@@ -143,23 +146,30 @@ export function InvestorDepositForm({
           return;
         } catch (retryError) {
           setIsOpeningCheckout(false);
-          toast.error(retryError instanceof Error ? retryError.message : "Could not start deposit");
+          toast.error(retryError instanceof Error ? retryError.message : "We couldn't start your deposit.");
           return;
         }
       }
 
       setIsOpeningCheckout(false);
-      toast.error(error instanceof Error ? error.message : "Could not start deposit");
+      toast.error(error instanceof Error ? error.message : "We couldn't start your deposit.");
     }
   }
 
   const isBusy = createDeposit.isPending || isOpeningCheckout;
   const limitsReady = minAmount != null && maxAmount != null;
+  const parsedAmount = parseMoneyAmount(amount);
+  const liveError = limitsReady
+    ? depositTypedAmountError(parsedAmount, minAmount, maxAmount)
+    : null;
+  const fieldError = liveError ?? validationError;
+  const amountHintId = fieldError ? "deposit-amount-error" : "deposit-amount-hint";
+  const amountInRange = limitsReady && parsedAmount > 0 && !liveError;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="space-y-2">
-        <Label className="text-sm font-medium">Deposit amount</Label>
+        <Label className="text-ui text-foreground">How much would you like to add?</Label>
         <MoneyInput
           value={amount}
           onValueChange={(value) => {
@@ -168,40 +178,49 @@ export function InvestorDepositForm({
           }}
           prefix="RM"
           placeholder="0.00"
+          invalid={Boolean(fieldError)}
+          describedBy={amountHintId}
           inputClassName="h-11 rounded-xl"
           disabled={disabled || isBusy || !limitsReady}
         />
-        {validationError ? (
-          <p className="text-right text-xs text-destructive">{validationError}</p>
+        {fieldError ? (
+          <p id="deposit-amount-error" className="text-ui text-destructive">
+            {fieldError}
+          </p>
         ) : depositLimitsQuery.isLoading ? (
-          <p className="text-right text-xs text-muted-foreground">Loading deposit limits...</p>
+          <p id="deposit-amount-hint" className="text-meta text-muted-foreground">
+            Loading how much you can add…
+          </p>
         ) : limitsReady ? (
-          <p className="text-right text-xs text-muted-foreground">
-            Min. amount - RM {formatDepositLimit(minAmount)} · Max. RM {formatDepositLimit(maxAmount)}
+          <p id="deposit-amount-hint" className="text-meta text-muted-foreground">
+            {depositLimitsHint(minAmount, maxAmount)}
           </p>
         ) : (
-          <p className="text-right text-xs text-destructive">Could not load deposit limits</p>
+          <p id="deposit-amount-hint" className="text-ui text-destructive">
+            We couldn't load deposit limits. Try again shortly.
+          </p>
         )}
       </div>
 
-      <Button
-        type="button"
-        variant="action"
-        className="h-11 w-full rounded-xl"
-        disabled={disabled || isBusy || !investorOrganizationId || !limitsReady}
-        onClick={() => void handleContinue()}
-      >
-        {createDeposit.isPending
-          ? "Preparing deposit..."
-          : isOpeningCheckout
-            ? "Opening checkout..."
-            : "Pay with FPX"}
-      </Button>
-
-      <p className="text-center text-xs text-muted-foreground">
-        Please ensure deposits come from your own bank account. Cashsouk does not accept third-party
-        transfers.
-      </p>
+      <div className="space-y-3">
+        <Button
+          type="button"
+          variant="action"
+          className="h-11 w-full rounded-xl"
+          disabled={disabled || isBusy || !investorOrganizationId || !amountInRange}
+          onClick={() => void handleContinue()}
+        >
+          {createDeposit.isPending
+            ? "Preparing your payment…"
+            : isOpeningCheckout
+              ? "Opening your bank…"
+              : "Continue to FPX"}
+        </Button>
+        <p className="text-center text-meta leading-5 text-muted-foreground">
+          You'll be taken to your bank to finish the payment. Deposits must come from an account in
+          your name — we can't accept transfers from someone else.
+        </p>
+      </div>
     </div>
   );
 }

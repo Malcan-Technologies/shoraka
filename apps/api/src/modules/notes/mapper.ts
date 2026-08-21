@@ -1,9 +1,9 @@
 import {
+  countNoteInvestors,
   formatProspectusListBadge,
   getProspectusDisplayStatus,
   hasSettlementTrusteeMovementFromPoolSummary,
   isSoukscoreRiskRating,
-  normalizeProspectusWorkflowStatus,
   roundNoteMoney,
   type IssuerResidualPayoutListStatus,
   type NoteProspectusSummary,
@@ -11,6 +11,8 @@ import {
 import { NoteSettlementStatus, Prisma, WithdrawalStatus, WithdrawalType } from "@prisma/client";
 import { sortAdminNoteEvents } from "./admin-note-events-sorting";
 import { noteInclude } from "./repository";
+import { loadUserDisplayNameMap } from "../../lib/user-display-name";
+import { prisma } from "../../lib/prisma";
 
 type NoteWithRelations = Prisma.NoteGetPayload<{
   include: typeof noteInclude;
@@ -18,18 +20,24 @@ type NoteWithRelations = Prisma.NoteGetPayload<{
 
 function mapProspectusSummary(note: NoteWithRelations): NoteProspectusSummary {
   const review = note.prospectus_review;
-  const notePublished = note.status === "PUBLISHED" || Boolean(note.published_at);
+  const notePublished = note.status === "PUBLISHED";
   const displayStatus = getProspectusDisplayStatus({
     reviewStatus: review?.status ?? "DRAFT",
     notePublished,
   });
+  const status =
+    displayStatus === "Published"
+      ? "PUBLISHED"
+      : displayStatus === "Approved"
+        ? "APPROVED"
+        : "DRAFT";
   return {
-    status: normalizeProspectusWorkflowStatus(review?.status),
+    status,
     displayStatus,
     contentVersion: review?.content_version ?? null,
     lastSavedAt: review?.updated_at?.toISOString() ?? null,
-    approvedAt: review?.approved_at?.toISOString() ?? null,
-    publishedAt: note.published_at?.toISOString() ?? null,
+    approvedAt: status === "DRAFT" ? null : review?.approved_at?.toISOString() ?? null,
+    publishedAt: notePublished ? note.published_at?.toISOString() ?? null : null,
   };
 }
 
@@ -435,6 +443,7 @@ export function mapNoteListItem(note: NoteWithRelations) {
     issuerIndustry: resolveIssuerIndustry(note),
     sourceApplicationId: note.source_application_id,
     sourceContractId: note.source_contract_id,
+    sourceContractDisplayReference: null,
     sourceInvoiceId: note.source_invoice_id,
     issuerOrganizationId: note.issuer_organization_id,
     issuerName: resolveIssuerName(note),
@@ -459,10 +468,18 @@ export function mapNoteListItem(note: NoteWithRelations) {
     featuredFrom: iso(note.featured_from),
     featuredUntil: iso(note.featured_until),
     featuredActive: resolveFeaturedActive(note),
+    investorCount: countNoteInvestors(
+      note.investments.map((investment) => ({
+        investorOrganizationId: investment.investor_organization_id,
+        status: investment.status,
+      }))
+    ),
     maturityDate: iso(note.maturity_date),
     listingClosesAt: note.listing ? iso(note.listing.closes_at) : null,
     activatedAt: iso(note.activated_at),
     publishedAt: iso(note.published_at),
+    fundingClosedAt: iso(note.funding_closed_at),
+    repaidAt: iso(note.repaid_at),
     settlementSummary: resolveSettlementSummary(note),
     prospectus: mapProspectusSummary(note),
     createdAt: note.created_at.toISOString(),
@@ -470,12 +487,24 @@ export function mapNoteListItem(note: NoteWithRelations) {
   };
 }
 
-export function mapNoteDetail(
+export async function mapNoteDetail(
   note: NoteWithRelations,
-  options: { withdrawals?: WithdrawalRecord[]; includeEvents?: boolean } = {}
+  options: {
+    withdrawals?: WithdrawalRecord[];
+    includeEvents?: boolean;
+    actorNameById?: Map<string, string>;
+  } = {}
 ) {
   const withdrawals = options.withdrawals ?? [];
   const includeEvents = options.includeEvents ?? true;
+  const actorNameById =
+    options.actorNameById ??
+    (includeEvents
+      ? await loadUserDisplayNameMap(
+          prisma,
+          note.events.map((event) => event.actor_user_id)
+        )
+      : new Map());
 
   const sortedEvents = includeEvents
     ? sortAdminNoteEvents(
@@ -602,6 +631,7 @@ export function mapNoteDetail(
               noteId: note.id,
               eventType: sortedEvent.eventType,
               actorUserId: null,
+              actorName: null,
               actorRole: null,
               portal: null,
               correlationId: null,
@@ -615,6 +645,9 @@ export function mapNoteDetail(
             noteId: event.note_id,
             eventType: event.event_type,
             actorUserId: event.actor_user_id,
+            actorName: event.actor_user_id
+              ? actorNameById.get(event.actor_user_id) ?? null
+              : null,
             actorRole: event.actor_role,
             portal: event.portal,
             correlationId: event.correlation_id,

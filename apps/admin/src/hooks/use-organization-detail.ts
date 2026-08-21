@@ -6,7 +6,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export function useOrganizationDetail(
   portal: PortalType | null,
-  id: string | null
+  id: string | null,
+  options?: { enabled?: boolean }
 ) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
@@ -23,7 +24,7 @@ export function useOrganizationDetail(
       }
       return response.data;
     },
-    enabled: !!portal && !!id,
+    enabled: Boolean(portal) && Boolean(id) && (options?.enabled ?? true),
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 }

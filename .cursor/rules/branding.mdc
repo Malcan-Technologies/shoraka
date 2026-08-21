@@ -174,24 +174,30 @@ export default config
 ---
 
 ## 4) Typography & Spacing
-- **Base body**: `text-[17px]` with `leading-7`. (Slightly larger, highly readable.)
+- **Closed scale** (do not invent `text-[Npx]`):
+  - **Body** `text-body` (16px, aliases `text-base`) — default copy, empty states
+  - **UI** `text-ui` (14px, aliases `text-sm`) — labels, buttons, tables, descriptions, inputs
+  - **Meta** `text-meta` (12px, aliases `text-xs`) — captions, badges, timestamps, hints
+- **Title roles**: `text-page-title`, `text-section-title`, `text-card-title`, `text-dialog-title` (or `h1`–`h4`).
 - **Headings**: weight 700 for `h1/h2`, 600 for `h3/h4`.
 - **Tracking**: slight `tracking-tight` on display headings only.
 - **Max measure**: prose text containers `max-w-[70ch]`.
 - **Whitespace**: default section padding `py-10 md:py-12`, card padding `p-6 md:p-8`, grid gaps `gap-6`.
 - **Radii**: use `rounded-xl`+ globally via `--radius: 0.8rem` (cards/buttons/inputs).
 
+Tokens live in `packages/styles` (`--text-body`, `--text-ui`, `--text-meta`). Reuse via `typeScale` from `@cashsouk/ui`.
+
 Add/confirm these in `globals.css`:
 
 ```css
 html { scroll-behavior: smooth; }
-body { @apply text-base leading-7 text-foreground bg-background antialiased; }
-h1 { @apply text-3xl md:text-4xl font-bold tracking-tight; }
+body { @apply text-body text-foreground bg-background antialiased; }
+h1, .text-page-title { @apply text-3xl md:text-4xl font-bold tracking-tight; }
 h2 { @apply text-2xl md:text-3xl font-bold tracking-tight; }
 h3 { @apply text-xl md:text-2xl font-semibold; }
 h4 { @apply text-lg md:text-xl font-semibold; }
-p, li { @apply text-[17px] leading-7; }
-small { @apply text-sm leading-6; }
+p, li { @apply leading-7; }
+small { @apply text-meta leading-5; }
 ```
 
 ---
@@ -238,6 +244,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 - **Primary**: brand red bg, white text, bold label, soft shadow.
 - **Secondary**: taupe fill or outline with brand ring on focus.
 - **Ghost**: minimal text button; hover uses `accent` underline/fg.
+- **Sizes** (all portals): default `h-10` + `text-ui`; sm `h-8` still `text-ui`; lg / page-toolbar `h-11`; icon `h-10`. Do not override with `text-xs` / `text-meta` / `h-9`.
 
 ```tsx
 import { Button } from "@/components/ui/button"
@@ -267,17 +274,19 @@ const ghost = "hover:bg-muted"
 - Headers may use earth‑brown divider: `border-b border-[hsl(29.6_51%_28.8%/0.12)]`.
 
 ### Tables
-- Dense but readable: `text-[15px]` body; header `text-sm font-semibold`.
+- Dense but readable: `text-ui` body; header `text-ui font-semibold`.
 - Zebra rows: `odd:bg-muted/40` and `hover:bg-muted`.
-- Numeric columns right‑aligned; status chips use `accent` or `secondary` fills.
+- Numeric columns right‑aligned. Status chips use `StatusBadge` and status tokens (`BRANDING.md` §3 / §3.2) — not `accent` or `secondary`.
 
 ### Navigation
 - Topbar height `h-16`; logo left, actions right.
 - Active state: underline + `text-primary` or bottom bar `bg-primary` 2px.
 
 ### Badges/Chips
-- Default fill taupe (`bg-secondary text-secondary-foreground`).
-- For notices: use `accent` with white text; avoid overusing bright reds for non‑critical info.
+- Label weight: `font-normal`. Do not bold badge text. Contrast comes from darker status text tokens (`packages/styles/globals.css`), not `font-semibold`.
+- Default fill taupe (`bg-secondary text-secondary-foreground`) for non-status chips.
+- Workflow status: `StatusBadge` from `@cashsouk/ui`. Admin: yellow = must act / blue = waiting on someone else / violet live (`active`) / green done / grey idle / red failed (`getAdminStatusToken`). User portals: yellow = you must act / blue = waiting on CashSouk (`getUserPortalStatusToken`); completed is green; draft and withdrawn are grey. Yellow action rows use `adminActionRowClass`; arrears rows use `adminRejectedRowClass`. Status = dot + label; Company/Personal = text only; Investor/Issuer = `PortalBadge` (earth brown / brand red); account portal access = `PortalBadge` `access` (circled check in brand colour); Verified/Required = circled check; user-page Admin role = purple. Full rules in `BRANDING.md` §3.2 / §3.3.
+- Avoid bright reds for non‑critical info.
 
 ---
 
@@ -294,9 +303,9 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <span className="text-lg font-bold">Shoraka</span>
           </div>
           <nav className="flex items-center gap-6">
-            <a className="text-[15px] hover:text-primary">Dashboard</a>
-            <a className="text-[15px] hover:text-primary">Portfolio</a>
-            <a className="text-[15px] hover:text-primary">Settings</a>
+            <a className="text-ui hover:text-primary">Dashboard</a>
+            <a className="text-ui hover:text-primary">Portfolio</a>
+            <a className="text-ui hover:text-primary">Settings</a>
           </nav>
         </div>
       </header>
@@ -353,7 +362,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
 ```tsx
 <div className="theme-investor rounded-2xl border bg-card p-8">
   <h3 className="text-2xl font-semibold">Q4 Performance</h3>
-  <p className="mt-2 text-[17px] leading-7 text-muted-foreground">
+  <p className="mt-2 text-body text-muted-foreground">
     Year‑to‑date returns are above benchmark; see the full report.
   </p>
   <div className="mt-6 flex gap-3">

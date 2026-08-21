@@ -11,7 +11,7 @@ updated: 2026-04-28
 
 ## Welcome
 
-Issuer onboarding is the first step before you can submit financing applications on CashSouk. Issuers use the platform to raise financing against eligible invoices or contracts.
+Issuer onboarding is the first step before you can submit financing applications on CashSouk. Issuers use the platform to raise financing against eligible invoices or facilities.
 
 ## Before You Start
 

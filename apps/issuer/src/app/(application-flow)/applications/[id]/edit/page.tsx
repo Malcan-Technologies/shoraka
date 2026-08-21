@@ -85,6 +85,7 @@ import { SupportingDocumentsStep } from "../../steps/supporting-documents-step";
 // dialog components are used by modal components directly
 import { useProductVersionGuard } from "@/hooks/use-product-version-guard";
 import { VersionMismatchModal } from "@/components/VersionMismatchModal";
+import { EXISTING_CONTRACT_PREFILL_STORAGE_KEY } from "@/lib/finance-invoice-application-href";
 import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
 import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 import { useIssuerUnsavedNavigation } from "@/contexts/issuer-unsaved-navigation-context";
@@ -665,10 +666,10 @@ function EditApplicationPageBody() {
       if (currentStepKey === "contract_details") {
         const isInvoiceOnly = effectiveStructureType === "invoice_only";
         return {
-          title: isInvoiceOnly ? "Provide Customer Details" : "Provide Contract and Customer Details",
+          title: isInvoiceOnly ? "Provide Customer Details" : "Provide Facility and Customer Details",
           description: isInvoiceOnly
             ? "Tell us about the customer billed under this invoice."
-            : "Help us understand your contract and the customer billed under this invoice.",
+            : "Help us understand your facility and the customer billed under this invoice.",
         };
       }
       const stepDisplay = STEP_KEY_DISPLAY[currentStepKey];
@@ -1723,6 +1724,7 @@ function EditApplicationPageBody() {
 
       if (currentStepKey === "financing_structure" && !devPreviewAmendment) {
         sessionStorage.removeItem("cashsouk:financing_structure_override");
+        sessionStorage.removeItem(EXISTING_CONTRACT_PREFILL_STORAGE_KEY);
         setSessionStructureType(null);
       }
 
@@ -1737,6 +1739,7 @@ function EditApplicationPageBody() {
       }
       if (currentStepKey === "financing_structure") {
         sessionStorage.removeItem("cashsouk:financing_structure_override");
+        sessionStorage.removeItem(EXISTING_CONTRACT_PREFILL_STORAGE_KEY);
         setSessionStructureType(null);
         if (getApiMutationErrorCode(err) === "STRUCTURE_CHANGE_BLOCKED") {
           toast.error(
@@ -1746,6 +1749,14 @@ function EditApplicationPageBody() {
           );
           return;
         }
+      }
+      if (getApiMutationErrorCode(err) === "MAX_INVOICES_REACHED") {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Applications allow only one invoice. Remove extra invoices or start a new application for another invoice."
+        );
+        return;
       }
       toast.error("Something went wrong. Please try again.");
     } finally {
@@ -1887,7 +1898,7 @@ function EditApplicationPageBody() {
                   if (stepKey === "contract_details") {
                     return effectiveStructureType === "invoice_only"
                       ? "Customer Details"
-                      : "Contract Details";
+                      : "Facility Details";
                   }
                   return (s.name as string) ?? "";
                 })}
@@ -1913,7 +1924,7 @@ function EditApplicationPageBody() {
                   <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
                     {currentStepInfo.title}
                   </h1>
-                  <p className="text-sm sm:text-[15px] leading-6 sm:leading-7 text-muted-foreground mt-1">
+                  <p className="text-sm sm:text-ui leading-6 sm:leading-7 text-muted-foreground mt-1">
                     {currentStepInfo.description}
                   </p>
                 </div>
@@ -1924,7 +1935,7 @@ function EditApplicationPageBody() {
                   if (stepKey === "contract_details") {
                     return effectiveStructureType === "invoice_only"
                       ? "Customer Details"
-                      : "Contract Details";
+                      : "Facility Details";
                   }
                   return (s.name as string) ?? "";
                 })}
@@ -2004,7 +2015,7 @@ function EditApplicationPageBody() {
                   application?.status === "AMENDMENT_REQUESTED" &&
                   (resubmitMutation.isPending || isSubmittingApplication))
               }
-              className="h-11 rounded-xl px-4 text-sm font-semibold sm:px-6 sm:text-base"
+              className="h-11 rounded-xl px-4 sm:px-6"
             >
               <ArrowLeftIcon className="mr-2 h-4 w-4" />
               Back
@@ -2037,7 +2048,7 @@ function EditApplicationPageBody() {
                     (!devPreviewAmendment && !isCurrentStepValid) ||
                     !isStepMapped)
               }
-              className="h-11 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-brand hover:opacity-95 sm:px-6 sm:text-base"
+              className="h-11 rounded-xl px-4 sm:px-6"
             >
               {isDeclarationsFinalStep &&
               (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment)
@@ -2068,7 +2079,7 @@ function EditApplicationPageBody() {
               {isAmendmentModeEffective ? "Confirm resubmission" : "Confirm submission"}
             </DialogTitle>
             <DialogDescription asChild>
-              <div className="space-y-3 pt-1 text-[15px] leading-7 text-muted-foreground">
+              <div className="space-y-3 pt-1 text-ui leading-7 text-muted-foreground">
                 <p>
                   Please review everything you have entered across all steps of this application. Make sure
                   all information is complete and accurate before you continue. Incorrect or incomplete details

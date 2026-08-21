@@ -8,7 +8,7 @@ tags:
   - notes
   - repayment
 order: 12
-updated: 2026-05-12
+updated: 2026-08-19
 ---
 
 ## What You're Investing In
@@ -52,7 +52,7 @@ When you commit to a note, your commitment is reserved from your investor wallet
 - If the note closes successfully, your commitment is **confirmed** — you are now an investor in that note and the funds are part of the disbursement.
 - If the note fails to fund, your commitment is **released** automatically and returned to your wallet — you can use the money for another investment or withdraw it.
 
-You can review your active commitments and confirmed positions from the **Investments** page.
+You can review your active commitments and confirmed positions from the **Portfolio** page (Investments tab).
 
 ## Disbursement
 
@@ -112,7 +112,7 @@ When this happens:
 
 ## Withdrawals From Your Wallet
 
-You can withdraw available funds from your wallet at any time. Withdrawals follow a four-step trustee workflow: **Draft → Letter Generated → Submitted to Trustee → Disbursed**. Once disbursed, the amount is paid to your registered bank account. You will see the current step of any open withdrawal in your portal.
+You can withdraw available funds from the **Portfolio** cash bar at any time. Withdrawals follow a four-step trustee workflow: **Draft → Letter Generated → Submitted to Trustee → Disbursed**. Once disbursed, the amount is paid to your registered bank account. You will see the current step of any open withdrawal in your portal.
 
 ## Quick Reference
 
@@ -120,4 +120,4 @@ You can withdraw available funds from your wallet at any time. Withdrawals follo
 - Failed listings release commitments back to your wallet automatically.
 - Principal is **always** returned in full on settlement; profit is paid net of the service fee.
 - Late charges are borne by the issuer and do not reduce your returns.
-- The **Investments** page is the single place to see your active commitments, confirmed positions, and historical performance.
+- The **Portfolio** page is the single place to see notes you have funded and your cash movements. Use the **Investments** tab for positions and the **Transactions** tab for deposits, withdrawals, and ledger activity.

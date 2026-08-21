@@ -252,7 +252,7 @@ export default function OnboardingFeePage() {
                     ? "Repay onboarding fee"
                     : "Pay onboarding fee"}
               </h2>
-              <p className="text-[15px] text-muted-foreground">
+              <p className="text-ui text-muted-foreground">
                 {isUnderReview
                   ? "Your payment is being verified before company verification (eKYB) continues."
                   : requiresRepayment

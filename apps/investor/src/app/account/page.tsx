@@ -12,7 +12,6 @@ import {
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import { Badge } from "../../components/ui/badge";
 import { Skeleton } from "../../components/ui/skeleton";
 import {
   createApiClient,
@@ -26,15 +25,12 @@ import { useEffect } from "react";
 import {
   EnvelopeIcon,
   UserCircleIcon,
-  ShieldCheckIcon,
   KeyIcon,
-  XCircleIcon,
   ComputerDesktopIcon,
   BellIcon,
 } from "@heroicons/react/24/outline";
-import { CheckCircleIcon as CheckCircleSolidIcon } from "@heroicons/react/24/solid";
 import { ChangePasswordDialog } from "../../components/change-password-dialog";
-import { NotificationPreferences, PageShell, portalContentMaxWidthClassName, useHeader } from "@cashsouk/ui";
+import { NotificationPreferences, PageShell, PortalBadge, RequiredBadge, portalContentMaxWidthClassName, VerifiedBadge, useHeader } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
@@ -67,9 +63,6 @@ interface MeResponse {
     device: string | null;
   }>;
 }
-
-const successBadgeClass =
-  "border-status-success-text/30 bg-status-success-bg text-status-success-text";
 
 function AccountCardSkeleton() {
   return (
@@ -181,7 +174,7 @@ export default function AccountPage() {
                       value={userData?.user_id || "Not assigned"}
                       placeholder="Not assigned"
                     />
-                    <p className="text-[13px] leading-5 text-muted-foreground">
+                    <p className="text-ui leading-5 text-muted-foreground">
                       Your unique 5-letter identifier
                     </p>
                   </div>
@@ -191,28 +184,14 @@ export default function AccountPage() {
                   <div className="space-y-2">
                     <Label className="text-base font-medium">Portal access</Label>
                     <div className="flex flex-wrap gap-2">
-                      {(userData?.investor_account?.length ?? 0) > 0 ? (
-                        <Badge variant="outline" className={successBadgeClass}>
-                          <CheckCircleSolidIcon className="mr-1 h-3.5 w-3.5" />
-                          Investor
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="border-muted text-muted-foreground/60">
-                          <XCircleIcon className="mr-1 h-3.5 w-3.5" />
-                          Investor
-                        </Badge>
-                      )}
-                      {(userData?.issuer_account?.length ?? 0) > 0 ? (
-                        <Badge variant="outline" className={successBadgeClass}>
-                          <CheckCircleSolidIcon className="mr-1 h-3.5 w-3.5" />
-                          Issuer
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" className="border-muted text-muted-foreground/60">
-                          <XCircleIcon className="mr-1 h-3.5 w-3.5" />
-                          Issuer
-                        </Badge>
-                      )}
+                      <PortalBadge
+                        portal="investor"
+                        access={(userData?.investor_account?.length ?? 0) > 0}
+                      />
+                      <PortalBadge
+                        portal="issuer"
+                        access={(userData?.issuer_account?.length ?? 0) > 0}
+                      />
                     </div>
                   </div>
                 </CardContent>
@@ -243,10 +222,7 @@ export default function AccountPage() {
                       disabled
                       className="max-w-md flex-1 bg-muted"
                     />
-                    <Badge variant="outline" className={successBadgeClass}>
-                      <ShieldCheckIcon className="mr-1 h-3.5 w-3.5" />
-                      Verified
-                    </Badge>
+                    <VerifiedBadge />
                   </div>
                 </CardContent>
               </Card>
@@ -267,10 +243,10 @@ export default function AccountPage() {
                   <div className="space-y-3">
                     <div>
                       <Label className="text-base font-medium">Password</Label>
-                      <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+                      <p className="mt-1 text-ui leading-5 text-muted-foreground">
                         Use a strong password that you do not reuse elsewhere.
                       </p>
-                      <p className="mt-2 text-[13px] leading-5 text-muted-foreground">
+                      <p className="mt-2 text-ui leading-5 text-muted-foreground">
                         Last changed:{" "}
                         {userData?.password_changed_at
                           ? formatDistanceToNow(new Date(userData.password_changed_at), {
@@ -292,16 +268,13 @@ export default function AccountPage() {
                         <Label className="text-base font-medium">
                           Two-factor authentication (2FA)
                         </Label>
-                        <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+                        <p className="mt-1 text-ui leading-5 text-muted-foreground">
                           Authenticator app (TOTP) required at sign-in for all accounts
                         </p>
                       </div>
-                      <Badge variant="outline" className={successBadgeClass}>
-                        <ShieldCheckIcon className="mr-1 h-3.5 w-3.5" />
-                        Required
-                      </Badge>
+                      <RequiredBadge />
                     </div>
-                    <p className="text-[13px] leading-5 text-muted-foreground">
+                    <p className="text-ui leading-5 text-muted-foreground">
                       Set up or manage your authenticator during Cognito sign-in. 2FA cannot be
                       turned off.
                     </p>
@@ -327,16 +300,16 @@ export default function AccountPage() {
                                 >
                                   {login.device || "Unknown device"}
                                 </p>
-                                <p className="text-[13px] text-muted-foreground">
+                                <p className="text-ui text-muted-foreground">
                                   IP: {login.ip || "Unknown"}
                                 </p>
                               </div>
                             </div>
                             <div className="shrink-0 text-right">
-                              <p className="text-[13px] font-medium">
+                              <p className="text-ui font-medium">
                                 {formatDistanceToNow(new Date(login.at), { addSuffix: true })}
                               </p>
-                              <p className="text-[12px] text-muted-foreground">
+                              <p className="text-meta text-muted-foreground">
                                 {new Date(login.at).toLocaleString()}
                               </p>
                             </div>
@@ -348,7 +321,7 @@ export default function AccountPage() {
                         </div>
                       )}
                     </div>
-                    <p className="text-[13px] leading-5 text-muted-foreground">
+                    <p className="text-ui leading-5 text-muted-foreground">
                       Review this list if you notice unusual access to your account.
                     </p>
                   </div>

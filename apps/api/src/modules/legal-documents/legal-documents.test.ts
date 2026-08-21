@@ -436,19 +436,36 @@ describe("legal document acceptance service", () => {
     expect(prisma.legalDocumentAcceptance.update).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects non-owner acceptance", async () => {
+  it("allows a member to accept after opening", async () => {
     (prisma.issuerOrganization.findFirst as jest.Mock).mockResolvedValue({
       id: "org1",
       owner_user_id: "owner",
       tnc_accepted: false,
+      name: "Acme Issuer",
+      type: "COMPANY",
     });
     jest
       .spyOn(legalDocumentRepository, "findVersionById")
       .mockResolvedValue(publishedVersion() as never);
 
-    await expect(
-      legalDocumentAcceptanceService.recordAccepted(mockReq, "member", "ver1", "org1", "ISSUER")
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const opened = {
+      id: "acc1",
+      status: "OPENED",
+      opened_at: new Date(),
+      legal_document_version_id: "ver1",
+    };
+    const accepted = { ...opened, status: "ACCEPTED", accepted_at: new Date() };
+    (prisma.legalDocumentAcceptance.findFirst as jest.Mock).mockResolvedValue(opened);
+    (prisma.legalDocumentAcceptance.update as jest.Mock).mockResolvedValue(accepted);
+
+    const result = await legalDocumentAcceptanceService.recordAccepted(
+      mockReq,
+      "member",
+      "ver1",
+      "org1",
+      "ISSUER"
+    );
+    expect(result.status).toBe("ACCEPTED");
   });
 
   it("rejects acceptance of archived documents", async () => {

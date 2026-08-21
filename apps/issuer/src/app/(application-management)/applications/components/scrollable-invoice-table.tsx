@@ -18,7 +18,9 @@ import { EllipsisVerticalIcon, ArrowDownTrayIcon } from "@heroicons/react/24/out
 import {
   formatCurrency,
   getStatusPresentationByBadgeKey,
+  badgeKeyToStatusToken,
 } from "@cashsouk/config";
+import { StatusBadge } from "@cashsouk/ui";
 import type { WithdrawReason } from "@cashsouk/types";
 import { shouldShowIssuerReviewOfferCta, getOfferPhaseDeadlineDisplay, getIssuerOfferActionCtaFromOfferDetails } from "@/lib/offer-utils";
 import { Button } from "@/components/ui/button";
@@ -58,10 +60,6 @@ const FEES_HEADER_TOOLTIP =
 
 const PROFIT_RATE_HEADER_TOOLTIP =
   "Profit per annum (%). Deducted during settlement when calculating the residual refund to the issuer.";
-
-const BADGE_BASE =
-  "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border whitespace-nowrap";
-const BADGE_FALLBACK = "border-slate-500/30 bg-slate-500/10 text-slate-600";
 
 /** Min widths (px) for scrollable columns; extra space is shared across them. */
 const COL_MIN = {
@@ -108,7 +106,7 @@ const INV_TABLE_HEADER_BG = "bg-muted";
 const INV_TABLE_ROW_BG = "bg-card";
 const INV_TABLE_ROW_HOVER = "group-hover:bg-muted";
 
-const CELL = "px-4 py-3 text-[15px]";
+const CELL = "px-4 py-3 text-ui";
 
 function invoiceStatusStickyStyle(actionColWidthPx: number): React.CSSProperties {
   return {
@@ -134,10 +132,16 @@ function InvoiceStatusBadge({
   badgeKey: string;
   withdrawReason?: WithdrawReason;
 }) {
-  const { color, label } = getStatusPresentationByBadgeKey(badgeKey, withdrawReason, {
+  const { label } = getStatusPresentationByBadgeKey(badgeKey, withdrawReason, {
     issuerWithdrawPresentation: true,
   });
-  return <span className={cn(BADGE_BASE, color || BADGE_FALLBACK)}>{label}</span>;
+  return (
+    <StatusBadge
+      label={label}
+      status={badgeKeyToStatusToken(badgeKey)}
+      className="whitespace-nowrap"
+    />
+  );
 }
 
 function IssuerInvoiceCurrencyCell({ amount }: { amount: number | null | undefined }) {
@@ -145,7 +149,7 @@ function IssuerInvoiceCurrencyCell({ amount }: { amount: number | null | undefin
     return <span className="tabular-nums">—</span>;
   }
   return (
-    <div className="flex w-full min-w-0 items-baseline justify-between gap-2 text-[15px]">
+    <div className="flex w-full min-w-0 items-baseline justify-between gap-2 text-ui">
       <span className="shrink-0 text-left">RM</span>
       <span className="min-w-0 flex-1 text-right tabular-nums">
         {formatCurrency(amount, { includeSymbol: false })}
@@ -163,7 +167,7 @@ function IssuerInvoiceCurrencyCellFromFormatted({ formatted }: { formatted: stri
     return <span>{formatted}</span>;
   }
   return (
-    <div className="flex w-full min-w-0 items-baseline justify-between gap-2 text-[15px]">
+    <div className="flex w-full min-w-0 items-baseline justify-between gap-2 text-ui">
       <span className="shrink-0 text-left">RM</span>
       <span className="min-w-0 flex-1 text-right tabular-nums">{match[1]}</span>
     </div>
@@ -181,7 +185,7 @@ function InvoiceFeesCell({
     status: invoice.status,
     offerDetails: invoice.offer_details,
     financingAmount: invoice.appliedFinancing,
-    isContractFinancing: application.type === "Contract financing" && !!invoice.contractId,
+    isContractFinancing: application.type === "Facility financing" && !!invoice.contractId,
     contractFacilityFeeRatePercent: application.facilityFeeRatePercent,
     contractFacilityFeeCapAmount: application.facilityFeeCapAmount,
     contractFacilityFeePaidAmount: application.facilityFeePaidAmount,
@@ -210,11 +214,11 @@ function InvoiceFeesCell({
 
   return (
     <div className="min-w-0 w-full">
-      <div className="text-[13px] leading-5 tabular-nums whitespace-normal break-words">
+      <div className="text-ui leading-5 tabular-nums whitespace-normal break-words">
         {platformLine ?? "—"}
       </div>
       {facilityLine ? (
-        <div className="text-[13px] leading-5 whitespace-normal break-words tabular-nums">
+        <div className="text-ui leading-5 whitespace-normal break-words tabular-nums">
           {facilityLine === "cap_reached" ? (
             <>
               Facility {money(display.facilityFeeAmount)}
@@ -241,7 +245,7 @@ function InvoiceDocumentCell({
   const [loading, setLoading] = React.useState(false);
   const hasDocument = documentName && documentName !== "—";
   if (!hasDocument) {
-    return <span className="text-[15px] text-muted-foreground">—</span>;
+    return <span className="text-ui text-muted-foreground">—</span>;
   }
   return (
     <FileDisplayBadge
@@ -341,7 +345,7 @@ export function ScrollableInvoiceTable({
     <>
     <ScrollableInvoiceTableWrapper>
       <table
-        className="w-full min-w-0 table-fixed border-collapse text-[15px]"
+        className="w-full min-w-0 table-fixed border-collapse text-ui"
         style={{
           width: "100%",
           minWidth: invoiceTableMinWidthPx,
@@ -633,10 +637,10 @@ export function ScrollableInvoiceTable({
                         <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
                           {isOfferExpired && offerDeadline ? (
                             <div className="flex w-full min-w-0 flex-col items-center gap-0.5 text-center">
-                              <p className="text-[11px] leading-4 text-destructive">
+                              <p className="text-meta leading-4 text-destructive">
                                 {offerDeadline.summary}
                               </p>
-                              <p className="text-[11px] leading-4 text-muted-foreground">
+                              <p className="text-meta leading-4 text-muted-foreground">
                                 A new offer may appear if resent.
                               </p>
                             </div>
@@ -652,8 +656,8 @@ export function ScrollableInvoiceTable({
                                 }
                                 className={
                                   invoiceOfferActionCta.buttonVariant === "makeAmendments"
-                                    ? "h-8 w-full min-w-0 max-w-full rounded-xl border-status-action-text/30 bg-status-action-bg px-2 text-xs font-medium text-status-action-text hover:bg-status-action-bg"
-                                    : "h-8 w-full min-w-0 max-w-full rounded-xl text-xs font-medium"
+                                    ? "w-full min-w-0 max-w-full border-status-action-text/30 bg-status-action-bg px-2 text-status-action-text hover:bg-status-action-bg"
+                                    : "w-full min-w-0 max-w-full"
                                 }
                                 asChild
                               >
@@ -664,7 +668,7 @@ export function ScrollableInvoiceTable({
                                 </Link>
                               </Button>
                               {offerDeadline && !offerDeadline.isPast ? (
-                                <p className="text-[11px] leading-4 text-center text-muted-foreground">
+                                <p className="text-meta leading-4 text-center text-muted-foreground">
                                   {offerDeadline.summary}
                                 </p>
                               ) : null}
@@ -673,7 +677,7 @@ export function ScrollableInvoiceTable({
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 w-full min-w-0 max-w-full rounded-xl text-xs font-medium"
+                              className="w-full min-w-0 max-w-full"
                               disabled
                             >
                               {invoiceOfferActionCta.label}
@@ -683,7 +687,7 @@ export function ScrollableInvoiceTable({
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-8 w-full min-w-0 max-w-full rounded-xl border-status-action-text/30 bg-status-action-bg text-xs font-medium text-status-action-text hover:bg-status-action-bg"
+                              className="w-full min-w-0 max-w-full border-status-action-text/30 bg-status-action-bg text-status-action-text hover:bg-status-action-bg"
                               asChild
                             >
                               <Link href={`/applications/${application.id}/edit`}>
@@ -698,7 +702,7 @@ export function ScrollableInvoiceTable({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 shrink-0 mt-0"
+                            className="h-8 w-8 shrink-0"
                           >
                             <EllipsisVerticalIcon className="h-4 w-4" />
                           </Button>
@@ -794,7 +798,7 @@ export function ScrollableInvoiceTable({
         <DialogHeader>
           <DialogTitle>Reason</DialogTitle>
         </DialogHeader>
-        <p className="whitespace-pre-wrap break-words text-[15px] leading-7 text-foreground">
+        <p className="whitespace-pre-wrap break-words text-ui leading-7 text-foreground">
           {reasonRemarksBody}
         </p>
       </DialogContent>

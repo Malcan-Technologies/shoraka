@@ -22,9 +22,7 @@ export function SupportingDocRequirementBadges({
   size?: "default" | "compact";
 }) {
   const compact = size === "compact";
-  const badgeCn = cn(
-    compact ? "h-5 px-1.5 text-[10px] font-semibold uppercase tracking-wide" : "font-semibold"
-  );
+  const badgeCn = compact ? "h-5 px-1.5 text-[10px] uppercase tracking-wide" : undefined;
 
   return (
     <div

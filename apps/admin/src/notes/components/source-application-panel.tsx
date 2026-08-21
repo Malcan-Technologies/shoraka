@@ -1,6 +1,12 @@
+"use client";
+
 import Link from "next/link";
+import { LinkIcon } from "@heroicons/react/24/outline";
 import type { NoteDetail } from "@cashsouk/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { resolveNoteSourceLinkage } from "@/notes/utils/note-source-linkage";
+import { orgHref } from "@/lib/admin-directory-hrefs";
+import { usePermissions } from "@/hooks/use-permissions";
 
 function readString(value: unknown) {
   return typeof value === "string" && value.trim() ? value : null;
@@ -30,26 +36,27 @@ function SourceLink({
 }) {
   return (
     <div className="space-y-1">
-      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="text-meta text-muted-foreground">{label}</div>
       {value ? (
         href ? (
           <Link
             href={href}
-            className="block break-all font-mono text-xs font-medium text-primary underline-offset-4 hover:underline"
+            className="block break-all font-mono text-ui font-medium text-primary underline-offset-4 hover:underline"
           >
             {display ?? value}
           </Link>
         ) : (
-          <div className="break-all font-mono text-xs font-medium">{display ?? value}</div>
+          <div className="break-all font-mono text-ui font-medium">{display ?? value}</div>
         )
       ) : (
-        <div className="text-sm text-muted-foreground">—</div>
+        <div className="text-ui text-muted-foreground">—</div>
       )}
     </div>
   );
 }
 
 export function SourceApplicationPanel({ note }: { note: NoteDetail }) {
+  const { can } = usePermissions();
   const productKey = getApplicationProductKey(note);
   const applicationHref = productKey
     ? `/applications/${encodeURIComponent(productKey)}/${encodeURIComponent(note.sourceApplicationId)}`
@@ -58,20 +65,29 @@ export function SourceApplicationPanel({ note }: { note: NoteDetail }) {
     applicationHref && note.sourceInvoiceId
       ? `${applicationHref}?invoiceId=${encodeURIComponent(note.sourceInvoiceId)}`
       : null;
-  const contractHref = note.sourceContractId
-    ? `/contracts/${encodeURIComponent(note.sourceContractId)}`
+  const linkage = resolveNoteSourceLinkage(note);
+  const organizationHref = can("organizations.view")
+    ? orgHref("issuer", note.issuerOrganizationId)
     : null;
-  const organizationHref = `/organizations/issuer/${encodeURIComponent(note.issuerOrganizationId)}`;
 
   return (
     <Card className="rounded-2xl">
-      <CardHeader>
-        <CardTitle className="text-base">Source Application</CardTitle>
+      <CardHeader className="flex flex-row items-center gap-3 space-y-0">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
+          <LinkIcon className="h-4 w-4 text-primary" />
+        </div>
+        <CardTitle>Quick Links</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4 text-sm">
+      <CardContent className="space-y-4 text-ui">
         <SourceLink label="Application ID" value={note.sourceApplicationId} href={applicationHref} />
         <SourceLink label="Invoice ID" value={note.sourceInvoiceId} href={invoiceHref} />
-        <SourceLink label="Contract ID" value={note.sourceContractId} href={contractHref} />
+        {linkage.isStandalone ? null : (
+          <SourceLink
+            label="Facility ID"
+            value={linkage.contractId}
+            href={linkage.contractHref}
+          />
+        )}
         <SourceLink
           label="Issuer Organization"
           value={note.issuerOrganizationId}

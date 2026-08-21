@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Label } from "@/components/ui/label";
-import { YesNoRadioDisplay } from "@cashsouk/ui";
+import { YesNoRadioDisplay, StatusBadge } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
 import {
   ArrowDownTrayIcon,
@@ -59,8 +59,8 @@ import {
 } from "../comparison-document-pair";
 import type { ReviewSectionId } from "../section-types";
 import {
-  kycAmlScreeningRiskLevelBadgeClass,
-  kycAmlScreeningStatusBadgeClass,
+  kycAmlScreeningRiskToken,
+  kycAmlScreeningStatusToken,
 } from "@/lib/kyc-aml-screening-badge-classes";
 import { cn } from "@/lib/utils";
 import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
@@ -904,17 +904,19 @@ function GuarantorAmlScreeningCard({ screening }: { screening: GuarantorAmlScree
             {screening.regtankStatus ? (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground">Status:</span>
-                <Badge className={kycAmlScreeningStatusBadgeClass(screening.regtankStatus)}>
-                  {screening.regtankStatus}
-                </Badge>
+                <StatusBadge
+                  label={screening.regtankStatus}
+                  status={kycAmlScreeningStatusToken(screening.regtankStatus)}
+                />
               </div>
             ) : null}
             {hasRiskLevel ? (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground">Risk Level:</span>
-                <Badge className={kycAmlScreeningRiskLevelBadgeClass(screening.riskLevel)}>
-                  {riskLevelLabel}
-                </Badge>
+                <StatusBadge
+                  label={riskLevelLabel}
+                  status={kycAmlScreeningRiskToken(screening.riskLevel)}
+                />
               </div>
             ) : null}
             {hasScore ? (

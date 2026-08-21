@@ -268,7 +268,7 @@ describe("resolveReviewOfferModalMode", () => {
     });
     expect(mode).toMatchObject({ ui: "accept_decline", canAccept: false });
     if (mode.ui === "accept_decline") {
-      expect(mode.blockedMessage).toMatch(/contract signing/i);
+      expect(mode.blockedMessage).toMatch(/facility signing/i);
     }
   });
 });

@@ -32,7 +32,7 @@ export const ADMIN_PERMISSIONS = [
   "onboarding.view",
   "onboarding.manage",
 
-  // Users / Organizations
+  // User Accounts / Issuers & Investors
   "users.view",
   "users.manage",
   "organizations.view",
@@ -68,7 +68,7 @@ export const ADMIN_PERMISSIONS = [
   "gateway_reconciliation.view",
   "gateway_reconciliation.manage",
 
-  // Contracts (standalone)
+  // Facilities (standalone)
   "contracts.view",
   "contracts.manage",
 
@@ -228,14 +228,14 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
   },
   {
     key: "users",
-    label: "Users",
-    description: "View and manage admin-user records.",
+    label: "User Accounts",
+    description: "View and manage platform user accounts.",
     permissions: pickPermissions("users.view", "users.manage"),
   },
   {
     key: "organizations",
-    label: "Organizations",
-    description: "View and manage organizations and related statuses.",
+    label: "Issuers & Investors",
+    description: "View and manage issuer and investor records and related statuses.",
     permissions: pickPermissions("organizations.view", "organizations.manage"),
   },
   {
@@ -274,8 +274,8 @@ export const ADMIN_PERMISSION_GROUPS: AdminPermissionGroup[] = [
   },
   {
     key: "contracts",
-    label: "Contracts",
-    description: "View and manage standalone contract records and contract actions.",
+    label: "Facilities",
+    description: "View and manage standalone facility records and facility actions.",
     permissions: pickPermissions("contracts.view", "contracts.manage"),
   },
   {

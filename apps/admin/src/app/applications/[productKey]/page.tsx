@@ -1,7 +1,5 @@
 "use client";
 
-import { useHeader } from "@cashsouk/ui";
-
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApplicationsTable } from "@/components/applications-table";
@@ -12,9 +10,7 @@ import { useProducts } from "@/hooks/use-products";
 import { productName, resolveDisplayProductForNav } from "@/app/settings/products/product-utils";
 import { useRouter, useParams } from "next/navigation";
 import { RequirePermission } from "@/components/require-permission";
-import {
-  BanknotesIcon,
-} from "@heroicons/react/24/outline";
+import { AdminPageHeader } from "@/components/admin-page-header";
 import type {
   GetAdminApplicationsParams,
 } from "@cashsouk/types";
@@ -31,7 +27,6 @@ const DEFAULT_STATUS_FILTERS = [
 ];
 
 export default function DynamicApplicationsPage() {
-  const { setTitle } = useHeader();
   const queryClient = useQueryClient();
   const router = useRouter();
   const params = useParams();
@@ -43,11 +38,6 @@ export default function DynamicApplicationsPage() {
     ? resolveDisplayProductForNav(productsData.products, productKey)
     : undefined;
   const currentProductName = currentProduct ? productName(currentProduct) : "Applications";
-
-  React.useEffect(() => {
-    setTitle(`${currentProductName} Applications`);
-    return () => setTitle("");
-  }, [setTitle, currentProductName]);
 
   // Filters
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -108,21 +98,13 @@ export default function DynamicApplicationsPage() {
     <RequirePermission permission="applications.view">
       <>
             <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="w-full px-2 md:px-4 py-8 space-y-8">
+        <div className="w-full space-y-6 px-2 py-8 md:px-4">
 
-          {/* Applications Section */}
           <section className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <BanknotesIcon className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold">Applications Queue</h2>
-                <p className="text-sm text-muted-foreground">
-                  Review and process {currentProductName} applications from issuer organizations
-                </p>
-              </div>
-            </div>
+            <AdminPageHeader
+              title={`${currentProductName} Applications`}
+              description={`Review and process ${currentProductName} applications from issuer organizations`}
+            />
 
             {error && (
               <div className="text-center py-8 text-destructive">

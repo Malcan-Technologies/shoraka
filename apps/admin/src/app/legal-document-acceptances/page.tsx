@@ -2,10 +2,15 @@
 
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useHeader } from "@cashsouk/ui";
+import {
+  ListToolbar,
+  ListToolbarFilterTrigger,
+  PortalBadge,
+  StatusBadge,
+  type FilterChip,
+} from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -15,25 +20,26 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
+import { LegalAcceptanceDetailSheet } from "@/components/legal-acceptance-detail-sheet";
 import { RequirePermission } from "@/components/require-permission";
+import { AdminPageHeader } from "@/components/admin-page-header";
+import { adminActionRowClass } from "@/lib/admin-status-token";
 import {
-  useDownloadAcceptedVersion,
+  formatLegalAcceptanceDate,
+  LEGAL_ACCEPTANCE_STATUS_OPTIONS,
+  legalAcceptanceStatusLabel,
+  legalAcceptanceStatusToken,
+} from "@/lib/legal-acceptance-display";
+import {
   useExportLegalDocumentAcceptances,
-  useLegalDocumentAcceptanceDetail,
   useLegalDocumentAcceptances,
   type LegalDocumentAcceptancesParams,
 } from "@/hooks/use-legal-document-acceptances";
@@ -45,15 +51,11 @@ import {
   type LegalDocumentAcceptanceListItem,
   type LegalDocumentType,
 } from "@cashsouk/types";
-import { formatLegalFileSize } from "@/lib/legal-documents-admin";
 import {
   ArrowDownTrayIcon,
-  ArrowPathIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ClipboardDocumentCheckIcon,
-  MagnifyingGlassIcon,
-  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 
@@ -64,220 +66,12 @@ const LEGAL_TYPES = LEGAL_DOCUMENT_TYPES.map((value) => ({
   label: LEGAL_DOCUMENT_TYPE_LABELS[value],
 }));
 
-const STATUS_OPTIONS: { value: LegalAcceptanceStatus; label: string }[] = [
-  { value: "NOT_OPENED", label: "Not opened" },
-  { value: "OPENED", label: "Opened" },
-  { value: "ACCEPTED", label: "Accepted" },
-];
-
 const AUDIENCE_OPTIONS: { value: LegalAcceptanceAudience; label: string }[] = [
   { value: "ISSUER", label: "Issuer" },
   { value: "INVESTOR", label: "Investor" },
 ];
 
-function formatAcceptanceDate(dateStr: string | null): string {
-  if (!dateStr) return "—";
-  return new Date(dateStr).toLocaleString("en-MY", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
-function portalLabel(type: LegalAcceptanceAudience): string {
-  return type === "ISSUER" ? "Issuer" : "Investor";
-}
-
-function statusLabel(status: LegalAcceptanceStatus): string {
-  const match = STATUS_OPTIONS.find((option) => option.value === status);
-  return match?.label ?? status;
-}
-
-function statusBadgeVariant(
-  status: LegalAcceptanceStatus
-): "default" | "secondary" | "outline" | "destructive" {
-  if (status === "ACCEPTED") return "default";
-  if (status === "OPENED") return "secondary";
-  return "outline";
-}
-
-function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="text-sm break-all">{value ?? "—"}</p>
-    </div>
-  );
-}
-
-function AcceptanceDetailSheet({
-  acceptanceId,
-  open,
-  onOpenChange,
-}: {
-  acceptanceId: string | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const downloadAcceptedVersion = useDownloadAcceptedVersion();
-  const { data: acceptance, isLoading, error } = useLegalDocumentAcceptanceDetail(
-    open ? acceptanceId : null
-  );
-  const [downloading, setDownloading] = React.useState(false);
-
-  const handleDownload = async () => {
-    if (!acceptanceId) return;
-    setDownloading(true);
-    try {
-      await downloadAcceptedVersion(acceptanceId);
-    } catch (err) {
-      toast.error("Download failed", {
-        description: err instanceof Error ? err.message : "Could not download PDF",
-      });
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-        <SheetHeader>
-          <SheetTitle>Acceptance details</SheetTitle>
-          <SheetDescription>
-            Read-only evidence record for this legal document acceptance.
-          </SheetDescription>
-        </SheetHeader>
-
-        {isLoading ? (
-          <div className="mt-6 space-y-4">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="h-10 w-full" />
-            ))}
-          </div>
-        ) : error ? (
-          <p className="mt-6 text-sm text-destructive">
-            {error instanceof Error ? error.message : "Failed to load details"}
-          </p>
-        ) : acceptance ? (
-          <div className="mt-6 space-y-8">
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Overview</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <DetailField label="Acceptance ID" value={acceptance.id} />
-                <DetailField
-                  label="Status"
-                  value={
-                    <Badge variant={statusBadgeVariant(acceptance.status)}>
-                      {statusLabel(acceptance.status)}
-                    </Badge>
-                  }
-                />
-                <DetailField label="Created at" value={formatAcceptanceDate(acceptance.createdAt)} />
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Open evidence</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <DetailField label="Opened at" value={formatAcceptanceDate(acceptance.openedAt)} />
-                <DetailField label="Open IP" value={acceptance.openedIpAddress} />
-                <DetailField label="Open user agent" value={acceptance.openedUserAgent} />
-                <DetailField label="Open device" value={acceptance.openedDeviceInfo} />
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Acceptance evidence</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <DetailField
-                  label="Accepted at"
-                  value={formatAcceptanceDate(acceptance.acceptedAt)}
-                />
-                <DetailField label="Accept IP" value={acceptance.acceptedIpAddress} />
-                <DetailField label="Accept user agent" value={acceptance.acceptedUserAgent} />
-                <DetailField label="Accept device" value={acceptance.acceptedDeviceInfo} />
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Document evidence</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <DetailField
-                  label="Document type"
-                  value={
-                    acceptance.documentType
-                      ? LEGAL_DOCUMENT_TYPE_LABELS[acceptance.documentType]
-                      : acceptance.documentTitle
-                  }
-                />
-                <DetailField
-                  label="Version"
-                  value={acceptance.versionNumber != null ? `v${acceptance.versionNumber}` : "—"}
-                />
-                <DetailField label="Version ID" value={acceptance.legalDocumentVersionId} />
-                <DetailField label="Document ID" value={acceptance.legalDocumentId} />
-                <DetailField label="Hash" value={acceptance.documentHash} />
-                <DetailField label="File name" value={acceptance.fileName} />
-                <DetailField
-                  label="Version status"
-                  value={acceptance.versionStatus ?? "—"}
-                />
-                <DetailField label="Content type" value={acceptance.contentType} />
-                <DetailField
-                  label="File size"
-                  value={
-                    acceptance.fileSize != null
-                      ? formatLegalFileSize(acceptance.fileSize)
-                      : "—"
-                  }
-                />
-              </div>
-              <div className="space-y-1">
-                <p className="text-xs font-medium text-muted-foreground">Acknowledgement wording</p>
-                <p className="rounded-lg border bg-muted/30 p-3 text-sm">
-                  {acceptance.acknowledgementText ?? "—"}
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">User / organization</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <DetailField label="User ID" value={acceptance.userId} />
-                <DetailField label="User name snapshot" value={acceptance.userName} />
-                <DetailField label="User email snapshot" value={acceptance.userEmail} />
-                <DetailField label="Organization ID" value={acceptance.organizationId} />
-                <DetailField label="Organization name snapshot" value={acceptance.organizationName} />
-                <DetailField
-                  label="Organization type snapshot"
-                  value={acceptance.organizationAccountType}
-                />
-                <DetailField label="Portal" value={portalLabel(acceptance.portal)} />
-              </div>
-            </div>
-
-            <Button
-              variant="outline"
-              className="w-full"
-              disabled={downloading}
-              onClick={() => void handleDownload()}
-            >
-              <ArrowDownTrayIcon className="mr-2 h-4 w-4" />
-              {downloading ? "Preparing download..." : "Download accepted version"}
-            </Button>
-          </div>
-        ) : null}
-      </SheetContent>
-    </Sheet>
-  );
-}
-
 export default function LegalDocumentAcceptancesPage() {
-  const { setTitle } = useHeader();
   const queryClient = useQueryClient();
   const exportAcceptances = useExportLegalDocumentAcceptances();
 
@@ -291,11 +85,6 @@ export default function LegalDocumentAcceptancesPage() {
   const [exporting, setExporting] = React.useState(false);
   const [selectedAcceptanceId, setSelectedAcceptanceId] = React.useState<string | null>(null);
   const [detailOpen, setDetailOpen] = React.useState(false);
-
-  React.useEffect(() => {
-    setTitle("Legal Acceptances");
-    return () => setTitle("");
-  }, [setTitle]);
 
   const apiParams = React.useMemo((): LegalDocumentAcceptancesParams => {
     const params: LegalDocumentAcceptancesParams = {
@@ -334,6 +123,43 @@ export default function LegalDocumentAcceptancesPage() {
     statusFilter !== "all" ||
     Boolean(dateFrom) ||
     Boolean(dateTo);
+
+  const appliedFilters: FilterChip[] = [];
+  if (documentTypeFilter !== "all") {
+    appliedFilters.push({
+      id: "type",
+      label: `Type: ${LEGAL_DOCUMENT_TYPE_LABELS[documentTypeFilter as LegalDocumentType] ?? documentTypeFilter}`,
+      onRemove: () => setDocumentTypeFilter("all"),
+    });
+  }
+  if (audienceFilter !== "all") {
+    appliedFilters.push({
+      id: "audience",
+      label: `Portal: ${AUDIENCE_OPTIONS.find((option) => option.value === audienceFilter)?.label ?? audienceFilter}`,
+      onRemove: () => setAudienceFilter("all"),
+    });
+  }
+  if (statusFilter !== "all") {
+    appliedFilters.push({
+      id: "status",
+      label: `Status: ${legalAcceptanceStatusLabel(statusFilter as LegalAcceptanceStatus)}`,
+      onRemove: () => setStatusFilter("all"),
+    });
+  }
+  if (dateFrom) {
+    appliedFilters.push({
+      id: "date-from",
+      label: `From: ${dateFrom}`,
+      onRemove: () => setDateFrom(""),
+    });
+  }
+  if (dateTo) {
+    appliedFilters.push({
+      id: "date-to",
+      label: `To: ${dateTo}`,
+      onRemove: () => setDateTo(""),
+    });
+  }
 
   const clearFilters = () => {
     setSearchQuery("");
@@ -384,66 +210,87 @@ export default function LegalDocumentAcceptancesPage() {
     <RequirePermission permission="document_management.view">
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="w-full space-y-6 px-2 py-8 md:px-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Legal Acceptances</h1>
-            <p className="mt-1 text-[15px] leading-7 text-muted-foreground">
-              Evidence records when users open or accept legal documents
-            </p>
-          </div>
+          <AdminPageHeader
+            title="Legal Acceptances"
+            description="Evidence records when users open or accept legal documents"
+          />
 
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative min-w-[200px] flex-1">
-              <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, email, or organization..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-11 rounded-xl bg-card pl-9"
-              />
-            </div>
+          <ListToolbar
+            searchValue={searchQuery}
+            onSearchChange={setSearchQuery}
+            searchPlaceholder="Search by name, email, or organization..."
+            appliedFilters={appliedFilters}
+            onClearFilters={hasActiveFilters ? clearFilters : undefined}
+            onReload={handleReload}
+            isLoading={isLoading}
+            countLabel={`${totalCount} ${totalCount === 1 ? "record" : "records"}`}
+            filterGroups={
+              <>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <ListToolbarFilterTrigger
+                      label="Type"
+                      count={documentTypeFilter !== "all" ? 1 : 0}
+                    />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>Document type</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                      value={documentTypeFilter}
+                      onValueChange={setDocumentTypeFilter}
+                    >
+                      <DropdownMenuRadioItem value="all">All document types</DropdownMenuRadioItem>
+                      {LEGAL_TYPES.map((type) => (
+                        <DropdownMenuRadioItem key={type.value} value={type.value}>
+                          {type.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-            <Select value={documentTypeFilter} onValueChange={setDocumentTypeFilter}>
-              <SelectTrigger className="h-11 w-[200px] rounded-xl bg-card">
-                <SelectValue placeholder="Document type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All document types</SelectItem>
-                {LEGAL_TYPES.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <ListToolbarFilterTrigger
+                      label="Portal"
+                      count={audienceFilter !== "all" ? 1 : 0}
+                    />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuLabel>Portal</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup value={audienceFilter} onValueChange={setAudienceFilter}>
+                      <DropdownMenuRadioItem value="all">All portals</DropdownMenuRadioItem>
+                      {AUDIENCE_OPTIONS.map((option) => (
+                        <DropdownMenuRadioItem key={option.value} value={option.value}>
+                          {option.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-            <Select value={audienceFilter} onValueChange={setAudienceFilter}>
-              <SelectTrigger className="h-11 w-[140px] rounded-xl bg-card">
-                <SelectValue placeholder="Audience" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All portals</SelectItem>
-                {AUDIENCE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="h-11 w-[150px] rounded-xl bg-card">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All statuses</SelectItem>
-                {STATUS_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <ListToolbarFilterTrigger
+                      label="Status"
+                      count={statusFilter !== "all" ? 1 : 0}
+                    />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuLabel>Status</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup value={statusFilter} onValueChange={setStatusFilter}>
+                      <DropdownMenuRadioItem value="all">All statuses</DropdownMenuRadioItem>
+                      {LEGAL_ACCEPTANCE_STATUS_OPTIONS.map((option) => (
+                        <DropdownMenuRadioItem key={option.value} value={option.value}>
+                          {option.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            }
+          >
             <Input
               type="date"
               value={dateFrom}
@@ -458,24 +305,6 @@ export default function LegalDocumentAcceptancesPage() {
               className="h-11 w-[160px] rounded-xl bg-card"
               aria-label="Date to"
             />
-
-            {hasActiveFilters ? (
-              <Button variant="ghost" onClick={clearFilters} className="h-11 gap-2 rounded-xl">
-                <XMarkIcon className="h-4 w-4" />
-                Clear
-              </Button>
-            ) : null}
-
-            <Button
-              variant="outline"
-              onClick={handleReload}
-              disabled={isLoading}
-              className="h-11 gap-2 rounded-xl bg-card"
-            >
-              <ArrowPathIcon className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-              Reload
-            </Button>
-
             <Button
               variant="outline"
               onClick={() => void handleExport()}
@@ -485,14 +314,7 @@ export default function LegalDocumentAcceptancesPage() {
               <ArrowDownTrayIcon className="h-4 w-4" />
               {exporting ? "Exporting..." : "Export CSV"}
             </Button>
-
-            <Badge
-              variant="secondary"
-              className="rounded-xl px-3 py-1 text-[13px] font-medium leading-5"
-            >
-              {totalCount} {totalCount === 1 ? "record" : "records"}
-            </Badge>
-          </div>
+          </ListToolbar>
 
           {error ? (
             <div className="py-8 text-center text-destructive">
@@ -540,9 +362,9 @@ export default function LegalDocumentAcceptancesPage() {
                   </TableRow>
                 ) : (
                   acceptances.map((row) => (
-                    <TableRow key={row.id}>
+                    <TableRow key={row.id} className={adminActionRowClass(legalAcceptanceStatusToken(row.status))}>
                       <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
-                        {formatAcceptanceDate(row.acceptedAt)}
+                        {formatLegalAcceptanceDate(row.acceptedAt)}
                       </TableCell>
                       <TableCell className="max-w-[220px] text-sm">
                         <p className="truncate font-medium" title={row.documentTitle}>
@@ -559,8 +381,8 @@ export default function LegalDocumentAcceptancesPage() {
                           {row.organizationName ?? "—"}
                         </p>
                       </TableCell>
-                      <TableCell className="text-sm">
-                        {portalLabel(row.portal)}
+                      <TableCell>
+                        <PortalBadge portal={row.portal} />
                       </TableCell>
                       <TableCell className="max-w-[160px] text-sm">
                         <p className="truncate" title={row.userName ?? undefined}>
@@ -576,9 +398,10 @@ export default function LegalDocumentAcceptancesPage() {
                         {row.acceptedIpAddress ?? row.openedIpAddress ?? "—"}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={statusBadgeVariant(row.status)}>
-                          {statusLabel(row.status)}
-                        </Badge>
+                        <StatusBadge
+                          label={legalAcceptanceStatusLabel(row.status)}
+                          status={legalAcceptanceStatusToken(row.status)}
+                        />
                       </TableCell>
                       <TableCell className="text-right">
                         <Button variant="ghost" size="sm" onClick={() => openDetails(row)}>
@@ -622,7 +445,7 @@ export default function LegalDocumentAcceptancesPage() {
         </div>
       </div>
 
-      <AcceptanceDetailSheet
+      <LegalAcceptanceDetailSheet
         acceptanceId={selectedAcceptanceId}
         open={detailOpen}
         onOpenChange={setDetailOpen}

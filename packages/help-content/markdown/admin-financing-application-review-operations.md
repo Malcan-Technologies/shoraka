@@ -1,6 +1,6 @@
 ---
 title: "Financing Application Review"
-description: "Admin application review workflow: tab gating, section and line-item actions, amendments, contract and invoice offers, and status interpretation."
+description: "Admin application review workflow: tab gating, section and line-item actions, amendments, facility and invoice offers, and status interpretation."
 category: Application Review
 tags:
   - admin
@@ -11,7 +11,7 @@ updated: 2026-05-05
 
 ## Purpose
 
-This document describes the admin application review workflow for issuer financing applications after submission. It covers review scope by tab, sequential gating, section-level and line-item actions (approve, reject, request amendment), how contract and invoice stages advance through offers, and how to interpret application statuses in the admin portal.
+This document describes the admin application review workflow for issuer financing applications after submission. It covers review scope by tab, sequential gating, section-level and line-item actions (approve, reject, request amendment), how facility and invoice stages advance through offers, and how to interpret application statuses in the admin portal.
 
 ## Flow at a Glance
 
@@ -20,24 +20,24 @@ This document describes the admin application review workflow for issuer financi
 3. Review proceeds by tab (section). Some products also require review by line item (individual documents or invoices).
 4. For each section or item, the reviewer records an outcome: approve, reject, or request amendment as appropriate.
 5. When amendments are issued, the application enters **Amendment requested** until the issuer updates only the flagged areas and resubmits. A new review cycle begins. The portal may surface a comparison of changes.
-6. After prerequisite sections are approved, the reviewer sends contract and/or invoice offers where the product requires them.
+6. After prerequisite sections are approved, the reviewer sends facility and/or invoice offers where the product requires them.
 7. The issuer accepts, signs, or rejects each offer in the issuer portal.
 8. The application reaches **approved** or **completed** when all required offers are accepted or signed, or it closes on **rejected** or **withdrawn**.
 
 ## Review Scope by Tab
 
-The admin UI builds tabs from the product workflow. **Financial** is always first. Other steps appear only when the product includes them, in this order when present: **Company**, **Business & Guarantor**, **Documents**, **Contract**, **Invoice**.
+The admin UI builds tabs from the product workflow. **Financial** is always first. Other steps appear only when the product includes them, in this order when present: **Company**, **Business & Guarantor**, **Documents**, **Facility**, **Invoice**.
 
 - **Financial:** issuer-entered financials, CTOS figures where loaded, and the **Director and Shareholders** block (identity and compliance as shown). This tab uses one section-level outcome for the whole tab.
 - **Company:** legal entity and issuer profile from onboarding (addresses, registration context, bank details, and other company fields the step collects).
 - **Business & Guarantor:** operating and trading context, repayment position where captured, guarantors and their screening, and **Declarations** when the workflow includes that confirmation. Declarations are not a separate tab.
 - **Documents:** supporting uploads. When the product uses item-level review, each file is its own row with per-row actions.
-- **Contract:** facility and customer data for the product (new contract, existing facility, or invoice-only path). For invoice-only structures the content centers on customer or paymaster fields. Contract offers and signing run from this tab when the product requires them.
+- **Facility:** facility and customer data for the product (new facility, existing facility, or invoice-only path). For invoice-only structures the content centers on customer or paymaster fields. Facility offers and signing run from this tab when the product requires them.
 - **Invoice:** each invoice as its own row where applicable (attachments, amounts, tenor, ratio limits, and other invoice fields the product defines). Per-row review and invoice offers follow the product rules.
 
 ## Sections and Line Items
 
-- Section (tab): a single workflow step, for example company details or contract details.
+- Section (tab): a single workflow step, for example company details or facility details.
 - Line item: one row in a list within a section, for example one invoice or one document.
 
 For documents and invoices, review is usually per line item. The overall status for that step follows from the rows you complete. Use the row controls for the file or invoice that needs a decision instead of looking for one control that approves the entire list at once.
@@ -57,21 +57,21 @@ The Invoice tab uses the same row-by-row model. Complete each invoice row in tur
 The admin portal enforces staged access. Later tabs remain locked until earlier requirements are satisfied.
 
 - Financial, Company, Business & Guarantor, and Documents are generally available first.
-- Contract unlocks after those sections are approved, for products that include that step.
-- Invoice unlocks after the preceding sections and Contract are approved, when the product sequences invoices after contract.
-- Applications linked to an existing contract may treat the contract step as already satisfied from the prior facility, without repeating the same contract approval from scratch.
+- Facility unlocks after those sections are approved, for products that include that step.
+- Invoice unlocks after the preceding sections and Facility are approved, when the product sequences invoices after facility.
+- Applications linked to an existing facility may treat the facility step as already satisfied from the prior facility, without repeating the same facility approval from scratch.
 - Final application approval remains blocked until every required review section is approved.
 
 If a tab is locked, complete and approve the upstream tabs in the order shown by the workflow.
 
-## Contract and Invoice Tabs: Offers and Completion
+## Facility and Invoice Tabs: Offers and Completion
 
-For contract and invoice stages, completion is driven by offers, not only by the same pattern as a purely internal approve action on static data tabs.
+For facility and invoice stages, completion is driven by offers, not only by the same pattern as a purely internal approve action on static data tabs.
 
 Typical sequence:
 
-1. Validate the data shown on the contract or invoice tab.
-2. Send the contract offer or send the invoice offer (per row where applicable).
+1. Validate the data shown on the facility or invoice tab.
+2. Send the facility offer or send the invoice offer (per row where applicable).
 3. Await issuer acceptance or signature (or issuer rejection) in the issuer portal.
 
 For these stages, the commercial step is normally closed only after the offer is sent and the issuer has accepted or signed as required. Follow the primary actions shown on the tab (for example send offer) rather than assuming a single approve control completes the stage in the same way as company or document review.
@@ -125,14 +125,14 @@ The Business & Guarantor tab lists guarantors from issuer business details. The 
 
 Confirm screening outcome on the guarantor record before relying on guarantor support in the approval decision.
 
-## Preconditions for Sending a Contract Offer
+## Preconditions for Sending a Facility Offer
 
 - Customer or paymaster details are accurate.
 - Large private company indicator is correct where the product collects it.
 - Offered facility does not exceed the requested facility.
 - The offer is not already accepted or signed.
 
-After issuer acceptance or signature, the contract becomes the reference for linked invoices on the same application.
+After issuer acceptance or signature, the facility becomes the reference for linked invoices on the same application.
 
 ## Preconditions for Sending an Invoice Offer
 
@@ -143,24 +143,24 @@ After issuer acceptance or signature, the contract becomes the reference for lin
 
 Send offers only when prerequisite sections are approved and the target tab is unlocked.
 
-## Admin Stage Sequence (Contract and Invoice Products)
+## Admin Stage Sequence (Facility and Invoice Products)
 
-1. **Contract pending**: contract tab is active. The usual next action is to send contract offer when data are validated.
-2. **Contract sent**: offer delivered to issuer. Wait for issuer response.
-3. **Contract accepted**: issuer agreed. Proceed to invoice offers where the product requires them.
+1. **Facility pending**: facility tab is active. The usual next action is to send a facility offer when data are validated.
+2. **Facility sent**: offer delivered to issuer. Wait for issuer response.
+3. **Facility accepted**: issuer agreed. Proceed to invoice offers where the product requires them.
 4. **Invoice pending**: invoice tab active. Validate rows and send invoice offer(s) as required.
 5. **Invoices sent**: required invoice offers are outstanding. Wait for issuer responses.
 
-Invoice-only products omit contract stages and move from **invoice pending** to **invoices sent**.
+Invoice-only products omit facility stages and move from **invoice pending** to **invoices sent**.
 
 ## Status Reference (Admin)
 
 - **Draft**: issuer is still editing. No admin review actions apply.
 - **Submitted** or **Under review**: section and item review may proceed.
-- **Contract pending** or **Invoice pending**: prerequisite review is sufficiently complete. Validate data and typically send offers for the active stage.
+- **Facility pending** or **Invoice pending**: prerequisite review is sufficiently complete. Validate data and typically send offers for the active stage.
 - **Amendment requested**: issuer must address remarks and resubmit.
 - **Resubmitted**: issuer returned the application. Perform a full pass against outstanding remarks and current data.
-- **Contract sent** or **Invoices sent**: offers are with the issuer pending response (subject to any expiry rules configured for the product).
+- **Facility sent** or **Invoices sent**: offers are with the issuer pending response (subject to any expiry rules configured for the product).
 - **Approved** or **Completed**: required offer outcomes are satisfied.
 - **Withdrawn** or **Rejected**: the application is closed and does not advance further on that record.
 
@@ -171,6 +171,6 @@ Invoice-only products omit contract stages and move from **invoice pending** to 
 - Refresh organization and subject CTOS (and related party data) when material facts changed before approving financials.
 - Confirm customer or paymaster data before sending commercial offers.
 - Confirm guarantor screening before treating guarantor support as established.
-- Use invoice offers for invoice-level commercial approval and contract offers for facility-level approval.
+- Use invoice offers for invoice-level commercial approval and facility offers for facility-level approval.
 - Do not send offers until upstream sections are approved and the relevant tab is unlocked.
 - After issuer acceptance or signature, verify accepted terms in the portal before treating the commercial outcome as final for downstream handoff.

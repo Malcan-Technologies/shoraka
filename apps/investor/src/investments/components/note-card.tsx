@@ -4,7 +4,7 @@ import {
   formatInvestorReturnRatePercent,
   type NoteListItem,
 } from "@cashsouk/types";
-import { Badge, Card, CardContent, CardHeader, CardTitle } from "@cashsouk/ui";
+import { NoteStatusBadge, Card, CardContent, CardHeader, CardTitle } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 
 export function NoteCard({ note }: { note: NoteListItem }) {
@@ -16,7 +16,7 @@ export function NoteCard({ note }: { note: NoteListItem }) {
             <CardTitle className="text-lg">{note.title}</CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">{note.issuerName ?? "Issuer"}</p>
           </div>
-          <Badge variant="outline">{note.status.replace(/_/g, " ")}</Badge>
+          <NoteStatusBadge note={note} className="shrink-0" viewer="investor" />
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

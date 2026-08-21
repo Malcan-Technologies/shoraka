@@ -12,6 +12,7 @@ import {
   resolveApprovedFacility,
   resolveRequestedFacility,
 } from "@cashsouk/config";
+import { sumPendingInvoiceFacility, parseFacilityAmount } from "@/contracts/utils/contract-facility-metrics";
 import { FinancialSection } from "./sections/financial-section";
 import { BusinessSection } from "./sections/business-section";
 import { DocumentsSection } from "./sections/documents-section";
@@ -170,7 +171,7 @@ export interface SectionContentProps {
   invoiceRatioLimits?: { min: number; max: number };
   /** Platform finance setting for the maximum platform fee rate (%) allowed on invoice offers. */
   platformFeeRateCapPercent?: number | null;
-  /** Product-level default Facility Fee rate (%). Used only to prefill Contract Offer UI. */
+  /** Product-level default Facility Fee rate (%). Used only to prefill Facility Offer UI. */
   productDefaultFacilityFeeRatePercent?: number | null;
   /** Minimum months from today to maturity to enable Send Offer on invoice review. */
   minMonthsReviewToMaturityForOffer?: number | null;
@@ -432,7 +433,7 @@ export function SectionContent({
           isActionLocked={isActionLocked || isInheritedAcceptance}
           actionLockTooltip={
             isInheritedAcceptance
-              ? "Acceptance was completed when the linked contract was approved"
+              ? "Acceptance was completed when the linked facility was approved"
               : actionLockTooltip
           }
           viewDocumentPending={viewDocumentPending}
@@ -474,6 +475,7 @@ export function SectionContent({
                 }
               : undefined
           }
+          sectionStatus={sectionStatus}
         />
       );
     }
@@ -582,25 +584,31 @@ export function SectionContent({
         applicationId && app.contract && contractInvoices.length > 0
           ? contractInvoices.filter((inv) => inv.application_id !== applicationId)
           : [];
-      const mergedInvoices = [...appInvoices, ...otherContractInvoices];
-      const readOnlyInvoiceIds = new Set(otherContractInvoices.map((inv) => inv.id));
       const cd = contract?.contract_details as Record<string, unknown> | null | undefined;
       const contractStatus = sectionStatusMap?.get("contract_details") ?? "";
       const approvedFacility =
         (resolveApprovedFacility(contractStatus, cd) || resolveRequestedFacility(cd)) as number;
+      const utilizedFacility = parseFacilityAmount(cd?.utilized_facility) ?? 0;
+      const pendingFacility = sumPendingInvoiceFacility(
+        contractInvoices.length > 0 ? contractInvoices : appInvoices
+      );
+      const storedAvailable = parseFacilityAmount(cd?.available_facility);
       const availableFacility =
-        typeof cd?.available_facility === "number" ? cd.available_facility : approvedFacility;
-      const utilizedFacility =
-        typeof cd?.utilized_facility === "number" ? cd.utilized_facility : 0;
+        storedAvailable != null ? storedAvailable : approvedFacility - utilizedFacility;
       const contractFacility =
         app.contract && approvedFacility > 0
-          ? { contractFacility: approvedFacility, availableFacility, utilizedFacility }
+          ? {
+              contractFacility: approvedFacility,
+              availableFacility,
+              utilizedFacility,
+              pendingFacility,
+            }
           : undefined;
       return (
         <InvoiceSection
           applicationId={signingApplicationId}
-          invoices={mergedInvoices}
-          readOnlyInvoiceIds={readOnlyInvoiceIds}
+          invoices={appInvoices}
+          otherFacilityInvoices={otherContractInvoices}
           contractFacility={contractFacility}
           reviewItems={reviewItems}
           isReviewable={isReviewable}
@@ -628,19 +636,9 @@ export function SectionContent({
               ? (() => {
                   const bApp = sectionComparison.beforeApp;
                   const aApp = sectionComparison.afterApp;
-                  const bContract = bApp.contract as typeof contract | null | undefined;
-                  const aContract = aApp.contract as typeof contract | null | undefined;
-                  const bOther =
-                    applicationId && bContract?.invoices?.length
-                      ? bContract.invoices.filter((inv) => inv.application_id !== applicationId)
-                      : [];
-                  const aOther =
-                    applicationId && aContract?.invoices?.length
-                      ? aContract.invoices.filter((inv) => inv.application_id !== applicationId)
-                      : [];
                   return {
-                    beforeInvoices: [...(bApp.invoices ?? []), ...bOther],
-                    afterInvoices: [...(aApp.invoices ?? []), ...aOther],
+                    beforeInvoices: bApp.invoices ?? [],
+                    afterInvoices: aApp.invoices ?? [],
                     isPathChanged: sectionComparison.isPathChanged,
                   };
                 })()

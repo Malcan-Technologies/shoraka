@@ -66,6 +66,41 @@ export function useSaveProspectusReviewDraft(noteId: string) {
   });
 }
 
+/**
+ * Open a signed PDF URL in a new tab without tripping the popup blocker.
+ * `window.open` must run before any `await` (same click). Do not pass `noopener` —
+ * Chrome then returns `null` even when the tab opened, which looked like a block.
+ */
+async function openSignedPdfInNewTab(loadUrl: () => Promise<string>) {
+  const tab = window.open("about:blank", "_blank");
+  if (!tab) {
+    throw new Error("Pop-up blocked. Allow pop-ups for this site to view the Prospectus PDF.");
+  }
+  tab.opener = null;
+  try {
+    tab.location.href = await loadUrl();
+  } catch (error) {
+    tab.close();
+    throw error;
+  }
+}
+
+/** Open the frozen approved Prospectus PDF in a new tab. */
+export function useOpenAdminProspectusPdf() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  return useMutation({
+    mutationFn: async (noteId: string) => {
+      await openSignedPdfInNewTab(async () => {
+        const res = await apiClient.getAdminNoteProspectus(noteId);
+        if (!res.success) throw new Error(res.error.message);
+        if (!res.data.pdfViewUrl) throw new Error("Prospectus PDF is not available");
+        return res.data.pdfViewUrl;
+      });
+    },
+  });
+}
+
 export function useApproveProspectusReview(noteId: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
@@ -91,7 +126,7 @@ export function useApproveProspectusReview(noteId: string) {
 }
 
 /**
- * Saved-review preview (GET) — used for published View Prospectus.
+ * Saved-review preview (GET) — used for draft/approved Preview sheet.
  * Does not send unsaved form values.
  */
 export function useProspectusReviewPreview(noteId: string, enabled: boolean) {

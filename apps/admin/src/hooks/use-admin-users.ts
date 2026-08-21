@@ -41,7 +41,7 @@ export function useUpdateAdminRole() {
       return response.data;
     },
     onSuccess: () => {
-      // Invalidate both queries to keep /users and /settings/roles in sync
+      // Invalidate both queries to keep User Accounts and Settings → Roles in sync
       queryClient.invalidateQueries({ queryKey: ["admin", "admin-users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
     },
@@ -62,7 +62,7 @@ export function useDeactivateAdmin() {
       return response.data;
     },
     onSuccess: () => {
-      // Invalidate both queries to keep /users and /settings/roles in sync
+      // Invalidate both queries to keep User Accounts and Settings → Roles in sync
       queryClient.invalidateQueries({ queryKey: ["admin", "admin-users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
     },
@@ -83,7 +83,7 @@ export function useReactivateAdmin() {
       return response.data;
     },
     onSuccess: () => {
-      // Invalidate both queries to keep /users and /settings/roles in sync
+      // Invalidate both queries to keep User Accounts and Settings → Roles in sync
       queryClient.invalidateQueries({ queryKey: ["admin", "admin-users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
     },

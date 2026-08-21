@@ -23,7 +23,7 @@
 - Data Source: `application.directorKycStatus`, `application.corporateEntities`, CTOS `company_json.directors`
 - Description: Splits and maps directors/shareholders into matched, app-only, CTOS-only buckets for UI tables.
 
-### File: `apps/admin/src/app/organizations/[portal]/[id]/page.tsx`
+### File: `apps/admin/src/components/organization-detail-page.tsx`
 - Component: `OrganizationDetailPage` (`CorporateEntitiesDisplay`, `DirectorStatusDisplay`, `BusinessShareholderStatusDisplay`)
 - Data Source: `org.corporateEntities`, `org.directorKycStatus`, `org.directorAmlStatus`
 - Description: Renders directors/shareholders/corporate shareholders and their KYC/AML status cards.
@@ -111,7 +111,7 @@
 - Places that should switch to `people[]`:
   - `apps/admin/src/components/application-financial-review-content.tsx` (director/shareholder table).
   - `apps/admin/src/components/onboarding-review-dialog.tsx` (corporate unified rows in KYC/AML phases).
-  - `apps/admin/src/app/organizations/[portal]/[id]/page.tsx` (multiple legacy people/status cards).
+  - `apps/admin/src/components/organization-detail-page.tsx` (multiple legacy people/status cards).
   - `apps/admin/src/components/ssm-verification-panel.tsx` (after confirming side-by-side CTOS compare requirements).
   - `apps/issuer/src/components/director-shareholders-unified-section.tsx` and `apps/investor/src/components/directors-shareholders-card.tsx` (to consume backend-ready normalized status/action model consistently).
 

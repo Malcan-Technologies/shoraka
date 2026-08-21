@@ -63,6 +63,10 @@ jest.mock("../../lib/prisma", () => ({
   },
 }));
 
+jest.mock("../payment/onboarding-fee-service", () => ({
+  assertIssuerOnboardingFeePaid: jest.fn(),
+}));
+
 jest.mock("../../config/regtank", () => ({
   getRegTankConfig: () => ({
     redirectUrlInvestor: "https://investor.example.com",
@@ -328,6 +332,36 @@ describe("RegTankService.retryOnboarding personal restart persistence", () => {
     expect(mockCancelOnboarding).not.toHaveBeenCalled();
     expect(mockCreateOnboarding).not.toHaveBeenCalled();
     expect(result.requestId).toBe("COD0001");
+  });
+
+  it("allows an organization member to retry verification", async () => {
+    mockFindInvestorOrganizationById.mockResolvedValue({
+      id: "org-company",
+      owner_user_id: "OWNER1",
+      members: [{ user_id: "MEM01" }],
+      type: OrganizationType.COMPANY,
+      onboarding_status: OnboardingStatus.PENDING,
+    });
+    mockFindByOrganizationId.mockResolvedValue({
+      id: "row-cod",
+      request_id: "COD0001",
+      status: "EXPIRED",
+      portal_type: "investor",
+    });
+    mockRestartOnboarding.mockResolvedValue({
+      requestId: "COD0002",
+      verifyLink: "https://masked.cod.link?requestId=COD0002",
+      expiredIn: 86400,
+    });
+    mockUserFindUnique.mockResolvedValue({
+      user_id: "MEM01",
+      email: "member@example.com",
+    });
+
+    const service = new RegTankService();
+    const result = await service.retryOnboarding(makeReq(), "MEM01", "org-company", "investor");
+
+    expect(result.requestId).toBe("COD0002");
   });
 });
 

@@ -5,7 +5,7 @@
  * PART 1 — WHAT WE HAVE (the problem)
  * =============================================================================
  *
- * One application can have many statuses at once:
+ * One application can have many statuses at once (and legacy files may still have multiple invoices):
  *   - The application itself has a status (e.g. SUBMITTED)
  *   - The contract (if any) has a status (e.g. OFFER_SENT)
  *   - Each invoice has a status (e.g. one is DRAFT, one is OFFER_SENT, one is APPROVED)
@@ -115,6 +115,8 @@ export interface NormalizedInvoice {
   maturityDate: string | null;
   value: number | null;
   appliedFinancing: number | null;
+  /** Numeric invoice offer amount when CashSouk has sent or accepted an offer. */
+  offeredAmount: number | null;
   document: string;
   documentS3Key: string | null;
   financingOffered: string;
@@ -167,7 +169,7 @@ export function issuerInvoiceCanViewReasonRemarks(inv: NormalizedInvoice): boole
 export interface NormalizedApplication {
   id: string;
   displayReference?: string | null;
-  type: "Contract financing" | "Invoice financing" | "Generic";
+  type: "Facility financing" | "Invoice financing" | "Generic";
   status: string;
   cardStatus: CardStatusResult;
   contractTitle: string | null;
@@ -179,6 +181,8 @@ export interface NormalizedApplication {
   submittedAt: string | null;
   contractValue: number | null;
   facilityApplied: number | null;
+  /** Offered facility from the contract offer, when CashSouk has sent one. */
+  offeredFacilityAmount: number | null;
   approvedFacility: string;
   approvedFacilityAmount: number | null;
   facilityFeeRatePercent: number | null;
@@ -204,6 +208,12 @@ export interface NormalizedApplication {
   offerPhaseDeadline?: import("@/lib/offer-utils").OfferPhaseDeadlineDisplay | null;
   /** Primary offer acceptance phase (contract or invoice-only offer), when present. */
   offerAcceptanceStatus?: string | null;
+  /** Raw API application status (not the card badge key). */
+  applicationStatus: string;
+  /** Application-level withdraw, matching API origination-phase guards. */
+  canWithdraw: boolean;
+  /** COMPLETED with invoices but none approved. */
+  facilityInForceNoInvoices: boolean;
 }
 
 /* =============================================================================
@@ -274,7 +284,7 @@ export const FILTER_STATUSES = [
 
 /** Financing type filter options. */
 export const FINANCING_TYPES = [
-  { value: "contract", label: "Contract financing" },
+  { value: "contract", label: "Facility financing" },
   { value: "invoice", label: "Invoice financing" },
 ] as const;
 
@@ -448,7 +458,7 @@ export function getCardStatus(input: {
 
 export function countPendingIssuerOfferReviewItems(app: NormalizedApplication): number {
   let n = 0;
-  const hasContract = app.type === "Contract financing";
+  const hasContract = app.type === "Facility financing";
   if (
     app.cardStatus.showReviewOffer &&
     hasContract &&

@@ -7,7 +7,6 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Textarea } from "../../components/ui/textarea";
-import { Badge } from "../../components/ui/badge";
 import { Checkbox } from "../../components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import {
@@ -25,6 +24,7 @@ import {
   type OrganizationMemberRole,
   type BankAccountDetails,
   type UpdateOrganizationProfileInput,
+  MALAYSIAN_BANKS,
 } from "@cashsouk/config";
 import { useAuth } from "../../lib/auth";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -43,6 +43,7 @@ import {
   ConfirmDialog,
   PageShell,
   DirectorShareholdersUnifiedSection,
+  VerifiedBadge,
 } from "@cashsouk/ui";
 import {
   issuerContentMaxWidthClassName,
@@ -79,33 +80,6 @@ import {
 } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-
-// Malaysian banks list (values match RegTank format)
-const MALAYSIAN_BANKS = [
-  { value: "Affin Bank Berhad", label: "Affin Bank" },
-  { value: "Alliance Bank Malaysia Berhad", label: "Alliance Bank" },
-  { value: "AmBank / AmFinance Berhad", label: "AmBank" },
-  { value: "Bangkok Bank Berhad", label: "Bangkok Bank" },
-  { value: "Bank Islam Malaysia Berhad", label: "Bank Islam" },
-  { value: "Bank Kerjasama Rakyat Malaysia Berhad (Bank Rakyat)", label: "Bank Rakyat" },
-  { value: "Bank Muamalat Malaysia Berhad", label: "Bank Muamalat" },
-  { value: "Bank Pertanian Malaysia Berhad (Agrobank)", label: "Agrobank" },
-  { value: "Bank Simpanan Nasional Berhad (BSN)", label: "BSN" },
-  { value: "Bank of America", label: "Bank of America" },
-  { value: "Bank of China (Malaysia) Berhad", label: "Bank of China" },
-  { value: "CIMB Bank Berhad", label: "CIMB Bank" },
-  { value: "Co-operative Bank of Malaysia Berhad (Co-opbank Pertama)", label: "Co-opbank Pertama" },
-  { value: "Deutsche Bank (Malaysia) Berhad", label: "Deutsche Bank" },
-  { value: "Hong Leong Bank Berhad", label: "Hong Leong Bank" },
-  { value: "JP Morgan Chase Bank Berhad", label: "JP Morgan Chase" },
-  { value: "Maybank / Malayan Banking Berhad", label: "Maybank" },
-  { value: "Public Bank Berhad", label: "Public Bank" },
-  { value: "RHB Bank Berhad", label: "RHB Bank" },
-  { value: "Standard Chartered Bank Malaysia Berhad", label: "Standard Chartered" },
-  { value: "Sumitomo Mitsui Banking Corporation Malaysia Berhad", label: "Sumitomo Mitsui" },
-  { value: "United Overseas Bank (Malaysia) Berhad", label: "UOB Malaysia" },
-  { value: "UOB Bank Berhad", label: "UOB Bank" },
-];
 
 const roleConfig: Record<
   OrganizationMemberRole,
@@ -392,7 +366,6 @@ export default function ProfilePage() {
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState("profile");
   const [inviteDialogOpen, setInviteDialogOpen] = React.useState(false);
-  const [devViewAsMember, setDevViewAsMember] = React.useState(false);
 
   // Editing states
   const [isEditingProfile, setIsEditingProfile] = React.useState(false);
@@ -440,8 +413,6 @@ export default function ProfilePage() {
     );
     return currentUserMember?.role === "ORGANIZATION_ADMIN";
   }, [activeOrganization, currentUser]);
-
-  const effectiveIsAdmin = devViewAsMember ? false : isCurrentUserAdmin;
 
   const { invitations, resend, revoke } = useOrganizationInvitations(activeOrganization?.id, {
     enabled: isCurrentUserAdmin,
@@ -895,27 +866,15 @@ export default function ProfilePage() {
           title="Organisation"
           description="Company details, members, banking, and documents."
           action={
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="h-11 gap-2 rounded-xl"
-              >
-                <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-                Refresh
-              </Button>
-              {process.env.NODE_ENV === "development" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDevViewAsMember((prev) => !prev)}
-                  className="h-9 rounded-xl"
-                >
-                  {devViewAsMember ? "Exit Member View" : "View as Member"}
-                </Button>
-              )}
-            </div>
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="h-11 gap-2 rounded-xl"
+            >
+              <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
           }
         >
           <div className="flex items-start gap-4">
@@ -969,13 +928,7 @@ export default function ProfilePage() {
                         Identity details verified during onboarding
                       </p>
                     </div>
-                    <Badge
-                      variant="outline"
-                      className="bg-emerald-50 text-emerald-700 border-emerald-200"
-                    >
-                      <ShieldCheckIcon className="h-3.5 w-3.5 mr-1" />
-                      Verified
-                    </Badge>
+                    <VerifiedBadge />
                   </div>
                   <div className="p-6 space-y-4">
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -1039,7 +992,7 @@ export default function ProfilePage() {
               {!isPersonal && activeOrganization?.id && (
                 <CorporateInfoCard
   organizationId={activeOrganization.id}
-  canEdit={effectiveIsAdmin}
+  canEdit={isCurrentUserAdmin}
 />
               )}
 
@@ -1087,7 +1040,7 @@ export default function ProfilePage() {
                         Ensure your primary address is up to date
                       </p>
                     </div>
-                    {!isEditingProfile && effectiveIsAdmin ? (
+                    {!isEditingProfile && isCurrentUserAdmin ? (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1119,7 +1072,7 @@ export default function ProfilePage() {
                       )}
                     </div>
 
-                    {isEditingProfile && effectiveIsAdmin && (
+                    {isEditingProfile && isCurrentUserAdmin && (
                       <div className="flex justify-end gap-2 pt-4">
                         <Button
                           variant="outline"
@@ -1150,7 +1103,7 @@ export default function ProfilePage() {
                         Where your business operates and is registered
                       </p>
                     </div>
-                    {!isEditingAddresses && effectiveIsAdmin ? (
+                    {!isEditingAddresses && isCurrentUserAdmin ? (
                       <Button
                         variant="outline"
                         size="sm"
@@ -1306,7 +1259,7 @@ export default function ProfilePage() {
                       )}
                     </div>
 
-                    {isEditingAddresses && effectiveIsAdmin && (
+                    {isEditingAddresses && isCurrentUserAdmin && (
                       <div className="flex justify-end gap-2 pt-4">
                         <Button
                           variant="outline"
@@ -1341,7 +1294,7 @@ export default function ProfilePage() {
                         : "Applicant contact used on applications. Seeded from onboarding; edit here to update."}
                     </p>
                   </div>
-                  {!isEditingProfile && effectiveIsAdmin ? (
+                  {!isEditingProfile && isCurrentUserAdmin ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -1519,7 +1472,7 @@ export default function ProfilePage() {
                       Where disbursements and payouts are sent
                     </p>
                   </div>
-                  {!isEditingBanking && effectiveIsAdmin ? (
+                  {!isEditingBanking && isCurrentUserAdmin ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -1606,7 +1559,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  {isEditingBanking && effectiveIsAdmin && (
+                  {isEditingBanking && isCurrentUserAdmin && (
                     <div className="flex justify-end gap-2 pt-4">
                       <Button
                         variant="outline"

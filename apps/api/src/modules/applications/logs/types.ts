@@ -32,6 +32,8 @@ export enum ApplicationLogEventType {
   CONTRACT_OFFER_ACCEPTED = "CONTRACT_OFFER_ACCEPTED",
   CONTRACT_OFFER_REJECTED = "CONTRACT_OFFER_REJECTED",
   CONTRACT_OFFER_RETRACTED = "CONTRACT_OFFER_RETRACTED",
+  /** Revolving occupancy changed (draw reserved, funded true-up, or repayment released). */
+  CONTRACT_FACILITY_OCCUPANCY_UPDATED = "CONTRACT_FACILITY_OCCUPANCY_UPDATED",
   /** Durable expiry after acceptance/signing deadline (entity → OFFER_EXPIRED). */
   CONTRACT_OFFER_EXPIRED = "CONTRACT_OFFER_EXPIRED",
   /** Admin restamped signing_expires_at after the signing clock passed. */

@@ -1,4 +1,4 @@
-  /**
+/**
  * Shared helpers for invoice offer values (requested, offered, profit rate, platform fee).
  * Mirrors contract-facility pattern for consistency.
  *
@@ -11,6 +11,19 @@ export type InvoiceOfferDetailsLike = Record<string, unknown> | null | undefined
 /** Field names for requested/applied financing. Checked in order. */
 const REQUESTED_AMOUNT_KEYS = ["applied_financing", "financing_amount"] as const;
 
+function parsePositiveAmount(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) && value > 0 ? value : null;
+  }
+  if (typeof value === "string") {
+    const cleaned = value.replace(/[^0-9.-]/g, "");
+    if (cleaned === "" || cleaned === "-" || cleaned === ".") return null;
+    const n = Number(cleaned);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  return null;
+}
+
 /**
  * Resolve requested financing amount from invoice details.
  * Falls back to value × (financing_ratio_percent / 100) when explicit fields missing.
@@ -18,21 +31,11 @@ const REQUESTED_AMOUNT_KEYS = ["applied_financing", "financing_amount"] as const
 export function resolveRequestedInvoiceAmount(details: InvoiceDetailsLike): number {
   if (!details || typeof details !== "object") return 0;
   for (const key of REQUESTED_AMOUNT_KEYS) {
-    const v = details[key];
-    if (typeof v === "number" && Number.isFinite(v) && v > 0) return v;
+    const parsed = parsePositiveAmount(details[key]);
+    if (parsed != null) return parsed;
   }
-  const value =
-    typeof details.value === "number"
-      ? details.value
-      : typeof details.invoice_value === "number"
-        ? details.invoice_value
-        : null;
-  const ratio =
-    typeof details.financing_ratio_percent === "number"
-      ? details.financing_ratio_percent
-      : typeof details.financing_ratio_percent === "string"
-        ? Number(details.financing_ratio_percent)
-        : null;
+  const value = parsePositiveAmount(details.value) ?? parsePositiveAmount(details.invoice_value);
+  const ratio = parsePositiveAmount(details.financing_ratio_percent);
   if (value != null && Number.isFinite(value) && ratio != null && Number.isFinite(ratio)) {
     return Math.round((value * ratio) / 100);
   }
@@ -44,8 +47,7 @@ export function resolveRequestedInvoiceAmount(details: InvoiceDetailsLike): numb
  */
 export function resolveOfferedAmount(offer: InvoiceOfferDetailsLike): number {
   if (!offer || typeof offer !== "object") return 0;
-  const v = offer.offered_amount;
-  return typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0;
+  return parsePositiveAmount(offer.offered_amount) ?? 0;
 }
 
 /**

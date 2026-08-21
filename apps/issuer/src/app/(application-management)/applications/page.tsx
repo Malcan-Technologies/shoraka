@@ -8,6 +8,7 @@ import {
   ConfirmDialog,
   EmptyState,
   ListToolbar,
+  ListToolbarFilterTrigger,
   LoadingState,
   PageShell,
   Pagination,
@@ -21,7 +22,6 @@ import {
 import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ApplyForFinancingButton } from "@/components/apply-for-financing-button";
 import {
@@ -41,8 +41,13 @@ import {
   FINANCING_TYPES,
   isIssuerApplicationActionable,
 } from "./status";
+import {
+  applicationMatchesListSearch,
+  ISSUER_APPLICATIONS_SEARCH_PLACEHOLDER,
+} from "./application-list-search";
 import { useApplicationsData } from "./use-applications-data";
 import { ApplicationSlimCard } from "./components/application-slim-card";
+import { ApplicationAttentionCarousel } from "./components/application-attention-carousel";
 import { useCancelApplication, useDeleteDraftApplication } from "@/hooks/use-applications";
 import { generateMockApplications } from "@/dev/mockApplications";
 import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
@@ -137,16 +142,19 @@ export default function ApplicationsPage() {
     }
   }, [deleteDraftApplicationId, deleteDraftApplication]);
 
+  const needsAttention = React.useMemo(
+    () => applications.filter((a) => isIssuerApplicationActionable(a)),
+    [applications]
+  );
+  const needsAttentionIds = React.useMemo(
+    () => new Set(needsAttention.map((a) => a.id)),
+    [needsAttention]
+  );
+
   const filteredApplications = React.useMemo(() => {
     let list = [...applications];
-    if (search) {
-      const q = search.toLowerCase();
-      list = list.filter(
-        (a) =>
-          a.customer.toLowerCase().includes(q) ||
-          a.id.toLowerCase().includes(q) ||
-          a.invoices.some((inv) => inv.number.toLowerCase().includes(q))
-      );
+    if (search.trim()) {
+      list = list.filter((a) => applicationMatchesListSearch(a, search));
     }
     if (applicationIdsFilter.length > 0) {
       const idSet = new Set(applicationIdsFilter);
@@ -157,7 +165,7 @@ export default function ApplicationsPage() {
     }
     if (financingFilter !== "all") {
       const match =
-        financingFilter === "contract" ? "Contract financing" : "Invoice financing";
+        financingFilter === "contract" ? "Facility financing" : "Invoice financing";
       list = list.filter((a) => a.type === match);
     }
     if (submittedFilter !== "all") {
@@ -197,37 +205,30 @@ export default function ApplicationsPage() {
     applicationIdsFilter,
   ]);
 
-  const needsAttention = React.useMemo(
-    () => filteredApplications.filter((a) => isIssuerApplicationActionable(a)),
-    [filteredApplications]
-  );
-  const needsAttentionIds = React.useMemo(
-    () => new Set(needsAttention.map((a) => a.id)),
-    [needsAttention]
-  );
   const remainingApplications = React.useMemo(
     () => filteredApplications.filter((a) => !needsAttentionIds.has(a.id)),
     [filteredApplications, needsAttentionIds]
   );
+  const unfilteredRemainingCount = applications.length - needsAttention.length;
 
-  /** Paginate the combined list (attention first, then the rest) for stable paging. */
-  const orderedForPaging = React.useMemo(
-    () => [...needsAttention, ...remainingApplications],
-    [needsAttention, remainingApplications]
-  );
+  const restTotal = remainingApplications.length;
+  const maxRestPage = Math.max(1, Math.ceil(restTotal / perPage) || 1);
 
-  const paginatedApplications = orderedForPaging.slice((page - 1) * perPage, page * perPage);
-  const paginatedAttention = paginatedApplications.filter((a) => needsAttentionIds.has(a.id));
-  const paginatedRest = paginatedApplications.filter((a) => !needsAttentionIds.has(a.id));
+  React.useEffect(() => {
+    if (page > maxRestPage) setPage(maxRestPage);
+  }, [page, maxRestPage]);
+
+  const paginatedRest = remainingApplications.slice((page - 1) * perPage, page * perPage);
 
   const totalCount = applications.length;
-  const hasFilters =
-    search !== "" ||
+  const searchQuery = search.trim();
+  const hasNonSearchFilters =
     applicationIdsFilter.length > 0 ||
     statusFilters.length > 0 ||
     financingFilter !== "all" ||
     submittedFilter !== "all" ||
     offerExpiryFilter !== "all";
+  const hasFilters = searchQuery !== "" || hasNonSearchFilters;
 
   const clearApplicationIdsFilter = React.useCallback(() => {
     setApplicationIdsFilter([]);
@@ -256,6 +257,16 @@ export default function ApplicationsPage() {
 
   const appliedFilters = React.useMemo(() => {
     const chips: FilterChip[] = [];
+    if (searchQuery) {
+      chips.push({
+        id: "search",
+        label: `Search: ${searchQuery}`,
+        onRemove: () => {
+          setSearch("");
+          setPage(1);
+        },
+      });
+    }
     for (const key of statusFilters) {
       chips.push({
         id: `status-${key}`,
@@ -315,6 +326,7 @@ export default function ApplicationsPage() {
     }
     return chips;
   }, [
+    searchQuery,
     statusFilters,
     financingFilter,
     submittedFilter,
@@ -359,10 +371,8 @@ export default function ApplicationsPage() {
     !areDirectorShareholdersReadyForApplicationSubmit({ people: visiblePeopleForDsGating });
 
   const countLabel = hasFilters
-    ? `${filteredApplications.length} of ${totalCount} applications`
-    : `${filteredApplications.length} ${
-        filteredApplications.length === 1 ? "application" : "applications"
-      }`;
+    ? `${restTotal} of ${unfilteredRemainingCount} applications`
+    : `${restTotal} ${restTotal === 1 ? "application" : "applications"}`;
 
   return (
     <div className={issuerMainContentClassName}>
@@ -389,7 +399,7 @@ export default function ApplicationsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 w-full justify-start text-xs"
+                className="w-full justify-start"
                 onClick={() => {
                   setDebugShowSkeleton((prev) => !prev);
                   if (!debugShowSkeleton) setDebugMockApplications(null);
@@ -400,7 +410,7 @@ export default function ApplicationsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 w-full justify-start text-xs"
+                className="w-full justify-start"
                 onClick={() => {
                   setDebugMockApplications(generateMockApplications(MOCK_APPLICATION_COUNT));
                   setDebugShowSkeleton(false);
@@ -411,7 +421,7 @@ export default function ApplicationsPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 w-full justify-start text-xs"
+                className="w-full justify-start"
                 onClick={() => {
                   setDebugShowSkeleton(false);
                   setDebugMockApplications(null);
@@ -431,13 +441,44 @@ export default function ApplicationsPage() {
           }
         >
           <div className="space-y-6">
+            {isLoading ? (
+              <LoadingState variant="cards" />
+            ) : totalCount === 0 ? (
+              <EmptyState
+                variant="no-data"
+                title="No applications yet"
+                message="Start a financing application when you are ready."
+                action={<ApplyForFinancingButton showIcon={false} className="rounded-xl" />}
+              />
+            ) : (
+              <>
+                {needsAttention.length > 0 ? (
+                  <section className="space-y-3">
+                    <div className="flex items-baseline justify-between gap-3">
+                      <h2 className="text-base font-semibold text-foreground">
+                        Needs your attention
+                      </h2>
+                      <span className="text-ui text-muted-foreground">
+                        {needsAttention.length} to review
+                      </span>
+                    </div>
+                    <ApplicationAttentionCarousel
+                      applications={needsAttention}
+                      onViewSignedContractOffer={handleDocumentDownload}
+                      onCancelApplication={handleWithdrawApplicationClick}
+                      onDeleteDraft={handleDeleteDraftClick}
+                      isCancelApplicationPending={cancelApplication.isPending}
+                    />
+                  </section>
+                ) : null}
+
             <ListToolbar
               searchValue={search}
               onSearchChange={(value) => {
                 setSearch(value);
                 setPage(1);
               }}
-              searchPlaceholder="Application ID, customer, or invoice number"
+              searchPlaceholder={ISSUER_APPLICATIONS_SEARCH_PLACEHOLDER}
               appliedFilters={appliedFilters}
               onClearFilters={clearAllFilters}
               onReload={() => {
@@ -449,14 +490,10 @@ export default function ApplicationsPage() {
                 <>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
-                        Status
-                        {statusFilters.length > 0 ? (
-                          <Badge className="ml-1 flex h-5 w-5 items-center justify-center rounded-full p-0 text-xs">
-                            {statusFilters.length}
-                          </Badge>
-                        ) : null}
-                      </Button>
+                      <ListToolbarFilterTrigger
+                        label="Status"
+                        count={statusFilters.length}
+                      />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-56 p-1">
                       <DropdownMenuLabel>Status</DropdownMenuLabel>
@@ -498,22 +535,16 @@ export default function ApplicationsPage() {
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
-                        Filters
-                        {(submittedFilter !== "all" ||
-                          financingFilter !== "all" ||
-                          offerExpiryFilter !== "all") && (
-                          <Badge className="ml-1 flex h-5 w-5 items-center justify-center rounded-full p-0 text-xs">
-                            {
-                              [
-                                submittedFilter !== "all",
-                                financingFilter !== "all",
-                                offerExpiryFilter !== "all",
-                              ].filter(Boolean).length
-                            }
-                          </Badge>
-                        )}
-                      </Button>
+                      <ListToolbarFilterTrigger
+                        label="Filters"
+                        count={
+                          [
+                            submittedFilter !== "all",
+                            financingFilter !== "all",
+                            offerExpiryFilter !== "all",
+                          ].filter(Boolean).length
+                        }
+                      />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-56 p-0">
                       <div className="p-1">
@@ -597,59 +628,38 @@ export default function ApplicationsPage() {
               }
             />
 
-            {isLoading ? (
-              <LoadingState variant="cards" />
-            ) : paginatedApplications.length === 0 ? (
+            {restTotal === 0 && hasFilters ? (
               <EmptyState
-                variant={totalCount === 0 ? "no-data" : "no-results"}
-                title={totalCount === 0 ? "No applications yet" : "No matching applications"}
+                variant="no-results"
+                title="No matching applications"
                 message={
-                  totalCount === 0
-                    ? "Start a financing application when you are ready."
-                    : "Try clearing filters or adjusting your search."
+                  searchQuery
+                    ? `No applications match “${searchQuery}”. Try a reference, customer name, or invoice number.`
+                    : "Try a different search or clear your filters."
                 }
                 action={
-                  totalCount === 0 ? (
-                    <ApplyForFinancingButton showIcon={false} className="rounded-xl" />
-                  ) : (
-                    <Button variant="outline" className="rounded-xl" onClick={clearAllFilters}>
-                      Clear filters
-                    </Button>
-                  )
+                  <Button
+                    variant="outline"
+                    className="rounded-xl"
+                    onClick={() => {
+                      if (searchQuery && !hasNonSearchFilters) {
+                        setSearch("");
+                        setPage(1);
+                        return;
+                      }
+                      clearAllFilters();
+                    }}
+                  >
+                    {searchQuery && !hasNonSearchFilters ? "Clear search" : "Clear filters"}
+                  </Button>
                 }
               />
             ) : (
               <div className="space-y-8">
-                {paginatedAttention.length > 0 ? (
-                  <section className="space-y-3">
-                    <div className="flex items-baseline justify-between gap-3">
-                      <h2 className="text-base font-semibold text-foreground">
-                        Needs your attention
-                      </h2>
-                      <span className="text-[13px] text-muted-foreground">
-                        {needsAttention.length}{" "}
-                        {needsAttention.length === 1 ? "item" : "items"}
-                      </span>
-                    </div>
-                    <div className="space-y-3">
-                      {paginatedAttention.map((app) => (
-                        <ApplicationSlimCard
-                          key={app.id}
-                          application={app}
-                          onViewSignedContractOffer={handleDocumentDownload}
-                          onCancelApplication={handleWithdrawApplicationClick}
-                          onDeleteDraft={handleDeleteDraftClick}
-                          isCancelApplicationPending={cancelApplication.isPending}
-                        />
-                      ))}
-                    </div>
-                  </section>
-                ) : null}
-
                 {paginatedRest.length > 0 ? (
                   <section className="space-y-3">
                     <h2 className="text-base font-semibold text-foreground">
-                      {paginatedAttention.length > 0 ? "All applications" : "Applications"}
+                      {needsAttention.length > 0 ? "All applications" : "Applications"}
                     </h2>
                     <div className="space-y-3">
                       {paginatedRest.map((app) => (
@@ -666,19 +676,23 @@ export default function ApplicationsPage() {
                   </section>
                 ) : null}
 
-                <Pagination
-                  page={page}
-                  pageSize={perPage}
-                  total={orderedForPaging.length}
-                  onPageChange={setPage}
-                  onPageSizeChange={(size) => {
-                    setPerPage(size);
-                    setPage(1);
-                  }}
-                  pageSizeOptions={PER_PAGE_OPTIONS}
-                  itemLabel="applications"
-                />
+                {restTotal > 0 ? (
+                  <Pagination
+                    page={page}
+                    pageSize={perPage}
+                    total={restTotal}
+                    onPageChange={setPage}
+                    onPageSizeChange={(size) => {
+                      setPerPage(size);
+                      setPage(1);
+                    }}
+                    pageSizeOptions={PER_PAGE_OPTIONS}
+                    itemLabel="applications"
+                  />
+                ) : null}
               </div>
+            )}
+              </>
             )}
           </div>
 

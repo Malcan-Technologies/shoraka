@@ -118,6 +118,9 @@ export interface ActivityReferences {
   contractNumber?: string;
   invoiceId?: string;
   invoiceNumber?: string;
+  noteId?: string;
+  noteReference?: string;
+  envelopeId?: string;
 }
 
 export interface Activity {
@@ -272,6 +275,9 @@ export interface Application {
   created_at: string;
   updated_at: string;
   submitted_at?: string | null;
+  /** Present when loaded from issuer list/detail APIs. */
+  canWithdraw?: boolean;
+  archivedAt?: string | null;
 }
 
 export interface CreateApplicationInput {
@@ -344,6 +350,8 @@ export interface ContractDetails {
   approved_facility: number | null;
   utilized_facility: number | null;
   available_facility: number | null;
+  pending_facility?: number | null;
+  repaid_facility?: number | null;
   document?: {
     s3_key: string;
     file_name: string;
@@ -439,6 +447,7 @@ export interface InvoiceOfferDetails {
 export * from "./deadline-config";
 export * from "./invoice-offer-risk-rating";
 export * from "./activity-config";
+export * from "./activity-presentation";
 export * from "./admin";
 export * from "./legal-documents";
 export * from "./application-steps";
@@ -466,6 +475,7 @@ export * from "./onboarding-readiness";
 export * from "./ctos-party-supplement-json";
 export * from "./regtank-iso3166-countries";
 export * from "./notes";
+export * from "./investor-balance-activity";
 export * from "./display-reference";
 export * from "./prospectus-review";
 export * from "./prospectus-status";
@@ -474,6 +484,7 @@ export * from "./prospectus-highlight-recommendations";
 export * from "./prospectus-about-invoice-recommendations";
 export * from "./investor-return-breakdown";
 export * from "./marketplace-note-dates";
+export * from "./marketplace-catalog";
 export * from "./prospectus-calendar";
 export * from "./signing-envelopes";
 export * from "./acceptance-documents";
@@ -483,6 +494,7 @@ export * from "./supporting-document-row";
 export * from "./guarantor-agreement-config";
 export * from "./offer-acceptance";
 export * from "./contract-loo-demo";
+export * from "./origination-phase";
 export * from "./offer-phase-deadline-display";
 export * from "./guarantors";
 export * from "./company-name-normalization";

@@ -454,14 +454,7 @@ export class LegalDocumentAcceptanceService {
     organizationId: string,
     audience: LegalAcceptanceAudience
   ) {
-    const org = await assertOrgAccess(userId, organizationId, audience);
-    if (org.owner_user_id !== userId) {
-      throw new AppError(
-        403,
-        "FORBIDDEN",
-        "Only the organization owner can accept legal documents"
-      );
-    }
+    await assertOrgAccess(userId, organizationId, audience);
 
     const version = await legalDocumentRepository.findVersionById(versionId);
     if (!version || version.status !== "PUBLISHED") {

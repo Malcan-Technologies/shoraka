@@ -137,7 +137,7 @@ export function ApplicationProcessingFeeStep({
         <h2 className="text-xl font-semibold">
           {isUnderReview ? "Processing fee" : "Pay processing fee"}
         </h2>
-        <p className="text-[15px] text-muted-foreground">
+        <p className="text-ui text-muted-foreground">
           {isUnderReview
             ? "Your payment is being verified before the application can be submitted."
             : "Your declarations have been saved. Complete this one-time fee to submit your application for review."}

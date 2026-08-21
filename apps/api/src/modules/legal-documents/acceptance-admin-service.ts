@@ -256,7 +256,10 @@ export class LegalDocumentAcceptanceAdminService {
         where: where as never,
         skip,
         take: query.pageSize,
-        orderBy: [{ [sortField]: sortOrder }, { created_at: "desc" }],
+        orderBy:
+          sortField === "accepted_at"
+            ? [{ accepted_at: { sort: sortOrder, nulls: "last" } }, { created_at: "desc" }]
+            : [{ created_at: sortOrder }],
         include: includeRelations,
       }),
       prisma.legalDocumentAcceptance.count({ where: where as never }),
@@ -297,7 +300,10 @@ export class LegalDocumentAcceptanceAdminService {
 
     const rows = (await prisma.legalDocumentAcceptance.findMany({
       where: where as never,
-      orderBy: [{ [sortField]: sortOrder }, { created_at: "desc" }],
+      orderBy:
+        sortField === "accepted_at"
+          ? [{ accepted_at: { sort: sortOrder, nulls: "last" } }, { created_at: "desc" }]
+          : [{ created_at: sortOrder }],
       take: 10_000,
       include: includeRelations,
     })) as unknown as AcceptanceWithRelations[];

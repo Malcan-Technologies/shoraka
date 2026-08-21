@@ -11,12 +11,20 @@ export type TransactionContext =
   | { kind: "note-link"; noteId: string; noteReferenceDisplay: string; prefix?: string }
   | { kind: "empty" };
 
+export interface TransactionStatus {
+  label: string;
+  tokenStatus: string;
+}
+
 export interface Transaction {
   id: string;
   type: TransactionType;
+  /** First-glance label, e.g. "Investment committed". */
+  title: string;
   direction: "IN" | "OUT";
   amount: number;
   context: TransactionContext;
+  status: TransactionStatus | null;
   balance: number;
   postedAt: string;
 }
@@ -42,5 +50,13 @@ export const TRANSACTION_TYPE_FILTER_OPTIONS = [
   "Returns",
   "Release",
 ] as const satisfies readonly TransactionType[];
+
+export const TRANSACTION_TYPE_FILTER_LABELS: Record<TransactionType, string> = {
+  Deposit: "Deposit",
+  Withdrawal: "Withdrawal",
+  Investment: "Investment",
+  Returns: "Investment returns",
+  Release: "Investment returned",
+};
 
 export const MIN_WITHDRAWAL_AMOUNT = 100;

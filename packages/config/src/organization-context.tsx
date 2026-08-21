@@ -12,6 +12,7 @@ import {
 import type { ApplicationPersonRow } from "@cashsouk/types";
 import { createApiClient } from "./api-client";
 import { useAuthToken } from "./auth-context";
+import type { BankAccountDetails } from "./bank-account-details";
 
 export type OrganizationType = "PERSONAL" | "COMPANY";
 export type OnboardingStatus =
@@ -33,28 +34,6 @@ export interface OrganizationMember {
   firstName: string;
   lastName: string;
   role: OrganizationMemberRole;
-}
-
-// Bank account details - matches RegTank format
-export interface BankAccountField {
-  cn: boolean;
-  fieldName: string;
-  fieldType: string;
-  fieldValue: string;
-}
-
-export interface BankAccountDetails {
-  content: BankAccountField[];
-  displayArea: string;
-}
-
-export function getBankAccountField(
-  bankDetails: BankAccountDetails | null | undefined,
-  fieldName: string
-): string {
-  if (!bankDetails?.content) return "";
-  const field = bankDetails.content.find((item) => item.fieldName === fieldName);
-  return field?.fieldValue ?? "";
 }
 
 export interface Organization {

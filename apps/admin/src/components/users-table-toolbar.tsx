@@ -1,7 +1,4 @@
-import * as React from "react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { ListToolbar, ListToolbarFilterTrigger, type FilterChip } from "@cashsouk/ui";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,13 +8,16 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { MagnifyingGlassIcon, FunnelIcon, XMarkIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+
+const ONBOARDED_LABELS: Record<string, string> = {
+  completed: "Completed",
+  not_completed: "Not completed",
+};
 
 interface UsersTableToolbarProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
   roleFilter: string;
-  onRoleFilterChange: (value: string) => void;
   investorOnboardedFilter: string;
   onInvestorOnboardedFilterChange: (value: string) => void;
   issuerOnboardedFilter: string;
@@ -32,8 +32,7 @@ interface UsersTableToolbarProps {
 export function UsersTableToolbar({
   searchQuery,
   onSearchChange,
-  roleFilter,
-  onRoleFilterChange,
+  roleFilter: _roleFilter,
   investorOnboardedFilter,
   onInvestorOnboardedFilterChange,
   issuerOnboardedFilter,
@@ -44,110 +43,73 @@ export function UsersTableToolbar({
   onRefresh,
   isLoading = false,
 }: UsersTableToolbarProps) {
-  const [isSpinning, setIsSpinning] = React.useState(false);
-
   const hasFilters =
     searchQuery !== "" ||
-    roleFilter !== "all" ||
     investorOnboardedFilter !== "all" ||
     issuerOnboardedFilter !== "all";
 
   const activeFilterCount = [
-    roleFilter !== "all",
     investorOnboardedFilter !== "all",
     issuerOnboardedFilter !== "all",
   ].filter(Boolean).length;
 
-  const handleRefresh = () => {
-    setIsSpinning(true);
-    onRefresh?.();
-    // Keep spinning for at least 500ms for visual feedback
-    setTimeout(() => setIsSpinning(false), 500);
-  };
+  const appliedFilters: FilterChip[] = [];
+  if (investorOnboardedFilter !== "all") {
+    appliedFilters.push({
+      id: "investor-onboarded",
+      label: `Investor: ${ONBOARDED_LABELS[investorOnboardedFilter] ?? investorOnboardedFilter}`,
+      onRemove: () => onInvestorOnboardedFilterChange("all"),
+    });
+  }
+  if (issuerOnboardedFilter !== "all") {
+    appliedFilters.push({
+      id: "issuer-onboarded",
+      label: `Issuer: ${ONBOARDED_LABELS[issuerOnboardedFilter] ?? issuerOnboardedFilter}`,
+      onRemove: () => onIssuerOnboardedFilterChange("all"),
+    });
+  }
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="relative flex-1">
-        <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search by name, email, or User ID..."
-          value={searchQuery}
-          onChange={(e) => onSearchChange(e.target.value)}
-          className="h-11 rounded-xl bg-card pl-9"
-        />
-      </div>
+    <ListToolbar
+      searchValue={searchQuery}
+      onSearchChange={onSearchChange}
+      searchPlaceholder="Search by name, email, or User ID..."
+      appliedFilters={appliedFilters}
+      onClearFilters={hasFilters ? onClearFilters : undefined}
+      onReload={onRefresh}
+      isLoading={isLoading}
+      countLabel={`${filteredCount} ${filteredCount === 1 ? "user" : "users"}${
+        hasFilters ? ` of ${totalCount}` : ""
+      }`}
+      filterGroups={
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <ListToolbarFilterTrigger label="Filters" count={activeFilterCount} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel>Investor onboarded</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={investorOnboardedFilter}
+              onValueChange={onInvestorOnboardedFilterChange}
+            >
+              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="completed">Completed</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="not_completed">Not completed</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
-            <FunnelIcon className="h-4 w-4" />
-            Filters
-            {activeFilterCount > 0 && (
-              <Badge
-                variant="secondary"
-                className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-primary text-primary-foreground"
-              >
-                {activeFilterCount}
-              </Badge>
-            )}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-56">
-          <DropdownMenuLabel>Role</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={roleFilter} onValueChange={onRoleFilterChange}>
-            <DropdownMenuRadioItem value="all">All Roles</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="INVESTOR">Investor</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="ISSUER">Issuer</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="ADMIN">Admin</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Investor Onboarded</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={investorOnboardedFilter}
-            onValueChange={onInvestorOnboardedFilterChange}
-          >
-            <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="completed">Completed</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="not_completed">Not Completed</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>Issuer Onboarded</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={issuerOnboardedFilter}
-            onValueChange={onIssuerOnboardedFilterChange}
-          >
-            <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="completed">Completed</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="not_completed">Not Completed</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      {hasFilters && (
-        <Button variant="ghost" onClick={onClearFilters} className="gap-2 h-11 rounded-xl">
-          <XMarkIcon className="h-4 w-4" />
-          Clear
-        </Button>
-      )}
-
-      {onRefresh && (
-        <Button
-          variant="outline"
-          onClick={handleRefresh}
-          disabled={isLoading || isSpinning}
-          className="h-11 gap-2 rounded-xl bg-card"
-        >
-          <ArrowPathIcon className={`h-4 w-4 ${isLoading || isSpinning ? "animate-spin" : ""}`} />
-          Refresh
-        </Button>
-      )}
-
-      <Badge variant="secondary" className="h-11 px-4 rounded-xl text-sm">
-        {filteredCount} {filteredCount === 1 ? "user" : "users"}
-        {hasFilters && ` of ${totalCount}`}
-      </Badge>
-    </div>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Issuer onboarded</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={issuerOnboardedFilter}
+              onValueChange={onIssuerOnboardedFilterChange}
+            >
+              <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="completed">Completed</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="not_completed">Not completed</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      }
+    />
   );
 }

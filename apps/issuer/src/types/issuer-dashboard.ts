@@ -15,6 +15,7 @@ export type IssuerDashboardNote = {
   fundingDeadline: string | null;
   maturityDate: string | null;
   marketplaceStatusLabel: string | null;
+  investorCount: number;
   disbursementBreakdown: {
     grossFundedAmount: string | null;
     platformFeeAmount: string | null;
@@ -55,12 +56,14 @@ export type IssuerDashboardContract = {
   approvedFacilityAmount: string | null;
   utilizedFacilityAmount: string | null;
   availableFacilityAmount: string | null;
+  pendingFacilityAmount?: string | null;
+  repaidFacilityAmount?: string | null;
   facilityFeeCapAmount: string | null;
   facilityFeePaidAmount: string | null;
   facilityFeeRemainingAmount: string | null;
   activeNotesCount: number;
   contractStatus: string;
-  /** Application IDs that require action (AMENDMENT_REQUESTED) across all applications sharing this contract. */
+  /** Application IDs in AMENDMENT_REQUESTED that share this contract. Invoice-only changes do not hide an approved facility. */
   actionRequiredApplicationIds: string[];
   invoiceStats: {
     total: number;

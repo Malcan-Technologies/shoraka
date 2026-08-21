@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { useHeader } from "@cashsouk/ui";
+import { ListToolbar, ListToolbarFilterTrigger, StatusBadge, type FilterChip } from "@cashsouk/ui";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Badge } from "../../components/ui/badge";
@@ -63,9 +63,6 @@ import {
   DocumentIcon,
   ArrowPathIcon,
   PlusIcon,
-  MagnifyingGlassIcon,
-  XMarkIcon,
-  FunnelIcon,
   PencilSquareIcon,
   ArchiveBoxIcon,
   ArrowUpTrayIcon,
@@ -86,6 +83,7 @@ import {
   type LegalDocumentVersionSummary,
 } from "@cashsouk/types";
 import { RequirePermission } from "../../components/require-permission";
+import { AdminPageHeader } from "../../components/admin-page-header";
 import { usePermissions } from "../../hooks/use-permissions";
 import {
   audienceLabel,
@@ -109,7 +107,7 @@ import {
   latestPublishedVersion,
   legalDocumentDisplayName,
   legalRowVersionLabel,
-  legalStatusBadgeVariant,
+  legalStatusToken,
   matchesClientFilters,
   nextCreateOrchestrationAfterDefinition,
   onboardingBadgeLabel,
@@ -206,12 +204,6 @@ function ReacceptanceOptions({
 }
 
 export default function LegalDocumentsPage() {
-  const { setTitle } = useHeader();
-  React.useEffect(() => {
-    setTitle("Legal Documents");
-    return () => setTitle("");
-  }, [setTitle]);
-
   const { can } = usePermissions();
   const canManage = can("document_management.manage");
   const { getAccessToken } = useAuthToken();
@@ -308,6 +300,24 @@ export default function LegalDocumentsPage() {
   const totalCount = data?.pagination.totalCount ?? 0;
   const totalPages = data?.pagination.totalPages ?? 0;
   const hasActiveFilters = Boolean(searchQuery) || statusFilter !== "all";
+  const statusChipLabel =
+    statusFilter === "DRAFT"
+      ? "Draft"
+      : statusFilter === "PUBLISHED"
+        ? "Published"
+        : statusFilter === "ARCHIVED"
+          ? "Archived"
+          : statusFilter;
+  const appliedFilters: FilterChip[] =
+    statusFilter === "all"
+      ? []
+      : [
+          {
+            id: "status",
+            label: `Status: ${statusChipLabel}`,
+            onRemove: () => setStatusFilter("all"),
+          },
+        ];
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["admin", "legal-documents"] });
@@ -728,82 +738,51 @@ export default function LegalDocumentsPage() {
       <>
         <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
           <div className="w-full space-y-6 px-2 py-8 md:px-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Legal Documents</h1>
-                <p className="mt-1 text-[15px] leading-7 text-muted-foreground">
-                  PDFs for onboarding acceptance and optional website links
-                </p>
-              </div>
-              <Button
-                variant="action"
-                onClick={openCreateDialog}
-                disabled={!canManage}
-                title={!canManage ? "You do not have permission to perform this action." : undefined}
-              >
-                <PlusIcon className="mr-2 h-4 w-4" />
-                Add Legal Document
-              </Button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="relative min-w-[200px] flex-1">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search by type…"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-11 rounded-xl bg-card pl-9"
-                />
-              </div>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="h-11 gap-2 rounded-xl bg-card">
-                    <FunnelIcon className="h-4 w-4" />
-                    Status
-                    {statusFilter !== "all" ? (
-                      <Badge variant="secondary" className="ml-1">
-                        1
-                      </Badge>
-                    ) : null}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuLabel>Status</DropdownMenuLabel>
-                  <DropdownMenuRadioGroup value={statusFilter} onValueChange={setStatusFilter}>
-                    <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="DRAFT">Draft</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="PUBLISHED">Published</DropdownMenuRadioItem>
-                    <DropdownMenuRadioItem value="ARCHIVED">Archived</DropdownMenuRadioItem>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {hasActiveFilters ? (
-                <Button variant="ghost" onClick={clearFilters} className="h-11 gap-2 rounded-xl">
-                  <XMarkIcon className="h-4 w-4" />
-                  Clear
+            <AdminPageHeader
+              title="Legal Documents"
+              description="PDFs for onboarding acceptance and optional website links"
+              action={
+                <Button
+                  variant="action"
+                  onClick={openCreateDialog}
+                  disabled={!canManage}
+                  title={!canManage ? "You do not have permission to perform this action." : undefined}
+                >
+                  <PlusIcon className="mr-2 h-4 w-4" />
+                  Add Legal Document
                 </Button>
-              ) : null}
+              }
+            />
 
-              <Button
-                variant="outline"
-                onClick={() => invalidate()}
-                disabled={isLoading}
-                className="h-11 gap-2 rounded-xl bg-card"
-              >
-                <ArrowPathIcon className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-                Reload
-              </Button>
-
-              <Badge
-                variant="secondary"
-                className="rounded-xl px-3 py-1 text-[13px] font-medium leading-5"
-              >
-                {totalCount} {totalCount === 1 ? "document" : "documents"}
-              </Badge>
-            </div>
+            <ListToolbar
+              searchValue={searchQuery}
+              onSearchChange={setSearchQuery}
+              searchPlaceholder="Search by type…"
+              appliedFilters={appliedFilters}
+              onClearFilters={hasActiveFilters ? clearFilters : undefined}
+              onReload={invalidate}
+              isLoading={isLoading}
+              countLabel={`${totalCount} ${totalCount === 1 ? "document" : "documents"}`}
+              filterGroups={
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <ListToolbarFilterTrigger
+                      label="Status"
+                      count={statusFilter !== "all" ? 1 : 0}
+                    />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuLabel>Status</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup value={statusFilter} onValueChange={setStatusFilter}>
+                      <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="DRAFT">Draft</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="PUBLISHED">Published</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="ARCHIVED">Archived</DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              }
+            />
 
             <div className="rounded-xl border border-border bg-card">
               <Table>
@@ -1003,9 +982,10 @@ export default function LegalDocumentsPage() {
                             )}
                           </TableCell>
                           <TableCell>
-                            <Badge variant={legalStatusBadgeVariant(status)}>
-                              {statusLabel(status)}
-                            </Badge>
+                            <StatusBadge
+                              label={statusLabel(status)}
+                              status={legalStatusToken(status)}
+                            />
                           </TableCell>
                           <TableCell className="text-sm">{audienceLabel(doc.audience)}</TableCell>
                           <TableCell>
@@ -1609,9 +1589,10 @@ export default function LegalDocumentsPage() {
                             {version.fileName}
                           </p>
                         </div>
-                        <Badge variant={legalStatusBadgeVariant(version.status)}>
-                          {statusLabel(version.status)}
-                        </Badge>
+                        <StatusBadge
+                          label={statusLabel(version.status)}
+                          status={legalStatusToken(version.status)}
+                        />
                       </div>
                       <div className="mt-2 space-y-0.5 text-xs text-muted-foreground">
                         <div>Uploaded {formatLegalDate(version.createdAt)}</div>

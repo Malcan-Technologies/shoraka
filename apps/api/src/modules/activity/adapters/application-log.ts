@@ -22,6 +22,7 @@ const CONTRACT_EVENT_TYPES = new Set<string>([
   ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED,
   ApplicationLogEventType.CONTRACT_OFFER_REJECTED,
   ApplicationLogEventType.CONTRACT_OFFER_RETRACTED,
+  ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED,
   ApplicationLogEventType.CONTRACT_WITHDRAWN,
 ]);
 
@@ -67,26 +68,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
     }
 
     if (search) {
-      const matchingEventTypes = finalEventTypes.filter((eventType) => {
-        const presentation = this.buildPresentation(eventType, {});
-        const searchTerm = search.toLowerCase();
-
-        return (
-          presentation.title.toLowerCase().includes(searchTerm) ||
-          presentation.description.toLowerCase().includes(searchTerm)
-        );
-      });
-
-      where.OR = [
-        { event_type: { contains: search, mode: "insensitive" } },
-        { event_type: { in: matchingEventTypes } },
-        {
-          metadata: {
-            path: ["remark"],
-            string_contains: search,
-          },
-        },
-      ];
+      where.OR = this.buildSearchClause(search, finalEventTypes);
     }
 
     const records = await prisma.applicationLog.findMany({
@@ -119,26 +101,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
     }
 
     if (search) {
-      const matchingEventTypes = finalEventTypes.filter((eventType) => {
-        const presentation = this.buildPresentation(eventType, {});
-        const searchTerm = search.toLowerCase();
-
-        return (
-          presentation.title.toLowerCase().includes(searchTerm) ||
-          presentation.description.toLowerCase().includes(searchTerm)
-        );
-      });
-
-      where.OR = [
-        { event_type: { contains: search, mode: "insensitive" } },
-        { event_type: { in: matchingEventTypes } },
-        {
-          metadata: {
-            path: ["remark"],
-            string_contains: search,
-          },
-        },
-      ];
+      where.OR = this.buildSearchClause(search, finalEventTypes);
     }
 
     return prisma.applicationLog.count({ where });
@@ -310,7 +273,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
           : fallbackDescription;
       case ApplicationLogEventType.CONTRACT_OFFER_SENT:
         return contractRef
-          ? `A contract offer for ${contractRef} is ready for your review and response.`
+          ? `A facility offer for ${contractRef} is ready for your review and response.`
           : fallbackDescription;
       case ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_SUBMITTED:
         return contractRef
@@ -335,6 +298,10 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       case ApplicationLogEventType.CONTRACT_OFFER_RETRACTED:
         return contractRef
           ? `The offer for ${contractRef} was withdrawn before it was accepted.`
+          : fallbackDescription;
+      case ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED:
+        return contractRef
+          ? `Live occupancy for ${contractRef} was updated.`
           : fallbackDescription;
       case ApplicationLogEventType.CONTRACT_WITHDRAWN:
         if (contractRef && applicationRef) {
@@ -440,6 +407,41 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
     return Object.keys(references).length > 0 ? references : null;
   }
 
+  private buildSearchClause(
+    search: string,
+    finalEventTypes: string[]
+  ): Prisma.ApplicationLogWhereInput["OR"] {
+    const searchTerm = search.toLowerCase();
+    const matchingEventTypes = finalEventTypes.filter((eventType) => {
+      const presentation = this.buildPresentation(eventType, {});
+      return (
+        presentation.title.toLowerCase().includes(searchTerm) ||
+        presentation.description.toLowerCase().includes(searchTerm)
+      );
+    });
+
+    const metadataPaths = [
+      "remark",
+      "application_reference",
+      "contract_number",
+      "contract_reference",
+      "invoice_number",
+      "invoice_reference",
+    ] as const;
+
+    return [
+      { event_type: { contains: search, mode: "insensitive" } },
+      { event_type: { in: matchingEventTypes } },
+      { application_id: { contains: search, mode: "insensitive" } },
+      ...metadataPaths.map((path) => ({
+        metadata: {
+          path: [path],
+          string_contains: search,
+        },
+      })),
+    ];
+  }
+
   private readString(value: unknown): string | undefined {
     if (typeof value !== "string") {
       return undefined;
@@ -470,7 +472,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
 
   private asContractReference(references?: ActivityReferences | null) {
     const contract = references?.contractNumber ?? references?.contractId;
-    return contract ? `contract ${contract}` : undefined;
+    return contract ? `facility ${contract}` : undefined;
   }
 
   private asInvoiceReference(references?: ActivityReferences | null) {
@@ -522,40 +524,44 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         description: "Your financing application completed successfully.",
       },
       [ApplicationLogEventType.CONTRACT_OFFER_SENT]: {
-        title: "Contract Offer Sent",
-        description: "A contract offer is ready for your review and response.",
+        title: "Facility Offer Sent",
+        description: "A facility offer is ready for your review and response.",
       },
       [ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_SUBMITTED]: {
-        title: "Contract Acceptance Submitted",
+        title: "Facility Acceptance Submitted",
         description: "You submitted offer acceptance documents for CashSouk review.",
       },
       [ApplicationLogEventType.CONTRACT_OFFER_ACCEPTANCE_RESUBMITTED]: {
-        title: "Contract Acceptance Resubmitted",
+        title: "Facility Acceptance Resubmitted",
         description: "You resubmitted offer acceptance documents after CashSouk requested changes.",
       },
       [ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED]: {
-        title: "Contract Offer Signed",
-        description: "All signers completed the contract offer signing package.",
+        title: "Facility Offer Signed",
+        description: "All signers completed the facility offer signing package.",
       },
       [ApplicationLogEventType.CONTRACT_OFFER_REJECTED]: {
-        title: "Contract Offer Declined",
-        description: "The contract offer was declined and this application is now closed.",
+        title: "Facility Offer Declined",
+        description: "The facility offer was declined and this application is now closed.",
       },
       [ApplicationLogEventType.CONTRACT_OFFER_RETRACTED]: {
-        title: "Contract Offer Retracted",
-        description: "The contract offer was withdrawn before it was accepted.",
+        title: "Facility Offer Retracted",
+        description: "The facility offer was withdrawn before it was accepted.",
+      },
+      [ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED]: {
+        title: "Facility occupancy updated",
+        description: "Live facility occupancy changed after a draw, funding close, or repayment.",
       },
       [ApplicationLogEventType.CONTRACT_OFFER_EXPIRED]: {
-        title: "Contract Offer Expired",
-        description: "The contract offer expired. A new offer can be sent from the Contract tab.",
+        title: "Facility Offer Expired",
+        description: "The facility offer expired. A new offer can be sent from the Facility tab.",
       },
       [ApplicationLogEventType.CONTRACT_SIGNING_DEADLINE_EXTENDED]: {
         title: "Signing Deadline Extended",
         description: "CashSouk extended the signing deadline so you can complete the signing package.",
       },
       [ApplicationLogEventType.CONTRACT_WITHDRAWN]: {
-        title: "Contract Withdrawn",
-        description: "The contract linked to this application was withdrawn.",
+        title: "Facility Withdrawn",
+        description: "The facility linked to this application was withdrawn.",
       },
       [ApplicationLogEventType.INVOICE_OFFER_SENT]: {
         title: "Invoice Offer Sent",
@@ -630,6 +636,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED,
       ApplicationLogEventType.CONTRACT_OFFER_REJECTED,
       ApplicationLogEventType.CONTRACT_OFFER_RETRACTED,
+      ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED,
       ApplicationLogEventType.CONTRACT_OFFER_EXPIRED,
       ApplicationLogEventType.CONTRACT_SIGNING_DEADLINE_EXTENDED,
       ApplicationLogEventType.CONTRACT_WITHDRAWN,

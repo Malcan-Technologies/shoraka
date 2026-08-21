@@ -21,7 +21,6 @@ import {
   QuestionMarkCircleIcon,
   ArrowTrendingUpIcon,
   ChartBarSquareIcon,
-  BanknotesIcon,
   LockClosedIcon,
   BuildingOffice2Icon,
 } from "@heroicons/react/24/outline";
@@ -29,6 +28,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { OrganizationSwitcher } from "@/components/organization-switcher";
 import {
   Tooltip,
   TooltipContent,
@@ -49,6 +49,7 @@ import {
   useSidebar,
 } from "@cashsouk/ui";
 import { useInvestorPortfolio } from "@/investments/hooks/use-marketplace-notes";
+import { isPortfolioNavActive } from "@/portfolio/portfolio-tabs";
 import { cn } from "@/lib/utils";
 
 function subscribeMounted() {
@@ -137,7 +138,7 @@ function InvestNowCard({
             >
               <div className="space-y-1 group-data-[collapsible=icon]:hidden">
                 <p className="text-sm font-semibold text-sidebar-foreground">Available balance</p>
-                <p className="text-[13px] leading-5 text-muted-foreground">
+                <p className="text-ui leading-5 text-muted-foreground">
                   Available after onboarding is complete.
                 </p>
               </div>
@@ -180,7 +181,7 @@ function InvestNowCard({
           <p className="text-lg font-semibold tabular-nums leading-tight text-sidebar-foreground">
             {formatCurrency(availableBalance)}
           </p>
-          <p className="text-[13px] leading-5 text-muted-foreground">
+          <p className="text-ui leading-5 text-muted-foreground">
             Browse notes and commit capital from the marketplace.
           </p>
         </div>
@@ -245,13 +246,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     return (
       <Sidebar collapsible="icon" {...props}>
         <SidebarHeader>
-          <div className="flex h-16 items-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
-            <Skeleton className="h-14 w-14 rounded group-data-[collapsible=icon]:block hidden" />
+          <div className="flex h-12 items-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
+            <Skeleton className="h-10 w-10 rounded group-data-[collapsible=icon]:block hidden" />
             <div className="flex items-center group-data-[collapsible=icon]:hidden">
               <Skeleton className="h-8 w-8 rounded" />
               <Skeleton className="ml-2 h-4 w-16" />
             </div>
           </div>
+          <Skeleton className="h-12 w-full rounded-md" />
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>
@@ -289,7 +291,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
-        <div className="flex h-12 items-center justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
+        <div className="flex h-12 items-center justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-2">
           <div className="relative w-full">
             <Image
               src="/shoraka_favicon.svg"
@@ -304,6 +306,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </div>
           </div>
         </div>
+        <OrganizationSwitcher />
       </SidebarHeader>
 
       <SidebarContent>
@@ -362,39 +365,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 {isFeaturesDisabled ? (
                   <LockedNavButton
                     icon={ChartBarSquareIcon}
-                    label="Investments"
+                    label="Portfolio"
                     tooltip={lockedTooltip}
                   />
                 ) : (
                   <SidebarMenuButton
                     asChild
-                    isActive={pathname === "/investments" || pathname.startsWith("/investments/")}
-                    tooltip="Investments"
+                    isActive={isPortfolioNavActive(pathname)}
+                    tooltip="Portfolio"
                   >
                     <Link href="/investments">
                       <ChartBarSquareIcon className="h-4 w-4" />
-                      <span>Investments</span>
-                    </Link>
-                  </SidebarMenuButton>
-                )}
-              </SidebarMenuItem>
-
-              <SidebarMenuItem>
-                {isFeaturesDisabled ? (
-                  <LockedNavButton
-                    icon={BanknotesIcon}
-                    label="Transactions"
-                    tooltip={lockedTooltip}
-                  />
-                ) : (
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === "/transactions"}
-                    tooltip="Transactions"
-                  >
-                    <Link href="/transactions">
-                      <BanknotesIcon className="h-4 w-4" />
-                      <span>Transactions</span>
+                      <span>Portfolio</span>
                     </Link>
                   </SidebarMenuButton>
                 )}

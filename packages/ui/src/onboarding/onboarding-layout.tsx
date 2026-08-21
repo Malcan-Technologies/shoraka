@@ -80,7 +80,7 @@ export function OnboardingLayout({
               <div className="space-y-2 text-center">
                 {title ? <h1 className="text-xl font-semibold">{title}</h1> : null}
                 {description ? (
-                  <p className="text-[15px] leading-7 text-muted-foreground">{description}</p>
+                  <p className="text-ui text-muted-foreground">{description}</p>
                 ) : null}
               </div>
             )}
@@ -100,7 +100,7 @@ export function OnboardingLayout({
           <div className="space-y-2">
             {title ? <h1 className="text-2xl font-bold md:text-3xl">{title}</h1> : null}
             {description ? (
-              <p className="text-[15px] leading-7 text-muted-foreground">{description}</p>
+              <p className="text-ui text-muted-foreground">{description}</p>
             ) : null}
           </div>
         )}

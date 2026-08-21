@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   useHeader,
   SidebarTrigger,
@@ -31,6 +31,7 @@ import {
   MOCK_FINANCING_TYPE_PRODUCTS,
   USE_MOCK_FINANCING_TYPE_CATALOG,
 } from "../lib/mock-financing-type-catalog";
+import { EXISTING_CONTRACT_PREFILL_STORAGE_KEY } from "@/lib/finance-invoice-application-href";
 
 /**
  * NEW APPLICATION PAGE
@@ -46,6 +47,8 @@ import {
  */
 export default function NewApplicationPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const prefillContractId = searchParams.get("contractId");
   const { activeOrganization, isLoading: isOrgLoading } = useOrganization();
   const { shouldIntercept, loading: legalGateLoading } = useLegalReacceptanceGate("issuer");
 
@@ -301,6 +304,10 @@ export default function NewApplicationPage() {
 
       // Clear unsaved and go to step 2 (next step after selecting product)
       setHasUnsavedChanges(false);
+      if (prefillContractId) {
+        sessionStorage.setItem(EXISTING_CONTRACT_PREFILL_STORAGE_KEY, prefillContractId);
+        sessionStorage.setItem("cashsouk:financing_structure_override", "existing_contract");
+      }
       router.push(`/applications/${application.id}/edit?step=2`);
     } catch {
       // Error already shown by mutation hook
@@ -363,7 +370,7 @@ export default function NewApplicationPage() {
           {/* Page Title */}
           <div className="mb-6">
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Select financing type</h1>
-            <p className="text-[15px] leading-7 text-muted-foreground mt-1">
+            <p className="text-ui leading-7 text-muted-foreground mt-1">
               Browse and invest in verified financing opportunities from your dashboard
             </p>
           </div>
@@ -382,7 +389,7 @@ export default function NewApplicationPage() {
           {USE_MOCK_FINANCING_TYPE_CATALOG ? (
             <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
               <p className="font-semibold">Development: mock product catalog</p>
-              <p className="mt-1 text-[15px] leading-7 opacity-95">
+              <p className="mt-1 text-ui leading-7 opacity-95">
                 Sorting matches the live app: categories use{" "}
                 <span className="font-mono text-xs">category_display_order</span> (lower first;
                 missing → last), then name. Products inside a category use{" "}
@@ -396,7 +403,7 @@ export default function NewApplicationPage() {
           {products.length === 0 ? (
             <div className="text-center py-12 px-4 max-w-lg mx-auto space-y-2 text-muted-foreground">
               <p className="font-medium text-foreground">No financing products available</p>
-              <p className="text-[15px] leading-7">
+              <p className="text-ui leading-7">
                 Active products are created and published by platform administrators. Please contact
                 your admin if you expected to see options here.
               </p>
@@ -420,7 +427,7 @@ export default function NewApplicationPage() {
             variant="outline"
             onClick={() => requestNavigation("/", { forceModal: true })}
             disabled={createApplicationMutation.isPending}
-            className="text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-2 sm:order-1 h-11"
+            className="order-2 h-11 rounded-xl px-4 sm:order-1 sm:px-6"
           >
             <ArrowLeftIcon className="h-4 w-4 mr-2" />
             Back
@@ -434,7 +441,7 @@ export default function NewApplicationPage() {
               !products.some((p: { id: string }) => p.id === selectedProductId) ||
               createApplicationMutation.isPending
             }
-            className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
+            className="order-1 h-11 rounded-xl px-4 sm:order-2 sm:px-6"
           >
             {createApplicationMutation.isPending ? "Creating..." : "Save and Continue"}
             <ArrowRightIcon className="h-4 w-4 ml-2" />

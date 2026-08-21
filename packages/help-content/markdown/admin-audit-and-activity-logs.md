@@ -58,7 +58,7 @@ Use the application timeline for:
 - Section-level review decisions: approved, rejected, amendment requested, or reset to pending.
 - Item-level review decisions for invoices and supporting documents.
 - Amendment request submission and issuer resubmission history.
-- Contract and invoice offer events, including sent, accepted, rejected, retracted, withdrawn, and expired.
+- Facility and invoice offer events, including sent, accepted, rejected, retracted, withdrawn, and expired.
 - Admin remarks, review cycle information, IP address, device, and structured metadata where available.
 
 This timeline is the most reliable place to reconstruct the review path for a specific issuer financing application.

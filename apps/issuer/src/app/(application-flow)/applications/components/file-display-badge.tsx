@@ -27,7 +27,7 @@ const SIZE_STYLES = {
   xs: {
     row: "h-6 gap-1 px-1.5 py-px",
     iconSlot: "h-3.5 w-3.5",
-    text: "text-[10px]",
+    text: "text-meta",
   },
 } as const;
 

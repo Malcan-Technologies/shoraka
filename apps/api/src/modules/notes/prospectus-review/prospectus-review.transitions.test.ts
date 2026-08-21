@@ -323,6 +323,15 @@ describe("prospectus workflow transitions", () => {
     await expect(service.assertPublishAllowed("note-1")).rejects.toBeInstanceOf(AppError);
   });
 
+  it("assertPublishAllowed rejects leftover PUBLISHED freeze (unpublish requires re-approve)", async () => {
+    mockNoteFindUnique.mockResolvedValue({
+      id: "note-1",
+      created_at: new Date("2026-07-20T00:00:00.000Z"),
+      prospectus_review: { id: "rev-1", status: ProspectusReviewStatus.PUBLISHED },
+    });
+    await expect(service.assertPublishAllowed("note-1")).rejects.toBeInstanceOf(AppError);
+  });
+
   it("does not expose submit or reopen methods", () => {
     expect((service as { submitForReview?: unknown }).submitForReview).toBeUndefined();
     expect((service as { reopen?: unknown }).reopen).toBeUndefined();

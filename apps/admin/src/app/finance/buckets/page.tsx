@@ -2,9 +2,8 @@
 
 import * as React from "react";
 import { format } from "date-fns";
-import { BanknotesIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
-import { Skeleton, useHeader } from "@cashsouk/ui";
+import { Skeleton } from "@cashsouk/ui";
 import type { NoteLedgerBucketBalance } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,15 +19,8 @@ import {
 import { useNoteBucketActivity, useNoteBucketBalances } from "@/notes/hooks/use-notes";
 import { TablePagination } from "@/shared/admin-list/components/table-pagination";
 import { RequirePermission } from "@/components/require-permission";
-
-const bucketDescriptions: Record<string, string> = {
-  INVESTOR_POOL: "Investor funds, disbursements, principal returns, and net profit allocations.",
-  REPAYMENT_POOL: "Receipts collected from paymasters or issuers before settlement allocation.",
-  OPERATING_ACCOUNT: "Platform fees, service fees, and operating account allocations.",
-  TAWIDH_ACCOUNT: "Syariah compensation account for approved Ta'widh late charges.",
-  GHARAMAH_ACCOUNT: "Syariah charity/penalty account for approved Gharamah late charges.",
-  ISSUER_PAYABLE: "Residual amounts owed to issuers from posted settlements, pending trustee disbursement.",
-};
+import { AdminPageHeader } from "@/components/admin-page-header";
+import { LEDGER_BUCKET_META } from "@/lib/ledger-bucket-display";
 
 const ACTIVITY_PAGE_SIZE = 20;
 
@@ -169,12 +161,6 @@ function BucketActivityLog({
 }
 
 export default function BucketBalancesPage() {
-  const { setTitle } = useHeader();
-  React.useEffect(() => {
-    setTitle("Bucket Balances");
-    return () => setTitle("");
-  }, [setTitle]);
-
   const { data, isLoading, error } = useNoteBucketBalances();
   const buckets = React.useMemo(() => data?.buckets ?? [], [data?.buckets]);
   const [selectedBucketCode, setSelectedBucketCode] = React.useState<string | null>(null);
@@ -196,20 +182,12 @@ export default function BucketBalancesPage() {
     <RequirePermission permission="bucket_balances.view">
       <>
             <div className="flex-1 overflow-y-auto">
-        <div className="w-full space-y-8 px-4 py-10 md:px-6 md:py-12 lg:px-8">
+        <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
           <section className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                <BanknotesIcon className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold">Platform Money Buckets</h2>
-                <p className="text-sm text-muted-foreground">
-                  View ledger-derived balances across Investor Pool, Repayment Pool, Operating Account, Ta&apos;widh,
-                  Gharamah, and Issuer Payable.
-                </p>
-              </div>
-            </div>
+            <AdminPageHeader
+              title="Bucket Balances"
+              description="View ledger-derived balances across Investor Pool, Repayment Pool, Operating Account, Ta'widh, Gharamah, and Issuer Payable."
+            />
 
             {error ? (
               <div className="rounded-lg border border-destructive/30 p-4 text-sm text-destructive">
@@ -257,7 +235,7 @@ export default function BucketBalancesPage() {
                           <Badge variant="outline">{bucket.currency}</Badge>
                         </div>
                         <p className="text-xs leading-5 text-muted-foreground">
-                          {bucketDescriptions[bucket.accountCode] ?? "Platform ledger bucket."}
+                          {LEDGER_BUCKET_META[bucket.accountCode]?.detail ?? "Platform ledger bucket."}
                         </p>
                       </CardHeader>
                       <CardContent className="space-y-3">

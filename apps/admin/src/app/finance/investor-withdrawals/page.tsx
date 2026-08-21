@@ -1,20 +1,16 @@
 "use client";
 
-import { useEffect } from "react";
-
-import { useHeader } from "@cashsouk/ui";
+import { StatusBadge } from "@cashsouk/ui";
 
 import { format } from "date-fns";
 import Link from "next/link";
 import {
   ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
-  ArrowUpTrayIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import type { WithdrawalStatus } from "@cashsouk/types";
 import { formatWithdrawalReference } from "@cashsouk/types";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,7 +23,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { RequirePermission } from "@/components/require-permission";
+import { AdminPageHeader } from "@/components/admin-page-header";
 import { useInvestorWithdrawals } from "@/notes/hooks/use-notes";
+import { adminActionRowClass, getAdminStatusToken } from "@/lib/admin-status-token";
+import { cn } from "@/lib/utils";
 
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: "Draft",
@@ -49,12 +48,6 @@ function formatDate(value: string | null) {
 }
 
 export default function InvestorWithdrawalsPage() {
-  const { setTitle } = useHeader();
-  useEffect(() => {
-    setTitle("Investor Withdrawals");
-    return () => setTitle("");
-  }, [setTitle]);
-
   const { data, isLoading, error, refetch, isFetching } = useInvestorWithdrawals();
 
   const items = data?.items ?? [];
@@ -71,31 +64,24 @@ export default function InvestorWithdrawalsPage() {
       <>
         
         <div className="flex-1 overflow-y-auto">
-          <div className="w-full space-y-8 px-4 py-10 md:px-6 md:py-12 lg:px-8">
+          <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
             <section className="space-y-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                    <ArrowUpTrayIcon className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold">Investor withdrawal requests</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Review and process investor withdrawal requests.
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => void refetch()}
-                  disabled={isFetching}
-                  className="h-8 w-8 shrink-0 p-0"
-                  title="Refresh"
-                >
-                  <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-                </Button>
-              </div>
+              <AdminPageHeader
+                title="Investor Withdrawals"
+                description="Review and process investor withdrawal requests."
+                action={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => void refetch()}
+                    disabled={isFetching}
+                    className="h-8 w-8 shrink-0 p-0"
+                    title="Refresh"
+                  >
+                    <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
+                  </Button>
+                }
+              />
 
               {error ? (
                 <div className="rounded-lg border border-destructive/30 p-4 text-sm text-destructive">
@@ -180,7 +166,13 @@ export default function InvestorWithdrawalsPage() {
                           const bankName =
                             typeof snapshot.bank_name === "string" ? snapshot.bank_name : "";
                           return (
-                            <TableRow key={item.withdrawalId} className="odd:bg-muted/40 hover:bg-muted">
+                            <TableRow
+                              key={item.withdrawalId}
+                              className={cn(
+                                "odd:bg-muted/40 hover:bg-muted",
+                                adminActionRowClass(getAdminStatusToken(item.status))
+                              )}
+                            >
                               <TableCell className="font-mono text-xs">
                                 <Link
                                   href={`/finance/investor-withdrawals/${item.withdrawalId}`}
@@ -200,9 +192,10 @@ export default function InvestorWithdrawalsPage() {
                               </TableCell>
                               <TableCell>{formatDate(item.createdAt)}</TableCell>
                               <TableCell>
-                                <Badge variant="secondary">
-                                  {STATUS_LABEL[item.status] ?? item.status}
-                                </Badge>
+                                <StatusBadge
+                                  label={STATUS_LABEL[item.status] ?? item.status}
+                                  status={getAdminStatusToken(item.status)}
+                                />
                               </TableCell>
                               <TableCell>
                                 {formatDate(item.submittedToTrusteeAt)}

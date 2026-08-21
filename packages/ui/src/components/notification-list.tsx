@@ -89,7 +89,7 @@ export function NotificationList() {
           <CardContent className="flex flex-col items-center justify-center p-12 text-center">
             <Bell className="mb-4 h-12 w-12 text-muted-foreground/30" />
             <h3 className="text-lg font-medium">No notifications</h3>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-ui text-muted-foreground">
               We'll notify you when something important happens.
             </p>
           </CardContent>
@@ -116,16 +116,16 @@ export function NotificationList() {
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold">{notification.title}</p>
+                          <p className="text-ui font-semibold">{notification.title}</p>
                           {isUnread && (
                             <span className="h-2 w-2 rounded-full bg-primary" />
                           )}
                         </div>
-                        <span className="text-[10px] text-muted-foreground">
+                        <span className="text-meta text-muted-foreground">
                           {format(new Date(notification.created_at ?? 0), "MMM d, h:mm a")}
                         </span>
                       </div>
-                      <p className="text-sm text-muted-foreground">{notification.message}</p>
+                      <p className="text-ui text-muted-foreground">{notification.message}</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -136,7 +136,7 @@ export function NotificationList() {
 
       {pagination && pagination.pages > 1 && (
         <div className="flex items-center justify-between border-t pt-4">
-          <div className="text-sm text-muted-foreground">
+          <div className="text-ui text-muted-foreground">
             Showing {Math.min((page - 1) * limit + 1, pagination.total)}-{Math.min(page * limit, pagination.total)} of {pagination.total}
           </div>
           <div className="flex items-center gap-2">

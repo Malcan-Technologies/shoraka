@@ -3,8 +3,9 @@
 import * as React from "react";
 import { format } from "date-fns";
 import { useAuthToken } from "@cashsouk/config";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { StatusBadge } from "@cashsouk/ui";
+import { getDirectorFinalStatusToken, adminActionRowClass } from "@/lib/admin-status-token";
 // import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
@@ -30,7 +31,6 @@ import {
   formatPeopleRolesLine,
   formatPeopleRolesLineWithoutShare,
   isMissingGovernmentIdPerson,
-  getFinalStatusBadgeClassName,
   getFinalStatusLabel,
   getRegtankLink,
   normalizeDirectorShareholderIdKey,
@@ -193,7 +193,10 @@ export function DirectorShareholderTable({
               })();
 
               return (
-                <TableRow key={p.matchKey}>
+                <TableRow
+                  key={p.matchKey}
+                  className={adminActionRowClass(getDirectorFinalStatusToken(finalStatus.tone))}
+                >
                   <TableCell className="font-medium">
                     <div>{p.name ?? "—"}</div>
                     <div className="font-mono text-xs text-muted-foreground mt-0.5">{p.matchKey}</div>
@@ -201,12 +204,10 @@ export function DirectorShareholderTable({
                   <TableCell>{formatRoleTitleCaseWithoutShare(p)}</TableCell>
                   <TableCell>{shareDisplay}</TableCell>
                   <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={`border-transparent text-[11px] font-normal ${getFinalStatusBadgeClassName(finalStatus.tone)}`}
-                    >
-                      {finalStatus.label}
-                    </Badge>
+                    <StatusBadge
+                      label={finalStatus.label}
+                      status={getDirectorFinalStatusToken(finalStatus.tone)}
+                    />
                   </TableCell>
                   <TableCell>
                     {(() => {

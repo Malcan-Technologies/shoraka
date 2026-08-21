@@ -1,6 +1,7 @@
 import path from "path";
 import { fileURLToPath } from "url";
 import { DEV_TUNNEL_ORIGINS } from "../../packages/config/dev-tunnel-origins.cjs";
+import { NEXT_DEV_EXPERIMENTAL } from "../../packages/config/next-dev-experimental.cjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const monorepoRoot = path.join(/* turbopackIgnore: true */ __dirname, "../..");
@@ -18,7 +19,42 @@ const nextConfig = {
     "@cashsouk/help-content",
   ],
   experimental: {
-    optimizePackageImports: ["@cashsouk/ui"],
+    ...NEXT_DEV_EXPERIMENTAL,
+  },
+  async redirects() {
+    return [
+      {
+        source: "/users",
+        destination: "/accounts",
+        permanent: true,
+      },
+      {
+        source: "/users/:id",
+        destination: "/accounts/:id",
+        permanent: true,
+      },
+      {
+        source: "/organizations",
+        has: [{ type: "query", key: "tab", value: "investor" }],
+        destination: "/investors",
+        permanent: true,
+      },
+      {
+        source: "/organizations",
+        destination: "/issuers",
+        permanent: true,
+      },
+      {
+        source: "/organizations/issuer/:id",
+        destination: "/issuers/:id",
+        permanent: true,
+      },
+      {
+        source: "/organizations/investor/:id",
+        destination: "/investors/:id",
+        permanent: true,
+      },
+    ];
   },
   async headers() {
     return [

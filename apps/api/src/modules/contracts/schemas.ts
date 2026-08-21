@@ -18,6 +18,8 @@ export const contractDetailsSchema = z.object({
   approved_facility: z.union([z.number(), z.null()]).optional(),
   utilized_facility: z.union([z.number(), z.null()]).optional(),
   available_facility: z.union([z.number(), z.null()]).optional(),
+  pending_facility: z.union([z.number(), z.null()]).optional(),
+  repaid_facility: z.union([z.number(), z.null()]).optional(),
   // Financing amount requested by issuer (RM). Optional.
   financing: z.number(),
   document: documentSchema.nullable().optional(),

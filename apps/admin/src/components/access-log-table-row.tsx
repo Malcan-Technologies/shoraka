@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { CheckIcon, XMarkIcon, EyeIcon } from "@heroicons/react/24/outline";
 import { format } from "date-fns";
 import type { AccessLogResponse, UserRole } from "@cashsouk/types";
+import { PortalBadge } from "@cashsouk/ui";
+import { OrganizationTypeBadge } from "@/components/organization-type-badge";
 
 interface AccessLog extends Omit<AccessLogResponse, "created_at"> {
   created_at: Date;
@@ -86,7 +88,6 @@ function getEventTypeBadge(eventType: string) {
   return (
     <Badge
       variant="outline"
-      className="text-xs"
       style={{
         backgroundColor: `color-mix(in srgb, ${cssColor} 10%, transparent)`,
         borderColor: `color-mix(in srgb, ${cssColor} 30%, transparent)`,
@@ -99,13 +100,16 @@ function getEventTypeBadge(eventType: string) {
 }
 
 function getRoleBadge(role: UserRole) {
+  if (role === "INVESTOR" || role === "ISSUER") {
+    return <PortalBadge portal={role === "INVESTOR" ? "investor" : "issuer"} />;
+  }
+
   const config = ROLE_CONFIG[role];
   const cssColor = COLOR_MAP[config.color] || "rgb(107 114 128)";
 
   return (
     <Badge
       variant="outline"
-      className="text-xs"
       style={{
         backgroundColor: `color-mix(in srgb, ${cssColor} 10%, transparent)`,
         borderColor: `color-mix(in srgb, ${cssColor} 30%, transparent)`,
@@ -135,9 +139,7 @@ export function AccessLogTableRow({
           </TableCell>
           <TableCell>
             {log.organizationType ? (
-              <Badge variant="outline" className="text-xs">
-                {log.organizationType === "COMPANY" ? "Company" : "Personal"}
-              </Badge>
+              <OrganizationTypeBadge type={log.organizationType} />
             ) : (
               <span className="text-sm text-muted-foreground">—</span>
             )}

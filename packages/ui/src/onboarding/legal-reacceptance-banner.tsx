@@ -104,7 +104,7 @@ export function LegalReacceptanceBanner({
             aria-hidden
           />
           <div className="min-w-0 space-y-0.5">
-            <p className="text-[15px] font-semibold leading-snug text-foreground">{title}</p>
+            <p className="text-ui font-semibold leading-snug text-foreground">{title}</p>
             <p className="text-sm leading-relaxed text-muted-foreground">{description}</p>
           </div>
         </div>

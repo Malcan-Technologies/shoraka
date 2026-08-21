@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/prisma";
+import { formatUserDisplayName, loadUserDisplayNameMap } from "../../lib/user-display-name";
 import {
   Prisma,
   User,
@@ -27,8 +28,10 @@ import type {
   GetAdminContractsQuery,
 } from "./schemas";
 import {
+  resolveApprovedFacilityForRefresh,
   resolveRequestedFacility,
   resolveOfferedFacility,
+  parseFacilityJsonAmount,
 } from "../../lib/contract-facility";
 import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
 
@@ -1245,16 +1248,7 @@ export class AdminRepository {
     }
 
     // Batch-resolve admin user names
-    let adminNameMap = new Map<string, string>();
-    if (adminUserIds.size > 0) {
-      const adminUsers = await prisma.user.findMany({
-        where: { user_id: { in: [...adminUserIds] } },
-        select: { user_id: true, first_name: true, last_name: true },
-      });
-      adminNameMap = new Map(
-        adminUsers.map((u) => [u.user_id, `${u.first_name} ${u.last_name}`])
-      );
-    }
+    const adminNameMap = await loadUserDisplayNameMap(prisma, [...adminUserIds]);
 
     // Map logs with organization info and resolved admin names
     const logsWithOrgInfo = logs.map((log) => {
@@ -1845,23 +1839,13 @@ export class AdminRepository {
         first_name: string;
         last_name: string;
         email: string;
+        phone: string | null;
       };
     }[];
     // Latest RegTank onboarding record (for portal link)
     regtank_onboarding: {
       request_id: string;
       status: string;
-    }[];
-    // Applications (issuer only)
-    applications?: {
-      id: string;
-      status: string;
-      product_version: number;
-      last_completed_step: number;
-      submitted_at: Date | null;
-      created_at: Date;
-      updated_at: Date;
-      contract_id: string | null;
     }[];
   } | null> {
     const include = {
@@ -1873,17 +1857,18 @@ export class AdminRepository {
           last_name: true,
         },
       },
-      members: {
-        include: {
-          user: {
-            select: {
-              first_name: true,
-              last_name: true,
-              email: true,
-            },
+    members: {
+      include: {
+        user: {
+          select: {
+            first_name: true,
+            last_name: true,
+            email: true,
+            phone: true,
           },
         },
       },
+    },
       regtank_onboarding: {
         select: {
           request_id: true,
@@ -1902,27 +1887,11 @@ export class AdminRepository {
           investor_balance: { select: { available_amount: true } },
         },
       });
-    } else {
-      return prisma.issuerOrganization.findUnique({
-        where: { id },
-        include: {
-          ...include,
-          applications: {
-            select: {
-              id: true,
-              status: true,
-              product_version: true,
-              last_completed_step: true,
-              submitted_at: true,
-              created_at: true,
-              updated_at: true,
-              contract_id: true,
-            },
-            orderBy: { created_at: "desc" as const },
-          },
-        },
-      });
     }
+    return prisma.issuerOrganization.findUnique({
+      where: { id },
+      include,
+    });
   }
 
   /**
@@ -2274,9 +2243,9 @@ export class AdminRepository {
       if (structureType === "invoice_only") {
         financingStructureLabel = "Invoice financing";
       } else if (structureType === "existing_contract" || structureType === "new_contract") {
-        financingStructureLabel = "Contract financing";
+        financingStructureLabel = "Facility financing";
       } else {
-        financingStructureLabel = app.contract_id ? "Contract financing" : "Invoice financing";
+        financingStructureLabel = app.contract_id ? "Facility financing" : "Invoice financing";
       }
 
       const linkedProductId =
@@ -2332,6 +2301,8 @@ export class AdminRepository {
       title: string | null;
       issuerOrganizationName: string | null;
       contractValue: number;
+      approvedFacility: number;
+      utilizedFacility: number;
       status: string;
       updatedAt: Date;
     }[];
@@ -2384,7 +2355,12 @@ export class AdminRepository {
 
     const transformedContracts = contracts.map((contract) => {
       const contractDetails = (contract.contract_details ?? {}) as Record<string, unknown>;
-      const contractValue = Number(contractDetails.value ?? contractDetails.financing ?? 0);
+      const contractValue =
+        parseFacilityJsonAmount(contractDetails.value) ??
+        parseFacilityJsonAmount(contractDetails.financing) ??
+        0;
+      const approvedFacility = resolveApprovedFacilityForRefresh(contract.status, contractDetails);
+      const utilizedFacility = parseFacilityJsonAmount(contractDetails.utilized_facility) ?? 0;
 
       return {
         id: contract.id,
@@ -2398,6 +2374,8 @@ export class AdminRepository {
           : null,
         issuerOrganizationName: contract.issuer_organization?.name ?? null,
         contractValue: Number.isFinite(contractValue) ? contractValue : 0,
+        approvedFacility: Number.isFinite(approvedFacility) ? approvedFacility : 0,
+        utilizedFacility: Number.isFinite(utilizedFacility) ? utilizedFacility : 0,
         status: contract.status,
         updatedAt: contract.updated_at,
       };
@@ -2439,6 +2417,19 @@ export class AdminRepository {
       status: string;
       sourceApplicationId: string;
       sourceInvoiceId: string | null;
+      targetAmount: number;
+      fundedAmount: number;
+    }[];
+    activity: {
+      id: string;
+      eventType: string;
+      createdAt: Date;
+      actorUserId: string | null;
+      actorName: string | null;
+      portal: string | null;
+      remark: string | null;
+      metadata: Record<string, unknown> | null;
+      applicationId: string | null;
     }[];
   } | null> {
     const contract = await prisma.contract.findUnique({
@@ -2447,6 +2438,7 @@ export class AdminRepository {
         id: true,
         display_reference: true,
         issuer_organization_id: true,
+        originating_application_id: true,
         status: true,
         created_at: true,
         updated_at: true,
@@ -2502,7 +2494,7 @@ export class AdminRepository {
         ? offerDetails.requested_facility
         : resolveRequestedFacility(contractDetails);
     const offeredFacility = resolveOfferedFacility(offerDetails);
-    const approvedFacility = Number(contractDetails.approved_facility ?? 0);
+    const approvedFacility = resolveApprovedFacilityForRefresh(contract.status, contractDetails);
 
     const applications = contract.applications.map((application) => {
       let requestedAmount = 0;
@@ -2510,13 +2502,16 @@ export class AdminRepository {
       if (application.invoices.length > 0) {
         requestedAmount = application.invoices.reduce((sum, invoice) => {
           const details = (invoice.details ?? {}) as Record<string, unknown>;
-          const invoiceValue = Number(details.value ?? 0);
-          const financingRatio = Number(details.financing_ratio_percent ?? 80);
+          const invoiceValue = parseFacilityJsonAmount(details.value) ?? 0;
+          const financingRatio = parseFacilityJsonAmount(details.financing_ratio_percent) ?? 80;
           return sum + (invoiceValue * financingRatio) / 100;
         }, 0);
       } else if (application.contract?.contract_details) {
         const appContractDetails = application.contract.contract_details as Record<string, unknown>;
-        requestedAmount = Number(appContractDetails.value ?? appContractDetails.approved_facility ?? 0);
+        requestedAmount =
+          parseFacilityJsonAmount(appContractDetails.value) ??
+          parseFacilityJsonAmount(appContractDetails.approved_facility) ??
+          0;
       }
 
       return {
@@ -2533,8 +2528,25 @@ export class AdminRepository {
       };
     });
 
+    const linkedApplicationIds = contract.applications.map((application) => application.id);
+    const originatingApplicationId = contract.originating_application_id;
+    const activityWhere: Prisma.ApplicationLogWhereInput = {
+      OR: [
+        { entity_id: id },
+        ...(originatingApplicationId ? [{ application_id: originatingApplicationId }] : []),
+        ...(linkedApplicationIds.length > 0
+          ? [
+              {
+                application_id: { in: linkedApplicationIds },
+                event_type: { startsWith: "CONTRACT_" },
+              },
+            ]
+          : []),
+      ],
+    };
+
     const userIds = [sentByUserId, respondedByUserId].filter((id): id is string => Boolean(id));
-    const [users, notes] = await Promise.all([
+    const [users, notes, activityLogs] = await Promise.all([
       userIds.length
         ? prisma.user.findMany({
             where: { user_id: { in: userIds } },
@@ -2551,13 +2563,32 @@ export class AdminRepository {
           status: true,
           source_application_id: true,
           source_invoice_id: true,
+          target_amount: true,
+          funded_amount: true,
         },
       }),
+      prisma.applicationLog.findMany({
+        where: activityWhere,
+        orderBy: { created_at: "desc" },
+      }),
     ]);
+    const activityActorIds = [
+      ...new Set(
+        activityLogs
+          .map((log) => log.user_id)
+          .filter((actorId): actorId is string => Boolean(actorId) && !userIds.includes(actorId))
+      ),
+    ];
+    const extraActors = activityActorIds.length
+      ? await prisma.user.findMany({
+          where: { user_id: { in: activityActorIds } },
+          select: { user_id: true, first_name: true, last_name: true, email: true },
+        })
+      : [];
     const userNameById = new Map(
-      users.map((user) => {
-        const fullName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
-        return [user.user_id, fullName.length > 0 ? fullName : user.email];
+      [...users, ...extraActors].flatMap((user) => {
+        const name = formatUserDisplayName(user);
+        return name ? [[user.user_id, name] as const] : [];
       })
     );
 
@@ -2584,9 +2615,9 @@ export class AdminRepository {
       updatedAt: contract.updated_at,
       contractDetails: contract.contract_details ? contractDetails : null,
       offerDetails: contract.offer_details ? offerDetails : null,
-      offerSentByUserName: sentByUserId ? userNameById.get(sentByUserId) ?? sentByUserId : null,
+      offerSentByUserName: sentByUserId ? userNameById.get(sentByUserId) ?? null : null,
       offerRespondedByUserName: respondedByUserId
-        ? userNameById.get(respondedByUserId) ?? respondedByUserId
+        ? userNameById.get(respondedByUserId) ?? null
         : null,
       customerDetails: contract.customer_details ? customerDetails : null,
       applications,
@@ -2597,7 +2628,24 @@ export class AdminRepository {
         status: note.status,
         sourceApplicationId: note.source_application_id,
         sourceInvoiceId: note.source_invoice_id,
+        targetAmount: note.target_amount.toNumber(),
+        fundedAmount: note.funded_amount.toNumber(),
       })),
+      activity: activityLogs.map((log) => {
+        const metadata = (log.metadata as Record<string, unknown> | null) ?? {};
+        const actorName = log.user_id ? userNameById.get(log.user_id) ?? null : null;
+        return {
+          id: log.id,
+          eventType: log.event_type,
+          createdAt: log.created_at,
+          actorUserId: log.user_id || null,
+          actorName,
+          portal: log.portal,
+          remark: log.remark,
+          metadata: actorName ? { ...metadata, actorName } : metadata,
+          applicationId: log.application_id,
+        };
+      }),
     };
   }
 

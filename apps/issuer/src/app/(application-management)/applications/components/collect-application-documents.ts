@@ -65,7 +65,7 @@ export function collectApplicationDocuments(
     pushDoc(
       out,
       seen,
-      "Signed contract offer letter",
+      "Signed facility offer letter",
       application.signedContractOfferLetterS3Key,
       "Signed offer"
     );
@@ -91,7 +91,7 @@ export function collectApplicationDocuments(
     walkUnknownDocs(raw.financial_statements, out, seen, "Financial statements");
   }
   if (raw?.contract?.contract_details) {
-    walkUnknownDocs(raw.contract.contract_details, out, seen, "Contract");
+    walkUnknownDocs(raw.contract.contract_details, out, seen, "Facility");
   }
 
   return out;

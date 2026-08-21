@@ -272,12 +272,12 @@ describe("prospectus review step title icons", () => {
 describe("prospectus review compact status badges", () => {
   it("uses compact badge sizing and existing workflow tones", () => {
     expect(PROSPECTUS_STATUS_BADGE_COMPACT_CLASS).toContain("h-5");
-    expect(PROSPECTUS_STATUS_BADGE_COMPACT_CLASS).toContain("text-[10px]");
+    expect(PROSPECTUS_STATUS_BADGE_COMPACT_CLASS).toContain("text-meta");
     expect(PROSPECTUS_STATUS_BADGE_COMPACT_CLASS).toContain("px-1.5");
     expect(PROSPECTUS_STATUS_BADGE_COMPACT_CLASS).toContain("shrink-0");
-    expect(PROSPECTUS_STATUS_BADGE_TONE.complete).toMatch(/success/);
-    expect(PROSPECTUS_STATUS_BADGE_TONE.required).toMatch(/amber/);
-    expect(PROSPECTUS_STATUS_BADGE_TONE.optional).toMatch(/neutral/);
+    expect(PROSPECTUS_STATUS_BADGE_TONE.complete).toBe("success");
+    expect(PROSPECTUS_STATUS_BADGE_TONE.required).toBe("action");
+    expect(PROSPECTUS_STATUS_BADGE_TONE.optional).toBe("neutral");
   });
 });
 
@@ -321,7 +321,7 @@ describe("prospectus review action visibility", () => {
     expect(approved.preview).toBe(true);
     expect(approved.approve).toBe(false);
     expect(approved.backToNote).toBe(true);
-    expect(approved.viewProspectus).toBe(false);
+    expect(approved.viewProspectus).toBe(true);
 
     const publishedNote = getProspectusActionVisibility({
       step: 3,
@@ -356,6 +356,19 @@ describe("prospectus review action visibility", () => {
     expect(published.saveDraft).toBe(false);
     expect(published.preview).toBe(false);
     expect(published.viewProspectus).toBe(true);
+  });
+
+  it("treats an unlisted leftover PUBLISHED freeze as Draft (re-approve required)", () => {
+    const unlisted = getProspectusActionVisibility({
+      step: 3,
+      status: "PUBLISHED",
+      canManage: true,
+      notePublished: false,
+    });
+    expect(unlisted.saveDraft).toBe(true);
+    expect(unlisted.preview).toBe(true);
+    expect(unlisted.approve).toBe(true);
+    expect(unlisted.viewProspectus).toBe(false);
   });
 
   it("blocks approval readiness when required checklist items are incomplete", () => {

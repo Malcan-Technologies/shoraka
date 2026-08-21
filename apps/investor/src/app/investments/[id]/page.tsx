@@ -5,24 +5,22 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 import { formatCurrency, useOrganization } from "@cashsouk/config";
-import type {
-  InvestorBalanceActivityEntry,
-  MarketplaceNoteDetail,
-  NoteListItem,
+import {
+  formatNoteReferenceDisplay,
+  investorActivityTitle,
+  investorActivityTypeLabel,
+  type InvestorBalanceActivityEntry,
+  type NoteListItem,
 } from "@cashsouk/types";
 import {
-  Badge,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  Skeleton,
-  portalContentMaxWidthClassName,
+  LoadingState,
+  PageShell,
+  portalPageGutterClassName,
   useHeader,
 } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { InvestmentPositionCard } from "@/investments/components/investment-position-card";
+import { InvestmentDetailHero } from "@/investments/components/investment-detail-hero";
 import { InvestmentReturnBreakdownCard } from "@/investments/components/investment-return-breakdown";
 import {
   useInvestorBalanceActivity,
@@ -32,24 +30,6 @@ import {
   useOpenMarketplaceProspectus,
 } from "@/investments/hooks/use-marketplace-notes";
 import { toast } from "sonner";
-
-function formatEnumLabel(value: string) {
-  return value
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (character) => character.toUpperCase());
-}
-
-function formatDate(value?: string | null) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString("en-MY", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
@@ -100,49 +80,7 @@ function getActivityMetadataLines(entry: InvestorBalanceActivityEntry) {
 }
 
 function getActivityLabel(entry: InvestorBalanceActivityEntry) {
-  if (entry.source === "NOTE_INVESTMENT_COMMIT") return "Investment";
-  if (entry.source === "NOTE_INVESTMENT_RELEASE") {
-    const metadata = asRecord(entry.metadata);
-    if (metadata?.releaseReason === "SETTLEMENT_PAYOUT") return "Repayment";
-    return "Release";
-  }
-  if (entry.source === "MANUAL_TOPUP") return "Top up";
-  return formatEnumLabel(entry.source);
-}
-
-function PositionCardSkeleton() {
-  return <Skeleton className="h-56 w-full rounded-3xl" />;
-}
-
-function DetailCardSkeleton() {
-  return (
-    <Card className="rounded-3xl border border-border bg-card shadow-sm">
-      <CardHeader className="flex flex-col gap-3 pb-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="space-y-2">
-          <Skeleton className="h-7 w-56 rounded-md" />
-          <Skeleton className="h-4 w-full max-w-md rounded-md" />
-        </div>
-        <Skeleton className="h-7 w-24 rounded-full" />
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="space-y-3">
-          {[1, 2, 3, 4].map((key) => (
-            <Skeleton key={key} className="h-16 w-full rounded-2xl" />
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ActivitySkeleton() {
-  return (
-    <div className="space-y-3">
-      {[1, 2, 3, 4, 5].map((key) => (
-        <Skeleton key={key} className="h-14 w-full rounded-xl" />
-      ))}
-    </div>
-  );
+  return investorActivityTitle(entry.source, asRecord(entry.metadata), entry.related ?? null);
 }
 
 export default function InvestmentDetailPage() {
@@ -170,8 +108,7 @@ export default function InvestmentDetailPage() {
     { enabled: Boolean(investedNote) && Boolean(activeOrganization?.id) }
   );
 
-  const marketplaceNote = marketplaceQuery.data ?? null;
-  const note: NoteListItem | MarketplaceNoteDetail | null = investedNote ?? marketplaceNote;
+  const note: NoteListItem | null = investedNote ?? marketplaceQuery.data ?? null;
   const isInvestedView = Boolean(investedNote);
 
   const positionLoading =
@@ -179,11 +116,10 @@ export default function InvestmentDetailPage() {
     (investmentsQuery.isPending ||
       (shouldFetchMarketplace && !marketplaceQuery.isSuccess && !marketplaceQuery.isError));
 
-  const detailCardLoading = positionLoading;
-
   React.useEffect(() => {
-    setTitle(note?.noteReference ?? "Investment Detail");
-  }, [note?.noteReference, setTitle]);
+    setTitle("");
+    return () => setTitle("");
+  }, [setTitle]);
 
   const noteActivity = React.useMemo(
     () => (activityQuery.data?.entries ?? []).filter((entry) => entry.noteId === noteId),
@@ -208,6 +144,13 @@ export default function InvestmentDetailPage() {
     );
   }, [investedNote]);
 
+  const backHref = !note ? "/investments" : isInvestedView ? "/investments" : "/marketplace";
+  const backLabel = !note
+    ? "Back"
+    : isInvestedView
+      ? "Back to Portfolio"
+      : "Back to marketplace";
+
   if (!note && !positionLoading) {
     const investmentMessage =
       investmentsQuery.error instanceof Error ? investmentsQuery.error.message : null;
@@ -215,40 +158,39 @@ export default function InvestmentDetailPage() {
       marketplaceQuery.error instanceof Error ? marketplaceQuery.error.message : null;
     const message = marketplaceMessage ?? investmentMessage ?? "Note not found";
     return (
-      <div className="flex flex-1 flex-col gap-6 bg-background p-4 md:p-8">
-        <div
-          className={cn(
-            portalContentMaxWidthClassName,
-            "rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive"
-          )}
-        >
-          {message}
-        </div>
+      <div className={cn(portalPageGutterClassName, "space-y-6")}>
+        <PageShell title="Investment" breadcrumb={<Link href="/investments">{backLabel}</Link>}>
+          <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-6 text-ui text-destructive">
+            {message}
+          </div>
+        </PageShell>
       </div>
     );
   }
 
-  const backHref = !note ? "/investments" : isInvestedView ? "/investments" : "/marketplace";
-
   return (
-    <div className="flex flex-1 flex-col gap-6 bg-background p-4 md:p-8">
-      <div className={cn(portalContentMaxWidthClassName, "space-y-6")}>
-        <div className="flex flex-wrap items-center gap-3">
-          <Button asChild variant="ghost" className="-ml-3 w-fit gap-2 text-muted-foreground">
-            <Link href={backHref}>
-              <ArrowLeftIcon className="h-4 w-4" />
-              {!note
-                ? "Back"
-                : isInvestedView
-                  ? "Back to investments"
-                  : "Back to marketplace"}
-            </Link>
-          </Button>
-          {note ? (
+    <div className={cn(portalPageGutterClassName, "space-y-6")}>
+      <PageShell
+        title={note ? formatNoteReferenceDisplay(note.noteReference) || "Investment" : "Investment"}
+        description={
+          note
+            ? [note.issuerName?.trim() || "Issuer", note.issuerIndustry?.trim()]
+                .filter(Boolean)
+                .join(" · ")
+            : undefined
+        }
+        breadcrumb={
+          <Link href={backHref} className="inline-flex items-center gap-1.5">
+            <ArrowLeftIcon className="h-4 w-4" />
+            {backLabel}
+          </Link>
+        }
+        action={
+          note ? (
             <Button
               type="button"
               variant="outline"
-              className="h-9 rounded-lg text-xs"
+              className="h-11 rounded-xl"
               onClick={() => {
                 const investmentId = investedNote?.investorInvestmentId;
                 const open = investmentId
@@ -259,18 +201,18 @@ export default function InvestmentDetailPage() {
                 );
               }}
             >
-              View Prospectus
+              View prospectus
             </Button>
-          ) : null}
-        </div>
-
+          ) : null
+        }
+      >
         {positionLoading ? (
-          <PositionCardSkeleton />
+          <LoadingState variant="cards" rows={2} />
         ) : note ? (
-          <InvestmentPositionCard
+          <InvestmentDetailHero
             note={note}
-            investmentDateValue={investmentDate ?? note.updatedAt}
-            showDetailLink={false}
+            investmentDate={investmentDate ?? note.updatedAt}
+            isInvestedView={isInvestedView}
           />
         ) : null}
 
@@ -278,117 +220,65 @@ export default function InvestmentDetailPage() {
           <InvestmentReturnBreakdownCard note={investedNote} />
         ) : null}
 
-        {detailCardLoading ? (
-          <DetailCardSkeleton />
-        ) : note ? (
-          <Card className="rounded-3xl border border-border bg-card shadow-sm">
-            <CardHeader
-              className={cn(
-                "pb-2",
-                isInvestedView
-                  ? "flex flex-row items-center gap-2"
-                  : "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-xl font-semibold">
-                  {isInvestedView ? "Recent note activity" : "Marketplace details"}
-                </CardTitle>
-              </div>
-              {!isInvestedView ? (
-                <Badge
-                  variant="secondary"
-                  className="w-fit rounded-full bg-muted font-normal text-muted-foreground hover:bg-muted"
-                >
-                  {formatEnumLabel(note.listingStatus)}
-                </Badge>
-              ) : null}
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {isInvestedView ? (
-                activityQuery.isPending ? (
-                  <ActivitySkeleton />
-                ) : noteActivity.length > 0 ? (
-                  <div className="overflow-hidden rounded-2xl border border-border">
-                    <div className="hidden grid-cols-[minmax(0,1.2fr)_140px_180px] gap-4 border-b border-border bg-muted/40 px-4 py-3 text-xs font-medium text-muted-foreground md:grid">
-                      <div>Transaction type</div>
-                      <div>Amount</div>
-                      <div>Time</div>
-                    </div>
-                    <div className="divide-y divide-border">
-                      {noteActivity.map((entry) => {
-                        const metadataLines = getActivityMetadataLines(entry);
-                        return (
-                        <div
-                          key={entry.id}
-                          className="grid gap-2 px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_140px_180px] md:items-center md:gap-4"
-                        >
-                          <div>
-                            <div className="font-medium text-foreground">
-                              {getActivityLabel(entry)}
-                            </div>
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              {formatEnumLabel(entry.source)}
-                            </div>
-                            {metadataLines.length > 0 ? (
-                              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                                {metadataLines.map((line) => (
-                                  <span key={line}>{line}</span>
-                                ))}
-                              </div>
-                            ) : null}
-                          </div>
-                          <div
-                            className={cn(
-                              "font-medium",
-                              entry.direction === "IN" ? "text-emerald-700" : "text-destructive"
-                            )}
-                          >
-                            {formatSignedCurrency(entry.direction, entry.amount)}
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            {formatDateTime(entry.postedAt)}
-                          </div>
-                        </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-dashed p-8 text-center text-sm text-muted-foreground">
-                    No note-specific balance activity has been recorded yet.
-                  </div>
-                )
-              ) : (
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-2xl border border-border bg-muted/40 p-4">
-                    <div className="text-sm text-muted-foreground">Note reference</div>
-                    <div className="mt-1 font-semibold text-foreground">{note.noteReference}</div>
-                  </div>
-                  <div className="rounded-2xl border border-border bg-muted/40 p-4">
-                    <div className="text-sm text-muted-foreground">Paymaster</div>
-                    <div className="mt-1 font-semibold text-foreground">
-                      {note.paymasterName ?? "—"}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-border bg-muted/40 p-4">
-                    <div className="text-sm text-muted-foreground">Target amount</div>
-                    <div className="mt-1 font-semibold text-foreground">
-                      {formatCurrency(note.targetAmount)}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-border bg-muted/40 p-4">
-                    <div className="text-sm text-muted-foreground">Published date</div>
-                    <div className="mt-1 font-semibold text-foreground">
-                      {formatDate(note.publishedAt)}
-                    </div>
-                  </div>
+        {isInvestedView ? (
+          <section className="space-y-3 rounded-2xl border border-border bg-card p-4 shadow-sm md:p-5">
+            <h2 className="text-section-title">Recent note activity</h2>
+            {activityQuery.isPending ? (
+              <LoadingState variant="table" rows={4} />
+            ) : noteActivity.length > 0 ? (
+              <div className="overflow-hidden rounded-xl border border-border">
+                <div className="hidden grid-cols-[minmax(0,1.2fr)_10rem_11rem] gap-4 border-b border-border bg-muted/40 px-4 py-3 text-ui font-medium text-muted-foreground md:grid">
+                  <div>Transaction</div>
+                  <div>Amount</div>
+                  <div>Time</div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <div className="divide-y divide-border">
+                  {noteActivity.map((entry) => {
+                    const metadataLines = getActivityMetadataLines(entry);
+                    return (
+                      <div
+                        key={entry.id}
+                        className="grid gap-2 px-4 py-4 md:grid-cols-[minmax(0,1.2fr)_10rem_11rem] md:items-center md:gap-4"
+                      >
+                        <div>
+                          <div className="font-medium text-foreground">{getActivityLabel(entry)}</div>
+                          <div className="mt-1 text-meta text-muted-foreground">
+                            {investorActivityTypeLabel(entry.source, asRecord(entry.metadata))}
+                          </div>
+                          {metadataLines.length > 0 ? (
+                            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-meta text-muted-foreground">
+                              {metadataLines.map((line) => (
+                                <span key={line}>{line}</span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                        <div
+                          className={cn(
+                            "font-medium tabular-nums",
+                            entry.direction === "IN"
+                              ? "text-status-success-text"
+                              : "text-status-rejected-text"
+                          )}
+                        >
+                          {formatSignedCurrency(entry.direction, entry.amount)}
+                        </div>
+                        <div className="text-ui text-muted-foreground">
+                          {formatDateTime(entry.postedAt)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-dashed p-8 text-center text-ui text-muted-foreground">
+                No note-specific balance activity has been recorded yet.
+              </div>
+            )}
+          </section>
         ) : null}
-      </div>
+      </PageShell>
     </div>
   );
 }

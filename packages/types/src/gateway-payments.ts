@@ -25,6 +25,7 @@ export interface GatewayPaymentEventDto {
   id: string;
   type: GatewayPaymentEventType;
   actorUserId: string | null;
+  actorName: string | null;
   fromStatus: GatewayPaymentStatus | null;
   toStatus: GatewayPaymentStatus | null;
   reason: string | null;

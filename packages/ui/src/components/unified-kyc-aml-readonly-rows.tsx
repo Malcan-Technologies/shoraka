@@ -1,8 +1,8 @@
 "use client";
 
 import type { ApplicationPersonRow, DirectorShareholderDisplayRow } from "@cashsouk/types";
-import { getFinalStatusBadgeClassName, getFinalStatusLabel } from "@cashsouk/types";
-import { Badge } from "./badge";
+import { getFinalStatusLabel, getFinalStatusToken } from "@cashsouk/types";
+import { StatusBadge } from "./status-badge";
 import { cn } from "../lib/utils";
 
 export type UnifiedKycAmlDisplayRow = DirectorShareholderDisplayRow & {
@@ -43,28 +43,24 @@ export function UnifiedKycAmlReadonlyRows({ rows, isRefreshing }: UnifiedKycAmlR
             className="flex flex-col gap-2 p-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
           >
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">{row.name}</p>
+              <p className="text-ui font-medium">{row.name}</p>
               {row.email ? (
-                <p className="text-xs text-muted-foreground break-all">{row.email}</p>
+                <p className="text-meta text-muted-foreground break-all">{row.email}</p>
               ) : null}
-              <p className="text-xs text-muted-foreground mt-0.5">{row.role}</p>
+              <p className="text-meta text-muted-foreground mt-0.5">{row.role}</p>
               {row.type === "COMPANY" && row.registrationNumber?.trim() ? (
-                <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                <p className="text-meta text-muted-foreground font-mono mt-0.5">
                   SSM {row.registrationNumber}
                 </p>
               ) : null}
             </div>
             <div className="flex flex-wrap items-center gap-2 shrink-0">
-              <span className="text-xs text-muted-foreground">Status</span>
-              <Badge
-                variant="outline"
-                className={cn(
-                  "border-transparent text-[11px] font-normal",
-                  getFinalStatusBadgeClassName(finalStatus.tone)
-                )}
-              >
-                {finalStatus.label}
-              </Badge>
+              <span className="text-meta text-muted-foreground">Status</span>
+              <StatusBadge
+                label={finalStatus.label}
+                status={getFinalStatusToken(finalStatus.tone)}
+                size="sm"
+              />
             </div>
           </div>
         );

@@ -205,7 +205,7 @@ export function workflowDeepEqual(a: unknown, b: unknown): boolean {
 }
 
 /**
- * Validate mandatory workflow step set: Financing Structure, Contract Details, Invoice Details.
+ * Validate mandatory workflow step set: Financing Structure, Facility Details, Invoice Details.
  * Only applies when at least one of these steps is in the workflow.
  * When applicable: all three must be selected and appear in order. Returns error message or null.
  */
@@ -225,10 +225,10 @@ function getMandatoryStepSetError(steps: unknown[]): string | null {
   }
 
   if (!hasFs || !hasCd || !hasId) {
-    return "Financing Structure, Contract Details, and Invoice Details must all be selected and appear in the correct order.";
+    return "Financing Structure, Facility Details, and Invoice Details must all be selected and appear in the correct order.";
   }
   if (fsIndex >= cdIndex || cdIndex >= idIndex) {
-    return "Financing Structure, Contract Details, and Invoice Details must all be selected and appear in the correct order.";
+    return "Financing Structure, Facility Details, and Invoice Details must all be selected and appear in the correct order.";
   }
   return null;
 }

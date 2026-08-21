@@ -726,7 +726,7 @@ export function ApplicationFinancialReviewContent({
                         <Badge
                           variant="outline"
                           className={cn(
-                            "shrink-0 font-semibold text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+                            "shrink-0 font-normal text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
                             spec.kind === "ctos" && spec.year != null
                               ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
                               : spec.kind === "ctos"

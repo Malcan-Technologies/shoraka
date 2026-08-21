@@ -1,11 +1,11 @@
 import { ChevronDownIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import {
-  getFinalStatusBadgeClassName,
   getFinalStatusLabel,
+  getFinalStatusToken,
   normalizeRawStatus,
   toTitleCase,
 } from "@cashsouk/types";
-import { Badge } from "./components/badge";
+import { StatusBadge } from "./components/status-badge";
 import { cn } from "./lib/utils";
 
 export type UnresolvedIdentityPersonInput = {
@@ -80,19 +80,16 @@ export function DirectorShareholderUnresolvedIdentityCard({
               ? ` · ${shareLabel}`
               : null}
           </p>
-          <p className="text-[11px] font-medium text-amber-800 dark:text-amber-200">
+          <p className="text-meta font-medium text-amber-800 dark:text-amber-200">
             Identity details incomplete
           </p>
         </div>
-        <Badge
-          variant="outline"
-          className={cn(
-            "shrink-0 border-transparent text-[11px] font-normal",
-            getFinalStatusBadgeClassName(statusTone)
-          )}
-        >
-          {statusLabel}
-        </Badge>
+        <StatusBadge
+          label={statusLabel}
+          status={getFinalStatusToken(statusTone)}
+          size="sm"
+          className="shrink-0"
+        />
       </div>
 
       <details className="mt-2 group">

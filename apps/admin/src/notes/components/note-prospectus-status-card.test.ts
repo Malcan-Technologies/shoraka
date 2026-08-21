@@ -8,7 +8,6 @@ import {
   type NoteDetail,
 } from "@cashsouk/types";
 import {
-  WORKFLOW_CARD,
   WORKFLOW_STATUS_BADGE,
 } from "@/notes/utils/workflow-status-tokens";
 import { resolveProspectusStatusCard } from "./note-prospectus-status-card.model";
@@ -23,6 +22,7 @@ function baseNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     issuerIndustry: null,
     sourceApplicationId: "app-1",
     sourceContractId: null,
+    sourceContractDisplayReference: null,
     sourceInvoiceId: null,
     issuerOrganizationId: "org-1",
     issuerName: null,
@@ -37,10 +37,13 @@ function baseNote(overrides: Partial<NoteDetail> = {}): NoteDetail {
     featuredFrom: null,
     featuredUntil: null,
     featuredActive: false,
+    investorCount: 0,
     maturityDate: null,
     listingClosesAt: null,
     activatedAt: null,
     publishedAt: null,
+    fundingClosedAt: null,
+    repaidAt: null,
     settlementSummary: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -94,10 +97,10 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.heading).toBe("Prospectus approval required");
     expect(model.description).toMatch(/Review and approve the prospectus/i);
     expect(model.badgeLabel).toBe("Draft");
-    expect(model.primaryLabel).toBe("Review Prospectus");
-    expect(model.secondaryLabel).toBeNull();
+    expect(model.workspaceLabel).toBe("Review Prospectus");
+    expect(model.viewAvailable).toBe(false);
     expect(model.emphasize).toBe(true);
-    expect(model.badgeTone).toBeNull();
+    expect(model.badgeTone).toBe("neutral");
     expect(model.actionVariant).toBe("default");
   });
 
@@ -117,11 +120,11 @@ describe("resolveProspectusStatusCard", () => {
     );
     expect(model.phase).toBe("draft");
     expect(model.emphasize).toBe(true);
-    expect(model.badgeTone).toBeNull();
+    expect(model.badgeTone).toBe("neutral");
     expect(model.actionVariant).toBe("default");
   });
 
-  it("Approved uses neutral card, green success badge, outline Review button", () => {
+  it("Approved uses neutral card, green success badge, Edit Prospectus and View", () => {
     const model = resolveProspectusStatusCard(
       baseNote({
         prospectus: {
@@ -138,15 +141,15 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.heading).toBe("Ready to publish");
     expect(model.description).toMatch(/eligible for publication/i);
     expect(model.badgeLabel).toBe("Approved");
-    expect(model.primaryLabel).toBe("Review Prospectus");
-    expect(model.secondaryLabel).toBeNull();
+    expect(model.workspaceLabel).toBe("Edit Prospectus");
+    expect(model.viewAvailable).toBe(true);
     expect(model.emphasize).toBe(false);
     expect(model.badgeTone).toBe("success");
     expect(model.actionVariant).toBe("outline");
     expect(WORKFLOW_STATUS_BADGE.success.badgeClass).toMatch(/success/);
   });
 
-  it("Published uses neutral card, green success badge, and outline View Prospectus button", () => {
+  it("Published uses neutral card, green success badge, View PDF, and Open Review", () => {
     const model = resolveProspectusStatusCard(
       baseNote({
         status: NoteStatus.PUBLISHED,
@@ -167,8 +170,8 @@ describe("resolveProspectusStatusCard", () => {
     expect(model.heading).toBe("Published");
     expect(model.description).toMatch(/visible to investors/i);
     expect(model.badgeLabel).toBe("Published");
-    expect(model.primaryLabel).toBe("View Prospectus");
-    expect(model.secondaryLabel).toBeNull();
+    expect(model.workspaceLabel).toBe("Open Review");
+    expect(model.viewAvailable).toBe(true);
     expect(model.emphasize).toBe(false);
     expect(model.badgeTone).toBe("success");
     expect(model.actionVariant).toBe("outline");
@@ -188,8 +191,31 @@ describe("resolveProspectusStatusCard", () => {
       })
     );
     expect(model.phase).toBe("approved");
-    expect(model.primaryLabel).toBe("Review Prospectus");
-    expect(model.primaryLabel).not.toBe("Publish Note");
+    expect(model.workspaceLabel).toBe("Edit Prospectus");
+    expect(model.workspaceLabel).not.toBe("Publish Note");
+  });
+
+  it("shows Draft after unpublish so the prospectus must be re-approved", () => {
+    const model = resolveProspectusStatusCard(
+      baseNote({
+        status: NoteStatus.DRAFT,
+        listingStatus: NoteListingStatus.UNPUBLISHED,
+        publishedAt: new Date().toISOString(),
+        prospectus: {
+          status: "PUBLISHED",
+          displayStatus: "Draft",
+          contentVersion: 5,
+          lastSavedAt: null,
+          approvedAt: new Date().toISOString(),
+          publishedAt: new Date().toISOString(),
+        },
+      })
+    );
+    expect(model.phase).toBe("draft");
+    expect(model.badgeLabel).toBe("Draft");
+    expect(model.workspaceLabel).toBe("Review Prospectus");
+    expect(model.viewAvailable).toBe(false);
+    expect(model.emphasize).toBe(true);
   });
 });
 
@@ -206,11 +232,18 @@ describe("Admin Note Detail prospectus UI cleanup", () => {
     path.join(__dirname, "note-prospectus-status-card.tsx"),
     "utf8"
   );
+  const lifecycleActionsSource = fs.readFileSync(
+    path.join(__dirname, "../utils/note-lifecycle-actions.ts"),
+    "utf8"
+  );
 
   it("no longer renders the old Publication Checklist labels", () => {
     expect(lifecycleSource).not.toContain("Publication checklist");
     expect(lifecycleSource).not.toContain("Note details ready");
     expect(lifecycleSource).not.toContain("Listing window configurable at publish");
+    expect(lifecycleSource).toContain("getNoteLifecycleStageCompletedAt");
+    expect(lifecycleSource).toContain("NOTE_LIFECYCLE_STAGES");
+    expect(lifecycleSource).not.toContain("buildNoteLifecycleActionPlan");
     expect(pageSource).not.toContain("Publication checklist");
     expect(pageSource).not.toContain("Note details ready");
     expect(pageSource).not.toContain("Listing window configurable at publish");
@@ -218,18 +251,37 @@ describe("Admin Note Detail prospectus UI cleanup", () => {
 
   it("wires NoteProspectusStatusCard without a second publish action", () => {
     expect(pageSource).toContain("NoteProspectusStatusCard");
-    expect(pageSource).toContain("onReviewProspectus");
+    expect(pageSource).toContain("onOpenWorkspace");
+    expect(pageSource).toContain("onViewProspectus");
     expect(pageSource).not.toContain("onPublishNote");
     expect(cardSource).not.toContain("Publish Note");
     expect(cardSource).not.toContain("onPublishNote");
-    expect(lifecycleSource).toContain("Publish to Marketplace");
+    // Marketplace publish stays on the campaign action plan, never the prospectus card.
+    expect(lifecycleActionsSource).toContain("Publish to Marketplace");
+    const campaignSource = fs.readFileSync(
+      path.join(__dirname, "note-campaign-actions.tsx"),
+      "utf8"
+    );
+    expect(campaignSource).toContain("buildNoteLifecycleActionPlan");
+    expect(campaignSource).toContain("note-featured-toggle");
+    expect(campaignSource).toContain("isNoteFeatureEligible");
+    expect(campaignSource).toContain("buildInvestorCampaignUrl");
+    expect(campaignSource).toContain("View live campaign");
+    expect(campaignSource).not.toContain("rounded-xl border px-4 py-3");
   });
 
   it("maps card emphasis and button variant from status model; Approved and Published get success badge tone", () => {
-    expect(cardSource).toContain("WORKFLOW_CARD.activeSection");
-    expect(cardSource).toContain("model.badgeTone ? workflowBadgeClassName(model.badgeTone)");
+    expect(cardSource).toContain("ADMIN_ACTION_SURFACE_CLASS");
+    expect(cardSource).toContain("ExclamationTriangleIcon");
+    expect(cardSource).toContain("workflowToneToStatusToken(model.badgeTone)");
     expect(cardSource).toContain("variant={model.actionVariant}");
-    expect(WORKFLOW_CARD.activeSection).toMatch(/border-primary|bg-primary/);
+    expect(cardSource).toContain("onOpenWorkspace");
+    expect(cardSource).toContain("onViewProspectus");
+    expect(cardSource).toContain("model.workspaceLabel");
+    expect(cardSource).toContain("<CardTitle>Prospectus</CardTitle>");
+    expect(cardSource).toContain("items-center justify-between");
+    expect(cardSource).not.toContain("CardContent");
+    expect(cardSource).not.toContain("{model.heading}");
 
     const approved = resolveProspectusStatusCard(
       baseNote({
@@ -260,7 +312,7 @@ describe("Admin Note Detail prospectus UI cleanup", () => {
     const draft = resolveProspectusStatusCard(baseNote());
     expect(approved.badgeTone).toBe("success");
     expect(published.badgeTone).toBe("success");
-    expect(draft.badgeTone).toBeNull();
+    expect(draft.badgeTone).toBe("neutral");
   });
 });
 

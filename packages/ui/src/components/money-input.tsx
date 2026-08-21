@@ -16,6 +16,8 @@ interface MoneyInputProps {
   maxIntDigits?: number;
   allowEmpty?: boolean;
   allowNegative?: boolean;
+  invalid?: boolean;
+  describedBy?: string;
   /** Fires after blur formatting is applied (comma + 2dp). Empty string when field was left empty and allowEmpty. */
   onBlurComplete?: (formattedValue: string) => void;
 }
@@ -35,6 +37,8 @@ export function MoneyInput({
   maxIntDigits = 15,
   allowEmpty = true,
   allowNegative = false,
+  invalid = false,
+  describedBy,
   onBlurComplete,
 }: MoneyInputProps) {
   const isValidMoneyInput = (raw: string): boolean => {
@@ -92,7 +96,7 @@ export function MoneyInput({
   return (
     <div className={cn("relative w-full flex items-center", className)}>
       {hasPrefixDisplay && (
-        <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-sm pointer-events-none">
+        <div className="absolute left-4 inset-y-0 flex items-center text-muted-foreground font-medium text-ui pointer-events-none">
           {prefix}
         </div>
       )}
@@ -102,9 +106,16 @@ export function MoneyInput({
         value={value}
         placeholder={placeholder}
         disabled={disabled}
+        aria-invalid={invalid || undefined}
+        aria-describedby={describedBy}
         onChange={handleChange}
         onBlur={handleBlur}
-        className={cn(inputClassName, hasPrefixDisplay && "pl-12")}
+        className={cn(
+          inputClassName,
+          hasPrefixDisplay && "pl-12",
+          invalid &&
+            "border-destructive focus-visible:border-destructive focus-visible:ring-destructive"
+        )}
       />
     </div>
   );

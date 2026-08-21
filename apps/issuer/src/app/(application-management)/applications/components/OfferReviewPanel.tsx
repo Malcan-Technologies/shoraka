@@ -104,18 +104,14 @@ import {
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { OfferAcceptanceSubmittedSuccessView } from "@/components/onboarding-fee-return-views";
-
-const PLATFORM_FEE_TOOLTIP =
-  "Deducted from disbursement when funding closes, applied as a percentage of the funded amount.";
-
-const PROFIT_RATE_TOOLTIP =
-  "Profit per annum (%). Deducted during settlement when calculating the residual refund to the issuer.";
+import { InvoiceOfferTerms } from "./invoice-offer-terms";
+import { buildInvoiceFeeDisplay } from "@/lib/facility-fee-display";
 
 const CONTRACT_FACILITY_FEE_RATE_TOOLTIP =
-  "Facility fee is deducted from each invoice financing disbursement under this contract.";
+  "Facility fee is deducted from each invoice financing disbursement under this facility.";
 
 const CONTRACT_FACILITY_FEE_CAP_TOOLTIP =
-  "Maximum total facility fee that can be collected for this contract.";
+  "Maximum total facility fee that can be collected for this facility.";
 
 export type OfferReviewPanelProps = {
   type: "contract" | "invoice";
@@ -966,9 +962,6 @@ export function OfferReviewPanel({
         ? formatCurrency(Number(od.offered_amount))
         : "—";
 
-  const dateLabel = "Contract end date";
-  const dateValue = contractEndDate ?? "—";
-
   const profitRateDisplay =
     od?.offered_profit_rate_percent != null &&
     Number.isFinite(Number(od.offered_profit_rate_percent))
@@ -1011,63 +1004,28 @@ export function OfferReviewPanel({
       ? Number(contractDetails.facility_fee_paid_amount)
       : null;
 
-  const facilityFeeRemainingAmountNumber =
-    approvedFacilityAmountNumber != null &&
-    contractFacilityFeeRatePercentNumber != null &&
-    contractFacilityFeePaidAmountNumber != null &&
-    Number.isFinite(approvedFacilityAmountNumber) &&
-    Number.isFinite(contractFacilityFeeRatePercentNumber) &&
-    Number.isFinite(contractFacilityFeePaidAmountNumber) &&
-    contractFacilityFeeRatePercentNumber > 0
-      ? Math.max(
-          0,
-          (approvedFacilityAmountNumber * contractFacilityFeeRatePercentNumber) / 100 -
-            contractFacilityFeePaidAmountNumber
-        )
-      : null;
-
   const invoiceFinancingAmountNumber =
     type === "invoice" && od?.offered_amount != null ? Number(od.offered_amount) : null;
 
-  const invoicePlatformFeeRatePercentNumber =
-    type === "invoice" && od?.platform_fee_rate_percent != null ? Number(od.platform_fee_rate_percent) : null;
-
-  const expectedFacilityFeeNumber =
-    isContractLinkedInvoice &&
-    facilityFeeRemainingAmountNumber != null &&
-    invoiceFinancingAmountNumber != null &&
+  const invoiceFacilityFeeCapAmount =
+    approvedFacilityAmountNumber != null &&
     contractFacilityFeeRatePercentNumber != null &&
-    Number.isFinite(invoiceFinancingAmountNumber) &&
-    Number.isFinite(contractFacilityFeeRatePercentNumber)
-      ? Math.min(
-          (invoiceFinancingAmountNumber * contractFacilityFeeRatePercentNumber) / 100,
-          facilityFeeRemainingAmountNumber
-        )
+    Number.isFinite(approvedFacilityAmountNumber) &&
+    Number.isFinite(contractFacilityFeeRatePercentNumber) &&
+    contractFacilityFeeRatePercentNumber > 0
+      ? approvedFacilityAmountNumber * (contractFacilityFeeRatePercentNumber / 100)
       : null;
 
-  const expectedPlatformFeeNumber =
-    invoiceFinancingAmountNumber != null &&
-    invoicePlatformFeeRatePercentNumber != null &&
-    Number.isFinite(invoiceFinancingAmountNumber) &&
-    Number.isFinite(invoicePlatformFeeRatePercentNumber)
-      ? (invoiceFinancingAmountNumber * invoicePlatformFeeRatePercentNumber) / 100
-      : null;
+  const invoiceFeeDisplay = buildInvoiceFeeDisplay({
+    status: invoice?.status,
+    offerDetails: od,
+    financingAmount: invoiceFinancingAmountNumber,
+    isContractFinancing: isContractLinkedInvoice,
+    contractFacilityFeeRatePercent: contractFacilityFeeRatePercentNumber,
+    contractFacilityFeeCapAmount: invoiceFacilityFeeCapAmount,
+    contractFacilityFeePaidAmount: contractFacilityFeePaidAmountNumber,
+  });
 
-  const facilityFeeEstimatedTooltip =
-    expectedFacilityFeeNumber != null && expectedFacilityFeeNumber > 0
-      ? "Deducted from disbursement when funding closes. For contract financing, this is collected progressively until the facility fee cap is reached."
-      : "Deducted from disbursement when funding closes. For contract financing, this is collected progressively until the facility fee cap is reached. No facility fee applies here because the cap has already been reached.";
-
-  const summarySecondLabel = type === "contract" ? "Approved facility:" : "Invoice value:";
-  const summarySecondValue =
-    type === "contract"
-      ? offeredValue
-      : invoice?.value != null && Number.isFinite(invoice.value)
-        ? formatCurrency(invoice.value)
-        : "—";
-
-  const summaryThirdLabel = type === "contract" ? `${dateLabel}:` : "Profit rate (p.a.):";
-  const summaryThirdValue = type === "contract" ? dateValue : profitRateDisplay;
 
   const handleDownload = async () => {
     if (type === "invoice" && !invoice?.id) {
@@ -1167,7 +1125,7 @@ export function OfferReviewPanel({
 
     if (!envelope) {
       const createResponse = await apiClient.createIssuerSigningEnvelope(applicationId, {
-        title: type === "contract" ? "Contract offer signing package" : "Invoice offer signing package",
+        title: type === "contract" ? "Facility offer signing package" : "Invoice offer signing package",
         contractId: type === "contract" ? contractId ?? null : null,
         invoiceId,
         bindings: signerBindings,
@@ -1736,6 +1694,49 @@ export function OfferReviewPanel({
     })();
   };
 
+  const invoiceOfferPhaseDeadline = phaseDeadline ? (
+    <div className="space-y-1 text-ui">
+      <p className="text-muted-foreground">{phaseDeadlineRowLabel}</p>
+      <p
+        className={cn(
+          "font-medium tabular-nums",
+          phaseDeadline.urgency === "past" && "text-destructive",
+          phaseDeadline.urgency === "soon" && "text-status-action-text"
+        )}
+      >
+        {phaseDeadline.absolute}
+        {phaseDeadline.relative ? (
+          <span
+            className={cn(
+              "mt-0.5 block text-meta font-normal",
+              phaseDeadline.urgency === "past"
+                ? "text-destructive"
+                : phaseDeadline.urgency === "soon"
+                  ? "text-status-action-text"
+                  : "text-muted-foreground"
+            )}
+          >
+            {phaseDeadline.relative}
+          </span>
+        ) : null}
+      </p>
+    </div>
+  ) : null;
+
+  const invoiceOfferTerms = type === "invoice" ? (
+    <InvoiceOfferTerms
+      invoiceNumber={contractName}
+      invoiceValue={invoice?.value ?? null}
+      maturityDate={invoiceMaturityDate}
+      profitRate={profitRateDisplay}
+      requestedFinancing={requestedFinancingNumber}
+      approvedFinancing={invoiceFinancingAmountNumber}
+      includeFacilityFee={isContractLinkedInvoice}
+      feeDisplay={invoiceFeeDisplay}
+      footer={invoiceOfferPhaseDeadline}
+    />
+  ) : null;
+
   // Label/value stack reads better in the sidebar than a cramped two-column dl.
   const offerDetailsList =
     type === "contract" ? (
@@ -1812,81 +1813,7 @@ export function OfferReviewPanel({
         ) : null}
       </dl>
     ) : (
-      <dl className="space-y-3 text-sm">
-        <div className="space-y-1">
-          <dt className="text-muted-foreground">Invoice number</dt>
-          <dd className="font-medium break-words">{contractName}</dd>
-        </div>
-        <div className="space-y-1">
-          <dt className="text-muted-foreground">{summarySecondLabel}</dt>
-          <dd className="font-medium tabular-nums">{summarySecondValue}</dd>
-        </div>
-        {requestedFinancingNumber != null ? (
-          <div className="space-y-1">
-            <dt className="text-muted-foreground">Requested financing</dt>
-            <dd className="font-medium tabular-nums">{formatCurrency(requestedFinancingNumber)}</dd>
-          </div>
-        ) : null}
-        {invoiceMaturityDate != null ? (
-          <div className="space-y-1">
-            <dt className="text-muted-foreground">Maturity date</dt>
-            <dd className="font-medium tabular-nums">{invoiceMaturityDate}</dd>
-          </div>
-        ) : null}
-        <div className="space-y-1">
-          <dt className="text-muted-foreground inline-flex items-center gap-1">
-            {summaryThirdLabel}
-            <InfoTooltip content={PROFIT_RATE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
-          </dt>
-          <dd className="font-medium tabular-nums">{summaryThirdValue}</dd>
-        </div>
-        <div className="space-y-1">
-          <dt className="text-muted-foreground inline-flex items-center gap-1">
-            Platform fee
-            <InfoTooltip content={PLATFORM_FEE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
-          </dt>
-          <dd className="font-medium tabular-nums">
-            {expectedPlatformFeeNumber != null ? formatCurrency(expectedPlatformFeeNumber) : "—"}
-          </dd>
-        </div>
-        <div className="space-y-1">
-          <dt className="text-muted-foreground inline-flex items-center gap-1">
-            Estimated facility fee
-            <InfoTooltip content={facilityFeeEstimatedTooltip} iconClassName="h-3.5 w-3.5 shrink-0" />
-          </dt>
-          <dd className="font-medium tabular-nums">
-            {expectedFacilityFeeNumber != null ? formatCurrency(expectedFacilityFeeNumber) : "—"}
-          </dd>
-        </div>
-        {phaseDeadline ? (
-          <div className="space-y-1">
-            <dt className="text-muted-foreground">{phaseDeadlineRowLabel}</dt>
-            <dd
-              className={cn(
-                "font-medium tabular-nums",
-                phaseDeadline.urgency === "past" && "text-destructive",
-                phaseDeadline.urgency === "soon" && "text-status-action-text"
-              )}
-            >
-              {phaseDeadline.absolute}
-              {phaseDeadline.relative ? (
-                <span
-                  className={cn(
-                    "mt-0.5 block text-xs font-normal",
-                    phaseDeadline.urgency === "past"
-                      ? "text-destructive"
-                      : phaseDeadline.urgency === "soon"
-                        ? "text-status-action-text"
-                        : "text-muted-foreground"
-                  )}
-                >
-                  {phaseDeadline.relative}
-                </span>
-              ) : null}
-            </dd>
-          </div>
-        ) : null}
-      </dl>
+      invoiceOfferTerms
     );
 
   const renderRoleSignerSection = (role: SigningTemplateRole) => {
@@ -2425,22 +2352,23 @@ export function OfferReviewPanel({
   const linkedContractOfferDetails = (
     contractRecord as { offer_details?: Record<string, unknown> } | null
   )?.offer_details;
-  const linkedRequestedFacilityNumber =
-    linkedContractOfferDetails?.requested_facility != null &&
-    Number.isFinite(Number(linkedContractOfferDetails.requested_facility))
-      ? Number(linkedContractOfferDetails.requested_facility)
-      : approvedFacilityAmountNumber;
+  const linkedOfferedFacilityNumber =
+    linkedContractOfferDetails?.offered_facility != null &&
+    Number.isFinite(Number(linkedContractOfferDetails.offered_facility))
+      ? Number(linkedContractOfferDetails.offered_facility)
+      : null;
+  const linkedApprovedFacilityNumber =
+    approvedFacilityAmountNumber != null &&
+    Number.isFinite(approvedFacilityAmountNumber) &&
+    approvedFacilityAmountNumber > 0
+      ? approvedFacilityAmountNumber
+      : linkedOfferedFacilityNumber;
   const linkedFacilityFeeRatePercent =
     contractFacilityFeeRatePercentNumber ??
     (linkedContractOfferDetails?.facility_fee_rate_percent != null &&
     Number.isFinite(Number(linkedContractOfferDetails.facility_fee_rate_percent))
       ? Number(linkedContractOfferDetails.facility_fee_rate_percent)
       : null);
-  const linkedOfferedFacilityNumber =
-    linkedContractOfferDetails?.offered_facility != null &&
-    Number.isFinite(Number(linkedContractOfferDetails.offered_facility))
-      ? Number(linkedContractOfferDetails.offered_facility)
-      : approvedFacilityAmountNumber;
   const linkedFacilityFeeCapNumber =
     linkedFacilityFeeRatePercent != null && linkedOfferedFacilityNumber != null
       ? linkedOfferedFacilityNumber * (linkedFacilityFeeRatePercent / 100)
@@ -2458,11 +2386,11 @@ export function OfferReviewPanel({
           <dd className="font-medium tabular-nums">{formatCurrency(linkedContractValueNumber)}</dd>
         </div>
       ) : null}
-      {linkedRequestedFacilityNumber != null ? (
+      {linkedApprovedFacilityNumber != null ? (
         <div className="space-y-1">
           <dt className="text-muted-foreground">Approved facility</dt>
           <dd className="font-medium tabular-nums">
-            {formatCurrency(linkedRequestedFacilityNumber)}
+            {formatCurrency(linkedApprovedFacilityNumber)}
           </dd>
         </div>
       ) : null}
@@ -2503,56 +2431,7 @@ export function OfferReviewPanel({
     </dl>
   );
 
-  const invoiceOfferTermsList =
-    type === "invoice" ? (
-      <dl className="space-y-3 text-sm">
-        <div className="space-y-1">
-          <dt className="text-muted-foreground">Invoice number</dt>
-          <dd className="font-medium break-words">{contractName}</dd>
-        </div>
-        <div className="space-y-1">
-          <dt className="text-muted-foreground">{summarySecondLabel}</dt>
-          <dd className="font-medium tabular-nums">{summarySecondValue}</dd>
-        </div>
-        {requestedFinancingNumber != null ? (
-          <div className="space-y-1">
-            <dt className="text-muted-foreground">Requested financing</dt>
-            <dd className="font-medium tabular-nums">{formatCurrency(requestedFinancingNumber)}</dd>
-          </div>
-        ) : null}
-        {invoiceMaturityDate != null ? (
-          <div className="space-y-1">
-            <dt className="text-muted-foreground">Maturity date</dt>
-            <dd className="font-medium tabular-nums">{invoiceMaturityDate}</dd>
-          </div>
-        ) : null}
-        <div className="space-y-1">
-          <dt className="text-muted-foreground inline-flex items-center gap-1">
-            {summaryThirdLabel}
-            <InfoTooltip content={PROFIT_RATE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
-          </dt>
-          <dd className="font-medium tabular-nums">{summaryThirdValue}</dd>
-        </div>
-        <div className="space-y-1">
-          <dt className="text-muted-foreground inline-flex items-center gap-1">
-            Platform fee
-            <InfoTooltip content={PLATFORM_FEE_TOOLTIP} iconClassName="h-3.5 w-3.5 shrink-0" />
-          </dt>
-          <dd className="font-medium tabular-nums">
-            {expectedPlatformFeeNumber != null ? formatCurrency(expectedPlatformFeeNumber) : "—"}
-          </dd>
-        </div>
-        <div className="space-y-1">
-          <dt className="text-muted-foreground inline-flex items-center gap-1">
-            Estimated facility fee
-            <InfoTooltip content={facilityFeeEstimatedTooltip} iconClassName="h-3.5 w-3.5 shrink-0" />
-          </dt>
-          <dd className="font-medium tabular-nums">
-            {expectedFacilityFeeNumber != null ? formatCurrency(expectedFacilityFeeNumber) : "—"}
-          </dd>
-        </div>
-      </dl>
-    ) : null;
+  const invoiceOfferTermsList = invoiceOfferTerms;
 
   const renderAcceptDeclineContent = () => {
     if (isRejectMode) {
@@ -2575,7 +2454,7 @@ export function OfferReviewPanel({
             {canDirectAccept
               ? "No signing package is required for this invoice. Review the terms, then accept or decline."
               : (modalMode.ui === "accept_decline" && modalMode.blockedMessage) ||
-                "Finish contract signing first before accepting this invoice offer."}
+                "Finish facility signing first before accepting this invoice offer."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -2636,7 +2515,7 @@ export function OfferReviewPanel({
   const headingBadges = (
     <>
       <Badge variant="outline" className="font-normal">
-        {type === "contract" ? "Contract" : "Invoice"}
+        {type === "contract" ? "Facility" : "Invoice"}
       </Badge>
       <Badge
         variant="secondary"
@@ -2839,7 +2718,7 @@ export function OfferReviewPanel({
     return (
       <div
         className={cn(
-          "mx-auto w-full max-w-4xl rounded-2xl border border-border bg-card p-6 shadow-sm",
+          "w-full rounded-2xl border border-border bg-card p-6 shadow-sm",
           className
         )}
       >

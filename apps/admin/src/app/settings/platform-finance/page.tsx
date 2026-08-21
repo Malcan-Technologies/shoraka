@@ -10,7 +10,7 @@ import type {
   TrusteeAccountDetails,
   TrusteeLetterConfig,
 } from "@cashsouk/types";
-import { Tabs, TabsContent, TabsList, TabsTrigger, useHeader } from "@cashsouk/ui";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RequirePermission } from "@/components/require-permission";
+import { AdminPageHeader } from "@/components/admin-page-header";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useS3ViewUrl } from "@/hooks/use-s3";
 import { uploadFileToS3 } from "@/lib/upload-file-to-s3";
@@ -130,12 +131,6 @@ function AccountFields({
 }
 
 export default function PlatformFinanceSettingsPage() {
-  const { setTitle } = useHeader();
-  React.useEffect(() => {
-    setTitle("Platform Finance Settings");
-    return () => setTitle("");
-  }, [setTitle]);
-
   const { can } = usePermissions();
   const canManage = can("platform_settings.manage");
   const { getAccessToken } = useAuthToken();
@@ -383,6 +378,10 @@ export default function PlatformFinanceSettingsPage() {
       <>
         
         <div className="w-full space-y-6 px-4 py-10 md:px-6 md:py-12 lg:px-8">
+          <AdminPageHeader
+            title="Platform Finance"
+            description="Configure late-payment rules, gateway fees, trustee letters, and money-flow accounts."
+          />
           <Tabs defaultValue="late-payment" className="space-y-6">
             <TabsList className="grid h-auto w-full max-w-[760px] grid-cols-1 gap-2 md:grid-cols-5">
               <TabsTrigger value="late-payment">Late Payment</TabsTrigger>

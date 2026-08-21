@@ -1,10 +1,10 @@
 import { formatCurrency } from "@cashsouk/config";
-import { Skeleton } from "@cashsouk/ui";
+import { Skeleton, StatusBadge } from "@cashsouk/ui";
 import type { EligibleNoteInvoice } from "@cashsouk/types";
 import { formatInvoiceReference } from "@cashsouk/types";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatNoteStatus } from "@/notes/utils/format-note-status";
+import { getAdminStatusToken, adminActionRowClass } from "@/lib/admin-status-token";
 import { EyeIcon } from "@heroicons/react/24/outline";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -89,7 +89,14 @@ export function SourceInvoicesTable({
               </TableRow>
             ) : (
               invoices.map((invoice) => (
-                <TableRow key={invoice.invoiceId}>
+                <TableRow
+                  key={invoice.invoiceId}
+                  className={adminActionRowClass(
+                    invoice.noteId
+                      ? getAdminStatusToken(invoice.noteStatus ?? "")
+                      : "action"
+                  )}
+                >
                   <TableCell>
                     <div className="font-medium font-mono text-xs">
                       {formatInvoiceReference({
@@ -115,9 +122,12 @@ export function SourceInvoicesTable({
                   <TableCell>{formatDate(invoice.maturityDate)}</TableCell>
                   <TableCell>
                     {invoice.noteId ? (
-                      <Badge variant="outline">{formatNoteStatus(invoice.noteStatus)}</Badge>
+                      <StatusBadge
+                        label={formatNoteStatus(invoice.noteStatus)}
+                        status={getAdminStatusToken(invoice.noteStatus ?? "")}
+                      />
                     ) : (
-                      <Badge variant="secondary">Ready</Badge>
+                      <StatusBadge label="Ready" status="action" />
                     )}
                   </TableCell>
                   <TableCell>

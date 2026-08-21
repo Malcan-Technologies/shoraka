@@ -42,7 +42,7 @@ function TocNav({
             onClick={() => onSelect(item.id)}
             className={cn(
               "block w-full rounded-md px-2.5 py-2 text-left text-sm leading-snug transition-colors",
-              item.level === 3 && "pl-5 text-[13px]",
+              item.level === 3 && "pl-5 text-meta",
               isActive
                 ? ACTIVE_NAV
                 : "text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -171,7 +171,7 @@ export function HelpArticleView({
                     {article.title}
                   </h1>
                   {article.description ? (
-                    <p className="text-[17px] leading-7 text-muted-foreground">
+                    <p className="text-body text-muted-foreground">
                       {article.description}
                     </p>
                   ) : null}

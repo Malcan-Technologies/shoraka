@@ -11,6 +11,8 @@ import {
   SYSTEM_ADMIN_ROLE_KEYS,
   SOUKSCORE_RISK_RATING_GRADES,
 } from "@cashsouk/types";
+import { isValidPhoneNumber } from "libphonenumber-js";
+import { addressSchema, bankAccountDetailsSchema } from "../organization/schemas";
 
 // Helper for parsing boolean query params (handles "true"/"false" strings properly)
 const booleanQueryParam = z
@@ -266,6 +268,61 @@ export const getOrganizationsQuerySchema = z.object({
 });
 
 export type GetOrganizationsQuery = z.infer<typeof getOrganizationsQuerySchema>;
+
+export const getOrganizationLinkedRecordsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  type: z.enum(["applications", "contracts", "notes", "investments"]).optional(),
+});
+
+export type GetOrganizationLinkedRecordsQuery = z.infer<typeof getOrganizationLinkedRecordsQuerySchema>;
+
+const optionalPhone = z
+  .string()
+  .refine((val) => !val || isValidPhoneNumber(val), {
+    message: "Invalid phone number format",
+  })
+  .optional()
+  .nullable();
+
+export const updateAdminOrganizationProfileSchema = z
+  .object({
+    name: z.string().min(1).max(255).optional().nullable(),
+    phoneNumber: optionalPhone,
+    address: z.string().max(500).optional().nullable(),
+    firstName: z.string().min(1).max(100).optional().nullable(),
+    lastName: z.string().min(1).max(100).optional().nullable(),
+    middleName: z.string().max(100).optional().nullable(),
+    bankAccountDetails: bankAccountDetailsSchema.optional().nullable(),
+    corporateOnboardingData: z
+      .object({
+        website: z.string().max(255).optional().nullable(),
+        industry: z.string().max(255).optional().nullable(),
+        entityType: z.string().max(255).optional().nullable(),
+        numberOfEmployees: z.number().int().nonnegative().optional().nullable(),
+        annualRevenue: z.string().max(100).optional().nullable(),
+        tinNumber: z.string().max(100).optional().nullable(),
+        businessName: z.string().max(255).optional().nullable(),
+        addresses: z
+          .object({
+            business: addressSchema.optional().nullable(),
+            registered: addressSchema.optional().nullable(),
+          })
+          .optional(),
+        personInCharge: z
+          .object({
+            name: z.string().max(255).optional().nullable(),
+            position: z.string().max(255).optional().nullable(),
+            email: z.union([z.string().email(), z.literal(""), z.null()]).optional(),
+            contactNumber: optionalPhone,
+          })
+          .optional(),
+      })
+      .optional(),
+  })
+  .strict();
+
+export type UpdateAdminOrganizationProfileBody = z.infer<typeof updateAdminOrganizationProfileSchema>;
 
 // Update sophisticated investor status schema
 export const updateSophisticatedStatusSchema = z.object({

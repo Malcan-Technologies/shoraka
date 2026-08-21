@@ -1,6 +1,6 @@
 "use client";
 
-import { useHeader } from "@cashsouk/ui";
+import { StatusBadge } from "@cashsouk/ui";
 
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -9,16 +9,24 @@ import {
   ArrowLeftIcon,
   ArrowPathIcon,
   BanknotesIcon,
-  ClipboardDocumentCheckIcon,
+  ClockIcon,
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
+import { AdminDetailCardHeader } from "@/components/admin-detail";
+import { AdminActivityCsvExportButton } from "@/components/admin-activity-csv-export-button";
+import { mergeActivityCsvMetadata } from "@/components/admin-activity-csv";
+import { resolveAdminTimelineActorLabel } from "@/components/admin-timeline-originator";
+import {
+  AdminVerticalTimeline,
+  AdminVerticalTimelineItem,
+} from "@/components/admin-vertical-timeline";
 import { formatCurrency } from "@cashsouk/config";
 import { ApplicationReviewRemarkDialog } from "@/components/application-review-remark-dialog";
 import {
   formatDate,
   PURPOSE_LABEL,
   STATUS_LABEL,
-  statusVariant,
+  statusToken,
 } from "@/lib/gateway-payment-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,12 +68,12 @@ const RECEIPT_STATUS_LABEL: Record<string, string> = {
   REFUNDED: "Refunded",
 };
 
-function receiptStatusVariant(status: string) {
+function receiptStatusToken(status: string) {
   if (status === "GENERATED") return "success" as const;
-  if (status === "FAILED") return "destructive" as const;
-  if (status === "REFUNDED") return "secondary" as const;
-  if (status === "PENDING") return "warning" as const;
-  return "outline" as const;
+  if (status === "FAILED") return "rejected" as const;
+  if (status === "REFUNDED") return "neutral" as const;
+  if (status === "PENDING") return "action" as const;
+  return "neutral" as const;
 }
 
 function formatPendingDuration(fromIso: string) {
@@ -143,7 +151,6 @@ function DetailRow({
 }
 
 export default function GatewayPaymentDetailPage() {
-  const { setTitle } = useHeader();
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = typeof params?.id === "string" ? params.id : null;
@@ -169,15 +176,6 @@ export default function GatewayPaymentDetailPage() {
   const receiptPdf = useGatewayPaymentReceiptPdf();
   const retryReceipt = useRetryGatewayPaymentReceipt();
   const [showRefundDialog, setShowRefundDialog] = React.useState(false);
-
-  React.useEffect(() => {
-    setTitle(
-      payment
-        ? `${PURPOSE_LABEL[payment.purpose] ?? payment.purpose} · ${formatCurrency(payment.amount)}`
-        : "Gateway Payment"
-    );
-    return () => setTitle("");
-  }, [setTitle, payment]);
 
   const isPending =
     retryRefund.isPending ||
@@ -215,6 +213,19 @@ export default function GatewayPaymentDetailPage() {
   const showNameCheckCard = Boolean(visibility?.showNameCheckCard);
   const showHeldRefundCard = Boolean(visibility?.showHeldRefundCard);
   const timelineEvents = payment?.events ?? [];
+  const activityCsvRows = timelineEvents.map((event) => ({
+    createdAt: event.createdAt,
+    event: formatGatewayEventTitle(event.type, event.reason),
+    eventType: event.type,
+    actor: event.actorName ?? "",
+    actorUserId: event.actorUserId ?? "",
+    portal: "",
+    remark: event.reason ?? "",
+    metadata: mergeActivityCsvMetadata(null, {
+      fromStatus: event.fromStatus,
+      toStatus: event.toStatus,
+    }),
+  }));
 
   const handleRetryRefund = async () => {
     if (!id) return;
@@ -346,9 +357,10 @@ export default function GatewayPaymentDetailPage() {
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
-                    <Badge variant={statusVariant(payment.status)}>
-                      {STATUS_LABEL[payment.status] ?? payment.status}
-                    </Badge>
+                    <StatusBadge
+                      label={STATUS_LABEL[payment.status] ?? payment.status}
+                      status={statusToken(payment.status)}
+                    />
                     <Badge
                       variant="outline"
                       className={getGatewayAccountBadgeClassName(payment.gatewayAccount)}
@@ -811,10 +823,10 @@ export default function GatewayPaymentDetailPage() {
                           </p>
                         </div>
                         {payment.receipt ? (
-                          <Badge variant={receiptStatusVariant(payment.receipt.status)}>
-                            {RECEIPT_STATUS_LABEL[payment.receipt.status] ??
-                              payment.receipt.status}
-                          </Badge>
+                          <StatusBadge
+                            label={RECEIPT_STATUS_LABEL[payment.receipt.status] ?? payment.receipt.status}
+                            status={receiptStatusToken(payment.receipt.status)}
+                          />
                         ) : (
                           <Badge variant="outline">{GATEWAY_PAYMENT_COPY.receipt.notCreated}</Badge>
                         )}
@@ -906,72 +918,57 @@ export default function GatewayPaymentDetailPage() {
 
                   <div className="min-w-0 space-y-6">
                     <Card className="flex flex-col overflow-hidden rounded-2xl">
-                      <CardHeader className="shrink-0 pb-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <ClipboardDocumentCheckIcon className="h-5 w-5 text-muted-foreground" />
-                            <CardTitle className="text-base font-semibold">
-                              {GATEWAY_PAYMENT_COPY.activity.title}
-                            </CardTitle>
-                          </div>
-                          {timelineEvents.length > 0 ? (
-                            <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                              {timelineEvents.length}
-                            </Badge>
-                          ) : null}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {GATEWAY_PAYMENT_COPY.activity.description}
-                        </p>
-                      </CardHeader>
+                      <AdminDetailCardHeader
+                        icon={ClockIcon}
+                        title={GATEWAY_PAYMENT_COPY.activity.title}
+                        description={
+                          timelineEvents.length === 0
+                            ? GATEWAY_PAYMENT_COPY.activity.description
+                            : `${timelineEvents.length} ${timelineEvents.length === 1 ? "event" : "events"}`
+                        }
+                        actions={
+                          <AdminActivityCsvExportButton
+                            fileName={`gateway-payment-${id ?? "activity"}-activity.csv`}
+                            rows={activityCsvRows}
+                          />
+                        }
+                      />
                       <CardContent className="min-h-0 overflow-hidden !px-0">
                         {timelineEvents.length === 0 ? (
-                          <div className="px-6 py-8 text-center text-sm text-muted-foreground">
+                          <div className="px-6 py-8 text-center text-ui text-muted-foreground">
                             {GATEWAY_PAYMENT_COPY.activity.empty}
                           </div>
                         ) : (
                           <div className="px-6 pb-6">
-                            <div className="relative">
-                              <div className="absolute bottom-2 left-[5px] top-2 w-px bg-border" />
-                              <div className="space-y-5">
-                                {timelineEvents.map((event, index) => {
-                                  const fromLabel = formatStatusLabel(event.fromStatus);
-                                  const toLabel = formatStatusLabel(event.toStatus);
-                                  const description = formatGatewayEventDescription(
-                                    event.type,
-                                    event.reason
-                                  );
-                                  return (
-                                    <div key={event.id} className="relative flex gap-3 pl-0">
-                                      <div
-                                        className={cn(
-                                          "relative z-10 mt-1.5 h-[11px] w-[11px] shrink-0 rounded-full border-2 border-card bg-primary",
-                                          index === 0 && "ring-2 ring-primary/20"
-                                        )}
-                                      />
-                                      <div className="-mt-0.5 min-w-0 flex-1">
-                                        <p className="text-sm font-medium leading-tight text-foreground">
-                                          {formatGatewayEventTitle(event.type, event.reason)}
-                                        </p>
-                                        <p className="mt-0.5 text-xs text-muted-foreground">
-                                          {formatDate(event.createdAt)}
-                                        </p>
-                                        {fromLabel && toLabel ? (
-                                          <p className="mt-1 text-xs text-muted-foreground">
-                                            {fromLabel} → {toLabel}
-                                          </p>
-                                        ) : null}
-                                        {description ? (
-                                          <p className="mt-1 text-xs leading-5 text-foreground/90">
-                                            {description}
-                                          </p>
-                                        ) : null}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
+                            <AdminVerticalTimeline>
+                              {timelineEvents.map((event) => {
+                                const fromLabel = formatStatusLabel(event.fromStatus);
+                                const toLabel = formatStatusLabel(event.toStatus);
+                                const description = formatGatewayEventDescription(
+                                  event.type,
+                                  event.reason
+                                );
+                                return (
+                                  <AdminVerticalTimelineItem
+                                    key={event.id}
+                                    title={formatGatewayEventTitle(event.type, event.reason)}
+                                    description={description}
+                                    createdAt={event.createdAt}
+                                    actorLabel={resolveAdminTimelineActorLabel({
+                                      actorName: event.actorName,
+                                      actorUserId: event.actorUserId,
+                                      portal: "ADMIN",
+                                    })}
+                                    portal={event.actorUserId ? "ADMIN" : null}
+                                    compactDetails={
+                                      fromLabel && toLabel
+                                        ? [{ label: "Status", value: `${fromLabel} → ${toLabel}` }]
+                                        : undefined
+                                    }
+                                  />
+                                );
+                              })}
+                            </AdminVerticalTimeline>
                           </div>
                         )}
                       </CardContent>

@@ -218,6 +218,8 @@ export interface NoteListItem extends NoteMoneySummary {
   issuerIndustry: string | null;
   sourceApplicationId: string;
   sourceContractId: string | null;
+  /** Canonical facility reference (`CON-…`) when the note is under a master facility. */
+  sourceContractDisplayReference: string | null;
   sourceInvoiceId: string | null;
   issuerOrganizationId: string;
   issuerName: string | null;
@@ -232,11 +234,17 @@ export interface NoteListItem extends NoteMoneySummary {
   featuredFrom: string | null;
   featuredUntil: string | null;
   featuredActive: boolean;
+  /** Unique investor organisations with a non-cancelled commitment on this note. */
+  investorCount: number;
   maturityDate: string | null;
   /** Marketplace listing close time (`note_listings.closes_at`); used for funding-window countdown. */
   listingClosesAt: string | null;
   activatedAt: string | null;
   publishedAt: string | null;
+  /** When marketplace funding was closed (`notes.funding_closed_at`). */
+  fundingClosedAt: string | null;
+  /** When the note was fully repaid (`notes.repaid_at`). */
+  repaidAt: string | null;
   settlementSummary: NoteSettlementPoolSummary | null;
   /** Issuer portal list: residual trustee payout vs `settlementSummary` (omitted elsewhere). */
   issuerResidualPayout?: IssuerResidualPayoutListStatus;
@@ -430,6 +438,7 @@ export interface NoteEvent {
   noteId: string;
   eventType: string;
   actorUserId: string | null;
+  actorName: string | null;
   actorRole: string | null;
   portal: string | null;
   correlationId: string | null;
@@ -872,6 +881,10 @@ export interface NotesResponse {
 export interface InvestorPortfolioResponse {
   portfolioTotal: number;
   totalInvestment: number;
+  /** Capital reserved on open listings (`COMMITTED`). */
+  reservedInvestment: number;
+  /** Capital in live notes (`CONFIRMED`). */
+  confirmedInvestment: number;
   availableBalance: number;
   investmentCount: number;
 }
@@ -892,6 +905,16 @@ export interface InvestorPortfolioHistoryResponse {
   generatedAt: string;
 }
 
+export type InvestorBalanceActivityRelatedKind = "investment" | "withdrawal" | "deposit";
+
+/** Current lifecycle of the investment, withdrawal, or in-flight deposit this row belongs to. */
+export interface InvestorBalanceActivityRelated {
+  kind: InvestorBalanceActivityRelatedKind;
+  status: string;
+  /** `confirmedAt` for investments, `completedAt` for withdrawals, credit time for deposits. */
+  settledAt: string | null;
+}
+
 export interface InvestorBalanceActivityEntry {
   id: string;
   investorOrganizationId: string;
@@ -899,11 +922,18 @@ export interface InvestorBalanceActivityEntry {
   amount: number;
   source: string;
   noteId: string | null;
+  noteReference?: string | null;
   noteInvestmentId: string | null;
   idempotencyKey: string;
   metadata: Record<string, unknown> | null;
   postedAt: string;
   createdAt: string;
+  related: InvestorBalanceActivityRelated | null;
+  /**
+   * False for in-flight gateway deposits that have not credited the wallet yet
+   * (name check, hold, or refund). Omit or true for posted ledger rows.
+   */
+  affectsAvailableBalance?: boolean;
 }
 
 export interface InvestorBalanceActivityResponse {
@@ -935,6 +965,7 @@ export interface EligibleNoteInvoice {
   displayReference: string | null;
   applicationId: string;
   contractId: string | null;
+  contractDisplayReference: string | null;
   issuerOrganizationId: string;
   issuerName: string | null;
   paymasterName: string | null;

@@ -127,7 +127,7 @@ export function UsersTable({
               ) : users.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={12} className="text-center py-10 text-muted-foreground">
-                    No users found
+                    No user accounts found
                   </TableCell>
                 </TableRow>
               ) : (

@@ -338,7 +338,8 @@ export type OnboardingEventType =
   | "SSM_APPROVED"
   | "TNC_ACCEPTED"
   | "KYC_APPROVED"
-  | "KYB_APPROVED";
+  | "KYB_APPROVED"
+  | "PROFILE_UPDATED";
 
 export interface OnboardingLogUser {
   first_name: string;
@@ -472,6 +473,7 @@ export interface OrganizationMemberDetail {
   firstName: string;
   lastName: string;
   email: string;
+  phone: string | null;
   role: "ORGANIZATION_ADMIN" | "ORGANIZATION_MEMBER";
   createdAt: string;
 }
@@ -611,66 +613,16 @@ export interface OrganizationDetailResponse {
   // Total active invested amount across COMMITTED + CONFIRMED investments (investor portal only)
   investedAmount: number | null;
 
+  // Sum of approved facility lines (issuer portal only)
+  approvedFacilityAmount: number | null;
+
+  // Sum of funded amounts on ACTIVE notes (issuer portal only)
+  activeNotesAmount: number | null;
+
   // RegTank portal link (for viewing in RegTank admin)
   regtankPortalUrl: string | null;
   regtankRequestId: string | null;
   codRequestId: string | null;
-
-  // Applications (issuer only)
-  applications?: {
-    id: string;
-    status: string;
-    productVersion: number;
-    lastCompletedStep: number;
-    submittedAt: string | null;
-    createdAt: string;
-    updatedAt: string;
-    contractId: string | null;
-  }[];
-
-  linkedRecords?: {
-    applications: {
-      id: string;
-      displayReference: string | null;
-      status: string;
-      productId: string | null;
-      submittedAt: string | null;
-      createdAt: string;
-      updatedAt: string;
-      contractId: string | null;
-      requestedAmount: number | null;
-    }[];
-    contracts: {
-      id: string;
-      displayReference: string | null;
-      title: string | null;
-      contractNumber: string | null;
-      status: string;
-      createdAt: string;
-      updatedAt: string;
-      contractValue: number | null;
-    }[];
-    notes: {
-      id: string;
-      noteReference: string;
-      title: string;
-      status: string;
-      targetAmount: number;
-      fundedAmount: number;
-      createdAt: string;
-      updatedAt: string;
-    }[];
-    investments: {
-      id: string;
-      status: string;
-      amount: number;
-      noteId: string;
-      noteReference: string;
-      noteTitle: string;
-      committedAt: string;
-      updatedAt: string;
-    }[];
-  };
 
   // Corporate onboarding data (for COMPANY type)
   corporateOnboardingData?: {
@@ -747,6 +699,87 @@ export interface OrganizationDetailResponse {
 
   // Business AML screening status — COMPANY only
   businessAmlStatus?: Record<string, unknown> | null;
+}
+
+export type OrganizationLinkedRecordType = "applications" | "contracts" | "notes" | "investments";
+
+export interface GetOrganizationLinkedRecordsParams extends PaginationParams {
+  type?: OrganizationLinkedRecordType;
+}
+
+export interface OrganizationLinkedRecordRow {
+  type: "application" | "contract" | "note" | "investment";
+  id: string;
+  displayReference: string | null;
+  title: string | null;
+  amount: number | null;
+  status: string;
+  updatedAt: string;
+  productId: string | null;
+  noteId: string | null;
+  contractId: string | null;
+  contractNumber: string | null;
+}
+
+export interface OrganizationLinkedRecordsCounts {
+  applications?: number;
+  contracts?: number;
+  notes?: number;
+  investments?: number;
+}
+
+export interface OrganizationLinkedRecordsResponse {
+  items: OrganizationLinkedRecordRow[];
+  pagination: PaginationResponse;
+  counts: OrganizationLinkedRecordsCounts;
+}
+
+export interface AdminOrganizationAddressInput {
+  line1?: string | null;
+  line2?: string | null;
+  city?: string | null;
+  postalCode?: string | null;
+  state?: string | null;
+  country?: string | null;
+}
+
+export interface UpdateAdminOrganizationCorporateOnboardingInput {
+  website?: string | null;
+  industry?: string | null;
+  entityType?: string | null;
+  numberOfEmployees?: number | null;
+  annualRevenue?: string | null;
+  tinNumber?: string | null;
+  businessName?: string | null;
+  addresses?: {
+    business?: AdminOrganizationAddressInput | null;
+    registered?: AdminOrganizationAddressInput | null;
+  };
+  personInCharge?: {
+    name?: string | null;
+    position?: string | null;
+    email?: string | null;
+    contactNumber?: string | null;
+  };
+}
+
+export interface UpdateAdminOrganizationProfileInput {
+  name?: string | null;
+  phoneNumber?: string | null;
+  address?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  middleName?: string | null;
+  bankAccountDetails?: {
+    content: Array<{
+      cn: boolean;
+      fieldName: string;
+      fieldType: string;
+      fieldValue: string;
+    }>;
+    displayArea: string;
+  } | null;
+  corporateOnboardingData?: UpdateAdminOrganizationCorporateOnboardingInput;
 }
 
 // Onboarding Applications Types (Admin Approval Queue)
@@ -1077,6 +1110,8 @@ export interface ContractListItem {
   title: string | null;
   issuerOrganizationName: string | null;
   contractValue: number;
+  approvedFacility: number;
+  utilizedFacility: number;
   status: string;
   updatedAt: string;
 }
@@ -1109,6 +1144,23 @@ export interface AdminContractNoteSummary {
   status: string;
   sourceApplicationId: string;
   sourceInvoiceId: string | null;
+  /** Note target — the facility drawdown, same basis as utilized facility. */
+  targetAmount: number;
+  /** Marketplace fill. 0 until funding starts. */
+  fundedAmount: number;
+}
+
+/** Contract audit row sourced from `application_logs` (no dedicated contract_logs table). */
+export interface AdminContractActivityEvent {
+  id: string;
+  eventType: string;
+  createdAt: string;
+  actorUserId: string | null;
+  actorName: string | null;
+  portal: string | null;
+  remark: string | null;
+  metadata: Record<string, unknown> | null;
+  applicationId: string | null;
 }
 
 export interface AdminContractDetail {
@@ -1131,6 +1183,7 @@ export interface AdminContractDetail {
   customerDetails: Record<string, unknown> | null;
   applications: AdminContractApplicationSummary[];
   notes: AdminContractNoteSummary[];
+  activity: AdminContractActivityEvent[];
 }
 
 export interface ApplicationReviewSection {

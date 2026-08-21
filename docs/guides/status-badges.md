@@ -8,11 +8,11 @@ Centralized status badge config for application, product, and admin pages. Singl
 
 | Group | Meaning | Tailwind tokens | Bg | Text |
 |-------|---------|-----------------|-----|-----|
-| **issuer_action** | Issuer must act | `status.action` | `#FEFCE8` | `#CA8A04` |
-| **admin_action** | Waiting on CashSouk | `status.submitted` | `#EFF6FF` | `#2563EB` |
-| **completed** | Success / signed | `status.success` | `#D1FAE5` | `#047857` |
-| **expired_closed** | Negative / closed | `status.rejected` | `#FEF2F2` | `#DC2626` |
-| **neutral** | Inactive | `status.neutral` | `#F1F5F9` | `#475569` |
+| **issuer_action** | Issuer must act | `status.action` | `#FEFCE8` | `#854D0E` |
+| **admin_action** | Waiting on CashSouk | `status.submitted` | `#EFF6FF` | `#1E40AF` |
+| **completed** | Success / signed | `status.success` | `#D1FAE5` | `#065F46` |
+| **expired_closed** | Negative / closed | `status.rejected` | `#FEF2F2` | `#991B1B` |
+| **neutral** | Inactive | `status.neutral` | `#F1F5F9` | `#334155` |
 
 Classes: `bg-status-{token}-bg text-status-{token}-text` (e.g. issuer_action uses `status.action` tokens).
 
@@ -22,13 +22,13 @@ Indigo (`status.in-progress`) is no longer used for application status badges.
 
 | Group | Application statuses |
 |-------|---------------------|
-| issuer_action | DRAFT, AMENDMENT_REQUESTED, CONTRACT_SENT, INVOICES_SENT, OFFER_SENT |
+| issuer_action | AMENDMENT_REQUESTED, CONTRACT_SENT, INVOICES_SENT, OFFER_SENT |
 | admin_action | SUBMITTED, RESUBMITTED, UNDER_REVIEW, CONTRACT_PENDING, INVOICE_PENDING, CONTRACT_ACCEPTED, INVOICE_ACCEPTED, SIGNING_PENDING |
 | completed | COMPLETED; also APPROVED for section/item/contract/invoice review badges (not ApplicationStatus) |
-| expired_closed | REJECTED, WITHDRAWN, DECLINED, OFFER_EXPIRED |
-| neutral | PENDING, ARCHIVED |
+| expired_closed | REJECTED, DECLINED, OFFER_EXPIRED. Admin raw `WITHDRAWN` also uses this group |
+| neutral | DRAFT, PENDING, ARCHIVED. Issuer card `withdrawn` is grey |
 
-Issuer **card badge keys** `completed` / `withdrawn` use the **neutral** group (terminal closed), matching `badgeKeyToStatusToken` and `BRANDING.md`. Raw application status `COMPLETED` / `WITHDRAWN` still use completed / expired_closed for admin and non-card surfaces.
+Issuer **card badge keys:** `completed` → green (`completed` / `success`). `withdrawn` → grey (`neutral`). `draft` → grey. Yellow/blue on user portals are viewer-centric (you vs them); admin uses the inverse via `getAdminStatusToken`.
 
 ## Offer acceptance phase → group
 
@@ -58,11 +58,34 @@ Use `getSigningEnvelopeBadgeClass(status)` from `@cashsouk/config`.
 
 ## Badge sizing (application / offer / envelope)
 
-- Shape: `rounded-md` (admin Badge)
-- Type: `text-xs font-semibold`
-- Padding: `px-2.5 py-0.5` (Badge default)
-- Admin `sm`: `text-xs px-1.5 py-0`
-- Issuer list pills may use `rounded-full px-3 py-1` but share the same colour groups
+- Shape: `rounded-full` (`StatusBadge`) in admin tables
+- Type: `text-ui font-normal` (do not bold badge labels; darker status text tokens provide contrast)
+- Padding: `px-2.5 py-0.5` (Badge / StatusBadge default)
+- Compact (steppers, count chips): `StatusBadge` `size="sm"` (`text-meta px-1.5 py-0`)
+- Admin `sm`: same compact size
+- Issuer list pills share the same type size. Do not pass `text-[Npx]` or `font-semibold` on chips.
+
+## Admin tables
+
+Canonical chrome and colour map: **BRANDING.md §3.2**.
+
+Admin list badges use `StatusBadge` from `@cashsouk/ui`:
+
+- **Company / Personal:** same chip everywhere, text only (no dot). Company = blue (`submitted`), Personal = grey (`neutral`).
+- **Investor / Issuer:** `PortalBadge` — Investor = earth brown (investor portal), Issuer = brand red (issuer portal). Identity chips are text only (no marker). Account **portal access** uses `access`: circled check in brand colour when granted, muted X when not. Do not paint access chips green.
+- **Verified / Required:** `VerifiedBadge` / `RequiredBadge` — green success chip + solid circled check (`CheckCircleIcon`). Same chrome as other status pills.
+- **User roles:** `UserRoleBadges` — Investor/Issuer via `PortalBadge`; Admin is a purple (`violet`) chip with the same chrome. Do not map Admin to a status token.
+- **Status:** colour dot + label.
+  - Yellow (`action`): admin must act (submitted, under review, pending approval, gateway Paid)
+  - Blue (`submitted`): waiting on issuer / investor / signers / trustee (offer sent, amendment requested, funding open)
+  - Violet (`active`): live / in force (Active · servicing, investment Confirmed)
+  - Green (`success`): completed / approved / settled / repaid / signed
+  - Grey (`neutral`): draft / idle / cancelled / refunded
+  - Red (`rejected`): rejected / failed / withdrawn / expired / void / defaulted / arrears
+
+Issuer and investor portals use the same six tokens with yellow/blue flipped for the viewer (yellow = you must act). Map with `badgeKeyToStatusToken` / `getUserPortalStatusToken` — not `getAdminStatusToken`. Completed is green; draft and withdrawn are grey. Do not use indigo or sky on user-portal workflow chips.
+
+Issuer and investor `/activity` rows use `StatusBadge` with `getActivityStatusToken(eventType)` from `@cashsouk/types`. Colour the **event outcome**, not the domain (Onboarding / Application / Note). Domain stays a filter only.
 
 ## Labels
 
@@ -71,9 +94,9 @@ Use `getSigningEnvelopeBadgeClass(status)` from `@cashsouk/config`.
 | DRAFT | Draft |
 | SUBMITTED | Submitted |
 | UNDER_REVIEW | Under Review |
-| CONTRACT_PENDING | Contract Pending |
-| CONTRACT_SENT | Contract Sent |
-| CONTRACT_ACCEPTED | Contract Accepted |
+| CONTRACT_PENDING | Facility Pending |
+| CONTRACT_SENT | Facility Sent |
+| CONTRACT_ACCEPTED | Facility Accepted |
 | INVOICE_ACCEPTED | Invoice Accepted |
 | SIGNING_PENDING | Signing Pending |
 | INVOICE_PENDING | Invoice Pending |
@@ -91,7 +114,7 @@ Use `getSigningEnvelopeBadgeClass(status)` from `@cashsouk/config`.
 **ARCHIVED:** Never shown in admin or issuer listing or filter. Excluded from both; API excludes ARCHIVED from admin applications list.
 
 **Admin vs Issuer:**
-- Admin: raw labels (Contract Pending, Contract Sent, Invoice Pending, Invoices Sent).
+- Admin: raw labels (Facility Pending, Facility Sent, Invoice Pending, Invoices Sent).
 - Issuer card: collapsed to "Under Review" for those; uses getStatusPresentationByBadgeKey.
 
 **AMENDMENT_REQUESTED:** API status. Mapped to badge key `amendment_requested` → "Action Required".
@@ -100,10 +123,17 @@ Use `getSigningEnvelopeBadgeClass(status)` from `@cashsouk/config`.
 
 ## Usage
 
-**Admin (ApplicationStatusBadge, ReviewStepStatusBadge):**
+**Admin (ApplicationStatusBadge, ReviewStepStatusBadge, tables):**
 ```ts
-import { getReviewStatusPresentation } from "@/components/application-review/status-presentation";
-const { label, badgeClass, iconClass, dotClass } = getReviewStatusPresentation(status);
+import { StatusBadge } from "@cashsouk/ui";
+import { getAdminStatusToken } from "@/lib/admin-status-token";
+<StatusBadge label={label} status={getAdminStatusToken(status)} />
+```
+
+Company / Personal type chips:
+```ts
+import { OrganizationTypeBadge } from "@/components/organization-type-badge";
+<OrganizationTypeBadge type={organization.type} />
 ```
 
 **Acceptance phase badge:**

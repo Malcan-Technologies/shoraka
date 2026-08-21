@@ -23,7 +23,7 @@ export type LatePaymentTimeline = {
   daysAfterGrace: number;
   /** Workflow Status badge and tab header. */
   workflowLabel: string;
-  /** Payment due / maturity subtitle on Servicing & Settlement. */
+  /** Payment due / maturity subtitle. */
   servicingTimingLabel: string;
   /** Primary timing line on the Late Payment tab. */
   latePaymentTimingLabel: string;
@@ -55,6 +55,10 @@ export const LATE_PAYMENT_WORKFLOW_BADGE: Record<
 function resolvePaymentDueDate(note: NoteDetail): string | null {
   const schedules = [...(note.paymentSchedules ?? [])].sort((a, b) => a.sequence - b.sequence);
   return schedules[0]?.dueDate ?? note.maturityDate ?? null;
+}
+
+export function getNotePaymentDueDate(note: NoteDetail): string | null {
+  return resolvePaymentDueDate(note);
 }
 
 function utcStartOfDayMs(date: Date) {
