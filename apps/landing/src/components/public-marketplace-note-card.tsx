@@ -4,20 +4,23 @@ import Link from "next/link";
 import {
   ArrowDownTrayIcon,
   BuildingOffice2Icon,
-  DocumentTextIcon,
   EllipsisVerticalIcon,
 } from "@heroicons/react/24/outline";
 import { formatInvestorReturnRatePercent, formatNoteReferenceDisplay } from "@cashsouk/types";
-import { Button, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
+import { Button, ProductNameWithIcon, SoukscoreRiskRatingBadge, cn } from "@cashsouk/ui";
 
 export type PublicMarketplaceNote = {
   id: string;
   noteCode: string | null;
-  issuerName: string | null;
-  /** Human-readable listing title (search). Card headline uses note reference. */
+  /** Investor-visible purpose of financing. Card headline prefers this over the note reference. */
+  purposeOfFinancing: string | null;
+  contractTitle: string | null;
+  purposeOfContract: string | null;
+  /** Human-readable listing title (search). Card headline uses purpose, then note reference. */
   noteTitle: string | null;
   /** Product name (document icon row). */
   productName: string | null;
+  productImageUrl: string | null;
   industry: string | null;
   fundedAmount: number;
   goalAmount: number;
@@ -61,17 +64,33 @@ export function PublicMarketplaceNoteCard({ note }: { note: PublicMarketplaceNot
           <div className="flex shrink-0 items-start gap-3">
             <div className="min-w-0 flex-1 space-y-1">
               <h3 className="line-clamp-2 text-lg font-semibold leading-snug tracking-tight text-foreground">
-                {textOrDash(formatNoteReferenceDisplay(note.noteCode))}
+                {textOrDash(
+                  note.purposeOfFinancing?.trim() || formatNoteReferenceDisplay(note.noteCode)
+                )}
               </h3>
+              {note.purposeOfContract?.trim() || note.contractTitle?.trim() ? (
+                <p className="line-clamp-2 text-xs leading-5 text-muted-foreground">
+                  {note.purposeOfContract?.trim() &&
+                  note.contractTitle?.trim() &&
+                  note.purposeOfContract.trim().toLowerCase() !==
+                    note.contractTitle.trim().toLowerCase()
+                    ? `${note.contractTitle.trim()} · ${note.purposeOfContract.trim()}`
+                    : note.purposeOfContract?.trim() || note.contractTitle?.trim()}
+                </p>
+              ) : null}
               <div className="flex min-h-[2.75rem] flex-col gap-1.5 text-xs text-muted-foreground sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1">
                 <span className="inline-flex items-center gap-1">
                   <BuildingOffice2Icon className="h-3.5 w-3.5 shrink-0" />
                   {textOrDash(note.industry)}
                 </span>
-                <span className="inline-flex min-w-0 items-center gap-1">
-                  <DocumentTextIcon className="h-3.5 w-3.5 shrink-0" />
-                  <span className="truncate">Product: {textOrDash(note.productName)}</span>
-                </span>
+                <ProductNameWithIcon
+                  name={note.productName}
+                  imageUrl={note.productImageUrl}
+                  empty="-"
+                  size="sm"
+                  className="text-xs leading-5 text-muted-foreground"
+                  iconClassName="h-3.5 w-3.5"
+                />
               </div>
             </div>
             <Button

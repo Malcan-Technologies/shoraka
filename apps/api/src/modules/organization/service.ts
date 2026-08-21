@@ -9,6 +9,7 @@ import {
   ChangeMemberRoleInput,
   UpdateCorporateInfoInput,
   PatchCtosPartyEmailInput,
+  RecoverUnresolvedIdentityInput,
   SendDirectorOnboardingInput,
 } from "./schemas";
 import {
@@ -49,6 +50,7 @@ import {
   mergeCtosPartySupplementDocument,
   normalizeDirectorShareholderIdKey,
   parseCtosPartySupplement,
+  attachGovernmentIdToUnresolvedCorporateEntities,
 } from "@cashsouk/types";
 import { buildDirectorShareholderPeopleList } from "../admin/build-people-list";
 import { RegTankAPIClient } from "../regtank/api-client";
@@ -1777,6 +1779,88 @@ export class OrganizationService {
       entitiesForParty.directorKycStatus
     );
     logger.info({ organizationId, partyKey, userId, portalType }, "CTOS party supplement email upserted");
+    return { success: true };
+  }
+
+  async recoverUnresolvedIdentity(
+    userId: string,
+    organizationId: string,
+    portalType: PortalType,
+    input: RecoverUnresolvedIdentityInput
+  ): Promise<{ success: true }> {
+    const organization = await this.getOrganization(userId, organizationId, portalType);
+    const userMember = organization.members.find((m: { user_id: string; role: string }) => m.user_id === userId);
+    const canManage =
+      organization.owner_user_id === userId ||
+      userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
+    if (!canManage) {
+      throw new AppError(403, "FORBIDDEN", "You do not have permission to update identity records");
+    }
+
+    const rawEntities =
+      portalType === "issuer"
+        ? (
+            await prisma.issuerOrganization.findUnique({
+              where: { id: organizationId },
+              select: { corporate_entities: true },
+            })
+          )?.corporate_entities
+        : (
+            await prisma.investorOrganization.findUnique({
+              where: { id: organizationId },
+              select: { corporate_entities: true },
+            })
+          )?.corporate_entities;
+
+    let nextEntities: Record<string, unknown>;
+    try {
+      nextEntities = attachGovernmentIdToUnresolvedCorporateEntities(rawEntities, {
+        eodRequestId: input.eodRequestId,
+        email: input.email ?? null,
+        role: input.role,
+        governmentId: input.governmentId,
+      });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "UNRESOLVED_IDENTITY_NOT_FOUND";
+      if (code === "INVALID_GOVERNMENT_ID") {
+        throw new AppError(400, "VALIDATION_ERROR", "Enter a valid government ID");
+      }
+      if (code === "GOVERNMENT_ID_IN_USE") {
+        throw new AppError(
+          400,
+          "GOVERNMENT_ID_IN_USE",
+          "This government ID is already used for another director or shareholder"
+        );
+      }
+      if (code === "UNRESOLVED_IDENTITY_AMBIGUOUS") {
+        throw new AppError(
+          400,
+          "UNRESOLVED_IDENTITY_AMBIGUOUS",
+          "More than one record matches. Refresh and try again."
+        );
+      }
+      throw new AppError(
+        404,
+        "UNRESOLVED_IDENTITY_NOT_FOUND",
+        "This record no longer needs a government ID, or it could not be found"
+      );
+    }
+
+    if (portalType === "issuer") {
+      await prisma.issuerOrganization.update({
+        where: { id: organizationId },
+        data: { corporate_entities: nextEntities as Prisma.InputJsonValue },
+      });
+    } else {
+      await prisma.investorOrganization.update({
+        where: { id: organizationId },
+        data: { corporate_entities: nextEntities as Prisma.InputJsonValue },
+      });
+    }
+    logger.info(
+      { organizationId, userId, portalType, eodRequestId: input.eodRequestId, role: input.role },
+      "Unresolved identity government ID recovered"
+    );
     return { success: true };
   }
 

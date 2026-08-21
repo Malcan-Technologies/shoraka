@@ -74,7 +74,7 @@ export function WithdrawConfirmDialog({
       footnote="Withdrawals usually arrive in 2–3 business days."
     >
       <div className="rounded-2xl border border-border bg-muted/40 px-5 py-6 text-center">
-        <p className="text-ui text-muted-foreground">You're withdrawing</p>
+        <p className="text-ui text-muted-foreground">You&apos;re withdrawing</p>
         <p className="mt-2 text-3xl font-semibold tabular-nums tracking-tight text-foreground">
           {formatCurrency(amount)}
         </p>

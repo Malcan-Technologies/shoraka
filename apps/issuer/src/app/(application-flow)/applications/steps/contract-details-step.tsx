@@ -59,6 +59,10 @@ import {
   fieldTooltipTriggerClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { formatMoney, parseMoney } from "@cashsouk/ui";
+import {
+  isRequestedFacilityAtOrAboveContractValue,
+  REQUESTED_FACILITY_BELOW_CONTRACT_COPY,
+} from "@cashsouk/types";
 import { MoneyInput } from "@cashsouk/ui";
 import {
   applicationFlowDateToIso,
@@ -537,7 +541,7 @@ export function ContractDetailsStep({
 
     if (!isInvoiceOnly) {
       if (productMinMonths == null) {
-        toast.error("System configuration error. Please contact administrator.");
+        toast.error("System configuration error. Please contact CashSouk support.");
         throw new Error("VALIDATION_PRODUCT_CONFIG_MISSING_MIN_CONTRACT_MONTHS");
       }
       if (!formData.contract.start_date)
@@ -560,8 +564,8 @@ export function ContractDetailsStep({
       if (financingAmountNum <= 0) {
         setFinancingError("Financing amount must be greater than 0");
         validationErrors.push("VALIDATION_CONTRACT_FINANCING_REQUIRED");
-      } else if (financingAmountNum > contractValueNum) {
-        setFinancingError(`Financing cannot exceed ${formatMoney(contractValueNum)}`);
+      } else if (isRequestedFacilityAtOrAboveContractValue(financingAmountNum, contractValueNum)) {
+        setFinancingError(REQUESTED_FACILITY_BELOW_CONTRACT_COPY);
         validationErrors.push("VALIDATION_CONTRACT_FINANCING_EXCEEDS_VALUE");
       }
     }
@@ -821,6 +825,12 @@ export function ContractDetailsStep({
     const hasValidEndDate =
       !!formData.contract.end_date && isApplicationFlowDateValid(formData.contract.end_date);
 
+    const requestedFacility = parseMoney(formData.contract.financing);
+    const contractFace = parseMoney(formData.contract.value);
+    const financingWithinLimit =
+      requestedFacility > 0 &&
+      !isRequestedFacilityAtOrAboveContractValue(requestedFacility, contractFace);
+
     const isValid = isInvoiceOnly
       ? !!formData.customer.name &&
         !!formData.customer.entity_type &&
@@ -831,6 +841,7 @@ export function ContractDetailsStep({
         !!formData.contract.number &&
         !!formData.contract.value &&
         !!formData.contract.financing &&
+        financingWithinLimit &&
         hasValidStartDate &&
         hasValidEndDate &&
         hasContractDocument &&
@@ -905,6 +916,16 @@ export function ContractDetailsStep({
   if (!isInitializedRef.current || devTools?.showSkeletonDebug) {
     return <ContractDetailsSkeleton />;
   }
+
+  const liveRequestedFacility = parseMoney(formData.contract.financing);
+  const liveContractFace = parseMoney(formData.contract.value);
+  const liveFinancingError =
+    !isInvoiceOnly &&
+    liveRequestedFacility > 0 &&
+    liveContractFace > 0 &&
+    isRequestedFacilityAtOrAboveContractValue(liveRequestedFacility, liveContractFace)
+      ? REQUESTED_FACILITY_BELOW_CONTRACT_COPY
+      : financingError;
 
   const labelClassName = cn(formLabelClassName, "font-normal");
   const labelInputClassName = cn(labelClassName, applicationFlowLabelCellAlignInputClassName);
@@ -989,8 +1010,8 @@ export function ContractDetailsStep({
                     sideOffset={2}
                     className={fieldTooltipContentClassName}
                   >
-                    This refers to how much financing you would like to apply. The financing amount
-                    must not exceed your contract amount.
+                    This refers to how much financing you would like to apply. Requested financing
+                    must be less than the contract value.
                   </TooltipContent>
                 </Tooltip>
               </div>
@@ -1002,10 +1023,10 @@ export function ContractDetailsStep({
                     disabled={!stepIsEditable}
                     placeholder={`eg. ${formatMoney(1000000)}`}
                     prefix="RM"
-                    inputClassName={`${inputClassName} ${financingError ? "border-destructive focus-visible:border-destructive" : ""}`}
+                    inputClassName={`${inputClassName} ${liveFinancingError ? "border-destructive focus-visible:border-destructive" : ""}`}
                   />
                 </div>
-                {financingError && <p className="text-xs text-destructive">{financingError}</p>}
+                {liveFinancingError && <p className="text-xs text-destructive">{liveFinancingError}</p>}
               </div>
 
               <Label className={labelInputClassName}>Contract Start Date</Label>

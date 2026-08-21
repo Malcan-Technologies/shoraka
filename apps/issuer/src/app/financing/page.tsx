@@ -13,6 +13,7 @@ import {
   type FilterChip,
 } from "@cashsouk/ui";
 import type { Product } from "@cashsouk/types";
+import { buildProductDisplayMap, type ProductDisplay } from "@/lib/product-display";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -84,24 +85,10 @@ function tabFromSearchParam(value: string | null): FinancingTab {
   return isFinancingTab(value) ? value : TAB_CONTRACTS;
 }
 
-type WorkflowStep = { name?: string; config?: { name?: string } };
-
-function buildProductNameMap(products: Product[]) {
-  const map = new Map<string, string>();
-  products.forEach((p) => {
-    const workflow = (p.workflow ?? []) as WorkflowStep[];
-    const financingStep = workflow.find((step) =>
-      String(step?.name).toLowerCase().includes("financing type")
-    );
-    const name =
-      financingStep?.config?.name ||
-      workflow[0]?.config?.name ||
-      (p as Product & { name?: string; title?: string }).name ||
-      (p as Product & { name?: string; title?: string }).title ||
-      `Product ${p.id}`;
-    map.set(p.id, name);
-  });
-  return map;
+function productNameMapFromDisplay(displayMap: Map<string, ProductDisplay>): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const [id, display] of displayMap) names.set(id, display.name);
+  return names;
 }
 
 function deriveProductOptions(
@@ -122,32 +109,63 @@ function paginate<T>(items: T[], page: number, pageSize: number): T[] {
   return items.slice(start, start + pageSize);
 }
 
-function renderFinancingContractRow(row: IssuerDashboardContract) {
+function renderFinancingContractRow(
+  row: IssuerDashboardContract,
+  productDisplayMap: Map<string, ProductDisplay>
+) {
   return (
     <DashboardContractCard
       row={row}
       offerStatus={getOfferStatus(asContractForModal(row.contractForModal))}
+      productImageS3Key={productDisplayMap.get(row.productId ?? "")?.imageS3Key ?? null}
     />
   );
 }
 
-function renderFinancingInvoiceRow(row: FinancingInvoiceRow) {
+function facilityDisplayReferenceFor(
+  contractId: string | null | undefined,
+  contracts: readonly IssuerDashboardContract[]
+): string | null {
+  if (!contractId) return null;
+  return contracts.find((contract) => contract.id === contractId)?.displayReference ?? null;
+}
+
+function renderFinancingInvoiceRow(
+  row: FinancingInvoiceRow,
+  contracts: readonly IssuerDashboardContract[],
+  productDisplayMap: Map<string, ProductDisplay>
+) {
   if (row.kind === "note") {
     return <DashboardNoteCard note={row.note} />;
   }
+  const product = productDisplayMap.get(row.invoice.productId ?? "");
   return (
     <DashboardInvoiceCard
       row={row.invoice}
       offerStatus={getOfferStatus(asInvoiceForModal(row.invoice.invoiceForModal))}
+      facilityDisplayReference={facilityDisplayReferenceFor(row.invoice.contractId, contracts)}
+      productName={product?.name ?? null}
+      productImageS3Key={product?.imageS3Key ?? null}
     />
   );
 }
 
-function renderFinancingInvoiceAttentionRow(row: FinancingInvoiceRow) {
+function renderFinancingInvoiceAttentionRow(
+  row: FinancingInvoiceRow,
+  contracts: readonly IssuerDashboardContract[],
+  productDisplayMap: Map<string, ProductDisplay>
+) {
   if (row.kind === "note") {
     return <NoteAttentionCard note={row.note} />;
   }
-  return <InvoiceAttentionCard row={row.invoice} />;
+  return (
+    <InvoiceAttentionCard
+      row={row.invoice}
+      facilityDisplayReference={facilityDisplayReferenceFor(row.invoice.contractId, contracts)}
+      productName={productDisplayMap.get(row.invoice.productId ?? "")?.name ?? null}
+      productImageS3Key={productDisplayMap.get(row.invoice.productId ?? "")?.imageS3Key ?? null}
+    />
+  );
 }
 
 function IssuerFinancingPageContent() {
@@ -233,7 +251,11 @@ function IssuerFinancingPageContent() {
   const { data: notesData, isLoading: isNotesLoading, refetch: refetchNotes } = useIssuerNotes();
   const { data: productsData } = useIssuerProducts({ page: 1, pageSize: 100, search: "" });
   const products = React.useMemo<Product[]>(() => productsData?.products ?? [], [productsData]);
-  const productNameMap = React.useMemo(() => buildProductNameMap(products), [products]);
+  const productDisplayMap = React.useMemo(() => buildProductDisplayMap(products), [products]);
+  const productNameMap = React.useMemo(
+    () => productNameMapFromDisplay(productDisplayMap),
+    [productDisplayMap]
+  );
 
   const contracts = React.useMemo(() => dashboard?.contracts ?? [], [dashboard]);
   const invoices = React.useMemo(() => dashboard?.invoices ?? [], [dashboard]);
@@ -505,7 +527,12 @@ function IssuerFinancingPageContent() {
                     carouselLabel="Facilities that need your attention"
                     attentionItems={attentionContracts.map((c) => ({
                       key: c.id,
-                      node: <FacilityAttentionCard row={c} />,
+                      node: (
+                        <FacilityAttentionCard
+                          row={c}
+                          productImageS3Key={productDisplayMap.get(c.productId ?? "")?.imageS3Key ?? null}
+                        />
+                      ),
                     }))}
                   />
                   <ListToolbar
@@ -552,7 +579,7 @@ function IssuerFinancingPageContent() {
                         count={activeContracts.length}
                         items={activeContracts.map((c) => ({
                           key: c.id,
-                          node: renderFinancingContractRow(c),
+                          node: renderFinancingContractRow(c, productDisplayMap),
                         }))}
                       />
                       <FinancingListSection
@@ -560,7 +587,7 @@ function IssuerFinancingPageContent() {
                         count={contractRestTotal}
                         items={pagedOtherContracts.map((c) => ({
                           key: c.id,
-                          node: renderFinancingContractRow(c),
+                          node: renderFinancingContractRow(c, productDisplayMap),
                         }))}
                       />
                       {contractRestTotal > 0 ? (
@@ -600,7 +627,7 @@ function IssuerFinancingPageContent() {
                     carouselLabel="Invoices that need your attention"
                     attentionItems={attentionInvoiceRows.map((row) => ({
                       key: row.id,
-                      node: renderFinancingInvoiceAttentionRow(row),
+                      node: renderFinancingInvoiceAttentionRow(row, contracts, productDisplayMap),
                     }))}
                   />
                   <ListToolbar
@@ -648,7 +675,7 @@ function IssuerFinancingPageContent() {
                         count={invoiceSections.active.length}
                         items={invoiceSections.active.map((row) => ({
                           key: row.id,
-                          node: renderFinancingInvoiceRow(row),
+                          node: renderFinancingInvoiceRow(row, contracts, productDisplayMap),
                         }))}
                       />
                       <FinancingListSection
@@ -656,7 +683,7 @@ function IssuerFinancingPageContent() {
                         count={invoiceSections.funded.length}
                         items={invoiceSections.funded.map((row) => ({
                           key: row.id,
-                          node: renderFinancingInvoiceRow(row),
+                          node: renderFinancingInvoiceRow(row, contracts, productDisplayMap),
                         }))}
                       />
                       <FinancingListSection
@@ -664,7 +691,7 @@ function IssuerFinancingPageContent() {
                         count={invoiceSections.fundingNow.length}
                         items={invoiceSections.fundingNow.map((row) => ({
                           key: row.id,
-                          node: renderFinancingInvoiceRow(row),
+                          node: renderFinancingInvoiceRow(row, contracts, productDisplayMap),
                         }))}
                       />
                       <FinancingListSection
@@ -678,7 +705,7 @@ function IssuerFinancingPageContent() {
                         count={invoiceRestTotal}
                         items={pagedOtherInvoices.map((row) => ({
                           key: row.id,
-                          node: renderFinancingInvoiceRow(row),
+                          node: renderFinancingInvoiceRow(row, contracts, productDisplayMap),
                         }))}
                       />
                       {invoiceRestTotal > 0 ? (

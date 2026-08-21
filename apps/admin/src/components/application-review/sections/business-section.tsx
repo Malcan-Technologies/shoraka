@@ -1708,7 +1708,6 @@ const yesNoScaleWrapper = "inline-block scale-[0.88] origin-left";
 
 export function BusinessSection({
   applicationId = "",
-  issuerOrganizationId = null,
   issuerOrganization = null,
   businessDetails,
   applicationGuarantors,
@@ -1732,7 +1731,6 @@ export function BusinessSection({
   hideSectionComments = false,
 }: BusinessSectionProps) {
   const ctosAppId = applicationId.trim() || undefined;
-  const issuerOrgId = issuerOrganizationId?.trim() || undefined;
   const { getAccessToken } = useAuthToken();
   const { can } = usePermissions();
   const canManageGuarantorCtos = can("applications.business_guarantor.manage");
@@ -1810,7 +1808,7 @@ export function BusinessSection({
         }
       );
     },
-    [issuerOrgId, createSubjectCtos]
+    [ctosAppId, createSubjectCtos]
   );
 
   const [pendingGuarantorCtos, setPendingGuarantorCtos] = React.useState<GuarantorReviewRow | null>(null);

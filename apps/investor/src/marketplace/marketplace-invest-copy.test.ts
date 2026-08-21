@@ -15,9 +15,13 @@ function note(overrides: Partial<MarketplaceNote> = {}): MarketplaceNote {
   return {
     id: "note_1",
     noteCode: "NOTE-20260819-ABC",
-    issuerName: "Acme Sdn Bhd",
-    noteTitle: "Acme invoice note",
+    purposeOfFinancing: "Working capital for a new contract",
+    contractTitle: "Mining Rig Repair 12654",
+    purposeOfContract: "Repair and maintenance for 12 mining rigs",
+    noteTitle: "Invoice note",
     productName: "Invoice financing",
+    productImageS3Key: null,
+    productImageUrl: null,
     industry: "Manufacturing",
     fundedAmount: 40000,
     goalAmount: 100000,
@@ -38,9 +42,8 @@ function note(overrides: Partial<MarketplaceNote> = {}): MarketplaceNote {
 }
 
 describe("marketplace invest copy", () => {
-  it("names the issuer in a friendly lead", () => {
-    expect(marketplaceInvestLead(note())).toBe("You're putting cash into Acme Sdn Bhd.");
-    expect(marketplaceInvestLead(note({ issuerName: null }))).toBe(
+  it("keeps the invest lead free of issuer identity", () => {
+    expect(marketplaceInvestLead()).toBe(
       "Choose how much you'd like to invest in this note."
     );
   });
@@ -51,8 +54,8 @@ describe("marketplace invest copy", () => {
   });
 
   it("writes the confirmation and range in investor language", () => {
-    expect(marketplaceConfirmLead("RM 10,000", note())).toBe(
-      "You're about to commit RM 10,000 to Acme Sdn Bhd."
+    expect(marketplaceConfirmLead("RM 10,000")).toBe(
+      "You're about to commit RM 10,000 to this note."
     );
     expect(marketplaceInvestRangeHint(note())).toBe(
       "Invest any amount from RM 1000 to RM 50000."

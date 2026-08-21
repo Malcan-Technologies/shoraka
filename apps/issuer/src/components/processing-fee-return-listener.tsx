@@ -20,23 +20,29 @@ export function ProcessingFeeReturnListener({
   const urlApplicationId =
     pending?.applicationId ?? parseApplicationIdFromEditPath(pathname) ?? null;
 
-  // Pin on first render so wizard resume logic cannot strip the param before effects run.
-  const pinnedFeeIdRef = React.useRef<string | null>(null);
-  const pinnedApplicationIdRef = React.useRef<string | null>(null);
+  // Pin on first sight so wizard resume logic cannot strip the param before effects run.
+  const [pinnedFeeId, setPinnedFeeId] = React.useState<string | null>(urlFeeId);
+  const [pinnedApplicationId, setPinnedApplicationId] = React.useState<string | null>(
+    urlApplicationId
+  );
   const [dismissed, setDismissed] = React.useState(false);
 
   if (!dismissed) {
-    if (urlFeeId) pinnedFeeIdRef.current = urlFeeId;
-    if (urlApplicationId) pinnedApplicationIdRef.current = urlApplicationId;
+    if (urlFeeId && urlFeeId !== pinnedFeeId) {
+      setPinnedFeeId(urlFeeId);
+    }
+    if (urlApplicationId && urlApplicationId !== pinnedApplicationId) {
+      setPinnedApplicationId(urlApplicationId);
+    }
   }
 
-  const feeId = dismissed ? null : pinnedFeeIdRef.current;
-  const applicationId = dismissed ? null : pinnedApplicationIdRef.current;
+  const feeId = dismissed ? null : pinnedFeeId;
+  const applicationId = dismissed ? null : pinnedApplicationId;
 
   const dismissToRetry = React.useCallback(() => {
     if (!applicationId) return;
-    pinnedFeeIdRef.current = null;
-    pinnedApplicationIdRef.current = null;
+    setPinnedFeeId(null);
+    setPinnedApplicationId(null);
     setDismissed(true);
     const destination =
       pending?.returnTo ?? `/applications/${applicationId}/edit?continue=processingFee`;

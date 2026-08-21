@@ -55,6 +55,10 @@ import {
   APPLICATION_STEP_KEYS_WITH_UI,
   STEP_KEY_DISPLAY,
   enforceDeclarationsLastAndDropReview,
+  FACILITY_ONLY_SUBMIT_COPY,
+  filterWorkflowStepsForOrigination,
+  isSplitOriginationApplication,
+  mapCapacityApiError,
   type ApplicationStepKey,
   ApplicationStatus,
   type Product,
@@ -518,22 +522,23 @@ function EditApplicationPageBody() {
     return (product?.workflow as Record<string, unknown>[] | undefined) || [];
   }, [effectiveProductId, productsData, frozenProductWorkflow]);
 
+  const isSplitOrigination = isSplitOriginationApplication(application?.financing_type);
+  const isFacilityOnlyJourney =
+    effectiveStructureType === "new_contract" && isSplitOrigination;
+
   /** Filters product workflow using session override when user picks structure before saving. UI-only; does not persist. */
   const effectiveWorkflow = React.useMemo(() => {
     if (!productWorkflow.length) return [];
-    let base: Record<string, unknown>[];
     if (!isStructureResolved) {
-      base = productWorkflow as Record<string, unknown>[];
-    } else if (effectiveStructureType === "existing_contract") {
-      base = productWorkflow.filter(
-        (step: Record<string, unknown>) =>
-          getStepKeyFromStepId((step.id as string) || "") !== "contract_details"
-      ) as Record<string, unknown>[];
-    } else {
-      base = productWorkflow as Record<string, unknown>[];
+      return enforceDeclarationsLastAndDropReview(productWorkflow as Record<string, unknown>[]);
     }
-    return enforceDeclarationsLastAndDropReview(base);
-  }, [productWorkflow, effectiveStructureType, isStructureResolved]);
+    return filterWorkflowStepsForOrigination(productWorkflow as Record<string, unknown>[], {
+      structureType: effectiveStructureType,
+      financingType: application?.financing_type,
+      getStepKey: (stepId) => getStepKeyFromStepId(stepId),
+      finalize: enforceDeclarationsLastAndDropReview,
+    });
+  }, [productWorkflow, effectiveStructureType, isStructureResolved, application?.financing_type]);
 
   /** Forward scan for next amendment step that is flagged and not yet acknowledged; else Review & Submit. */
   const stepAcknowledgedForAmendmentNav = React.useCallback(
@@ -669,7 +674,16 @@ function EditApplicationPageBody() {
           title: isInvoiceOnly ? "Provide Customer Details" : "Provide Facility and Customer Details",
           description: isInvoiceOnly
             ? "Tell us about the customer billed under this invoice."
-            : "Help us understand your facility and the customer billed under this invoice.",
+            : isFacilityOnlyJourney
+              ? "Tell us about the customer contract and the financing limit you want to set up."
+              : "Help us understand your facility and the customer billed under this invoice.",
+        };
+      }
+      if (currentStepKey === "declarations" && isFacilityOnlyJourney) {
+        const stepDisplay = STEP_KEY_DISPLAY.declarations;
+        return {
+          title: (stepDisplay.pageTitle || stepDisplay.title) as string,
+          description: FACILITY_ONLY_SUBMIT_COPY,
         };
       }
       const stepDisplay = STEP_KEY_DISPLAY[currentStepKey];
@@ -678,7 +692,7 @@ function EditApplicationPageBody() {
         description: (stepDisplay.description || "") as string,
       };
     },
-    [currentStepKey, effectiveWorkflow, stepFromUrl, effectiveStructureType]
+    [currentStepKey, effectiveWorkflow, stepFromUrl, effectiveStructureType, isFacilityOnlyJourney]
   ) as { title: string; description: string };
 
   const isDeclarationsFinalStep =
@@ -1277,9 +1291,10 @@ function EditApplicationPageBody() {
       await persistDeclarationsStep(declarationsPayload);
       await finalizeApplicationSubmit(wasAmendmentResubmit);
       successPendingNav = true;
-    } catch {
+    } catch (error) {
       toast.error(
-        wasAmendmentResubmit ? "Failed to resubmit application" : "Failed to submit application"
+        mapCapacityApiError(error) ??
+          (wasAmendmentResubmit ? "Failed to resubmit application" : "Failed to submit application")
       );
     } finally {
       if (!successPendingNav) {
@@ -2090,6 +2105,7 @@ function EditApplicationPageBody() {
                     ? "When you resubmit, our team will review your updated application."
                     : "After you submit, you will not be able to edit this application unless we request changes."}
                 </p>
+                {isFacilityOnlyJourney ? <p>{FACILITY_ONLY_SUBMIT_COPY}</p> : null}
                 {showProcessingFeeInConfirm ? (
                   <p>
                     Before your application is sent for review, you will need to pay a one-time

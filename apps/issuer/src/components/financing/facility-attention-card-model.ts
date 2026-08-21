@@ -1,4 +1,5 @@
 import { formatContractReference } from "@cashsouk/types";
+import { compactLifetimeLine, resolveFacilityDisplayMetrics } from "@/lib/facility-capacity-display";
 import { isFacilityAmendmentRequested } from "@/lib/issuer-contract-actionable";
 import { asContractForModal, type IssuerDashboardContract } from "@/types/issuer-dashboard";
 import { financingOfferHref, OFFER_REVIEW_ON_APPLICATION_HINT } from "@/lib/financing-offer-href";
@@ -83,16 +84,22 @@ export function facilityAttentionMeta(row: IssuerDashboardContract): string {
 }
 
 export function facilityAttentionDetail(row: IssuerDashboardContract): string | null {
-  const approved = Number(row.approvedFacilityAmount);
-  const utilised = Number(row.utilizedFacilityAmount);
+  const metrics = resolveFacilityDisplayMetrics(row);
+  const approved = metrics.approved;
+  const utilised = metrics.utilized;
   const parts: string[] = [];
-  if (Number.isFinite(approved) && approved > 0 && Number.isFinite(utilised)) {
+  if (approved != null && approved > 0 && utilised != null) {
     parts.push(`${Math.round((utilised / approved) * 100)}% used`);
   }
   const invoiceCount = row.invoiceStats?.total ?? 0;
   if (invoiceCount > 0) {
     parts.push(`${invoiceCount} invoice${invoiceCount === 1 ? "" : "s"}`);
   }
+  const lifetime = compactLifetimeLine(metrics, (value) => {
+    const n = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(n) ? n.toLocaleString("en-MY") : "—";
+  });
+  if (lifetime) parts.push(lifetime);
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 

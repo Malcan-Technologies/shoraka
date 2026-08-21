@@ -4,13 +4,14 @@ import type { IssuerDashboardNote } from "@/types/issuer-dashboard";
 
 /**
  * Issuer financing dashboard groups. Colors via StatusBadge tokens (viewer-centric):
- * action_required → yellow · pending_approval / in_progress / funded → blue ·
+ * action_required → yellow · pending_approval / pending_listing / in_progress / funded → blue ·
  * active → violet · arrears / unsuccessful → red · completed → green · draft → grey.
  */
 export type IssuerFinancingStatusKind =
   | "draft"
   | "action_required"
   | "pending_approval"
+  | "pending_listing"
   | "in_progress"
   | "funded"
   | "active"
@@ -49,6 +50,12 @@ export function getIssuerFinancingStatusPresentation(kind: IssuerFinancingStatus
     case "pending_approval":
       return {
         label: "Pending approval",
+        className: "bg-status-submitted-bg text-status-submitted-text hover:bg-status-submitted-bg",
+        variant: "default",
+      };
+    case "pending_listing":
+      return {
+        label: "Pending listing",
         className: "bg-status-submitted-bg text-status-submitted-text hover:bg-status-submitted-bg",
         variant: "default",
       };
@@ -97,6 +104,7 @@ export function financingKindToStatusToken(kind: IssuerFinancingStatusKind): Use
     case "action_required":
       return "action";
     case "pending_approval":
+    case "pending_listing":
     case "in_progress":
     case "funded":
       return "submitted";
@@ -162,7 +170,7 @@ export function resolveIssuerInvoiceDashboardBadge(
       return "action_required";
     }
     if (inv === InvoiceStatus.SUBMITTED) return "pending_approval";
-    if (inv === InvoiceStatus.APPROVED) return "in_progress";
+    if (inv === InvoiceStatus.APPROVED) return "pending_listing";
     if (
       inv === InvoiceStatus.REJECTED ||
       inv === InvoiceStatus.WITHDRAWN ||
@@ -220,7 +228,7 @@ export function resolveIssuerInvoiceDashboardBadge(
   }
 
   if (ns === "DRAFT" || ls === "NOT_LISTED" || (fs === "NOT_OPEN" && ls === "NOT_LISTED")) {
-    return "draft";
+    return "pending_listing";
   }
 
   if (

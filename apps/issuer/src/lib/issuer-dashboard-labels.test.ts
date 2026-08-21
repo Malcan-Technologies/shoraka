@@ -9,6 +9,7 @@ describe("financingKindToStatusToken", () => {
     expect(financingKindToStatusToken("draft")).toBe("neutral");
     expect(financingKindToStatusToken("action_required")).toBe("action");
     expect(financingKindToStatusToken("pending_approval")).toBe("submitted");
+    expect(financingKindToStatusToken("pending_listing")).toBe("submitted");
     expect(financingKindToStatusToken("in_progress")).toBe("submitted");
     expect(financingKindToStatusToken("funded")).toBe("submitted");
     expect(financingKindToStatusToken("active")).toBe("active");
@@ -49,5 +50,45 @@ describe("resolveIssuerInvoiceDashboardBadge arrears/late", () => {
     expect(resolveIssuerInvoiceDashboardBadge(note({ servicingStatus: "CURRENT" }), "APPROVED")).toBe(
       "active"
     );
+  });
+});
+
+describe("resolveIssuerInvoiceDashboardBadge pending listing", () => {
+  const unpublishedNote = (overrides: Partial<IssuerDashboardNote> = {}): IssuerDashboardNote => ({
+    id: "n1",
+    noteReference: "N-1",
+    noteStatus: "DRAFT",
+    listingStatus: "NOT_LISTED",
+    noteListingStatus: "DRAFT",
+    fundingStatus: "NOT_OPEN",
+    servicingStatus: "NOT_STARTED",
+    targetAmount: "100",
+    fundedAmount: "0",
+    fundingProgressPercent: 0,
+    minimumFundingPercent: "80",
+    fundingDeadline: null,
+    maturityDate: null,
+    marketplaceStatusLabel: null,
+    investorCount: 0,
+    disbursementBreakdown: null,
+    ...overrides,
+  });
+
+  it("keeps issuer-owned invoice drafts as Draft", () => {
+    expect(resolveIssuerInvoiceDashboardBadge(null, "DRAFT")).toBe("draft");
+  });
+
+  it("uses Pending listing (blue) while CashSouk prepares the marketplace note", () => {
+    expect(resolveIssuerInvoiceDashboardBadge(null, "APPROVED")).toBe("pending_listing");
+    expect(resolveIssuerInvoiceDashboardBadge(unpublishedNote(), "APPROVED")).toBe("pending_listing");
+    expect(
+      resolveIssuerInvoiceDashboardBadge(unpublishedNote({ noteStatus: "DRAFT" }), "APPROVED")
+    ).toBe("pending_listing");
+    expect(
+      resolveIssuerInvoiceDashboardBadge(
+        unpublishedNote({ noteStatus: "PUBLISHED", listingStatus: "NOT_LISTED" }),
+        "APPROVED"
+      )
+    ).toBe("pending_listing");
   });
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import { ProductCatalogName } from "@cashsouk/ui";
 import type { IssuerDashboardContract } from "@/types/issuer-dashboard";
 import { resolveIssuerContractDashboardBadge } from "@/lib/issuer-dashboard-labels";
 import {
@@ -16,7 +17,13 @@ import {
   getFacilityAttentionAction,
 } from "./facility-attention-card-model";
 
-export function FacilityAttentionCard({ row }: { row: IssuerDashboardContract }) {
+export function FacilityAttentionCard({
+  row,
+  productImageS3Key,
+}: {
+  row: IssuerDashboardContract;
+  productImageS3Key?: string | null;
+}) {
   const action = getFacilityAttentionAction(row);
 
   return (
@@ -32,6 +39,11 @@ export function FacilityAttentionCard({ row }: { row: IssuerDashboardContract })
       meta={facilityAttentionMeta(row)}
       detail={facilityAttentionDetail(row)}
       hint={action.hint}
+      product={
+        row.productName?.trim() ? (
+          <ProductCatalogName name={row.productName} imageS3Key={productImageS3Key} />
+        ) : null
+      }
       ctaHref={action.href}
       ctaLabel={action.label}
       ctaVariant={action.buttonVariant}

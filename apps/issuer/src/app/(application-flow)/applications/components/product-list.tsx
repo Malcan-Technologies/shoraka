@@ -9,6 +9,7 @@ import { ChevronDownIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outlin
 import { ProductImagePreview } from "./product-image-preview";
 import { cn } from "@/lib/utils";
 import { issuerFieldChromeClassName } from "@/lib/issuer-input-chrome";
+import { OPENING_APPLICATION_COPY } from "@cashsouk/types";
 
 /** Max product cards shown per category before "Show more" (scroll stays primary; this limits height). */
 const VISIBLE_PRODUCTS_PER_CATEGORY = 8;
@@ -196,6 +197,8 @@ interface ProductListProps {
   disabled?: boolean;
   /** When true, shows search + expand/collapse-all (same as SHOW_PRODUCT_LIST_EXTENDED_CONTROLS). */
   showExtendedControls?: boolean;
+  heading?: string;
+  description?: string;
 }
 
 export function ProductList({
@@ -205,6 +208,8 @@ export function ProductList({
   isLoading,
   disabled,
   showExtendedControls = false,
+  heading = OPENING_APPLICATION_COPY.productListHeading,
+  description = OPENING_APPLICATION_COPY.productListDescription,
 }: ProductListProps) {
   const extendedUi = SHOW_PRODUCT_LIST_EXTENDED_CONTROLS || showExtendedControls;
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -345,6 +350,12 @@ export function ProductList({
 
   return (
     <div className="space-y-6">
+      {heading || description ? (
+        <div className="space-y-1">
+          {heading ? <h2 className="text-base font-semibold text-foreground">{heading}</h2> : null}
+          {description ? <p className="text-ui leading-7 text-muted-foreground">{description}</p> : null}
+        </div>
+      ) : null}
       {extendedUi && products.length > 0 ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="relative w-full sm:max-w-md">

@@ -9,6 +9,7 @@ export * from "./version";
 export * from "./token-refresh-service";
 export * from "./offer-resolvers";
 export * from "./hooks/use-notifications";
+export * from "./hooks/use-s3-view-url";
 export * from "./review-refresh-policy";
 export * from "./status-badges";
 export * from "./portal-status-token";

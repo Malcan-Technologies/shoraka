@@ -83,9 +83,22 @@ export function InvestmentDetailHero({
               <span className="text-ui font-semibold text-foreground">{facts.noteLabel}</span>
             </div>
             <p className="text-ui leading-6 text-foreground">
-              {facts.issuerName}
+              {isInvestedView
+                ? facts.issuerName
+                : note.purposeOfFinancing?.trim() || facts.noteLabel}
               {note.issuerIndustry?.trim() ? ` · ${note.issuerIndustry.trim()}` : ""}
             </p>
+            {!isInvestedView &&
+            (note.purposeOfContract?.trim() || note.contractTitle?.trim()) ? (
+              <p className="text-ui leading-6 text-foreground">
+                {note.purposeOfContract?.trim() &&
+                note.contractTitle?.trim() &&
+                note.purposeOfContract.trim().toLowerCase() !==
+                  note.contractTitle.trim().toLowerCase()
+                  ? `${note.contractTitle.trim()} · ${note.purposeOfContract.trim()}`
+                  : note.purposeOfContract?.trim() || note.contractTitle?.trim()}
+              </p>
+            ) : null}
             {isInvestedView ? (
               <>
                 <p className="text-ui leading-6 text-foreground">{investmentCardHeadline(note)}</p>

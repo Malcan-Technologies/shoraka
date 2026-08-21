@@ -168,3 +168,8 @@ export function useAuthToken() {
   }
   return context;
 }
+
+/** Null outside AuthProvider — used by optional S3 image loads on public pages. */
+export function useAuthTokenIfPresent() {
+  return useContext(AuthContext) ?? null;
+}

@@ -47,6 +47,7 @@ import {
 import { ContractActivityPanel } from "./contract-activity-panel";
 import { ContractApplicationsTable } from "./contract-applications-table";
 import { ContractNotesTable } from "./contract-notes-table";
+import { ContractFacilitySummary } from "@/components/application-review/contract-facility-summary";
 import {
   formatContractFacilityNoteCount,
   getContractUtilizationAccentClass,
@@ -55,6 +56,15 @@ import {
   resolveContractFacilityFeeCollected,
   resolveContractFacilityMetrics,
 } from "@/contracts/utils/contract-facility-metrics";
+import {
+  compactRemainingAllocationLine,
+  compactReservedLine,
+  CONTRACT_ALLOCATION_HELPER,
+  CREDIT_FACILITY_HELPER,
+  OVER_LIMIT_LABEL,
+  REMAINING_ALLOCATION_LABEL,
+  REMAINING_CREDIT_LABEL,
+} from "@/lib/facility-capacity-display";
 import {
   getContractHeaderEndDate,
   getContractHeaderMetrics,
@@ -86,6 +96,11 @@ const CONTRACT_CURATED_KEYS = [
   "approved_facility",
   "utilized_facility",
   "available_facility",
+  "pending_facility",
+  "repaid_facility",
+  "lifetime_cap",
+  "lifetime_used",
+  "lifetime_remaining",
   "facility_fee_rate_percent",
   "facility_fee_paid_amount",
   "document",
@@ -250,6 +265,9 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
 
   if (!data) return null;
 
+  const facilityApplications = data.applications.filter((application) => application.kind === "facility");
+  const invoiceApplications = data.applications.filter((application) => application.kind === "invoice");
+
   const contractDetails = data.contractDetails;
   const customerDetails = data.customerDetails;
   const contractReference = formatContractReference({
@@ -351,32 +369,61 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
         ]}
         metrics={headerMetrics}
         visualization={
-          <AdminMetricProgress
-            variant="hero"
-            percent={facility.utilizationPercent ?? 0}
-            leftLabel="Utilized"
-            leftValue={formatCurrency(facility.utilized)}
-            leftHint={
-              facility.approved > 0
-                ? `of ${formatCurrency(facility.approved)} approved`
-                : "No approved facility"
-            }
-            rightLabel="Available"
-            rightValue={formatCurrency(facility.available)}
-            rightHint={
-              facility.utilizationPercent == null
-                ? undefined
-                : `${facility.utilizationPercent.toFixed(1)}% drawn`
-            }
-            barClassName={getContractUtilizationProgressClass(
-              facility.utilizationPercent,
-              facility.approved > 0
-            )}
-            accentClassName={getContractUtilizationAccentClass(
-              facility.utilizationPercent,
-              facility.approved > 0
-            )}
-          />
+          <div className="space-y-3">
+            {facility.isOverLimit ? (
+              <StatusBadge label={OVER_LIMIT_LABEL} status="rejected" />
+            ) : null}
+            <AdminMetricProgress
+              variant="hero"
+              percent={facility.utilizationPercent ?? 0}
+              leftLabel="Utilized + reserved"
+              leftValue={formatCurrency(facility.occupied)}
+              leftHint={
+                facility.approved > 0
+                  ? `of ${formatCurrency(facility.approved)} approved. ${CREDIT_FACILITY_HELPER}`
+                  : "No approved facility"
+              }
+              rightLabel={REMAINING_CREDIT_LABEL}
+              rightValue={formatCurrency(facility.available)}
+              rightHint={
+                compactReservedLine(facility.pending, formatCurrency) ??
+                (facility.utilizationPercent == null
+                  ? undefined
+                  : `${facility.utilizationPercent.toFixed(1)}% drawn`)
+              }
+              barClassName={getContractUtilizationProgressClass(
+                facility.utilizationPercent,
+                facility.approved > 0
+              )}
+              accentClassName={getContractUtilizationAccentClass(
+                facility.utilizationPercent,
+                facility.approved > 0
+              )}
+              footer={
+                compactRemainingAllocationLine(facility, formatCurrency) ??
+                (facility.lifetimeCap > 0 ? CONTRACT_ALLOCATION_HELPER : undefined)
+              }
+            />
+            {facility.lifetimeCap > 0 ? (
+              <AdminMetricProgress
+                variant="hero"
+                percent={facility.allocationPercent ?? 0}
+                leftLabel="Allocation used"
+                leftValue={formatCurrency(facility.lifetimeUsed)}
+                leftHint={`of ${formatCurrency(facility.lifetimeCap)} contract value. ${CONTRACT_ALLOCATION_HELPER}`}
+                rightLabel={REMAINING_ALLOCATION_LABEL}
+                rightValue={formatCurrency(facility.lifetimeRemaining)}
+                barClassName={getContractUtilizationProgressClass(
+                  facility.allocationPercent,
+                  facility.lifetimeCap > 0
+                )}
+                accentClassName={getContractUtilizationAccentClass(
+                  facility.allocationPercent,
+                  facility.lifetimeCap > 0
+                )}
+              />
+            ) : null}
+          </div>
         }
       />
 
@@ -464,9 +511,18 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
         </AdminDetailTabPanel>
 
         <AdminDetailTabPanel value="facility-offer">
+          <ContractFacilitySummary
+            contractFacility={facility.approved}
+            availableFacility={facility.available}
+            utilizedFacility={facility.utilized}
+            pendingFacility={facility.pending}
+            lifetimeCap={facility.lifetimeCap}
+            lifetimeUsed={facility.lifetimeUsed}
+            lifetimeRemaining={facility.lifetimeRemaining}
+          />
           <ContractFieldsCard
-            title="Facility"
-            description="Approved line, live utilization, pending invoices, and facility fee."
+            title="Facility fee"
+            description="Approved line, live utilization, reserved invoices, and facility fee."
             icon={BanknotesIcon}
           >
             <div>
@@ -479,11 +535,11 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
                 value={formatCurrency(facility.utilized)}
               />
               <ContractDetailRow
-                label="Pending"
+                label="Reserved"
                 value={formatCurrency(facility.pending)}
               />
               <ContractDetailRow
-                label="Available facility"
+                label={REMAINING_CREDIT_LABEL}
                 value={formatCurrency(facility.available)}
               />
             </div>
@@ -510,6 +566,14 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
               <ContractDetailRow
                 label="Facility fee collected"
                 value={facilityFeeCollected?.display ?? CONTRACT_EMPTY_LABEL}
+              />
+              <ContractDetailRow
+                label={REMAINING_ALLOCATION_LABEL}
+                value={
+                  facility.lifetimeCap > 0
+                    ? formatCurrency(facility.lifetimeRemaining)
+                    : CONTRACT_EMPTY_LABEL
+                }
               />
             </div>
           </ContractFieldsCard>
@@ -601,20 +665,38 @@ export function ContractDetailView({ contractId }: { contractId: string }) {
         </AdminDetailTabPanel>
 
         <AdminDetailTabPanel value="applications">
-          <Card className="rounded-2xl">
-            <AdminDetailCardHeader
-              icon={ClipboardDocumentListIcon}
-              title="Applications"
-              description={
-                data.applications.length === 0
-                  ? "No linked applications yet"
-                  : `${data.applications.length} ${data.applications.length === 1 ? "application" : "applications"} drawn against this facility`
-              }
-            />
-            <CardContent className={data.applications.length === 0 ? undefined : "p-0"}>
-              <ContractApplicationsTable applications={data.applications} />
-            </CardContent>
-          </Card>
+          <div className="space-y-6">
+            <Card className="rounded-2xl">
+              <AdminDetailCardHeader
+                icon={BanknotesIcon}
+                title="Facility application"
+                description="The application that set up this facility and its credit limit."
+              />
+              <CardContent className={facilityApplications.length === 0 ? undefined : "p-0"}>
+                <ContractApplicationsTable
+                  applications={facilityApplications}
+                  requestedColumnLabel="Requested facility"
+                  emptyTitle="No facility application"
+                  emptyDescription="The originating application for this facility is not linked yet."
+                />
+              </CardContent>
+            </Card>
+            <Card className="rounded-2xl">
+              <AdminDetailCardHeader
+                icon={ClipboardDocumentListIcon}
+                title="Invoice applications"
+                description="Invoice financing drawn against this facility after it was approved."
+              />
+              <CardContent className={invoiceApplications.length === 0 ? undefined : "p-0"}>
+                <ContractApplicationsTable
+                  applications={invoiceApplications}
+                  requestedColumnLabel="Requested financing"
+                  emptyTitle="No invoice applications"
+                  emptyDescription="Invoice applications drawn against this facility will appear here once the issuer submits them."
+                />
+              </CardContent>
+            </Card>
+          </div>
         </AdminDetailTabPanel>
 
         <AdminDetailTabPanel value="notes">

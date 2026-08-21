@@ -8,7 +8,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import type { NoteListItem } from "@cashsouk/types";
-import { NoteStatusBadge } from "@cashsouk/ui";
+import { NoteStatusBadge, ProductCatalogName } from "@cashsouk/ui";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { Button } from "@/components/ui/button";
 import { issuerSettlementPayoutSummaryFromResidualStatus } from "@/notes/lib/settlement-payout-summary-presenter";
@@ -35,6 +35,7 @@ import {
   isIssuerNoteActionable,
   isIssuerNoteInArrears,
 } from "@/lib/issuer-financing-actionable";
+import { FacilityTiedLink } from "./facility-tied-link";
 
 function daysPastMaturity(maturityDate: string | null | undefined): number | null {
   if (!maturityDate) return null;
@@ -213,7 +214,9 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
 
         {inArrears ? <NoteArrearsAlert note={note} /> : null}
 
-        <p className="truncate text-ui leading-6 text-muted-foreground">{note.title}</p>
+        <p className="truncate text-ui leading-6 text-muted-foreground">
+          {note.purposeOfFinancing?.trim() || note.title}
+        </p>
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-stretch">
           <div className="flex shrink-0 items-center justify-center sm:w-[11rem] sm:justify-start">
@@ -255,8 +258,17 @@ export function DashboardNoteCard({ note }: { note: NoteListItem }) {
               <div className="min-w-0 space-y-2">
                 <LabelValue label="Paymaster">{displayCell(note.paymasterName)}</LabelValue>
                 <LabelValue label="Product">
-                  {displayCell(note.productName ?? note.productCategory)}
+                  <ProductCatalogName
+                    name={note.productName}
+                    category={note.productCategory}
+                    imageS3Key={note.productImageS3Key}
+                    empty={EM_DASH}
+                  />
                 </LabelValue>
+                <FacilityTiedLink
+                  contractId={note.sourceContractId}
+                  displayReference={note.sourceContractDisplayReference}
+                />
                 {note.sourceInvoiceId ? (
                   <p className="text-ui leading-7 text-foreground">
                     <span className="font-normal text-muted-foreground">Invoice: </span>

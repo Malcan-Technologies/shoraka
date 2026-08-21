@@ -13,16 +13,14 @@ import {
 } from "@/components/investor-action-dialog";
 import { formatRiskScore } from "@/investments/components/investment-card-metrics";
 import { MarketplaceFailedFundingTooltip } from "./marketplace-failed-funding-tooltip";
-import { MarketplaceIndustryIcon } from "./marketplace-industry-icon";
+import { MarketplaceNoteIdentity } from "./marketplace-note-identity";
 import {
   marketplaceAvailableCashHint,
   marketplaceConfirmLead,
   marketplaceInvestLead,
-  marketplaceInvestMeta,
   marketplaceInvestRangeHint,
 } from "./marketplace-invest-copy";
 import {
-  marketplaceIssuerLabel,
   marketplaceNoteLabel,
   type MarketplaceNote,
 } from "./marketplace-note-model";
@@ -85,7 +83,7 @@ export function MarketplaceInvestDialog({
       }
       title={isConfirming ? "Ready to invest?" : "Invest"}
       description={
-        isConfirming ? marketplaceConfirmLead(amountLabel, note) : marketplaceInvestLead(note)
+        isConfirming ? marketplaceConfirmLead(amountLabel) : marketplaceInvestLead()
       }
       footer={
         isConfirming ? (
@@ -152,15 +150,8 @@ export function MarketplaceInvestDialog({
       ) : (
         <>
           {note ? (
-            <div className="flex items-start gap-3 rounded-2xl border border-border bg-muted/40 p-4">
-              <MarketplaceIndustryIcon industry={note.industry} />
-              <div className="min-w-0 space-y-1">
-                <p className="text-ui font-semibold text-foreground">{marketplaceIssuerLabel(note)}</p>
-                <p className="text-ui text-foreground">{marketplaceInvestMeta(note)}</p>
-                {note.industry?.trim() ? (
-                  <p className="text-ui text-muted-foreground">{note.industry.trim()}</p>
-                ) : null}
-              </div>
+            <div className="rounded-2xl border border-border bg-muted/40 p-4">
+              <MarketplaceNoteIdentity note={note} titleAsLink={false} />
             </div>
           ) : null}
 
@@ -209,7 +200,7 @@ export function MarketplaceInvestDialog({
               className="mt-0.5"
             />
             <Label htmlFor="marketplace-terms" className="text-ui font-normal leading-6 text-muted-foreground">
-              I've read the{" "}
+              I&apos;ve read the{" "}
               <button
                 type="button"
                 className="text-foreground underline-offset-2 hover:underline"
@@ -222,7 +213,7 @@ export function MarketplaceInvestDialog({
               >
                 prospectus
               </button>{" "}
-              and I'm ready to continue.
+              and I&apos;m ready to continue.
             </Label>
           </div>
         </>

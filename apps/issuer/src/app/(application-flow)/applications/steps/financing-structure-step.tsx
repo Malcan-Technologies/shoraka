@@ -2,12 +2,33 @@
 
 /** Imports
  *
- * What: Financing structure step and shared UI pieces.
- * Why: Provide the three structure choices and keep the selection card UI consistent with Financing Type.
+ * What: Financing goal step and shared UI pieces.
+ * Why: Let issuers pick a clear goal without seeing internal structure labels.
  * Data: Uses application data + approved contracts list; emits `{ structure_type, existing_contract_id }` to parent.
  */
 import * as React from "react";
 import type { Contract } from "@cashsouk/types";
+import {
+  buildBranchResetDescription,
+  buildFinancingJourneySummary,
+  facilityChooserRemaining,
+  LEFT_ON_CONTRACT_HELPER,
+  LEFT_ON_CONTRACT_LABEL,
+  LEFT_TO_DRAW_HELPER,
+  LEFT_TO_DRAW_LABEL,
+  listFinancingGoalChoices,
+  NO_APPROVED_FACILITY_COPY,
+  resolveInitialFinancingGoal,
+  SET_UP_FACILITY_INSTEAD_COPY,
+  type FinancingJourneySummary,
+  type FinancingStructureType,
+} from "@cashsouk/types";
+import {
+  BanknotesIcon,
+  BuildingLibraryIcon,
+  DocumentTextIcon,
+  InformationCircleIcon,
+} from "@heroicons/react/24/outline";
 import { useApplication } from "@/hooks/use-applications";
 import { useInvoicesByApplication } from "@/hooks/use-invoices";
 import { useApprovedContracts } from "@/hooks/use-contracts";
@@ -19,6 +40,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import {
   applicationFlowStepHorizontalClassName,
   formInputDisabledClassName,
@@ -29,24 +51,100 @@ import { SelectionCard } from "@/app/(application-flow)/applications/components/
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { FinancingStructureSkeleton } from "@/app/(application-flow)/applications/components/financing-structure-skeleton";
 import { EXISTING_CONTRACT_PREFILL_STORAGE_KEY } from "@/lib/finance-invoice-application-href";
+import { formatMoney, StatusBadge } from "@cashsouk/ui";
+import {
+  goalRadioTabIndex,
+  resolveGoalRadioTabStopId,
+} from "@/app/(application-flow)/applications/lib/financing-goal-a11y";
+
+const GOAL_ICONS = {
+  new_contract: BuildingLibraryIcon,
+  existing_contract: BanknotesIcon,
+  invoice_only: DocumentTextIcon,
+} as const;
+
+function GoalLeadingIcon({
+  type,
+  isSelected,
+  disabled,
+}: {
+  type: FinancingStructureType;
+  isSelected: boolean;
+  disabled: boolean;
+}) {
+  const Icon = GOAL_ICONS[type];
+  return (
+    <span
+      className={cn(
+        "flex h-10 w-10 items-center justify-center rounded-md",
+        disabled
+          ? "bg-muted text-muted-foreground"
+          : isSelected
+            ? "bg-primary/10 text-primary"
+            : "bg-muted text-foreground"
+      )}
+      aria-hidden
+    >
+      <Icon className="h-5 w-5" />
+    </span>
+  );
+}
+
+function FinancingJourneyPanel({ summary }: { summary: FinancingJourneySummary }) {
+  return (
+    <aside
+      className="rounded-md border border-status-submitted-text/30 bg-status-submitted-bg px-4 py-3 space-y-2"
+      aria-labelledby="financing-journey-heading"
+    >
+      <div className="flex items-start gap-2">
+        <InformationCircleIcon
+          className="mt-0.5 h-5 w-5 shrink-0 text-status-submitted-text"
+          aria-hidden
+        />
+        <div className="min-w-0 space-y-2">
+          <h3
+            id="financing-journey-heading"
+            className="text-base font-semibold text-status-submitted-text"
+          >
+            {summary.title}
+          </h3>
+          <p className="text-ui leading-7 text-status-submitted-text">
+            <span className="font-medium">Now: </span>
+            {summary.now}
+          </p>
+          <p className="text-ui leading-7 text-status-submitted-text">
+            <span className="font-medium">After you submit: </span>
+            {summary.after}
+          </p>
+        </div>
+      </div>
+    </aside>
+  );
+}
 
 /**
- * FINANCING STRUCTURE STEP
+ * FINANCING GOAL STEP
  *
- * This step lets users choose how they want to apply for financing:
- * 1. Submit a new facility - User will fill facility details in next step
- * 2. Use an existing facility - Select from previously approved facilities
- * 3. Invoice-only financing - Finance invoices without a facility
+ * Goal-based choices:
+ * 1. Set up a new facility
+ * 2. Finance an invoice from an approved facility
+ * 3. Finance one invoice without a facility
  *
- * Changing structure is a branch reset: invoices / draft facility data are cleared on save.
+ * Changing the goal is a branch reset: invoices / draft facility data are cleared on save.
  */
-
-type FinancingStructureType = "new_contract" | "existing_contract" | "invoice_only";
 
 interface FinancingStructureStepProps {
   applicationId: string;
   onDataChange?: (data: Record<string, unknown>) => void;
   readOnly?: boolean;
+}
+
+function readFacilityRemaining(contract: Contract | undefined) {
+  const details = contract?.contract_details;
+  return facilityChooserRemaining({
+    availableFacility: details?.available_facility ?? null,
+    lifetimeRemaining: details?.lifetime_remaining ?? null,
+  });
 }
 
 export function FinancingStructureStep({
@@ -57,19 +155,27 @@ export function FinancingStructureStep({
   const devTools = useDevTools();
 
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
-  const { data: invoices = [], isLoading: isLoadingInvoices } = useInvoicesByApplication(applicationId);
-  const { data: approvedContracts = [] } = useApprovedContracts(
+  const { data: invoices = [], isLoading: isLoadingInvoices } =
+    useInvoicesByApplication(applicationId);
+  const { data: approvedContracts = [], isLoading: isLoadingContracts } = useApprovedContracts(
     application?.issuer_organization_id || ""
   );
   const hasApprovedContracts = approvedContracts.length > 0;
-
-  const [selectedStructure, setSelectedStructure] = React.useState<FinancingStructureType>(
-    "new_contract"
+  const goalChoices = React.useMemo(
+    () => listFinancingGoalChoices({ hasApprovedFacilities: hasApprovedContracts }),
+    [hasApprovedContracts]
   );
+
+  const [selectedStructure, setSelectedStructure] =
+    React.useState<FinancingStructureType>("new_contract");
   const [selectedContractId, setSelectedContractId] = React.useState<string>("");
+  const [fromPrefill, setFromPrefill] = React.useState(false);
   const [isInitialized, setIsInitialized] = React.useState(false);
   const [branchResetConfirmOpen, setBranchResetConfirmOpen] = React.useState(false);
   const branchResetResolveRef = React.useRef<((confirmed: boolean) => void) | null>(null);
+  const radioRefs = React.useRef<Partial<Record<FinancingStructureType, HTMLDivElement | null>>>(
+    {}
+  );
 
   const onDataChangeRef = React.useRef(onDataChange);
   React.useEffect(() => {
@@ -79,31 +185,20 @@ export function FinancingStructureStep({
   React.useEffect(() => {
     if (!application || isInitialized) return;
 
-    const savedData = application.financing_structure as
-      | Record<string, unknown>
-      | null
-      | undefined;
+    const savedData = application.financing_structure as Record<string, unknown> | null | undefined;
 
     const savedType = savedData?.structure_type as FinancingStructureType | undefined;
     const savedContractId = (savedData?.existing_contract_id as string | undefined) ?? "";
-
-    if (savedType) {
-      setSelectedStructure(savedType);
-      setSelectedContractId(savedContractId);
-      setIsInitialized(true);
-      return;
-    }
-
     const prefillContractId = sessionStorage.getItem(EXISTING_CONTRACT_PREFILL_STORAGE_KEY);
-    if (prefillContractId) {
-      setSelectedStructure("existing_contract");
-      setSelectedContractId(prefillContractId);
-      setIsInitialized(true);
-      return;
-    }
 
-    setSelectedStructure("new_contract");
-    setSelectedContractId("");
+    const initial = resolveInitialFinancingGoal({
+      savedStructureType: savedType,
+      savedFacilityId: savedContractId,
+      prefillFacilityId: prefillContractId,
+    });
+    setSelectedStructure(initial.structureType);
+    setSelectedContractId(initial.facilityId);
+    setFromPrefill(initial.fromPrefill);
     setIsInitialized(true);
   }, [application, isInitialized]);
 
@@ -113,10 +208,12 @@ export function FinancingStructureStep({
       | undefined;
     if (!data?.structure_type) return;
     const type = data.structure_type as FinancingStructureType;
-    const contractId = data.structure_type === "existing_contract" ? (data.existing_contract_id ?? "") : "";
+    const contractId =
+      data.structure_type === "existing_contract" ? (data.existing_contract_id ?? "") : "";
     if (type === "existing_contract" && !contractId) return;
     setSelectedStructure(type);
     setSelectedContractId(contractId);
+    setFromPrefill(false);
     devTools?.clearAutoFillForStep("financing_structure");
   }, [devTools]);
 
@@ -141,26 +238,27 @@ export function FinancingStructureStep({
       }
     }
 
-    const isValid =
-      selectedStructure !== "existing_contract" || selectedContractId !== "";
+    const isValid = selectedStructure !== "existing_contract" || selectedContractId !== "";
 
-    const savedStructure = application?.financing_structure as Record<string, unknown> | null | undefined;
-    const savedType = (savedStructure?.structure_type as FinancingStructureType | undefined) ?? "new_contract";
+    const savedStructure = application?.financing_structure as
+      | Record<string, unknown>
+      | null
+      | undefined;
+    const savedType =
+      (savedStructure?.structure_type as FinancingStructureType | undefined) ?? "new_contract";
     const savedContractId = (savedStructure?.existing_contract_id as string | undefined) ?? "";
 
     const structureChanged =
       savedType !== selectedStructure ||
-      (selectedStructure === "existing_contract" &&
-        savedContractId !== selectedContractId);
+      (selectedStructure === "existing_contract" && savedContractId !== selectedContractId);
 
     const hasPendingChanges = Boolean(structureChanged);
-    
+
     // First-time saves must go through even if structureChanged=false,
     // so the step gets marked as completed in the DB.
     const hasBeenSavedBefore = Boolean(savedStructure);
-    const linkedContractId = (
-      application as { contract_id?: string | null } | null | undefined
-    )?.contract_id;
+    const linkedContractId = (application as { contract_id?: string | null } | null | undefined)
+      ?.contract_id;
     const hasBranchDataToClear = invoices.length > 0 || Boolean(linkedContractId);
     const needsBranchResetConfirm = structureChanged && hasBranchDataToClear;
 
@@ -193,8 +291,18 @@ export function FinancingStructureStep({
     invoices.length,
   ]);
 
+  React.useEffect(() => {
+    if (!isInitialized || hasApprovedContracts) return;
+    if (selectedStructure !== "existing_contract") return;
+    setSelectedStructure("new_contract");
+    setSelectedContractId("");
+    setFromPrefill(false);
+  }, [hasApprovedContracts, isInitialized, selectedStructure]);
+
   const handleStructureSelect = (type: FinancingStructureType) => {
+    if (type === "existing_contract" && !hasApprovedContracts) return;
     setSelectedStructure(type);
+    setFromPrefill(false);
     sessionStorage.setItem("cashsouk:financing_structure_override", type);
     window.dispatchEvent(new Event("storage"));
 
@@ -205,15 +313,13 @@ export function FinancingStructureStep({
 
   const handleContractSelect = (contractId: string) => {
     setSelectedContractId(contractId);
+    setFromPrefill(false);
 
     if (selectedStructure !== "existing_contract") {
       setSelectedStructure("existing_contract");
     }
 
-    sessionStorage.setItem(
-      "cashsouk:financing_structure_override",
-      "existing_contract"
-    );
+    sessionStorage.setItem("cashsouk:financing_structure_override", "existing_contract");
     window.dispatchEvent(new Event("storage"));
   };
 
@@ -225,82 +331,185 @@ export function FinancingStructureStep({
     }
   };
 
-  if (isLoadingApp || isLoadingInvoices || devTools?.showSkeletonDebug) {
+  const journeySummary = buildFinancingJourneySummary(isInitialized ? selectedStructure : null);
+  const savedStructure = application?.financing_structure as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  const savedType = (savedStructure?.structure_type as FinancingStructureType | undefined) ?? null;
+  const linkedContractId = (application as { contract_id?: string | null } | null | undefined)
+    ?.contract_id;
+  const branchResetDescription = buildBranchResetDescription({
+    fromType: savedType,
+    hasInvoices: invoices.length > 0,
+    hasDraftFacility: Boolean(linkedContractId) && savedType !== "existing_contract",
+  });
+
+  const selectedFacility = approvedContracts.find((c: Contract) => c.id === selectedContractId);
+  const remaining = readFacilityRemaining(selectedFacility);
+
+  if (isLoadingApp || isLoadingInvoices || isLoadingContracts || devTools?.showSkeletonDebug) {
     return <FinancingStructureSkeleton />;
   }
 
+  const enabledChoiceIds = goalChoices
+    .filter((choice) => !choice.disabled)
+    .map((choice) => choice.id);
+  const radioTabStopId = resolveGoalRadioTabStopId(selectedStructure, enabledChoiceIds);
+
+  const moveGoal = (direction: 1 | -1) => {
+    const currentIndex = enabledChoiceIds.indexOf(selectedStructure);
+    const nextIndex =
+      currentIndex < 0
+        ? 0
+        : (currentIndex + direction + enabledChoiceIds.length) % enabledChoiceIds.length;
+    const nextId = enabledChoiceIds[nextIndex];
+    handleStructureSelect(nextId);
+    radioRefs.current[nextId]?.focus();
+  };
+
+  const showJourney = Boolean(journeySummary) && isInitialized;
+
   return (
     <>
-      <div className={applicationFlowStepHorizontalClassName}>
-        <div className="space-y-3">
-          <SelectionCard
-            title="Submit a new facility"
-            description="My invoice is under a facility that hasn't been approved by Cashsouk"
-            isSelected={selectedStructure === "new_contract"}
-            onClick={readOnly ? () => {} : () => handleStructureSelect("new_contract")}
-            disabled={readOnly}
-          />
+      <div className={cn(applicationFlowStepHorizontalClassName, "space-y-6")}>
+        {showJourney && journeySummary ? <FinancingJourneyPanel summary={journeySummary} /> : null}
 
-          <SelectionCard
-            title="Use an existing facility"
-            description="My invoice is under a facility already approved by Cashsouk"
-            isSelected={selectedStructure === "existing_contract"}
-            onClick={readOnly ? () => {} : () => handleStructureSelect("existing_contract")}
-            disabled={readOnly}
-            trailing={
-              hasApprovedContracts ? (
-                <Select value={selectedContractId} onValueChange={handleContractSelect} disabled={readOnly}>
-                  <SelectTrigger
-                    className={cn(
-                      formSelectTriggerClassName,
-                      "w-[280px]",
-                      readOnly && formInputDisabledClassName
-                    )}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (selectedStructure !== "existing_contract") {
-                        handleStructureSelect("existing_contract");
-                      }
-                    }}
-                  >
-                    <SelectValue placeholder="Select an existing facility" />
-                  </SelectTrigger>
-
-                  <SelectContent>
-                    {approvedContracts.map((contract: Contract) => (
-                      <SelectItem key={contract.id} value={contract.id}>
-                        {contract.contract_details?.title ?? "Untitled facility"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div
-                  className="w-[280px] rounded-md border border-dashed border-input bg-muted px-3 py-2 text-sm text-muted-foreground"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  No existing facilities
-                </div>
-              )
+        <div
+          className="space-y-3"
+          role="radiogroup"
+          aria-label="What would you like to do?"
+          onKeyDown={(event) => {
+            if (readOnly) return;
+            if (event.key === "ArrowDown" || event.key === "ArrowRight") {
+              event.preventDefault();
+              moveGoal(1);
             }
-          />
-
-          <SelectionCard
-            title="Invoice-only financing"
-            description="I want to finance my invoice without a facility"
-            isSelected={selectedStructure === "invoice_only"}
-            onClick={readOnly ? () => {} : () => handleStructureSelect("invoice_only")}
-            disabled={readOnly}
-          />
+            if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
+              event.preventDefault();
+              moveGoal(-1);
+            }
+          }}
+        >
+          {goalChoices.map((choice) => {
+            const isExisting = choice.id === "existing_contract";
+            const showFacilityContext = isExisting && selectedStructure === "existing_contract";
+            const choiceDisabled = readOnly || choice.disabled;
+            return (
+              <div key={choice.id} className="space-y-3">
+                <SelectionCard
+                  title={choice.title}
+                  description={
+                    choice.disabled && choice.disabledReason
+                      ? `${choice.description} ${choice.disabledReason}.`
+                      : choice.description
+                  }
+                  isSelected={selectedStructure === choice.id}
+                  onClick={readOnly ? () => {} : () => handleStructureSelect(choice.id)}
+                  disabled={choiceDisabled}
+                  leading={
+                    <GoalLeadingIcon
+                      type={choice.id}
+                      isSelected={selectedStructure === choice.id}
+                      disabled={choiceDisabled}
+                    />
+                  }
+                  selectionRole="radio"
+                  tabIndex={goalRadioTabIndex({
+                    isTabStop: choice.id === radioTabStopId,
+                    disabled: choiceDisabled,
+                  })}
+                  cardRef={(node) => {
+                    radioRefs.current[choice.id] = node;
+                  }}
+                />
+                {isExisting && choice.disabled ? (
+                  <div className="rounded-md border border-border bg-muted px-3 py-3 space-y-2">
+                    <p className="text-ui text-muted-foreground">{NO_APPROVED_FACILITY_COPY}.</p>
+                    {!readOnly ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10"
+                        onClick={() => handleStructureSelect("new_contract")}
+                      >
+                        {SET_UP_FACILITY_INSTEAD_COPY}
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+                {showFacilityContext && hasApprovedContracts ? (
+                  <div className="space-y-3">
+                    {fromPrefill && selectedFacility ? (
+                      <div className="rounded-md border border-border bg-muted/40 px-3 py-2 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-ui font-medium text-foreground">
+                            {selectedFacility.contract_details?.title ?? "Untitled facility"}
+                          </p>
+                          <StatusBadge label="Approved" status="active" />
+                        </div>
+                        <p className="text-ui text-muted-foreground">
+                          You started from this facility. Confirm it below, or choose a different
+                          approved facility.
+                        </p>
+                      </div>
+                    ) : null}
+                    <Select
+                      value={selectedContractId}
+                      onValueChange={handleContractSelect}
+                      disabled={readOnly}
+                    >
+                      <SelectTrigger
+                        className={cn(
+                          formSelectTriggerClassName,
+                          "w-full max-w-md",
+                          readOnly && formInputDisabledClassName
+                        )}
+                      >
+                        <SelectValue placeholder="Select an approved facility" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {approvedContracts.map((contract: Contract) => (
+                          <SelectItem key={contract.id} value={contract.id}>
+                            {contract.contract_details?.title ?? "Untitled facility"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedFacility ? (
+                      <div className="space-y-2 text-ui text-muted-foreground">
+                        {remaining.leftToDraw != null ? (
+                          <div className="space-y-0.5">
+                            <p>
+                              {LEFT_TO_DRAW_LABEL}: {formatMoney(remaining.leftToDraw)}
+                            </p>
+                            <p className="text-meta leading-5">{LEFT_TO_DRAW_HELPER}</p>
+                          </div>
+                        ) : null}
+                        {remaining.leftOnContract != null ? (
+                          <div className="space-y-0.5">
+                            <p>
+                              {LEFT_ON_CONTRACT_LABEL}: {formatMoney(remaining.leftOnContract)}
+                            </p>
+                            <p className="text-meta leading-5">{LEFT_ON_CONTRACT_HELPER}</p>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       </div>
 
       <ConfirmDialog
         open={branchResetConfirmOpen}
         onOpenChange={handleBranchResetConfirmOpenChange}
-        title="Change financing structure?"
-        description="This will remove invoices and facility details entered for the current structure, including uploaded files. Other application steps are kept. This can't be undone."
-        confirmText="Change structure"
+        title="Change this application?"
+        description={branchResetDescription}
+        confirmText="Change choice"
         cancelText="Cancel"
         variant="destructive"
         onConfirm={async () => {

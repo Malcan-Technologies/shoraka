@@ -6,7 +6,7 @@ tags:
   - admin
   - operations
 order: 11
-updated: 2026-05-05
+updated: 2026-08-21
 ---
 
 ## Purpose
@@ -129,19 +129,20 @@ Confirm screening outcome on the guarantor record before relying on guarantor su
 
 - Customer or paymaster details are accurate.
 - Large private company indicator is correct where the product collects it.
-- Offered facility does not exceed the requested facility.
+- Offered facility does not exceed the requested facility and is strictly less than contract value.
 - The offer is not already accepted or signed.
 
-After issuer acceptance or signature, the facility becomes the reference for linked invoices on the same application.
+After issuer acceptance or signature, the facility becomes the reference for later invoice applications. New facility files do not include an invoice.
 
 ## Preconditions for Sending an Invoice Offer
 
 - Validate amount, ratio, tenor, profit rate, and risk attributes as shown.
 - Offered amount does not exceed requested amount.
+- Offered financing must fit remaining credit; invoice face must fit remaining allocation. **Reserved** pending invoices already occupy the line. The send control is disabled when the offer would go over-limit — there is no override.
 - Tenor satisfies product rules.
 - If the invoice was previously rejected, return it to pending when the portal allows, before sending a new offer.
 
-Send offers only when prerequisite sections are approved and the target tab is unlocked.
+Send offers only when prerequisite sections are approved and the target tab is unlocked. Marketplace funding that fails after the product listing window (default 14 days) releases both ledgers.
 
 ## Admin Stage Sequence (Facility and Invoice Products)
 

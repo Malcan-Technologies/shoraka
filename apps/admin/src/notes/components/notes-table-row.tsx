@@ -35,6 +35,7 @@ import {
   maturityCountdownClass,
 } from "@/notes/utils/maturity-countdown";
 import { EyeIcon } from "@heroicons/react/24/outline";
+import { CheckIcon } from "@heroicons/react/24/solid";
 import { adminActionRowClass, adminRejectedRowClass } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
 import { resolveNoteFacilityLink } from "@/notes/utils/note-source-linkage";
@@ -136,6 +137,34 @@ function noteRowHighlightClass(note: NoteListItem): string {
   return adminActionRowClass(noteRowNeedsAdminAction(note));
 }
 
+function hasProspectusIndicator(note: NoteListItem): boolean {
+  return (
+    note.prospectus?.displayStatus === "Approved" ||
+    note.prospectus?.displayStatus === "Published"
+  );
+}
+
+function ProspectusCell({ note }: { note?: NoteListItem }) {
+  if (!note || !hasProspectusIndicator(note) || !note.prospectus) {
+    return (
+      <TableCell className="min-w-0 overflow-hidden">
+        <span className="text-muted-foreground">—</span>
+      </TableCell>
+    );
+  }
+
+  const label = formatProspectusListBadge(note.prospectus.displayStatus);
+  return (
+    <TableCell className="min-w-0 overflow-hidden">
+      <CheckIcon
+        className="size-4 shrink-0 text-status-success-text"
+        title={label}
+        aria-label={label}
+      />
+    </TableCell>
+  );
+}
+
 function FacilityCell({
   contractId,
   displayReference,
@@ -180,21 +209,12 @@ function NoteRow({ note, onViewDetails }: NoteRowProps) {
         ) : null}
       </TableCell>
       <TableCell className="min-w-0 overflow-hidden">
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="truncate font-medium" title={note.title}>{note.title}</div>
-          {note.prospectus?.displayStatus === "Approved" ||
-          note.prospectus?.displayStatus === "Published" ? (
-            <StatusBadge
-              label={formatProspectusListBadge(note.prospectus.displayStatus)}
-              status="success"
-              className="shrink-0"
-            />
-          ) : null}
-        </div>
+        <div className="truncate font-medium" title={note.title}>{note.title}</div>
         <div className="truncate text-xs text-muted-foreground" title={note.issuerName ?? "Unknown issuer"}>
           {note.issuerName ?? "Unknown issuer"}
         </div>
       </TableCell>
+      <ProspectusCell note={note} />
       <TableCell className="min-w-0 overflow-hidden">
         <SoukscoreRiskRatingBadge riskRating={note.riskRating} />
       </TableCell>
@@ -280,6 +300,7 @@ function ReadyInvoiceRow({
           {invoice.issuerName ?? invoice.issuerOrganizationId}
         </div>
       </TableCell>
+      <ProspectusCell />
       <TableCell className="min-w-0 overflow-hidden">
         <SoukscoreRiskRatingBadge riskRating={invoice.riskRating} />
       </TableCell>

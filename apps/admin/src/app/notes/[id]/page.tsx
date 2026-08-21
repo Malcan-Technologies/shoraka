@@ -73,6 +73,7 @@ import {
   type NoteDetailTabId,
 } from "@/notes/utils/note-detail-next-action";
 import { type NoteLifecycleAction } from "@/notes/utils/note-lifecycle-actions";
+import { getNoteHeaderPurposeRows } from "@/notes/utils/note-header-purposes";
 import { resolveNoteSourceLinkage } from "@/notes/utils/note-source-linkage";
 import { RequirePermission } from "@/components/require-permission";
 import { usePermissions } from "@/hooks/use-permissions";
@@ -394,6 +395,7 @@ export default function NoteDetailPage() {
                   eyebrow="Note detail"
                   title={note.title}
                   subtitle={`${note.noteReference} · ${note.issuerName ?? "Unknown issuer"}`}
+                  contextRows={getNoteHeaderPurposeRows(note)}
                   icon={DocumentTextIcon}
                   chips={
                     <>

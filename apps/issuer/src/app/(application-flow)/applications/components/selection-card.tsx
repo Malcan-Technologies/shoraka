@@ -32,7 +32,7 @@ const cardPaddingClassName = "px-4 py-3";
 const cardFocusClassName =
   "focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary";
 const titleClassName = "text-base font-semibold text-foreground leading-tight";
-const descriptionClassName = "text-sm text-muted-foreground mt-0.5 leading-snug";
+const cardDescriptionClassName = "text-sm text-muted-foreground mt-0.5 leading-snug";
 
 export type SelectionCardProps = {
   /** What: Title shown as primary line.
@@ -75,6 +75,14 @@ export type SelectionCardProps = {
    * Data: boolean
    */
   disabled?: boolean;
+  /** Use radio semantics inside a radiogroup (financing goal). Default remains button. */
+  selectionRole?: "button" | "radio";
+  /** Extra content inside the card, below the title row (facility picker). */
+  children?: React.ReactNode;
+  descriptionClassName?: string;
+  /** Override tab stop. Radios use roving tabindex; disabled always stays -1. */
+  tabIndex?: number;
+  cardRef?: React.Ref<HTMLDivElement>;
 };
 
 /** Render blocks
@@ -92,6 +100,11 @@ export function SelectionCard({
   trailing,
   className,
   disabled = false,
+  selectionRole = "button",
+  children,
+  descriptionClassName,
+  tabIndex,
+  cardRef,
 }: SelectionCardProps) {
   // Derive wrapper classes depending on disabled state.
   const wrapperClass = disabled ? "block w-full cursor-default" : "block w-full cursor-pointer";
@@ -103,14 +116,16 @@ export function SelectionCard({
     cardBaseClassName,
     cardPaddingClassName,
     isSelected ? cardSelectedClassName : disabled ? cardDisabledClassName : cardUnselectedClassName,
-    "min-h-[80px] flex items-center"
+    "min-h-[80px] flex flex-col justify-center"
   );
 
   return (
     <div
-      role="button"
-      tabIndex={disabled ? -1 : 0}
+      ref={cardRef}
+      role={selectionRole}
+      tabIndex={disabled ? -1 : (tabIndex ?? 0)}
       aria-disabled={disabled ? true : undefined}
+      aria-checked={selectionRole === "radio" ? isSelected : undefined}
       onClick={disabled ? undefined : onClick}
       onKeyDown={(e) => {
         if (disabled) return;
@@ -126,22 +141,24 @@ export function SelectionCard({
           <div className="flex items-center gap-3 min-w-0">
             {leading ? <div className="shrink-0">{leading}</div> : null}
             <div className="min-w-0 flex-1">
-              <div
-                className={cn(
-                  titleClassName,
-                  "truncate",
-                  disabled && "text-muted-foreground"
-                )}
-              >
+              <div className={cn(titleClassName, "truncate", disabled && "text-muted-foreground")}>
                 {title}
               </div>
-              <div className={cn(descriptionClassName, "line-clamp-2 break-words")}>{description}</div>
+              <div
+                className={cn(
+                  cardDescriptionClassName,
+                  "line-clamp-3 break-words",
+                  descriptionClassName
+                )}
+              >
+                {description}
+              </div>
             </div>
           </div>
           {trailing ? <div className="shrink-0">{trailing}</div> : null}
         </div>
+        {children ? <div className="mt-3 w-full">{children}</div> : null}
       </div>
     </div>
   );
 }
-

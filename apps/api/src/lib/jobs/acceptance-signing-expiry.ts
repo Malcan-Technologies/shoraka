@@ -35,7 +35,7 @@ import {
   collectInvoiceScopeKeys,
   resolveInvoiceScopeKeyForId,
 } from "../../modules/applications/invoice-review-scope";
-import { refreshContractFacilityValues } from "../refresh-contract-facility";
+import { applyContractCapacityChange } from "../refresh-contract-facility";
 
 const SYSTEM_USER_ID = "SYS";
 const notificationService = new NotificationService();
@@ -332,7 +332,7 @@ async function expireOffer(params: {
 }): Promise<void> {
   const { row, systemUserId, clock, result } = params;
 
-  const envelopeIds = await prisma.$transaction(async (tx) => {
+  const expireInTx = async (tx: Prisma.TransactionClient) => {
     let expiredEnvelopeIds: string[] = [];
     if (clock === "signing") {
       expiredEnvelopeIds = await expireActiveEnvelopesInTx(tx, {
@@ -390,10 +390,6 @@ async function expireOffer(params: {
           },
         },
       });
-      const occupancyContractId = row.contract_id ?? application?.contract_id ?? null;
-      if (occupancyContractId) {
-        await refreshContractFacilityValues(occupancyContractId, tx);
-      }
       const scopeKey =
         application != null
           ? resolveInvoiceScopeKeyForId(application.invoices, row.id)
@@ -453,7 +449,27 @@ async function expireOffer(params: {
     }
 
     return expiredEnvelopeIds;
-  });
+  };
+
+  let occupancyContractId: string | null = null;
+  if (row.kind === "invoice") {
+    occupancyContractId = row.contract_id ?? null;
+    if (!occupancyContractId) {
+      const application = await prisma.application.findUnique({
+        where: { id: row.application_id },
+        select: { contract_id: true },
+      });
+      occupancyContractId = application?.contract_id ?? null;
+    }
+  }
+
+  const envelopeIds = occupancyContractId
+    ? (
+        await applyContractCapacityChange(occupancyContractId, prisma, expireInTx, {
+          assertWrite: true,
+        })
+      ).result
+    : await prisma.$transaction(expireInTx);
 
   result.envelopesExpired.push(...envelopeIds);
 

@@ -10,6 +10,31 @@ import { AppError } from "../../lib/http/error-handler";
 /** Statuses that block creating another envelope for the same contract/invoice. */
 const ACTIVE_ENVELOPE_STATUSES = ["DRAFT", "SENT", "IN_PROGRESS"] as const;
 
+/**
+ * Envelopes shown on an application: its own packages, plus a completed facility
+ * package on the same contract (split origination draws live on a later application).
+ */
+export function visibleSigningEnvelopesWhere(
+  applicationId: string,
+  contractId: string | null | undefined
+): {
+  application_id?: string;
+  OR?: Array<{
+    application_id?: string;
+    contract_id?: string;
+    invoice_id?: null;
+    status?: "COMPLETED";
+  }>;
+} {
+  if (!contractId) return { application_id: applicationId };
+  return {
+    OR: [
+      { application_id: applicationId },
+      { contract_id: contractId, invoice_id: null, status: "COMPLETED" },
+    ],
+  };
+}
+
 const GRAPH_INCLUDE = {
   documents: true,
   recipients: true,
@@ -191,6 +216,17 @@ export class SigningRepository {
   async findByApplicationId(applicationId: string): Promise<SigningEnvelopeWithGraph[]> {
     return prisma.signingEnvelope.findMany({
       where: { application_id: applicationId },
+      include: GRAPH_INCLUDE,
+      orderBy: { created_at: "desc" },
+    });
+  }
+
+  async findVisibleForApplication(
+    applicationId: string,
+    contractId: string | null | undefined
+  ): Promise<SigningEnvelopeWithGraph[]> {
+    return prisma.signingEnvelope.findMany({
+      where: visibleSigningEnvelopesWhere(applicationId, contractId),
       include: GRAPH_INCLUDE,
       orderBy: { created_at: "desc" },
     });

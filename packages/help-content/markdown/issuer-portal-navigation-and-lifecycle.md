@@ -10,7 +10,7 @@ tags:
   - financing
   - notes
 order: 7
-updated: 2026-08-19
+updated: 2026-08-21
 ---
 
 ## The lifecycle in one picture
@@ -87,7 +87,7 @@ Open **Financing** in the sidebar (`/financing`). This is the **post-approval** 
 
 ### Facilities tab
 
-Each row is a **facility** (credit line). Attention items use the same featured cards as invoices. List cards show utilisation, amounts, and invoice counts. **View details** opens `/financing/contracts/[id]`. **Review Facility Offer** is the same offer as on Applications — it still opens the application Offer tab.
+Each row is a **facility** (credit line). Attention items use the same featured cards as invoices. List cards show **remaining credit** (reusable after repayment) and **remaining allocation** (invoice face, kept after settlement). **Reserved** pending invoices reduce remaining credit. **View details** opens `/financing/contracts/[id]`. **Review Facility Offer** is the same offer as on Applications — it still opens the application Offer tab. From an approved facility, **Finance an invoice** starts a new application for that facility.
 
 ### Invoices tab
 
@@ -113,12 +113,12 @@ A few flows you will use often:
 
 ## When to use which page
 
-| If you want to... | Go to |
-|---|---|
-| Submit, fix, sign, or withdraw an application | **Applications** |
-| Browse credit lines | **Financing** > Facilities |
-| Browse invoices, funding, and repayment | **Financing** > Invoices |
-| Drill into one facility | **Financing** > Facilities > **View details** |
-| Get a quick read on overall activity | **Dashboard** |
+| If you want to...                             | Go to                                         |
+| --------------------------------------------- | --------------------------------------------- |
+| Submit, fix, sign, or withdraw an application | **Applications**                              |
+| Browse credit lines                           | **Financing** > Facilities                    |
+| Browse invoices, funding, and repayment       | **Financing** > Invoices                      |
+| Drill into one facility                       | **Financing** > Facilities > **View details** |
+| Get a quick read on overall activity          | **Dashboard**                                 |
 
 When in doubt: start in **Applications** for requests in progress, and use **Financing** for facilities and invoices you already have.

@@ -1,5 +1,6 @@
 "use client";
 
+import { ProductCatalogName } from "@cashsouk/ui";
 import type { IssuerDashboardInvoice } from "@/types/issuer-dashboard";
 import { resolveIssuerInvoiceDashboardBadge } from "@/lib/issuer-dashboard-labels";
 import {
@@ -15,10 +16,26 @@ import {
   invoiceAttentionMeta,
   resolveInvoiceAttentionFinancedPercent,
 } from "./invoice-attention-card-model";
+import { FacilityTiedLink } from "./facility-tied-link";
+import { resolveIssuerFacilityLink } from "./facility-tied";
 
-export function InvoiceAttentionCard({ row }: { row: IssuerDashboardInvoice }) {
+export function InvoiceAttentionCard({
+  row,
+  facilityDisplayReference,
+  productName,
+  productImageS3Key,
+}: {
+  row: IssuerDashboardInvoice;
+  facilityDisplayReference?: string | null;
+  productName?: string | null;
+  productImageS3Key?: string | null;
+}) {
   const action = getInvoiceAttentionAction(row);
   const badgeKind = resolveIssuerInvoiceDashboardBadge(row.note, row.invoiceStatus);
+  const facilityLink = resolveIssuerFacilityLink({
+    contractId: row.contractId,
+    displayReference: facilityDisplayReference,
+  });
 
   return (
     <FinancingAttentionCardLayout
@@ -31,6 +48,19 @@ export function InvoiceAttentionCard({ row }: { row: IssuerDashboardInvoice }) {
       meta={invoiceAttentionMeta(row)}
       detail={invoiceAttentionDetail(row, resolveInvoiceAttentionFinancedPercent(row))}
       hint={action.hint}
+      product={
+        productName?.trim() ? (
+          <ProductCatalogName name={productName} imageS3Key={productImageS3Key} />
+        ) : null
+      }
+      related={
+        facilityLink ? (
+          <FacilityTiedLink
+            contractId={row.contractId}
+            displayReference={facilityDisplayReference}
+          />
+        ) : null
+      }
       ctaHref={action.href}
       ctaLabel={action.label}
       ctaVariant={action.buttonVariant}

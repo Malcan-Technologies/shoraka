@@ -56,6 +56,7 @@ import {
 } from "@/notes/lib/repayment-capacity";
 import {
   formatNoteInvestorCount,
+  getNoteHeaderPurposeRows,
   isSoukscoreRiskRating,
   mapNoteSettlementToPoolSummary,
   NotePaymentSource,
@@ -72,6 +73,9 @@ import {
   issuerCampaignDaysLeftLabel,
 } from "@/components/financing/marketplace-campaign";
 import { formatDate } from "@/components/financing/utils";
+import { FacilityTiedAnchor } from "@/components/financing/facility-tied-link";
+import { resolveIssuerFacilityLink } from "@/components/financing/facility-tied";
+import { FacilityImpactSection } from "@/components/financing/facility-impact";
 import { issuerFieldChromeClassName } from "@/lib/issuer-input-chrome";
 import {
   issuerContentMaxWidthClassName,
@@ -531,6 +535,15 @@ export default function IssuerNoteDetailPage() {
   const contractTitleRaw =
     contractDetailsRecord?.title ?? contractDetailsRecord?.contract_title ?? null;
   const contractTitleLabel = typeof contractTitleRaw === "string" ? contractTitleRaw.trim() : "";
+  const facilityLink = resolveIssuerFacilityLink({
+    contractId: note.sourceContractId,
+    displayReference: note.sourceContractDisplayReference,
+  });
+  const facilityHeaderLabel = facilityLink
+    ? contractTitleLabel && contractTitleLabel !== facilityLink.label
+      ? `Facility: ${facilityLink.label} · ${contractTitleLabel}`
+      : `Facility: ${facilityLink.label}`
+    : null;
   const invoiceDetailHref = note.sourceInvoiceId
     ? `/financing/invoices/${note.sourceInvoiceId}`
     : invoiceNumberLabel
@@ -580,6 +593,7 @@ export default function IssuerNoteDetailPage() {
             </nav>
           }
           title={note.title}
+          contextRows={getNoteHeaderPurposeRows(note)}
           status={
             <NoteStatusBadge
               note={note}
@@ -589,14 +603,14 @@ export default function IssuerNoteDetailPage() {
           facts={
             <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <span>{note.noteReference}</span>
-              {note.sourceContractId ? (
+              {facilityLink && facilityHeaderLabel ? (
                 <>
                   <span aria-hidden>·</span>
                   <Link
-                    href={`/financing/contracts/${note.sourceContractId}`}
+                    href={facilityLink.href}
                     className="text-primary underline-offset-4 hover:underline"
                   >
-                    {contractTitleLabel ? `Facility: ${contractTitleLabel}` : "Facility"}
+                    {facilityHeaderLabel}
                   </Link>
                 </>
               ) : null}
@@ -701,10 +715,39 @@ export default function IssuerNoteDetailPage() {
                     {formatNoteInvestorCount(note.investorCount)}
                   </div>
                 </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Facility</div>
+                  <div className="mt-1 min-w-0 text-ui font-medium text-foreground">
+                    {facilityLink ? (
+                      <FacilityTiedAnchor
+                        contractId={note.sourceContractId}
+                        displayReference={note.sourceContractDisplayReference}
+                      />
+                    ) : (
+                      "On its own"
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </CardContent>
         </Card>
+
+        {note.sourceContractId ? (
+          <FacilityImpactSection
+            contractId={note.sourceContractId}
+            displayReference={note.sourceContractDisplayReference}
+            financingAmount={note.targetAmount}
+            invoiceFace={invoiceDetailsRecord?.value ?? settlementAmount}
+            invoiceStatus={
+              typeof invoiceSnapshotRecord?.status === "string"
+                ? invoiceSnapshotRecord.status
+                : "APPROVED"
+            }
+            noteStatus={note.status}
+            servicingStatus={note.servicingStatus}
+          />
+        ) : null}
 
         <Card>
           <CardHeader className="space-y-0 gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">

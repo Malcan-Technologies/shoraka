@@ -352,6 +352,11 @@ export interface ContractDetails {
   available_facility: number | null;
   pending_facility?: number | null;
   repaid_facility?: number | null;
+  lifetime_cap?: number | null;
+  lifetime_used?: number | null;
+  lifetime_remaining?: number | null;
+  /** Set when persist/refresh/recompute writes a completed dual-ledger snapshot. */
+  capacity_snapshot_version?: number;
   document?: {
     s3_key: string;
     file_name: string;
@@ -475,6 +480,7 @@ export * from "./onboarding-readiness";
 export * from "./ctos-party-supplement-json";
 export * from "./regtank-iso3166-countries";
 export * from "./notes";
+export * from "./product-icon";
 export * from "./investor-balance-activity";
 export * from "./display-reference";
 export * from "./prospectus-review";
@@ -490,6 +496,8 @@ export * from "./signing-envelopes";
 export * from "./acceptance-documents";
 export * from "./offer-acceptance";
 export * from "./origination-phase";
+export * from "./split-origination";
+export * from "./capacity-snapshot";
 export * from "./offer-phase-deadline-display";
 export * from "./guarantors";
 export * from "./company-name-normalization";
