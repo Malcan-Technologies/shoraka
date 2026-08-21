@@ -493,7 +493,7 @@ export * from "./workflow-document-row";
 export * from "./supporting-document-row";
 export * from "./guarantor-agreement-config";
 export * from "./offer-acceptance";
-export * from "./contract-loo-demo";
+export * from "./contract-facility-lo";
 export * from "./origination-phase";
 export * from "./offer-phase-deadline-display";
 export * from "./guarantors";

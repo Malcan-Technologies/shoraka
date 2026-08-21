@@ -19,12 +19,12 @@ import { prisma } from "../../lib/prisma";
 import { ApplicationRepository } from "../applications/repository";
 import { ProductRepository } from "../products/repository";
 import { OrganizationRepository } from "../organization/repository";
-import { buildContractLooMergeData } from "../applications/loo/build-contract-loo-merge-data";
+import { buildFacilityLoMergeData } from "../applications/letter-of-offer/build-facility-lo-merge-data";
 import {
-  readContractLooTemplateBytes,
-  renderContractLooDocx,
-} from "../applications/loo/render-contract-loo-docx";
-import { convertDocxToPdf, DocxToPdfError } from "../applications/loo/convert-docx-to-pdf";
+  readFacilityLoTemplateBytes,
+  renderFacilityLoDocx,
+} from "../applications/letter-of-offer/render-facility-lo-docx";
+import { convertDocxToPdf, DocxToPdfError } from "../applications/letter-of-offer/convert-docx-to-pdf";
 
 const SUPPORTING_DOC_CATEGORIES = [
   "financial_docs",
@@ -118,9 +118,9 @@ function assertRequiresMet(
   }
 }
 
-function looDownloadBasename(issuerName: string): string {
+function loDownloadBasename(issuerName: string): string {
   const safeName = (issuerName || "issuer").replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 40);
-  return `ARF-LOO-${safeName || "issuer"}`;
+  return `ARF-LO-${safeName || "issuer"}`;
 }
 
 export class GeneratedDocumentsService {
@@ -231,17 +231,20 @@ export class GeneratedDocumentsService {
       );
     }
 
-    assertRequiresMet(typeDef.requires, application);
+    assertRequiresMet(
+      typeDef.requires,
+      application as { contract?: { offer_details?: unknown } | null }
+    );
 
     switch (typeKey) {
-      case "arf_contract_facility_loo":
-        return this.generateArfContractFacilityLoo(application, typeDef, input.format);
+      case "arf_contract_facility_lo":
+        return this.generateArfContractFacilityLo(application, typeDef, input.format);
       default:
         throw new AppError(400, "VALIDATION_ERROR", "Unsupported generated document type.");
     }
   }
 
-  private async generateArfContractFacilityLoo(
+  private async generateArfContractFacilityLo(
     application: Awaited<ReturnType<ApplicationRepository["findById"]>>,
     typeDef: GeneratedDocumentTypeDefinition,
     format: GeneratedDocumentFormat
@@ -280,7 +283,7 @@ export class GeneratedDocumentsService {
       // Platform finance settings may be unavailable in some envs.
     }
 
-    const mergeData = buildContractLooMergeData({
+    const mergeData = buildFacilityLoMergeData({
       contract: {
         id: String(contract.id),
         issuer_organization_id: String(contract.issuer_organization_id),
@@ -303,7 +306,7 @@ export class GeneratedDocumentsService {
       gracePeriodDaysDefault,
     });
 
-    const templateBytes = readContractLooTemplateBytes();
+    const templateBytes = readFacilityLoTemplateBytes();
     const templateSha256 = crypto.createHash("sha256").update(templateBytes).digest("hex");
     logger.info(
       {
@@ -315,8 +318,8 @@ export class GeneratedDocumentsService {
       "Generated document template resolved"
     );
 
-    const docxBuffer = renderContractLooDocx(mergeData);
-    const basename = looDownloadBasename(mergeData.issuer_name);
+    const docxBuffer = renderFacilityLoDocx(mergeData);
+    const basename = loDownloadBasename(mergeData.issuer_name);
 
     if (format === "docx") {
       return {

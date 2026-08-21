@@ -15,14 +15,14 @@ describe("downloadGeneratedDocument", () => {
 
     const ok = await downloadGeneratedDocument({
       applicationId: "app_1",
-      typeKey: "arf_contract_facility_loo",
+      typeKey: "arf_contract_facility_lo",
       getAccessToken: async () => "token",
     });
 
     expect(ok).toBe(false);
     expect(global.fetch).toHaveBeenCalledWith(
       expect.stringContaining(
-        "/v1/applications/app_1/generated-documents/arf_contract_facility_loo?format=pdf"
+        "/v1/applications/app_1/generated-documents/arf_contract_facility_lo?format=pdf"
       ),
       expect.objectContaining({ headers: { Authorization: "Bearer token" } })
     );
@@ -34,7 +34,7 @@ describe("downloadGeneratedDocument", () => {
 
     const ok = await downloadGeneratedDocument({
       applicationId: "app_1",
-      typeKey: "arf_contract_facility_loo",
+      typeKey: "arf_contract_facility_lo",
       getAccessToken: async () => null,
     });
 

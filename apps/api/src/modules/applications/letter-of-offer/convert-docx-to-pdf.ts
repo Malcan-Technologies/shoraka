@@ -1,6 +1,7 @@
 /**
- * DEMO ONLY — convert a filled LOO .docx to PDF via Gotenberg
+ * Convert a filled LO .docx to PDF via Gotenberg
  * (`GOTENBERG_URL` → POST /forms/libreoffice/convert).
+ * Used by production generate and the admin demo.
  */
 
 const CONVERT_TIMEOUT_MS = 90_000;
@@ -42,7 +43,7 @@ export async function convertDocxToPdf(docxBuffer: Buffer): Promise<Buffer> {
     new Blob([docxBuffer], {
       type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     }),
-    "loo.docx"
+    "letter-of-offer.docx"
   );
 
   const controller = new AbortController();

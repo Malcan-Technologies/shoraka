@@ -122,7 +122,21 @@ export function WorkflowDocumentRowEditor({
     ? listGeneratedDocumentTypesForContext(generatedDocumentContext)
     : [];
   const canUseGenerated = catalogTypes.length > 0;
-  const templateSource = resolveWorkflowDocumentTemplateSource(item);
+  const resolvedTemplateSource = resolveWorkflowDocumentTemplateSource(item);
+  const [uploadModeActive, setUploadModeActive] = React.useState(false);
+  const templateSource: WorkflowDocumentTemplateSource =
+    resolvedTemplateSource !== "none"
+      ? resolvedTemplateSource
+      : uploadModeActive
+        ? "upload"
+        : "none";
+
+  React.useEffect(() => {
+    if (resolvedTemplateSource === "generated" || resolvedTemplateSource === "upload") {
+      setUploadModeActive(false);
+    }
+  }, [resolvedTemplateSource]);
+
   const isGeneratedMode = templateSource === "generated";
   const issuerTypeIsExcel = resolveWorkflowDocumentAllowedTypes(item).includes("excel");
   const s3Key = item.template?.s3_key?.trim() ?? "";
@@ -141,17 +155,20 @@ export function WorkflowDocumentRowEditor({
     if (source === templateSource) return;
 
     if (source === "none") {
+      setUploadModeActive(false);
       clearUploadState();
       onUpdate({ template: undefined, generated_document_type: undefined });
       return;
     }
 
     if (source === "upload") {
+      setUploadModeActive(true);
       clearUploadState();
       onUpdate({ generated_document_type: undefined, template: undefined });
       return;
     }
 
+    setUploadModeActive(false);
     const defaultType = catalogTypes[0]?.key;
     if (!defaultType) return;
 

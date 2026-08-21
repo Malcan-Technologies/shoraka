@@ -1,4 +1,4 @@
-/** Small formatting helpers for LOO merge fields (demo). */
+/** Small formatting helpers for LO merge fields. */
 
 const ONES = [
   "zero",

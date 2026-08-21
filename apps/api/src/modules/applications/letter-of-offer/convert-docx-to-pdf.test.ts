@@ -3,8 +3,8 @@ import {
   DocxToPdfError,
   resolveGotenbergUrl,
 } from "./convert-docx-to-pdf";
-import { createContractLooFixture } from "./contract-loo-fixture";
-import { renderContractLooDocx } from "./render-contract-loo-docx";
+import { createFacilityLoFixture } from "./facility-lo-fixture";
+import { renderFacilityLoDocx } from "./render-facility-lo-docx";
 
 describe("convertDocxToPdf", () => {
   const originalGotenberg = process.env.GOTENBERG_URL;
@@ -19,7 +19,7 @@ describe("convertDocxToPdf", () => {
 
   it("reports a clear error when GOTENBERG_URL is unset", async () => {
     delete process.env.GOTENBERG_URL;
-    const docx = renderContractLooDocx(createContractLooFixture());
+    const docx = renderFacilityLoDocx(createFacilityLoFixture());
     await expect(convertDocxToPdf(docx)).rejects.toMatchObject({
       name: "DocxToPdfError",
       code: "GOTENBERG_MISSING",
@@ -30,7 +30,7 @@ describe("convertDocxToPdf", () => {
     if (!resolveGotenbergUrl()) {
       return;
     }
-    const docx = renderContractLooDocx(createContractLooFixture());
+    const docx = renderFacilityLoDocx(createFacilityLoFixture());
     try {
       const pdf = await convertDocxToPdf(docx);
       expect(Buffer.isBuffer(pdf)).toBe(true);

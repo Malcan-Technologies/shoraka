@@ -113,7 +113,7 @@ describe("buildAcceptanceDocumentsStepConfig", () => {
           acceptance_documents: [
             {
               name: "Letter of Offer",
-              generated_document_type: "arf_contract_facility_loo",
+              generated_document_type: "arf_contract_facility_lo",
             },
           ],
         },
@@ -121,7 +121,7 @@ describe("buildAcceptanceDocumentsStepConfig", () => {
     ]);
 
     const rows = config.config.acceptance_documents as Array<Record<string, unknown>>;
-    expect(rows[0]?.generated_document_type).toBe("arf_contract_facility_loo");
+    expect(rows[0]?.generated_document_type).toBe("arf_contract_facility_lo");
     expect(rows[0]?.template).toBeUndefined();
   });
 });

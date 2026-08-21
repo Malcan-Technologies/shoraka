@@ -15,7 +15,8 @@ export const GENERATED_DOCUMENT_REQUIRES = ["contract_offer_sent"] as const;
 
 export type GeneratedDocumentRequires = (typeof GENERATED_DOCUMENT_REQUIRES)[number];
 
-export type GeneratedDocumentTypeKey = "arf_contract_facility_loo";
+/** Canonical catalog key for the ARF contract facility Letter of Offer (LO). */
+export type GeneratedDocumentTypeKey = "arf_contract_facility_lo";
 
 export type GeneratedDocumentTypeDefinition = {
   /** Stable identifier — never rename after first release. */
@@ -32,12 +33,12 @@ export const GENERATED_DOCUMENT_TYPES: Record<
   GeneratedDocumentTypeKey,
   GeneratedDocumentTypeDefinition
 > = {
-  arf_contract_facility_loo: {
-    key: "arf_contract_facility_loo",
-    version: 1,
-    label: "ARF contract facility Letter of Offer",
+  arf_contract_facility_lo: {
+    key: "arf_contract_facility_lo",
+    version: 3,
+    label: "ARF contract facility Letter of Offer (LO)",
     description:
-      "Contract facility letter of offer filled from application, contract, and offer data.",
+      "Contract facility Letter of Offer filled from application, contract, and offer data.",
     allowedContexts: ["acceptance_documents"],
     requires: ["contract_offer_sent"],
   },
@@ -53,7 +54,8 @@ export function parseGeneratedDocumentTypeKey(raw: unknown): GeneratedDocumentTy
 }
 
 export function getGeneratedDocumentType(key: string): GeneratedDocumentTypeDefinition | undefined {
-  return isGeneratedDocumentTypeKey(key) ? GENERATED_DOCUMENT_TYPES[key] : undefined;
+  const canonical = parseGeneratedDocumentTypeKey(key);
+  return canonical ? GENERATED_DOCUMENT_TYPES[canonical] : undefined;
 }
 
 export function listGeneratedDocumentTypes(): GeneratedDocumentTypeDefinition[] {

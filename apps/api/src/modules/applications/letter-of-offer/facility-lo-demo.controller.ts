@@ -7,41 +7,41 @@ import { Router, Request, Response, NextFunction } from "express";
 import { prisma } from "../../../lib/prisma";
 import { AppError } from "../../../lib/http/error-handler";
 import {
-  buildContractLooMergeData,
-  normalizeContractLooMergeData,
-} from "./build-contract-loo-merge-data";
-import { createContractLooFixture } from "./contract-loo-fixture";
+  buildFacilityLoMergeData,
+  normalizeContractFacilityLoMergeData,
+} from "./build-facility-lo-merge-data";
+import { createFacilityLoFixture } from "./facility-lo-fixture";
 import {
-  contractLooGenerateQuerySchema,
-  contractLooMergeBodySchema,
-  contractLooPrefillQuerySchema,
-} from "./contract-loo-demo.schemas";
+  facilityLoGenerateQuerySchema,
+  facilityLoMergeBodySchema,
+  facilityLoPrefillQuerySchema,
+} from "./facility-lo-demo.schemas";
 import { convertDocxToPdf, DocxToPdfError } from "./convert-docx-to-pdf";
-import { renderContractLooDocx } from "./render-contract-loo-docx";
+import { renderFacilityLoDocx } from "./render-facility-lo-docx";
 
 const router = Router();
 
-function looDownloadBasename(issuerName: string): string {
+function loDownloadBasename(issuerName: string): string {
   const safeName = (issuerName || "issuer").replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 40);
-  return `ARF-LOO-${safeName || "demo"}`;
+  return `ARF-LO-${safeName || "demo"}`;
 }
 
-/** GET /v1/admin/demos/contract-loo/fixture — default editable merge values */
+/** GET /v1/admin/demos/contract-lo/fixture — default editable merge values */
 router.get("/fixture", (_req: Request, res: Response) => {
   res.json({
     success: true,
-    data: createContractLooFixture(),
+    data: createFacilityLoFixture(),
     correlationId: res.locals.correlationId || "unknown",
   });
 });
 
 /**
- * GET /v1/admin/demos/contract-loo/prefill?contractId=
+ * GET /v1/admin/demos/contract-lo/prefill?contractId=
  * Prefill from platform contract + issuer org + originating/linked application.
  */
 router.get("/prefill", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const parsed = contractLooPrefillQuerySchema.safeParse(req.query);
+    const parsed = facilityLoPrefillQuerySchema.safeParse(req.query);
     if (!parsed.success) {
       throw new AppError(400, "VALIDATION_ERROR", parsed.error.issues[0]?.message ?? "Invalid query");
     }
@@ -77,7 +77,7 @@ router.get("/prefill", async (req: Request, res: Response, next: NextFunction) =
       // Platform finance settings table may be unavailable in some envs — ignore for demo
     }
 
-    const data = buildContractLooMergeData({
+    const data = buildFacilityLoMergeData({
       contract: {
         id: contract.id,
         issuer_organization_id: contract.issuer_organization_id,
@@ -113,22 +113,22 @@ router.get("/prefill", async (req: Request, res: Response, next: NextFunction) =
 });
 
 /**
- * POST /v1/admin/demos/contract-loo/generate?format=docx|pdf
- * Body: ContractLooMergeData → download filled .docx or Gotenberg-converted .pdf
+ * POST /v1/admin/demos/contract-lo/generate?format=docx|pdf
+ * Body: ContractFacilityLoMergeData → download filled .docx or Gotenberg-converted .pdf
  */
 router.post("/generate", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const query = contractLooGenerateQuerySchema.safeParse(req.query);
+    const query = facilityLoGenerateQuerySchema.safeParse(req.query);
     if (!query.success) {
       throw new AppError(400, "VALIDATION_ERROR", "format must be docx or pdf");
     }
-    const parsed = contractLooMergeBodySchema.safeParse(req.body ?? {});
+    const parsed = facilityLoMergeBodySchema.safeParse(req.body ?? {});
     if (!parsed.success) {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid merge payload");
     }
-    const data = normalizeContractLooMergeData(parsed.data);
-    const docxBuffer = renderContractLooDocx(data);
-    const basename = looDownloadBasename(data.issuer_name);
+    const data = normalizeContractFacilityLoMergeData(parsed.data);
+    const docxBuffer = renderFacilityLoDocx(data);
+    const basename = loDownloadBasename(data.issuer_name);
 
     if (query.data.format === "pdf") {
       try {
@@ -158,4 +158,4 @@ router.post("/generate", async (req: Request, res: Response, next: NextFunction)
   }
 });
 
-export const contractLooDemoRouter = router;
+export const facilityLoDemoRouter = router;

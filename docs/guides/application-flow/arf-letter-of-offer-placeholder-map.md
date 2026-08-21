@@ -1,18 +1,24 @@
 # ARF-i Letter of Offer — Placeholder Map (Contract financing)
 
-Editable fill map for the contract facility LOO.
+Editable fill map for the contract facility LO.
 
-## Demo usage (temporary)
+**Current tagged template:** 16 August 2026 LO (`arf_contract_facility_lo` **v3**, dynamic guarantor loops).  
+**Verification / FLAG list:** [lo-16-aug-2026-field-map.md](../generated-documents/lo-16-aug-2026-field-map.md)  
+**Working index:** [lo-data-sources.md](../generated-documents/lo-data-sources.md)
 
-Not production. No SigningCloud — signature lines stay blank for **wet ink**.
+**Production generate:** issuers download via the generated-document catalog (`arf_contract_facility_lo`). See [generated-documents/README.md](../generated-documents/README.md).
+
+## Demo usage
+
+Demo and production share the same tagged Word file and render helpers (test on the fly via `/demos/contract-lo`).
 
 | Item | Detail |
 |------|--------|
-| Tagged template | [`apps/api/src/modules/applications/templates/arf-contract-facility-loo.docx`](../../apps/api/src/modules/applications/templates/arf-contract-facility-loo.docx) |
-| Source copy (untagged) | [`apps/api/src/modules/applications/templates/Clean - ACCOUNT RECEIVABLE FINANCING-i Letter of Offer (16 July 2026) copy.docx`](../../apps/api/src/modules/applications/templates/Clean%20-%20ACCOUNT%20RECEIVABLE%20FINANCING-i%20Letter%20of%20Offer%20(16%20July%202026)%20copy.docx) |
-| Admin UI | `/demos/contract-loo` (admin app; deep-link only) |
-| API | `GET /v1/admin/demos/contract-loo/fixture`, `GET .../prefill?contractId=`, `POST .../generate?format=docx\|pdf` → `.docx` or `.pdf` |
-| Code | [`apps/api/src/modules/applications/loo/`](../../apps/api/src/modules/applications/loo/) |
+| Tagged template | [`apps/api/src/modules/applications/templates/arf-contract-facility-lo.docx`](../../apps/api/src/modules/applications/templates/arf-contract-facility-lo.docx) |
+| Untagged source | [`apps/api/src/modules/applications/templates/01 LO (Clean Copy) 16 August 2026.docx`](../../apps/api/src/modules/applications/templates/01%20LO%20(Clean%20Copy)%2016%20August%202026.docx) |
+| Admin UI | `/demos/contract-lo` (admin app; deep-link only) |
+| API | `GET /v1/admin/demos/contract-lo/fixture`, `GET .../prefill?contractId=`, `POST .../generate?format=docx\|pdf` → `.docx` or `.pdf` |
+| Code | [`apps/api/src/modules/applications/letter-of-offer/`](../../apps/api/src/modules/applications/letter-of-offer/) |
 | PDF | **Gotenberg** (`GOTENBERG_URL`); returns 503 if unset or unreachable |
 
 **How to try:** open the admin demo page → **Reset fixture** or **Prefill** from a contract id → edit any field → **Download .docx** and/or **Download .pdf** → signature lines stay blank for wet ink.
@@ -22,24 +28,26 @@ Not production. No SigningCloud — signature lines stay blank for **wet ink**.
 ```bash
 docker compose -f docker-compose.gotenberg.yml up -d
 export GOTENBERG_URL=http://127.0.0.1:3100   # in the shell that runs the API
-# restart / start API, then Download .pdf on /demos/contract-loo
+# restart / start API, then Download .pdf on /demos/contract-lo
 ```
 
 Smoke-test without the app:
 
 ```bash
-curl -sS -o /tmp/loo.pdf -w "%{http_code}\n" \
-  -F files=@apps/api/src/modules/applications/templates/arf-contract-facility-loo.docx \
+curl -sS -o /tmp/lo.pdf -w "%{http_code}\n" \
+  -F files=@apps/api/src/modules/applications/templates/arf-contract-facility-lo.docx \
   http://127.0.0.1:3100/forms/libreoffice/convert
-file /tmp/loo.pdf   # should say PDF
+file /tmp/lo.pdf   # should say PDF
 ```
 
 
-Merge tags use `{field_name}` (docxtemplater). Map keys live in `@cashsouk/types` `ContractLooMergeData`.
+Merge tags use `{field_name}` (docxtemplater). Map keys live in `@cashsouk/types` `ContractFacilityLoMergeData`.
+
+> **Note:** Tables below were written against the July LO wording. Prefer [lo-16-aug-2026-field-map.md](../generated-documents/lo-16-aug-2026-field-map.md) for what the code does after the 16 Aug revision (margin/profit inserts removed; Schedule A caps added).
 
 ---
 
-**Scope:** Contract financing / facility offer only (`Contract` + `Contract.offer_details`). Invoice offer letters are out of scope for this template (see [Does this LOO fit invoice financing?](#does-this-loo-fit-invoice-financing) below).
+**Scope:** Contract financing / facility offer only (`Contract` + `Contract.offer_details`). Invoice offer letters are out of scope for this template (see [Does this LO fit invoice financing?](#does-this-lo-fit-invoice-financing) below).
 
 Use this to decide what each yellow / blank / underscore field should resolve to when we wire template generation. Edit the **Your decision** column freely.
 
@@ -59,7 +67,7 @@ Use this to decide what each yellow / blank / underscore field should resolve to
 
 ---
 
-## Does this LOO fit invoice financing?
+## Does this LO fit invoice financing?
 
 **Short answer: no — not as the invoice offer letter.**
 
@@ -82,7 +90,7 @@ On the platform today:
 - **Contract offer** = approve a facility limit, then (often) later invoice offers draw against it.
 - **Invoice offer** = per-invoice amount / ratio / profit rate; contract-linked invoices often **do not** get their own signing envelope after the contract package is complete (`docs/integrations/issuer-offer-flow.md`).
 
-**Recommendation:** Keep this ARF-i LOO for **contract facility Send Offer** only. Use a different (shorter) invoice offer letter for invoice financing — the existing sample PDF path already treats invoice terms separately.
+**Recommendation:** Keep this ARF-i LO for **contract facility Send Offer** only. Use a different (shorter) invoice offer letter for invoice financing — the existing sample PDF path already treats invoice terms separately.
 
 ---
 
@@ -103,7 +111,7 @@ For each row:
 | --- | ----------------- | ------------------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------- | ---------------------------------------------- | -------------------------------------------------------------------------- |
 | H1  | Header            | (letterhead in template)       | Letterhead baked into Word template — no merge field                        | Template asset                                                                 | `N/A`                   | Done — letterhead in document                  | Not a data field; removed from merge payload                               |
 | H2  | Issuer ID         | `[Insert]`                     | Issuer org id                                                           | `Application.issuer_organization_id` → `IssuerOrganization.id`                 | `EXISTS`                | Agreed                                         | CUID; confirm if legal wants a human-readable issuer code instead          |
-| H3  | Our Reference     | `[Insert]`                     | Contract id as offer reference                                          | `Contract.id` (fallback `Application.id` only if needed)                       | `PARTIAL`               | Agreed                                         | No dedicated LOO reference scheme; contract id is the natural facility key |
+| H3  | Our Reference     | `[Insert]`                     | Contract id as offer reference                                          | `Contract.id` (fallback `Application.id` only if needed)                       | `PARTIAL`               | Agreed                                         | No dedicated LO reference scheme; contract id is the natural facility key |
 | H4  | Date              | `[Insert]`                     | Date offer letter is issued / sent                                      | Prefer `Contract.offer_details.sent_at` (date part); else generation timestamp | `DERIVE`                | Agreed                                         | Format e.g. `16 July 2026`                                                 |
 
 
@@ -130,10 +138,10 @@ For each row:
 | --- | -------------------- | -------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
 | F1  | ISSUER               | `[INSERT ISSUER NAME]`                       | Same as A1                                                        | `IssuerOrganization.name`                                                                                                 | `EXISTS`                    | Agreed                                                                   | Duplicate of A1                                                            |
 | F2  | FINANCING LIMIT      | `[insert]`                                   | Offered facility amount as `RM …`                                 | `Contract.offer_details.offered_facility`. After accept also `contract_details.approved_facility`                         | `EXISTS`                    | Agreed                                                                   | Confirm currency formatting and commas                                     |
-| F3  | MARGIN OF RECEIVABLE | `[insert] %`                                 | Financing ratio % for utilisations under the facility             | **Not on `ContractOfferDetails` today.** Closest elsewhere: invoice `offered_ratio_percent` (wrong layer for this LOO)    | `MISSING` on contract offer | I think this should be the ratio of Approved Facility to Contract amount | Needs new contract-offer field, admin LOO input, or legal fixed default    |
+| F3  | MARGIN OF RECEIVABLE | `[insert] %`                                 | Financing ratio % for utilisations under the facility             | **Not on `ContractOfferDetails` today.** Closest elsewhere: invoice `offered_ratio_percent` (wrong layer for this LO)    | `MISSING` on contract offer | I think this should be the ratio of Approved Facility to Contract amount | Needs new contract-offer field, admin LO input, or legal fixed default    |
 | F4  | PROFIT RATE          | `[insert]` percent (`[insert]`%) per month   | Profit rate for the facility                                      | **Not on `ContractOfferDetails` today.** Invoice offers store `offered_profit_rate_percent` as **% p.a.**                 | `MISSING` on contract offer | This is pending, unsure of the definition                                | Need new contract-offer field + rule: monthly vs p.a. wording              |
-| F5  | TENURE               | `Up to [insert] days`                        | Max facility / receivable tenure in days                          | No contract offer-time day-count. Contract has `start_date` / `end_date` (calendar span, not “up to N days”)              | `MISSING` at LOO time       | This is also pending, unsure of the definition                           | Admin-entered LOO tenure or derive from contract date span if legal agrees |
-| F6  | AVAILABILITY PERIOD  | `within thirty (30) days` *(yellow default)* | Keep template default **30** unless product config says otherwise | No facility availability-period field. Closest clocks: `offer_acceptance.acceptance_expires_at` (different legal meaning) | `MISSING` as LOO term       | This is also pending, unsure of the definition                           | Yellow = editable legal default, not empty blank                           |
+| F5  | TENURE               | `Up to [insert] days`                        | Max facility / receivable tenure in days                          | No contract offer-time day-count. Contract has `start_date` / `end_date` (calendar span, not “up to N days”)              | `MISSING` at LO time       | This is also pending, unsure of the definition                           | Admin-entered LO tenure or derive from contract date span if legal agrees |
+| F6  | AVAILABILITY PERIOD  | `within thirty (30) days` *(yellow default)* | Keep template default **30** unless product config says otherwise | No facility availability-period field. Closest clocks: `offer_acceptance.acceptance_expires_at` (different legal meaning) | `MISSING` as LO term       | This is also pending, unsure of the definition                           | Yellow = editable legal default, not empty blank                           |
 
 
 ---
@@ -155,8 +163,8 @@ For each row:
 
 | ID  | Template location                  | Placeholder                          | Recommended fill                               | Platform source                                                                                                                                     | Status    | Your decision                                                                               | Notes                                                                                    |
 | --- | ---------------------------------- | ------------------------------------ | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| P1  | PAYMENT PERIOD                     | max `[●]` days from disbursement     | No contractual field on contract offer         | Prospectus `averagePaymentPeriodDays` is **not** contractual                                                                                        | `MISSING` | This is also pending, unsure of the definition                                              | Needs admin LOO input or new contract-offer field                                        |
-| P2  | GRACE PERIOD                       | `[●] (●) days`                       | Digits + words                                 | Post-note: `Note.grace_period_days` (default from `PlatformFinanceSetting.grace_period_days`, often 7). **Not** on `Contract.offer_details`         | `PARTIAL` | This is also pending, unsure of the definition                                              | Can prefill from platform finance setting if legal agrees grace is known at facility LOO |
+| P1  | PAYMENT PERIOD                     | max `[●]` days from disbursement     | No contractual field on contract offer         | Prospectus `averagePaymentPeriodDays` is **not** contractual                                                                                        | `MISSING` | This is also pending, unsure of the definition                                              | Needs admin LO input or new contract-offer field                                        |
+| P2  | GRACE PERIOD                       | `[●] (●) days`                       | Digits + words                                 | Post-note: `Note.grace_period_days` (default from `PlatformFinanceSetting.grace_period_days`, often 7). **Not** on `Contract.offer_details`         | `PARTIAL` | This is also pending, unsure of the definition                                              | Can prefill from platform finance setting if legal agrees grace is known at facility LO |
 | P3  | Execution of Transaction Documents | within `[●] (●) days’` of acceptance | Signing deadline in days                       | Closest: product `signing_deadline` → `offer_acceptance.signing_expires_at` / `SigningEnvelope.expires_at` (absolute datetime, not “N days” clause) | `PARTIAL` | Agreed                                                                                      | Prefer product signing deadline as N days if that is the intent                          |
 | P4  | Withdrawal notice                  | `twenty-one (21) days’` *(yellow)*   | Keep **21** as legal default unless ops change | No platform field                                                                                                                                   | `MISSING` | Agreed (We need to add a platform config for this but defer that and keep it fixed for now) | Treat as fixed legal constant unless told otherwise                                      |
 | P5  | Offer lapse                        | `seven (7) days` *(yellow)*          | Prefer product acceptance deadline days        | `Contract.offer_details.offer_acceptance.acceptance_expires_at` vs letter date → day count; product acceptance deadline config                      | `PARTIAL` | Agreed with acceptance deadline                                                             | Template hardcodes 7; platform may already use a different acceptance window             |
@@ -190,7 +198,7 @@ For each row:
 | M5  | Facility amount              | `RM__________________________`                       | Same as F2                             | `Contract.offer_details.offered_facility`                                                                                   | `EXISTS`  | Agreed                      |                                                                                                  |
 | M6  | Signature line               | `……………………………………………`                                  | Leave for signature                    | SigningCloud / wet ink                                                                                                      | `SIGNEE`  | Wet ink                     |                                                                                                  |
 | M7  | Signatory company line       | `[Insert Issuer Name] (Company No. insert [insert])` | Name + reg no                          | A1 + A2                                                                                                                     | `EXISTS`  | Agreed                      |                                                                                                  |
-| M8  | Authorised signatory name(s) | `[insert authorised person name]`                    | Bound signing recipients (issuer side) | `SigningRecipient.name` for issuer authorised signatories once bound in Offer Review; **before** bind: no durable LOO field | `PARTIAL` | Pending, will confirm this. | Do not confuse with `company_details.contact_person` unless ops confirm they are the same person |
+| M8  | Authorised signatory name(s) | `[insert authorised person name]`                    | Bound signing recipients (issuer side) | `SigningRecipient.name` for issuer authorised signatories once bound in Offer Review; **before** bind: no durable LO field | `PARTIAL` | Pending, will confirm this. | Do not confuse with `company_details.contact_person` unless ops confirm they are the same person |
 
 
 ---
@@ -202,7 +210,7 @@ For each row:
 | --- | ----------------- | --------------------------------- | ------------------------------ | ------------------------------------------------------ | -------------------- | ------------------------------------------- | --------------------------------------------------- |
 | IG1 | Name lines        | `Name of Guarantor` ×2 *(yellow)* | Individual guarantor names     | Same as G1–Gn `name`                                   | `EXISTS`             | Agreed                                      | Template shows 2; sync count with actual guarantors |
 | IG2 | Recital issuer    | `[Issuer]`                        | Issuer name                    | `IssuerOrganization.name`                              | `EXISTS`             | Agreed                                      |                                                     |
-| IG3 | Recital LOO date  | `_______________`                 | Same as H4                     | Same as H4                                             | `DERIVE`             | Agreed                                      |                                                     |
+| IG3 | Recital LO date  | `_______________`                 | Same as H4                     | Same as H4                                             | `DERIVE`             | Agreed                                      |                                                     |
 | IG4 | Date              | `Date : ______________________`   | Signing date                   | Leave blank until signed, or envelope completion date  | `SIGNEE` / `PARTIAL` | Agreed, I think we let the issuer fill this |                                                     |
 | IG5 | Signature + name  | blank + `[Guarantor’s Name]`      | Guarantor name under signature | Guarantor `name`; signature via SigningCloud / wet ink | `EXISTS` + `SIGNEE`  | Agreed, wet ink                             |                                                     |
 
@@ -217,7 +225,7 @@ For each row:
 | CG1 | Company name         | `[NAME OF COMPANY]`             | Corporate guarantor business name | `business_details.guarantors[]` where `guarantor_type === "company"` → `business_name`         | `EXISTS`             | Agreed                | Omit whole section if no company guarantor |
 | CG2 | Registration No.     | `●`                             | Corporate guarantor SSM           | same → `ssm_number`                                                                            | `EXISTS`             | Agreed                |                                            |
 | CG3 | Recital issuer       | `[Issuer]`                      | Issuer name                       | `IssuerOrganization.name`                                                                      | `EXISTS`             | Agreed                |                                            |
-| CG4 | Recital LOO date     | `_______________`               | Same as H4                        | Same as H4                                                                                     | `DERIVE`             | Agreed                |                                            |
+| CG4 | Recital LO date     | `_______________`               | Same as H4                        | Same as H4                                                                                     | `DERIVE`             | Agreed                |                                            |
 | CG5 | Date                 | `Date : ______________________` | Signing date                      | Same as IG4                                                                                    | `SIGNEE` / `PARTIAL` | Agreed                |                                            |
 | CG6 | Authorised signatory | `[Authorised Signatory ]` ×2    | Corporate guarantor signers       | No dedicated pre-offer store; at signing use `SigningRecipient` bound for that guarantor party | `PARTIAL`            | Pending, will confirm | May need issuer to bind names before send  |
 
@@ -257,10 +265,10 @@ For each row:
 
 - Margin of receivable (ratio exists only on **invoice** offers today)
 - Profit rate (exists only on **invoice** offers today, and as **p.a.**)
-- Tenure days at facility LOO time
+- Tenure days at facility LO time
 - Payment period (max days from disbursement)
 - Availability period as a facility term
-- Dedicated LOO / Our Reference scheme (beyond `Contract.id`)
+- Dedicated LO / Our Reference scheme (beyond `Contract.id`)
 - Letterhead asset (pending)
 
 ### Leave for signing (`SIGNEE`)
@@ -271,7 +279,7 @@ For each row:
 
 ---
 
-## Suggested unique merge keys (contract LOO)
+## Suggested unique merge keys (contract LO)
 
 ```
 issuer_id
@@ -317,12 +325,12 @@ corporate_guarantor_signatories[]
 ## Review checklist (for you)
 
 - [ ] Confirm this template is **contract facility only** (invoice offers use a different letter)
-- [ ] Confirm how to capture **margin of receivable** + **profit rate** on contract Send Offer (new fields vs admin-only LOO inputs)
+- [ ] Confirm how to capture **margin of receivable** + **profit rate** on contract Send Offer (new fields vs admin-only LO inputs)
 - [ ] Confirm profit rate: template monthly vs platform p.a. convention
 - [ ] Confirm Our Reference = `Contract.id` or new scheme
 - [ ] Confirm defaults: availability 30, notice 21, validity 7
 - [ ] Confirm payment period + tenure capture at facility offer
-- [ ] Confirm grace: use `PlatformFinanceSetting.grace_period_days` at LOO
+- [ ] Confirm grace: use `PlatformFinanceSetting.grace_period_days` at LO
 - [ ] Confirm guarantor slot count (dynamic vs fixed 2/3)
 - [ ] Confirm authorised signatory source (contact person vs SigningRecipient)
 - [ ] Delete leftover `Bullet` from Word template

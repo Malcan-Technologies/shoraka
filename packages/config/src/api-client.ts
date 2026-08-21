@@ -3295,32 +3295,32 @@ export class ApiClient {
     });
   }
 
-  /** DEMO: default ARF contract LOO merge fixture */
-  async getContractLooDemoFixture(): Promise<
-    ApiResponse<import("@cashsouk/types").ContractLooMergeData> | ApiError
+  /** DEMO: default ARF contract LO merge fixture */
+  async getFacilityLoDemoFixture(): Promise<
+    ApiResponse<import("@cashsouk/types").ContractFacilityLoMergeData> | ApiError
   > {
-    return this.get<import("@cashsouk/types").ContractLooMergeData>(
-      "/v1/admin/demos/contract-loo/fixture"
+    return this.get<import("@cashsouk/types").ContractFacilityLoMergeData>(
+      "/v1/admin/demos/contract-lo/fixture"
     );
   }
 
-  /** DEMO: prefill LOO merge fields from a contract id */
-  async getContractLooDemoPrefill(
+  /** DEMO: prefill LO merge fields from a contract id */
+  async getFacilityLoDemoPrefill(
     contractId: string
-  ): Promise<ApiResponse<import("@cashsouk/types").ContractLooMergeData> | ApiError> {
+  ): Promise<ApiResponse<import("@cashsouk/types").ContractFacilityLoMergeData> | ApiError> {
     const q = new URLSearchParams({ contractId });
-    return this.get<import("@cashsouk/types").ContractLooMergeData>(
-      `/v1/admin/demos/contract-loo/prefill?${q.toString()}`
+    return this.get<import("@cashsouk/types").ContractFacilityLoMergeData>(
+      `/v1/admin/demos/contract-lo/prefill?${q.toString()}`
     );
   }
 
-  /** DEMO: generate filled ARF LOO .docx or .pdf (wet-ink; no SigningCloud) */
-  async generateContractLooDemoDocx(
-    data: import("@cashsouk/types").ContractLooMergeData,
+  /** DEMO: generate filled ARF LO .docx or .pdf (wet-ink; no SigningCloud) */
+  async generateFacilityLoDemoDocx(
+    data: import("@cashsouk/types").ContractFacilityLoMergeData,
     options?: { format?: "docx" | "pdf" }
   ): Promise<Blob> {
     const format = options?.format ?? "docx";
-    const url = `${this.baseUrl}/v1/admin/demos/contract-loo/generate?format=${format}`;
+    const url = `${this.baseUrl}/v1/admin/demos/contract-lo/generate?format=${format}`;
     const authToken = await this.getAuthToken();
     const headers: HeadersInit = { "Content-Type": "application/json" };
     if (authToken) headers["Authorization"] = `Bearer ${authToken}`;

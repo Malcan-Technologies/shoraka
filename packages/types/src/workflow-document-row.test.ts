@@ -1,5 +1,6 @@
 import {
   listGeneratedDocumentTypesForContext,
+  parseGeneratedDocumentTypeKey,
   type GeneratedDocumentTypeKey,
 } from "./generated-documents";
 import {
@@ -20,13 +21,14 @@ import {
   serializeSupportingDocumentRow,
 } from "./supporting-document-row";
 
-const LOO_KEY: GeneratedDocumentTypeKey = "arf_contract_facility_loo";
+const LO_KEY: GeneratedDocumentTypeKey = "arf_contract_facility_lo";
 
 describe("generated document catalog", () => {
   it("lists one type for acceptance_documents", () => {
     const types = listGeneratedDocumentTypesForContext("acceptance_documents");
     expect(types).toHaveLength(1);
-    expect(types[0]?.key).toBe(LOO_KEY);
+    expect(types[0]?.key).toBe(LO_KEY);
+    expect(types[0]?.label).toContain("Letter of Offer");
   });
 
   it("lists no types for supporting_documents until configured", () => {
@@ -35,6 +37,11 @@ describe("generated document catalog", () => {
 
   it("lists no types for guarantor_agreement until configured", () => {
     expect(listGeneratedDocumentTypesForContext("guarantor_agreement")).toHaveLength(0);
+  });
+
+  it("parses the catalog key and rejects unknown keys", () => {
+    expect(parseGeneratedDocumentTypeKey("arf_contract_facility_lo")).toBe(LO_KEY);
+    expect(parseGeneratedDocumentTypeKey("arf_contract_facility_loo")).toBeUndefined();
   });
 });
 
@@ -45,14 +52,14 @@ describe("workflow document row parse/serialize", () => {
       allow_multiple: false,
       required: true,
       allowed_types: ["pdf"],
-      generated_document_type: LOO_KEY,
+      generated_document_type: LO_KEY,
     };
     const serialized = serializeWorkflowDocumentRow(row);
-    expect(serialized.generated_document_type).toBe(LOO_KEY);
+    expect(serialized.generated_document_type).toBe(LO_KEY);
     expect(serialized.template).toBeUndefined();
 
     const parsed = parseWorkflowDocumentRow(serialized);
-    expect(parsed.generated_document_type).toBe(LOO_KEY);
+    expect(parsed.generated_document_type).toBe(LO_KEY);
     expect(parsed.template).toBeUndefined();
   });
 
@@ -77,20 +84,20 @@ describe("workflow document row parse/serialize", () => {
   it("prefers generated type over template when both are present in raw JSON", () => {
     const parsed = parseWorkflowDocumentRow({
       name: "Letter of Offer",
-      generated_document_type: LOO_KEY,
+      generated_document_type: LO_KEY,
       template: { s3_key: "templates/old.pdf", file_name: "old.pdf" },
     });
-    expect(parsed.generated_document_type).toBe(LOO_KEY);
+    expect(parsed.generated_document_type).toBe(LO_KEY);
     expect(parsed.template).toBeUndefined();
   });
 
   it("serialize strips template when generated type is set", () => {
     const serialized = serializeWorkflowDocumentRow({
       name: "Letter of Offer",
-      generated_document_type: LOO_KEY,
+      generated_document_type: LO_KEY,
       template: { s3_key: "templates/old.pdf", file_name: "old.pdf" },
     });
-    expect(serialized.generated_document_type).toBe(LOO_KEY);
+    expect(serialized.generated_document_type).toBe(LO_KEY);
     expect(serialized.template).toBeUndefined();
   });
 });
@@ -103,12 +110,12 @@ describe("acceptance documents config round-trip", () => {
         required: true,
         allow_multiple: false,
         allowed_types: ["pdf"],
-        generated_document_type: LOO_KEY,
+        generated_document_type: LO_KEY,
       },
     ]);
     const rows = parseAcceptanceDocumentsConfig(financingConfig);
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.generated_document_type).toBe(LOO_KEY);
+    expect(rows[0]?.generated_document_type).toBe(LO_KEY);
     expect(rows[0]?.template).toBeUndefined();
   });
 });
@@ -117,10 +124,10 @@ describe("supporting document row round-trip", () => {
   it("preserves generated_document_type", () => {
     const serialized = serializeSupportingDocumentRow({
       name: "Supporting doc",
-      generated_document_type: LOO_KEY,
+      generated_document_type: LO_KEY,
     });
     const parsed = parseSupportingDocumentRow(serialized);
-    expect(parsed.generated_document_type).toBe(LOO_KEY);
+    expect(parsed.generated_document_type).toBe(LO_KEY);
   });
 });
 
@@ -128,9 +135,9 @@ describe("guarantor agreement row round-trip", () => {
   it("preserves generated_document_type", () => {
     const serialized = serializeGuarantorAgreementRow({
       name: "Guarantor agreement",
-      generated_document_type: LOO_KEY,
+      generated_document_type: LO_KEY,
     });
     const parsed = parseGuarantorAgreementRow(serialized);
-    expect(parsed.generated_document_type).toBe(LOO_KEY);
+    expect(parsed.generated_document_type).toBe(LO_KEY);
   });
 });

@@ -1,6 +1,10 @@
-import type { ContractLooMergeData } from "./contract-loo-merge.types";
-import { CONTRACT_LOO_MERGE_KEYS } from "./contract-loo-merge.types";
-import { createContractLooFixture } from "./contract-loo-fixture";
+import type { ContractFacilityLoMergeData } from "./facility-lo-merge.types";
+import { CONTRACT_FACILITY_LO_MERGE_KEYS } from "./facility-lo-merge.types";
+import { createFacilityLoFixture } from "./facility-lo-fixture";
+import {
+  mapIndividualGuarantors,
+  parseGuarantorsFromMergeInput,
+} from "./facility-lo-guarantors";
 import {
   daysPhrase,
   formatAddressBlock,
@@ -8,7 +12,7 @@ import {
   formatLetterDate,
   formatRmAmount,
   numberToWords,
-} from "./loo-format";
+} from "./lo-format";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -24,11 +28,6 @@ function asNumber(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) return Number(value);
   return null;
-}
-
-function guarantorLine(name: string, nric: string): string {
-  if (!name) return "";
-  return nric ? `${name} (NRIC No. ${nric})` : name;
 }
 
 function resolveRegisteredAddress(org: {
@@ -53,7 +52,7 @@ function resolveRegisteredAddress(org: {
   return asString(org.address);
 }
 
-export type BuildContractLooMergeInput = {
+export type BuildFacilityLoMergeInput = {
   contract: {
     id: string;
     contract_details?: unknown;
@@ -81,13 +80,13 @@ export type BuildContractLooMergeInput = {
  * Prefill merge data from platform entities. MISSING commercial terms stay empty
  * (or fixture defaults only where the map agreed a fixed legal constant).
  */
-export function buildContractLooMergeData(input: BuildContractLooMergeInput): ContractLooMergeData {
-  const base = createContractLooFixture();
-  // Start blank for editable MISSING fields; keep fixed legal defaults.
-  const emptyMissing: Partial<ContractLooMergeData> = {
-    margin_of_receivable_percent: "",
-    profit_rate_percent: "",
+export function buildFacilityLoMergeData(input: BuildFacilityLoMergeInput): ContractFacilityLoMergeData {
+  const base = createFacilityLoFixture();
+  const emptyMissing: Partial<ContractFacilityLoMergeData> = {
     tenure_days: "",
+    max_invoice_tenure_days: "",
+    sub_limit_per_invoice_rm: "",
+    part_b_financing_amount_rm: "",
     payment_period_days: "",
     grace_period_days: "",
     grace_period_days_words: "",
@@ -98,11 +97,7 @@ export function buildContractLooMergeData(input: BuildContractLooMergeInput): Co
     corporate_guarantor_ssm: "",
     corporate_signatory_1_name: "",
     corporate_signatory_2_name: "",
-    guarantor_1_line: "",
-    guarantor_2_line: "",
-    guarantor_3_line: "",
-    guarantor_1_name: "",
-    guarantor_2_name: "",
+    guarantors_individual: [],
   };
 
   const offer = asRecord(input.contract.offer_details);
@@ -115,31 +110,15 @@ export function buildContractLooMergeData(input: BuildContractLooMergeInput): Co
 
   const offeredFacility = asNumber(offer?.offered_facility);
   const approvedFacility = asNumber(contractDetails?.approved_facility);
-  const contractValue =
-    asNumber(contractDetails?.value) ??
-    asNumber(contractDetails?.contract_value) ??
-    asNumber(contractDetails?.financing);
   const facilityAmount = offeredFacility ?? approvedFacility;
-
-  // F3 decision: ratio of approved/offered facility to contract amount when both exist
-  let margin = "";
-  if (facilityAmount != null && contractValue != null && contractValue > 0) {
-    margin = ((facilityAmount / contractValue) * 100).toFixed(2).replace(/\.00$/, "");
-  }
 
   const sentAt = asString(offer?.sent_at);
   const letterDate = sentAt ? formatLetterDate(sentAt) : formatLetterDate(new Date());
 
-  const individuals = guarantors
-    .map((g) => asRecord(g))
-    .filter((g): g is JsonRecord => !!g && asString(g.guarantor_type) === "individual");
+  const individuals = mapIndividualGuarantors(guarantors);
   const companies = guarantors
     .map((g) => asRecord(g))
     .filter((g): g is JsonRecord => !!g && asString(g.guarantor_type) === "company");
-
-  const g1 = individuals[0];
-  const g2 = individuals[1];
-  const g3 = individuals[2];
   const corp = companies[0];
 
   const graceDefault =
@@ -165,7 +144,6 @@ export function buildContractLooMergeData(input: BuildContractLooMergeInput): Co
   if (signingExpires && (sentAt || acceptanceExpires)) {
     const startMs = new Date(sentAt || letterDate).getTime();
     const endMs = new Date(signingExpires).getTime();
-    // Prefer acceptance submitted / letter date as start; if invalid, skip
     const start = Number.isFinite(startMs) ? startMs : Date.now();
     if (Number.isFinite(endMs) && endMs >= start) {
       const days = Math.max(1, Math.round((endMs - start) / (24 * 60 * 60 * 1000)));
@@ -186,15 +164,8 @@ export function buildContractLooMergeData(input: BuildContractLooMergeInput): Co
     attention_name: asString(contact?.name),
     attention_position: asString(contact?.position),
     financing_limit_rm: formatRmAmount(facilityAmount ?? undefined),
-    margin_of_receivable_percent: margin,
-    availability_period_phrase: base.availability_period_phrase,
-    withdrawal_notice_phrase: base.withdrawal_notice_phrase,
     offer_validity_phrase: offerValidityPhrase,
-    guarantor_1_line: g1 ? guarantorLine(asString(g1.name), asString(g1.ic_number)) : "",
-    guarantor_2_line: g2 ? guarantorLine(asString(g2.name), asString(g2.ic_number)) : "",
-    guarantor_3_line: g3 ? guarantorLine(asString(g3.name), asString(g3.ic_number)) : "",
-    guarantor_1_name: g1 ? asString(g1.name) : "",
-    guarantor_2_name: g2 ? asString(g2.name) : "",
+    guarantors_individual: individuals,
     grace_period_days: graceDefault != null ? String(graceDefault) : "",
     grace_period_days_words: graceDefault != null ? numberToWords(graceDefault) : "",
     transaction_docs_days: transactionDocsDays,
@@ -211,17 +182,20 @@ export function buildContractLooMergeData(input: BuildContractLooMergeInput): Co
 }
 
 /** Coerce a partial/unknown body into a full merge object (form POST). */
-export function normalizeContractLooMergeData(input: unknown): ContractLooMergeData {
-  const base = createContractLooFixture();
+export function normalizeContractFacilityLoMergeData(input: unknown): ContractFacilityLoMergeData {
+  const base = createFacilityLoFixture();
   const src = asRecord(input) ?? {};
   const out = { ...base };
-  for (const key of CONTRACT_LOO_MERGE_KEYS) {
+  for (const key of CONTRACT_FACILITY_LO_MERGE_KEYS) {
     const value = src[key];
     if (typeof value === "string") {
       out[key] = value;
     } else if (value != null) {
       out[key] = String(value);
     }
+  }
+  if (Array.isArray(src.guarantors_individual)) {
+    out.guarantors_individual = parseGuarantorsFromMergeInput(src);
   }
   return out;
 }

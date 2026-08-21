@@ -1,9 +1,9 @@
-jest.mock("../applications/loo/render-contract-loo-docx", () => ({
-  readContractLooTemplateBytes: jest.fn(),
-  renderContractLooDocx: jest.fn(),
+jest.mock("../applications/letter-of-offer/render-facility-lo-docx", () => ({
+  readFacilityLoTemplateBytes: jest.fn(),
+  renderFacilityLoDocx: jest.fn(),
 }));
-jest.mock("../applications/loo/build-contract-loo-merge-data");
-jest.mock("../applications/loo/convert-docx-to-pdf");
+jest.mock("../applications/letter-of-offer/build-facility-lo-merge-data");
+jest.mock("../applications/letter-of-offer/convert-docx-to-pdf");
 jest.mock("../applications/repository");
 jest.mock("../products/repository");
 jest.mock("../organization/repository");
@@ -23,10 +23,10 @@ import {
 import { ApplicationRepository } from "../applications/repository";
 import { ProductRepository } from "../products/repository";
 import { OrganizationRepository } from "../organization/repository";
-import * as buildMerge from "../applications/loo/build-contract-loo-merge-data";
-import * as renderDocx from "../applications/loo/render-contract-loo-docx";
-import * as convertPdf from "../applications/loo/convert-docx-to-pdf";
-import { createContractLooFixture } from "../applications/loo/contract-loo-fixture";
+import * as buildMerge from "../applications/letter-of-offer/build-facility-lo-merge-data";
+import * as renderDocx from "../applications/letter-of-offer/render-facility-lo-docx";
+import * as convertPdf from "../applications/letter-of-offer/convert-docx-to-pdf";
+import { createFacilityLoFixture } from "../applications/letter-of-offer/facility-lo-fixture";
 
 describe("workflowDeclaresGeneratedDocumentType", () => {
   const workflow = [
@@ -36,7 +36,7 @@ describe("workflowDeclaresGeneratedDocumentType", () => {
         acceptance_documents: [
           {
             name: "Letter of Offer",
-            generated_document_type: "arf_contract_facility_loo",
+            generated_document_type: "arf_contract_facility_lo",
           },
         ],
       },
@@ -44,13 +44,12 @@ describe("workflowDeclaresGeneratedDocumentType", () => {
   ];
 
   it("returns true when acceptance row declares the type", () => {
-    expect(workflowDeclaresGeneratedDocumentType(workflow, "arf_contract_facility_loo")).toBe(true);
+    expect(workflowDeclaresGeneratedDocumentType(workflow, "arf_contract_facility_lo")).toBe(true);
   });
 
   it("returns false when type is not on the product", () => {
-    expect(workflowDeclaresGeneratedDocumentType(workflow, "arf_contract_facility_loo")).toBe(true);
     const emptyWorkflow = [{ id: "financing_type", config: { acceptance_documents: [] } }];
-    expect(workflowDeclaresGeneratedDocumentType(emptyWorkflow, "arf_contract_facility_loo")).toBe(
+    expect(workflowDeclaresGeneratedDocumentType(emptyWorkflow, "arf_contract_facility_lo")).toBe(
       false
     );
   });
@@ -66,7 +65,7 @@ describe("GeneratedDocumentsService.generateDocument", () => {
         acceptance_documents: [
           {
             name: "Letter of Offer",
-            generated_document_type: "arf_contract_facility_loo",
+            generated_document_type: "arf_contract_facility_lo",
           },
         ],
       },
@@ -118,16 +117,16 @@ describe("GeneratedDocumentsService.generateDocument", () => {
       workflow,
     } as never);
 
-    jest.spyOn(buildMerge, "buildContractLooMergeData").mockReturnValue(createContractLooFixture());
-    jest.spyOn(renderDocx, "readContractLooTemplateBytes").mockReturnValue(Buffer.from("template"));
-    jest.spyOn(renderDocx, "renderContractLooDocx").mockReturnValue(Buffer.from("docx"));
+    jest.spyOn(buildMerge, "buildFacilityLoMergeData").mockReturnValue(createFacilityLoFixture());
+    jest.spyOn(renderDocx, "readFacilityLoTemplateBytes").mockReturnValue(Buffer.from("template"));
+    jest.spyOn(renderDocx, "renderFacilityLoDocx").mockReturnValue(Buffer.from("docx"));
     jest.spyOn(convertPdf, "convertDocxToPdf").mockResolvedValue(Buffer.from("%PDF-mock"));
   });
 
   it("returns PDF when gates pass", async () => {
     const result = await service.generateDocument({
       applicationId,
-      typeKey: "arf_contract_facility_loo",
+      typeKey: "arf_contract_facility_lo",
       format: "pdf",
       userId,
     });
@@ -146,7 +145,7 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     await expect(
       service.generateDocument({
         applicationId,
-        typeKey: "arf_contract_facility_loo",
+        typeKey: "arf_contract_facility_lo",
         format: "pdf",
         userId,
       })
@@ -168,7 +167,7 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     await expect(
       service.generateDocument({
         applicationId,
-        typeKey: "arf_contract_facility_loo",
+        typeKey: "arf_contract_facility_lo",
         format: "pdf",
         userId,
       })
@@ -205,7 +204,7 @@ describe("GeneratedDocumentsService.generateDocument", () => {
     await expect(
       service.generateDocument({
         applicationId,
-        typeKey: "arf_contract_facility_loo",
+        typeKey: "arf_contract_facility_lo",
         format: "pdf",
         userId,
       })
@@ -223,7 +222,7 @@ describe("GeneratedDocumentsService.generateDocument", () => {
 
     const result = await service.generateDocument({
       applicationId,
-      typeKey: "arf_contract_facility_loo",
+      typeKey: "arf_contract_facility_lo",
       format: "pdf",
       userId: "admin_user",
       asAdmin: true,
