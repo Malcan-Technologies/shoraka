@@ -97,6 +97,31 @@ kept; admin Send Offer overwrites terms and returns to OFFER_SENT.
 See docs/guides/acceptance-signing-expiry-job.md.
 
 ================================================================================
+FACILITY OCCUPANCY (A178)
+================================================================================
+
+  Action                        Event Type                          Where
+  ----------------------------- ----------------------------------- ------------------
+  Invoice offer accepted        CONTRACT_FACILITY_OCCUPANCY_UPDATED Admin Activity +
+                                (reason INVOICE_ACCEPTED)           raw Audit History
+  Funding closed                CONTRACT_FACILITY_OCCUPANCY_UPDATED Admin Activity +
+                                (reason FUNDING_CLOSED)             raw Audit History
+  Funding failed                CONTRACT_FACILITY_OCCUPANCY_UPDATED Admin Activity +
+                                (reason FUNDING_FAILED)             raw Audit History
+  Note repaid                   CONTRACT_FACILITY_OCCUPANCY_UPDATED Admin Activity +
+                                (reason NOTE_REPAID)                raw Audit History
+
+Notes:
+  ApplicationAuditLog only. Target CONTRACT. No Note occupancy event.
+  before and after both contain utilized_facility, available_facility,
+  repaid_facility, pending_facility, lifetime_used, lifetime_remaining.
+  Writes when any of those six materially changes. True no-op writes nothing.
+  Silent refresh without audit context (invoice create/update/delete/withdraw,
+  offer send/retract, amendment, expiry, recompute) updates snapshots only.
+  Issuer / investor /activity hides occupancy. Admin Activity shows
+  Facility Utilization Updated.
+
+================================================================================
 EVENT TYPE CATALOGUES
 ================================================================================
 

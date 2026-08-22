@@ -5,7 +5,7 @@ category: Platform Operations
 tags:
   - admin
 order: 30
-updated: 2026-08-20
+updated: 2026-08-23
 ---
 
 ## Purpose
@@ -78,6 +78,7 @@ Use the application timeline for:
 - Application creation, submission, resubmission, rejection, withdrawal, completion, and reopen for review.
 - Amendment requests sent to the issuer.
 - Facility and invoice offer events, including sent, acceptance submitted/resubmitted, approved for signing, accepted, rejected, retracted, withdrawn, and expired.
+- Facility occupancy updates (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`). Admin Activity and raw Application Audit History show them. Issuer and investor `/activity` hide them. There is no Note occupancy event.
 - Signing package sent / declined / expired (package completed is stored for audit; the admin curated timeline hides `SIGNING_PACKAGE_COMPLETED` and shows offer accepted instead).
 
 Section and item review decisions are written as `APPLICATION_SECTION_REVIEW_UPDATED` and `APPLICATION_ITEM_REVIEW_UPDATED`. Item-level rows stay on raw Audit History. Section-level rows appear in curated Activity only when the new status is amendment-required.

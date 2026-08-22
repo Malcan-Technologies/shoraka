@@ -206,8 +206,9 @@ Invoice offers currently follow this pattern:
 
 Current money caveat:
 
-- Contract and invoice monetary values are mostly stored inside JSON payloads and manipulated as JavaScript numbers.
-- Future post-application note and servicing work should move monetary ledger values into typed numeric columns and use decimal-safe calculations.
+- Invoice and most contract monetary values still live in JSON payloads and are manipulated as JavaScript numbers.
+- Facility capacity is dual-ledger: invoices/notes remain the business source of truth; typed `Contract` columns plus `contract_details` JSON are persisted snapshots kept in sync (`capacity_snapshot_version`). Remaining credit is revolving available capacity; remaining allocation is remaining lifetime contract allocation. Repayment restores remaining credit and does not restore lifetime allocation.
+- Future post-application note and servicing work should move remaining monetary ledger values into typed numeric columns and use decimal-safe calculations.
 
 ## Admin Review and Amendment Context
 

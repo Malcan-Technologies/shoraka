@@ -88,6 +88,7 @@ Hide events that are mostly implementation noise, such as:
 - section-level and item-level review states
 - internal resets or status churn that do not change the user’s next action
 - sub-approvals that are only meaningful to operations or compliance teams
+- facility occupancy snapshots (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`). Issuers already see the causal milestone (invoice accepted, funding closed, repayment). Occupancy stays on admin Application/Contract Activity and raw Application Audit History.
 
 ## Writing a good title
 

@@ -120,11 +120,14 @@ Major payload sections:
 | `contracts[].customerName` | `Contract.customer_details` | `customer?.name` | Customer name |
 | `contracts[].contractStartDate` | `Contract.contract_details` | `start_date` | Period start |
 | `contracts[].contractEndDate` | `Contract.contract_details` | `end_date` | Period end |
-| `contracts[].approvedFacilityAmount` | Live occupancy | `approved_facility` when contract is APPROVED | Approved facility ceiling |
-| `contracts[].utilizedFacilityAmount` | Live occupancy | Funded principal after close; reserved at offer amount while raising | Live utilized (does not include pending or repaid) |
-| `contracts[].availableFacilityAmount` | Live occupancy | `approved − utilized` (may be negative) | Remaining capacity |
-| `contracts[].pendingFacilityAmount` | Live occupancy | SUBMITTED + OFFER_SENT committed advances | Display only; does not occupy the line |
-| `contracts[].repaidFacilityAmount` | Live occupancy | Settled draws at funded principal | Released occupancy |
+| `contracts[].approvedFacilityAmount` | Live occupancy snapshot | `approved_facility` when contract is APPROVED | Revolving facility ceiling |
+| `contracts[].utilizedFacilityAmount` | Live occupancy snapshot | Funded principal after close; reserved at offer amount while raising | Live utilized (does not include pending or repaid) |
+| `contracts[].availableFacilityAmount` | Live occupancy snapshot | `approved − utilized − pending` (may be negative) | Remaining credit (revolving available) |
+| `contracts[].pendingFacilityAmount` | Live occupancy snapshot | SUBMITTED + OFFER_SENT committed advances | Reserved; occupies remaining credit |
+| `contracts[].repaidFacilityAmount` | Live occupancy snapshot | Settled draws at funded principal | Released revolving occupancy; lifetime allocation stays consumed |
+| `contracts[].lifetimeCapAmount` | Live occupancy snapshot | Contract face / lifetime cap | Lifetime allocation ceiling |
+| `contracts[].lifetimeUsedAmount` | Live occupancy snapshot | Invoice face from submitted onward, including settled | Lifetime used |
+| `contracts[].lifetimeRemainingAmount` | Live occupancy snapshot | `lifetime_cap − lifetime_used` | Remaining allocation |
 | `contracts[].activeNotesCount` | `Note` | `COUNT(contract notes where Note.status = ACTIVE)` | Active notes count |
 | `contracts[].contractStatus` | `Contract` | `c.status` | Main status badge driver |
 | `contracts[].actionRequiredApplicationIds` | `Application` | Dedupe all application ids referencing the contract where `Application.status = AMENDMENT_REQUESTED` | Drives “Action required (N)” |
@@ -274,8 +277,9 @@ Contract card UI is implemented in `DashboardContractCard` inside:
 | Active notes | DTO: `IssuerDashboardContract.activeNotesCount` | `String(row.activeNotesCount)` | Count of active notes (contract-level) |
 | Approved facility | DTO: `IssuerDashboardContract.approvedFacilityAmount` | `Number(...)` then displayed as formatted money | Approved facility amount |
 | Utilized facility | DTO: `IssuerDashboardContract.utilizedFacilityAmount` | displayed as formatted money | Utilized facility amount |
-| Available facility | DTO: `IssuerDashboardContract.availableFacilityAmount` | **Not shown in current card UI** | Needs code/business confirmation (DTO exists but UI doesn’t render it) |
-| Facility progress | Approved/utilised | `utilisationPct = round(utilised/approved * 100)` | Progress bar width |
+| Remaining credit | DTO: `IssuerDashboardContract.availableFacilityAmount` | Left to draw on facility cards / dual-limit summaries | Revolving available after utilized and reserved |
+| Remaining allocation | DTO: `IssuerDashboardContract.lifetimeRemainingAmount` | Left on contract on facility cards / dual-limit summaries | Lifetime remaining; repayment does not restore it |
+| Facility progress | Approved/utilised/reserved | Dual-limit meters on financing facility surfaces | Remaining room is two numbers, not one |
 | View details | Router link | `/financing/contracts/${row.id}` | Opens Contract Detail page |
 
 Recent dashboard wiring changes included in this card:
@@ -343,7 +347,7 @@ Backend implementation:
 |---|---|---|
 | Header | Contract title + status badge | `row.title`, `resolveIssuerContractDashboardBadge(row.contractStatus)` |
 | Header subtitle | Customer + contract period | `row.customerName` and `contractPeriod` computed from `row.contractStartDate/row.contractEndDate` |
-| Facility usage | Available facility + usage progress | `row.availableFacilityAmount`; progress bar uses `utilised/approved` computed in UI (only when both are present and approved > 0) |
+| Facility usage | Remaining credit + remaining allocation | `row.availableFacilityAmount` (left to draw) and `row.lifetimeRemainingAmount` (left on contract); reserved pending occupies remaining credit |
 | KPI summary | Total approved/rejected/unfinanced | `stats.total`, `stats.approved`, `stats.rejected`, `stats.unfinanced` from `row.invoiceStats` |
 | KPI breakdown | Funding in progress | `stats.fundingInProgress` |
 | KPI breakdown | Active notes / Completed notes / Unsuccessful raise | `stats.activeNotes`, `stats.completedNotes`, `stats.unsuccessfulRaise` |
@@ -715,10 +719,11 @@ When invoice has a Note:
 
 ## 17. Known caveats / needs confirmation
 
-- Contract “available facility”:
-  - Backend computes `contracts[].availableFacilityAmount`.
-  - Current `DashboardContractCard` UI does not render it (it renders utilised + approved + utilisation progress).
-  - Needs code/business confirmation if the UI is intentionally missing available facility.
+- Contract remaining room is two numbers:
+  - Remaining credit = revolving `availableFacilityAmount` (`approved − utilized − pending`).
+  - Remaining allocation = `lifetimeRemainingAmount`.
+  - Financing facility cards and dual-limit summaries render both. Repayment restores remaining credit and does not restore remaining allocation.
+  - Pending is reserved occupancy, not display-only.
 - Funding deadline field:
   - Dashboard invoice card uses `note.fundingDeadline` which comes from `NoteListing.closes_at`.
   - Real publish flow may sometimes not populate `closes_at` yet.

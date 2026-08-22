@@ -58,7 +58,7 @@ Where a curated feed exists:
 AuditLog → visibility (`activity-visibility.ts`) → adapter → presentation (`activity-presentation.ts`) → Activity timeline / ActivityFeed
 ```
 
-SOT examples: `UserSession` / Cognito; organization `onboarding_status`; `Application` + review/remark/revision tables; signing envelope graph; `Note` / ledger / investments / withdrawals; `GatewayPayment` / wallet / recon; `LegalDocumentAcceptance`; `GatewayWebhookEvent` (provider transport, updated after processing).
+SOT examples: `UserSession` / Cognito; organization `onboarding_status`; `Application` + review/remark/revision tables; signing envelope graph; `Note` / ledger / investments / withdrawals; invoices and notes as occupancy inputs (typed `Contract` capacity columns plus `contract_details` JSON are persisted dual-ledger snapshots, not occupancy state); `GatewayPayment` / wallet / recon; `LegalDocumentAcceptance`; `GatewayWebhookEvent` (provider transport, updated after processing).
 
 Audit is never payment, balance, listing, or review **state**.
 
@@ -198,7 +198,7 @@ Phase banners below still describe the live tables after the AuditLog cutover. T
 - `NoteAdminAction` / `note_admin_actions` **removed**.
 - Title/summary-only edits, featured settings, and prospectus draft saves remain intentionally unaudited.
 - Investor-wallet withdrawals are PaymentAuditLog (Phase 9). GatewayPayment events are PaymentAuditLog.
-- There is **no** canonical/global `AuditEvent` table. Live catalogue: **178** reserved IDs, **175** active writers, **3** retired (A040/A052/A053). A175 is OnboardingAuditLog. A176/A177 are NoteAuditLog. A178 is ApplicationAuditLog occupancy.
+- There is **no** canonical/global `AuditEvent` table. Live catalogue: **178** reserved IDs, **175** active writers, **3** retired (A040/A052/A053). A175 is OnboardingAuditLog. A176/A177 are NoteAuditLog. A178 / APP-041 is ApplicationAuditLog occupancy (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`; dual-ledger `before`/`after`; no APP-042).
 
 ---
 
@@ -712,7 +712,7 @@ Activity UI curated subset: STARTED, RESTARTED, review/amendment STATUS_CHANGED,
 
 ### Application (`APPLICATION_AUDIT_EVENTS`)
 
-`APPLICATION_CREATED/SUBMITTED/REVIEW_STARTED/RESUBMITTED/AMENDMENT_ACKNOWLEDGED/AMENDMENTS_REQUESTED/REOPENED_FOR_REVIEW/WITHDRAWN/REJECTED/ARCHIVED/DRAFT_DELETED/COMPLETED`, section/item review updated, document upload/remove/replace, contract/invoice offer/acceptance/expiry/withdraw events including `CONTRACT_OFFER_REJECTED`, and `CONTRACT_FACILITY_OCCUPANCY_UPDATED` (A178; ApplicationAuditLog only; dual-ledger occupancy metadata; admin Activity SHOW, issuer/investor Activity HIDE).  
+`APPLICATION_CREATED/SUBMITTED/REVIEW_STARTED/RESUBMITTED/AMENDMENT_ACKNOWLEDGED/AMENDMENTS_REQUESTED/REOPENED_FOR_REVIEW/WITHDRAWN/REJECTED/ARCHIVED/DRAFT_DELETED/COMPLETED`, section/item review updated, document upload/remove/replace, contract/invoice offer/acceptance/expiry/withdraw events including `CONTRACT_OFFER_REJECTED`, and `CONTRACT_FACILITY_OCCUPANCY_UPDATED` (A178 / APP-041; ApplicationAuditLog only; target `CONTRACT`; no Note occupancy event). A178 `before` and `after` both contain `utilized_facility`, `available_facility`, `repaid_facility`, `pending_facility`, `lifetime_used`, and `lifetime_remaining`. It writes when any of those six materially changes after an audited reason (`INVOICE_ACCEPTED`, `FUNDING_CLOSED`, `FUNDING_FAILED`, `NOTE_REPAID`) with audit context. True no-op writes nothing. Silent capacity refreshes without audit context still persist snapshots and write no A178 row. Admin Application/Contract Activity SHOW; issuer/investor Activity HIDE; raw Application Audit History SHOW.  
 Signing package events are **not** on this table; they belong to `SigningAuditLog`.
 
 ### Signing (`SIGNING_AUDIT_EVENTS`)

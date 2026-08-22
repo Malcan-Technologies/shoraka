@@ -213,11 +213,18 @@ Step 1: Admin sends an invoice offer. Clicks "Send invoice offer".
 
 Step 2a: Issuer accepts. Clicks "Accept" on the invoice offer.
 
-  What happens: Invoice status becomes APPROVED.
+  What happens: Invoice status becomes APPROVED. Facility occupancy snapshot
+  refreshes from invoices and notes.
   Log created: INVOICE_OFFER_ACCEPTED
-  Who: The issuer
+  Sibling log: CONTRACT_FACILITY_OCCUPANCY_UPDATED (A178) only when any of
+    utilized_facility, available_facility, repaid_facility, pending_facility,
+    lifetime_used, or lifetime_remaining materially changes. ApplicationAuditLog
+    only. Target CONTRACT. Admin Activity and raw Audit History SHOW.
+    Issuer / investor Activity HIDE. True no-op writes no occupancy row.
+  Who: The issuer (occupancy reuses this actor context)
   Portal: ISSUER
-  Where it shows: Activity timeline
+  Where it shows: Activity timeline (offer). Occupancy: admin Activity / Audit
+    History only.
 
 Step 2b: Issuer rejects. Clicks "Reject" on the invoice offer.
 
@@ -304,6 +311,18 @@ When the last offer (contract or invoice) is accepted, the application is done.
 Use APPLICATION_AUDIT_EVENTS and SIGNING_AUDIT_EVENTS. Do not invent new strings.
 SIGNING_PACKAGE_* belong to SigningAuditLog.
 
+CONTRACT_FACILITY_OCCUPANCY_UPDATED (A178 / APP-041) is ApplicationAuditLog only.
+Target CONTRACT. There is no Note occupancy event and no FACILITY_OCCUPANCY_UPDATED
+note event. Reasons: INVOICE_ACCEPTED, FUNDING_CLOSED, FUNDING_FAILED, NOTE_REPAID.
+before and after both contain utilized_facility, available_facility,
+repaid_facility, pending_facility, lifetime_used, lifetime_remaining. Writes when
+any of those six changes. True no-op writes nothing. Silent capacity refreshes
+without audit context still persist snapshots and write no A178 row.
+
+Funding close, funding fail, and note repaid also write A178 from
+apps/api/src/lib/refresh-contract-facility.ts when occupancy changes. Those
+causal note events stay on NoteAuditLog; occupancy does not.
+
 ================================================================================
 13. KEY FILES
 ================================================================================
@@ -313,6 +332,7 @@ SIGNING_PACKAGE_* belong to SigningAuditLog.
   Application audit table      apps/api/prisma/schema.prisma (ApplicationAuditLog)
   Signing audit table          apps/api/prisma/schema.prisma (SigningAuditLog)
   Application writer           apps/api/src/modules/applications/audit/writer.ts
+  Occupancy writer             apps/api/src/lib/refresh-contract-facility.ts
   Signing writer               apps/api/src/modules/signing/audit/writer.ts
   Merged timeline API          apps/api/src/modules/applications/service.ts
   API route                    apps/api/src/modules/applications/controller.ts

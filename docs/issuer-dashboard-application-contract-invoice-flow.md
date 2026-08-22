@@ -7,7 +7,7 @@ This guide explains how `Application`, `Contract`, and `Invoice` are created and
 Issuer creates an `Application` (financing request) and then completes wizard steps driven by a Product workflow.
 
 - `Application` stores wizard payloads in JSON columns: `financing_type`, `financing_structure`, and other step payloads.
-- `Contract` stores contract/payout terms and counterparty details in JSON columns: `contract_details`, `customer_details`, plus offer metadata in `offer_details`.
+- `Contract` stores contract/payout terms and counterparty details in JSON columns: `contract_details`, `customer_details`, plus offer metadata in `offer_details`. Facility capacity also has typed snapshot columns kept in sync with `contract_details` (`capacity_snapshot_version`). Invoices/notes remain the occupancy business source of truth.
 - `Invoice` stores invoice item data in `details` JSON, plus offer metadata in `offer_details`.
 
 After the app is submitted and reviewed, admin/issuer actions move statuses forward (DRAFT → SUBMITTED → OFFER_SENT → APPROVED, etc.).
@@ -33,7 +33,7 @@ Confirmed from code:
   - `existing_contract` flow (a previously approved contract is linked to the application).
 
 Contract JSON fields:
-- `contract_details` (nullable JSON): contract terms and facility fields.
+- `contract_details` (nullable JSON): contract terms plus dual-ledger facility snapshots (`approved_facility`, `utilized_facility`, `available_facility`, `pending_facility`, `repaid_facility`, `lifetime_cap`, `lifetime_used`, `lifetime_remaining`, `capacity_snapshot_version`). Matching typed `Contract` columns stay in sync.
 - `customer_details` (nullable JSON): counterparty/customer details (used as “Paymaster” context).
 - `offer_details` (nullable JSON): set when offers are sent/accepted/rejected.
 
@@ -88,7 +88,7 @@ Confirmed expected data shape:
 Confirmed from code (issuer UI):
 - When user selects `existing_contract`, the wizard filters out the `contract_details` step.
 - The application gets linked to an existing approved contract via backend when `financing_structure` is saved.
-- `invoice_details` step loads **this application's** invoice only; facility occupancy is shown as a summary.
+- `invoice_details` step loads **this application's** invoice only; facility occupancy is shown as remaining credit (revolving available) and remaining allocation (lifetime remaining).
 - New invoices against the facility use a new application (`existing_contract`).
 
 Confirmed expected data shape:

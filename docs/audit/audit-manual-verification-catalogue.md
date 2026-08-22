@@ -2,7 +2,7 @@
 
 **Purpose.** Source-authoritative, human-readable manual verification catalogue of **178 reserved/catalogued event IDs** (A001–A178). IDs are stable and are not reused when a writer is retired. Distinguish **reserved event IDs** from **current active writers**. Each card is the checklist a reviewer uses to confirm the write (or retired/no-writer status), the Zod metadata, the source of truth, transaction behavior, and the three activity surfaces (admin curated, issuer, investor) plus admin raw.
 
-**Date.** 2026-08-20 — A178 added for revolving contract facility occupancy (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`). Prior: 2026-08-19 A175–A177 for admin organization profile update and note campaign pause/resume.
+**Date.** 2026-08-23 — A178 metadata synced to dual-ledger occupancy (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`). Prior: 2026-08-20 A178 added; 2026-08-19 A175–A177 for admin organization profile update and note campaign pause/resume.
 
 **How to use this document.** Do not treat activity titles as workflow state. Do not treat audit rows as source of truth. Verify the named table, then the SOT row, then visibility. Hidden activity is recorded as Title: N/A / Description: N/A.
 
@@ -41609,7 +41609,7 @@ How an investor is allowed to see an event. CANCELLED `NoteInvestment` rows do n
 
 # Source verification footer
 
-Date: **2026-08-20**. Source: current tree after A178 (contract facility occupancy). Original A001–A177 IDs unchanged.
+Date: **2026-08-23**. Source: current tree after A178 dual-ledger occupancy metadata. Original A001–A177 IDs unchanged. A178 / APP-041 remains the latest audit ID. No APP-042.
 
 ## VERIFIED counts
 
@@ -42219,7 +42219,7 @@ Appended globally after A177. Not inserted into the original A063–A102 block. 
 
 ## 1. What this event means
 
-Live dual-ledger occupancy on a contract facility changed after a causal business action. Occupancy SOT is typed `Contract` columns plus `contract_details` JSON kept in sync (`utilized_facility`, `available_facility`, `pending_facility`, `repaid_facility`, `lifetime_used`, `lifetime_remaining`, marked with `capacity_snapshot_version`). This row is history of a material occupancy change, not workflow state.
+Live dual-ledger occupancy on a contract facility changed after a causal business action. Invoices and notes remain the business source of truth. Typed `Contract` capacity columns plus matching `contract_details` JSON are persisted snapshots kept in sync and marked with `capacity_snapshot_version`. Remaining credit is revolving `available_facility`. Remaining allocation is `lifetime_remaining`. This row is history of a material occupancy change, not occupancy or workflow state.
 
 ## 2. When it logs
 
@@ -42234,7 +42234,9 @@ Callers:
 
 ## 3. When it does NOT log / no-op
 
-No occupancy audit row when utilized, available, repaid, pending, lifetime used, and lifetime remaining are all unchanged. Silent SOT refresh without this event: invoice create / update / delete / withdraw, admin offer send / retract, amendment, section / item review, expiry job, recompute script, bookkeeping-only refresh, contract accept available-line update, reject paths.
+True no-op: utilized, available, repaid, pending, lifetime used, and lifetime remaining are all unchanged → no A178 row, even when an audited reason and audit context are present.
+
+Silent capacity refresh: callers that persist the snapshot without occupancy audit context still update invoices/notes-derived snapshots and write no A178 row. Paths include invoice create / update / delete / withdraw, admin offer send / retract, amendment, section / item review, expiry job, recompute script, bookkeeping-only refresh, contract accept available-line update, and reject paths.
 
 ## 4. Top-level audit row
 
@@ -42257,7 +42259,7 @@ Append-only `ApplicationAuditLog` / `application_audit_logs`.
 
 ## 5. EXACT METADATA STRUCTURE
 
-Zod: `occupancyUpdatedSchema` in `apps/api/src/modules/applications/audit/metadata.ts`. Writer injects `actorName` / `actorEmail`. `approved_facility` is **not** in metadata.
+Zod: `occupancyUpdatedSchema` in `apps/api/src/modules/applications/audit/metadata.ts`. Writer injects `actorName` / `actorEmail`. `before` and `after` both contain the same six fields. `approved_facility` and `lifetime_cap` are **not** in metadata.
 
 ```ts
 {
@@ -42288,7 +42290,7 @@ Zod: `occupancyUpdatedSchema` in `apps/api/src/modules/applications/audit/metada
 
 ## 6. Source of truth
 
-Typed `Contract` capacity columns (`approved_facility`, `utilized_facility`, `pending_facility`, `repaid_facility`, `available_facility`, `lifetime_cap`, `lifetime_used`, `lifetime_remaining`) plus matching `contract_details` JSON (including `capacity_snapshot_version`) remain SOT after persist. Invoices/notes remain the occupancy inputs. Audit is not occupancy state. `approved_facility` and `lifetime_cap` are **not** in A178 metadata.
+Invoices and notes remain the business source of truth. After persist, typed `Contract` capacity columns (`approved_facility`, `utilized_facility`, `pending_facility`, `repaid_facility`, `available_facility`, `lifetime_cap`, `lifetime_used`, `lifetime_remaining`) plus matching `contract_details` JSON (including `capacity_snapshot_version`) are stored snapshots kept in sync. Audit is not occupancy state. `approved_facility` and `lifetime_cap` are **not** in A178 metadata.
 
 ## 7. Transaction / audit failure behavior
 
@@ -42341,11 +42343,11 @@ Application activity is never shown to investors.
 
 ## 13. Presentation metadata safety
 
-Curated copy uses `reason` only as a human phrase. Do not print utilized/available/repaid amounts, contract ids, note ids, or invoice ids in Activity. Those stay in raw metadata.
+Curated copy uses `reason` only as a human phrase. Do not print the six tracked occupancy amounts, contract ids, note ids, or invoice ids in Activity. Those stay in raw metadata.
 
 ## 14. Current UI behavior
 
-Admin Application Activity and Contract Activity. Raw Application Audit History. Issuer/investor `/activity` hidden. Occupancy SOT still drives issuer/admin facility cards independently of this event.
+Admin Application Activity and Contract Activity. Raw Application Audit History. Issuer/investor `/activity` hidden. Facility cards still read invoices/notes plus persisted capacity snapshots independently of this event.
 
 ## 15. Manual verification checklist
 
@@ -42354,9 +42356,11 @@ Admin Application Activity and Contract Activity. Raw Application Audit History.
 - [ ] Funding close with occupancy change → one A178 row; admin actor
 - [ ] Funding fail with occupancy change → one A178 row; admin actor
 - [ ] Note repaid with occupancy change → one A178 row; admin actor
-- [ ] No-op recalculation (tracked occupancy unchanged) → no A178
+- [ ] No-op recalculation (all six tracked fields unchanged) → no A178
+- [ ] Any of the six fields changing materially with an audited reason → one A178 row
 - [ ] Pending-only or lifetime-only material change with an audited reason → one A178 row
-- [ ] Invoice create/update/delete/withdraw, offer send/retract, amendment, expiry, recompute → SOT updated, no A178
+- [ ] Silent refresh without audit context → snapshot updated, no A178
+- [ ] Invoice create/update/delete/withdraw, offer send/retract, amendment, expiry, recompute → snapshot updated, no A178
 - [ ] No `NoteAuditLog` / `FACILITY_OCCUPANCY_UPDATED` row
 - [ ] Admin Activity shows Facility Utilization Updated
 - [ ] Issuer/investor Activity hide occupancy

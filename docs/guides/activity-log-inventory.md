@@ -169,6 +169,7 @@ These logs still exist as AuditLog rows (or retired historical rows) but are not
 - `DIRECTOR_ONBOARDING_INVITATION_SENT` on investor activity (the event is still written for Investor COMPANY Confirm & Send; investor `/activity` hides it)
 - intermediate director KYC statuses. Audit rows exist only for final `APPROVED` / `REJECTED` on an existing director
 - most application section-level and item-level review events (`APPLICATION_ITEM_REVIEW_UPDATED` is never user-facing; `APPLICATION_SECTION_REVIEW_UPDATED` only when amendment is required)
+- `CONTRACT_FACILITY_OCCUPANCY_UPDATED` (A178). ApplicationAuditLog only; admin Application/Contract Activity SHOW; issuer and investor `/activity` HIDE. There is no Note occupancy event.
 - signing package created / eKYC start-verify internals that are not in the issuer allowlist
 - note operational steps such as Shoraka, trustee letters, settlement preview/approve
 - Access, Security, Legal admin, Product, and Notification broadcasts (raw admin audit only)
