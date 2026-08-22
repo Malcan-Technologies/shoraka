@@ -3,6 +3,12 @@
  */
 import { renderToStaticMarkup } from "react-dom/server";
 import {
+  UNRESOLVED_IDENTITY_ADMIN_COPY,
+  UNRESOLVED_IDENTITY_ADMIN_TITLE,
+  UNRESOLVED_IDENTITY_RECOVERY_COPY,
+  UNRESOLVED_IDENTITY_RECOVERY_TITLE,
+} from "@cashsouk/types";
+import {
   DirectorShareholderUnresolvedIdentitySection,
   DirectorShareholderUnresolvedIdentityCard,
 } from "./director-shareholder-unresolved-identity-card";
@@ -37,10 +43,9 @@ describe("DirectorShareholderUnresolvedIdentitySection", () => {
     const html = renderToStaticMarkup(
       <DirectorShareholderUnresolvedIdentitySection people={[lucasDirector, lucasShareholder]} />
     );
-    expect(html.match(/Records requiring review/g)).toHaveLength(1);
-    expect(html).toContain(
-      "Some identity information is missing from RegTank. Review these records before approving the application."
-    );
+    expect(html.match(new RegExp(UNRESOLVED_IDENTITY_ADMIN_TITLE, "g"))).toHaveLength(1);
+    expect(html).toContain(UNRESOLVED_IDENTITY_ADMIN_COPY);
+    expect(html).not.toContain("Save ID");
     expect(html).not.toContain("Identity could not be matched");
     expect(html).not.toContain("RegTank did not provide a government ID");
   });
@@ -78,6 +83,54 @@ describe("DirectorShareholderUnresolvedIdentitySection", () => {
     expect(html).toContain("Government ID");
     expect(html).toContain("KYC00073");
     expect(html).toContain("AML status");
+  });
+
+  it("shows a government ID recovery form when recover is enabled", () => {
+    const html = renderToStaticMarkup(
+      <DirectorShareholderUnresolvedIdentitySection
+        noticeTitle={UNRESOLVED_IDENTITY_RECOVERY_TITLE}
+        noticeDescription={UNRESOLVED_IDENTITY_RECOVERY_COPY}
+        canRecover
+        onRecoverGovernmentId={() => undefined}
+        people={[{ ...lucasShareholder, email: "lucas.deng@malcan.io", recoverRole: "SHAREHOLDER" }]}
+      />
+    );
+    expect(html).toContain("Save ID");
+    expect(html).toContain(UNRESOLVED_IDENTITY_RECOVERY_TITLE);
+    expect(html).toContain("Enter each person");
+    expect(html).toContain("so we can match their record.");
+    expect(html).not.toContain(UNRESOLVED_IDENTITY_ADMIN_TITLE);
+    expect(html).not.toContain("before approving the application");
+    expect(html).toContain('placeholder="MyKad / government ID"');
+  });
+
+  it("hides vendor record ids when technical details are off", () => {
+    const html = renderToStaticMarkup(
+      <DirectorShareholderUnresolvedIdentitySection
+        noticeTitle={UNRESOLVED_IDENTITY_RECOVERY_TITLE}
+        noticeDescription={UNRESOLVED_IDENTITY_RECOVERY_COPY}
+        showTechnicalIds={false}
+        people={[lucasDirector]}
+      />
+    );
+    expect(html).not.toContain("RegTank");
+    expect(html).not.toContain("EOD04651");
+    expect(html).not.toContain("KYC00073");
+    expect(html).toContain("Missing information");
+    expect(html).toContain("Government ID");
+  });
+
+  it("renders an optional notice action for issuer navigation", () => {
+    const html = renderToStaticMarkup(
+      <DirectorShareholderUnresolvedIdentitySection
+        noticeTitle={UNRESOLVED_IDENTITY_RECOVERY_TITLE}
+        noticeDescription={UNRESOLVED_IDENTITY_RECOVERY_COPY}
+        noticeAction={<a href="/profile?focus=directors">Open Organisation</a>}
+        people={[lucasDirector]}
+      />
+    );
+    expect(html).toContain("Open Organisation");
+    expect(html).toContain("/profile?focus=directors");
   });
 
   it("returns null when there are no unresolved people (empty state left to parent)", () => {

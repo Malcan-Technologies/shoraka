@@ -5,7 +5,7 @@ import {
   useAuthToken,
 } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ApplicationStatus, WithdrawReason } from "@cashsouk/types";
+import { ApplicationStatus, isCapacityErrorCode, WithdrawReason } from "@cashsouk/types";
 import type {
   Application,
   CreateApplicationInput,
@@ -139,6 +139,7 @@ export function useUpdateApplicationStatus() {
       queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
     },
     onError: (error: Error) => {
+      if (isCapacityErrorCode(getApiMutationErrorCode(error))) return;
       toast.error("Failed to update application status", {
         description: error.message,
       });
@@ -162,7 +163,10 @@ export function useResubmitApplication() {
       });
       const json = await response.json();
       if (!json.success) {
-        throw new Error(json.error?.message ?? "Failed to resubmit");
+        throw new ApiMutationError(
+          json.error?.message ?? "Failed to resubmit",
+          json.error?.code
+        );
       }
       return json.data;
     },
@@ -179,6 +183,7 @@ export function useResubmitApplication() {
       queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
     },
     onError: (error: Error) => {
+      if (isCapacityErrorCode(getApiMutationErrorCode(error))) return;
       toast.error("Failed to resubmit", {
         description: error.message,
       });

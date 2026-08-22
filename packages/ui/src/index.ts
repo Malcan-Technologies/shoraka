@@ -102,6 +102,7 @@ export {
   type DirectorShareholderUnresolvedIdentityCardProps,
   type DirectorShareholderUnresolvedIdentitySectionProps,
   type UnresolvedIdentityPersonInput,
+  type UnresolvedIdentityRecoverPayload,
 } from "./director-shareholder-unresolved-identity-card";
 export {
   DirectorShareholderAlertCard,
@@ -293,7 +294,7 @@ export {
 export { PortalBadge } from "./components/portal-badge";
 export type { PortalBadgePortal } from "./components/portal-badge";
 export { DetailHeader } from "./components/detail-header";
-export type { DetailHeaderProps } from "./components/detail-header";
+export type { DetailHeaderContextRow, DetailHeaderProps } from "./components/detail-header";
 export { DetailSection } from "./components/detail-section";
 export type { DetailSectionProps } from "./components/detail-section";
 export { ConfirmDialog } from "./components/confirm-dialog";
@@ -305,3 +306,6 @@ export type {
 } from "./components/sticky-form-footer";
 export { KeyValueGrid } from "./components/key-value-grid";
 export type { KeyValueGridProps, KeyValueItem } from "./components/key-value-grid";
+export { ProductNameWithIcon } from "./components/product-name-with-icon";
+export { ProductCatalogName } from "./components/product-catalog-name";
+export { ProductCatalogImage } from "./components/product-catalog-image";

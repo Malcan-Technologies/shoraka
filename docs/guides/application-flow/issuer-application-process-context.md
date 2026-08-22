@@ -162,11 +162,13 @@ Typical step sequence:
 
 ## Financing Structures
 
-The issuer can choose:
+Newly created applications stamp `split_origination: true`. The issuer chooses a goal, not an internal structure label:
 
-- `new_contract` - issuer enters a new contract, then invoices can be linked to the accepted contract facility.
-- `existing_contract` - issuer selects a previously approved contract; contract step is skipped.
-- `invoice_only` - invoices are financed without a real contract offer flow. A contract may still exist as a holder for customer/paymaster details, but invoice statuses control completion.
+- `new_contract` — set up a new facility only. Invoice details are omitted. After approval, finance an invoice from the facility.
+- `existing_contract` — finance one invoice against an approved facility the issuer owns. Contract step is skipped.
+- `invoice_only` — finance one invoice without a facility.
+
+Applications without the marker keep the historical combined facility-and-invoice `new_contract` layout.
 
 The `computeApplicationStatus` helper in `apps/api/src/modules/applications/lifecycle.ts` is important because contract-based and invoice-only lifecycles roll up differently.
 
@@ -180,6 +182,7 @@ Contract offers currently follow this pattern:
 - Offer metadata is stored in `contract.offer_details`.
 - Issuer accepts/rejects or signs externally with SigningCloud.
 - On acceptance, approved facility values are written into `contract_details`.
+- Occupancy uses two caps: revolving **remaining credit** (financing amounts; pending is reserved) and lifetime **remaining allocation** (invoice face, including settled). New over-limit writes are blocked.
 
 The facility source of truth is documented in `docs/guides/application-flow/contract-offer-facility-flow.md`.
 
@@ -199,7 +202,7 @@ Invoice offers currently follow this pattern:
 - The backend validates invoice value, requested financing ratio, requested amount, offered amount, offered ratio, profit rate, and Soukscore risk rating.
 - Offer metadata is stored in `invoice.offer_details`.
 - Issuer accepts/rejects or signs externally with SigningCloud.
-- Approved invoices count toward utilized contract facility when attached to an approved contract.
+- Approved invoices occupy revolving credit (offered financing, then funded principal after close) and lifetime allocation (invoice face). Settlement frees credit but keeps lifetime. Failed or expired marketplace listings (default 14-day window) release both.
 
 Current money caveat:
 

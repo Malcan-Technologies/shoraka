@@ -14,9 +14,13 @@ import {
 export type MarketplaceNote = {
   id: string;
   noteCode: string | null;
-  issuerName: string | null;
+  purposeOfFinancing: string | null;
+  contractTitle: string | null;
+  purposeOfContract: string | null;
   noteTitle: string | null;
   productName: string | null;
+  productImageS3Key: string | null;
+  productImageUrl: string | null;
   industry: string | null;
   fundedAmount: number;
   goalAmount: number;
@@ -72,9 +76,13 @@ export function toMarketplaceNote(note: NoteListItem): MarketplaceNote {
   return {
     id: note.id,
     noteCode: note.noteReference.trim() || null,
-    issuerName: note.issuerName?.trim() || null,
+    purposeOfFinancing: note.purposeOfFinancing?.trim() || null,
+    contractTitle: note.contractTitle?.trim() || null,
+    purposeOfContract: note.purposeOfContract?.trim() || null,
     noteTitle: note.title?.trim() || null,
     productName: note.productName?.trim() || null,
+    productImageS3Key: note.productImageS3Key?.trim() || null,
+    productImageUrl: note.productImageUrl?.trim() || null,
     industry: note.issuerIndustry?.trim() || null,
     fundedAmount,
     goalAmount,
@@ -111,7 +119,15 @@ export function marketplaceNoteMatchesFilters(
   const query = filters.search.trim().toLowerCase();
   const matchesSearch =
     query.length === 0 ||
-    [note.noteTitle, note.productName, note.issuerName, note.industry, note.noteCode]
+    [
+      note.noteTitle,
+      note.productName,
+      note.purposeOfFinancing,
+      note.contractTitle,
+      note.purposeOfContract,
+      note.industry,
+      note.noteCode,
+    ]
       .filter((value): value is string => Boolean(value))
       .some((value) => value.toLowerCase().includes(query)) ||
     formatNoteReferenceDisplay(note.noteCode).toLowerCase().includes(query);
@@ -203,12 +219,40 @@ export function marketplaceFundingBarClasses(note: MarketplaceNote): {
   return { fill: "bg-primary", track: "bg-muted" };
 }
 
-export function marketplaceIssuerLabel(note: MarketplaceNote): string {
-  return note.issuerName?.trim() || "Issuer not published";
-}
-
 export function marketplaceNoteLabel(note: MarketplaceNote): string {
   return formatNoteReferenceDisplay(note.noteCode);
+}
+
+/** Note, product, and industry as one muted context line under the headline. */
+export function marketplaceNoteContextLine(note: MarketplaceNote): string | null {
+  const parts = [
+    marketplaceNoteLabel(note),
+    note.productName?.trim() || null,
+    note.industry?.trim() || null,
+  ].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+/** Investor-facing card/dialog headline. Purpose first; note reference if unpublished. */
+export function marketplaceNoteHeadline(note: MarketplaceNote): string {
+  return note.purposeOfFinancing?.trim() || marketplaceNoteLabel(note) || "Note";
+}
+
+/**
+ * Contract line under the financing headline. Purpose of contract, with title
+ * prefixed when it adds a distinct name. Skip when it duplicates the headline.
+ */
+export function marketplaceContractPurposeLabel(note: MarketplaceNote): string | null {
+  const purpose = note.purposeOfContract?.trim() || null;
+  const title = note.contractTitle?.trim() || null;
+  const value =
+    purpose && title && purpose.toLowerCase() !== title.toLowerCase()
+      ? `${title} · ${purpose}`
+      : purpose || title;
+  if (!value) return null;
+  const headline = marketplaceNoteHeadline(note).trim().toLowerCase();
+  if (value.toLowerCase() === headline) return null;
+  return value;
 }
 
 export function marketplaceHasActiveFilters(filters: MarketplaceNoteFilters): boolean {

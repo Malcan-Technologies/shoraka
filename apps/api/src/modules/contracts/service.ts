@@ -28,6 +28,7 @@ import {
   deleteS3Object,
 } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
+import { overlayReadCapacityOnContracts } from "../../lib/refresh-contract-facility";
 import {
   allocateDisplayReference,
   resolveApplicationProductCode,
@@ -183,7 +184,9 @@ export class ContractService {
   }
 
   async getContract(id: string, userId: string): Promise<Contract> {
-    return this.verifyContractAccess(id, userId);
+    const contract = await this.verifyContractAccess(id, userId);
+    const [overlaid] = await overlayReadCapacityOnContracts(prisma, [contract]);
+    return overlaid;
   }
 
   async updateContract(id: string, data: Prisma.ContractUpdateInput, userId: string): Promise<Contract> {
@@ -275,7 +278,8 @@ export class ContractService {
       throw new AppError(403, "FORBIDDEN", "You do not have access to this organization's facilities.");
     }
 
-    return this.repository.findApprovedByOrganization(organizationId);
+    const contracts = await this.repository.findApprovedByOrganization(organizationId);
+    return overlayReadCapacityOnContracts(prisma, contracts);
   }
 
   private generateCuid(): string {

@@ -16,6 +16,8 @@ import {
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
   resolveDirectorShareholderCtosEmptyWarning,
+  UNRESOLVED_IDENTITY_RECOVERY_COPY,
+  UNRESOLVED_IDENTITY_RECOVERY_TITLE,
   type ApplicationPersonRow,
   type DirectorShareholderDisplayRow,
   type DirectorShareholderListSource,
@@ -94,6 +96,7 @@ export function DirectorShareholdersUnifiedSection({
   const [draftEmails, setDraftEmails] = React.useState<Record<string, string>>({});
   const [confirmRow, setConfirmRow] = React.useState<AugmentedRow | null>(null);
   const [savePending, setSavePending] = React.useState(false);
+  const [recoverPendingKey, setRecoverPendingKey] = React.useState<string | null>(null);
 
   const resolvedCtosEmptyWarning = React.useMemo(
     () =>
@@ -327,11 +330,42 @@ export function DirectorShareholdersUnifiedSection({
             ) : null}
             {unresolvedPeople.length > 0 ? (
               <DirectorShareholderUnresolvedIdentitySection
+                noticeTitle={UNRESOLVED_IDENTITY_RECOVERY_TITLE}
+                noticeDescription={UNRESOLVED_IDENTITY_RECOVERY_COPY}
+                showTechnicalIds={false}
+                canRecover={Boolean(organizationId) && !blockPartyOnboarding}
+                recoverPendingKey={recoverPendingKey}
+                onRecoverGovernmentId={async (payload) => {
+                  if (!organizationId) return;
+                  const pendingKey = `${payload.eodRequestId}:${payload.email ?? ""}`;
+                  setRecoverPendingKey(pendingKey);
+                  try {
+                    const apiBase = directorShareholderOrgApiBase(portal, organizationId);
+                    const result = await apiClient.patch<{ success: true }>(
+                      `${apiBase}/unresolved-identity`,
+                      payload
+                    );
+                    if (!result.success) {
+                      toast.error(result.error.message);
+                      return;
+                    }
+                    await onPartyOnboardingSent?.();
+                    toast.success("Government ID saved. This record can now be matched.");
+                  } finally {
+                    setRecoverPendingKey(null);
+                  }
+                }}
                 people={unresolvedPeople.map((p) => ({
                   name: p.name,
                   role: formatPeopleRolesLine(p),
                   sharePercentage: p.sharePercentage,
                   eodRequestId: p.requestId,
+                  email: p.email ?? null,
+                  recoverRole: p.roles.includes("DIRECTOR")
+                    ? "DIRECTOR"
+                    : p.roles.includes("SHAREHOLDER")
+                      ? "SHAREHOLDER"
+                      : undefined,
                   onboardingStatus: p.onboarding?.status ?? null,
                   amlStatus: p.screening?.status ?? null,
                   kycId: p.onboarding?.id ?? null,

@@ -3,6 +3,7 @@ import {
   canWithdrawApplication,
   resolveOriginationPhase,
 } from "@cashsouk/types";
+import { overlayStoredCapacityOnApplicationContract } from "../../lib/refresh-contract-facility";
 import { extractPrimaryOfferAcceptanceStatus } from "./offer-application-status";
 
 export type ApplicationOriginationContext = {
@@ -45,9 +46,9 @@ export function enrichApplicationOriginationFields<
     ...application,
     signing_envelopes: envelopes,
   };
-  return {
+  return overlayStoredCapacityOnApplicationContract({
     ...application,
     canWithdraw: canWithdrawApplicationRecord(context),
     archivedAt: application.archived_at ?? null,
-  };
+  });
 }

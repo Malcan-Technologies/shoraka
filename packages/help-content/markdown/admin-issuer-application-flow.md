@@ -5,7 +5,7 @@ category: Application Review
 tags:
   - admin
 order: 10
-updated: 2026-05-05
+updated: 2026-08-21
 ---
 
 ## Purpose
@@ -85,10 +85,10 @@ Use a facility offer when the application requires a facility-level approval. Be
 
 - Confirm the customer or paymaster details.
 - Confirm whether the customer is a large private company.
-- Make sure the offered facility does not exceed the requested facility.
+- Make sure the offered facility does not exceed the requested facility and is strictly less than contract value.
 - Make sure the offer has not already been accepted or signed.
 
-Once accepted or signed, the approved terms become the facility reference for related invoices.
+Once accepted or signed, the approved terms become the facility reference. New facility applications are facility-only; invoices are financed later from the approved facility.
 
 ### Send Invoice Offer
 
@@ -96,8 +96,9 @@ Use an invoice offer when an individual invoice is ready for approval. Before se
 
 - Review invoice value, requested financing ratio, requested amount, maturity, profit rate, and risk rating.
 - Make sure the offered amount does not exceed the requested amount.
+- Make sure offered financing fits **remaining credit** and invoice face fits **remaining allocation**. Pending invoices already occupy remaining credit (shown as **Reserved**). There is no over-limit override.
 - Make sure the maturity rules for the selected product are satisfied.
-- Reset rejected invoices to pending before sending an offer.
+- Reset rejected invoices to pending before sending an offer. Resend after expiry re-reserves under the same lock. A 14-day marketplace failure releases both ledgers.
 
 ## Status Guide
 

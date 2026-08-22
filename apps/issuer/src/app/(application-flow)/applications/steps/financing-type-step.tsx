@@ -81,7 +81,7 @@ export function FinancingTypeStep({
         <p className="font-medium text-foreground">Financing product not in the active catalog</p>
         <p className="text-ui leading-7">
           This application&apos;s product is no longer listed for new applications. You may need to start
-          a new application with a current product. Contact your administrator if you need help.
+          a new application with a current product. Contact CashSouk support if you need help.
         </p>
       </div>
     );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useAuthToken } from "@cashsouk/config";
 import { isPublicIssuerPath } from "./public-routes";
 
@@ -140,13 +140,26 @@ export async function logout(
  * Hook to check authentication and redirect if not authenticated
  * Uses Amplify session to check authentication status
  */
+function subscribePublicIssuerPath() {
+  return () => undefined;
+}
+
+function getPublicIssuerPathSnapshot() {
+  return isPublicIssuerPath(window.location.pathname);
+}
+
 export function useAuth() {
   const { getAccessToken, signOut } = useAuthToken();
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const isPublicPath = useSyncExternalStore(
+    subscribePublicIssuerPath,
+    getPublicIssuerPathSnapshot,
+    () => false
+  );
+  const [sessionAuth, setIsAuthenticated] = useState<boolean | null>(null);
+  const isAuthenticated = isPublicPath ? true : sessionAuth;
 
   useEffect(() => {
-    if (typeof window !== "undefined" && isPublicIssuerPath(window.location.pathname)) {
-      setIsAuthenticated(true);
+    if (isPublicPath) {
       return;
     }
 
@@ -200,7 +213,7 @@ export function useAuth() {
     };
 
     checkAuth();
-  }, [getAccessToken, signOut]); // Re-run if auth functions change
+  }, [getAccessToken, isPublicPath, signOut]);
 
   return { isAuthenticated, token: null }; // Token is managed by Amplify
 }

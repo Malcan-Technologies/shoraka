@@ -58,9 +58,12 @@ function toMarketplaceNote(note: NoteListItem): PublicMarketplaceNote {
   return {
     id: note.id,
     noteCode: note.noteReference.trim() || null,
-    issuerName: note.issuerName?.trim() || null,
+    purposeOfFinancing: note.purposeOfFinancing?.trim() || null,
+    contractTitle: note.contractTitle?.trim() || null,
+    purposeOfContract: note.purposeOfContract?.trim() || null,
     noteTitle: note.title?.trim() || null,
     productName: note.productName?.trim() || null,
+    productImageUrl: note.productImageUrl?.trim() || null,
     industry: note.issuerIndustry?.trim() || null,
     fundedAmount: note.fundedAmount,
     goalAmount: note.targetAmount,
@@ -238,7 +241,9 @@ export function PublicMarketplaceBrowser({
         normalizedSearchQuery.length === 0 ||
         (note.noteTitle ?? "").toLowerCase().includes(normalizedSearchQuery) ||
         (note.productName ?? "").toLowerCase().includes(normalizedSearchQuery) ||
-        (note.issuerName ?? "").toLowerCase().includes(normalizedSearchQuery) ||
+        (note.purposeOfFinancing ?? "").toLowerCase().includes(normalizedSearchQuery) ||
+        (note.contractTitle ?? "").toLowerCase().includes(normalizedSearchQuery) ||
+        (note.purposeOfContract ?? "").toLowerCase().includes(normalizedSearchQuery) ||
         (note.industry ?? "").toLowerCase().includes(normalizedSearchQuery) ||
         (note.noteCode ?? "").toLowerCase().includes(normalizedSearchQuery) ||
         formatNoteReferenceDisplay(note.noteCode).toLowerCase().includes(normalizedSearchQuery);

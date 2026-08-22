@@ -40,7 +40,7 @@ export function RecentNotesCard() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                       <span className="truncate text-sm font-semibold text-foreground">
-                        {note.title}
+                        {note.purposeOfFinancing?.trim() || note.title}
                       </span>
                       <span className="text-xs text-muted-foreground">{note.noteReference}</span>
                     </div>

@@ -3,8 +3,18 @@ import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { ContractRepository } from "../contracts/repository";
 import { AppError } from "../../lib/http/error-handler";
-import { Invoice } from "@prisma/client";
-import { ApplicationStatus, ContractStatus, InvoiceStatus, WithdrawReason } from "@cashsouk/types";
+import { Invoice, Prisma } from "@prisma/client";
+import {
+  ApplicationStatus,
+  ContractStatus,
+  InvoiceStatus,
+  WithdrawReason,
+  readFinancingStructureType,
+} from "@cashsouk/types";
+import {
+  assertExistingFacilityDrawdown,
+  assertMayAttachInvoiceToApplication,
+} from "../applications/split-origination-guards";
 import { computeApplicationStatus } from "../applications/lifecycle";
 import { prisma } from "../../lib/prisma";
 import {
@@ -28,7 +38,8 @@ import {
   allocateDisplayReference,
   resolveApplicationProductCode,
 } from "../../lib/display-reference";
-import { refreshContractFacilityValues } from "../../lib/refresh-contract-facility";
+import { applyContractCapacityChanges } from "../../lib/refresh-contract-facility";
+import { isReservedInvoiceStatus } from "../../lib/contract-facility";
 
 export class InvoiceService {
   private repository: InvoiceRepository;
@@ -47,6 +58,60 @@ export class InvoiceService {
 
   private facilityContractIds(...ids: Array<string | null | undefined>): string[] {
     return [...new Set(ids.filter((id): id is string => Boolean(id)))];
+  }
+
+  /**
+   * existing_contract invoices always persist the application's selected approved
+   * facility. Caller contractId is accepted only when it matches. invoice_only and
+   * legacy combined applications keep the caller-supplied contractId (or omit it).
+   */
+  private async resolveCreateInvoiceContractId(args: {
+    callerContractId: string | undefined;
+    application: {
+      financing_type?: unknown;
+      financing_structure?: unknown;
+      issuer_organization_id?: string | null;
+      contract_id?: string | null;
+    };
+    tx: {
+      contract: {
+        findUnique: (query: {
+          where: { id: string };
+          select: { id: true; status: true; issuer_organization_id: true };
+        }) => Promise<{
+          id: string;
+          status: string | null;
+          issuer_organization_id: string | null;
+        } | null>;
+      };
+    };
+  }): Promise<string | null | undefined> {
+    const structureType = readFinancingStructureType(args.application.financing_structure);
+    if (structureType !== "existing_contract") {
+      return args.callerContractId;
+    }
+
+    const selectedFacilityId = args.application.contract_id ?? null;
+    if (
+      args.callerContractId &&
+      selectedFacilityId &&
+      args.callerContractId !== selectedFacilityId
+    ) {
+      throw new AppError(
+        400,
+        "FACILITY_CONTRACT_MISMATCH",
+        "This invoice must use the approved facility selected on the application."
+      );
+    }
+
+    const drawdownContract = selectedFacilityId
+      ? await args.tx.contract.findUnique({
+          where: { id: selectedFacilityId },
+          select: { id: true, status: true, issuer_organization_id: true },
+        })
+      : null;
+    assertExistingFacilityDrawdown(args.application, drawdownContract);
+    return selectedFacilityId;
   }
 
   private normalizeInvoiceNumber(details: unknown): string | null {
@@ -98,12 +163,12 @@ export class InvoiceService {
     }
   }
 
-  private async refreshLinkedContractFacilities(
+  private reservedContractIds(
+    status: string | null | undefined,
     ...ids: Array<string | null | undefined>
-  ): Promise<void> {
-    for (const contractId of this.facilityContractIds(...ids)) {
-      await refreshContractFacilityValues(contractId);
-    }
+  ): string[] {
+    if (!isReservedInvoiceStatus(status)) return [];
+    return this.facilityContractIds(...ids);
   }
 
   private async loadWorkflowForApplication(applicationId: string): Promise<unknown | null> {
@@ -208,7 +273,12 @@ export class InvoiceService {
     return contract;
   }
 
-  async createInvoice(applicationId: string, contractId: string | undefined, details: any, userId: string): Promise<Invoice> {
+  async createInvoice(
+    applicationId: string,
+    contractId: string | undefined,
+    details: any,
+    userId: string
+  ): Promise<Invoice> {
     await this.verifyApplicationAccess(applicationId, userId);
 
     const workflow = await this.loadWorkflowForApplication(applicationId);
@@ -226,30 +296,36 @@ export class InvoiceService {
           where: { application_id: applicationId },
         });
         if (existingInvoiceCount >= 1) {
-          throw new AppError(
-            400,
-            "MAX_INVOICES_REACHED",
-            "Applications allow only one invoice."
-          );
+          throw new AppError(400, "MAX_INVOICES_REACHED", "Applications allow only one invoice.");
         }
-
-        await this.assertUniqueInvoiceNumberOnFacility({
-          contractId,
-          details,
-          tx,
-        });
 
         const applicationRow = await tx.application.findUnique({
           where: { id: applicationId },
           select: {
             id: true,
             financing_type: true,
+            financing_structure: true,
+            issuer_organization_id: true,
+            contract_id: true,
             product_version: true,
           },
         });
         if (!applicationRow) {
           throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
         }
+
+        assertMayAttachInvoiceToApplication(applicationRow);
+        const persistedContractId = await this.resolveCreateInvoiceContractId({
+          callerContractId: contractId,
+          application: applicationRow,
+          tx,
+        });
+
+        await this.assertUniqueInvoiceNumberOnFacility({
+          contractId: persistedContractId,
+          details,
+          tx,
+        });
 
         const productCode = await resolveApplicationProductCode(tx, {
           id: applicationRow.id,
@@ -267,7 +343,7 @@ export class InvoiceService {
         const created = await tx.invoice.create({
           data: {
             application_id: applicationId,
-            contract_id: contractId,
+            contract_id: persistedContractId,
             details,
           },
         });
@@ -297,9 +373,15 @@ export class InvoiceService {
       if (s3Key) {
         try {
           await deleteS3Object(s3Key);
-          logger.info({ applicationId, s3Key }, "Deleted orphan invoice document after create failure");
+          logger.info(
+            { applicationId, s3Key },
+            "Deleted orphan invoice document after create failure"
+          );
         } catch (delErr) {
-          logger.warn({ applicationId, s3Key, err: delErr }, "Cleanup: failed to delete orphan invoice document");
+          logger.warn(
+            { applicationId, s3Key, err: delErr },
+            "Cleanup: failed to delete orphan invoice document"
+          );
         }
       }
       throw err;
@@ -311,179 +393,197 @@ export class InvoiceService {
   }
 
   async updateInvoice(id: string, payload: any, userId: string): Promise<Invoice> {
-  const invoice = await this.verifyInvoiceAccess(id, userId);
+    const invoice = await this.verifyInvoiceAccess(id, userId);
 
-  if (invoice.status === InvoiceStatus.APPROVED) {
-    throw new AppError(400, "BAD_REQUEST", "Cannot update an approved invoice");
-  }
-
-  /**
-   * PARSE PAYLOAD
-   * Can contain:
-   * - details: partial invoice details
-   * - document: top-level document field
-   * - contractId: optional, can be null or cuid string
-   */
-  const { contractId, details, document, ...otherFields } = payload;
-
-  const prevS3Key = (invoice.details as any)?.document?.s3_key;
-  const nextS3Key = document?.s3_key;
-
-  /**
-   * MERGE DETAILS
-   * Combine existing details with new details and document
-   */
-  let updatedDetails = invoice.details as object;
-
-  if (details && Object.keys(details).length > 0) {
-    updatedDetails = {
-      ...updatedDetails,
-      ...details,
-    };
-  }
-
-  if (document !== undefined) {
-    updatedDetails = {
-      ...updatedDetails,
-      document,
-    };
-  }
-
-  if (Object.keys(otherFields).length > 0) {
-    updatedDetails = {
-      ...updatedDetails,
-      ...otherFields,
-    };
-  }
-
-  const applicationId = (invoice as { application_id: string }).application_id;
-  const applicationRow = applicationId
-    ? await this.applicationRepository.findById(applicationId)
-    : null;
-  const preserveInvoiceDocsInAmendment = shouldPreserveApplicationDocumentsInS3(
-    (applicationRow as { status?: string } | null)?.status
-  );
-  const workflow = await this.loadWorkflowForApplication(applicationId);
-  if (workflow) {
-    assertMaturityForApplication(workflow, updatedDetails as Record<string, unknown>);
-  }
-
-  const effectiveContractId =
-    contractId !== undefined
-      ? contractId
-      : (invoice as { contract_id?: string | null }).contract_id;
-  await this.assertUniqueInvoiceNumberOnFacility({
-    contractId: effectiveContractId,
-    details: updatedDetails,
-    excludeInvoiceId: id,
-  });
-
-  /**
-   * BUILD UPDATE PAYLOAD
-   * Include contractId if provided
-   */
-  const updatePayload: any = {
-    details: updatedDetails,
-    updated_at: new Date(),
-  };
-
-  if (contractId !== undefined) {
-    updatePayload.contract_id = contractId;
-  }
-
-  const isNewDocumentUpload = nextS3Key && nextS3Key !== prevS3Key;
-
-  try {
-    const updatedInvoice = await this.repository.update(id, updatePayload);
-
-    if (
-      !preserveInvoiceDocsInAmendment &&
-      prevS3Key &&
-      nextS3Key &&
-      prevS3Key !== nextS3Key
-    ) {
-      try {
-        await deleteS3Object(prevS3Key);
-        logger.info(
-          { invoiceId: id, prevS3Key, nextS3Key },
-          "Old invoice document deleted after version replacement"
-        );
-      } catch (err) {
-        logger.error(
-          { invoiceId: id, prevS3Key, err },
-          "Failed to delete old invoice document from S3"
-        );
-      }
-    } else if (
-      preserveInvoiceDocsInAmendment &&
-      prevS3Key &&
-      nextS3Key &&
-      prevS3Key !== nextS3Key
-    ) {
-      logger.info(
-        { invoiceId: id, prevS3Key, nextS3Key },
-        "Skipped old invoice document S3 delete: AMENDMENT_REQUESTED (preserve for compare/audit)"
-      );
+    if (invoice.status === InvoiceStatus.APPROVED) {
+      throw new AppError(400, "BAD_REQUEST", "Cannot update an approved invoice");
     }
 
-    await this.refreshLinkedContractFacilities(
+    /**
+     * PARSE PAYLOAD
+     * Can contain:
+     * - details: partial invoice details
+     * - document: top-level document field
+     * - contractId: optional, can be null or cuid string
+     */
+    const { contractId, details, document, ...otherFields } = payload;
+
+    const prevS3Key = (invoice.details as any)?.document?.s3_key;
+    const nextS3Key = document?.s3_key;
+
+    /**
+     * MERGE DETAILS
+     * Combine existing details with new details and document
+     */
+    let updatedDetails = invoice.details as object;
+
+    if (details && Object.keys(details).length > 0) {
+      updatedDetails = {
+        ...updatedDetails,
+        ...details,
+      };
+    }
+
+    if (document !== undefined) {
+      updatedDetails = {
+        ...updatedDetails,
+        document,
+      };
+    }
+
+    if (Object.keys(otherFields).length > 0) {
+      updatedDetails = {
+        ...updatedDetails,
+        ...otherFields,
+      };
+    }
+
+    const applicationId = (invoice as { application_id: string }).application_id;
+    const applicationRow = applicationId
+      ? await this.applicationRepository.findById(applicationId)
+      : null;
+    const preserveInvoiceDocsInAmendment = shouldPreserveApplicationDocumentsInS3(
+      (applicationRow as { status?: string } | null)?.status
+    );
+    const workflow = await this.loadWorkflowForApplication(applicationId);
+    if (workflow) {
+      assertMaturityForApplication(workflow, updatedDetails as Record<string, unknown>);
+    }
+
+    const effectiveContractId =
+      contractId !== undefined
+        ? contractId
+        : (invoice as { contract_id?: string | null }).contract_id;
+    await this.assertUniqueInvoiceNumberOnFacility({
+      contractId: effectiveContractId,
+      details: updatedDetails,
+      excludeInvoiceId: id,
+    });
+
+    /**
+     * BUILD UPDATE PAYLOAD
+     * Include contractId if provided
+     */
+    const updatePayload: any = {
+      details: updatedDetails,
+      updated_at: new Date(),
+    };
+
+    if (contractId !== undefined) {
+      updatePayload.contract_id = contractId;
+    }
+
+    const isNewDocumentUpload = nextS3Key && nextS3Key !== prevS3Key;
+    const capacityContractIds = this.reservedContractIds(
+      invoice.status,
       invoice.contract_id,
-      updatedInvoice.contract_id,
+      effectiveContractId,
       (applicationRow as { contract_id?: string | null } | null)?.contract_id
     );
 
-    return updatedInvoice;
-  } catch (err) {
-    if (isNewDocumentUpload && nextS3Key) {
-      try {
-        await deleteS3Object(nextS3Key);
-        logger.info({ invoiceId: id, s3Key: nextS3Key }, "Deleted orphan invoice document after update failure");
-      } catch (delErr) {
-        logger.warn({ invoiceId: id, s3Key: nextS3Key, err: delErr }, "Cleanup: failed to delete orphan invoice document");
-      }
-    }
-    throw err;
-  }
-}
-
-
-
-
-
-async deleteInvoice(id: string, userId: string) {
-  const invoice = await this.verifyInvoiceAccess(id, userId);
-
-  const s3Key = (invoice.details as any)?.document?.s3_key;
-  const application = invoice.application_id
-    ? await this.applicationRepository.findById(invoice.application_id)
-    : null;
-
-  const previousContractId =
-    invoice.contract_id ??
-    (application as { contract_id?: string | null } | null)?.contract_id ??
-    null;
-
-  // delete DB first OR last — your choice
-  await this.repository.delete(id);
-  await this.refreshLinkedContractFacilities(previousContractId);
-
-  if (
-    s3Key &&
-    !shouldPreserveApplicationDocumentsInS3((application as { status?: string } | null)?.status)
-  ) {
     try {
-      await deleteS3Object(s3Key);
-    } catch (err) {
-      logger.error({ id, s3Key, err }, "Failed to delete invoice S3 object");
-    }
-  } else if (s3Key) {
-    logger.info(
-      { invoiceId: id, s3Key },
-      "Skipped invoice S3 delete on invoice row removal: AMENDMENT_REQUESTED (preserve for compare/audit)"
-    );
-  }
-}
+      const persistInvoiceInTx = async (tx: { invoice: { update: typeof prisma.invoice.update } }) => {
+        return tx.invoice.update({
+          where: { id },
+          data: updatePayload,
+        });
+      };
 
+      const updatedInvoice =
+        capacityContractIds.length > 0
+          ? (
+              await applyContractCapacityChanges(
+                capacityContractIds,
+                prisma,
+                (tx) => persistInvoiceInTx(tx),
+                { assertWrite: true }
+              )
+            ).result
+          : await this.repository.update(id, updatePayload);
+
+      if (!preserveInvoiceDocsInAmendment && prevS3Key && nextS3Key && prevS3Key !== nextS3Key) {
+        try {
+          await deleteS3Object(prevS3Key);
+          logger.info(
+            { invoiceId: id, prevS3Key, nextS3Key },
+            "Old invoice document deleted after version replacement"
+          );
+        } catch (err) {
+          logger.error(
+            { invoiceId: id, prevS3Key, err },
+            "Failed to delete old invoice document from S3"
+          );
+        }
+      } else if (
+        preserveInvoiceDocsInAmendment &&
+        prevS3Key &&
+        nextS3Key &&
+        prevS3Key !== nextS3Key
+      ) {
+        logger.info(
+          { invoiceId: id, prevS3Key, nextS3Key },
+          "Skipped old invoice document S3 delete: AMENDMENT_REQUESTED (preserve for compare/audit)"
+        );
+      }
+
+      return updatedInvoice;
+    } catch (err) {
+      if (isNewDocumentUpload && nextS3Key) {
+        try {
+          await deleteS3Object(nextS3Key);
+          logger.info(
+            { invoiceId: id, s3Key: nextS3Key },
+            "Deleted orphan invoice document after update failure"
+          );
+        } catch (delErr) {
+          logger.warn(
+            { invoiceId: id, s3Key: nextS3Key, err: delErr },
+            "Cleanup: failed to delete orphan invoice document"
+          );
+        }
+      }
+      throw err;
+    }
+  }
+
+  async deleteInvoice(id: string, userId: string) {
+    const invoice = await this.verifyInvoiceAccess(id, userId);
+
+    const s3Key = (invoice.details as any)?.document?.s3_key;
+    const application = invoice.application_id
+      ? await this.applicationRepository.findById(invoice.application_id)
+      : null;
+
+    const previousContractId =
+      invoice.contract_id ??
+      (application as { contract_id?: string | null } | null)?.contract_id ??
+      null;
+    const capacityContractIds = this.reservedContractIds(invoice.status, previousContractId);
+
+    if (capacityContractIds.length > 0) {
+      await applyContractCapacityChanges(capacityContractIds, prisma, async (tx) => {
+        await tx.invoice.delete({ where: { id } });
+      });
+    } else {
+      await this.repository.delete(id);
+    }
+
+    if (
+      s3Key &&
+      !shouldPreserveApplicationDocumentsInS3((application as { status?: string } | null)?.status)
+    ) {
+      try {
+        await deleteS3Object(s3Key);
+      } catch (err) {
+        logger.error({ id, s3Key, err }, "Failed to delete invoice S3 object");
+      }
+    } else if (s3Key) {
+      logger.info(
+        { invoiceId: id, s3Key },
+        "Skipped invoice S3 delete on invoice row removal: AMENDMENT_REQUESTED (preserve for compare/audit)"
+      );
+    }
+  }
 
   async getInvoicesByApplication(applicationId: string, userId: string): Promise<Invoice[]> {
     await this.verifyApplicationAccess(applicationId, userId);
@@ -521,11 +621,17 @@ async deleteInvoice(id: string, userId: string) {
     const applicationId = (invoice as any).application_id;
 
     if (params.existingS3Key) {
-      logger.debug({ existingS3Key: params.existingS3Key, invoiceId: params.invoiceId }, "invoice.requestUploadUrl received existingS3Key");
+      logger.debug(
+        { existingS3Key: params.existingS3Key, invoiceId: params.invoiceId },
+        "invoice.requestUploadUrl received existingS3Key"
+      );
       // Prefer parsing the existing key to extract cuid and version, then bump version while keeping cuid
       const parsed = parseApplicationDocumentKey(params.existingS3Key);
       if (!parsed) {
-        logger.warn({ key: params.existingS3Key }, "Failed to parse existingS3Key with parseApplicationDocumentKey");
+        logger.warn(
+          { key: params.existingS3Key },
+          "Failed to parse existingS3Key with parseApplicationDocumentKey"
+        );
         throw new AppError(400, "INVALID_S3_KEY", "Failed to parse existing S3 key for versioning");
       }
 
@@ -534,7 +640,8 @@ async deleteInvoice(id: string, userId: string) {
       const date = new Date().toISOString().split("T")[0];
       s3Key = `applications/${parsed.applicationId}/v${newVersion}-${date}-${parsed.cuid}.${extension}`;
     } else {
-      const cuid = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      const cuid =
+        Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
       s3Key = generateApplicationDocumentKey({
         applicationId: String(applicationId),
         cuid,
@@ -557,7 +664,9 @@ async deleteInvoice(id: string, userId: string) {
       ? await this.applicationRepository.findById(invoice.application_id)
       : null;
 
-    if (shouldPreserveApplicationDocumentsInS3((application as { status?: string } | null)?.status)) {
+    if (
+      shouldPreserveApplicationDocumentsInS3((application as { status?: string } | null)?.status)
+    ) {
       logger.info(
         { invoiceId, s3Key },
         "Skipped invoice document S3 delete: AMENDMENT_REQUESTED (preserve for compare/audit)"
@@ -576,7 +685,11 @@ async deleteInvoice(id: string, userId: string) {
     const invoice = await this.verifyInvoiceAccess(id, userId);
 
     if (invoice.status === InvoiceStatus.APPROVED) {
-      throw new AppError(400, "BAD_REQUEST", "This invoice has already been approved and can no longer be withdrawn.");
+      throw new AppError(
+        400,
+        "BAD_REQUEST",
+        "This invoice has already been approved and can no longer be withdrawn."
+      );
     }
 
     if (invoice.status === InvoiceStatus.WITHDRAWN) {
@@ -586,8 +699,12 @@ async deleteInvoice(id: string, userId: string) {
     const finalReason = reason ?? WithdrawReason.USER_CANCELLED;
     const previousStatus = invoice.status;
     const applicationId = invoice.application_id;
+    const capacityContractIds = this.facilityContractIds(
+      invoice.contract_id,
+      (invoice as { application?: { contract_id?: string | null } }).application?.contract_id
+    );
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const persistWithdraw = async (tx: Prisma.TransactionClient) => {
       const next = await tx.invoice.update({
         where: { id },
         data: {
@@ -630,14 +747,18 @@ async deleteInvoice(id: string, userId: string) {
         : null;
       const currentStatus = (app?.status as ApplicationStatus) ?? ApplicationStatus.DRAFT;
       const isInvoiceOnly =
-        (app?.financing_structure as { structure_type?: string } | null)?.structure_type === "invoice_only";
+        (app?.financing_structure as { structure_type?: string } | null)?.structure_type ===
+        "invoice_only";
       const newStatus = computeApplicationStatus(
         contract ? { status: contract.status as ContractStatus } : null,
         allInvoices.map((i) => ({ status: i.status as InvoiceStatus })),
         currentStatus,
         { isInvoiceOnly }
       );
-      if (newStatus === ApplicationStatus.WITHDRAWN && currentStatus !== ApplicationStatus.WITHDRAWN) {
+      if (
+        newStatus === ApplicationStatus.WITHDRAWN &&
+        currentStatus !== ApplicationStatus.WITHDRAWN
+      ) {
         await tx.application.update({
           where: { id: applicationId },
           data: { status: ApplicationStatus.WITHDRAWN },
@@ -660,12 +781,12 @@ async deleteInvoice(id: string, userId: string) {
       }
 
       return next;
-    });
+    };
 
-    await this.refreshLinkedContractFacilities(
-      invoice.contract_id,
-      (invoice as { application?: { contract_id?: string | null } }).application?.contract_id
-    );
+    const updated =
+      capacityContractIds.length > 0
+        ? (await applyContractCapacityChanges(capacityContractIds, prisma, persistWithdraw)).result
+        : await prisma.$transaction(persistWithdraw);
 
     return updated;
   }

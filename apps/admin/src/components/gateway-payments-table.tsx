@@ -4,7 +4,7 @@ import { ListToolbar, ListToolbarFilterTrigger, StatusBadge, type FilterChip } f
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   ArrowTopRightOnSquareIcon,
@@ -184,23 +184,20 @@ function GatewayPaymentsTableContent({
   const [searchInput, setSearchInput] = useState(qFromUrl);
   const [debouncedSearch, setDebouncedSearch] = useState(qFromUrl.trim());
   const [currentPage, setCurrentPage] = useState(1);
+  const urlSnapshot = `${filterFromUrl}|${accountFromUrl}|${purposeFromUrl}|${qFromUrl}`;
+  const [prevUrlSnapshot, setPrevUrlSnapshot] = useState(urlSnapshot);
 
-  // Restore list state when URL changes (shared links / browser back-forward).
-  useEffect(() => {
+  if (prevUrlSnapshot !== urlSnapshot) {
+    setPrevUrlSnapshot(urlSnapshot);
     const nextFilter = isGatewayFilter(filterFromUrl) ? filterFromUrl : "all";
     const nextAccount = isGatewayAccountFilter(accountFromUrl) ? accountFromUrl : "ALL";
     const nextPurpose = isPurposeFilter(purposeFromUrl) ? purposeFromUrl : "all";
-    const nextQ = qFromUrl;
-
-    setFilter((prev) => (prev === nextFilter ? prev : nextFilter));
-    setGatewayAccount((prev) => (prev === nextAccount ? prev : nextAccount));
-    setPurpose((prev) => (prev === nextPurpose ? prev : nextPurpose));
-    setSearchInput((prev) => (prev === nextQ ? prev : nextQ));
-    setDebouncedSearch((prev) => {
-      const trimmed = nextQ.trim();
-      return prev === trimmed ? prev : trimmed;
-    });
-  }, [accountFromUrl, filterFromUrl, purposeFromUrl, qFromUrl]);
+    setFilter(nextFilter);
+    setGatewayAccount(nextAccount);
+    setPurpose(nextPurpose);
+    setSearchInput(qFromUrl);
+    setDebouncedSearch(qFromUrl.trim());
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -231,9 +228,12 @@ function GatewayPaymentsTableContent({
     searchParams,
   ]);
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedSearch, filter, gatewayAccount, purpose]);
+  const listKey = `${debouncedSearch}|${filter}|${gatewayAccount}|${purpose}`;
+  const [prevListKey, setPrevListKey] = useState(listKey);
+  if (prevListKey !== listKey) {
+    setPrevListKey(listKey);
+    if (currentPage !== 1) setCurrentPage(1);
+  }
 
   const { data, isLoading, error, refetch, isFetching } = useGatewayPayments({
     page: currentPage,
@@ -250,11 +250,9 @@ function GatewayPaymentsTableContent({
   const startIndex = total === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
   const endIndex = Math.min(currentPage * PAGE_SIZE, total);
 
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
+  if (currentPage > totalPages) {
+    setCurrentPage(totalPages);
+  }
 
   const activeFilterCount = [
     filter !== "all",
@@ -265,14 +263,14 @@ function GatewayPaymentsTableContent({
   const hasActiveFilters =
     activeFilterCount > 0 || Boolean(debouncedSearch) || Boolean(searchInput.trim());
 
-  const clearFilters = useCallback(() => {
+  const clearFilters = () => {
     setFilter("all");
     setGatewayAccount("ALL");
     setPurpose("all");
     setSearchInput("");
     setDebouncedSearch("");
     setCurrentPage(1);
-  }, []);
+  };
 
   const appliedFilters: FilterChip[] = [];
   if (filter !== "all") {

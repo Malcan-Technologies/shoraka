@@ -30,9 +30,9 @@
  *    - Financing ratio must be a whole percent within the product min/max (e.g. 60%–80%).
  *    - Editing maximum financing amount uses ceil(amount ÷ invoice value × 100), then clamps to that range.
  *
- * 9. Facility limit
- *    - Requested financing above remaining available is a warning, not a hard block.
- *      Admin can still size or accept the offer.
+ * 9. Facility limits (existing facility)
+ *    - Draft overage is an amber preview: saveable, not submittable.
+ *    - Reserved amendment overage is a hard inline/server error.
  */
 
 
@@ -51,7 +51,6 @@ import { Button } from "@/components/ui/button";
 import { createApiClient, useAuthToken, ApiClient, resolveApprovedFacility } from "@cashsouk/config";
 import { toast } from "sonner";
 import { ExclamationTriangleIcon, TrashIcon, XMarkIcon } from "@heroicons/react/24/outline";
-import { cn } from "@cashsouk/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIssuerProducts } from "@/hooks/use-products";
 import { useInvoicesByContract } from "@/hooks/use-invoices";
@@ -71,10 +70,15 @@ import {
   Product,
   ApiResponse,
   ApiError,
+  dualLimitOverageCopy,
+  isEditableReservedInvoiceStatus,
+  mapCapacityApiError,
+  previewDualLimits,
 } from "@cashsouk/types";
 import { InvoiceErrorCard } from "../components/amendments";
 import { StatusBadge } from "@/app/(application-flow)/applications/components/invoice-status-badge";
 import { formatMoney, parseMoney } from "@cashsouk/ui";
+import { ExistingFacilityLimitPreview } from "@/app/(application-flow)/applications/components/existing-facility-limit-preview";
 import { InvoiceDetailsSkeleton } from "@/app/(application-flow)/applications/components/invoice-details-skeleton";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { generateInvoiceData } from "../utils/dev-data-generator";
@@ -350,6 +354,7 @@ export default function InvoiceDetailsStep({
   const [isLoadingInvoices, setIsLoadingInvoices] = React.useState(true);
   const [isInitialized, setIsInitialized] = React.useState(false);
   const [hasSubmitted, setHasSubmitted] = React.useState(false);
+  const [capacityServerError, setCapacityServerError] = React.useState<string | null>(null);
   const [activeInvoiceTab, setActiveInvoiceTab] = React.useState<string | null>(null);
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
@@ -755,12 +760,18 @@ export default function InvoiceDetailsStep({
       ? cd.financing
       : parseMoney(String(cd?.financing ?? ""));
 
-  /** For existing_contract: use stored available_facility from backend (approved - utilized, utilized = approved invoices only). */
+  /** Live snapshot from typed columns overlaid onto contract_details. Pending already reduces available. */
   const storedAvailableFacility =
     typeof cd?.available_facility === "number"
       ? cd.available_facility
       : cd?.available_facility != null
         ? parseMoney(String(cd.available_facility))
+        : null;
+  const storedLifetimeRemaining =
+    typeof cd?.lifetime_remaining === "number"
+      ? cd.lifetime_remaining
+      : cd?.lifetime_remaining != null
+        ? parseMoney(String(cd.lifetime_remaining))
         : null;
 
   const structureType =
@@ -814,14 +825,32 @@ export default function InvoiceDetailsStep({
     return acc + value * ratio;
   }, 0);
 
-  /** For existing_contract: sum of financing for invoices not yet approved (DRAFT, SUBMITTED). Used for facility validation. */
-  const nonApprovedFinancingAmount = invoices
-    .filter((inv) => inv.status !== "APPROVED")
-    .reduce((sum, inv) => {
-      const value = parseMoney(inv.value);
-      const ratio = (inv.financing_ratio_percent ?? displayMinRatio) / 100;
-      return sum + value * ratio;
-    }, 0);
+  const previewInvoice = invoices.find((inv) => !isRowEmpty(inv)) ?? invoices[0] ?? null;
+  const previewFinancingAmount = previewInvoice
+    ? parseMoney(previewInvoice.value) *
+      ((previewInvoice.financing_ratio_percent ?? displayMinRatio) / 100)
+    : 0;
+  const previewInvoiceFace = previewInvoice ? parseMoney(previewInvoice.value) : 0;
+  const persistedPreview = previewInvoice ? initialInvoices[previewInvoice.id] : undefined;
+  const addBackReserved = isEditableReservedInvoiceStatus(previewInvoice?.status);
+  const dualLimitPreview = previewDualLimits({
+    availableFacility: storedAvailableFacility,
+    lifetimeRemaining: storedLifetimeRemaining,
+    financingAmount: previewFinancingAmount,
+    invoiceFace: previewInvoiceFace,
+    addBackFinancing: addBackReserved && persistedPreview
+      ? parseMoney(persistedPreview.value) *
+        ((persistedPreview.financing_ratio_percent ?? displayMinRatio) / 100)
+      : 0,
+    addBackFace: addBackReserved && persistedPreview ? parseMoney(persistedPreview.value) : 0,
+  });
+  const reservedOverageCopy = addBackReserved
+    ? dualLimitOverageCopy(dualLimitPreview, "reserved")
+    : null;
+  const draftOverageCopy =
+    isExistingContract && !addBackReserved
+      ? dualLimitOverageCopy(dualLimitPreview, "draft")
+      : null;
 
   if (shouldRunValidation) {
     if (!productConfig && application?.financing_type?.product_id) {
@@ -867,11 +896,16 @@ export default function InvoiceDetailsStep({
     }
 
     /** Facility limit only for new_contract and existing_contract (invoice_only has no facility). */
-    if (!isInvoiceOnly) {
-      const amountToCheck = isExistingContract ? nonApprovedFinancingAmount : totalFinancingAmount;
-      if (amountToCheck > facilityLimit) {
-        facilityCapacityWarning = `Total financing amount (RM ${formatMoney(amountToCheck)}) exceeds remaining facility capacity (RM ${formatMoney(facilityLimit)}). You can still save; CashSouk may size the offer.`;
+    if (!isInvoiceOnly && !isExistingContract) {
+      if (totalFinancingAmount > facilityLimit) {
+        facilityCapacityWarning = `Total financing amount (RM ${formatMoney(totalFinancingAmount)}) exceeds remaining facility capacity (RM ${formatMoney(facilityLimit)}). You can still save; CashSouk may size the offer.`;
       }
+    }
+    if (!validationError && reservedOverageCopy) {
+      validationError = reservedOverageCopy;
+    }
+    if (!facilityCapacityWarning && draftOverageCopy) {
+      facilityCapacityWarning = draftOverageCopy;
     }
 
     if (!validationError) {
@@ -930,6 +964,7 @@ export default function InvoiceDetailsStep({
 
   const saveFunction = async () => {
     setHasSubmitted(true);
+    setCapacityServerError(null);
     /**
      * VALIDATION CHECK
      *
@@ -939,7 +974,7 @@ export default function InvoiceDetailsStep({
       toast.error(
         application?.financing_type?.product_id
           ? "Product configuration is incomplete. Min and max financing ratio must be set in the product workflow."
-          : "Product configuration is missing. Please contact administrator."
+          : "Product configuration is missing. Please contact CashSouk support."
       );
       throw new Error("VALIDATION_PRODUCT_CONFIG");
     }
@@ -1021,10 +1056,13 @@ export default function InvoiceDetailsStep({
         if (!createResp.success) {
           const isMaxInvoices = createResp.error.code === "MAX_INVOICES_REACHED";
           const isDuplicate = createResp.error.code === "DUPLICATE_INVOICE_NUMBER";
+          const capacityMessage = mapCapacityApiError(createResp.error);
+          if (capacityMessage) setCapacityServerError(capacityMessage);
           toast.error(
-            isMaxInvoices
-              ? createResp.error.message || MAX_ONE_INVOICE_MESSAGE
-              : createResp.error.message || "Failed to create invoice"
+            capacityMessage ??
+              (isMaxInvoices
+                ? createResp.error.message || MAX_ONE_INVOICE_MESSAGE
+                : createResp.error.message || "Failed to create invoice")
           );
           throw new Error(
             isMaxInvoices
@@ -1072,7 +1110,9 @@ export default function InvoiceDetailsStep({
         }
         const updateResp = await apiClient.updateInvoice(invoiceId, updatePayload);
         if (!updateResp.success) {
-          toast.error(updateResp.error.message || "Failed to update invoice");
+          const capacityMessage = mapCapacityApiError(updateResp.error);
+          if (capacityMessage) setCapacityServerError(capacityMessage);
+          toast.error(capacityMessage ?? (updateResp.error.message || "Failed to update invoice"));
           throw new Error(
             updateResp.error.code === "DUPLICATE_INVOICE_NUMBER"
               ? "VALIDATION_DUPLICATE_INVOICE_NUMBER"
@@ -1423,38 +1463,13 @@ export default function InvoiceDetailsStep({
                 </div>
 
                 {structureType === "existing_contract" && (
-                  <>
-                    {/* ================= Approved Facility ================= */}
-                    <div className={formLabelClassName}>Approved Facility</div>
-                    <div className={valueClassName}>
-                      {typeof cd?.approved_facility === "number"
-                        ? `RM ${formatMoney(cd.approved_facility)}`
-                        : "N/A"}
-                    </div>
-
-                    {/* ================= Utilised Facility ================= */}
-                    <div className={formLabelClassName}>Utilised Facility</div>
-                    <div className={valueClassName}>
-                      {typeof cd?.utilized_facility === "number"
-                        ? `RM ${formatMoney(cd.utilized_facility)}`
-                        : "N/A"}
-                    </div>
-
-                    {/* ================= Available Facility ================= */}
-                    <div className={formLabelClassName}>Available Facility</div>
-                    <div
-                      className={cn(
-                        "text-sm md:text-base leading-6 font-medium",
-                        typeof cd?.available_facility === "number" &&
-                        cd.available_facility < 0 &&
-                        "text-destructive"
-                      )}
-                    >
-                      {typeof cd?.available_facility === "number"
-                        ? `RM ${formatMoney(cd.available_facility)}`
-                        : "N/A"}
-                    </div>
-                  </>
+                  <div className="col-span-full">
+                    <ExistingFacilityLimitPreview
+                      preview={dualLimitPreview}
+                      warning={draftOverageCopy}
+                      hardError={capacityServerError ?? reservedOverageCopy}
+                    />
+                  </div>
                 )}
               </div>
             </div>
@@ -1641,9 +1656,9 @@ export default function InvoiceDetailsStep({
               {validationError}
             </div>
           ) : null}
-          {facilityCapacityWarning ? (
-            <div className="mx-3 mt-4 flex items-center gap-2 rounded-xl border border-border bg-muted/20 px-4 py-3 text-sm font-medium text-foreground">
-              <ExclamationTriangleIcon className="h-5 w-5 shrink-0 text-muted-foreground" />
+          {facilityCapacityWarning && structureType !== "existing_contract" ? (
+            <div className="mx-3 mt-4 flex items-center gap-2 rounded-xl border border-status-action-text/30 bg-status-action-bg px-4 py-3 text-ui font-medium text-status-action-text">
+              <ExclamationTriangleIcon className="h-5 w-5 shrink-0" />
               {facilityCapacityWarning}
             </div>
           ) : null}

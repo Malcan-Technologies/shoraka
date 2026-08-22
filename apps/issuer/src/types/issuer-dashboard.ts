@@ -58,6 +58,10 @@ export type IssuerDashboardContract = {
   availableFacilityAmount: string | null;
   pendingFacilityAmount?: string | null;
   repaidFacilityAmount?: string | null;
+  lifetimeCapAmount?: string | null;
+  lifetimeUsedAmount?: string | null;
+  lifetimeRemainingAmount?: string | null;
+  contractValueAmount?: string | null;
   facilityFeeCapAmount: string | null;
   facilityFeePaidAmount: string | null;
   facilityFeeRemainingAmount: string | null;

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DocumentTextIcon, LinkIcon } from "@heroicons/react/24/outline";
-import { StatusBadge } from "@cashsouk/ui";
+import { ProductCatalogName, StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { IssuerDashboardInvoice } from "@/types/issuer-dashboard";
@@ -40,6 +40,7 @@ import {
   issuerCampaignCloseLabel,
   issuerCampaignDaysLeftLabel,
 } from "./marketplace-campaign";
+import { FacilityTiedLink } from "./facility-tied-link";
 
 function OfferStatusBadge({ offerStatus }: { offerStatus: OfferStatus }) {
   if (!offerStatus) return null;
@@ -112,6 +113,9 @@ export function DashboardInvoiceCard({
   row,
   offerStatus,
   contractFeeContext,
+  facilityDisplayReference,
+  productName,
+  productImageS3Key,
 }: {
   row: IssuerDashboardInvoice;
   offerStatus: OfferStatus;
@@ -120,6 +124,9 @@ export function DashboardInvoiceCard({
     facilityFeeCapAmount?: unknown;
     facilityFeePaidAmount?: unknown;
   };
+  facilityDisplayReference?: string | null;
+  productName?: string | null;
+  productImageS3Key?: string | null;
 }) {
   const router = useRouter();
   const actionRequiredApplicationIds = row.actionRequiredApplicationIds ?? [];
@@ -288,6 +295,13 @@ export function DashboardInvoiceCard({
             <div className="grid grid-cols-1 items-start gap-x-6 gap-y-2 md:grid-cols-2">
               <div className="min-w-0 space-y-2">
                 <LabelValue label="Customer">{displayCell(row.customerName)}</LabelValue>
+                <LabelValue label="Product">
+                  <ProductCatalogName
+                    name={productName}
+                    imageS3Key={productImageS3Key}
+                    empty={EM_DASH}
+                  />
+                </LabelValue>
                 {row.note?.id ? (
                   <p className="text-ui leading-7 text-foreground">
                     <span className="font-normal text-muted-foreground">Funding: </span>
@@ -300,18 +314,10 @@ export function DashboardInvoiceCard({
                     </Link>
                   </p>
                 ) : null}
-                {row.contractId ? (
-                  <p className="text-ui leading-7 text-foreground">
-                    <span className="font-normal text-muted-foreground">Facility: </span>
-                    <Link
-                      href={`/financing/contracts/${row.contractId}`}
-                      className="inline-flex min-w-0 max-w-full items-center gap-1 font-medium text-primary underline-offset-4 hover:underline"
-                    >
-                      <span className="min-w-0 truncate">View facility</span>
-                      <LinkIcon className="h-4 w-4 shrink-0 text-primary" aria-hidden />
-                    </Link>
-                  </p>
-                ) : null}
+                <FacilityTiedLink
+                  contractId={row.contractId}
+                  displayReference={facilityDisplayReference}
+                />
                 <LabelValue label="Submission date">{formatDate(row.submissionDate)}</LabelValue>
               </div>
               <div className="min-w-0 space-y-2">

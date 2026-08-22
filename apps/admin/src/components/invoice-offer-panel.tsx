@@ -6,16 +6,23 @@ import {
   resolveOfferedAmount,
   resolveOfferedProfitRate,
   resolveOfferedPlatformFeeRatePercent,
+  resolveRequestedInvoiceAmount,
   maturityMeetsMinimumMonthsFrom,
   parseInvoiceMaturityDate,
 } from "@cashsouk/config";
 import {
   getOfferPhaseDeadlineDisplay,
+  isReservedCapacityInvoiceStatus,
   isSoukscoreRiskRating,
   previewAcceptanceDeadlineFromWorkflow,
   SOUKSCORE_RISK_RATING_GRADES,
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
+import {
+  REMAINING_ALLOCATION_LABEL,
+  REMAINING_CREDIT_LABEL,
+  resolveInvoiceOfferDisable,
+} from "@/lib/facility-capacity-display";
 import { cn } from "@/lib/utils";
 import { OfferAcceptanceDeadlineConfirmRows } from "@/components/application-review/offer-acceptance-deadline-confirm-rows";
 import { REVIEW_EMPTY_LABEL, reviewLabelClass, reviewRowGridClass, reviewValueClass } from "@/components/application-review/review-section-styles";
@@ -78,6 +85,8 @@ export interface InvoiceOfferPanelProps {
   onResetItemToPending?: (itemId: string) => void;
   isItemActionPending: boolean;
   remainingAvailableFacility?: number;
+  remainingAllocation?: number;
+  facilityOverLimit?: boolean;
   scopeKey: string;
 }
 
@@ -95,6 +104,8 @@ export function InvoiceOfferPanel({
   onResetItemToPending,
   isItemActionPending,
   remainingAvailableFacility,
+  remainingAllocation,
+  facilityOverLimit,
   scopeKey,
 }: InvoiceOfferPanelProps) {
   const details = invoice.details as
@@ -103,10 +114,9 @@ export function InvoiceOfferPanel({
   const invoiceNo = details?.number ?? invoice.id;
   const invoiceValue = toNumber(details?.value);
   const financingRatio = toNumber(details?.financing_ratio_percent);
-  const issuerFinancingAmount =
-    invoiceValue !== null && financingRatio !== null
-      ? (invoiceValue * financingRatio) / 100
-      : null;
+  const issuerFinancingAmount = resolveRequestedInvoiceAmount(
+    invoice.details as Record<string, unknown>
+  );
   const maturityDate = details?.maturity_date ?? details?.due_date;
   const status = reviewItemStatus;
   const isOfferSent = status === "OFFER_SENT";
@@ -226,6 +236,20 @@ export function InvoiceOfferPanel({
       ));
   const exceedsIssuerRequest =
     issuerFinancingAmount != null && offeredAmount != null && offeredAmount > issuerFinancingAmount;
+  const reservedInvoice = isReservedCapacityInvoiceStatus(invoice.status);
+  const offerDisable = resolveInvoiceOfferDisable({
+    isAdminRejected,
+    sendOfferBlockedByMaturity,
+    offeredAmount,
+    invoiceFace: invoiceValue,
+    hasRiskRating: Boolean(riskRating),
+    remainingCredit: remainingAvailableFacility,
+    remainingAllocation,
+    invoiceStatus: invoice.status,
+    addBackFinancing: reservedInvoice ? (issuerFinancingAmount ?? 0) : 0,
+    addBackFace: reservedInvoice ? (invoiceValue ?? 0) : 0,
+    facilityOverLimit,
+  });
 
   const handleConfirmInvoiceOffer = React.useCallback(async () => {
     if (!onSendInvoiceOffer || !invoiceOfferConfirm) return;
@@ -431,6 +455,35 @@ export function InvoiceOfferPanel({
         </div>
       </div>
 
+      {remainingAvailableFacility != null || remainingAllocation != null ? (
+        <div className="grid gap-3 rounded-xl border border-border bg-muted/20 px-3 py-2.5 sm:grid-cols-2">
+          <div>
+            <p className={reviewLabelClass}>{REMAINING_CREDIT_LABEL}</p>
+            <p className={cn(reviewValueClass, "tabular-nums")}>
+              {remainingAvailableFacility != null
+                ? formatCurrency(remainingAvailableFacility)
+                : REVIEW_EMPTY_LABEL}
+            </p>
+            {offeredAmount != null ? (
+              <p className="text-meta text-muted-foreground">
+                Offered financing {formatCurrency(offeredAmount)}
+              </p>
+            ) : null}
+          </div>
+          <div>
+            <p className={reviewLabelClass}>{REMAINING_ALLOCATION_LABEL}</p>
+            <p className={cn(reviewValueClass, "tabular-nums")}>
+              {remainingAllocation != null ? formatCurrency(remainingAllocation) : REVIEW_EMPTY_LABEL}
+            </p>
+            {invoiceValue != null ? (
+              <p className="text-meta text-muted-foreground">
+                Invoice face {formatCurrency(invoiceValue)}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       {!isOfferSent && onSendInvoiceOffer ? (
         isAdminRejected ? (
           <div className="space-y-2">
@@ -460,16 +513,17 @@ export function InvoiceOfferPanel({
             </p>
           </div>
         ) : (
+          <div className="space-y-2">
           <Button
             type="button"
             className="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 h-10"
             disabled={
               isRowGreyedOut ||
               !!isSendInvoiceOfferPending ||
-              offeredAmount === null ||
-              !riskRating
+              offerDisable.disabled
             }
             onClick={() => {
+              if (offerDisable.disabled) return;
               const rr = riskRating;
               if (!rr) {
                 alert("Please select a risk rating before sending the offer.");
@@ -508,6 +562,16 @@ export function InvoiceOfferPanel({
           >
             {isSendInvoiceOfferPending ? "Sending..." : "Send Offer"}
           </Button>
+          {offerDisable.message &&
+          offerDisable.reason !== "rejected" &&
+          offerDisable.reason !== "maturity" &&
+          offerDisable.reason !== "missing_risk" &&
+          offerDisable.reason !== "missing_amount" ? (
+            <p role="alert" className="text-sm leading-snug text-destructive">
+              {offerDisable.message}
+            </p>
+          ) : null}
+          </div>
         )
       ) : null}
 
@@ -601,12 +665,23 @@ export function InvoiceOfferPanel({
                     valueClassName="text-ui font-medium"
                   />
                 ) : null}
-                {remainingAvailableFacility != null &&
-                invoiceOfferConfirm.offeredAmount > remainingAvailableFacility ? (
-                  <p className="rounded-xl border border-border bg-muted/20 px-3 py-2 text-ui text-foreground">
-                    This offer ({formatCurrency(invoiceOfferConfirm.offeredAmount)}) exceeds remaining
-                    available facility ({formatCurrency(remainingAvailableFacility)}). You can still send it.
-                  </p>
+                {remainingAvailableFacility != null ? (
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-sm font-medium text-muted-foreground">{REMAINING_CREDIT_LABEL}</span>
+                    <span className="text-ui font-medium tabular-nums">
+                      {formatCurrency(remainingAvailableFacility)}
+                    </span>
+                  </div>
+                ) : null}
+                {remainingAllocation != null ? (
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {REMAINING_ALLOCATION_LABEL}
+                    </span>
+                    <span className="text-ui font-medium tabular-nums">
+                      {formatCurrency(remainingAllocation)}
+                    </span>
+                  </div>
                 ) : null}
               </div>
               <DialogFooter className="gap-2 sm:gap-0">
@@ -615,7 +690,7 @@ export function InvoiceOfferPanel({
                 </Button>
                 <Button
                   onClick={handleConfirmInvoiceOffer}
-                  disabled={!!isSendInvoiceOfferPending}
+                  disabled={!!isSendInvoiceOfferPending || offerDisable.disabled}
                   className="rounded-xl"
                 >
                   {isSendInvoiceOfferPending ? "Sending..." : "Confirm & Send Offer"}

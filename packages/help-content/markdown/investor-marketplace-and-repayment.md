@@ -22,9 +22,10 @@ Notes are denominated in MYR and move through a four-stage lifecycle: Draft → 
 
 ## Browsing the Marketplace
 
-The marketplace lists only notes currently in the **Published** stage. For each note you can see:
+The marketplace lists only notes currently in the **Published** stage. Issuer identity stays hidden. For each note you can see:
 
-- the **issuer** and **paymaster** (the party that will ultimately repay),
+- the **purpose of financing** and **industry**,
+- the **paymaster** (the party that will ultimately repay) on the note detail,
 - the **target amount** (how much the note is raising),
 - the **profit rate**,
 - the **maturity date** (when the paymaster is expected to repay in full),

@@ -712,7 +712,7 @@ Activity UI curated subset: STARTED, RESTARTED, review/amendment STATUS_CHANGED,
 
 ### Application (`APPLICATION_AUDIT_EVENTS`)
 
-`APPLICATION_CREATED/SUBMITTED/REVIEW_STARTED/RESUBMITTED/AMENDMENT_ACKNOWLEDGED/AMENDMENTS_REQUESTED/REOPENED_FOR_REVIEW/WITHDRAWN/REJECTED/ARCHIVED/DRAFT_DELETED/COMPLETED`, section/item review updated, document upload/remove/replace, contract/invoice offer/acceptance/expiry/withdraw events including `CONTRACT_OFFER_REJECTED`, and `CONTRACT_FACILITY_OCCUPANCY_UPDATED` (A178; ApplicationAuditLog only; admin Activity SHOW, issuer/investor Activity HIDE).  
+`APPLICATION_CREATED/SUBMITTED/REVIEW_STARTED/RESUBMITTED/AMENDMENT_ACKNOWLEDGED/AMENDMENTS_REQUESTED/REOPENED_FOR_REVIEW/WITHDRAWN/REJECTED/ARCHIVED/DRAFT_DELETED/COMPLETED`, section/item review updated, document upload/remove/replace, contract/invoice offer/acceptance/expiry/withdraw events including `CONTRACT_OFFER_REJECTED`, and `CONTRACT_FACILITY_OCCUPANCY_UPDATED` (A178; ApplicationAuditLog only; dual-ledger occupancy metadata; admin Activity SHOW, issuer/investor Activity HIDE).  
 Signing package events are **not** on this table; they belong to `SigningAuditLog`.
 
 ### Signing (`SIGNING_AUDIT_EVENTS`)

@@ -19,6 +19,7 @@ import {
 } from "./track-record-aggregates";
 import {
   computeContractFacilitySnapshot,
+  facilitySnapshotToDetailsPatch,
   toFacilityNoteOccupancy,
 } from "../../lib/contract-facility";
 
@@ -101,6 +102,10 @@ export type IssuerDashboardContractDto = {
   availableFacilityAmount: string | null;
   pendingFacilityAmount: string | null;
   repaidFacilityAmount: string | null;
+  lifetimeCapAmount: string | null;
+  lifetimeUsedAmount: string | null;
+  lifetimeRemainingAmount: string | null;
+  contractValueAmount: string | null;
   facilityFeeCapAmount: string | null;
   facilityFeePaidAmount: string | null;
   facilityFeeRemainingAmount: string | null;
@@ -473,13 +478,21 @@ export class IssuerDashboardService {
       const titleRaw = details?.title;
       const contractTitle =
         typeof titleRaw === "string" && titleRaw.trim().length > 0 ? titleRaw.trim() : null;
+      const lifetimeCapAmount = occupancy.lifetimeCap > 0 ? occupancy.lifetimeCap.toFixed(2) : null;
+      const contractForModal = jsonForModal({
+        ...c,
+        contract_details: {
+          ...(details ?? {}),
+          ...facilitySnapshotToDetailsPatch(occupancy),
+        },
+      });
 
       contractsOut.push({
         id: c.id,
         displayReference: c.display_reference ?? null,
         applicationId: primaryApp.id,
         productId,
-        contractForModal: jsonForModal(c),
+        contractForModal,
         title: contractTitle,
         productName: null,
         customerName: (customer?.name as string | undefined) ?? null,
@@ -491,6 +504,12 @@ export class IssuerDashboardService {
         availableFacilityAmount,
         pendingFacilityAmount,
         repaidFacilityAmount,
+        lifetimeCapAmount,
+        lifetimeUsedAmount: lifetimeCapAmount != null ? occupancy.lifetimeUsed.toFixed(2) : null,
+        lifetimeRemainingAmount:
+          lifetimeCapAmount != null ? occupancy.lifetimeRemaining.toFixed(2) : null,
+        contractValueAmount:
+          occupancy.contractValue > 0 ? occupancy.contractValue.toFixed(2) : null,
         facilityFeeCapAmount: facilityFeeApplies ? facilityFeeCapNum.toFixed(2) : null,
         facilityFeePaidAmount: facilityFeeApplies ? facilityFeePaidNum.toFixed(2) : null,
         facilityFeeRemainingAmount: facilityFeeApplies ? facilityFeeRemainingNum.toFixed(2) : null,

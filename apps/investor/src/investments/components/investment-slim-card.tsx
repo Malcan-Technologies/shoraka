@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { NoteStatusBadge } from "@cashsouk/ui";
+import { NoteStatusBadge, ProductCatalogName } from "@cashsouk/ui";
 import { formatInvestorReturnRatePercent, type NoteListItem } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -54,6 +54,13 @@ export function InvestmentSlimCard({
             {note.issuerIndustry?.trim() ? ` · ${note.issuerIndustry.trim()}` : ""}
           </p>
           <p className="text-ui leading-6 text-foreground">{investmentCardHeadline(note)}</p>
+          {note.productName?.trim() ? (
+            <ProductCatalogName
+              name={note.productName}
+              imageS3Key={note.productImageS3Key}
+              imageUrl={note.productImageUrl}
+            />
+          ) : null}
           {meta ? <p className="text-ui leading-5 text-muted-foreground">{meta}</p> : null}
           {payoutResult ? <InvestmentPayoutResultLine result={payoutResult} /> : null}
         </div>

@@ -15,6 +15,7 @@ import type { Prisma } from "@prisma/client";
 import type { AuditRequestContext } from "../../lib/audit/context";
 import { AppError } from "../../lib/http/error-handler";
 import { prisma } from "../../lib/prisma";
+import { applyContractCapacityChange } from "../../lib/refresh-contract-facility";
 import { patchOfferAcceptanceUnchecked } from "./offer-acceptance";
 import {
   APPLICATION_AUDIT_TARGET_TYPE,
@@ -67,7 +68,7 @@ export async function closeApplicationAsRejected(
     previousStatus?: string;
   }
 ): Promise<void> {
-  await prisma.$transaction(async (tx) => {
+  const rejectInTx = async (tx: Prisma.TransactionClient) => {
     const application = await tx.application.findUnique({
       where: { id: applicationId },
       include: {
@@ -157,5 +158,18 @@ export async function closeApplicationAsRejected(
         },
       });
     }
+    return application.contract?.id ?? null;
+  };
+
+  const preview = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: { contract_id: true },
   });
+  if (preview?.contract_id) {
+    await applyContractCapacityChange(preview.contract_id, prisma, rejectInTx, {
+      assertWrite: true,
+    });
+    return;
+  }
+  await prisma.$transaction(rejectInTx);
 }

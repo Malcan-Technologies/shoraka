@@ -1,6 +1,8 @@
 #!/usr/bin/env tsx
 /**
- * Recompute revolving facility occupancy on all APPROVED contracts.
+ * Recompute revolving facility + lifetime snapshots on contracts.
+ * Covers APPROVED, AMENDMENT_REQUESTED, and any facility with linked invoices.
+ * Preserves negative legacy over-limit values. Does not change invoice/note statuses.
  *
  * Usage:
  *   pnpm --filter api recompute-contract-facility -- --dry-run
@@ -8,34 +10,55 @@
  */
 
 import "dotenv/config";
+import {
+  listContractsForCapacityRecompute,
+  recomputeContractCapacitySnapshots,
+} from "../src/lib/recompute-contract-facility";
+import {
+  loadContractCapacitySiblings,
+  refreshContractFacilityValues,
+} from "../src/lib/refresh-contract-facility";
 import { prisma } from "../src/lib/prisma";
-import { refreshContractFacilityValues } from "../src/lib/refresh-contract-facility";
 
 const dryRun = process.argv.includes("--dry-run");
 
+function formatAmount(value: number): string {
+  return value.toFixed(6);
+}
+
 async function main() {
-  const contracts = await prisma.contract.findMany({
-    where: { status: "APPROVED" },
-    select: {
-      id: true,
-      display_reference: true,
-      contract_details: true,
-    },
+  const report = await recomputeContractCapacitySnapshots({
+    dryRun,
+    listContracts: () => listContractsForCapacityRecompute(prisma),
+    loadSiblings: (contractId) => loadContractCapacitySiblings(prisma, contractId),
+    persist: (contractId) => refreshContractFacilityValues(contractId).then(() => undefined),
   });
 
-  let updated = 0;
-  for (const contract of contracts) {
-    const before = (contract.contract_details ?? {}) as Record<string, unknown>;
+  for (const row of report.rows) {
+    const mode = report.dryRun ? "dry-run" : "update";
     console.log(
-      `[${dryRun ? "dry-run" : "update"}] ${contract.display_reference ?? contract.id} utilized=${String(before.utilized_facility ?? "—")} available=${String(before.available_facility ?? "—")}`
+      `[${mode}] ${row.ref} status=${row.status} invoices=${row.invoiceCount}` +
+        ` facility before utilized=${formatAmount(row.before.utilizedFacility)} pending=${formatAmount(row.before.pendingFacility)} available=${formatAmount(row.before.availableFacility)}` +
+        ` after utilized=${formatAmount(row.after.utilizedFacility)} pending=${formatAmount(row.after.pendingFacility)} available=${formatAmount(row.after.availableFacility)}` +
+        ` lifetime before used=${formatAmount(row.before.lifetimeUsed)} remaining=${formatAmount(row.before.lifetimeRemaining)}` +
+        ` after used=${formatAmount(row.after.lifetimeUsed)} remaining=${formatAmount(row.after.lifetimeRemaining)}`
     );
-    if (!dryRun) {
-      await refreshContractFacilityValues(contract.id);
-    }
-    updated += 1;
   }
 
-  console.log(`Done. ${updated} contract(s) ${dryRun ? "would be" : "were"} recomputed.`);
+  if (report.overLimit.length > 0) {
+    console.log("Over-limit contracts (preserved; statuses not rewritten):");
+    for (const row of report.overLimit) {
+      console.log(
+        `  ${row.ref} id=${row.id} available=${formatAmount(row.availableFacility)} lifetime_remaining=${formatAmount(row.lifetimeRemaining)}`
+      );
+    }
+  } else {
+    console.log("No over-limit contracts in this run.");
+  }
+
+  console.log(
+    `Done. ${report.scanned} contract(s) ${report.dryRun ? "would be" : "were"} recomputed.`
+  );
 }
 
 main()

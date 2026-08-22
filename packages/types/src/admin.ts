@@ -1274,6 +1274,13 @@ export interface ContractListItem {
   contractValue: number;
   approvedFacility: number;
   utilizedFacility: number;
+  /** Reserved financing (submitted / amendment / offer-sent). */
+  pendingFacility: number;
+  /** Remaining credit: approved − utilized − pending. May be negative on legacy rows. */
+  availableFacility: number;
+  lifetimeCap: number;
+  lifetimeUsed: number;
+  lifetimeRemaining: number;
   status: string;
   updatedAt: string;
 }
@@ -1297,6 +1304,8 @@ export interface AdminContractApplicationSummary {
   submittedAt: string | null;
   updatedAt: string;
   requestedAmount: number;
+  /** Facility origination vs invoice draw on this contract. */
+  kind: "facility" | "invoice";
 }
 
 export interface AdminContractNoteSummary {
@@ -1310,6 +1319,8 @@ export interface AdminContractNoteSummary {
   targetAmount: number;
   /** Marketplace fill. 0 until funding starts. */
   fundedAmount: number;
+  /** Invoice face when the source invoice is present; never invented. */
+  invoiceFaceAmount: number | null;
 }
 
 /** Contract audit row sourced from `application_audit_logs` (no dedicated contract_logs table). */
@@ -1335,6 +1346,12 @@ export interface AdminContractDetail {
   issuerOrganizationName: string | null;
   requestedFacility: number;
   approvedFacility: number;
+  utilizedFacility: number;
+  pendingFacility: number;
+  availableFacility: number;
+  lifetimeCap: number;
+  lifetimeUsed: number;
+  lifetimeRemaining: number;
   status: string;
   createdAt: string;
   updatedAt: string;

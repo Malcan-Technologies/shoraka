@@ -880,6 +880,7 @@ export function OfferReviewPanel({
   const [isSavingPostDocs, setIsSavingPostDocs] = React.useState(false);
   const [signerBindings, setSignerBindings] = React.useState<RecipientBinding[]>([]);
   const [signerConfirmOpen, setSignerConfirmOpen] = React.useState(false);
+  const [acceptOfferConfirmOpen, setAcceptOfferConfirmOpen] = React.useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = React.useState(false);
   const [remindLoading, setRemindLoading] = React.useState(false);
   const [isSyncingSigning, setIsSyncingSigning] = React.useState(false);
@@ -1279,6 +1280,7 @@ export function OfferReviewPanel({
     if (isPhaseDeadlinePast) {
       setIsRejectMode(false);
       setSignerConfirmOpen(false);
+      setAcceptOfferConfirmOpen(false);
     }
   }, [isPhaseDeadlinePast]);
 
@@ -1343,17 +1345,7 @@ export function OfferReviewPanel({
         });
         return false;
       }
-      setAcceptSigningLoading(true);
-      try {
-        await acceptInvoice.mutateAsync({ applicationId, invoiceId: invoiceId! });
-        toast.success("Offer accepted");
-        onClose?.();
-      } catch {
-        // toast handled by hook
-      } finally {
-        setAcceptSigningLoading(false);
-      }
-      return false;
+      return true;
     }
 
     const docsReady = await ensurePostApplicationDocumentsSaved();
@@ -1396,12 +1388,33 @@ export function OfferReviewPanel({
     const ready = await prepareAccept();
     if (!ready) return;
 
+    if (modalMode.ui === "accept_decline") {
+      setAcceptOfferConfirmOpen(true);
+      return;
+    }
+
     if (needsSigningConfirm) {
       setSignerConfirmOpen(true);
       return;
     }
 
     await executeAccept();
+  };
+
+  const handleConfirmDirectInvoiceAccept = async () => {
+    const invoiceId = invoice?.id;
+    if (!invoiceId) return;
+    setAcceptSigningLoading(true);
+    try {
+      await acceptInvoice.mutateAsync({ applicationId, invoiceId });
+      toast.success("Offer accepted");
+      setAcceptOfferConfirmOpen(false);
+      onClose?.();
+    } catch {
+      // toast handled by hook
+    } finally {
+      setAcceptSigningLoading(false);
+    }
   };
 
   const handleConfirmSignersAccept = async () => {
@@ -2697,6 +2710,20 @@ export function OfferReviewPanel({
         cancelText="Go back"
         onConfirm={handleConfirmSignersAccept}
         isLoading={acceptSigningLoading}
+      />
+      <ConfirmDialog
+        open={acceptOfferConfirmOpen}
+        onOpenChange={setAcceptOfferConfirmOpen}
+        title="Accept this offer?"
+        description={
+          offeredValue !== "—"
+            ? `Accept ${offeredValue} of financing for this invoice. It will be reserved against your facility.`
+            : "Accept this invoice offer. The financing will be reserved against your facility."
+        }
+        confirmText="Accept offer"
+        cancelText="Go back"
+        onConfirm={handleConfirmDirectInvoiceAccept}
+        isLoading={acceptSigningLoading || acceptInvoice.isPending}
       />
       <ConfirmDialog
         open={discardConfirmOpen}

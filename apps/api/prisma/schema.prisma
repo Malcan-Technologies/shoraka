@@ -515,6 +515,16 @@ model Contract {
   withdraw_reason            WithdrawReason?
   originating_application_id String?
   display_reference          String?            @unique
+  /// Revolving ceiling. Invoices/notes remain source of truth; JSON stays in sync.
+  approved_facility          Decimal            @default(0) @db.Decimal(18, 6)
+  utilized_facility          Decimal            @default(0) @db.Decimal(18, 6)
+  pending_facility           Decimal            @default(0) @db.Decimal(18, 6)
+  repaid_facility            Decimal            @default(0) @db.Decimal(18, 6)
+  available_facility         Decimal            @default(0) @db.Decimal(18, 6)
+  /// Lifetime cap is contract face value; used is sum of counting invoice face values.
+  lifetime_cap               Decimal            @default(0) @db.Decimal(18, 6)
+  lifetime_used              Decimal            @default(0) @db.Decimal(18, 6)
+  lifetime_remaining         Decimal            @default(0) @db.Decimal(18, 6)
   originating_application    Application?       @relation("ContractOriginatingApplication", fields: [originating_application_id], references: [id], onDelete: SetNull)
   applications               Application[]
   issuer_organization        IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)

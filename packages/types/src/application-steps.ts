@@ -48,7 +48,9 @@ export const STEP_KEY_DISPLAY: Record<ApplicationStepKey, StepKeyDisplay> = {
   },
   financing_structure: {
     title: "Financing Structure",
-    pageTitle: "How would you like to apply for financing?",
+    pageTitle: "What would you like to do?",
+    description:
+      "Choose whether to set up a new facility, finance an invoice from an approved facility, or finance one invoice without a facility.",
   },
   contract_details: {
     title: "Facility Details",

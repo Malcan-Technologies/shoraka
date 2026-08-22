@@ -36,7 +36,7 @@ export function ContractNotesTable({ notes }: { notes: AdminContractNoteSummary[
           <TableHead>Note</TableHead>
           <TableHead>Title</TableHead>
           <TableHead>Status</TableHead>
-          <TableHead className="text-right">Amount</TableHead>
+          <TableHead className="text-right">Financing / allocation</TableHead>
           <TableHead className="hidden md:table-cell">Source invoice</TableHead>
           <TableHead className="text-right">Open</TableHead>
         </TableRow>
@@ -68,6 +68,11 @@ export function ContractNotesTable({ notes }: { notes: AdminContractNoteSummary[
                 {note.fundedAmount > 0 && note.fundedAmount !== note.targetAmount ? (
                   <p className="text-meta text-muted-foreground">
                     Funded {formatCurrency(note.fundedAmount)}
+                  </p>
+                ) : null}
+                {note.invoiceFaceAmount != null ? (
+                  <p className="text-meta text-muted-foreground">
+                    Invoice face {formatCurrency(note.invoiceFaceAmount)}
                   </p>
                 ) : null}
               </TableCell>

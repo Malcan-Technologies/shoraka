@@ -7,7 +7,16 @@ import { formatCurrency } from "@cashsouk/config";
 import { Progress } from "@cashsouk/ui";
 import { ApplicationStatusBadge } from "@/components/application-review";
 import { Button } from "@/components/ui/button";
-import { getContractUtilizationProgressClass } from "@/contracts/utils/contract-facility-metrics";
+import {
+  getContractUtilizationProgressClass,
+  resolveContractFacilityMetrics,
+} from "@/contracts/utils/contract-facility-metrics";
+import {
+  compactRemainingAllocationLine,
+  compactReservedLine,
+  OVER_LIMIT_LABEL,
+} from "@/lib/facility-capacity-display";
+import { StatusBadge } from "@cashsouk/ui";
 import { adminActionRowClass, getAdminStatusToken } from "@/lib/admin-status-token";
 import { cn } from "@/lib/utils";
 
@@ -17,11 +26,12 @@ interface ContractsTableRowProps {
 }
 
 function UtilizationCell({ contract }: { contract: ContractListItem }) {
-  const approved = contract.approvedFacility;
-  const utilized = contract.utilizedFacility;
-  const hasFacility = approved > 0;
-  const percent = hasFacility ? (utilized / approved) * 100 : 0;
+  const metrics = resolveContractFacilityMetrics(contract);
+  const hasFacility = metrics.approved > 0;
+  const percent = metrics.utilizationPercent ?? 0;
   const barValue = Math.min(Math.max(percent, 0), 100);
+  const reservedLine = compactReservedLine(metrics.pending, formatCurrency);
+  const allocationLine = compactRemainingAllocationLine(metrics, formatCurrency);
 
   if (!hasFacility) {
     return (
@@ -29,23 +39,41 @@ function UtilizationCell({ contract }: { contract: ContractListItem }) {
         <div className="text-sm text-muted-foreground">—</div>
         <Progress value={0} className={`mt-2 h-2 ${getContractUtilizationProgressClass(0, false)}`} />
         <div className="truncate text-xs text-muted-foreground">No approved facility</div>
+        {allocationLine ? (
+          <div className="truncate text-meta text-muted-foreground" title={allocationLine}>
+            {allocationLine}
+          </div>
+        ) : null}
       </TableCell>
     );
   }
 
   return (
     <TableCell className="min-w-[10rem]">
-      <div>{percent.toFixed(1)}%</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span>{percent.toFixed(1)}%</span>
+        {metrics.isOverLimit ? (
+          <StatusBadge label={OVER_LIMIT_LABEL} status="rejected" />
+        ) : null}
+      </div>
       <Progress
         value={barValue}
         className={`mt-2 h-2 ${getContractUtilizationProgressClass(percent, true)}`}
       />
       <div
         className="truncate text-xs text-muted-foreground"
-        title={`${formatCurrency(utilized)} of ${formatCurrency(approved)} approved`}
+        title={`${formatCurrency(metrics.occupied)} of ${formatCurrency(metrics.approved)} approved`}
       >
-        {formatCurrency(utilized)} of {formatCurrency(approved)}
+        {formatCurrency(metrics.occupied)} of {formatCurrency(metrics.approved)}
       </div>
+      {reservedLine ? (
+        <div className="truncate text-meta text-muted-foreground">{reservedLine}</div>
+      ) : null}
+      {allocationLine ? (
+        <div className="truncate text-meta text-muted-foreground" title={allocationLine}>
+          {allocationLine}
+        </div>
+      ) : null}
     </TableCell>
   );
 }

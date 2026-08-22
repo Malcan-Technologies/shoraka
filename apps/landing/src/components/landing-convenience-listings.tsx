@@ -93,8 +93,12 @@ function mapNoteToInvestmentListing(note: NoteListItem): InvestmentListingData {
   const tenorDays = resolveMarketplaceDaysToMaturity(note.maturityDate);
   return {
     id: note.id,
+    purposeOfFinancing: note.purposeOfFinancing?.trim() || null,
+    contractTitle: note.contractTitle?.trim() || null,
+    purposeOfContract: note.purposeOfContract?.trim() || null,
     noteReference: note.noteReference.trim() || null,
     productName: note.productName?.trim() || null,
+    productImageUrl: note.productImageUrl?.trim() || null,
     sector: note.issuerIndustry?.trim() || null,
     daysLeft,
     funded: note.fundedAmount,

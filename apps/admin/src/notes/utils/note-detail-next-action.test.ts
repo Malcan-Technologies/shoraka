@@ -491,6 +491,21 @@ describe("standalone vs contract-linked notes", () => {
     expect(rowSource).toContain("invoice.contractId");
   });
 
+  it("keeps prospectus as its own notes-table column with a checkmark", () => {
+    const tableSource = fs.readFileSync(
+      path.join(__dirname, "../components/notes-table.tsx"),
+      "utf8"
+    );
+    const rowSource = fs.readFileSync(
+      path.join(__dirname, "../components/notes-table-row.tsx"),
+      "utf8"
+    );
+    expect(tableSource).toContain(">Prospectus</TableHead>");
+    expect(rowSource).toContain("CheckIcon");
+    expect(rowSource).toContain("ProspectusCell");
+    expect(rowSource).not.toContain("label={formatProspectusListBadge");
+  });
+
   it("hides the source rail Contract row only when standalone", () => {
     const panelSource = fs.readFileSync(
       path.join(__dirname, "../components/source-application-panel.tsx"),
@@ -500,6 +515,9 @@ describe("standalone vs contract-linked notes", () => {
     expect(panelSource).toContain("linkage.isStandalone ? null : (");
     expect(panelSource).toContain('label="Facility ID"');
     expect(panelSource).toContain("Quick Links");
+    expect(panelSource).toContain("FacilityImpact");
+    expect(panelSource).toContain("note.invoiceAmount");
+    expect(panelSource).toContain("note.targetAmount");
     expect(panelSource).not.toContain("Source Application");
   });
 
@@ -516,6 +534,7 @@ describe("standalone vs contract-linked notes", () => {
     expect(pageSource).toContain('variant="hero"');
     expect(pageSource).toContain("tone={getNoteDerivedStatusToken(note)}");
     expect(pageSource).toContain("summaryCards");
+    expect(pageSource).toContain("contextRows={getNoteHeaderPurposeRows(note)}");
     expect(pageSource).toContain("AdminEntitySummaryCard");
     expect(pageSource).toContain("getNotePaymentDueSummary");
     expect(pageSource).toContain("getNoteCommercialTermRows");
@@ -571,6 +590,7 @@ describe("standalone vs contract-linked notes", () => {
     expect(headerSource).toContain('heroTint?: AdminHeroTint');
     expect(headerSource).toContain('variant?: "plain" | "hero"');
     expect(headerSource).toContain("summaryCards?: React.ReactNode[]");
+    expect(headerSource).toContain("contextRows?: AdminEntityHeaderContextRow[]");
     expect(headerSource).toContain("HERO_SUMMARY_CARD_LIMIT");
     expect(headerSource).toContain("heroSummaryClusterClass");
     expect(headerSource).toContain("summaryCards && summaryCards.length > 0");

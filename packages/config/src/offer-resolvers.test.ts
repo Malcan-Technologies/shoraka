@@ -3,6 +3,7 @@ import {
   resolveOfferedAmount,
   resolveOfferedFacility,
   resolveRequestedFacility,
+  resolveRequestedInvoiceAmount,
 } from "./offer-resolvers";
 
 describe("resolveApprovedFacility", () => {
@@ -30,6 +31,27 @@ describe("resolveOfferedAmount", () => {
   it("parses numeric strings", () => {
     expect(resolveOfferedAmount({ offered_amount: "40740" })).toBe(40740);
     expect(resolveOfferedAmount({ offered_amount: "100,000" })).toBe(100000);
+  });
+});
+
+describe("resolveRequestedInvoiceAmount", () => {
+  it("prefers applied_financing over face times ratio", () => {
+    expect(
+      resolveRequestedInvoiceAmount({
+        value: 100_000,
+        financing_ratio_percent: 80,
+        applied_financing: 40_000,
+      })
+    ).toBe(40_000);
+  });
+
+  it("falls back to face times ratio when requested keys are absent", () => {
+    expect(
+      resolveRequestedInvoiceAmount({
+        value: 100_000,
+        financing_ratio_percent: 80,
+      })
+    ).toBe(80_000);
   });
 });
 

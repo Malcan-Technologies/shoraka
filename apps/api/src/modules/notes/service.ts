@@ -25,7 +25,10 @@ import {
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
-import { refreshContractFacilityForNote } from "../../lib/refresh-contract-facility";
+import {
+  lockContractRow,
+  refreshContractFacilityForNote,
+} from "../../lib/refresh-contract-facility";
 import { legalDocumentAcceptanceService } from "../legal-documents/acceptance-service";
 import {
   generatePresignedUploadUrl,
@@ -34,6 +37,7 @@ import {
   putS3ObjectBuffer,
 } from "../../lib/s3/client";
 import {
+  compareFacilityAmounts,
   parseFacilityJsonAmount,
   resolveApprovedFacilityForRefresh,
 } from "../../lib/contract-facility";
@@ -50,7 +54,8 @@ import {
   computeNetExpectedReturnRatePercent,
   deriveGrossProfitAndServiceFeeFromNet,
   INVESTOR_RETURN_RATE_DISPLAY_DECIMALS,
-  collectAcceptanceDocumentReviewKeys,
+  resolveNotePublishAcceptanceReview,
+  resolveProductImageS3KeyFromWorkflow,
   isMarketplaceCatalogNote,
   isNoteFullyFunded,
   isSoukscoreRiskRating,
@@ -60,6 +65,7 @@ import {
   NOTE_MONEY_TOLERANCE,
   resolveCompletedSigningEnvelopeWhere,
   roundNoteMoney,
+  toMarketplacePublicNote,
   workflowHasRequiredAcceptanceDocuments,
   workflowHasSigningPackage,
 } from "@cashsouk/types";
@@ -349,6 +355,33 @@ function findFinancingTypeWorkflowStep(
     return null;
   }
   return financingTypeStep as Record<string, unknown>;
+}
+
+async function attachProductImageUrls<T extends { productImageS3Key?: string | null }>(
+  notes: T[]
+): Promise<Array<T & { productImageUrl: string | null }>> {
+  const uniqueKeys = [
+    ...new Set(
+      notes
+        .map((note) => note.productImageS3Key?.trim())
+        .filter((key): key is string => Boolean(key))
+    ),
+  ];
+  const urls = new Map<string, string>();
+  await Promise.all(
+    uniqueKeys.map(async (key) => {
+      try {
+        const { viewUrl } = await generatePresignedViewUrl({ key });
+        urls.set(key, viewUrl);
+      } catch (error) {
+        logger.warn({ err: error, keyPrefix: key.split("/").slice(0, 2).join("/") }, "product image view URL failed");
+      }
+    })
+  );
+  return notes.map((note) => ({
+    ...note,
+    productImageUrl: note.productImageS3Key ? (urls.get(note.productImageS3Key) ?? null) : null,
+  }));
 }
 
 function resolveProductCategoryFromWorkflow(
@@ -1418,19 +1451,45 @@ export class NoteService {
       }
     }
 
-    if (!workflowHasRequiredAcceptanceDocuments(workflow)) return;
+    if (workflowHasRequiredAcceptanceDocuments(workflow)) {
+      await this.assertPublishAcceptanceDocumentsApproved(note, workflow);
+    }
+  }
 
-    const application = await prisma.application.findUnique({
+  private async assertPublishAcceptanceDocumentsApproved(
+    note: {
+      source_application_id: string;
+      source_contract_id: string | null;
+    },
+    workflow: unknown
+  ): Promise<void> {
+    const sourceApplication = await prisma.application.findUnique({
       where: { id: note.source_application_id },
       select: { acceptance_documents: true },
     });
-    const docKeys = new Set(
-      collectAcceptanceDocumentReviewKeys(
-        workflow,
-        application?.acceptance_documents
-      )
-    );
-    if (docKeys.size === 0) {
+    const originatingApplicationId = note.source_contract_id
+      ? (
+          await prisma.contract.findUnique({
+            where: { id: note.source_contract_id },
+            select: { originating_application_id: true },
+          })
+        )?.originating_application_id ?? null
+      : null;
+    const originatingApplication =
+      originatingApplicationId && originatingApplicationId !== note.source_application_id
+        ? await prisma.application.findUnique({
+            where: { id: originatingApplicationId },
+            select: { acceptance_documents: true },
+          })
+        : null;
+    const { applicationId: reviewApplicationId, docKeys } = resolveNotePublishAcceptanceReview({
+      workflow,
+      sourceApplicationId: note.source_application_id,
+      sourceAcceptanceDocuments: sourceApplication?.acceptance_documents,
+      originatingApplicationId,
+      originatingAcceptanceDocuments: originatingApplication?.acceptance_documents,
+    });
+    if (docKeys.length === 0) {
       throw new AppError(
         409,
         "POST_APPLICATION_DOCS_NOT_APPROVED",
@@ -1440,22 +1499,20 @@ export class NoteService {
 
     const approvedItems = await prisma.applicationReviewItem.findMany({
       where: {
-        application_id: note.source_application_id,
+        application_id: reviewApplicationId,
         item_type: "document",
-        item_id: { in: [...docKeys] },
+        item_id: { in: docKeys },
         status: "APPROVED",
       },
       select: { item_id: true },
     });
     const approvedKeys = new Set(approvedItems.map((item) => item.item_id));
-    const allApproved = [...docKeys].every((key) => approvedKeys.has(key));
-    if (!allApproved) {
-      throw new AppError(
-        409,
-        "POST_APPLICATION_DOCS_NOT_APPROVED",
-        "Acceptance documents must be approved before this note can be published."
-      );
-    }
+    if (docKeys.every((key) => approvedKeys.has(key))) return;
+    throw new AppError(
+      409,
+      "POST_APPLICATION_DOCS_NOT_APPROVED",
+      "Acceptance documents must be approved before this note can be published."
+    );
   }
 
   async listAdminNotes(params: z.infer<typeof getNotesQuerySchema>) {
@@ -1479,6 +1536,9 @@ export class NoteService {
     );
     const productNameById = new Map(
       products.map((product) => [product.id, resolveProductNameFromWorkflow(product.workflow)])
+    );
+    const productImageById = new Map(
+      products.map((product) => [product.id, resolveProductImageS3KeyFromWorkflow(product.workflow)])
     );
     const issuerOrgIds = [...new Set(notes.map((note) => note.issuer_organization_id))];
     const issuerOrgs = issuerOrgIds.length
@@ -1527,6 +1587,9 @@ export class NoteService {
           (productId ? (productCategoryById.get(productId) ?? null) : null),
         productName:
           mapped.productName ?? (productId ? (productNameById.get(productId) ?? null) : null),
+        productImageS3Key:
+          mapped.productImageS3Key ??
+          (productId ? (productImageById.get(productId) ?? null) : null),
         issuerIndustry:
           mapped.issuerIndustry ?? issuerIndustryByOrgId.get(note.issuer_organization_id) ?? null,
       };
@@ -2367,6 +2430,7 @@ export class NoteService {
         ? financingType.product_name.trim()
         : null);
     const productDescription = resolveProductDescriptionFromWorkflow(product?.workflow);
+    const productImageS3Key = resolveProductImageS3KeyFromWorkflow(product?.workflow);
     const purposeOfFinancing = resolvePurposeOfFinancingFromBusinessDetails(
       application.business_details
     );
@@ -2425,6 +2489,7 @@ export class NoteService {
               category: productCategory,
               ...(productDisplayName ? { product_name: productDisplayName } : {}),
               ...(productDescription ? { description: productDescription } : {}),
+              ...(productImageS3Key ? { image_s3_key: productImageS3Key } : {}),
               product_code: productCode,
             }),
             purpose_snapshot: purposeOfFinancing
@@ -3275,6 +3340,9 @@ export class NoteService {
     }
     const targetAmount = toNumber(note.target_amount);
     const fundedAmount = toNumber(note.funded_amount);
+    if (compareFacilityAmounts(fundedAmount, 0) <= 0) {
+      return this.failFunding(id, actor, { forceZeroFunded: true });
+    }
     if (
       !meetsMinimumFunding(
         fundedAmount,
@@ -3294,6 +3362,9 @@ export class NoteService {
     });
     const now = new Date();
     const updated = await prisma.$transaction(async (tx) => {
+      if (note.source_contract_id) {
+        await lockContractRow(tx, note.source_contract_id);
+      }
       const stateUpdate = await tx.note.updateMany({
         where: { id, status: NoteStatus.PUBLISHED, funding_status: NoteFundingStatus.OPEN },
         data: {
@@ -3456,6 +3527,15 @@ export class NoteService {
         },
         tx
       );
+      await refreshContractFacilityForNote(
+        result,
+        tx,
+        {
+          context: noteAuditContextFromActor(actor),
+          reason: "FUNDING_CLOSED",
+        },
+        { assertProposed: true, skipLock: true }
+      );
       return result;
     });
     await notifyNoteFundingSucceeded({
@@ -3464,14 +3544,10 @@ export class NoteService {
       issuerOrganizationId: updated.issuer_organization_id,
       noteTitle: resolveNoteNotificationTitle(updated),
     });
-    await refreshContractFacilityForNote(updated, prisma, {
-      context: noteAuditContextFromActor(actor),
-      reason: "FUNDING_CLOSED",
-    });
     return await mapNoteDetail(updated);
   }
 
-  async failFunding(id: string, actor: ActorContext) {
+  async failFunding(id: string, actor: ActorContext, options?: { forceZeroFunded?: boolean }) {
     const now = new Date();
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
@@ -3484,7 +3560,10 @@ export class NoteService {
     }
     const targetAmount = toNumber(note.target_amount);
     const fundedAmount = toNumber(note.funded_amount);
+    const forceZeroFunded =
+      options?.forceZeroFunded === true && compareFacilityAmounts(fundedAmount, 0) <= 0;
     if (
+      !forceZeroFunded &&
       meetsMinimumFunding(
         fundedAmount,
         targetAmount,
@@ -3502,6 +3581,9 @@ export class NoteService {
       targetAmount * (minimumFundingPercent - NOTE_MONEY_TOLERANCE) / 100;
     let failedInvestorOrganizationIds: string[] = [];
     const updated = await prisma.$transaction(async (tx) => {
+      if (note.source_contract_id) {
+        await lockContractRow(tx, note.source_contract_id);
+      }
       const releasedCommitments = await tx.noteInvestment.findMany({
         where: { note_id: id, status: NoteInvestmentStatus.COMMITTED },
         select: { id: true, investor_organization_id: true, amount: true },
@@ -3514,7 +3596,9 @@ export class NoteService {
           id,
           status: NoteStatus.PUBLISHED,
           funding_status: NoteFundingStatus.OPEN,
-          funded_amount: { lt: money(minimumFundingAmount) },
+          ...(forceZeroFunded
+            ? { funded_amount: { lte: money(0) } }
+            : { funded_amount: { lt: money(minimumFundingAmount) } }),
         },
         data: {
           status: NoteStatus.FAILED_FUNDING,
@@ -3559,6 +3643,15 @@ export class NoteService {
         },
         tx
       );
+      await refreshContractFacilityForNote(
+        result,
+        tx,
+        {
+          context: noteAuditContextFromActor(actor),
+          reason: "FUNDING_FAILED",
+        },
+        { assertProposed: true, skipLock: Boolean(note.source_contract_id) }
+      );
       return result;
     });
     await notifyNoteFundingFailed({
@@ -3567,10 +3660,6 @@ export class NoteService {
       issuerOrganizationId: updated.issuer_organization_id,
       noteTitle: resolveNoteNotificationTitle(updated),
       failedInvestorOrganizationIds,
-    });
-    await refreshContractFacilityForNote(updated, prisma, {
-      context: noteAuditContextFromActor(actor),
-      reason: "FUNDING_FAILED",
     });
     return await mapNoteDetail(updated);
   }
@@ -3656,18 +3745,22 @@ export class NoteService {
       includeClosed,
       ...marketplaceParams
     } = params;
-    if (includeClosed) {
-      return this.listAdminNotes({
-        ...marketplaceParams,
-        includeClosed: true,
-      });
-    }
-    return this.listAdminNotes({
-      ...marketplaceParams,
-      status: NoteStatus.PUBLISHED,
-      listingStatus: NoteListingStatus.PUBLISHED,
-      fundingStatus: NoteFundingStatus.OPEN,
-    });
+    const result = includeClosed
+      ? await this.listAdminNotes({
+          ...marketplaceParams,
+          includeClosed: true,
+        })
+      : await this.listAdminNotes({
+          ...marketplaceParams,
+          status: NoteStatus.PUBLISHED,
+          listingStatus: NoteListingStatus.PUBLISHED,
+          fundingStatus: NoteFundingStatus.OPEN,
+        });
+    const publicNotes = result.notes.map(toMarketplacePublicNote);
+    return {
+      ...result,
+      notes: await attachProductImageUrls(publicNotes),
+    };
   }
 
   async getMarketplaceNoteDetail(id: string) {
@@ -3682,7 +3775,23 @@ export class NoteService {
     ) {
       throw new AppError(404, "NOTE_NOT_FOUND", "Published marketplace note not found");
     }
-    return mapMarketplaceNoteDetail(note);
+    const mapped = mapMarketplaceNoteDetail(note);
+    if (!mapped.productImageS3Key) {
+      const productSnapshot = asRecord(note.product_snapshot);
+      const productId =
+        typeof productSnapshot?.product_id === "string" && productSnapshot.product_id.trim()
+          ? productSnapshot.product_id
+          : null;
+      if (productId) {
+        const product = await prisma.product.findUnique({
+          where: { id: productId },
+          select: { workflow: true },
+        });
+        mapped.productImageS3Key = resolveProductImageS3KeyFromWorkflow(product?.workflow);
+      }
+    }
+    const [withImage] = await attachProductImageUrls([mapped]);
+    return withImage;
   }
 
   async listInvestorInvestments(
@@ -5018,6 +5127,9 @@ export class NoteService {
     const repaidInvestorOrgIds = repaidInvestorSnapshot.map((row) => row.investor_organization_id);
 
     await prisma.$transaction(async (tx) => {
+      if (settlement.note.source_contract_id) {
+        await lockContractRow(tx, settlement.note.source_contract_id);
+      }
       const confirmedForPost = await tx.noteInvestment.findMany({
         where: { note_id: id, status: NoteInvestmentStatus.CONFIRMED },
         select: { id: true, investor_organization_id: true, amount: true },
@@ -5129,6 +5241,17 @@ export class NoteService {
         },
         tx
       );
+      if (!needsTrusteeInstruction) {
+        await refreshContractFacilityForNote(
+          settlement.note,
+          tx,
+          {
+            context: noteAuditContextFromActor(actor),
+            reason: "NOTE_REPAID",
+          },
+          { assertProposed: true, skipLock: Boolean(settlement.note.source_contract_id) }
+        );
+      }
     });
     await notifyNoteSettlementPosted({
       notificationService: this.notificationService,
@@ -5143,10 +5266,6 @@ export class NoteService {
         noteId: id,
         issuerOrganizationId: settlement.note.issuer_organization_id,
         noteTitle: resolveNoteNotificationTitle(settlement.note),
-      });
-      await refreshContractFacilityForNote(settlement.note, prisma, {
-        context: noteAuditContextFromActor(actor),
-        reason: "NOTE_REPAID",
       });
     }
     return this.getAdminNoteDetail(id);
@@ -5727,7 +5846,19 @@ export class NoteService {
     const completedAt = new Date();
     const hasResidualRefund = toNumber(settlement.issuer_residual_amount) > 0.005;
     let noteMarkedRepaid = false;
+    const noteForCapacity = await prisma.note.findUnique({
+      where: { id: noteId },
+      select: {
+        id: true,
+        source_contract_id: true,
+        source_invoice_id: true,
+        source_application_id: true,
+      },
+    });
     await prisma.$transaction(async (tx) => {
+      if (noteForCapacity?.source_contract_id) {
+        await lockContractRow(tx, noteForCapacity.source_contract_id);
+      }
       const row = await tx.noteSettlement.updateMany({
         where: {
           id: settlementId,
@@ -5822,6 +5953,17 @@ export class NoteService {
         },
         tx
       );
+      if (noteMarkedRepaid && noteForCapacity) {
+        await refreshContractFacilityForNote(
+          noteForCapacity,
+          tx,
+          {
+            context: noteAuditContextFromActor(actor),
+            reason: "NOTE_REPAID",
+          },
+          { assertProposed: true, skipLock: Boolean(noteForCapacity.source_contract_id) }
+        );
+      }
     });
 
     if (noteMarkedRepaid) {
@@ -5842,10 +5984,6 @@ export class NoteService {
           noteId,
           issuerOrganizationId: note.issuer_organization_id,
           noteTitle: resolveNoteNotificationTitle(note),
-        });
-        await refreshContractFacilityForNote(note, prisma, {
-          context: noteAuditContextFromActor(actor),
-          reason: "NOTE_REPAID",
         });
       }
     }
@@ -6665,7 +6803,21 @@ export class NoteService {
 
     const completedAt = new Date();
     let noteReleasedFromLegacyResidual = false;
+    const noteForCapacity = existing.note_id
+      ? await prisma.note.findUnique({
+          where: { id: existing.note_id },
+          select: {
+            id: true,
+            source_contract_id: true,
+            source_invoice_id: true,
+            source_application_id: true,
+          },
+        })
+      : null;
     const withdrawal = await prisma.$transaction(async (tx) => {
+      if (noteForCapacity?.source_contract_id) {
+        await lockContractRow(tx, noteForCapacity.source_contract_id);
+      }
       if (existing.withdrawal_type === WithdrawalType.ISSUER_DISBURSEMENT) {
         const shorakaTradeOrder = await tx.shorakaTradeOrder.findUnique({
           where: { withdrawal_instruction_id: id },
@@ -6801,6 +6953,17 @@ export class NoteService {
               },
             });
             noteReleasedFromLegacyResidual = noteUpdate.count > 0;
+            if (noteReleasedFromLegacyResidual && noteForCapacity) {
+              await refreshContractFacilityForNote(
+                noteForCapacity,
+                tx,
+                {
+                  context: noteAuditContextFromActor(actor),
+                  reason: "NOTE_REPAID",
+                },
+                { assertProposed: true, skipLock: Boolean(noteForCapacity.source_contract_id) }
+              );
+            }
           }
         }
       }
@@ -6849,23 +7012,6 @@ export class NoteService {
       return result;
     });
 
-    if (noteReleasedFromLegacyResidual && existing.note_id) {
-      const note = await prisma.note.findUnique({
-        where: { id: existing.note_id },
-        select: {
-          id: true,
-          source_contract_id: true,
-          source_invoice_id: true,
-          source_application_id: true,
-        },
-      });
-      if (note) {
-        await refreshContractFacilityForNote(note, prisma, {
-          context: noteAuditContextFromActor(actor),
-          reason: "NOTE_REPAID",
-        });
-      }
-    }
     return this.mapWithdrawal(withdrawal);
   }
 

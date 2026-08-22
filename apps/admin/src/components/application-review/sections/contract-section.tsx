@@ -33,7 +33,15 @@ import { formatCurrency, resolveRequestedFacility, resolveOfferedFacility, resol
 import {
   getOfferPhaseDeadlineDisplay,
   previewAcceptanceDeadlineFromWorkflow,
+  REQUESTED_FACILITY_BELOW_CONTRACT_COPY,
 } from "@cashsouk/types";
+import {
+  OFFERED_FACILITY_BELOW_CONTRACT_COPY,
+  REMAINING_ALLOCATION_LABEL,
+  REMAINING_CREDIT_LABEL,
+  RESERVED_LABEL,
+  resolveFacilityOfferBlockReason,
+} from "@/lib/facility-capacity-display";
 import { ReviewSectionCard } from "../review-section-card";
 import { ReviewFieldBlock } from "../review-field-block";
 import { OfferAcceptanceDeadlineConfirmRows } from "../offer-acceptance-deadline-confirm-rows";
@@ -115,6 +123,12 @@ export interface ContractSectionProps {
     isPathChanged: (path: string) => boolean;
   };
   hideSectionComments?: boolean;
+  /** Canonical occupancy from section-content — keeps remaining/reserved aligned with invoice and acceptance. */
+  reviewOccupancy?: {
+    remainingCredit: number;
+    remainingAllocation: number;
+    reservedFacility: number;
+  };
 }
 
 export function ContractSection({
@@ -146,6 +160,7 @@ export function ContractSection({
   signedContractOfferLetterAvailable,
   sectionComparison,
   hideSectionComments = false,
+  reviewOccupancy,
 }: ContractSectionProps) {
   const patchLargePrivate = usePatchContractCustomerLargePrivate();
   const liveCustomerDetails = customerDetails as Record<string, unknown> | null | undefined;
@@ -166,10 +181,18 @@ export function ContractSection({
   const requestedFacility = resolveRequestedFacility(cd);
   const approvedShown = resolveApprovedFacility(contractRowStatus ?? "", cd);
   const utilizedShown = parseFacilityAmount(cd?.utilized_facility) ?? 0;
+  const reservedShown =
+    reviewOccupancy?.reservedFacility ?? parseFacilityAmount(cd?.pending_facility) ?? 0;
   const availableShown =
+    reviewOccupancy?.remainingCredit ??
     parseFacilityAmount(cd?.available_facility) ??
-    (approvedShown > 0 ? approvedShown - utilizedShown : 0);
-  const contractValue = typeof cd?.value === "number" ? cd.value : 0;
+    (approvedShown > 0 ? approvedShown - utilizedShown - reservedShown : 0);
+  const contractValue =
+    parseFacilityAmount(cd?.value) ?? parseFacilityAmount(cd?.contract_value) ?? 0;
+  const remainingCredit =
+    reviewOccupancy?.remainingCredit ?? parseFacilityAmount(cd?.available_facility);
+  const remainingAllocation =
+    reviewOccupancy?.remainingAllocation ?? parseFacilityAmount(cd?.lifetime_remaining);
   const persistedOffered = resolveOfferedFacility(offer);
   const offerSentAtRaw =
     typeof offer?.sent_at === "string" && offer.sent_at.trim().length > 0 ? offer.sent_at : null;
@@ -237,7 +260,11 @@ export function ContractSection({
   const offeredFacilityInputTrimmed = offeredFacilityInput.trim();
   const offeredFacilityNotPositive =
     offeredFacilityInputTrimmed.length > 0 && offeredFacility <= 0;
-  const offeredExceedsContractValue = contractValue > 0 && offeredFacility > contractValue;
+  const facilityOfferBlockReason = resolveFacilityOfferBlockReason({
+    requestedFacility,
+    offeredFacility,
+    contractValue,
+  });
   const isContractApproved = sectionStatus === "APPROVED";
   const isContractFinalizedByIssuer = isContractApproved;
   const showViewSignedOfferOnlyAction =
@@ -248,7 +275,7 @@ export function ContractSection({
     !isContractApproved &&
     !isContractOfferSendLocked &&
     offeredFacility > 0 &&
-    !offeredExceedsContractValue;
+    !facilityOfferBlockReason;
   const facilityFeeRatePercentParsed = React.useMemo(() => {
     const trimmed = facilityFeeRatePercentInput.trim();
     if (!trimmed) return null;
@@ -573,11 +600,29 @@ export function ContractSection({
                       Offered facility must be greater than 0.
                     </p>
                   )}
-                  {offeredExceedsContractValue && (
-                    <p className="text-sm text-destructive">
-                      Offered facility cannot exceed contract value.
+                  {facilityOfferBlockReason ? (
+                    <p role="alert" className="text-sm text-destructive">
+                      {facilityOfferBlockReason === REQUESTED_FACILITY_BELOW_CONTRACT_COPY
+                        ? REQUESTED_FACILITY_BELOW_CONTRACT_COPY
+                        : OFFERED_FACILITY_BELOW_CONTRACT_COPY}
                     </p>
-                  )}
+                  ) : null}
+                  {remainingCredit != null || remainingAllocation != null ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <p className="text-meta text-muted-foreground">
+                        {REMAINING_CREDIT_LABEL}:{" "}
+                        <span className="font-medium tabular-nums text-foreground">
+                          {remainingCredit != null ? formatCurrency(remainingCredit) : "—"}
+                        </span>
+                      </p>
+                      <p className="text-meta text-muted-foreground">
+                        {REMAINING_ALLOCATION_LABEL}:{" "}
+                        <span className="font-medium tabular-nums text-foreground">
+                          {remainingAllocation != null ? formatCurrency(remainingAllocation) : "—"}
+                        </span>
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               </div>
               <div className={reviewRowGridClass}>
@@ -641,10 +686,18 @@ export function ContractSection({
                   <>
                     <Label className={reviewLabelClass}>Approved Facility</Label>
                     <div className={reviewValueClass}>{formatCurrency(approvedShown)}</div>
-                    <Label className={reviewLabelClass}>Utilized Facility</Label>
+                    <Label className={reviewLabelClass}>Utilized</Label>
                     <div className={reviewValueClass}>{formatCurrency(utilizedShown)}</div>
-                    <Label className={reviewLabelClass}>Available Facility</Label>
+                    <Label className={reviewLabelClass}>{RESERVED_LABEL}</Label>
+                    <div className={reviewValueClass}>{formatCurrency(reservedShown)}</div>
+                    <Label className={reviewLabelClass}>{REMAINING_CREDIT_LABEL}</Label>
                     <div className={reviewValueClass}>{formatCurrency(availableShown)}</div>
+                    {remainingAllocation != null ? (
+                      <>
+                        <Label className={reviewLabelClass}>{REMAINING_ALLOCATION_LABEL}</Label>
+                        <div className={reviewValueClass}>{formatCurrency(remainingAllocation)}</div>
+                      </>
+                    ) : null}
                   </>
                 ) : null}
               </div>
@@ -811,11 +864,9 @@ export function ContractSection({
             {acceptanceDeadlinePreview ? (
               <OfferAcceptanceDeadlineConfirmRows preview={acceptanceDeadlinePreview} />
             ) : null}
-            {offeredExceedsContractValue && (
-              <p className="mt-2 text-sm text-destructive">
-                Offered facility cannot exceed contract value.
-              </p>
-            )}
+            {facilityOfferBlockReason ? (
+              <p className="mt-2 text-sm text-destructive">{facilityOfferBlockReason}</p>
+            ) : null}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button

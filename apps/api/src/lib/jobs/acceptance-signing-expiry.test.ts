@@ -10,6 +10,7 @@ jest.mock("../prisma", () => ({
     $transaction: jest.fn(),
     contract: { findUnique: jest.fn(), update: jest.fn() },
     invoice: { findUnique: jest.fn(), update: jest.fn() },
+    application: { findUnique: jest.fn().mockResolvedValue({ contract_id: null }) },
   },
 }));
 
@@ -44,11 +45,18 @@ jest.mock("../../modules/products/repository", () => ({
 }));
 
 jest.mock("../refresh-contract-facility", () => ({
-  refreshContractFacilityValues: jest.fn().mockResolvedValue(null),
+  applyContractCapacityChange: jest.fn(
+    async (
+      _contractId: string,
+      _db: unknown,
+      mutate: (tx: unknown) => Promise<unknown>
+    ) => ({ result: await mutate({}), snapshot: null })
+  ),
 }));
 
 import { prisma } from "../prisma";
 import { writeApplicationAuditLog } from "../../modules/applications/audit/writer";
+import { applyContractCapacityChange } from "../refresh-contract-facility";
 import { runAcceptanceSigningExpiryJob } from "./acceptance-signing-expiry";
 
 const pastIso = "2020-01-01T00:00:00.000Z";
@@ -219,6 +227,45 @@ describe("runAcceptanceSigningExpiryJob", () => {
       }),
       tx
     );
+  });
+
+  it("re-reserves expiry release through applyContractCapacityChange when the invoice is facility-tied", async () => {
+    (prisma.$queryRaw as jest.Mock)
+      .mockReset()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "invoice-2",
+          offer_details: offerDetails,
+          application_id: "app-inv-2",
+          contract_id: "contract-fac",
+          product_id: "prod-1",
+          product_version: 1,
+          financing_structure: { structure_type: "existing_contract" },
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    (prisma.invoice.findUnique as jest.Mock).mockResolvedValue({
+      offer_details: offerDetails,
+      status: "OFFER_SENT",
+    });
+    (applyContractCapacityChange as jest.Mock).mockImplementationOnce(
+      async (_id: string, _db: unknown, mutate: (client: TxSpies) => Promise<unknown>) => ({
+        result: await mutate(tx),
+        snapshot: null,
+      })
+    );
+
+    const result = await runAcceptanceSigningExpiryJob();
+
+    expect(applyContractCapacityChange).toHaveBeenCalledWith(
+      "contract-fac",
+      prisma,
+      expect.any(Function),
+      expect.objectContaining({ assertWrite: true })
+    );
+    expect(result.invoicesExpired).toEqual(["invoice-2"]);
   });
 
   it("expires signing envelopes when signing clock lapses", async () => {

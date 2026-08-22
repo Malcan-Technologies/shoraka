@@ -39,11 +39,13 @@ export default function ActivityPage() {
   const [domains, setDomains] = useState<NonNullable<GetActivitiesParams["domains"]>>(defaultDomains);
   const [dateRange, setDateRange] = useState("all");
   const [page, setPage] = useState(1);
+  const [syncedDefaultDomains, setSyncedDefaultDomains] = useState(defaultDomains);
 
-  useEffect(() => {
+  if (syncedDefaultDomains !== defaultDomains) {
+    setSyncedDefaultDomains(defaultDomains);
     setDomains(defaultDomains);
     setPage(1);
-  }, [defaultDomains]);
+  }
 
   const apiDateRangeByUi: Record<string, GetActivitiesParams["dateRange"] | undefined> = {
     all: undefined,

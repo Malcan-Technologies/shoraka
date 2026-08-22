@@ -38,6 +38,7 @@ function issuerNoteSearchHaystack(note: NoteListItem): string {
     note.id,
     note.noteReference,
     note.title,
+    note.purposeOfFinancing ?? "",
     note.paymasterName ?? "",
     note.productName ?? "",
     note.productCategory ?? "",

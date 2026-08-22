@@ -3342,6 +3342,12 @@ export class ApiClient {
   // Invoice APIs removed.
   // Methods related to invoices were deleted because invoice backend was removed.
 
+  async getS3ViewUrl(
+    s3Key: string
+  ): Promise<ApiResponse<{ viewUrl: string; expiresIn: number }> | ApiError> {
+    return this.post<{ viewUrl: string; expiresIn: number }>("/v1/s3/view-url", { s3Key });
+  }
+
   async deleteContractDocument(
     id: string,
     s3Key: string

@@ -1,11 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { BanknotesIcon, DocumentTextIcon, UserGroupIcon } from "@heroicons/react/24/outline";
 import { StarIcon } from "@heroicons/react/24/solid";
 import { formatInvestorReturnRatePercent } from "@cashsouk/types";
-import { StatusBadge } from "@cashsouk/ui";
 import { Button } from "@/components/ui/button";
 import { MarketplaceReturnRateTooltip } from "@/investments/components/investment-return-breakdown";
 import {
@@ -15,16 +13,14 @@ import {
 } from "@/investments/components/investment-card-metrics";
 import { cn } from "@/lib/utils";
 import { MarketplaceFailedFundingTooltip } from "./marketplace-failed-funding-tooltip";
-import { MarketplaceIndustryIcon } from "./marketplace-industry-icon";
+import { MarketplaceNoteIdentity } from "./marketplace-note-identity";
 import {
   marketplaceFundingBarClasses,
   marketplaceFundingSummary,
   marketplaceInvestActionLabel,
   marketplaceInvestAnyAmountLabel,
   marketplaceInvestorSummary,
-  marketplaceIssuerLabel,
   marketplaceListingUrgency,
-  marketplaceNoteLabel,
   type MarketplaceNote,
 } from "./marketplace-note-model";
 
@@ -97,40 +93,6 @@ function MarketplaceFundingBar({ note }: { note: MarketplaceNote }) {
           {marketplaceInvestorSummary(note)}
         </MarketplaceHighlight>
       </div>
-    </div>
-  );
-}
-
-function MarketplaceNoteFacts({
-  note,
-  className,
-}: {
-  note: MarketplaceNote;
-  className?: string;
-}) {
-  const product = note.productName?.trim();
-  const industry = note.industry?.trim();
-  return (
-    <div className={cn("min-w-0 space-y-1", className)}>
-      <div className="flex flex-wrap items-center gap-2">
-        {note.listingKind === "funded" ? (
-          <StatusBadge label="Funded" status="success" />
-        ) : null}
-        {note.listingKind === "failed" ? (
-          <StatusBadge label="Funding failed" status="rejected" />
-        ) : null}
-        <Link
-          href={`/investments/${note.id}`}
-          className="text-ui font-semibold text-foreground hover:text-primary"
-        >
-          {marketplaceIssuerLabel(note)}
-        </Link>
-      </div>
-      <p className="text-ui leading-6 text-foreground">
-        {marketplaceNoteLabel(note)}
-        {product ? ` · ${product}` : ""}
-      </p>
-      {industry ? <p className="text-ui leading-5 text-muted-foreground">{industry}</p> : null}
     </div>
   );
 }
@@ -238,14 +200,13 @@ export function MarketplaceNoteCard({
       {featured ? (
         <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-primary" />
       ) : null}
-      <div className={cn("min-w-0 flex-1", stacked ? "space-y-5" : "space-y-3")}>
-        <div className={cn("flex items-start", stacked ? "gap-4" : "gap-3")}>
-          <MarketplaceIndustryIcon industry={note.industry} size={featured ? "lg" : "md"} />
-          <div className={cn("min-w-0", stacked ? "space-y-3" : "space-y-2")}>
-            {featured ? <FeaturedMark /> : null}
-            <MarketplaceNoteFacts note={note} className={stacked ? "space-y-2" : undefined} />
-          </div>
-        </div>
+      <div className={cn("min-w-0 flex-1", stacked ? "space-y-5" : "space-y-4")}>
+        <MarketplaceNoteIdentity
+          note={note}
+          featuredMark={featured ? <FeaturedMark /> : null}
+          leadSize={featured ? "lg" : "md"}
+          className={stacked ? "gap-4" : undefined}
+        />
         <MarketplaceFundingBar note={note} />
       </div>
 

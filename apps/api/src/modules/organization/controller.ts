@@ -13,6 +13,7 @@ import {
   transferOwnershipSchema,
   updateCorporateInfoSchema,
   patchCtosPartyEmailSchema,
+  recoverUnresolvedIdentitySchema,
   sendDirectorOnboardingSchema,
   PortalType,
 } from "./schemas";
@@ -1036,6 +1037,30 @@ async function sendDirectorOnboarding(
 }
 
 /**
+ * PATCH /v1/organizations/:portal(investor|issuer)/:id/unresolved-identity
+ */
+async function recoverUnresolvedIdentity(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  portalType: PortalType
+) {
+  try {
+    const userId = getUserId(req);
+    const { id } = organizationIdParamSchema.parse(req.params);
+    const input = recoverUnresolvedIdentitySchema.parse(req.body);
+    const result = await organizationService.recoverUnresolvedIdentity(userId, id, portalType, input);
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Refresh AML status for an organization
  * POST /v1/organizations/investor/:id/refresh-aml
  * POST /v1/organizations/issuer/:id/refresh-aml
@@ -1145,6 +1170,9 @@ export function createOrganizationRouter(): Router {
   router.post("/investor/:id/send-director-onboarding", requireAuth, (req, res, next) =>
     sendDirectorOnboarding(req, res, next, "investor")
   );
+  router.patch("/investor/:id/unresolved-identity", requireAuth, (req, res, next) =>
+    recoverUnresolvedIdentity(req, res, next, "investor")
+  );
 
   // Issuer organization routes
   router.get("/issuer", requireAuth, (req, res, next) =>
@@ -1221,6 +1249,9 @@ export function createOrganizationRouter(): Router {
   );
   router.post("/issuer/:id/send-director-onboarding", requireAuth, (req, res, next) =>
     sendDirectorOnboarding(req, res, next, "issuer")
+  );
+  router.patch("/issuer/:id/unresolved-identity", requireAuth, (req, res, next) =>
+    recoverUnresolvedIdentity(req, res, next, "issuer")
   );
   router.post("/issuer/:id/refresh-aml", requireAuth, (req, res, next) =>
     refreshOrganizationAML(req, res, next, "issuer")

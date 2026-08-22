@@ -786,6 +786,148 @@ export function extractGovernmentId(formContent: unknown): string | null {
   return null;
 }
 
+export const UNRESOLVED_IDENTITY_ADMIN_TITLE = "Records requiring review";
+export const UNRESOLVED_IDENTITY_ADMIN_COPY =
+  "Some identity information is missing from RegTank. Review these records before approving the application.";
+
+export const UNRESOLVED_IDENTITY_RECOVERY_TITLE = "Missing government ID";
+export const UNRESOLVED_IDENTITY_RECOVERY_COPY =
+  "Some identity information is missing. Enter each person's government ID so we can match their record.";
+
+export type UnresolvedIdentityRecoverRole = "DIRECTOR" | "SHAREHOLDER";
+
+export type UnresolvedIdentityRecoverInput = {
+  eodRequestId: string;
+  email?: string | null;
+  role: UnresolvedIdentityRecoverRole;
+  governmentId: string;
+};
+
+function corporateEntityPersonEmail(person: Record<string, unknown>): string {
+  const info = person.personalInfo as Record<string, unknown> | undefined;
+  return String(info?.email ?? "").trim().toLowerCase();
+}
+
+function corporateEntityPersonGovernmentId(person: Record<string, unknown>): string | null {
+  const info = person.personalInfo as Record<string, unknown> | undefined;
+  const fromForm = extractGovernmentId(info?.formContent);
+  if (fromForm) return fromForm;
+  const raw = info?.governmentIdNumber != null ? String(info.governmentIdNumber).trim() : "";
+  return raw || null;
+}
+
+export function upsertGovernmentIdOnFormContent(
+  formContent: unknown,
+  governmentId: string
+): Record<string, unknown> {
+  const fc =
+    formContent && typeof formContent === "object" && !Array.isArray(formContent)
+      ? { ...(formContent as Record<string, unknown>) }
+      : {};
+  const content = Array.isArray(fc.content) ? [...fc.content] : [];
+  let found = false;
+  const nextContent = content.map((field) => {
+    if (!field || typeof field !== "object" || Array.isArray(field)) return field;
+    const rec = field as Record<string, unknown>;
+    if (String(rec.fieldName ?? "").trim().toLowerCase() !== "government id number") return field;
+    found = true;
+    return { ...rec, fieldValue: governmentId };
+  });
+  if (!found) {
+    nextContent.push({
+      fieldName: "Government ID Number",
+      fieldType: "text",
+      fieldValue: governmentId,
+    });
+  }
+  return { ...fc, content: nextContent };
+}
+
+function applyGovernmentIdToCorporateEntityPerson(
+  person: Record<string, unknown>,
+  governmentId: string
+): Record<string, unknown> {
+  const info =
+    person.personalInfo && typeof person.personalInfo === "object" && !Array.isArray(person.personalInfo)
+      ? { ...(person.personalInfo as Record<string, unknown>) }
+      : {};
+  return {
+    ...person,
+    personalInfo: {
+      ...info,
+      governmentIdNumber: governmentId,
+      formContent: upsertGovernmentIdOnFormContent(info.formContent, governmentId),
+    },
+  };
+}
+
+function listUsedGovernmentIdKeys(corporateEntities: Record<string, unknown>): Set<string> {
+  const used = new Set<string>();
+  const add = (person: unknown) => {
+    if (!person || typeof person !== "object" || Array.isArray(person)) return;
+    const raw = corporateEntityPersonGovernmentId(person as Record<string, unknown>);
+    const key = normalizeDirectorShareholderIdKey(raw);
+    if (key) used.add(key);
+  };
+  for (const person of Array.isArray(corporateEntities.directors) ? corporateEntities.directors : []) {
+    add(person);
+  }
+  for (const person of Array.isArray(corporateEntities.shareholders)
+    ? corporateEntities.shareholders
+    : []) {
+    add(person);
+  }
+  return used;
+}
+
+/**
+ * Persist a missing government ID onto one unresolved corporate_entities person.
+ * Matches by EOD + role, then email when the same EOD appears on more than one missing-ID row.
+ */
+export function attachGovernmentIdToUnresolvedCorporateEntities(
+  corporateEntities: unknown,
+  input: UnresolvedIdentityRecoverInput
+): Record<string, unknown> {
+  if (!corporateEntities || typeof corporateEntities !== "object" || Array.isArray(corporateEntities)) {
+    throw new Error("CORPORATE_ENTITIES_MISSING");
+  }
+  const governmentId = String(input.governmentId ?? "").trim();
+  const governmentKey = normalizeDirectorShareholderIdKey(governmentId);
+  if (!governmentKey || governmentKey.length < 6) {
+    throw new Error("INVALID_GOVERNMENT_ID");
+  }
+  const eod = String(input.eodRequestId ?? "").trim();
+  if (!eod) throw new Error("MISSING_EOD");
+
+  const source = corporateEntities as Record<string, unknown>;
+  const used = listUsedGovernmentIdKeys(source);
+  if (used.has(governmentKey)) {
+    throw new Error("GOVERNMENT_ID_IN_USE");
+  }
+
+  const listKey = input.role === "DIRECTOR" ? "directors" : "shareholders";
+  const list = Array.isArray(source[listKey]) ? [...(source[listKey] as unknown[])] : [];
+  const email = String(input.email ?? "").trim().toLowerCase();
+  const candidates = list
+    .map((person, index) => ({ person, index }))
+    .filter(({ person }) => person && typeof person === "object" && !Array.isArray(person))
+    .map(({ person, index }) => ({ person: person as Record<string, unknown>, index }))
+    .filter(({ person }) => String(person.eodRequestId ?? "").trim() === eod)
+    .filter(({ person }) => !corporateEntityPersonGovernmentId(person));
+
+  const narrowed = email
+    ? candidates.filter(({ person }) => corporateEntityPersonEmail(person) === email)
+    : candidates;
+  const matches = narrowed.length > 0 ? narrowed : candidates;
+  if (matches.length === 0) throw new Error("UNRESOLVED_IDENTITY_NOT_FOUND");
+  if (matches.length > 1) throw new Error("UNRESOLVED_IDENTITY_AMBIGUOUS");
+
+  const target = matches[0];
+  const nextList = [...list];
+  nextList[target.index] = applyGovernmentIdToCorporateEntityPerson(target.person, governmentId);
+  return { ...source, [listKey]: nextList };
+}
+
 function issuerIcFromCePersonFormOnly(p: Record<string, unknown>): string | null {
   const info = p.personalInfo as Record<string, unknown> | undefined;
   return extractGovernmentId(info?.formContent);

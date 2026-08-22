@@ -42219,11 +42219,11 @@ Appended globally after A177. Not inserted into the original A063–A102 block. 
 
 ## 1. What this event means
 
-Live revolving occupancy on a contract facility changed after a causal business action. Occupancy SOT is `contract_details` (`utilized_facility`, `available_facility`, `pending_facility`, `repaid_facility`). This row is history of a material utilized / available / repaid change, not workflow state.
+Live dual-ledger occupancy on a contract facility changed after a causal business action. Occupancy SOT is typed `Contract` columns plus `contract_details` JSON kept in sync (`utilized_facility`, `available_facility`, `pending_facility`, `repaid_facility`, `lifetime_used`, `lifetime_remaining`, marked with `capacity_snapshot_version`). This row is history of a material occupancy change, not workflow state.
 
 ## 2. When it logs
 
-`apps/api/src/lib/refresh-contract-facility.ts` → `writeApplicationAuditLog`, only when the caller passes occupancy audit context **and** utilized / available / repaid actually changed.
+`apps/api/src/lib/refresh-contract-facility.ts` → `writeApplicationAuditLog`, only when the caller passes occupancy audit context **and** a tracked occupancy value actually changed (`utilized_facility`, `available_facility`, `repaid_facility`, `pending_facility`, `lifetime_used`, or `lifetime_remaining`).
 
 Callers:
 
@@ -42234,7 +42234,7 @@ Callers:
 
 ## 3. When it does NOT log / no-op
 
-No occupancy audit row when utilized, available, and repaid are unchanged (pending-only changes included). Silent SOT refresh without this event: invoice create / update / delete / withdraw, admin offer send / retract, amendment, section / item review, expiry job, recompute script, bookkeeping-only refresh, contract accept available-line update, reject paths.
+No occupancy audit row when utilized, available, repaid, pending, lifetime used, and lifetime remaining are all unchanged. Silent SOT refresh without this event: invoice create / update / delete / withdraw, admin offer send / retract, amendment, section / item review, expiry job, recompute script, bookkeeping-only refresh, contract accept available-line update, reject paths.
 
 ## 4. Top-level audit row
 
@@ -42271,23 +42271,28 @@ Zod: `occupancyUpdatedSchema` in `apps/api/src/modules/applications/audit/metada
     utilized_facility: number;
     available_facility: number;
     repaid_facility: number;
+    pending_facility: number;
+    lifetime_used: number;
+    lifetime_remaining: number;
   };
   after: {
     utilized_facility: number;
     available_facility: number;
     repaid_facility: number;
     pending_facility: number;
+    lifetime_used: number;
+    lifetime_remaining: number;
   };
 }
 ```
 
 ## 6. Source of truth
 
-`contract.contract_details` occupancy fields remain SOT. Note funded/target amounts, invoice offer amounts, and note status/funding/servicing remain the occupancy inputs. Audit is not occupancy state.
+Typed `Contract` capacity columns (`approved_facility`, `utilized_facility`, `pending_facility`, `repaid_facility`, `available_facility`, `lifetime_cap`, `lifetime_used`, `lifetime_remaining`) plus matching `contract_details` JSON (including `capacity_snapshot_version`) remain SOT after persist. Invoices/notes remain the occupancy inputs. Audit is not occupancy state. `approved_facility` and `lifetime_cap` are **not** in A178 metadata.
 
 ## 7. Transaction / audit failure behavior
 
-Invoice accept writes in the same Prisma transaction as the invoice mutation. Note funding close/fail and repayment refresh after the note transaction commits. Writer parse/insert failure on in-tx accept rolls back the invoice mutation. Failed occupancy write after a committed note mutation does not roll back the note (refresh is post-commit, matching Ivan's call sites).
+Occupancy refresh and A178 write run in the same Prisma transaction as the sibling mutation when the caller uses `applyContractCapacityChange` / `refreshContractFacilityForNote` with audit context (invoice accept, funding close/fail, note repaid). Writer parse/insert failure rolls back that transaction. Silent capacity refreshes (no audit context) persist the snapshot without an A178 row.
 
 ## 8. Writer(s)
 
@@ -42349,8 +42354,8 @@ Admin Application Activity and Contract Activity. Raw Application Audit History.
 - [ ] Funding close with occupancy change → one A178 row; admin actor
 - [ ] Funding fail with occupancy change → one A178 row; admin actor
 - [ ] Note repaid with occupancy change → one A178 row; admin actor
-- [ ] No-op recalculation (utilized/available/repaid unchanged) → no A178
-- [ ] Pending-only change → no A178
+- [ ] No-op recalculation (tracked occupancy unchanged) → no A178
+- [ ] Pending-only or lifetime-only material change with an audited reason → one A178 row
 - [ ] Invoice create/update/delete/withdraw, offer send/retract, amendment, expiry, recompute → SOT updated, no A178
 - [ ] No `NoteAuditLog` / `FACILITY_OCCUPANCY_UPDATED` row
 - [ ] Admin Activity shows Facility Utilization Updated

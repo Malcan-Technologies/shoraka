@@ -14,7 +14,11 @@ import {
   ReviewSection,
   ReviewStepStatus,
 } from "@prisma/client";
-import type { AdminRoleKey } from "@cashsouk/types";
+import {
+  readFinancingStructureType,
+  resolveAdminContractApplicationKind,
+  type AdminRoleKey,
+} from "@cashsouk/types";
 import type {
   GetUsersQuery,
   GetAdminUsersQuery,
@@ -22,11 +26,18 @@ import type {
   GetAdminContractsQuery,
 } from "./schemas";
 import {
-  resolveApprovedFacilityForRefresh,
   resolveRequestedFacility,
   resolveOfferedFacility,
   parseFacilityJsonAmount,
 } from "../../lib/contract-facility";
+import {
+  overlayReadCapacityOnContracts,
+  overlayStoredCapacityOnApplicationContract,
+} from "../../lib/refresh-contract-facility";
+import {
+  mapAdminContractCapacityDto,
+  readInvoiceFaceAmount,
+} from "./contract-capacity-dto";
 import { ensureAdminRoleCatalog } from "../../lib/auth/rbac";
 
 export class AdminRepository {
@@ -1644,6 +1655,11 @@ export class AdminRepository {
       contractValue: number;
       approvedFacility: number;
       utilizedFacility: number;
+      pendingFacility: number;
+      availableFacility: number;
+      lifetimeCap: number;
+      lifetimeUsed: number;
+      lifetimeRemaining: number;
       status: string;
       updatedAt: Date;
     }[];
@@ -1694,29 +1710,36 @@ export class AdminRepository {
       prisma.contract.count({ where }),
     ]);
 
-    const transformedContracts = contracts.map((contract) => {
-      const contractDetails = (contract.contract_details ?? {}) as Record<string, unknown>;
+    const overlaidContracts = await overlayReadCapacityOnContracts(prisma, contracts);
+    const transformedContracts = overlaidContracts.map((contract) => {
+      const capacity = mapAdminContractCapacityDto(contract);
       const contractValue =
-        parseFacilityJsonAmount(contractDetails.value) ??
-        parseFacilityJsonAmount(contractDetails.financing) ??
+        parseFacilityJsonAmount(capacity.contractDetails.value) ??
+        parseFacilityJsonAmount(capacity.contractDetails.financing) ??
         0;
-      const approvedFacility = resolveApprovedFacilityForRefresh(contract.status, contractDetails);
-      const utilizedFacility = parseFacilityJsonAmount(contractDetails.utilized_facility) ?? 0;
 
       return {
         id: contract.id,
         displayReference: contract.display_reference ?? null,
         contractNumber:
-          typeof contractDetails.number === "string" && contractDetails.number.trim().length > 0
-            ? contractDetails.number
+          typeof capacity.contractDetails.number === "string" &&
+          capacity.contractDetails.number.trim().length > 0
+            ? capacity.contractDetails.number
             : null,
-        title: typeof contractDetails.title === "string" && contractDetails.title.trim().length > 0
-          ? contractDetails.title
-          : null,
+        title:
+          typeof capacity.contractDetails.title === "string" &&
+          capacity.contractDetails.title.trim().length > 0
+            ? capacity.contractDetails.title
+            : null,
         issuerOrganizationName: contract.issuer_organization?.name ?? null,
         contractValue: Number.isFinite(contractValue) ? contractValue : 0,
-        approvedFacility: Number.isFinite(approvedFacility) ? approvedFacility : 0,
-        utilizedFacility: Number.isFinite(utilizedFacility) ? utilizedFacility : 0,
+        approvedFacility: capacity.approvedFacility,
+        utilizedFacility: capacity.utilizedFacility,
+        pendingFacility: capacity.pendingFacility,
+        availableFacility: capacity.availableFacility,
+        lifetimeCap: capacity.lifetimeCap,
+        lifetimeUsed: capacity.lifetimeUsed,
+        lifetimeRemaining: capacity.lifetimeRemaining,
         status: contract.status,
         updatedAt: contract.updated_at,
       };
@@ -1734,6 +1757,12 @@ export class AdminRepository {
     issuerOrganizationName: string | null;
     requestedFacility: number;
     approvedFacility: number;
+    utilizedFacility: number;
+    pendingFacility: number;
+    availableFacility: number;
+    lifetimeCap: number;
+    lifetimeUsed: number;
+    lifetimeRemaining: number;
     status: string;
     createdAt: Date;
     updatedAt: Date;
@@ -1744,11 +1773,13 @@ export class AdminRepository {
     customerDetails: Record<string, unknown> | null;
     applications: {
       id: string;
+      displayReference: string | null;
       productId: string | null;
       status: string;
       submittedAt: Date | null;
       updatedAt: Date;
       requestedAmount: number;
+      kind: "facility" | "invoice";
     }[];
     issuerOrganizationId: string | null;
     notes: {
@@ -1760,6 +1791,7 @@ export class AdminRepository {
       sourceInvoiceId: string | null;
       targetAmount: number;
       fundedAmount: number;
+      invoiceFaceAmount: number | null;
     }[];
     activity: {
       id: string;
@@ -1800,14 +1832,10 @@ export class AdminRepository {
             submitted_at: true,
             updated_at: true,
             financing_type: true,
+            financing_structure: true,
             invoices: {
               select: {
                 details: true,
-              },
-            },
-            contract: {
-              select: {
-                contract_details: true,
               },
             },
           },
@@ -1819,7 +1847,9 @@ export class AdminRepository {
       return null;
     }
 
-    const contractDetails = (contract.contract_details ?? {}) as Record<string, unknown>;
+    const [overlaid] = await overlayReadCapacityOnContracts(prisma, [contract]);
+    const capacity = mapAdminContractCapacityDto(overlaid);
+    const contractDetails = capacity.contractDetails;
     const offerDetails = (contract.offer_details ?? {}) as Record<string, unknown>;
     const customerDetails = (contract.customer_details ?? {}) as Record<string, unknown>;
     const sentByUserId =
@@ -1835,24 +1865,28 @@ export class AdminRepository {
         ? offerDetails.requested_facility
         : resolveRequestedFacility(contractDetails);
     const offeredFacility = resolveOfferedFacility(offerDetails);
-    const approvedFacility = resolveApprovedFacilityForRefresh(contract.status, contractDetails);
 
+    const originatingApplicationId = contract.originating_application_id;
     const applications = contract.applications.map((application) => {
-      let requestedAmount = 0;
+      const structureType = readFinancingStructureType(application.financing_structure);
+      const kind = resolveAdminContractApplicationKind({
+        applicationId: application.id,
+        originatingApplicationId,
+        structureType,
+        financingType: application.financing_type,
+        invoiceCount: application.invoices.length,
+      });
 
-      if (application.invoices.length > 0) {
+      let requestedAmount = 0;
+      if (kind === "facility") {
+        requestedAmount = requestedFacility;
+      } else {
         requestedAmount = application.invoices.reduce((sum, invoice) => {
           const details = (invoice.details ?? {}) as Record<string, unknown>;
           const invoiceValue = parseFacilityJsonAmount(details.value) ?? 0;
           const financingRatio = parseFacilityJsonAmount(details.financing_ratio_percent) ?? 80;
           return sum + (invoiceValue * financingRatio) / 100;
         }, 0);
-      } else if (application.contract?.contract_details) {
-        const appContractDetails = application.contract.contract_details as Record<string, unknown>;
-        requestedAmount =
-          parseFacilityJsonAmount(appContractDetails.value) ??
-          parseFacilityJsonAmount(appContractDetails.approved_facility) ??
-          0;
       }
 
       return {
@@ -1866,11 +1900,11 @@ export class AdminRepository {
         submittedAt: application.submitted_at,
         updatedAt: application.updated_at,
         requestedAmount: Number.isFinite(requestedAmount) ? requestedAmount : 0,
+        kind,
       };
     });
 
     const linkedApplicationIds = contract.applications.map((application) => application.id);
-    const originatingApplicationId = contract.originating_application_id;
     const activityWhere: Prisma.ApplicationAuditLogWhereInput = {
       OR: [
         { target_type: "CONTRACT", target_id: id },
@@ -1935,6 +1969,22 @@ export class AdminRepository {
         return name ? [[user.user_id, name] as const] : [];
       })
     );
+    const sourceInvoiceIds = [
+      ...new Set(
+        notes
+          .map((note) => note.source_invoice_id)
+          .filter((invoiceId): invoiceId is string => Boolean(invoiceId))
+      ),
+    ];
+    const sourceInvoices = sourceInvoiceIds.length
+      ? await prisma.invoice.findMany({
+          where: { id: { in: sourceInvoiceIds } },
+          select: { id: true, details: true },
+        })
+      : [];
+    const invoiceFaceById = new Map(
+      sourceInvoices.map((invoice) => [invoice.id, readInvoiceFaceAmount(invoice.details)] as const)
+    );
 
     return {
       id: contract.id,
@@ -1951,9 +2001,13 @@ export class AdminRepository {
       approvedFacility:
         Number.isFinite(offeredFacility) && offeredFacility > 0
           ? offeredFacility
-          : Number.isFinite(approvedFacility)
-            ? approvedFacility
-            : 0,
+          : capacity.approvedFacility,
+      utilizedFacility: capacity.utilizedFacility,
+      pendingFacility: capacity.pendingFacility,
+      availableFacility: capacity.availableFacility,
+      lifetimeCap: capacity.lifetimeCap,
+      lifetimeUsed: capacity.lifetimeUsed,
+      lifetimeRemaining: capacity.lifetimeRemaining,
       status: contract.status,
       createdAt: contract.created_at,
       updatedAt: contract.updated_at,
@@ -1974,6 +2028,9 @@ export class AdminRepository {
         sourceInvoiceId: note.source_invoice_id,
         targetAmount: note.target_amount.toNumber(),
         fundedAmount: note.funded_amount.toNumber(),
+        invoiceFaceAmount: note.source_invoice_id
+          ? (invoiceFaceById.get(note.source_invoice_id) ?? null)
+          : null,
       })),
       activity: activityLogs.map((log) => {
         const metadata = (log.metadata as Record<string, unknown> | null) ?? {};
@@ -2002,7 +2059,7 @@ export class AdminRepository {
    * Get financing application by ID with all details and review data
    */
   async getApplicationById(id: string) {
-    return prisma.application.findUnique({
+    const application = await prisma.application.findUnique({
       where: { id },
       include: {
         issuer_organization: {
@@ -2045,6 +2102,8 @@ export class AdminRepository {
         },
       },
     });
+    if (!application) return null;
+    return overlayStoredCapacityOnApplicationContract(application);
   }
 
   /**

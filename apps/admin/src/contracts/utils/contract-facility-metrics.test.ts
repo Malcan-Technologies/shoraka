@@ -6,13 +6,16 @@ jest.mock("@cashsouk/config", () => ({
     })}`,
 }));
 
+import { CAPACITY_SNAPSHOT_VERSION, CAPACITY_SNAPSHOT_VERSION_KEY } from "@cashsouk/types";
 import {
   formatContractFacilityNoteCount,
   getContractUtilizationAccentClass,
   getContractUtilizationProgressClass,
   parseFacilityAmount,
+  resolveAdminReviewFacilityOccupancy,
   resolveContractFacilityFeeCollected,
   resolveContractFacilityMetrics,
+  resolvePendingFacilityFromSnapshot,
   sumPendingInvoiceFacility,
 } from "./contract-facility-metrics";
 
@@ -50,13 +53,13 @@ describe("resolveContractFacilityMetrics", () => {
       contractDetails: { utilized_facility: "250,000" },
     });
 
-    expect(metrics).toEqual({
-      approved: 1000000,
-      utilized: 250000,
-      pending: 0,
-      available: 750000,
-      utilizationPercent: 25,
-    });
+    expect(metrics.approved).toBe(1000000);
+    expect(metrics.utilized).toBe(250000);
+    expect(metrics.pending).toBe(0);
+    expect(metrics.available).toBe(750000);
+    expect(metrics.occupied).toBe(250000);
+    expect(metrics.utilizationPercent).toBe(25);
+    expect(metrics.isOverLimit).toBe(false);
   });
 
   it("treats missing utilization as nothing drawn", () => {
@@ -82,14 +85,59 @@ describe("resolveContractFacilityMetrics", () => {
     expect(metrics.utilizationPercent).toBe(130);
   });
 
-  it("reads pending occupancy from the contract JSON", () => {
+  it("treats pending as reserved credit that reduces remaining", () => {
     const metrics = resolveContractFacilityMetrics({
       approvedFacility: 100000,
       status: "APPROVED",
       contractDetails: { utilized_facility: 0, pending_facility: 46172 },
     });
     expect(metrics.pending).toBe(46172);
-    expect(metrics.available).toBe(100000);
+    expect(metrics.available).toBe(53828);
+    expect(metrics.occupied).toBe(46172);
+    expect(metrics.utilizationPercent).toBeCloseTo(46.172);
+  });
+
+  it("prefers typed snapshot fields and preserves legacy negative remaining", () => {
+    const metrics = resolveContractFacilityMetrics({
+      approvedFacility: 100000,
+      utilizedFacility: 80000,
+      pendingFacility: 30000,
+      availableFacility: -10000,
+      lifetimeCap: 400000,
+      lifetimeUsed: 410000,
+      lifetimeRemaining: -10000,
+      status: "APPROVED",
+      contractDetails: {
+        utilized_facility: 1,
+        pending_facility: 1,
+        available_facility: 99,
+        lifetime_remaining: 1,
+      },
+    });
+    expect(metrics.utilized).toBe(80000);
+    expect(metrics.pending).toBe(30000);
+    expect(metrics.available).toBe(-10000);
+    expect(metrics.lifetimeRemaining).toBe(-10000);
+    expect(metrics.isCreditOverLimit).toBe(true);
+    expect(metrics.isAllocationOverLimit).toBe(true);
+    expect(metrics.isOverLimit).toBe(true);
+  });
+
+  it("reads lifetime allocation from contract JSON when typed fields are absent", () => {
+    const metrics = resolveContractFacilityMetrics({
+      approvedFacility: 100000,
+      status: "APPROVED",
+      contractDetails: {
+        utilized_facility: 20000,
+        lifetime_cap: 500000,
+        lifetime_used: 120000,
+        lifetime_remaining: 380000,
+      },
+    });
+    expect(metrics.lifetimeCap).toBe(500000);
+    expect(metrics.lifetimeUsed).toBe(120000);
+    expect(metrics.lifetimeRemaining).toBe(380000);
+    expect(metrics.allocationPercent).toBe(24);
   });
 
   it("reads approved_facility from JSON when the payload number is missing or zero", () => {
@@ -162,6 +210,93 @@ describe("sumPendingInvoiceFacility", () => {
         { status: "APPROVED", offer_details: { offered_amount: 30_000 } },
       ])
     ).toBe(30_000);
+  });
+
+  it("uses requested applied_financing for submitted invoices", () => {
+    expect(
+      sumPendingInvoiceFacility([
+        {
+          status: "SUBMITTED",
+          details: { value: 100_000, applied_financing: 40_000, financing_ratio_percent: 80 },
+          offer_details: { offered_amount: 55_000 },
+        },
+      ])
+    ).toBe(40_000);
+  });
+});
+
+describe("resolvePendingFacilityFromSnapshot", () => {
+  it("prefers a marked pending snapshot including zero", () => {
+    expect(
+      resolvePendingFacilityFromSnapshot(
+        {
+          pending_facility: 0,
+          available_facility: 100_000,
+          [CAPACITY_SNAPSHOT_VERSION_KEY]: CAPACITY_SNAPSHOT_VERSION,
+        },
+        [{ status: "SUBMITTED", details: { applied_financing: 40_000 } }]
+      )
+    ).toBe(0);
+  });
+
+  it("falls back to applied_financing when the pending snapshot is absent", () => {
+    expect(
+      resolvePendingFacilityFromSnapshot({ value: 500_000, approved_facility: 100_000 }, [
+        { status: "SUBMITTED", details: { value: 100_000, applied_financing: 40_000 } },
+      ])
+    ).toBe(40_000);
+  });
+
+  it("falls back when unmarked pending is a typed zero", () => {
+    expect(
+      resolvePendingFacilityFromSnapshot({ pending_facility: 0, available_facility: 100_000 }, [
+        { status: "SUBMITTED", details: { applied_financing: 40_000 } },
+      ])
+    ).toBe(40_000);
+  });
+});
+
+describe("resolveAdminReviewFacilityOccupancy", () => {
+  const pendingInvoice = { status: "SUBMITTED", details: { applied_financing: 40_000 } };
+
+  it("adjusts unmarked legacy available by fallback pending", () => {
+    const occupancy = resolveAdminReviewFacilityOccupancy({
+      contractDetails: { value: 500_000, approved_facility: 100_000, available_facility: 100_000 },
+      invoices: [pendingInvoice],
+      approvedFacility: 100_000,
+      utilizedFacility: 0,
+    });
+    expect(occupancy.pendingFacility).toBe(40_000);
+    expect(occupancy.availableFacility).toBe(60_000);
+  });
+
+  it("uses marked pending=0 and available exactly", () => {
+    const occupancy = resolveAdminReviewFacilityOccupancy({
+      contractDetails: {
+        pending_facility: 0,
+        available_facility: 100_000,
+        [CAPACITY_SNAPSHOT_VERSION_KEY]: CAPACITY_SNAPSHOT_VERSION,
+      },
+      invoices: [pendingInvoice],
+      approvedFacility: 100_000,
+      utilizedFacility: 0,
+    });
+    expect(occupancy.pendingFacility).toBe(0);
+    expect(occupancy.availableFacility).toBe(100_000);
+  });
+
+  it("does not add back the current invoice when reducing legacy remaining", () => {
+    const occupancy = resolveAdminReviewFacilityOccupancy({
+      contractDetails: { available_facility: 80_000 },
+      invoices: [
+        { status: "SUBMITTED", details: { applied_financing: 40_000 } },
+        { status: "SUBMITTED", details: { applied_financing: 20_000 } },
+      ],
+      approvedFacility: 100_000,
+      utilizedFacility: 0,
+    });
+    expect(occupancy.pendingFacility).toBe(60_000);
+    expect(occupancy.availableFacility).toBe(20_000);
   });
 });
 

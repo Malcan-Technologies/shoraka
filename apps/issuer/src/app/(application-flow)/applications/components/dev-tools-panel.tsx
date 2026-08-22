@@ -98,7 +98,7 @@ export function DevToolsPanel({
 
   return (
     <Card
-      className="fixed bottom-5 right-5 z-[9999] w-[220px] shadow-lg border-2"
+      className="fixed top-1/2 right-5 z-[9999] w-[220px] -translate-y-1/2 shadow-lg border-2"
       data-testid="dev-tools-panel"
     >
       <CardHeader className="py-2 px-3">

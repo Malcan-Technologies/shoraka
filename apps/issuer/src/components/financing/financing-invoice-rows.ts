@@ -68,6 +68,7 @@ export function financingInvoiceRowSearchHaystack(
   return [
     note.noteReference,
     note.title,
+    note.purposeOfFinancing ?? "",
     note.paymasterName ?? "",
     note.productName ?? "",
     note.productCategory ?? "",

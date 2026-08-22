@@ -909,7 +909,11 @@ export class SigningService {
   }
 
   async listEnvelopesForApplication(applicationId: string): Promise<SigningEnvelopeDto[]> {
-    const envelopes = await this.repo.findByApplicationId(applicationId);
+    const application = await this.requireApplicationContext(applicationId);
+    const envelopes = await this.repo.findVisibleForApplication(
+      applicationId,
+      application.contract_id
+    );
     return Promise.all(envelopes.map((envelope) => mapSigningEnvelopeToDtoWithEkyc(envelope)));
   }
 

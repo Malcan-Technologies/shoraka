@@ -8,6 +8,7 @@
 import { prisma } from "../../../lib/prisma";
 import { logger } from "../../../lib/logger";
 import { AppError } from "../../../lib/http/error-handler";
+import { applyContractCapacityChange } from "../../../lib/refresh-contract-facility";
 import { ApplicationRepository } from "../repository";
 import { assertRequiredSupportingDocumentsPresent } from "../supporting-docs-workflow";
 import { buildApplicationRevisionSnapshot } from "../revision-snapshot";
@@ -255,8 +256,9 @@ export async function resubmitApplication(
       : null;
 
   let createdRevisionId: string | null = null;
+  const resubmitContractId = appFullCurrent?.contract_id ?? null;
 
-  await prisma.$transaction(async (tx) => {
+  const persistResubmit = async (tx: Prisma.TransactionClient) => {
     await tx.applicationReviewRemark.deleteMany({
       where: {
         application_id: applicationId,
@@ -323,7 +325,15 @@ export async function resubmitApplication(
       },
       tx
     );
-  });
+  };
+
+  if (resubmitContractId) {
+    await applyContractCapacityChange(resubmitContractId, prisma, persistResubmit, {
+      assertWrite: true,
+    });
+  } else {
+    await prisma.$transaction(persistResubmit);
+  }
 
   logger.info({ applicationId }, "Application resubmitted: cleared amendment flags, created revision");
 

@@ -4,7 +4,12 @@ import {
   getProspectusDisplayStatus,
   hasSettlementTrusteeMovementFromPoolSummary,
   isSoukscoreRiskRating,
+  resolveContractPurpose,
+  resolveContractTitle,
+  resolveProductImageS3KeyFromSnapshot,
+  resolvePurposeOfFinancing,
   roundNoteMoney,
+  toMarketplacePublicNote,
   type IssuerResidualPayoutListStatus,
   type NoteProspectusSummary,
 } from "@cashsouk/types";
@@ -439,6 +444,10 @@ export function mapNoteListItem(note: NoteWithRelations) {
     title: note.title,
     productCategory: resolveProductCategory(note),
     productName: resolveProductName(note),
+    productImageS3Key: resolveProductImageS3KeyFromSnapshot(note.product_snapshot),
+    purposeOfFinancing: resolvePurposeOfFinancing(note.purpose_snapshot),
+    contractTitle: resolveContractTitle(note.contract_snapshot),
+    purposeOfContract: resolveContractPurpose(note.contract_snapshot),
     issuerIndustry: resolveIssuerIndustry(note),
     sourceApplicationId: note.source_application_id,
     sourceContractId: note.source_contract_id,
@@ -616,7 +625,7 @@ export function mapNoteDetail(
 
 export function mapMarketplaceNoteDetail(note: NoteWithRelations) {
   return {
-    ...mapNoteListItem(note),
+    ...toMarketplacePublicNote(mapNoteListItem(note)),
     listing: note.listing
       ? {
           id: note.listing.id,

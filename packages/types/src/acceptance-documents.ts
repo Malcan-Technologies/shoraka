@@ -222,6 +222,37 @@ export function collectAcceptanceDocumentReviewKeys(
   return keys;
 }
 
+/**
+ * Invoice draws store acceptance uploads on the facility application.
+ * Prefer the source app when it has uploads; otherwise use the originating facility.
+ */
+export function resolveNotePublishAcceptanceReview(input: {
+  workflow: unknown;
+  sourceApplicationId: string;
+  sourceAcceptanceDocuments: unknown;
+  originatingApplicationId?: string | null;
+  originatingAcceptanceDocuments?: unknown;
+}): { applicationId: string; docKeys: string[] } {
+  const sourceKeys = collectAcceptanceDocumentReviewKeys(
+    input.workflow,
+    input.sourceAcceptanceDocuments
+  );
+  if (sourceKeys.length > 0) {
+    return { applicationId: input.sourceApplicationId, docKeys: sourceKeys };
+  }
+  const originatingId = input.originatingApplicationId?.trim() || null;
+  if (originatingId && originatingId !== input.sourceApplicationId) {
+    const originatingKeys = collectAcceptanceDocumentReviewKeys(
+      input.workflow,
+      input.originatingAcceptanceDocuments
+    );
+    if (originatingKeys.length > 0) {
+      return { applicationId: originatingId, docKeys: originatingKeys };
+    }
+  }
+  return { applicationId: input.sourceApplicationId, docKeys: [] };
+}
+
 export function writeAcceptanceDocumentsConfig(
   financingTypeConfig: Record<string, unknown>,
   documents: AcceptanceDocumentRow[]

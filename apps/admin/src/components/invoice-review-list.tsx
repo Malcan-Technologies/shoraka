@@ -383,7 +383,7 @@ export function InvoiceList({
       risk_rating: invoiceOfferConfirm.risk_rating,
     });
     setInvoiceOfferConfirm(null);
-  }, [onSendInvoiceOffer, invoiceOfferConfirm]);
+  }, [onSendInvoiceOffer, invoiceOfferConfirm, setInvoiceOfferConfirm]);
 
   return (
     <div className={applicationTableWrapperClass}>
@@ -1174,10 +1174,10 @@ export function InvoiceList({
                 ) : null}
                 {remainingAvailableFacility != null &&
                 invoiceOfferConfirm.offeredAmount > remainingAvailableFacility ? (
-                  <p className="rounded-xl border border-border bg-muted/20 px-3 py-2 text-ui text-foreground">
+                  <p role="alert" className="rounded-xl border border-border bg-muted/20 px-3 py-2 text-ui text-destructive">
                     This offer ({formatCurrency(invoiceOfferConfirm.offeredAmount)}) exceeds remaining
-                    available facility ({formatCurrency(remainingAvailableFacility)}). You can still
-                    send it.
+                    credit ({formatCurrency(remainingAvailableFacility)}). Sending is blocked. There is
+                    no override.
                   </p>
                 ) : null}
               </div>
@@ -1191,7 +1191,11 @@ export function InvoiceList({
                 </Button>
                 <Button
                   onClick={handleConfirmInvoiceOffer}
-                  disabled={!!isSendInvoiceOfferPending}
+                  disabled={
+                    !!isSendInvoiceOfferPending ||
+                    (remainingAvailableFacility != null &&
+                      invoiceOfferConfirm.offeredAmount > remainingAvailableFacility)
+                  }
                   className="rounded-xl"
                 >
                   {isSendInvoiceOfferPending ? "Sending..." : "Confirm & Send Offer"}

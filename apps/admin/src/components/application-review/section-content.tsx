@@ -8,11 +8,7 @@
  * WHERE USED: Admin application detail tabs, resubmit comparison modal
  */
 
-import {
-  resolveApprovedFacility,
-  resolveRequestedFacility,
-} from "@cashsouk/config";
-import { sumPendingInvoiceFacility, parseFacilityAmount } from "@/contracts/utils/contract-facility-metrics";
+import { resolveAdminReviewTabCapacity } from "./admin-review-capacity";
 import { FinancialSection } from "./sections/financial-section";
 import { BusinessSection } from "./sections/business-section";
 import { DocumentsSection } from "./sections/documents-section";
@@ -263,6 +259,10 @@ export function SectionContent({
       ...entry,
       comment: entry.remark,
     }));
+  const adminReviewTabCapacity = resolveAdminReviewTabCapacity({
+    app,
+    contractSectionStatus: sectionStatusMap?.get("contract_details") ?? "",
+  });
 
   switch (descriptor.kind) {
     case "financial":
@@ -476,6 +476,8 @@ export function SectionContent({
               : undefined
           }
           sectionStatus={sectionStatus}
+          remainingCredit={adminReviewTabCapacity?.acceptance.remainingCredit}
+          remainingAllocation={adminReviewTabCapacity?.acceptance.remainingAllocation}
         />
       );
     }
@@ -543,6 +545,7 @@ export function SectionContent({
           onViewSignedContractOffer={onViewSignedContractOffer}
           signedContractOfferLetterAvailable={signedContractOfferLetterAvailable}
           viewSignedOfferLetterPending={viewSignedOfferLetterPending}
+          reviewOccupancy={adminReviewTabCapacity?.contract}
           sectionComparison={
             sectionComparison
               ? {
@@ -569,13 +572,6 @@ export function SectionContent({
     case "invoice_details": {
       const appInvoices = app.invoices ?? [];
       const contract = app.contract as {
-        contract_details?: {
-          approved_facility?: number;
-          utilized_facility?: number;
-          available_facility?: number;
-          financing?: number;
-          value?: number;
-        };
         invoices?: { id: string; application_id: string; details?: unknown; status?: string; offer_details?: unknown }[];
       } | null;
       const contractInvoices = contract?.invoices ?? [];
@@ -584,32 +580,22 @@ export function SectionContent({
         applicationId && app.contract && contractInvoices.length > 0
           ? contractInvoices.filter((inv) => inv.application_id !== applicationId)
           : [];
-      const cd = contract?.contract_details as Record<string, unknown> | null | undefined;
-      const contractStatus = sectionStatusMap?.get("contract_details") ?? "";
-      const approvedFacility =
-        (resolveApprovedFacility(contractStatus, cd) || resolveRequestedFacility(cd)) as number;
-      const utilizedFacility = parseFacilityAmount(cd?.utilized_facility) ?? 0;
-      const pendingFacility = sumPendingInvoiceFacility(
-        contractInvoices.length > 0 ? contractInvoices : appInvoices
-      );
-      const storedAvailable = parseFacilityAmount(cd?.available_facility);
-      const availableFacility =
-        storedAvailable != null ? storedAvailable : approvedFacility - utilizedFacility;
       const contractFacility =
-        app.contract && approvedFacility > 0
-          ? {
-              contractFacility: approvedFacility,
-              availableFacility,
-              utilizedFacility,
-              pendingFacility,
-            }
-          : undefined;
+        app.contract && adminReviewTabCapacity ? adminReviewTabCapacity.invoice : undefined;
       return (
         <InvoiceSection
           applicationId={signingApplicationId}
           invoices={appInvoices}
           otherFacilityInvoices={otherContractInvoices}
           contractFacility={contractFacility}
+          contractId={app.contract?.id ?? null}
+          contractHref={app.contract?.id ? `/contracts/${encodeURIComponent(app.contract.id)}` : null}
+          contractLabel={
+            typeof (app.contract as { displayReference?: string | null } | null)?.displayReference ===
+            "string"
+              ? (app.contract as { displayReference?: string | null }).displayReference
+              : null
+          }
           reviewItems={reviewItems}
           isReviewable={isReviewable}
           approvePending={approveItemPending}

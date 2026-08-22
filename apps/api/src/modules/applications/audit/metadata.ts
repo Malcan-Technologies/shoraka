@@ -204,6 +204,9 @@ const occupancyAmountsSchema = z.object({
   utilized_facility: z.number(),
   available_facility: z.number(),
   repaid_facility: z.number(),
+  pending_facility: z.number(),
+  lifetime_used: z.number(),
+  lifetime_remaining: z.number(),
 });
 
 const occupancyUpdatedSchema = z.object({
@@ -213,9 +216,7 @@ const occupancyUpdatedSchema = z.object({
   note_id: z.string().nullable(),
   invoice_id: z.string().nullable(),
   before: occupancyAmountsSchema,
-  after: occupancyAmountsSchema.extend({
-    pending_facility: z.number(),
-  }),
+  after: occupancyAmountsSchema,
 });
 
 const metadataByEvent = {

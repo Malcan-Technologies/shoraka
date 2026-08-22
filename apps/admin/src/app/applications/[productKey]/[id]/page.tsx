@@ -46,6 +46,7 @@ import {
   isTabUnlocked,
 } from "@/components/application-review/review-registry";
 import { getEffectiveReviewTabDescriptors } from "@/lib/effective-review-tab-descriptors";
+import { mapAdminCapacityActionError } from "@/lib/facility-capacity-display";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -1049,9 +1050,10 @@ export default function DynamicApplicationDetailPage() {
                                 }
                               } catch (err) {
                                 toast.error(
-                                  err instanceof Error
-                                    ? err.message
-                                    : "Failed to send facility offer"
+                                  mapAdminCapacityActionError(
+                                    err,
+                                    "Failed to send facility offer"
+                                  ).message
                                 );
                               }
                             }}
@@ -1081,9 +1083,10 @@ export default function DynamicApplicationDetailPage() {
                                 }
                               } catch (err) {
                                 toast.error(
-                                  err instanceof Error
-                                    ? err.message
-                                    : "Failed to send invoice offer"
+                                  mapAdminCapacityActionError(
+                                    err,
+                                    "Failed to send invoice offer"
+                                  ).message
                                 );
                               }
                             }}
