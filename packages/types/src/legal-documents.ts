@@ -292,6 +292,16 @@ export interface LegalAcceptanceStatusResponse {
   documents: RequiredLegalDocumentResponse[];
 }
 
+/** Admin informational flag: at least one published required legal document exists for onboarding. */
+export interface LegalOnboardingReadinessAudience {
+  hasPublishedRequiredDocuments: boolean;
+}
+
+export interface LegalOnboardingReadinessResponse {
+  issuer: LegalOnboardingReadinessAudience;
+  investor: LegalOnboardingReadinessAudience;
+}
+
 export interface PendingLegalDocumentResponse {
   legalDocumentId: string;
   legalDocumentVersionId: string;

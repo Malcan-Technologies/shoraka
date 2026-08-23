@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { requirePermission } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
+import { legalDocumentAcceptanceService } from "./acceptance-service";
 import { legalDocumentService } from "./service";
 import { auditContextFromAdminRequest } from "./audit/context";
 import {
@@ -34,6 +35,23 @@ router.get(
           ? new AppError(400, "VALIDATION_ERROR", error.message)
           : error
       );
+    }
+  }
+);
+
+router.get(
+  "/onboarding-readiness",
+  requirePermission("document_management.view"),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = await legalDocumentAcceptanceService.getOnboardingReadiness();
+      res.json({
+        success: true,
+        data,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
     }
   }
 );

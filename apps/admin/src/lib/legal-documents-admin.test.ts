@@ -29,6 +29,7 @@ import {
   nextCreateOrchestrationAfterVersion,
   onboardingBadgeLabel,
   onboardingBadgeVariant,
+  onboardingReadinessWarning,
   OPERATIONAL_AUDIENCES,
   reacceptanceBadgeLabel,
   reacceptanceBadgeVariant,
@@ -710,5 +711,55 @@ describe("legal-documents-admin helpers", () => {
         })
       )
     ).toBe(true);
+  });
+});
+
+describe("onboardingReadinessWarning", () => {
+  it("shows the Issuer warning only when Issuer has zero published required documents", () => {
+    expect(
+      onboardingReadinessWarning({
+        issuer: { hasPublishedRequiredDocuments: false },
+        investor: { hasPublishedRequiredDocuments: true },
+      })
+    ).toEqual({
+      title: "No published legal documents available for Issuers",
+      description:
+        "Issuer onboarding is currently blocked until at least one required legal document is published.",
+    });
+  });
+
+  it("shows the Investor warning only when Investor has zero published required documents", () => {
+    expect(
+      onboardingReadinessWarning({
+        issuer: { hasPublishedRequiredDocuments: true },
+        investor: { hasPublishedRequiredDocuments: false },
+      })
+    ).toEqual({
+      title: "No published legal documents available for Investors",
+      description:
+        "Investor onboarding is currently blocked until at least one required legal document is published.",
+    });
+  });
+
+  it("shows a combined warning when both audiences have zero published required documents", () => {
+    expect(
+      onboardingReadinessWarning({
+        issuer: { hasPublishedRequiredDocuments: false },
+        investor: { hasPublishedRequiredDocuments: false },
+      })
+    ).toEqual({
+      title: "No published legal documents available for Issuers or Investors",
+      description:
+        "Onboarding is currently blocked for both user types until required legal documents are published.",
+    });
+  });
+
+  it("shows no warning when both audiences have at least one published required document", () => {
+    expect(
+      onboardingReadinessWarning({
+        issuer: { hasPublishedRequiredDocuments: true },
+        investor: { hasPublishedRequiredDocuments: true },
+      })
+    ).toBeNull();
   });
 });

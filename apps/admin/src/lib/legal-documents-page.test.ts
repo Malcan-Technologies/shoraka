@@ -100,4 +100,14 @@ describe("Admin Legal Documents page UX", () => {
       "This legal document already exists. Upload a new version from the existing document instead."
     );
   });
+
+  it("shows an onboarding readiness warning without blocking document management", () => {
+    expect(source).toContain("/v1/admin/legal-documents/onboarding-readiness");
+    expect(source).toContain("onboardingReadinessWarning");
+    expect(source).toContain("AdminNextActionBanner");
+    expect(source).toContain('data-testid="legal-onboarding-readiness-warning"');
+    expect(source).toContain("disabled={!canManage}");
+    expect(source).not.toContain("hasPublishedRequiredDocuments");
+    expect(source).not.toContain("readinessWarning && !canManage");
+  });
 });

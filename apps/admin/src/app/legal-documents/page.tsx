@@ -81,9 +81,11 @@ import {
   type LegalDocumentType,
   type LegalDocumentVersionResponse,
   type LegalDocumentVersionSummary,
+  type LegalOnboardingReadinessResponse,
 } from "@cashsouk/types";
 import { RequirePermission } from "../../components/require-permission";
 import { AdminPageHeader } from "../../components/admin-page-header";
+import { AdminNextActionBanner } from "../../components/admin-detail";
 import { usePermissions } from "../../hooks/use-permissions";
 import {
   audienceLabel,
@@ -113,6 +115,7 @@ import {
   nextCreateOrchestrationAfterDefinition,
   onboardingBadgeLabel,
   onboardingBadgeVariant,
+  onboardingReadinessWarning,
   OPERATIONAL_AUDIENCES,
   reacceptanceBadgeLabel,
   reacceptanceBadgeVariant,
@@ -269,6 +272,22 @@ export default function LegalDocumentsPage() {
       return result.data;
     },
   });
+
+  const { data: onboardingReadiness } = useQuery({
+    queryKey: ["admin", "legal-documents", "onboarding-readiness"],
+    queryFn: async () => {
+      const result = await apiClient.get<LegalOnboardingReadinessResponse>(
+        "/v1/admin/legal-documents/onboarding-readiness"
+      );
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to load legal document readiness");
+      }
+      return result.data;
+    },
+  });
+  const readinessWarning = onboardingReadiness
+    ? onboardingReadinessWarning(onboardingReadiness)
+    : null;
 
   const { data: typeCatalog = [] } = useQuery({
     queryKey: ["admin", "legal-documents", "type-catalog"],
@@ -793,6 +812,15 @@ export default function LegalDocumentsPage() {
                 </Button>
               }
             />
+
+            {readinessWarning ? (
+              <div data-testid="legal-onboarding-readiness-warning">
+                <AdminNextActionBanner
+                  title={readinessWarning.title}
+                  description={readinessWarning.description}
+                />
+              </div>
+            ) : null}
 
             <ListToolbar
               searchValue={searchQuery}

@@ -13,6 +13,7 @@ import {
   type LegalComplianceStatus,
   type LegalDocumentAudience,
   type LegalDocumentType,
+  type LegalOnboardingReadinessResponse,
   type PendingLegalDocumentResponse,
   type PublicLegalDocumentResponse,
   type RequiredLegalDocumentResponse,
@@ -98,6 +99,27 @@ function userEvidenceSnapshot(user: { email: string | null; name: string | null 
 
 function audiencesForRole(role: LegalAcceptanceAudience): LegalDocumentAudience[] {
   return role === "ISSUER" ? ["ISSUER", "BOTH"] : ["INVESTOR", "BOTH"];
+}
+
+/**
+ * Same published-required lookup as getRequiredDocuments: required types for the
+ * audience, then the active published resolver (PUBLISHED + required_for_onboarding).
+ * True when at least one such version exists. Does not change onboarding behavior.
+ */
+async function audienceHasPublishedRequiredDocuments(
+  audience: LegalAcceptanceAudience
+): Promise<boolean> {
+  const requiredTypes = getRequiredLegalTypesForAudience(audience);
+  const allowedAudiences = audiencesForRole(audience);
+
+  for (const type of requiredTypes) {
+    const published = await resolveActivePublishedByTypeAndAudiences(type, [
+      ...allowedAudiences,
+    ]);
+    if (published) return true;
+  }
+
+  return false;
 }
 
 type OrgAccessRow = {
@@ -298,6 +320,18 @@ export class LegalDocumentAcceptanceService {
       organization_id: organizationId,
       all_accepted: allAccepted,
       documents,
+    };
+  }
+
+  async getOnboardingReadiness(): Promise<LegalOnboardingReadinessResponse> {
+    const [issuerHasPublished, investorHasPublished] = await Promise.all([
+      audienceHasPublishedRequiredDocuments("ISSUER"),
+      audienceHasPublishedRequiredDocuments("INVESTOR"),
+    ]);
+
+    return {
+      issuer: { hasPublishedRequiredDocuments: issuerHasPublished },
+      investor: { hasPublishedRequiredDocuments: investorHasPublished },
     };
   }
 

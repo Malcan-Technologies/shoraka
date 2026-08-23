@@ -4,6 +4,7 @@ import type {
   LegalDocumentType,
   LegalDocumentVersionStatus,
   LegalDocumentVersionSummary,
+  LegalOnboardingReadinessResponse,
 } from "@cashsouk/types";
 import {
   LEGAL_DOCUMENT_DEFAULT_AUDIENCE,
@@ -483,4 +484,46 @@ export function matchesClientFilters(
   if (filters.onboarding === "optional" && doc.requiredForOnboarding) return false;
   if (filters.status !== "all" && documentCurrentStatus(doc) !== filters.status) return false;
   return true;
+}
+
+export type LegalOnboardingReadinessWarning = {
+  title: string;
+  description: string;
+} | null;
+
+/**
+ * Admin copy for the existing onboarding gate: warn only when an audience has
+ * zero published required legal documents. One published required doc is enough.
+ */
+export function onboardingReadinessWarning(
+  readiness: LegalOnboardingReadinessResponse
+): LegalOnboardingReadinessWarning {
+  const issuerReady = readiness.issuer.hasPublishedRequiredDocuments;
+  const investorReady = readiness.investor.hasPublishedRequiredDocuments;
+
+  if (!issuerReady && !investorReady) {
+    return {
+      title: "No published legal documents available for Issuers or Investors",
+      description:
+        "Onboarding is currently blocked for both user types until required legal documents are published.",
+    };
+  }
+
+  if (!issuerReady) {
+    return {
+      title: "No published legal documents available for Issuers",
+      description:
+        "Issuer onboarding is currently blocked until at least one required legal document is published.",
+    };
+  }
+
+  if (!investorReady) {
+    return {
+      title: "No published legal documents available for Investors",
+      description:
+        "Investor onboarding is currently blocked until at least one required legal document is published.",
+    };
+  }
+
+  return null;
 }

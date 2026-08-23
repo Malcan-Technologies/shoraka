@@ -1605,3 +1605,144 @@ describe("public legal documents", () => {
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
 });
+
+describe("legal document onboarding readiness", () => {
+  function stubPublishedRequired(
+    rows: Array<{ type: string; audience: "BOTH" | "ISSUER" | "INVESTOR" }>
+  ) {
+    jest
+      .spyOn(legalDocumentRepository, "findPublishedByTypeAndAudiences")
+      .mockImplementation(async (type, audiences) => {
+        const match = rows.find(
+          (row) => row.type === type && audiences.includes(row.audience)
+        );
+        if (!match) return null;
+        return publishedVersion({
+          legal_document: {
+            ...publishedVersion().legal_document,
+            type: match.type,
+            audience: match.audience,
+          },
+        }) as never;
+      });
+  }
+
+  beforeEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it("Issuer 0 / Investor >0 → issuer is not ready", async () => {
+    stubPublishedRequired([{ type: "INVESTOR_AGREEMENT", audience: "INVESTOR" }]);
+    await expect(legalDocumentAcceptanceService.getOnboardingReadiness()).resolves.toEqual({
+      issuer: { hasPublishedRequiredDocuments: false },
+      investor: { hasPublishedRequiredDocuments: true },
+    });
+  });
+
+  it("Investor 0 / Issuer >0 → investor is not ready", async () => {
+    stubPublishedRequired([{ type: "ISSUER_AGREEMENT", audience: "ISSUER" }]);
+    await expect(legalDocumentAcceptanceService.getOnboardingReadiness()).resolves.toEqual({
+      issuer: { hasPublishedRequiredDocuments: true },
+      investor: { hasPublishedRequiredDocuments: false },
+    });
+  });
+
+  it("Issuer 0 / Investor 0 → neither audience is ready", async () => {
+    stubPublishedRequired([]);
+    await expect(legalDocumentAcceptanceService.getOnboardingReadiness()).resolves.toEqual({
+      issuer: { hasPublishedRequiredDocuments: false },
+      investor: { hasPublishedRequiredDocuments: false },
+    });
+  });
+
+  it("Issuer >0 / Investor >0 → both audiences are ready", async () => {
+    stubPublishedRequired([{ type: "PDPA_NOTICE_AND_CONSENT", audience: "BOTH" }]);
+    await expect(legalDocumentAcceptanceService.getOnboardingReadiness()).resolves.toEqual({
+      issuer: { hasPublishedRequiredDocuments: true },
+      investor: { hasPublishedRequiredDocuments: true },
+    });
+  });
+
+  it("does not warn Issuer when some required types are published and another is only draft", async () => {
+    stubPublishedRequired([{ type: "PDPA_NOTICE_AND_CONSENT", audience: "BOTH" }]);
+    const result = await legalDocumentAcceptanceService.getOnboardingReadiness();
+    expect(result.issuer.hasPublishedRequiredDocuments).toBe(true);
+  });
+
+  it("does not warn Investor when some required types are published and another is only draft", async () => {
+    stubPublishedRequired([{ type: "PDPA_NOTICE_AND_CONSENT", audience: "BOTH" }]);
+    const result = await legalDocumentAcceptanceService.getOnboardingReadiness();
+    expect(result.investor.hasPublishedRequiredDocuments).toBe(true);
+  });
+
+  it("counts audience-specific documents only for the matching audience", async () => {
+    stubPublishedRequired([
+      { type: "ISSUER_WARNING_STATEMENT", audience: "ISSUER" },
+      { type: "INVESTOR_WARNING_STATEMENT", audience: "INVESTOR" },
+    ]);
+    await expect(legalDocumentAcceptanceService.getOnboardingReadiness()).resolves.toEqual({
+      issuer: { hasPublishedRequiredDocuments: true },
+      investor: { hasPublishedRequiredDocuments: true },
+    });
+
+    stubPublishedRequired([{ type: "ISSUER_AGREEMENT", audience: "ISSUER" }]);
+    await expect(legalDocumentAcceptanceService.getOnboardingReadiness()).resolves.toEqual({
+      issuer: { hasPublishedRequiredDocuments: true },
+      investor: { hasPublishedRequiredDocuments: false },
+    });
+  });
+
+  it("counts shared BOTH documents for both audiences", async () => {
+    stubPublishedRequired([{ type: "TERMS_OF_USE", audience: "BOTH" }]);
+    await expect(legalDocumentAcceptanceService.getOnboardingReadiness()).resolves.toEqual({
+      issuer: { hasPublishedRequiredDocuments: true },
+      investor: { hasPublishedRequiredDocuments: true },
+    });
+  });
+
+  it("does not count archived versions as published", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const repositorySource = readFileSync(join(__dirname, "repository.ts"), "utf8");
+    const fnStart = repositorySource.indexOf("async findPublishedByTypeAndAudiences");
+    const fnBody = repositorySource.slice(fnStart, fnStart + 700);
+    expect(fnBody).toContain('status: "PUBLISHED"');
+    expect(fnBody).not.toContain("ARCHIVED");
+
+    stubPublishedRequired([]);
+    await expect(legalDocumentAcceptanceService.getOnboardingReadiness()).resolves.toEqual({
+      issuer: { hasPublishedRequiredDocuments: false },
+      investor: { hasPublishedRequiredDocuments: false },
+    });
+  });
+
+  it("does not count DRAFT versions as published", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const repositorySource = readFileSync(join(__dirname, "repository.ts"), "utf8");
+    const fnStart = repositorySource.indexOf("async findPublishedByTypeAndAudiences");
+    const fnBody = repositorySource.slice(fnStart, fnStart + 700);
+    expect(fnBody).toContain('status: "PUBLISHED"');
+    expect(fnBody).not.toContain("DRAFT");
+
+    stubPublishedRequired([]);
+    await expect(legalDocumentAcceptanceService.getOnboardingReadiness()).resolves.toEqual({
+      issuer: { hasPublishedRequiredDocuments: false },
+      investor: { hasPublishedRequiredDocuments: false },
+    });
+  });
+
+  it("admin readiness endpoint uses view permission and the acceptance resolver", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const controller = readFileSync(join(__dirname, "admin-controller.ts"), "utf8");
+    expect(controller).toContain('"/onboarding-readiness"');
+    expect(controller).toContain('requirePermission("document_management.view")');
+    expect(controller).toContain("getOnboardingReadiness");
+
+    const acceptance = readFileSync(join(__dirname, "acceptance-service.ts"), "utf8");
+    expect(acceptance).toContain("getRequiredLegalTypesForAudience");
+    expect(acceptance).toContain("resolveActivePublishedByTypeAndAudiences");
+    expect(acceptance).toContain("if (!published) continue");
+  });
+});
