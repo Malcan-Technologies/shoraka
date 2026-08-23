@@ -5,6 +5,8 @@ import { logger } from "../../lib/logger";
 import { submitOrder, getOrderStatus, getCertificatePdf } from "./shoraka-stp-client";
 import type { ShorakaSubmitOrderValues } from "./shoraka-stp-types";
 import { AppError } from "../../lib/http/error-handler";
+import { AUDIT_SOURCE, createNoteEventRow } from "../../lib/audit";
+import { resolveNoteEventTarget } from "../notes/audit-fields";
 
 import type { Prisma } from "@prisma/client";
 
@@ -330,18 +332,19 @@ export class ShorakaStpService {
     eventType: string,
     metadata?: Prisma.InputJsonValue
   ) {
-    await prisma.noteEvent.create({
-      data: {
-        note_id: noteId,
-        event_type: eventType,
-        actor_user_id: null,
-        actor_role: null,
-        portal: null,
-        ip_address: null,
-        user_agent: null,
-        correlation_id: null,
-        metadata,
-      },
+    await createNoteEventRow(prisma, {
+      noteId,
+      eventType,
+      actorUserId: null,
+      actorRole: null,
+      portal: null,
+      ipAddress: null,
+      userAgent: null,
+      correlationId: null,
+      metadata,
+      // Shoraka straight-through processing runs without a human actor.
+      source: AUDIT_SOURCE.INTERNAL,
+      ...resolveNoteEventTarget(eventType, metadata),
     });
   }
 

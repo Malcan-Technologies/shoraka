@@ -135,6 +135,12 @@ import {
 } from "./note-issuer-snapshot";
 import { noteInclude, noteRepository } from "./repository";
 import {
+  changedFieldsOf,
+  createNoteAdminActionRow,
+  createNoteEventRow,
+} from "../../lib/audit";
+import { resolveNoteEventTarget } from "./audit-fields";
+import {
   allocateDisplayReference,
   resolveApplicationProductCode,
   resolveNoteProductCode,
@@ -5152,16 +5158,9 @@ export class NoteService {
         },
       });
     });
-    await prisma.noteEvent.create({
-      data: {
-        note_id: id,
-        event_type: "SETTLEMENT_PREVIEWED",
-        actor_user_id: actor.userId,
-        actor_role: actor.role,
-        portal: actor.portal,
-        correlation_id: actor.correlationId,
-        metadata: { settlementId: settlement.id, ...snapshot },
-      },
+    await this.logEvent(prisma, id, "SETTLEMENT_PREVIEWED", actor, {
+      settlementId: settlement.id,
+      ...snapshot,
     });
     return { settlementId: settlement.id, ...snapshot };
   }
@@ -7374,18 +7373,19 @@ export class NoteService {
     actor: ActorContext,
     metadata?: Prisma.InputJsonValue
   ) {
-    await tx.noteEvent.create({
-      data: {
-        note_id: noteId,
-        event_type: eventType,
-        actor_user_id: actor.userId,
-        actor_role: actor.role,
-        portal: actor.portal,
-        ip_address: actor.ipAddress,
-        user_agent: actor.userAgent,
-        correlation_id: actor.correlationId,
-        metadata,
-      },
+    const target = resolveNoteEventTarget(eventType, metadata);
+    await createNoteEventRow(tx, {
+      noteId,
+      eventType,
+      actorUserId: actor.userId,
+      actorRole: actor.role,
+      portal: actor.portal,
+      ipAddress: actor.ipAddress,
+      userAgent: actor.userAgent,
+      correlationId: actor.correlationId,
+      metadata,
+      targetType: target.targetType,
+      targetId: target.targetId ?? noteId,
     });
   }
 
@@ -7397,16 +7397,22 @@ export class NoteService {
     beforeState?: unknown,
     afterState?: unknown
   ) {
-    await tx.noteAdminAction.create({
-      data: {
-        note_id: noteId,
-        action_type: actionType,
-        actor_user_id: actor.userId,
-        before_state: beforeState as Prisma.InputJsonValue | undefined,
-        after_state: afterState as Prisma.InputJsonValue | undefined,
-        ip_address: actor.ipAddress,
-        user_agent: actor.userAgent,
-        correlation_id: actor.correlationId,
+    await createNoteAdminActionRow(tx, {
+      noteId,
+      actionType,
+      actorUserId: actor.userId,
+      beforeState: beforeState as Prisma.InputJsonValue | undefined,
+      afterState: afterState as Prisma.InputJsonValue | undefined,
+      ipAddress: actor.ipAddress,
+      userAgent: actor.userAgent,
+      correlationId: actor.correlationId,
+      portal: actor.portal,
+      // Historical copy of the changed-field list alongside the first-class before/after columns.
+      metadata: {
+        changedFields: changedFieldsOf(
+          beforeState as Record<string, unknown> | null,
+          afterState as Record<string, unknown> | null
+        ),
       },
     });
     await this.logEvent(tx, noteId, actionType, actor, {

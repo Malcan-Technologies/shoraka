@@ -111,6 +111,11 @@ model Investment {
   @@map("investments")
 }
 
+/// Signup/login/logout and admin-initiated account actions.
+/// `user_id` is the acting user; `created_at` is the occurred-at field.
+/// Standard forensic columns (actor_type/target/source/correlation_id) are additive and nullable.
+/// No actor name/email snapshot: `user_id` cascade-deletes with the User, so the row cannot outlive
+/// the actor it would be preserving. Snapshots are only added to tables with no User FK.
 model AccessLog {
   id            String   @id @default(cuid())
   user_id       String
@@ -124,13 +129,22 @@ model AccessLog {
   created_at    DateTime @default(now())
   device_type   String?
   portal        String?
-  user          User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  actor_type     String?
+  target_type    String?
+  target_id      String?
+  source         String?
+  correlation_id String?
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([event_type])
   @@index([portal])
   @@index([created_at])
   @@index([user_id, created_at])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("access_logs")
 }
 
@@ -209,6 +223,9 @@ model AdminInvitation {
   @@map("admin_invitations")
 }
 
+/// Security-sensitive account and RBAC changes.
+/// Every live writer sets `user_id` to the ACTOR (self-service or the acting admin), so no separate
+/// actor column is added here. The subject of the change lives in `target_type` / `target_id`.
 model SecurityLog {
   id          String   @id @default(cuid())
   user_id     String
@@ -218,16 +235,26 @@ model SecurityLog {
   device_info String?
   metadata    Json?
   created_at  DateTime @default(now())
-  user        User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  actor_type     String?
+  target_type    String?
+  target_id      String?
+  source         String?
+  portal         String?
+  correlation_id String?
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([event_type])
   @@index([created_at])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("security_logs")
 }
 
 model OnboardingLog {
-  id                       String                @id @default(cuid())
+  id                       String   @id @default(cuid())
   user_id                  String
   role                     UserRole
   event_type               String
@@ -237,13 +264,25 @@ model OnboardingLog {
   device_info              String?
   device_type              String?
   metadata                 Json?
-  created_at               DateTime              @default(now())
+  created_at               DateTime @default(now())
   organization_name        String?
   investor_organization_id String?
   issuer_organization_id   String?
-  investor_organization    InvestorOrganization? @relation(fields: [investor_organization_id], references: [id])
-  issuer_organization      IssuerOrganization?   @relation(fields: [issuer_organization_id], references: [id])
-  user                     User                  @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  /// `user_id` is the applicant; `actor_user_id` is who performed the action (the acting admin for
+  /// AML/SSM/final-approval decisions). Derived from the admin id origin/main already put in
+  /// `metadata`, so no extra query is needed on the write path.
+  actor_type        String?
+  actor_user_id     String?
+  organization_kind String?
+  target_type       String?
+  target_id         String?
+  source            String?
+  correlation_id    String?
+
+  investor_organization InvestorOrganization? @relation(fields: [investor_organization_id], references: [id])
+  issuer_organization   IssuerOrganization?   @relation(fields: [issuer_organization_id], references: [id])
+  user                  User                  @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([role])
@@ -254,6 +293,9 @@ model OnboardingLog {
   @@index([organization_name])
   @@index([investor_organization_id])
   @@index([issuer_organization_id])
+  @@index([actor_user_id, created_at])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("onboarding_logs")
 }
 
@@ -581,8 +623,10 @@ model ApplicationReviewRemark {
   @@map("application_review_remarks")
 }
 
+/// In-transaction review/offer audit written alongside the business state change.
+/// `reviewer_user_id` is the actor; `remark` is the historical copy of the reviewer remark.
 model ApplicationReviewEvent {
-  id               String      @id @default(cuid())
+  id               String   @id @default(cuid())
   application_id   String
   event_type       String
   scope            String?
@@ -591,11 +635,21 @@ model ApplicationReviewEvent {
   new_status       String
   reviewer_user_id String?
   remark           String?
-  created_at       DateTime    @default(now())
-  application      Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  created_at       DateTime @default(now())
+
+  actor_type     String?
+  source         String?
+  portal         String?
+  ip_address     String?
+  user_agent     String?
+  correlation_id String?
+  metadata       Json?
+
+  application Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
 
   @@index([application_id])
   @@index([application_id, created_at])
+  @@index([correlation_id])
   @@map("application_review_events")
 }
 
@@ -1203,15 +1257,27 @@ model NoteEvent {
   correlation_id String?
   metadata       Json?
   created_at     DateTime @default(now())
-  note           Note     @relation(fields: [note_id], references: [id], onDelete: Cascade)
+
+  /// No organization column: it is reachable through the immutable `note_id` FK and denormalizing
+  /// it would mean an extra query inside every business transaction that writes a note event.
+  actor_type  String?
+  target_type String?
+  target_id   String?
+  source      String?
+
+  note Note @relation(fields: [note_id], references: [id], onDelete: Cascade)
 
   @@index([note_id])
   @@index([event_type])
   @@index([actor_user_id])
   @@index([created_at])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("note_events")
 }
 
+/// Admin note action with first-class before/after state. Every row is also mirrored into
+/// `note_events` by `logAdminAction`; both copies are retained deliberately.
 model NoteAdminAction {
   id             String   @id @default(cuid())
   note_id        String
@@ -1224,12 +1290,22 @@ model NoteAdminAction {
   user_agent     String?
   correlation_id String?
   created_at     DateTime @default(now())
-  note           Note     @relation(fields: [note_id], references: [id], onDelete: Cascade)
+
+  actor_type  String?
+  portal      String?
+  target_type String?
+  target_id   String?
+  source      String?
+  metadata    Json?
+
+  note Note @relation(fields: [note_id], references: [id], onDelete: Cascade)
 
   @@index([note_id])
   @@index([action_type])
   @@index([actor_user_id])
   @@index([created_at])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("note_admin_actions")
 }
 
@@ -1400,6 +1476,8 @@ model GatewayOrderAttempt {
 }
 
 /// Admin audit trail for gateway payment status and resolution actions.
+/// Event-level idempotency is deliberately NOT added here: `gateway_payments.idempotency_key`
+/// already de-duplicates at the payment level, and no live writer produces an event-level key.
 model GatewayPaymentEvent {
   id                 String                  @id @default(cuid())
   gateway_payment_id String
@@ -1410,9 +1488,22 @@ model GatewayPaymentEvent {
   reason             String?
   metadata           Json?
   created_at         DateTime                @default(now())
-  gateway_payment    GatewayPayment          @relation(fields: [gateway_payment_id], references: [id], onDelete: Cascade)
+
+  /// No organization column: it is reachable through the immutable `gateway_payment_id` FK.
+  actor_type     String?
+  target_type    String?
+  target_id      String?
+  source         String?
+  portal         String?
+  ip_address     String?
+  user_agent     String?
+  correlation_id String?
+
+  gateway_payment GatewayPayment @relation(fields: [gateway_payment_id], references: [id], onDelete: Cascade)
 
   @@index([gateway_payment_id, created_at])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("gateway_payment_events")
 }
 
@@ -1790,15 +1881,26 @@ model LegalDocumentAuditLog {
   correlation_id            String?
   created_at                DateTime           @default(now())
 
+  /// Legal documents are platform-level, so there is deliberately no organization column here, and
+  /// `before_json` / `after_json` already carry the structured payload instead of a metadata blob.
+  actor_type  String?
+  target_type String?
+  target_id   String?
+  source      String?
+  portal      String?
+
   @@index([legal_document_id])
   @@index([legal_document_version_id])
   @@index([action])
   @@index([actor_user_id])
   @@index([document_type])
   @@index([created_at])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("legal_document_audit_logs")
 }
 
+/// Product configuration/lifecycle audit. `user_id` is the acting admin.
 model ProductLog {
   id          String   @id @default(cuid())
   user_id     String
@@ -1809,16 +1911,29 @@ model ProductLog {
   device_info String?
   metadata    Json?
   created_at  DateTime @default(now())
-  user        User     @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  actor_type     String?
+  target_type    String?
+  target_id      String?
+  source         String?
+  portal         String?
+  correlation_id String?
+
+  user User @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
 
   @@index([user_id])
   @@index([product_id])
   @@index([event_type])
   @@index([created_at])
   @@index([user_id, created_at])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("product_logs")
 }
 
+/// Primary application/contract/invoice/signing activity audit.
+/// `user_id` is the actor, `remark` is the historical copy of the reviewer/admin remark, and
+/// `created_at` is the occurred-at field.
 model ApplicationLog {
   id             String  @id @default(cuid())
   user_id        String
@@ -1830,6 +1945,7 @@ model ApplicationLog {
   metadata       Json?
   review_cycle   Int?
 
+  /// Deprecated in favour of event_type. Retained (never written) so historical rows keep meaning.
   level  ActivityLevel?
   target ActivityTarget?
   action ActivityAction?
@@ -1841,6 +1957,14 @@ model ApplicationLog {
 
   created_at DateTime @default(now())
 
+  /// No organization column: it is reachable through `application_id`, and denormalizing it would
+  /// mean an extra query inside every review transaction that writes an application log.
+  actor_type     String?
+  target_type    String?
+  target_id      String?
+  source         String?
+  correlation_id String?
+
   @@index([user_id])
   @@index([event_type])
   @@index([created_at])
@@ -1850,6 +1974,8 @@ model ApplicationLog {
   @@index([level])
   @@index([action])
   @@index([portal])
+  @@index([target_type, target_id, created_at])
+  @@index([correlation_id])
   @@map("application_logs")
 }
 
@@ -1972,6 +2098,10 @@ model NotificationGroup {
   @@map("notification_groups")
 }
 
+/// Admin broadcast audit.
+/// NOTE: `target_type` here is the AUDIENCE type (ALL_USERS | INVESTORS | ISSUERS |
+/// SPECIFIC_USERS | GROUP). It is intentionally NOT the shared audit target vocabulary, so no
+/// audit `target_type`/`target_id` columns are added to this table.
 model NotificationLog {
   id                        String                 @id @default(cuid())
   admin_user_id             String?

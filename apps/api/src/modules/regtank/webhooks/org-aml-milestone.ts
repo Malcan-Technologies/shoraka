@@ -4,6 +4,7 @@ import { logger } from "../../../lib/logger";
 import type { PortalType } from "../types";
 import { advanceOnboardingStatusFromFlags } from "../../onboarding/utils/advance-onboarding-status";
 import { getRegTankAPIClient } from "../api-client";
+import { createOnboardingLogRow, webhookAuditContext } from "../../../lib/audit";
 
 /**
  * Result of an AML milestone check/apply attempt.
@@ -156,24 +157,23 @@ export async function maybeAdvanceOrgAfterAmlScreeningCleared(params: {
 
   if (setAmlFlag) {
     try {
-      await prisma.onboardingLog.create({
-        data: {
-          user_id: userId,
-          event_type: "ONBOARDING_STATUS_UPDATED",
-          role: isInvestor ? UserRole.INVESTOR : UserRole.ISSUER,
-          portal: portalType,
-          organization_name: organizationName ?? org.name ?? undefined,
-          investor_organization_id: isInvestor ? organizationId : undefined,
-          issuer_organization_id: isInvestor ? undefined : organizationId,
-          metadata: {
-            organizationId,
-            trigger,
-            previousStatus,
-            newStatus: after?.onboarding_status,
-            amlApproved: true,
-            ...extraMetadata,
-          },
+      await createOnboardingLogRow({
+        userId: userId,
+        eventType: "ONBOARDING_STATUS_UPDATED",
+        role: isInvestor ? UserRole.INVESTOR : UserRole.ISSUER,
+        portal: portalType,
+        organizationName: organizationName ?? org.name ?? undefined,
+        investorOrganizationId: isInvestor ? organizationId : undefined,
+        issuerOrganizationId: isInvestor ? undefined : organizationId,
+        metadata: {
+          organizationId,
+          trigger,
+          previousStatus,
+          newStatus: after?.onboarding_status,
+          amlApproved: true,
+          ...extraMetadata,
         },
+        context: webhookAuditContext(),
       });
     } catch (e) {
       logger.error(

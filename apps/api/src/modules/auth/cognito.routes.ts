@@ -17,6 +17,7 @@ import {
 import { encryptOAuthState, decryptOAuthState, createOAuthState } from "../../lib/auth/oauth-state";
 import { AuthRepository } from "./repository";
 import { AdminService } from "../admin/service";
+import { auditContextFromRequest, createAccessLogRow } from "../../lib/audit";
 
 const router = Router();
 
@@ -646,25 +647,24 @@ router.get("/callback", async (req: Request, res: Response) => {
         const wasPreviouslyAdmin = !!adminRecord;
 
         // Log failed admin access attempt
-        await prisma.accessLog.create({
-          data: {
-            user_id: user.user_id,
-            event_type: "LOGIN",
-            portal: "admin",
-            ip_address: ipAddress,
-            user_agent: userAgent,
-            device_info: deviceInfo,
-            device_type: deviceType,
-            success: false,
-            metadata: {
-              requestedRole,
-              userRoles: user.roles,
-              hasAdminRole,
-              adminStatus,
-              wasPreviouslyAdmin,
-              reason: !hasAdminRole ? "User does not have ADMIN role" : "Admin account is inactive",
-            },
+        await createAccessLogRow({
+          userId: user.user_id,
+          eventType: "LOGIN",
+          portal: "admin",
+          ipAddress,
+          userAgent,
+          deviceInfo,
+          deviceType,
+          success: false,
+          metadata: {
+            requestedRole,
+            userRoles: user.roles,
+            hasAdminRole,
+            adminStatus,
+            wasPreviouslyAdmin,
+            reason: !hasAdminRole ? "User does not have ADMIN role" : "Admin account is inactive",
           },
+          context: auditContextFromRequest(req),
         });
 
         // Redirect to landing page with error message
@@ -705,22 +705,21 @@ router.get("/callback", async (req: Request, res: Response) => {
     const portal = getPortalFromRole(activeRole);
 
     // Create access log
-    await prisma.accessLog.create({
-      data: {
-        user_id: user.user_id,
-        event_type: isSignup ? "SIGNUP" : "LOGIN",
-        portal,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-        device_info: deviceInfo,
-        device_type: deviceType,
-        success: true,
-        metadata: {
-          requestedRole,
-          activeRole,
-          roles: user.roles,
-        },
+    await createAccessLogRow({
+      userId: user.user_id,
+      eventType: isSignup ? "SIGNUP" : "LOGIN",
+      portal,
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      deviceType,
+      success: true,
+      metadata: {
+        requestedRole,
+        activeRole,
+        roles: user.roles,
       },
+      context: auditContextFromRequest(req),
     });
 
     // Clear session data
@@ -992,20 +991,19 @@ router.get("/logout", async (req: Request, res: Response) => {
         }
 
         // Create access log before signing out
-        await prisma.accessLog.create({
-          data: {
-            user_id: user.user_id,
-            event_type: "LOGOUT",
-            portal: portal || null,
-            ip_address: ipAddress,
-            user_agent: userAgent,
-            device_info: deviceInfo,
-            device_type: deviceType,
-            success: true,
-            metadata: {
-              roles: user.roles,
-            },
+        await createAccessLogRow({
+          userId: user.user_id,
+          eventType: "LOGOUT",
+          portal: portal || null,
+          ipAddress,
+          userAgent,
+          deviceInfo,
+          deviceType,
+          success: true,
+          metadata: {
+            roles: user.roles,
           },
+          context: auditContextFromRequest(req),
         });
 
         logger.info({ correlationId, userId: user.user_id, portal }, "Logout access log created");

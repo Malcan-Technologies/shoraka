@@ -15,6 +15,8 @@ import { buildApplicationRevisionSnapshot } from "../revision-snapshot";
 import { summarizeResubmitSnapshotDiff } from "../../application-revision-diff";
 import { Prisma } from "@prisma/client";
 import { upsertLatestOrganizationFinancialStatementsFromApplication } from "../issuer-organization-financial-statements";
+import { createApplicationLog } from "../logs/repository";
+import { ActivityPortal, ApplicationLogEventType } from "../logs/types";
 
 export interface AmendmentAllowedSections {
   allowedSections: Set<string>;
@@ -294,16 +296,14 @@ export async function resubmitApplication(
     };
   }
 
-  await prisma.applicationLog.create({
-    data: {
-      user_id: userId,
-      application_id: applicationId,
-      event_type: "APPLICATION_RESUBMITTED",
-      review_cycle: newCycle,
-      portal: "ISSUER",
-      metadata: logMetadata,
-      created_at: new Date(),
-    } as any,
+  await createApplicationLog({
+    userId,
+    applicationId,
+    eventType: ApplicationLogEventType.APPLICATION_RESUBMITTED,
+    reviewCycle: newCycle,
+    portal: ActivityPortal.ISSUER,
+    metadata: logMetadata,
+    createdAt: new Date(),
   });
 
   const updatedApplication = await repository.findById(applicationId);

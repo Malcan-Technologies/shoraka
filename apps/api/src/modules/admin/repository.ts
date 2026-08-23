@@ -50,6 +50,12 @@ import {
   aggregateApplicationNavCounts,
   type ApplicationNavCountItem,
 } from "./application-nav-counts";
+import {
+  AuditRequestContext,
+  createAccessLogRow,
+  createOnboardingLogRow,
+  createSecurityLogRow,
+} from "../../lib/audit";
 
 export class AdminRepository {
   private async resolveAdminRoleId(roleKey: AdminRoleKey): Promise<string> {
@@ -428,20 +434,9 @@ export class AdminRepository {
     deviceType?: string;
     success?: boolean;
     metadata?: object;
+    context?: AuditRequestContext | null;
   }): Promise<AccessLog> {
-    return prisma.accessLog.create({
-      data: {
-        user_id: data.userId,
-        event_type: data.eventType,
-        portal: data.portal,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        device_type: data.deviceType,
-        success: data.success ?? true,
-        metadata: data.metadata as Prisma.InputJsonValue,
-      },
-    });
+    return createAccessLogRow(data);
   }
 
   /**
@@ -1063,17 +1058,9 @@ export class AdminRepository {
     userAgent?: string;
     deviceInfo?: string;
     metadata?: object;
+    context?: AuditRequestContext | null;
   }): Promise<SecurityLog> {
-    return prisma.securityLog.create({
-      data: {
-        user_id: data.userId,
-        event_type: data.eventType,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        metadata: data.metadata as Prisma.InputJsonValue,
-      },
-    });
+    return createSecurityLogRow(data);
   }
 
   /**
@@ -1171,23 +1158,10 @@ export class AdminRepository {
     deviceInfo?: string;
     deviceType?: string;
     metadata?: object;
+    context?: AuditRequestContext | null;
+    actorUserId?: string | null;
   }): Promise<OnboardingLog> {
-    return prisma.onboardingLog.create({
-      data: {
-        user_id: data.userId,
-        investor_organization_id: data.investorOrganizationId,
-        issuer_organization_id: data.issuerOrganizationId,
-        organization_name: data.organizationName,
-        role: data.role,
-        event_type: data.eventType,
-        portal: data.portal,
-        ip_address: data.ipAddress,
-        user_agent: data.userAgent,
-        device_info: data.deviceInfo,
-        device_type: data.deviceType,
-        metadata: data.metadata as Prisma.InputJsonValue,
-      },
-    });
+    return createOnboardingLogRow(data);
   }
 
   /**

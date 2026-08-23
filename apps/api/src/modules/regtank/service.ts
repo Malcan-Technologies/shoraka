@@ -19,6 +19,7 @@ import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-on
 import { normalizeRawStatus } from "@cashsouk/types";
 import { decideIndividualApprovedOutcome } from "./helpers/individual-onboarding-transition";
 import { assertIssuerOnboardingFeePaid } from "../payment/onboarding-fee-service";
+import { auditContextFromRequest, createOnboardingLogRow } from "../../lib/audit";
 
 type StartPersonalOnboardingResult = {
   verifyLink: string;
@@ -716,26 +717,25 @@ export class RegTankService {
     }
 
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: userId,
-        role: portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
-        event_type: "ONBOARDING_RESUMED",
-        portal: portalType,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-        device_info: deviceInfo,
-        device_type: deviceType,
-        investor_organization_id: portalType === "investor" ? organizationId : null,
-        issuer_organization_id: portalType === "issuer" ? organizationId : null,
-        metadata: {
-          organizationId,
-          previousRequestId: existingOnboarding.request_id,
-          newRequestId: resolvedResponse.requestId,
-          onboardingType: "CORPORATE",
-          trigger: "AUTO_REGENERATE_EXPIRED_COMPANY_LINK",
-        },
+    await createOnboardingLogRow({
+      userId: userId,
+      role: portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
+      eventType: "ONBOARDING_RESUMED",
+      portal: portalType,
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      deviceType,
+      investorOrganizationId: portalType === "investor" ? organizationId : null,
+      issuerOrganizationId: portalType === "issuer" ? organizationId : null,
+      metadata: {
+        organizationId,
+        previousRequestId: existingOnboarding.request_id,
+        newRequestId: resolvedResponse.requestId,
+        onboardingType: "CORPORATE",
+        trigger: "AUTO_REGENERATE_EXPIRED_COMPANY_LINK",
       },
+      context: auditContextFromRequest(req),
     });
 
     logger.info(
@@ -806,27 +806,26 @@ export class RegTankService {
     });
 
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: userId,
-        role: UserRole.INVESTOR,
-        event_type: "ONBOARDING_RESUMED",
-        portal: portalType,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-        device_info: deviceInfo,
-        device_type: deviceType,
-        investor_organization_id: organizationId,
-        issuer_organization_id: null,
-        metadata: {
-          organizationId,
-          previousRequestId: existingOnboarding.request_id,
-          newRequestId: resolvedRestart.requestId,
-          onboardingType: "INDIVIDUAL",
-          previousOrgStatus,
-          trigger: "AUTO_RESTART_EXPIRED_OR_STALE_LINK",
-        },
+    await createOnboardingLogRow({
+      userId: userId,
+      role: UserRole.INVESTOR,
+      eventType: "ONBOARDING_RESUMED",
+      portal: portalType,
+      ipAddress,
+      userAgent,
+      deviceInfo,
+      deviceType,
+      investorOrganizationId: organizationId,
+      issuerOrganizationId: null,
+      metadata: {
+        organizationId,
+        previousRequestId: existingOnboarding.request_id,
+        newRequestId: resolvedRestart.requestId,
+        onboardingType: "INDIVIDUAL",
+        previousOrgStatus,
+        trigger: "AUTO_RESTART_EXPIRED_OR_STALE_LINK",
       },
+      context: auditContextFromRequest(req),
     });
 
     logger.info(
@@ -1025,27 +1024,26 @@ export class RegTankService {
         const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
         const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
 
-        await prisma.onboardingLog.create({
-          data: {
-            user_id: userId,
-            role,
-            event_type: "ONBOARDING_RESUMED",
-            portal: portalType,
-            ip_address: ipAddress,
-            user_agent: userAgent,
-            device_info: deviceInfo,
-            device_type: deviceType,
-            organization_name: organization.name,
-            investor_organization_id: organizationId,
-            issuer_organization_id: null,
-            metadata: {
-              organizationId,
-              requestId: existingOnboarding.request_id,
-              onboardingType: "INDIVIDUAL",
-              previousOrgStatus: organization.onboarding_status,
-              previousRegTankStatus: existingOnboarding.status,
-            },
+        await createOnboardingLogRow({
+          userId: userId,
+          role,
+          eventType: "ONBOARDING_RESUMED",
+          portal: portalType,
+          ipAddress,
+          userAgent,
+          deviceInfo,
+          deviceType,
+          organizationName: organization.name,
+          investorOrganizationId: organizationId,
+          issuerOrganizationId: null,
+          metadata: {
+            organizationId,
+            requestId: existingOnboarding.request_id,
+            onboardingType: "INDIVIDUAL",
+            previousOrgStatus: organization.onboarding_status,
+            previousRegTankStatus: existingOnboarding.status,
           },
+          context: auditContextFromRequest(req),
         });
 
         // Ensure onboarding settings are configured before resuming
@@ -1334,26 +1332,25 @@ export class RegTankService {
       const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
       const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
 
-      await prisma.onboardingLog.create({
-        data: {
-          user_id: userId,
-          role,
-          event_type: "ONBOARDING_STARTED",
-          portal: portalType,
-          ip_address: ipAddress,
-          user_agent: userAgent,
-          device_info: deviceInfo,
-          device_type: deviceType,
-          organization_name: organization.name,
-          investor_organization_id: organizationId,
-          issuer_organization_id: null,
-          metadata: {
-            organizationId,
-            requestId: regTankResponse.requestId,
-            onboardingType: "INDIVIDUAL",
-            previousOrgStatus: previousOrgStatus,
-          },
+      await createOnboardingLogRow({
+        userId: userId,
+        role,
+        eventType: "ONBOARDING_STARTED",
+        portal: portalType,
+        ipAddress,
+        userAgent,
+        deviceInfo,
+        deviceType,
+        organizationName: organization.name,
+        investorOrganizationId: organizationId,
+        issuerOrganizationId: null,
+        metadata: {
+          organizationId,
+          requestId: regTankResponse.requestId,
+          onboardingType: "INDIVIDUAL",
+          previousOrgStatus: previousOrgStatus,
         },
+        context: auditContextFromRequest(req),
       });
 
       logger.info(
@@ -1759,25 +1756,24 @@ export class RegTankService {
         const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);
         const role = portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER;
 
-        await prisma.onboardingLog.create({
-          data: {
-            user_id: userId,
-            role,
-            event_type: "ONBOARDING_STARTED",
-            portal: portalType,
-            ip_address: ipAddress,
-            user_agent: userAgent,
-            device_info: deviceInfo,
-            device_type: deviceType,
-            organization_name: organization.name,
-            investor_organization_id: portalType === "investor" ? organizationId : null,
-            issuer_organization_id: portalType === "issuer" ? organizationId : null,
-            metadata: {
-              organizationId,
-              requestId: resolvedResponse.requestId,
-              onboardingType: "CORPORATE",
-            },
+        await createOnboardingLogRow({
+          userId: userId,
+          role,
+          eventType: "ONBOARDING_STARTED",
+          portal: portalType,
+          ipAddress,
+          userAgent,
+          deviceInfo,
+          deviceType,
+          organizationName: organization.name,
+          investorOrganizationId: portalType === "investor" ? organizationId : null,
+          issuerOrganizationId: portalType === "issuer" ? organizationId : null,
+          metadata: {
+            organizationId,
+            requestId: resolvedResponse.requestId,
+            onboardingType: "CORPORATE",
           },
+          context: auditContextFromRequest(req),
         });
 
         logger.info(
@@ -2300,25 +2296,23 @@ export class RegTankService {
 
         // Log sophisticated status determination if status was set
         if (sophisticatedResult.isSophisticated) {
-          await prisma.onboardingLog.create({
-            data: {
-              user_id: org.owner_user_id,
-              role: UserRole.INVESTOR,
-              event_type: "SOPHISTICATED_STATUS_UPDATED",
-              portal: "investor",
-              organization_name: org.name,
-              investor_organization_id: organizationId,
-              issuer_organization_id: null,
-              metadata: {
-                organizationId,
-                previousStatus: org.is_sophisticated_investor,
-                previousReason: org.sophisticated_investor_reason,
-                newStatus: sophisticatedResult.isSophisticated,
-                newReason: sophisticatedResult.reason,
-                updatedBy: "system",
-                action: "auto_granted",
-                source: "regtank_onboarding",
-              },
+          await createOnboardingLogRow({
+            userId: org.owner_user_id,
+            role: UserRole.INVESTOR,
+            eventType: "SOPHISTICATED_STATUS_UPDATED",
+            portal: "investor",
+            organizationName: org.name,
+            investorOrganizationId: organizationId,
+            issuerOrganizationId: null,
+            metadata: {
+              organizationId,
+              previousStatus: org.is_sophisticated_investor,
+              previousReason: org.sophisticated_investor_reason,
+              newStatus: sophisticatedResult.isSophisticated,
+              newReason: sophisticatedResult.reason,
+              updatedBy: "system",
+              action: "auto_granted",
+              source: "regtank_onboarding",
             },
           });
 

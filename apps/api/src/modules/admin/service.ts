@@ -143,6 +143,7 @@ import { resolveCorporatePersonMergeKey } from "../regtank/helpers/corporate-per
 import { buildAdminPeopleList, buildDirectorShareholderPeopleList } from "./build-people-list";
 import { notifyIssuerDirectorShareholderActionRequired } from "../notification/director-shareholder-notifications";
 import { logApplicationActivity } from "../applications/logs/service";
+import { createApplicationReviewEventRow } from "../applications/logs/review-events";
 import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
 
 export interface AdminLogContext {
@@ -189,6 +190,7 @@ import {
 } from "../applications/offer-application-status";
 import { loadInheritedAcceptanceForExistingContract } from "../../lib/contract-originating-application";
 import { signingService } from "../signing/service";
+import { auditContextFromRequest, createOnboardingLogRow } from "../../lib/audit";
 
 const APPLICATION_ACTION_REQUIRED_STATUSES = [
   ApplicationStatus.SUBMITTED,
@@ -3112,25 +3114,24 @@ export class AdminService {
     });
 
     // Log the sophisticated status update event
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: org.owner_user_id,
-        role: UserRole.INVESTOR,
-        event_type: "SOPHISTICATED_STATUS_UPDATED",
-        portal: "investor",
-        organization_name: org.name,
-        investor_organization_id: organizationId,
-        issuer_organization_id: null,
-        metadata: {
-          organizationId,
-          previousStatus: org.is_sophisticated_investor,
-          previousReason: org.sophisticated_investor_reason,
-          newStatus: isSophisticatedInvestor,
-          newReason: reason,
-          updatedBy: adminUserId || "admin",
-          action: isSophisticatedInvestor ? "granted" : "revoked",
-        },
+    await createOnboardingLogRow({
+      userId: org.owner_user_id,
+      role: UserRole.INVESTOR,
+      eventType: "SOPHISTICATED_STATUS_UPDATED",
+      portal: "investor",
+      organizationName: org.name,
+      investorOrganizationId: organizationId,
+      issuerOrganizationId: null,
+      metadata: {
+        organizationId,
+        previousStatus: org.is_sophisticated_investor,
+        previousReason: org.sophisticated_investor_reason,
+        newStatus: isSophisticatedInvestor,
+        newReason: reason,
+        updatedBy: adminUserId || "admin",
+        action: isSophisticatedInvestor ? "granted" : "revoked",
       },
+      actorUserId: adminUserId,
     });
 
     logger.info(
@@ -4196,32 +4197,32 @@ export class AdminService {
     // Use FINAL_APPROVAL_COMPLETED for both corporate and personal onboarding
     const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
     const eventType = "FINAL_APPROVAL_COMPLETED";
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: onboarding.user_id,
-        event_type: eventType,
-        role: isInvestor ? "INVESTOR" : "ISSUER",
-        portal: onboarding.portal_type,
-        ip_address:
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-        user_agent: req.headers["user-agent"] || null,
-        device_info: null,
-        device_type: null,
-        organization_name:
-          onboarding.investor_organization?.name ||
-          onboarding.issuer_organization?.name ||
-          undefined,
-        investor_organization_id: onboarding.investor_organization_id || undefined,
-        issuer_organization_id: onboarding.issuer_organization_id || undefined,
-        metadata: {
-          organizationId: org.id,
-          organizationType: onboarding.organization_type,
-          portalType: onboarding.portal_type,
-          approvedBy: adminUserId,
-          regtankRequestId: onboarding.request_id,
-          isCorporateOnboarding,
-        },
+    await createOnboardingLogRow({
+      userId: onboarding.user_id,
+      eventType: eventType,
+      role: isInvestor ? "INVESTOR" : "ISSUER",
+      portal: onboarding.portal_type,
+      ipAddress:
+        (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+      userAgent: req.headers["user-agent"] || null,
+      deviceInfo: null,
+      deviceType: null,
+      organizationName:
+        onboarding.investor_organization?.name ||
+        onboarding.issuer_organization?.name ||
+        undefined,
+      investorOrganizationId: onboarding.investor_organization_id || undefined,
+      issuerOrganizationId: onboarding.issuer_organization_id || undefined,
+      metadata: {
+        organizationId: org.id,
+        organizationType: onboarding.organization_type,
+        portalType: onboarding.portal_type,
+        approvedBy: adminUserId,
+        regtankRequestId: onboarding.request_id,
+        isCorporateOnboarding,
       },
+      actorUserId: adminUserId,
+      context: auditContextFromRequest(req),
     });
 
     logger.info(
@@ -4375,35 +4376,35 @@ export class AdminService {
     }
 
     // Create onboarding log entry
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: onboarding.user_id,
-        event_type: "AML_APPROVED",
-        role: isInvestor ? "INVESTOR" : "ISSUER",
-        portal: onboarding.portal_type,
-        ip_address:
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-        user_agent: req.headers["user-agent"] || null,
-        device_info: null,
-        device_type: null,
-        organization_name:
-          onboarding.investor_organization?.name ||
-          onboarding.issuer_organization?.name ||
-          undefined,
-        investor_organization_id: onboarding.investor_organization_id || undefined,
-        issuer_organization_id: onboarding.issuer_organization_id || undefined,
-        metadata: {
-          organizationId: org.id,
-          organizationType: onboarding.organization_type,
-          portalType: onboarding.portal_type,
-          onboardingRequestId: onboarding.request_id,
-          isCorporateOnboarding,
-          previousStatus: org.onboarding_status,
-          newStatus: orgAfterAml?.onboarding_status,
-          approvedBy: adminUserId,
-          approvedAt: now.toISOString(),
-        },
+    await createOnboardingLogRow({
+      userId: onboarding.user_id,
+      eventType: "AML_APPROVED",
+      role: isInvestor ? "INVESTOR" : "ISSUER",
+      portal: onboarding.portal_type,
+      ipAddress:
+        (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+      userAgent: req.headers["user-agent"] || null,
+      deviceInfo: null,
+      deviceType: null,
+      organizationName:
+        onboarding.investor_organization?.name ||
+        onboarding.issuer_organization?.name ||
+        undefined,
+      investorOrganizationId: onboarding.investor_organization_id || undefined,
+      issuerOrganizationId: onboarding.issuer_organization_id || undefined,
+      metadata: {
+        organizationId: org.id,
+        organizationType: onboarding.organization_type,
+        portalType: onboarding.portal_type,
+        onboardingRequestId: onboarding.request_id,
+        isCorporateOnboarding,
+        previousStatus: org.onboarding_status,
+        newStatus: orgAfterAml?.onboarding_status,
+        approvedBy: adminUserId,
+        approvedAt: now.toISOString(),
       },
+      actorUserId: adminUserId,
+      context: auditContextFromRequest(req),
     });
 
     logger.info(
@@ -4509,32 +4510,32 @@ export class AdminService {
     }
 
     // Create onboarding log entry with dedicated SSM_APPROVED event type
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: onboarding.user_id,
-        event_type: "SSM_APPROVED",
-        role: isInvestor ? "INVESTOR" : "ISSUER",
-        portal: onboarding.portal_type,
-        ip_address:
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-        user_agent: req.headers["user-agent"] || null,
-        device_info: null,
-        device_type: null,
-        organization_name:
-          onboarding.investor_organization?.name ||
-          onboarding.issuer_organization?.name ||
-          undefined,
-        investor_organization_id: onboarding.investor_organization_id || undefined,
-        issuer_organization_id: onboarding.issuer_organization_id || undefined,
-        metadata: {
-          organizationId: org.id,
-          organizationType: onboarding.organization_type,
-          portalType: onboarding.portal_type,
-          approvedBy: adminUserId,
-          regtankRequestId: onboarding.request_id,
-          adminApprovedAt: now.toISOString(),
-        },
+    await createOnboardingLogRow({
+      userId: onboarding.user_id,
+      eventType: "SSM_APPROVED",
+      role: isInvestor ? "INVESTOR" : "ISSUER",
+      portal: onboarding.portal_type,
+      ipAddress:
+        (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+      userAgent: req.headers["user-agent"] || null,
+      deviceInfo: null,
+      deviceType: null,
+      organizationName:
+        onboarding.investor_organization?.name ||
+        onboarding.issuer_organization?.name ||
+        undefined,
+      investorOrganizationId: onboarding.investor_organization_id || undefined,
+      issuerOrganizationId: onboarding.issuer_organization_id || undefined,
+      metadata: {
+        organizationId: org.id,
+        organizationType: onboarding.organization_type,
+        portalType: onboarding.portal_type,
+        approvedBy: adminUserId,
+        regtankRequestId: onboarding.request_id,
+        adminApprovedAt: now.toISOString(),
       },
+      actorUserId: adminUserId,
+      context: auditContextFromRequest(req),
     });
 
     await advanceOnboardingStatusFromFlags({
@@ -4644,31 +4645,31 @@ export class AdminService {
       reason: "ADMIN_APPROVE_ONBOARDING_SUBMISSION",
     });
 
-    await prisma.onboardingLog.create({
-      data: {
-        user_id: onboarding.user_id,
-        event_type: "ONBOARDING_APPROVED",
-        role: isInvestor ? "INVESTOR" : "ISSUER",
-        portal: onboarding.portal_type,
-        ip_address:
-          (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-        user_agent: req.headers["user-agent"] || null,
-        device_info: null,
-        device_type: null,
-        organization_name:
-          onboarding.investor_organization?.name ||
-          onboarding.issuer_organization?.name ||
-          undefined,
-        investor_organization_id: onboarding.investor_organization_id || undefined,
-        issuer_organization_id: onboarding.issuer_organization_id || undefined,
-        metadata: {
-          organizationId: org.id,
-          portalType: onboarding.portal_type,
-          approvedBy: adminUserId,
-          approvedAt: now.toISOString(),
-          regtankRequestId: onboarding.request_id,
-        },
+    await createOnboardingLogRow({
+      userId: onboarding.user_id,
+      eventType: "ONBOARDING_APPROVED",
+      role: isInvestor ? "INVESTOR" : "ISSUER",
+      portal: onboarding.portal_type,
+      ipAddress:
+        (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
+      userAgent: req.headers["user-agent"] || null,
+      deviceInfo: null,
+      deviceType: null,
+      organizationName:
+        onboarding.investor_organization?.name ||
+        onboarding.issuer_organization?.name ||
+        undefined,
+      investorOrganizationId: onboarding.investor_organization_id || undefined,
+      issuerOrganizationId: onboarding.issuer_organization_id || undefined,
+      metadata: {
+        organizationId: org.id,
+        portalType: onboarding.portal_type,
+        approvedBy: adminUserId,
+        approvedAt: now.toISOString(),
+        regtankRequestId: onboarding.request_id,
       },
+      actorUserId: adminUserId,
+      context: auditContextFromRequest(req),
     });
 
     logger.info(
@@ -4805,22 +4806,22 @@ export class AdminService {
           onboardingApproved = true;
 
           try {
-            await prisma.onboardingLog.create({
-              data: {
-                user_id: onboarding.user_id,
-                event_type: "ONBOARDING_STATUS_UPDATED",
-                role: isInvestor ? "INVESTOR" : "ISSUER",
-                portal: onboarding.portal_type,
-                organization_name: org.name ?? undefined,
-                investor_organization_id: isInvestor ? org.id : undefined,
-                issuer_organization_id: isInvestor ? undefined : org.id,
-                metadata: {
-                  organizationId: org.id,
-                  trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH",
-                  previousStatus: org.onboarding_status,
-                  codStatus: codStatusRaw,
-                },
+            await createOnboardingLogRow({
+              userId: onboarding.user_id,
+              eventType: "ONBOARDING_STATUS_UPDATED",
+              role: isInvestor ? "INVESTOR" : "ISSUER",
+              portal: onboarding.portal_type,
+              organizationName: org.name ?? undefined,
+              investorOrganizationId: isInvestor ? org.id : undefined,
+              issuerOrganizationId: isInvestor ? undefined : org.id,
+              metadata: {
+                organizationId: org.id,
+                trigger: "ADMIN_MANUAL_ONBOARDING_REFRESH",
+                previousStatus: org.onboarding_status,
+                codStatus: codStatusRaw,
               },
+              actorUserId: adminUserId,
+              context: auditContextFromRequest(_req),
             });
           } catch (logError) {
             logger.error(
@@ -8408,17 +8409,20 @@ export class AdminService {
         },
       });
 
-      await tx.applicationReviewEvent.create({
-        data: {
-          application_id: applicationId,
-          event_type: "CONTRACT_OFFER_SENT",
+      await createApplicationReviewEventRow(
+        {
+          applicationId,
+          eventType: "CONTRACT_OFFER_SENT",
           scope: "section",
-          scope_key: "contract_details",
-          new_status: "OFFER_SENT",
-          reviewer_user_id: reviewerUserId,
+          scopeKey: "contract_details",
+          newStatus: "OFFER_SENT",
+          reviewerUserId,
           remark: `Facility offer sent: ${offeredFacility}`,
+          ipAddress: logContext?.ipAddress ?? undefined,
+          userAgent: logContext?.userAgent ?? undefined,
         },
-      });
+        tx
+      );
       await tx.application.update({
         where: { id: applicationId },
         data: { status: ApplicationStatus.CONTRACT_SENT },
@@ -8913,16 +8917,19 @@ export class AdminService {
         },
       });
 
-      await tx.applicationReviewEvent.create({
-        data: {
-          application_id: applicationId,
-          event_type: "INVOICE_OFFER_SENT",
+      await createApplicationReviewEventRow(
+        {
+          applicationId,
+          eventType: "INVOICE_OFFER_SENT",
           scope: "item",
-          scope_key: scopeKey,
-          new_status: "OFFER_SENT",
-          reviewer_user_id: reviewerUserId,
+          scopeKey,
+          newStatus: "OFFER_SENT",
+          reviewerUserId,
+          ipAddress: logContext?.ipAddress ?? undefined,
+          userAgent: logContext?.userAgent ?? undefined,
         },
-      });
+        tx
+      );
       const invoiceStatuses = (
         await tx.invoice.findMany({
           where: { application_id: applicationId },
@@ -10898,15 +10905,18 @@ export class AdminService {
         data: { status: ApplicationStatus.AMENDMENT_REQUESTED },
       });
 
-      await tx.applicationReviewEvent.create({
-        data: {
-          application_id: applicationId,
-          event_type: "AMENDMENTS_SUBMITTED",
-          new_status: "AMENDMENT_REQUESTED",
-          reviewer_user_id: reviewerUserId,
+      await createApplicationReviewEventRow(
+        {
+          applicationId,
+          eventType: "AMENDMENTS_SUBMITTED",
+          newStatus: "AMENDMENT_REQUESTED",
+          reviewerUserId,
           remark: `${pending.length} amendment(s) sent to issuer`,
+          ipAddress: logContext?.ipAddress ?? undefined,
+          userAgent: logContext?.userAgent ?? undefined,
         },
-      });
+        tx
+      );
     });
 
     await logApplicationActivity({

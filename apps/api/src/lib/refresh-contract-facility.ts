@@ -22,6 +22,9 @@ import {
 } from "./contract-facility";
 import { overlayFacilityFeeUpfrontDto } from "./facility-fee-upfront-guard";
 import { prisma } from "./prisma";
+import { AUDIT_SOURCE, AUDIT_TARGET_TYPE, createNoteEventRow } from "./audit";
+import { createApplicationLog } from "../modules/applications/logs/repository";
+import { ActivityPortal, ApplicationLogEventType } from "../modules/applications/logs/types";
 
 type ContractFacilityDb = PrismaClient | Prisma.TransactionClient;
 
@@ -575,30 +578,34 @@ export async function recordFacilityOccupancyAudit(
     },
   };
 
-  await db.applicationLog.create({
-    data: {
-      user_id: input.audit.userId,
-      application_id: input.applicationId,
-      event_type: "CONTRACT_FACILITY_OCCUPANCY_UPDATED",
-      entity_id: input.contractId,
-      portal: input.audit.portal ?? null,
+  await createApplicationLog(
+    {
+      userId: input.audit.userId,
+      applicationId: input.applicationId,
+      eventType: ApplicationLogEventType.CONTRACT_FACILITY_OCCUPANCY_UPDATED,
+      entityId: input.contractId,
+      portal: (input.audit.portal as ActivityPortal | null | undefined) ?? null,
       remark: occupancyRemark(input.audit.reason, input.after),
       metadata,
-      created_at: createdAt,
+      createdAt,
+      // Occupancy is recomputed as a consequence of another business write, not a direct request.
+      source: AUDIT_SOURCE.INTERNAL,
     },
-  });
+    db
+  );
 
   if (input.audit.noteId) {
-    await db.noteEvent.create({
-      data: {
-        note_id: input.audit.noteId,
-        event_type: "FACILITY_OCCUPANCY_UPDATED",
-        actor_user_id: input.audit.userId,
-        actor_role: input.audit.actorRole ?? null,
-        portal: input.audit.portal ?? null,
-        metadata,
-        created_at: createdAt,
-      },
+    await createNoteEventRow(db, {
+      noteId: input.audit.noteId,
+      eventType: "FACILITY_OCCUPANCY_UPDATED",
+      actorUserId: input.audit.userId,
+      actorRole: input.audit.actorRole ?? null,
+      portal: input.audit.portal ?? null,
+      metadata,
+      createdAt,
+      source: AUDIT_SOURCE.INTERNAL,
+      targetType: AUDIT_TARGET_TYPE.CONTRACT,
+      targetId: input.contractId,
     });
   }
 }

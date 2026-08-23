@@ -4,6 +4,8 @@
  * Event type is the single source of truth. level/target/action are deprecated.
  */
 
+import type { AuditRequestContext, AuditSource } from "../../../lib/audit";
+
 /** Canonical application log event types. Use these instead of level_target_action. */
 export enum ApplicationLogEventType {
   APPLICATION_CREATED = "APPLICATION_CREATED",
@@ -99,7 +101,7 @@ export enum ActivityAction {
 
 export type CreateApplicationLogParams = {
   userId: string;
-  applicationId?: string;
+  applicationId?: string | null;
   /** Required. Use ApplicationLogEventType enum. */
   eventType: ApplicationLogEventType | string;
   reviewCycle?: number;
@@ -108,8 +110,18 @@ export type CreateApplicationLogParams = {
   ipAddress?: string;
   userAgent?: string;
   deviceInfo?: string;
-  portal?: ActivityPortal;
+  portal?: ActivityPortal | null;
   /** Extra fields for review audit (scope, scope_key, old_status, new_status) */
   metadata?: Record<string, unknown>;
-};
 
+  /**
+   * Optional forensic context. When supplied it fills IP / user agent / correlation id / source /
+   * actor type for call sites that do not pass them individually. Explicit per-field values above
+   * always win.
+   */
+  context?: AuditRequestContext | null;
+  /** Overrides the default `API` source (e.g. `SYSTEM_JOB` for expiry sweeps). */
+  source?: AuditSource | null;
+  /** Explicit occurred-at. Defaults to the DB `now()` default. */
+  createdAt?: Date;
+};

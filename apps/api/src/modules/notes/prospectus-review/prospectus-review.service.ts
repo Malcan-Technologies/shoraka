@@ -19,6 +19,12 @@ import {
 } from "@cashsouk/types";
 import { AppError } from "../../../lib/http/error-handler";
 import { prisma } from "../../../lib/prisma";
+import {
+  AUDIT_TARGET_TYPE,
+  changedFieldsOf,
+  createNoteAdminActionRow,
+  createNoteEventRow,
+} from "../../../lib/audit";
 import { toAdminIssuerTrackRecordRows } from "../prospectus/prospectus-issuer-track-record";
 import { toAdminHistoricalNoteTable } from "../prospectus/prospectus-historical-note-table";
 import { toAdminIssuerProfileRows } from "../prospectus/prospectus-issuer-profile";
@@ -190,30 +196,37 @@ async function logProspectusAction(
   beforeState?: Prisma.InputJsonValue,
   afterState?: Prisma.InputJsonValue
 ) {
-  await tx.noteAdminAction.create({
-    data: {
-      note_id: noteId,
-      action_type: actionType,
-      actor_user_id: actor.userId,
-      before_state: beforeState,
-      after_state: afterState,
-      ip_address: actor.ipAddress,
-      user_agent: actor.userAgent,
-      correlation_id: actor.correlationId,
+  await createNoteAdminActionRow(tx, {
+    noteId,
+    actionType,
+    actorUserId: actor.userId,
+    beforeState,
+    afterState,
+    ipAddress: actor.ipAddress,
+    userAgent: actor.userAgent,
+    correlationId: actor.correlationId,
+    portal: actor.portal,
+    targetType: AUDIT_TARGET_TYPE.NOTE_PROSPECTUS,
+    targetId: noteId,
+    metadata: {
+      changedFields: changedFieldsOf(
+        beforeState as Record<string, unknown> | null,
+        afterState as Record<string, unknown> | null
+      ),
     },
   });
-  await tx.noteEvent.create({
-    data: {
-      note_id: noteId,
-      event_type: actionType,
-      actor_user_id: actor.userId,
-      actor_role: actor.role,
-      portal: actor.portal,
-      ip_address: actor.ipAddress,
-      user_agent: actor.userAgent,
-      correlation_id: actor.correlationId,
-      metadata: { beforeState, afterState },
-    },
+  await createNoteEventRow(tx, {
+    noteId,
+    eventType: actionType,
+    actorUserId: actor.userId,
+    actorRole: actor.role,
+    portal: actor.portal,
+    ipAddress: actor.ipAddress,
+    userAgent: actor.userAgent,
+    correlationId: actor.correlationId,
+    metadata: { beforeState, afterState },
+    targetType: AUDIT_TARGET_TYPE.NOTE_PROSPECTUS,
+    targetId: noteId,
   });
 }
 

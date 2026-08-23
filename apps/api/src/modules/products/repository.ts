@@ -2,6 +2,7 @@ import { prisma } from "../../lib/prisma";
 import { Product, Prisma } from "@prisma/client";
 import type { ProductEventType, GetProductLogsQuery, DateRangeValue } from "./schemas";
 import { normalizeAndValidateProductCode } from "../../lib/display-reference";
+import { createProductLogRow } from "./audit";
 
 export interface ListProductsParams {
   page: number;
@@ -266,14 +267,14 @@ export class ProductRepository {
       // Later `completeCreate` calls write PRODUCT_UPDATED (not PRODUCT_CREATED) to avoid duplicates.
       if (logContext?.userId) {
         const createdAny = created as any;
-        await tx.productLog.create({
-          data: {
-            user_id: logContext.userId,
-            product_id: created.id,
-            event_type: "PRODUCT_CREATED",
-            ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-            user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-            device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+        await createProductLogRow(
+          {
+            userId: logContext.userId,
+            productId: created.id,
+            eventType: "PRODUCT_CREATED",
+            ipAddress: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+            userAgent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+            deviceInfo: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
             metadata: {
               workflow: JSON.parse(JSON.stringify(createdAny.workflow)),
               category_display_order: createdAny.category_display_order ?? null,
@@ -289,7 +290,8 @@ export class ProductRepository {
               product_updated_at: createdAny.updated_at?.toISOString?.() ?? null,
             } as Prisma.InputJsonValue,
           },
-        } as any);
+          tx
+        );
       }
 
       return finalized;
@@ -425,17 +427,18 @@ export class ProductRepository {
             product_updated_at: updatedAny.updated_at.toISOString(),
             replaced_product_id: null,
           };
-          await tx.productLog.create({
-            data: {
-              user_id: logContext.userId,
-              product_id: updated.id,
-              event_type: "PRODUCT_UPDATED",
-              ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-              user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-              device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+          await createProductLogRow(
+            {
+              userId: logContext.userId,
+              productId: updated.id,
+              eventType: "PRODUCT_UPDATED",
+              ipAddress: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+              userAgent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+              deviceInfo: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
               metadata: metadata as Prisma.InputJsonValue,
             },
-          } as any);
+            tx
+          );
         }
         return updated;
       });
@@ -586,17 +589,18 @@ export class ProductRepository {
           product_updated_at: createdAny.updated_at.toISOString(),
           replaced_product_id: id,
         };
-        await tx.productLog.create({
-          data: {
-            user_id: logContext.userId,
-            product_id: created.id,
-            event_type: "PRODUCT_UPDATED",
-            ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-            user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-            device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+        await createProductLogRow(
+          {
+            userId: logContext.userId,
+            productId: created.id,
+            eventType: "PRODUCT_UPDATED",
+            ipAddress: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+            userAgent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+            deviceInfo: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
             metadata: metadata as Prisma.InputJsonValue,
           },
-        } as any);
+          tx
+        );
       }
 
       return created;
@@ -625,17 +629,18 @@ export class ProductRepository {
           replaced_product_id: null,
         };
         // create log before soft-delete so snapshot represents persisted state
-        await tx.productLog.create({
-          data: {
-            user_id: logContext.userId,
-            product_id: current.id,
-            event_type: "PRODUCT_DELETED",
-            ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-            user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-            device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+        await createProductLogRow(
+          {
+            userId: logContext.userId!,
+            productId: current.id,
+            eventType: "PRODUCT_DELETED",
+            ipAddress: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+            userAgent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+            deviceInfo: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
             metadata: metadata as Prisma.InputJsonValue,
           },
-        } as any);
+          tx
+        );
 
         // soft-delete: mark status and deleted_at
         return tx.product.update({
@@ -671,23 +676,21 @@ export class ProductRepository {
 
     if (logContext?.userId && current) {
       const currentAny = current as any;
-      await prisma.productLog.create({
-        data: {
-          user_id: logContext.userId,
-          product_id: updated.id,
-          event_type: "PRODUCT_INACTIVATED",
-          ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-          user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-          device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
-          metadata: {
-            previous_status: currentAny.status ?? null,
-            new_status: "INACTIVE",
-            version: currentAny.version ?? null,
-            base_id: currentAny.base_id ?? null,
-            product_created_at: currentAny.created_at?.toISOString?.() ?? null,
-            product_updated_at: currentAny.updated_at?.toISOString?.() ?? null,
-          } as Prisma.InputJsonValue,
-        },
+      await createProductLogRow({
+        userId: logContext.userId,
+        productId: updated.id,
+        eventType: "PRODUCT_INACTIVATED",
+        ipAddress: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+        userAgent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+        deviceInfo: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+        metadata: {
+          previous_status: currentAny.status ?? null,
+          new_status: "INACTIVE",
+          version: currentAny.version ?? null,
+          base_id: currentAny.base_id ?? null,
+          product_created_at: currentAny.created_at?.toISOString?.() ?? null,
+          product_updated_at: currentAny.updated_at?.toISOString?.() ?? null,
+        } as Prisma.InputJsonValue,
       });
     }
 
@@ -707,23 +710,21 @@ export class ProductRepository {
 
     if (logContext?.userId && current) {
       const currentAny = current as any;
-      await prisma.productLog.create({
-        data: {
-          user_id: logContext.userId,
-          product_id: updated.id,
-          event_type: "PRODUCT_REACTIVATED",
-          ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-          user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-          device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
-          metadata: {
-            previous_status: currentAny.status ?? null,
-            new_status: "ACTIVE",
-            version: currentAny.version ?? null,
-            base_id: currentAny.base_id ?? null,
-            product_created_at: currentAny.created_at?.toISOString?.() ?? null,
-            product_updated_at: currentAny.updated_at?.toISOString?.() ?? null,
-          } as Prisma.InputJsonValue,
-        },
+      await createProductLogRow({
+        userId: logContext.userId,
+        productId: updated.id,
+        eventType: "PRODUCT_REACTIVATED",
+        ipAddress: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+        userAgent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+        deviceInfo: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+        metadata: {
+          previous_status: currentAny.status ?? null,
+          new_status: "ACTIVE",
+          version: currentAny.version ?? null,
+          base_id: currentAny.base_id ?? null,
+          product_created_at: currentAny.created_at?.toISOString?.() ?? null,
+          product_updated_at: currentAny.updated_at?.toISOString?.() ?? null,
+        } as Prisma.InputJsonValue,
       });
     }
 
@@ -846,16 +847,14 @@ export interface CreateProductLogData {
  */
 export class ProductLogRepository {
   async create(data: CreateProductLogData) {
-    return prisma.productLog.create({
-      data: {
-        user_id: data.userId,
-        product_id: data.productId ?? null,
-        event_type: data.eventType,
-        ip_address: data.ipAddress ?? null,
-        user_agent: data.userAgent ?? null,
-        device_info: data.deviceInfo ?? null,
-        metadata: (data.metadata as Prisma.InputJsonValue) ?? Prisma.JsonNull,
-      },
+    return createProductLogRow({
+      userId: data.userId,
+      productId: data.productId ?? null,
+      eventType: data.eventType,
+      ipAddress: data.ipAddress ?? null,
+      userAgent: data.userAgent ?? null,
+      deviceInfo: data.deviceInfo ?? null,
+      metadata: (data.metadata as Prisma.InputJsonValue) ?? Prisma.JsonNull,
     });
   }
 
