@@ -27,6 +27,8 @@ Removed runtime stores (do not document as active): `ApplicationLog`, `NoteEvent
 
 ## Catalogue counts (source)
 
+**Mechanical recount (2026-08-23, working tree `199ecb07`, clean).** Re-extracted every `*_AUDIT_EVENTS` / `RETIRED_*_AUDIT_EVENTS` array, Prisma `@@map` audit tables, and catalogue `# A### — EVENT` headings. Result is unchanged from the living counts below: **178** reserved, **170** active, **8** retired. Catalogue headings match source event names **178/178**. Previous baseline **174** was the original A001–A174 cutover reserved set; it is not current. A175–A178 were appended later. Do not force the catalogue back to 174.
+
 Reserved IDs **A001–A178** (**178**). Active writers **170**. Retired IDs (readable historical rows, IDs not reused): A004 `USER_ROLE_ADDED`, A005 `ACTIVE_ROLE_CHANGED`, A010 `USER_EMAIL_VERIFIED`, A011 `EMAIL_VERIFICATION_FAILED`, A016 `USER_ROLES_UPDATED`, A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`. Retired total: **8**.
 
 **Reserved vs active.** A reserved ID is a stable catalogue/Zod definition so historical rows still parse. An active writer is a current production `eventType` call site. Retired IDs stay reserved and are never reused. Security still has **35 reserved** event definitions; it has **30** live writers because A004, A005, A010, A011, and A016 are retired. Do not describe Security as a 30-event catalogue.
