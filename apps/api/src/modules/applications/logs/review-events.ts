@@ -1,10 +1,13 @@
 /**
  * Standardized writer for the existing `application_review_events` table.
  *
- * This table is read by the admin application detail "Recent Activity" card, which selects only
- * `event_type`, `scope_key`, `new_status`, `remark` and `created_at`. Those columns are written
- * exactly as origin/main wrote them — in particular `remark` stays the first-class historical copy
- * of the reviewer remark. Everything new goes into additive nullable columns the card never reads.
+ * As of the origin/main audit, `getApplicationById` (apps/api/src/modules/admin/repository.ts)
+ * does not `include` this table, and `RecentActivityCard` ignores its `events` prop when an
+ * `applicationId` is present (it renders `AdminActivityTimeline` off `application_logs` instead).
+ * This table therefore has no production reader today; rows are kept as a forensic, in-transaction
+ * mirror of the corresponding `application_logs` row — `remark` stays the first-class historical
+ * copy of the reviewer remark exactly as origin/main wrote it, and everything new goes into
+ * additive nullable columns, in case a reader is added later.
  *
  * Rows are always written inside the same transaction as the review/offer state change.
  */
