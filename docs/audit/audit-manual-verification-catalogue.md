@@ -2,7 +2,7 @@
 
 **Purpose.** Source-authoritative, human-readable manual verification catalogue of **178 reserved/catalogued event IDs** (A001–A178). IDs are stable and are not reused when a writer is retired. Distinguish **reserved event IDs** from **current active writers**. Each card is the checklist a reviewer uses to confirm the write (or retired/no-writer status), the Zod metadata, the source of truth, transaction behavior, and the three activity surfaces (admin curated, issuer, investor) plus admin raw.
 
-**Date.** 2026-08-23 — A004 `USER_ROLE_ADDED` retired (ID reserved; no live writer; `POST /v1/auth/add-role` removed). Same day: A016 `USER_ROLES_UPDATED` retired; A005 `ACTIVE_ROLE_CHANGED` retired; A178 metadata synced to dual-ledger occupancy (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`). Prior: 2026-08-20 A178 added; 2026-08-19 A175–A177 for admin organization profile update and note campaign pause/resume.
+**Date.** 2026-08-23 — A010 `USER_EMAIL_VERIFIED` and A011 `EMAIL_VERIFICATION_FAILED` retired (IDs reserved; no live writers; `POST /v1/auth/verify-email` removed). Signup email verification remains on Landing `/verify-email` via `confirm-signup` / `resend-signup-code`. Same day earlier: A004 `USER_ROLE_ADDED` retired; A016 `USER_ROLES_UPDATED` retired; A005 `ACTIVE_ROLE_CHANGED` retired; A178 metadata synced to dual-ledger occupancy (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`). Prior: 2026-08-20 A178 added; 2026-08-19 A175–A177 for admin organization profile update and note campaign pause/resume.
 
 **How to use this document.** Do not treat activity titles as workflow state. Do not treat audit rows as source of truth. Verify the named table, then the SOT row, then visibility. Hidden activity is recorded as Title: N/A / Description: N/A.
 
@@ -31,7 +31,7 @@ If a card’s “UI location” names a component, verify the current file; do n
 | Module | A-range | Count | Model | DB table | Admin raw location | Permission |
 |---|---|---:|---|---|---|---|
 | Access | A001–A003 | 3 | AccessAuditLog | access_audit_logs | `/audit` → Access (`/audit?tab=access`) | `audit.access.view` |
-| Security | A004–A038 | 35 reserved / 32 ACTIVE (A004, A005, A016 retired — DO NOT LIVE QA) | SecurityAuditLog | security_audit_logs | `/audit` → Security (`/audit?tab=security`) | `audit.security.view` |
+| Security | A004–A038 | 35 reserved / 30 ACTIVE (A004, A005, A010, A011, A016 retired — DO NOT LIVE QA) | SecurityAuditLog | security_audit_logs | `/audit` → Security (`/audit?tab=security`) | `audit.security.view` |
 | Onboarding | A039–A055, A175 | 18 reserved (15 active writers; A040, A052, and A053 retired) | OnboardingAuditLog | onboarding_audit_logs | `/audit` → Onboarding (`/audit?tab=onboarding`) | `onboarding.view` |
 | Legal | A056–A062 | 7 | LegalAdminAuditLog | legal_admin_audit_logs | `/audit` → Legal Documents (`/audit?tab=legal-documents`) | `document_management.view` |
 | Application | A063–A102, A178 | 41 | ApplicationAuditLog | application_audit_logs | Application Detail → Audit History | `applications.view` |
@@ -40,7 +40,7 @@ If a card’s “UI location” names a component, verify the current file; do n
 | Payment | A150–A168 | 19 | PaymentAuditLog | payment_audit_logs | Gateway Payment / Investor Withdrawal / Reconciliation Audit | gateway / `investor_withdrawals.view` / `gateway_reconciliation.view` |
 | Product | A169–A173 | 5 | ProductAuditLog | product_audit_logs | `/audit` → Products (`/audit?tab=products`) | `audit.product.view` |
 | Notification | A174 | 1 | NotificationBroadcastAuditLog | notification_broadcast_audit_logs | `/audit` → Notifications (`/audit?tab=notifications`) | `notifications.view` |
-| **Total** | **A001–A178** | **178 reserved/catalogued IDs** (172 currently active event types with at least one writer; A004, A005, A016, A040, A052, and A053 retired, IDs not reused) | | | | |
+| **Total** | **A001–A178** | **178 reserved/catalogued IDs** (170 currently active event types with at least one writer; A004, A005, A010, A011, A016, A040, A052, and A053 retired, IDs not reused) | | | | |
 
 
 ## Visibility summary
@@ -61,7 +61,7 @@ Computed from the event cards in this catalogue (not from memory).
 | Notification | 1 | 1 | 0 / 0 / 1 | 0 / 0 / 1 | 0 / 0 / 1 |
 | **Total** | **178** | **178** | **94 / 1 / 83** | **57 / 5 / 116** | **12 / 13 / 153** |
 
-Onboarding visibility counts include the 18 reserved IDs. Retired A040 / A052 / A053 remain SHOW on admin raw and SHOW (historical) on admin curated Activity if old rows exist; issuer/investor HIDE. Admin Organization contextual history excludes A052 and A053. Admin Activity HIDE is only `USER_ONBOARDING_STATUS_UPDATED`. Issuer/investor CONDITIONAL includes review/amendment `ONBOARDING_STATUS_CHANGED`. A175 is admin org Activity SHOW and issuer/investor HIDE. Security reserved IDs include retired A004 `USER_ROLE_ADDED`, A005 `ACTIVE_ROLE_CHANGED`, and A016 `USER_ROLES_UPDATED` (admin raw SHOW for historical rows; no current writer).
+Onboarding visibility counts include the 18 reserved IDs. Retired A040 / A052 / A053 remain SHOW on admin raw and SHOW (historical) on admin curated Activity if old rows exist; issuer/investor HIDE. Admin Organization contextual history excludes A052 and A053. Admin Activity HIDE is only `USER_ONBOARDING_STATUS_UPDATED`. Issuer/investor CONDITIONAL includes review/amendment `ONBOARDING_STATUS_CHANGED`. A175 is admin org Activity SHOW and issuer/investor HIDE. Security reserved IDs include retired A004 `USER_ROLE_ADDED`, A005 `ACTIVE_ROLE_CHANGED`, A010 `USER_EMAIL_VERIFIED`, A011 `EMAIL_VERIFICATION_FAILED`, and A016 `USER_ROLES_UPDATED` (admin raw SHOW for historical rows; no current writer).
 
 # Access
 
@@ -750,17 +750,21 @@ Admin `/audit?tab=access` requires `audit.access.view`. Rows open in `AuditLogDe
 
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
-Events: 35 reserved / 32 ACTIVE manual/API audit targets
+Events: 35 reserved / 30 ACTIVE manual/API audit targets
 Range: A004-A038
 Admin Location: /audit → Security (`/audit?tab=security`)
 Permission: audit.security.view
 
-**Active QA count: 32.** Do not include retired events in the live Security QA checklist.
+**Active QA count: 30.** Do not include retired events in the live Security QA checklist.
 
-**3 retired Security events (IDs reserved; historical rows readable; RETIRED — DO NOT LIVE QA):**
+**5 retired Security events (IDs reserved; historical rows readable; RETIRED — DO NOT LIVE QA):**
 - A004 `USER_ROLE_ADDED`
 - A005 `ACTIVE_ROLE_CHANGED`
+- A010 `USER_EMAIL_VERIFIED`
+- A011 `EMAIL_VERIFICATION_FAILED`
 - A016 `USER_ROLES_UPDATED`
+
+Landing signup Verify Email remains active. It uses `POST /v1/auth/confirm-signup` and `POST /v1/auth/resend-signup-code`. It does **not** write A010/A011. This retirement does **not** remove product email verification.
 
 **Current role and portal-switch flows (source):**
 - Investor / Issuer portal roles are granted in `OrganizationService.createOrganization`. Not `USER_ROLE_ADDED`. Not `USER_ROLES_UPDATED`.
@@ -777,8 +781,8 @@ Permission: audit.security.view
 | A007 | SEC-004 | `USER_PROFILE_UPDATED_BY_ADMIN` | SHOW | HIDE | HIDE | HIDE |
 | A008 | SEC-005 | `PASSWORD_CHANGED` | SHOW | HIDE | HIDE | HIDE |
 | A009 | SEC-006 | `PASSWORD_CHANGE_FAILED` | SHOW | HIDE | HIDE | HIDE |
-| A010 | SEC-007 | `USER_EMAIL_VERIFIED` | SHOW | HIDE | HIDE | HIDE |
-| A011 | SEC-008 | `EMAIL_VERIFICATION_FAILED` | SHOW | HIDE | HIDE | HIDE |
+| A010 | SEC-007 | `USER_EMAIL_VERIFIED` (RETIRED — DO NOT LIVE QA) | SHOW | HIDE | HIDE | HIDE |
+| A011 | SEC-008 | `EMAIL_VERIFICATION_FAILED` (RETIRED — DO NOT LIVE QA) | SHOW | HIDE | HIDE | HIDE |
 | A012 | SEC-009 | `ADMIN_ACCESS_DENIED` | SHOW | HIDE | HIDE | HIDE |
 | A013 | SEC-010 | `ADMIN_ROLE_CREATED` | SHOW | HIDE | HIDE | HIDE |
 | A014 | SEC-011 | `ADMIN_ROLE_PERMISSIONS_UPDATED` | SHOW | HIDE | HIDE | HIDE |
@@ -993,7 +997,7 @@ No UI writes this event. Investor/Issuer account creation still grants portal ro
 
 ## 15. Manual verification checklist
 
-**RETIRED — DO NOT LIVE QA.** Not an active Security QA target. Live Security QA count is **32**. A004, A005, and A016 are retired.
+**RETIRED — DO NOT LIVE QA.** Not an active Security QA target. Live Security QA count is **30**. A004, A005, A010, A011, and A016 are retired.
 
 - [ ] No `POST /v1/auth/add-role`
 - [ ] No new `USER_ROLE_ADDED` row from Investor/Issuer org create
@@ -1197,7 +1201,7 @@ Current portal switch (do **not** treat as A005):
 
 ## 15. Manual verification checklist
 
-**RETIRED — DO NOT LIVE QA.** Not an active Security QA target. Live Security QA count is **32**. A004, A005, and A016 are retired.
+**RETIRED — DO NOT LIVE QA.** Not an active Security QA target. Live Security QA count is **30**. A004, A005, A010, A011, and A016 are retired.
 
 - [ ] Portal switch is hard navigation only (other portal origin)
 - [ ] No `POST /v1/auth/switch-role`
@@ -1962,6 +1966,16 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A010 — USER_EMAIL_VERIFIED
 
+**Status: RETIRED — DO NOT LIVE QA**
+**Current writer: None**
+**Historical rows: Supported/readable**
+**ID reused: No**
+**Manual QA: RETIRED — DO NOT LIVE QA**
+
+ID A010 remains reserved in A004–A038 for historical compatibility. It is **not** a current production writer. `USER_EMAIL_VERIFIED` stays in `SECURITY_AUDIT_EVENTS` / Zod only so existing `security_audit_logs` rows still parse. It is listed in `RETIRED_SECURITY_AUDIT_EVENTS`.
+
+`POST /v1/auth/verify-email` and `AuthService.verifyEmail` have been removed. No portal, SDK, script, or job called that endpoint. Current Investor/Issuer signup confirmation is Landing `/verify-email` → `POST /v1/auth/confirm-signup` (Cognito `ConfirmSignUpCommand`). Resend is `POST /v1/auth/resend-signup-code`. Those paths do **not** write A010. Admin invitation acceptance does **not** use this flow. This retirement does **not** remove signup email verification from the product.
+
 Source Case: SEC-007
 Module: Security
 Audit Model: SecurityAuditLog
@@ -1969,31 +1983,31 @@ DB Table: security_audit_logs
 
 ## 1. What this event means
 
-Email verification succeeded for the user.
+**Historical meaning only.** Previously recorded that an authenticated `POST /v1/auth/verify-email` call succeeded against Cognito `VerifyUserAttributeCommand` for the email attribute. That is **not** Landing signup confirmation.
 
 ## 2. When it logs
 
-`AuthService` email-verification success. Best-effort.
+No current writer. Previously `AuthService.verifyEmail` after Cognito attribute verification succeeded, then `AdminUpdateUserAttributesCommand` `email_verified=true`, then DB `email_verified: true`. Best-effort.
 
 ## 3. When it does NOT log / no-op
 
-Failure writes `EMAIL_VERIFICATION_FAILED`. No write if verification is never attempted.
+Always, for current product actions. Landing `/verify-email`, `/verify-email-help`, `confirm-signup`, `resend-signup-code`, Hosted UI confirmation, and Admin invite acceptance must not write this event.
 
 ## 4. Top-level audit row
 
 Append-only `SecurityAuditLog` / `security_audit_logs`.
 
-| Column | Current writer behavior |
+| Column | Historical row shape (no current writer) |
 |---|---|
 | `id` | cuid, generated |
-| `subject_user_id` | Affected user when the action is about a person; null for role/invitation/config targets |
+| `subject_user_id` | Affected user |
 | `event_type` | `USER_EMAIL_VERIFIED` |
 | `occurred_at` / `created_at` | DB default `now()` |
-| `actor_type` | `USER` or `ADMIN` from request context |
-| `actor_user_id` | Acting user |
-| `organization_id` / `organization_kind` | Set for organization membership/invitation events; otherwise null |
+| `actor_type` | Forced `USER` in the historical writer |
+| `actor_user_id` | Authenticated user |
+| `organization_id` / `organization_kind` | null on this historical writer |
 | `target_type` | `USER` |
-| `target_id` | user_id |
+| `target_id` | subject user_id |
 | `source` | `API` |
 | `portal` | Request portal |
 | `ip_address` / `user_agent` / `correlation_id` | Request context |
@@ -2001,6 +2015,8 @@ Append-only `SecurityAuditLog` / `security_audit_logs`.
 | `metadata` | Parsed by `parseSecurityAuditMetadata` |
 
 ## 5. EXACT METADATA STRUCTURE
+
+Historical rows still parse with this schema. Do not change the shape.
 
 ```ts
 {
@@ -2011,6 +2027,8 @@ Append-only `SecurityAuditLog` / `security_audit_logs`.
 }
 ```
 
+Historical success `reasonCode` from the removed writer: `"EMAIL_VERIFIED"`.
+
 ### field cards
 
 #### `actorName`
@@ -2019,11 +2037,9 @@ Append-only `SecurityAuditLog` / `security_audit_logs`.
 - **Required:** Yes (key present)
 - **Nullable:** Yes
 - **Allowed values:** Any string, or null
-- **Writer source:** Writer injects via `loadAuditActorSnapshot` (or legal/notification local snapshot) from `actor_user_id`. Null name/email when the user row is missing.
-- **Current writer:** Always written by the table writer. Value is the actor's first+last name or null; email or null.
+- **Writer source:** Historical writer injected via actor snapshot from `actor_user_id`
+- **Current writer:** None
 - **Example:** `"Aisha Rahman"` or `null`
-
-Admin curated activity may interpolate this into descriptions. Issuer/investor presentation never reads it.
 
 #### `actorEmail`
 
@@ -2031,11 +2047,9 @@ Admin curated activity may interpolate this into descriptions. Issuer/investor p
 - **Required:** Yes (key present)
 - **Nullable:** Yes
 - **Allowed values:** Any string, or null
-- **Writer source:** Writer injects via `loadAuditActorSnapshot` (or legal/notification local snapshot) from `actor_user_id`. Null name/email when the user row is missing.
-- **Current writer:** Always written by the table writer. Value is the actor's first+last name or null; email or null.
+- **Writer source:** Historical writer injected via actor snapshot from `actor_user_id`
+- **Current writer:** None
 - **Example:** `"aisha@example.com"` or `null`
-
-Stored for raw audit. Curated activity titles do not print it except where a dedicated email field is used (admin-only).
 
 #### `email`
 
@@ -2043,8 +2057,8 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Required:** Yes
 - **Nullable:** No
 - **Allowed values:** Verified email
-- **Writer source:** Verification payload
-- **Current writer:** Always populated
+- **Writer source:** Historical verification payload (`user.email`)
+- **Current writer:** None
 - **Example:** `"user@example.com"`
 
 #### `reasonCode`
@@ -2053,39 +2067,35 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Required:** Yes
 - **Nullable:** No
 - **Allowed values:** Success/reason code
-- **Writer source:** AuthService
-- **Current writer:** Always populated
-- **Example:** Example not safely inferable from source.
-
+- **Writer source:** Historical AuthService
+- **Current writer:** None
+- **Example:** `"EMAIL_VERIFIED"`
 
 ## 6. Source of truth
 
-`User`, `UserSession`, admin role/permission tables, `AdminInvitation`, organization membership/invitation rows, `NotificationType` / `NotificationGroup` / `UserNotificationPreference` remain source of truth. `SecurityAuditLog` is append-only history with no FKs.
+`User`, Cognito `email_verified`, and signup confirmation remain source of truth. `SecurityAuditLog` is append-only history with no FKs.
 
 ## 7. Transaction / audit failure behavior
 
-`writeSecurityAuditLogBestEffort` logs and swallows errors so HTTP behavior does not change. Used for denials, password, and email verification.
+No current writer. Historical writes used `writeSecurityAuditLogBestEffort`.
 
 ## 8. Writer(s)
 
-- `apps/api/src/modules/auth/service.ts` — email verify success
-- `writeSecurityAuditLogBestEffort`
+None. Historical: `apps/api/src/modules/auth/service.ts` `verifyEmail` (removed).
 
 ## 9. ADMIN RAW AUDIT
 
 **Visibility:** SHOW
 
-SHOW. Listed on the module's admin raw audit surface with the module permission. Opened via **View** into `AuditLogDetailSheet` (typed metadata, actor snapshot, target, IP/UA). Tab `/audit?tab=security`, permission `audit.security.view`.
+SHOW for historical rows. Tab `/audit?tab=security`, permission `audit.security.view`. `AuditLogDetailSheet` still parses this metadata.
 
 **Title:** Raw event row
 
-**Description:** Full typed metadata in AuditLogDetailSheet (or inline recon detail).
+**Description:** Full typed metadata in AuditLogDetailSheet.
 
 ## 10. ADMIN CURATED ACTIVITY
 
 **Visibility:** HIDE
-
-HIDE. HIDE. Access, Security, Legal, Product, and Notification curated Activity feeds do not include this module. Admin raw remains the only human surface. Title and description are N/A. No curated activity adapter emits this event for this audience.
 
 **Title:** N/A
 
@@ -2095,8 +2105,6 @@ HIDE. HIDE. Access, Security, Legal, Product, and Notification curated Activity 
 
 **Visibility:** HIDE
 
-HIDE. HIDE. Access, Security, Legal, Product, and Notification curated Activity feeds do not include this module. Admin raw remains the only human surface. Title and description are N/A. No curated activity adapter emits this event for this audience.
-
 **Title:** N/A
 
 **Description:** N/A
@@ -2105,45 +2113,40 @@ HIDE. HIDE. Access, Security, Legal, Product, and Notification curated Activity 
 
 **Visibility:** HIDE
 
-HIDE. HIDE. Access, Security, Legal, Product, and Notification curated Activity feeds do not include this module. Admin raw remains the only human surface. Title and description are N/A. No curated activity adapter emits this event for this audience.
-
 **Title:** N/A
 
 **Description:** N/A
 
 ## 13. Presentation metadata safety
 
-No curated activity presentation. Admin raw `AuditLogDetailSheet` shows the full metadata JSON, including actor email, identifiers, hashes, and internal reason codes. That surface is permission-gated. Do not copy raw metadata into a user-facing timeline.
+No curated activity presentation. Admin raw `AuditLogDetailSheet` shows full metadata JSON.
 
 ## 14. Current UI behavior
 
-Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet` + View. No issuer/investor/admin curated Activity.
+No UI writes this event. Landing `/verify-email` still confirms signup via `confirm-signup`. Historical rows remain readable on `/audit?tab=security`.
 
 ## 15. Manual verification checklist
 
-- [ ] Event writes to correct audit table
-- [ ] event_type correct
-- [ ] occurred_at correct
-- [ ] actor correct
-- [ ] organization correct
-- [ ] target correct
-- [ ] metadata schema correct
-- [ ] required metadata populated
-- [ ] optional/null behavior correct
-- [ ] source-of-truth unchanged
-- [ ] no duplicate on no-op/replay where applicable
-- [ ] Admin raw visibility correct
-- [ ] Admin Activity visibility correct
-- [ ] Issuer visibility correct
-- [ ] Investor visibility correct
-- [ ] Visibility condition correct
-- [ ] Activity title correct
-- [ ] Activity description correct
-- [ ] No internal metadata exposed
-- [ ] RBAC correct
-- [ ] Detail UI correct
+**RETIRED — DO NOT LIVE QA.** Not an active Security QA target. Live Security QA count is **30**. A004, A005, A010, A011, and A016 are retired.
+
+- [ ] No `POST /v1/auth/verify-email`
+- [ ] No new `USER_EMAIL_VERIFIED` row from Investor/Issuer signup confirmation
+- [ ] Landing `/verify-email` still calls `POST /v1/auth/confirm-signup`
+- [ ] Landing still can resend via `POST /v1/auth/resend-signup-code`
+- [ ] Historical A010 rows (if any) remain readable on `/audit?tab=security`
+
 
 # A011 — EMAIL_VERIFICATION_FAILED
+
+**Status: RETIRED — DO NOT LIVE QA**
+**Current writer: None**
+**Historical rows: Supported/readable**
+**ID reused: No**
+**Manual QA: RETIRED — DO NOT LIVE QA**
+
+ID A011 remains reserved in A004–A038 for historical compatibility. It is **not** a current production writer. `EMAIL_VERIFICATION_FAILED` stays in `SECURITY_AUDIT_EVENTS` / Zod only so existing `security_audit_logs` rows still parse. It is listed in `RETIRED_SECURITY_AUDIT_EVENTS`.
+
+`POST /v1/auth/verify-email` and `AuthService.verifyEmail` have been removed. Invalid/expired codes on Landing `/verify-email` hit `confirm-signup` and do **not** write A011. This retirement does **not** remove signup email verification from the product.
 
 Source Case: SEC-008
 Module: Security
@@ -2152,31 +2155,31 @@ DB Table: security_audit_logs
 
 ## 1. What this event means
 
-Email verification was attempted and failed.
+**Historical meaning only.** Previously recorded that an authenticated `POST /v1/auth/verify-email` call failed (Cognito `VerifyUserAttributeCommand` or an inner AppError). That is **not** Landing `confirm-signup` failure.
 
 ## 2. When it logs
 
-`AuthService` email-verification failure. Best-effort.
+No current writer. Previously `AuthService.verifyEmail` catch after the user row was loaded. Best-effort, then the HTTP error was still thrown.
 
 ## 3. When it does NOT log / no-op
 
-Success writes `USER_EMAIL_VERIFIED`.
+Always, for current product actions. Wrong/expired/already-confirmed codes on `confirm-signup` must not write this event. Missing user (before the historical try) also did not write it.
 
 ## 4. Top-level audit row
 
 Append-only `SecurityAuditLog` / `security_audit_logs`.
 
-| Column | Current writer behavior |
+| Column | Historical row shape (no current writer) |
 |---|---|
 | `id` | cuid, generated |
-| `subject_user_id` | Affected user when the action is about a person; null for role/invitation/config targets |
+| `subject_user_id` | Affected user |
 | `event_type` | `EMAIL_VERIFICATION_FAILED` |
 | `occurred_at` / `created_at` | DB default `now()` |
-| `actor_type` | `USER` or `ADMIN` from request context |
-| `actor_user_id` | Acting user |
-| `organization_id` / `organization_kind` | Set for organization membership/invitation events; otherwise null |
+| `actor_type` | Forced `USER` in the historical writer |
+| `actor_user_id` | Authenticated user |
+| `organization_id` / `organization_kind` | null on this historical writer |
 | `target_type` | `USER` |
-| `target_id` | user_id |
+| `target_id` | subject user_id |
 | `source` | `API` |
 | `portal` | Request portal |
 | `ip_address` / `user_agent` / `correlation_id` | Request context |
@@ -2184,6 +2187,8 @@ Append-only `SecurityAuditLog` / `security_audit_logs`.
 | `metadata` | Parsed by `parseSecurityAuditMetadata` |
 
 ## 5. EXACT METADATA STRUCTURE
+
+Historical rows still parse with this schema. Do not change the shape. Provider error codes were **not** stored.
 
 ```ts
 {
@@ -2194,6 +2199,8 @@ Append-only `SecurityAuditLog` / `security_audit_logs`.
 }
 ```
 
+Historical `reasonCode` values from the removed writer: `INVALID_CODE` | `EXPIRED_CODE` | `INVALID_PASSWORD` | `<AppError.code>` | `UNKNOWN_ERROR`.
+
 ### field cards
 
 #### `actorName`
@@ -2202,11 +2209,9 @@ Append-only `SecurityAuditLog` / `security_audit_logs`.
 - **Required:** Yes (key present)
 - **Nullable:** Yes
 - **Allowed values:** Any string, or null
-- **Writer source:** Writer injects via `loadAuditActorSnapshot` (or legal/notification local snapshot) from `actor_user_id`. Null name/email when the user row is missing.
-- **Current writer:** Always written by the table writer. Value is the actor's first+last name or null; email or null.
+- **Writer source:** Historical writer injected via actor snapshot from `actor_user_id`
+- **Current writer:** None
 - **Example:** `"Aisha Rahman"` or `null`
-
-Admin curated activity may interpolate this into descriptions. Issuer/investor presentation never reads it.
 
 #### `actorEmail`
 
@@ -2214,11 +2219,9 @@ Admin curated activity may interpolate this into descriptions. Issuer/investor p
 - **Required:** Yes (key present)
 - **Nullable:** Yes
 - **Allowed values:** Any string, or null
-- **Writer source:** Writer injects via `loadAuditActorSnapshot` (or legal/notification local snapshot) from `actor_user_id`. Null name/email when the user row is missing.
-- **Current writer:** Always written by the table writer. Value is the actor's first+last name or null; email or null.
+- **Writer source:** Historical writer injected via actor snapshot from `actor_user_id`
+- **Current writer:** None
 - **Example:** `"aisha@example.com"` or `null`
-
-Stored for raw audit. Curated activity titles do not print it except where a dedicated email field is used (admin-only).
 
 #### `email`
 
@@ -2226,8 +2229,8 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Required:** Yes
 - **Nullable:** No
 - **Allowed values:** Attempted email
-- **Writer source:** Verification payload
-- **Current writer:** Always populated
+- **Writer source:** Historical verification payload (`user.email`)
+- **Current writer:** None
 - **Example:** `"user@example.com"`
 
 #### `reasonCode`
@@ -2236,39 +2239,35 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Required:** Yes
 - **Nullable:** No
 - **Allowed values:** Failure reason code
-- **Writer source:** AuthService
-- **Current writer:** Always populated
-- **Example:** Example not safely inferable from source.
-
+- **Writer source:** Historical AuthService catch mapper
+- **Current writer:** None
+- **Example:** `"INVALID_CODE"`
 
 ## 6. Source of truth
 
-`User`, `UserSession`, admin role/permission tables, `AdminInvitation`, organization membership/invitation rows, `NotificationType` / `NotificationGroup` / `UserNotificationPreference` remain source of truth. `SecurityAuditLog` is append-only history with no FKs.
+`User`, Cognito confirmation state, and signup confirmation remain source of truth. `SecurityAuditLog` is append-only history with no FKs.
 
 ## 7. Transaction / audit failure behavior
 
-`writeSecurityAuditLogBestEffort` logs and swallows errors so HTTP behavior does not change. Used for denials, password, and email verification.
+No current writer. Historical writes used `writeSecurityAuditLogBestEffort`.
 
 ## 8. Writer(s)
 
-- `apps/api/src/modules/auth/service.ts` — email verify failure
-- `writeSecurityAuditLogBestEffort`
+None. Historical: `apps/api/src/modules/auth/service.ts` `verifyEmail` catch (removed).
 
 ## 9. ADMIN RAW AUDIT
 
 **Visibility:** SHOW
 
-SHOW. Listed on the module's admin raw audit surface with the module permission. Opened via **View** into `AuditLogDetailSheet` (typed metadata, actor snapshot, target, IP/UA). Tab `/audit?tab=security`, permission `audit.security.view`.
+SHOW for historical rows. Tab `/audit?tab=security`, permission `audit.security.view`. `AuditLogDetailSheet` still parses this metadata.
 
 **Title:** Raw event row
 
-**Description:** Full typed metadata in AuditLogDetailSheet (or inline recon detail).
+**Description:** Full typed metadata in AuditLogDetailSheet.
 
 ## 10. ADMIN CURATED ACTIVITY
 
 **Visibility:** HIDE
-
-HIDE. HIDE. Access, Security, Legal, Product, and Notification curated Activity feeds do not include this module. Admin raw remains the only human surface. Title and description are N/A. No curated activity adapter emits this event for this audience.
 
 **Title:** N/A
 
@@ -2278,8 +2277,6 @@ HIDE. HIDE. Access, Security, Legal, Product, and Notification curated Activity 
 
 **Visibility:** HIDE
 
-HIDE. HIDE. Access, Security, Legal, Product, and Notification curated Activity feeds do not include this module. Admin raw remains the only human surface. Title and description are N/A. No curated activity adapter emits this event for this audience.
-
 **Title:** N/A
 
 **Description:** N/A
@@ -2288,43 +2285,28 @@ HIDE. HIDE. Access, Security, Legal, Product, and Notification curated Activity 
 
 **Visibility:** HIDE
 
-HIDE. HIDE. Access, Security, Legal, Product, and Notification curated Activity feeds do not include this module. Admin raw remains the only human surface. Title and description are N/A. No curated activity adapter emits this event for this audience.
-
 **Title:** N/A
 
 **Description:** N/A
 
 ## 13. Presentation metadata safety
 
-No curated activity presentation. Admin raw `AuditLogDetailSheet` shows the full metadata JSON, including actor email, identifiers, hashes, and internal reason codes. That surface is permission-gated. Do not copy raw metadata into a user-facing timeline.
+No curated activity presentation. Admin raw `AuditLogDetailSheet` shows full metadata JSON.
 
 ## 14. Current UI behavior
 
-Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet` + View. No issuer/investor/admin curated Activity.
+No UI writes this event. Landing `/verify-email` invalid/expired codes stay on `confirm-signup`. Historical rows remain readable on `/audit?tab=security`.
 
 ## 15. Manual verification checklist
 
-- [ ] Event writes to correct audit table
-- [ ] event_type correct
-- [ ] occurred_at correct
-- [ ] actor correct
-- [ ] organization correct
-- [ ] target correct
-- [ ] metadata schema correct
-- [ ] required metadata populated
-- [ ] optional/null behavior correct
-- [ ] source-of-truth unchanged
-- [ ] no duplicate on no-op/replay where applicable
-- [ ] Admin raw visibility correct
-- [ ] Admin Activity visibility correct
-- [ ] Issuer visibility correct
-- [ ] Investor visibility correct
-- [ ] Visibility condition correct
-- [ ] Activity title correct
-- [ ] Activity description correct
-- [ ] No internal metadata exposed
-- [ ] RBAC correct
-- [ ] Detail UI correct
+**RETIRED — DO NOT LIVE QA.** Not an active Security QA target. Live Security QA count is **30**. A004, A005, A010, A011, and A016 are retired.
+
+- [ ] No `POST /v1/auth/verify-email`
+- [ ] No new `EMAIL_VERIFICATION_FAILED` row from a wrong Landing verification code
+- [ ] Landing `/verify-email` still calls `POST /v1/auth/confirm-signup`
+- [ ] Landing still can resend via `POST /v1/auth/resend-signup-code`
+- [ ] Historical A011 rows (if any) remain readable on `/audit?tab=security`
+
 
 # A012 — ADMIN_ACCESS_DENIED
 
@@ -3377,7 +3359,7 @@ No Admin UI writes this event. Historical rows remain readable on `/audit?tab=se
 
 ## 15. Manual verification checklist
 
-**RETIRED — DO NOT LIVE QA.** Not an active Security QA target. Live Security QA count is **32**. A004, A005, and A016 are retired.
+**RETIRED — DO NOT LIVE QA.** Not an active Security QA target. Live Security QA count is **30**. A004, A005, A010, A011, and A016 are retired.
 
 - [ ] No `PATCH /v1/admin/users/:id/roles`
 - [ ] No new `USER_ROLES_UPDATED` row from Portal access Save
@@ -41623,7 +41605,7 @@ Date: **2026-08-23**. Source: current tree after A004 `USER_ROLE_ADDED` retireme
 |---|---:|---|
 | Catalogue arrays in this document (Access 3 + Security 35 + Onboarding 18 reserved + Legal 7 + Application 41 + Signing 12 + Note 37 + Payment 19 + Product 5 + Notification 1) | 178 reserved/catalogued IDs | VERIFIED |
 | `ACCESS_AUDIT_EVENTS` `apps/api/src/modules/auth/audit/events.ts` | 3 | VERIFIED |
-| `SECURITY_AUDIT_EVENTS` `apps/api/src/modules/security/audit/events.ts` | 35 reserved IDs (32 current active Security event types; A004, A005, and A016 in `RETIRED_SECURITY_AUDIT_EVENTS`) | VERIFIED |
+| `SECURITY_AUDIT_EVENTS` `apps/api/src/modules/security/audit/events.ts` | 35 reserved IDs (30 current active Security event types; A004, A005, A010, A011, and A016 in `RETIRED_SECURITY_AUDIT_EVENTS`) | VERIFIED |
 | `ONBOARDING_AUDIT_EVENTS` `apps/api/src/modules/onboarding/audit/events.ts` | 18 reserved IDs (15 current active onboarding event types; A040, A052, and A053 in `RETIRED_ONBOARDING_AUDIT_EVENTS`; A175 appended) | VERIFIED |
 | `LEGAL_ADMIN_AUDIT_EVENTS` `apps/api/src/modules/legal-documents/audit/events.ts` | 7 | VERIFIED |
 | `APPLICATION_AUDIT_EVENTS` `apps/api/src/modules/applications/audit/events.ts` | 41 (A063–A102 original + A178 appended) | VERIFIED |
@@ -41633,13 +41615,13 @@ Date: **2026-08-23**. Source: current tree after A004 `USER_ROLE_ADDED` retireme
 | `PRODUCT_AUDIT_EVENTS` `apps/api/src/modules/products/audit/events.ts` | 5 | VERIFIED |
 | `NOTIFICATION_BROADCAST_AUDIT_EVENTS` `apps/api/src/modules/notification/audit/events.ts` | 1 | VERIFIED |
 | Zod `metadataByEvent` / `schemas` maps (one schema per catalogue event, including retired IDs so historical rows still parse) | 178 | VERIFIED |
-| Current writers (`eventType: "…"` call sites in `apps/api/src/modules/**` plus jobs/middleware) | 172 currently active event types with at least one writer; A004, A005, A016, A040, A052, and A053 have none | VERIFIED |
+| Current writers (`eventType: "…"` call sites in `apps/api/src/modules/**` plus jobs/middleware) | 170 currently active event types with at least one writer; A004, A005, A010, A011, A016, A040, A052, and A053 have none | VERIFIED |
 | Admin raw coverage (global `/audit` tabs, application/note contextual history, trustee, gateway, withdrawal, recon) | 178 reserved/catalogued IDs remain readable | VERIFIED |
 
 ## Writer notes that affect verification
 
 - Access writes are **best-effort**. `USER_SIGNED_UP` vs `USER_LOGGED_IN` are mutually exclusive on `isSignup`. Typical portal logout writes **one** `USER_LOGGED_OUT` via Cognito GET `/logout`; two rows only if both `POST /v1/auth/logout` and GET `/v1/auth/cognito/logout` run. `sessionId` on login schema is never populated. `POST /v1/auth/sync-user` does not write login audit.
-- Security in-tx writes throw; BestEffort is used for denials / password / email. `USER_ROLE_ADDED` is retired (A004 reserved). `ADMIN_ACCESS_DENIED` has two writers: Cognito Admin gate (`USER` + `MISSING_ADMIN_ROLE`, or `ADMIN` + `ADMIN_INACTIVE`) and RBAC middleware (`ADMIN` + `INSUFFICIENT_PERMISSIONS`). `portal=ADMIN` is where the denial happened, not who the actor is. `ADMIN_INVITATION_CREATED` is skipped when an existing invitation is reused; that reuse writes `ADMIN_INVITATION_RESENT` after a successful email send on invite-submit. `emailSent` is only set on `ADMIN_INVITATION_RESENT`. `ORGANIZATION_INVITATION_RESENT` writes only after email success.
+- Security in-tx writes throw; BestEffort is used for denials / password. `USER_ROLE_ADDED` is retired (A004 reserved). `USER_EMAIL_VERIFIED` and `EMAIL_VERIFICATION_FAILED` are retired (A010 / A011 reserved; `/v1/auth/verify-email` removed). Signup confirmation stays on `confirm-signup`. `ADMIN_ACCESS_DENIED` has two writers: Cognito Admin gate (`USER` + `MISSING_ADMIN_ROLE`, or `ADMIN` + `ADMIN_INACTIVE`) and RBAC middleware (`ADMIN` + `INSUFFICIENT_PERMISSIONS`). `portal=ADMIN` is where the denial happened, not who the actor is. `ADMIN_INVITATION_CREATED` is skipped when an existing invitation is reused; that reuse writes `ADMIN_INVITATION_RESENT` after a successful email send on invite-submit. `emailSent` is only set on `ADMIN_INVITATION_RESENT`. `ORGANIZATION_INVITATION_RESENT` writes only after email success.
 - Payment idempotency keys come from `PAYMENT_AUDIT_IDEMPOTENCY`; unique constraint; existing-key skip / `P2002` swallow.
 - `PRODUCT_REACTIVATED` and repository `setInactive` are **not wired to HTTP** (`restoreProduct` / `setInactive` are repository-only). Versioned product update can still write `PRODUCT_INACTIVATED`.
 - Notification broadcast audit is **outside** recipient transactions and must not roll back notifications.

@@ -11,7 +11,6 @@ import {
   startOnboardingSchema,
   updateProfileSchema,
   changePasswordSchema,
-  verifyEmailSchema,
   resendSignupCodeSchema,
   confirmSignupSchema,
   type SyncUserInput,
@@ -421,54 +420,6 @@ router.post(
     try {
       const validated = changePasswordSchema.parse(req.body);
       const result = await authService.changePassword(req, req.user!.user_id, validated);
-
-      res.json({
-        success: true,
-        data: result,
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-/**
- * @swagger
- * /v1/auth/verify-email:
- *   post:
- *     summary: Verify email with code
- *     description: Verifies an unverified email address using the verification code
- *     tags: [Authentication]
- *     security:
- *       - BearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [code, password]
- *             properties:
- *               code:
- *                 type: string
- *                 description: Verification code from email
- *               password:
- *                 type: string
- *                 description: Current password to verify identity
- *     responses:
- *       200:
- *         description: Email verified successfully
- *       400:
- *         description: Invalid code, password, or email already verified
- */
-router.post(
-  "/verify-email",
-  requireAuth,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const validated = verifyEmailSchema.parse(req.body);
-      const result = await authService.verifyEmail(req, req.user!.user_id, validated);
 
       res.json({
         success: true,

@@ -65,10 +65,14 @@ describe("Access/Security audit cutover", () => {
     expect([...RETIRED_SECURITY_AUDIT_EVENTS]).toEqual([
       "USER_ROLE_ADDED",
       "ACTIVE_ROLE_CHANGED",
+      "USER_EMAIL_VERIFIED",
+      "EMAIL_VERIFICATION_FAILED",
       "USER_ROLES_UPDATED",
     ]);
     expect(SECURITY_AUDIT_EVENTS).toContain("ACTIVE_ROLE_CHANGED");
     expect(SECURITY_AUDIT_EVENTS).toContain("USER_ROLE_ADDED");
+    expect(SECURITY_AUDIT_EVENTS).toContain("USER_EMAIL_VERIFIED");
+    expect(SECURITY_AUDIT_EVENTS).toContain("EMAIL_VERIFICATION_FAILED");
     expect(SECURITY_AUDIT_EVENTS).toContain("USER_ROLES_UPDATED");
     expect(SECURITY_AUDIT_EVENTS).toContain("ADMIN_USER_ROLE_CHANGED");
     expect(SECURITY_AUDIT_EVENTS).not.toContain("USER_EMAIL_CHANGED");
@@ -108,6 +112,44 @@ describe("Access/Security audit cutover", () => {
     expect(adminController).not.toMatch(/updateUserRolesSchema/);
     expect(adminSchemas).not.toMatch(/updateUserRolesSchema/);
     expect(adminRepository).not.toMatch(/async updateUserRoles\(/);
+  });
+
+  it("has no live writer or mounted route for retired USER_EMAIL_VERIFIED and EMAIL_VERIFICATION_FAILED", () => {
+    expect(liveSources).not.toMatch(/eventType:\s*"USER_EMAIL_VERIFIED"/);
+    expect(liveSources).not.toMatch(/eventType:\s*"EMAIL_VERIFICATION_FAILED"/);
+    expect(authService).not.toMatch(/async verifyEmail\(/);
+    expect(authService).not.toMatch(/VerifyUserAttributeCommand/);
+    expect(authController).not.toMatch(/["']\/verify-email["']/);
+    expect(authController).not.toMatch(/verifyEmailSchema/);
+    expect(authSchemas).not.toMatch(/verifyEmailSchema/);
+  });
+
+  it("keeps Landing signup email verification on confirm-signup and resend-signup-code", () => {
+    expect(authController).toMatch(/["']\/confirm-signup["']/);
+    expect(authController).toMatch(/["']\/resend-signup-code["']/);
+    expect(authService).toMatch(/async confirmSignup\(/);
+    expect(authService).toMatch(/async resendSignupCode\(/);
+    expect(methodChunk(authService, "confirmSignup", 2500)).toMatch(/ConfirmSignUpCommand/);
+    expect(methodChunk(authService, "confirmSignup", 2500)).not.toMatch(/writeSecurityAuditLog/);
+    expect(methodChunk(authService, "confirmSignup", 2500)).not.toMatch(/USER_EMAIL_VERIFIED/);
+    expect(methodChunk(authService, "confirmSignup", 2500)).not.toMatch(/EMAIL_VERIFICATION_FAILED/);
+    expect(methodChunk(authService, "resendSignupCode", 1500)).toMatch(/ResendConfirmationCodeCommand/);
+    expect(methodChunk(authService, "resendSignupCode", 1500)).not.toMatch(/writeSecurityAuditLog/);
+
+    const landingVerify = fs.readFileSync(
+      path.join(srcRoot, "../../../apps/landing/src/app/verify-email/page.tsx"),
+      "utf8"
+    );
+    const landingHelp = fs.readFileSync(
+      path.join(srcRoot, "../../../apps/landing/src/app/verify-email-help/page.tsx"),
+      "utf8"
+    );
+    expect(landingVerify).toMatch(/\/v1\/auth\/confirm-signup/);
+    expect(landingVerify).toMatch(/\/v1\/auth\/resend-signup-code/);
+    expect(landingVerify).not.toMatch(/\/v1\/auth\/verify-email/);
+    expect(landingHelp).toMatch(/\/v1\/auth\/resend-signup-code/);
+    expect(landingHelp).not.toMatch(/\/v1\/auth\/verify-email/);
+    expect(cognitoRoutes).toMatch(/\/verify-email/);
   });
 
   it("syncUser does not write AccessAuditLog login", () => {
@@ -199,8 +241,7 @@ describe("Access/Security audit cutover", () => {
     expect(methodChunk(authService, "updateProfile")).toMatch(/USER_PROFILE_UPDATED/);
     expect(methodChunk(authService, "changePassword", 8000)).toMatch(/PASSWORD_CHANGED/);
     expect(methodChunk(authService, "changePassword", 8000)).toMatch(/PASSWORD_CHANGE_FAILED/);
-    expect(methodChunk(authService, "verifyEmail", 8000)).toMatch(/USER_EMAIL_VERIFIED/);
-    expect(methodChunk(authService, "verifyEmail", 8000)).toMatch(/EMAIL_VERIFICATION_FAILED/);
+    expect(authService).not.toMatch(/async verifyEmail\(/);
 
     expect(adminService).not.toMatch(/async updateUserRoles\(/);
     expect(methodChunk(adminService, "updateUserProfile")).toMatch(/USER_PROFILE_UPDATED_BY_ADMIN/);
@@ -346,13 +387,10 @@ describe("Access/Security audit cutover", () => {
     }
   });
 
-  it("password and email verification record the external result after Cognito outcome", () => {
+  it("password change records the external result after Cognito outcome", () => {
     const password = methodChunk(authService, "changePassword", 6000);
     expect(password.indexOf("ChangePasswordCommand")).toBeLessThan(password.indexOf("PASSWORD_CHANGED"));
     expect(password).toMatch(/writeSecurityAuditLogBestEffort/);
-    const email = methodChunk(authService, "verifyEmail", 4500);
-    expect(email.indexOf("VerifyUserAttributeCommand")).toBeLessThan(email.indexOf("USER_EMAIL_VERIFIED"));
-    expect(email).toMatch(/writeSecurityAuditLogBestEffort/);
   });
 
   it("Security UI lists every live Security event", () => {

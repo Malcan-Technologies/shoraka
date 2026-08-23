@@ -1880,11 +1880,6 @@ export class ApiClient {
     });
   }
 
-  // Verify email with code (for unverified emails)
-  async verifyEmail(data: { code: string }): Promise<ApiResponse<{ success: boolean }> | ApiError> {
-    return this.post<{ success: boolean }>(`/v1/auth/verify-email`, data);
-  }
-
   // Admin - Dashboard Statistics
   async getDashboardStats(): Promise<ApiResponse<DashboardStatsResponse> | ApiError> {
     return this.get<DashboardStatsResponse>(`/v1/admin/dashboard/stats`);

@@ -8,13 +8,17 @@ import { SECURITY_AUDIT_EVENTS, RETIRED_SECURITY_AUDIT_EVENTS } from "./events";
 import type { AuditRequestContext } from "../../../lib/audit/context";
 
 describe("Security catalogue retirement", () => {
-  it("keeps USER_ROLE_ADDED, ACTIVE_ROLE_CHANGED, and USER_ROLES_UPDATED reserved but not as active writer events", () => {
+  it("keeps retired Security events reserved but not as active writer events", () => {
     expect(SECURITY_AUDIT_EVENTS).toContain("USER_ROLE_ADDED");
     expect(SECURITY_AUDIT_EVENTS).toContain("ACTIVE_ROLE_CHANGED");
+    expect(SECURITY_AUDIT_EVENTS).toContain("USER_EMAIL_VERIFIED");
+    expect(SECURITY_AUDIT_EVENTS).toContain("EMAIL_VERIFICATION_FAILED");
     expect(SECURITY_AUDIT_EVENTS).toContain("USER_ROLES_UPDATED");
     expect([...RETIRED_SECURITY_AUDIT_EVENTS]).toEqual([
       "USER_ROLE_ADDED",
       "ACTIVE_ROLE_CHANGED",
+      "USER_EMAIL_VERIFIED",
+      "EMAIL_VERIFICATION_FAILED",
       "USER_ROLES_UPDATED",
     ]);
     expect(SECURITY_AUDIT_EVENTS).toHaveLength(35);
@@ -71,6 +75,42 @@ describe("Security catalogue retirement", () => {
         addedRoles: ["ISSUER"],
         removedRoles: [],
         addedRole: "ISSUER",
+      })
+    );
+  });
+
+  it("still validates historical USER_EMAIL_VERIFIED metadata", () => {
+    expect(
+      parseSecurityAuditMetadata("USER_EMAIL_VERIFIED", {
+        actorName: "Aisha Rahman",
+        actorEmail: "aisha@example.com",
+        email: "aisha@example.com",
+        reasonCode: "EMAIL_VERIFIED",
+      })
+    ).toEqual(
+      expect.objectContaining({
+        actorName: "Aisha Rahman",
+        actorEmail: "aisha@example.com",
+        email: "aisha@example.com",
+        reasonCode: "EMAIL_VERIFIED",
+      })
+    );
+  });
+
+  it("still validates historical EMAIL_VERIFICATION_FAILED metadata", () => {
+    expect(
+      parseSecurityAuditMetadata("EMAIL_VERIFICATION_FAILED", {
+        actorName: "Aisha Rahman",
+        actorEmail: "aisha@example.com",
+        email: "aisha@example.com",
+        reasonCode: "INVALID_CODE",
+      })
+    ).toEqual(
+      expect.objectContaining({
+        actorName: "Aisha Rahman",
+        actorEmail: "aisha@example.com",
+        email: "aisha@example.com",
+        reasonCode: "INVALID_CODE",
       })
     );
   });

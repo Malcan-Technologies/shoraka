@@ -96,16 +96,6 @@ export const changePasswordSchema = z.object({
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
 /**
- * Schema for verify-email endpoint
- * Verifies email with code (for unverified emails after email change)
- */
-export const verifyEmailSchema = z.object({
-  code: z.string().min(1, "Verification code is required"),
-});
-
-export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
-
-/**
  * Schema for resend-signup-code endpoint (public)
  * Resends confirmation code to unconfirmed users
  */

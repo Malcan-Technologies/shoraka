@@ -27,14 +27,14 @@ Removed runtime stores (do not document as active): `ApplicationLog`, `NoteEvent
 
 ## Catalogue counts (source)
 
-Reserved IDs **A001–A178** (**178**). Active writers **172**. Retired IDs (readable historical rows, IDs not reused): A004 `USER_ROLE_ADDED`, A005 `ACTIVE_ROLE_CHANGED`, A016 `USER_ROLES_UPDATED`, A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`. Retired total: **6**.
+Reserved IDs **A001–A178** (**178**). Active writers **170**. Retired IDs (readable historical rows, IDs not reused): A004 `USER_ROLE_ADDED`, A005 `ACTIVE_ROLE_CHANGED`, A010 `USER_EMAIL_VERIFIED`, A011 `EMAIL_VERIFICATION_FAILED`, A016 `USER_ROLES_UPDATED`, A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`. Retired total: **8**.
 
-**Reserved vs active.** A reserved ID is a stable catalogue/Zod definition so historical rows still parse. An active writer is a current production `eventType` call site. Retired IDs stay reserved and are never reused. Security still has **35 reserved** event definitions; it has **32** live writers because A004, A005, and A016 are retired. Do not describe Security as a 32-event catalogue.
+**Reserved vs active.** A reserved ID is a stable catalogue/Zod definition so historical rows still parse. An active writer is a current production `eventType` call site. Retired IDs stay reserved and are never reused. Security still has **35 reserved** event definitions; it has **30** live writers because A004, A005, A010, A011, and A016 are retired. Do not describe Security as a 30-event catalogue.
 
 | Module | Reserved | Active | File |
 |--------|---------:|-------:|------|
 | Access | 3 | 3 | `apps/api/src/modules/auth/audit/events.ts` |
-| Security | 35 | 32 | `apps/api/src/modules/security/audit/events.ts` |
+| Security | 35 | 30 | `apps/api/src/modules/security/audit/events.ts` |
 | Onboarding | 18 | 15 | `apps/api/src/modules/onboarding/audit/events.ts` |
 | Legal | 7 | 7 | `apps/api/src/modules/legal-documents/audit/events.ts` |
 | Application | 41 | 41 | `apps/api/src/modules/applications/audit/events.ts` |
@@ -43,7 +43,7 @@ Reserved IDs **A001–A178** (**178**). Active writers **172**. Retired IDs (rea
 | Payment | 19 | 19 | `apps/api/src/modules/payment/audit/events.ts` |
 | Product | 5 | 5 | `apps/api/src/modules/products/audit/events.ts` |
 | Notification | 1 | 1 | `apps/api/src/modules/notification/audit/events.ts` |
-| **TOTAL** | **178** | **172** | |
+| **TOTAL** | **178** | **170** | |
 
 Per-event cards: `docs/audit/audit-manual-verification-catalogue.md`.
 
@@ -211,7 +211,7 @@ Phase banners below still describe the live tables after the AuditLog cutover. T
 - `NoteAdminAction` / `note_admin_actions` **removed**.
 - Title/summary-only edits, featured settings, and prospectus draft saves remain intentionally unaudited.
 - Investor-wallet withdrawals are PaymentAuditLog (Phase 9). GatewayPayment events are PaymentAuditLog.
-- There is **no** canonical/global `AuditEvent` table. Live catalogue: **178** reserved IDs, **172** active writers, **6** retired (A004/A005/A016/A040/A052/A053). A175 is OnboardingAuditLog. A176/A177 are NoteAuditLog. A178 / APP-041 is ApplicationAuditLog occupancy (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`; dual-ledger `before`/`after`; no APP-042).
+- There is **no** canonical/global `AuditEvent` table. Live catalogue: **178** reserved IDs, **170** active writers, **8** retired (A004/A005/A010/A011/A016/A040/A052/A053). A175 is OnboardingAuditLog. A176/A177 are NoteAuditLog. A178 / APP-041 is ApplicationAuditLog occupancy (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`; dual-ledger `before`/`after`; no APP-042).
 
 ---
 
@@ -249,7 +249,7 @@ Known limitations (not fixed in the cleanup):
 - `LegalDocumentAcceptance` remains legal acceptance source of truth.
 - CTOS report rows remain report source of truth.
 - Audit is never workflow state. No User/org/RegTank FKs on `OnboardingAuditLog` (scalar historical ids only). Append-only create.
-- Reserved onboarding IDs: **18** = original A039–A055 plus later-appended A175 (`ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`). Current active onboarding event types: **15**. Retired / no current writer: `ONBOARDING_RESUMED` (A040), `CTOS_REPORT_RECEIVED` (A052), and `CORPORATE_ENTITIES_UPDATED` (A053). Historical rows remain readable. IDs are not reused. Live catalogue is **178** reserved IDs (A001–A178) with **172** active writers. Security A004 `USER_ROLE_ADDED`, A005 `ACTIVE_ROLE_CHANGED`, and A016 `USER_ROLES_UPDATED` are retired (no live writers).
+- Reserved onboarding IDs: **18** = original A039–A055 plus later-appended A175 (`ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`). Current active onboarding event types: **15**. Retired / no current writer: `ONBOARDING_RESUMED` (A040), `CTOS_REPORT_RECEIVED` (A052), and `CORPORATE_ENTITIES_UPDATED` (A053). Historical rows remain readable. IDs are not reused. Live catalogue is **178** reserved IDs (A001–A178) with **170** active writers. Security A004 `USER_ROLE_ADDED`, A005 `ACTIVE_ROLE_CHANGED`, A010 `USER_EMAIL_VERIFIED`, A011 `EMAIL_VERIFICATION_FAILED`, and A016 `USER_ROLES_UPDATED` are retired (no live writers).
 - Onboarding audit records CashSouk business actions, stages, decisions, and outcomes. Detailed provider synchronization remains in its source-of-truth storage (`corporate_entities`, `director_kyc_status`, `RegTankOnboarding.webhook_payloads`) and is not duplicated as onboarding audit noise.
 - `DIRECTOR_KYC_STATUS_UPDATED` writes only when an existing director newly becomes `APPROVED` or `REJECTED`.
 - `ONBOARDING_STATUS_CHANGED` is the core stage event, including review landing, amendment requested, and amendment resubmission. Admin Organization contextual history includes it. Dedicated SSM/AML/approval/final/reject/restart events do not also write a sibling A044 row.
@@ -387,7 +387,7 @@ Sole security/admin-control table. Distinguishes `actor_user_id` vs `subject_use
 
 Sole onboarding/compliance history table. Append-only create. Required `metadata` Json. `occurred_at` + `created_at`. No `updated_at`. No User/org/RegTank FKs (scalar historical ids only).  
 Reserved IDs (18): original A039–A055 plus appended A175 `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`. Types: `ONBOARDING_STARTED`, `ONBOARDING_RESUMED` (retired, historical rows readable), `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `CTOS_REPORT_RECEIVED` (retired, `ctos_reports` still persisted), `CORPORATE_ENTITIES_UPDATED` (retired, `corporate_entities` still persisted), `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED` (APPROVED/REJECTED outcomes only), `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`.
-Current active onboarding event types: **15**. `AML_APPROVED.onboarding_id` is optional linkage to `reg_tank_onboarding.id` when the writer already knows the session. **REMOVED:** `OnboardingLog` / `onboarding_logs`. Audit is never workflow state. There is **no** canonical/global `AuditEvent` table. Live catalogue: **178** reserved / **172** active / **6** retired.
+Current active onboarding event types: **15**. `AML_APPROVED.onboarding_id` is optional linkage to `reg_tank_onboarding.id` when the writer already knows the session. **REMOVED:** `OnboardingLog` / `onboarding_logs`. Audit is never workflow state. There is **no** canonical/global `AuditEvent` table. Live catalogue: **178** reserved / **170** active / **8** retired.
 
 #### ApplicationAuditLog → `application_audit_logs` · APPLICATION · **A**
 
@@ -611,7 +611,7 @@ Normal portal logout produces one `USER_LOGGED_OUT` row through Cognito `GET /v1
 
 ### SecurityAuditLog
 
-`AuthService`: `USER_PROFILE_UPDATED`, `PASSWORD_CHANGED` / `PASSWORD_CHANGE_FAILED`, `USER_EMAIL_VERIFIED` / `EMAIL_VERIFICATION_FAILED`. `USER_ROLE_ADDED` is retired (A004 reserved; `POST /v1/auth/add-role` removed). `ACTIVE_ROLE_CHANGED` is retired (A005 reserved; `POST /v1/auth/switch-role` removed). `USER_ROLES_UPDATED` is retired (A016 reserved; `PATCH /v1/admin/users/:id/roles` removed). Investor/Issuer roles are granted in `OrganizationService.createOrganization`. Admin access is granted through invitation acceptance (`ADMIN_INVITATION_ACCEPTED`). Catalog role edits write `ADMIN_USER_ROLE_CHANGED`. Invitation acceptance also writes `ADMIN_USER_ROLE_CHANGED` when an existing Admin’s catalog role actually changes. Portal switching is navigation only. `POST /v1/auth/complete-onboarding` is still mounted, has no portal caller, and writes no audit event.
+`AuthService`: `USER_PROFILE_UPDATED`, `PASSWORD_CHANGED` / `PASSWORD_CHANGE_FAILED`. `USER_EMAIL_VERIFIED` and `EMAIL_VERIFICATION_FAILED` are retired (A010 / A011 reserved; `POST /v1/auth/verify-email` removed). Signup email verification remains on Landing `/verify-email` via `POST /v1/auth/confirm-signup` and `POST /v1/auth/resend-signup-code`; that path does **not** write these Security events. `USER_ROLE_ADDED` is retired (A004 reserved; `POST /v1/auth/add-role` removed). `ACTIVE_ROLE_CHANGED` is retired (A005 reserved; `POST /v1/auth/switch-role` removed). `USER_ROLES_UPDATED` is retired (A016 reserved; `PATCH /v1/admin/users/:id/roles` removed). Investor/Issuer roles are granted in `OrganizationService.createOrganization`. Admin access is granted through invitation acceptance (`ADMIN_INVITATION_ACCEPTED`). Catalog role edits write `ADMIN_USER_ROLE_CHANGED`. Invitation acceptance also writes `ADMIN_USER_ROLE_CHANGED` when an existing Admin’s catalog role actually changes. Portal switching is navigation only. `POST /v1/auth/complete-onboarding` is still mounted, has no portal caller, and writes no audit event.
 `AdminService`: role config C/U/D, `ADMIN_USER_ROLE_CHANGED` (role editor and different-role invitation acceptance), deactivate/reactivate, invitation lifecycle (`ADMIN_INVITATION_CREATED` on new row; `ADMIN_INVITATION_RESENT` on explicit resend and on same-email+same-role invite-submit reuse after email success), `USER_PUBLIC_ID_CHANGED`, `USER_PROFILE_UPDATED_BY_ADMIN`.
 Organization membership: `ORGANIZATION_MEMBER_*`, ownership transfer, invitation resend/revoke.  
 Notification config (not broadcasts): type/group/preference.  
@@ -710,7 +710,7 @@ Do not treat this as a target schema. Names are as written.
 
 ### Security (`SecurityAuditLog`)
 
-`USER_PROFILE_UPDATED`, `USER_PROFILE_UPDATED_BY_ADMIN`, `PASSWORD_CHANGED`, `PASSWORD_CHANGE_FAILED`, `USER_EMAIL_VERIFIED`, `EMAIL_VERIFICATION_FAILED`, `ADMIN_ACCESS_DENIED`, `ADMIN_ROLE_CREATED`, `ADMIN_ROLE_PERMISSIONS_UPDATED`, `ADMIN_ROLE_DELETED`, `ADMIN_USER_ROLE_CHANGED`, `ADMIN_USER_DEACTIVATED`, `ADMIN_USER_REACTIVATED`, `ADMIN_INVITATION_*`, `USER_PUBLIC_ID_CHANGED`, `ORGANIZATION_MEMBER_*`, `ORGANIZATION_OWNERSHIP_TRANSFERRED`, `ORGANIZATION_INVITATION_REVOKED` / `RESENT`, `NOTIFICATION_TYPE_UPDATED`, `NOTIFICATION_GROUP_*`, `USER_NOTIFICATION_PREFERENCE_UPDATED`. Reserved retired: `USER_ROLE_ADDED`, `ACTIVE_ROLE_CHANGED`, `USER_ROLES_UPDATED`.
+`USER_PROFILE_UPDATED`, `USER_PROFILE_UPDATED_BY_ADMIN`, `PASSWORD_CHANGED`, `PASSWORD_CHANGE_FAILED`, `ADMIN_ACCESS_DENIED`, `ADMIN_ROLE_CREATED`, `ADMIN_ROLE_PERMISSIONS_UPDATED`, `ADMIN_ROLE_DELETED`, `ADMIN_USER_ROLE_CHANGED`, `ADMIN_USER_DEACTIVATED`, `ADMIN_USER_REACTIVATED`, `ADMIN_INVITATION_*`, `USER_PUBLIC_ID_CHANGED`, `ORGANIZATION_MEMBER_*`, `ORGANIZATION_OWNERSHIP_TRANSFERRED`, `ORGANIZATION_INVITATION_REVOKED` / `RESENT`, `NOTIFICATION_TYPE_UPDATED`, `NOTIFICATION_GROUP_*`, `USER_NOTIFICATION_PREFERENCE_UPDATED`. Reserved retired: `USER_ROLE_ADDED`, `ACTIVE_ROLE_CHANGED`, `USER_EMAIL_VERIFIED`, `EMAIL_VERIFICATION_FAILED`, `USER_ROLES_UPDATED`.
 
 Retired with `AccessLog`/`SecurityLog`: `LOGIN`, `SIGNUP`, `LOGOUT`, `ROLE_SWITCHED`, `ROLE_ADDED`, `ROLE_REMOVED`, `PROFILE_UPDATED`, `EMAIL_CHANGED` (verification was misnamed).
 
