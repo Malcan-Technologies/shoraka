@@ -69,7 +69,7 @@ Comment in repository states company status is updated later via RegTank webhook
 
 Investor and Issuer portal roles are granted when the organization is created (`OrganizationService.createOrganization`), with Cognito `custom:roles` sync. That path does **not** write `USER_ROLE_ADDED` or `USER_ROLES_UPDATED` (both retired).
 
-Admin access is granted through Admin invitation acceptance (`ADMIN_INVITATION_ACCEPTED`). Admin catalog role edits write `ADMIN_USER_ROLE_CHANGED`.
+Admin access is granted through Admin invitation acceptance (`ADMIN_INVITATION_ACCEPTED`). Admin catalog role edits write `ADMIN_USER_ROLE_CHANGED`. Accepting a later different-role Admin invite for an existing Admin also writes `ADMIN_USER_ROLE_CHANGED`; a first-time Admin invite and a same-role invite do not.
 
 Portal switching is navigation between the Investor and Issuer origins. It does **not** write `ACTIVE_ROLE_CHANGED`.
 

@@ -2050,6 +2050,10 @@ export class AdminService {
       }
 
       let adminRecord = await tx.admin.findUnique({ where: { user_id: user.user_id } });
+      const previousRole = adminRecord?.role_description ?? null;
+      const roleChanged =
+        adminRecord != null && adminRecord.role_description !== invitation.role_description;
+
       if (!adminRecord) {
         const roleConfig = await tx.adminRoleConfig.findUnique({
           where: { key: invitation.role_description },
@@ -2065,7 +2069,7 @@ export class AdminService {
       } else {
         const adminUpdate: { role_id?: string | null; role_description?: string; status?: "ACTIVE" | "INACTIVE" } =
           {};
-        if (adminRecord.role_description !== invitation.role_description) {
+        if (roleChanged) {
           const roleConfig = await tx.adminRoleConfig.findUnique({
             where: { key: invitation.role_description },
           });
@@ -2090,6 +2094,23 @@ export class AdminService {
           accepted_at: new Date(),
         },
       });
+
+      if (roleChanged) {
+        await writeSecurityAuditLog(
+          {
+            eventType: "ADMIN_USER_ROLE_CHANGED",
+            context,
+            subjectUserId: user.user_id,
+            targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
+            targetId: user.user_id,
+            metadata: {
+              previousRole,
+              newRole: invitation.role_description,
+            },
+          },
+          tx
+        );
+      }
 
       await writeSecurityAuditLog(
         {

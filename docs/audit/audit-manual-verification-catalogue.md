@@ -764,8 +764,8 @@ Permission: audit.security.view
 
 **Current role and portal-switch flows (source):**
 - Investor / Issuer portal roles are granted in `OrganizationService.createOrganization`. Not `USER_ROLE_ADDED`. Not `USER_ROLES_UPDATED`.
-- Admin access is granted through Admin invitation acceptance (`ADMIN_INVITATION_ACCEPTED`).
-- Admin catalog role changes write `ADMIN_USER_ROLE_CHANGED`.
+- Admin access is granted through Admin invitation acceptance (`ADMIN_INVITATION_ACCEPTED`). Accepting a different-role invite for an existing Admin also writes `ADMIN_USER_ROLE_CHANGED`.
+- Admin catalog role changes write `ADMIN_USER_ROLE_CHANGED` from the Admin role editor, and from invitation acceptance when an existing Admin’s catalog role actually changes.
 - Portal switching is navigation between portals. It does not write `ACTIVE_ROLE_CHANGED`.
 - `POST /v1/auth/complete-onboarding` is still mounted. No current portal caller. Writes no audit event. Not happy-path onboarding. Intentionally left in source. Distinct from `POST /v1/organizations/{investor|issuer}/:id/complete-onboarding`.
 
@@ -3398,11 +3398,11 @@ An admin user's assigned admin-role key changed (which custom admin role they ho
 
 ## 2. When it logs
 
-`apps/api/src/modules/admin/service.ts` change admin-user role, in-tx.
+`apps/api/src/modules/admin/service.ts` Admin role editor (`updateAdminRole`), in-tx. Also written from Admin invitation acceptance when an **existing** Admin accepts a pending invite whose catalog role differs from `Admin.role_description`.
 
 ## 3. When it does NOT log / no-op
 
-No write if the assigned admin role is unchanged. Distinct from retired `USER_ROLES_UPDATED` (historical portal-role set). Current Admin catalog edits are this event. Portal Investor/Issuer flags use Onboarding audit.
+No write if the assigned admin role is unchanged. New Admin creation via invitation does **not** write this event (there is no previous catalog role). Same-role invitation acceptance for an existing Admin does **not** write this event. Distinct from retired `USER_ROLES_UPDATED` (historical portal-role set). Portal Investor/Issuer flags use Onboarding audit.
 
 ## 4. Top-level audit row
 
@@ -3493,7 +3493,8 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 
 ## 8. Writer(s)
 
-- `apps/api/src/modules/admin/service.ts` — change admin user role
+- `apps/api/src/modules/admin/service.ts` — Admin role editor (`updateAdminRole`)
+- `apps/api/src/modules/admin/service.ts` — invitation acceptance when an existing Admin’s catalog role changes
 - `writeSecurityAuditLog` in-tx
 
 ## 9. ADMIN RAW AUDIT
@@ -3567,6 +3568,10 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] No internal metadata exposed
 - [ ] RBAC correct
 - [ ] Detail UI correct
+- [ ] Admin role editor still writes this event with `previousRole` / `newRole`
+- [ ] Accepting a first Admin invite (new Admin) does **not** write this event
+- [ ] Accepting a same-role invite for an existing Admin does **not** write this event
+- [ ] Accepting a different-role invite for an existing Admin writes this event with the previous catalog role and the invitation role
 
 # A018 — ADMIN_USER_DEACTIVATED
 
@@ -4857,11 +4862,11 @@ An admin invitation was accepted and the invitee became an admin user.
 
 ## 2. When it logs
 
-`apps/api/src/modules/admin/service.ts` accept-invitation path, in-tx with user/invitation updates.
+`apps/api/src/modules/admin/service.ts` accept-invitation path, in-tx with user/invitation updates. If the invitee is already an Admin and the invitation catalog role differs from `Admin.role_description`, the same transaction also writes `ADMIN_USER_ROLE_CHANGED` before this event.
 
 ## 3. When it does NOT log / no-op
 
-Invalid/expired/already-accepted tokens fail before audit.
+Invalid/expired/already-accepted tokens fail before audit. New Admin creation and same-role acceptance still write this event and do **not** write `ADMIN_USER_ROLE_CHANGED`.
 
 ## 4. Top-level audit row
 
@@ -5059,6 +5064,10 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] No internal metadata exposed
 - [ ] RBAC correct
 - [ ] Detail UI correct
+- [ ] Create two pending invites for the same email with different catalog roles (e.g. Super Admin then Operations)
+- [ ] Accept the first invite: `ADMIN_INVITATION_ACCEPTED` only (new Admin — no `ADMIN_USER_ROLE_CHANGED`)
+- [ ] Accept the second invite: `ADMIN_INVITATION_ACCEPTED` and `ADMIN_USER_ROLE_CHANGED` with `previousRole` = first invite role and `newRole` = second invite role
+- [ ] Both rows share the same request `correlation_id`
 
 # A025 — USER_PUBLIC_ID_CHANGED
 

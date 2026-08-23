@@ -53,7 +53,7 @@ These are current source behaviors. Do not treat retired Security events as live
 
 - **Investor / Issuer role grant:** `OrganizationService.createOrganization` adds `INVESTOR` or `ISSUER` and syncs Cognito `custom:roles`. Not `USER_ROLE_ADDED`. Not `USER_ROLES_UPDATED`.
 - **Admin access:** granted through Admin invitation acceptance (`ADMIN_INVITATION_ACCEPTED`).
-- **Admin catalog role changes:** `ADMIN_USER_ROLE_CHANGED`.
+- **Admin catalog role changes:** `ADMIN_USER_ROLE_CHANGED` from the Admin role editor, and from invitation acceptance when an existing Admin accepts a different-role invite. New Admin creation and same-role acceptance do not write `ADMIN_USER_ROLE_CHANGED`.
 - **Portal switching:** navigation between portals (`window.location.href` to the other portal origin). No `ACTIVE_ROLE_CHANGED`. No `POST /v1/auth/switch-role`.
 - **`POST /v1/auth/complete-onboarding`:** currently mounted. No current portal/SDK caller. Writes **no audit event**. Not part of current happy-path onboarding. Intentionally left in source. Do not mark it removed. Distinct from `POST /v1/organizations/{investor|issuer}/:id/complete-onboarding` (legacy org completion; writes `ONBOARDING_COMPLETED`).
 
@@ -611,8 +611,8 @@ Normal portal logout produces one `USER_LOGGED_OUT` row through Cognito `GET /v1
 
 ### SecurityAuditLog
 
-`AuthService`: `USER_PROFILE_UPDATED`, `PASSWORD_CHANGED` / `PASSWORD_CHANGE_FAILED`, `USER_EMAIL_VERIFIED` / `EMAIL_VERIFICATION_FAILED`. `USER_ROLE_ADDED` is retired (A004 reserved; `POST /v1/auth/add-role` removed). `ACTIVE_ROLE_CHANGED` is retired (A005 reserved; `POST /v1/auth/switch-role` removed). `USER_ROLES_UPDATED` is retired (A016 reserved; `PATCH /v1/admin/users/:id/roles` removed). Investor/Issuer roles are granted in `OrganizationService.createOrganization`. Admin access is granted through invitation acceptance. Catalog role edits write `ADMIN_USER_ROLE_CHANGED`. Portal switching is navigation only. `POST /v1/auth/complete-onboarding` is still mounted, has no portal caller, and writes no audit event.  
-`AdminService`: role config C/U/D, `ADMIN_USER_ROLE_CHANGED`, deactivate/reactivate, invitation lifecycle, `USER_PUBLIC_ID_CHANGED`, `USER_PROFILE_UPDATED_BY_ADMIN`.  
+`AuthService`: `USER_PROFILE_UPDATED`, `PASSWORD_CHANGED` / `PASSWORD_CHANGE_FAILED`, `USER_EMAIL_VERIFIED` / `EMAIL_VERIFICATION_FAILED`. `USER_ROLE_ADDED` is retired (A004 reserved; `POST /v1/auth/add-role` removed). `ACTIVE_ROLE_CHANGED` is retired (A005 reserved; `POST /v1/auth/switch-role` removed). `USER_ROLES_UPDATED` is retired (A016 reserved; `PATCH /v1/admin/users/:id/roles` removed). Investor/Issuer roles are granted in `OrganizationService.createOrganization`. Admin access is granted through invitation acceptance (`ADMIN_INVITATION_ACCEPTED`). Catalog role edits write `ADMIN_USER_ROLE_CHANGED`. Invitation acceptance also writes `ADMIN_USER_ROLE_CHANGED` when an existing Admin’s catalog role actually changes. Portal switching is navigation only. `POST /v1/auth/complete-onboarding` is still mounted, has no portal caller, and writes no audit event.
+`AdminService`: role config C/U/D, `ADMIN_USER_ROLE_CHANGED` (role editor and different-role invitation acceptance), deactivate/reactivate, invitation lifecycle, `USER_PUBLIC_ID_CHANGED`, `USER_PROFILE_UPDATED_BY_ADMIN`.
 Organization membership: `ORGANIZATION_MEMBER_*`, ownership transfer, invitation resend/revoke.  
 Notification config (not broadcasts): type/group/preference.  
 Middleware + Cognito admin gate: `ADMIN_ACCESS_DENIED`.
@@ -922,7 +922,7 @@ Legal types in schema: `PDPA_NOTICE_AND_CONSENT`, `TERMS_OF_USE`, `RISK_STATEMEN
 | Change | Audit? | Severity if missing |
 |---|---|---|
 | Create/update/delete admin role + permissions | YES SecurityAuditLog | — |
-| Assign user roles | Investor/Issuer: `OrganizationService.createOrganization` (not `USER_ROLE_ADDED` / `USER_ROLES_UPDATED`). Admin access: invitation accept → `ADMIN_INVITATION_ACCEPTED`. Admin catalog role: `ADMIN_USER_ROLE_CHANGED`. Portal Investor/Issuer flags: onboarding endpoint. Portal switch: navigation only (no `ACTIVE_ROLE_CHANGED`). | — |
+| Assign user roles | Investor/Issuer: `OrganizationService.createOrganization` (not `USER_ROLE_ADDED` / `USER_ROLES_UPDATED`). Admin access: invitation accept → `ADMIN_INVITATION_ACCEPTED`. Admin catalog role: `ADMIN_USER_ROLE_CHANGED` (role editor, and invitation acceptance when an existing Admin’s role actually changes). Portal Investor/Issuer flags: onboarding endpoint. Portal switch: navigation only (no `ACTIVE_ROLE_CHANGED`). | — |
 | Deactivate/reactivate admin | YES `ADMIN_USER_DEACTIVATED` / `ADMIN_USER_REACTIVATED` (DB-only; no Cognito disable) | — |
 | Invite admin create/resend | YES `ADMIN_INVITATION_CREATED` / `RESENT` / `LINK_GENERATED` | — |
 | Revoke invite | YES `ADMIN_INVITATION_REVOKED` | — |

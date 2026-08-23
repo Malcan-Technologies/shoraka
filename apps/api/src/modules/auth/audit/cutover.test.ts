@@ -221,6 +221,9 @@ describe("Access/Security audit cutover", () => {
     expect(methodChunk(adminService, "acceptInvitation", 5000)).toMatch(
       /ADMIN_INVITATION_ACCEPTED/
     );
+    expect(methodChunk(adminService, "acceptInvitation", 5000)).toMatch(
+      /ADMIN_USER_ROLE_CHANGED/
+    );
     expect(methodChunk(adminService, "acceptInvitation", 5000)).toMatch(/UserRole\.ADMIN/);
     expect(methodChunk(adminService, "acceptInvitation", 5000)).not.toMatch(/USER_ROLE_ADDED/);
 
