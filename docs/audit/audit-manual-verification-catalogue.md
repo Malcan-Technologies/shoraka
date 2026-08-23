@@ -1,8 +1,8 @@
 # Audit manual verification catalogue
 
-**Purpose.** Source-authoritative, human-readable manual verification catalogue of **178 reserved/catalogued event IDs** (A001–A178). IDs are stable and are not reused when a writer is retired. Distinguish **reserved event IDs** from **current active writers**. Each card is the checklist a reviewer uses to confirm the write (or retired/no-writer status), the Zod metadata, the source of truth, transaction behavior, and the three activity surfaces (admin curated, issuer, investor) plus admin raw.
+**Purpose.** Source-authoritative, human-readable manual verification catalogue of **179 reserved/catalogued event IDs** (A001–A179). IDs are stable and are not reused when a writer is retired. Distinguish **reserved event IDs** from **current active writers**. Each card is the checklist a reviewer uses to confirm the write (or retired/no-writer status), the Zod metadata, the source of truth, transaction behavior, and the three activity surfaces (admin curated, issuer, investor) plus admin raw.
 
-**Date.** 2026-08-23 — Mechanical source recount on working tree `199ecb07` (clean): catalogue headings **178/178** match `*_AUDIT_EVENTS`; reserved **178**, active **170**, retired **8**. Previous documented total **174** is the original A001–A174 cutover set only; A175–A178 were appended later (`ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`, `NOTE_CAMPAIGN_PAUSED`, `NOTE_CAMPAIGN_RESUMED`, `CONTRACT_FACILITY_OCCUPANCY_UPDATED`). Same day: A010 `USER_EMAIL_VERIFIED` and A011 `EMAIL_VERIFICATION_FAILED` retired (IDs reserved; no live writers; `POST /v1/auth/verify-email` removed). Signup email verification remains on Landing `/verify-email` via `confirm-signup` / `resend-signup-code`. Same day earlier: A004 `USER_ROLE_ADDED` retired; A016 `USER_ROLES_UPDATED` retired; A005 `ACTIVE_ROLE_CHANGED` retired; A178 metadata synced to dual-ledger occupancy (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`). Prior: 2026-08-20 A178 added; 2026-08-19 A175–A177.
+**Date.** 2026-08-23 — A179 `LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION` appended after A178 (Legal live writers 8; A056–A062 numbering unchanged). Mechanical source recount: catalogue headings **179/179** match `*_AUDIT_EVENTS`; reserved **179**, active **171**, retired **8**. Previous documented total **174** is the original A001–A174 cutover set only; A175–A178 were appended earlier (`ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`, `NOTE_CAMPAIGN_PAUSED`, `NOTE_CAMPAIGN_RESUMED`, `CONTRACT_FACILITY_OCCUPANCY_UPDATED`). Same day earlier: A010 `USER_EMAIL_VERIFIED` and A011 `EMAIL_VERIFICATION_FAILED` retired (IDs reserved; no live writers; `POST /v1/auth/verify-email` removed). Signup email verification remains on Landing `/verify-email` via `confirm-signup` / `resend-signup-code`. Same day earlier: A004 `USER_ROLE_ADDED` retired; A016 `USER_ROLES_UPDATED` retired; A005 `ACTIVE_ROLE_CHANGED` retired; A178 metadata synced to dual-ledger occupancy (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`). Prior: 2026-08-20 A178 added; 2026-08-19 A175–A177.
 
 **How to use this document.** Do not treat activity titles as workflow state. Do not treat audit rows as source of truth. Verify the named table, then the SOT row, then visibility. Hidden activity is recorded as Title: N/A / Description: N/A.
 
@@ -33,14 +33,14 @@ If a card’s “UI location” names a component, verify the current file; do n
 | Access | A001–A003 | 3 | AccessAuditLog | access_audit_logs | `/audit` → Access (`/audit?tab=access`) | `audit.access.view` |
 | Security | A004–A038 | 35 reserved / 30 ACTIVE (A004, A005, A010, A011, A016 retired — DO NOT LIVE QA) | SecurityAuditLog | security_audit_logs | `/audit` → Security (`/audit?tab=security`) | `audit.security.view` |
 | Onboarding | A039–A055, A175 | 18 reserved (15 active writers; A040, A052, and A053 retired) | OnboardingAuditLog | onboarding_audit_logs | `/audit` → Onboarding (`/audit?tab=onboarding`) | `onboarding.view` |
-| Legal | A056–A062 | 7 | LegalAdminAuditLog | legal_admin_audit_logs | `/audit` → Legal Documents (`/audit?tab=legal-documents`) | `document_management.view` |
+| Legal | A056–A062, A179 | 8 | LegalAdminAuditLog | legal_admin_audit_logs | `/audit` → Legal Documents (`/audit?tab=legal-documents`) | `document_management.view` |
 | Application | A063–A102, A178 | 41 | ApplicationAuditLog | application_audit_logs | Application Detail → Audit History | `applications.view` |
 | Signing | A103–A114 | 12 | SigningAuditLog | signing_audit_logs | Application Detail → Audit History (merged) + envelope logs | `applications.view` |
 | Note | A115–A149, A176–A177 | 37 | NoteAuditLog | note_audit_logs | Note Detail → Audit History; trustee signature on Platform Finance | `notes.view` / `platform_settings.view` |
 | Payment | A150–A168 | 19 | PaymentAuditLog | payment_audit_logs | Gateway Payment / Investor Withdrawal / Reconciliation Audit | gateway / `investor_withdrawals.view` / `gateway_reconciliation.view` |
 | Product | A169–A173 | 5 | ProductAuditLog | product_audit_logs | `/audit` → Products (`/audit?tab=products`) | `audit.product.view` |
 | Notification | A174 | 1 | NotificationBroadcastAuditLog | notification_broadcast_audit_logs | `/audit` → Notifications (`/audit?tab=notifications`) | `notifications.view` |
-| **Total** | **A001–A178** | **178 reserved/catalogued IDs** (170 currently active event types with at least one writer; A004, A005, A010, A011, A016, A040, A052, and A053 retired, IDs not reused) | | | | |
+| **Total** | **A001–A179** | **179 reserved/catalogued IDs** (171 currently active event types with at least one writer; A004, A005, A010, A011, A016, A040, A052, and A053 retired, IDs not reused) | | | | |
 
 
 ## Visibility summary
@@ -52,14 +52,14 @@ Computed from the event cards in this catalogue (not from memory).
 | Access | 3 | 3 | 0 / 0 / 3 | 0 / 0 / 3 | 0 / 0 / 3 |
 | Security | 35 | 35 | 0 / 0 / 35 | 0 / 0 / 35 | 0 / 0 / 35 |
 | Onboarding | 18 | 18 | 17 / 0 / 1 | 5 / 3 / 10 | 5 / 2 / 11 |
-| Legal | 7 | 7 | 0 / 0 / 7 | 0 / 0 / 7 | 0 / 0 / 7 |
+| Legal | 8 | 8 | 0 / 0 / 8 | 0 / 0 / 8 | 0 / 0 / 8 |
 | Application | 41 | 41 | 32 / 1 / 8 | 30 / 1 / 10 | 0 / 0 / 41 |
 | Signing | 12 | 12 | 9 / 0 / 3 | 7 / 0 / 5 | 0 / 0 / 12 |
 | Note | 37 | 37 | 36 / 0 / 1 | 15 / 1 / 21 | 0 / 9 / 28 |
 | Payment | 19 | 19 | 0 / 0 / 19 | 0 / 0 / 19 | 7 / 2 / 10 |
 | Product | 5 | 5 | 0 / 0 / 5 | 0 / 0 / 5 | 0 / 0 / 5 |
 | Notification | 1 | 1 | 0 / 0 / 1 | 0 / 0 / 1 | 0 / 0 / 1 |
-| **Total** | **178** | **178** | **94 / 1 / 83** | **57 / 5 / 116** | **12 / 13 / 153** |
+| **Total** | **179** | **179** | **94 / 1 / 84** | **57 / 5 / 117** | **12 / 13 / 154** |
 
 Onboarding visibility counts include the 18 reserved IDs. Retired A040 / A052 / A053 remain SHOW on admin raw and SHOW (historical) on admin curated Activity if old rows exist; issuer/investor HIDE. Admin Organization contextual history excludes A052 and A053. Admin Activity HIDE is only `USER_ONBOARDING_STATUS_UPDATED`. Issuer/investor CONDITIONAL includes review/amendment `ONBOARDING_STATUS_CHANGED`. A175 is admin org Activity SHOW and issuer/investor HIDE. Security reserved IDs include retired A004 `USER_ROLE_ADDED`, A005 `ACTIVE_ROLE_CHANGED`, A010 `USER_EMAIL_VERIFIED`, A011 `EMAIL_VERIFICATION_FAILED`, and A016 `USER_ROLES_UPDATED` (admin raw SHOW for historical rows; no current writer).
 
@@ -12195,8 +12195,8 @@ Admin raw: `/audit?tab=onboarding`, permission `onboarding.view`, `AuditLogDetai
 
 Audit Model: LegalAdminAuditLog
 DB Table: legal_admin_audit_logs
-Events: 7
-Range: A056-A062
+Events: 8
+Range: A056-A062, A179
 Admin Location: /audit → Legal Documents (`/audit?tab=legal-documents`)
 Permission: document_management.view
 
@@ -12209,6 +12209,7 @@ Permission: document_management.view
 | A060 | LEG-005 | `LEGAL_DOCUMENT_VERSION_PUBLISHED` | SHOW | HIDE | HIDE | HIDE |
 | A061 | LEG-006 | `LEGAL_DOCUMENT_VERSION_ARCHIVED` | SHOW | HIDE | HIDE | HIDE |
 | A062 | LEG-007 | `LEGAL_DOCUMENT_VERSION_RESTORED` | SHOW | HIDE | HIDE | HIDE |
+| A179 | LEG-008 | `LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION` | SHOW | HIDE | HIDE | HIDE |
 
 # A056 — LEGAL_DOCUMENT_CREATED
 
@@ -13480,15 +13481,15 @@ DB Table: legal_admin_audit_logs
 
 ## 1. What this event means
 
-A version was archived. `newStatus` is literal `ARCHIVED`. Optional `reasonCode` is `AUTO_ARCHIVED_ON_PUBLISH` or `AUTO_ARCHIVED_ON_RESTORE_PUBLISH`.
+A version was archived. `newStatus` is literal `ARCHIVED`. Current writers set optional `reasonCode` to `AUTO_ARCHIVED_ON_PUBLISH` when publish archives the previous published row. `AUTO_ARCHIVED_ON_RESTORE_PUBLISH` remains in Zod so historical rows still parse; it is not written anymore (restore-as-published on the same version id is gone).
 
 ## 2. When it logs
 
-Paired with publish or restore-as-published. File fingerprint fields are optional on archive.
+Paired with publish of a **DRAFT** (auto-archive of the previous `PUBLISHED` row) or a manual archive of a published version. File fingerprint fields are optional on archive.
 
 ## 3. When it does NOT log / no-op
 
-Manual archive without those reason codes may omit `reasonCode`. Restore writes `LEGAL_DOCUMENT_VERSION_RESTORED`.
+Manual archive without those reason codes may omit `reasonCode`. Restoring a never-published archive to draft writes `LEGAL_DOCUMENT_VERSION_RESTORED`, not this event. Creating a new draft from an archived published version writes `LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION` (A179), not archive.
 
 ## 4. Top-level audit row
 
@@ -13752,15 +13753,15 @@ DB Table: legal_admin_audit_logs
 
 ## 1. What this event means
 
-An archived version was restored as `DRAFT` or `PUBLISHED`. `previousStatus` is literal `ARCHIVED`. Restoring as published also archives the current published version.
+A never-published archived version was restored to `DRAFT` (same version id). `previousStatus` is literal `ARCHIVED`. Current writers only emit `restoredAs` / `newStatus` = `DRAFT`. Zod still accepts `PUBLISHED` so historical restore-as-published rows remain readable. Previously published archived versions are immutable and cannot be restored; use A179 instead.
 
 ## 2. When it logs
 
-`writeLegalDocumentVersionRestoredAudit`.
+`writeLegalDocumentVersionRestoredAudit` after `restoreVersionToDraft`.
 
 ## 3. When it does NOT log / no-op
 
-Cannot restore a non-archived version. Restore-as-published sets optional `reacceptanceRequired`.
+Cannot restore a non-archived version. Previously published archived versions (`published_at` set) are rejected with `VERSION_IMMUTABLE`; no restore audit row. Restore-as-published on the same row is not a live path. Optional `reacceptanceRequired` is not written by current restore (draft-only).
 
 ## 4. Top-level audit row
 
@@ -13917,8 +13918,8 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Nullable:** No
 - **Allowed values:** Those two
 - **Writer source:** Restore target
-- **Current writer:** Always
-- **Example:** `"PUBLISHED"`
+- **Current writer:** Always `DRAFT` on live writes. `PUBLISHED` remains in the schema for historical rows.
+- **Example:** `"DRAFT"`
 
 #### `restoredAs`
 
@@ -13927,8 +13928,8 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Nullable:** No
 - **Allowed values:** Those two
 - **Writer source:** Restore target
-- **Current writer:** Always
-- **Example:** `"PUBLISHED"`
+- **Current writer:** Always `DRAFT` on live writes. `PUBLISHED` remains in the schema for historical rows.
+- **Example:** `"DRAFT"`
 
 #### `reacceptanceRequired`
 
@@ -39037,6 +39038,7 @@ Used by 172 event(s):
 - A176 `NOTE_CAMPAIGN_PAUSED`
 - A177 `NOTE_CAMPAIGN_RESUMED`
 - A178 `CONTRACT_FACILITY_OCCUPANCY_UPDATED`
+- A179 `LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION`
 
 ### `actorName`
 
@@ -41645,26 +41647,26 @@ How an investor is allowed to see an event. CANCELLED `NoteInvestment` rows do n
 
 # Source verification footer
 
-Date: **2026-08-23**. Source: current tree after retirement of A004 `USER_ROLE_ADDED`, A005 `ACTIVE_ROLE_CHANGED`, A010 `USER_EMAIL_VERIFIED`, A011 `EMAIL_VERIFICATION_FAILED`, and A016 `USER_ROLES_UPDATED` (5 Security events; IDs reserved). Signup email verification remains on Landing `/verify-email` via `confirm-signup` / `resend-signup-code`. Original A001–A177 IDs unchanged. A178 / APP-041 remains the latest audit ID. No APP-042.
+Date: **2026-08-23**. Source: current tree after append of A179 `LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION`. Retirement of A004 `USER_ROLE_ADDED`, A005 `ACTIVE_ROLE_CHANGED`, A010 `USER_EMAIL_VERIFIED`, A011 `EMAIL_VERIFICATION_FAILED`, and A016 `USER_ROLES_UPDATED` unchanged (5 Security events; IDs reserved). Signup email verification remains on Landing `/verify-email` via `confirm-signup` / `resend-signup-code`. Original A001–A177 IDs unchanged. A178 / APP-041 unchanged. A179 / LEG-008 is the latest audit ID. No APP-042.
 
 ## VERIFIED counts
 
 | Source | Count | Result |
 |---|---:|---|
-| Catalogue arrays in this document (Access 3 + Security 35 + Onboarding 18 reserved + Legal 7 + Application 41 + Signing 12 + Note 37 + Payment 19 + Product 5 + Notification 1) | 178 reserved/catalogued IDs | VERIFIED |
+| Catalogue arrays in this document (Access 3 + Security 35 + Onboarding 18 reserved + Legal 8 + Application 41 + Signing 12 + Note 37 + Payment 19 + Product 5 + Notification 1) | 179 reserved/catalogued IDs | VERIFIED |
 | `ACCESS_AUDIT_EVENTS` `apps/api/src/modules/auth/audit/events.ts` | 3 | VERIFIED |
 | `SECURITY_AUDIT_EVENTS` `apps/api/src/modules/security/audit/events.ts` | 35 reserved IDs (30 current active Security event types; A004, A005, A010, A011, and A016 in `RETIRED_SECURITY_AUDIT_EVENTS`) | VERIFIED |
 | `ONBOARDING_AUDIT_EVENTS` `apps/api/src/modules/onboarding/audit/events.ts` | 18 reserved IDs (15 current active onboarding event types; A040, A052, and A053 in `RETIRED_ONBOARDING_AUDIT_EVENTS`; A175 appended) | VERIFIED |
-| `LEGAL_ADMIN_AUDIT_EVENTS` `apps/api/src/modules/legal-documents/audit/events.ts` | 7 | VERIFIED |
+| `LEGAL_ADMIN_AUDIT_EVENTS` `apps/api/src/modules/legal-documents/audit/events.ts` | 8 (A056–A062 original + A179 appended) | VERIFIED |
 | `APPLICATION_AUDIT_EVENTS` `apps/api/src/modules/applications/audit/events.ts` | 41 (A063–A102 original + A178 appended) | VERIFIED |
 | `SIGNING_AUDIT_EVENTS` `apps/api/src/modules/signing/audit/events.ts` | 12 | VERIFIED |
 | `NOTE_AUDIT_EVENTS` `apps/api/src/modules/notes/audit/events.ts` | 37 (A115–A149 original + A176–A177 appended) | VERIFIED |
 | `PAYMENT_AUDIT_EVENTS` `apps/api/src/modules/payment/audit/events.ts` | 19 | VERIFIED |
 | `PRODUCT_AUDIT_EVENTS` `apps/api/src/modules/products/audit/events.ts` | 5 | VERIFIED |
 | `NOTIFICATION_BROADCAST_AUDIT_EVENTS` `apps/api/src/modules/notification/audit/events.ts` | 1 | VERIFIED |
-| Zod `metadataByEvent` / `schemas` maps (one schema per catalogue event, including retired IDs so historical rows still parse) | 178 | VERIFIED |
-| Current writers (`eventType: "…"` call sites in `apps/api/src/modules/**` plus jobs/middleware) | 170 currently active event types with at least one writer; A004, A005, A010, A011, A016, A040, A052, and A053 have none | VERIFIED |
-| Admin raw coverage (global `/audit` tabs, application/note contextual history, trustee, gateway, withdrawal, recon) | 178 reserved/catalogued IDs remain readable | VERIFIED |
+| Zod `metadataByEvent` / `schemas` maps (one schema per catalogue event, including retired IDs so historical rows still parse) | 179 | VERIFIED |
+| Current writers (`eventType: "…"` call sites in `apps/api/src/modules/**` plus jobs/middleware) | 171 currently active event types with at least one writer; A004, A005, A010, A011, A016, A040, A052, and A053 have none | VERIFIED |
+| Admin raw coverage (global `/audit` tabs, application/note contextual history, trustee, gateway, withdrawal, recon) | 179 reserved/catalogued IDs remain readable | VERIFIED |
 
 ## Writer notes that affect verification
 
@@ -42402,3 +42404,202 @@ Admin Application Activity and Contract Activity. Raw Application Audit History.
 - [ ] Issuer/investor Activity hide occupancy
 - [ ] Raw Audit History shows the row
 - [ ] Existing A001–A177 numbering unchanged
+
+# A179 — LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION
+
+**Status: ACTIVE**
+
+Source Case: LEG-008
+Module: Legal
+Audit Model: LegalAdminAuditLog
+DB Table: legal_admin_audit_logs
+
+Appended globally after A178. Not inserted into the original A056–A062 block. Not a restore. Not an upload of a new PDF from the admin’s computer.
+
+## 1. What this event means
+
+An admin created a **new DRAFT** `LegalDocumentVersion` by copying file bytes from a previously published archived version. The source row stays `ARCHIVED`. Acceptances stay on the source version id. The new row has a new cuid, the next version number, a new unique `s3_key`, and is not published automatically.
+
+Do not reuse `LEGAL_DOCUMENT_VERSION_UPLOADED` (A058): no admin file upload occurred.
+
+## 2. When it logs
+
+`POST /v1/admin/legal-documents/versions/:versionId/create-from-version` → `LegalDocumentService.createVersionFromArchivedPublished` → `writeLegalDocumentVersionCreatedFromVersionAudit` in the same Prisma transaction as the new version insert. Permission: `document_management.manage`. HTTP 201.
+
+S3 `CopyObject` and hash verification run **outside** that transaction. On hash mismatch or DB failure the copied object is deleted if unreferenced.
+
+## 3. When it does NOT log / no-op
+
+- Source not found → 404; no row.
+- Source is not `ARCHIVED` with `published_at` set → 400 `INVALID_STATUS`; no row.
+- Another draft already exists → 409 `DRAFT_EXISTS`; no copy / no row.
+- Source missing `file_hash` → 400 `HASH_REQUIRED`.
+- S3 copy failure → 502 `S3_COPY_FAILED`; no DB row.
+- Copied object hash ≠ source hash → 400 `HASH_MISMATCH`; copied key deleted; no DB row.
+- Restore of a never-published archive still writes A062, not this event.
+- Publishing the new draft later writes A060 (+ A061 auto-archive of the current published version). That is not this event.
+
+## 4. Top-level audit row
+
+Append-only `LegalAdminAuditLog` / `legal_admin_audit_logs`.
+
+| Column | Current writer behavior |
+|---|---|
+| `id` | cuid |
+| `legal_document_id` | Document id (required) |
+| `legal_document_version_id` | **New** version id |
+| `event_type` | `LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION` |
+| `occurred_at` / `created_at` | `now()`; optional override via `occurredAt` |
+| `actor_type` | `ADMIN` (legal writer requires `actorUserId`) |
+| `actor_user_id` | Admin who created the draft |
+| `organization_id` / `organization_kind` | From legal audit context (typically null) |
+| `target_type` | `LEGAL_DOCUMENT_VERSION` |
+| `target_id` | New version id |
+| `source` | `API` |
+| `portal` | `ADMIN` |
+| `ip_address` / `user_agent` / `correlation_id` | Admin request context |
+| `idempotency_key` | Context value or null |
+| `metadata` | Parsed by `parseLegalAdminAuditMetadata` |
+
+## 5. EXACT METADATA STRUCTURE
+
+```ts
+{
+  actorName: string | null;
+  actorEmail: string | null;
+  documentType: LegalDocumentType;
+  sourceVersionId: string;
+  sourceVersionNumber: number;
+  newVersionId: string;
+  newVersionNumber: number;
+  fileName: string;
+  fileHash: string;
+  mimeType: string;
+  fileSizeBytes: number;
+  status: "DRAFT";
+}
+```
+
+Raw S3 keys are not stored. `fileHash` is required (server-verified copy).
+
+### field cards (event-specific)
+
+#### `sourceVersionId`
+
+- **Type:** string (min 1)
+- **Required:** Yes
+- **Nullable:** No
+- **Writer source:** Archived published source row id
+- **Current writer:** Always
+- **Example:** `"clxyz..."`
+
+#### `sourceVersionNumber`
+
+- **Type:** integer
+- **Required:** Yes
+- **Nullable:** No
+- **Writer source:** Source `version`
+- **Current writer:** Always
+- **Example:** `1`
+
+#### `newVersionId`
+
+- **Type:** string (min 1)
+- **Required:** Yes
+- **Nullable:** No
+- **Writer source:** Newly inserted draft id
+- **Current writer:** Always
+- **Example:** `"clabc..."`
+
+#### `newVersionNumber`
+
+- **Type:** integer
+- **Required:** Yes
+- **Nullable:** No
+- **Writer source:** `max(version)+1` for that document
+- **Current writer:** Always
+- **Example:** `3`
+
+#### `status`
+
+- **Type:** literal DRAFT
+- **Required:** Yes
+- **Nullable:** No
+- **Writer source:** Hard-coded
+- **Current writer:** Always
+- **Example:** `"DRAFT"`
+
+Shared actor/file fingerprint fields (`actorName`, `actorEmail`, `documentType`, `fileName`, `fileHash`, `mimeType`, `fileSizeBytes`) follow the same Legal writer rules as A058.
+
+## 6. Source of truth
+
+New `LegalDocumentVersion` row + copied S3 object + hash. Source archived version is unchanged. `LegalDocumentAcceptance` rows for the source version are unchanged and do not apply to the new id.
+
+## 7. Transaction / audit failure behavior
+
+Version insert and this audit row share one Prisma transaction. S3 copy/hash/delete stay outside. Audit parse/insert failure rolls back the new version row; the service then deletes the unreferenced copied key.
+
+## 8. Writer(s)
+
+- `writeLegalDocumentVersionCreatedFromVersionAudit` in `apps/api/src/modules/legal-documents/audit/writer.ts`
+- Called from `LegalDocumentService.createVersionFromArchivedPublished`
+
+## 9. ADMIN RAW AUDIT
+
+**Visibility:** SHOW
+
+`/audit?tab=legal-documents`, permission `document_management.view`. Filter label: **Version created from version**. Detail shows source/new version numbers.
+
+**Title:** Raw event row
+
+**Description:** Full typed metadata in the legal audit detail sheet.
+
+## 10. ADMIN CURATED ACTIVITY
+
+**Visibility:** HIDE
+
+**Title:** N/A
+
+**Description:** N/A
+
+## 11. ISSUER ACTIVITY
+
+**Visibility:** HIDE
+
+**Title:** N/A
+
+**Description:** N/A
+
+## 12. INVESTOR ACTIVITY
+
+**Visibility:** HIDE
+
+**Title:** N/A
+
+**Description:** N/A
+
+## 13. Presentation metadata safety
+
+No curated activity. Admin raw may show file hash and version ids. Do not print S3 keys. Do not treat this row as acceptance evidence.
+
+## 14. Current UI behavior
+
+Admin Legal Documents: archived published versions show **Create New Version From This Version** (not Restore). Confirm copy states a new draft is created, the old version stays archived, and historical acceptances stay on the old version.
+
+## 15. Manual verification checklist
+
+- [ ] Event writes to `legal_admin_audit_logs`
+- [ ] `event_type` is `LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION`
+- [ ] New version id/number in metadata; source id/number in metadata
+- [ ] `status` is `DRAFT`
+- [ ] Source version remains `ARCHIVED` with original `published_at`
+- [ ] No `LegalDocumentAcceptance` rows for the new version
+- [ ] Source acceptances unchanged
+- [ ] New unique `s3_key`; hash matches source
+- [ ] Not auto-published
+- [ ] Later publish of the draft writes A060 and archives the current published version (A061 `AUTO_ARCHIVED_ON_PUBLISH`)
+- [ ] Admin raw SHOW; Activity/issuer/investor HIDE
+- [ ] Filter/export label present
+- [ ] RBAC: manage to create; view to read audit
+- [ ] A001–A178 numbering unchanged
+

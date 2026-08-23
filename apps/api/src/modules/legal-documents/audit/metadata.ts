@@ -109,6 +109,20 @@ export const legalDocumentVersionRestoredAuditMetadataSchema = z.object({
   reacceptanceRequired: z.boolean().optional(),
 });
 
+export const legalDocumentVersionCreatedFromVersionAuditMetadataSchema = z.object({
+  ...actorSnapshotSchema,
+  documentType: documentTypeSchema,
+  sourceVersionId: z.string().min(1),
+  sourceVersionNumber: z.number().int(),
+  newVersionId: z.string().min(1),
+  newVersionNumber: z.number().int(),
+  fileName: z.string().min(1),
+  fileHash: z.string().min(1),
+  mimeType: z.string().min(1),
+  fileSizeBytes: z.number().int(),
+  status: z.literal("DRAFT"),
+});
+
 const metadataByEvent = {
   LEGAL_DOCUMENT_CREATED: legalDocumentCreatedAuditMetadataSchema,
   LEGAL_DOCUMENT_UPDATED: legalDocumentUpdatedAuditMetadataSchema,
@@ -117,6 +131,8 @@ const metadataByEvent = {
   LEGAL_DOCUMENT_VERSION_PUBLISHED: legalDocumentVersionPublishedAuditMetadataSchema,
   LEGAL_DOCUMENT_VERSION_ARCHIVED: legalDocumentVersionArchivedAuditMetadataSchema,
   LEGAL_DOCUMENT_VERSION_RESTORED: legalDocumentVersionRestoredAuditMetadataSchema,
+  LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION:
+    legalDocumentVersionCreatedFromVersionAuditMetadataSchema,
 } as const;
 
 export function parseLegalAdminAuditMetadata(

@@ -107,6 +107,7 @@ export type LegalRowIconAction =
   | "replaceDraft"
   | "uploadNew"
   | "restore"
+  | "createFromVersion"
   | "archive";
 
 export type LegalRowActions = {
@@ -115,25 +116,32 @@ export type LegalRowActions = {
 };
 
 /**
- * Restore rules for an archived version:
- * - previously published → only if no newer published version exists
- * - never published (archived draft) → only if no other draft exists
+ * Restore is only for never-published archived drafts, and only if no other draft exists.
+ * Previously published archived versions are immutable historical records.
  */
 export function canRestoreArchivedVersion(
   version: LegalDocumentVersionSummary,
   doc: LegalDocumentDefinitionResponse
 ): boolean {
   if (version.status !== "ARCHIVED") return false;
-
-  if (version.publishedAt) {
-    const published = latestPublishedVersion(doc);
-    if (published && published.version > version.version) return false;
-    if (published && published.id !== version.id) return false;
-    return true;
-  }
+  if (version.publishedAt) return false;
 
   const draft = latestDraftVersion(doc);
   if (draft && draft.id !== version.id) return false;
+  return true;
+}
+
+/**
+ * Create a new DRAFT from a previously published archived version.
+ * Hidden when a draft already exists (API also returns 409 DRAFT_EXISTS).
+ */
+export function canCreateVersionFromArchivedPublished(
+  version: LegalDocumentVersionSummary,
+  doc: LegalDocumentDefinitionResponse
+): boolean {
+  if (version.status !== "ARCHIVED") return false;
+  if (!version.publishedAt) return false;
+  if (latestDraftVersion(doc)) return false;
   return true;
 }
 
@@ -144,9 +152,15 @@ export function getLegalDocumentRowActions(
     hasCurrentVersion: boolean;
     hasDraft: boolean;
     canRestore?: boolean;
+    canCreateFromVersion?: boolean;
   }
 ): LegalRowActions {
-  const { hasCurrentVersion, hasDraft, canRestore = false } = options;
+  const {
+    hasCurrentVersion,
+    hasDraft,
+    canRestore = false,
+    canCreateFromVersion = false,
+  } = options;
 
   if (status === "DRAFT") {
     return {
@@ -177,6 +191,7 @@ export function getLegalDocumentRowActions(
     icons: [
       ...(hasCurrentVersion ? (["download"] as LegalRowIconAction[]) : []),
       ...(canRestore ? (["restore"] as LegalRowIconAction[]) : []),
+      ...(canCreateFromVersion ? (["createFromVersion"] as LegalRowIconAction[]) : []),
       "uploadNew",
     ],
   };

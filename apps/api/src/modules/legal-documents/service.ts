@@ -2,6 +2,7 @@ import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
 import {
+  copyS3Object,
   deleteS3Object,
   generateLegalDocumentKey,
   generatePresignedDownloadUrl,
@@ -14,7 +15,6 @@ import {
   isLegalDocumentS3Key,
   sanitizeS3KeyForLog,
 } from "../../lib/s3/legal-document-object";
-import { resolveActivePublishedByDocumentId } from "./active-published";
 import type { LegalAdminAuditContext } from "./audit/context";
 import { LEGAL_ADMIN_ARCHIVE_REASON } from "./audit/events";
 import {
@@ -22,6 +22,7 @@ import {
   writeLegalDocumentUpdatedAudit,
   writeLegalDocumentVersionArchivedAudit,
   writeLegalDocumentVersionFileReplacedAudit,
+  writeLegalDocumentVersionCreatedFromVersionAudit,
   writeLegalDocumentVersionPublishedAudit,
   writeLegalDocumentVersionRestoredAudit,
   writeLegalDocumentVersionUploadedAudit,
@@ -505,8 +506,8 @@ export class LegalDocumentService {
     if (!existing) {
       throw new AppError(404, "NOT_FOUND", "Legal document version not found");
     }
-    if (existing.status !== "DRAFT" && existing.status !== "ARCHIVED") {
-      throw new AppError(400, "INVALID_STATUS", "Only draft or archived versions can be published");
+    if (existing.status !== "DRAFT") {
+      throw new AppError(400, "INVALID_STATUS", "Only draft versions can be published");
     }
     if (!existing.file_hash) {
       throw new AppError(
@@ -595,7 +596,7 @@ export class LegalDocumentService {
   /**
    * Restore an archived version:
    * - never-published archive → Draft (blocked if another draft exists)
-   * - previously published archive → Published (blocked if a newer published version exists)
+   * - previously published archive → immutable; use createVersionFromArchivedPublished
    */
   async restoreVersion(versionId: string, adminUserId: string, context: LegalAdminAuditContext) {
     const existing = await legalDocumentRepository.findVersionById(versionId);
@@ -606,56 +607,12 @@ export class LegalDocumentService {
       throw new AppError(400, "INVALID_STATUS", "Only archived versions can be restored");
     }
 
-    const wasPublished = Boolean(existing.published_at);
-
-    if (wasPublished) {
-      const currentPublished = await resolveActivePublishedByDocumentId(
-        existing.legal_document_id
+    if (existing.published_at) {
+      throw new AppError(
+        409,
+        "VERSION_IMMUTABLE",
+        "Previously published versions cannot be restored. Create a new version from this version instead."
       );
-      if (currentPublished && currentPublished.version > existing.version) {
-        throw new AppError(
-          409,
-          "NEWER_PUBLISHED_EXISTS",
-          "A newer published version already exists. Upload a new version instead."
-        );
-      }
-
-      const documentType = existing.legal_document.type as LegalDocumentType;
-
-      const published = await prisma.$transaction(async (tx) => {
-        const previouslyPublished = await legalDocumentRepository.findAllPublishedByDocumentId(
-          existing.legal_document_id,
-          versionId,
-          tx
-        );
-
-        const next = await legalDocumentRepository.publishVersion(
-          versionId,
-          existing.legal_document_id,
-          adminUserId,
-          existing.reacceptance_required,
-          tx
-        );
-
-        for (const archived of previouslyPublished) {
-          await writeLegalDocumentVersionArchivedAudit(
-            tx,
-            {
-              legalDocumentId: existing.legal_document_id,
-              documentType,
-              version: archived,
-              previousStatus: "PUBLISHED",
-              reasonCode: LEGAL_ADMIN_ARCHIVE_REASON.AUTO_ARCHIVED_ON_RESTORE_PUBLISH,
-            },
-            context
-          );
-        }
-
-        await writeLegalDocumentVersionRestoredAudit(tx, next, "PUBLISHED", context);
-        return next;
-      });
-
-      return toVersionResponse(published);
     }
 
     const currentDraft = await legalDocumentRepository.findDraftByDocumentId(
@@ -676,6 +633,135 @@ export class LegalDocumentService {
     });
 
     return toVersionResponse(restored);
+  }
+
+  /**
+   * Copy an archived previously-published version into a new DRAFT row.
+   * Source version, timestamps, publishers, and acceptances are left untouched.
+   */
+  async createVersionFromArchivedPublished(
+    sourceVersionId: string,
+    adminUserId: string,
+    context: LegalAdminAuditContext
+  ) {
+    const source = await legalDocumentRepository.findVersionById(sourceVersionId);
+    if (!source) {
+      throw new AppError(404, "NOT_FOUND", "Legal document version not found");
+    }
+    if (source.status !== "ARCHIVED" || !source.published_at) {
+      throw new AppError(
+        400,
+        "INVALID_STATUS",
+        "Only previously published archived versions can be used to create a new version"
+      );
+    }
+    if (!source.file_hash) {
+      throw new AppError(
+        400,
+        "HASH_REQUIRED",
+        "Source version is missing a server-generated file hash"
+      );
+    }
+    if (!isLegalDocumentS3Key(source.s3_key)) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid S3 key for legal document");
+    }
+
+    const currentDraft = await legalDocumentRepository.findDraftByDocumentId(
+      source.legal_document_id
+    );
+    if (currentDraft) {
+      throw new AppError(
+        409,
+        "DRAFT_EXISTS",
+        "Another draft already exists for this legal document."
+      );
+    }
+
+    const latestVersion = await legalDocumentRepository.getLatestVersionNumber(
+      source.legal_document_id
+    );
+    const newVersionNumber = latestVersion + 1;
+    const extension = getFileExtension(source.file_name) || "pdf";
+    const destKey = generateLegalDocumentKey({
+      type: source.legal_document.type,
+      version: newVersionNumber,
+      cuid: this.generateCuid(),
+      extension,
+    });
+
+    if (!isLegalDocumentS3Key(destKey)) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid S3 key for legal document");
+    }
+
+    try {
+      await copyS3Object({ sourceKey: source.s3_key, destinationKey: destKey });
+    } catch (error) {
+      logger.warn(
+        {
+          sourceKeyPreview: sanitizeS3KeyForLog(source.s3_key),
+          destKeyPreview: sanitizeS3KeyForLog(destKey),
+          errName: error instanceof Error ? error.name : "unknown",
+        },
+        "Legal document S3 copy failed"
+      );
+      throw new AppError(502, "S3_COPY_FAILED", "Could not copy the source document file");
+    }
+
+    let verified: { fileHash: string; fileSize: number };
+    try {
+      verified = await assertStoredLegalPdf({
+        s3Key: destKey,
+        claimedFileSize: source.file_size,
+      });
+    } catch (error) {
+      await this.tryDeleteUnreferencedUpload(destKey, "clone-hash-or-validation-failed");
+      throw error;
+    }
+
+    if (verified.fileHash !== source.file_hash) {
+      await this.tryDeleteUnreferencedUpload(destKey, "clone-hash-mismatch");
+      throw new AppError(
+        400,
+        "HASH_MISMATCH",
+        "Copied file hash does not match the source version"
+      );
+    }
+
+    let created: VersionWithDocument;
+    try {
+      created = await prisma.$transaction(async (tx) => {
+        const row = await legalDocumentRepository.createVersion(
+          source.legal_document_id,
+          newVersionNumber,
+          {
+            s3Key: destKey,
+            fileName: source.file_name,
+            contentType: source.content_type,
+            fileSize: verified.fileSize,
+            fileHash: verified.fileHash,
+          },
+          adminUserId,
+          tx
+        );
+        await writeLegalDocumentVersionCreatedFromVersionAudit(tx, source, row, context);
+        return row;
+      });
+    } catch (error) {
+      await this.tryDeleteUnreferencedUpload(destKey, "clone-db-failed");
+      throw error;
+    }
+
+    logger.info(
+      {
+        sourceVersionId,
+        newVersionId: created.id,
+        newVersionNumber,
+        legalDocumentId: source.legal_document_id,
+      },
+      "Legal document version created from archived published version"
+    );
+
+    return toVersionResponse(created);
   }
 
   async getAdminDownloadUrl(versionId: string) {

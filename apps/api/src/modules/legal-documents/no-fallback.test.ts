@@ -25,7 +25,7 @@ export function resolveActivePublished(versions: SimVersion[]): SimVersion | nul
 export function publishVersion(versions: SimVersion[], versionId: string): SimVersion[] {
   const target = versions.find((v) => v.id === versionId);
   if (!target) throw new Error("not found");
-  if (target.status !== "DRAFT" && target.status !== "ARCHIVED") {
+  if (target.status !== "DRAFT") {
     throw new Error("invalid status");
   }
 
@@ -121,5 +121,24 @@ describe("legal documents no-fallback invariant", () => {
       "v3",
     ]);
     expect(resolveActivePublished(versions)?.id).toBe("v3");
+  });
+
+  it("does not republish an archived previously published version onto the same row", () => {
+    const versions: SimVersion[] = [
+      {
+        id: "v1",
+        version: 1,
+        status: "ARCHIVED",
+        publishedAt: "2026-08-01T00:00:00.000Z",
+      },
+      {
+        id: "v2",
+        version: 2,
+        status: "PUBLISHED",
+        publishedAt: "2026-08-02T00:00:00.000Z",
+      },
+    ];
+    expect(() => publishVersion(versions, "v1")).toThrow("invalid status");
+    expect(resolveActivePublished(versions)?.id).toBe("v2");
   });
 });

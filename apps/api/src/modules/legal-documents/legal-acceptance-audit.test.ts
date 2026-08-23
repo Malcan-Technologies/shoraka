@@ -37,6 +37,7 @@ jest.mock("../../lib/s3/client", () => ({
   getFileExtension: jest.fn(() => "pdf"),
   validatePdfUpload: jest.fn(() => ({ valid: true })),
   deleteS3Object: jest.fn(),
+  copyS3Object: jest.fn(),
 }));
 
 jest.mock("../../lib/s3/legal-document-object", () => ({
@@ -597,73 +598,7 @@ describe("legal acceptance audit trail", () => {
       );
     });
 
-    it("restore archived version to published auto-archives current version with audit trail", async () => {
-      jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
-        publishedVersion({
-          id: "ver3",
-          version: 3,
-          status: "ARCHIVED",
-          published_at: new Date("2026-08-01"),
-          archived_at: new Date("2026-08-02"),
-          archived_by: "admin1",
-        }) as never
-      );
-      jest.spyOn(legalDocumentRepository, "findPublishedByDocumentId").mockResolvedValue(
-        publishedVersion({ id: "ver2", version: 2, status: "PUBLISHED" }) as never
-      );
-      jest.spyOn(legalDocumentRepository, "findAllPublishedByDocumentId").mockResolvedValue([
-        {
-          id: "ver2",
-          version: 2,
-          file_hash: "ver2-hash",
-          file_name: "v2.pdf",
-          content_type: "application/pdf",
-          file_size: 100,
-        },
-      ]);
-      jest.spyOn(legalDocumentRepository, "publishVersion").mockResolvedValue(
-        publishedVersion({
-          id: "ver3",
-          status: "PUBLISHED",
-          version: 3,
-        }) as never
-      );
-      (prisma.legalAdminAuditLog.create as jest.Mock).mockClear();
-
-      await legalDocumentService.restoreVersion("ver3", "admin1", adminContext());
-
-      const rows = auditCreateData();
-      const archiveRows = rows.filter((row) => row.event_type === "LEGAL_DOCUMENT_VERSION_ARCHIVED");
-      expect(archiveRows).toHaveLength(1);
-      expect(archiveRows[0]).toEqual(
-        expect.objectContaining({
-          event_type: "LEGAL_DOCUMENT_VERSION_ARCHIVED",
-          legal_document_version_id: "ver2",
-          metadata: expect.objectContaining({
-            versionNumber: 2,
-            fileHash: "ver2-hash",
-            reasonCode: "AUTO_ARCHIVED_ON_RESTORE_PUBLISH",
-            previousStatus: "PUBLISHED",
-            newStatus: "ARCHIVED",
-          }),
-        })
-      );
-      expect(rows.some((row) => row.event_type === "LEGAL_DOCUMENT_VERSION_RESTORED")).toBe(true);
-      expect(
-        rows.find((row) => row.event_type === "LEGAL_DOCUMENT_VERSION_RESTORED")
-      ).toEqual(
-        expect.objectContaining({
-          legal_document_version_id: "ver3",
-          metadata: expect.objectContaining({
-            restoredAs: "PUBLISHED",
-            previousStatus: "ARCHIVED",
-            newStatus: "PUBLISHED",
-          }),
-        })
-      );
-    });
-
-    it("restore archived version to published without another published version creates no archive audit", async () => {
+    it("refuses to restore a previously published archived version", async () => {
       jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
         publishedVersion({
           id: "ver1",
@@ -672,28 +607,69 @@ describe("legal acceptance audit trail", () => {
           published_at: new Date("2026-08-01"),
           archived_at: new Date("2026-08-02"),
           archived_by: "admin1",
+          file_hash: "hash123",
         }) as never
-      );
-      jest.spyOn(legalDocumentRepository, "findPublishedByDocumentId").mockResolvedValue(null);
-      jest.spyOn(legalDocumentRepository, "findAllPublishedByDocumentId").mockResolvedValue([]);
-      jest.spyOn(legalDocumentRepository, "publishVersion").mockResolvedValue(
-        publishedVersion({ id: "ver1", status: "PUBLISHED", version: 1 }) as never
       );
       (prisma.legalAdminAuditLog.create as jest.Mock).mockClear();
 
-      await legalDocumentService.restoreVersion("ver1", "admin1", adminContext());
+      await expect(
+        legalDocumentService.restoreVersion("ver1", "admin1", adminContext())
+      ).rejects.toMatchObject({ code: "VERSION_IMMUTABLE" });
+      expect(auditCreateData()).toHaveLength(0);
+    });
+
+    it("create-from-version writes LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION", async () => {
+      jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+        publishedVersion({
+          id: "ver1",
+          version: 1,
+          status: "ARCHIVED",
+          published_at: new Date("2026-08-01"),
+          archived_at: new Date("2026-08-02"),
+          archived_by: "admin1",
+          file_hash: "hash123",
+          file_name: "v1.pdf",
+        }) as never
+      );
+      jest.spyOn(legalDocumentRepository, "findDraftByDocumentId").mockResolvedValue(null);
+      jest.spyOn(legalDocumentRepository, "getLatestVersionNumber").mockResolvedValue(2);
+      jest.spyOn(legalDocumentRepository, "createVersion").mockResolvedValue(
+        publishedVersion({
+          id: "ver3",
+          version: 3,
+          status: "DRAFT",
+          published_at: null,
+          published_by: null,
+          archived_at: null,
+          archived_by: null,
+          file_hash: "hash123",
+          file_name: "v1.pdf",
+        }) as never
+      );
+      (prisma.legalAdminAuditLog.create as jest.Mock).mockClear();
+
+      await legalDocumentService.createVersionFromArchivedPublished(
+        "ver1",
+        "admin1",
+        adminContext()
+      );
 
       const rows = auditCreateData();
-      expect(rows.filter((row) => row.event_type === "LEGAL_DOCUMENT_VERSION_ARCHIVED")).toHaveLength(
-        0
-      );
-      expect(rows).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            event_type: "LEGAL_DOCUMENT_VERSION_RESTORED",
-            metadata: expect.objectContaining({ restoredAs: "PUBLISHED" }),
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toEqual(
+        expect.objectContaining({
+          event_type: "LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION",
+          legal_document_version_id: "ver3",
+          metadata: expect.objectContaining({
+            sourceVersionId: "ver1",
+            sourceVersionNumber: 1,
+            newVersionId: "ver3",
+            newVersionNumber: 3,
+            fileHash: "hash123",
+            fileName: "v1.pdf",
+            status: "DRAFT",
           }),
-        ])
+        })
       );
     });
 

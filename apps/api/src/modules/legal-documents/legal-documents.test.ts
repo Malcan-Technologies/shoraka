@@ -71,6 +71,7 @@ jest.mock("../../lib/s3/client", () => ({
   getFileExtension: jest.fn(() => "pdf"),
   validatePdfUpload: jest.fn(() => ({ valid: true })),
   deleteS3Object: jest.fn(async () => undefined),
+  copyS3Object: jest.fn(async () => undefined),
 }));
 
 jest.mock("../../lib/s3/legal-document-object", () => ({
@@ -91,7 +92,7 @@ import { legalDocumentAcceptanceService } from "./acceptance-service";
 import { legalDocumentRepository } from "./repository";
 import { legalDocumentService } from "./service";
 import { createLegalDocumentSchema } from "./schemas";
-import { deleteS3Object, validatePdfUpload } from "../../lib/s3/client";
+import { copyS3Object, deleteS3Object, validatePdfUpload } from "../../lib/s3/client";
 import { assertStoredLegalPdf } from "../../lib/s3/legal-document-object";
 import { auditContextForActor } from "./audit/context";
 
@@ -851,7 +852,7 @@ describe("legal document acceptance service", () => {
     expect(restored.status).toBe("DRAFT");
   });
 
-  it("blocks restore of archived published when a newer published exists", async () => {
+  it("blocks restore of a previously published archived version", async () => {
     jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
       publishedVersion({
         id: "ver1",
@@ -862,17 +863,209 @@ describe("legal document acceptance service", () => {
         archived_by: "admin1",
       }) as never
     );
-    jest.spyOn(legalDocumentRepository, "findPublishedByDocumentId").mockResolvedValue(
-      publishedVersion({
-        id: "ver2",
-        version: 2,
-        status: "PUBLISHED",
-      }) as never
-    );
+    const restoreToDraft = jest
+      .spyOn(legalDocumentRepository, "restoreVersionToDraft")
+      .mockResolvedValue(publishedVersion() as never);
+    const publish = jest
+      .spyOn(legalDocumentRepository, "publishVersion")
+      .mockResolvedValue(publishedVersion() as never);
 
     await expect(
       legalDocumentService.restoreVersion("ver1", "admin1", adminContext())
-    ).rejects.toMatchObject({ code: "NEWER_PUBLISHED_EXISTS" });
+    ).rejects.toMatchObject({ code: "VERSION_IMMUTABLE" });
+    expect(restoreToDraft).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  it("rejects publishing an archived version even if the API is called directly", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+      publishedVersion({
+        id: "ver1",
+        status: "ARCHIVED",
+        published_at: new Date("2026-08-01"),
+      }) as never
+    );
+
+    const publish = jest
+      .spyOn(legalDocumentRepository, "publishVersion")
+      .mockResolvedValue(publishedVersion() as never);
+
+    await expect(
+      legalDocumentService.publishVersion(
+        "ver1",
+        { reacceptanceRequired: false },
+        "admin1",
+        adminContext()
+      )
+    ).rejects.toMatchObject({ code: "INVALID_STATUS" });
+    expect(publish).not.toHaveBeenCalled();
+  });
+
+  const clonedFileHash = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+  it("creates a new draft from an archived published version without mutating the source", async () => {
+    const source = publishedVersion({
+      id: "ver1",
+      version: 1,
+      status: "ARCHIVED",
+      published_at: new Date("2026-08-01"),
+      published_by: "admin-original",
+      archived_at: new Date("2026-08-02"),
+      archived_by: "admin1",
+      file_hash: clonedFileHash,
+      file_name: "pdpa-v1.pdf",
+      s3_key: "legal-documents/pdpa/v1.pdf",
+      reacceptance_required: true,
+    });
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(source as never);
+    jest.spyOn(legalDocumentRepository, "findDraftByDocumentId").mockResolvedValue(null);
+    jest.spyOn(legalDocumentRepository, "getLatestVersionNumber").mockResolvedValue(2);
+    const createVersion = jest.spyOn(legalDocumentRepository, "createVersion").mockResolvedValue(
+      publishedVersion({
+        id: "ver3",
+        version: 3,
+        status: "DRAFT",
+        published_at: null,
+        published_by: null,
+        archived_at: null,
+        archived_by: null,
+        file_hash: clonedFileHash,
+        file_name: "pdpa-v1.pdf",
+        s3_key: "legal-documents/pdpa-notice-and-consent/v3-2026-01-01-cuid.pdf",
+        reacceptance_required: false,
+        uploaded_by: "admin1",
+      }) as never
+    );
+    (prisma.legalDocumentAcceptance.update as jest.Mock).mockClear();
+    (prisma.legalDocumentAcceptance.deleteMany as jest.Mock).mockClear();
+    const restoreToDraft = jest.spyOn(legalDocumentRepository, "restoreVersionToDraft");
+    const publish = jest.spyOn(legalDocumentRepository, "publishVersion");
+
+    const created = await legalDocumentService.createVersionFromArchivedPublished(
+      "ver1",
+      "admin1",
+      adminContext()
+    );
+
+    expect(created.id).toBe("ver3");
+    expect(created.version).toBe(3);
+    expect(created.status).toBe("DRAFT");
+    expect(copyS3Object).toHaveBeenCalledWith({
+      sourceKey: "legal-documents/pdpa/v1.pdf",
+      destinationKey: expect.stringMatching(/^legal-documents\//),
+    });
+    expect(createVersion).toHaveBeenCalledWith(
+      "ld1",
+      3,
+      expect.objectContaining({
+        fileName: "pdpa-v1.pdf",
+        contentType: "application/pdf",
+        fileHash: clonedFileHash,
+        fileSize: 100,
+      }),
+      "admin1",
+      expect.anything()
+    );
+    expect(createVersion.mock.calls[0][2]).not.toHaveProperty("publishedAt");
+    expect(prisma.legalDocumentAcceptance.update).not.toHaveBeenCalled();
+    expect(prisma.legalDocumentAcceptance.deleteMany).not.toHaveBeenCalled();
+    expect(restoreToDraft).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+    expect(source.status).toBe("ARCHIVED");
+    expect(source.published_at).toEqual(new Date("2026-08-01"));
+    expect(source.published_by).toBe("admin-original");
+    expect(source.archived_at).toEqual(new Date("2026-08-02"));
+    expect(source.archived_by).toBe("admin1");
+    expect(prisma.legalAdminAuditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          event_type: "LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION",
+          legal_document_version_id: "ver3",
+          metadata: expect.objectContaining({
+            sourceVersionId: "ver1",
+            sourceVersionNumber: 1,
+            newVersionId: "ver3",
+            newVersionNumber: 3,
+            fileHash: clonedFileHash,
+            fileName: "pdpa-v1.pdf",
+            status: "DRAFT",
+          }),
+        }),
+      })
+    );
+  });
+
+  it("rejects create-from-version when a draft already exists", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+      publishedVersion({
+        id: "ver1",
+        status: "ARCHIVED",
+        published_at: new Date("2026-08-01"),
+        file_hash: clonedFileHash,
+      }) as never
+    );
+    jest.spyOn(legalDocumentRepository, "findDraftByDocumentId").mockResolvedValue(
+      publishedVersion({ id: "ver-draft", status: "DRAFT", published_at: null }) as never
+    );
+    const createVersion = jest.spyOn(legalDocumentRepository, "createVersion");
+
+    await expect(
+      legalDocumentService.createVersionFromArchivedPublished("ver1", "admin1", adminContext())
+    ).rejects.toMatchObject({ code: "DRAFT_EXISTS" });
+    expect(createVersion).not.toHaveBeenCalled();
+    expect(copyS3Object).not.toHaveBeenCalled();
+  });
+
+  it("does not treat V1 acceptance as acceptance of a cloned published V3", async () => {
+    const v3 = publishedVersion({
+      id: "ver3",
+      version: 3,
+      status: "PUBLISHED",
+      file_hash: clonedFileHash,
+      reacceptance_required: true,
+    });
+    jest
+      .spyOn(legalDocumentRepository, "findPublishedByTypeAndAudiences")
+      .mockImplementation(async (type) =>
+        type === "PDPA_NOTICE_AND_CONSENT" ? (v3 as never) : null
+      );
+    jest
+      .spyOn(legalDocumentRepository, "findPublishedReacceptanceByTypeAndAudiences")
+      .mockImplementation(async (type) =>
+        type === "PDPA_NOTICE_AND_CONSENT" ? (v3 as never) : null
+      );
+    (prisma.issuerOrganization.findFirst as jest.Mock).mockResolvedValue({
+      id: "org1",
+      owner_user_id: "u1",
+      tnc_accepted: true,
+      onboarding_status: "COMPLETED",
+      name: "Acme Issuer",
+      type: "COMPANY",
+    });
+    (prisma.legalDocumentAcceptance.findFirst as jest.Mock).mockImplementation(
+      async ({ where }: { where: { legal_document_version_id?: string } }) => {
+        if (where.legal_document_version_id === "ver1") {
+          return { id: "acc-v1", status: "ACCEPTED", legal_document_version_id: "ver1" };
+        }
+        return null;
+      }
+    );
+
+    const required = await legalDocumentAcceptanceService.getRequiredDocuments(
+      "u1",
+      "org1",
+      "ISSUER"
+    );
+    expect(required.documents[0]?.legalDocumentVersionId).toBe("ver3");
+    expect(required.documents[0]?.acceptance_status).not.toBe("ACCEPTED");
+    expect(required.all_accepted).toBe(false);
+
+    const pending = await legalDocumentAcceptanceService.getPendingReacceptanceDocuments(
+      "u1",
+      "org1",
+      "ISSUER"
+    );
+    expect(pending.map((doc) => doc.legalDocumentVersionId)).toContain("ver3");
   });
 
   it("replaces draft PDF in place without creating a new version number", async () => {

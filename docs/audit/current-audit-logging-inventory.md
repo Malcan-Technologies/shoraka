@@ -27,9 +27,9 @@ Removed runtime stores (do not document as active): `ApplicationLog`, `NoteEvent
 
 ## Catalogue counts (source)
 
-**Mechanical recount (2026-08-23, working tree `199ecb07`, clean).** Re-extracted every `*_AUDIT_EVENTS` / `RETIRED_*_AUDIT_EVENTS` array, Prisma `@@map` audit tables, and catalogue `# A### — EVENT` headings. Result is unchanged from the living counts below: **178** reserved, **170** active, **8** retired. Catalogue headings match source event names **178/178**. Previous baseline **174** was the original A001–A174 cutover reserved set; it is not current. A175–A178 were appended later. Do not force the catalogue back to 174.
+**Mechanical recount (2026-08-23, after A179).** Re-extracted every `*_AUDIT_EVENTS` / `RETIRED_*_AUDIT_EVENTS` array, Prisma `@@map` audit tables, and catalogue `# A### — EVENT` headings. Living counts: **179** reserved, **171** active, **8** retired. Catalogue headings match source event names **179/179**. Previous baseline **174** was the original A001–A174 cutover reserved set; it is not current. A175–A178 were appended earlier; A179 `LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION` was appended for Legal clone-from-archived-published. Do not force the catalogue back to 174.
 
-Reserved IDs **A001–A178** (**178**). Active writers **170**. Retired IDs (readable historical rows, IDs not reused): A004 `USER_ROLE_ADDED`, A005 `ACTIVE_ROLE_CHANGED`, A010 `USER_EMAIL_VERIFIED`, A011 `EMAIL_VERIFICATION_FAILED`, A016 `USER_ROLES_UPDATED`, A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`. Retired total: **8**.
+Reserved IDs **A001–A179** (**179**). Active writers **171**. Retired IDs (readable historical rows, IDs not reused): A004 `USER_ROLE_ADDED`, A005 `ACTIVE_ROLE_CHANGED`, A010 `USER_EMAIL_VERIFIED`, A011 `EMAIL_VERIFICATION_FAILED`, A016 `USER_ROLES_UPDATED`, A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`. Retired total: **8**.
 
 **Reserved vs active.** A reserved ID is a stable catalogue/Zod definition so historical rows still parse. An active writer is a current production `eventType` call site. Retired IDs stay reserved and are never reused. Security still has **35 reserved** event definitions; it has **30** live writers because A004, A005, A010, A011, and A016 are retired. Do not describe Security as a 30-event catalogue.
 
@@ -38,14 +38,14 @@ Reserved IDs **A001–A178** (**178**). Active writers **170**. Retired IDs (rea
 | Access | 3 | 3 | `apps/api/src/modules/auth/audit/events.ts` |
 | Security | 35 | 30 | `apps/api/src/modules/security/audit/events.ts` |
 | Onboarding | 18 | 15 | `apps/api/src/modules/onboarding/audit/events.ts` |
-| Legal | 7 | 7 | `apps/api/src/modules/legal-documents/audit/events.ts` |
+| Legal | 8 | 8 | `apps/api/src/modules/legal-documents/audit/events.ts` |
 | Application | 41 | 41 | `apps/api/src/modules/applications/audit/events.ts` |
 | Signing | 12 | 12 | `apps/api/src/modules/signing/audit/events.ts` |
 | Note | 37 | 37 | `apps/api/src/modules/notes/audit/events.ts` |
 | Payment | 19 | 19 | `apps/api/src/modules/payment/audit/events.ts` |
 | Product | 5 | 5 | `apps/api/src/modules/products/audit/events.ts` |
 | Notification | 1 | 1 | `apps/api/src/modules/notification/audit/events.ts` |
-| **TOTAL** | **178** | **170** | |
+| **TOTAL** | **179** | **171** | |
 
 Per-event cards: `docs/audit/audit-manual-verification-catalogue.md`.
 
@@ -300,7 +300,7 @@ Phase banners below still describe the live tables after the AuditLog cutover. T
 - `NoteAdminAction` / `note_admin_actions` **removed**.
 - Title/summary-only edits, featured settings, and prospectus draft saves remain intentionally unaudited.
 - Investor-wallet withdrawals are PaymentAuditLog (Phase 9). GatewayPayment events are PaymentAuditLog.
-- There is **no** canonical/global `AuditEvent` table. Live catalogue: **178** reserved IDs, **170** active writers, **8** retired (A004/A005/A010/A011/A016/A040/A052/A053). A175 is OnboardingAuditLog. A176/A177 are NoteAuditLog. A178 / APP-041 is ApplicationAuditLog occupancy (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`; dual-ledger `before`/`after`; no APP-042).
+- There is **no** canonical/global `AuditEvent` table. Live catalogue: **179** reserved IDs, **171** active writers, **8** retired (A004/A005/A010/A011/A016/A040/A052/A053). A175 is OnboardingAuditLog. A176/A177 are NoteAuditLog. A178 / APP-041 is ApplicationAuditLog occupancy (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`; dual-ledger `before`/`after`; no APP-042). A179 / LEG-008 is LegalAdminAuditLog `LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION`.
 
 ---
 
@@ -338,7 +338,7 @@ Known limitations (not fixed in the cleanup):
 - `LegalDocumentAcceptance` remains legal acceptance source of truth.
 - CTOS report rows remain report source of truth.
 - Audit is never workflow state. No User/org/RegTank FKs on `OnboardingAuditLog` (scalar historical ids only). Append-only create.
-- Reserved onboarding IDs: **18** = original A039–A055 plus later-appended A175 (`ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`). Current active onboarding event types: **15**. Retired / no current writer: `ONBOARDING_RESUMED` (A040), `CTOS_REPORT_RECEIVED` (A052), and `CORPORATE_ENTITIES_UPDATED` (A053). Historical rows remain readable. IDs are not reused. Live catalogue is **178** reserved IDs (A001–A178) with **170** active writers. Security A004 `USER_ROLE_ADDED`, A005 `ACTIVE_ROLE_CHANGED`, A010 `USER_EMAIL_VERIFIED`, A011 `EMAIL_VERIFICATION_FAILED`, and A016 `USER_ROLES_UPDATED` are retired (no live writers).
+- Reserved onboarding IDs: **18** = original A039–A055 plus later-appended A175 (`ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`). Current active onboarding event types: **15**. Retired / no current writer: `ONBOARDING_RESUMED` (A040), `CTOS_REPORT_RECEIVED` (A052), and `CORPORATE_ENTITIES_UPDATED` (A053). Historical rows remain readable. IDs are not reused. Live catalogue is **179** reserved IDs (A001–A179) with **171** active writers. Security A004 `USER_ROLE_ADDED`, A005 `ACTIVE_ROLE_CHANGED`, A010 `USER_EMAIL_VERIFIED`, A011 `EMAIL_VERIFICATION_FAILED`, and A016 `USER_ROLES_UPDATED` are retired (no live writers).
 - Onboarding audit records CashSouk business actions, stages, decisions, and outcomes. Detailed provider synchronization remains in its source-of-truth storage (`corporate_entities`, `director_kyc_status`, `RegTankOnboarding.webhook_payloads`) and is not duplicated as onboarding audit noise.
 - `DIRECTOR_KYC_STATUS_UPDATED` writes only when an existing director newly becomes `APPROVED` or `REJECTED`.
 - `ONBOARDING_STATUS_CHANGED` is the core stage event, including review landing, amendment requested, and amendment resubmission. Admin Organization contextual history includes it. Dedicated SSM/AML/approval/final/reject/restart events do not also write a sibling A044 row.
@@ -476,7 +476,7 @@ Sole security/admin-control table. Distinguishes `actor_user_id` vs `subject_use
 
 Sole onboarding/compliance history table. Append-only create. Required `metadata` Json. `occurred_at` + `created_at`. No `updated_at`. No User/org/RegTank FKs (scalar historical ids only).  
 Reserved IDs (18): original A039–A055 plus appended A175 `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`. Types: `ONBOARDING_STARTED`, `ONBOARDING_RESUMED` (retired, historical rows readable), `ONBOARDING_RESTARTED`, `ONBOARDING_RESET`, `USER_ONBOARDING_STATUS_UPDATED`, `ONBOARDING_STATUS_CHANGED`, `ONBOARDING_APPROVED`, `ONBOARDING_REJECTED`, `ONBOARDING_FINAL_APPROVAL_COMPLETED`, `ONBOARDING_COMPLETED`, `AML_APPROVED`, `SSM_APPROVED`, `INVESTOR_SOPHISTICATED_STATUS_UPDATED`, `CTOS_REPORT_RECEIVED` (retired, `ctos_reports` still persisted), `CORPORATE_ENTITIES_UPDATED` (retired, `corporate_entities` still persisted), `DIRECTOR_ONBOARDING_INVITATION_SENT`, `DIRECTOR_KYC_STATUS_UPDATED` (APPROVED/REJECTED outcomes only), `ORGANIZATION_PROFILE_UPDATED_BY_ADMIN`.
-Current active onboarding event types: **15**. `AML_APPROVED.onboarding_id` is optional linkage to `reg_tank_onboarding.id` when the writer already knows the session. **REMOVED:** `OnboardingLog` / `onboarding_logs`. Audit is never workflow state. There is **no** canonical/global `AuditEvent` table. Live catalogue: **178** reserved / **170** active / **8** retired.
+Current active onboarding event types: **15**. `AML_APPROVED.onboarding_id` is optional linkage to `reg_tank_onboarding.id` when the writer already knows the session. **REMOVED:** `OnboardingLog` / `onboarding_logs`. Audit is never workflow state. There is **no** canonical/global `AuditEvent` table. Live catalogue: **179** reserved / **171** active / **8** retired.
 
 #### ApplicationAuditLog → `application_audit_logs` · APPLICATION · **A**
 
@@ -565,7 +565,7 @@ Create-only for bulk send. Legacy `NotificationLog` / `notification_logs` has be
 
 ## 4. Complete Business Mutation Inventory
 
-IDs are report-only original inventory case numbers (A001…). They are **not** the current catalogue A001–A178 IDs (for example, original case A049 here is admin refresh-corporate-entities, while catalogue A049 is `AML_APPROVED`). Trigger paths in this section were captured before Phase 4 Access/Security cutover. **Current writers are AccessAuditLog / SecurityAuditLog / OnboardingAuditLog as documented in the header and §5–§7.** Historical `LOGIN`/`access_logs` labels in the table below are not live.
+IDs are report-only original inventory case numbers (A001…). They are **not** the current catalogue A001–A179 IDs (for example, original case A049 here is admin refresh-corporate-entities, while catalogue A049 is `AML_APPROVED`). Trigger paths in this section were captured before Phase 4 Access/Security cutover. **Current writers are AccessAuditLog / SecurityAuditLog / OnboardingAuditLog as documented in the header and §5–§7.** Historical `LOGIN`/`access_logs` labels in the table below are not live.
 
 Actor: USER / ADMIN / SYSTEM / PROVIDER / EXTERNAL SIGNER / WEBHOOK.
 

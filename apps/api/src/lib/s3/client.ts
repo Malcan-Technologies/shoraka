@@ -4,6 +4,7 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  CopyObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { logger } from "../logger";
@@ -198,6 +199,42 @@ export async function deleteS3Object(key: string): Promise<void> {
 
   await client.send(command);
   logger.info({ key }, "Deleted S3 object");
+}
+
+/**
+ * Server-side copy of an existing object to a new key in the same bucket.
+ * Used when a new LegalDocumentVersion must not reuse a unique s3_key.
+ */
+export async function copyS3Object(params: {
+  sourceKey: string;
+  destinationKey: string;
+}): Promise<void> {
+  if (!params.sourceKey || !params.destinationKey) {
+    throw new Error("S3 copy requires source and destination keys");
+  }
+  if (params.sourceKey === params.destinationKey) {
+    throw new Error("S3 copy source and destination must differ");
+  }
+
+  const client = getS3Client();
+  const encodedSource = params.sourceKey
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+
+  await client.send(
+    new CopyObjectCommand({
+      Bucket: S3_BUCKET,
+      CopySource: `${S3_BUCKET}/${encodedSource}`,
+      Key: params.destinationKey,
+      MetadataDirective: "COPY",
+    })
+  );
+
+  logger.info(
+    { sourceKey: params.sourceKey, destinationKey: params.destinationKey },
+    "Copied S3 object"
+  );
 }
 
 /**

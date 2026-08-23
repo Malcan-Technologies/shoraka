@@ -240,6 +240,30 @@ router.post(
   }
 );
 
+router.post(
+  "/versions/:versionId/create-from-version",
+  requirePermission("document_management.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+      const version = await legalDocumentService.createVersionFromArchivedPublished(
+        req.params.versionId,
+        req.user.user_id,
+        auditContextFromAdminRequest(req, res)
+      );
+      res.status(201).json({
+        success: true,
+        data: { version },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.get(
   "/versions/:versionId/download",
   requirePermission("document_management.view"),

@@ -247,6 +247,14 @@ export class LegalDocumentRepository {
       SELECT id FROM legal_documents WHERE id = ${legalDocumentId} FOR UPDATE
     `;
 
+    const current = await client.legalDocumentVersion.findUnique({
+      where: { id: versionId },
+      select: { status: true },
+    });
+    if (!current || current.status !== "DRAFT") {
+      throw new Error("Only DRAFT versions can be published");
+    }
+
     // Only one active Published version may exist. Archive every other Published row.
     await client.legalDocumentVersion.updateMany({
       where: {
@@ -362,6 +370,14 @@ export class LegalDocumentRepository {
   }
 
   async restoreVersionToDraft(versionId: string, client: DbClient = prisma) {
+    const existing = await client.legalDocumentVersion.findUnique({
+      where: { id: versionId },
+      select: { published_at: true, status: true },
+    });
+    if (!existing || existing.status !== "ARCHIVED" || existing.published_at) {
+      throw new Error("Only never-published archived versions can be restored to draft");
+    }
+
     return (await client.legalDocumentVersion.update({
       where: { id: versionId },
       data: {

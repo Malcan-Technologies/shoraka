@@ -66,6 +66,10 @@ const ACTION_OPTIONS: { value: LegalAdminAuditEventType; label: string }[] = [
   { value: "LEGAL_DOCUMENT_VERSION_PUBLISHED", label: "Version published" },
   { value: "LEGAL_DOCUMENT_VERSION_ARCHIVED", label: "Version archived" },
   { value: "LEGAL_DOCUMENT_VERSION_RESTORED", label: "Version restored" },
+  {
+    value: "LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION",
+    label: "Version created from version",
+  },
 ];
 
 function formatDate(dateStr: string): string {
@@ -435,6 +439,17 @@ export function LegalDocumentAuditPanel() {
                     value:
                       metadataNumber(selectedLog.metadata, "versionNumber") != null
                         ? `v${metadataNumber(selectedLog.metadata, "versionNumber")}`
+                        : metadataNumber(selectedLog.metadata, "newVersionNumber") !=
+                            null
+                          ? `v${metadataNumber(selectedLog.metadata, "newVersionNumber")}`
+                          : null,
+                  },
+                  {
+                    label: "Source version",
+                    value:
+                      metadataNumber(selectedLog.metadata, "sourceVersionNumber") !=
+                      null
+                        ? `v${metadataNumber(selectedLog.metadata, "sourceVersionNumber")}`
                         : null,
                   },
                   { label: "File hash", value: metadataString(selectedLog.metadata, "fileHash") },

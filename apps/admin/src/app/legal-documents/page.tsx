@@ -69,6 +69,7 @@ import {
   ArrowDownTrayIcon,
   CheckCircleIcon,
   ArrowUturnLeftIcon,
+  DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import {
@@ -90,6 +91,7 @@ import {
   buildCreateDefinitionPayload,
   buildEditDefinitionPayload,
   buildPublishDialogTitle,
+  canCreateVersionFromArchivedPublished,
   canRestoreArchivedVersion,
   createFormDefaultsForAvailableTypes,
   documentCurrentStatus,
@@ -218,6 +220,9 @@ export default function LegalDocumentsPage() {
   const [publishDialogOpen, setPublishDialogOpen] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = React.useState(false);
+  const [createFromVersionConfirmOpen, setCreateFromVersionConfirmOpen] =
+    React.useState(false);
+  const [creatingFromVersion, setCreatingFromVersion] = React.useState(false);
 
   const [selectedDefinition, setSelectedDefinition] =
     React.useState<LegalDocumentDefinitionResponse | null>(null);
@@ -622,12 +627,48 @@ export default function LegalDocumentsPage() {
       if (!result.success) {
         throw new Error(result.error?.message || "Failed to restore version");
       }
-      toast.success("Legal document version restored.");
+      toast.success("Legal document version restored to draft.");
       invalidate();
     } catch (error) {
       toast.error("Restore failed", {
         description: error instanceof Error ? error.message : "An error occurred",
       });
+    }
+  };
+
+  const openCreateFromVersionConfirm = (
+    doc: LegalDocumentDefinitionResponse,
+    version: LegalDocumentVersionSummary
+  ) => {
+    setSelectedDefinition(doc);
+    setSelectedVersion(version);
+    setCreateFromVersionConfirmOpen(true);
+  };
+
+  const handleCreateVersionFromArchived = async () => {
+    if (!selectedDefinition || !selectedVersion) return;
+    setCreatingFromVersion(true);
+    try {
+      const result = await apiClient.post<{ version: LegalDocumentVersionResponse }>(
+        `/v1/admin/legal-documents/versions/${selectedVersion.id}/create-from-version`,
+        {}
+      );
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to create version");
+      }
+      toast.success("New draft created from archived version.", {
+        description: `v${result.data.version.version} saved as draft. Review it, then publish when ready.`,
+      });
+      setCreateFromVersionConfirmOpen(false);
+      setSelectedDefinition(null);
+      setSelectedVersion(null);
+      invalidate();
+    } catch (error) {
+      toast.error("Could not create version", {
+        description: error instanceof Error ? error.message : "An error occurred",
+      });
+    } finally {
+      setCreatingFromVersion(false);
     }
   };
 
@@ -830,10 +871,14 @@ export default function LegalDocumentsPage() {
                       const canRestore = current
                         ? canRestoreArchivedVersion(current, doc)
                         : false;
+                      const canCreateFromVersion = current
+                        ? canCreateVersionFromArchivedPublished(current, doc)
+                        : false;
                       const actions = getLegalDocumentRowActions(status, {
                         hasCurrentVersion: Boolean(current),
                         hasDraft: Boolean(draft),
                         canRestore,
+                        canCreateFromVersion,
                       });
                       const showHistory = hasLegalVersionHistory(doc);
                       const deniedTitle =
@@ -898,11 +943,30 @@ export default function LegalDocumentsPage() {
                                 key={action}
                                 variant="ghost"
                                 size="sm"
-                                title={!canManage ? deniedTitle : "Restore"}
+                                title={!canManage ? deniedTitle : "Restore to draft"}
                                 disabled={!canManage}
                                 onClick={() => void handleRestoreVersion(doc, current)}
                               >
                                 <ArrowUturnLeftIcon className="h-4 w-4" />
+                              </Button>
+                            ) : null;
+                          case "createFromVersion":
+                            return current ? (
+                              <Button
+                                key={action}
+                                variant="ghost"
+                                size="sm"
+                                title={
+                                  !canManage
+                                    ? deniedTitle
+                                    : "Create New Version From This Version"
+                                }
+                                disabled={!canManage}
+                                onClick={() =>
+                                  openCreateFromVersionConfirm(doc, current)
+                                }
+                              >
+                                <DocumentDuplicateIcon className="h-4 w-4" />
                               </Button>
                             ) : null;
                           case "archive":
@@ -1547,6 +1611,46 @@ export default function LegalDocumentsPage() {
           </AlertDialogContent>
         </AlertDialog>
 
+        <AlertDialog
+          open={createFromVersionConfirmOpen}
+          onOpenChange={setCreateFromVersionConfirmOpen}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {selectedVersion
+                  ? `Create a new version from v${selectedVersion.version}?`
+                  : "Create a new version?"}
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p>
+                    A new draft will be created with a copy of this PDF. You can
+                    review it before publishing.
+                  </p>
+                  <p>
+                    Version {selectedVersion ? `v${selectedVersion.version}` : ""} stays
+                    archived. Historical acceptances stay attached to that archived
+                    version and will not count as acceptance of the new draft.
+                  </p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={creatingFromVersion}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={creatingFromVersion}
+                onClick={(event) => {
+                  event.preventDefault();
+                  void handleCreateVersionFromArchived();
+                }}
+              >
+                {creatingFromVersion ? "Creating..." : "Create draft"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         <Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
           <SheetContent className="w-full overflow-y-auto sm:max-w-md">
             <SheetHeader>
@@ -1622,7 +1726,23 @@ export default function LegalDocumentsPage() {
                               void handleRestoreVersion(selectedDefinition, version)
                             }
                           >
-                            Restore
+                            Restore to draft
+                          </Button>
+                        ) : null}
+                        {selectedDefinition &&
+                        canCreateVersionFromArchivedPublished(
+                          version,
+                          selectedDefinition
+                        ) ? (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={!canManage}
+                            onClick={() =>
+                              openCreateFromVersionConfirm(selectedDefinition, version)
+                            }
+                          >
+                            Create New Version From This Version
                           </Button>
                         ) : null}
                       </div>

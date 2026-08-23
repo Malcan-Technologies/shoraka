@@ -290,3 +290,35 @@ export async function writeLegalDocumentVersionRestoredAudit(
     },
   });
 }
+
+export async function writeLegalDocumentVersionCreatedFromVersionAudit(
+  tx: Prisma.TransactionClient,
+  source: VersionWithDocument,
+  created: VersionWithDocument,
+  context: LegalAdminAuditContext
+): Promise<void> {
+  if (!created.file_hash) {
+    throw new Error("LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION requires a server file hash.");
+  }
+
+  await writeLegalAdminAuditLog(tx, {
+    legalDocumentId: created.legal_document_id,
+    legalDocumentVersionId: created.id,
+    eventType: "LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION",
+    targetType: LEGAL_ADMIN_AUDIT_TARGET_TYPE.LEGAL_DOCUMENT_VERSION,
+    targetId: created.id,
+    context,
+    metadata: {
+      documentType: documentTypeOf(created.legal_document),
+      sourceVersionId: source.id,
+      sourceVersionNumber: source.version,
+      newVersionId: created.id,
+      newVersionNumber: created.version,
+      fileName: created.file_name,
+      fileHash: created.file_hash,
+      mimeType: created.content_type,
+      fileSizeBytes: created.file_size,
+      status: "DRAFT",
+    },
+  });
+}

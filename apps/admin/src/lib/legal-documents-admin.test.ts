@@ -7,6 +7,7 @@ import {
   buildCreateDefinitionPayload,
   buildEditDefinitionPayload,
   buildPublishDialogTitle,
+  canCreateVersionFromArchivedPublished,
   canRestoreArchivedVersion,
   createFormDefaultsForAvailableTypes,
   documentCurrentStatus,
@@ -356,6 +357,19 @@ describe("legal-documents-admin helpers", () => {
     expect(archivedActions.showPublishButton).toBe(false);
     expect(archivedActions.icons).toEqual(["download", "restore", "uploadNew"]);
 
+    const archivedCreateFromVersion = getLegalDocumentRowActions("ARCHIVED", {
+      hasCurrentVersion: true,
+      hasDraft: false,
+      canRestore: false,
+      canCreateFromVersion: true,
+    });
+    expect(archivedCreateFromVersion.icons).toEqual([
+      "download",
+      "createFromVersion",
+      "uploadNew",
+    ]);
+    expect(archivedCreateFromVersion.icons).not.toContain("restore");
+
     const archivedNoRestore = getLegalDocumentRowActions("ARCHIVED", {
       hasCurrentVersion: true,
       hasDraft: false,
@@ -389,6 +403,9 @@ describe("legal-documents-admin helpers", () => {
       ],
     });
     expect(canRestoreArchivedVersion(archivedDraft.versions![0], archivedDraft)).toBe(true);
+    expect(
+      canCreateVersionFromArchivedPublished(archivedDraft.versions![0], archivedDraft)
+    ).toBe(false);
 
     const olderArchivedWithNewerPublished = baseDoc({
       id: "1",
@@ -433,6 +450,77 @@ describe("legal-documents-admin helpers", () => {
       canRestoreArchivedVersion(
         olderArchivedWithNewerPublished.versions![0],
         olderArchivedWithNewerPublished
+      )
+    ).toBe(false);
+    expect(
+      canCreateVersionFromArchivedPublished(
+        olderArchivedWithNewerPublished.versions![0],
+        olderArchivedWithNewerPublished
+      )
+    ).toBe(true);
+
+    const publishedOnlyArchived = baseDoc({
+      id: "1",
+      type: "PDPA_NOTICE_AND_CONSENT",
+      title: "PDPA",
+      versions: [
+        {
+          id: "v1",
+          version: 1,
+          status: "ARCHIVED",
+          fileName: "a.pdf",
+          fileSize: 1,
+          fileHash: "abc",
+          reacceptanceRequired: false,
+          uploadedBy: "u",
+          publishedBy: "u",
+          publishedAt: "2026-08-01T00:00:00.000Z",
+          archivedBy: "u",
+          archivedAt: "2026-08-02T00:00:00.000Z",
+          createdAt: "2026-08-01T00:00:00.000Z",
+          updatedAt: "2026-08-02T00:00:00.000Z",
+        },
+      ],
+    });
+    expect(
+      canRestoreArchivedVersion(
+        publishedOnlyArchived.versions![0],
+        publishedOnlyArchived
+      )
+    ).toBe(false);
+    expect(
+      canCreateVersionFromArchivedPublished(
+        publishedOnlyArchived.versions![0],
+        publishedOnlyArchived
+      )
+    ).toBe(true);
+
+    const archivedPublishedWithDraft = baseDoc({
+      ...olderArchivedWithNewerPublished,
+      versions: [
+        ...olderArchivedWithNewerPublished.versions!,
+        {
+          id: "v3",
+          version: 3,
+          status: "DRAFT",
+          fileName: "c.pdf",
+          fileSize: 1,
+          fileHash: "def",
+          reacceptanceRequired: false,
+          uploadedBy: "u",
+          publishedBy: null,
+          publishedAt: null,
+          archivedBy: null,
+          archivedAt: null,
+          createdAt: "2026-08-03T00:00:00.000Z",
+          updatedAt: "2026-08-03T00:00:00.000Z",
+        },
+      ],
+    });
+    expect(
+      canCreateVersionFromArchivedPublished(
+        archivedPublishedWithDraft.versions![0],
+        archivedPublishedWithDraft
       )
     ).toBe(false);
   });

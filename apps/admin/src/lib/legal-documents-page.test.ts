@@ -44,8 +44,11 @@ describe("Admin Legal Documents page UX", () => {
     expect(source).toContain("ArrowUpTrayIcon");
     expect(source).toContain("ArchiveBoxIcon");
     expect(source).toContain("ArrowUturnLeftIcon");
+    expect(source).toContain("DocumentDuplicateIcon");
     expect(source).toContain("handleRestoreVersion");
+    expect(source).toContain("handleCreateVersionFromArchived");
     expect(source).toContain("canRestoreArchivedVersion");
+    expect(source).toContain("canCreateVersionFromArchivedPublished");
     expect(source).toContain("CheckCircleIcon");
     expect(source).toContain(': "Publish"');
     expect(source).toContain("handleDownload");
@@ -76,7 +79,10 @@ describe("Admin Legal Documents page UX", () => {
     expect(source).toContain("legalRowVersionLabel");
     expect(source).toContain("No published version");
     expect(source).toContain("Legal document version archived.");
-    expect(source).toContain("Legal document version restored.");
+    expect(source).toContain("Legal document version restored to draft.");
+    expect(source).toContain("New draft created from archived version.");
+    expect(source).toContain("Create New Version From This Version");
+    expect(source).toContain("Historical acceptances stay attached");
     expect(source).toContain("New draft version created.");
     expect(source).toContain("bg-destructive");
     expect(helpers).toContain(
