@@ -42418,20 +42418,20 @@ Appended globally after A178. Not inserted into the original A056–A062 block. 
 
 ## 1. What this event means
 
-An admin created a **new DRAFT** `LegalDocumentVersion` by copying file bytes from a previously published archived version. The source row stays `ARCHIVED`. Acceptances stay on the source version id. The new row has a new cuid, the next version number, a new unique `s3_key`, and is not published automatically.
+An admin created a **new DRAFT** `LegalDocumentVersion` by copying file bytes from the currently **PUBLISHED** version or from a previously published **ARCHIVED** version. The source row is not mutated (published stays published; archived stays archived). Acceptances stay on the source version id. The new row has a new cuid, the next version number, a new unique `s3_key`, and is not published automatically.
 
 Do not reuse `LEGAL_DOCUMENT_VERSION_UPLOADED` (A058): no admin file upload occurred.
 
 ## 2. When it logs
 
-`POST /v1/admin/legal-documents/versions/:versionId/create-from-version` → `LegalDocumentService.createVersionFromArchivedPublished` → `writeLegalDocumentVersionCreatedFromVersionAudit` in the same Prisma transaction as the new version insert. Permission: `document_management.manage`. HTTP 201.
+`POST /v1/admin/legal-documents/versions/:versionId/create-from-version` → `LegalDocumentService.createDraftFromVersion` → `writeLegalDocumentVersionCreatedFromVersionAudit` in the same Prisma transaction as the new version insert. Permission: `document_management.manage`. HTTP 201.
 
 S3 `CopyObject` and hash verification run **outside** that transaction. On hash mismatch or DB failure the copied object is deleted if unreferenced.
 
 ## 3. When it does NOT log / no-op
 
 - Source not found → 404; no row.
-- Source is not `ARCHIVED` with `published_at` set → 400 `INVALID_STATUS`; no row.
+- Source is not `PUBLISHED` and is not `ARCHIVED` with `published_at` set → 400 `INVALID_STATUS`; no row.
 - Another draft already exists → 409 `DRAFT_EXISTS`; no copy / no row.
 - Source missing `file_hash` → 400 `HASH_REQUIRED`.
 - S3 copy failure → 502 `S3_COPY_FAILED`; no DB row.
@@ -42542,7 +42542,7 @@ Version insert and this audit row share one Prisma transaction. S3 copy/hash/del
 ## 8. Writer(s)
 
 - `writeLegalDocumentVersionCreatedFromVersionAudit` in `apps/api/src/modules/legal-documents/audit/writer.ts`
-- Called from `LegalDocumentService.createVersionFromArchivedPublished`
+- Called from `LegalDocumentService.createDraftFromVersion`
 
 ## 9. ADMIN RAW AUDIT
 

@@ -319,6 +319,10 @@ export async function writeLegalDocumentVersionCreatedFromVersionAudit(
       mimeType: created.content_type,
       fileSizeBytes: created.file_size,
       status: "DRAFT",
+      sourceVersionStatus:
+        source.status === "PUBLISHED" || source.status === "ARCHIVED"
+          ? source.status
+          : undefined,
     },
   });
 }

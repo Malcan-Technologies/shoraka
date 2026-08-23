@@ -121,6 +121,7 @@ export const legalDocumentVersionCreatedFromVersionAuditMetadataSchema = z.objec
   mimeType: z.string().min(1),
   fileSizeBytes: z.number().int(),
   status: z.literal("DRAFT"),
+  sourceVersionStatus: z.enum(["PUBLISHED", "ARCHIVED"]).optional(),
 });
 
 const metadataByEvent = {

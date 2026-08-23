@@ -63,5 +63,25 @@ describe("legal admin audit metadata validation", () => {
     });
     expect(parsed.newVersionId).toBe("v3");
     expect(parsed.sourceVersionId).toBe("v1");
+
+    const withSourceStatus = parseLegalAdminAuditMetadata(
+      "LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION",
+      {
+        actorName: "Ada Admin",
+        actorEmail: "ada@example.com",
+        documentType: "TERMS_OF_USE",
+        sourceVersionId: "v1",
+        sourceVersionNumber: 1,
+        newVersionId: "v3",
+        newVersionNumber: 3,
+        fileName: "a.pdf",
+        fileHash: "abc",
+        mimeType: "application/pdf",
+        fileSizeBytes: 10,
+        status: "DRAFT",
+        sourceVersionStatus: "PUBLISHED",
+      }
+    );
+    expect(withSourceStatus.sourceVersionStatus).toBe("PUBLISHED");
   });
 });

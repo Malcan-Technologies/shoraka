@@ -93,8 +93,9 @@ import {
   buildCreateDefinitionPayload,
   buildEditDefinitionPayload,
   buildPublishDialogTitle,
-  canCreateVersionFromArchivedPublished,
+  canCreateDraftFromVersion,
   canRestoreArchivedVersion,
+  createDraftFromVersionConfirmCopy,
   createFormDefaultsForAvailableTypes,
   documentCurrentStatus,
   documentCurrentVersion,
@@ -664,7 +665,7 @@ export default function LegalDocumentsPage() {
     setCreateFromVersionConfirmOpen(true);
   };
 
-  const handleCreateVersionFromArchived = async () => {
+  const handleCreateDraftFromVersion = async () => {
     if (!selectedDefinition || !selectedVersion) return;
     setCreatingFromVersion(true);
     try {
@@ -675,8 +676,8 @@ export default function LegalDocumentsPage() {
       if (!result.success) {
         throw new Error(result.error?.message || "Failed to create version");
       }
-      toast.success("New draft created from archived version.", {
-        description: `v${result.data.version.version} saved as draft. Review it, then publish when ready.`,
+      toast.success("New draft version created.", {
+        description: `v${result.data.version.version} saved as draft. The current published version stays live until you publish this draft.`,
       });
       setCreateFromVersionConfirmOpen(false);
       setSelectedDefinition(null);
@@ -792,6 +793,10 @@ export default function LegalDocumentsPage() {
     setPage(1);
   }, [searchQuery, statusFilter]);
 
+  const createFromVersionCopy = createDraftFromVersionConfirmCopy(
+    selectedVersion?.status ?? "ARCHIVED"
+  );
+
   return (
     <RequirePermission permission="document_management.view">
       <>
@@ -900,7 +905,7 @@ export default function LegalDocumentsPage() {
                         ? canRestoreArchivedVersion(current, doc)
                         : false;
                       const canCreateFromVersion = current
-                        ? canCreateVersionFromArchivedPublished(current, doc)
+                        ? canCreateDraftFromVersion(current, doc)
                         : false;
                       const actions = getLegalDocumentRowActions(status, {
                         hasCurrentVersion: Boolean(current),
@@ -1645,23 +1650,9 @@ export default function LegalDocumentsPage() {
         >
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>
-                {selectedVersion
-                  ? `Create a new version from v${selectedVersion.version}?`
-                  : "Create a new version?"}
-              </AlertDialogTitle>
-              <AlertDialogDescription asChild>
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  <p>
-                    A new draft will be created with a copy of this PDF. You can
-                    review it before publishing.
-                  </p>
-                  <p>
-                    Version {selectedVersion ? `v${selectedVersion.version}` : ""} stays
-                    archived. Historical acceptances stay attached to that archived
-                    version and will not count as acceptance of the new draft.
-                  </p>
-                </div>
+              <AlertDialogTitle>{createFromVersionCopy.title}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {createFromVersionCopy.description}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -1670,7 +1661,7 @@ export default function LegalDocumentsPage() {
                 disabled={creatingFromVersion}
                 onClick={(event) => {
                   event.preventDefault();
-                  void handleCreateVersionFromArchived();
+                  void handleCreateDraftFromVersion();
                 }}
               >
                 {creatingFromVersion ? "Creating..." : "Create draft"}
@@ -1758,7 +1749,7 @@ export default function LegalDocumentsPage() {
                           </Button>
                         ) : null}
                         {selectedDefinition &&
-                        canCreateVersionFromArchivedPublished(
+                        canCreateDraftFromVersion(
                           version,
                           selectedDefinition
                         ) ? (

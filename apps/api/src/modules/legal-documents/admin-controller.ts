@@ -266,7 +266,7 @@ router.post(
       if (!req.user) {
         throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
       }
-      const version = await legalDocumentService.createVersionFromArchivedPublished(
+      const version = await legalDocumentService.createDraftFromVersion(
         req.params.versionId,
         req.user.user_id,
         auditContextFromAdminRequest(req, res)

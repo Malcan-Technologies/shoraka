@@ -596,7 +596,7 @@ export class LegalDocumentService {
   /**
    * Restore an archived version:
    * - never-published archive → Draft (blocked if another draft exists)
-   * - previously published archive → immutable; use createVersionFromArchivedPublished
+   * - previously published archive → immutable; use createDraftFromVersion
    */
   async restoreVersion(versionId: string, adminUserId: string, context: LegalAdminAuditContext) {
     const existing = await legalDocumentRepository.findVersionById(versionId);
@@ -636,10 +636,11 @@ export class LegalDocumentService {
   }
 
   /**
-   * Copy an archived previously-published version into a new DRAFT row.
-   * Source version, timestamps, publishers, and acceptances are left untouched.
+   * Copy a published version, or a previously published archived version, into a
+   * new DRAFT row. The source status, timestamps, file, and acceptances are not
+   * changed. Does not archive the live published version and does not auto-publish.
    */
-  async createVersionFromArchivedPublished(
+  async createDraftFromVersion(
     sourceVersionId: string,
     adminUserId: string,
     context: LegalAdminAuditContext
@@ -648,11 +649,13 @@ export class LegalDocumentService {
     if (!source) {
       throw new AppError(404, "NOT_FOUND", "Legal document version not found");
     }
-    if (source.status !== "ARCHIVED" || !source.published_at) {
+    const isPublished = source.status === "PUBLISHED";
+    const isArchivedPublished = source.status === "ARCHIVED" && source.published_at != null;
+    if (!isPublished && !isArchivedPublished) {
       throw new AppError(
         400,
         "INVALID_STATUS",
-        "Only previously published archived versions can be used to create a new version"
+        "Only a published version or a previously published archived version can be used to create a new version"
       );
     }
     if (!source.file_hash) {
@@ -758,7 +761,7 @@ export class LegalDocumentService {
         newVersionNumber,
         legalDocumentId: source.legal_document_id,
       },
-      "Legal document version created from archived published version"
+      "Legal document version created from existing version"
     );
 
     return toVersionResponse(created);

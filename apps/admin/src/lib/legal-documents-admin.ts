@@ -133,17 +133,37 @@ export function canRestoreArchivedVersion(
 }
 
 /**
- * Create a new DRAFT from a previously published archived version.
- * Hidden when a draft already exists (API also returns 409 DRAFT_EXISTS).
+ * Create a new DRAFT from the live published version, or from a previously
+ * published archived version. Hidden when a draft already exists (API 409).
+ * Never-published archives use restore instead.
  */
-export function canCreateVersionFromArchivedPublished(
+export function canCreateDraftFromVersion(
   version: LegalDocumentVersionSummary,
   doc: LegalDocumentDefinitionResponse
 ): boolean {
-  if (version.status !== "ARCHIVED") return false;
-  if (!version.publishedAt) return false;
   if (latestDraftVersion(doc)) return false;
-  return true;
+  if (version.status === "PUBLISHED") return true;
+  if (version.status === "ARCHIVED" && Boolean(version.publishedAt)) return true;
+  return false;
+}
+
+export function createDraftFromVersionConfirmCopy(sourceStatus: LegalDocumentVersionStatus): {
+  title: string;
+  description: string;
+} {
+  if (sourceStatus === "PUBLISHED") {
+    return {
+      title: "Create new version from this version?",
+      description:
+        "A new draft version will be created from this version. The current published version will remain active until the new draft is published.",
+    };
+  }
+
+  return {
+    title: "Create new version from this version?",
+    description:
+      "A new draft will be created with a copy of this PDF. This archived version stays unchanged. Historical acceptances stay attached to that archived version and will not count as acceptance of the new draft.",
+  };
 }
 
 /** Compact icon actions by status (no ellipsis menu). */
@@ -182,6 +202,7 @@ export function getLegalDocumentRowActions(
         ...(hasCurrentVersion ? (["download"] as LegalRowIconAction[]) : []),
         "edit",
         "uploadNew",
+        ...(canCreateFromVersion ? (["createFromVersion"] as LegalRowIconAction[]) : []),
         ...(hasCurrentVersion ? (["archive"] as LegalRowIconAction[]) : []),
       ],
     };

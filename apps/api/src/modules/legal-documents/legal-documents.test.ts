@@ -941,7 +941,7 @@ describe("legal document acceptance service", () => {
     const restoreToDraft = jest.spyOn(legalDocumentRepository, "restoreVersionToDraft");
     const publish = jest.spyOn(legalDocumentRepository, "publishVersion");
 
-    const created = await legalDocumentService.createVersionFromArchivedPublished(
+    const created = await legalDocumentService.createDraftFromVersion(
       "ver1",
       "admin1",
       adminContext()
@@ -989,6 +989,7 @@ describe("legal document acceptance service", () => {
             fileHash: clonedFileHash,
             fileName: "pdpa-v1.pdf",
             status: "DRAFT",
+            sourceVersionStatus: "ARCHIVED",
           }),
         }),
       })
@@ -1010,10 +1011,142 @@ describe("legal document acceptance service", () => {
     const createVersion = jest.spyOn(legalDocumentRepository, "createVersion");
 
     await expect(
-      legalDocumentService.createVersionFromArchivedPublished("ver1", "admin1", adminContext())
+      legalDocumentService.createDraftFromVersion("ver1", "admin1", adminContext())
     ).rejects.toMatchObject({ code: "DRAFT_EXISTS" });
     expect(createVersion).not.toHaveBeenCalled();
     expect(copyS3Object).not.toHaveBeenCalled();
+  });
+
+  it("creates a new draft from the live published version without archiving it", async () => {
+    const source = publishedVersion({
+      id: "ver2",
+      version: 2,
+      status: "PUBLISHED",
+      published_at: new Date("2026-08-02"),
+      published_by: "admin-original",
+      archived_at: null,
+      archived_by: null,
+      file_hash: clonedFileHash,
+      file_name: "pdpa-v2.pdf",
+      s3_key: "legal-documents/pdpa/v2.pdf",
+    });
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(source as never);
+    jest.spyOn(legalDocumentRepository, "findDraftByDocumentId").mockResolvedValue(null);
+    jest.spyOn(legalDocumentRepository, "getLatestVersionNumber").mockResolvedValue(2);
+    const createVersion = jest.spyOn(legalDocumentRepository, "createVersion").mockResolvedValue(
+      publishedVersion({
+        id: "ver3",
+        version: 3,
+        status: "DRAFT",
+        published_at: null,
+        published_by: null,
+        archived_at: null,
+        archived_by: null,
+        file_hash: clonedFileHash,
+        file_name: "pdpa-v2.pdf",
+        s3_key: "legal-documents/pdpa-notice-and-consent/v3-2026-01-01-cuid.pdf",
+        reacceptance_required: false,
+        uploaded_by: "admin1",
+      }) as never
+    );
+    (prisma.legalDocumentAcceptance.update as jest.Mock).mockClear();
+    (prisma.legalDocumentAcceptance.create as jest.Mock)?.mockClear?.();
+    (prisma.legalDocumentAcceptance.deleteMany as jest.Mock).mockClear();
+    const archiveVersion = jest.spyOn(legalDocumentRepository, "archiveVersion");
+    const publish = jest.spyOn(legalDocumentRepository, "publishVersion");
+
+    const created = await legalDocumentService.createDraftFromVersion(
+      "ver2",
+      "admin1",
+      adminContext()
+    );
+
+    expect(created.id).toBe("ver3");
+    expect(created.version).toBe(3);
+    expect(created.status).toBe("DRAFT");
+    expect(created.id).not.toBe(source.id);
+    expect(source.status).toBe("PUBLISHED");
+    expect(source.published_at).toEqual(new Date("2026-08-02"));
+    expect(archiveVersion).not.toHaveBeenCalled();
+    expect(publish).not.toHaveBeenCalled();
+    expect(prisma.legalDocumentAcceptance.update).not.toHaveBeenCalled();
+    expect(prisma.legalDocumentAcceptance.deleteMany).not.toHaveBeenCalled();
+    expect(createVersion).toHaveBeenCalledWith(
+      "ld1",
+      3,
+      expect.objectContaining({
+        fileName: "pdpa-v2.pdf",
+        fileHash: clonedFileHash,
+      }),
+      "admin1",
+      expect.anything()
+    );
+    expect(prisma.legalAdminAuditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          event_type: "LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION",
+          metadata: expect.objectContaining({
+            sourceVersionId: "ver2",
+            sourceVersionNumber: 2,
+            newVersionId: "ver3",
+            newVersionNumber: 3,
+            status: "DRAFT",
+            sourceVersionStatus: "PUBLISHED",
+          }),
+        }),
+      })
+    );
+  });
+
+  it("rejects create-from-version from a DRAFT source", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+      publishedVersion({
+        id: "ver-draft",
+        status: "DRAFT",
+        published_at: null,
+        file_hash: clonedFileHash,
+      }) as never
+    );
+    const createVersion = jest.spyOn(legalDocumentRepository, "createVersion");
+    await expect(
+      legalDocumentService.createDraftFromVersion("ver-draft", "admin1", adminContext())
+    ).rejects.toMatchObject({ code: "INVALID_STATUS" });
+    expect(createVersion).not.toHaveBeenCalled();
+    expect(copyS3Object).not.toHaveBeenCalled();
+  });
+
+  it("rejects create-from-version from a never-published archived version", async () => {
+    jest.spyOn(legalDocumentRepository, "findVersionById").mockResolvedValue(
+      publishedVersion({
+        id: "ver-archived-draft",
+        status: "ARCHIVED",
+        published_at: null,
+        published_by: null,
+        file_hash: clonedFileHash,
+      }) as never
+    );
+    const createVersion = jest.spyOn(legalDocumentRepository, "createVersion");
+    await expect(
+      legalDocumentService.createDraftFromVersion(
+        "ver-archived-draft",
+        "admin1",
+        adminContext()
+      )
+    ).rejects.toMatchObject({ code: "INVALID_STATUS" });
+    expect(createVersion).not.toHaveBeenCalled();
+    expect(copyS3Object).not.toHaveBeenCalled();
+  });
+
+  it("publish still archives other published versions inside the publish transaction", () => {
+    const { readFileSync } = require("node:fs");
+    const { join } = require("node:path");
+    const repositorySource = readFileSync(join(__dirname, "repository.ts"), "utf8");
+    const start = repositorySource.indexOf("async publishVersion");
+    const body = repositorySource.slice(start, start + 2000);
+    expect(body).toContain('current.status !== "DRAFT"');
+    expect(body).toContain("id: { not: versionId }");
+    expect(body).toContain('status: "ARCHIVED"');
+    expect(body).toContain('status: "PUBLISHED"');
   });
 
   it("does not treat V1 acceptance as acceptance of a cloned published V3", async () => {

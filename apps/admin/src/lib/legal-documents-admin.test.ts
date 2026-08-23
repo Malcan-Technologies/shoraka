@@ -7,7 +7,8 @@ import {
   buildCreateDefinitionPayload,
   buildEditDefinitionPayload,
   buildPublishDialogTitle,
-  canCreateVersionFromArchivedPublished,
+  canCreateDraftFromVersion,
+  createDraftFromVersionConfirmCopy,
   canRestoreArchivedVersion,
   createFormDefaultsForAvailableTypes,
   documentCurrentStatus,
@@ -350,6 +351,19 @@ describe("legal-documents-admin helpers", () => {
     expect(publishedActions.icons).toEqual(["download", "edit", "uploadNew", "archive"]);
     expect(publishedActions.icons).not.toContain("replaceDraft");
 
+    const publishedCreateFromVersion = getLegalDocumentRowActions("PUBLISHED", {
+      hasCurrentVersion: true,
+      hasDraft: false,
+      canCreateFromVersion: true,
+    });
+    expect(publishedCreateFromVersion.icons).toEqual([
+      "download",
+      "edit",
+      "uploadNew",
+      "createFromVersion",
+      "archive",
+    ]);
+
     const archivedActions = getLegalDocumentRowActions("ARCHIVED", {
       hasCurrentVersion: true,
       hasDraft: false,
@@ -405,7 +419,7 @@ describe("legal-documents-admin helpers", () => {
     });
     expect(canRestoreArchivedVersion(archivedDraft.versions![0], archivedDraft)).toBe(true);
     expect(
-      canCreateVersionFromArchivedPublished(archivedDraft.versions![0], archivedDraft)
+      canCreateDraftFromVersion(archivedDraft.versions![0], archivedDraft)
     ).toBe(false);
 
     const olderArchivedWithNewerPublished = baseDoc({
@@ -454,7 +468,7 @@ describe("legal-documents-admin helpers", () => {
       )
     ).toBe(false);
     expect(
-      canCreateVersionFromArchivedPublished(
+      canCreateDraftFromVersion(
         olderArchivedWithNewerPublished.versions![0],
         olderArchivedWithNewerPublished
       )
@@ -490,7 +504,7 @@ describe("legal-documents-admin helpers", () => {
       )
     ).toBe(false);
     expect(
-      canCreateVersionFromArchivedPublished(
+      canCreateDraftFromVersion(
         publishedOnlyArchived.versions![0],
         publishedOnlyArchived
       )
@@ -519,11 +533,53 @@ describe("legal-documents-admin helpers", () => {
       ],
     });
     expect(
-      canCreateVersionFromArchivedPublished(
+      canCreateDraftFromVersion(
         archivedPublishedWithDraft.versions![0],
         archivedPublishedWithDraft
       )
     ).toBe(false);
+
+    expect(
+      canCreateDraftFromVersion(
+        olderArchivedWithNewerPublished.versions![1],
+        olderArchivedWithNewerPublished
+      )
+    ).toBe(true);
+    expect(
+      canRestoreArchivedVersion(
+        olderArchivedWithNewerPublished.versions![1],
+        olderArchivedWithNewerPublished
+      )
+    ).toBe(false);
+
+    const draftOnly = baseDoc({
+      ...olderArchivedWithNewerPublished,
+      versions: [
+        {
+          ...olderArchivedWithNewerPublished.versions![1],
+          id: "v-draft",
+          version: 3,
+          status: "DRAFT",
+          publishedAt: null,
+          publishedBy: null,
+        },
+      ],
+    });
+    expect(canCreateDraftFromVersion(draftOnly.versions![0], draftOnly)).toBe(false);
+  });
+
+  it("uses distinct confirmation copy for published vs archived clone sources", () => {
+    expect(createDraftFromVersionConfirmCopy("PUBLISHED")).toEqual({
+      title: "Create new version from this version?",
+      description:
+        "A new draft version will be created from this version. The current published version will remain active until the new draft is published.",
+    });
+    expect(createDraftFromVersionConfirmCopy("ARCHIVED").title).toBe(
+      "Create new version from this version?"
+    );
+    expect(createDraftFromVersionConfirmCopy("ARCHIVED").description).toContain(
+      "This archived version stays unchanged"
+    );
   });
 
   it("shows No published version and builds archive confirmation copy", () => {

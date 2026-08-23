@@ -648,7 +648,7 @@ describe("legal acceptance audit trail", () => {
       );
       (prisma.legalAdminAuditLog.create as jest.Mock).mockClear();
 
-      await legalDocumentService.createVersionFromArchivedPublished(
+      await legalDocumentService.createDraftFromVersion(
         "ver1",
         "admin1",
         adminContext()
