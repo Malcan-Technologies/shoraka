@@ -4000,7 +4000,7 @@ A new admin invitation row was created.
 
 ## 3. When it does NOT log / no-op
 
-**Skipped if an existing unused, unexpired invitation for the same email+role is reused.** That reuse returns the existing invitation without this event. `emailSent` is not set on create.
+**Skipped if an existing unused, unexpired invitation for the same email+role is reused.** That reuse returns the existing invitation without this event. If invite-submit then successfully sends the email again, `ADMIN_INVITATION_RESENT` is written instead. `emailSent` is not set on create.
 
 ## 4. Top-level audit row
 
@@ -4199,6 +4199,8 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] RBAC correct
 - [ ] Detail UI correct
 - [ ] Reuse of an existing invitation does not write ADMIN_INVITATION_CREATED
+- [ ] Same email + same role reuse that sends email writes ADMIN_INVITATION_RESENT instead
+- [ ] Same email + different role still writes ADMIN_INVITATION_CREATED on the new invitation
 
 # A021 — ADMIN_INVITATION_LINK_GENERATED
 
@@ -4429,11 +4431,11 @@ An admin invitation email was resent successfully.
 
 ## 2. When it logs
 
-`apps/api/src/modules/admin/service.ts` resend path **after SES success**. This is the only invitation event that sets `emailSent: true`.
+`apps/api/src/modules/admin/service.ts` resend path **after SES success**, and the normal invite-submit path when it **reuses** an existing valid pending invitation for the same email+role and the email send succeeds. This is the only invitation event that sets `emailSent: true`.
 
 ## 3. When it does NOT log / no-op
 
-If SES/sendEmail throws, the handler returns `emailSent: false` and **does not write** this event.
+If SES/sendEmail throws, the handler returns `emailSent: false` and **does not write** this event. New invitations write `ADMIN_INVITATION_CREATED` instead. Same-email + different-role creates a new invitation (`ADMIN_INVITATION_CREATED`), not this event.
 
 ## 4. Top-level audit row
 
@@ -4557,7 +4559,8 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 
 ## 8. Writer(s)
 
-- `apps/api/src/modules/admin/service.ts` — resend admin invitation (after email success)
+- `apps/api/src/modules/admin/service.ts` — explicit resend admin invitation (after email success)
+- `apps/api/src/modules/admin/service.ts` — invite-submit reuse of an existing valid pending same-email+same-role invitation (after email success)
 - `writeSecurityAuditLog`
 
 ## 9. ADMIN RAW AUDIT
@@ -4632,6 +4635,10 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] RBAC correct
 - [ ] Detail UI correct
 - [ ] emailSent is true only on this event
+- [ ] Explicit Resend Email writes this event once after SES success
+- [ ] Invite-submit reuse of same email + same role + valid pending invitation writes this event (not ADMIN_INVITATION_CREATED) after SES success
+- [ ] Same email + different role writes ADMIN_INVITATION_CREATED on the new invitation, not this event
+- [ ] Reused invite whose email send fails does not write this event
 
 # A023 — ADMIN_INVITATION_REVOKED
 
@@ -41623,7 +41630,7 @@ Date: **2026-08-23**. Source: current tree after A004 `USER_ROLE_ADDED` retireme
 ## Writer notes that affect verification
 
 - Access writes are **best-effort**. `USER_SIGNED_UP` vs `USER_LOGGED_IN` are mutually exclusive on `isSignup`. Typical portal logout writes **one** `USER_LOGGED_OUT` via Cognito GET `/logout`; two rows only if both `POST /v1/auth/logout` and GET `/v1/auth/cognito/logout` run. `sessionId` on login schema is never populated. `POST /v1/auth/sync-user` does not write login audit.
-- Security in-tx writes throw; BestEffort is used for denials / password / email. `USER_ROLE_ADDED` is retired (A004 reserved). `ADMIN_ACCESS_DENIED` has two writers: Cognito Admin gate (`USER` + `MISSING_ADMIN_ROLE`, or `ADMIN` + `ADMIN_INACTIVE`) and RBAC middleware (`ADMIN` + `INSUFFICIENT_PERMISSIONS`). `portal=ADMIN` is where the denial happened, not who the actor is. `ADMIN_INVITATION_CREATED` is skipped when an existing invitation is reused. `emailSent` is only set on `ADMIN_INVITATION_RESENT`. `ORGANIZATION_INVITATION_RESENT` writes only after email success.
+- Security in-tx writes throw; BestEffort is used for denials / password / email. `USER_ROLE_ADDED` is retired (A004 reserved). `ADMIN_ACCESS_DENIED` has two writers: Cognito Admin gate (`USER` + `MISSING_ADMIN_ROLE`, or `ADMIN` + `ADMIN_INACTIVE`) and RBAC middleware (`ADMIN` + `INSUFFICIENT_PERMISSIONS`). `portal=ADMIN` is where the denial happened, not who the actor is. `ADMIN_INVITATION_CREATED` is skipped when an existing invitation is reused; that reuse writes `ADMIN_INVITATION_RESENT` after a successful email send on invite-submit. `emailSent` is only set on `ADMIN_INVITATION_RESENT`. `ORGANIZATION_INVITATION_RESENT` writes only after email success.
 - Payment idempotency keys come from `PAYMENT_AUDIT_IDEMPOTENCY`; unique constraint; existing-key skip / `P2002` swallow.
 - `PRODUCT_REACTIVATED` and repository `setInactive` are **not wired to HTTP** (`restoreProduct` / `setInactive` are repository-only). Versioned product update can still write `PRODUCT_INACTIVATED`.
 - Notification broadcast audit is **outside** recipient transactions and must not roll back notifications.

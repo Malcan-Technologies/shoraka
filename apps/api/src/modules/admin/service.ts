@@ -1910,7 +1910,11 @@ export class AdminService {
     const invitedRole = await this.requireAdminRoleConfig(data.roleDescription);
 
     // Generate invitation URL (creates invitation record if needed)
-    const { inviteUrl } = await this.generateInvitationUrl(req, data, invitedBy);
+    const { inviteUrl, invitationId, email, expiresAt, created } = await this.generateInvitationUrl(
+      req,
+      data,
+      invitedBy
+    );
 
     // Send email via SES only if email is provided
     let messageId: string | undefined;
@@ -1939,6 +1943,23 @@ export class AdminService {
 
         messageId = result.messageId;
         emailSent = true;
+
+        if (!created) {
+          await writeSecurityAuditLog({
+            eventType: "ADMIN_INVITATION_RESENT",
+            context: auditContextFromAdminRequest(req),
+            subjectUserId: null,
+            targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_INVITATION,
+            targetId: invitationId,
+            metadata: {
+              invitationId,
+              email,
+              role: data.roleDescription,
+              expiresAt: expiresAt.toISOString(),
+              emailSent: true,
+            },
+          });
+        }
 
         logger.info(
           {

@@ -612,7 +612,7 @@ Normal portal logout produces one `USER_LOGGED_OUT` row through Cognito `GET /v1
 ### SecurityAuditLog
 
 `AuthService`: `USER_PROFILE_UPDATED`, `PASSWORD_CHANGED` / `PASSWORD_CHANGE_FAILED`, `USER_EMAIL_VERIFIED` / `EMAIL_VERIFICATION_FAILED`. `USER_ROLE_ADDED` is retired (A004 reserved; `POST /v1/auth/add-role` removed). `ACTIVE_ROLE_CHANGED` is retired (A005 reserved; `POST /v1/auth/switch-role` removed). `USER_ROLES_UPDATED` is retired (A016 reserved; `PATCH /v1/admin/users/:id/roles` removed). Investor/Issuer roles are granted in `OrganizationService.createOrganization`. Admin access is granted through invitation acceptance (`ADMIN_INVITATION_ACCEPTED`). Catalog role edits write `ADMIN_USER_ROLE_CHANGED`. Invitation acceptance also writes `ADMIN_USER_ROLE_CHANGED` when an existing Admin’s catalog role actually changes. Portal switching is navigation only. `POST /v1/auth/complete-onboarding` is still mounted, has no portal caller, and writes no audit event.
-`AdminService`: role config C/U/D, `ADMIN_USER_ROLE_CHANGED` (role editor and different-role invitation acceptance), deactivate/reactivate, invitation lifecycle, `USER_PUBLIC_ID_CHANGED`, `USER_PROFILE_UPDATED_BY_ADMIN`.
+`AdminService`: role config C/U/D, `ADMIN_USER_ROLE_CHANGED` (role editor and different-role invitation acceptance), deactivate/reactivate, invitation lifecycle (`ADMIN_INVITATION_CREATED` on new row; `ADMIN_INVITATION_RESENT` on explicit resend and on same-email+same-role invite-submit reuse after email success), `USER_PUBLIC_ID_CHANGED`, `USER_PROFILE_UPDATED_BY_ADMIN`.
 Organization membership: `ORGANIZATION_MEMBER_*`, ownership transfer, invitation resend/revoke.  
 Notification config (not broadcasts): type/group/preference.  
 Middleware + Cognito admin gate: `ADMIN_ACCESS_DENIED`.
@@ -924,7 +924,7 @@ Legal types in schema: `PDPA_NOTICE_AND_CONSENT`, `TERMS_OF_USE`, `RISK_STATEMEN
 | Create/update/delete admin role + permissions | YES SecurityAuditLog | — |
 | Assign user roles | Investor/Issuer: `OrganizationService.createOrganization` (not `USER_ROLE_ADDED` / `USER_ROLES_UPDATED`). Admin access: invitation accept → `ADMIN_INVITATION_ACCEPTED`. Admin catalog role: `ADMIN_USER_ROLE_CHANGED` (role editor, and invitation acceptance when an existing Admin’s role actually changes). Portal Investor/Issuer flags: onboarding endpoint. Portal switch: navigation only (no `ACTIVE_ROLE_CHANGED`). | — |
 | Deactivate/reactivate admin | YES `ADMIN_USER_DEACTIVATED` / `ADMIN_USER_REACTIVATED` (DB-only; no Cognito disable) | — |
-| Invite admin create/resend | YES `ADMIN_INVITATION_CREATED` / `RESENT` / `LINK_GENERATED` | — |
+| Invite admin create/resend | YES `ADMIN_INVITATION_CREATED` on new row; `ADMIN_INVITATION_RESENT` on explicit resend **and** on invite-submit reuse of a valid pending same-email+same-role invitation after email success; `ADMIN_INVITATION_LINK_GENERATED` when a link is generated | — |
 | Revoke invite | YES `ADMIN_INVITATION_REVOKED` | — |
 | Admin profile edit of user | YES `USER_PROFILE_UPDATED_BY_ADMIN` | — |
 | Assign user_id | YES `USER_PUBLIC_ID_CHANGED` (admin rewrite only; initial assign not audited) | — |

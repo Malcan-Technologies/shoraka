@@ -216,6 +216,7 @@ describe("Access/Security audit cutover", () => {
       /ADMIN_INVITATION_LINK_GENERATED/
     );
     expect(methodChunk(adminService, "inviteAdmin", 2500)).toMatch(/generateInvitationUrl/);
+    expect(methodChunk(adminService, "inviteAdmin", 1800)).toMatch(/ADMIN_INVITATION_RESENT/);
     expect(methodChunk(adminService, "resendInvitation")).toMatch(/ADMIN_INVITATION_RESENT/);
     expect(methodChunk(adminService, "revokeInvitation")).toMatch(/ADMIN_INVITATION_REVOKED/);
     expect(methodChunk(adminService, "acceptInvitation", 5000)).toMatch(
