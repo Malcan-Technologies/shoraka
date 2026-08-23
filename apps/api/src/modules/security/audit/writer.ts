@@ -7,7 +7,10 @@ import {
   jsonAuditValue,
   type AuditRequestContext,
 } from "../../../lib/audit/context";
-import { loadAuditActorSnapshot } from "../../../lib/audit/snapshot";
+import {
+  loadAuditActorSnapshot,
+  type AuditActorSnapshot,
+} from "../../../lib/audit/snapshot";
 import {
   SECURITY_AUDIT_TARGET_TYPE,
   type SecurityAuditEventType,
@@ -24,13 +27,16 @@ export type SecurityAuditWriteInput = {
   organizationId?: string | null;
   organizationKind?: string | null;
   metadata: Record<string, unknown>;
+  /** When set, used instead of querying the actor after a mutation that may rewrite their PK. */
+  actorSnapshot?: AuditActorSnapshot;
 };
 
 export async function writeSecurityAuditLog(
   input: SecurityAuditWriteInput,
   db: Prisma.TransactionClient = prisma
 ): Promise<void> {
-  const actor = await loadAuditActorSnapshot(input.context.actorUserId, db);
+  const actor =
+    input.actorSnapshot ?? (await loadAuditActorSnapshot(input.context.actorUserId, db));
   const metadata = parseSecurityAuditMetadata(input.eventType, {
     ...input.metadata,
     actorName: actor.name,

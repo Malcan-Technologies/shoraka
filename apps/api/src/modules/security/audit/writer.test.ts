@@ -56,6 +56,79 @@ describe("writeSecurityAuditLog", () => {
     );
   });
 
+  it("uses a provided actor snapshot instead of re-querying the actor", async () => {
+    const create = jest.fn().mockResolvedValue({});
+    const findUnique = jest.fn().mockResolvedValue(null);
+    await writeSecurityAuditLog(
+      {
+        eventType: "USER_PUBLIC_ID_CHANGED",
+        context: { ...context, actorUserId: "QPSYO" },
+        subjectUserId: "QPSYP",
+        targetType: "USER",
+        targetId: "QPSYP",
+        metadata: { previousUserId: "QPSYO", newUserId: "QPSYP" },
+        actorSnapshot: { name: "Max Chng", email: "max.chng@truestack.my" },
+      },
+      {
+        user: { findUnique },
+        securityAuditLog: { create },
+      } as unknown as Prisma.TransactionClient
+    );
+
+    expect(findUnique).not.toHaveBeenCalled();
+    expect(create.mock.calls[0][0].data).toEqual(
+      expect.objectContaining({
+        actor_user_id: "QPSYO",
+        subject_user_id: "QPSYP",
+        target_id: "QPSYP",
+        metadata: expect.objectContaining({
+          actorName: "Max Chng",
+          actorEmail: "max.chng@truestack.my",
+          previousUserId: "QPSYO",
+          newUserId: "QPSYP",
+        }),
+      })
+    );
+  });
+
+  it("still loads actorName and actorEmail when no snapshot override is supplied", async () => {
+    const create = jest.fn().mockResolvedValue({});
+    const findUnique = jest.fn().mockResolvedValue({
+      email: "admin@example.com",
+      first_name: "Ada",
+      last_name: "Admin",
+    });
+    await writeSecurityAuditLog(
+      {
+        eventType: "USER_PROFILE_UPDATED_BY_ADMIN",
+        context,
+        subjectUserId: "USER1",
+        targetType: "USER",
+        targetId: "USER1",
+        metadata: {
+          changedFields: ["phone"],
+          before: { phone: "+60165584792" },
+          after: { phone: "+60165584793" },
+        },
+      },
+      {
+        user: { findUnique },
+        securityAuditLog: { create },
+      } as unknown as Prisma.TransactionClient
+    );
+
+    expect(findUnique).toHaveBeenCalledWith({
+      where: { user_id: "ADMIN" },
+      select: { email: true, first_name: true, last_name: true },
+    });
+    expect(create.mock.calls[0][0].data.metadata).toEqual(
+      expect.objectContaining({
+        actorName: "Ada Admin",
+        actorEmail: "admin@example.com",
+      })
+    );
+  });
+
   it("rejects invalid metadata before insert", async () => {
     const create = jest.fn();
     await expect(

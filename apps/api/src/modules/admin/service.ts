@@ -33,7 +33,12 @@ import {
   auditContextFromAdminRequest,
   auditContextFromRequest,
 } from "../../lib/audit/context";
-import { changedFieldsOf, permissionDiff, roleDiff } from "../../lib/audit/snapshot";
+import {
+  changedFieldsOf,
+  loadAuditActorSnapshot,
+  permissionDiff,
+  roleDiff,
+} from "../../lib/audit/snapshot";
 import { writeSecurityAuditLog } from "../security/audit/writer";
 import { SECURITY_AUDIT_TARGET_TYPE } from "../security/audit/events";
 import { sendEmail } from "../../lib/email/ses-client";
@@ -1637,6 +1642,8 @@ export class AdminService {
 
     try {
       return await prisma.$transaction(async (tx) => {
+        const actorSnapshot = await loadAuditActorSnapshot(context.actorUserId, tx);
+
         const updatedUser = await tx.user.update({
           where: { user_id: userId },
           data: { user_id: newUserId },
@@ -1653,6 +1660,7 @@ export class AdminService {
               previousUserId: userId,
               newUserId,
             },
+            actorSnapshot,
           },
           tx
         );
