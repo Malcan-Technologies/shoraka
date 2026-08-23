@@ -208,7 +208,17 @@ describe("audit preservation: writer coverage", () => {
    */
   const KNOWN_UNWRITTEN_EVENTS = new Set(["SECTION_REVIEWED_PENDING", "ITEM_REVIEWED_PENDING"]);
 
-  it("keeps a production writer for every application log event that had one", () => {
+  /**
+   * This is a "did the string vanish from the codebase" regression guard, not a
+   * "does this event have a live writer" check — it matches any reference, including
+   * reader/label code, so it does not (and cannot) distinguish a real writer call site
+   * from a dead enum member that only survives in a case/label map. The authoritative
+   * per-event writer classification lives in `origin-main-preservation-inventory.md`
+   * §3.4, which lists `APPLICATION_APPROVED` and `CONTRACT_OFFER_REJECTED` as declared
+   * with no production writer; those are intentionally not in `KNOWN_UNWRITTEN_EVENTS`
+   * because a reader/label reference to them already exists and must keep existing.
+   */
+  it("keeps at least a source reference for every application log event that had one", () => {
     const missing: string[] = [];
     for (const event of baseline.eventTypes.applicationLog) {
       if (KNOWN_UNWRITTEN_EVENTS.has(event)) continue;

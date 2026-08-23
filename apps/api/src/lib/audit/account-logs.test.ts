@@ -36,7 +36,7 @@ describe("account log writers issue no read", () => {
     await createAccessLogRow(
       {
         userId: "user-1",
-        eventType: "LOGIN_SUCCESS",
+        eventType: "LOGIN",
         portal: "investor",
         ipAddress: "203.0.113.5",
         userAgent: "agent",
@@ -57,7 +57,7 @@ describe("access and security logs preserve their legacy columns", () => {
     await createAccessLogRow(
       {
         userId: "user-1",
-        eventType: "LOGIN_SUCCESS",
+        eventType: "LOGIN",
         portal: "investor",
         ipAddress: "203.0.113.5",
         userAgent: "agent",
@@ -72,7 +72,7 @@ describe("access and security logs preserve their legacy columns", () => {
 
     expect(created.accessLog[0]).toMatchObject({
       user_id: "user-1",
-      event_type: "LOGIN_SUCCESS",
+      event_type: "LOGIN",
       portal: "investor",
       ip_address: "203.0.113.5",
       user_agent: "agent",
@@ -160,7 +160,7 @@ describe("onboarding log organization context", () => {
       {
         userId: "u",
         role: UserRole.INVESTOR,
-        eventType: "KYC_APPROVED",
+        eventType: "AML_APPROVED",
         investorOrganizationId: "org-1",
       },
       db
@@ -179,7 +179,7 @@ describe("onboarding log organization context", () => {
       {
         userId: "u",
         role: UserRole.ISSUER,
-        eventType: "KYB_APPROVED",
+        eventType: "AML_APPROVED",
         issuerOrganizationId: "org-2",
       },
       db
@@ -198,7 +198,7 @@ describe("onboarding log organization context", () => {
       {
         userId: "u",
         role: UserRole.INVESTOR,
-        eventType: "KYC_APPROVED",
+        eventType: "ONBOARDING_STATUS_UPDATED",
         context: {
           actorType: AUDIT_ACTOR_TYPE.INTEGRATION,
           source: AUDIT_SOURCE.WEBHOOK,
