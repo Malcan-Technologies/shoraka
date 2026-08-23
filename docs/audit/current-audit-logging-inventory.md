@@ -91,33 +91,58 @@ Security reserved **35** / active **30** / retired **5**. IDs are not reused. Ad
 
 Other retired (not Security): A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`.
 
+## Invitation reuse rule (Admin and organization)
+
+Same email + same role + valid pending invitation → **reuse** the same invitation id, token, expiry, and link; send the email again; write the RESENT event with a new request `correlation_id`. Same email + different role → **new** invitation (`ADMIN_INVITATION_CREATED` or `ORGANIZATION_MEMBER_INVITED`). Revoked/deleted, expired, or already accepted invitations are **not** reusable. Resend does **not** rotate the token or extend expiry.
+
+## Copy Link difference
+
+Admin Copy Link is audited because it exposes an Admin-access invitation credential. Organization Copy Link is a convenience action and is **not** audited. The three invitation surfaces are **not** identical in Copy Link treatment. Core invite / resend / revoke / accept lifecycle is aligned.
+
+| Surface | Copy Link audit |
+|---|---|
+| Admin Invite dialog + Pending Invitations table | `ADMIN_INVITATION_LINK_GENERATED` |
+| Issuer / Investor organization (modal + pending table) | **No** Security event. There is **no** `ORGANIZATION_INVITATION_LINK_GENERATED`. |
+
+If organization generate-link must **create** a first invitation because none is reusable, that **create** writes `ORGANIZATION_MEMBER_INVITED`. Copying an already-pending organization invitation writes nothing.
+
 ## Current Admin invitation audit
 
 | Event | When it writes |
 |---|---|
-| `ADMIN_INVITATION_CREATED` | New invitation row only. Same-email + same-role reuse of a valid pending invite does **not** write this. |
-| `ADMIN_INVITATION_RESENT` | Explicit Resend Email, **and** Invite-submit reuse of same email + same role after a successful email send. Not written if SES fails. |
+| `ADMIN_INVITATION_CREATED` | New invitation row only. Same-email + same-role reuse of a valid pending invite does **not** write this. Same email + different role creates a new row and writes this. |
+| `ADMIN_INVITATION_RESENT` | Explicit Resend Email, **and** Invite-submit reuse of same email + same role after a successful email send. Same invitation id/token/expiry/link. New `correlation_id`. Not written if SES fails. |
 | `ADMIN_INVITATION_LINK_GENERATED` | Invite dialog Copy Link (`generateInvitationUrl`) **and** Pending Invitations table Copy Link (`copyInvitationLink` on an existing invitation). Repeating Copy Link writes another row. |
 | `ADMIN_INVITATION_REVOKED` | Revoke a pending invitation. |
 | `ADMIN_INVITATION_ACCEPTED` | Successful acceptance. |
-| `ADMIN_USER_ROLE_CHANGED` | Admin role editor, **and** invitation acceptance when an **existing** Admin accepts a **different-role** invite. First-time Admin grant and same-role accept do not write this. |
+| `ADMIN_USER_ROLE_CHANGED` | Admin role editor, **and** invitation acceptance when an **existing** Admin accepts a **different-role** invite (same request `correlation_id` as `ADMIN_INVITATION_ACCEPTED`). First-time Admin grant and same-role accept do not write this. |
 
 Invitation token and full URL are **not** stored in audit metadata.
+
+**Manual QA (2026-08-23):** PASS — create, same-role reuse, resend, Copy Link (dialog + table), revoke, accept, and existing-Admin different-role accept (role-change + accepted, same `correlation_id`).
 
 ## Current Organization invitation audit
 
 Issuer and Investor organization invitations share `OrganizationService` (`portalType: "investor" | "issuer"`). No Prisma migration. Historical duplicate pending rows are left in place; reuse picks the newest valid match.
 
+**General / unbound invite:** An organization invitation may be created without a specific member email. The stored row may use a placeholder email; audit `memberEmail` is `null`. That create writes `ORGANIZATION_MEMBER_INVITED`. When a real user accepts, `ORGANIZATION_MEMBER_JOINED` records the actual member user/email. This is product behavior, not an error.
+
 | Event | When it writes |
 |---|---|
-| `ORGANIZATION_MEMBER_INVITED` | New invitation row only (invite-submit, or Copy Link/generate-link when no reusable pending row exists). Same-email + same-role reuse of a valid pending invite does **not** write this. Same email + different role creates a new row and writes this. |
-| `ORGANIZATION_INVITATION_RESENT` | Explicit Resend, **and** invite-submit reuse of same email + same role after a successful email send. Not written if SES fails. Token, expiry, and the existing row stay unchanged on email failure. |
+| `ORGANIZATION_MEMBER_INVITED` | New invitation row only (invite-submit, or generate-link **create** when no reusable pending row exists). Same-email + same-role reuse of a valid pending invite does **not** write this. Same email + different role creates a new row and writes this. General/unbound invite writes this with `memberEmail` null. |
+| `ORGANIZATION_INVITATION_RESENT` | Explicit Resend, **and** invite-submit reuse of same email + same role after a successful email send. Same invitation id/token/expiry/link. New `correlation_id`. Not written if SES fails. Token/expiry are not rotated. |
 | `ORGANIZATION_INVITATION_REVOKED` | Revoke a pending invitation (row deleted). |
-| `ORGANIZATION_MEMBER_JOINED` | Successful acceptance. |
+| `ORGANIZATION_MEMBER_JOINED` | Successful acceptance/join. General-link accept records the actual member user/email. |
+| `ORGANIZATION_MEMBER_REMOVED` | Another authorized user removes a member. |
+| `ORGANIZATION_MEMBER_LEFT` | Member leaves themselves. |
+| `ORGANIZATION_MEMBER_ROLE_UPDATED` | Member role change. **Not** marked live-QA PASS in this pass. |
+| `ORGANIZATION_OWNERSHIP_TRANSFERRED` | Ownership transfer. **Not** marked live-QA PASS in this pass. |
 
-Copy Link (invite-modal generate-link reuse **and** pending-table clipboard copy) does **not** write a Security event. There is no `ORGANIZATION_INVITATION_LINK_GENERATED`. Revoked (deleted), expired, or accepted invitations are not reusable.
+Copy Link (invite-modal generate-link **reuse** and pending-table clipboard copy) does **not** write a Security event. There is no `ORGANIZATION_INVITATION_LINK_GENERATED`. Revoked (deleted), expired, or accepted invitations are not reusable.
 
 Invitation token and full URL are **not** stored in audit metadata.
+
+**Manual QA (2026-08-23):** Issuer PASS — invite, same-role reuse, explicit resend, different-role invite, revoke, general link, join, remove, leave. Investor: same backend as Issuer; covered by shared tests. Repeat Issuer UI checks on Investor if a portal-specific confirmation is required. `ORGANIZATION_MEMBER_ROLE_UPDATED` and `ORGANIZATION_OWNERSHIP_TRANSFERRED` are not marked PASS.
 
 ## Audit is history, not source of truth
 

@@ -773,6 +773,12 @@ Landing signup Verify Email remains active. It uses `POST /v1/auth/confirm-signu
 - Portal switching is navigation between portals. It does not write `ACTIVE_ROLE_CHANGED`.
 - `POST /v1/auth/complete-onboarding` is still mounted. No current portal caller. Writes no audit event. Not happy-path onboarding. Intentionally left in source. Distinct from `POST /v1/organizations/{investor|issuer}/:id/complete-onboarding`.
 
+**Invitation reuse (Admin and organization, current):** Same email + same role + valid pending invitation → reuse the same invitation id, token, expiry, and link; send the email again; write the RESENT event with a new request `correlation_id`. Same email + different role → new invitation (`ADMIN_INVITATION_CREATED` or `ORGANIZATION_MEMBER_INVITED`). Revoked/deleted, expired, or already accepted invitations are not reusable. Resend does **not** rotate the token or extend expiry.
+
+**Copy Link is intentionally different.** Admin Copy Link (Invite dialog and Pending Invitations table) writes `ADMIN_INVITATION_LINK_GENERATED` because it exposes an Admin-access invitation credential. Issuer/Investor organization Copy Link writes **no** Security event. There is no `ORGANIZATION_INVITATION_LINK_GENERATED`. Core invite / resend / revoke / accept lifecycle is aligned; Copy Link auditing is not.
+
+**General / unbound organization invite:** An organization invitation may be created without a specific member email. The stored row may use a placeholder email; audit `memberEmail` is `null`. That create still writes `ORGANIZATION_MEMBER_INVITED`. When a real user accepts, `ORGANIZATION_MEMBER_JOINED` records the actual member user/email. This is product behavior, not an error.
+
 | ID | Source Case | Event | Admin Raw | Admin Activity | Issuer | Investor |
 |---|---|---|---|---|---|---|
 | A004 | SEC-001 | `USER_ROLE_ADDED` (RETIRED — DO NOT LIVE QA) | SHOW | HIDE | HIDE | HIDE |
@@ -3555,6 +3561,8 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] Accepting a same-role invite for an existing Admin does **not** write this event
 - [ ] Accepting a different-role invite for an existing Admin writes this event with the previous catalog role and the invitation role
 
+**Manual QA (2026-08-23):** **PASS** (invitation-accept path) — An existing Admin accepting a different-role invite writes `ADMIN_USER_ROLE_CHANGED` together with `ADMIN_INVITATION_ACCEPTED` on the same request `correlation_id`. First-time Admin grant and same-role accept do not write this event. This note does not by itself re-verify the Admin role-editor UI.
+
 # A018 — ADMIN_USER_DEACTIVATED
 
 Source Case: SEC-015
@@ -4184,6 +4192,8 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] Same email + same role reuse that sends email writes ADMIN_INVITATION_RESENT instead
 - [ ] Same email + different role still writes ADMIN_INVITATION_CREATED on the new invitation
 
+**Manual QA (2026-08-23):** **PASS** — First invite creates a new row and writes this event. Same email + same role + valid pending reuses id/token/expiry and does **not** write this event (writes `ADMIN_INVITATION_RESENT` after email success instead). Same email + different role creates a new invitation and writes this event.
+
 # A021 — ADMIN_INVITATION_LINK_GENERATED
 
 Source Case: SEC-018
@@ -4193,7 +4203,7 @@ DB Table: security_audit_logs
 
 ## 1. What this event means
 
-An admin invitation link was generated (or re-generated) for an invitation.
+An Admin invitation link was copied/generated for an invitation. Admin Copy Link is audited **because it exposes an Admin-access invitation credential**. Issuer/Investor organization Copy Link does **not** write a parallel Security event.
 
 ## 2. When it logs
 
@@ -4408,6 +4418,8 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] Pending table Copy Link writes ADMIN_INVITATION_LINK_GENERATED for the existing invitation (no new row)
 - [ ] token and full URL are not stored in metadata
 - [ ] repeating Copy Link writes a separate row per request (same invitationId, different correlation_id)
+
+**Manual QA (2026-08-23):** **PASS** — Invite dialog Copy Link and Pending Invitations table Copy Link each write `ADMIN_INVITATION_LINK_GENERATED`. Repeating Copy Link writes another row (same invitation id, new `correlation_id`). Token and full URL are not stored. This is intentionally **not** mirrored for organization invitations.
 
 # A022 — ADMIN_INVITATION_RESENT
 
@@ -4631,6 +4643,8 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] Same email + different role writes ADMIN_INVITATION_CREATED on the new invitation, not this event
 - [ ] Reused invite whose email send fails does not write this event
 
+**Manual QA (2026-08-23):** **PASS** — Explicit Resend reuses the same invitation/link and writes this event after SES success. Invite-submit same-email + same-role reuse also writes this event after SES success (not `ADMIN_INVITATION_CREATED`). Token and expiry are not rotated. Email failure does not write this event.
+
 # A023 — ADMIN_INVITATION_REVOKED
 
 Source Case: SEC-020
@@ -4846,6 +4860,8 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] No internal metadata exposed
 - [ ] RBAC correct
 - [ ] Detail UI correct
+
+**Manual QA (2026-08-23):** **PASS** — Revoking a pending Admin invitation writes `ADMIN_INVITATION_REVOKED`. The invitation is not reusable afterward.
 
 # A024 — ADMIN_INVITATION_ACCEPTED
 
@@ -5067,6 +5083,8 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] Accept the second invite: `ADMIN_INVITATION_ACCEPTED` and `ADMIN_USER_ROLE_CHANGED` with `previousRole` = first invite role and `newRole` = second invite role
 - [ ] Both rows share the same request `correlation_id`
 
+**Manual QA (2026-08-23):** **PASS** — Accept writes `ADMIN_INVITATION_ACCEPTED`. Existing Admin accepting a different-role invite also writes `ADMIN_USER_ROLE_CHANGED` on the same `correlation_id`. First-time Admin grant does not write `ADMIN_USER_ROLE_CHANGED`.
+
 # A025 — USER_PUBLIC_ID_CHANGED
 
 Source Case: SEC-022
@@ -5259,20 +5277,20 @@ DB Table: security_audit_logs
 
 ## 1. What this event means
 
-A person was invited to join an issuer or investor organization.
+A person was invited to join an issuer or investor organization. Issuer and Investor share `OrganizationService`. This includes a **general / unbound** invite created without a specific member email (placeholder email on the row; `memberEmail` null). That is product behavior, not an error.
 
 ## 2. When it logs
 
 `apps/api/src/modules/organization/service.ts` when a **new** issuer or investor organization invitation row is created:
 
 - Invite-submit (`inviteMember`) when there is no reusable pending invitation for the same organization, kind, normalized email, and role.
-- Invite-modal Copy Link (`generateMemberInvitationUrl`) when it must create a new invitation because none is reusable.
+- Invite-modal generate-link (`generateMemberInvitationUrl`) when it must **create** a new invitation because none is reusable. That write is the **create**, not a Copy Link audit event.
 
-Same email + different role creates a new row and writes this event. Revoked (deleted), expired, or already accepted invitations are not reused, so the next send also writes this event. Sets organization_id/kind.
+Same email + different role creates a new row and writes this event. Revoked (deleted), expired, or already accepted invitations are not reused, so the next send also writes this event. A general invite without a member email still writes this event (`memberEmail` null). Sets organization_id/kind.
 
 ## 3. When it does NOT log / no-op
 
-Same email + same role + valid pending invitation: Invite-submit **reuses** that row and does **not** write this event (it writes `ORGANIZATION_INVITATION_RESENT` after a successful email send instead). Copy Link reuse of an existing pending invitation writes nothing. Duplicate/invalid invites that the service rejects do not write.
+Same email + same role + valid pending invitation: Invite-submit **reuses** that row and does **not** write this event (it writes `ORGANIZATION_INVITATION_RESENT` after a successful email send instead). Copy Link of an existing pending invitation writes **nothing** — there is no `ORGANIZATION_INVITATION_LINK_GENERATED`. Duplicate/invalid invites that the service rejects do not write.
 
 ## 4. Top-level audit row
 
@@ -5525,6 +5543,10 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] No internal metadata exposed
 - [ ] RBAC correct
 - [ ] Detail UI correct
+- [ ] General / unbound invite (no member email) writes this event with `memberEmail` null
+- [ ] Copy Link of an existing pending invitation writes no Security row
+
+**Manual QA (2026-08-23):** **PASS (Issuer live QA + shared Issuer/Investor API tests)** — First invite writes `ORGANIZATION_MEMBER_INVITED`. Same-email + same-role reuse writes `ORGANIZATION_INVITATION_RESENT` (not a second INVITED). Different-role invite writes a new INVITED. General/unbound link writes INVITED with `memberEmail` null. Copy Link of an existing invitation writes no Security event. Investor uses the same `OrganizationService` path; repeat Issuer UI checks on Investor if a portal-specific confirmation is required.
 
 # A027 — ORGANIZATION_MEMBER_JOINED
 
@@ -5535,11 +5557,11 @@ DB Table: security_audit_logs
 
 ## 1. What this event means
 
-An invited (or otherwise joining) user became an organization member.
+An invited (or otherwise joining) user became an organization member. For a general/unbound invitation, this is when the actual member user/email becomes known.
 
 ## 2. When it logs
 
-`apps/api/src/modules/organization/service.ts` join/accept invitation paths (two call sites).
+`apps/api/src/modules/organization/service.ts` join/accept invitation paths (two call sites). Join of a placeholder/general invitation still writes this event with the accepting user's id/email.
 
 ## 3. When it does NOT log / no-op
 
@@ -5796,6 +5818,8 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] No internal metadata exposed
 - [ ] RBAC correct
 - [ ] Detail UI correct
+
+**Manual QA (2026-08-23):** **PASS (Issuer live QA + shared tests)** — Accept/join writes `ORGANIZATION_MEMBER_JOINED`. A general-link accept records the actual member user/email. Investor shares the same accept path.
 
 # A028 — ORGANIZATION_MEMBER_REMOVED
 
@@ -6068,6 +6092,8 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] RBAC correct
 - [ ] Detail UI correct
 
+**Manual QA (2026-08-23):** **PASS (Issuer live QA + shared tests)** — An authorized user removing a member writes `ORGANIZATION_MEMBER_REMOVED`. Investor shares the same service path.
+
 # A029 — ORGANIZATION_MEMBER_LEFT
 
 Source Case: SEC-026
@@ -6338,6 +6364,8 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] No internal metadata exposed
 - [ ] RBAC correct
 - [ ] Detail UI correct
+
+**Manual QA (2026-08-23):** **PASS (Issuer live QA + shared tests)** — A member leaving writes `ORGANIZATION_MEMBER_LEFT`. Investor shares the same service path.
 
 # A030 — ORGANIZATION_MEMBER_ROLE_UPDATED
 
@@ -6610,6 +6638,8 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] RBAC correct
 - [ ] Detail UI correct
 
+**Manual QA (2026-08-23):** Not marked PASS. No current live evidence submitted for this event in this documentation pass.
+
 # A031 — ORGANIZATION_OWNERSHIP_TRANSFERRED
 
 Source Case: SEC-028
@@ -6881,6 +6911,8 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] RBAC correct
 - [ ] Detail UI correct
 
+**Manual QA (2026-08-23):** Not marked PASS. No current live evidence submitted for this event in this documentation pass.
+
 # A032 — ORGANIZATION_INVITATION_REVOKED
 
 Source Case: SEC-029
@@ -7151,6 +7183,8 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] No internal metadata exposed
 - [ ] RBAC correct
 - [ ] Detail UI correct
+
+**Manual QA (2026-08-23):** **PASS (Issuer live QA + shared tests)** — Revoke deletes the pending invitation and writes `ORGANIZATION_INVITATION_REVOKED`. That invitation is not reusable.
 
 # A033 — ORGANIZATION_INVITATION_RESENT
 
@@ -7428,6 +7462,10 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] RBAC correct
 - [ ] Detail UI correct
 - [ ] No row when invitation email send fails
+- [ ] Token, expiry, and invitation id are unchanged on resend
+- [ ] Invite-submit same-email + same-role reuse writes this event (not a second ORGANIZATION_MEMBER_INVITED)
+
+**Manual QA (2026-08-23):** **PASS (Issuer live QA + shared tests)** — Explicit Resend and same-role invite-submit reuse write `ORGANIZATION_INVITATION_RESENT` after SES success, with the same invitation id/token/expiry and a new `correlation_id`. Copy Link does not write this event. Email failure does not write this event. Investor shares the same service path.
 
 # A034 — NOTIFICATION_TYPE_UPDATED
 
@@ -41631,7 +41669,7 @@ Date: **2026-08-23**. Source: current tree after retirement of A004 `USER_ROLE_A
 ## Writer notes that affect verification
 
 - Access writes are **best-effort**. `USER_SIGNED_UP` vs `USER_LOGGED_IN` are mutually exclusive on `isSignup`. Typical portal logout writes **one** `USER_LOGGED_OUT` via Cognito GET `/logout`; two rows only if both `POST /v1/auth/logout` and GET `/v1/auth/cognito/logout` run. `sessionId` on login schema is never populated. `POST /v1/auth/sync-user` does not write login audit.
-- Security in-tx writes throw; BestEffort is used for denials / password. `USER_ROLE_ADDED` is retired (A004 reserved). `USER_EMAIL_VERIFIED` and `EMAIL_VERIFICATION_FAILED` are retired (A010 / A011 reserved; `/v1/auth/verify-email` removed). Signup confirmation stays on `confirm-signup`. `ADMIN_ACCESS_DENIED` has two writers: Cognito Admin gate (`USER` + `MISSING_ADMIN_ROLE`, or `ADMIN` + `ADMIN_INACTIVE`) and RBAC middleware (`ADMIN` + `INSUFFICIENT_PERMISSIONS`). `portal=ADMIN` is where the denial happened, not who the actor is. `ADMIN_INVITATION_CREATED` is skipped when an existing invitation is reused; that reuse writes `ADMIN_INVITATION_RESENT` after a successful email send on invite-submit. `emailSent` is only set on `ADMIN_INVITATION_RESENT`. `ORGANIZATION_MEMBER_INVITED` is skipped when an issuer/investor same-email + same-role pending invitation is reused; that reuse writes `ORGANIZATION_INVITATION_RESENT` after a successful email send on invite-submit (same writer as explicit Resend). Organization Copy Link writes no Security event. `ORGANIZATION_INVITATION_RESENT` writes only after email success.
+- Security in-tx writes throw; BestEffort is used for denials / password. `USER_ROLE_ADDED` is retired (A004 reserved). `USER_EMAIL_VERIFIED` and `EMAIL_VERIFICATION_FAILED` are retired (A010 / A011 reserved; `/v1/auth/verify-email` removed). Signup confirmation stays on `confirm-signup`. `ADMIN_ACCESS_DENIED` has two writers: Cognito Admin gate (`USER` + `MISSING_ADMIN_ROLE`, or `ADMIN` + `ADMIN_INACTIVE`) and RBAC middleware (`ADMIN` + `INSUFFICIENT_PERMISSIONS`). `portal=ADMIN` is where the denial happened, not who the actor is. `ADMIN_INVITATION_CREATED` is skipped when an existing invitation is reused; that reuse writes `ADMIN_INVITATION_RESENT` after a successful email send on invite-submit. `emailSent` is only set on `ADMIN_INVITATION_RESENT`. Admin Copy Link writes `ADMIN_INVITATION_LINK_GENERATED`. `ORGANIZATION_MEMBER_INVITED` is skipped when an issuer/investor same-email + same-role pending invitation is reused; that reuse writes `ORGANIZATION_INVITATION_RESENT` after a successful email send on invite-submit (same writer as explicit Resend). Token and expiry are not rotated on resend. Organization Copy Link writes no Security event; there is no `ORGANIZATION_INVITATION_LINK_GENERATED`. A general/unbound organization invite writes `ORGANIZATION_MEMBER_INVITED` with `memberEmail` null. `ORGANIZATION_INVITATION_RESENT` writes only after email success.
 - Payment idempotency keys come from `PAYMENT_AUDIT_IDEMPOTENCY`; unique constraint; existing-key skip / `P2002` swallow.
 - `PRODUCT_REACTIVATED` and repository `setInactive` are **not wired to HTTP** (`restoreProduct` / `setInactive` are repository-only). Versioned product update can still write `PRODUCT_INACTIVATED`.
 - Notification broadcast audit is **outside** recipient transactions and must not roll back notifications.
