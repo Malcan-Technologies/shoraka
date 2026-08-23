@@ -14,6 +14,7 @@ import { AdminPageHeader } from "../../../components/admin-page-header";
 import { usePermissions } from "../../../hooks/use-permissions";
 import {
   usePendingInvitations,
+  useCopyInvitationLink,
   useResendInvitation,
   useRevokeInvitation,
 } from "../../../hooks/use-pending-invitations";
@@ -62,6 +63,7 @@ export default function RolesPage() {
   });
 
   const resendInvitation = useResendInvitation();
+  const copyInvitationLink = useCopyInvitationLink();
   const revokeInvitation = useRevokeInvitation();
 
   const pendingInvitations = invitationsData?.invitations || [];
@@ -146,6 +148,7 @@ export default function RolesPage() {
               totalPages={invitationsTotalPages}
               onPageChange={setInvitationsPage}
               onResend={(id) => resendInvitation.mutate(id)}
+              onCopyLink={(id) => copyInvitationLink.mutateAsync(id)}
               onRevoke={(id) => revokeInvitation.mutate(id)}
               canManageRoles={canManageRoles}
             />

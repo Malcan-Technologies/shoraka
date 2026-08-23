@@ -2001,6 +2001,15 @@ export class ApiClient {
     );
   }
 
+  async copyInvitationLink(
+    invitationId: string
+  ): Promise<ApiResponse<{ inviteUrl: string }> | ApiError> {
+    return this.post<{ inviteUrl: string }>(
+      `/v1/admin/invitations/${invitationId}/copy-link`,
+      {}
+    );
+  }
+
   async revokeInvitation(
     invitationId: string
   ): Promise<ApiResponse<{ message: string }> | ApiError> {

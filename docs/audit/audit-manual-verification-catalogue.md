@@ -4215,11 +4215,16 @@ An admin invitation link was generated (or re-generated) for an invitation.
 
 ## 2. When it logs
 
-Same admin invitation helper when `options.writeLinkGenerated` is true — after create-or-reuse. This can fire even when CREATED was skipped.
+Two live Admin UI sources, each writing one row per successful request:
+
+1. Invite Admin dialog Copy Link — `POST /v1/admin/generate-invite-link` → `generateInvitationUrl(..., { writeLinkGenerated: true })` after create-or-reuse. This can fire even when CREATED was skipped.
+2. Pending Invitations table Copy Link — `POST /v1/admin/invitations/:id/copy-link` → `copyInvitationLink` for an **existing** pending invitation. Does not create, rotate, extend, or email.
+
+Repeating Copy Link writes another `ADMIN_INVITATION_LINK_GENERATED` row (same `invitationId`, current request `correlation_id`). Token and full URL are never stored.
 
 ## 3. When it does NOT log / no-op
 
-Not written when the caller does not request `writeLinkGenerated`. `emailSent` is not set.
+Not written when `generateInvitationUrl` is called without `writeLinkGenerated` (Send Invitation / `inviteAdmin`). `copyInvitationLink` does not write when the invitation is missing, expired, or already accepted (API error; no new row). Permission denial is `ADMIN_ACCESS_DENIED`, not this event. `emailSent` is not set. Token and full URL are never stored.
 
 ## 4. Top-level audit row
 
@@ -4343,8 +4348,8 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 
 ## 8. Writer(s)
 
-- `apps/api/src/modules/admin/service.ts` — invitation link generation
-- `writeSecurityAuditLog` (outside the create tx when reusing)
+- `apps/api/src/modules/admin/service.ts` — `generateInvitationUrl` (Invite dialog Copy Link) and `copyInvitationLink` (Pending Invitations table Copy Link)
+- `writeSecurityAuditLog` (outside any invitation-row mutation)
 
 ## 9. ADMIN RAW AUDIT
 
@@ -4417,6 +4422,10 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 - [ ] No internal metadata exposed
 - [ ] RBAC correct
 - [ ] Detail UI correct
+- [ ] Invite dialog Copy Link writes ADMIN_INVITATION_LINK_GENERATED
+- [ ] Pending table Copy Link writes ADMIN_INVITATION_LINK_GENERATED for the existing invitation (no new row)
+- [ ] token and full URL are not stored in metadata
+- [ ] repeating Copy Link writes a separate row per request (same invitationId, different correlation_id)
 
 # A022 — ADMIN_INVITATION_RESENT
 

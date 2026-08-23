@@ -34,26 +34,28 @@ interface PendingInvitationsTableProps {
   totalPages: number;
   onPageChange: (page: number) => void;
   onResend: (invitationId: string) => void;
+  onCopyLink: (invitationId: string) => Promise<{ inviteUrl: string }>;
   onRevoke: (invitationId: string) => void;
   canManageRoles?: boolean;
 }
 
 function InvitationRow({
   invitation,
-  inviteUrl,
   availableRoles,
   onResend,
+  onCopyLink,
   onRevoke,
   canManageRoles = false,
 }: {
   invitation: PendingInvitation;
-  inviteUrl: string;
   availableRoles: AdminRoleConfigRecord[];
   onResend: (id: string) => void;
+  onCopyLink: (id: string) => Promise<{ inviteUrl: string }>;
   onRevoke: (id: string) => void;
   canManageRoles?: boolean;
 }) {
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
+  const [isCopying, setIsCopying] = React.useState(false);
   const roleRecord = availableRoles.find((role) => role.key === invitation.role_description);
   const roleDisplay = getAdminRoleDisplayInfo(
     invitation.role_description,
@@ -65,12 +67,16 @@ function InvitationRow({
 
   const handleCopyLink = async () => {
     try {
+      setIsCopying(true);
+      const { inviteUrl } = await onCopyLink(invitation.id);
       await navigator.clipboard.writeText(inviteUrl);
       setCopiedId(invitation.id);
       toast.success("Link copied to clipboard");
       setTimeout(() => setCopiedId(null), 2000);
-    } catch {
-      toast.error("Failed to copy link");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to copy link");
+    } finally {
+      setIsCopying(false);
     }
   };
 
@@ -111,7 +117,8 @@ function InvitationRow({
             variant="outline"
             size="sm"
             onClick={handleCopyLink}
-            disabled={copiedId === invitation.id}
+            disabled={!canManageRoles || isCopying || copiedId === invitation.id}
+            title={!canManageRoles ? "You do not have permission to perform this action." : undefined}
             className="gap-1.5"
           >
             {copiedId === invitation.id ? (
@@ -197,15 +204,10 @@ export function PendingInvitationsTable({
   totalPages,
   onPageChange,
   onResend,
+  onCopyLink,
   onRevoke,
   canManageRoles = false,
 }: PendingInvitationsTableProps) {
-  const adminPortalUrl = process.env.NEXT_PUBLIC_ADMIN_URL || "http://localhost:3003";
-
-  const getInviteUrl = (token: string, role: AdminRoleKey) => {
-    return `${adminPortalUrl}/callback?invitation=${token}&role=${role}`;
-  };
-
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
@@ -234,9 +236,9 @@ export function PendingInvitationsTable({
                   <InvitationRow
                     key={invitation.id}
                     invitation={invitation}
-                    inviteUrl={getInviteUrl(invitation.token, invitation.role_description)}
                     availableRoles={availableRoles}
                     onResend={onResend}
+                    onCopyLink={onCopyLink}
                     onRevoke={onRevoke}
                     canManageRoles={canManageRoles}
                   />

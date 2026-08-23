@@ -50,6 +50,21 @@ export function useResendInvitation() {
   });
 }
 
+export function useCopyInvitationLink() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async (invitationId: string): Promise<{ inviteUrl: string }> => {
+      const response = await apiClient.copyInvitationLink(invitationId);
+      if ("error" in response) {
+        throw new Error(response.error.message);
+      }
+      return response.data;
+    },
+  });
+}
+
 export function useRevokeInvitation() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);

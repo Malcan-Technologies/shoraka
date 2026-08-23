@@ -236,6 +236,14 @@ function guarantorNationalityIso2FromSourceData(sourceData: unknown): string | u
   return t.length === 2 ? t : undefined;
 }
 
+function buildAdminInvitationUrl(invitation: {
+  token: string;
+  role_description: string;
+}): string {
+  const adminPortalUrl = process.env.ADMIN_URL || "http://localhost:3003";
+  return `${adminPortalUrl}/callback?invitation=${invitation.token}&role=${invitation.role_description}`;
+}
+
 export class AdminService {
   private repository: AdminRepository;
   private regTankRepository: RegTankRepository;
@@ -1881,17 +1889,53 @@ export class AdminService {
       });
     }
 
-    const adminPortalUrl = process.env.ADMIN_URL || "http://localhost:3003";
-    const inviteUrl = `${adminPortalUrl}/callback?invitation=${invitation.token}&role=${data.roleDescription}`;
-
     return {
-      inviteUrl,
+      inviteUrl: buildAdminInvitationUrl(invitation),
       token: invitation.token,
       invitationId: invitation.id,
       email: invitation.email,
       expiresAt: invitation.expires_at,
       created: !existingInvitation,
     };
+  }
+
+  /**
+   * Return the current URL for an existing pending invitation and write
+   * ADMIN_INVITATION_LINK_GENERATED. Does not create, rotate, extend, or email.
+   */
+  async copyInvitationLink(
+    req: Request,
+    invitationId: string
+  ): Promise<{ inviteUrl: string }> {
+    const invitation = await this.repository.getAdminInvitationById(invitationId);
+
+    if (!invitation) {
+      throw new AppError(404, "NOT_FOUND", "Invitation not found");
+    }
+
+    if (invitation.accepted) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invitation has already been accepted");
+    }
+
+    if (new Date() > invitation.expires_at) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invitation has expired");
+    }
+
+    await writeSecurityAuditLog({
+      eventType: "ADMIN_INVITATION_LINK_GENERATED",
+      context: auditContextFromAdminRequest(req),
+      subjectUserId: null,
+      targetType: SECURITY_AUDIT_TARGET_TYPE.ADMIN_INVITATION,
+      targetId: invitation.id,
+      metadata: {
+        invitationId: invitation.id,
+        email: invitation.email,
+        role: invitation.role_description,
+        expiresAt: invitation.expires_at.toISOString(),
+      },
+    });
+
+    return { inviteUrl: buildAdminInvitationUrl(invitation) };
   }
 
   /**
@@ -2255,9 +2299,7 @@ export class AdminService {
 
     const invitationRole = await this.requireAdminRoleConfig(invitation.role_description);
 
-    // Generate invitation URL
-    const adminPortalUrl = process.env.ADMIN_URL || "http://localhost:3003";
-    const inviteUrl = `${adminPortalUrl}/callback?invitation=${invitation.token}&role=${invitation.role_description}`;
+    const inviteUrl = buildAdminInvitationUrl(invitation);
 
     let messageId: string | undefined;
     let emailSent = false;

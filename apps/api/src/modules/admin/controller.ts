@@ -1676,6 +1676,39 @@ router.post(
 
 /**
  * @swagger
+ * /v1/admin/invitations/{id}/copy-link:
+ *   post:
+ *     summary: Copy an existing pending admin invitation link (admin only; writes LINK_GENERATED)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ */
+router.post(
+  "/invitations/:id/copy-link",
+  requirePermission("roles.manage"),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const result = await adminService.copyInvitationLink(req, id);
+
+      res.json({
+        success: true,
+        data: { inviteUrl: result.inviteUrl },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
  * /v1/admin/invitations/:id/revoke:
  *   delete:
  *     summary: Revoke/delete a pending invitation (admin only)

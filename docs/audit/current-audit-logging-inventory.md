@@ -924,7 +924,7 @@ Legal types in schema: `PDPA_NOTICE_AND_CONSENT`, `TERMS_OF_USE`, `RISK_STATEMEN
 | Create/update/delete admin role + permissions | YES SecurityAuditLog | — |
 | Assign user roles | Investor/Issuer: `OrganizationService.createOrganization` (not `USER_ROLE_ADDED` / `USER_ROLES_UPDATED`). Admin access: invitation accept → `ADMIN_INVITATION_ACCEPTED`. Admin catalog role: `ADMIN_USER_ROLE_CHANGED` (role editor, and invitation acceptance when an existing Admin’s role actually changes). Portal Investor/Issuer flags: onboarding endpoint. Portal switch: navigation only (no `ACTIVE_ROLE_CHANGED`). | — |
 | Deactivate/reactivate admin | YES `ADMIN_USER_DEACTIVATED` / `ADMIN_USER_REACTIVATED` (DB-only; no Cognito disable) | — |
-| Invite admin create/resend | YES `ADMIN_INVITATION_CREATED` on new row; `ADMIN_INVITATION_RESENT` on explicit resend **and** on invite-submit reuse of a valid pending same-email+same-role invitation after email success; `ADMIN_INVITATION_LINK_GENERATED` when a link is generated | — |
+| Invite admin create/resend | YES `ADMIN_INVITATION_CREATED` on new row; `ADMIN_INVITATION_RESENT` on explicit resend **and** on invite-submit reuse of a valid pending same-email+same-role invitation after email success; `ADMIN_INVITATION_LINK_GENERATED` from Invite dialog Copy Link (`generateInvitationUrl`) **and** Pending Invitations table Copy Link (`copyInvitationLink` for an existing invitation). Token/full URL are not stored | — |
 | Revoke invite | YES `ADMIN_INVITATION_REVOKED` | — |
 | Admin profile edit of user | YES `USER_PROFILE_UPDATED_BY_ADMIN` | — |
 | Assign user_id | YES `USER_PUBLIC_ID_CHANGED` (admin rewrite only; initial assign not audited) | — |
