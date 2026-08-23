@@ -544,69 +544,6 @@ export class AuthService {
   }
 
   /**
-   * Switch active role in current session
-   */
-  async switchRole(
-    req: Request,
-    userId: string,
-    role: UserRole
-  ): Promise<{
-    success: boolean;
-    activeRole: UserRole;
-  }> {
-    const user = await this.repository.findUserByCognitoSub(userId);
-
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    if (!user.roles.includes(role)) {
-      throw new Error(`User does not have ${role} role`);
-    }
-
-    const session = await this.repository.findActiveSession(user.user_id);
-    const previousRole = session?.active_role ?? null;
-    const context = auditContextFromRequest(req, {
-      actorType: AUDIT_ACTOR_TYPE.USER,
-      actorUserId: user.user_id,
-      portal: auditPortalFromRole(role),
-    });
-
-    await prisma.$transaction(async (tx) => {
-      if (session) {
-        await tx.userSession.update({
-          where: { id: session.id },
-          data: {
-            active_role: role,
-            last_activity: new Date(),
-          },
-        });
-      }
-
-      await writeSecurityAuditLog(
-        {
-          eventType: "ACTIVE_ROLE_CHANGED",
-          context,
-          subjectUserId: user.user_id,
-          targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
-          targetId: user.user_id,
-          metadata: {
-            previousRole,
-            newRole: role,
-            sessionId: session?.id ?? null,
-          },
-        },
-        tx
-      );
-    });
-
-    return {
-      success: true,
-      activeRole: role,
-    };
-  }
-
-  /**
    * @deprecated Token refresh is now handled by AWS Amplify on the frontend
    * This method is kept for backward compatibility but should not be used
    */

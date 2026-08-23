@@ -197,19 +197,6 @@ export class AuthRepository {
   }
 
   /**
-   * Update session active role
-   */
-  async updateSessionActiveRole(sessionId: string, activeRole: UserRole): Promise<UserSession> {
-    return prisma.userSession.update({
-      where: { id: sessionId },
-      data: {
-        active_role: activeRole,
-        last_activity: new Date(),
-      },
-    });
-  }
-
-  /**
    * Revoke user session
    */
   async revokeSession(sessionId: string): Promise<UserSession> {

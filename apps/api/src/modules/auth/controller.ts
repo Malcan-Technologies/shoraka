@@ -8,7 +8,6 @@ import {
   checkOnboardingSchema,
   completeOnboardingSchema,
   cancelOnboardingSchema,
-  switchRoleSchema,
   createAdminUserSchema,
   startOnboardingSchema,
   updateProfileSchema,
@@ -519,47 +518,6 @@ router.post(
       });
     } catch (error) {
       next(error);
-    }
-  }
-);
-
-/**
- * @swagger
- * /v1/auth/switch-role:
- *   post:
- *     summary: Switch active role in current session
- *     tags: [Authentication]
- *     security:
- *       - BearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [role]
- *             properties:
- *               role:
- *                 $ref: '#/components/schemas/UserRole'
- *     responses:
- *       200:
- *         description: Role switched successfully
- */
-router.post(
-  "/switch-role",
-  requireAuth,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const validated = switchRoleSchema.parse(req.body);
-      const result = await authService.switchRole(req, req.cognitoSub!, validated.role);
-
-      res.json({
-        success: true,
-        data: result,
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
     }
   }
 );

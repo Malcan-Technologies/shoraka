@@ -2,7 +2,37 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Prisma } from "@prisma/client";
 import { writeSecurityAuditLog, writeSecurityAuditLogBestEffort } from "./writer";
+import { parseSecurityAuditMetadata } from "./metadata";
+import { SECURITY_AUDIT_EVENTS, RETIRED_SECURITY_AUDIT_EVENTS } from "./events";
 import type { AuditRequestContext } from "../../../lib/audit/context";
+
+describe("Security catalogue retirement", () => {
+  it("keeps ACTIVE_ROLE_CHANGED reserved but not as an active writer event", () => {
+    expect(SECURITY_AUDIT_EVENTS).toContain("ACTIVE_ROLE_CHANGED");
+    expect([...RETIRED_SECURITY_AUDIT_EVENTS]).toEqual(["ACTIVE_ROLE_CHANGED"]);
+    expect(SECURITY_AUDIT_EVENTS).toHaveLength(35);
+  });
+
+  it("still validates historical ACTIVE_ROLE_CHANGED metadata", () => {
+    expect(
+      parseSecurityAuditMetadata("ACTIVE_ROLE_CHANGED", {
+        actorName: "Ada Admin",
+        actorEmail: "ada@example.com",
+        previousRole: "ISSUER",
+        newRole: "INVESTOR",
+        sessionId: "sess-1",
+      })
+    ).toEqual(
+      expect.objectContaining({
+        actorName: "Ada Admin",
+        actorEmail: "ada@example.com",
+        previousRole: "ISSUER",
+        newRole: "INVESTOR",
+        sessionId: "sess-1",
+      })
+    );
+  });
+});
 
 describe("writeSecurityAuditLog", () => {
   const context: AuditRequestContext = {

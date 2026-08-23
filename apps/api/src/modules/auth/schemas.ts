@@ -57,15 +57,6 @@ export const cancelOnboardingSchema = z.object({
 export type CancelOnboardingInput = z.infer<typeof cancelOnboardingSchema>;
 
 /**
- * Schema for switch-role endpoint
- */
-export const switchRoleSchema = z.object({
-  role: z.nativeEnum(UserRole),
-});
-
-export type SwitchRoleInput = z.infer<typeof switchRoleSchema>;
-
-/**
  * Schema for admin create-user endpoint
  */
 export const createAdminUserSchema = z.object({

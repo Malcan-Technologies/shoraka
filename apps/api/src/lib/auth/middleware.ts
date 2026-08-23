@@ -77,7 +77,6 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     // Set user and cognito sub on request
     req.user = user;
     req.cognitoSub = cognitoPayload.sub;
-    // Default activeRole to first role (can be changed via role switching endpoint)
     req.activeRole = user.roles[0] || UserRole.INVESTOR;
 
     if (user.roles.includes(UserRole.ADMIN)) {

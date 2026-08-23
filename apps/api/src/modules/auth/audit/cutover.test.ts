@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { ACCESS_AUDIT_EVENTS } from "./events";
-import { SECURITY_AUDIT_EVENTS } from "../../security/audit/events";
+import { SECURITY_AUDIT_EVENTS, RETIRED_SECURITY_AUDIT_EVENTS } from "../../security/audit/events";
 import {
   ACCESS_AUDIT_EVENTS as TYPES_ACCESS_EVENTS,
   SECURITY_AUDIT_EVENTS as TYPES_SECURITY_EVENTS,
@@ -35,6 +35,8 @@ function methodChunk(source: string, methodName: string, length = 8000): string 
 
 describe("Access/Security audit cutover", () => {
   const authService = readSrc("modules/auth/service.ts");
+  const authController = readSrc("modules/auth/controller.ts");
+  const authSchemas = readSrc("modules/auth/schemas.ts");
   const authRepository = readSrc("modules/auth/repository.ts");
   const adminRepository = readSrc("modules/admin/repository.ts");
   const cognitoRoutes = readSrc("modules/auth/cognito.routes.ts");
@@ -59,6 +61,12 @@ describe("Access/Security audit cutover", () => {
 
   it("Security event catalogues match between API and types", () => {
     expect([...TYPES_SECURITY_EVENTS]).toEqual([...SECURITY_AUDIT_EVENTS]);
+    expect(SECURITY_AUDIT_EVENTS).toHaveLength(35);
+    expect([...RETIRED_SECURITY_AUDIT_EVENTS]).toEqual(["ACTIVE_ROLE_CHANGED"]);
+    expect(SECURITY_AUDIT_EVENTS).toContain("ACTIVE_ROLE_CHANGED");
+    expect(SECURITY_AUDIT_EVENTS).toContain("USER_ROLE_ADDED");
+    expect(SECURITY_AUDIT_EVENTS).toContain("USER_ROLES_UPDATED");
+    expect(SECURITY_AUDIT_EVENTS).toContain("ADMIN_USER_ROLE_CHANGED");
     expect(SECURITY_AUDIT_EVENTS).not.toContain("USER_EMAIL_CHANGED");
     expect(SECURITY_AUDIT_EVENTS).not.toContain("EMAIL_CHANGE_FAILED");
     expect(SECURITY_AUDIT_EVENTS).not.toContain("USER_PUBLIC_ID_ASSIGNED");
@@ -67,6 +75,14 @@ describe("Access/Security audit cutover", () => {
     expect(SECURITY_AUDIT_EVENTS).not.toContain("INVESTOR_SOPHISTICATED_STATUS_UPDATED");
     expect(SECURITY_AUDIT_EVENTS).not.toContain("ROLE_SWITCHED");
     expect(SECURITY_AUDIT_EVENTS).not.toContain("ROLE_REMOVED");
+  });
+
+  it("has no live writer or mounted route for retired ACTIVE_ROLE_CHANGED", () => {
+    expect(authService).not.toMatch(/eventType:\s*"ACTIVE_ROLE_CHANGED"/);
+    expect(authController).not.toMatch(/["']\/switch-role["']/);
+    expect(authSchemas).not.toMatch(/switchRoleSchema/);
+    expect(authRepository).not.toMatch(/updateSessionActiveRole/);
+    expect(liveSources).not.toMatch(/eventType:\s*"ACTIVE_ROLE_CHANGED"/);
   });
 
   it("syncUser does not write AccessAuditLog login", () => {
@@ -152,7 +168,8 @@ describe("Access/Security audit cutover", () => {
 
   it("maps auth/admin/org/notification mutations to the approved Security events", () => {
     expect(methodChunk(authService, "addRole")).toMatch(/USER_ROLE_ADDED/);
-    expect(methodChunk(authService, "switchRole")).toMatch(/ACTIVE_ROLE_CHANGED/);
+    expect(authService).not.toMatch(/async switchRole\(/);
+    expect(authService).not.toMatch(/ACTIVE_ROLE_CHANGED/);
     expect(methodChunk(authService, "updateProfile")).toMatch(/USER_PROFILE_UPDATED/);
     expect(methodChunk(authService, "changePassword", 8000)).toMatch(/PASSWORD_CHANGED/);
     expect(methodChunk(authService, "changePassword", 8000)).toMatch(/PASSWORD_CHANGE_FAILED/);
