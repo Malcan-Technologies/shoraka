@@ -24,10 +24,9 @@ import {
   AUDIT_ACTOR_TYPE,
   AUDIT_SOURCE,
   auditContextFromRequest,
-  auditPortalFromRequest,
   auditPortalFromRole,
 } from "../../lib/audit/context";
-import { changedFieldsOf, roleDiff } from "../../lib/audit/snapshot";
+import { changedFieldsOf } from "../../lib/audit/snapshot";
 import { writeAccessAuditLogBestEffort } from "./audit/writer";
 import { accessAuditLogReader } from "./audit/reader";
 import { writeSecurityAuditLog, writeSecurityAuditLogBestEffort } from "../security/audit/writer";
@@ -150,56 +149,6 @@ export class AuthService {
     };
 
     return { user, requiresOnboarding };
-  }
-
-  /**
-   * Add a role to an existing user
-   * Updates both Cognito custom attribute and database
-   */
-  async addRole(req: Request, userId: string, cognitoSub: string, role: UserRole): Promise<User> {
-    const currentUser = await prisma.user.findUnique({ where: { user_id: userId } });
-    if (!currentUser) {
-      throw new Error("User not found");
-    }
-
-    const updatedUser = await this.repository.addRoleToUser(userId, role);
-
-    const rolesString = formatRolesForCognito(updatedUser.roles);
-
-    const command = new AdminUpdateUserAttributesCommand({
-      UserPoolId: COGNITO_USER_POOL_ID,
-      Username: cognitoSub,
-      UserAttributes: [
-        {
-          Name: "custom:roles",
-          Value: rolesString,
-        },
-      ],
-    });
-
-    await cognitoClient.send(command);
-
-    if (updatedUser.roles.join(",") !== currentUser.roles.join(",")) {
-      const context = auditContextFromRequest(req, {
-        actorType: AUDIT_ACTOR_TYPE.USER,
-        actorUserId: userId,
-        portal: auditPortalFromRole(role) ?? auditPortalFromRequest(req),
-      });
-      const diff = roleDiff(currentUser.roles, updatedUser.roles);
-      await writeSecurityAuditLogBestEffort({
-        eventType: "USER_ROLE_ADDED",
-        context,
-        subjectUserId: userId,
-        targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
-        targetId: userId,
-        metadata: {
-          ...diff,
-          addedRole: role,
-        },
-      });
-    }
-
-    return updatedUser;
   }
 
   /**

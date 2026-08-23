@@ -20,17 +20,6 @@ export async function loadAuditActorSnapshot(
   return { name: name || null, email: user.email };
 }
 
-export function roleDiff(previous: string[], next: string[]) {
-  const previousSet = new Set(previous);
-  const nextSet = new Set(next);
-  return {
-    previousRoles: previous,
-    newRoles: next,
-    addedRoles: next.filter((role) => !previousSet.has(role)),
-    removedRoles: previous.filter((role) => !nextSet.has(role)),
-  };
-}
-
 export function permissionDiff(previous: string[], next: string[]) {
   const previousSet = new Set(previous);
   const nextSet = new Set(next);

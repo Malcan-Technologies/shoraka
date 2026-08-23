@@ -8,10 +8,12 @@ import { SECURITY_AUDIT_EVENTS, RETIRED_SECURITY_AUDIT_EVENTS } from "./events";
 import type { AuditRequestContext } from "../../../lib/audit/context";
 
 describe("Security catalogue retirement", () => {
-  it("keeps ACTIVE_ROLE_CHANGED and USER_ROLES_UPDATED reserved but not as active writer events", () => {
+  it("keeps USER_ROLE_ADDED, ACTIVE_ROLE_CHANGED, and USER_ROLES_UPDATED reserved but not as active writer events", () => {
+    expect(SECURITY_AUDIT_EVENTS).toContain("USER_ROLE_ADDED");
     expect(SECURITY_AUDIT_EVENTS).toContain("ACTIVE_ROLE_CHANGED");
     expect(SECURITY_AUDIT_EVENTS).toContain("USER_ROLES_UPDATED");
     expect([...RETIRED_SECURITY_AUDIT_EVENTS]).toEqual([
+      "USER_ROLE_ADDED",
       "ACTIVE_ROLE_CHANGED",
       "USER_ROLES_UPDATED",
     ]);
@@ -47,6 +49,30 @@ describe("Security catalogue retirement", () => {
         expect(error).toBeInstanceOf(ZodError);
       }
     }
+  });
+
+  it("still validates historical USER_ROLE_ADDED metadata", () => {
+    expect(
+      parseSecurityAuditMetadata("USER_ROLE_ADDED", {
+        actorName: "Ada Admin",
+        actorEmail: "ada@example.com",
+        previousRoles: ["INVESTOR"],
+        newRoles: ["INVESTOR", "ISSUER"],
+        addedRoles: ["ISSUER"],
+        removedRoles: [],
+        addedRole: "ISSUER",
+      })
+    ).toEqual(
+      expect.objectContaining({
+        actorName: "Ada Admin",
+        actorEmail: "ada@example.com",
+        previousRoles: ["INVESTOR"],
+        newRoles: ["INVESTOR", "ISSUER"],
+        addedRoles: ["ISSUER"],
+        removedRoles: [],
+        addedRole: "ISSUER",
+      })
+    );
   });
 
   it("still validates historical USER_ROLES_UPDATED metadata", () => {

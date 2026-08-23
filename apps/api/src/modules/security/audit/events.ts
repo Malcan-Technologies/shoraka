@@ -36,8 +36,9 @@ export const SECURITY_AUDIT_EVENTS = [
   "USER_NOTIFICATION_PREFERENCE_UPDATED",
 ] as const;
 
-/** Historical event types with no current writer. IDs A005 and A016 stay reserved. */
+/** Historical event types with no current writer. IDs A004, A005, and A016 stay reserved. */
 export const RETIRED_SECURITY_AUDIT_EVENTS = [
+  "USER_ROLE_ADDED",
   "ACTIVE_ROLE_CHANGED",
   "USER_ROLES_UPDATED",
 ] as const;

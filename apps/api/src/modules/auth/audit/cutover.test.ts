@@ -63,6 +63,7 @@ describe("Access/Security audit cutover", () => {
     expect([...TYPES_SECURITY_EVENTS]).toEqual([...SECURITY_AUDIT_EVENTS]);
     expect(SECURITY_AUDIT_EVENTS).toHaveLength(35);
     expect([...RETIRED_SECURITY_AUDIT_EVENTS]).toEqual([
+      "USER_ROLE_ADDED",
       "ACTIVE_ROLE_CHANGED",
       "USER_ROLES_UPDATED",
     ]);
@@ -78,6 +79,15 @@ describe("Access/Security audit cutover", () => {
     expect(SECURITY_AUDIT_EVENTS).not.toContain("INVESTOR_SOPHISTICATED_STATUS_UPDATED");
     expect(SECURITY_AUDIT_EVENTS).not.toContain("ROLE_SWITCHED");
     expect(SECURITY_AUDIT_EVENTS).not.toContain("ROLE_REMOVED");
+  });
+
+  it("has no live writer or mounted route for retired USER_ROLE_ADDED", () => {
+    expect(liveSources).not.toMatch(/eventType:\s*"USER_ROLE_ADDED"/);
+    expect(authService).not.toMatch(/async addRole\(/);
+    expect(authController).not.toMatch(/["']\/add-role["']/);
+    expect(authController).not.toMatch(/addRoleSchema/);
+    expect(authSchemas).not.toMatch(/addRoleSchema/);
+    expect(authRepository).toMatch(/async addRoleToUser\(/);
   });
 
   it("has no live writer or mounted route for retired ACTIVE_ROLE_CHANGED", () => {
@@ -182,7 +192,8 @@ describe("Access/Security audit cutover", () => {
   });
 
   it("maps auth/admin/org/notification mutations to the approved Security events", () => {
-    expect(methodChunk(authService, "addRole")).toMatch(/USER_ROLE_ADDED/);
+    expect(authService).not.toMatch(/async addRole\(/);
+    expect(authService).not.toMatch(/eventType:\s*"USER_ROLE_ADDED"/);
     expect(authService).not.toMatch(/async switchRole\(/);
     expect(authService).not.toMatch(/ACTIVE_ROLE_CHANGED/);
     expect(methodChunk(authService, "updateProfile")).toMatch(/USER_PROFILE_UPDATED/);
@@ -210,6 +221,8 @@ describe("Access/Security audit cutover", () => {
     expect(methodChunk(adminService, "acceptInvitation", 5000)).toMatch(
       /ADMIN_INVITATION_ACCEPTED/
     );
+    expect(methodChunk(adminService, "acceptInvitation", 5000)).toMatch(/UserRole\.ADMIN/);
+    expect(methodChunk(adminService, "acceptInvitation", 5000)).not.toMatch(/USER_ROLE_ADDED/);
 
     expect(organizationService).toMatch(/ORGANIZATION_MEMBER_INVITED/);
     expect(organizationService).toMatch(/ORGANIZATION_MEMBER_JOINED/);
@@ -367,6 +380,22 @@ describe("Access/Security audit cutover", () => {
     expect(context).toMatch(/systemAuditContext/);
     expect(authService).not.toMatch(/AUDIT_ACTOR_TYPE\.INTEGRATION/);
     expect(authService).not.toMatch(/AUDIT_ACTOR_TYPE\.SYSTEM/);
+  });
+
+  it("organization creation still grants INVESTOR/ISSUER and syncs Cognito without USER_ROLE_ADDED", () => {
+    const chunk = methodChunk(organizationService, "createOrganization", 12000);
+    expect(chunk).toMatch(/UserRole\.INVESTOR/);
+    expect(chunk).toMatch(/UserRole\.ISSUER/);
+    expect(chunk).toMatch(/formatRolesForCognito/);
+    expect(chunk).toMatch(/custom:roles/);
+    expect(chunk).not.toMatch(/USER_ROLE_ADDED/);
+  });
+
+  it("completeOnboarding still uses addRoleToUser without USER_ROLE_ADDED", () => {
+    const chunk = methodChunk(authService, "completeOnboarding", 5000);
+    expect(chunk).toMatch(/addRoleToUser/);
+    expect(chunk).toMatch(/formatRolesForCognito/);
+    expect(chunk).not.toMatch(/USER_ROLE_ADDED/);
   });
 
   it("keeps requireRole and requirePermission", () => {

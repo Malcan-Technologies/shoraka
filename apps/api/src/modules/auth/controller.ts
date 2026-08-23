@@ -4,7 +4,6 @@ import { AppError } from "../../lib/http/error-handler";
 import { requireAuth, requirePermission } from "../../lib/auth/middleware";
 import {
   syncUserSchema,
-  addRoleSchema,
   checkOnboardingSchema,
   completeOnboardingSchema,
   cancelOnboardingSchema,
@@ -84,46 +83,6 @@ router.post("/sync-user", async (req: Request, res: Response, next: NextFunction
     res.json({
       success: true,
       data: result,
-      correlationId: res.locals.correlationId,
-    });
-  } catch (error) {
-    next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
-  }
-});
-
-/**
- * @swagger
- * /v1/auth/add-role:
- *   post:
- *     summary: Add additional role to user
- *     tags: [Authentication]
- *     security:
- *       - BearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [role]
- *             properties:
- *               role:
- *                 $ref: '#/components/schemas/UserRole'
- *     responses:
- *       200:
- *         description: Role added successfully
- */
-router.post("/add-role", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const validated = addRoleSchema.parse(req.body);
-    const user = await authService.addRole(req, req.user!.user_id, req.cognitoSub!, validated.role);
-
-    res.json({
-      success: true,
-      data: {
-        user,
-        roles: user.roles,
-      },
       correlationId: res.locals.correlationId,
     });
   } catch (error) {
