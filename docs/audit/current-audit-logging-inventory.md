@@ -27,7 +27,7 @@ Removed runtime stores (do not document as active): `ApplicationLog`, `NoteEvent
 
 ## Catalogue counts (source)
 
-**Mechanical recount (2026-08-23, after A179).** Re-extracted every `*_AUDIT_EVENTS` / `RETIRED_*_AUDIT_EVENTS` array, Prisma `@@map` audit tables, and catalogue `# A### — EVENT` headings. Living counts: **179** reserved, **171** active, **8** retired. Catalogue headings match source event names **179/179**. Previous baseline **174** was the original A001–A174 cutover reserved set; it is not current. A175–A178 were appended earlier; A179 `LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION` was appended for Legal clone-from-archived-published. Do not force the catalogue back to 174.
+**Mechanical recount (2026-08-23, after A179).** Re-extracted every `*_AUDIT_EVENTS` / `RETIRED_*_AUDIT_EVENTS` array, Prisma `@@map` audit tables, and catalogue `# A### — EVENT` headings. Living counts: **179** reserved, **171** active, **8** retired. Catalogue headings match source event names **179/179**. Previous baseline **174** was the original A001–A174 cutover reserved set; it is not current. A175–A178 were appended earlier; A179 `LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION` was appended for Legal clone-from-published-or-archived-published (new DRAFT; source row unchanged). Do not force the catalogue back to 174.
 
 Reserved IDs **A001–A179** (**179**). Active writers **171**. Retired IDs (readable historical rows, IDs not reused): A004 `USER_ROLE_ADDED`, A005 `ACTIVE_ROLE_CHANGED`, A010 `USER_EMAIL_VERIFIED`, A011 `EMAIL_VERIFICATION_FAILED`, A016 `USER_ROLES_UPDATED`, A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`. Retired total: **8**.
 

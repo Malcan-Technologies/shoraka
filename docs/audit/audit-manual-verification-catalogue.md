@@ -13489,7 +13489,7 @@ Paired with publish of a **DRAFT** (auto-archive of the previous `PUBLISHED` row
 
 ## 3. When it does NOT log / no-op
 
-Manual archive without those reason codes may omit `reasonCode`. Restoring a never-published archive to draft writes `LEGAL_DOCUMENT_VERSION_RESTORED`, not this event. Creating a new draft from an archived published version writes `LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION` (A179), not archive.
+Manual archive without those reason codes may omit `reasonCode`. Restoring a never-published archive to draft writes `LEGAL_DOCUMENT_VERSION_RESTORED`, not this event. Creating a new draft from the currently published version, or from a previously published archived version, writes `LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION` (A179), not archive. The clone does not archive the live published source.
 
 ## 4. Top-level audit row
 
@@ -13753,7 +13753,7 @@ DB Table: legal_admin_audit_logs
 
 ## 1. What this event means
 
-A never-published archived version was restored to `DRAFT` (same version id). `previousStatus` is literal `ARCHIVED`. Current writers only emit `restoredAs` / `newStatus` = `DRAFT`. Zod still accepts `PUBLISHED` so historical restore-as-published rows remain readable. Previously published archived versions are immutable and cannot be restored; use A179 instead.
+A never-published archived version was restored to `DRAFT` (same version id). `previousStatus` is literal `ARCHIVED`. Current writers only emit `restoredAs` / `newStatus` = `DRAFT`. Zod still accepts `PUBLISHED` so historical restore-as-published rows remain readable. Previously published archived versions are immutable and cannot be restored. To create a new draft from the live `PUBLISHED` version or from a previously published `ARCHIVED` version, use A179 (new version id), not restore.
 
 ## 2. When it logs
 
@@ -42477,6 +42477,7 @@ Append-only `LegalAdminAuditLog` / `legal_admin_audit_logs`.
   mimeType: string;
   fileSizeBytes: number;
   status: "DRAFT";
+  sourceVersionStatus?: "PUBLISHED" | "ARCHIVED";
 }
 ```
 
@@ -42489,7 +42490,7 @@ Raw S3 keys are not stored. `fileHash` is required (server-verified copy).
 - **Type:** string (min 1)
 - **Required:** Yes
 - **Nullable:** No
-- **Writer source:** Archived published source row id
+- **Writer source:** Clone source row id (`PUBLISHED`, or `ARCHIVED` with `published_at` set)
 - **Current writer:** Always
 - **Example:** `"clxyz..."`
 
@@ -42529,11 +42530,21 @@ Raw S3 keys are not stored. `fileHash` is required (server-verified copy).
 - **Current writer:** Always
 - **Example:** `"DRAFT"`
 
+#### `sourceVersionStatus`
+
+- **Type:** PUBLISHED | ARCHIVED | undefined
+- **Required:** No (optional for historical A179 rows written before this field existed)
+- **Nullable:** No (when present)
+- **Allowed values:** `PUBLISHED` (clone from the live version) or `ARCHIVED` (clone from a previously published archived version)
+- **Writer source:** Source row `status` after the clone-source guard
+- **Current writer:** Always written on new A179 rows. Zod `.optional()` so older A179 rows without the key still parse.
+- **Example:** `"PUBLISHED"`
+
 Shared actor/file fingerprint fields (`actorName`, `actorEmail`, `documentType`, `fileName`, `fileHash`, `mimeType`, `fileSizeBytes`) follow the same Legal writer rules as A058.
 
 ## 6. Source of truth
 
-New `LegalDocumentVersion` row + copied S3 object + hash. Source archived version is unchanged. `LegalDocumentAcceptance` rows for the source version are unchanged and do not apply to the new id.
+New `LegalDocumentVersion` row + copied S3 object + hash. The source row is unchanged: a `PUBLISHED` source stays `PUBLISHED` (still live); an `ARCHIVED` published source stays `ARCHIVED`. `LegalDocumentAcceptance` rows for the source version are unchanged and do not apply to the new id.
 
 ## 7. Transaction / audit failure behavior
 
@@ -42584,7 +42595,7 @@ No curated activity. Admin raw may show file hash and version ids. Do not print 
 
 ## 14. Current UI behavior
 
-Admin Legal Documents: archived published versions show **Create New Version From This Version** (not Restore). Confirm copy states a new draft is created, the old version stays archived, and historical acceptances stay on the old version.
+Admin Legal Documents: **Create New Version From This Version** is shown on the live `PUBLISHED` version and on previously published `ARCHIVED` versions. Never-published archives still show Restore to draft (A062). Confirm copy for a published source states a new draft is created and the current published version stays live until that draft is published. Confirm copy for an archived source states the archived row is unchanged. Historical acceptances stay on the source version id.
 
 ## 15. Manual verification checklist
 
@@ -42592,12 +42603,14 @@ Admin Legal Documents: archived published versions show **Create New Version Fro
 - [ ] `event_type` is `LEGAL_DOCUMENT_VERSION_CREATED_FROM_VERSION`
 - [ ] New version id/number in metadata; source id/number in metadata
 - [ ] `status` is `DRAFT`
-- [ ] Source version remains `ARCHIVED` with original `published_at`
+- [ ] New rows include `sourceVersionStatus` `PUBLISHED` or `ARCHIVED`; historical A179 rows may omit it
+- [ ] Clone from live published: source remains `PUBLISHED` (no zero-published gap)
+- [ ] Clone from archived published: source remains `ARCHIVED` with original `published_at`
 - [ ] No `LegalDocumentAcceptance` rows for the new version
 - [ ] Source acceptances unchanged
 - [ ] New unique `s3_key`; hash matches source
 - [ ] Not auto-published
-- [ ] Later publish of the draft writes A060 and archives the current published version (A061 `AUTO_ARCHIVED_ON_PUBLISH`)
+- [ ] Later publish of the draft writes A060 and archives the former published version (A061 `AUTO_ARCHIVED_ON_PUBLISH`)
 - [ ] Admin raw SHOW; Activity/issuer/investor HIDE
 - [ ] Filter/export label present
 - [ ] RBAC: manage to create; view to read audit
