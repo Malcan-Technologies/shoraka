@@ -73,7 +73,15 @@ Admin access is granted through Admin invitation acceptance (`ADMIN_INVITATION_A
 
 Portal switching is navigation between the Investor and Issuer origins. It does **not** write `ACTIVE_ROLE_CHANGED`.
 
-### 2.2.2 Two different `complete-onboarding` endpoints
+### 2.2.2 Current signup email verification
+
+Product email verification is **active**. Only the unused authenticated `POST /v1/auth/verify-email` path and its two Security writers were removed.
+
+**Current flow:** Landing `/verify-email` → `POST /v1/auth/confirm-signup` → Cognito `ConfirmSignUp`. Resend: `POST /v1/auth/resend-signup-code`.
+
+That flow does **not** write `USER_EMAIL_VERIFIED` (A010) or `EMAIL_VERIFICATION_FAILED` (A011). Those events are retired (no live writer; historical rows readable). Do not describe email verification itself as removed.
+
+### 2.2.3 Two different `complete-onboarding` endpoints
 
 Do not conflate these:
 

@@ -47,6 +47,14 @@ User → Portal → Cognito Hosted UI → Backend Callback → Landing Callback 
 5. **Landing callback reads cookies** and redirects to appropriate portal
 6. **Portal's `useAuth()` hook** verifies authentication and fetches user data
 
+### Signup email verification (current)
+
+Product email verification is **active**. After Investor/Issuer Hosted UI signup, Cognito emails a confirmation code.
+
+**Current flow:** Landing `/verify-email` → `POST /v1/auth/confirm-signup` → Cognito `ConfirmSignUp`. Resend: `POST /v1/auth/resend-signup-code`.
+
+This flow does **not** write `USER_EMAIL_VERIFIED` or `EMAIL_VERIFICATION_FAILED`. Those Security events are retired. The unused authenticated `POST /v1/auth/verify-email` path was removed. Email verification itself was not removed.
+
 ### 2. Token Storage
 
 All tokens are stored in **cookies** (not HTTP-only, so Amplify can read them):

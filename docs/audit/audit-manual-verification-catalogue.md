@@ -41597,7 +41597,7 @@ How an investor is allowed to see an event. CANCELLED `NoteInvestment` rows do n
 
 # Source verification footer
 
-Date: **2026-08-23**. Source: current tree after A004 `USER_ROLE_ADDED` retirement. Original A001–A177 IDs unchanged. A178 / APP-041 remains the latest audit ID. No APP-042.
+Date: **2026-08-23**. Source: current tree after retirement of A004 `USER_ROLE_ADDED`, A005 `ACTIVE_ROLE_CHANGED`, A010 `USER_EMAIL_VERIFIED`, A011 `EMAIL_VERIFICATION_FAILED`, and A016 `USER_ROLES_UPDATED` (5 Security events; IDs reserved). Signup email verification remains on Landing `/verify-email` via `confirm-signup` / `resend-signup-code`. Original A001–A177 IDs unchanged. A178 / APP-041 remains the latest audit ID. No APP-042.
 
 ## VERIFIED counts
 

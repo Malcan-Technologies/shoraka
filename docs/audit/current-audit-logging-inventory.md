@@ -57,6 +57,53 @@ These are current source behaviors. Do not treat retired Security events as live
 - **Portal switching:** navigation between portals (`window.location.href` to the other portal origin). No `ACTIVE_ROLE_CHANGED`. No `POST /v1/auth/switch-role`.
 - **`POST /v1/auth/complete-onboarding`:** currently mounted. No current portal/SDK caller. Writes **no audit event**. Not part of current happy-path onboarding. Intentionally left in source. Do not mark it removed. Distinct from `POST /v1/organizations/{investor|issuer}/:id/complete-onboarding` (legacy org completion; writes `ONBOARDING_COMPLETED`).
 
+## Current signup email verification
+
+Product email verification is **active**. Only the unused authenticated `/v1/auth/verify-email` audit path was removed.
+
+**Current flow**
+
+1. Investor or Issuer signs up (Landing Get Started → Cognito Hosted UI).
+2. Cognito emails a signup confirmation code.
+3. Landing `/verify-email` → `POST /v1/auth/confirm-signup` → Cognito `ConfirmSignUp`.
+4. Resend: Landing `/verify-email` or `/verify-email-help` → `POST /v1/auth/resend-signup-code`.
+
+That flow does **not** write `USER_EMAIL_VERIFIED` or `EMAIL_VERIFICATION_FAILED`. Wrong/expired/already-confirmed codes on Landing also do **not** write those events. Confirm-signup is intentionally unaudited (original inventory A012/A013).
+
+**Retired (do not live-QA)**
+
+- A010 `USER_EMAIL_VERIFIED` — no live writer; old `POST /v1/auth/verify-email` removed; historical rows readable.
+- A011 `EMAIL_VERIFICATION_FAILED` — no live writer; same removed path; historical rows readable.
+
+Admin invitation acceptance does not use this signup confirmation screen.
+
+## Retired Security events (do not live-QA)
+
+Security reserved **35** / active **30** / retired **5**. IDs are not reused. Admin raw Security can still filter historical rows.
+
+| ID | Event | Status |
+|---|---|---|
+| A004 | `USER_ROLE_ADDED` | RETIRED — DO NOT LIVE QA. No live writer. `POST /v1/auth/add-role` removed. Historical rows readable. |
+| A005 | `ACTIVE_ROLE_CHANGED` | RETIRED — DO NOT LIVE QA. No live writer. `POST /v1/auth/switch-role` removed. Portal switch is navigation only. Historical rows readable. |
+| A010 | `USER_EMAIL_VERIFIED` | RETIRED — DO NOT LIVE QA. No live writer. Old `POST /v1/auth/verify-email` removed. Current Landing Verify Email does **not** use this event. Historical rows readable. |
+| A011 | `EMAIL_VERIFICATION_FAILED` | RETIRED — DO NOT LIVE QA. No live writer. Old `POST /v1/auth/verify-email` removed. Current Landing verification failures do **not** use this event. Historical rows readable. |
+| A016 | `USER_ROLES_UPDATED` | RETIRED — DO NOT LIVE QA. No live writer. `PATCH /v1/admin/users/:id/roles` removed. Historical rows readable. |
+
+Other retired (not Security): A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEIVED`, A053 `CORPORATE_ENTITIES_UPDATED`.
+
+## Current Admin invitation audit
+
+| Event | When it writes |
+|---|---|
+| `ADMIN_INVITATION_CREATED` | New invitation row only. Same-email + same-role reuse of a valid pending invite does **not** write this. |
+| `ADMIN_INVITATION_RESENT` | Explicit Resend Email, **and** Invite-submit reuse of same email + same role after a successful email send. Not written if SES fails. |
+| `ADMIN_INVITATION_LINK_GENERATED` | Invite dialog Copy Link (`generateInvitationUrl`) **and** Pending Invitations table Copy Link (`copyInvitationLink` on an existing invitation). Repeating Copy Link writes another row. |
+| `ADMIN_INVITATION_REVOKED` | Revoke a pending invitation. |
+| `ADMIN_INVITATION_ACCEPTED` | Successful acceptance. |
+| `ADMIN_USER_ROLE_CHANGED` | Admin role editor, **and** invitation acceptance when an **existing** Admin accepts a **different-role** invite. First-time Admin grant and same-role accept do not write this. |
+
+Invitation token and full URL are **not** stored in audit metadata.
+
 ## Audit is history, not source of truth
 
 Typical write path:
@@ -490,7 +537,7 @@ Actor: USER / ADMIN / SYSTEM / PROVIDER / EXTERNAL SIGNER / WEBHOOK.
 | A006 | AUTH | switch-role | AuthService | Switch role | USER | RETIRED | `ACTIVE_ROLE_CHANGED` / A005 reserved; `POST /v1/auth/switch-role` removed |
 | A007 | AUTH | PATCH `/v1/auth/profile` | AuthService | Own profile | USER | YES | PROFILE_UPDATED security |
 | A008/A009 | AUTH | password change | AuthService | Success **and** failure | USER | YES misleading | PASSWORD_CHANGED both |
-| A010/A011 | AUTH | email change | AuthService | Success **and** failure | USER | YES misleading | EMAIL_CHANGED both |
+| A010/A011 | AUTH | old `POST /v1/auth/verify-email` (removed) | `AuthService.verifyEmail` (removed) | Success **and** failure | USER | RETIRED — DO NOT LIVE QA | Catalogue A010 `USER_EMAIL_VERIFIED` / A011 `EMAIL_VERIFICATION_FAILED` reserved. Current Landing Verify Email uses `POST /v1/auth/confirm-signup` / `POST /v1/auth/resend-signup-code` and does **not** write these events. |
 | A012 | AUTH | POST confirm-signup | auth controller | Confirm Cognito | USER | **MISSING AUDIT** | Cognito only |
 | A013 | AUTH | resend-signup-code | auth controller | Resend | USER | **MISSING AUDIT** | |
 | A014 | AUTH | refresh-token | auth controller | Refresh | USER | **MISSING AUDIT** | session |
@@ -499,7 +546,7 @@ Actor: USER / ADMIN / SYSTEM / PROVIDER / EXTERNAL SIGNER / WEBHOOK.
 | A017–A019 | RBAC | POST/PATCH/DELETE `/v1/admin/roles` | AdminService | Role CRUD | ADMIN | YES | ROLE_CREATED / PERMISSIONS_UPDATED / REMOVED |
 | A020 | RBAC | PATCH users/:id/roles | updateUserRoles | Change user roles | ADMIN | RETIRED | `USER_ROLES_UPDATED` / A016 reserved; `PATCH /v1/admin/users/:id/roles` removed |
 | A021–A023 | RBAC | PUT admin-users role/deactivate/reactivate | AdminService | Role/status | ADMIN | YES misleading | all ROLE_SWITCHED |
-| A024–A026 | INVITE | invite / generate-url / resend | AdminService | Create/resend invite | ADMIN | **MISSING AUDIT** | AdminInvitation + SES |
+| A024–A026 | INVITE | invite / generate-url / resend | AdminService | Create/resend/copy invite | ADMIN | YES (current) | `ADMIN_INVITATION_CREATED` (new row); `ADMIN_INVITATION_RESENT` (explicit resend + same-email+same-role reuse after SES); `ADMIN_INVITATION_LINK_GENERATED` (Invite dialog Copy Link + Pending table Copy Link). Token/URL not stored. |
 | A027 | INVITE | DELETE invitations/:id/revoke | revokeInvitation | Revoke | ADMIN | YES | INVITATION_REVOKED |
 | A028 | INVITE | POST accept-invitation | | Accept admin invite | USER | YES (current) | `ADMIN_INVITATION_ACCEPTED`. Not `USER_ROLE_ADDED` (retired). |
 | A029 | USER | PATCH users/:id/onboarding | updateUserOnboarding | Admin onboarding flags | ADMIN | YES | ONBOARDING_STATUS_UPDATED |
@@ -612,7 +659,7 @@ Normal portal logout produces one `USER_LOGGED_OUT` row through Cognito `GET /v1
 ### SecurityAuditLog
 
 `AuthService`: `USER_PROFILE_UPDATED`, `PASSWORD_CHANGED` / `PASSWORD_CHANGE_FAILED`. `USER_EMAIL_VERIFIED` and `EMAIL_VERIFICATION_FAILED` are retired (A010 / A011 reserved; `POST /v1/auth/verify-email` removed). Signup email verification remains on Landing `/verify-email` via `POST /v1/auth/confirm-signup` and `POST /v1/auth/resend-signup-code`; that path does **not** write these Security events. `USER_ROLE_ADDED` is retired (A004 reserved; `POST /v1/auth/add-role` removed). `ACTIVE_ROLE_CHANGED` is retired (A005 reserved; `POST /v1/auth/switch-role` removed). `USER_ROLES_UPDATED` is retired (A016 reserved; `PATCH /v1/admin/users/:id/roles` removed). Investor/Issuer roles are granted in `OrganizationService.createOrganization`. Admin access is granted through invitation acceptance (`ADMIN_INVITATION_ACCEPTED`). Catalog role edits write `ADMIN_USER_ROLE_CHANGED`. Invitation acceptance also writes `ADMIN_USER_ROLE_CHANGED` when an existing Admin’s catalog role actually changes. Portal switching is navigation only. `POST /v1/auth/complete-onboarding` is still mounted, has no portal caller, and writes no audit event.
-`AdminService`: role config C/U/D, `ADMIN_USER_ROLE_CHANGED` (role editor and different-role invitation acceptance), deactivate/reactivate, invitation lifecycle (`ADMIN_INVITATION_CREATED` on new row; `ADMIN_INVITATION_RESENT` on explicit resend and on same-email+same-role invite-submit reuse after email success), `USER_PUBLIC_ID_CHANGED`, `USER_PROFILE_UPDATED_BY_ADMIN`.
+`AdminService`: role config C/U/D, `ADMIN_USER_ROLE_CHANGED` (role editor and different-role invitation acceptance), deactivate/reactivate, invitation lifecycle (`ADMIN_INVITATION_CREATED` on new row only; `ADMIN_INVITATION_RESENT` on explicit resend and on same-email+same-role invite-submit reuse after email success; `ADMIN_INVITATION_LINK_GENERATED` from Invite dialog Copy Link and from Pending Invitations table Copy Link; `ADMIN_INVITATION_REVOKED`; `ADMIN_INVITATION_ACCEPTED` on successful accept). Token/full URL are not stored. `USER_PUBLIC_ID_CHANGED`, `USER_PROFILE_UPDATED_BY_ADMIN`.
 Organization membership: `ORGANIZATION_MEMBER_*`, ownership transfer, invitation resend/revoke.  
 Notification config (not broadcasts): type/group/preference.  
 Middleware + Cognito admin gate: `ADMIN_ACCESS_DENIED`.
@@ -924,7 +971,7 @@ Legal types in schema: `PDPA_NOTICE_AND_CONSENT`, `TERMS_OF_USE`, `RISK_STATEMEN
 | Create/update/delete admin role + permissions | YES SecurityAuditLog | — |
 | Assign user roles | Investor/Issuer: `OrganizationService.createOrganization` (not `USER_ROLE_ADDED` / `USER_ROLES_UPDATED`). Admin access: invitation accept → `ADMIN_INVITATION_ACCEPTED`. Admin catalog role: `ADMIN_USER_ROLE_CHANGED` (role editor, and invitation acceptance when an existing Admin’s role actually changes). Portal Investor/Issuer flags: onboarding endpoint. Portal switch: navigation only (no `ACTIVE_ROLE_CHANGED`). | — |
 | Deactivate/reactivate admin | YES `ADMIN_USER_DEACTIVATED` / `ADMIN_USER_REACTIVATED` (DB-only; no Cognito disable) | — |
-| Invite admin create/resend | YES `ADMIN_INVITATION_CREATED` on new row; `ADMIN_INVITATION_RESENT` on explicit resend **and** on invite-submit reuse of a valid pending same-email+same-role invitation after email success; `ADMIN_INVITATION_LINK_GENERATED` from Invite dialog Copy Link (`generateInvitationUrl`) **and** Pending Invitations table Copy Link (`copyInvitationLink` for an existing invitation). Token/full URL are not stored | — |
+| Invite admin create/resend/copy/accept | YES `ADMIN_INVITATION_CREATED` on new row only; `ADMIN_INVITATION_RESENT` on explicit Resend Email **and** on invite-submit reuse of a valid pending same-email+same-role invitation after email success; `ADMIN_INVITATION_LINK_GENERATED` from Invite dialog Copy Link (`generateInvitationUrl`) **and** Pending Invitations table Copy Link (`copyInvitationLink` for an existing invitation). `ADMIN_INVITATION_ACCEPTED` on successful acceptance; also `ADMIN_USER_ROLE_CHANGED` when an existing Admin accepts a different catalog role. Token/full URL are not stored | — |
 | Revoke invite | YES `ADMIN_INVITATION_REVOKED` | — |
 | Admin profile edit of user | YES `USER_PROFILE_UPDATED_BY_ADMIN` | — |
 | Assign user_id | YES `USER_PUBLIC_ID_CHANGED` (admin rewrite only; initial assign not audited) | — |
