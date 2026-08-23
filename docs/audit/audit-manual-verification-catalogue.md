@@ -5263,11 +5263,16 @@ A person was invited to join an issuer or investor organization.
 
 ## 2. When it logs
 
-`apps/api/src/modules/organization/service.ts` invite-member (two call sites). Sets organization_id/kind.
+`apps/api/src/modules/organization/service.ts` when a **new** issuer or investor organization invitation row is created:
+
+- Invite-submit (`inviteMember`) when there is no reusable pending invitation for the same organization, kind, normalized email, and role.
+- Invite-modal Copy Link (`generateMemberInvitationUrl`) when it must create a new invitation because none is reusable.
+
+Same email + different role creates a new row and writes this event. Revoked (deleted), expired, or already accepted invitations are not reused, so the next send also writes this event. Sets organization_id/kind.
 
 ## 3. When it does NOT log / no-op
 
-Duplicate/invalid invites that the service rejects do not write.
+Same email + same role + valid pending invitation: Invite-submit **reuses** that row and does **not** write this event (it writes `ORGANIZATION_INVITATION_RESENT` after a successful email send instead). Copy Link reuse of an existing pending invitation writes nothing. Duplicate/invalid invites that the service rejects do not write.
 
 ## 4. Top-level audit row
 
@@ -7160,11 +7165,16 @@ An organization invitation email was resent **after SES success**.
 
 ## 2. When it logs
 
-`apps/api/src/modules/organization/service.ts` resend invitation — write happens only inside the successful `sendEmail` try block.
+`apps/api/src/modules/organization/service.ts` after a **successful** email send, for both ISSUER and INVESTOR:
+
+- Explicit Resend (`resendInvitation`).
+- Invite-submit reuse of a valid pending same-email + same-role invitation (`inviteMember` → `resendInvitation`).
+
+Metadata matches the explicit Resend writer (`invitationId`, `email`, `role`, `expiresAt`; actor name/email injected by the table writer). The request `correlation_id` is new. Token and expiry are unchanged.
 
 ## 3. When it does NOT log / no-op
 
-If email send fails, the API returns `emailSent: false` and **does not write** this event.
+If email send fails, the API returns `emailSent: false` and **does not write** this event. Invitation validity, token, expiry, and the existing row are unchanged. Copy Link does not write this event. Same email + different role creates a new invitation (`ORGANIZATION_MEMBER_INVITED`) instead.
 
 ## 4. Top-level audit row
 
@@ -41621,7 +41631,7 @@ Date: **2026-08-23**. Source: current tree after retirement of A004 `USER_ROLE_A
 ## Writer notes that affect verification
 
 - Access writes are **best-effort**. `USER_SIGNED_UP` vs `USER_LOGGED_IN` are mutually exclusive on `isSignup`. Typical portal logout writes **one** `USER_LOGGED_OUT` via Cognito GET `/logout`; two rows only if both `POST /v1/auth/logout` and GET `/v1/auth/cognito/logout` run. `sessionId` on login schema is never populated. `POST /v1/auth/sync-user` does not write login audit.
-- Security in-tx writes throw; BestEffort is used for denials / password. `USER_ROLE_ADDED` is retired (A004 reserved). `USER_EMAIL_VERIFIED` and `EMAIL_VERIFICATION_FAILED` are retired (A010 / A011 reserved; `/v1/auth/verify-email` removed). Signup confirmation stays on `confirm-signup`. `ADMIN_ACCESS_DENIED` has two writers: Cognito Admin gate (`USER` + `MISSING_ADMIN_ROLE`, or `ADMIN` + `ADMIN_INACTIVE`) and RBAC middleware (`ADMIN` + `INSUFFICIENT_PERMISSIONS`). `portal=ADMIN` is where the denial happened, not who the actor is. `ADMIN_INVITATION_CREATED` is skipped when an existing invitation is reused; that reuse writes `ADMIN_INVITATION_RESENT` after a successful email send on invite-submit. `emailSent` is only set on `ADMIN_INVITATION_RESENT`. `ORGANIZATION_INVITATION_RESENT` writes only after email success.
+- Security in-tx writes throw; BestEffort is used for denials / password. `USER_ROLE_ADDED` is retired (A004 reserved). `USER_EMAIL_VERIFIED` and `EMAIL_VERIFICATION_FAILED` are retired (A010 / A011 reserved; `/v1/auth/verify-email` removed). Signup confirmation stays on `confirm-signup`. `ADMIN_ACCESS_DENIED` has two writers: Cognito Admin gate (`USER` + `MISSING_ADMIN_ROLE`, or `ADMIN` + `ADMIN_INACTIVE`) and RBAC middleware (`ADMIN` + `INSUFFICIENT_PERMISSIONS`). `portal=ADMIN` is where the denial happened, not who the actor is. `ADMIN_INVITATION_CREATED` is skipped when an existing invitation is reused; that reuse writes `ADMIN_INVITATION_RESENT` after a successful email send on invite-submit. `emailSent` is only set on `ADMIN_INVITATION_RESENT`. `ORGANIZATION_MEMBER_INVITED` is skipped when an issuer/investor same-email + same-role pending invitation is reused; that reuse writes `ORGANIZATION_INVITATION_RESENT` after a successful email send on invite-submit (same writer as explicit Resend). Organization Copy Link writes no Security event. `ORGANIZATION_INVITATION_RESENT` writes only after email success.
 - Payment idempotency keys come from `PAYMENT_AUDIT_IDEMPOTENCY`; unique constraint; existing-key skip / `P2002` swallow.
 - `PRODUCT_REACTIVATED` and repository `setInactive` are **not wired to HTTP** (`restoreProduct` / `setInactive` are repository-only). Versioned product update can still write `PRODUCT_INACTIVATED`.
 - Notification broadcast audit is **outside** recipient transactions and must not roll back notifications.

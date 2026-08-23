@@ -898,6 +898,36 @@ export class OrganizationService {
   }
 
   /**
+   * Newest valid pending invitation for the same org, kind, email, and role.
+   * Deleted (revoked), expired, or accepted rows are not reusable.
+   */
+  private async findReusablePendingInvitation(
+    portalType: PortalType,
+    organizationId: string,
+    email: string,
+    role: OrganizationMemberRole
+  ) {
+    const where = {
+      email,
+      role,
+      accepted: false,
+      expires_at: { gt: new Date() },
+    };
+
+    if (portalType === "investor") {
+      return prisma.investorOrganizationInvitation.findFirst({
+        where: { ...where, investor_organization_id: organizationId },
+        orderBy: { created_at: "desc" },
+      });
+    }
+
+    return prisma.issuerOrganizationInvitation.findFirst({
+      where: { ...where, issuer_organization_id: organizationId },
+      orderBy: { created_at: "desc" },
+    });
+  }
+
+  /**
    * Invite a member to an organization
    */
   async inviteMember(
@@ -938,8 +968,38 @@ export class OrganizationService {
       }
     }
 
+    const role =
+      input.role === "ORGANIZATION_ADMIN"
+        ? OrganizationMemberRole.ORGANIZATION_ADMIN
+        : OrganizationMemberRole.ORGANIZATION_MEMBER;
+
     // Use placeholder email if not provided (for link-based invitations)
     const email = input.email?.toLowerCase() || `invitation-${Date.now()}@cashsouk.com`;
+
+    if (input.email) {
+      const reusable = await this.findReusablePendingInvitation(
+        portalType,
+        organizationId,
+        email,
+        role
+      );
+      if (reusable) {
+        const resent = await this.resendInvitation(
+          userId,
+          organizationId,
+          portalType,
+          reusable.id,
+          req
+        );
+        return {
+          success: resent.success,
+          invitationId: reusable.id,
+          emailSent: resent.emailSent,
+          invitationUrl: resent.invitationUrl,
+          emailError: resent.emailError,
+        };
+      }
+    }
 
     // Generate invitation token
     const token = randomBytes(32).toString("hex");
@@ -952,10 +1012,7 @@ export class OrganizationService {
           ? await tx.investorOrganizationInvitation.create({
               data: {
                 email,
-                role:
-                  input.role === "ORGANIZATION_ADMIN"
-                    ? OrganizationMemberRole.ORGANIZATION_ADMIN
-                    : OrganizationMemberRole.ORGANIZATION_MEMBER,
+                role,
                 investor_organization_id: organizationId,
                 token,
                 expires_at: expiresAt,
@@ -965,10 +1022,7 @@ export class OrganizationService {
           : await tx.issuerOrganizationInvitation.create({
               data: {
                 email,
-                role:
-                  input.role === "ORGANIZATION_ADMIN"
-                    ? OrganizationMemberRole.ORGANIZATION_ADMIN
-                    : OrganizationMemberRole.ORGANIZATION_MEMBER,
+                role,
                 issuer_organization_id: organizationId,
                 token,
                 expires_at: expiresAt,
@@ -1090,34 +1144,17 @@ export class OrganizationService {
 
     // Use placeholder email if not provided (for link-based invitations)
     const email = input.email?.toLowerCase() || `invitation-${Date.now()}@cashsouk.com`;
+    const role =
+      input.role === "ORGANIZATION_ADMIN"
+        ? OrganizationMemberRole.ORGANIZATION_ADMIN
+        : OrganizationMemberRole.ORGANIZATION_MEMBER;
 
-    // Check if invitation already exists for this email and role
-    const existingInvitation =
-      portalType === "investor"
-        ? await prisma.investorOrganizationInvitation.findFirst({
-          where: {
-            email,
-            role: input.role === "ORGANIZATION_ADMIN"
-              ? OrganizationMemberRole.ORGANIZATION_ADMIN
-              : OrganizationMemberRole.ORGANIZATION_MEMBER,
-            accepted: false,
-            expires_at: { gt: new Date() },
-            investor_organization_id: organizationId,
-          },
-          orderBy: { created_at: "desc" },
-        })
-        : await prisma.issuerOrganizationInvitation.findFirst({
-          where: {
-            email,
-            role: input.role === "ORGANIZATION_ADMIN"
-              ? OrganizationMemberRole.ORGANIZATION_ADMIN
-              : OrganizationMemberRole.ORGANIZATION_MEMBER,
-            accepted: false,
-            expires_at: { gt: new Date() },
-            issuer_organization_id: organizationId,
-          },
-          orderBy: { created_at: "desc" },
-        });
+    const existingInvitation = await this.findReusablePendingInvitation(
+      portalType,
+      organizationId,
+      email,
+      role
+    );
 
     let token: string;
     if (existingInvitation) {
@@ -1136,10 +1173,7 @@ export class OrganizationService {
             ? await tx.investorOrganizationInvitation.create({
                 data: {
                   email,
-                  role:
-                    input.role === "ORGANIZATION_ADMIN"
-                      ? OrganizationMemberRole.ORGANIZATION_ADMIN
-                      : OrganizationMemberRole.ORGANIZATION_MEMBER,
+                  role,
                   investor_organization_id: organizationId,
                   token,
                   expires_at: expiresAt,
@@ -1149,10 +1183,7 @@ export class OrganizationService {
             : await tx.issuerOrganizationInvitation.create({
                 data: {
                   email,
-                  role:
-                    input.role === "ORGANIZATION_ADMIN"
-                      ? OrganizationMemberRole.ORGANIZATION_ADMIN
-                      : OrganizationMemberRole.ORGANIZATION_MEMBER,
+                  role,
                   issuer_organization_id: organizationId,
                   token,
                   expires_at: expiresAt,

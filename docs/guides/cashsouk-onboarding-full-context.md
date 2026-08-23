@@ -71,6 +71,8 @@ Investor and Issuer portal roles are granted when the organization is created (`
 
 Admin access is granted through Admin invitation acceptance (`ADMIN_INVITATION_ACCEPTED`). Admin catalog role edits write `ADMIN_USER_ROLE_CHANGED`. Accepting a later different-role Admin invite for an existing Admin also writes `ADMIN_USER_ROLE_CHANGED`; a first-time Admin invite and a same-role invite do not.
 
+Organization invitations (ISSUER and INVESTOR, shared `OrganizationService`): a new invite writes `ORGANIZATION_MEMBER_INVITED`. Same email + same role + valid pending invitation reuses that invitation and, after a successful email send, writes `ORGANIZATION_INVITATION_RESENT`. Same email + different role creates a new invitation and writes `ORGANIZATION_MEMBER_INVITED`. Copy Link writes no Security event. Revoked, expired, or accepted invitations are not reused.
+
 Portal switching is navigation between the Investor and Issuer origins. It does **not** write `ACTIVE_ROLE_CHANGED`.
 
 ### 2.2.2 Current signup email verification

@@ -104,6 +104,21 @@ Other retired (not Security): A040 `ONBOARDING_RESUMED`, A052 `CTOS_REPORT_RECEI
 
 Invitation token and full URL are **not** stored in audit metadata.
 
+## Current Organization invitation audit
+
+Issuer and Investor organization invitations share `OrganizationService` (`portalType: "investor" | "issuer"`). No Prisma migration. Historical duplicate pending rows are left in place; reuse picks the newest valid match.
+
+| Event | When it writes |
+|---|---|
+| `ORGANIZATION_MEMBER_INVITED` | New invitation row only (invite-submit, or Copy Link/generate-link when no reusable pending row exists). Same-email + same-role reuse of a valid pending invite does **not** write this. Same email + different role creates a new row and writes this. |
+| `ORGANIZATION_INVITATION_RESENT` | Explicit Resend, **and** invite-submit reuse of same email + same role after a successful email send. Not written if SES fails. Token, expiry, and the existing row stay unchanged on email failure. |
+| `ORGANIZATION_INVITATION_REVOKED` | Revoke a pending invitation (row deleted). |
+| `ORGANIZATION_MEMBER_JOINED` | Successful acceptance. |
+
+Copy Link (invite-modal generate-link reuse **and** pending-table clipboard copy) does **not** write a Security event. There is no `ORGANIZATION_INVITATION_LINK_GENERATED`. Revoked (deleted), expired, or accepted invitations are not reusable.
+
+Invitation token and full URL are **not** stored in audit metadata.
+
 ## Audit is history, not source of truth
 
 Typical write path:
