@@ -31,7 +31,7 @@ If a card’s “UI location” names a component, verify the current file; do n
 | Module | A-range | Count | Model | DB table | Admin raw location | Permission |
 |---|---|---:|---|---|---|---|
 | Access | A001–A003 | 3 | AccessAuditLog | access_audit_logs | `/audit` → Access (`/audit?tab=access`) | `audit.access.view` |
-| Security | A004–A038 | 35 reserved (32 active writers; A004, A005, and A016 retired) | SecurityAuditLog | security_audit_logs | `/audit` → Security (`/audit?tab=security`) | `audit.security.view` |
+| Security | A004–A038 | 35 reserved / 32 ACTIVE (A004, A005, A016 retired — DO NOT LIVE QA) | SecurityAuditLog | security_audit_logs | `/audit` → Security (`/audit?tab=security`) | `audit.security.view` |
 | Onboarding | A039–A055, A175 | 18 reserved (15 active writers; A040, A052, and A053 retired) | OnboardingAuditLog | onboarding_audit_logs | `/audit` → Onboarding (`/audit?tab=onboarding`) | `onboarding.view` |
 | Legal | A056–A062 | 7 | LegalAdminAuditLog | legal_admin_audit_logs | `/audit` → Legal Documents (`/audit?tab=legal-documents`) | `document_management.view` |
 | Application | A063–A102, A178 | 41 | ApplicationAuditLog | application_audit_logs | Application Detail → Audit History | `applications.view` |
@@ -750,15 +750,29 @@ Admin `/audit?tab=access` requires `audit.access.view`. Rows open in `AuditLogDe
 
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
-Events: 35 reserved (32 active writers; A004 `USER_ROLE_ADDED`, A005 `ACTIVE_ROLE_CHANGED`, and A016 `USER_ROLES_UPDATED` retired)
+Events: 35 reserved / 32 ACTIVE manual/API audit targets
 Range: A004-A038
 Admin Location: /audit → Security (`/audit?tab=security`)
 Permission: audit.security.view
 
+**Active QA count: 32.** Do not include retired events in the live Security QA checklist.
+
+**3 retired Security events (IDs reserved; historical rows readable; RETIRED — DO NOT LIVE QA):**
+- A004 `USER_ROLE_ADDED`
+- A005 `ACTIVE_ROLE_CHANGED`
+- A016 `USER_ROLES_UPDATED`
+
+**Current role and portal-switch flows (source):**
+- Investor / Issuer portal roles are granted in `OrganizationService.createOrganization`. Not `USER_ROLE_ADDED`. Not `USER_ROLES_UPDATED`.
+- Admin access is granted through Admin invitation acceptance (`ADMIN_INVITATION_ACCEPTED`).
+- Admin catalog role changes write `ADMIN_USER_ROLE_CHANGED`.
+- Portal switching is navigation between portals. It does not write `ACTIVE_ROLE_CHANGED`.
+- `POST /v1/auth/complete-onboarding` is still mounted. No current portal caller. Writes no audit event. Not happy-path onboarding. Intentionally left in source. Distinct from `POST /v1/organizations/{investor|issuer}/:id/complete-onboarding`.
+
 | ID | Source Case | Event | Admin Raw | Admin Activity | Issuer | Investor |
 |---|---|---|---|---|---|---|
-| A004 | SEC-001 | `USER_ROLE_ADDED` (RETIRED) | SHOW | HIDE | HIDE | HIDE |
-| A005 | SEC-002 | `ACTIVE_ROLE_CHANGED` (RETIRED) | SHOW | HIDE | HIDE | HIDE |
+| A004 | SEC-001 | `USER_ROLE_ADDED` (RETIRED — DO NOT LIVE QA) | SHOW | HIDE | HIDE | HIDE |
+| A005 | SEC-002 | `ACTIVE_ROLE_CHANGED` (RETIRED — DO NOT LIVE QA) | SHOW | HIDE | HIDE | HIDE |
 | A006 | SEC-003 | `USER_PROFILE_UPDATED` | SHOW | HIDE | HIDE | HIDE |
 | A007 | SEC-004 | `USER_PROFILE_UPDATED_BY_ADMIN` | SHOW | HIDE | HIDE | HIDE |
 | A008 | SEC-005 | `PASSWORD_CHANGED` | SHOW | HIDE | HIDE | HIDE |
@@ -769,7 +783,7 @@ Permission: audit.security.view
 | A013 | SEC-010 | `ADMIN_ROLE_CREATED` | SHOW | HIDE | HIDE | HIDE |
 | A014 | SEC-011 | `ADMIN_ROLE_PERMISSIONS_UPDATED` | SHOW | HIDE | HIDE | HIDE |
 | A015 | SEC-012 | `ADMIN_ROLE_DELETED` | SHOW | HIDE | HIDE | HIDE |
-| A016 | SEC-013 | `USER_ROLES_UPDATED` (RETIRED) | SHOW | HIDE | HIDE | HIDE |
+| A016 | SEC-013 | `USER_ROLES_UPDATED` (RETIRED — DO NOT LIVE QA) | SHOW | HIDE | HIDE | HIDE |
 | A017 | SEC-014 | `ADMIN_USER_ROLE_CHANGED` | SHOW | HIDE | HIDE | HIDE |
 | A018 | SEC-015 | `ADMIN_USER_DEACTIVATED` | SHOW | HIDE | HIDE | HIDE |
 | A019 | SEC-016 | `ADMIN_USER_REACTIVATED` | SHOW | HIDE | HIDE | HIDE |
@@ -795,11 +809,11 @@ Permission: audit.security.view
 
 # A004 — USER_ROLE_ADDED
 
-**Status: RETIRED**
+**Status: RETIRED — DO NOT LIVE QA**
 **Current writer: None**
 **Historical rows: Supported/readable**
 **ID reused: No**
-**Manual QA: DO NOT QA AS A LIVE EVENT**
+**Manual QA: RETIRED — DO NOT LIVE QA**
 
 ID A004 remains reserved in A004–A038 for historical compatibility. It is **not** a current production writer. `USER_ROLE_ADDED` stays in `SECURITY_AUDIT_EVENTS` / Zod only so existing `security_audit_logs` rows still parse. It is listed in `RETIRED_SECURITY_AUDIT_EVENTS`.
 
@@ -822,7 +836,7 @@ No current writer. Previously `AuthService.addRole` via `POST /v1/auth/add-role`
 
 ## 3. When it does NOT log / no-op
 
-Always, for current product actions. Organization create, Admin invitation accept, Portal access Save, Admin Roles table edits, and `/auth/complete-onboarding` must not write this event.
+Always, for current product actions. Organization create, Admin invitation accept, Portal access Save, Admin Roles table edits, and `POST /v1/auth/complete-onboarding` must not write this event. `POST /v1/auth/complete-onboarding` is still mounted; it writes no audit event. Do not mark it removed.
 
 ## 4. Top-level audit row
 
@@ -979,7 +993,7 @@ No UI writes this event. Investor/Issuer account creation still grants portal ro
 
 ## 15. Manual verification checklist
 
-**Do not manually QA A004 as a live Security event.** Live Security QA count is **32** active writers. A004, A005, and A016 are retired.
+**RETIRED — DO NOT LIVE QA.** Not an active Security QA target. Live Security QA count is **32**. A004, A005, and A016 are retired.
 
 - [ ] No `POST /v1/auth/add-role`
 - [ ] No new `USER_ROLE_ADDED` row from Investor/Issuer org create
@@ -990,11 +1004,11 @@ No UI writes this event. Investor/Issuer account creation still grants portal ro
 
 # A005 — ACTIVE_ROLE_CHANGED
 
-**Status: RETIRED**
+**Status: RETIRED — DO NOT LIVE QA**
 **Current writer: None**
 **Historical rows: Supported/readable**
 **ID reused: No**
-**Manual QA: DO NOT QA AS A LIVE EVENT**
+**Manual QA: RETIRED — DO NOT LIVE QA**
 
 ID A005 remains reserved in A004–A038 for historical compatibility. It is **not** a current production writer. `ACTIVE_ROLE_CHANGED` stays in `SECURITY_AUDIT_EVENTS` / Zod only so existing `security_audit_logs` rows still parse. It is listed in `RETIRED_SECURITY_AUDIT_EVENTS`.
 
@@ -1183,7 +1197,7 @@ Current portal switch (do **not** treat as A005):
 
 ## 15. Manual verification checklist
 
-**Do not manually QA A005 as a live Security event.** Live Security QA count is **32** active writers. A004, A005, and A016 are retired.
+**RETIRED — DO NOT LIVE QA.** Not an active Security QA target. Live Security QA count is **32**. A004, A005, and A016 are retired.
 
 - [ ] Portal switch is hard navigation only (other portal origin)
 - [ ] No `POST /v1/auth/switch-role`
@@ -3179,11 +3193,11 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A016 — USER_ROLES_UPDATED
 
-**Status: RETIRED**
+**Status: RETIRED — DO NOT LIVE QA**
 **Current writer: None**
 **Historical rows: Supported/readable**
 **ID reused: No**
-**Manual QA: DO NOT QA AS A LIVE EVENT**
+**Manual QA: RETIRED — DO NOT LIVE QA**
 
 ID A016 remains reserved in A004–A038 for historical compatibility. It is **not** a current production writer. `USER_ROLES_UPDATED` stays in `SECURITY_AUDIT_EVENTS` / Zod only so existing `security_audit_logs` rows still parse. It is listed in `RETIRED_SECURITY_AUDIT_EVENTS`.
 
@@ -3363,7 +3377,7 @@ No Admin UI writes this event. Historical rows remain readable on `/audit?tab=se
 
 ## 15. Manual verification checklist
 
-**Do not manually QA A016 as a live Security event.** Live Security QA count is **32** active writers. A004, A005, and A016 are retired.
+**RETIRED — DO NOT LIVE QA.** Not an active Security QA target. Live Security QA count is **32**. A004, A005, and A016 are retired.
 
 - [ ] No `PATCH /v1/admin/users/:id/roles`
 - [ ] No new `USER_ROLES_UPDATED` row from Portal access Save

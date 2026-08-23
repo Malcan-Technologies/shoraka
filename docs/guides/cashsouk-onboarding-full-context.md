@@ -65,6 +65,25 @@ All values: **`apps/api/prisma/schema.prisma`** → `enum OnboardingStatus { PEN
 
 Comment in repository states company status is updated later via RegTank webhooks (historically simplified).
 
+### 2.2.1 Current role grants (not retired Security events)
+
+Investor and Issuer portal roles are granted when the organization is created (`OrganizationService.createOrganization`), with Cognito `custom:roles` sync. That path does **not** write `USER_ROLE_ADDED` or `USER_ROLES_UPDATED` (both retired).
+
+Admin access is granted through Admin invitation acceptance (`ADMIN_INVITATION_ACCEPTED`). Admin catalog role edits write `ADMIN_USER_ROLE_CHANGED`.
+
+Portal switching is navigation between the Investor and Issuer origins. It does **not** write `ACTIVE_ROLE_CHANGED`.
+
+### 2.2.2 Two different `complete-onboarding` endpoints
+
+Do not conflate these:
+
+| Endpoint | Status in source | Audit | Happy path? |
+|---|---|---|---|
+| `POST /v1/organizations/{investor\|issuer}/:id/complete-onboarding` | Mounted. Unused by portal pages. | Writes Onboarding `ONBOARDING_COMPLETED`. | No. Admin final approval is the live completion path. |
+| `POST /v1/auth/complete-onboarding` | **Currently mounted.** No current portal/SDK caller. **Intentionally left in source.** Do not mark removed. | Writes **no audit event**. | No. Not part of current happy-path onboarding. |
+
+Admin happy-path completion is `POST /v1/admin/onboarding-applications/:id/complete-final-approval` (`ONBOARDING_FINAL_APPROVAL_COMPLETED`).
+
 ### 2.3 Per-status reference
 
 #### `PENDING`
@@ -497,7 +516,7 @@ Onboarding audit records CashSouk business actions, stages, decisions, and outco
 
 **REMOVED:** `OnboardingLog` / `onboarding_logs`.
 
-Known limitations (not fixed here): `retryOnboarding` can persist a new provider session without `ONBOARDING_RESTARTED`; company auto-regenerate may label a stale/cancelled session as `EXPIRED_SESSION`; legacy complete-onboarding routes still emit `ONBOARDING_COMPLETED`; user cancel remains a no-op workflow action.
+Known limitations (not fixed here): `retryOnboarding` can persist a new provider session without `ONBOARDING_RESTARTED`; company auto-regenerate may label a stale/cancelled session as `EXPIRED_SESSION`; org `POST /v1/organizations/{investor|issuer}/:id/complete-onboarding` still emits `ONBOARDING_COMPLETED`; `POST /v1/auth/complete-onboarding` is still mounted, has no portal caller, writes no audit event, and is left in source; user cancel remains a no-op workflow action.
 
 ---
 

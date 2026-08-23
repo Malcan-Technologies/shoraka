@@ -47,6 +47,16 @@ Reserved IDs **A001–A178** (**178**). Active writers **172**. Retired IDs (rea
 
 Per-event cards: `docs/audit/audit-manual-verification-catalogue.md`.
 
+## Current role and portal-switch flows
+
+These are current source behaviors. Do not treat retired Security events as live writers.
+
+- **Investor / Issuer role grant:** `OrganizationService.createOrganization` adds `INVESTOR` or `ISSUER` and syncs Cognito `custom:roles`. Not `USER_ROLE_ADDED`. Not `USER_ROLES_UPDATED`.
+- **Admin access:** granted through Admin invitation acceptance (`ADMIN_INVITATION_ACCEPTED`).
+- **Admin catalog role changes:** `ADMIN_USER_ROLE_CHANGED`.
+- **Portal switching:** navigation between portals (`window.location.href` to the other portal origin). No `ACTIVE_ROLE_CHANGED`. No `POST /v1/auth/switch-role`.
+- **`POST /v1/auth/complete-onboarding`:** currently mounted. No current portal/SDK caller. Writes **no audit event**. Not part of current happy-path onboarding. Intentionally left in source. Do not mark it removed. Distinct from `POST /v1/organizations/{investor|issuer}/:id/complete-onboarding` (legacy org completion; writes `ONBOARDING_COMPLETED`).
+
 ## Audit is history, not source of truth
 
 Typical write path:
@@ -252,7 +262,7 @@ Known limitations (not fixed in this cleanup):
 
 1. `retryOnboarding` can persist a new provider session without writing `ONBOARDING_RESTARTED`.
 2. Company auto-regenerate may label a stale/cancelled session as `EXPIRED_SESSION`.
-3. Legacy complete-onboarding routes still exist and emit `ONBOARDING_COMPLETED`.
+3. Org `POST /v1/organizations/{investor|issuer}/:id/complete-onboarding` still exists and emits `ONBOARDING_COMPLETED`. Distinct from `POST /v1/auth/complete-onboarding`, which is still mounted, has no portal caller, writes no audit event, and is left in source.
 4. User cancel remains a no-op workflow action.
 
 ---
@@ -491,13 +501,13 @@ Actor: USER / ADMIN / SYSTEM / PROVIDER / EXTERNAL SIGNER / WEBHOOK.
 | A021–A023 | RBAC | PUT admin-users role/deactivate/reactivate | AdminService | Role/status | ADMIN | YES misleading | all ROLE_SWITCHED |
 | A024–A026 | INVITE | invite / generate-url / resend | AdminService | Create/resend invite | ADMIN | **MISSING AUDIT** | AdminInvitation + SES |
 | A027 | INVITE | DELETE invitations/:id/revoke | revokeInvitation | Revoke | ADMIN | YES | INVITATION_REVOKED |
-| A028 | INVITE | POST accept-invitation | | Accept admin invite | USER | PARTIAL | invitation + possible ROLE_ADDED |
+| A028 | INVITE | POST accept-invitation | | Accept admin invite | USER | YES (current) | `ADMIN_INVITATION_ACCEPTED`. Not `USER_ROLE_ADDED` (retired). |
 | A029 | USER | PATCH users/:id/onboarding | updateUserOnboarding | Admin onboarding flags | ADMIN | YES | ONBOARDING_STATUS_UPDATED |
 | A030 | USER | PATCH users/:id/profile | updateUserProfile | Admin edits profile | ADMIN | YES dual | AccessLog + SecurityLog PROFILE_UPDATED |
 | A031 | USER | PATCH users/:id/user-id | updateUserId | Assign public user_id | ADMIN | **MISSING AUDIT** HIGH | User row |
 | A032/A033 | ORG | POST organizations investor/issuer | organization service | Create org | USER | **MISSING AUDIT** | Org row |
 | A034 | ORG | PATCH org | | Update org | USER | **MISSING AUDIT** | |
-| A035 | ORG | POST .../complete-onboarding | `OrganizationService.completeOnboarding` | Owner can set org COMPLETED | USER | **MISSING AUDIT** HIGH | No portal page caller. Distinct from admin `complete-final-approval` and `POST /v1/auth/complete-onboarding`. |
+| A035 | ORG | POST `/v1/organizations/{investor\|issuer}/:id/complete-onboarding` | `OrganizationService.completeOnboarding` | Owner can set org COMPLETED | USER | YES `ONBOARDING_COMPLETED` | Legacy org route; unused by pages. Distinct from admin `complete-final-approval` and from still-mounted `POST /v1/auth/complete-onboarding` (no audit). |
 | A036 | ORG | POST accept-tnc | `acceptTnc` | Org tnc_accepted | USER | YES | TNC_APPROVED onboarding_logs |
 | A037–A044 | ORG MEMBERS | invite/remove/leave/role/ownership/invites | organization service | Membership lifecycle | USER | **MISSING AUDIT** HIGH | membership tables |
 | A045 | ORG | PATCH corporate-info | | Corporate JSON | USER | **MISSING AUDIT** | |
@@ -601,7 +611,7 @@ Normal portal logout produces one `USER_LOGGED_OUT` row through Cognito `GET /v1
 
 ### SecurityAuditLog
 
-`AuthService`: `USER_PROFILE_UPDATED`, `PASSWORD_CHANGED` / `PASSWORD_CHANGE_FAILED`, `USER_EMAIL_VERIFIED` / `EMAIL_VERIFICATION_FAILED`. `USER_ROLE_ADDED` is retired (A004 reserved; `POST /v1/auth/add-role` removed). `ACTIVE_ROLE_CHANGED` is retired (A005 reserved; no live writer). `USER_ROLES_UPDATED` is retired (A016 reserved; `PATCH /v1/admin/users/:id/roles` removed).  
+`AuthService`: `USER_PROFILE_UPDATED`, `PASSWORD_CHANGED` / `PASSWORD_CHANGE_FAILED`, `USER_EMAIL_VERIFIED` / `EMAIL_VERIFICATION_FAILED`. `USER_ROLE_ADDED` is retired (A004 reserved; `POST /v1/auth/add-role` removed). `ACTIVE_ROLE_CHANGED` is retired (A005 reserved; `POST /v1/auth/switch-role` removed). `USER_ROLES_UPDATED` is retired (A016 reserved; `PATCH /v1/admin/users/:id/roles` removed). Investor/Issuer roles are granted in `OrganizationService.createOrganization`. Admin access is granted through invitation acceptance. Catalog role edits write `ADMIN_USER_ROLE_CHANGED`. Portal switching is navigation only. `POST /v1/auth/complete-onboarding` is still mounted, has no portal caller, and writes no audit event.  
 `AdminService`: role config C/U/D, `ADMIN_USER_ROLE_CHANGED`, deactivate/reactivate, invitation lifecycle, `USER_PUBLIC_ID_CHANGED`, `USER_PROFILE_UPDATED_BY_ADMIN`.  
 Organization membership: `ORGANIZATION_MEMBER_*`, ownership transfer, invitation resend/revoke.  
 Notification config (not broadcasts): type/group/preference.  
@@ -912,7 +922,7 @@ Legal types in schema: `PDPA_NOTICE_AND_CONSENT`, `TERMS_OF_USE`, `RISK_STATEMEN
 | Change | Audit? | Severity if missing |
 |---|---|---|
 | Create/update/delete admin role + permissions | YES SecurityAuditLog | — |
-| Assign user roles | Retired `USER_ROLE_ADDED` / `POST .../auth/add-role` removed. Investor/Issuer: organization create. Admin catalog role: `ADMIN_USER_ROLE_CHANGED`. Portal flags: onboarding endpoint. | — |
+| Assign user roles | Investor/Issuer: `OrganizationService.createOrganization` (not `USER_ROLE_ADDED` / `USER_ROLES_UPDATED`). Admin access: invitation accept → `ADMIN_INVITATION_ACCEPTED`. Admin catalog role: `ADMIN_USER_ROLE_CHANGED`. Portal Investor/Issuer flags: onboarding endpoint. Portal switch: navigation only (no `ACTIVE_ROLE_CHANGED`). | — |
 | Deactivate/reactivate admin | YES `ADMIN_USER_DEACTIVATED` / `ADMIN_USER_REACTIVATED` (DB-only; no Cognito disable) | — |
 | Invite admin create/resend | YES `ADMIN_INVITATION_CREATED` / `RESENT` / `LINK_GENERATED` | — |
 | Revoke invite | YES `ADMIN_INVITATION_REVOKED` | — |
@@ -938,7 +948,8 @@ Conceptual future names only — **not implemented**.
 |---|---|---|---|---|---|---|
 | ORG | Create org | No | Org row | HIGH | ORGANIZATION_CREATED | HIGH |
 | ORG | Member invite/remove/role/ownership/leave | No | membership | HIGH | ORGANIZATION_MEMBER_* | HIGH |
-| ORG | User `complete-onboarding` (API exists; **no portal caller**) | No | status COMPLETED | HIGH | ONBOARDING_USER_COMPLETED | HIGH |
+| ORG | User org `complete-onboarding` (`POST /v1/organizations/{investor\|issuer}/:id/complete-onboarding`; mounted; **no page caller**) | Yes — `ONBOARDING_COMPLETED` | org COMPLETED | — (legacy, not happy-path) | — | — |
+| AUTH | `POST /v1/auth/complete-onboarding` (currently mounted; **no portal caller**; **intentionally left**) | No audit event | user role/onboarding flags | MEDIUM | do not invent an event; do not mark the route removed | — |
 | ADMIN | Invite create/resend | No | invitation | HIGH | ADMIN_INVITATION_CREATED | HIGH |
 | ADMIN | Assign user_id | No | User | HIGH | USER_PUBLIC_ID_ASSIGNED | HIGH |
 | SETTINGS | Platform finance / trustee / fees | No | settings upsert | CRITICAL | PLATFORM_FINANCE_SETTINGS_UPDATED | CRITICAL |
@@ -1134,7 +1145,7 @@ Sections that need correction: former §19 item 7. **Corrected** (code); S3 rema
 
 Original statement: A035 “User marks COMPLETED” implied a live portal happy path; §19 asked which of user vs admin was live.
 
-Correct statement: Admin `POST /v1/admin/onboarding-applications/:id/complete-final-approval` is the **active UI happy path**. Org `complete-onboarding` has backend + unused context client and **no page caller**. Auth `POST /v1/auth/complete-onboarding` has **no frontend caller**.
+Correct statement: Admin `POST /v1/admin/onboarding-applications/:id/complete-final-approval` is the **active UI happy path**. Org `POST /v1/organizations/{investor|issuer}/:id/complete-onboarding` has backend + unused context client and **no page caller**; it writes `ONBOARDING_COMPLETED`. Auth `POST /v1/auth/complete-onboarding` is **currently mounted**, has **no frontend caller**, writes **no audit event**, is **not** happy-path onboarding, and is **intentionally left in source**. Do not mark the auth route removed. Do not confuse the two complete-onboarding endpoints.
 
 Evidence: `use-onboarding-applications.ts`; `organization-context.tsx` (method unused by pages); no issuer/investor `completeOnboarding` usage.
 
@@ -1440,7 +1451,7 @@ CURRENT CODE FACT:
 |---|---|---|
 | `POST /v1/admin/onboarding-applications/:id/complete-final-approval` | Admin `use-onboarding-applications.ts` / `apiClient.completeFinalApproval` | **ACTIVE HAPPY-PATH** (sets org COMPLETED + `FINAL_APPROVAL_COMPLETED`) |
 | `POST /v1/organizations/{investor\|issuer}/:id/complete-onboarding` | `organization-context.completeOnboarding` exists; **no page/hook calls it** | **REACHABLE BUT NOT NORMAL HAPPY-PATH** (authenticated owner can hit API; not a current portal button) |
-| `POST /v1/auth/complete-onboarding` | **no API-client / page caller** | **BACKEND ONLY / NO UI CALLER** (updates user role/onboarding flags; does not write USER_COMPLETED) |
+| `POST /v1/auth/complete-onboarding` | **no API-client / page caller** | **CURRENTLY MOUNTED** — no portal caller; writes **no audit event**; not happy-path onboarding; **intentionally left in source**. Do not mark removed. Distinct from org `…/complete-onboarding`. |
 
 `payment/webhook-service.ts` `completeOnboardingFeePayment` is fee capture, not org completion.
 
