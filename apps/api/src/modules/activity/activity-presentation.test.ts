@@ -235,6 +235,58 @@ describe("Activity presentation copy", () => {
       expect(withActor.description).toBe("Nora submitted the application for review.");
       expect(fallback.description).toBe("The application was submitted for review.");
     });
+
+    it("uses specific copy for document, amendment, archive, and classification events", () => {
+      const actor = { actorName: "Nora" };
+      expect(formatApplicationActivity("admin", "APPLICATION_DOCUMENT_UPLOADED", actor)).toEqual({
+        title: "Document Uploaded",
+        description: "Nora uploaded a document.",
+      });
+      expect(
+        formatApplicationActivity("admin", "APPLICATION_DOCUMENT_UPLOADED", {
+          actorName: "Nora",
+          fileName: "bank-statement.pdf",
+        }).description
+      ).toBe("Nora uploaded bank-statement.pdf.");
+      expect(formatApplicationActivity("admin", "APPLICATION_DOCUMENT_REMOVED", actor)).toEqual({
+        title: "Document Removed",
+        description: "Nora removed a document.",
+      });
+      expect(formatApplicationActivity("admin", "APPLICATION_DOCUMENT_REPLACED", actor)).toEqual({
+        title: "Document Replaced",
+        description: "Nora replaced a document.",
+      });
+      expect(formatApplicationActivity("admin", "APPLICATION_AMENDMENT_ACKNOWLEDGED", actor)).toEqual({
+        title: "Changes Acknowledged",
+        description: "Nora acknowledged the requested changes.",
+      });
+      expect(formatApplicationActivity("admin", "APPLICATION_ARCHIVED", actor)).toEqual({
+        title: "Application Archived",
+        description: "Nora archived the application.",
+      });
+      expect(formatApplicationActivity("admin", "APPLICATION_DRAFT_DELETED", actor)).toEqual({
+        title: "Draft Deleted",
+        description: "Nora deleted the application draft.",
+      });
+      expect(
+        formatApplicationActivity("admin", "CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED", actor)
+      ).toEqual({
+        title: "Customer Classification Updated",
+        description: "Nora updated the customer classification.",
+      });
+
+      for (const eventType of [
+        "APPLICATION_DOCUMENT_UPLOADED",
+        "APPLICATION_DOCUMENT_REMOVED",
+        "APPLICATION_DOCUMENT_REPLACED",
+        "APPLICATION_AMENDMENT_ACKNOWLEDGED",
+        "APPLICATION_ARCHIVED",
+        "APPLICATION_DRAFT_DELETED",
+        "CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED",
+      ]) {
+        expect(formatApplicationActivity("admin", eventType).title).not.toBe("Application Update");
+      }
+    });
   });
 
   describe("signing", () => {

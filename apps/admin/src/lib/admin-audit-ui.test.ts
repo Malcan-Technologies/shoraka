@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const root = join(__dirname, "..");
@@ -97,21 +97,19 @@ describe("admin audit UI restructure", () => {
   it("adds separate Admin Audit History surfaces without changing Activity adapters", () => {
     const applicationPage = read("app/applications/[productKey]/[id]/page.tsx");
     expect(applicationPage).toContain("RecentActivityCard");
-    expect(applicationPage).toContain("ApplicationAuditHistoryCard");
-    expect(applicationPage).toContain("useApplicationAuditHistory");
-    expect(applicationPage).toContain("applicationAuditToDetail");
-
-    const applicationAuditHook = read("hooks/use-application-audit-history.ts");
-    expect(applicationAuditHook).toContain("getApplicationAuditHistory");
-    expect(applicationAuditHook).not.toContain("normalizeLogItem");
-    expect(applicationAuditHook).not.toContain("event_type:");
+    expect(applicationPage).not.toContain("ApplicationAuditHistoryCard");
+    expect(applicationPage).not.toContain("useApplicationAuditHistory");
+    expect(applicationPage).not.toContain("applicationAuditToDetail");
+    expect(applicationPage).not.toContain("ContextualAuditHistoryPanel");
+    expect(existsSync(join(root, "hooks/use-application-audit-history.ts"))).toBe(false);
 
     const activityHook = read("hooks/use-application-logs.ts");
     expect(activityHook).toContain("normalizeLogItem");
     expect(activityHook).not.toContain("getApplicationAuditHistory");
-    expect(read("components/admin-activity-timeline.tsx")).toContain(
-      "isAdminApplicationTimelineVisible"
-    );
+    const applicationActivity = read("components/admin-activity-timeline.tsx");
+    expect(applicationActivity).toContain("TIMELINE_HIDDEN_EVENT_TYPES");
+    expect(applicationActivity).toContain("APPLICATION_ITEM_REVIEW_UPDATED");
+    expect(applicationActivity).toContain("SIGNING_PACKAGE_COMPLETED");
     expect(read("hooks/use-organization-logs.ts")).not.toContain(
       "USER_ONBOARDING_STATUS_UPDATED"
     );

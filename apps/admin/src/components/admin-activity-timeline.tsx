@@ -160,7 +160,10 @@ function getEventLabel(
 const ACTIVITY_PAGE_SIZE = 10;
 
 /** Signing envelope rollup is stored on SigningAuditLog but hidden from curated Activity. */
-const TIMELINE_HIDDEN_EVENT_TYPES = new Set(["SIGNING_PACKAGE_COMPLETED"]);
+const TIMELINE_HIDDEN_EVENT_TYPES = new Set([
+  "SIGNING_PACKAGE_COMPLETED",
+  "APPLICATION_ITEM_REVIEW_UPDATED",
+]);
 
 function formatActivityText(activity: ApplicationLogEntry["activity"]): string | null {
   if (activity == null) return null;
@@ -321,8 +324,8 @@ export function AdminActivityTimeline({
   const totalCount = logs.length;
 
   const csvRows = React.useMemo(
-    () => (data ?? []).map((log) => applicationLogToActivityCsvRow(log, sectionLabelOverrides)),
-    [data, sectionLabelOverrides]
+    () => logs.map((log) => applicationLogToActivityCsvRow(log, sectionLabelOverrides)),
+    [logs, sectionLabelOverrides]
   );
 
   const toggle = (id: string) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));

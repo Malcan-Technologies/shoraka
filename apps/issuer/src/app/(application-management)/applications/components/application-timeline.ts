@@ -1,4 +1,5 @@
 import type { ApplicationLogEntry } from "@/hooks/use-application-logs";
+import { isAmendmentRequiredStatus } from "@cashsouk/types";
 import type { NormalizedApplication } from "../status";
 
 export type TimelineMilestone = {
@@ -21,8 +22,7 @@ const EVENT_LABELS: Record<string, string> = {
   APPLICATION_WITHDRAWN: "You withdrew this application",
   APPLICATION_ARCHIVED: "Application archived",
   APPLICATION_COMPLETED: "Application completed",
-  APPLICATION_SECTION_REVIEW_UPDATED: "A section review was updated",
-  APPLICATION_ITEM_REVIEW_UPDATED: "An item review was updated",
+  APPLICATION_SECTION_REVIEW_UPDATED: "Changes Requested",
   APPLICATION_DOCUMENT_UPLOADED: "A document was uploaded",
   APPLICATION_DOCUMENT_REMOVED: "A document was removed",
   APPLICATION_DOCUMENT_REPLACED: "A document was replaced",
@@ -64,6 +64,31 @@ const EVENT_LABELS: Record<string, string> = {
 
 /** Events useful for issuer-facing timeline (skip noisy section/item approve noise). */
 const ISSUER_VISIBLE_EVENTS = new Set(Object.keys(EVENT_LABELS));
+
+function metadataNewStatus(log: ApplicationLogEntry): string | undefined {
+  const value = log.metadata?.newStatus;
+  return typeof value === "string" ? value : undefined;
+}
+
+function isIssuerApplicationDetailVisible(log: ApplicationLogEntry): boolean {
+  if (!ISSUER_VISIBLE_EVENTS.has(log.event_type)) return false;
+  if (log.event_type === "APPLICATION_SECTION_REVIEW_UPDATED") {
+    return isAmendmentRequiredStatus(metadataNewStatus(log));
+  }
+  return true;
+}
+
+function issuerDetailDescription(log: ApplicationLogEntry): string | undefined {
+  if (log.event_type === "APPLICATION_SECTION_REVIEW_UPDATED") {
+    const remark = log.remark?.trim();
+    if (remark && !/section review was updated/i.test(remark)) return remark;
+    return "Please make the requested changes.";
+  }
+  const activitySummary =
+    typeof log.activity === "string" && log.activity.trim() ? log.activity.trim() : null;
+  const remark = log.remark?.trim() || null;
+  return activitySummary ?? remark ?? undefined;
+}
 
 function statusFallbacks(app: NormalizedApplication): TimelineMilestone[] {
   const milestones: TimelineMilestone[] = [];
@@ -158,19 +183,14 @@ export function buildApplicationTimeline(
   application: NormalizedApplication
 ): TimelineMilestone[] {
   const fromLogs = logs
-    .filter((log) => ISSUER_VISIBLE_EVENTS.has(log.event_type))
-    .map((log) => {
-      const activitySummary =
-        typeof log.activity === "string" && log.activity.trim() ? log.activity.trim() : null;
-      const remark = log.remark?.trim() || null;
-      return {
-        id: log.id,
-        label: EVENT_LABELS[log.event_type] ?? log.event_type.replace(/_/g, " ").toLowerCase(),
-        description: activitySummary ?? remark ?? undefined,
-        at: log.created_at || null,
-        source: "log" as const,
-      };
-    });
+    .filter((log) => isIssuerApplicationDetailVisible(log))
+    .map((log) => ({
+      id: log.id,
+      label: EVENT_LABELS[log.event_type] ?? log.event_type.replace(/_/g, " ").toLowerCase(),
+      description: issuerDetailDescription(log),
+      at: log.created_at || null,
+      source: "log" as const,
+    }));
 
   if (fromLogs.length > 0) {
     return fromLogs.sort((a, b) => {

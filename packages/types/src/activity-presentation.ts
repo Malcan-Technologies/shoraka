@@ -64,6 +64,14 @@ function firstString(metadata: Record<string, unknown>, keys: string[]): string 
   return undefined;
 }
 
+function safeDocumentFileName(metadata: Record<string, unknown>): string | undefined {
+  const fileName = firstString(metadata, ["fileName", "filename"]);
+  if (!fileName) return undefined;
+  if (fileName.includes("/") || fileName.includes("\\") || fileName.includes("..")) return undefined;
+  if (fileName.length > 120) return undefined;
+  return fileName;
+}
+
 function noteLabel(metadata: Record<string, unknown>, context?: ActivityPresentationContext): string | undefined {
   const reference = context?.noteReference ?? readString(metadata, "noteReference");
   if (reference) return `note ${reference}`;
@@ -639,6 +647,82 @@ export function formatApplicationActivity(
       return {
         title: "Invoice Withdrawn",
         description: invoiceNumber ? `Invoice ${invoiceNumber} was withdrawn.` : "The invoice was withdrawn.",
+      };
+    case "APPLICATION_DOCUMENT_UPLOADED": {
+      const fileName = safeDocumentFileName(record);
+      return {
+        title: "Document Uploaded",
+        description:
+          audience === "admin"
+            ? withActor(
+                actorName,
+                fileName ? `{actorName} uploaded ${fileName}.` : "{actorName} uploaded a document.",
+                fileName ? `${fileName} was uploaded.` : "A document was uploaded."
+              )
+            : fileName
+              ? `${fileName} was uploaded.`
+              : "A document was uploaded.",
+      };
+    }
+    case "APPLICATION_DOCUMENT_REMOVED":
+      return {
+        title: "Document Removed",
+        description:
+          audience === "admin"
+            ? withActor(actorName, "{actorName} removed a document.", "A document was removed.")
+            : "A document was removed.",
+      };
+    case "APPLICATION_DOCUMENT_REPLACED":
+      return {
+        title: "Document Replaced",
+        description:
+          audience === "admin"
+            ? withActor(actorName, "{actorName} replaced a document.", "A document was replaced.")
+            : "A document was replaced.",
+      };
+    case "APPLICATION_AMENDMENT_ACKNOWLEDGED":
+      return {
+        title: "Changes Acknowledged",
+        description:
+          audience === "admin"
+            ? withActor(
+                actorName,
+                "{actorName} acknowledged the requested changes.",
+                "The requested changes were acknowledged."
+              )
+            : "You acknowledged the requested changes.",
+      };
+    case "APPLICATION_ARCHIVED":
+      return {
+        title: "Application Archived",
+        description:
+          audience === "admin"
+            ? withActor(actorName, "{actorName} archived the application.", "The application was archived.")
+            : "The application was archived.",
+      };
+    case "APPLICATION_DRAFT_DELETED":
+      return {
+        title: "Draft Deleted",
+        description:
+          audience === "admin"
+            ? withActor(
+                actorName,
+                "{actorName} deleted the application draft.",
+                "The application draft was deleted."
+              )
+            : "The application draft was deleted.",
+      };
+    case "CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED":
+      return {
+        title: "Customer Classification Updated",
+        description:
+          audience === "admin"
+            ? withActor(
+                actorName,
+                "{actorName} updated the customer classification.",
+                "The customer classification was updated."
+              )
+            : "The customer classification was updated.",
       };
     default:
       return {

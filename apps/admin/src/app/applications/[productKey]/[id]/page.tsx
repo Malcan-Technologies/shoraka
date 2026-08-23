@@ -87,9 +87,6 @@ import {
   isSignedInvoiceOfferLetterAvailable,
 } from "@/components/application-review/offer-signing-availability";
 import { RequirePermission } from "@/components/require-permission";
-import { ContextualAuditHistoryPanel } from "@/components/audit/contextual-audit-history-panel";
-import { applicationAuditToDetail } from "@/components/audit/contextual-audit-mappers";
-import { useApplicationAuditHistory } from "@/hooks/use-application-audit-history";
 import { usePermissions } from "@/hooks/use-permissions";
 import { useAdminSigningEnvelopes } from "@/hooks/use-signing-envelopes";
 import type { AdminPermission } from "@cashsouk/types";
@@ -110,24 +107,6 @@ function PageSkeleton() {
       <Skeleton className="h-40 w-full rounded-2xl" />
       <Skeleton className="h-40 w-full rounded-2xl" />
     </div>
-  );
-}
-
-function ApplicationAuditHistoryCard({ applicationId }: { applicationId: string }) {
-  const [page, setPage] = React.useState(1);
-  const pageSize = 15;
-  const { data, isLoading, error } = useApplicationAuditHistory(applicationId, page, pageSize);
-  return (
-    <ContextualAuditHistoryPanel
-      rows={(data?.logs ?? []).map(applicationAuditToDetail)}
-      isLoading={isLoading}
-      error={error instanceof Error ? error : null}
-      emptyMessage="No audit records found"
-      page={page}
-      pageSize={pageSize}
-      totalCount={data?.pagination.totalCount}
-      onPageChange={setPage}
-    />
   );
 }
 
@@ -1168,8 +1147,6 @@ export default function DynamicApplicationDetailPage() {
                     sectionLabelOverrides={isInvoiceOnly ? { contract_details: "Customer" } : undefined}
                     visibleReviewSections={app.visible_review_sections}
                   />
-
-                  <ApplicationAuditHistoryCard applicationId={applicationId} />
                 </div>
               </div>
             </div>
