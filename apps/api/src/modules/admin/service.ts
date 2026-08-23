@@ -1737,7 +1737,23 @@ export class AdminService {
     }
 
     const admin = await this.repository.getAdminByUserId(userId);
+
+    // origin/main repaired missing ADMIN on User.roles before the already-active
+    // throw. This is a consistency repair, not INACTIVE → ACTIVE.
     if (admin?.status === "ACTIVE") {
+      if (!user.roles.includes(UserRole.ADMIN)) {
+        logger.info(
+          { userId, email: user.email, reactivatedBy },
+          "Adding ADMIN role to user.roles to sync with /users page"
+        );
+        const repairedRoles = [...user.roles, UserRole.ADMIN];
+        await prisma.$transaction(async (tx) => {
+          await tx.user.update({
+            where: { user_id: userId },
+            data: { roles: { set: repairedRoles } },
+          });
+        });
+      }
       throw new AppError(400, "VALIDATION_ERROR", "Admin is already active");
     }
 
