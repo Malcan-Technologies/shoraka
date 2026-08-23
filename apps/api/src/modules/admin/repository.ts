@@ -162,16 +162,6 @@ export class AdminRepository {
   }
 
   /**
-   * Update user roles
-   */
-  async updateUserRoles(userId: string, roles: UserRole[]): Promise<User> {
-    return prisma.user.update({
-      where: { user_id: userId },
-      data: { roles: { set: roles } },
-    });
-  }
-
-  /**
    * Update user onboarding status
    */
   async updateUserOnboarding(

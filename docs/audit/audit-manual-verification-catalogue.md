@@ -2,7 +2,7 @@
 
 **Purpose.** Source-authoritative, human-readable manual verification catalogue of **178 reserved/catalogued event IDs** (A001–A178). IDs are stable and are not reused when a writer is retired. Distinguish **reserved event IDs** from **current active writers**. Each card is the checklist a reviewer uses to confirm the write (or retired/no-writer status), the Zod metadata, the source of truth, transaction behavior, and the three activity surfaces (admin curated, issuer, investor) plus admin raw.
 
-**Date.** 2026-08-23 — A005 `ACTIVE_ROLE_CHANGED` retired (ID reserved; no live writer). Same day: A178 metadata synced to dual-ledger occupancy (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`). Prior: 2026-08-20 A178 added; 2026-08-19 A175–A177 for admin organization profile update and note campaign pause/resume.
+**Date.** 2026-08-23 — A016 `USER_ROLES_UPDATED` retired (ID reserved; no live writer; `PATCH /v1/admin/users/:id/roles` removed). Same day: A005 `ACTIVE_ROLE_CHANGED` retired. Same day: A178 metadata synced to dual-ledger occupancy (`CONTRACT_FACILITY_OCCUPANCY_UPDATED`). Prior: 2026-08-20 A178 added; 2026-08-19 A175–A177 for admin organization profile update and note campaign pause/resume.
 
 **How to use this document.** Do not treat activity titles as workflow state. Do not treat audit rows as source of truth. Verify the named table, then the SOT row, then visibility. Hidden activity is recorded as Title: N/A / Description: N/A.
 
@@ -31,7 +31,7 @@ If a card’s “UI location” names a component, verify the current file; do n
 | Module | A-range | Count | Model | DB table | Admin raw location | Permission |
 |---|---|---:|---|---|---|---|
 | Access | A001–A003 | 3 | AccessAuditLog | access_audit_logs | `/audit` → Access (`/audit?tab=access`) | `audit.access.view` |
-| Security | A004–A038 | 35 reserved (34 active writers; A005 retired) | SecurityAuditLog | security_audit_logs | `/audit` → Security (`/audit?tab=security`) | `audit.security.view` |
+| Security | A004–A038 | 35 reserved (33 active writers; A005 and A016 retired) | SecurityAuditLog | security_audit_logs | `/audit` → Security (`/audit?tab=security`) | `audit.security.view` |
 | Onboarding | A039–A055, A175 | 18 reserved (15 active writers; A040, A052, and A053 retired) | OnboardingAuditLog | onboarding_audit_logs | `/audit` → Onboarding (`/audit?tab=onboarding`) | `onboarding.view` |
 | Legal | A056–A062 | 7 | LegalAdminAuditLog | legal_admin_audit_logs | `/audit` → Legal Documents (`/audit?tab=legal-documents`) | `document_management.view` |
 | Application | A063–A102, A178 | 41 | ApplicationAuditLog | application_audit_logs | Application Detail → Audit History | `applications.view` |
@@ -40,7 +40,7 @@ If a card’s “UI location” names a component, verify the current file; do n
 | Payment | A150–A168 | 19 | PaymentAuditLog | payment_audit_logs | Gateway Payment / Investor Withdrawal / Reconciliation Audit | gateway / `investor_withdrawals.view` / `gateway_reconciliation.view` |
 | Product | A169–A173 | 5 | ProductAuditLog | product_audit_logs | `/audit` → Products (`/audit?tab=products`) | `audit.product.view` |
 | Notification | A174 | 1 | NotificationBroadcastAuditLog | notification_broadcast_audit_logs | `/audit` → Notifications (`/audit?tab=notifications`) | `notifications.view` |
-| **Total** | **A001–A178** | **178 reserved/catalogued IDs** (174 currently active event types with at least one writer; A005, A040, A052, and A053 retired, IDs not reused) | | | | |
+| **Total** | **A001–A178** | **178 reserved/catalogued IDs** (173 currently active event types with at least one writer; A005, A016, A040, A052, and A053 retired, IDs not reused) | | | | |
 
 
 ## Visibility summary
@@ -61,7 +61,7 @@ Computed from the event cards in this catalogue (not from memory).
 | Notification | 1 | 1 | 0 / 0 / 1 | 0 / 0 / 1 | 0 / 0 / 1 |
 | **Total** | **178** | **178** | **94 / 1 / 83** | **57 / 5 / 116** | **12 / 13 / 153** |
 
-Onboarding visibility counts include the 18 reserved IDs. Retired A040 / A052 / A053 remain SHOW on admin raw and SHOW (historical) on admin curated Activity if old rows exist; issuer/investor HIDE. Admin Organization contextual history excludes A052 and A053. Admin Activity HIDE is only `USER_ONBOARDING_STATUS_UPDATED`. Issuer/investor CONDITIONAL includes review/amendment `ONBOARDING_STATUS_CHANGED`. A175 is admin org Activity SHOW and issuer/investor HIDE. Security reserved IDs include retired A005 `ACTIVE_ROLE_CHANGED` (admin raw SHOW for historical rows; no current writer).
+Onboarding visibility counts include the 18 reserved IDs. Retired A040 / A052 / A053 remain SHOW on admin raw and SHOW (historical) on admin curated Activity if old rows exist; issuer/investor HIDE. Admin Organization contextual history excludes A052 and A053. Admin Activity HIDE is only `USER_ONBOARDING_STATUS_UPDATED`. Issuer/investor CONDITIONAL includes review/amendment `ONBOARDING_STATUS_CHANGED`. A175 is admin org Activity SHOW and issuer/investor HIDE. Security reserved IDs include retired A005 `ACTIVE_ROLE_CHANGED` and A016 `USER_ROLES_UPDATED` (admin raw SHOW for historical rows; no current writer).
 
 # Access
 
@@ -750,7 +750,7 @@ Admin `/audit?tab=access` requires `audit.access.view`. Rows open in `AuditLogDe
 
 Audit Model: SecurityAuditLog
 DB Table: security_audit_logs
-Events: 35 reserved (34 active writers; A005 `ACTIVE_ROLE_CHANGED` retired)
+Events: 35 reserved (33 active writers; A005 `ACTIVE_ROLE_CHANGED` and A016 `USER_ROLES_UPDATED` retired)
 Range: A004-A038
 Admin Location: /audit → Security (`/audit?tab=security`)
 Permission: audit.security.view
@@ -769,7 +769,7 @@ Permission: audit.security.view
 | A013 | SEC-010 | `ADMIN_ROLE_CREATED` | SHOW | HIDE | HIDE | HIDE |
 | A014 | SEC-011 | `ADMIN_ROLE_PERMISSIONS_UPDATED` | SHOW | HIDE | HIDE | HIDE |
 | A015 | SEC-012 | `ADMIN_ROLE_DELETED` | SHOW | HIDE | HIDE | HIDE |
-| A016 | SEC-013 | `USER_ROLES_UPDATED` | SHOW | HIDE | HIDE | HIDE |
+| A016 | SEC-013 | `USER_ROLES_UPDATED` (RETIRED) | SHOW | HIDE | HIDE | HIDE |
 | A017 | SEC-014 | `ADMIN_USER_ROLE_CHANGED` | SHOW | HIDE | HIDE | HIDE |
 | A018 | SEC-015 | `ADMIN_USER_DEACTIVATED` | SHOW | HIDE | HIDE | HIDE |
 | A019 | SEC-016 | `ADMIN_USER_REACTIVATED` | SHOW | HIDE | HIDE | HIDE |
@@ -1033,7 +1033,7 @@ DB Table: security_audit_logs
 
 ## 1. What this event means
 
-**Historical meaning only.** Previously recorded that the user's session `active_role` changed (investor ↔ issuer ↔ admin). Current Issuer/Investor portal switch does **not** mean this. Real role assignment is `USER_ROLE_ADDED` / `USER_ROLES_UPDATED` / `ADMIN_USER_ROLE_CHANGED`.
+**Historical meaning only.** Previously recorded that the user's session `active_role` changed (investor ↔ issuer ↔ admin). Current Issuer/Investor portal switch does **not** mean this. Real current role assignment is `USER_ROLE_ADDED` (self-serve add-role) and `ADMIN_USER_ROLE_CHANGED` (admin catalog role). `USER_ROLES_UPDATED` is retired.
 
 ## 2. When it logs
 
@@ -1204,13 +1204,14 @@ Current portal switch (do **not** treat as A005):
 
 ## 15. Manual verification checklist
 
-**Do not manually QA A005 as a live Security event.** Live Security QA count is **34** active writers. A005 is retired.
+**Do not manually QA A005 as a live Security event.** Live Security QA count is **33** active writers. A005 and A016 are retired.
 
 - [ ] Portal switch is hard navigation only (other portal origin)
 - [ ] No `POST /v1/auth/switch-role`
 - [ ] No new `ACTIVE_ROLE_CHANGED` row after portal switch
 - [ ] Historical A005 rows (if any) remain readable on `/audit?tab=security`
-- [ ] Real role changes still write `USER_ROLE_ADDED` / `USER_ROLES_UPDATED` / `ADMIN_USER_ROLE_CHANGED`
+- [ ] Real catalog-role changes still write `ADMIN_USER_ROLE_CHANGED`
+- [ ] Self-serve add-role still writes `USER_ROLE_ADDED` when that endpoint runs
 
 # A006 — USER_PROFILE_UPDATED
 
@@ -3199,6 +3200,18 @@ Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet
 
 # A016 — USER_ROLES_UPDATED
 
+**Status: RETIRED**
+**Current writer: None**
+**Historical rows: Supported/readable**
+**ID reused: No**
+**Manual QA: DO NOT QA AS A LIVE EVENT**
+
+ID A016 remains reserved in A004–A038 for historical compatibility. It is **not** a current production writer. `USER_ROLES_UPDATED` stays in `SECURITY_AUDIT_EVENTS` / Zod only so existing `security_audit_logs` rows still parse. It is listed in `RETIRED_SECURITY_AUDIT_EVENTS`.
+
+`PATCH /v1/admin/users/:id/roles` and `AdminService.updateUserRoles` have been removed. No Admin UI called this endpoint. Current Admin Portal access (`/accounts/:id`) uses `PATCH /v1/admin/users/:id/onboarding` and Onboarding `USER_ONBOARDING_STATUS_UPDATED`. Admin catalog role edits use `ADMIN_USER_ROLE_CHANGED`. Self-serve portal add-role uses `USER_ROLE_ADDED`.
+
+Historical writers always wrote a row even when `previousRoles` equalled `newRoles` (no-op was **not** skipped). Do not treat that as a current live expectation.
+
 Source Case: SEC-013
 Module: Security
 Audit Model: SecurityAuditLog
@@ -3206,33 +3219,33 @@ DB Table: security_audit_logs
 
 ## 1. What this event means
 
-An admin changed a user's portal role set (add/remove INVESTOR/ISSUER/ADMIN, etc.).
+**Historical meaning only.** Previously recorded that an admin replaced a user's portal role set (`INVESTOR` / `ISSUER` / `ADMIN` on `User.roles`). Distinct from admin catalog `role_description` (`ADMIN_USER_ROLE_CHANGED`) and from retired session `ACTIVE_ROLE_CHANGED`.
 
 ## 2. When it logs
 
-`apps/api/src/modules/admin/service.ts` user-roles update, in-tx.
+No current writer. Previously `AdminService.updateUserRoles` via `PATCH /v1/admin/users/:id/roles` (both removed).
 
 ## 3. When it does NOT log / no-op
 
-No write when the computed role set is unchanged. `addedRole` is not used on this event.
+Always, for current product actions. Portal access Save, Admin Roles table edits, onboarding grants, and `/auth/add-role` must not write this event.
 
 ## 4. Top-level audit row
 
 Append-only `SecurityAuditLog` / `security_audit_logs`.
 
-| Column | Current writer behavior |
+| Column | Historical row shape (no current writer) |
 |---|---|
 | `id` | cuid, generated |
-| `subject_user_id` | Affected user when the action is about a person; null for role/invitation/config targets |
+| `subject_user_id` | Target user |
 | `event_type` | `USER_ROLES_UPDATED` |
 | `occurred_at` / `created_at` | DB default `now()` |
-| `actor_type` | `USER` or `ADMIN` from request context |
-| `actor_user_id` | Acting user |
-| `organization_id` / `organization_kind` | Set for organization membership/invitation events; otherwise null |
+| `actor_type` | `ADMIN` from admin request context |
+| `actor_user_id` | Acting admin |
+| `organization_id` / `organization_kind` | null on this historical writer |
 | `target_type` | `USER` |
 | `target_id` | subject user_id |
 | `source` | `API` |
-| `portal` | Request portal |
+| `portal` | `ADMIN` |
 | `ip_address` / `user_agent` / `correlation_id` | Request context |
 | `idempotency_key` | **Always null** |
 | `metadata` | Parsed by `parseSecurityAuditMetadata` |
@@ -3258,33 +3271,26 @@ Append-only `SecurityAuditLog` / `security_audit_logs`.
 - **Type:** string | null
 - **Required:** Yes (key present)
 - **Nullable:** Yes
-- **Allowed values:** Any string, or null
-- **Writer source:** Writer injects via `loadAuditActorSnapshot` (or legal/notification local snapshot) from `actor_user_id`. Null name/email when the user row is missing.
-- **Current writer:** Always written by the table writer. Value is the actor's first+last name or null; email or null.
+- **Writer source:** Historical writer injected via `loadAuditActorSnapshot`
+- **Current writer:** None
 - **Example:** `"Aisha Rahman"` or `null`
-
-Admin curated activity may interpolate this into descriptions. Issuer/investor presentation never reads it.
 
 #### `actorEmail`
 
 - **Type:** string | null
 - **Required:** Yes (key present)
 - **Nullable:** Yes
-- **Allowed values:** Any string, or null
-- **Writer source:** Writer injects via `loadAuditActorSnapshot` (or legal/notification local snapshot) from `actor_user_id`. Null name/email when the user row is missing.
-- **Current writer:** Always written by the table writer. Value is the actor's first+last name or null; email or null.
+- **Writer source:** Historical writer injected via `loadAuditActorSnapshot`
+- **Current writer:** None
 - **Example:** `"aisha@example.com"` or `null`
-
-Stored for raw audit. Curated activity titles do not print it except where a dedicated email field is used (admin-only).
 
 #### `previousRoles`
 
 - **Type:** string[]
 - **Required:** Yes
 - **Nullable:** No
-- **Allowed values:** Role strings before the change
-- **Writer source:** Writer computes via `roleDiff`
-- **Current writer:** Always populated
+- **Writer source:** Historical `roleDiff`
+- **Current writer:** None
 - **Example:** `["INVESTOR"]`
 
 #### `newRoles`
@@ -3292,9 +3298,8 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Type:** string[]
 - **Required:** Yes
 - **Nullable:** No
-- **Allowed values:** Role strings after the change
-- **Writer source:** Writer computes via `roleDiff`
-- **Current writer:** Always populated
+- **Writer source:** Historical `roleDiff`
+- **Current writer:** None
 - **Example:** `["INVESTOR","ISSUER"]`
 
 #### `addedRoles`
@@ -3302,9 +3307,8 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Type:** string[]
 - **Required:** Yes
 - **Nullable:** No
-- **Allowed values:** Roles in new but not previous
-- **Writer source:** Writer computes via `roleDiff`
-- **Current writer:** Always populated (may be empty)
+- **Writer source:** Historical `roleDiff` (may be empty, including historical no-ops)
+- **Current writer:** None
 - **Example:** `["ISSUER"]`
 
 #### `removedRoles`
@@ -3312,50 +3316,43 @@ Stored for raw audit. Curated activity titles do not print it except where a ded
 - **Type:** string[]
 - **Required:** Yes
 - **Nullable:** No
-- **Allowed values:** Roles in previous but not new
-- **Writer source:** Writer computes via `roleDiff`
-- **Current writer:** Always populated (may be empty)
+- **Writer source:** Historical `roleDiff` (may be empty)
+- **Current writer:** None
 - **Example:** `[]`
 
 #### `addedRole`
 
 - **Type:** string | undefined
 - **Required:** No
-- **Nullable:** No (when present)
-- **Allowed values:** Single role being added
-- **Writer source:** USER_ROLE_ADDED passes the requested role
-- **Current writer:** NO CURRENT WRITER POPULATES THIS FIELD on USER_ROLES_UPDATED
-- **Example:** Example not safely inferable from source.
-
+- **Writer source:** Used by `USER_ROLE_ADDED`, not by historical `USER_ROLES_UPDATED` rows
+- **Current writer:** None on this event
+- **Example:** omitted
 
 ## 6. Source of truth
 
-`User`, `UserSession`, admin role/permission tables, `AdminInvitation`, organization membership/invitation rows, `NotificationType` / `NotificationGroup` / `UserNotificationPreference` remain source of truth. `SecurityAuditLog` is append-only history with no FKs.
+`User.roles`, `Admin.role_description`, and onboarding account flags remain source of truth. `SecurityAuditLog` is append-only history.
 
 ## 7. Transaction / audit failure behavior
 
-`writeSecurityAuditLog` is in-transaction and **throws** on failure. The surrounding Prisma transaction rolls back. Use this for role/profile/invitation/membership/config mutations that must not commit without audit.
+No current writer. Historical rows were written in-transaction with `writeSecurityAuditLog`.
 
 ## 8. Writer(s)
 
-- `apps/api/src/modules/admin/service.ts` — update user roles
-- `writeSecurityAuditLog` in-tx
+None. Previously `AdminService.updateUserRoles` / `writeSecurityAuditLog` in-tx.
 
 ## 9. ADMIN RAW AUDIT
 
 **Visibility:** SHOW
 
-SHOW. Listed on the module's admin raw audit surface with the module permission. Opened via **View** into `AuditLogDetailSheet` (typed metadata, actor snapshot, target, IP/UA). Tab `/audit?tab=security`, permission `audit.security.view`.
+SHOW for historical rows. Tab `/audit?tab=security`, permission `audit.security.view`.
 
 **Title:** Raw event row
 
-**Description:** Full typed metadata in AuditLogDetailSheet (or inline recon detail).
+**Description:** Full typed metadata in AuditLogDetailSheet.
 
 ## 10. ADMIN CURATED ACTIVITY
 
 **Visibility:** HIDE
-
-HIDE. HIDE. Access, Security, Legal, Product, and Notification curated Activity feeds do not include this module. Admin raw remains the only human surface. Title and description are N/A. No curated activity adapter emits this event for this audience.
 
 **Title:** N/A
 
@@ -3365,8 +3362,6 @@ HIDE. HIDE. Access, Security, Legal, Product, and Notification curated Activity 
 
 **Visibility:** HIDE
 
-HIDE. HIDE. Access, Security, Legal, Product, and Notification curated Activity feeds do not include this module. Admin raw remains the only human surface. Title and description are N/A. No curated activity adapter emits this event for this audience.
-
 **Title:** N/A
 
 **Description:** N/A
@@ -3375,43 +3370,27 @@ HIDE. HIDE. Access, Security, Legal, Product, and Notification curated Activity 
 
 **Visibility:** HIDE
 
-HIDE. HIDE. Access, Security, Legal, Product, and Notification curated Activity feeds do not include this module. Admin raw remains the only human surface. Title and description are N/A. No curated activity adapter emits this event for this audience.
-
 **Title:** N/A
 
 **Description:** N/A
 
 ## 13. Presentation metadata safety
 
-No curated activity presentation. Admin raw `AuditLogDetailSheet` shows the full metadata JSON, including actor email, identifiers, hashes, and internal reason codes. That surface is permission-gated. Do not copy raw metadata into a user-facing timeline.
+No curated activity presentation. Admin raw `AuditLogDetailSheet` shows full metadata JSON.
 
 ## 14. Current UI behavior
 
-Admin `/audit?tab=security` requires `audit.security.view`. `AuditLogDetailSheet` + View. No issuer/investor/admin curated Activity.
+No Admin UI writes this event. Historical rows remain readable on `/audit?tab=security`.
 
 ## 15. Manual verification checklist
 
-- [ ] Event writes to correct audit table
-- [ ] event_type correct
-- [ ] occurred_at correct
-- [ ] actor correct
-- [ ] organization correct
-- [ ] target correct
-- [ ] metadata schema correct
-- [ ] required metadata populated
-- [ ] optional/null behavior correct
-- [ ] source-of-truth unchanged
-- [ ] no duplicate on no-op/replay where applicable
-- [ ] Admin raw visibility correct
-- [ ] Admin Activity visibility correct
-- [ ] Issuer visibility correct
-- [ ] Investor visibility correct
-- [ ] Visibility condition correct
-- [ ] Activity title correct
-- [ ] Activity description correct
-- [ ] No internal metadata exposed
-- [ ] RBAC correct
-- [ ] Detail UI correct
+**Do not manually QA A016 as a live Security event.** Live Security QA count is **33** active writers. A016 is retired.
+
+- [ ] No `PATCH /v1/admin/users/:id/roles`
+- [ ] No new `USER_ROLES_UPDATED` row from Portal access Save
+- [ ] Portal access still uses `PATCH /v1/admin/users/:id/onboarding`
+- [ ] Admin Roles table still writes `ADMIN_USER_ROLE_CHANGED`
+- [ ] Historical A016 rows (if any) remain readable on `/audit?tab=security`
 
 # A017 — ADMIN_USER_ROLE_CHANGED
 
@@ -3430,7 +3409,7 @@ An admin user's assigned admin-role key changed (which custom admin role they ho
 
 ## 3. When it does NOT log / no-op
 
-No write if the assigned admin role is unchanged. Distinct from `USER_ROLES_UPDATED` (portal roles).
+No write if the assigned admin role is unchanged. Distinct from retired `USER_ROLES_UPDATED` (historical portal-role set). Current Admin catalog edits are this event. Portal Investor/Issuer flags use Onboarding audit.
 
 ## 4. Top-level audit row
 
@@ -41618,7 +41597,7 @@ How an investor is allowed to see an event. CANCELLED `NoteInvestment` rows do n
 
 # Source verification footer
 
-Date: **2026-08-23**. Source: current tree after A178 dual-ledger occupancy metadata. Original A001–A177 IDs unchanged. A178 / APP-041 remains the latest audit ID. No APP-042.
+Date: **2026-08-23**. Source: current tree after A016 `USER_ROLES_UPDATED` retirement. Original A001–A177 IDs unchanged. A178 / APP-041 remains the latest audit ID. No APP-042.
 
 ## VERIFIED counts
 
@@ -41626,7 +41605,7 @@ Date: **2026-08-23**. Source: current tree after A178 dual-ledger occupancy meta
 |---|---:|---|
 | Catalogue arrays in this document (Access 3 + Security 35 + Onboarding 18 reserved + Legal 7 + Application 41 + Signing 12 + Note 37 + Payment 19 + Product 5 + Notification 1) | 178 reserved/catalogued IDs | VERIFIED |
 | `ACCESS_AUDIT_EVENTS` `apps/api/src/modules/auth/audit/events.ts` | 3 | VERIFIED |
-| `SECURITY_AUDIT_EVENTS` `apps/api/src/modules/security/audit/events.ts` | 35 reserved IDs (34 current active Security event types; A005 in `RETIRED_SECURITY_AUDIT_EVENTS`) | VERIFIED |
+| `SECURITY_AUDIT_EVENTS` `apps/api/src/modules/security/audit/events.ts` | 35 reserved IDs (33 current active Security event types; A005 and A016 in `RETIRED_SECURITY_AUDIT_EVENTS`) | VERIFIED |
 | `ONBOARDING_AUDIT_EVENTS` `apps/api/src/modules/onboarding/audit/events.ts` | 18 reserved IDs (15 current active onboarding event types; A040, A052, and A053 in `RETIRED_ONBOARDING_AUDIT_EVENTS`; A175 appended) | VERIFIED |
 | `LEGAL_ADMIN_AUDIT_EVENTS` `apps/api/src/modules/legal-documents/audit/events.ts` | 7 | VERIFIED |
 | `APPLICATION_AUDIT_EVENTS` `apps/api/src/modules/applications/audit/events.ts` | 41 (A063–A102 original + A178 appended) | VERIFIED |
@@ -41636,7 +41615,7 @@ Date: **2026-08-23**. Source: current tree after A178 dual-ledger occupancy meta
 | `PRODUCT_AUDIT_EVENTS` `apps/api/src/modules/products/audit/events.ts` | 5 | VERIFIED |
 | `NOTIFICATION_BROADCAST_AUDIT_EVENTS` `apps/api/src/modules/notification/audit/events.ts` | 1 | VERIFIED |
 | Zod `metadataByEvent` / `schemas` maps (one schema per catalogue event, including retired IDs so historical rows still parse) | 178 | VERIFIED |
-| Current writers (`eventType: "…"` call sites in `apps/api/src/modules/**` plus jobs/middleware) | 174 currently active event types with at least one writer; A005, A040, A052, and A053 have none | VERIFIED |
+| Current writers (`eventType: "…"` call sites in `apps/api/src/modules/**` plus jobs/middleware) | 173 currently active event types with at least one writer; A005, A016, A040, A052, and A053 have none | VERIFIED |
 | Admin raw coverage (global `/audit` tabs, application/note contextual history, trustee, gateway, withdrawal, recon) | 178 reserved/catalogued IDs remain readable | VERIFIED |
 
 ## Writer notes that affect verification

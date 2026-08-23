@@ -1,9 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { toast } from "sonner";
 import type {
   GetUsersParams,
-  UpdateUserRolesInput,
   UpdateUserKycInput,
   UpdateUserOnboardingInput,
   UpdateUserProfileInput,
@@ -49,33 +47,6 @@ export function useUserDetail(userId: string | null, options?: { enabled?: boole
     },
     enabled: Boolean(userId) && (options?.enabled ?? true),
     staleTime: 0,
-  });
-}
-
-export function useUpdateUserRoles() {
-  const { getAccessToken } = useAuthToken();
-  const apiClient = createApiClient(API_URL, getAccessToken);
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ userId, data }: { userId: string; data: UpdateUserRolesInput }) => {
-      const response = await apiClient.updateUserRoles(userId, data);
-      if (!response.success) {
-        throw new Error(response.error.message);
-      }
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "user-detail"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "admin-users"] });
-      toast.success("Roles updated successfully");
-    },
-    onError: (error: Error) => {
-      toast.error("Failed to update roles", {
-        description: error.message,
-      });
-    },
   });
 }
 

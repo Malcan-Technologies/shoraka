@@ -37,7 +37,6 @@ import {
   changedFieldsOf,
   loadAuditActorSnapshot,
   permissionDiff,
-  roleDiff,
 } from "../../lib/audit/snapshot";
 import { writeSecurityAuditLog } from "../security/audit/writer";
 import { SECURITY_AUDIT_TARGET_TYPE } from "../security/audit/events";
@@ -57,7 +56,6 @@ import {
 import type {
   GetUsersQuery,
   GetAccessLogsQuery,
-  UpdateUserRolesInput,
   UpdateUserOnboardingInput,
   UpdateUserProfileInput,
   GetAdminUsersQuery,
@@ -1150,146 +1148,6 @@ export class AdminService {
         issuer: issuerOrganizations.map((org) => mapOrganization(org, "issuer")),
       },
     };
-  }
-
-  /**
-   * Update user roles
-   */
-  async updateUserRoles(
-    req: Request,
-    userId: string,
-    data: UpdateUserRolesInput,
-    adminUserId: string
-  ): Promise<User> {
-    const user = await this.repository.getUserById(userId);
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    // Check if ADMIN role is being added or removed
-    const hadAdminRole = user.roles.includes(UserRole.ADMIN);
-    const hasAdminRole = data.roles.includes(UserRole.ADMIN);
-    const adminRoleRemoved = hadAdminRole && !hasAdminRole;
-    const adminRoleAdded = !hadAdminRole && hasAdminRole;
-
-    const context = auditContextFromAdminRequest(req);
-    const diff = roleDiff(user.roles, data.roles);
-
-    const updatedUser = await prisma.$transaction(async (tx) => {
-      if (adminRoleRemoved) {
-        const admin = await tx.admin.findUnique({ where: { user_id: userId } });
-        if (admin && admin.status === "ACTIVE") {
-          logger.info(
-            { userId, email: user.email, deactivatedBy: adminUserId },
-            "ADMIN role removed - deactivating admin record"
-          );
-          await tx.admin.update({
-            where: { user_id: userId },
-            data: { status: "INACTIVE" },
-          });
-          await writeSecurityAuditLog(
-            {
-              eventType: "ADMIN_USER_DEACTIVATED",
-              context,
-              subjectUserId: userId,
-              targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
-              targetId: userId,
-              metadata: {
-                previousStatus: "ACTIVE",
-                newStatus: "INACTIVE",
-                previousRoles: user.roles,
-                newRoles: data.roles,
-              },
-            },
-            tx
-          );
-        }
-      }
-
-      if (adminRoleAdded) {
-        const admin = await tx.admin.findUnique({ where: { user_id: userId } });
-        if (admin) {
-          if (admin.status === "INACTIVE") {
-            logger.info(
-              {
-                userId,
-                email: user.email,
-                roleDescription: admin.role_description,
-                activatedBy: adminUserId,
-              },
-              "ADMIN role added - reactivating existing admin record with previous role description"
-            );
-            await tx.admin.update({
-              where: { user_id: userId },
-              data: { status: "ACTIVE" },
-            });
-            await writeSecurityAuditLog(
-              {
-                eventType: "ADMIN_USER_REACTIVATED",
-                context,
-                subjectUserId: userId,
-                targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
-                targetId: userId,
-                metadata: {
-                  previousStatus: "INACTIVE",
-                  newStatus: "ACTIVE",
-                  previousRoles: user.roles,
-                  newRoles: data.roles,
-                },
-              },
-              tx
-            );
-          }
-        } else {
-          logger.info(
-            { userId, email: user.email, activatedBy: adminUserId },
-            "ADMIN role added - creating new admin record with SUPER_ADMIN role"
-          );
-          const superAdminRole = await tx.adminRoleConfig.findUnique({
-            where: { key: AdminRole.SUPER_ADMIN },
-          });
-          await tx.admin.create({
-            data: {
-              user_id: userId,
-              role_id: superAdminRole?.id ?? null,
-              role_description: AdminRole.SUPER_ADMIN,
-              status: "ACTIVE",
-            },
-          });
-        }
-      }
-
-      const hasInvestorRole = data.roles.includes(UserRole.INVESTOR);
-      const hasIssuerRole = data.roles.includes(UserRole.ISSUER);
-      const userUpdate: Prisma.UserUpdateInput = { roles: { set: data.roles } };
-      if (!hasInvestorRole && user.investor_account.length > 0) {
-        userUpdate.investor_account = { set: [] };
-      }
-      if (!hasIssuerRole && user.issuer_account.length > 0) {
-        userUpdate.issuer_account = { set: [] };
-      }
-
-      const updated = await tx.user.update({
-        where: { user_id: userId },
-        data: userUpdate,
-      });
-
-      await writeSecurityAuditLog(
-        {
-          eventType: "USER_ROLES_UPDATED",
-          context,
-          subjectUserId: userId,
-          targetType: SECURITY_AUDIT_TARGET_TYPE.USER,
-          targetId: userId,
-          metadata: diff,
-        },
-        tx
-      );
-
-      return updated;
-    });
-
-    return updatedUser;
   }
 
   /**

@@ -9,7 +9,6 @@ import type {
   UsersResponse,
   UserDetailResponse,
   UserResponse,
-  UpdateUserRolesInput,
   UpdateUserKycInput,
   UpdateUserOnboardingInput,
   UpdateUserProfileInput,
@@ -1830,13 +1829,6 @@ export class ApiClient {
 
   async getUser(id: string): Promise<ApiResponse<{ user: UserDetailResponse }> | ApiError> {
     return this.get<{ user: UserDetailResponse }>(`/v1/admin/users/${id}`);
-  }
-
-  async updateUserRoles(
-    id: string,
-    roles: UpdateUserRolesInput
-  ): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
-    return this.patch<{ user: UserResponse }>(`/v1/admin/users/${id}/roles`, roles);
   }
 
   async updateUserKyc(

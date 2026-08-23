@@ -62,7 +62,10 @@ describe("Access/Security audit cutover", () => {
   it("Security event catalogues match between API and types", () => {
     expect([...TYPES_SECURITY_EVENTS]).toEqual([...SECURITY_AUDIT_EVENTS]);
     expect(SECURITY_AUDIT_EVENTS).toHaveLength(35);
-    expect([...RETIRED_SECURITY_AUDIT_EVENTS]).toEqual(["ACTIVE_ROLE_CHANGED"]);
+    expect([...RETIRED_SECURITY_AUDIT_EVENTS]).toEqual([
+      "ACTIVE_ROLE_CHANGED",
+      "USER_ROLES_UPDATED",
+    ]);
     expect(SECURITY_AUDIT_EVENTS).toContain("ACTIVE_ROLE_CHANGED");
     expect(SECURITY_AUDIT_EVENTS).toContain("USER_ROLE_ADDED");
     expect(SECURITY_AUDIT_EVENTS).toContain("USER_ROLES_UPDATED");
@@ -83,6 +86,18 @@ describe("Access/Security audit cutover", () => {
     expect(authSchemas).not.toMatch(/switchRoleSchema/);
     expect(authRepository).not.toMatch(/updateSessionActiveRole/);
     expect(liveSources).not.toMatch(/eventType:\s*"ACTIVE_ROLE_CHANGED"/);
+  });
+
+  it("has no live writer or mounted route for retired USER_ROLES_UPDATED", () => {
+    expect(liveSources).not.toMatch(/eventType:\s*"USER_ROLES_UPDATED"/);
+    expect(liveSources).not.toMatch(/async updateUserRoles\(/);
+    expect(adminService).not.toMatch(/async updateUserRoles\(/);
+    const adminController = readSrc("modules/admin/controller.ts");
+    const adminSchemas = readSrc("modules/admin/schemas.ts");
+    expect(adminController).not.toMatch(/\/users\/:id\/roles/);
+    expect(adminController).not.toMatch(/updateUserRolesSchema/);
+    expect(adminSchemas).not.toMatch(/updateUserRolesSchema/);
+    expect(adminRepository).not.toMatch(/async updateUserRoles\(/);
   });
 
   it("syncUser does not write AccessAuditLog login", () => {
@@ -176,7 +191,7 @@ describe("Access/Security audit cutover", () => {
     expect(methodChunk(authService, "verifyEmail", 8000)).toMatch(/USER_EMAIL_VERIFIED/);
     expect(methodChunk(authService, "verifyEmail", 8000)).toMatch(/EMAIL_VERIFICATION_FAILED/);
 
-    expect(methodChunk(adminService, "updateUserRoles")).toMatch(/USER_ROLES_UPDATED/);
+    expect(adminService).not.toMatch(/async updateUserRoles\(/);
     expect(methodChunk(adminService, "updateUserProfile")).toMatch(/USER_PROFILE_UPDATED_BY_ADMIN/);
     expect(methodChunk(adminService, "updateUserId")).toMatch(/USER_PUBLIC_ID_CHANGED/);
     expect(methodChunk(adminService, "updateAdminRole")).toMatch(/ADMIN_USER_ROLE_CHANGED/);
@@ -289,7 +304,6 @@ describe("Access/Security audit cutover", () => {
       [adminService, "createAdminRole"],
       [adminService, "updateAdminRolePermissions"],
       [adminService, "deleteAdminRole"],
-      [adminService, "updateUserRoles"],
       [adminService, "updateAdminRole"],
       [adminService, "deactivateAdmin"],
       [adminService, "reactivateAdmin"],
@@ -353,5 +367,10 @@ describe("Access/Security audit cutover", () => {
     expect(context).toMatch(/systemAuditContext/);
     expect(authService).not.toMatch(/AUDIT_ACTOR_TYPE\.INTEGRATION/);
     expect(authService).not.toMatch(/AUDIT_ACTOR_TYPE\.SYSTEM/);
+  });
+
+  it("keeps requireRole and requirePermission", () => {
+    expect(middleware).toMatch(/export function requireRole\(/);
+    expect(middleware).toMatch(/export function requirePermission\(/);
   });
 });

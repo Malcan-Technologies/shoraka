@@ -75,10 +75,6 @@ export interface UsersResponse {
   pagination: PaginationResponse;
 }
 
-export interface UpdateUserRolesInput {
-  roles: UserRole[];
-}
-
 export interface UpdateUserKycInput {
   kycVerified: boolean;
 }

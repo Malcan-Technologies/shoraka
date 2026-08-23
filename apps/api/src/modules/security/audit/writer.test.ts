@@ -1,15 +1,20 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { Prisma } from "@prisma/client";
+import { ZodError } from "zod";
 import { writeSecurityAuditLog, writeSecurityAuditLogBestEffort } from "./writer";
 import { parseSecurityAuditMetadata } from "./metadata";
 import { SECURITY_AUDIT_EVENTS, RETIRED_SECURITY_AUDIT_EVENTS } from "./events";
 import type { AuditRequestContext } from "../../../lib/audit/context";
 
 describe("Security catalogue retirement", () => {
-  it("keeps ACTIVE_ROLE_CHANGED reserved but not as an active writer event", () => {
+  it("keeps ACTIVE_ROLE_CHANGED and USER_ROLES_UPDATED reserved but not as active writer events", () => {
     expect(SECURITY_AUDIT_EVENTS).toContain("ACTIVE_ROLE_CHANGED");
-    expect([...RETIRED_SECURITY_AUDIT_EVENTS]).toEqual(["ACTIVE_ROLE_CHANGED"]);
+    expect(SECURITY_AUDIT_EVENTS).toContain("USER_ROLES_UPDATED");
+    expect([...RETIRED_SECURITY_AUDIT_EVENTS]).toEqual([
+      "ACTIVE_ROLE_CHANGED",
+      "USER_ROLES_UPDATED",
+    ]);
     expect(SECURITY_AUDIT_EVENTS).toHaveLength(35);
   });
 
@@ -29,6 +34,39 @@ describe("Security catalogue retirement", () => {
         previousRole: "ISSUER",
         newRole: "INVESTOR",
         sessionId: "sess-1",
+      })
+    );
+  });
+
+  it("maps every Security catalogue constant including retired events to a Zod parser", () => {
+    for (const eventType of SECURITY_AUDIT_EVENTS) {
+      try {
+        parseSecurityAuditMetadata(eventType, {});
+        throw new Error(`${eventType} unexpectedly accepted empty metadata`);
+      } catch (error) {
+        expect(error).toBeInstanceOf(ZodError);
+      }
+    }
+  });
+
+  it("still validates historical USER_ROLES_UPDATED metadata", () => {
+    expect(
+      parseSecurityAuditMetadata("USER_ROLES_UPDATED", {
+        actorName: "Ada Admin",
+        actorEmail: "ada@example.com",
+        previousRoles: ["INVESTOR"],
+        newRoles: ["INVESTOR", "ISSUER"],
+        addedRoles: ["ISSUER"],
+        removedRoles: [],
+      })
+    ).toEqual(
+      expect.objectContaining({
+        actorName: "Ada Admin",
+        actorEmail: "ada@example.com",
+        previousRoles: ["INVESTOR"],
+        newRoles: ["INVESTOR", "ISSUER"],
+        addedRoles: ["ISSUER"],
+        removedRoles: [],
       })
     );
   });

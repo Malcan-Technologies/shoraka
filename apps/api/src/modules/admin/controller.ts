@@ -10,7 +10,6 @@ import { FULL_ACCESS_ADMIN_ROLE_KEYS, type AdminPermission, type AdminRoleKey } 
 import {
   getUsersQuerySchema,
   getAccessLogsQuerySchema,
-  updateUserRolesSchema,
   updateUserOnboardingSchema,
   updateUserProfileSchema,
   updateUserIdSchema,
@@ -370,48 +369,6 @@ router.get(
         error instanceof AppError
           ? error
           : new AppError(500, "INTERNAL_ERROR", "Failed to fetch user")
-      );
-    }
-  }
-);
-
-/**
- * @swagger
- * /v1/admin/users/:id/roles:
- *   patch:
- *     summary: Update user roles (admin only)
- *     tags: [Admin]
- *     security:
- *       - BearerAuth: []
- */
-router.patch(
-  "/users/:id/roles",
-  requirePermission("users.manage"),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id } = req.params;
-      const validated = updateUserRolesSchema.parse(req.body);
-
-      if (!req.user) {
-        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
-      }
-
-      const updatedUser = await adminService.updateUserRoles(req, id, validated, req.user.user_id);
-
-      res.json({
-        success: true,
-        data: { user: updatedUser },
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(
-        error instanceof AppError
-          ? error
-          : new AppError(
-            400,
-            "VALIDATION_ERROR",
-            error instanceof Error ? error.message : "Failed to update user roles"
-          )
       );
     }
   }

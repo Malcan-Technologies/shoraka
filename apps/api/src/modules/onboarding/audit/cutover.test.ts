@@ -168,6 +168,14 @@ describe("Onboarding audit cutover", () => {
     expect(schema).toMatch(/@@map\("onboarding_audit_logs"\)/);
   });
 
+  it("admin portal-access onboarding still grants INVESTOR/ISSUER roles without USER_ROLES_UPDATED", () => {
+    const chunk = methodChunk(adminService, "updateUserOnboarding", 5000);
+    expect(chunk).toMatch(/UserRole\.INVESTOR/);
+    expect(chunk).toMatch(/UserRole\.ISSUER/);
+    expect(chunk).toMatch(/USER_ONBOARDING_STATUS_UPDATED/);
+    expect(chunk).not.toMatch(/USER_ROLES_UPDATED/);
+  });
+
   it("writes the approved event catalogue from live modules", () => {
     expect(adminService).toMatch(/ONBOARDING_RESET/);
     expect(adminService).toMatch(/USER_ONBOARDING_STATUS_UPDATED/);
